@@ -9,8 +9,8 @@
       "released": "3",
       "uniques": "1",
       "total": "4",
-      "noOpsAndSkipped": "3",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "16",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/expr-eval.hd",
@@ -18,7 +18,8 @@
       "released": "3650726",
       "uniques": "0",
       "total": "3650726",
-      "noOpsAndSkipped": "5166006"
+      "noOpsAndSkipped": "15363197",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/int-loop.hd",
@@ -26,8 +27,8 @@
       "released": "2",
       "uniques": "0",
       "total": "2",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "9",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/inventory.hd",
@@ -35,7 +36,8 @@
       "released": "521",
       "uniques": "6400002",
       "total": "6400523",
-      "noOpsAndSkipped": "6401029"
+      "noOpsAndSkipped": "6403116",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/iter-pipeline.hd",
@@ -43,8 +45,8 @@
       "released": "4013",
       "uniques": "20000",
       "total": "26013",
-      "noOpsAndSkipped": "1",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "16054",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/list-sort.hd",
@@ -52,8 +54,8 @@
       "released": "14",
       "uniques": "1",
       "total": "15",
-      "noOpsAndSkipped": "1",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "58",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/list-stdlib-sort.hd",
@@ -61,7 +63,8 @@
       "released": "26",
       "uniques": "4001",
       "total": "4028",
-      "noOpsAndSkipped": "4"
+      "noOpsAndSkipped": "115",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
@@ -69,7 +72,8 @@
       "released": "6660275",
       "uniques": "10",
       "total": "12420414",
-      "noOpsAndSkipped": "1440025"
+      "noOpsAndSkipped": "28081182",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",
@@ -77,8 +81,8 @@
       "released": "15",
       "uniques": "0",
       "total": "15",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "61",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/map-count.hd",
@@ -86,8 +90,8 @@
       "released": "15",
       "uniques": "0",
       "total": "15",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "61",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/nested-display.hd",
@@ -95,8 +99,8 @@
       "released": "330002",
       "uniques": "0",
       "total": "330002",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "2640009",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/plugins.hd",
@@ -104,8 +108,8 @@
       "released": "5461460",
       "uniques": "8197500",
       "total": "19118960",
-      "noOpsAndSkipped": "21871093",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "43717662",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/resources.hd",
@@ -113,8 +117,8 @@
       "released": "20003",
       "uniques": "0",
       "total": "40003",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "480013",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/route-search.hd",
@@ -122,8 +126,8 @@
       "released": "614172",
       "uniques": "2476270",
       "total": "3090442",
-      "noOpsAndSkipped": "21099052",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "23555741",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/string-build.hd",
@@ -131,8 +135,8 @@
       "released": "19",
       "uniques": "65999",
       "total": "66018",
-      "noOpsAndSkipped": "1",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "78",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/string-builder.hd",
@@ -140,8 +144,8 @@
       "released": "4",
       "uniques": "0",
       "total": "4",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "67",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/task-pipeline.hd",
@@ -149,8 +153,8 @@
       "released": "4612524",
       "uniques": "3600000",
       "total": "12318776",
-      "noOpsAndSkipped": "3937518",
-      "reason": "Resident-frame lowering: task-pipeline pays two inert count calls for the two static separator fragments in its final interpolation, plus one extra skipped frame-bookkeeping check. Same-base A/B at 0, 1, 16 and 900000 pipeline items keeps these deltas fixed at +2 calls/+1 skip, with ownership total unchanged at 12318776 for the full benchmark. Fragment controls give +1 call per static text piece and zero calls without text pieces. This bounded per-run work replaces per-await live-row copying; it does not scale with pipeline items or suspension states."
+      "noOpsAndSkipped": "22387615",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/trait-dispatch.hd",
@@ -158,8 +162,8 @@
       "released": "2",
       "uniques": "0",
       "total": "2",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "9",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/runtime/progs/uniq-list-sort.hd",
@@ -167,8 +171,8 @@
       "released": "7",
       "uniques": "4000",
       "total": "4007",
-      "noOpsAndSkipped": "2",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "37",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/binary_trees.hd",
@@ -176,8 +180,8 @@
       "released": "29971824",
       "uniques": "0",
       "total": "29971824",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "119887297",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/closures.hd",
@@ -185,8 +189,8 @@
       "released": "103",
       "uniques": "1",
       "total": "154",
-      "noOpsAndSkipped": "51",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "464",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/dyn_iter.hd",
@@ -194,7 +198,7 @@
       "released": "300033",
       "uniques": "0",
       "total": "300033",
-      "noOpsAndSkipped": "121200018"
+      "noOpsAndSkipped": "2400151"
     },
     {
       "program": "bench/study/fannkuch_redux.hd",
@@ -202,7 +206,8 @@
       "released": "5",
       "uniques": "3",
       "total": "8",
-      "noOpsAndSkipped": "3"
+      "noOpsAndSkipped": "24",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/function-value-inputs.hd",
@@ -210,7 +215,8 @@
       "released": "4",
       "uniques": "0",
       "total": "4",
-      "noOpsAndSkipped": "4"
+      "noOpsAndSkipped": "23",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/json.hd",
@@ -218,8 +224,8 @@
       "released": "3060076",
       "uniques": "9350031",
       "total": "14450110",
-      "noOpsAndSkipped": "25330131",
-      "reason": "#1809 (e70be2212): decode reads JSON in one pass through the keyed stream reader. Its key loop writes each member into a slot and probes the guess and the per-type name table per key; those take count operations on string keys and slot values that are already sole-owned or static, which the runtime skips. The reader replaces two passes (validate with an index, then read), and decode is 6-21% faster on 10 MB documents (A/B on #1809). #2173 (4b): a body now releases a T? held in locals (Facts.find, a decoded optional) with the inline address count, whose call-site null test skips .None and counts the skip. Before 4b the body called the out-of-line walk helper, whose variant switch skipped .None uncounted. The real call became an inline test: less work, no call added; no-op calls are unchanged."
+      "noOpsAndSkipped": "31450424",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -227,8 +233,8 @@
       "released": "2",
       "uniques": "0",
       "total": "2",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "9",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/map_count.hd",
@@ -236,8 +242,8 @@
       "released": "7500036",
       "uniques": "2500000",
       "total": "15000036",
-      "noOpsAndSkipped": "2",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "30000193",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/nbody.hd",
@@ -245,8 +251,8 @@
       "released": "3",
       "uniques": "14000001",
       "total": "14000004",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "13",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/points.hd",
@@ -254,7 +260,8 @@
       "released": "33",
       "uniques": "11",
       "total": "54",
-      "noOpsAndSkipped": "11"
+      "noOpsAndSkipped": "144",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/readonly-comparison.hd",
@@ -262,7 +269,8 @@
       "released": "8",
       "uniques": "0",
       "total": "11",
-      "noOpsAndSkipped": "39000014"
+      "noOpsAndSkipped": "39000047",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/sieve.hd",
@@ -270,7 +278,8 @@
       "released": "3",
       "uniques": "1",
       "total": "4",
-      "noOpsAndSkipped": "1"
+      "noOpsAndSkipped": "14",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/spectral_norm.hd",
@@ -278,8 +287,8 @@
       "released": "5",
       "uniques": "43",
       "total": "48",
-      "noOpsAndSkipped": "3",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "24",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/string_build.hd",
@@ -287,8 +296,8 @@
       "released": "4",
       "uniques": "0",
       "total": "4",
-      "noOpsAndSkipped": "0",
-      "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
+      "noOpsAndSkipped": "63",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     },
     {
       "program": "bench/study/structure_walk.hd",
@@ -296,7 +305,8 @@
       "released": "3500060",
       "uniques": "0",
       "total": "6650100",
-      "noOpsAndSkipped": "13125181"
+      "noOpsAndSkipped": "27125368",
+      "reason": "Step 7c + 7d: a parameter's exit release runs in TIR under ParamOwned, the parameter's entry (lent, or the body's after an entry count); one the body moved on every path releases its zeroed value at the exit, which the call site's null test skips. Totals are unchanged; the old emitter skipped those exits by the whole-program lend instead."
     }
   ]
 }
