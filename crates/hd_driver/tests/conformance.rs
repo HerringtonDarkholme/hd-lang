@@ -2096,6 +2096,9 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             .filter(|part| !part.is_empty())
             .collect::<Vec<_>>()
     });
+    if parts.is_none() {
+        local_selection_guard(None, STD_RT_TESTS.len());
+    }
     let mut selected = 0;
     let runs = STD_RT_TESTS
         .iter()
@@ -2549,6 +2552,25 @@ fn add_count(counts: &mut Counts, verdict: &Verdict) {
     }
 }
 
+/// Owner rule (2026-11-21): the full conformance spec runs on CI only. A local
+/// run must name the areas a change touches, and may select at most half of the
+/// cases: a filter reaching more is the full spec under another name. CI sets
+/// `CI=true`.
+fn local_selection_guard(selected: Option<usize>, total: usize) {
+    if std::env::var("CI").is_ok_and(|ci| ci == "true") {
+        return;
+    }
+    match selected {
+        None => panic!(
+            "full conformance runs on CI only: set HD_CONFORMANCE_ONLY to the areas your change touches"
+        ),
+        Some(n) if n * 2 > total => panic!(
+            "HD_CONFORMANCE_ONLY selects {n} of {total} cases; more than half is the full spec, which runs on CI only. Name the areas your change touches"
+        ),
+        Some(_) => {}
+    }
+}
+
 /// `HD_CONFORMANCE_ONLY=a,b`: run only the cases whose path or rule
 /// contains one of the comma-separated parts, print each verdict with the
 /// first diagnostic or unsupported reason, and judge the selected cases.
@@ -2758,6 +2780,7 @@ fn specification_conformance_passes_except_known_failures() {
     let mode = engine_mode();
     let all = cases();
     let only = filtered(all.clone());
+    local_selection_guard(only.as_ref().map(Vec::len), all.len());
     let mut cases = on_target(only.clone().unwrap_or(all), HARNESS_TARGET)
         .unwrap_or_else(|error| panic!("conformance harness error: {error}"));
     let selected_tier = selection_env("HD_CONFORMANCE_TIER");
