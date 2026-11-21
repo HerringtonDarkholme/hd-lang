@@ -1,0 +1,8 @@
+fn outer[T]() -> void:
+    struct Cell:
+        value: T
+    struct Wrong:
+        value: T
+    impl Wrong for Cell: # diagnostic: unknown-trait
+        pass
+    pass

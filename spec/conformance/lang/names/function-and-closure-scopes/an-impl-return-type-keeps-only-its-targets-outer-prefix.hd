@@ -1,0 +1,13 @@
+fn outer[T, N < const i32, $ R](x: T) -> T:
+    struct Cell:
+        value: T
+    fn inner[U, $ S](x: T) -> T:
+        impl Cell:
+            fn again(self) -> Cell:
+                self
+            fn get(self) -> T:
+                struct Inner:
+                    from: Self
+                Inner { from: self }.from.value
+        Cell { value: x }.again().get()
+    inner::[i32, $()](x)

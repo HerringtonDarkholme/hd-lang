@@ -1,0 +1,15 @@
+# @dump: diagnostics tir
+trait Source:
+    fn wrapped(self) -> i32:
+        struct Held:
+            value: Self
+        fn inner[U](held: Held, value: U) -> U:
+            trait Pick:
+                fn pick(self, value: U) -> U
+            impl Pick for Held:
+                fn pick(self, value: U) -> U:
+                    struct Inner:
+                        value: U
+                    Inner { value }.value
+            held.pick(value)
+        inner(Held { value: self }, +3)

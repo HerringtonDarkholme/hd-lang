@@ -2330,6 +2330,77 @@ fn local_headers_read_their_enclosing_declarations_from_one_walk() {
     });
 }
 
+// #2249: growing a suite must not rescan it for every local capture,
+// and lexical depth adds only linear capture and diagnostic-context work.
+#[test]
+fn local_impl_capture_context_work_is_bounded_in_width_and_depth() {
+    fn source(width: usize, depth: usize) -> String {
+        let mut out =
+            String::from("fn outer[T](x: T) -> void:\n    struct Cell:\n        value: T\n");
+        for level in 0..depth {
+            let indent = "    ".repeat(level + 1);
+            let _ = writeln!(out, "{indent}fn level{level}[U{level}]() -> void:");
+        }
+        let indent = "    ".repeat(depth + 1);
+        let _ = writeln!(
+            out,
+            "{indent}trait Pick:\n{indent}    fn pick(self) -> void\n{indent}impl Cell:\n{indent}    fn visit[V](self) -> void:\n{indent}        struct Child:\n{indent}            value: V\n{indent}        impl Pick for Child:\n{indent}            fn pick(self) -> void:"
+        );
+        for index in 0..width {
+            let _ = writeln!(
+                out,
+                "{indent}                struct S{index}:\n{indent}                    value: T"
+            );
+        }
+        let _ = writeln!(out, "{indent}                pass\n{indent}        pass");
+        for level in (0..=depth).rev() {
+            let _ = writeln!(out, "{}pass", "    ".repeat(level + 1));
+        }
+        out
+    }
+    on_test_stack(|| {
+        let mut shallow = 0;
+        for depth in [1, 20] {
+            let mut overhead = 0;
+            let mut small = 0;
+            for width in [0, 100, 1_000] {
+                let (out, steps) = hd_resolve::work::count_enclosing_steps(|| {
+                    compile(&source(width, depth), &Goal::Analyze)
+                });
+                assert!(
+                    out.diags.is_empty(),
+                    "width {width}, depth {depth}: {}",
+                    out.render()
+                );
+                if width == 0 {
+                    overhead = steps;
+                    continue;
+                }
+                let work = steps - overhead;
+                eprintln!(
+                    "local capture work: width={width} depth={depth} steps={steps} incremental={work}"
+                );
+                if width == 100 {
+                    small = work;
+                }
+                assert!(
+                    small > 0 && work <= 11 * small,
+                    "width {width}, depth {depth}: {work}, width100 {small}"
+                );
+                if depth == 1 && width == 1_000 {
+                    shallow = work;
+                }
+                if depth == 20 && width == 1_000 {
+                    assert!(
+                        shallow > 0 && work <= 21 * shallow,
+                        "depth20 {work}, depth1 {shallow}"
+                    );
+                }
+            }
+        }
+    });
+}
+
 /// `n` functions, each declaring a local trait `Ti` with a method `get`,
 /// an impl of it for a local struct and the call `p.get()`: `n` local
 /// traits declare `get`, and each call sees one of them.

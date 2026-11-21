@@ -1301,3 +1301,6 @@ says that the check covered syntax only.
 | 2026-11-20 | #2228 Debug escape scan | api | `hd fmt lib/std/format.hd crates/hd_driver/tests/cases/stdlib/debug-escape-byte-runs.hd` | ``error: `hd fmt` takes at most one FILE`` | yes | Run `hd fmt` separately for each file | GPT-6 (Codex) |
 
 | 2026-11-21 | #1442 resolver variance stages | type | `values: (i32, T...)` | `` a rest element's type must be a `List` `` | yes | `values: (i32, List[T]...)` | GPT-6 (Codex) |
+
+| 2026-11-21 | #2249 raw local target declaration | syntax | `struct r#type:` | ``syntax-error: the file does not parse, so `hd fmt` leaves it as it is`` | no; read lex.raw.form | ``struct `type`:`` | GPT-6 (Codex) |
+| 2026-11-21 | #2249 raw local impl target | syntax | `impl r#type:` | ``syntax-error: the file does not parse, so `hd fmt` leaves it as it is`` | no; read lex.raw.form | ``impl `type`:`` | GPT-6 (Codex) |

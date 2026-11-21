@@ -1,0 +1,11 @@
+fn outer[T](x: T) -> void:
+    struct Cell:
+        value: T
+    fn inner[$ S]() -> void:
+        struct Pair:
+            value: i32
+        impl Cell:
+            fn missing(self) -> Pair: # diagnostic: local-impl-outer-parameter
+                panic("not called")
+        pass
+    pass

@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# expected: the signature reports the enclosing parameter that its local impl does not take.
+fn outer[T](x: T) -> void:
+    struct Cell:
+        value: T
+    fn inner[U]() -> void:
+        struct Pair:
+            value: i32
+        impl Cell:
+            fn missing(self) -> Pair:
+                panic("not called")
+        pass
+    pass

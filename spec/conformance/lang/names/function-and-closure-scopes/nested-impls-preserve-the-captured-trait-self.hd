@@ -1,0 +1,11 @@
+trait Source:
+    fn value(self) -> i32
+    fn wrapped(self) -> i32:
+        struct Held:
+            value: Self
+        impl Held:
+            fn read(self) -> i32:
+                struct Inner:
+                    value: Self
+                Inner { value: self }.value.value.value()
+        Held { value: self }.read()
