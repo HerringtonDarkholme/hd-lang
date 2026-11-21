@@ -4,26 +4,20 @@ app/main/absent
     uses $0: entry -> %1 consume last
   local $1 value: Envelope [param read captured] place
   %1 = Read move [$0] : Result[Envelope, string]
-  %2 = Retain %13 Entry local $1 #0 : ()
+  %2 = Retain %10 Entry local $1 #0 : ()
   %3 = Box #1 #1 : ()
   %4 = Ref local [$1 .filter] : &(Payload?)
   %5 = Call app/main/missing[] (%4) : bool
   %6 = LoanEnd [%4] : ()
   %7 = Drop [$1] : ()
   %8 = Coerce %5 [Identity -] : bool
-  %9 = Intrinsic ParamOwned [1:i32] : bool
-  %10 = Drop [$1] : ()
-  %11 = Block - : ()
-  %12 = If %9 [%11 -] : ()
-  %13 = Block %8 : bool
-  %14 = Closure #1 : fn(Envelope) -> bool
-  %15 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].map[Envelope, string, bool] (%1, %14) : Result[bool, string]
-  %15 keeps %14
-  %16 = Intrinsic ParamOwned [0:i32] : bool
-  %17 = Drop [$0] : ()
-  %18 = Block - : ()
-  %19 = If %16 [%18 -] : ()
-  %20 = Block %15 : Result[bool, string]
+  %9 = Drop [$1] : ()
+  %10 = Block %8 : bool
+  %11 = Closure #1 : fn(Envelope) -> bool
+  %12 = Call std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].map[Envelope, string, bool] (%1, %11) : Result[bool, string]
+  %12 keeps %11
+  %13 = Drop [$0] : ()
+  %14 = Block %12 : Result[bool, string]
   exit sub 0 drops [$0]
   exit sub 1 drops [$1]
   storage sub 0: $1 cell

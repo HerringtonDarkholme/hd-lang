@@ -25,7 +25,7 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 >   local $0 shelves: Map[string, Stock] [param read] place
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %2 lend, %9 lend last
->   %0 = Retain %23 Entry local $0 #0 : ()
+>   %0 = Retain %20 Entry local $0 #0 : ()
     add(&mut shelves[name], 1)
 >   %1 = Read borrow [$0] : Map[string, Stock]
 >   %2 = Read borrow [$1] : string
@@ -34,16 +34,13 @@ fn restock(mut shelves: Map[string, Stock], name: string) -> Map[string, Stock]:
 >   %5 = Ref mut local [$0 [%3]] : &mut Stock
 >   %6 = Call app/main/add[] (%5, 1:i32) : ()
 >   %7 = LoanEnd [%5] : ()
->   %14 = Intrinsic ParamOwned [0:i32] : bool
->   %15 = Drop [$0] : ()
->   %16 = Block - : ()
->   %17 = If %14 [%16 -] : ()
->   %18 = Intrinsic ParamOwned [1:i32] : bool
->   %19 = Drop [$1] : ()
->   %20 = Block - : ()
->   %21 = If %18 [%20 -] : ()
->   %22 = Release %23 Exit local $1 #2 : ()
->   %23 = Block %13 : Map[string, Stock]
+>   %14 = Drop [$0] : ()
+>   %15 = Intrinsic ParamOwned [1:i32] : bool
+>   %16 = Drop [$1] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $1 #2 : ()
+>   %20 = Block %13 : Map[string, Stock]
     shelves[name].count = 5
 >   %8 = Read borrow [$0] : Map[string, Stock]
 >   %9 = Read borrow [$1] : string

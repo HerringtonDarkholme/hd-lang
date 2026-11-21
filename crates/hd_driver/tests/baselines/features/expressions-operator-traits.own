@@ -112,20 +112,17 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >     uses $6: %5 -> %8 lend
 >   local $7 item: T [read assigned] value
 >     uses $7: %23 -> %16 consume last
->   %0 = Retain %43 Entry local $1 #0 : ()
+>   %0 = Retain %40 Entry local $1 #0 : ()
     let total = zero
 >   %1 = Read move [$1] : T
 >   %2 = Store [$2] %1 : ()
->   %34 = Intrinsic ParamOwned [1:i32] : bool
->   %35 = Drop [$1] : ()
->   %36 = Block - : ()
->   %37 = If %34 [%36 -] : ()
->   %38 = Intrinsic ParamOwned [0:i32] : bool
->   %39 = Drop [$0] : ()
->   %40 = Block - : ()
->   %41 = If %38 [%40 -] : ()
->   %42 = Release %43 Exit local $0 #2 : ()
->   %43 = Block %33 : T
+>   %34 = Drop [$1] : ()
+>   %35 = Intrinsic ParamOwned [0:i32] : bool
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Release %40 Exit local $0 #2 : ()
+>   %40 = Block %33 : T
     for item in items:
 >   %3 = Read borrow [$0] : List[T]
 >   %4 = Intrinsic ListLen [%3] : usize

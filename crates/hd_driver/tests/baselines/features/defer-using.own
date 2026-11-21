@@ -35,8 +35,8 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   local $2 $ref: DeferGuard[fn() -> (), $()] [:= read assigned captured captured-assigned] place
 >   local $4 action: fn() -> () [read] value
 >     uses $4: %13 -> %14 consume last
->   %1 = Retain %44 Entry local $0 #0 : ()
->   %2 = Retain %44 Entry local $1 #0 : ()
+>   %1 = Retain %38 Entry local $0 #0 : ()
+>   %2 = Retain %38 Entry local $1 #0 : ()
     defer(fn() -> void: log.push(s))
 >   %0 = Retain %10 Entry captures #0 : ()
 >   %3 = Read move [$1] : string
@@ -67,15 +67,9 @@ fn with_defer(log: *mut List[string], s: string) -> usize:
 >   %33 = Scope %32 [] : usize
 >   %34 = Drop [$0] : ()
 >   %35 = Drop [$1] : ()
->   %36 = Intrinsic ParamOwned [0:i32] : bool
->   %37 = Drop [$0] : ()
->   %38 = Block - : ()
->   %39 = If %36 [%38 -] : ()
->   %40 = Intrinsic ParamOwned [1:i32] : bool
->   %41 = Drop [$1] : ()
->   %42 = Block - : ()
->   %43 = If %40 [%42 -] : ()
->   %44 = Block %33 : usize
+>   %36 = Drop [$0] : ()
+>   %37 = Drop [$1] : ()
+>   %38 = Block %33 : usize
     s.len()
 >   %21 = Read borrow [$1] : string
 >   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
@@ -99,8 +93,8 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >     uses $3: %8 -> %9 lend, %18 lend last
 >   local $4 self: string [read] value
 >     uses $4: %11 -> %12 lend last
->   %0 = Retain %33 Entry local $0 #0 : ()
->   %1 = Retain %33 Entry local $1 #0 : ()
+>   %0 = Retain %27 Entry local $0 #0 : ()
+>   %1 = Retain %27 Entry local $1 #0 : ()
     using r = box(Res { name: s, log: log })
 >   %2 = Read move [$1] : string
 >   %3 = Read move [$0] : *mut List[string]
@@ -116,15 +110,9 @@ fn with_using(log: *mut List[string], s: string) -> usize:
 >   %22 = Drop [$3] : ()
 >   %23 = Block %16 : usize
 >   %24 = Scope %23 [] : usize
->   %25 = Intrinsic ParamOwned [0:i32] : bool
->   %26 = Drop [$0] : ()
->   %27 = Block - : ()
->   %28 = If %25 [%27 -] : ()
->   %29 = Intrinsic ParamOwned [1:i32] : bool
->   %30 = Drop [$1] : ()
->   %31 = Block - : ()
->   %32 = If %29 [%31 -] : ()
->   %33 = Block %24 : usize
+>   %25 = Drop [$0] : ()
+>   %26 = Drop [$1] : ()
+>   %27 = Block %24 : usize
     r.name.len()
 >   %9 = Read borrow [*$3 .name] : string
 >   %10 = LoanBegin %9 #0 : ()

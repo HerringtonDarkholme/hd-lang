@@ -3,19 +3,16 @@ app/main/twice
   local $0 text: string [param read] value
     uses $0: entry -> %1 consume last
   local $1 word: string [:= read assigned] value
-    uses $1: %14 -> %15 lend, %17 lend last
+    uses $1: %11 -> %12 lend, %14 lend last
   %1 = Read move [$0] : string
   %2 = Call app/main/parse[] (%1) : Result[string, string]
   %3 = Read move [%2 as #0 .0] : string
   %4 = Block %3 : string
   %5 = Read move [%2 as #1 .0] : string
   %6 = NewVariant #1 [%5] : Result[string, string]
-  %7 = Intrinsic ParamOwned [0:i32] : bool
-  %8 = Drop [$0] : ()
-  %9 = Block - : ()
-  %10 = If %7 [%9 -] : ()
-  %11 = Return %6 : never
-  %12 = Block - : never
-  %13 = SwitchTag %2 [#0 %4 %12] : string
-  %14 = Store [$1] %13 : ()
+  %7 = Drop [$0] : ()
+  %8 = Return %6 : never
+  %9 = Block - : never
+  %10 = SwitchTag %2 [#0 %4 %9] : string
+  %11 = Store [$1] %10 : ()
   exit sub 0 drops [$0]

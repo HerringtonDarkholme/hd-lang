@@ -17,11 +17,8 @@ fn eat(xs: UniqList[string]) -> usize:
 >   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%1) : usize
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Drop [$0] : ()
->   %5 = Intrinsic ParamOwned [0:i32] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block %2 : usize
+>   %5 = Drop [$0] : ()
+>   %6 = Block %2 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
@@ -30,7 +27,7 @@ fn split(p: Pair) -> usize:
 > app/main/split
 >   local $0 p: Pair [param read captured] place
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: entry -> %10 lend, %18 lend last
+>     uses $1: entry -> %9 lend, %14 lend last
 >   %0 = FlagSet [$0] #1 : ()
 >   %1 = FlagSet [$0 .a] #2 : ()
 >   %2 = Box #0 #0 : ()
@@ -40,21 +37,15 @@ fn split(p: Pair) -> usize:
 >   %6 = Ref local frame [$0 .b] : &UniqList[string]
 >   %7 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%6) : usize
 >   %8 = LoanEnd [%6] : ()
->   %9 = Intrinsic ParamOwned [0:i32] : bool
->   %10 = Read copy [$1] : bool
->   %11 = Drop [$0] : ()
->   %12 = Block - : ()
->   %13 = If %10 [%12 -] : ()
->   %14 = Block - : ()
->   %15 = If %9 [%14 -] : ()
->   %16 = Prim Add [%5 %7] : usize
->   %17 = Intrinsic ParamOwned [0:i32] : bool
->   %18 = Read copy [$1] : bool
->   %19 = Drop [$0] : ()
->   %20 = Block - : ()
->   %21 = If %18 [%20 -] : ()
->   %22 = Block - : ()
->   %23 = If %17 [%22 -] : ()
->   %24 = Block %16 : usize
+>   %9 = Read copy [$1] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Prim Add [%5 %7] : usize
+>   %14 = Read copy [$1] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Block %13 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot

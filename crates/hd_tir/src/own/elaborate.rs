@@ -51,8 +51,9 @@ struct Elab<'a> {
     paths: Paths,
     reason: u32,
     syn: NodeIdx,
-    /// Per local, the sub-body it is a parameter of, else `NONE`, and the
-    /// sub-body of the release being written.
+    /// Per local, the sub-body it is a parameter of whose ownership the
+    /// link decides, else `NONE`, and the sub-body of the release being
+    /// written.
     param_of: Vec<u32>,
     sub: u32,
 }
@@ -331,19 +332,11 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         *c &= cx.holds_drop(b.local_ty[l]) != super::Tri::No && read(b, cx, Key::Local(u32_of(l)));
     }
     let parts = |t, v, out: &mut Vec<Ty>| cx.drop_parts(t, v, out);
-    // A parameter is its sub-body's: the root's, unless a sub-body names it.
-    let mut param_of: Vec<u32> = (0..b.local_ty.len())
-        .map(|l| {
-            if b.local_flags[l] & local_flags::PARAM != 0 {
-                0
-            } else {
-                NONE
-            }
-        })
-        .collect();
-    for s in 1..b.sub_params.len() {
-        for &l in b.sub_param_locals(s) {
-            param_of[l as usize] = u32_of(s);
+    // A parameter with an exit count: its ownership is a link-time fact.
+    let mut param_of = vec![NONE; b.local_ty.len()];
+    for (s, members) in exit.iter().enumerate() {
+        for &(word, _) in members.iter().filter(|m| m.1 != NONE) {
+            param_of[(word & !place::BARE_LOCAL) as usize] = u32_of(s);
         }
     }
     let mut e = Elab {

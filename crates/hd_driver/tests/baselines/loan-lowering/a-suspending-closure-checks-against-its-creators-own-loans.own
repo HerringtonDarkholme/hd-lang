@@ -14,10 +14,10 @@ fn run!(f: fn!() -> void) -> void:
 > app/main/run
 >   local $0 f: fn!() -> () [param read] value
 >     uses $0: entry -> %3 lend last
->   %0 = Retain %14 Cold local $0 #0 : ()
->   %1 = Retain %14 Entry local $0 #0 : ()
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
     f!()
->   %2 = Release %14 FrameDrop child #2 : ()
+>   %2 = Release %11 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : fn!() -> ()
 >   %4 = CallValue %3 [] : Suspend[()]
 >   %5 = AwaitValue %4 : ()
@@ -25,16 +25,16 @@ fn run!(f: fn!() -> void) -> void:
 >   %7 = Retain %5 Operation child #0 : ()
 >   %8 = Drop [%4] : ()
 >   %9 = Drop [%3] : ()
->   %10 = Intrinsic ParamOwned [0:i32] : bool
->   %11 = Drop [$0] : ()
->   %12 = Block - : ()
->   %13 = If %10 [%12 -] : ()
->   %14 = Block - : ()
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block - : ()
 >   exit sub 0 drops [$0]
->   cancel %5 releases [%3 %4 %16 %17 %4294967295]
->   cancel %14 releases [%2147483648]
+>   cancel %5 releases [%3 %4 %2147483648 %4294967295]
+>   cancel %11 releases [%16 %17]
 
 fn run_plain(f: fn() -> void) -> void:
     f()
@@ -172,10 +172,10 @@ fn run!(f: fn!() -> void) -> void:
 > app/main/run
 >   local $0 f: fn!() -> () [param read] value
 >     uses $0: entry -> %3 lend last
->   %0 = Retain %14 Cold local $0 #0 : ()
->   %1 = Retain %14 Entry local $0 #0 : ()
+>   %0 = Retain %11 Cold local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
     f!()
->   %2 = Release %14 FrameDrop child #2 : ()
+>   %2 = Release %11 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : fn!() -> ()
 >   %4 = CallValue %3 [] : Suspend[()]
 >   %5 = AwaitValue %4 : ()
@@ -183,17 +183,17 @@ fn run!(f: fn!() -> void) -> void:
 >   %7 = Retain %5 Operation child #0 : ()
 >   %8 = Drop [%4] : ()
 >   %9 = Drop [%3] : ()
->   %10 = Intrinsic ParamOwned [0:i32] : bool
->   %11 = Drop [$0] : ()
->   %12 = Block - : ()
->   %13 = If %10 [%12 -] : ()
->   %14 = Block - : ()
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %5 releases [%3 %4 %16 %17 %4294967295]
->   cancel %14 releases [%2147483648]
+>   cancel %5 releases [%3 %4 %2147483648 %4294967295]
+>   cancel %11 releases [%16 %17]
 
 fn run_plain(f: fn() -> void) -> void:
     f()

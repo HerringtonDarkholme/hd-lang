@@ -10,22 +10,19 @@ fn captured(text: string, suffix: string) -> string:
 >     uses $1: entry -> %6 lend, %12 lend last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   %0 = Retain %32 Entry local $0 #0 : ()
+>   %0 = Retain %29 Entry local $0 #0 : ()
     let current = text
 >   %1 = Read move [$0] : string
 >   %2 = Box #2 #0 : ()
 >   %3 = Store [$2] %1 : ()
->   %22 = Intrinsic ParamOwned [0:i32] : bool
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
->   %25 = If %22 [%24 -] : ()
->   %26 = Drop [$2] : ()
->   %27 = Intrinsic ParamOwned [1:i32] : bool
->   %28 = Drop [$1] : ()
->   %29 = Block - : ()
->   %30 = If %27 [%29 -] : ()
->   %31 = Release %32 Exit local $1 #2 : ()
->   %32 = Block %19 : string
+>   %22 = Drop [$0] : ()
+>   %23 = Drop [$2] : ()
+>   %24 = Intrinsic ParamOwned [1:i32] : bool
+>   %25 = Drop [$1] : ()
+>   %26 = Block - : ()
+>   %27 = If %24 [%26 -] : ()
+>   %28 = Release %29 Exit local $1 #2 : ()
+>   %29 = Block %19 : string
     append := fn() -> void: current += suffix
     append()
 >   %4 = Read copy [$2] : string
@@ -59,22 +56,19 @@ fn dynamic(text: string, suffix: string) -> string:
 >     uses $1: entry -> %6 lend last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   %0 = Retain %31 Entry local $0 #0 : ()
+>   %0 = Retain %28 Entry local $0 #0 : ()
     let current = text
 >   %1 = Read move [$0] : string
 >   %2 = Box #2 #0 : ()
 >   %3 = Store [$2] %1 : ()
->   %21 = Intrinsic ParamOwned [0:i32] : bool
->   %22 = Drop [$0] : ()
->   %23 = Block - : ()
->   %24 = If %21 [%23 -] : ()
->   %25 = Drop [$2] : ()
->   %26 = Intrinsic ParamOwned [1:i32] : bool
->   %27 = Drop [$1] : ()
->   %28 = Block - : ()
->   %29 = If %26 [%28 -] : ()
->   %30 = Release %31 Exit local $1 #2 : ()
->   %31 = Block %18 : string
+>   %21 = Drop [$0] : ()
+>   %22 = Drop [$2] : ()
+>   %23 = Intrinsic ParamOwned [1:i32] : bool
+>   %24 = Drop [$1] : ()
+>   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Release %28 Exit local $1 #2 : ()
+>   %28 = Block %18 : string
     append := fn(suffix: string) -> void: current += suffix
     append(suffix)
 >   %4 = Read copy [$2] : string

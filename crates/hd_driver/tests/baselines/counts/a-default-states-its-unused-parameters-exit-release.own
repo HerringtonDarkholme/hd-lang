@@ -9,23 +9,20 @@ fn note(log: *mut List[string], text: string) -> string:
 >     uses $0: entry -> %4 lend last
 >   local $1 text: string [param read] value
 >     uses $1: entry -> %1 consume, %6 consume last
->   %0 = Retain %16 Entry local $1 #0 : ()
+>   %0 = Retain %13 Entry local $1 #0 : ()
     log.push(text)
 >   %1 = Read copy [$1] : string
 >   %2 = Retain %1 Value #0 : ()
 >   %3 = IsUnique [*$0] : ()
 >   %4 = Read borrow [*$0] : List[string]
 >   %5 = Intrinsic ListPush [%4 %1] : ()
->   %7 = Intrinsic ParamOwned [1:i32] : bool
->   %8 = Drop [$1] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Intrinsic ParamOwned [0:i32] : bool
->   %12 = Drop [$0] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Release %16 Exit local $0 #2 : ()
->   %16 = Block %6 : string
+>   %7 = Drop [$1] : ()
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $0 #2 : ()
+>   %13 = Block %6 : string
     text
 >   %6 = Read move [$1] : string
 >   exit sub 0 drops [$1]
@@ -39,19 +36,16 @@ fn join(
 >     uses $0: entry -> %1 consume last
 >   local $1 first: string [param] value
 >     uses $1: none
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
 >   %1 = Read move [$0] : *mut List[string]
 >   %2 = Call app/main/note[] (%1, "second") : string
->   %3 = Intrinsic ParamOwned [0:i32] : bool
->   %4 = Drop [$0] : ()
->   %5 = Block - : ()
->   %6 = If %3 [%5 -] : ()
->   %7 = Intrinsic ParamOwned [1:i32] : bool
->   %8 = Drop [$1] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Release %12 Exit local $1 #2 : ()
->   %12 = Block %2 : string
+>   %3 = Drop [$0] : ()
+>   %4 = Intrinsic ParamOwned [1:i32] : bool
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %9 Exit local $1 #2 : ()
+>   %9 = Block %2 : string
 >   exit sub 0 drops [$0]
     limit: usize = 64,
 > app/main/join.limit
@@ -258,26 +252,23 @@ fn join(
 >   %128 = Block - : ()
 >   %129 = Scope %128 [] : ()
 >   %130 = Read move [%38] : string
->   %131 = Intrinsic ParamOwned [3:i32] : bool
->   %132 = Drop [$3] : ()
->   %133 = Block - : ()
->   %134 = If %131 [%133 -] : ()
->   %135 = Intrinsic ParamOwned [0:i32] : bool
->   %136 = Drop [$0] : ()
->   %137 = Block - : ()
->   %138 = If %135 [%137 -] : ()
->   %139 = Release %150 Exit local $0 #2 : ()
->   %140 = Intrinsic ParamOwned [1:i32] : bool
->   %141 = Drop [$1] : ()
->   %142 = Block - : ()
->   %143 = If %140 [%142 -] : ()
->   %144 = Release %150 Exit local $1 #2 : ()
->   %145 = Intrinsic ParamOwned [2:i32] : bool
->   %146 = Drop [$2] : ()
->   %147 = Block - : ()
->   %148 = If %145 [%147 -] : ()
->   %149 = Release %150 Exit local $2 #2 : ()
->   %150 = Block %130 : string
+>   %131 = Drop [$3] : ()
+>   %132 = Intrinsic ParamOwned [0:i32] : bool
+>   %133 = Drop [$0] : ()
+>   %134 = Block - : ()
+>   %135 = If %132 [%134 -] : ()
+>   %136 = Release %147 Exit local $0 #2 : ()
+>   %137 = Intrinsic ParamOwned [1:i32] : bool
+>   %138 = Drop [$1] : ()
+>   %139 = Block - : ()
+>   %140 = If %137 [%139 -] : ()
+>   %141 = Release %147 Exit local $1 #2 : ()
+>   %142 = Intrinsic ParamOwned [2:i32] : bool
+>   %143 = Drop [$2] : ()
+>   %144 = Block - : ()
+>   %145 = If %142 [%144 -] : ()
+>   %146 = Release %147 Exit local $2 #2 : ()
+>   %147 = Block %130 : string
 >   exit sub 0 drops [$3]
 >   storage sub 0: $3 slot
 

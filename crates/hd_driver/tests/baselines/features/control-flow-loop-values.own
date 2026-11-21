@@ -121,22 +121,19 @@ fn forever(s: string) -> string:
 >   local $1 out: string [read assigned mutated] place
 >   local $2 self: string [read] value
 >     uses $2: %4 -> %5 lend last
->   %0 = Retain %34 Entry local $0 #0 : ()
+>   %0 = Retain %28 Entry local $0 #0 : ()
     let out = s
 >   %1 = Read move [$0] : string
 >   %2 = Store [$1] %1 : ()
->   %30 = Intrinsic ParamOwned [0:i32] : bool
->   %31 = Drop [$0] : ()
->   %32 = Block - : ()
->   %33 = If %30 [%32 -] : ()
->   %34 = Block - : string
+>   %27 = Drop [$0] : ()
+>   %28 = Block - : string
     while true:
->   %24 = Break L0 - : never
->   %25 = Block - : ()
->   %26 = If 1:bool [%23 %25] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : never
->   %29 = Drop [$1] : ()
+>   %21 = Break L0 - : never
+>   %22 = Block - : ()
+>   %23 = If 1:bool [%20 %22] : ()
+>   %24 = Block - : ()
+>   %25 = Loop %24 - : never
+>   %26 = Drop [$1] : ()
         if out.len() > 8:
 >   %3 = Read borrow [$1] : string
 >   %4 = Store [$2] %3 : ()
@@ -146,20 +143,17 @@ fn forever(s: string) -> string:
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
 >   %10 = Prim Gt [%9 8:usize] : bool
->   %18 = If %10 [%17 -] : ()
->   %23 = Block - : ()
+>   %15 = If %10 [%14 -] : ()
+>   %20 = Block - : ()
             return out
 >   %11 = Read move [$1] : string
->   %12 = Intrinsic ParamOwned [0:i32] : bool
->   %13 = Drop [$0] : ()
->   %14 = Block - : ()
->   %15 = If %12 [%14 -] : ()
->   %16 = Return %11 : never
->   %17 = Block - : never
+>   %12 = Drop [$0] : ()
+>   %13 = Return %11 : never
+>   %14 = Block - : never
         out += "!"
->   %19 = Read borrow [$1] : string
->   %20 = Intrinsic StrConcat [%19 "!"] : string
->   %21 = Store [$1] %20 : ()
->   %22 = Release %21 Operation #3 : ()
+>   %16 = Read borrow [$1] : string
+>   %17 = Intrinsic StrConcat [%16 "!"] : string
+>   %18 = Store [$1] %17 : ()
+>   %19 = Release %18 Operation #3 : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

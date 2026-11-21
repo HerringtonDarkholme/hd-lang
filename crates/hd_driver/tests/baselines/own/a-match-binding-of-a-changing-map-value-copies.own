@@ -25,9 +25,6 @@ app/main/kept
   %22 = Match %2 [%21 %12 %13] : usize
   %23 = Drop [%2] : ()
   %24 = Drop [$0] : ()
-  %25 = Intrinsic ParamOwned [0:i32] : bool
-  %26 = Drop [$0] : ()
-  %27 = Block - : ()
-  %28 = If %25 [%27 -] : ()
-  %29 = Block %22 : usize
+  %25 = Drop [$0] : ()
+  %26 = Block %22 : usize
   exit sub 0 drops [$0]

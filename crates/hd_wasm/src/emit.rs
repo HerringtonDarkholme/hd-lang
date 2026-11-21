@@ -1310,7 +1310,6 @@ struct Em<'i, 'a, 'm> {
     /// Exact tail call for each verified scoped provider candidate.
     provider_transfer_calls: std::sync::Arc<HashMap<(u32, u32), u32>>,
     rows: std::sync::Arc<[usize]>,
-    root_params: std::sync::Arc<[usize]>,
     borrow_facts: std::sync::Arc<std::sync::OnceLock<borrow::BorrowFacts>>,
     /// Original scope drops replaced by a selected context entry's owner.
     transferred_providers: hd_base::HashSet<u32>,
@@ -1590,7 +1589,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             provider_owners: HashMap::default(),
             provider_transfer_calls: std::sync::Arc::clone(&facts.transfers),
             rows: std::sync::Arc::clone(&facts.rows[sub as usize]),
-            root_params: std::sync::Arc::clone(&facts.root_params),
             borrow_facts: std::sync::Arc::clone(&facts.borrow),
             transferred_providers: hd_base::HashSet::default(),
             open_ctx: None,
@@ -1829,14 +1827,9 @@ impl Em<'_, '_, '_> {
     /// is an owned one. `None` for any other value.
     pub(super) fn param_owned(&self, r: u32) -> Option<bool> {
         let l = self.b.param_owned(r)? as usize;
-        // A lifted closure's parameters are its own sub-body's, lent as its
-        // entry says (`own::boundary`).
-        if self.sub_id != 0 {
-            return Some(!self.borrowed.contains(&l));
-        }
-        let k = self.root_params.iter().position(|&p| p == l);
-        let pass = k.map(|k| self.argument_pass(Some(self.lends), k, self.b.local_ty[l]));
-        Some(matches!(pass, Some(Pass::Owned)))
+        // Lent as its entry says (`own::boundary`): the whole-program pass
+        // lends it, and no entry count makes it the body's.
+        Some(!self.borrowed.contains(&l))
     }
 
     #[inline(never)]

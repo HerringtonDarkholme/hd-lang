@@ -3,7 +3,7 @@ app/main/impl Probes.captured_copy
   local $0 value: string [param read captured] place
   local $1 borrowed: &string [:= read assigned] value
     uses $1: %5 -> %6 lend last
-  %0 = Retain %20 Entry local $0 #0 : ()
+  %0 = Retain %17 Entry local $0 #0 : ()
   %1 = Box #0 #1 : ()
   %2 = Retain %12 Entry captures #0 : ()
   %3 = Ref local [$0] : &string
@@ -19,11 +19,8 @@ app/main/impl Probes.captured_copy
   %13 = Closure #1 : fn() -> usize
   %14 = Retain %13 Operation captures #0 : ()
   %15 = Drop [$0] : ()
-  %16 = Intrinsic ParamOwned [0:i32] : bool
-  %17 = Drop [$0] : ()
-  %18 = Block - : ()
-  %19 = If %16 [%18 -] : ()
-  %20 = Block %13 : fn() -> usize
+  %16 = Drop [$0] : ()
+  %17 = Block %13 : fn() -> usize
   exit sub 0 drops [$0]
   exit sub 1 drops [$0]
   storage sub 0: $0 cell

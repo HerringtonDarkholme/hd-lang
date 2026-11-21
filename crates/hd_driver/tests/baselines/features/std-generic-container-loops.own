@@ -24,17 +24,14 @@ impl[T < Ord] Queue[T]:
 >     uses $0: entry -> %3 lend last
 >   local $1 value: T [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Retain %6 Entry local $1 #0 : ()
         self.items.push(value)
 >   %1 = Read move [$1] : T
 >   %2 = IsUnique [*$0 .items] : ()
 >   %3 = Read borrow [*$0 .items] : List[T]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Intrinsic ParamOwned [1:i32] : bool
->   %6 = Drop [$1] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block - : ()
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -52,22 +49,19 @@ impl[T < Ord] Queue[T]:
 >     uses $5: %15 -> %16 consume, %18 lend, %22 lend, %26 lend, %36 lend last
 >   local $6 larger: usize [read assigned mutated] place
 >   local $7 $temporary_owner: bool [read assigned] value
->     uses $7: entry -> %91 lend last
->   %1 = Retain %97 Entry local $2 #0 : ()
+>     uses $7: entry -> %90 lend last
+>   %1 = Retain %94 Entry local $2 #0 : ()
         size := self.items.len()
 >   %0 = FlagSet [$2] #7 : ()
 >   %2 = Box #2 #0 : ()
 >   %3 = Read borrow [*$0 .items] : List[T]
 >   %4 = Intrinsic ListLen [%3] : usize
 >   %5 = Store [$3] %4 : ()
->   %90 = Intrinsic ParamOwned [2:i32] : bool
->   %91 = Read copy [$7] : bool
->   %92 = Drop [$2] : ()
->   %93 = Block - : ()
->   %94 = If %91 [%93 -] : ()
->   %95 = Block - : ()
->   %96 = If %90 [%95 -] : ()
->   %97 = Block - : ()
+>   %90 = Read copy [$7] : bool
+>   %91 = Drop [$2] : ()
+>   %92 = Block - : ()
+>   %93 = If %90 [%92 -] : ()
+>   %94 = Block - : ()
         let parent = start
 >   %6 = Read copy [$1] : usize
 >   %7 = Store [$4] %6 : ()
@@ -230,8 +224,8 @@ pub fn names(a: string, b: string) -> usize:
 >     uses $4: %36 -> %37 lend last
 >   local $5 self: string [read] value
 >     uses $5: %26 -> %27 lend last
->   %0 = Retain %52 Entry local $0 #0 : ()
->   %1 = Retain %52 Entry local $1 #0 : ()
+>   %0 = Retain %46 Entry local $0 #0 : ()
+>   %1 = Retain %46 Entry local $1 #0 : ()
     let mut q = Queue::[string].new()
 >   %2 = NewList - [] : List[string]
 >   %3 = NewStruct [%2] : Queue[string]
@@ -240,15 +234,9 @@ pub fn names(a: string, b: string) -> usize:
 >   %6 = Scope %5 [] : Queue[string]
 >   %7 = Box #2 #0 : ()
 >   %8 = Store [$2] %6 : ()
->   %44 = Intrinsic ParamOwned [0:i32] : bool
->   %45 = Drop [$0] : ()
->   %46 = Block - : ()
->   %47 = If %44 [%46 -] : ()
->   %48 = Intrinsic ParamOwned [1:i32] : bool
->   %49 = Drop [$1] : ()
->   %50 = Block - : ()
->   %51 = If %48 [%50 -] : ()
->   %52 = Block %43 : usize
+>   %44 = Drop [$0] : ()
+>   %45 = Drop [$1] : ()
+>   %46 = Block %43 : usize
     q.add(a)
 >   %9 = Ref mut local frame [$2] : &mut Queue[string]
 >   %10 = Read move [$0] : string

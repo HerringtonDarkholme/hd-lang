@@ -28,15 +28,12 @@ fn branch(items: List[usize], n: usize) -> List[usize]:
 >     uses $10: %39 -> %43 lend last
 >   local $11 $len: usize [read assigned] value
 >     uses $11: none
->   %0 = Retain %65 Entry local $0 #0 : ()
+>   %0 = Retain %62 Entry local $0 #0 : ()
     let mut items = items
 >   %1 = Read move [$0] : List[usize]
 >   %2 = Store [$2] %1 : ()
->   %61 = Intrinsic ParamOwned [0:i32] : bool
->   %62 = Drop [$0] : ()
->   %63 = Block - : ()
->   %64 = If %61 [%63 -] : ()
->   %65 = Block %60 : List[usize]
+>   %61 = Drop [$0] : ()
+>   %62 = Block %60 : List[usize]
     for r in 0..n:
 >   %3 = Read copy [$1] : usize
 >   %4 = NewStruct [0:usize %3 0:bool] : Range[usize]
@@ -127,15 +124,12 @@ fn copy(items: List[usize], n: usize) -> List[List[usize]]:
 >     uses $10: none
 >   local $11 i: usize [read assigned] value
 >     uses $11: %39 -> %43 lend last
->   %0 = Retain %65 Entry local $0 #0 : ()
+>   %0 = Retain %62 Entry local $0 #0 : ()
     let mut items = items
 >   %1 = Read move [$0] : List[usize]
 >   %2 = Store [$2] %1 : ()
->   %61 = Intrinsic ParamOwned [0:i32] : bool
->   %62 = Drop [$0] : ()
->   %63 = Block - : ()
->   %64 = If %61 [%63 -] : ()
->   %65 = Block %60 : List[List[usize]]
+>   %61 = Drop [$0] : ()
+>   %62 = Block %60 : List[List[usize]]
     let mut saved: List[List[usize]] = []
 >   %3 = NewList - [] : List[List[usize]]
 >   %4 = Store [$3] %3 : ()

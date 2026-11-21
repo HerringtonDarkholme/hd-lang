@@ -18,15 +18,12 @@ fn flips(perm: List[usize]) -> i64:
 >     uses $6: %20 -> %26 consume last
 >   local $7 $len: usize [read assigned] value
 >     uses $7: none
->   %0 = Retain %57 Entry local $0 #0 : ()
+>   %0 = Retain %54 Entry local $0 #0 : ()
     let mut perm = perm
 >   %1 = Read move [$0] : List[usize]
 >   %2 = Store [$1] %1 : ()
->   %53 = Intrinsic ParamOwned [0:i32] : bool
->   %54 = Drop [$0] : ()
->   %55 = Block - : ()
->   %56 = If %53 [%55 -] : ()
->   %57 = Block %52 : i64
+>   %53 = Drop [$0] : ()
+>   %54 = Block %52 : i64
     let flips: i64 = 0
 >   %3 = Store [$2] 0:i64 : ()
     let k = perm[0]

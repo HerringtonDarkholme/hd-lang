@@ -13,25 +13,25 @@ fn bump!(c: &mut Counter) -> void:
 > app/main/bump
 >   local $0 c: &mut Counter [param read] value
 >     uses $0: entry -> %5 lend, %7 lend last
->   %0 = Retain %13 Cold local $0 #0 : ()
->   %1 = Retain %13 Entry local $0 #0 : ()
->   %2 = Retain %13 Cold referent $0 #8 : ()
->   %3 = Release %13 FrameDrop referent $0 #2 : ()
->   %4 = Release %13 Exit referent $0 #8 : ()
+>   %0 = Retain %10 Cold local $0 #0 : ()
+>   %1 = Retain %10 Entry local $0 #0 : ()
+>   %2 = Retain %10 Cold referent $0 #8 : ()
+>   %3 = Release %10 FrameDrop referent $0 #2 : ()
+>   %4 = Release %10 Exit referent $0 #8 : ()
     c.hits = c.hits + 1
 >   %5 = Read copy [*$0 .hits] : i32
 >   %6 = Prim Add [%5 1:i32] : i32
 >   %7 = Store [*$0 .hits] %6 : ()
 >   %8 = Drop [$0] : ()
->   %9 = Intrinsic ParamOwned [0:i32] : bool
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
 >   %13 = Block - : ()
->   %14 = Drop [$0] : ()
+>   %14 = If %11 [%13 -] : ()
 >   %15 = Block - : ()
 >   exit sub 0 drops [$0]
->   cancel %13 releases [%2147483648]
+>   cancel %10 releases [%16 %11]
 
 fn tick(c: &mut Counter) -> void:
     c.hits = c.hits + 1

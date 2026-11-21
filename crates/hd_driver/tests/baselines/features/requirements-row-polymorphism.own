@@ -17,14 +17,11 @@ impl Tag for Named:
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
         self.label
 >   %1 = Read move [$0 .label] : string
->   %2 = Intrinsic ParamOwned [0:i32] : bool
->   %3 = Drop [$0] : ()
->   %4 = Block - : ()
->   %5 = If %2 [%4 -] : ()
->   %6 = Block %1 : string
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -57,7 +54,7 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   local $2 provider: Named [read] value
 >     uses $2: %3 -> %4 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %34 Entry local $0 #0 : ()
+>   %0 = Retain %31 Entry local $0 #0 : ()
     $.with(Tag=Named { label: s }):
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -78,16 +75,13 @@ fn with_tag[$ R](s: string, callback: fn() -> usize $ R + Tag) -> usize $ R:
 >   %22 = With [Tag %15] %21 : usize
 >   %23 = Release %22 Operation operand 0 #2 : ()
 >   %24 = Drop [%15] : ()
->   %25 = Intrinsic ParamOwned [0:i32] : bool
->   %26 = Drop [$0] : ()
->   %27 = Block - : ()
->   %28 = If %25 [%27 -] : ()
->   %29 = Intrinsic ParamOwned [1:i32] : bool
->   %30 = Drop [$1] : ()
->   %31 = Block - : ()
->   %32 = If %29 [%31 -] : ()
->   %33 = Release %34 Exit local $1 #2 : ()
->   %34 = Block %22 : usize
+>   %25 = Drop [$0] : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %22 : usize
         callback()
 >   %17 = Read borrow [$1] : fn() -> usize
 >   %18 = CallValue %17 [] : usize
@@ -109,7 +103,7 @@ fn run(s: string) -> usize:
 >   local $5 provider: Named [read] value
 >     uses $5: %5 -> %6 consume last
 >   local $6 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %46 Entry local $0 #0 : ()
+>   %0 = Retain %43 Entry local $0 #0 : ()
     with_tag(s, read_tag)
 >   %1 = ItemRef #0 [..] : fn() -> usize
 >   %2 = Store [$2] %1 : ()
@@ -152,11 +146,8 @@ fn run(s: string) -> usize:
 >   %39 = Block - : usize
 >   %40 = Scope %39 [] : usize
 >   %41 = Drop [$2] : ()
->   %42 = Intrinsic ParamOwned [0:i32] : bool
->   %43 = Drop [$0] : ()
->   %44 = Block - : ()
->   %45 = If %42 [%44 -] : ()
->   %46 = Block %40 : usize
+>   %42 = Drop [$0] : ()
+>   %43 = Block %40 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $6 cell
 >   summary kept [$0] writes
@@ -170,7 +161,7 @@ fn closure(s: string) -> usize:
 >   local $4 provider: Named [read] value
 >     uses $4: %3 -> %4 consume last
 >   local $5 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %42 Entry local $0 #0 : ()
+>   %0 = Retain %39 Entry local $0 #0 : ()
     with_tag(s, fn() -> usize $ Tag: $.use(Tag).name().len())
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -209,11 +200,8 @@ fn closure(s: string) -> usize:
 >   %35 = Break L2 %33 : never
 >   %36 = Block - : usize
 >   %37 = Scope %36 [] : usize
->   %38 = Intrinsic ParamOwned [0:i32] : bool
->   %39 = Drop [$0] : ()
->   %40 = Block - : ()
->   %41 = If %38 [%40 -] : ()
->   %42 = Block %37 : usize
+>   %38 = Drop [$0] : ()
+>   %39 = Block %37 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $5 cell
 >   summary kept [$0] writes

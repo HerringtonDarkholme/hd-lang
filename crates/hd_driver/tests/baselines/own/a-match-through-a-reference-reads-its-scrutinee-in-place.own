@@ -16,18 +16,15 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >     uses $3: %3 -> %4 consume, %8 lend, %15 lend, %21 lend, %32 lend last
 >   local $5 size: usize [:= read assigned] value
 >     uses $5: %7 -> %13 lend, %16 lend, %23 lend, %30 lend last
->   %0 = Retain %59 Entry local $1 #0 : ()
+>   %0 = Retain %56 Entry local $1 #0 : ()
     match value:
 >   %1 = Read borrow [$0] : &mut (UniqList[string]?)
 >   %40 = Drop [$2] : ()
 >   %42 = Drop [$1] : ()
 >   %53 = Block - : never
 >   %54 = Match %1 [%53 %41 %43] : usize
->   %55 = Intrinsic ParamOwned [1:i32] : bool
->   %56 = Drop [$1] : ()
->   %57 = Block - : ()
->   %58 = If %55 [%57 -] : ()
->   %59 = Block %54 : usize
+>   %55 = Drop [$1] : ()
+>   %56 = Block %54 : usize
         .Some(items) =>
 >   %44 = Read borrow [*$0] : UniqList[string]?
 >   %45 = Ref mut local [*%1 as #1 .0] : &mut UniqList[string]

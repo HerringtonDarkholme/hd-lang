@@ -4,9 +4,6 @@ app/main/show
     uses $0: entry -> %1 consume last
   %1 = Read move [$0] : T
   %2 = Call app/main/keep[T] (%1) : List[T]
-  %3 = Intrinsic ParamOwned [0:i32] : bool
-  %4 = Drop [$0] : ()
-  %5 = Block - : ()
-  %6 = If %3 [%5 -] : ()
-  %7 = Block %2 : List[T]
+  %3 = Drop [$0] : ()
+  %4 = Block %2 : List[T]
   exit sub 0 drops [$0]

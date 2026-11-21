@@ -183,23 +183,20 @@ fn calls(s: string, n: *Node) -> usize:
 >   local $1 n: *Node [param read] value
 >     uses $1: entry -> %22 lend last
 >   local $2 t: string [read assigned captured captured-assigned] place
->   %0 = Retain %35 Entry local $0 #0 : ()
+>   %0 = Retain %32 Entry local $0 #0 : ()
     let mut t = s
 >   %1 = Box #0 #255 : ()
 >   %2 = Read copy [$0] : string
 >   %3 = Retain %2 Value #0 : ()
 >   %4 = Box #2 #0 : ()
 >   %5 = Store [$2] %2 : ()
->   %26 = Intrinsic ParamOwned [0:i32] : bool
->   %27 = Drop [$0] : ()
->   %28 = Block - : ()
->   %29 = If %26 [%28 -] : ()
->   %30 = Intrinsic ParamOwned [1:i32] : bool
->   %31 = Drop [$1] : ()
->   %32 = Block - : ()
->   %33 = If %30 [%32 -] : ()
->   %34 = Release %35 Exit local $1 #2 : ()
->   %35 = Block %25 : usize
+>   %26 = Drop [$0] : ()
+>   %27 = Intrinsic ParamOwned [1:i32] : bool
+>   %28 = Drop [$1] : ()
+>   %29 = Block - : ()
+>   %30 = If %27 [%29 -] : ()
+>   %31 = Release %32 Exit local $1 #2 : ()
+>   %32 = Block %25 : usize
     by_mut(&mut t)
 >   %6 = Ref mut local frame [$2] : &mut string
 >   %7 = Call app/main/by_mut[] (%6) : ()

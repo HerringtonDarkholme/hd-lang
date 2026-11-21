@@ -41,7 +41,7 @@ fn use(b: Box) -> usize:
 > app/main/use
 >   local $0 b: Box [param read captured] value
 >     uses $0: entry -> %2 consume, %6 consume, %8 lend, %10 consume last
->   %1 = Retain %16 Entry local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
     pick(b, fn() -> usize: b.n, b.items.len())
 >   %0 = Retain %5 Entry captures #0 : ()
 >   %2 = Read copy [$0 .n] : usize
@@ -55,10 +55,7 @@ fn use(b: Box) -> usize:
 >   %10 = Read move [$0] : Box
 >   %11 = Call app/main/pick[] (%10, %6, %9) : usize
 >   %11 keeps %6
->   %12 = Intrinsic ParamOwned [0:i32] : bool
->   %13 = Drop [$0] : ()
->   %14 = Block - : ()
->   %15 = If %12 [%14 -] : ()
->   %16 = Block %11 : usize
+>   %12 = Drop [$0] : ()
+>   %13 = Block %11 : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]

@@ -16,8 +16,8 @@ fn push_front(head: *Chain?, name: string) -> *Chain:
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 $ref: Chain [read assigned captured captured-assigned] place
->   %0 = Retain %17 Entry local $0 #0 : ()
->   %1 = Retain %17 Entry local $1 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $1 #0 : ()
     box(Chain { name: name, next: head })
 >   %2 = Read move [$1] : string
 >   %3 = Read move [$0] : *Chain?
@@ -26,15 +26,9 @@ fn push_front(head: *Chain?, name: string) -> *Chain:
 >   %6 = Store [$2] %4 : ()
 >   %7 = Ref take mut [$2] : *mut Chain
 >   %8 = Coerce %7 [Weaken -] : *Chain
->   %9 = Intrinsic ParamOwned [0:i32] : bool
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Intrinsic ParamOwned [1:i32] : bool
->   %14 = Drop [$1] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Block %8 : *Chain
+>   %9 = Drop [$0] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block %8 : *Chain
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary kept [$0 $1]
@@ -49,14 +43,11 @@ fn total(head: *Chain?) -> usize:
 >     uses $3: %25 -> %6 lend, %17 lend last
 >   local $4 self: string [read] value
 >     uses $4: %8 -> %9 lend last
->   %0 = Retain %45 Entry local $0 #0 : ()
+>   %0 = Retain %42 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
->   %41 = Intrinsic ParamOwned [0:i32] : bool
->   %42 = Drop [$0] : ()
->   %43 = Block - : ()
->   %44 = If %41 [%43 -] : ()
->   %45 = Block %40 : usize
+>   %41 = Drop [$0] : ()
+>   %42 = Block %40 : usize
     let cur = head
 >   %2 = Read move [$0] : *Chain?
 >   %3 = Store [$2] %2 : ()

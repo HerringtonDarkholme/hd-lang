@@ -26,11 +26,8 @@ app/main/borrowed
   %19 = Block - : usize
   %20 = Scope %19 [] : usize
   %21 = Drop [$1] : ()
-  %22 = Intrinsic ParamOwned [0:i32] : bool
-  %23 = Drop [$0] : ()
-  %24 = Block - : ()
-  %25 = If %22 [%24 -] : ()
-  %26 = Block %20 : usize
+  %22 = Drop [$0] : ()
+  %23 = Block %20 : usize
   exit sub 0 drops [$0]
   storage sub 0: $1 slot
   summary kept [$0]

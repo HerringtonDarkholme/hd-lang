@@ -14,23 +14,17 @@ fn update(r: Rec, name: string) -> Rec:
 >     uses $0: entry -> %2 lend, %3 consume last
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %5 consume last
->   %0 = Retain %15 Entry local $0 #0 : ()
->   %1 = Retain %15 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     Rec { ...r, name }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read move [$0 .tags] : List[string]
 >   %4 = Drop [$0] : ()
 >   %5 = Read move [$1] : string
 >   %6 = NewStruct [%5 %3] : Rec
->   %7 = Intrinsic ParamOwned [0:i32] : bool
->   %8 = Drop [$0] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Intrinsic ParamOwned [1:i32] : bool
->   %12 = Drop [$1] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Block %6 : Rec
+>   %7 = Drop [$0] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : Rec
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -40,23 +34,17 @@ fn still_live(r: Rec, name: string) -> (Rec, Rec):
 >     uses $0: entry -> %2 lend, %3 consume, %7 consume last
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %5 consume last
->   %0 = Retain %17 Entry local $0 #0 : ()
->   %1 = Retain %17 Entry local $1 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $1 #0 : ()
     next := Rec { ...r, name }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read copy [$0 .tags] : List[string]
 >   %4 = Retain %3 Value #0 : ()
 >   %5 = Read move [$1] : string
 >   %6 = NewStruct [%5 %3] : Rec
->   %9 = Intrinsic ParamOwned [0:i32] : bool
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Intrinsic ParamOwned [1:i32] : bool
->   %14 = Drop [$1] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Block %8 : (Rec, Rec)
+>   %9 = Drop [$0] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block %8 : (Rec, Rec)
     (r, next)
 >   %7 = Read move [$0] : Rec
 >   %8 = NewTuple - [%7 %6] : (Rec, Rec)
@@ -71,26 +59,20 @@ fn replace_all(r: Rec, name: string, tags: List[string]) -> Rec:
 >     uses $1: entry -> %3 consume last
 >   local $2 tags: List[string] [param read] value
 >     uses $2: entry -> %4 consume last
->   %0 = Retain %19 Entry local $1 #0 : ()
->   %1 = Retain %19 Entry local $2 #0 : ()
+>   %0 = Retain %13 Entry local $1 #0 : ()
+>   %1 = Retain %13 Entry local $2 #0 : ()
     Rec { ...r, name, tags }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read move [$1] : string
 >   %4 = Read move [$2] : List[string]
 >   %5 = NewStruct [%3 %4] : Rec
->   %6 = Intrinsic ParamOwned [1:i32] : bool
->   %7 = Drop [$1] : ()
->   %8 = Block - : ()
->   %9 = If %6 [%8 -] : ()
->   %10 = Intrinsic ParamOwned [2:i32] : bool
->   %11 = Drop [$2] : ()
->   %12 = Block - : ()
->   %13 = If %10 [%12 -] : ()
->   %14 = Intrinsic ParamOwned [0:i32] : bool
->   %15 = Drop [$0] : ()
->   %16 = Block - : ()
->   %17 = If %14 [%16 -] : ()
->   %18 = Release %19 Exit local $0 #2 : ()
->   %19 = Block %5 : Rec
+>   %6 = Drop [$1] : ()
+>   %7 = Drop [$2] : ()
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $0 #2 : ()
+>   %13 = Block %5 : Rec
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0]

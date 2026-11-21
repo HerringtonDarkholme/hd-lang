@@ -32,13 +32,10 @@ fn read_again(m: Member) -> usize:
 >     uses $0: entry -> %1 consume, %3 consume last
 >   local $2 self: string [read] value
 >     uses $2: %5 -> %6 lend last
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
     x := m
->   %13 = Intrinsic ParamOwned [0:i32] : bool
->   %14 = Drop [$0] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Block %12 : usize
+>   %13 = Drop [$0] : ()
+>   %14 = Block %12 : usize
     count(x.facts) + m.name.len()
 >   %1 = Read move [$0 .facts] : Facts
 >   %2 = Call app/main/count[] (%1) : usize
@@ -60,13 +57,10 @@ fn last_read(m: Member) -> usize:
 >     uses $0: entry -> %1 consume, %3 consume last
 >   local $2 self: string [read] value
 >     uses $2: %5 -> %6 lend last
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
     x := m
->   %13 = Intrinsic ParamOwned [0:i32] : bool
->   %14 = Drop [$0] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Block %12 : usize
+>   %13 = Drop [$0] : ()
+>   %14 = Block %12 : usize
     count(x.facts) + x.doc.len()
 >   %1 = Read move [$0 .facts] : Facts
 >   %2 = Call app/main/count[] (%1) : usize

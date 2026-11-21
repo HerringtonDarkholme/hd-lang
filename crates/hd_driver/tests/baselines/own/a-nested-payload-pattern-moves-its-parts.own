@@ -25,19 +25,16 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   local $6 self: string [read] value
 >     uses $6: %22 -> %23 lend last
 >   local $9 $temporary_owner: bool [read assigned] value
->     uses $9: %1 -> %56 lend last
+>     uses $9: %1 -> %55 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$9] %0 : ()
 >   %2 = Store [$1] 0:usize : ()
 >   %9 = Box #2 #0 : ()
->   %55 = Intrinsic ParamOwned [0:i32] : bool
->   %56 = Read copy [$9] : bool
->   %57 = Drop [$0] : ()
->   %58 = Block - : ()
->   %59 = If %56 [%58 -] : ()
->   %60 = Block - : ()
->   %61 = If %55 [%60 -] : ()
->   %62 = Block %54 : usize
+>   %55 = Read copy [$9] : bool
+>   %56 = Drop [$0] : ()
+>   %57 = Block - : ()
+>   %58 = If %55 [%57 -] : ()
+>   %59 = Block %54 : usize
     for (key, parcel) in parcels:
 >   %3 = Read move [$0] : UniqMap[string, Parcel]
 >   %4 = FlagClear [$0] #9 : ()

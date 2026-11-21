@@ -7,9 +7,9 @@ std/rt_tests.stage_case/split
   local $2 item: Item value
     uses $2: none
   local $3 $temporary_owner: bool [read assigned] value
-    uses $3: %2 -> %14 lend, %32 lend last
+    uses $3: %2 -> %13 lend, %28 lend last
   local $4 $temporary_owner: bool [read assigned] value
-    uses $4: entry -> %16 lend, %17 lend, %34 lend, %35 lend last
+    uses $4: entry -> %15 lend, %16 lend, %30 lend, %31 lend last
   %0 = FlagSet [$0 .left] #4 : ()
   %1 = Intrinsic ParamOwned [0:i32] : bool
   %2 = Store [$3] %1 : ()
@@ -23,39 +23,33 @@ std/rt_tests.stage_case/split
   %10 = Scope %9 [] : ()
   %11 = Block - : ()
   %12 = If %3 [%11 -] : ()
-  %13 = Intrinsic ParamOwned [0:i32] : bool
-  %14 = Read copy [$3] : bool
-  %15 = Drop [$0] : ()
+  %13 = Read copy [$3] : bool
+  %14 = Drop [$0] : ()
+  %15 = Read copy [$4] : bool
   %16 = Read copy [$4] : bool
-  %17 = Read copy [$4] : bool
-  %18 = Drop [$0 .left] : ()
-  %19 = Block - : ()
-  %20 = If %17 [%19 -] : ()
-  %21 = Drop [$0 .right] : ()
+  %17 = Drop [$0 .left] : ()
+  %18 = Block - : ()
+  %19 = If %16 [%18 -] : ()
+  %20 = Drop [$0 .right] : ()
+  %21 = Block - : ()
   %22 = Block - : ()
-  %23 = Block - : ()
-  %24 = If %16 [%22 %23] : ()
-  %25 = Block - : ()
-  %26 = If %14 [%25 -] : ()
-  %27 = Block - : ()
-  %28 = If %13 [%27 -] : ()
-  %29 = FlagClear [$0] #3 : ()
-  %30 = FlagClear [$0 .left] #4 : ()
-  %31 = Intrinsic ParamOwned [0:i32] : bool
-  %32 = Read copy [$3] : bool
-  %33 = Drop [$0] : ()
-  %34 = Read copy [$4] : bool
-  %35 = Read copy [$4] : bool
-  %36 = Drop [$0 .left] : ()
+  %23 = If %15 [%21 %22] : ()
+  %24 = Block - : ()
+  %25 = If %13 [%24 -] : ()
+  %26 = FlagClear [$0] #3 : ()
+  %27 = FlagClear [$0 .left] #4 : ()
+  %28 = Read copy [$3] : bool
+  %29 = Drop [$0] : ()
+  %30 = Read copy [$4] : bool
+  %31 = Read copy [$4] : bool
+  %32 = Drop [$0 .left] : ()
+  %33 = Block - : ()
+  %34 = If %31 [%33 -] : ()
+  %35 = Drop [$0 .right] : ()
+  %36 = Block - : ()
   %37 = Block - : ()
-  %38 = If %35 [%37 -] : ()
-  %39 = Drop [$0 .right] : ()
-  %40 = Block - : ()
+  %38 = If %30 [%36 %37] : ()
+  %39 = Block - : ()
+  %40 = If %28 [%39 -] : ()
   %41 = Block - : ()
-  %42 = If %34 [%40 %41] : ()
-  %43 = Block - : ()
-  %44 = If %32 [%43 -] : ()
-  %45 = Block - : ()
-  %46 = If %31 [%45 -] : ()
-  %47 = Block - : ()
   exit sub 0 drops [$0]

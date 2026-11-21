@@ -9,7 +9,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   local $1 n: usize [param read] value
 >     uses $1: entry -> %7 lend, %12 lend last
 >   local $2 read: fn!(usize) -> string [:= read assigned captured captured-assigned] place
->   %5 = Retain %39 Entry local $0 #0 : ()
+>   %5 = Retain %36 Entry local $0 #0 : ()
     read := fn!(n: usize) -> string:
 >   %0 = Retain %25 Cold row #0 : ()
 >   %1 = Retain %25 Materialize row #0 : ()
@@ -25,13 +25,13 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %28 = Retain %27 Operation captures #0 : ()
 >   %29 = Store [$2] %27 : ()
 >   %30 = Release %29 Operation #3 : ()
->   %34 = Intrinsic ParamOwned [0:i32] : bool
->   %35 = Drop [$0] : ()
->   %36 = Block - : ()
->   %37 = If %34 [%36 -] : ()
->   %38 = Drop [$2] : ()
->   %39 = Block %31 : fn!(usize) -> string
->   %45 = Drop [$0] : ()
+>   %34 = Drop [$0] : ()
+>   %35 = Drop [$2] : ()
+>   %36 = Block %31 : fn!(usize) -> string
+>   %42 = Intrinsic ParamOwned [0:i32] : bool
+>   %43 = Drop [$0] : ()
+>   %44 = Block - : ()
+>   %45 = If %42 [%44 -] : ()
 >   %46 = Intrinsic ParamOwned [2:i32] : bool
 >   %47 = Drop [$2] : ()
 >   %48 = Block - : ()
@@ -62,13 +62,13 @@ fn make(value: string) -> fn!(usize) -> string:
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes
 >   cancel %15 releases [%14 %2147483648 %2147483650 %4294967295]
->   cancel %25 releases [%2147483648 %16 %46]
+>   cancel %25 releases [%16 %42 %16 %46]
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
 > app/main/generic
 >   local $0 value: T [param read captured] value
 >     uses $0: entry -> %6 consume, %9 consume last
->   %5 = Retain %15 Entry local $0 #0 : ()
+>   %5 = Retain %12 Entry local $0 #0 : ()
     fn!() -> T: value
 >   %0 = Retain %8 Cold row #0 : ()
 >   %1 = Retain %8 Materialize row #0 : ()
@@ -80,17 +80,17 @@ fn generic[T < 'static](value: T) -> fn!() -> T:
 >   %8 = Block %6 : T
 >   %9 = Closure #1 : fn!() -> T
 >   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Intrinsic ParamOwned [0:i32] : bool
->   %12 = Drop [$0] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Block %9 : fn!() -> T
->   %16 = Drop [$0] : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Block %9 : fn!() -> T
+>   %13 = Intrinsic ParamOwned [0:i32] : bool
+>   %14 = Drop [$0] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
 >   %17 = Block - : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
->   cancel %8 releases [%2147483648]
+>   cancel %8 releases [%16 %13]
 
 pub fn main!() -> void $ Console:
     read := make("kept")

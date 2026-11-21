@@ -12,22 +12,22 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %2 lend last
->   %0 = Retain %9 Cold local $0 #0 : ()
->   %1 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %6 Cold local $0 #0 : ()
+>   %1 = Retain %6 Entry local $0 #0 : ()
     key + "?"
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic StrConcat [%2 "?"] : string
 >   %4 = Drop [%2] : ()
->   %5 = Intrinsic ParamOwned [0:i32] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block %3 : string
->   %10 = Drop [$0] : ()
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : string
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
 >   %11 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %9 releases [%2147483648]
+>   cancel %6 releases [%16 %7]
 
 fn direct(key: string) -> usize:
 > app/main/direct
@@ -35,7 +35,7 @@ fn direct(key: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 value: string [read assigned] value
 >     uses $1: %13 -> %5 lend last
->   %0 = Retain %26 Entry local $0 #0 : ()
+>   %0 = Retain %23 Entry local $0 #0 : ()
     match block_on(fetch(key)):
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
@@ -44,11 +44,8 @@ fn direct(key: string) -> usize:
 >   %19 = Block - : never
 >   %20 = Match %3 [%19 %10 %11] : usize
 >   %21 = Drop [%3] : ()
->   %22 = Intrinsic ParamOwned [0:i32] : bool
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
->   %25 = If %22 [%24 -] : ()
->   %26 = Block %20 : usize
+>   %22 = Drop [$0] : ()
+>   %23 = Block %20 : usize
         .Completed(value) => value.len()
 >   %5 = Read borrow [$1] : string
 >   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
@@ -71,15 +68,12 @@ fn stored(key: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $2 value: string [read assigned] value
 >     uses $2: %13 -> %5 lend last
->   %0 = Retain %26 Entry local $0 #0 : ()
+>   %0 = Retain %23 Entry local $0 #0 : ()
     let pending: Suspend[string] = fetch(key)
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
->   %22 = Intrinsic ParamOwned [0:i32] : bool
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
->   %25 = If %22 [%24 -] : ()
->   %26 = Block %20 : usize
+>   %22 = Drop [$0] : ()
+>   %23 = Block %20 : usize
     match block_on(pending):
 >   %3 = Call std/task/block_on[string] (%2) : BlockOn[string]
 >   %4 = Drop [%2] : ()
@@ -112,16 +106,13 @@ fn deferred(key: string, log: &mut List[string]) -> usize:
 >     uses $2: %3 -> %7 lend last
 >   local $3 value: string [read assigned] value
 >     uses $3: %18 -> %10 lend last
->   %0 = Retain %31 Entry local $0 #0 : ()
+>   %0 = Retain %28 Entry local $0 #0 : ()
     let pending: Suspend[string] = fetch(key)
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Store [$2] %2 : ()
->   %27 = Intrinsic ParamOwned [0:i32] : bool
->   %28 = Drop [$0] : ()
->   %29 = Block - : ()
->   %30 = If %27 [%29 -] : ()
->   %31 = Block %25 : usize
+>   %27 = Drop [$0] : ()
+>   %28 = Block %25 : usize
     log.push("constructed")
 >   %4 = IsUnique [*$1] : ()
 >   %5 = Read borrow [*$1] : List[string]

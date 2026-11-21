@@ -15,12 +15,9 @@ app/main/grow
   %9 = Read borrow [$1] : List[i64]
   %10 = Intrinsic ListPush [%9 %7] : ()
   %11 = Read move [$1] : List[i64]
-  %12 = Intrinsic ParamOwned [0:i32] : bool
-  %13 = Drop [$0] : ()
-  %14 = Block - : ()
-  %15 = If %12 [%14 -] : ()
-  %16 = Return %11 : never
-  %17 = Block - : never
-  %18 = If %3 [%17 -] : ()
-  %19 = Drop [$0] : ()
+  %12 = Drop [$0] : ()
+  %13 = Return %11 : never
+  %14 = Block - : never
+  %15 = If %3 [%14 -] : ()
+  %16 = Drop [$0] : ()
   exit sub 0 drops [$0]

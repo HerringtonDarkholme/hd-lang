@@ -39,8 +39,8 @@ fn through(f: fn(string, List[i32]) -> usize, text: string, values: List[i32]) -
 >     uses $2: entry -> %3 consume last
 >   local $4 args: (string, List[i32]) [read] value
 >     uses $4: %5 -> %7 consume last
->   %0 = Retain %28 Entry local $1 #0 : ()
->   %1 = Retain %28 Entry local $2 #0 : ()
+>   %0 = Retain %22 Entry local $1 #0 : ()
+>   %1 = Retain %22 Entry local $2 #0 : ()
     call(f, (text, values))
 >   %2 = Read move [$1] : string
 >   %3 = Read move [$2] : List[i32]
@@ -55,19 +55,13 @@ fn through(f: fn(string, List[i32]) -> usize, text: string, values: List[i32]) -
 >   %12 = Break L0 %8 : never
 >   %13 = Block - : usize
 >   %14 = Scope %13 [] : usize
->   %15 = Intrinsic ParamOwned [1:i32] : bool
->   %16 = Drop [$1] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Intrinsic ParamOwned [2:i32] : bool
->   %20 = Drop [$2] : ()
->   %21 = Block - : ()
->   %22 = If %19 [%21 -] : ()
->   %23 = Intrinsic ParamOwned [0:i32] : bool
->   %24 = Drop [$0] : ()
->   %25 = Block - : ()
->   %26 = If %23 [%25 -] : ()
->   %27 = Release %28 Exit local $0 #2 : ()
->   %28 = Block %14 : usize
+>   %15 = Drop [$1] : ()
+>   %16 = Drop [$2] : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %14 : usize
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0] writes

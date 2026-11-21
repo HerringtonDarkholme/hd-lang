@@ -6,24 +6,24 @@ fn read!(value: &i32) -> i32:
 > app/main/read
 >   local $0 value: &i32 [param read] value
 >     uses $0: entry -> %5 lend last
->   %0 = Retain %11 Cold local $0 #0 : ()
->   %1 = Retain %11 Entry local $0 #0 : ()
->   %2 = Retain %11 Cold referent $0 #8 : ()
->   %3 = Release %11 FrameDrop referent $0 #2 : ()
->   %4 = Release %11 Exit referent $0 #8 : ()
+>   %0 = Retain %8 Cold local $0 #0 : ()
+>   %1 = Retain %8 Entry local $0 #0 : ()
+>   %2 = Retain %8 Cold referent $0 #8 : ()
+>   %3 = Release %8 FrameDrop referent $0 #2 : ()
+>   %4 = Release %8 Exit referent $0 #8 : ()
     *value
 >   %5 = Read copy [*$0] : i32
 >   %6 = Drop [$0] : ()
->   %7 = Intrinsic ParamOwned [0:i32] : bool
->   %8 = Drop [$0] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Block %5 : i32
->   %12 = Drop [$0] : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : i32
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
 >   %13 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %11 releases [%2147483648]
+>   cancel %8 releases [%16 %9]
 
 fn plain(value: &i32) -> i32:
     *value

@@ -12,15 +12,12 @@ fn make(s: string) -> Named:
 > app/main/make
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
     Named { name: s }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
->   %3 = Intrinsic ParamOwned [0:i32] : bool
->   %4 = Drop [$0] : ()
->   %5 = Block - : ()
->   %6 = If %3 [%5 -] : ()
->   %7 = Block %2 : Named
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : Named
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -74,8 +71,8 @@ fn new_mut(s: string, t: string) -> usize:
 >     uses $3: %7 -> %9 lend, %11 lend last
 >   local $4 self: string [read] value
 >     uses $4: %13 -> %14 lend last
->   %0 = Retain %30 Entry local $0 #0 : ()
->   %1 = Retain %30 Entry local $1 #0 : ()
+>   %0 = Retain %24 Entry local $0 #0 : ()
+>   %1 = Retain %24 Entry local $1 #0 : ()
     m := &mut Named { name: s }
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Named
@@ -83,15 +80,9 @@ fn new_mut(s: string, t: string) -> usize:
 >   %5 = Store [$2] %3 : ()
 >   %6 = Ref mut local frame [$2] : &mut Named
 >   %7 = Store [$3] %6 : ()
->   %22 = Intrinsic ParamOwned [0:i32] : bool
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
->   %25 = If %22 [%24 -] : ()
->   %26 = Intrinsic ParamOwned [1:i32] : bool
->   %27 = Drop [$1] : ()
->   %28 = Block - : ()
->   %29 = If %26 [%28 -] : ()
->   %30 = Block %18 : usize
+>   %22 = Drop [$0] : ()
+>   %23 = Drop [$1] : ()
+>   %24 = Block %18 : usize
     m.name = t
 >   %8 = Read move [$1] : string
 >   %9 = Store [*$3 .name] %8 : ()
@@ -123,22 +114,16 @@ fn field_ref(s: string, t: string) -> usize:
 >     uses $3: %7 -> %9 lend last
 >   local $4 self: string [read] value
 >     uses $4: %13 -> %14 lend last
->   %0 = Retain %28 Entry local $0 #0 : ()
->   %1 = Retain %28 Entry local $1 #0 : ()
+>   %0 = Retain %22 Entry local $0 #0 : ()
+>   %1 = Retain %22 Entry local $1 #0 : ()
     let mut p = Named { name: s }
 >   %2 = Read move [$0] : string
 >   %3 = NewStruct [%2] : Named
 >   %4 = Box #2 #0 : ()
 >   %5 = Store [$2] %3 : ()
->   %20 = Intrinsic ParamOwned [0:i32] : bool
->   %21 = Drop [$0] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
->   %24 = Intrinsic ParamOwned [1:i32] : bool
->   %25 = Drop [$1] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Block %18 : usize
+>   %20 = Drop [$0] : ()
+>   %21 = Drop [$1] : ()
+>   %22 = Block %18 : usize
     q := &mut p.name
 >   %6 = Ref mut local frame [$2 .name] : &mut string
 >   %7 = Store [$3] %6 : ()

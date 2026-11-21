@@ -9,49 +9,49 @@ fn bump!(t: &mut Tally) -> void:
 > app/main/bump
 >   local $0 t: &mut Tally [param read] value
 >     uses $0: entry -> %5 lend, %7 lend last
->   %0 = Retain %13 Cold local $0 #0 : ()
->   %1 = Retain %13 Entry local $0 #0 : ()
->   %2 = Retain %13 Cold referent $0 #8 : ()
->   %3 = Release %13 FrameDrop referent $0 #2 : ()
->   %4 = Release %13 Exit referent $0 #8 : ()
+>   %0 = Retain %10 Cold local $0 #0 : ()
+>   %1 = Retain %10 Entry local $0 #0 : ()
+>   %2 = Retain %10 Cold referent $0 #8 : ()
+>   %3 = Release %10 FrameDrop referent $0 #2 : ()
+>   %4 = Release %10 Exit referent $0 #8 : ()
     t.n += 1
 >   %5 = Read copy [*$0 .n] : i64
 >   %6 = Prim Add [%5 1:i64] : i64
 >   %7 = Store [*$0 .n] %6 : ()
 >   %8 = Drop [$0] : ()
->   %9 = Intrinsic ParamOwned [0:i32] : bool
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
 >   %13 = Block - : ()
->   %14 = Drop [$0] : ()
+>   %14 = If %11 [%13 -] : ()
 >   %15 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %13 releases [%2147483648]
+>   cancel %10 releases [%16 %11]
 
 fn read!(t: &Tally) -> i64:
 > app/main/read
 >   local $0 t: &Tally [param read] value
 >     uses $0: entry -> %5 lend last
->   %0 = Retain %11 Cold local $0 #0 : ()
->   %1 = Retain %11 Entry local $0 #0 : ()
->   %2 = Retain %11 Cold referent $0 #8 : ()
->   %3 = Release %11 FrameDrop referent $0 #2 : ()
->   %4 = Release %11 Exit referent $0 #8 : ()
+>   %0 = Retain %8 Cold local $0 #0 : ()
+>   %1 = Retain %8 Entry local $0 #0 : ()
+>   %2 = Retain %8 Cold referent $0 #8 : ()
+>   %3 = Release %8 FrameDrop referent $0 #2 : ()
+>   %4 = Release %8 Exit referent $0 #8 : ()
     t.n
 >   %5 = Read copy [*$0 .n] : i64
 >   %6 = Drop [$0] : ()
->   %7 = Intrinsic ParamOwned [0:i32] : bool
->   %8 = Drop [$0] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Block %5 : i64
->   %12 = Drop [$0] : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : i64
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
 >   %13 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %11 releases [%2147483648]
+>   cancel %8 releases [%16 %9]
 
 fn local!() -> i64:
     run := fn!() -> i64:

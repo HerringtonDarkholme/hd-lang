@@ -9,16 +9,13 @@ use std.annotation.inline
 > app/main/keep
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
 fn keep(s: string) -> List[string]:
     [s]
 >   %1 = Read move [$0] : string
 >   %2 = NewList - [%1] : List[string]
->   %3 = Intrinsic ParamOwned [0:i32] : bool
->   %4 = Drop [$0] : ()
->   %5 = Block - : ()
->   %6 = If %3 [%5 -] : ()
->   %7 = Block %2 : List[string]
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : List[string]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -175,9 +172,9 @@ fn connected(c: bool, a: string, b: string, d: string) -> usize:
 >     uses $6: %25 -> %39 lend last
 >   local $7 self: string [read] value
 >     uses $7: %42 -> %43 lend last
->   %0 = Retain %62 Entry local $1 #0 : ()
->   %1 = Retain %62 Entry local $2 #0 : ()
->   %2 = Retain %62 Entry local $3 #0 : ()
+>   %0 = Retain %53 Entry local $1 #0 : ()
+>   %1 = Retain %53 Entry local $2 #0 : ()
+>   %2 = Retain %53 Entry local $3 #0 : ()
     x := if c: a else: b
 >   %3 = Read copy [$0] : bool
 >   %4 = Read move [$1] : string
@@ -189,19 +186,10 @@ fn connected(c: bool, a: string, b: string, d: string) -> usize:
 >   %10 = Block %7 : string
 >   %11 = If %3 [%6 %10] : string
 >   %12 = Store [$4] %11 : ()
->   %50 = Intrinsic ParamOwned [1:i32] : bool
->   %51 = Drop [$1] : ()
->   %52 = Block - : ()
->   %53 = If %50 [%52 -] : ()
->   %54 = Intrinsic ParamOwned [2:i32] : bool
->   %55 = Drop [$2] : ()
->   %56 = Block - : ()
->   %57 = If %54 [%56 -] : ()
->   %58 = Intrinsic ParamOwned [3:i32] : bool
->   %59 = Drop [$3] : ()
->   %60 = Block - : ()
->   %61 = If %58 [%60 -] : ()
->   %62 = Block %49 : usize
+>   %50 = Drop [$1] : ()
+>   %51 = Drop [$2] : ()
+>   %52 = Drop [$3] : ()
+>   %53 = Block %49 : usize
     y := if c: b else: d
 >   %13 = Read copy [$0] : bool
 >   %14 = Read move [$2] : string
@@ -253,8 +241,8 @@ fn returned(c: bool, a: string, b: string) -> string:
 >     uses $1: entry -> %3 consume last
 >   local $2 b: string [param read] value
 >     uses $2: entry -> %7 consume last
->   %0 = Retain %19 Entry local $1 #0 : ()
->   %1 = Retain %19 Entry local $2 #0 : ()
+>   %0 = Retain %13 Entry local $1 #0 : ()
+>   %1 = Retain %13 Entry local $2 #0 : ()
     selected := if c: a else: b
 >   %2 = Read copy [$0] : bool
 >   %3 = Read move [$1] : string
@@ -265,15 +253,9 @@ fn returned(c: bool, a: string, b: string) -> string:
 >   %8 = Drop [$1] : ()
 >   %9 = Block %7 : string
 >   %10 = If %2 [%6 %9] : string
->   %11 = Intrinsic ParamOwned [1:i32] : bool
->   %12 = Drop [$1] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Intrinsic ParamOwned [2:i32] : bool
->   %16 = Drop [$2] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Block %10 : string
+>   %11 = Drop [$1] : ()
+>   %12 = Drop [$2] : ()
+>   %13 = Block %10 : string
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2]
     selected
@@ -290,19 +272,13 @@ fn closure() -> fn(bool, string, string) -> usize:
 >     uses $2: entry -> %7 consume last
 >   local $3 selected: string [:= read assigned] value
 >     uses $3: %11 -> %12 lend last
->   %0 = Retain %26 Entry local $1 #0 : ()
->   %1 = Retain %26 Entry local $2 #0 : ()
->   %18 = Intrinsic ParamOwned [1:i32] : bool
->   %19 = Drop [$1] : ()
->   %20 = Block - : ()
->   %21 = If %18 [%20 -] : ()
->   %22 = Intrinsic ParamOwned [2:i32] : bool
->   %23 = Drop [$2] : ()
->   %24 = Block - : ()
->   %25 = If %22 [%24 -] : ()
->   %26 = Block %16 : usize
->   %27 = Closure #1 : fn(bool, string, string) -> usize
->   %28 = Block %27 : fn(bool, string, string) -> usize
+>   %0 = Retain %20 Entry local $1 #0 : ()
+>   %1 = Retain %20 Entry local $2 #0 : ()
+>   %18 = Drop [$1] : ()
+>   %19 = Drop [$2] : ()
+>   %20 = Block %16 : usize
+>   %21 = Closure #1 : fn(bool, string, string) -> usize
+>   %22 = Block %21 : fn(bool, string, string) -> usize
         selected := if c: a else: b
 >   %2 = Read copy [$0] : bool
 >   %3 = Read move [$1] : string

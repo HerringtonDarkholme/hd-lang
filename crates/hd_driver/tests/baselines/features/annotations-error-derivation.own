@@ -254,14 +254,11 @@ enum FsError:
 > app/main/error From 2.0 for LoadError.from
 >   local $0 value: FsError [param] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
 >   %1 = Read move [$0] : FsError
 >   %2 = NewVariant #2 [%1] : LoadError
->   %3 = Intrinsic ParamOwned [0:i32] : bool
->   %4 = Drop [$0] : ()
->   %5 = Block - : ()
->   %6 = If %3 [%5 -] : ()
->   %7 = Block %2 : LoadError
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : LoadError
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 enum LoadError:

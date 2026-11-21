@@ -49,17 +49,14 @@ fn reset(r: &mut User, s: string) -> void:
 >     uses $0: entry -> %3 lend, %5 lend, %7 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %12 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $1 #0 : ()
     *r = User { name: s, n: 0 }
 >   %1 = Read move [$1] : string
 >   %2 = NewStruct [%1 0:i32] : User
 >   %3 = Store [*$0] %2 : ()
 >   %4 = Release %3 Operation #3 : ()
->   %8 = Intrinsic ParamOwned [1:i32] : bool
->   %9 = Drop [$1] : ()
->   %10 = Block - : ()
->   %11 = If %8 [%10 -] : ()
->   %12 = Block - : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block - : ()
     r.n += 1
 >   %5 = Read copy [*$0 .n] : i32
 >   %6 = Prim Add [%5 1:i32] : i32

@@ -108,15 +108,12 @@ fn word(i: i32) -> string:
 > app/main/same
 >   local $0 value: T [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
 fn same[T](value: T) -> T:
     value
 >   %1 = Read move [$0] : T
->   %2 = Intrinsic ParamOwned [0:i32] : bool
->   %3 = Drop [$0] : ()
->   %4 = Block - : ()
->   %5 = If %2 [%4 -] : ()
->   %6 = Block %1 : T
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 
@@ -124,7 +121,7 @@ fn same[T](value: T) -> T:
 > app/main/keep
 >   local $0 value: T [param read captured] value
 >     uses $0: entry -> %2 consume, %5 consume last
->   %1 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %8 Entry local $0 #0 : ()
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 >   %0 = Retain %4 Entry captures #0 : ()
@@ -133,11 +130,8 @@ fn keep[T < 'static](value: T) -> fn() -> T:
 >   %4 = Block %2 : T
 >   %5 = Closure #1 : fn() -> T
 >   %6 = Retain %5 Operation captures #0 : ()
->   %7 = Intrinsic ParamOwned [0:i32] : bool
->   %8 = Drop [$0] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Block %5 : fn() -> T
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : fn() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -148,15 +142,12 @@ fn make() -> fn(string) -> string:
 > app/main/make
 >   local $0 value: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
 >   %1 = Read move [$0] : string
->   %2 = Intrinsic ParamOwned [0:i32] : bool
->   %3 = Drop [$0] : ()
->   %4 = Block - : ()
->   %5 = If %2 [%4 -] : ()
->   %6 = Block %1 : string
->   %7 = Closure #1 : fn(string) -> string
->   %8 = Block %7 : fn(string) -> string
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : string
+>   %4 = Closure #1 : fn(string) -> string
+>   %5 = Block %4 : fn(string) -> string
 >   exit sub 1 drops [$0]
 >   summary kept []
 
@@ -182,19 +173,16 @@ fn unique(value: UniqList[i32]) -> UniqList[i32]:
 >   local $0 value: UniqList[i32] [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %1 -> %5 lend last
+>     uses $1: %1 -> %4 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$0] : UniqList[i32]
 >   %3 = FlagClear [$0] #1 : ()
->   %4 = Intrinsic ParamOwned [0:i32] : bool
->   %5 = Read copy [$1] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block - : ()
->   %10 = If %4 [%9 -] : ()
->   %11 = Block %2 : UniqList[i32]
+>   %4 = Read copy [$1] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Block %2 : UniqList[i32]
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 

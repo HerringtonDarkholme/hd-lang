@@ -41,11 +41,8 @@ fn size(value: Resource) -> usize:
 >   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%1) : usize
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Drop [$0] : ()
->   %5 = Intrinsic ParamOwned [0:i32] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block %2 : usize
+>   %5 = Drop [$0] : ()
+>   %6 = Block %2 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
@@ -116,7 +113,7 @@ fn conditional_size(value: Conditional) -> usize:
 >     uses $1: %19 -> %5 consume last
 >   local $2 value: Resource [read captured] place
 >   local $3 $temporary_owner: bool [read assigned] value
->     uses $3: %1 -> %26 lend last
+>     uses $3: %1 -> %25 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$3] %0 : ()
 >   %2 = Read move [$0] : Conditional
@@ -124,14 +121,11 @@ fn conditional_size(value: Conditional) -> usize:
 >   %14 = Drop [$1] : ()
 >   %23 = Block - : never
 >   %24 = Match %2 [%23 %4 %15] : usize
->   %25 = Intrinsic ParamOwned [0:i32] : bool
->   %26 = Read copy [$3] : bool
->   %27 = Drop [$0] : ()
->   %28 = Block - : ()
->   %29 = If %26 [%28 -] : ()
->   %30 = Block - : ()
->   %31 = If %25 [%30 -] : ()
->   %32 = Block %24 : usize
+>   %25 = Read copy [$3] : bool
+>   %26 = Drop [$0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Block %24 : usize
         .Empty => 0
 >   %4 = Block 0:usize : usize
 >   %17 = Block - : never
@@ -161,7 +155,7 @@ fn read_conditional(callback: fn(Conditional) -> usize, value: Conditional) -> u
 >   local $1 value: Conditional [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: %1 -> %9 lend last
+>     uses $2: %1 -> %8 lend last
 >   %0 = Intrinsic ParamOwned [1:i32] : bool
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : fn(Conditional) -> usize
@@ -170,19 +164,16 @@ fn read_conditional(callback: fn(Conditional) -> usize, value: Conditional) -> u
 >   %5 = CallValue %2 [%3] : usize
 >   %6 = Release %5 Operation arguments #2 : ()
 >   %7 = Drop [%3] : ()
->   %8 = Intrinsic ParamOwned [1:i32] : bool
->   %9 = Read copy [$2] : bool
->   %10 = Drop [$1] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Block - : ()
->   %14 = If %8 [%13 -] : ()
->   %15 = Intrinsic ParamOwned [0:i32] : bool
->   %16 = Drop [$0] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Release %20 Exit local $0 #2 : ()
->   %20 = Block %5 : usize
+>   %8 = Read copy [$2] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %5 : usize
 >   exit sub 0 drops [$1]
 
 @inline(.Never)
@@ -194,7 +185,7 @@ fn read(callback: fn(Resource) -> usize, value: Resource) -> usize:
 >   local $1 value: Resource [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: %1 -> %9 lend last
+>     uses $2: %1 -> %8 lend last
 >   %0 = Intrinsic ParamOwned [1:i32] : bool
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : fn(Resource) -> usize
@@ -203,19 +194,16 @@ fn read(callback: fn(Resource) -> usize, value: Resource) -> usize:
 >   %5 = CallValue %2 [%3] : usize
 >   %6 = Release %5 Operation arguments #2 : ()
 >   %7 = Drop [%3] : ()
->   %8 = Intrinsic ParamOwned [1:i32] : bool
->   %9 = Read copy [$2] : bool
->   %10 = Drop [$1] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Block - : ()
->   %14 = If %8 [%13 -] : ()
->   %15 = Intrinsic ParamOwned [0:i32] : bool
->   %16 = Drop [$0] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Release %20 Exit local $0 #2 : ()
->   %20 = Block %5 : usize
+>   %8 = Read copy [$2] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %5 : usize
 >   exit sub 0 drops [$1]
 
 @inline(.Never)
@@ -227,7 +215,7 @@ fn identity(callback: fn(Resource) -> Resource, value: Resource) -> Resource:
 >   local $1 value: Resource [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: %1 -> %9 lend last
+>     uses $2: %1 -> %8 lend last
 >   %0 = Intrinsic ParamOwned [1:i32] : bool
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : fn(Resource) -> Resource
@@ -236,19 +224,16 @@ fn identity(callback: fn(Resource) -> Resource, value: Resource) -> Resource:
 >   %5 = CallValue %2 [%3] : Resource
 >   %6 = Release %5 Operation arguments #2 : ()
 >   %7 = Drop [%3] : ()
->   %8 = Intrinsic ParamOwned [1:i32] : bool
->   %9 = Read copy [$2] : bool
->   %10 = Drop [$1] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Block - : ()
->   %14 = If %8 [%13 -] : ()
->   %15 = Intrinsic ParamOwned [0:i32] : bool
->   %16 = Drop [$0] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Release %20 Exit local $0 #2 : ()
->   %20 = Block %5 : Resource
+>   %8 = Read copy [$2] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %5 : Resource
 >   exit sub 0 drops [$1]
 
 fn keep(value: Resource) -> Resource:
@@ -257,19 +242,16 @@ fn keep(value: Resource) -> Resource:
 >   local $0 value: Resource [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %1 -> %5 lend last
+>     uses $1: %1 -> %4 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read move [$0] : Resource
 >   %3 = FlagClear [$0] #1 : ()
->   %4 = Intrinsic ParamOwned [0:i32] : bool
->   %5 = Read copy [$1] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block - : ()
->   %10 = If %4 [%9 -] : ()
->   %11 = Block %2 : Resource
+>   %4 = Read copy [$1] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Block %2 : Resource
 >   exit sub 0 drops [$0]
 
 fn plain_controls() -> void:
@@ -277,84 +259,84 @@ fn plain_controls() -> void:
 > std/rt_tests.stage_case/plain_controls
 >   local $0 $ref: i32 [read assigned captured captured-assigned] place
 >   local $1 seen: *mut i32 [:= read assigned] value
->     uses $1: %3 -> %5 consume, %31 lend, %56 consume, %82 lend, %94 consume, %118 lend, %137 lend, %149 consume, %175 lend, %187 consume, %214 lend, %232 lend, %243 consume, %279 lend, %300 lend last
+>     uses $1: %3 -> %5 consume, %31 lend, %53 consume, %79 lend, %91 consume, %115 lend, %134 lend, %146 consume, %172 lend, %184 consume, %211 lend, %229 lend, %240 consume, %276 lend, %297 lend last
 >   local $2 value: Resource [param read captured] place
 >   local $3 inspect: fn(Resource) -> usize [:= read assigned] value
->     uses $3: %54 -> %55 consume last
+>     uses $3: %51 -> %52 consume last
 >   local $4 returned: Resource [:= read assigned captured] place
 >   local $5 $ref: Resource [read assigned captured captured-assigned] place
 >   local $6 owner: *mut Resource [:= read assigned] value
->     uses $6: %267 -> %268 consume, %272 consume last
+>     uses $6: %264 -> %265 consume, %269 consume last
 >   local $7 alias: *mut Resource [:= read assigned] value
->     uses $7: %270 -> %290 lend last
+>     uses $7: %267 -> %287 lend last
 >   local $8 actual: i32 [read] value
->     uses $8: %301 -> %304 lend last
+>     uses $8: %298 -> %301 lend last
 >   local $9 expected: i32 [read] value
->     uses $9: %302 -> %305 lend last
+>     uses $9: %299 -> %302 lend last
 >   local $10 reason: string [read] value
->     uses $10: %303 -> %306 consume last
+>     uses $10: %300 -> %303 consume last
 >   local $14 actual: i32 [read] value
->     uses $14: %280 -> %283 lend last
+>     uses $14: %277 -> %280 lend last
 >   local $15 expected: i32 [read] value
->     uses $15: %281 -> %284 lend last
+>     uses $15: %278 -> %281 lend last
 >   local $16 reason: string [read] value
->     uses $16: %282 -> %285 consume last
+>     uses $16: %279 -> %282 consume last
 >   local $20 capacity: usize [read] value
->     uses $20: %245 -> %246 consume last
+>     uses $20: %242 -> %243 consume last
 >   local $21 capacity: usize [read] value
->     uses $21: %247 -> %248 lend, %251 consume last
+>     uses $21: %244 -> %245 lend, %248 consume last
 >   local $22 actual: i32 [read] value
->     uses $22: %233 -> %236 lend last
+>     uses $22: %230 -> %233 lend last
 >   local $23 expected: i32 [read] value
->     uses $23: %234 -> %237 lend last
+>     uses $23: %231 -> %234 lend last
 >   local $24 reason: string [read] value
->     uses $24: %235 -> %238 consume last
+>     uses $24: %232 -> %235 consume last
 >   local $28 actual: i32 [read] value
->     uses $28: %215 -> %218 lend last
+>     uses $28: %212 -> %215 lend last
 >   local $29 expected: i32 [read] value
->     uses $29: %216 -> %219 lend last
+>     uses $29: %213 -> %216 lend last
 >   local $30 reason: string [read] value
->     uses $30: %217 -> %220 consume last
+>     uses $30: %214 -> %217 consume last
 >   local $34 capacity: usize [read] value
->     uses $34: %189 -> %190 consume last
+>     uses $34: %186 -> %187 consume last
 >   local $35 capacity: usize [read] value
->     uses $35: %191 -> %192 lend, %195 consume last
+>     uses $35: %188 -> %189 lend, %192 consume last
 >   local $36 actual: i32 [read] value
->     uses $36: %176 -> %179 lend last
+>     uses $36: %173 -> %176 lend last
 >   local $37 expected: i32 [read] value
->     uses $37: %177 -> %180 lend last
+>     uses $37: %174 -> %177 lend last
 >   local $38 reason: string [read] value
->     uses $38: %178 -> %181 consume last
+>     uses $38: %175 -> %178 consume last
 >   local $42 capacity: usize [read] value
->     uses $42: %151 -> %152 consume last
+>     uses $42: %148 -> %149 consume last
 >   local $43 capacity: usize [read] value
->     uses $43: %153 -> %154 lend, %157 consume last
+>     uses $43: %150 -> %151 lend, %154 consume last
 >   local $44 actual: i32 [read] value
->     uses $44: %138 -> %141 lend last
+>     uses $44: %135 -> %138 lend last
 >   local $45 expected: i32 [read] value
->     uses $45: %139 -> %142 lend last
+>     uses $45: %136 -> %139 lend last
 >   local $46 reason: string [read] value
->     uses $46: %140 -> %143 consume last
+>     uses $46: %137 -> %140 consume last
 >   local $50 actual: i32 [read] value
->     uses $50: %119 -> %122 lend last
+>     uses $50: %116 -> %119 lend last
 >   local $51 expected: i32 [read] value
->     uses $51: %120 -> %123 lend last
+>     uses $51: %117 -> %120 lend last
 >   local $52 reason: string [read] value
->     uses $52: %121 -> %124 consume last
+>     uses $52: %118 -> %121 consume last
 >   local $53 capacity: usize [read] value
->     uses $53: %96 -> %97 consume last
+>     uses $53: %93 -> %94 consume last
 >   local $54 capacity: usize [read] value
->     uses $54: %98 -> %99 lend, %102 consume last
+>     uses $54: %95 -> %96 lend, %99 consume last
 >   local $55 actual: i32 [read] value
->     uses $55: %83 -> %86 lend last
+>     uses $55: %80 -> %83 lend last
 >   local $56 expected: i32 [read] value
->     uses $56: %84 -> %87 lend last
+>     uses $56: %81 -> %84 lend last
 >   local $57 reason: string [read] value
->     uses $57: %85 -> %88 consume last
+>     uses $57: %82 -> %85 consume last
 >   local $61 capacity: usize [read] value
->     uses $61: %58 -> %59 consume last
+>     uses $61: %55 -> %56 consume last
 >   local $62 capacity: usize [read] value
->     uses $62: %60 -> %61 lend, %64 consume last
+>     uses $62: %57 -> %58 lend, %61 consume last
 >   local $63 actual: i32 [read] value
 >     uses $63: %32 -> %35 lend last
 >   local $64 expected: i32 [read] value
@@ -369,9 +351,9 @@ fn plain_controls() -> void:
 >   %1 = Store [$0] 0:i32 : ()
 >   %2 = Ref take mut [$0] : *mut i32
 >   %3 = Store [$1] %2 : ()
->   %116 = Box #4 #0 : ()
->   %264 = Box #5 #1 : ()
->   %312 = Block - : ()
+>   %113 = Box #4 #0 : ()
+>   %261 = Box #5 #1 : ()
+>   %309 = Block - : ()
     assert_equal(read(size, Resource { seen: seen, owned: UniqList::new() }), 0)
 >   %4 = ItemRef #0 [..] : fn(Resource) -> usize
 >   %5 = Read copy [$1] : *mut i32
@@ -414,305 +396,302 @@ fn plain_controls() -> void:
 >   %40 = Block - : ()
 >   %41 = Scope %40 [] : ()
     inspect := fn(value: Resource) -> usize: value.owned.len()
->   %42 = Retain %52 Entry local $2 #0 : ()
+>   %42 = Retain %49 Entry local $2 #0 : ()
 >   %43 = Box #2 #1 : ()
 >   %44 = Ref local [$2 .owned] : &UniqList[usize]
 >   %45 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%44) : usize
 >   %46 = LoanEnd [%44] : ()
 >   %47 = Drop [$2] : ()
->   %48 = Intrinsic ParamOwned [2:i32] : bool
->   %49 = Drop [$2] : ()
->   %50 = Block - : ()
->   %51 = If %48 [%50 -] : ()
->   %52 = Block %45 : usize
->   %53 = Closure #1 : fn(Resource) -> usize
->   %54 = Store [$3] %53 : ()
+>   %48 = Drop [$2] : ()
+>   %49 = Block %45 : usize
+>   %50 = Closure #1 : fn(Resource) -> usize
+>   %51 = Store [$3] %50 : ()
     assert_equal(read(inspect, Resource { seen: seen, owned: UniqList::new() }), 0)
->   %55 = Read move [$3] : fn(Resource) -> usize
->   %56 = Read copy [$1] : *mut i32
->   %57 = Retain %56 Value #0 : ()
->   %58 = Store [$61] 0:usize : ()
->   %59 = Read copy [$61] : usize
->   %60 = Store [$62] %59 : ()
+>   %52 = Read move [$3] : fn(Resource) -> usize
+>   %53 = Read copy [$1] : *mut i32
+>   %54 = Retain %53 Value #0 : ()
+>   %55 = Store [$61] 0:usize : ()
+>   %56 = Read copy [$61] : usize
+>   %57 = Store [$62] %56 : ()
+>   %58 = Read copy [$62] : usize
+>   %59 = Call std/rt.memory/size_of[usize] () : usize
+>   %60 = Call std/rt.memory/room[] (%58, %59) : usize
 >   %61 = Read copy [$62] : usize
->   %62 = Call std/rt.memory/size_of[usize] () : usize
->   %63 = Call std/rt.memory/room[] (%61, %62) : usize
->   %64 = Read copy [$62] : usize
->   %65 = NewStruct [%63 %64] : Buffer[usize]
->   %66 = Break L27 %65 : never
->   %67 = Block - : Buffer[usize]
->   %68 = Scope %67 [] : Buffer[usize]
->   %69 = NewStruct [%68 0:usize] : UniqList[usize]
->   %70 = Break L28 %69 : never
+>   %62 = NewStruct [%60 %61] : Buffer[usize]
+>   %63 = Break L27 %62 : never
+>   %64 = Block - : Buffer[usize]
+>   %65 = Scope %64 [] : Buffer[usize]
+>   %66 = NewStruct [%65 0:usize] : UniqList[usize]
+>   %67 = Break L28 %66 : never
+>   %68 = Block - : UniqList[usize]
+>   %69 = Scope %68 [] : UniqList[usize]
+>   %70 = Break L29 %69 : never
 >   %71 = Block - : UniqList[usize]
 >   %72 = Scope %71 [] : UniqList[usize]
->   %73 = Break L29 %72 : never
->   %74 = Block - : UniqList[usize]
->   %75 = Scope %74 [] : UniqList[usize]
->   %76 = NewStruct [%56 %75] : Resource
->   %77 = Call std/rt_tests.stage_case/read[] (%55, %76) : usize
->   %77 keeps %55
->   %78 = Break L26 "" : never
->   %79 = Block - : string
->   %80 = Scope %79 [] : string
->   %81 = Call std/testing/assert_equal[usize] (%77, 0:usize, %80) : ()
+>   %73 = NewStruct [%53 %72] : Resource
+>   %74 = Call std/rt_tests.stage_case/read[] (%52, %73) : usize
+>   %74 keeps %52
+>   %75 = Break L26 "" : never
+>   %76 = Block - : string
+>   %77 = Scope %76 [] : string
+>   %78 = Call std/testing/assert_equal[usize] (%74, 0:usize, %77) : ()
     assert_equal(*seen, +2, reason="closure callback releases its native owner once")
->   %82 = Read copy [*$1] : i32
->   %83 = Store [$55] %82 : ()
->   %84 = Store [$56] 2:i32 : ()
->   %85 = Store [$57] "closure callback releases its native owner once" : ()
->   %86 = Read copy [$55] : i32
->   %87 = Read copy [$56] : i32
->   %88 = Read move [$57] : string
->   %89 = Call std/testing/check_equal[i32] (%86, %87, %88) : ()
->   %90 = Break L25 - : never
->   %91 = Block - : ()
->   %92 = Scope %91 [] : ()
+>   %79 = Read copy [*$1] : i32
+>   %80 = Store [$55] %79 : ()
+>   %81 = Store [$56] 2:i32 : ()
+>   %82 = Store [$57] "closure callback releases its native owner once" : ()
+>   %83 = Read copy [$55] : i32
+>   %84 = Read copy [$56] : i32
+>   %85 = Read move [$57] : string
+>   %86 = Call std/testing/check_equal[i32] (%83, %84, %85) : ()
+>   %87 = Break L25 - : never
+>   %88 = Block - : ()
+>   %89 = Scope %88 [] : ()
     returned := identity(keep, Resource { seen: seen, owned: UniqList::new() })
->   %93 = ItemRef #135 [..] : fn(Resource) -> Resource
->   %94 = Read copy [$1] : *mut i32
->   %95 = Retain %94 Value #0 : ()
->   %96 = Store [$53] 0:usize : ()
->   %97 = Read copy [$53] : usize
->   %98 = Store [$54] %97 : ()
+>   %90 = ItemRef #135 [..] : fn(Resource) -> Resource
+>   %91 = Read copy [$1] : *mut i32
+>   %92 = Retain %91 Value #0 : ()
+>   %93 = Store [$53] 0:usize : ()
+>   %94 = Read copy [$53] : usize
+>   %95 = Store [$54] %94 : ()
+>   %96 = Read copy [$54] : usize
+>   %97 = Call std/rt.memory/size_of[usize] () : usize
+>   %98 = Call std/rt.memory/room[] (%96, %97) : usize
 >   %99 = Read copy [$54] : usize
->   %100 = Call std/rt.memory/size_of[usize] () : usize
->   %101 = Call std/rt.memory/room[] (%99, %100) : usize
->   %102 = Read copy [$54] : usize
->   %103 = NewStruct [%101 %102] : Buffer[usize]
->   %104 = Break L22 %103 : never
->   %105 = Block - : Buffer[usize]
->   %106 = Scope %105 [] : Buffer[usize]
->   %107 = NewStruct [%106 0:usize] : UniqList[usize]
->   %108 = Break L23 %107 : never
+>   %100 = NewStruct [%98 %99] : Buffer[usize]
+>   %101 = Break L22 %100 : never
+>   %102 = Block - : Buffer[usize]
+>   %103 = Scope %102 [] : Buffer[usize]
+>   %104 = NewStruct [%103 0:usize] : UniqList[usize]
+>   %105 = Break L23 %104 : never
+>   %106 = Block - : UniqList[usize]
+>   %107 = Scope %106 [] : UniqList[usize]
+>   %108 = Break L24 %107 : never
 >   %109 = Block - : UniqList[usize]
 >   %110 = Scope %109 [] : UniqList[usize]
->   %111 = Break L24 %110 : never
->   %112 = Block - : UniqList[usize]
->   %113 = Scope %112 [] : UniqList[usize]
->   %114 = NewStruct [%94 %113] : Resource
->   %115 = Call std/rt_tests.stage_case/identity[] (%93, %114) : Resource
->   %115 keeps %93
->   %117 = Store [$4] %115 : ()
+>   %111 = NewStruct [%91 %110] : Resource
+>   %112 = Call std/rt_tests.stage_case/identity[] (%90, %111) : Resource
+>   %112 keeps %90
+>   %114 = Store [$4] %112 : ()
     assert_equal(*seen, +2, reason="returning callback transfers the native Drop hook")
->   %118 = Read copy [*$1] : i32
->   %119 = Store [$50] %118 : ()
->   %120 = Store [$51] 2:i32 : ()
->   %121 = Store [$52] "returning callback transfers the native Drop hook" : ()
->   %122 = Read copy [$50] : i32
->   %123 = Read copy [$51] : i32
->   %124 = Read move [$52] : string
->   %125 = Call std/testing/check_equal[i32] (%122, %123, %124) : ()
->   %126 = Break L21 - : never
->   %127 = Block - : ()
->   %128 = Scope %127 [] : ()
+>   %115 = Read copy [*$1] : i32
+>   %116 = Store [$50] %115 : ()
+>   %117 = Store [$51] 2:i32 : ()
+>   %118 = Store [$52] "returning callback transfers the native Drop hook" : ()
+>   %119 = Read copy [$50] : i32
+>   %120 = Read copy [$51] : i32
+>   %121 = Read move [$52] : string
+>   %122 = Call std/testing/check_equal[i32] (%119, %120, %121) : ()
+>   %123 = Break L21 - : never
+>   %124 = Block - : ()
+>   %125 = Scope %124 [] : ()
     assert_equal(returned.owned.len(), 0)
->   %129 = Ref local frame [$4 .owned] : &UniqList[usize]
->   %130 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%129) : usize
->   %131 = LoanEnd [%129] : ()
->   %132 = Drop [$4] : ()
->   %133 = Break L20 "" : never
->   %134 = Block - : string
->   %135 = Scope %134 [] : string
->   %136 = Call std/testing/assert_equal[usize] (%130, 0:usize, %135) : ()
+>   %126 = Ref local frame [$4 .owned] : &UniqList[usize]
+>   %127 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%126) : usize
+>   %128 = LoanEnd [%126] : ()
+>   %129 = Drop [$4] : ()
+>   %130 = Break L20 "" : never
+>   %131 = Block - : string
+>   %132 = Scope %131 [] : string
+>   %133 = Call std/testing/assert_equal[usize] (%127, 0:usize, %132) : ()
     assert_equal(*seen, +3, reason="the returned native owner drops at its last use")
->   %137 = Read copy [*$1] : i32
->   %138 = Store [$44] %137 : ()
->   %139 = Store [$45] 3:i32 : ()
->   %140 = Store [$46] "the returned native owner drops at its last use" : ()
->   %141 = Read copy [$44] : i32
->   %142 = Read copy [$45] : i32
->   %143 = Read move [$46] : string
->   %144 = Call std/testing/check_equal[i32] (%141, %142, %143) : ()
->   %145 = Break L19 - : never
->   %146 = Block - : ()
->   %147 = Scope %146 [] : ()
+>   %134 = Read copy [*$1] : i32
+>   %135 = Store [$44] %134 : ()
+>   %136 = Store [$45] 3:i32 : ()
+>   %137 = Store [$46] "the returned native owner drops at its last use" : ()
+>   %138 = Read copy [$44] : i32
+>   %139 = Read copy [$45] : i32
+>   %140 = Read move [$46] : string
+>   %141 = Call std/testing/check_equal[i32] (%138, %139, %140) : ()
+>   %142 = Break L19 - : never
+>   %143 = Block - : ()
+>   %144 = Scope %143 [] : ()
     assert_equal(read(ignore, Resource { seen: seen, owned: UniqList::new() }), 0)
->   %148 = ItemRef #223 [..] : fn(Resource) -> usize
->   %149 = Read copy [$1] : *mut i32
->   %150 = Retain %149 Value #0 : ()
->   %151 = Store [$42] 0:usize : ()
->   %152 = Read copy [$42] : usize
->   %153 = Store [$43] %152 : ()
+>   %145 = ItemRef #223 [..] : fn(Resource) -> usize
+>   %146 = Read copy [$1] : *mut i32
+>   %147 = Retain %146 Value #0 : ()
+>   %148 = Store [$42] 0:usize : ()
+>   %149 = Read copy [$42] : usize
+>   %150 = Store [$43] %149 : ()
+>   %151 = Read copy [$43] : usize
+>   %152 = Call std/rt.memory/size_of[usize] () : usize
+>   %153 = Call std/rt.memory/room[] (%151, %152) : usize
 >   %154 = Read copy [$43] : usize
->   %155 = Call std/rt.memory/size_of[usize] () : usize
->   %156 = Call std/rt.memory/room[] (%154, %155) : usize
->   %157 = Read copy [$43] : usize
->   %158 = NewStruct [%156 %157] : Buffer[usize]
->   %159 = Break L16 %158 : never
->   %160 = Block - : Buffer[usize]
->   %161 = Scope %160 [] : Buffer[usize]
->   %162 = NewStruct [%161 0:usize] : UniqList[usize]
->   %163 = Break L17 %162 : never
+>   %155 = NewStruct [%153 %154] : Buffer[usize]
+>   %156 = Break L16 %155 : never
+>   %157 = Block - : Buffer[usize]
+>   %158 = Scope %157 [] : Buffer[usize]
+>   %159 = NewStruct [%158 0:usize] : UniqList[usize]
+>   %160 = Break L17 %159 : never
+>   %161 = Block - : UniqList[usize]
+>   %162 = Scope %161 [] : UniqList[usize]
+>   %163 = Break L18 %162 : never
 >   %164 = Block - : UniqList[usize]
 >   %165 = Scope %164 [] : UniqList[usize]
->   %166 = Break L18 %165 : never
->   %167 = Block - : UniqList[usize]
->   %168 = Scope %167 [] : UniqList[usize]
->   %169 = NewStruct [%149 %168] : Resource
->   %170 = Call std/rt_tests.stage_case/read[] (%148, %169) : usize
->   %170 keeps %148
->   %171 = Break L15 "" : never
->   %172 = Block - : string
->   %173 = Scope %172 [] : string
->   %174 = Call std/testing/assert_equal[usize] (%170, 0:usize, %173) : ()
+>   %166 = NewStruct [%146 %165] : Resource
+>   %167 = Call std/rt_tests.stage_case/read[] (%145, %166) : usize
+>   %167 keeps %145
+>   %168 = Break L15 "" : never
+>   %169 = Block - : string
+>   %170 = Scope %169 [] : string
+>   %171 = Call std/testing/assert_equal[usize] (%167, 0:usize, %170) : ()
     assert_equal(*seen, +4, reason="an unused native input still runs its Drop hook")
->   %175 = Read copy [*$1] : i32
->   %176 = Store [$36] %175 : ()
->   %177 = Store [$37] 4:i32 : ()
->   %178 = Store [$38] "an unused native input still runs its Drop hook" : ()
->   %179 = Read copy [$36] : i32
->   %180 = Read copy [$37] : i32
->   %181 = Read move [$38] : string
->   %182 = Call std/testing/check_equal[i32] (%179, %180, %181) : ()
->   %183 = Break L14 - : never
->   %184 = Block - : ()
->   %185 = Scope %184 [] : ()
+>   %172 = Read copy [*$1] : i32
+>   %173 = Store [$36] %172 : ()
+>   %174 = Store [$37] 4:i32 : ()
+>   %175 = Store [$38] "an unused native input still runs its Drop hook" : ()
+>   %176 = Read copy [$36] : i32
+>   %177 = Read copy [$37] : i32
+>   %178 = Read move [$38] : string
+>   %179 = Call std/testing/check_equal[i32] (%176, %177, %178) : ()
+>   %180 = Break L14 - : never
+>   %181 = Block - : ()
+>   %182 = Scope %181 [] : ()
     assert_equal(
->   %210 = Break L10 "" : never
->   %211 = Block - : string
->   %212 = Scope %211 [] : string
->   %213 = Call std/testing/assert_equal[usize] (%209, 0:usize, %212) : ()
+>   %207 = Break L10 "" : never
+>   %208 = Block - : string
+>   %209 = Scope %208 [] : string
+>   %210 = Call std/testing/assert_equal[usize] (%206, 0:usize, %209) : ()
         read_conditional(conditional_size, .Live(Resource { seen: seen, owned: UniqList::new() })),
->   %186 = ItemRef #283 [..] : fn(Conditional) -> usize
->   %187 = Read copy [$1] : *mut i32
->   %188 = Retain %187 Value #0 : ()
->   %189 = Store [$34] 0:usize : ()
->   %190 = Read copy [$34] : usize
->   %191 = Store [$35] %190 : ()
+>   %183 = ItemRef #283 [..] : fn(Conditional) -> usize
+>   %184 = Read copy [$1] : *mut i32
+>   %185 = Retain %184 Value #0 : ()
+>   %186 = Store [$34] 0:usize : ()
+>   %187 = Read copy [$34] : usize
+>   %188 = Store [$35] %187 : ()
+>   %189 = Read copy [$35] : usize
+>   %190 = Call std/rt.memory/size_of[usize] () : usize
+>   %191 = Call std/rt.memory/room[] (%189, %190) : usize
 >   %192 = Read copy [$35] : usize
->   %193 = Call std/rt.memory/size_of[usize] () : usize
->   %194 = Call std/rt.memory/room[] (%192, %193) : usize
->   %195 = Read copy [$35] : usize
->   %196 = NewStruct [%194 %195] : Buffer[usize]
->   %197 = Break L11 %196 : never
->   %198 = Block - : Buffer[usize]
->   %199 = Scope %198 [] : Buffer[usize]
->   %200 = NewStruct [%199 0:usize] : UniqList[usize]
->   %201 = Break L12 %200 : never
+>   %193 = NewStruct [%191 %192] : Buffer[usize]
+>   %194 = Break L11 %193 : never
+>   %195 = Block - : Buffer[usize]
+>   %196 = Scope %195 [] : Buffer[usize]
+>   %197 = NewStruct [%196 0:usize] : UniqList[usize]
+>   %198 = Break L12 %197 : never
+>   %199 = Block - : UniqList[usize]
+>   %200 = Scope %199 [] : UniqList[usize]
+>   %201 = Break L13 %200 : never
 >   %202 = Block - : UniqList[usize]
 >   %203 = Scope %202 [] : UniqList[usize]
->   %204 = Break L13 %203 : never
->   %205 = Block - : UniqList[usize]
->   %206 = Scope %205 [] : UniqList[usize]
->   %207 = NewStruct [%187 %206] : Resource
->   %208 = NewVariant #1 [%207] : Conditional
->   %209 = Call std/rt_tests.stage_case/read_conditional[] (%186, %208) : usize
->   %209 keeps %186
+>   %204 = NewStruct [%184 %203] : Resource
+>   %205 = NewVariant #1 [%204] : Conditional
+>   %206 = Call std/rt_tests.stage_case/read_conditional[] (%183, %205) : usize
+>   %206 keeps %183
         0,
     )
     assert_equal(*seen, +5, reason="a live conditional native payload transfers once")
->   %214 = Read copy [*$1] : i32
->   %215 = Store [$28] %214 : ()
->   %216 = Store [$29] 5:i32 : ()
->   %217 = Store [$30] "a live conditional native payload transfers once" : ()
->   %218 = Read copy [$28] : i32
->   %219 = Read copy [$29] : i32
->   %220 = Read move [$30] : string
->   %221 = Call std/testing/check_equal[i32] (%218, %219, %220) : ()
->   %222 = Break L9 - : never
->   %223 = Block - : ()
->   %224 = Scope %223 [] : ()
+>   %211 = Read copy [*$1] : i32
+>   %212 = Store [$28] %211 : ()
+>   %213 = Store [$29] 5:i32 : ()
+>   %214 = Store [$30] "a live conditional native payload transfers once" : ()
+>   %215 = Read copy [$28] : i32
+>   %216 = Read copy [$29] : i32
+>   %217 = Read move [$30] : string
+>   %218 = Call std/testing/check_equal[i32] (%215, %216, %217) : ()
+>   %219 = Break L9 - : never
+>   %220 = Block - : ()
+>   %221 = Scope %220 [] : ()
     assert_equal(read_conditional(conditional_size, .Empty), 0)
->   %225 = ItemRef #345 [..] : fn(Conditional) -> usize
->   %226 = NewVariant #0 [] : Conditional
->   %227 = Call std/rt_tests.stage_case/read_conditional[] (%225, %226) : usize
->   %227 keeps %225
->   %228 = Break L8 "" : never
->   %229 = Block - : string
->   %230 = Scope %229 [] : string
->   %231 = Call std/testing/assert_equal[usize] (%227, 0:usize, %230) : ()
+>   %222 = ItemRef #345 [..] : fn(Conditional) -> usize
+>   %223 = NewVariant #0 [] : Conditional
+>   %224 = Call std/rt_tests.stage_case/read_conditional[] (%222, %223) : usize
+>   %224 keeps %222
+>   %225 = Break L8 "" : never
+>   %226 = Block - : string
+>   %227 = Scope %226 [] : string
+>   %228 = Call std/testing/assert_equal[usize] (%224, 0:usize, %227) : ()
     assert_equal(*seen, +5, reason="an absent conditional payload has no Drop hook")
->   %232 = Read copy [*$1] : i32
->   %233 = Store [$22] %232 : ()
->   %234 = Store [$23] 5:i32 : ()
->   %235 = Store [$24] "an absent conditional payload has no Drop hook" : ()
->   %236 = Read copy [$22] : i32
->   %237 = Read copy [$23] : i32
->   %238 = Read move [$24] : string
->   %239 = Call std/testing/check_equal[i32] (%236, %237, %238) : ()
->   %240 = Break L7 - : never
->   %241 = Block - : ()
->   %242 = Scope %241 [] : ()
+>   %229 = Read copy [*$1] : i32
+>   %230 = Store [$22] %229 : ()
+>   %231 = Store [$23] 5:i32 : ()
+>   %232 = Store [$24] "an absent conditional payload has no Drop hook" : ()
+>   %233 = Read copy [$22] : i32
+>   %234 = Read copy [$23] : i32
+>   %235 = Read move [$24] : string
+>   %236 = Call std/testing/check_equal[i32] (%233, %234, %235) : ()
+>   %237 = Break L7 - : never
+>   %238 = Block - : ()
+>   %239 = Scope %238 [] : ()
     owner := box(Resource { seen: seen, owned: UniqList::new() })
->   %243 = Read copy [$1] : *mut i32
->   %244 = Retain %243 Value #0 : ()
->   %245 = Store [$20] 0:usize : ()
->   %246 = Read copy [$20] : usize
->   %247 = Store [$21] %246 : ()
+>   %240 = Read copy [$1] : *mut i32
+>   %241 = Retain %240 Value #0 : ()
+>   %242 = Store [$20] 0:usize : ()
+>   %243 = Read copy [$20] : usize
+>   %244 = Store [$21] %243 : ()
+>   %245 = Read copy [$21] : usize
+>   %246 = Call std/rt.memory/size_of[usize] () : usize
+>   %247 = Call std/rt.memory/room[] (%245, %246) : usize
 >   %248 = Read copy [$21] : usize
->   %249 = Call std/rt.memory/size_of[usize] () : usize
->   %250 = Call std/rt.memory/room[] (%248, %249) : usize
->   %251 = Read copy [$21] : usize
->   %252 = NewStruct [%250 %251] : Buffer[usize]
->   %253 = Break L4 %252 : never
->   %254 = Block - : Buffer[usize]
->   %255 = Scope %254 [] : Buffer[usize]
->   %256 = NewStruct [%255 0:usize] : UniqList[usize]
->   %257 = Break L5 %256 : never
+>   %249 = NewStruct [%247 %248] : Buffer[usize]
+>   %250 = Break L4 %249 : never
+>   %251 = Block - : Buffer[usize]
+>   %252 = Scope %251 [] : Buffer[usize]
+>   %253 = NewStruct [%252 0:usize] : UniqList[usize]
+>   %254 = Break L5 %253 : never
+>   %255 = Block - : UniqList[usize]
+>   %256 = Scope %255 [] : UniqList[usize]
+>   %257 = Break L6 %256 : never
 >   %258 = Block - : UniqList[usize]
 >   %259 = Scope %258 [] : UniqList[usize]
->   %260 = Break L6 %259 : never
->   %261 = Block - : UniqList[usize]
->   %262 = Scope %261 [] : UniqList[usize]
->   %263 = NewStruct [%243 %262] : Resource
->   %265 = Store [$5] %263 : ()
->   %266 = Ref take mut [$5] : *mut Resource
->   %267 = Store [$6] %266 : ()
+>   %260 = NewStruct [%240 %259] : Resource
+>   %262 = Store [$5] %260 : ()
+>   %263 = Ref take mut [$5] : *mut Resource
+>   %264 = Store [$6] %263 : ()
     alias := owner
->   %268 = Read copy [$6] : *mut Resource
->   %269 = Retain %268 Value #0 : ()
->   %270 = Store [$7] %268 : ()
+>   %265 = Read copy [$6] : *mut Resource
+>   %266 = Retain %265 Value #0 : ()
+>   %267 = Store [$7] %265 : ()
     assert_equal(read_boxed(boxed_size, owner), 0)
->   %271 = ItemRef #406 [..] : fn(*Resource) -> usize
->   %272 = Read move [$6] : *mut Resource
->   %273 = Coerce %272 [Weaken -] : *Resource
->   %274 = Call std/rt_tests.stage_case/read_boxed[] (%271, %273) : usize
->   %274 keeps %271
->   %275 = Break L3 "" : never
->   %276 = Block - : string
->   %277 = Scope %276 [] : string
->   %278 = Call std/testing/assert_equal[usize] (%274, 0:usize, %277) : ()
+>   %268 = ItemRef #406 [..] : fn(*Resource) -> usize
+>   %269 = Read move [$6] : *mut Resource
+>   %270 = Coerce %269 [Weaken -] : *Resource
+>   %271 = Call std/rt_tests.stage_case/read_boxed[] (%268, %270) : usize
+>   %271 keeps %268
+>   %272 = Break L3 "" : never
+>   %273 = Block - : string
+>   %274 = Scope %273 [] : string
+>   %275 = Call std/testing/assert_equal[usize] (%271, 0:usize, %274) : ()
     assert_equal(
->   %280 = Store [$14] %279 : ()
->   %281 = Store [$15] 5:i32 : ()
->   %282 = Store [$16] "a borrowed boxed alias does not transfer the payload's native hook" : ()
->   %283 = Read copy [$14] : i32
->   %284 = Read copy [$15] : i32
->   %285 = Read move [$16] : string
->   %286 = Call std/testing/check_equal[i32] (%283, %284, %285) : ()
->   %287 = Break L2 - : never
->   %288 = Block - : ()
->   %289 = Scope %288 [] : ()
+>   %277 = Store [$14] %276 : ()
+>   %278 = Store [$15] 5:i32 : ()
+>   %279 = Store [$16] "a borrowed boxed alias does not transfer the payload's native hook" : ()
+>   %280 = Read copy [$14] : i32
+>   %281 = Read copy [$15] : i32
+>   %282 = Read move [$16] : string
+>   %283 = Call std/testing/check_equal[i32] (%280, %281, %282) : ()
+>   %284 = Break L2 - : never
+>   %285 = Block - : ()
+>   %286 = Scope %285 [] : ()
         *seen,
->   %279 = Read copy [*$1] : i32
+>   %276 = Read copy [*$1] : i32
         +5,
         reason="a borrowed boxed alias does not transfer the payload's native hook",
     )
     assert_equal(alias.owned.len(), 0)
->   %290 = Ref local [*$7 .owned] : &UniqList[usize]
->   %291 = LoanBegin %290 #0 : ()
->   %292 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%290) : usize
->   %293 = LoanClose %291 : ()
->   %294 = LoanEnd [%290] : ()
->   %295 = Drop [$7] : ()
->   %296 = Break L1 "" : never
->   %297 = Block - : string
->   %298 = Scope %297 [] : string
->   %299 = Call std/testing/assert_equal[usize] (%292, 0:usize, %298) : ()
+>   %287 = Ref local [*$7 .owned] : &UniqList[usize]
+>   %288 = LoanBegin %287 #0 : ()
+>   %289 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%287) : usize
+>   %290 = LoanClose %288 : ()
+>   %291 = LoanEnd [%287] : ()
+>   %292 = Drop [$7] : ()
+>   %293 = Break L1 "" : never
+>   %294 = Block - : string
+>   %295 = Scope %294 [] : string
+>   %296 = Call std/testing/assert_equal[usize] (%289, 0:usize, %295) : ()
     assert_equal(*seen, +6, reason="the shared box retains its native payload until the last alias")
->   %300 = Read copy [*$1] : i32
->   %301 = Store [$8] %300 : ()
->   %302 = Store [$9] 6:i32 : ()
->   %303 = Store [$10] "the shared box retains its native payload until the last alias" : ()
->   %304 = Read copy [$8] : i32
->   %305 = Read copy [$9] : i32
->   %306 = Read move [$10] : string
->   %307 = Call std/testing/check_equal[i32] (%304, %305, %306) : ()
->   %308 = Break L0 - : never
->   %309 = Block - : ()
->   %310 = Scope %309 [] : ()
->   %311 = Drop [$1] : ()
+>   %297 = Read copy [*$1] : i32
+>   %298 = Store [$8] %297 : ()
+>   %299 = Store [$9] 6:i32 : ()
+>   %300 = Store [$10] "the shared box retains its native payload until the last alias" : ()
+>   %301 = Read copy [$8] : i32
+>   %302 = Read copy [$9] : i32
+>   %303 = Read move [$10] : string
+>   %304 = Call std/testing/check_equal[i32] (%301, %302, %303) : ()
+>   %305 = Break L0 - : never
+>   %306 = Block - : ()
+>   %307 = Scope %306 [] : ()
+>   %308 = Drop [$1] : ()
 >   exit sub 1 drops [$2]
 >   storage sub 0: $0 cell, $2 cell, $4 slot, $5 cell
 >   storage sub 1: $0 cell, $2 cell, $4 cell, $5 cell
@@ -751,26 +730,23 @@ fn read_empty(callback: fn(EmptyResource) -> usize, value: EmptyResource) -> usi
 >   local $1 value: EmptyResource [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: %1 -> %7 lend last
+>     uses $2: %1 -> %6 lend last
 >   %0 = Intrinsic ParamOwned [1:i32] : bool
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : fn(EmptyResource) -> usize
 >   %3 = Read move [$1] : EmptyResource
 >   %4 = FlagClear [$1] #2 : ()
 >   %5 = CallValue %2 [%3] : usize
->   %6 = Intrinsic ParamOwned [1:i32] : bool
->   %7 = Read copy [$2] : bool
->   %8 = Drop [$1] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Block - : ()
->   %12 = If %6 [%11 -] : ()
->   %13 = Intrinsic ParamOwned [0:i32] : bool
->   %14 = Drop [$0] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %5 : usize
+>   %6 = Read copy [$2] : bool
+>   %7 = Drop [$1] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $0 #2 : ()
+>   %15 = Block %5 : usize
 >   exit sub 0 drops [$1]
 
 @inline(.Never)
@@ -779,7 +755,7 @@ fn read_empty(callback: fn(EmptyResource) -> usize, value: EmptyResource) -> usi
 >     uses $0: entry -> %1 lend last
 >   local $1 value: Args [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = Retain %16 Entry local $1 #0 : ()
+>   %0 = Retain %13 Entry local $1 #0 : ()
 fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $()], value: Args) -> usize:
     callback(value...)
 >   %1 = Read borrow [$0] : Fn[Args, usize, $()]
@@ -788,16 +764,13 @@ fn read_spread[Args < ?Copy & Tuple](callback: Fn[Args, usize, $()], value: Args
 >   %4 = Retain %3 Operation arguments #0 : ()
 >   %5 = Release %3 Operation arguments #2 : ()
 >   %6 = Drop [%2] : ()
->   %7 = Intrinsic ParamOwned [1:i32] : bool
->   %8 = Drop [$1] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Intrinsic ParamOwned [0:i32] : bool
->   %12 = Drop [$0] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Release %16 Exit local $0 #2 : ()
->   %16 = Block %3 : usize
+>   %7 = Drop [$1] : ()
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $0 #2 : ()
+>   %13 = Block %3 : usize
 >   exit sub 0 drops [$1]
 
 fn mixed_size(
@@ -827,26 +800,23 @@ fn mixed_size(
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
 >   %10 = Prim Add [%2 %9] : usize
->   %11 = Intrinsic ParamOwned [1:i32] : bool
->   %12 = Drop [$1] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Intrinsic ParamOwned [0:i32] : bool
->   %16 = Drop [$0] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Release %30 Exit local $0 #2 : ()
->   %20 = Intrinsic ParamOwned [3:i32] : bool
->   %21 = Drop [$3] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
->   %24 = Release %30 Exit local $3 #2 : ()
->   %25 = Intrinsic ParamOwned [4:i32] : bool
->   %26 = Drop [$4] : ()
->   %27 = Block - : ()
->   %28 = If %25 [%27 -] : ()
->   %29 = Release %30 Exit local $4 #2 : ()
->   %30 = Block %10 : usize
+>   %11 = Drop [$1] : ()
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %27 Exit local $0 #2 : ()
+>   %17 = Intrinsic ParamOwned [3:i32] : bool
+>   %18 = Drop [$3] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %27 Exit local $3 #2 : ()
+>   %22 = Intrinsic ParamOwned [4:i32] : bool
+>   %23 = Drop [$4] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Release %27 Exit local $4 #2 : ()
+>   %27 = Block %10 : usize
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 slot
 
@@ -856,46 +826,46 @@ fn empty_controls() -> void:
 >   local $0 value: EmptyResource [param] value
 >     uses $0: none
 >   local $1 inspect: fn(EmptyResource) -> usize [:= read assigned] value
->     uses $1: %38 -> %39 consume last
+>     uses $1: %32 -> %33 consume last
 >   local $2 $ref: i32 [read assigned captured captured-assigned] place
 >   local $3 seen: *mut i32 [:= read assigned] value
->     uses $3: %60 -> %129 consume, %154 lend last
+>     uses $3: %54 -> %123 consume, %148 lend last
 >   local $4 $ref: List[string] [read assigned captured captured-assigned] place
 >   local $5 label: string [:= read assigned] value
->     uses $5: %70 -> %134 consume, %168 consume last
+>     uses $5: %64 -> %128 consume, %162 consume last
 >   local $6 owned: UniqList[usize] [read assigned captured captured-assigned] place
 >   local $8 expected: string [read] value
->     uses $8: %166 -> %169 consume last
+>     uses $8: %160 -> %163 consume last
 >   local $9 reason: string [read] value
->     uses $9: %167 -> %170 consume last
+>     uses $9: %161 -> %164 consume last
 >   local $10 actual: i32 [read] value
->     uses $10: %155 -> %158 lend last
+>     uses $10: %149 -> %152 lend last
 >   local $11 expected: i32 [read] value
->     uses $11: %156 -> %159 lend last
+>     uses $11: %150 -> %153 lend last
 >   local $12 reason: string [read] value
->     uses $12: %157 -> %160 consume last
+>     uses $12: %151 -> %154 consume last
 >   local $13 actual: usize [read] value
->     uses $13: %144 -> %147 lend last
+>     uses $13: %138 -> %141 lend last
 >   local $14 expected: usize [read] value
->     uses $14: %145 -> %148 lend last
+>     uses $14: %139 -> %142 lend last
 >   local $15 reason: string [read] value
->     uses $15: %146 -> %149 consume last
+>     uses $15: %140 -> %143 consume last
 >   local $19 self: &mut UniqList[usize] [read] value
->     uses $19: %93 -> %95 consume, %99 lend, %106 lend, %112 lend, %122 lend last
+>     uses $19: %87 -> %89 consume, %93 lend, %100 lend, %106 lend, %116 lend last
 >   local $20 value: usize [read] value
->     uses $20: %94 -> %118 consume last
+>     uses $20: %88 -> %112 consume last
 >   local $21 size: usize [:= read assigned] value
->     uses $21: %98 -> %104 lend, %107 lend, %114 lend, %120 lend last
+>     uses $21: %92 -> %98 lend, %101 lend, %108 lend, %114 lend last
 >   local $22 capacity: usize [read] value
->     uses $22: %71 -> %72 consume last
+>     uses $22: %65 -> %66 consume last
 >   local $23 capacity: usize [read] value
->     uses $23: %73 -> %74 lend, %77 consume last
+>     uses $23: %67 -> %68 lend, %71 consume last
 >   local $24 actual: usize [read] value
->     uses $24: %47 -> %50 lend last
+>     uses $24: %41 -> %44 lend last
 >   local $25 expected: usize [read] value
->     uses $25: %48 -> %51 lend last
+>     uses $25: %42 -> %45 lend last
 >   local $26 reason: string [read] value
->     uses $26: %49 -> %52 consume last
+>     uses $26: %43 -> %46 consume last
 >   local $30 actual: usize [read] value
 >     uses $30: %8 -> %11 lend last
 >   local $31 expected: usize [read] value
@@ -903,7 +873,7 @@ fn empty_controls() -> void:
 >   local $32 reason: string [read] value
 >     uses $32: %10 -> %13 consume last
 >   local $36 $temporary_owner: bool [read assigned] value
->     uses $36: %19 -> %22 lend, %30 lend last
+>     uses $36: %19 -> %21 lend, %26 lend last
 >   %0 = ItemRef #0 [..] : fn(EmptyResource) -> usize
 >   %1 = NewStruct [] : EmptyResource
 >   %2 = Call std/rt_tests.stage_case/read_empty[] (%0, %1) : usize
@@ -912,10 +882,10 @@ fn empty_controls() -> void:
 >   %4 = Block - : string
 >   %5 = Scope %4 [] : string
 >   %6 = Call std/testing/assert_equal[usize] (%2, 0:usize, %5) : ()
->   %57 = Box #2 #1 : ()
->   %64 = Box #4 #0 : ()
->   %89 = Box #6 #0 : ()
->   %175 = Block - : ()
+>   %51 = Box #2 #1 : ()
+>   %58 = Box #4 #0 : ()
+>   %83 = Box #6 #0 : ()
+>   %169 = Block - : ()
     assert_equal(empty_drops, 1, reason="a named callback drops its zero-leaf owner once")
 >   %7 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
 >   %8 = Store [$30] %7 : ()
@@ -931,176 +901,170 @@ fn empty_controls() -> void:
     inspect := fn(value: EmptyResource) -> usize: 0
 >   %18 = Intrinsic ParamOwned [0:i32] : bool
 >   %19 = Store [$36] %18 : ()
->   %20 = Retain %36 Entry local $0 #0 : ()
->   %21 = Intrinsic ParamOwned [0:i32] : bool
->   %22 = Read copy [$36] : bool
->   %23 = Drop [$0] : ()
->   %24 = Block - : ()
->   %25 = If %22 [%24 -] : ()
->   %26 = Block - : ()
->   %27 = If %21 [%26 -] : ()
->   %28 = FlagClear [$0] #36 : ()
->   %29 = Intrinsic ParamOwned [0:i32] : bool
->   %30 = Read copy [$36] : bool
->   %31 = Drop [$0] : ()
->   %32 = Block - : ()
->   %33 = If %30 [%32 -] : ()
->   %34 = Block - : ()
->   %35 = If %29 [%34 -] : ()
->   %36 = Block 0:usize : usize
->   %37 = Closure #1 : fn(EmptyResource) -> usize
->   %38 = Store [$1] %37 : ()
+>   %20 = Retain %30 Entry local $0 #0 : ()
+>   %21 = Read copy [$36] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = FlagClear [$0] #36 : ()
+>   %26 = Read copy [$36] : bool
+>   %27 = Drop [$0] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Block 0:usize : usize
+>   %31 = Closure #1 : fn(EmptyResource) -> usize
+>   %32 = Store [$1] %31 : ()
     assert_equal(read_empty(inspect, EmptyResource {}), 0)
->   %39 = Read move [$1] : fn(EmptyResource) -> usize
->   %40 = NewStruct [] : EmptyResource
->   %41 = Call std/rt_tests.stage_case/read_empty[] (%39, %40) : usize
->   %41 keeps %39
->   %42 = Break L9 "" : never
->   %43 = Block - : string
->   %44 = Scope %43 [] : string
->   %45 = Call std/testing/assert_equal[usize] (%41, 0:usize, %44) : ()
+>   %33 = Read move [$1] : fn(EmptyResource) -> usize
+>   %34 = NewStruct [] : EmptyResource
+>   %35 = Call std/rt_tests.stage_case/read_empty[] (%33, %34) : usize
+>   %35 keeps %33
+>   %36 = Break L9 "" : never
+>   %37 = Block - : string
+>   %38 = Scope %37 [] : string
+>   %39 = Call std/testing/assert_equal[usize] (%35, 0:usize, %38) : ()
     assert_equal(empty_drops, 2, reason="a literal callback drops its zero-leaf owner once")
->   %46 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
->   %47 = Store [$24] %46 : ()
->   %48 = Store [$25] 2:usize : ()
->   %49 = Store [$26] "a literal callback drops its zero-leaf owner once" : ()
->   %50 = Read copy [$24] : usize
->   %51 = Read copy [$25] : usize
->   %52 = Read move [$26] : string
->   %53 = Call std/testing/check_equal[usize] (%50, %51, %52) : ()
->   %54 = Break L8 - : never
->   %55 = Block - : ()
->   %56 = Scope %55 [] : ()
+>   %40 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
+>   %41 = Store [$24] %40 : ()
+>   %42 = Store [$25] 2:usize : ()
+>   %43 = Store [$26] "a literal callback drops its zero-leaf owner once" : ()
+>   %44 = Read copy [$24] : usize
+>   %45 = Read copy [$25] : usize
+>   %46 = Read move [$26] : string
+>   %47 = Call std/testing/check_equal[usize] (%44, %45, %46) : ()
+>   %48 = Break L8 - : never
+>   %49 = Block - : ()
+>   %50 = Scope %49 [] : ()
     seen := box(+0)
->   %58 = Store [$2] 0:i32 : ()
->   %59 = Ref take mut [$2] : *mut i32
->   %60 = Store [$3] %59 : ()
+>   %52 = Store [$2] 0:i32 : ()
+>   %53 = Ref take mut [$2] : *mut i32
+>   %54 = Store [$3] %53 : ()
     label := ["ke", "pt"].join("")
->   %61 = Coerce "ke" [Identity -] : string
->   %62 = Retain %61 Value #0 : ()
->   %63 = NewList - [%61 "pt"] : List[string]
->   %65 = Store [$4] %63 : ()
->   %66 = Ref local frame [$4] : &List[string]
->   %67 = Call std/text/impl List[string].join[] (%66, "") : string
->   %68 = LoanEnd [%66] : ()
->   %69 = Drop [$4] : ()
->   %70 = Store [$5] %67 : ()
+>   %55 = Coerce "ke" [Identity -] : string
+>   %56 = Retain %55 Value #0 : ()
+>   %57 = NewList - [%55 "pt"] : List[string]
+>   %59 = Store [$4] %57 : ()
+>   %60 = Ref local frame [$4] : &List[string]
+>   %61 = Call std/text/impl List[string].join[] (%60, "") : string
+>   %62 = LoanEnd [%60] : ()
+>   %63 = Drop [$4] : ()
+>   %64 = Store [$5] %61 : ()
     let mut owned: UniqList[usize] = UniqList::new()
->   %71 = Store [$22] 0:usize : ()
->   %72 = Read copy [$22] : usize
->   %73 = Store [$23] %72 : ()
->   %74 = Read copy [$23] : usize
->   %75 = Call std/rt.memory/size_of[usize] () : usize
->   %76 = Call std/rt.memory/room[] (%74, %75) : usize
->   %77 = Read copy [$23] : usize
->   %78 = NewStruct [%76 %77] : Buffer[usize]
->   %79 = Break L5 %78 : never
->   %80 = Block - : Buffer[usize]
->   %81 = Scope %80 [] : Buffer[usize]
->   %82 = NewStruct [%81 0:usize] : UniqList[usize]
->   %83 = Break L6 %82 : never
->   %84 = Block - : UniqList[usize]
->   %85 = Scope %84 [] : UniqList[usize]
->   %86 = Break L7 %85 : never
->   %87 = Block - : UniqList[usize]
->   %88 = Scope %87 [] : UniqList[usize]
->   %90 = Store [$6] %88 : ()
->   %91 = FlagSet [$6] #37 : ()
+>   %65 = Store [$22] 0:usize : ()
+>   %66 = Read copy [$22] : usize
+>   %67 = Store [$23] %66 : ()
+>   %68 = Read copy [$23] : usize
+>   %69 = Call std/rt.memory/size_of[usize] () : usize
+>   %70 = Call std/rt.memory/room[] (%68, %69) : usize
+>   %71 = Read copy [$23] : usize
+>   %72 = NewStruct [%70 %71] : Buffer[usize]
+>   %73 = Break L5 %72 : never
+>   %74 = Block - : Buffer[usize]
+>   %75 = Scope %74 [] : Buffer[usize]
+>   %76 = NewStruct [%75 0:usize] : UniqList[usize]
+>   %77 = Break L6 %76 : never
+>   %78 = Block - : UniqList[usize]
+>   %79 = Scope %78 [] : UniqList[usize]
+>   %80 = Break L7 %79 : never
+>   %81 = Block - : UniqList[usize]
+>   %82 = Scope %81 [] : UniqList[usize]
+>   %84 = Store [$6] %82 : ()
+>   %85 = FlagSet [$6] #37 : ()
     owned.push(23)
->   %92 = Ref mut local frame [$6] : &mut UniqList[usize]
->   %93 = Store [$19] %92 : ()
->   %94 = Store [$20] 23:usize : ()
->   %95 = Read borrow [$19] : &mut UniqList[usize]
->   %96 = Coerce %95 [Weaken -] : &UniqList[usize]
->   %97 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%96) : usize
->   %98 = Store [$21] %97 : ()
->   %99 = Ref local [*$19 .buffer] : &Buffer[usize]
->   %100 = LoanBegin %99 #0 : ()
->   %101 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%99) : usize
->   %102 = LoanClose %100 : ()
->   %103 = LoanEnd [%99] : ()
->   %104 = Read copy [$21] : usize
->   %105 = Prim Le [%101 %104] : bool
->   %106 = Read borrow [$19] : &mut UniqList[usize]
->   %107 = Read copy [$21] : usize
->   %108 = Prim Add [%107 1:usize] : usize
->   %109 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%106, %108) : ()
->   %110 = Block - : ()
->   %111 = If %105 [%110 -] : ()
->   %112 = Ref local [*$19 .buffer] : &Buffer[usize]
->   %113 = LoanBegin %112 #0 : ()
+>   %86 = Ref mut local frame [$6] : &mut UniqList[usize]
+>   %87 = Store [$19] %86 : ()
+>   %88 = Store [$20] 23:usize : ()
+>   %89 = Read borrow [$19] : &mut UniqList[usize]
+>   %90 = Coerce %89 [Weaken -] : &UniqList[usize]
+>   %91 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%90) : usize
+>   %92 = Store [$21] %91 : ()
+>   %93 = Ref local [*$19 .buffer] : &Buffer[usize]
+>   %94 = LoanBegin %93 #0 : ()
+>   %95 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%93) : usize
+>   %96 = LoanClose %94 : ()
+>   %97 = LoanEnd [%93] : ()
+>   %98 = Read copy [$21] : usize
+>   %99 = Prim Le [%95 %98] : bool
+>   %100 = Read borrow [$19] : &mut UniqList[usize]
+>   %101 = Read copy [$21] : usize
+>   %102 = Prim Add [%101 1:usize] : usize
+>   %103 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%100, %102) : ()
+>   %104 = Block - : ()
+>   %105 = If %99 [%104 -] : ()
+>   %106 = Ref local [*$19 .buffer] : &Buffer[usize]
+>   %107 = LoanBegin %106 #0 : ()
+>   %108 = Read copy [$21] : usize
+>   %109 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%106, %108) : Ptr[usize]
+>   %110 = LoanClose %107 : ()
+>   %111 = LoanEnd [%106] : ()
+>   %112 = Read copy [$20] : usize
+>   %113 = Store [ptr %109] %112 : ()
 >   %114 = Read copy [$21] : usize
->   %115 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%112, %114) : Ptr[usize]
->   %116 = LoanClose %113 : ()
->   %117 = LoanEnd [%112] : ()
->   %118 = Read copy [$20] : usize
->   %119 = Store [ptr %115] %118 : ()
->   %120 = Read copy [$21] : usize
->   %121 = Prim Add [%120 1:usize] : usize
->   %122 = Store [*$19 .len] %121 : ()
->   %123 = Break L4 - : never
->   %124 = Block - : ()
->   %125 = Scope %124 [] : ()
->   %126 = LoanEnd [$19] : ()
+>   %115 = Prim Add [%114 1:usize] : usize
+>   %116 = Store [*$19 .len] %115 : ()
+>   %117 = Break L4 - : never
+>   %118 = Block - : ()
+>   %119 = Scope %118 [] : ()
+>   %120 = LoanEnd [$19] : ()
     assert_equal(
->   %139 = Break L3 "" : never
->   %140 = Block - : string
->   %141 = Scope %140 [] : string
->   %142 = Call std/testing/assert_equal[usize] (%138, 5:usize, %141) : ()
+>   %133 = Break L3 "" : never
+>   %134 = Block - : string
+>   %135 = Scope %134 [] : string
+>   %136 = Call std/testing/assert_equal[usize] (%132, 5:usize, %135) : ()
         read_spread(
->   %138 = Call std/rt_tests.stage_case/read_spread[(EmptyResource, Resource, (), string, EmptyResource)] (%127, %137) : usize
->   %138 keeps %127
+>   %132 = Call std/rt_tests.stage_case/read_spread[(EmptyResource, Resource, (), string, EmptyResource)] (%121, %131) : usize
+>   %132 keeps %121
             mixed_size,
->   %127 = ItemRef #134 [..] : fn(EmptyResource, Resource, (), string, EmptyResource) -> usize
+>   %121 = ItemRef #134 [..] : fn(EmptyResource, Resource, (), string, EmptyResource) -> usize
             (EmptyResource {}, Resource { seen: seen, owned: owned }, (), label, EmptyResource {}),
->   %128 = NewStruct [] : EmptyResource
->   %129 = Read copy [$3] : *mut i32
->   %130 = Retain %129 Value #0 : ()
->   %131 = FlagClear [$6] #37 : ()
->   %132 = Read move [$6] : UniqList[usize]
->   %133 = NewStruct [%129 %132] : Resource
->   %134 = Read copy [$5] : string
->   %135 = Retain %134 Value #0 : ()
->   %136 = NewStruct [] : EmptyResource
->   %137 = NewTuple - [%128 %133 - %134 %136] : (EmptyResource, Resource, (), string, EmptyResource)
+>   %122 = NewStruct [] : EmptyResource
+>   %123 = Read copy [$3] : *mut i32
+>   %124 = Retain %123 Value #0 : ()
+>   %125 = FlagClear [$6] #37 : ()
+>   %126 = Read move [$6] : UniqList[usize]
+>   %127 = NewStruct [%123 %126] : Resource
+>   %128 = Read copy [$5] : string
+>   %129 = Retain %128 Value #0 : ()
+>   %130 = NewStruct [] : EmptyResource
+>   %131 = NewTuple - [%122 %127 - %128 %130] : (EmptyResource, Resource, (), string, EmptyResource)
         ),
         5,
     )
     assert_equal(empty_drops, 4, reason="both zero-leaf spread owners drop once")
->   %143 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
->   %144 = Store [$13] %143 : ()
->   %145 = Store [$14] 4:usize : ()
->   %146 = Store [$15] "both zero-leaf spread owners drop once" : ()
->   %147 = Read copy [$13] : usize
->   %148 = Read copy [$14] : usize
->   %149 = Read move [$15] : string
->   %150 = Call std/testing/check_equal[usize] (%147, %148, %149) : ()
->   %151 = Break L2 - : never
->   %152 = Block - : ()
->   %153 = Scope %152 [] : ()
+>   %137 = Read copy [@std/rt_tests.stage_case/empty_drops] : usize
+>   %138 = Store [$13] %137 : ()
+>   %139 = Store [$14] 4:usize : ()
+>   %140 = Store [$15] "both zero-leaf spread owners drop once" : ()
+>   %141 = Read copy [$13] : usize
+>   %142 = Read copy [$14] : usize
+>   %143 = Read move [$15] : string
+>   %144 = Call std/testing/check_equal[usize] (%141, %142, %143) : ()
+>   %145 = Break L2 - : never
+>   %146 = Block - : ()
+>   %147 = Scope %146 [] : ()
     assert_equal(*seen, +1, reason="the mixed spread transfers its unique resource once")
->   %154 = Read copy [*$3] : i32
->   %155 = Store [$10] %154 : ()
->   %156 = Store [$11] 1:i32 : ()
->   %157 = Store [$12] "the mixed spread transfers its unique resource once" : ()
->   %158 = Read copy [$10] : i32
->   %159 = Read copy [$11] : i32
->   %160 = Read move [$12] : string
->   %161 = Call std/testing/check_equal[i32] (%158, %159, %160) : ()
->   %162 = Break L1 - : never
->   %163 = Block - : ()
->   %164 = Scope %163 [] : ()
->   %165 = Drop [$3] : ()
+>   %148 = Read copy [*$3] : i32
+>   %149 = Store [$10] %148 : ()
+>   %150 = Store [$11] 1:i32 : ()
+>   %151 = Store [$12] "the mixed spread transfers its unique resource once" : ()
+>   %152 = Read copy [$10] : i32
+>   %153 = Read copy [$11] : i32
+>   %154 = Read move [$12] : string
+>   %155 = Call std/testing/check_equal[i32] (%152, %153, %154) : ()
+>   %156 = Break L1 - : never
+>   %157 = Block - : ()
+>   %158 = Scope %157 [] : ()
+>   %159 = Drop [$3] : ()
     assert_equal(label, "kept", reason="the Copy spread field keeps its caller's count")
->   %166 = Store [$8] "kept" : ()
->   %167 = Store [$9] "the Copy spread field keeps its caller's count" : ()
->   %168 = Read move [$5] : string
->   %169 = Read move [$8] : string
->   %170 = Read move [$9] : string
->   %171 = Call std/testing/check_equal[string] (%168, %169, %170) : ()
->   %172 = Break L0 - : never
->   %173 = Block - : ()
->   %174 = Scope %173 [] : ()
+>   %160 = Store [$8] "kept" : ()
+>   %161 = Store [$9] "the Copy spread field keeps its caller's count" : ()
+>   %162 = Read move [$5] : string
+>   %163 = Read move [$8] : string
+>   %164 = Read move [$9] : string
+>   %165 = Call std/testing/check_equal[string] (%162, %163, %164) : ()
+>   %166 = Break L0 - : never
+>   %167 = Block - : ()
+>   %168 = Scope %167 [] : ()
 >   exit sub 1 drops [$0]
 >   storage sub 0: $2 cell, $4 slot, $6 slot
 >   storage sub 1: $2 cell, $4 cell, $6 cell
@@ -1111,21 +1075,21 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   local $0 value: Resource [param read captured] place
 >   local $1 count: i64 [read] value
 >     uses $1: %8 -> %9 lend last
->   %0 = Retain %24 Cold row #0 : ()
->   %1 = Retain %24 Materialize row #0 : ()
->   %2 = Release %24 FrameDrop row #2 : ()
->   %3 = Release %24 FrameDrop child #2 : ()
+>   %0 = Retain %21 Cold row #0 : ()
+>   %1 = Retain %21 Materialize row #0 : ()
+>   %2 = Release %21 FrameDrop row #2 : ()
+>   %3 = Release %21 FrameDrop child #2 : ()
 >   %4 = Box #0 #1 : ()
 >   %5 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Store [@std/rt_tests.stage_case/cold_starts] %6 : ()
->   %20 = Intrinsic ParamOwned [0:i32] : bool
->   %21 = Drop [$0] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
->   %24 = Block %17 : usize
->   %31 = Drop [$0] : ()
->   %32 = Block - : ()
+>   %20 = Drop [$0] : ()
+>   %21 = Block %17 : usize
+>   %25 = Intrinsic ParamOwned [0:i32] : bool
+>   %26 = Drop [$0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Block - : ()
     sleep!(ms(1))
 >   %8 = Store [$1] 1:i64 : ()
 >   %9 = Read copy [$1] : i64
@@ -1142,63 +1106,60 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   %19 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
->   cancel %14 releases [%16 %25 %4294967295]
->   cancel %24 releases [%2147483648]
+>   cancel %14 releases [%2147483648 %4294967295]
+>   cancel %21 releases [%16 %25]
 
 @inline(.Never)
 > std/rt_tests.stage_case/prepared_native
 >   local $0 literal: bool [param read] value
 >     uses $0: entry -> %3 lend last
 >   local $1 seen: *mut i32 [param read] value
->     uses $1: entry -> %93 consume last
+>     uses $1: entry -> %90 consume last
 >   local $2 constructor: fn!(Resource) -> usize [read assigned mutated] place
 >   local $3 value: Resource [param read captured] place
 >   local $4 owned: UniqList[usize] [read assigned captured captured-assigned] place
 >   local $5 self: &mut UniqList[usize] [read] value
->     uses $5: %58 -> %60 consume, %64 lend, %71 lend, %77 lend, %87 lend last
+>     uses $5: %55 -> %57 consume, %61 lend, %68 lend, %74 lend, %84 lend last
 >   local $6 value: usize [read] value
->     uses $6: %59 -> %83 consume last
+>     uses $6: %56 -> %80 consume last
 >   local $7 size: usize [:= read assigned] value
->     uses $7: %63 -> %69 lend, %72 lend, %79 lend, %85 lend last
+>     uses $7: %60 -> %66 lend, %69 lend, %76 lend, %82 lend last
 >   local $8 capacity: usize [read] value
->     uses $8: %36 -> %37 consume last
+>     uses $8: %33 -> %34 consume last
 >   local $9 capacity: usize [read] value
->     uses $9: %38 -> %39 lend, %42 consume last
+>     uses $9: %35 -> %36 lend, %39 consume last
 >   local $10 count: i64 [read] value
 >     uses $10: %14 -> %15 lend last
->   %0 = Retain %107 Entry local $1 #0 : ()
+>   %0 = Retain %101 Entry local $1 #0 : ()
 fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
     let constructor = delayed_size
 >   %1 = ItemRef #0 [..] : fn!(Resource) -> usize
 >   %2 = Store [$2] %1 : ()
->   %54 = Box #4 #0 : ()
->   %103 = Intrinsic ParamOwned [1:i32] : bool
->   %104 = Drop [$1] : ()
->   %105 = Block - : ()
->   %106 = If %103 [%105 -] : ()
->   %107 = Block %97 : Suspend[usize]
+>   %51 = Box #4 #0 : ()
+>   %100 = Drop [$1] : ()
+>   %101 = Block %94 : Suspend[usize]
     if literal:
 >   %3 = Read copy [$0] : bool
->   %35 = If %3 [%34 -] : ()
+>   %32 = If %3 [%31 -] : ()
         constructor = fn!(value: Resource) -> usize $ Clock:
->   %4 = Retain %30 Cold local $3 #0 : ()
->   %5 = Retain %30 Entry local $3 #0 : ()
->   %6 = Retain %30 Cold row #0 : ()
->   %7 = Retain %30 Materialize row #0 : ()
->   %8 = Release %30 FrameDrop row #2 : ()
->   %9 = Release %30 FrameDrop child #2 : ()
+>   %4 = Retain %27 Cold local $3 #0 : ()
+>   %5 = Retain %27 Entry local $3 #0 : ()
+>   %6 = Retain %27 Cold row #0 : ()
+>   %7 = Retain %27 Materialize row #0 : ()
+>   %8 = Release %27 FrameDrop row #2 : ()
+>   %9 = Release %27 FrameDrop child #2 : ()
 >   %10 = Box #3 #1 : ()
->   %26 = Intrinsic ParamOwned [3:i32] : bool
->   %27 = Drop [$3] : ()
->   %28 = Block - : ()
->   %29 = If %26 [%28 -] : ()
->   %30 = Block %23 : usize
->   %31 = Closure #1 : fn!(Resource) -> usize
->   %32 = Store [$2] %31 : ()
->   %33 = Release %32 Operation #3 : ()
->   %34 = Block - : ()
->   %114 = Drop [$3] : ()
->   %115 = Block - : ()
+>   %26 = Drop [$3] : ()
+>   %27 = Block %23 : usize
+>   %28 = Closure #1 : fn!(Resource) -> usize
+>   %29 = Store [$2] %28 : ()
+>   %30 = Release %29 Operation #3 : ()
+>   %31 = Block - : ()
+>   %105 = Intrinsic ParamOwned [3:i32] : bool
+>   %106 = Drop [$3] : ()
+>   %107 = Block - : ()
+>   %108 = If %105 [%107 -] : ()
+>   %109 = Block - : ()
             cold_starts += 1
 >   %11 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
 >   %12 = Prim Add [%11 1:usize] : usize
@@ -1218,80 +1179,80 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %24 = LoanEnd [%22] : ()
 >   %25 = Drop [$3] : ()
     let mut owned: UniqList[usize] = UniqList::new()
->   %36 = Store [$8] 0:usize : ()
->   %37 = Read copy [$8] : usize
->   %38 = Store [$9] %37 : ()
+>   %33 = Store [$8] 0:usize : ()
+>   %34 = Read copy [$8] : usize
+>   %35 = Store [$9] %34 : ()
+>   %36 = Read copy [$9] : usize
+>   %37 = Call std/rt.memory/size_of[usize] () : usize
+>   %38 = Call std/rt.memory/room[] (%36, %37) : usize
 >   %39 = Read copy [$9] : usize
->   %40 = Call std/rt.memory/size_of[usize] () : usize
->   %41 = Call std/rt.memory/room[] (%39, %40) : usize
->   %42 = Read copy [$9] : usize
->   %43 = NewStruct [%41 %42] : Buffer[usize]
->   %44 = Break L1 %43 : never
->   %45 = Block - : Buffer[usize]
->   %46 = Scope %45 [] : Buffer[usize]
->   %47 = NewStruct [%46 0:usize] : UniqList[usize]
->   %48 = Break L2 %47 : never
+>   %40 = NewStruct [%38 %39] : Buffer[usize]
+>   %41 = Break L1 %40 : never
+>   %42 = Block - : Buffer[usize]
+>   %43 = Scope %42 [] : Buffer[usize]
+>   %44 = NewStruct [%43 0:usize] : UniqList[usize]
+>   %45 = Break L2 %44 : never
+>   %46 = Block - : UniqList[usize]
+>   %47 = Scope %46 [] : UniqList[usize]
+>   %48 = Break L3 %47 : never
 >   %49 = Block - : UniqList[usize]
 >   %50 = Scope %49 [] : UniqList[usize]
->   %51 = Break L3 %50 : never
->   %52 = Block - : UniqList[usize]
->   %53 = Scope %52 [] : UniqList[usize]
->   %55 = Store [$4] %53 : ()
->   %56 = FlagSet [$4] #11 : ()
+>   %52 = Store [$4] %50 : ()
+>   %53 = FlagSet [$4] #11 : ()
     owned.push(23)
->   %57 = Ref mut local frame [$4] : &mut UniqList[usize]
->   %58 = Store [$5] %57 : ()
->   %59 = Store [$6] 23:usize : ()
->   %60 = Read borrow [$5] : &mut UniqList[usize]
->   %61 = Coerce %60 [Weaken -] : &UniqList[usize]
->   %62 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%61) : usize
->   %63 = Store [$7] %62 : ()
->   %64 = Ref local [*$5 .buffer] : &Buffer[usize]
->   %65 = LoanBegin %64 #0 : ()
->   %66 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%64) : usize
->   %67 = LoanClose %65 : ()
->   %68 = LoanEnd [%64] : ()
+>   %54 = Ref mut local frame [$4] : &mut UniqList[usize]
+>   %55 = Store [$5] %54 : ()
+>   %56 = Store [$6] 23:usize : ()
+>   %57 = Read borrow [$5] : &mut UniqList[usize]
+>   %58 = Coerce %57 [Weaken -] : &UniqList[usize]
+>   %59 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%58) : usize
+>   %60 = Store [$7] %59 : ()
+>   %61 = Ref local [*$5 .buffer] : &Buffer[usize]
+>   %62 = LoanBegin %61 #0 : ()
+>   %63 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].capacity[usize] (%61) : usize
+>   %64 = LoanClose %62 : ()
+>   %65 = LoanEnd [%61] : ()
+>   %66 = Read copy [$7] : usize
+>   %67 = Prim Le [%63 %66] : bool
+>   %68 = Read borrow [$5] : &mut UniqList[usize]
 >   %69 = Read copy [$7] : usize
->   %70 = Prim Le [%66 %69] : bool
->   %71 = Read borrow [$5] : &mut UniqList[usize]
->   %72 = Read copy [$7] : usize
->   %73 = Prim Add [%72 1:usize] : usize
->   %74 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%71, %73) : ()
->   %75 = Block - : ()
->   %76 = If %70 [%75 -] : ()
->   %77 = Ref local [*$5 .buffer] : &Buffer[usize]
->   %78 = LoanBegin %77 #0 : ()
->   %79 = Read copy [$7] : usize
->   %80 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%77, %79) : Ptr[usize]
->   %81 = LoanClose %78 : ()
->   %82 = LoanEnd [%77] : ()
->   %83 = Read copy [$6] : usize
->   %84 = Store [ptr %80] %83 : ()
->   %85 = Read copy [$7] : usize
->   %86 = Prim Add [%85 1:usize] : usize
->   %87 = Store [*$5 .len] %86 : ()
->   %88 = Break L0 - : never
->   %89 = Block - : ()
->   %90 = Scope %89 [] : ()
->   %91 = LoanEnd [$5] : ()
+>   %70 = Prim Add [%69 1:usize] : usize
+>   %71 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%68, %70) : ()
+>   %72 = Block - : ()
+>   %73 = If %67 [%72 -] : ()
+>   %74 = Ref local [*$5 .buffer] : &Buffer[usize]
+>   %75 = LoanBegin %74 #0 : ()
+>   %76 = Read copy [$7] : usize
+>   %77 = Call std/rt.memory/impl[T < ?Copy] Buffer[T].at[usize] (%74, %76) : Ptr[usize]
+>   %78 = LoanClose %75 : ()
+>   %79 = LoanEnd [%74] : ()
+>   %80 = Read copy [$6] : usize
+>   %81 = Store [ptr %77] %80 : ()
+>   %82 = Read copy [$7] : usize
+>   %83 = Prim Add [%82 1:usize] : usize
+>   %84 = Store [*$5 .len] %83 : ()
+>   %85 = Break L0 - : never
+>   %86 = Block - : ()
+>   %87 = Scope %86 [] : ()
+>   %88 = LoanEnd [$5] : ()
     constructor(Resource { seen: seen, owned: owned })
->   %92 = Read move [$2] : fn!(Resource) -> usize
->   %93 = Read move [$1] : *mut i32
->   %94 = FlagClear [$4] #11 : ()
->   %95 = Read move [$4] : UniqList[usize]
->   %96 = NewStruct [%93 %95] : Resource
->   %97 = CallValue %92 [%96] : Suspend[usize]
->   %98 = Retain %97 Operation row #0 : ()
->   %99 = Release %97 Operation row #2 : ()
->   %100 = Release %97 Operation arguments #2 : ()
->   %101 = Drop [%96] : ()
->   %102 = Drop [%92] : ()
+>   %89 = Read move [$2] : fn!(Resource) -> usize
+>   %90 = Read move [$1] : *mut i32
+>   %91 = FlagClear [$4] #11 : ()
+>   %92 = Read move [$4] : UniqList[usize]
+>   %93 = NewStruct [%90 %92] : Resource
+>   %94 = CallValue %89 [%93] : Suspend[usize]
+>   %95 = Retain %94 Operation row #0 : ()
+>   %96 = Release %94 Operation row #2 : ()
+>   %97 = Release %94 Operation arguments #2 : ()
+>   %98 = Drop [%93] : ()
+>   %99 = Drop [%89] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$3]
 >   storage sub 0: $3 cell, $4 slot
 >   storage sub 1: $3 cell, $4 cell
->   cancel %20 releases [%16 %108 %4294967295]
->   cancel %30 releases [%2147483651]
+>   cancel %20 releases [%2147483651 %4294967295]
+>   cancel %27 releases [%16 %105]
 
 pub fn main!() -> void $ Clock:
     plain_controls()

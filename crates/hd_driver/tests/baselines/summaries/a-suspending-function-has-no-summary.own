@@ -11,20 +11,20 @@ fn save!(m: Member) -> void:
 > app/main/save
 >   local $0 m: Member [param] value
 >     uses $0: none
->   %0 = Retain %7 Cold local $0 #0 : ()
->   %1 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %4 Cold local $0 #0 : ()
+>   %1 = Retain %4 Entry local $0 #0 : ()
     pass
 >   %2 = Drop [$0] : ()
->   %3 = Intrinsic ParamOwned [0:i32] : bool
->   %4 = Drop [$0] : ()
->   %5 = Block - : ()
->   %6 = If %3 [%5 -] : ()
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
 >   %7 = Block - : ()
->   %8 = Drop [$0] : ()
+>   %8 = If %5 [%7 -] : ()
 >   %9 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %7 releases [%2147483648]
+>   cancel %4 releases [%16 %5]
 
 fn unnamed(m: Member) -> bool:
     m.name == ""

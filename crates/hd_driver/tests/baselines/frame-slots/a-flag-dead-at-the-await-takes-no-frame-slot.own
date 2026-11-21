@@ -27,15 +27,15 @@ std/rt_tests.stage_case/wait
   local $12 $temporary_owner: bool [read assigned] value
     uses $12: entry -> %57 lend last
   local $14 $temporary_owner: bool [read assigned] value
-    uses $14: %1 -> %118 lend, %127 lend last, %139 lend last, %151 lend
+    uses $14: %1 -> %117 lend, %123 lend last, %129 lend last, %137 lend
   %0 = Intrinsic ParamOwned [0:i32] : bool
   %1 = Store [$14] %0 : ()
-  %2 = Retain %137 Cold local $1 #0 : ()
-  %3 = Retain %137 Entry local $1 #0 : ()
-  %4 = Retain %137 Cold row #0 : ()
-  %5 = Retain %137 Materialize row #0 : ()
-  %6 = Release %137 FrameDrop row #2 : ()
-  %7 = Release %137 FrameDrop child #2 : ()
+  %2 = Retain %128 Cold local $1 #0 : ()
+  %3 = Retain %128 Entry local $1 #0 : ()
+  %4 = Retain %128 Cold row #0 : ()
+  %5 = Retain %128 Materialize row #0 : ()
+  %6 = Release %128 FrameDrop row #2 : ()
+  %7 = Release %128 FrameDrop child #2 : ()
   %8 = Read copy [$2] : bool
   %9 = NewStruct ["x"] : Item
   %10 = Store [$4] %9 : ()
@@ -145,33 +145,30 @@ std/rt_tests.stage_case/wait
   %114 = LoanClose %74 : ()
   %115 = Block - : ()
   %116 = If %72 [%115 -] : ()
-  %117 = Intrinsic ParamOwned [0:i32] : bool
-  %118 = Read copy [$14] : bool
-  %119 = Drop [$0] : ()
-  %120 = Block - : ()
-  %121 = If %118 [%120 -] : ()
-  %122 = Block - : ()
-  %123 = If %117 [%122 -] : ()
-  %124 = FlagClear [$0] #14 : ()
-  %125 = Drop [$1] : ()
-  %126 = Intrinsic ParamOwned [0:i32] : bool
-  %127 = Read copy [$14] : bool
-  %128 = Drop [$0] : ()
-  %129 = Block - : ()
-  %130 = If %127 [%129 -] : ()
-  %131 = Block - : ()
-  %132 = If %126 [%131 -] : ()
-  %133 = Intrinsic ParamOwned [1:i32] : bool
-  %134 = Drop [$1] : ()
-  %135 = Block - : ()
-  %136 = If %133 [%135 -] : ()
-  %137 = Block - : ()
-  %151 = Read copy [$14] : bool
-  %152 = Drop [$0] : ()
-  %153 = Block - : ()
-  %154 = If %151 [%153 -] : ()
-  %155 = Drop [$1] : ()
-  %156 = Block - : ()
+  %117 = Read copy [$14] : bool
+  %118 = Drop [$0] : ()
+  %119 = Block - : ()
+  %120 = If %117 [%119 -] : ()
+  %121 = FlagClear [$0] #14 : ()
+  %122 = Drop [$1] : ()
+  %123 = Read copy [$14] : bool
+  %124 = Drop [$0] : ()
+  %125 = Block - : ()
+  %126 = If %123 [%125 -] : ()
+  %127 = Drop [$1] : ()
+  %128 = Block - : ()
+  %136 = Intrinsic ParamOwned [0:i32] : bool
+  %137 = Read copy [$14] : bool
+  %138 = Drop [$0] : ()
+  %139 = Block - : ()
+  %140 = If %137 [%139 -] : ()
+  %141 = Block - : ()
+  %142 = If %136 [%141 -] : ()
+  %143 = Intrinsic ParamOwned [1:i32] : bool
+  %144 = Drop [$1] : ()
+  %145 = Block - : ()
+  %146 = If %143 [%145 -] : ()
+  %147 = Block - : ()
   exit sub 0 drops [$0 $1]
-  cancel %70 releases [%16 %138 %16 %145 %4294967295]
-  cancel %137 releases [%2147483662 %151 %2147483649]
+  cancel %70 releases [%2147483662 %129 %2147483649 %4294967295]
+  cancel %128 releases [%16 %136 %16 %143]

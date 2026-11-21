@@ -16,16 +16,16 @@ fn size!(text: &string) -> usize $ Clock:
 >     uses $0: entry -> %17 lend last
 >   local $2 count: i64 [read] value
 >     uses $2: %9 -> %10 lend last
->   %0 = Retain %28 Cold local $0 #0 : ()
->   %1 = Retain %28 Entry local $0 #0 : ()
->   %5 = Retain %28 Cold referent $0 #8 : ()
->   %6 = Release %28 FrameDrop referent $0 #2 : ()
->   %7 = Release %28 Exit referent $0 #8 : ()
+>   %0 = Retain %25 Cold local $0 #0 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
+>   %5 = Retain %25 Cold referent $0 #8 : ()
+>   %6 = Release %25 FrameDrop referent $0 #2 : ()
+>   %7 = Release %25 Exit referent $0 #8 : ()
     sleep!(ms(1))
->   %2 = Retain %28 Cold row #0 : ()
->   %3 = Retain %28 Materialize row #0 : ()
->   %4 = Release %28 FrameDrop row #2 : ()
->   %8 = Release %28 FrameDrop child #2 : ()
+>   %2 = Retain %25 Cold row #0 : ()
+>   %3 = Retain %25 Materialize row #0 : ()
+>   %4 = Release %25 FrameDrop row #2 : ()
+>   %8 = Release %25 FrameDrop child #2 : ()
 >   %9 = Store [$2] 1:i64 : ()
 >   %10 = Read copy [$2] : i64
 >   %11 = Call std/time/impl Duration.milliseconds[] (%10) : Duration
@@ -34,13 +34,13 @@ fn size!(text: &string) -> usize $ Clock:
 >   %14 = Scope %13 [] : Duration
 >   %15 = Await std/time/sleep[] (%14) : ()
 >   %16 = Release %15 Operation child #2 : ()
->   %24 = Intrinsic ParamOwned [0:i32] : bool
->   %25 = Drop [$0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Block %22 : usize
->   %35 = Drop [$0] : ()
->   %36 = Block - : ()
+>   %24 = Drop [$0] : ()
+>   %25 = Block %22 : usize
+>   %29 = Intrinsic ParamOwned [0:i32] : bool
+>   %30 = Drop [$0] : ()
+>   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Block - : ()
     text.len()
 >   %17 = Read borrow [$0] : &string
 >   %18 = Read borrow [*%17] : string
@@ -51,8 +51,8 @@ fn size!(text: &string) -> usize $ Clock:
 >   %23 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %15 releases [%16 %29 %4294967295]
->   cancel %28 releases [%2147483648]
+>   cancel %15 releases [%2147483648 %4294967295]
+>   cancel %25 releases [%16 %29]
 
 fn later!(n: usize) -> usize $ Clock:
     let text = "x".repeat(n)

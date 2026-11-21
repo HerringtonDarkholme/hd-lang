@@ -59,17 +59,14 @@ impl Shelf:
 >     uses $0: entry -> %3 lend last
 >   local $1 b: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Retain %6 Entry local $1 #0 : ()
         self.books.push(b)
 >   %1 = Read move [$1] : string
 >   %2 = IsUnique [*$0 .books] : ()
 >   %3 = Read borrow [*$0 .books] : List[string]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Intrinsic ParamOwned [1:i32] : bool
->   %6 = Drop [$1] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block - : ()
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -77,14 +74,11 @@ impl Shelf:
 > app/main/impl Shelf.consume
 >   local $0 self: Shelf [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
         self.books
 >   %1 = Read move [$0 .books] : List[string]
->   %2 = Intrinsic ParamOwned [0:i32] : bool
->   %3 = Drop [$0] : ()
->   %4 = Block - : ()
->   %5 = If %2 [%4 -] : ()
->   %6 = Block %1 : List[string]
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : List[string]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -97,22 +91,16 @@ fn use_methods(s: Shelf, b: string) -> usize:
 >   local $2 t: Shelf [read assigned captured captured-assigned] place
 >   local $3 self: Shelf [read] value
 >     uses $3: %43 -> %44 consume last
->   %0 = Retain %59 Entry local $0 #0 : ()
->   %1 = Retain %59 Entry local $1 #0 : ()
+>   %0 = Retain %53 Entry local $0 #0 : ()
+>   %1 = Retain %53 Entry local $1 #0 : ()
     let mut t = s
 >   %2 = Read copy [$0] : Shelf
 >   %3 = Retain %2 Value #0 : ()
 >   %4 = Box #2 #0 : ()
 >   %5 = Store [$2] %2 : ()
->   %51 = Intrinsic ParamOwned [0:i32] : bool
->   %52 = Drop [$0] : ()
->   %53 = Block - : ()
->   %54 = If %51 [%53 -] : ()
->   %55 = Intrinsic ParamOwned [1:i32] : bool
->   %56 = Drop [$1] : ()
->   %57 = Block - : ()
->   %58 = If %55 [%57 -] : ()
->   %59 = Block %50 : usize
+>   %51 = Drop [$0] : ()
+>   %52 = Drop [$1] : ()
+>   %53 = Block %50 : usize
     t.by_mut(b)
 >   %6 = Ref mut local frame [$2] : &mut Shelf
 >   %7 = Read move [$1] : string

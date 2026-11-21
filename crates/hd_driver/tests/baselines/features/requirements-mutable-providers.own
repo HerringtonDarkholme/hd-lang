@@ -20,17 +20,14 @@ impl Recorder for Log:
 >     uses $0: entry -> %3 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Retain %6 Entry local $1 #0 : ()
         self.lines.push(s)
 >   %1 = Read move [$1] : string
 >   %2 = IsUnique [*$0 .lines] : ()
 >   %3 = Read borrow [*$0 .lines] : List[string]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Intrinsic ParamOwned [1:i32] : bool
->   %6 = Drop [$1] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block - : ()
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 

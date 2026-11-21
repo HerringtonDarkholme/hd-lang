@@ -16,22 +16,16 @@ fn bumped(mut t: Tagged, s: string) -> Tagged:
 >     uses $0: entry -> %4 lend, %6 consume last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = Retain %15 Entry local $0 #0 : ()
->   %1 = Retain %15 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     t.tags.push(s)
 >   %2 = Read move [$1] : string
 >   %3 = IsUnique [$0 .tags] : ()
 >   %4 = Read borrow [$0 .tags] : List[string]
 >   %5 = Intrinsic ListPush [%4 %2] : ()
->   %7 = Intrinsic ParamOwned [0:i32] : bool
->   %8 = Drop [$0] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Intrinsic ParamOwned [1:i32] : bool
->   %12 = Drop [$1] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Block %6 : Tagged
+>   %7 = Drop [$0] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : Tagged
     t
 >   %6 = Read move [$0] : Tagged
 >   exit sub 0 drops [$0 $1]
@@ -43,22 +37,16 @@ fn bump_only(mut t: Tagged, s: string) -> usize:
 >     uses $0: entry -> %4 lend, %6 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = Retain %18 Entry local $0 #0 : ()
->   %1 = Retain %18 Entry local $1 #0 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
+>   %1 = Retain %12 Entry local $1 #0 : ()
     t.tags.push(s)
 >   %2 = Read move [$1] : string
 >   %3 = IsUnique [$0 .tags] : ()
 >   %4 = Read borrow [$0 .tags] : List[string]
 >   %5 = Intrinsic ListPush [%4 %2] : ()
->   %10 = Intrinsic ParamOwned [0:i32] : bool
->   %11 = Drop [$0] : ()
->   %12 = Block - : ()
->   %13 = If %10 [%12 -] : ()
->   %14 = Intrinsic ParamOwned [1:i32] : bool
->   %15 = Drop [$1] : ()
->   %16 = Block - : ()
->   %17 = If %14 [%16 -] : ()
->   %18 = Block %8 : usize
+>   %10 = Drop [$0] : ()
+>   %11 = Drop [$1] : ()
+>   %12 = Block %8 : usize
     t.tags.len()
 >   %6 = Read move [$0 .tags] : List[string]
 >   %7 = Drop [$0] : ()
@@ -75,8 +63,8 @@ fn last_use(t: Tagged, s: string) -> Tagged:
 >     uses $1: entry -> %4 consume last
 >   local $2 t: Tagged [read] value
 >     uses $2: %3 -> %6 lend, %8 consume last
->   %0 = Retain %20 Entry local $0 #0 : ()
->   %1 = Retain %20 Entry local $1 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
+>   %1 = Retain %14 Entry local $1 #0 : ()
     bumped(t, s)
 >   %2 = Read move [$0] : Tagged
 >   %3 = Store [$2] %2 : ()
@@ -88,15 +76,9 @@ fn last_use(t: Tagged, s: string) -> Tagged:
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : Tagged
 >   %11 = Scope %10 [] : Tagged
->   %12 = Intrinsic ParamOwned [0:i32] : bool
->   %13 = Drop [$0] : ()
->   %14 = Block - : ()
->   %15 = If %12 [%14 -] : ()
->   %16 = Intrinsic ParamOwned [1:i32] : bool
->   %17 = Drop [$1] : ()
->   %18 = Block - : ()
->   %19 = If %16 [%18 -] : ()
->   %20 = Block %11 : Tagged
+>   %12 = Drop [$0] : ()
+>   %13 = Drop [$1] : ()
+>   %14 = Block %11 : Tagged
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -110,8 +92,8 @@ fn kept_after(t: Tagged, s: string) -> usize:
 >     uses $2: %13 -> %14 lend last
 >   local $3 t: Tagged [read] value
 >     uses $3: %4 -> %7 lend, %9 consume last
->   %0 = Retain %31 Entry local $0 #0 : ()
->   %1 = Retain %31 Entry local $1 #0 : ()
+>   %0 = Retain %25 Entry local $0 #0 : ()
+>   %1 = Retain %25 Entry local $1 #0 : ()
     u := bumped(t, s)
 >   %2 = Read copy [$0] : Tagged
 >   %3 = Retain %2 Value #0 : ()
@@ -125,15 +107,9 @@ fn kept_after(t: Tagged, s: string) -> usize:
 >   %11 = Block - : Tagged
 >   %12 = Scope %11 [] : Tagged
 >   %13 = Store [$2] %12 : ()
->   %23 = Intrinsic ParamOwned [0:i32] : bool
->   %24 = Drop [$0] : ()
->   %25 = Block - : ()
->   %26 = If %23 [%25 -] : ()
->   %27 = Intrinsic ParamOwned [1:i32] : bool
->   %28 = Drop [$1] : ()
->   %29 = Block - : ()
->   %30 = If %27 [%29 -] : ()
->   %31 = Block %22 : usize
+>   %23 = Drop [$0] : ()
+>   %24 = Drop [$1] : ()
+>   %25 = Block %22 : usize
     u.tags.len() + t.tags.len()
 >   %14 = Read move [$2 .tags] : List[string]
 >   %15 = Drop [$2] : ()

@@ -18,9 +18,9 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
 >     uses $2: entry -> %20 lend, %23 lend, %27 lend last
 >   local $3 i: usize [param read] value
 >     uses $3: entry -> %3 lend, %9 lend, %12 lend last
->   %0 = Retain %42 Entry local $0 #0 : ()
->   %1 = Retain %42 Entry local $1 #0 : ()
->   %2 = Retain %42 Entry local $2 #0 : ()
+>   %0 = Retain %33 Entry local $0 #0 : ()
+>   %1 = Retain %33 Entry local $1 #0 : ()
+>   %2 = Retain %33 Entry local $2 #0 : ()
     rows[i].push(1)
 >   %3 = Read copy [$3] : usize
 >   %4 = IsUnique [$0] : ()
@@ -28,19 +28,10 @@ fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, Lis
 >   %6 = Read borrow [$0 [%3]] : List[i32]
 >   %7 = Intrinsic ListPush [%6 1:i32] : ()
 >   %8 = Drop [$0] : ()
->   %30 = Intrinsic ParamOwned [0:i32] : bool
->   %31 = Drop [$0] : ()
->   %32 = Block - : ()
->   %33 = If %30 [%32 -] : ()
->   %34 = Intrinsic ParamOwned [1:i32] : bool
->   %35 = Drop [$1] : ()
->   %36 = Block - : ()
->   %37 = If %34 [%36 -] : ()
->   %38 = Intrinsic ParamOwned [2:i32] : bool
->   %39 = Drop [$2] : ()
->   %40 = Block - : ()
->   %41 = If %38 [%40 -] : ()
->   %42 = Block - : ()
+>   %30 = Drop [$0] : ()
+>   %31 = Drop [$1] : ()
+>   %32 = Drop [$2] : ()
+>   %33 = Block - : ()
     bags[i].count = 2
 >   %9 = Read copy [$3] : usize
 >   %10 = IsUnique [$1] : ()

@@ -151,81 +151,78 @@ fn fn_mut(xs: List[string]) -> usize:
     let n: usize = 0
 > app/main/fn_mut
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %10 lend, %18 lend
+>     uses $0: entry -> %7 lend, %15 lend
 >   local $1 n: usize [read assigned captured captured-assigned] place
 >     frame cell [$1]
 >   local $2 x: string [param read] value
 >     uses $2: none
 >   local $7 $pos: usize [assigned] place
 >   local $8 $end: usize [assigned] value
->     uses $8: %12 -> %15 lend
+>     uses $8: %9 -> %12 lend
 >   local $9 x: string [read assigned] value
->     uses $9: %39 -> %23 lend last
+>     uses $9: %36 -> %20 lend last
 >   %0 = Box #1 #0 : ()
 >   %1 = Store [$1] 0:usize : ()
->   %54 = Drop [$1] : ()
->   %55 = Intrinsic ParamOwned [0:i32] : bool
->   %56 = Drop [$0] : ()
->   %57 = Block - : ()
->   %58 = If %55 [%57 -] : ()
->   %59 = Release %60 Exit local $0 #2 : ()
->   %60 = Block %52 : usize
+>   %51 = Drop [$1] : ()
+>   %52 = Intrinsic ParamOwned [0:i32] : bool
+>   %53 = Drop [$0] : ()
+>   %54 = Block - : ()
+>   %55 = If %52 [%54 -] : ()
+>   %56 = Release %57 Exit local $0 #2 : ()
+>   %57 = Block %49 : usize
     each(xs, fn(x: string) -> void: n += x.len())
->   %2 = Retain %9 Entry local $2 #0 : ()
+>   %2 = Retain %6 Entry local $2 #0 : ()
 >   %3 = Drop [$2] : ()
 >   %4 = Unreachable  : never
->   %5 = Intrinsic ParamOwned [2:i32] : bool
->   %6 = Drop [$2] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Block %4 : never
->   %10 = Read borrow [$0] : List[string]
->   %11 = Intrinsic ListLen [%10] : usize
->   %12 = Store [$8] %11 : ()
->   %13 = Store [$7] 0:usize : ()
+>   %5 = Drop [$2] : ()
+>   %6 = Block %4 : never
+>   %7 = Read borrow [$0] : List[string]
+>   %8 = Intrinsic ListLen [%7] : usize
+>   %9 = Store [$8] %8 : ()
+>   %10 = Store [$7] 0:usize : ()
+>   %11 = Read copy [$7] : usize
+>   %12 = Read copy [$8] : usize
+>   %13 = Prim Lt [%11 %12] : bool
 >   %14 = Read copy [$7] : usize
->   %15 = Read copy [$8] : usize
->   %16 = Prim Lt [%14 %15] : bool
->   %17 = Read copy [$7] : usize
->   %18 = Read borrow [$0 [%17]] : string
->   %19 = Read copy [$7] : usize
->   %20 = Prim Add [%19 1:usize] : usize
->   %21 = Store [$7] %20 : ()
->   %22 = Read copy [$1] : usize
->   %23 = Read borrow [$9] : string
->   %24 = Call std/rt.bytes/bytes_len[] (%23) : usize
->   %25 = Break L2 %24 : never
->   %26 = Block - : usize
->   %27 = Scope %26 [] : usize
->   %28 = Prim Add [%22 %27] : usize
->   %29 = Store [$1] %28 : ()
->   %30 = Release %29 Operation #3 : ()
->   %31 = Read borrow [$1] : usize
+>   %15 = Read borrow [$0 [%14]] : string
+>   %16 = Read copy [$7] : usize
+>   %17 = Prim Add [%16 1:usize] : usize
+>   %18 = Store [$7] %17 : ()
+>   %19 = Read copy [$1] : usize
+>   %20 = Read borrow [$9] : string
+>   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %22 = Break L2 %21 : never
+>   %23 = Block - : usize
+>   %24 = Scope %23 [] : usize
+>   %25 = Prim Add [%19 %24] : usize
+>   %26 = Store [$1] %25 : ()
+>   %27 = Release %26 Operation #3 : ()
+>   %28 = Read borrow [$1] : usize
+>   %29 = Block - : ()
+>   %30 = Scope %29 [] : ()
+>   %31 = Break L3 - : never
 >   %32 = Block - : ()
 >   %33 = Scope %32 [] : ()
->   %34 = Break L3 - : never
->   %35 = Block - : ()
->   %36 = Scope %35 [] : ()
->   %37 = Block - : ()
->   %38 = Read borrow [%18] : string
->   %39 = Store [$9] %38 : ()
->   %41 = Block - : never
->   %42 = Match %18 [%41 %37] : ()
->   %43 = Block - : ()
->   %44 = Break L0 - : never
->   %45 = Block - : ()
->   %46 = If %16 [%43 %45] : ()
+>   %34 = Block - : ()
+>   %35 = Read borrow [%15] : string
+>   %36 = Store [$9] %35 : ()
+>   %38 = Block - : never
+>   %39 = Match %15 [%38 %34] : ()
+>   %40 = Block - : ()
+>   %41 = Break L0 - : never
+>   %42 = Block - : ()
+>   %43 = If %13 [%40 %42] : ()
+>   %44 = Block - : ()
+>   %45 = Loop %44 - : ()
+>   %46 = Break L1 - : never
 >   %47 = Block - : ()
->   %48 = Loop %47 - : ()
->   %49 = Break L1 - : never
->   %50 = Block - : ()
->   %51 = Scope %50 [] : ()
+>   %48 = Scope %47 [] : ()
     n
->   %52 = Read copy [$1] : usize
->   %53 = Drop [$1] : ()
+>   %49 = Read copy [$1] : usize
+>   %50 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$2]
 >   storage sub 0: $1 slot
 >   storage sub 1: $1 cell
 >   summary kept [] borrows [$0]
->   loop %48 keeps [$0] (-..-)
+>   loop %45 keeps [$0] (-..-)

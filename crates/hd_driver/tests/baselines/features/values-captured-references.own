@@ -13,7 +13,7 @@ fn bump(p: *mut Point) -> fn() -> void:
 > app/main/bump
 >   local $0 p: *mut Point [param read captured] value
 >     uses $0: entry -> %2 lend, %4 lend, %8 consume last
->   %1 = Retain %14 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $0 #0 : ()
     fn() -> void: p.x = p.x + 1
 >   %0 = Retain %7 Entry captures #0 : ()
 >   %2 = Read copy [*$0 .x] : i32
@@ -24,11 +24,8 @@ fn bump(p: *mut Point) -> fn() -> void:
 >   %7 = Block - : ()
 >   %8 = Closure #1 : fn() -> ()
 >   %9 = Retain %8 Operation captures #0 : ()
->   %10 = Intrinsic ParamOwned [0:i32] : bool
->   %11 = Drop [$0] : ()
->   %12 = Block - : ()
->   %13 = If %10 [%12 -] : ()
->   %14 = Block %8 : fn() -> ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block %8 : fn() -> ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0] writes
@@ -42,7 +39,7 @@ fn demo(s: string) -> i32:
 >     uses $2: %6 -> %7 consume, %16 lend last
 >   local $3 step: fn() -> () [:= read assigned] value
 >     uses $3: %10 -> %11 lend, %13 lend last
->   %0 = Retain %22 Entry local $0 #0 : ()
+>   %0 = Retain %19 Entry local $0 #0 : ()
     origin := box(Point { name: s, x: 0 })
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
@@ -50,11 +47,8 @@ fn demo(s: string) -> i32:
 >   %4 = Store [$1] %2 : ()
 >   %5 = Ref take mut [$1] : *mut Point
 >   %6 = Store [$2] %5 : ()
->   %18 = Intrinsic ParamOwned [0:i32] : bool
->   %19 = Drop [$0] : ()
->   %20 = Block - : ()
->   %21 = If %18 [%20 -] : ()
->   %22 = Block %16 : i32
+>   %18 = Drop [$0] : ()
+>   %19 = Block %16 : i32
     step := bump(origin)
 >   %7 = Read copy [$2] : *mut Point
 >   %8 = Retain %7 Value #0 : ()

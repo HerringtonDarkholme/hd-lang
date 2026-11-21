@@ -67,7 +67,7 @@ fn erase(u: User) -> *dyn Inspectable:
 >   local $1 $ref: User [read assigned captured captured-assigned] place
 >   local $2 $ref: *User [read assigned captured] value
 >     uses $2: %6 -> %7 lend last
->   %0 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     box(u)
 >   %1 = Read move [$0] : User
 >   %2 = Box #1 #1 : ()
@@ -80,11 +80,8 @@ fn erase(u: User) -> *dyn Inspectable:
 >   %9 = LoanEnd [%7] : ()
 >   %10 = Block %8 : Inspectable
 >   %11 = RefDyn %10 : *dyn Inspectable
->   %12 = Intrinsic ParamOwned [0:i32] : bool
->   %13 = Drop [$0] : ()
->   %14 = Block - : ()
->   %15 = If %12 [%14 -] : ()
->   %16 = Block %11 : *dyn Inspectable
+>   %12 = Drop [$0] : ()
+>   %13 = Block %11 : *dyn Inspectable
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

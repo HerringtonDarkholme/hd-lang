@@ -37,16 +37,13 @@ fn count_long(xs: List[string]) -> usize:
 >     uses $6: %4 -> %5 lend last
 >   local $7 self: List[string] [read] value
 >     uses $7: %6 -> %7 consume last
->   %0 = Retain %54 Entry local $0 #0 : ()
+>   %0 = Retain %51 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Box #0 #0 : ()
 >   %2 = Store [$1] 0:usize : ()
 >   %18 = Box #2 #0 : ()
->   %50 = Intrinsic ParamOwned [0:i32] : bool
->   %51 = Drop [$0] : ()
->   %52 = Block - : ()
->   %53 = If %50 [%52 -] : ()
->   %54 = Block %49 : usize
+>   %50 = Drop [$0] : ()
+>   %51 = Block %49 : usize
     for x in names(&xs):
 >   %3 = Ref local frame [$0] : &List[string]
 >   %4 = Store [$6] %3 : ()

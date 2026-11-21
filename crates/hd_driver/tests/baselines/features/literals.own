@@ -19,21 +19,15 @@ fn make_struct(n: string, t: List[string]) -> Rec:
 >     uses $0: entry -> %2 consume last
 >   local $1 t: List[string] [param read] value
 >     uses $1: entry -> %3 consume last
->   %0 = Retain %13 Entry local $0 #0 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
+>   %1 = Retain %7 Entry local $1 #0 : ()
     Rec { name: n, tags: t }
 >   %2 = Read move [$0] : string
 >   %3 = Read move [$1] : List[string]
 >   %4 = NewStruct [%2 %3] : Rec
->   %5 = Intrinsic ParamOwned [0:i32] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Intrinsic ParamOwned [1:i32] : bool
->   %10 = Drop [$1] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Block %4 : Rec
+>   %5 = Drop [$0] : ()
+>   %6 = Drop [$1] : ()
+>   %7 = Block %4 : Rec
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -43,21 +37,15 @@ fn make_tuple(n: string, t: List[string]) -> (string, List[string]):
 >     uses $0: entry -> %2 consume last
 >   local $1 t: List[string] [param read] value
 >     uses $1: entry -> %3 consume last
->   %0 = Retain %13 Entry local $0 #0 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
+>   %1 = Retain %7 Entry local $1 #0 : ()
     (n, t)
 >   %2 = Read move [$0] : string
 >   %3 = Read move [$1] : List[string]
 >   %4 = NewTuple - [%2 %3] : (string, List[string])
->   %5 = Intrinsic ParamOwned [0:i32] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Intrinsic ParamOwned [1:i32] : bool
->   %10 = Drop [$1] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Block %4 : (string, List[string])
+>   %5 = Drop [$0] : ()
+>   %6 = Drop [$1] : ()
+>   %7 = Block %4 : (string, List[string])
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -65,15 +53,12 @@ fn make_enum(n: string) -> Shape:
 > app/main/make_enum
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
     Shape.Named(n)
 >   %1 = Read move [$0] : string
 >   %2 = NewVariant #0 [%1] : Shape
->   %3 = Intrinsic ParamOwned [0:i32] : bool
->   %4 = Drop [$0] : ()
->   %5 = Block - : ()
->   %6 = If %3 [%5 -] : ()
->   %7 = Block %2 : Shape
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : Shape
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -83,23 +68,17 @@ fn update(r: Rec, n: string) -> Rec:
 >     uses $0: entry -> %2 lend, %3 consume last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %5 consume last
->   %0 = Retain %15 Entry local $0 #0 : ()
->   %1 = Retain %15 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     Rec { ...r, name: n }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read move [$0 .tags] : List[string]
 >   %4 = Drop [$0] : ()
 >   %5 = Read move [$1] : string
 >   %6 = NewStruct [%5 %3] : Rec
->   %7 = Intrinsic ParamOwned [0:i32] : bool
->   %8 = Drop [$0] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Intrinsic ParamOwned [1:i32] : bool
->   %12 = Drop [$1] : ()
->   %13 = Block - : ()
->   %14 = If %11 [%13 -] : ()
->   %15 = Block %6 : Rec
+>   %7 = Drop [$0] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : Rec
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -107,7 +86,7 @@ fn reuse(n: string) -> (Rec, Rec):
 > app/main/reuse
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %1 consume, %5 consume last
->   %0 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
 >   %1 = Read copy [$0] : string
 >   %2 = Retain %1 Value #0 : ()
@@ -117,10 +96,7 @@ fn reuse(n: string) -> (Rec, Rec):
 >   %6 = NewList - [] : List[string]
 >   %7 = NewStruct [%5 %6] : Rec
 >   %8 = NewTuple - [%4 %7] : (Rec, Rec)
->   %9 = Intrinsic ParamOwned [0:i32] : bool
->   %10 = Drop [$0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Block %8 : (Rec, Rec)
+>   %9 = Drop [$0] : ()
+>   %10 = Block %8 : (Rec, Rec)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
