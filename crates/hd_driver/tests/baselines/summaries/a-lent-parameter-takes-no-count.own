@@ -45,13 +45,14 @@ fn remember(all: &mut List[Field], f: Field) -> void:
 >     uses $0: entry -> %3 lend last
 >   local $1 f: Field [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %5 Entry local $1 #0 : ()
+>   %0 = Retain %6 Entry local $1 #0 : ()
     all.push(f)
 >   %1 = Read move [$1] : Field
 >   %2 = IsUnique [*$0] : ()
 >   %3 = Read borrow [*$0] : List[Field]
 >   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Block - : ()
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -126,12 +127,13 @@ fn collect(f: Field) -> usize:
 >   local $0 f: Field [param read] value
 >     uses $0: entry -> %5 consume, %10 consume last
 >   local $1 all: List[Field] [read assigned captured captured-assigned] place
->   %0 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Retain %17 Entry local $0 #0 : ()
     let mut all: List[Field] = []
 >   %1 = NewList - [] : List[Field]
 >   %2 = Box #1 #0 : ()
 >   %3 = Store [$1] %1 : ()
->   %16 = Block %14 : usize
+>   %16 = Drop [$0] : ()
+>   %17 = Block %14 : usize
     remember(&mut all, f)
 >   %4 = Ref mut local frame [$1] : &mut List[Field]
 >   %5 = Read copy [$0] : Field

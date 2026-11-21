@@ -18,11 +18,12 @@ impl From[ReadError] for AppError:
 > app/main/impl From[ReadError] for AppError.from
 >   local $0 value: ReadError [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
         AppError.Read(value)
 >   %1 = Read move [$0] : ReadError
 >   %2 = NewVariant #0 [%1] : AppError
->   %3 = Block %2 : AppError
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : AppError
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -30,7 +31,7 @@ fn read(path: string) -> Result[string, ReadError]:
 > app/main/read
 >   local $0 path: string [param read] value
 >     uses $0: entry -> %1 lend, %7 lend last, %12 consume last
->   %0 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %18 Entry local $0 #0 : ()
     if path.len() > 0: .Ok(path + "/") else: .Err(ReadError.Missing(path))
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -48,7 +49,8 @@ fn read(path: string) -> Result[string, ReadError]:
 >   %14 = NewVariant #1 [%13] : Result[string, ReadError]
 >   %15 = Block %14 : Result[string, ReadError]
 >   %16 = If %6 [%11 %15] : Result[string, ReadError]
->   %17 = Block %16 : Result[string, ReadError]
+>   %17 = Drop [$0] : ()
+>   %18 = Block %16 : Result[string, ReadError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -57,9 +59,9 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 >   local $0 path: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 text: string [:= read assigned] value
->     uses $1: %28 -> %29 lend last
+>     uses $1: %29 -> %30 lend last
 >   local $3 path: string [read captured] place
->   %0 = Retain %36 Entry local $0 #0 : ()
+>   %0 = Retain %38 Entry local $0 #0 : ()
     text := read(path)?
 >   %1 = Read move [$0] : string
 >   %2 = Box #3 #255 : ()
@@ -85,19 +87,21 @@ fn result_try(path: string) -> Result[usize, ReadError]:
 >   %22 = Block %21 : string
 >   %23 = Read move [%19 as #1 .0] : ReadError
 >   %24 = NewVariant #1 [%23] : Result[usize, ReadError]
->   %25 = Return %24 : never
->   %26 = Block - : never
->   %27 = SwitchTag %19 [#0 %22 %26] : string
->   %28 = Store [$1] %27 : ()
->   %36 = Block %35 : Result[usize, ReadError]
+>   %25 = Drop [$0] : ()
+>   %26 = Return %24 : never
+>   %27 = Block - : never
+>   %28 = SwitchTag %19 [#0 %22 %27] : string
+>   %29 = Store [$1] %28 : ()
+>   %37 = Drop [$0] : ()
+>   %38 = Block %36 : Result[usize, ReadError]
     .Ok(text.len())
->   %29 = Read borrow [$1] : string
->   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
->   %31 = Break L0 %30 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Drop [$1] : ()
->   %35 = NewVariant #0 [%33] : Result[usize, ReadError]
+>   %30 = Read borrow [$1] : string
+>   %31 = Call std/rt.bytes/bytes_len[] (%30) : usize
+>   %32 = Break L0 %31 : never
+>   %33 = Block - : usize
+>   %34 = Scope %33 [] : usize
+>   %35 = Drop [$1] : ()
+>   %36 = NewVariant #0 [%34] : Result[usize, ReadError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -106,11 +110,11 @@ fn converted(path: string) -> Result[usize, AppError]:
 >   local $0 path: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 text: string [:= read assigned] value
->     uses $1: %34 -> %35 lend last
+>     uses $1: %35 -> %36 lend last
 >   local $3 value: ReadError [read] value
 >     uses $3: %24 -> %25 consume last
 >   local $4 path: string [read captured] place
->   %0 = Retain %42 Entry local $0 #0 : ()
+>   %0 = Retain %44 Entry local $0 #0 : ()
     text := read(path)?
 >   %1 = Read move [$0] : string
 >   %2 = Box #4 #255 : ()
@@ -142,18 +146,20 @@ fn converted(path: string) -> Result[usize, AppError]:
 >   %28 = Block - : AppError
 >   %29 = Scope %28 [] : AppError
 >   %30 = NewVariant #1 [%29] : Result[usize, AppError]
->   %31 = Return %30 : never
->   %32 = Block - : never
->   %33 = SwitchTag %19 [#0 %22 %32] : string
->   %34 = Store [$1] %33 : ()
->   %42 = Block %41 : Result[usize, AppError]
+>   %31 = Drop [$0] : ()
+>   %32 = Return %30 : never
+>   %33 = Block - : never
+>   %34 = SwitchTag %19 [#0 %22 %33] : string
+>   %35 = Store [$1] %34 : ()
+>   %43 = Drop [$0] : ()
+>   %44 = Block %42 : Result[usize, AppError]
     .Ok(text.len())
->   %35 = Read borrow [$1] : string
->   %36 = Call std/rt.bytes/bytes_len[] (%35) : usize
->   %37 = Break L0 %36 : never
->   %38 = Block - : usize
->   %39 = Scope %38 [] : usize
->   %40 = Drop [$1] : ()
->   %41 = NewVariant #0 [%39] : Result[usize, AppError]
+>   %36 = Read borrow [$1] : string
+>   %37 = Call std/rt.bytes/bytes_len[] (%36) : usize
+>   %38 = Break L0 %37 : never
+>   %39 = Block - : usize
+>   %40 = Scope %39 [] : usize
+>   %41 = Drop [$1] : ()
+>   %42 = NewVariant #0 [%40] : Result[usize, AppError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

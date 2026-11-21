@@ -88,8 +88,8 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >     uses $6: %10 -> %13 lend
 >   local $7 item: T [read assigned] value
 >     uses $7: %30 -> %22 consume last
->   %2 = Release %43 Exit local $0 #2 : ()
->   %3 = Retain %43 Entry local $1 #0 : ()
+>   %2 = Release %44 Exit local $0 #2 : ()
+>   %3 = Retain %44 Entry local $1 #0 : ()
     let total = zero
 >   %0 = FlagSet [$0] #10 : ()
 >   %1 = FlagSet [$1] #8 : ()
@@ -97,7 +97,8 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %5 = FlagClear [$1] #8 : ()
 >   %6 = Store [$2] %4 : ()
 >   %7 = FlagSet [$2] #9 : ()
->   %43 = Block %41 : T
+>   %43 = Drop [$1] : ()
+>   %44 = Block %41 : T
     for item in items:
 >   %8 = Read borrow [$0] : List[T]
 >   %9 = Intrinsic ListLen [%8] : usize

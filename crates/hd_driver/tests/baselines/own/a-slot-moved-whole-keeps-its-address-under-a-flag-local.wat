@@ -565,8 +565,6 @@
       local.get $early
       if
     ;; 69 |         return consume(held)
-        i32.const 0
-        local.set $t1
         local.get $held
         i32.load $heap
         local.get $held
@@ -589,11 +587,11 @@
       end
       i32.const 0
       local.set $held
-    end
-    local.get $t1
-    if
-      local.get $held
-      call $rt:drop
+      local.get $t1
+      if
+        local.get $held
+        call $rt:drop
+      end
     end
     local.get $early
     local.get $t0

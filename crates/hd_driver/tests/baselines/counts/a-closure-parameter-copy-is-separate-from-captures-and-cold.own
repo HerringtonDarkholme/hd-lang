@@ -6,44 +6,50 @@
 fn plain(captured: string) -> (fn(string) -> (string, string)):
 > app/main/plain
 >   local $0 captured: string [param read captured] value
->     uses $0: entry -> %3 consume, %7 consume last
+>     uses $0: entry -> %3 consume, %9 consume last
 >   local $1 value: string [param read] value
 >     uses $1: entry -> %4 consume last
->   %1 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %12 Entry local $0 #0 : ()
     fn(value: string) -> (string, string): (captured, value)
->   %0 = Retain %6 Entry captures #0 : ()
->   %2 = Retain %6 Entry local $1 #0 : ()
+>   %0 = Retain %8 Entry captures #0 : ()
+>   %2 = Retain %8 Entry local $1 #0 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Read move [$1] : string
 >   %5 = NewTuple - [%3 %4] : (string, string)
->   %6 = Block %5 : (string, string)
->   %7 = Closure #1 : fn(string) -> (string, string)
->   %8 = Retain %7 Operation captures #0 : ()
->   %9 = Block %7 : fn(string) -> (string, string)
+>   %6 = Drop [$0] : ()
+>   %7 = Drop [$1] : ()
+>   %8 = Block %5 : (string, string)
+>   %9 = Closure #1 : fn(string) -> (string, string)
+>   %10 = Retain %9 Operation captures #0 : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Block %9 : fn(string) -> (string, string)
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0 $1]
 
 fn cold_capture(captured: string) -> (fn!(string) -> (string, string)):
 > app/main/cold_capture
 >   local $0 captured: string [param read captured] value
->     uses $0: entry -> %8 consume, %12 consume last
+>     uses $0: entry -> %8 consume, %14 consume last
 >   local $1 value: string [param read] value
 >     uses $1: entry -> %9 consume last
->   %7 = Retain %14 Entry local $0 #0 : ()
+>   %7 = Retain %17 Entry local $0 #0 : ()
     fn!(value: string) -> (string, string): (captured, value)
->   %0 = Retain %11 Cold local $1 #0 : ()
->   %1 = Retain %11 Entry local $1 #0 : ()
->   %2 = Retain %11 Cold row #0 : ()
->   %3 = Retain %11 Materialize row #0 : ()
->   %4 = Release %11 FrameDrop row #2 : ()
->   %5 = Retain %11 Cold captures #0 : ()
->   %6 = Retain %11 Entry captures #0 : ()
+>   %0 = Retain %13 Cold local $1 #0 : ()
+>   %1 = Retain %13 Entry local $1 #0 : ()
+>   %2 = Retain %13 Cold row #0 : ()
+>   %3 = Retain %13 Materialize row #0 : ()
+>   %4 = Release %13 FrameDrop row #2 : ()
+>   %5 = Retain %13 Cold captures #0 : ()
+>   %6 = Retain %13 Entry captures #0 : ()
 >   %8 = Read move [$0] : string
 >   %9 = Read move [$1] : string
 >   %10 = NewTuple - [%8 %9] : (string, string)
->   %11 = Block %10 : (string, string)
->   %12 = Closure #1 : fn!(string) -> (string, string)
->   %13 = Retain %12 Operation captures #0 : ()
->   %14 = Block %12 : fn!(string) -> (string, string)
+>   %11 = Drop [$0] : ()
+>   %12 = Drop [$1] : ()
+>   %13 = Block %10 : (string, string)
+>   %14 = Closure #1 : fn!(string) -> (string, string)
+>   %15 = Retain %14 Operation captures #0 : ()
+>   %16 = Drop [$0] : ()
+>   %17 = Block %14 : fn!(string) -> (string, string)
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0 $1]

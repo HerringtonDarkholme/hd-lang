@@ -420,6 +420,36 @@
             local.get $t1
             local.get $a
             i32.store $heap offset=12
+            local.get $t1
+            i32.load $heap
+            local.tee $t4
+            if
+              local.get $t4
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $t4
+                call $rt:release_ref'2
+              end
+            end
+            local.get $t1
+            i32.load $heap offset=4
+            local.tee $t4
+            if
+              local.get $t4
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $t4
+                call $rt:release_ref'2
+              end
+            end
             i32.const 0
             local.set $t4
             i32.const 1
@@ -462,35 +492,35 @@
           local.get $t1
           local.get $a
           i32.store $heap offset=8
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $b
-        if
-          local.get $b
-          i32.const 8
-          i32.sub
+          local.get $t1
           i32.load $heap
-          global.get $tracing
-          i32.or
+          local.tee $b
           if
             local.get $b
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $b
+              call $rt:release_ref'2
+            end
           end
-        end
-        local.get $t1
-        i32.load $heap offset=4
-        local.tee $b
-        if
-          local.get $b
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
+          local.get $t1
+          i32.load $heap offset=4
+          local.tee $b
           if
             local.get $b
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $b
+              call $rt:release_ref'2
+            end
           end
         end
         local.get $t1

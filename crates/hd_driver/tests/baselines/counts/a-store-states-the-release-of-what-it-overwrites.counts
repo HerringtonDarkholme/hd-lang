@@ -48,7 +48,7 @@ fn declared(c: bool) -> usize:
     u := fresh()
 > app/main/declared
 >   release counted reference (last use)
->   release counted reference (last use)
     if c:
         return u.len()
+>   release counted reference (last use)
     0

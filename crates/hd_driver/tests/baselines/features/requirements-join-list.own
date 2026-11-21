@@ -12,13 +12,14 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %2 lend last
->   %0 = Retain %5 Cold local $0 #0 : ()
->   %1 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %6 Cold local $0 #0 : ()
+>   %1 = Retain %6 Entry local $0 #0 : ()
     key + "?"
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic StrConcat [%2 "?"] : string
 >   %4 = Drop [%2] : ()
->   %5 = Block %3 : string
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : string
 >   exit sub 0 drops [$0]
 >   summary none
 
@@ -46,10 +47,10 @@ fn all!(keys: List[string]) -> usize:
 >   local $11 $pos: usize [assigned] place
 >   local $12 r: &string [read assigned] value
 >     uses $12: %70 -> %64 lend last
->   %0 = Retain %83 Cold local $0 #0 : ()
->   %1 = Retain %83 Entry local $0 #0 : ()
+>   %0 = Retain %84 Cold local $0 #0 : ()
+>   %1 = Retain %84 Entry local $0 #0 : ()
     let tasks: List[Suspend[string]] = [for k in keys => fetch(k)]
->   %2 = Release %83 FrameDrop child #2 : ()
+>   %2 = Release %84 FrameDrop child #2 : ()
 >   %3 = NewList - [] : List[Suspend[string]]
 >   %4 = Store [$1] %3 : ()
 >   %5 = Read move [$0] : List[string]
@@ -92,13 +93,14 @@ fn all!(keys: List[string]) -> usize:
 >   %43 = Drop [$2] : ()
 >   %44 = Read move [$1] : List[Suspend[string]]
 >   %45 = Store [$7] %44 : ()
->   %83 = Block %82 : usize
+>   %83 = Drop [$0] : ()
+>   %84 = Block %82 : usize
     results := join!(tasks...)
 >   %46 = Read move [$7] : List[Suspend[string]]
 >   %47 = Await std/task/all_list[string] (%46) : List[string]
 >   %48 = Release %47 Operation child #2 : ()
 >   %49 = Store [$8] %47 : ()
->   %84 = Return - #2 : never
+>   %86 = Return - #2 : never
     let mut n = 0
 >   %50 = Store [$9] 0:usize : ()
     for r in &results:
@@ -137,5 +139,5 @@ fn all!(keys: List[string]) -> usize:
 >   %82 = Read copy [$9] : usize
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %47 releases [%4294967295]
+>   cancel %47 releases [%2147483648 %4294967295]
 >   loop %42 keeps [$2] (%6..%43)

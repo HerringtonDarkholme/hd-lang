@@ -19,6 +19,7 @@ impl Measure for Reader:
 >   release counted reference (last use)
 >   release List[string] (last use)
 >   release List[string] (last use)
+>   release List[string] (last use)
 >   release counted reference (by design)
 > app/main/impl Measure for Reader.measure
 >   release List[string] (cancelled)
@@ -39,6 +40,7 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 > app/main/known
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release List[string] (last use)
 >   release List[string] (last use)
 >   release counted reference (by design)
 > app/main/known
@@ -61,6 +63,8 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release *app.main.Measure (by design)
+>   release List[string] (last use)
 >   release *app.main.Measure (by design)
 >   release *app.main.Measure (by design)
 >   release List[string] (last use)

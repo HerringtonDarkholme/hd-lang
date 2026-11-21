@@ -189,10 +189,11 @@ fn keep_unknown[T < ?Copy](x: (T, i32)) -> (T, i32):
 > app/main/keep_unknown
 >   local $0 x: (T, i32) [param read] value
 >     uses $0: entry -> %2 consume last
->   %1 = Retain %4 Entry local $0 #0 : ()
+>   %1 = Retain %5 Entry local $0 #0 : ()
     y := x
 >   %0 = FlagSet [$0] #2 : ()
->   %4 = Block %2 : (T, i32)
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : (T, i32)
     y
 >   %2 = Read move [$0] : (T, i32)
 >   %3 = FlagClear [$0] #2 : ()
@@ -202,10 +203,11 @@ fn keep_plain[T](x: Plain[T]) -> Plain[T]:
 > app/main/keep_plain
 >   local $0 x: Plain[T] [param read] value
 >     uses $0: entry -> %2 lend, %3 consume last
->   %1 = Retain %5 Entry local $0 #0 : ()
+>   %1 = Retain %6 Entry local $0 #0 : ()
     y := x
 >   %0 = FlagSet [$0] #2 : ()
->   %5 = Block %3 : Plain[T]
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : Plain[T]
     _ := x
 >   %2 = Read borrow [$0] : Plain[T]
     y

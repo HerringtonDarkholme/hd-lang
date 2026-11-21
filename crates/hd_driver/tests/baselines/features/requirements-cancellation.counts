@@ -26,6 +26,7 @@ fn stop!(key: string) -> bool:
     end := job.cancel!()
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release string (last use)
     match end:
         .Finished => true
         .Abandoned => false

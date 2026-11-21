@@ -93,6 +93,7 @@ pub(crate) mod referent;
 pub(crate) mod retains;
 pub use retains::{provider_view, took_source};
 pub(crate) mod scopes;
+pub use scopes::exits;
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
@@ -108,7 +109,7 @@ pub mod values;
 pub use reason::check_copy_reasons;
 #[cfg(all(feature = "test-utils", not(target_arch = "wasm32")))]
 pub use reason::check_write_sweep;
-pub use reason::{Reason, copy_reasons, reason};
+pub use reason::{EXIT_DROP, Reason, copy_reasons, reason};
 
 /// Whether a value of a type may be copied ([`OwnCx::copies`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

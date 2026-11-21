@@ -21,11 +21,11 @@ use hd_base::NodeIdx;
 use hd_base::{HashMap, SliceSort as _};
 use hd_types::Ty;
 
-use super::splice::permute_columns;
+use super::splice::{Tables, permute_columns};
 
 use crate::ir::{
     Body, NONE, Ref, Remap, SideRows, Tag, Through, Topology, copy_rows, for_blocks, grow, inside,
-    is_suspension, renumber, return_word, u32_of,
+    is_suspension, place, renumber, return_word, u32_of,
 };
 
 /// One open cleanup scope: its suites, and how many its body registered.
@@ -583,6 +583,70 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
     )?;
     b.cancel.sort_stable();
     Ok(())
+}
+
+/// The exit set as statements (step 7c): a sub-body's exit `Drop`s
+/// ([`Body::exit_drops`]) run before each `return` and each cancel exit
+/// and at the root's end, after what the passes put there; the backend's
+/// epilogue releases the parameters it owns. Each way out takes its own
+/// copy: [`lower`]'s chains wrap a body in blocks (bench +1.8%). A value a
+/// `return` does not consume takes the caller's count first, a stated
+/// `Retain`. Runs after the passes' verifier, as rustc elaborates drops
+/// after borrow checking. Cost: one walk, a consumer census and a splice,
+/// O(instructions + ways out x exit set).
+///
+/// # Errors
+/// The splice refuses a row.
+pub fn exits(b: &mut Body, cx: &dyn super::OwnCx) -> Result<(), String> {
+    use crate::ir::count::{At, Info, Part};
+    let topo = Topology::new(b);
+    let mut stated = vec![Vec::new(); b.sub_root.len()];
+    for &(s, l) in &b.exit_drops {
+        stated[s.idx()].push([l.raw() | place::BARE_LOCAL, super::reason::EXIT_DROP]);
+    }
+    // A cancel block stands in no list: its point's sub-body is its own.
+    let mut sub: Vec<usize> = topo.sub.iter().map(|&s| s as usize).collect();
+    for &(p, blk) in &b.cancel {
+        if let Some(&r) = b.record(b.data[blk as usize][0]).last() {
+            sub[r as usize] = sub[p as usize];
+        }
+    }
+    let mut consumers = Vec::new();
+    super::consumers(b, &topo, cx, &mut consumers);
+    let mut edits = Tables::default();
+    let put = |b: &Body, blk: u32, pos: u32, s: usize, edits: &mut Tables| {
+        for &data in &stated[s] {
+            edits.insert(blk, pos, Tag::Drop, data, Ty::VOID, b.syn[blk as usize]);
+        }
+    };
+    for (i, &s) in sub.iter().enumerate() {
+        // A return's word: `NONE`, or one of [`return_word`]'s.
+        let [value, word] = b.data[i];
+        if b.tags[i] != Tag::Return || topo.blk[i] == NONE {
+            continue;
+        }
+        let (blk, pos) = (topo.blk[i], topo.pos[i]);
+        if word != return_word::BORROWED
+            && word != return_word::CANCELLED
+            && Ref(value).as_inst().is_some()
+            && consumers.get(value as usize) != Some(&u32_of(i))
+            && super::tracked(b, cx, value as usize)
+        {
+            let data = [value, Info::new(At::Value, Part::Result, 0).write(b)];
+            edits.insert(blk, pos, Tag::Retain, data, Ty::VOID, b.syn[i]);
+        }
+        put(b, blk, pos, s, &mut edits);
+    }
+    for (s, &root) in b.sub_root.iter().enumerate().filter(|r| *r.1 != NONE) {
+        let list = b.record(b.data[root as usize][0]);
+        if list
+            .last()
+            .is_none_or(|&m| b.tags[m as usize] != Tag::Return)
+        {
+            put(b, root, u32_of(list.len()), s, &mut edits);
+        }
+    }
+    super::splice::apply(b, &topo, &mut edits)
 }
 
 /// Whether `i` is a cleanup scope: a `Scope` with suites.

@@ -6,15 +6,16 @@ fn read!(value: &i32) -> i32:
 > app/main/read
 >   local $0 value: &i32 [param read] value
 >     uses $0: entry -> %5 lend last
->   %0 = Retain %7 Cold local $0 #0 : ()
->   %1 = Retain %7 Entry local $0 #0 : ()
->   %2 = Retain %7 Cold referent $0 #8 : ()
->   %3 = Release %7 FrameDrop referent $0 #2 : ()
->   %4 = Release %7 Exit referent $0 #8 : ()
+>   %0 = Retain %8 Cold local $0 #0 : ()
+>   %1 = Retain %8 Entry local $0 #0 : ()
+>   %2 = Retain %8 Cold referent $0 #8 : ()
+>   %3 = Release %8 FrameDrop referent $0 #2 : ()
+>   %4 = Release %8 Exit referent $0 #8 : ()
     *value
 >   %5 = Read copy [*$0] : i32
 >   %6 = Drop [$0] : ()
->   %7 = Block %5 : i32
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : i32
 >   exit sub 0 drops [$0]
 >   summary none
 

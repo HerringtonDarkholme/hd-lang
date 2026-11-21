@@ -714,6 +714,19 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// An exit set's `Drop` of local `l` (`hd_tir::own::exits`): it ends
+    /// the body, so its locals stay as they are.
+    fn release_exit(&mut self, l: usize) -> StageResult<()> {
+        crate::work::exit_rows(1);
+        if self.borrowed.contains(&l) {
+            return Ok(());
+        }
+        match self.locals.get(&l).cloned() {
+            Some(ls) => self.release_owned_local(l, &ls),
+            None => self.mem_release(l).map(|_| ()),
+        }
+    }
+
     /// Releases TIR local `l`'s count, when it holds a counted value, and
     /// zeroes its locals.
     pub(super) fn release_local(&mut self, l: usize) -> StageResult<()> {
@@ -780,31 +793,10 @@ impl Em<'_, '_, '_> {
         result
     }
 
+    /// The backend's part of the exit: the parameters this instance
+    /// owns, the frame's saved referents and wakers. The exit set runs in
+    /// the body (`hd_tir::own::exits`).
     fn release_all_inner(&mut self) -> StageResult<()> {
-        // The exit set: the locals that may still hold a value here.
-        self.f.reason = Some(Reason::LastUse);
-        // This sub-body's own rows of the exit set, indexed once per body
-        // (the TIR boundary exit rows): an emitter of one of n closures visits
-        // its rows, not the whole body's.
-        let boundary = std::sync::Arc::clone(&self.boundary);
-        let owners = boundary
-            .counts
-            .exits
-            .get(&u32::from(self.sub_id))
-            .map_or(&[][..], Vec::as_slice);
-        crate::work::exit_rows(owners.len());
-        let mut released = hd_base::HashSet::default();
-        for &l in owners {
-            if self.borrowed.contains(&l) {
-                continue;
-            }
-            if let Some(ls) = self.locals.get(&l).cloned() {
-                self.release_owned_local(l, &ls)?;
-                released.insert(l);
-            } else if self.mem_release(l)? {
-                released.insert(l);
-            }
-        }
         // A value made only of references needs no ownership drop, so
         // the move pass may omit it from `exit_drops`. Its contained
         // run-time loans still end when the value is released here.
@@ -899,6 +891,9 @@ impl Em<'_, '_, '_> {
         let word = self.b.data[i as usize][0];
         if word & hd_tir::ir::place::BARE_LOCAL != 0 {
             let l = bare_local(self.b, word);
+            if self.b.data[i as usize][1] == hd_tir::own::EXIT_DROP {
+                return self.release_exit(l);
+            }
             return self.release_local(l);
         }
         // ruled out: own::insert writes only [ROOT_VALUE, instruction] records
