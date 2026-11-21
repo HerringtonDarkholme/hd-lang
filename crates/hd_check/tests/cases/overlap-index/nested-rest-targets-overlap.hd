@@ -1,0 +1,11 @@
+# @dump: diagnostics
+trait Pick[A]:
+    fn pick(self, value: A) -> i32
+
+impl[T] Pick[i32] for ((i32, List[T]...), string):
+    fn pick(self, value: i32) -> i32:
+        1
+
+impl[U] Pick[i32] for ((i32, List[U]...), string):
+    fn pick(self, value: i32) -> i32:
+        2

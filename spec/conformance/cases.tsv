@@ -1093,6 +1093,16 @@ lang/functions/closures/provider-capturing-closure.hd	type	accept	lang/07-functi
 lang/requirements/requirement-rows/row-extension-unsound.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-rows
 lang/requirements/requirement-rows/row-extension-entailment.hd	type	accept	lang/11-requirements-and-suspension.md#requirement-rows
 lang/traits/trait-implementations/implementation-targets/bare-parameter-impl-target.hd	type	reject:bare-parameter-impl-target	lang/09-traits.md#implementation-targets
+lang/traits/trait-implementations/overlap/rest-head-a-rest-tail-parameter-unifies-with-a-concrete-element.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-a-shared-prefix-and-rest-parameter-must-agree.hd	type	accept	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-different-rest-element-types-are-disjoint.hd	type	accept	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-fixed-and-rest-targets-are-disjoint.hd	type	accept	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-nested-rest-targets-overlap.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-rest-and-fixed-targets-are-disjoint.hd	type	accept	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-rest-targets-with-different-fixed-prefixes-are-disjoint.hd	type	accept	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-rest-targets-with-different-prefix-lengths-are-disjoint.hd	type	accept	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-rest-targets-with-distinct-trait-arguments-are-disjoint.hd	type	accept	lang/09-traits.md#r-trait.overlap.unify
+lang/traits/trait-implementations/overlap/rest-head-rest-targets-with-the-same-trait-argument-overlap.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
 lang/traits/trait-implementations/overlap/overlapping-impl-unifying-targets.hd	type	reject:overlapping-impl	lang/09-traits.md#overlap
 lang/traits/trait-implementations/overlap/a-concrete-row-impl-overlaps-a-later-generic-row-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify
 lang/traits/trait-implementations/overlap/a-generic-row-impl-overlaps-a-later-concrete-row-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.overlap.unify

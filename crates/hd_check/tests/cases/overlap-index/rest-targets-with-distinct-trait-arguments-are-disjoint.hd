@@ -1,0 +1,15 @@
+# @dump: diagnostics tir
+# expected: a rest-tuple target's unknown head is indexed by its distinct trait arguments.
+trait Pick[A]:
+    fn pick(self, value: A) -> i32
+
+impl[T] Pick[i32] for (i32, List[T]...):
+    fn pick(self, value: i32) -> i32:
+        1
+
+impl[U] Pick[string] for (i32, List[U]...):
+    fn pick(self, value: string) -> i32:
+        2
+
+fn select(value: (i32, List[bool]...)) -> i32:
+    value.pick(3)

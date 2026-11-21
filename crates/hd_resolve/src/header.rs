@@ -490,16 +490,14 @@ impl<'a> Universe<'a> {
                     stack.push((x, y));
                     mx == my && cx == cy
                 }
-                (
-                    TyData::Tuple {
-                        elems: x,
-                        rest: None,
-                    },
-                    TyData::Tuple {
-                        elems: y,
-                        rest: None,
-                    },
-                ) => list(stack, x, y),
+                (TyData::Tuple { elems: x, rest: rx }, TyData::Tuple { elems: y, rest: ry }) => {
+                    match (rx, ry) {
+                        (Some(x), Some(y)) => stack.push((x, y)),
+                        (None, None) => {}
+                        _ => return false,
+                    }
+                    list(stack, x, y)
+                }
                 (
                     TyData::TraitValue {
                         def: x, args: xa, ..
@@ -637,6 +635,27 @@ mod tests {
                         universe.unify(vars[0], Ty::I32, oa, ob, &mut aliases)
                     });
                     assert_eq!(work, 1, "compressed alias lookup");
+                }
+                for depth in [100, 1_000] {
+                    let mut types = [param(0), Ty::I32];
+                    for _ in 0..depth {
+                        for t in &mut types {
+                            *t = pool.intern_ty(&TyData::Tuple {
+                                elems: TyList::EMPTY,
+                                rest: Some(pool.intern_ty(&TyData::Adt {
+                                    def: known.list,
+                                    args: pool.list(&[*t]),
+                                })),
+                            });
+                        }
+                    }
+                    let mut sub = HashMap::default();
+                    let (matches, work) = crate::work::count_declaration_type_visits(|| {
+                        universe.unify(types[0], types[1], oa, ob, &mut sub)
+                    });
+                    assert!(matches);
+                    assert_eq!(sub.get(&(oa, 0)), Some(&Ty::I32));
+                    assert_eq!(work, 2 * depth + 1, "one tuple and List pair per level");
                 }
                 let mut costs = Vec::new();
                 for width in [100, 1_000] {
