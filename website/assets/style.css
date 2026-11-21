@@ -1570,6 +1570,37 @@ pre.ebnf .eb-definition:target {
   transition: none !important;
 }
 
+/* Use hd: one card per README "Use hd" bullet. */
+.use-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .use-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.use-card {
+  min-width: 0;
+  padding: 24px 28px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+
+.use-card h3 {
+  margin: 0 0 8px;
+  color: var(--heading);
+  font-size: 1.1rem;
+}
+
+.use-card p {
+  margin: 0;
+}
+
 .agent-pillar {
   display: flex;
   flex-direction: column;

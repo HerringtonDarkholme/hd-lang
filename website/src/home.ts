@@ -267,6 +267,20 @@ ${sectionHead("std-title", "Standard library", "A standard library for getting i
 ${explorer("std", "Standard library", stdItems)}
 </section>`;
 
+  // Uses: the README's "Use hd" bullets, one card each, in the README's order.
+  const uses = labeledItems(section(sections, "Use hd"), /^-\s+/);
+  const usesSection = `<section class="home-section uses" aria-labelledby="uses-title">
+${sectionHead("uses-title", "Use hd", "Plugins, sandboxes and workflows", "A module reaches the world only through the capabilities it is granted, so hd fits code you embed, code you don't trust, and code that waits.")}
+<div class="use-grid">
+${uses
+  .map(
+    (use) =>
+      `<article class="use-card"><h3>${inline(use.label)}</h3><p>${inline(use.text)}</p></article>`,
+  )
+  .join("\n")}
+</div>
+</section>`;
+
   const installBlock = /^```sh\n[\s\S]*?^```/m.exec(section(sections, "Install"))?.[0];
   if (!installBlock) {
     throw new Error('landing page: README.md\'s "## Install" section has no ```sh block');
@@ -293,7 +307,14 @@ ${md.render(installBlock, env)}
 <nav aria-label="Footer"><a href="${pageUrl("guide/learn-in-10-minutes.html")}">Learn</a><a href="${pageUrl("tour/index.html")}">Tour</a><a href="${pageUrl("playground.html")}">Playground</a><a href="${pageUrl("spec/index.html")}">Spec</a><a href="${REPOSITORY_URL}">GitHub</a></nav>
 </footer>`;
 
-  return [hero, agentSection, effectsSection, derivationSection, stdSection, install, footer].join(
-    "\n",
-  );
+  return [
+    hero,
+    agentSection,
+    effectsSection,
+    derivationSection,
+    stdSection,
+    usesSection,
+    install,
+    footer,
+  ].join("\n");
 }

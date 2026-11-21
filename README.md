@@ -126,6 +126,21 @@ track every target. The scripts are in [bench/metrics](bench/metrics/README.md).
 | Go | embedded structs, packages with minimal version selection, `defer` |
 | Swift, Kotlin | `T?` optionals |
 
+## Use hd
+
+- **As a plugin.** Your application runs an hd module and supplies the
+  capabilities it may use, through generated Rust or JavaScript providers.
+  [How](website/guide/USING_HD.md#as-a-plugin-your-application-runs-hd-code)
+- **As a sandbox.** Every effect is named in a signature, and a run stops
+  before it starts unless the package grants each one.
+  [How](website/guide/USING_HD.md#as-a-sandbox-run-code-you-didnt-write)
+- **As a workflow (work in progress).** Each `!` call is a point where a
+  computation can pause and resume. Durable state and runners are planned.
+  [Status](website/guide/USING_HD.md#as-a-workflow-work-in-progress-steps-that-can-resume)
+- **With serializable closures (work in progress).** Send a closure as an
+  RPC, to a thread, or as a worker script. The design is open.
+  [Status](website/guide/USING_HD.md#serializable-closures-work-in-progress)
+
 ## Install
 
 ```sh

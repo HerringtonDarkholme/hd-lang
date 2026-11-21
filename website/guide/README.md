@@ -12,6 +12,9 @@ These documents introduce hd-lang from complementary perspectives:
   scanning, wiring a program in `main`, and packages — read
   [Working With Data](WORKING_WITH_DATA.md).
 - For the commands day to day, read [The `hd` Command](COMMANDS.md).
+- To embed hd as a plugin, run untrusted code in its sandbox, or follow
+  resumable workflows and serializable closures (both in progress), read
+  [Using hd](USING_HD.md).
 - Read [Use Scenarios](../../docs/use-scenarios.md) for the product needs and workflows
   that shape the design.
 
