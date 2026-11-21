@@ -168,10 +168,7 @@ impl Lower<'_, '_, '_> {
         let node = n
             .children()
             .filter(|c| c.kind() == SyntaxKind::Decorator)
-            .filter(|d| {
-                self.deco(*d)
-                    .is_some_and(|x| x.typed && x.name == "annotate")
-            })
+            .filter(|d| self.decorator_def(*d) == Some(self.names.known.annotate))
             .find_map(|d| {
                 let e = d.children().next()?;
                 let callee = match e.kind() {
@@ -179,7 +176,11 @@ impl Lower<'_, '_, '_> {
                     _ => e,
                 };
                 let list = Src::child(callee, SyntaxKind::TypeArgumentList)?;
-                list.children().find(|c| c.kind().is_type())
+                // Wrong-kind arguments are diagnosed by the ordinary argument
+                // checker. Only a declaration type can be pattern metadata.
+                list.children()
+                    .next()
+                    .filter(|c| c.kind().type_form().is_some())
             });
         Some(match node {
             Some(t) => self.ty(Some(t), gn),
@@ -191,14 +192,24 @@ impl Lower<'_, '_, '_> {
         let mut mask = None;
         let mut typed_line = false;
         for d in n.children().filter(|c| c.kind() == SyntaxKind::Decorator) {
-            let Some(deco) = self.deco(d) else { continue };
             // `annot.target.recognized`: only std's own `annotate` counts,
             // including through an alias or a qualified path.
             if self.decorator_def(d) != Some(self.names.known.annotate) {
                 continue;
             }
+            let Some(e) = d.children().next() else {
+                continue;
+            };
+            let callee = match e.kind() {
+                SyntaxKind::CallExpr => e.children().next(),
+                _ => Some(e),
+            };
+            let typed = callee.is_some_and(|c| c.kind() == SyntaxKind::TypeArgsExpr);
             let mut m = 0;
-            for a in deco.args.into_iter().flat_map(NodeRef::children) {
+            for a in Src::child(e, SyntaxKind::ArgumentList)
+                .into_iter()
+                .flat_map(NodeRef::children)
+            {
                 let last = self
                     .src
                     .tokens(a)
@@ -208,7 +219,7 @@ impl Lower<'_, '_, '_> {
                     m |= b;
                 }
             }
-            if deco.typed {
+            if typed {
                 m &= kind::FN | kind::FIELD;
                 typed_line = true;
             }

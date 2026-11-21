@@ -1,0 +1,8 @@
+# @dump: diagnostics
+# annot.cfg.target: a conditional declaration needs a body.
+trait Feature:
+    @cfg(.Debug)
+    fn selected(&self) -> void
+
+    @cfg(.Release)
+    fn selected(&self) -> void

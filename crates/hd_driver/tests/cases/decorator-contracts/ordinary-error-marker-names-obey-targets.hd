@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# annot.error.marker.outside and annot.target.limit.kind-error.
+use std.annotation.annotate
+
+@annotate(.Field)
+struct FieldOnly: pass
+
+fn from() -> FieldOnly:
+    FieldOnly {}
+fn source() -> FieldOnly:
+    FieldOnly {}
+
+@from()
+fn wrong_function() -> void:
+    pass
+
+@source()
+struct WrongData: pass

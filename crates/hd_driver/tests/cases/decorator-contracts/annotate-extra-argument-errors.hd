@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# @build: dev | checked
+# Argument count, argument type, and generic kind checks use the same call machinery.
+use std.annotation.annotate
+
+@annotate::[i32, string](.Field)
+struct ExtraPattern: pass
+
+@annotate::[$ Console](.Field)
+struct RowPattern: pass
+
+@annotate(other=.Field)
+struct WrongName: pass
+
+@annotate(+1)
+struct WrongTarget: pass

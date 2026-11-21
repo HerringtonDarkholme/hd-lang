@@ -1,0 +1,16 @@
+# test: resolved annotate names retain their generic type pattern
+use std.annotation
+use std.annotation.annotate
+use std.annotation.annotate as targets
+
+@targets::[List[T]](.Field)
+struct Fact[T]: pass
+
+fn fact[T]() -> Fact[T]:
+    Fact::[T] {}
+
+struct Record:
+    @fact
+    good: List[i32]
+    @fact # diagnostic: type-mismatch
+    bad: i32

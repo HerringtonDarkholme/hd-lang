@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# annot.error.marker: from/source mark payload fields, not their variant.
+@error
+enum Failure:
+    @from
+    @error("one")
+    First
+
+    @source
+    @error("two")
+    Second

@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# @build: dev | checked
+# test: annotate patterns see non-Copy parameters without instantiating the runtime function at the pattern
+use std.annotation
+use std.annotation.annotate as targets
+
+@targets::[T](.Field)
+struct StructFact[T < ?Copy]: pass
+
+@annotation.annotate::[T](.Field)
+enum EnumFact[T < ?Copy]:
+    Value
+
+@targets::[fn(T) -> R](.Fn, .Field)
+struct FunctionFact[T < ?Copy, R < ?Copy]: pass

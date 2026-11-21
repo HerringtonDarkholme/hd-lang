@@ -15,7 +15,6 @@ const COMPILER_DECORATORS: &[&str] = &[
     "from",
     "source",
     "intrinsic",
-    "annotate",
     "host",
     "cfg",
     "auto_closing",

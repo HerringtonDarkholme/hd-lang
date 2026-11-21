@@ -109,11 +109,17 @@ fn is_path(n: NodeRef<'_>) -> bool {
 }
 
 /// The decorator expressions that attach values, with literal markers and
-/// std's `inline` and `cold` (`annot.inline.recognized`) filtered by the
-/// same resolved identity as the function's marker.
+/// std's `inline`, `cold` and `annotate` filtered by resolved identity
+/// (`annot.inline.recognized`, `annot.facts-of.result.compiler-decorators.v2`).
 pub(crate) fn fact_lines<'t>(cx: &BodyCx<'t>, node: NodeRef<'t>) -> Vec<NodeRef<'t>> {
     let known = &cx.names.known;
-    let markers = [known.num_suffix, known.str_prefix, known.inline, known.cold];
+    let markers = [
+        known.num_suffix,
+        known.str_prefix,
+        known.inline,
+        known.cold,
+        known.annotate,
+    ];
     resolved_fact_lines(&cx.src, node, |d| {
         decorator_def(cx, d).is_some_and(|def| markers.contains(&def))
     })
@@ -935,6 +941,65 @@ pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut
     }
 }
 
+/// Type-check consumed `annotate` expressions without attaching or executing
+/// them (`annot.facts-of.result.compiler-decorators.v2`). Use the ordinary
+/// expression checker in the fact type's generic environment, just as a
+/// default expression does; metadata reading is not argument validation.
+fn check_annotate(
+    cx: &BodyCx<'_>,
+    owner: DefId,
+    node: NodeRef<'_>,
+    diags: &mut DiagBuf,
+) -> StageResult<()> {
+    let mut expressions = node
+        .children()
+        .filter(|d| d.kind() == SyntaxKind::Decorator)
+        .filter(|d| decorator_def(cx, *d) == Some(cx.names.known.annotate))
+        .filter_map(|d| d.children().next())
+        .peekable();
+    if expressions.peek().is_none() {
+        return Ok(());
+    }
+    let def = cx.names.member(owner, PathKind::Hidden, "annotate check");
+    let local = hd_types::LocalPool::new();
+    let mut ck = new_ck(
+        cx,
+        &local,
+        owner,
+        def,
+        BodyKind::Default,
+        (Ty::VOID, RowId::EMPTY),
+        diags,
+    );
+    let block = ck.b.open_block();
+    for e in expressions {
+        ck.move_to(cx.src.span(e).lo);
+        let callee = match e.kind() {
+            SyntaxKind::CallExpr => e.children().next(),
+            _ => Some(e),
+        };
+        if let Some(callee) = callee.filter(|c| c.kind() == SyntaxKind::TypeArgsExpr)
+            && let Some(path) = callee.children().next()
+            && let Some(list) = hd_resolve::Src::child(callee, SyntaxKind::TypeArgumentList)
+        {
+            // `annot.typed-fact.pattern.scope`: this list declares a pattern
+            // over the fact type's parameters, not a runtime instantiation
+            // of annotate's T. Check its argument kinds and count normally,
+            // then check the value arguments at annotate's default T. In
+            // particular, a pattern may mention a `?Copy` parameter.
+            let explicit = ck.callee_targs(path, list)?;
+            if let Some(sig) = cx.lookup.item(cx.names.known.annotate).and_then(Item::sig) {
+                ck.fresh_generics(sig, &explicit, e)?;
+            }
+        }
+        let args = ck.args_of(hd_resolve::Src::child(e, SyntaxKind::ArgumentList));
+        ck.call_item(cx.names.known.annotate, &[], &args, e, false, None)?;
+    }
+    let root = ck.b.close_block(block, None, Ty::VOID, node.index());
+    ck.finish_body(root)?;
+    Ok(())
+}
+
 /// Checks every fact and metadata expression written on the declaration
 /// `node` of `owner` and on its members, at check time, though nothing
 /// reads them (`annot.metadata.eval-as-fact`, `annot.fact.eval.unread`,
@@ -949,6 +1014,12 @@ pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut
 /// decorators of a module-level function are its facts body, which
 /// [`check_facts`] checks.
 pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags: &mut DiagBuf) {
+    if let Err(e) = check_annotate(cx, owner, node, diags)
+        && is_out_of_fuel(&e)
+    {
+        let _ = too_complex(cx, (owner, BodyKind::Fact), node, diags);
+        return;
+    }
     let data = cx.lookup.item(owner).map(|i| &i.data);
     let is_fn = matches!(data, Some(ItemData::Fn(_, _)));
     let lines = match (cx.lookup.item(owner), data) {

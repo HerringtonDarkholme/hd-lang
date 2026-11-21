@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# annot.metadata.value: a type alias is not a fact value.
+type Scalar = i32
+
+@Scalar
+fn wrong_value() -> void:
+    pass

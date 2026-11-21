@@ -1,0 +1,5 @@
+# test: a row in annotate's type-pattern slot is a diagnostic rather than a header panic
+use std.annotation.annotate
+
+@annotate::[$ Console](.Field) # diagnostic: generic-kind-mismatch
+struct Fact: pass
