@@ -24,7 +24,7 @@ sloppy-panic	hd_driver	1
 sloppy-panic	hd_opt	2
 sloppy-std-path	hd_driver	1
 sloppy-std-path	hd_wasm	8
-sloppy-unreachable	hd_check	2
+sloppy-unreachable	hd_check	1
 sloppy-unreachable	hd_tir	1
 sloppy-unreachable	hd_types	2
 sloppy-unreachable	hd_wasm	16
