@@ -3734,7 +3734,7 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 1194 ;; &"chunks: size must be positive"
+      i32.const 1186 ;; &"chunks: size must be positive"
       i32.const 29
       i32.const 6
       call_indirect $table0 (param i32 i32)
@@ -4339,7 +4339,7 @@
       local.get $t0
       i32.eqz
       if
-        i32.const 1293 ;; &"windows: size must be positive"
+        i32.const 1285 ;; &"windows: size must be positive"
         i32.const 30
         i32.const 6
         call_indirect $table0 (param i32 i32)
