@@ -194,7 +194,7 @@
       "released": "300033",
       "uniques": "0",
       "total": "300033",
-      "noOpsAndSkipped": "121200018"
+      "noOpsAndSkipped": "1200018"
     },
     {
       "program": "bench/study/fannkuch_redux.hd",
