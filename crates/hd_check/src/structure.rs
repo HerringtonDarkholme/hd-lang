@@ -28,7 +28,7 @@
 //! derivation's `Structure` without bodies (a call of it then stops at
 //! collection): the shared constructor data of a generic enum.
 
-use hd_base::{DefId, HashMap, HashSet, Stage, StageResult};
+use hd_base::{DefId, HashMap, HashSet, NotImplemented, Stage, StageResult};
 use hd_diag::DiagBuf;
 use hd_resolve::{Item, ItemData};
 use hd_structure::{Mem, Shape, Shared, Target, Var, hidden_method};
@@ -524,6 +524,53 @@ pub fn fact_bodies(
     Some((out, bodies))
 }
 
+/// A selected declaration's borrowed fields, without non-data item kinds.
+enum StructureMembers<'a> {
+    Struct(&'a [hd_resolve::Field]),
+    Enum {
+        shared: &'a [hd_resolve::Field],
+        variants: &'a [hd_resolve::Variant],
+    },
+}
+
+struct StructureDecl<'a> {
+    item: &'a Item,
+    members: StructureMembers<'a>,
+}
+
+impl<'a> StructureDecl<'a> {
+    fn new(item: Option<&'a Item>) -> StageResult<Self> {
+        let item = item.ok_or_else(invalid_structure_input)?;
+        let members = match &item.data {
+            ItemData::Struct(fields, _) => StructureMembers::Struct(fields),
+            ItemData::Enum {
+                shared, variants, ..
+            } => StructureMembers::Enum { shared, variants },
+            _ => return Err(invalid_structure_input()),
+        };
+        Ok(Self { item, members })
+    }
+}
+
+/// Arguments extracted from a selected ADT, checked before member generation.
+struct AdtArgs(TyList);
+
+impl AdtArgs {
+    fn new(ty: &TyData) -> StageResult<Self> {
+        match ty {
+            TyData::Adt { args, .. } => Ok(Self(*args)),
+            _ => Err(invalid_structure_input()),
+        }
+    }
+}
+
+fn invalid_structure_input() -> NotImplemented {
+    NotImplemented::bug(
+        Stage::Body,
+        "selected Structure input requires a resolved struct or enum and ADT arguments",
+    )
+}
+
 /// The `Structure` bodies of `opt`, hidden methods of its
 /// `structure_owner`, whose facts `facts` builds. `cx` sees the target's
 /// module and `std.structure`.
@@ -534,7 +581,8 @@ pub fn structure_bodies(
 ) -> StageResult<Generated> {
     let names = &cx.names;
     let pool = names.pool;
-    let item = cx.lookup.item(opt.data).expect("OptIn::build target");
+    let declaration = StructureDecl::new(cx.lookup.item(opt.data))?;
+    let item = declaration.item;
     let owner = opt.structure_owner();
     // The declaration's `Structure` is over the type's own parameters.
     let ty = if owner == opt.data {
@@ -548,10 +596,11 @@ pub fn structure_bodies(
     } else {
         opt.target
     };
+    let args = AdtArgs::new(&pool.get(ty))?;
     let target = Target {
         ty,
         name: names.text(item.name).to_owned(),
-        vars: variants(cx, opt, ty, facts),
+        vars: variants(cx, opt, &declaration, args, facts),
         facts: facts.of_type,
     };
     let gcx = hd_structure::Cx {
@@ -610,13 +659,16 @@ pub fn owner_args(cx: &BodyCx<'_>, opt: &OptIn) -> TyList {
 /// fills (`OptIn::fills_declared`, `annot.impl-fact.fills-defaults`) and
 /// a member a skip fact omits (`annot.impl-fact.skips`), and their facts
 /// bodies.
-fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var> {
+fn variants(
+    cx: &BodyCx<'_>,
+    opt: &OptIn,
+    declaration: &StructureDecl<'_>,
+    AdtArgs(args): AdtArgs,
+    facts: &FactBodies,
+) -> Vec<Var> {
     let names = &cx.names;
     let pool = names.pool;
-    let item = cx.lookup.item(opt.data).expect("OptIn::build target");
-    let TyData::Adt { args, .. } = pool.get(ty) else {
-        unreachable!("OptIn::build requires an ADT");
-    };
+    let item = declaration.item;
     let args = pool.list_items(args).to_vec();
     let data = opt.data;
     let sub = |t: Ty| {
@@ -657,8 +709,8 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
         }
     };
     let mut out = Vec::new();
-    match &item.data {
-        ItemData::Struct(fields, _) => {
+    match &declaration.members {
+        StructureMembers::Struct(fields) => {
             let members: Vec<Mem> = fields
                 .iter()
                 .enumerate()
@@ -680,9 +732,7 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
                 shared: Vec::new(),
             });
         }
-        ItemData::Enum {
-            shared, variants, ..
-        } => {
+        StructureMembers::Enum { shared, variants } => {
             for (k, v) in variants.iter().enumerate() {
                 let members: Vec<Mem> = v
                     .fields
@@ -713,7 +763,6 @@ fn variants(cx: &BodyCx<'_>, opt: &OptIn, ty: Ty, facts: &FactBodies) -> Vec<Var
                 });
             }
         }
-        _ => unreachable!("OptIn::build accepts only structs and enums"),
     }
     out
 }
@@ -963,6 +1012,100 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
             true
         });
         answer
+    }
+}
+
+#[cfg(test)]
+mod structure_input_tests {
+    use super::{AdtArgs, StructureDecl, StructureMembers};
+    use hd_base::{DefId, NotImplemented, Stage, Symbol};
+    use hd_resolve::{Field, Item, ItemData, TypeAttrs, Variant};
+    use hd_types::{Ty, TyData};
+
+    fn internal_error(error: &NotImplemented) {
+        assert_eq!(error.stage, Stage::Body);
+        assert!(error.bug);
+        assert!(!error.out_of_fuel);
+    }
+
+    #[test]
+    fn selected_declarations_borrow_struct_enum_and_shared_fields() {
+        let field = Field {
+            name: Symbol::from_raw(1),
+            ty: Ty::I32,
+            public: true,
+            has_default: false,
+            embedded: false,
+            lifetimes: Vec::new(),
+            fn_lifetimes: Vec::new(),
+        };
+        let data = [
+            ItemData::Struct(vec![field.clone()], TypeAttrs::default()),
+            ItemData::Enum {
+                shared: vec![field.clone()],
+                variants: vec![Variant {
+                    name: Symbol::from_raw(2),
+                    def: DefId::from_raw(2),
+                    fields: vec![field],
+                }],
+                attrs: TypeAttrs::default(),
+            },
+        ];
+        for data in data {
+            let item = Item::new(DefId::from_raw(1), Symbol::from_raw(1), false, data);
+            let declaration = StructureDecl::new(Some(&item)).expect("selected declaration");
+            assert!(std::ptr::eq(declaration.item, &raw const item));
+            match (&declaration.members, &item.data) {
+                (StructureMembers::Struct(actual), ItemData::Struct(expected, _)) => {
+                    assert!(std::ptr::eq(*actual, expected.as_slice()));
+                }
+                (
+                    StructureMembers::Enum { shared, variants },
+                    ItemData::Enum {
+                        shared: expected_shared,
+                        variants: expected_variants,
+                        ..
+                    },
+                ) => {
+                    assert!(std::ptr::eq(*shared, expected_shared.as_slice()));
+                    assert!(std::ptr::eq(*variants, expected_variants.as_slice()));
+                }
+                _ => panic!("declaration kind changed"),
+            }
+        }
+    }
+
+    #[test]
+    fn missing_and_non_data_declarations_report_an_internal_error() {
+        let item = Item::new(
+            DefId::from_raw(1),
+            Symbol::from_raw(1),
+            false,
+            ItemData::Builtin,
+        );
+        for selected in [None, Some(&item)] {
+            internal_error(
+                &StructureDecl::new(selected)
+                    .err()
+                    .expect("invalid selection"),
+            );
+        }
+    }
+
+    #[test]
+    fn selected_adt_arguments_preserve_the_interned_list() {
+        crate::body::with_checker(|ck| {
+            let pool = ck.pool();
+            let args = pool.list(&[Ty::I32, Ty::VOID]);
+            let ty = pool.intern_ty(&TyData::Adt {
+                def: DefId::from_raw(1),
+                args,
+            });
+            assert_eq!(AdtArgs::new(&pool.get(ty)).expect("ADT arguments").0, args);
+            for other in [Ty::I32, Ty::VOID, Ty::POISON] {
+                internal_error(&AdtArgs::new(&pool.get(other)).err().expect("non-ADT"));
+            }
+        });
     }
 }
 
