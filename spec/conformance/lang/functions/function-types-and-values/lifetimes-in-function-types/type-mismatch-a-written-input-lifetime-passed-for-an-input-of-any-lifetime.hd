@@ -1,0 +1,8 @@
+# test: a function value needing its written lifetime is no argument taking any lifetime
+# Spec 07 Function Types: fn.type.lifetime.input. `g` needs `'b` at its input, and `run`'s `f` takes any lifetime.
+fn run(f: fn(&i32) -> void) -> void:
+    x := 1
+    f(&x)
+
+fn forwarded['b](g: fn(&'b i32) -> void) -> void:
+    run(g) # diagnostic: type-mismatch

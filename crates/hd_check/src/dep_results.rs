@@ -47,6 +47,7 @@ use crate::local_refs::{holds_local_ref, outlives_field, scoped_param, static_bo
 use crate::regions::Category;
 
 mod constraints;
+mod fn_inputs;
 mod loan_shapes;
 
 /// The lifetime of an input slot that writes none: its own, `ANON` plus
@@ -2031,6 +2032,10 @@ impl CallSig {
     }
 }
 
+/// What [`Ck::written_inputs`] gives: each written input slot and its
+/// variable.
+type WrittenInputs = Vec<(usize, Var)>;
+
 /// What [`Ck::written_inputs`] reads of one body: the body's own map,
 /// whose parameter slots give a field's written lifetime, and the stores
 /// into each local, indexed once on first use.
@@ -2038,6 +2043,9 @@ struct FnValues<'a> {
     b: &'a Body,
     mine: Option<&'a DepSig>,
     stores: std::cell::OnceCell<HashMap<u32, Vec<u32>>>,
+    /// [`Ck::written_inputs`] of each local's part a value reads whole,
+    /// traced once however many uses read it.
+    inputs: RefCell<HashMap<(u32, Vec<Part>), WrittenInputs>>,
 }
 
 impl<'a> FnValues<'a> {
@@ -2046,6 +2054,7 @@ impl<'a> FnValues<'a> {
             b,
             mine,
             stores: std::cell::OnceCell::new(),
+            inputs: RefCell::default(),
         }
     }
 
@@ -2951,6 +2960,19 @@ impl Ck<'_, '_> {
         (v, path): (u32, Vec<Part>),
         values: &FnValues<'_>,
     ) -> Vec<(usize, Var)> {
+        let local = (b.tags.get(v as usize) == Some(&Tag::Read))
+            .then(|| b.decode_place(b.data[v as usize][0]))
+            .flatten()
+            .and_then(|p| match p.root {
+                PlaceRoot::Local(l) if p.proj.is_empty() => Some((l.raw(), path.clone())),
+                _ => None,
+            });
+        if let Some(found) = local
+            .as_ref()
+            .and_then(|k| values.inputs.borrow().get(k).cloned())
+        {
+            return found;
+        }
         let mut out = Vec::new();
         let push = |out: &mut Vec<(usize, Var)>, k: usize, var: Var| {
             if !out.contains(&(k, var)) {
@@ -2965,6 +2987,7 @@ impl Ck<'_, '_> {
         let mut seen: HashSet<(u32, Vec<Part>)> = HashSet::default();
         let mut stack: Vec<Trace> = vec![Trace::Value(v, path)];
         while let Some(t) = stack.pop() {
+            crate::work::fn_input_trace();
             match t {
                 Trace::Value(v, path) => {
                     self.trace_value(ls, b, (v, path), &mut stack, &mut |k, var| {
@@ -2978,6 +3001,9 @@ impl Ck<'_, '_> {
                     }
                 }
             }
+        }
+        if let Some(k) = local {
+            values.inputs.borrow_mut().insert(k, out.clone());
         }
         out
     }
@@ -3012,6 +3038,17 @@ impl Ck<'_, '_> {
             // RowAdapt changes only the effect row: its parameters and result
             // retain the source callable's written lifetime relationships.
             stack.push(Trace::Value(b.data[i][0], path));
+        } else if tag == Tag::ItemRef && path.is_empty() {
+            // A named function's value needs what its signature writes
+            // `'static` (`fn.type.lifetime.input`).
+            let def = b.record(b.data[i][0]).first().copied().map(DefId::from_raw);
+            if let Some(sig) = def.and_then(|d| self.cx.lookup.item(d)?.sig()) {
+                let dep = self.call_dep(ls, sig);
+                let ins = (dep.params.iter()).flat_map(|(t, ids)| ref_ids_of(ls, *t, ids));
+                for (k, l) in ins.enumerate().filter(|x| x.1 == STATIC) {
+                    push(k, Var::Own(l));
+                }
+            }
         } else if tag == Tag::Closure && path.is_empty() {
             let rec = b.syn.get(i).and_then(|n| self.closure_lifetimes.get(n));
             for (k, &l) in rec.into_iter().flatten().enumerate() {
@@ -4121,6 +4158,7 @@ impl Ck<'_, '_> {
             )
         });
         let values = FnValues::new(body, mine.as_ref());
+        self.input_fits(ls, body, &values, (root.0, fun), &mut errs);
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
         let mut through = !self.static_values.is_empty()

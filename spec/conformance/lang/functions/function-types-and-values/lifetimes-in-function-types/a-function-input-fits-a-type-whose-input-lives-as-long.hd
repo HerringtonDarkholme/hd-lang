@@ -1,0 +1,39 @@
+# test: a function value fits a function type whose inputs live as long as it needs
+# Spec 07 Function Types: fn.type.lifetime.input. A static destination
+# takes `inspect`, a function taking any lifetime fits a static input
+# (inputs are contravariant), and a static argument reaches `inspect`
+# through every kind of value.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn loose['a](value: &'a i32) -> void:
+    pass
+
+let shared: i32 = 5
+
+fn apply['a](f: fn(&'a i32) -> void, value: &'a i32) -> void:
+    f(value)
+
+fn keep['a](g: fn(&'a i32) -> void) -> fn(&'a i32) -> void:
+    g
+
+struct Holder['a]:
+    f: fn(&'a i32) -> void
+
+fn same() -> fn(&'static i32) -> void:
+    inspect
+
+fn reverse() -> fn(&'static i32) -> void:
+    loose
+
+fn holder() -> Holder['static]:
+    Holder { f: inspect }
+
+fn main() -> void:
+    apply(inspect, &shared)
+    f := inspect
+    f(&shared)
+    k := keep(inspect)
+    k(&shared)
+    same()(&shared)
+    reverse()(&shared)

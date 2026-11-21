@@ -1,0 +1,9 @@
+# test: a copied function value keeps its static input need at a result
+# Spec 07 Function Types: fn.type.lifetime.input. `h` is a copy of `inspect`, which needs `&'static i32`.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn copied['a]() -> fn(&'a i32) -> void:
+    g := inspect
+    h := g
+    h # diagnostic: type-mismatch

@@ -647,6 +647,7 @@ fn demo(a: &User, b: &User) -> usize:
 14. r[fn.type.lifetime.call.written.closure] A closure parameter's type may write a lifetime of the enclosing function. The closure's value then writes it at that input position, and the parameter has that lifetime in the closure's body. So `(fn(x: &'a Point): x.x)(&q)` of a local `q` is an error. Error: `local-reference-escapes`.
 15. r[fn.type.lifetime.result.param] A type parameter in a function type's result may hold the lifetimes of its input positions. An instance whose result holds a reference may depend on each input position that writes a lifetime and on those that [`fn.type.lifetime.result.param.position`](#r-fn.type.lifetime.result.param.position) names, and on no other. A call passing a function value for that type depends on what its arguments at those lifetimes depend on. With `good['a, T](f: fn(&'a Point) -> T, p: &'a Point) -> T`, `good(ident, p)` with `ident(x: &Point) -> &Point` is a `&Point` that depends on `p`.
 16. r[fn.type.lifetime.result.param.position] A result position that a type parameter fills depends on the input positions that the same parameter fills at the same position of its type argument, and on no other. With `T = (&'a A, &'b B)`, `fn(T) -> T` is `fn((&'a A, &'b B)) -> (&'a A, &'b B)`: its result's first element depends on its input's first element, and its second on its second. With `app[T](f: fn(T) -> T, x: T) -> T`, `app(ident, p)` is a `&Point` that depends on `p`, and with `fn(T, U) -> T` at `&Point` for both, a function returning its second input is an error. Error: `type-mismatch`.
+17. r[fn.type.lifetime.input] A function value fits a function type only when each input position's lifetime in that type outlives what the value needs there. A named function needs `'static` where its parameter writes `&'static`. A value from a parameter, a field or a call needs the lifetime its declared type writes, through bindings, copies and captures. An input position that writes no lifetime takes a reference of any lifetime. So `inspect(value: &'static i32)` is no `fn(&'a i32) -> void` result, and no argument or field of type `fn(&i32) -> void`. A `fn(&'b i32) -> void` parameter is no `fn(&'a i32) -> void` result either. Error: `type-mismatch`.
 
 ```text
 struct User:
@@ -684,6 +685,10 @@ fn make(f: fn() -> &User) -> void:  # error: reference-result-without-source
 > A type parameter is replaced position for position, as Rust substitutes
 > it, so filling `T` with a tuple of references gives each element its own
 > lifetime instead of one lifetime for all of `T`.
+>
+> Inputs are contravariant (`fn.type.declared-variance`). As in Rust, where
+> `fn(&'static i32)` is no `for<'a> fn(&'a i32)`, a caller of the weaker
+> type could pass a reference that dies before the function is done.
 
 See also: [Lifetime Variables](13-values-and-references.md#lifetime-variables),
 [Closure Annotations](#closure-annotations).

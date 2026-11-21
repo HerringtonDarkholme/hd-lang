@@ -1,0 +1,4 @@
+# test: a function parameter needing one lifetime is no result taking another
+# Spec 07 Function Types: fn.type.lifetime.input. `'b` does not outlive `'a`.
+fn relabelled['a, 'b](g: fn(&'b i32) -> void) -> fn(&'a i32) -> void:
+    g # diagnostic: type-mismatch

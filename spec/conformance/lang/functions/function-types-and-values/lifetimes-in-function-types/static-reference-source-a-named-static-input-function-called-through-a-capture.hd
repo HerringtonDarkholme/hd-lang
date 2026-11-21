@@ -1,0 +1,10 @@
+# test: a named function's value called through a closure capture still needs a static reference
+# Spec 07 Function Types: fn.type.lifetime.input. `h` calls the captured `inspect` with its own parameter.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn captured() -> void:
+    g := inspect
+    h := fn(x: &i32) -> void: g(x) # diagnostic: static-reference-source
+    y := 2
+    h(&y)

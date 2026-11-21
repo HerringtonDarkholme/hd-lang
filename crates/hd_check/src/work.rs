@@ -143,6 +143,29 @@ pub(crate) fn env_clause() {
 }
 
 thread_local! {
+    static FN_INPUT_TRACES: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the parts the trace of function values' written input
+/// lifetimes visits on this thread (`fn.type.lifetime.call.written`,
+/// `fn.type.lifetime.input`).
+pub fn count_fn_input_traces<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = FN_INPUT_TRACES.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = FN_INPUT_TRACES.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// One part traced.
+pub(crate) fn fn_input_trace() {
+    FN_INPUT_TRACES.with(|c| {
+        if let Some(n) = c.get() {
+            c.set(Some(n + 1));
+        }
+    });
+}
+
+thread_local! {
     static JOINS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 

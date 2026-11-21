@@ -1,0 +1,10 @@
+# test: a result struct's function field takes no function needing a longer input lifetime
+# Spec 07 Function Types: fn.type.lifetime.input. `Holder['a]`'s field lets a caller pass a `&'a i32`.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+struct Holder['a]:
+    f: fn(&'a i32) -> void
+
+fn held['a]() -> Holder['a]:
+    Holder { f: inspect } # diagnostic: type-mismatch

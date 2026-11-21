@@ -967,6 +967,56 @@ fn local_generic_header_environment_keys_grow_linearly() {
     }
 }
 
+/// A function value copied through `depth` bindings, then passed `width`
+/// times for a parameter whose function type writes a lifetime and
+/// returned at the result's.
+fn fn_value_uses(width: usize, depth: usize) -> String {
+    let mut s = String::from(
+        "fn loose['a](value: &'a i32) -> void:\n    pass\n\nlet shared: i32 = 5\n\n\
+         fn apply['a](f: fn(&'a i32) -> void, value: &'a i32) -> void:\n    f(value)\n\n\
+         fn run['a]() -> fn(&'a i32) -> void:\n    g0 := loose\n",
+    );
+    for i in 1..=depth {
+        let _ = writeln!(s, "    g{i} := g{}", i - 1);
+    }
+    for _ in 0..width {
+        let _ = writeln!(s, "    apply(g{depth}, &shared)");
+    }
+    let _ = writeln!(s, "    g{depth}");
+    s
+}
+
+/// #2258: what a function value needs at its inputs is traced once per
+/// local part, however many arguments and results read it: the work grows
+/// with the copies, not with the uses times the copies.
+#[test]
+fn function_value_input_needs_are_traced_once_per_local() {
+    let work = |width, depth| {
+        let (out, traced) = hd_check::work::count_fn_input_traces(|| {
+            compile(&fn_value_uses(width, depth), &Goal::Analyze)
+        });
+        assert!(
+            !out.diags.has_errors(),
+            "size {width}x{depth}: {}",
+            out.render()
+        );
+        traced
+    };
+    work(1, 1);
+    let (narrow, wide) = (work(100, 20), work(1000, 20));
+    // Each use after the first reads the local's trace.
+    assert!(
+        narrow > 0 && wide <= narrow + 4,
+        "traced parts at widths 100 and 1000: {narrow} and {wide}",
+    );
+    // A build of a program seen before is reused, so these are new.
+    let (shallow, deep) = (work(500, 10), work(500, 20));
+    assert!(
+        deep > shallow && deep <= 2 * shallow + 8,
+        "traced parts at depths 10 and 20: {shallow} and {deep}",
+    );
+}
+
 fn nested_if(n: usize) -> String {
     let mut s = String::from("fn run(value: i32) -> i32:\n    let total = value\n");
     for i in 0..n {

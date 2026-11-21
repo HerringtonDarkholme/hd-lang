@@ -1,0 +1,8 @@
+# test: a function needing a static reference is no function type taking a shorter one
+# Spec 07 Function Types: fn.type.lifetime.input. `inspect` needs `&'static
+# i32`, and `wrapper`'s result lets a caller pass a `&'a i32`.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn wrapper['a]() -> fn(&'a i32) -> void:
+    inspect # diagnostic: type-mismatch

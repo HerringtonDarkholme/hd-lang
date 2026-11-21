@@ -1,0 +1,9 @@
+# test: a named function's value called through a binding still needs a static reference
+# Spec 07 Function Types: fn.type.lifetime.input. `f` holds `inspect`, so `&x` of a local is no argument.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn bound() -> void:
+    f := inspect
+    x := 1
+    f(&x) # diagnostic: static-reference-source

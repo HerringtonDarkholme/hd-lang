@@ -1,0 +1,12 @@
+# test: a function needing a static reference is no argument whose function type writes no input lifetime
+# Spec 07 Function Types: fn.type.lifetime.input. `run`'s `f` writes no lifetime, so it takes a reference of any
+# lifetime, which `inspect` does not.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn run(f: fn(&i32) -> void) -> void:
+    x := 1
+    f(&x)
+
+fn passed() -> void:
+    run(inspect) # diagnostic: type-mismatch
