@@ -1,0 +1,15 @@
+# @dump: diagnostics tir
+trait Linked[T]:
+    pass
+@derive(Eq, Debug)
+struct Witness:
+    value: i32
+impl Linked[i32] for Witness:
+    pass
+@derive(Eq, Debug)
+struct Holder[T, U < Linked[T]]:
+    value: U
+fn same(left: Holder[i32, Witness], right: Holder[i32, Witness]) -> bool:
+    left == right
+fn describe(value: Holder[i32, Witness]) -> string:
+    debug(value)

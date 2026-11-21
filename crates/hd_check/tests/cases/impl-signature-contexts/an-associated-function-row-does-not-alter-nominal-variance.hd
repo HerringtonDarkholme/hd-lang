@@ -1,0 +1,8 @@
+# @dump: diagnostics tir
+trait Key[T]:
+    pass
+struct Holder[+T]:
+    value: T
+impl[T] Holder[T]:
+    fn identity(value: T) -> T $ Key[T]:
+        value
