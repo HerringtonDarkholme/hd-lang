@@ -1,0 +1,13 @@
+# @dump: diagnostics
+trait Linked[T]:
+    pass
+@derive(Eq, Debug)
+struct Witness:
+    value: i32
+impl Linked[string] for Witness:
+    pass
+@derive(Eq, Debug)
+struct Holder[T, U < Linked[T]]:
+    value: U
+fn reject(value: Holder[i32, Witness]) -> void:
+    pass

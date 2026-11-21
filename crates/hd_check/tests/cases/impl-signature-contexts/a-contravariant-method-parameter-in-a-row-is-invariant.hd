@@ -1,0 +1,8 @@
+# @dump: diagnostics
+trait Key[T]:
+    pass
+struct Sink[-T]:
+    consume: fn(T) -> void
+impl[T] Sink[T]:
+    fn accept(&self, value: T) -> void $ Key[T]:
+        pass
