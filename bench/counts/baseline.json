@@ -222,8 +222,8 @@
       "released": "3060076",
       "uniques": "9350031",
       "total": "14450110",
-      "noOpsAndSkipped": "24650131",
-      "reason": "#1809 (e70be2212): decode reads JSON in one pass through the keyed stream reader. Its key loop writes each member into a slot and probes the guess and the per-type name table per key; those take count operations on string keys and slot values that are already sole-owned or static, which the runtime skips. The reader replaces two passes (validate with an index, then read), and decode is 6-21% faster on 10 MB documents (A/B on #1809)."
+      "noOpsAndSkipped": "25330131",
+      "reason": "#1809 (e70be2212): decode reads JSON in one pass through the keyed stream reader. Its key loop writes each member into a slot and probes the guess and the per-type name table per key; those take count operations on string keys and slot values that are already sole-owned or static, which the runtime skips. The reader replaces two passes (validate with an index, then read), and decode is 6-21% faster on 10 MB documents (A/B on #1809). #2173 (4b): a body now releases a T? held in locals (Facts.find, a decoded optional) with the inline address count, whose call-site null test skips .None and counts the skip. Before 4b the body called the out-of-line walk helper, whose variant switch skipped .None uncounted. The real call became an inline test: less work, no call added; no-op calls are unchanged."
     },
     {
       "program": "bench/study/mandelbrot.hd",
@@ -300,7 +300,8 @@
       "released": "3500061",
       "uniques": "0",
       "total": "6650101",
-      "noOpsAndSkipped": "11025157"
+      "noOpsAndSkipped": "13125181",
+      "reason": "#2173 (4b): a body now releases a T? held in locals (Facts.find, a decoded optional) with the inline address count, whose call-site null test skips .None and counts the skip. Before 4b the body called the out-of-line walk helper, whose variant switch skipped .None uncounted. The real call became an inline test: less work, no call added; no-op calls are unchanged."
     }
   ]
 }
