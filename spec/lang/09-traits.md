@@ -386,10 +386,6 @@ impl Eq for Badge:
 > default variant with `@default`
 > ([Derived Default](../std/ops.md#derived-default)).
 
-> **Note.** The reference prototype still writes these four bodies in the
-> compiler. It moves them to the templates once its template lowering no
-> longer re-checks generated source. Programs see no difference.
-
 #### Related Traits
 
 The comparison and hash traits whose laws relate them are related traits:

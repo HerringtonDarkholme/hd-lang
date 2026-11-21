@@ -2502,9 +2502,6 @@ fn demo() -> void:
 > **Why.** A float's bits make its text exact, while a NaN, an infinity,
 > or `-0.0` has no JSON number.
 
-> **Note.** The reference prototype's replay encoder writes host-call
-> results this way.
-
 #### Private Fields At A Boundary
 
 A struct type with a private field crosses a boundary only through that
