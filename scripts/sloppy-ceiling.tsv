@@ -10,7 +10,7 @@ sloppy-catchall-empty	hd_resolve	8
 sloppy-catchall-empty	hd_syntax	5
 sloppy-catchall-empty	hd_tir	43
 sloppy-catchall-empty	hd_wasm	27
-sloppy-expect	hd_check	22
+sloppy-expect	hd_check	20
 sloppy-expect	hd_driver	4
 sloppy-expect	hd_layout	7
 sloppy-expect	hd_mono	4
@@ -24,7 +24,7 @@ sloppy-panic	hd_driver	1
 sloppy-panic	hd_opt	2
 sloppy-std-path	hd_driver	1
 sloppy-std-path	hd_wasm	8
-sloppy-unreachable	hd_check	15
+sloppy-unreachable	hd_check	14
 sloppy-unreachable	hd_tir	1
 sloppy-unreachable	hd_types	2
 sloppy-unreachable	hd_wasm	16
