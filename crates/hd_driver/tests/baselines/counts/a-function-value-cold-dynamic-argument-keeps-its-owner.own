@@ -41,14 +41,14 @@ impl[T] Echo[T] for Echoer:
 >   summary none
 
     fn read(&self, value: List[string]) -> usize:
+        value.len()
 > app/main/impl[T] Echo[T] for Echoer.read
 >   local $1 value: List[string] [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Release %3 Exit local $1 #2 : ()
-        value.len()
->   %1 = Read borrow [$1] : List[string]
->   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Block %2 : usize
+>     uses $1: entry -> %0 lend last
+>   %0 = Read borrow [$1] : List[string]
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Release %3 Exit local $1 #2 : ()
+>   %3 = Block %1 : usize
 >   summary kept [] borrows [$1]
 
 fn cold_adapter(dynamic: *dyn Echo[List[string]]) -> (fn(List[string]) -> Suspend[List[string]]):

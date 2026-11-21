@@ -54,21 +54,21 @@ fn still_live(r: Rec, name: string) -> (Rec, Rec):
 fn replace_all(r: Rec, name: string, tags: List[string]) -> Rec:
 > app/main/replace_all
 >   local $0 r: Rec [param read] value
->     uses $0: entry -> %3 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 name: string [param read] value
->     uses $1: entry -> %4 consume last
+>     uses $1: entry -> %3 consume last
 >   local $2 tags: List[string] [param read] value
->     uses $2: entry -> %5 consume last
->   %0 = Release %9 Exit local $0 #2 : ()
->   %1 = Retain %9 Entry local $1 #0 : ()
->   %2 = Retain %9 Entry local $2 #0 : ()
+>     uses $2: entry -> %4 consume last
+>   %0 = Retain %9 Entry local $1 #0 : ()
+>   %1 = Retain %9 Entry local $2 #0 : ()
     Rec { ...r, name, tags }
->   %3 = Read borrow [$0] : Rec
->   %4 = Read move [$1] : string
->   %5 = Read move [$2] : List[string]
->   %6 = NewStruct [%4 %5] : Rec
->   %7 = Drop [$1] : ()
->   %8 = Drop [$2] : ()
->   %9 = Block %6 : Rec
+>   %2 = Read borrow [$0] : Rec
+>   %3 = Read move [$1] : string
+>   %4 = Read move [$2] : List[string]
+>   %5 = NewStruct [%3 %4] : Rec
+>   %6 = Drop [$1] : ()
+>   %7 = Drop [$2] : ()
+>   %8 = Release %9 Exit local $0 #2 : ()
+>   %9 = Block %5 : Rec
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0]

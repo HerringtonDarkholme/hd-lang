@@ -32,13 +32,13 @@ fn run!(f: fn!() -> void) -> void:
 >   cancel %5 releases [%3 %4 %2147483648 %4294967295]
 
 fn run_plain(f: fn() -> void) -> void:
+    f()
 > app/main/run_plain
 >   local $0 f: fn() -> () [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
-    f()
->   %1 = Read borrow [$0] : fn() -> ()
->   %2 = CallValue %1 [] : ()
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : fn() -> ()
+>   %1 = CallValue %0 [] : ()
+>   %2 = Release %3 Exit local $0 #2 : ()
 >   %3 = Block - : ()
 
 pub fn main!() -> void $ Console:
@@ -172,13 +172,13 @@ fn run!(f: fn!() -> void) -> void:
 >   cancel %5 releases [%3 %4 %2147483648 %4294967295]
 
 fn run_plain(f: fn() -> void) -> void:
+    f()
 > app/main/run_plain
 >   local $0 f: fn() -> () [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
-    f()
->   %1 = Read borrow [$0] : fn() -> ()
->   %2 = CallValue %1 [] : ()
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : fn() -> ()
+>   %1 = CallValue %0 [] : ()
+>   %2 = Release %3 Exit local $0 #2 : ()
 >   %3 = Block - : ()
 >   summary kept [] borrows [$0] writes
 

@@ -5,30 +5,30 @@
 # plain body does, and its call passes only the written argument; the caller
 # releases nothing.
 @track_caller
-> app/main/take
->   local $0 text: string [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %6 Exit local $0 #2 : ()
 fn take(text: string) -> void:
     _ := text.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
+> app/main/take
+>   local $0 text: string [param read] value
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Release %6 Exit local $0 #2 : ()
 >   %6 = Block - : ()
 
 fn plain(text: string) -> void:
+    _ := text.len()
 > app/main/plain
 >   local $0 text: string [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %6 Exit local $0 #2 : ()
-    _ := text.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Release %6 Exit local $0 #2 : ()
 >   %6 = Block - : ()
 
 pub fn main() -> void:

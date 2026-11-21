@@ -586,9 +586,9 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
 }
 
 /// The exit set as statements (step 7c): a sub-body's exit `Drop`s
-/// ([`Body::exit_drops`]) run before each `return` and each cancel exit
-/// and at the root's end, after what the passes put there; the backend's
-/// epilogue releases the parameters it owns. Each way out takes its own
+/// ([`Body::exit_drops`]) and its parameters' exit `Release`s run before
+/// each `return` and each cancel exit and at the root's end, after what
+/// the passes put there. Each way out takes its own
 /// copy: [`lower`]'s chains wrap a body in blocks (bench +1.8%). A value a
 /// `return` does not consume takes the caller's count first, a stated
 /// `Retain`. Runs after the passes' verifier, as rustc elaborates drops
@@ -602,7 +602,18 @@ pub fn exits(b: &mut Body, cx: &dyn super::OwnCx) -> Result<(), String> {
     let topo = Topology::new(b);
     let mut stated = vec![Vec::new(); b.sub_root.len()];
     for &(s, l) in &b.exit_drops {
-        stated[s.idx()].push([l.raw() | place::BARE_LOCAL, super::reason::EXIT_DROP]);
+        let word = [l.raw() | place::BARE_LOCAL, super::reason::EXIT_DROP];
+        stated[s.idx()].push((Tag::Drop, word));
+    }
+    // A parameter's exit `Release` moves from its root's start to the ways
+    // out, after the drops (`own::counts::verify`: once on each).
+    let mut edits = Tables::default();
+    for i in 0..b.len() {
+        let c = Info::read(b, i).filter(|c| matches!(c.part, Part::Local(_)) && c.at == At::Exit);
+        if b.tags[i] == Tag::Release && c.is_some() && b.sub_root.contains(&b.data[i][0]) {
+            stated[topo.sub[i] as usize].push((Tag::Release, b.data[i]));
+            edits.remove(u32_of(i));
+        }
     }
     // A cancel block stands in no list: its point's sub-body is its own.
     let mut sub: Vec<usize> = topo.sub.iter().map(|&s| s as usize).collect();
@@ -613,10 +624,9 @@ pub fn exits(b: &mut Body, cx: &dyn super::OwnCx) -> Result<(), String> {
     }
     let mut consumers = Vec::new();
     super::consumers(b, &topo, cx, &mut consumers);
-    let mut edits = Tables::default();
     let put = |b: &Body, blk: u32, pos: u32, s: usize, edits: &mut Tables| {
-        for &data in &stated[s] {
-            edits.insert(blk, pos, Tag::Drop, data, Ty::VOID, b.syn[blk as usize]);
+        for &(tag, data) in &stated[s] {
+            edits.insert(blk, pos, tag, data, Ty::VOID, b.syn[blk as usize]);
         }
     };
     for (i, &s) in sub.iter().enumerate() {

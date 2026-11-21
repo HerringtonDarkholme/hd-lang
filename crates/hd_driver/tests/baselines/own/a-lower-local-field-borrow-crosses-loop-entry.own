@@ -9,73 +9,73 @@ struct Bag:
 fn fill(mut bag: Bag, other: Bag, n: usize) -> usize:
 > app/main/fill
 >   local $0 bag: Bag [param read] value
->     uses $0: entry -> %13 lend, %30 lend, %48 lend last
+>     uses $0: entry -> %12 lend, %29 lend, %47 lend last
 >   local $1 other: Bag [param read] value
->     uses $1: entry -> %2 lend last
+>     uses $1: entry -> %1 lend last
 >   local $2 n: usize [param read] value
->     uses $2: entry -> %14 consume last
+>     uses $2: entry -> %13 consume last
 >   local $3 $cur: usize [assigned] place
 >   local $4 $end: usize [assigned] value
->     uses $4: %19 -> %23 lend
+>     uses $4: %18 -> %22 lend
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
->   %0 = Release %53 Exit local $1 #2 : ()
->   %1 = Retain %53 Entry local $0 #0 : ()
+>   %0 = Retain %53 Entry local $0 #0 : ()
     match other.label:
->   %2 = Read borrow [$1 .label] : string
->   %11 = Block - : never
->   %12 = Match %2 [%11 %3 %4] : ()
->   %52 = Drop [$0] : ()
->   %53 = Block %50 : usize
+>   %1 = Read borrow [$1 .label] : string
+>   %10 = Block - : never
+>   %11 = Match %1 [%10 %2 %3] : ()
+>   %51 = Drop [$0] : ()
+>   %52 = Release %53 Exit local $1 #2 : ()
+>   %53 = Block %49 : usize
         "first" => pass
+>   %2 = Block - : ()
+>   %4 = Intrinsic StrEq [%1 "first"] : bool
+>   %6 = Block - : never
+>   %8 = Block - : never
+>   %9 = If %4 [%6 %8] : never
+        _ => pass
 >   %3 = Block - : ()
->   %5 = Intrinsic StrEq [%2 "first"] : bool
->   %7 = Block - : never
->   %9 = Block - : never
->   %10 = If %5 [%7 %9] : never
-        _ => pass
->   %4 = Block - : ()
     match bag.label:
->   %13 = Read borrow [$0 .label] : string
->   %46 = Block - : never
->   %47 = Match %13 [%46 %38 %39] : ()
+>   %12 = Read borrow [$0 .label] : string
+>   %45 = Block - : never
+>   %46 = Match %12 [%45 %37 %38] : ()
         "keep" =>
->   %40 = Intrinsic StrEq [%13 "keep"] : bool
->   %42 = Block - : never
->   %44 = Block - : never
->   %45 = If %40 [%42 %44] : never
+>   %39 = Intrinsic StrEq [%12 "keep"] : bool
+>   %41 = Block - : never
+>   %43 = Block - : never
+>   %44 = If %39 [%41 %43] : never
             for _ in 0..n:
->   %14 = Read copy [$2] : usize
->   %15 = NewStruct [0:usize %14 0:bool] : Range[usize]
->   %16 = Read copy [%15 .start] : usize
->   %17 = Store [$3] %16 : ()
->   %18 = Read copy [%15 .end] : usize
->   %19 = Store [$4] %18 : ()
->   %20 = Read copy [%15 .inclusive] : bool
->   %21 = Store [$5] %20 : ()
->   %22 = Read copy [$3] : usize
->   %23 = Read copy [$4] : usize
->   %24 = Prim Lt [%22 %23] : bool
+>   %13 = Read copy [$2] : usize
+>   %14 = NewStruct [0:usize %13 0:bool] : Range[usize]
+>   %15 = Read copy [%14 .start] : usize
+>   %16 = Store [$3] %15 : ()
+>   %17 = Read copy [%14 .end] : usize
+>   %18 = Store [$4] %17 : ()
+>   %19 = Read copy [%14 .inclusive] : bool
+>   %20 = Store [$5] %19 : ()
+>   %21 = Read copy [$3] : usize
+>   %22 = Read copy [$4] : usize
+>   %23 = Prim Lt [%21 %22] : bool
+>   %24 = Read copy [$3] : usize
 >   %25 = Read copy [$3] : usize
->   %26 = Read copy [$3] : usize
->   %27 = Prim Add [%26 1:usize] : usize
->   %28 = Store [$3] %27 : ()
->   %32 = Block - : ()
->   %33 = Break L0 - : never
->   %34 = Block - : ()
->   %35 = If %24 [%32 %34] : ()
->   %36 = Block - : ()
->   %37 = Loop %36 - : ()
->   %38 = Block - : ()
+>   %26 = Prim Add [%25 1:usize] : usize
+>   %27 = Store [$3] %26 : ()
+>   %31 = Block - : ()
+>   %32 = Break L0 - : never
+>   %33 = Block - : ()
+>   %34 = If %23 [%31 %33] : ()
+>   %35 = Block - : ()
+>   %36 = Loop %35 - : ()
+>   %37 = Block - : ()
                 bag.items.push(1)
->   %29 = IsUnique [$0 .items] : ()
->   %30 = Read borrow [$0 .items] : List[i32]
->   %31 = Intrinsic ListPush [%30 1:i32] : ()
+>   %28 = IsUnique [$0 .items] : ()
+>   %29 = Read borrow [$0 .items] : List[i32]
+>   %30 = Intrinsic ListPush [%29 1:i32] : ()
         _ => pass
->   %39 = Block - : ()
+>   %38 = Block - : ()
     bag.items.len()
->   %48 = Read move [$0 .items] : List[i32]
->   %49 = Drop [$0] : ()
->   %50 = Intrinsic ListLen [%48] : usize
->   %51 = Drop [%48] : ()
+>   %47 = Read move [$0 .items] : List[i32]
+>   %48 = Drop [$0] : ()
+>   %49 = Intrinsic ListLen [%47] : usize
+>   %50 = Drop [%47] : ()
 >   exit sub 0 drops [$0]

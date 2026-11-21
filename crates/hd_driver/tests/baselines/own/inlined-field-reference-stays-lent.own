@@ -105,43 +105,43 @@ struct Owner:
     value: string
 
 @inline(.Never)
-> app/main/recursive_owned
->   local $0 point: *Owner [param read] value
->     uses $0: entry -> %1 lend, %8 lend last
->   local $1 depth: usize [param read] value
->     uses $1: entry -> %4 lend, %9 lend last
->   local $2 field: &string [:= read assigned] value
->     uses $2: %3 -> %17 lend last
->   local $3 below: usize [:= read assigned] value
->     uses $3: %16 -> %21 lend last
->   %0 = Release %23 Exit local $0 #2 : ()
 fn recursive_owned(point: *Owner, depth: usize) -> usize:
     field := &point.value
->   %1 = Ref local [*$0 .value] : &string
->   %2 = LoanBegin %1 #0 : ()
->   %3 = Store [$2] %1 : ()
->   %23 = Block %22 : usize
+> app/main/recursive_owned
+>   local $0 point: *Owner [param read] value
+>     uses $0: entry -> %0 lend, %7 lend last
+>   local $1 depth: usize [param read] value
+>     uses $1: entry -> %3 lend, %8 lend last
+>   local $2 field: &string [:= read assigned] value
+>     uses $2: %2 -> %16 lend last
+>   local $3 below: usize [:= read assigned] value
+>     uses $3: %15 -> %20 lend last
+>   %0 = Ref local [*$0 .value] : &string
+>   %1 = LoanBegin %0 #0 : ()
+>   %2 = Store [$2] %0 : ()
+>   %22 = Release %23 Exit local $0 #2 : ()
+>   %23 = Block %21 : usize
     below := if depth == 0: 0 else: recursive_owned(point, depth - 1)
->   %4 = Read copy [$1] : usize
->   %5 = Prim Eq [%4 0:usize] : bool
->   %6 = Coerce 0:usize [Identity -] : usize
->   %7 = Block %6 : usize
->   %8 = Read borrow [$0] : *Owner
->   %9 = Read copy [$1] : usize
->   %10 = Prim Sub [%9 1:usize] : usize
->   %11 = Call app/main/recursive_owned[] (%8, %10) : usize
->   %12 = Retain %11 Operation operand 0 #0 : ()
->   %13 = Coerce %11 [Identity -] : usize
->   %14 = Block %13 : usize
->   %15 = If %5 [%7 %14] : usize
->   %16 = Store [$3] %15 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Prim Eq [%3 0:usize] : bool
+>   %5 = Coerce 0:usize [Identity -] : usize
+>   %6 = Block %5 : usize
+>   %7 = Read borrow [$0] : *Owner
+>   %8 = Read copy [$1] : usize
+>   %9 = Prim Sub [%8 1:usize] : usize
+>   %10 = Call app/main/recursive_owned[] (%7, %9) : usize
+>   %11 = Retain %10 Operation operand 0 #0 : ()
+>   %12 = Coerce %10 [Identity -] : usize
+>   %13 = Block %12 : usize
+>   %14 = If %4 [%6 %13] : usize
+>   %15 = Store [$3] %14 : ()
     field.len() + below
->   %17 = Read move [$2] : &string
->   %18 = Call std/text/impl string.len[] (%17) : usize
->   %19 = LoanClose %2 : ()
->   %20 = LoanEnd [%17] : ()
->   %21 = Read copy [$3] : usize
->   %22 = Prim Add [%18 %21] : usize
+>   %16 = Read move [$2] : &string
+>   %17 = Call std/text/impl string.len[] (%16) : usize
+>   %18 = LoanClose %1 : ()
+>   %19 = LoanEnd [%16] : ()
+>   %20 = Read copy [$3] : usize
+>   %21 = Prim Add [%17 %20] : usize
 >   summary kept [] borrows [$0] recursive
 
 @inline(.Never)

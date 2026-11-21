@@ -8,18 +8,18 @@ trait Tag:
     fn value(self) -> i32
 
 @inline(.Never)
-> app/main/forward
->   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %2 lend last
->   %1 = Release %6 Exit local $0 #2 : ()
 fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
+> app/main/forward
+>   local $0 callback: fn() -> i32 [param read] value
+>     uses $0: entry -> %1 lend last
 >   %0 = FlagSet [$0] #1 : ()
->   %2 = Read borrow [$0] : fn() -> i32
->   %3 = CallValue %2 [] : i32
->   %4 = Retain %3 Operation row #0 : ()
->   %5 = Release %3 Operation row #2 : ()
->   %6 = Block %3 : i32
+>   %1 = Read borrow [$0] : fn() -> i32
+>   %2 = CallValue %1 [] : i32
+>   %3 = Retain %2 Operation row #0 : ()
+>   %4 = Release %2 Operation row #2 : ()
+>   %5 = Release %6 Exit local $0 #2 : ()
+>   %6 = Block %2 : i32
 >   summary kept [] borrows [$0] writes
 
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
@@ -48,17 +48,17 @@ fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 >   summary none
 
 fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
+    forward(callback)
 > app/main/ordinary
 >   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %6 Exit local $0 #2 : ()
-    forward(callback)
->   %1 = Read borrow [$0] : fn() -> i32
->   %2 = Call app/main/forward[$ Tag] (%1) : i32
->   %3 = Retain %2 Operation row #0 : ()
->   %4 = Release %2 Operation row #2 : ()
->   %5 = Retain %2 Operation operand 0 #0 : ()
->   %6 = Block %2 : i32
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : fn() -> i32
+>   %1 = Call app/main/forward[$ Tag] (%0) : i32
+>   %2 = Retain %1 Operation row #0 : ()
+>   %3 = Release %1 Operation row #2 : ()
+>   %4 = Retain %1 Operation operand 0 #0 : ()
+>   %5 = Release %6 Exit local $0 #2 : ()
+>   %6 = Block %1 : i32
 >   summary kept [] borrows [$0] writes
 
 fn cold(callback: fn() -> i32 $ Tag) -> Suspend[i32] $ Tag:
@@ -101,13 +101,13 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   cancel %7 releases [%2147483648 %4294967295]
 
 fn empty(callback: fn() -> i32) -> i32:
+    forward(callback)
 > app/main/empty
 >   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %4 Exit local $0 #2 : ()
-    forward(callback)
->   %1 = Read borrow [$0] : fn() -> i32
->   %2 = Call app/main/forward[$()] (%1) : i32
->   %3 = Retain %2 Operation operand 0 #0 : ()
->   %4 = Block %2 : i32
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : fn() -> i32
+>   %1 = Call app/main/forward[$()] (%0) : i32
+>   %2 = Retain %1 Operation operand 0 #0 : ()
+>   %3 = Release %4 Exit local $0 #2 : ()
+>   %4 = Block %1 : i32
 >   summary kept [] borrows [$0] writes

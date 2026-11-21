@@ -6,14 +6,14 @@
 use std.annotation.inline
 
 @inline(.Never)
-> app/main/ident
->   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %2 Exit local $0 #2 : ()
 fn ident(s: string) -> string:
     s
->   %1 = Read borrow [$0] : string
->   %2 = Block %1 : string
+> app/main/ident
+>   local $0 s: string [param read] value
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Release %2 Exit local $0 #2 : ()
+>   %2 = Block %0 : string
 >   summary kept [] borrows [$0] returns $0
 
 @inline(.Never)
@@ -32,67 +32,67 @@ fn generic[T](x: T) -> T:
 >   summary kept [$0] returns $0
 
 fn reads(s: string) -> usize:
+    ident(s).len() + s.len()
 > app/main/reads
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend, %10 lend last
+>     uses $0: entry -> %0 lend, %9 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %3 -> %4 lend last
->   %0 = Release %16 Exit local $0 #2 : ()
-    ident(s).len() + s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call app/main/ident[] (%1) : string
->   %3 = Store [$1] %2 : ()
->   %4 = Read borrow [$1] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L1 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = LoanEnd [$1] : ()
->   %10 = Read borrow [$0] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Prim Add [%8 %14] : usize
->   %16 = Block %15 : usize
+>     uses $1: %2 -> %3 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call app/main/ident[] (%0) : string
+>   %2 = Store [$1] %1 : ()
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L1 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = LoanEnd [$1] : ()
+>   %9 = Read borrow [$0] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Prim Add [%7 %13] : usize
+>   %15 = Release %16 Exit local $0 #2 : ()
+>   %16 = Block %14 : usize
 >   summary kept [] borrows [$0]
 
 fn keeps(s: string) -> string:
+    ident(s)
 > app/main/keeps
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %4 Exit local $0 #2 : ()
-    ident(s)
->   %1 = Read borrow [$0] : string
->   %2 = Call app/main/ident[] (%1) : string
->   %3 = Retain %2 Value #0 : ()
->   %4 = Block %2 : string
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call app/main/ident[] (%0) : string
+>   %2 = Retain %1 Value #0 : ()
+>   %3 = Release %4 Exit local $0 #2 : ()
+>   %4 = Block %1 : string
 >   summary kept [] borrows [$0]
 
 fn generic_reads(s: string) -> usize:
+    generic(s).len() + s.len()
 > app/main/generic_reads
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend, %10 lend last
+>     uses $0: entry -> %0 lend, %9 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %3 -> %4 lend last
->   %0 = Release %16 Exit local $0 #2 : ()
-    generic(s).len() + s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call app/main/generic[string] (%1) : string
->   %3 = Store [$1] %2 : ()
->   %4 = Read borrow [$1] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L1 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = LoanEnd [$1] : ()
->   %10 = Read borrow [$0] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
->   %12 = Break L0 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Prim Add [%8 %14] : usize
->   %16 = Block %15 : usize
+>     uses $1: %2 -> %3 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call app/main/generic[string] (%0) : string
+>   %2 = Store [$1] %1 : ()
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L1 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = LoanEnd [$1] : ()
+>   %9 = Read borrow [$0] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Prim Add [%7 %13] : usize
+>   %15 = Release %16 Exit local $0 #2 : ()
+>   %16 = Block %14 : usize
 >   summary kept [] borrows [$0]
 
 fn adapter() -> fn(string) -> string:
@@ -106,77 +106,78 @@ struct Point:
     n: usize
 
 @inline(.Never)
-> app/main/weaken
->   local $0 p: *mut Point [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Release %3 Exit local $0 #2 : ()
 fn weaken(p: *mut Point) -> *Point:
     p
->   %1 = Read borrow [$0] : *mut Point
->   %2 = Coerce %1 [Weaken -] : *Point
->   %3 = Block %2 : *Point
+> app/main/weaken
+>   local $0 p: *mut Point [param read] value
+>     uses $0: entry -> %0 consume last
+>   %0 = Read borrow [$0] : *mut Point
+>   %1 = Coerce %0 [Weaken -] : *Point
+>   %2 = Release %3 Exit local $0 #2 : ()
+>   %3 = Block %1 : *Point
 >   summary kept [] borrows [$0]
 
 fn reads_weakened(p: *mut Point) -> usize:
+    weaken(p).n
 > app/main/reads_weakened
 >   local $0 p: *mut Point [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
-    weaken(p).n
->   %1 = Read borrow [$0] : *mut Point
->   %2 = Call app/main/weaken[] (%1) : *Point
->   %3 = Read copy [*%2 .n] : usize
->   %4 = LoanEnd [%2] : ()
->   %5 = Block %3 : usize
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : *mut Point
+>   %1 = Call app/main/weaken[] (%0) : *Point
+>   %2 = Read copy [*%1 .n] : usize
+>   %3 = LoanEnd [%1] : ()
+>   %4 = Release %5 Exit local $0 #2 : ()
+>   %5 = Block %2 : usize
 >   summary kept [] borrows [$0]
 
 @inline(.Never)
-> app/main/explicit
->   local $0 s: string [param read] value
->     uses $0: entry -> %2 lend last, %6 lend last
->   local $1 first: bool [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Release %7 Exit local $0 #2 : ()
 fn explicit(s: string, first: bool) -> string:
     if first:
->   %1 = Read copy [$1] : bool
->   %5 = If %1 [%4 -] : ()
->   %7 = Block %6 : string
+> app/main/explicit
+>   local $0 s: string [param read] value
+>     uses $0: entry -> %1 lend last, %6 lend last
+>   local $1 first: bool [param read] value
+>     uses $1: entry -> %0 lend last
+>   %0 = Read copy [$1] : bool
+>   %5 = If %0 [%4 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %6 : string
         return s
->   %2 = Read borrow [$0] : string
->   %3 = Return %2 borrowed : never
+>   %1 = Read borrow [$0] : string
+>   %2 = Release %8 Exit local $0 #2 : ()
+>   %3 = Return %1 borrowed : never
 >   %4 = Block - : never
     s
 >   %6 = Read borrow [$0] : string
 >   summary kept [] borrows [$0] returns $0
 
 fn reads_explicit(s: string, first: bool) -> usize:
+    explicit(s, first).len() + s.len()
 > app/main/reads_explicit
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend, %11 lend last
+>     uses $0: entry -> %0 lend, %10 lend last
 >   local $1 first: bool [param read] value
->     uses $1: entry -> %2 lend last
+>     uses $1: entry -> %1 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %4 -> %5 lend last
->   %0 = Release %17 Exit local $0 #2 : ()
-    explicit(s, first).len() + s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Read copy [$1] : bool
->   %3 = Call app/main/explicit[] (%1, %2) : string
->   %4 = Store [$2] %3 : ()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L1 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = LoanEnd [$2] : ()
->   %11 = Read borrow [$0] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L0 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Prim Add [%9 %15] : usize
->   %17 = Block %16 : usize
+>     uses $2: %3 -> %4 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Read copy [$1] : bool
+>   %2 = Call app/main/explicit[] (%0, %1) : string
+>   %3 = Store [$2] %2 : ()
+>   %4 = Read borrow [$2] : string
+>   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %6 = Break L1 %5 : never
+>   %7 = Block - : usize
+>   %8 = Scope %7 [] : usize
+>   %9 = LoanEnd [$2] : ()
+>   %10 = Read borrow [$0] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L0 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Prim Add [%8 %14] : usize
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %15 : usize
 >   summary kept [] borrows [$0]
 
 fn takes_temporary() -> string:
@@ -284,92 +285,92 @@ struct Named:
     name: string
 
 fn reads_field(value: Named) -> usize:
+    ident(value.name).len()
 > app/main/reads_field
 >   local $0 value: Named [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %3 -> %4 lend last
->   %0 = Release %10 Exit local $0 #2 : ()
-    ident(value.name).len()
->   %1 = Read borrow [$0 .name] : string
->   %2 = Call app/main/ident[] (%1) : string
->   %3 = Store [$1] %2 : ()
->   %4 = Read borrow [$1] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
->   %6 = Break L0 %5 : never
->   %7 = Block - : usize
->   %8 = Scope %7 [] : usize
->   %9 = LoanEnd [$1] : ()
->   %10 = Block %8 : usize
+>     uses $1: %2 -> %3 lend last
+>   %0 = Read borrow [$0 .name] : string
+>   %1 = Call app/main/ident[] (%0) : string
+>   %2 = Store [$1] %1 : ()
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = LoanEnd [$1] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %7 : usize
 >   summary kept [] borrows [$0]
 
 fn reads_heap_field(value: *Named) -> usize:
+    ident(value.name).len()
 > app/main/reads_heap_field
 >   local $0 value: *Named [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %3 -> %4 lend last
->   %0 = Release %10 Exit local $0 #2 : ()
-    ident(value.name).len()
->   %1 = Read borrow [*$0 .name] : string
+>     uses $1: %2 -> %3 lend last
+>   %0 = Read borrow [*$0 .name] : string
+>   %1 = Call app/main/ident[] (%0) : string
+>   %2 = Store [$1] %1 : ()
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = LoanEnd [$1] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %7 : usize
+>   summary kept [] borrows [$0]
+
+fn reads_heap_field_after(value: *Named, action: fn() -> void) -> usize:
+    result := ident(value.name)
+> app/main/reads_heap_field_after
+>   local $0 value: *Named [param read] value
+>     uses $0: entry -> %0 lend last
+>   local $1 action: fn() -> () [param read] value
+>     uses $1: entry -> %4 lend last
+>   local $2 result: string [:= read assigned] value
+>     uses $2: %3 -> %6 lend last
+>   %0 = Read borrow [*$0 .name] : string
+>   %1 = Call app/main/ident[] (%0) : string
+>   %2 = Retain %1 Value #0 : ()
+>   %3 = Store [$2] %1 : ()
+>   %12 = Release %14 Exit local $0 #2 : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block %10 : usize
+    action()
+>   %4 = Read borrow [$1] : fn() -> ()
+>   %5 = CallValue %4 [] : ()
+    result.len()
+>   %6 = Read borrow [$2] : string
+>   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : usize
+>   %10 = Scope %9 [] : usize
+>   %11 = Drop [$2] : ()
+>   summary kept [] borrows [$0 $1] writes
+
+fn reads_element(value: List[string], index: usize) -> usize:
+    ident(value[index]).len()
+> app/main/reads_element
+>   local $0 value: List[string] [param read] value
+>     uses $0: entry -> %1 lend last
+>   local $1 index: usize [param read] value
+>     uses $1: entry -> %0 lend last
+>   local $2 $ref: string [read assigned captured captured-assigned] value
+>     uses $2: %3 -> %4 lend last
+>   %0 = Read copy [$1] : usize
+>   %1 = Read borrow [$0 [%0]] : string
 >   %2 = Call app/main/ident[] (%1) : string
->   %3 = Store [$1] %2 : ()
->   %4 = Read borrow [$1] : string
+>   %3 = Store [$2] %2 : ()
+>   %4 = Read borrow [$2] : string
 >   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
->   %9 = LoanEnd [$1] : ()
->   %10 = Block %8 : usize
->   summary kept [] borrows [$0]
-
-fn reads_heap_field_after(value: *Named, action: fn() -> void) -> usize:
-> app/main/reads_heap_field_after
->   local $0 value: *Named [param read] value
->     uses $0: entry -> %2 lend last
->   local $1 action: fn() -> () [param read] value
->     uses $1: entry -> %6 lend last
->   local $2 result: string [:= read assigned] value
->     uses $2: %5 -> %8 lend last
->   %0 = Release %14 Exit local $0 #2 : ()
->   %1 = Release %14 Exit local $1 #2 : ()
-    result := ident(value.name)
->   %2 = Read borrow [*$0 .name] : string
->   %3 = Call app/main/ident[] (%2) : string
->   %4 = Retain %3 Value #0 : ()
->   %5 = Store [$2] %3 : ()
->   %14 = Block %12 : usize
-    action()
->   %6 = Read borrow [$1] : fn() -> ()
->   %7 = CallValue %6 [] : ()
-    result.len()
->   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
->   %10 = Break L0 %9 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Drop [$2] : ()
->   summary kept [] borrows [$0 $1] writes
-
-fn reads_element(value: List[string], index: usize) -> usize:
-> app/main/reads_element
->   local $0 value: List[string] [param read] value
->     uses $0: entry -> %2 lend last
->   local $1 index: usize [param read] value
->     uses $1: entry -> %1 lend last
->   local $2 $ref: string [read assigned captured captured-assigned] value
->     uses $2: %4 -> %5 lend last
->   %0 = Release %11 Exit local $0 #2 : ()
-    ident(value[index]).len()
->   %1 = Read copy [$1] : usize
->   %2 = Read borrow [$0 [%1]] : string
->   %3 = Call app/main/ident[] (%2) : string
->   %4 = Store [$2] %3 : ()
->   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
->   %10 = LoanEnd [$2] : ()
->   %11 = Block %9 : usize
+>   %9 = LoanEnd [$2] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %8 : usize
 >   summary kept [] borrows [$0]

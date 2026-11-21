@@ -101,15 +101,11 @@
     i32.const 157 ;; &"second"
     i32.const 6
     call $note
-    local.set $log
-    local.set $first.1
     local.get $first.0
     if
       local.get $first.0
       call $rt:release_ref'1
     end
-    local.get $first.1
-    local.get $log
   )
   (func $note (param $log i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 6 |     log.push(text)
@@ -156,6 +152,9 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
+    ;; 7 |     text
+    local.get $text.0
+    ;; 6 |     log.push(text)
     local.get $log
     if
       local.get $log
@@ -167,10 +166,10 @@
         call $rt:release_ref'2
       end
     end
-    local.get $text.0
+    ;; 7 |     text
     local.get $text.1
   )
-  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $t7 i32) (local $t6 i32) (local $limit i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32)
+  (func $join (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (param $t1 i32) (result i32 i32) (local $limit i32) (local $t0 i32) (local $t2 i64) (local $t3 i64) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32)
     ;; 15 |     "$first $second $limit"
     global.get $stack
     global.get $stack_limit

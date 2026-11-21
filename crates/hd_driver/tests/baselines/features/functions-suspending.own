@@ -21,22 +21,22 @@ fn fetch!(key: string) -> string:
 >   summary none
 
 fn construct(key: string) -> usize:
+    _ := fetch(key)
 > app/main/construct
 >   local $0 key: string [param read] value
->     uses $0: entry -> %1 consume, %5 lend last
->   %0 = Release %10 Exit local $0 #2 : ()
-    _ := fetch(key)
->   %1 = Read copy [$0] : string
->   %2 = Retain %1 Value #0 : ()
->   %3 = Call app/main/fetch[] (%1) : Suspend[string]
->   %4 = Drop [%3] : ()
->   %10 = Block %9 : usize
+>     uses $0: entry -> %0 consume, %4 lend last
+>   %0 = Read copy [$0] : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Call app/main/fetch[] (%0) : Suspend[string]
+>   %3 = Drop [%2] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %8 : usize
     key.len()
->   %5 = Read borrow [$0] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
->   %7 = Break L0 %6 : never
->   %8 = Block - : usize
->   %9 = Scope %8 [] : usize
+>   %4 = Read borrow [$0] : string
+>   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : usize
+>   %8 = Scope %7 [] : usize
 >   summary kept [] borrows [$0] writes
 
 fn run_twice!(body: fn!() -> string) -> usize:

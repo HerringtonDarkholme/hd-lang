@@ -49,25 +49,25 @@ fn grow(xs: &mut List[string]) -> void:
 >   %3 = Block - : ()
 
 @inline(.Never)
-> std/rt_tests.stage_case/consume
->   local $0 held: Held [param read] value
->     uses $0: entry -> %1 consume last
->   %0 = Release %2 Exit local $0 #2 : ()
 fn consume(held: Held) -> usize:
     held.id
->   %1 = Read copy [$0 .id] : usize
->   %2 = Block %1 : usize
+> std/rt_tests.stage_case/consume
+>   local $0 held: Held [param read] value
+>     uses $0: entry -> %0 consume last
+>   %0 = Read copy [$0 .id] : usize
+>   %1 = Release %2 Exit local $0 #2 : ()
+>   %2 = Block %0 : usize
 
 @inline(.Never)
-> std/rt_tests.stage_case/eat
->   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %3 Exit local $0 #2 : ()
 fn eat(xs: List[string]) -> usize:
     xs.len()
->   %1 = Read borrow [$0] : List[string]
->   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Block %2 : usize
+> std/rt_tests.stage_case/eat
+>   local $0 xs: List[string] [param read] value
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : List[string]
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Release %3 Exit local $0 #2 : ()
+>   %3 = Block %1 : usize
 
 fn moved_each_round(n: usize) -> usize:
     let mut total = 0

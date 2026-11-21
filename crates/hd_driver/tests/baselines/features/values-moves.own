@@ -16,11 +16,11 @@ struct Album:
     cover: Photo
 
 fn keep[T](x: T) -> void:
+    pass
 > app/main/keep
 >   local $0 x: T [param] value
 >     uses $0: none
 >   %0 = Release %1 Exit local $0 #2 : ()
-    pass
 >   %1 = Block - : ()
 >   summary kept [] borrows [$0]
 

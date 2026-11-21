@@ -8,84 +8,84 @@ trait Tag:
     fn value(self) -> usize
 
 fn call[Args < Tuple, O, $ R](f: Fn[Args, O, $ R], args: Args) -> O $ R:
+    f(args...)
 > app/main/call
 >   local $0 f: Fn[Args, O, $ R] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 args: Args [param read] value
->     uses $1: entry -> %5 lend last
->   %2 = Release %10 Exit local $0 #2 : ()
->   %3 = Release %10 Exit local $1 #2 : ()
-    f(args...)
+>     uses $1: entry -> %3 lend last
 >   %0 = FlagSet [$0] #2 : ()
 >   %1 = FlagSet [$1] #3 : ()
->   %4 = Read borrow [$0] : Fn[Args, O, $ R]
->   %5 = Read borrow [$1] : Args
->   %6 = CallValue %4 [%5] : O
->   %7 = Retain %6 Operation row #0 : ()
->   %8 = Release %6 Operation row #2 : ()
->   %9 = Retain %6 Operation arguments #0 : ()
->   %10 = Block %6 : O
+>   %2 = Read borrow [$0] : Fn[Args, O, $ R]
+>   %3 = Read borrow [$1] : Args
+>   %4 = CallValue %2 [%3] : O
+>   %5 = Retain %4 Operation row #0 : ()
+>   %6 = Release %4 Operation row #2 : ()
+>   %7 = Retain %4 Operation arguments #0 : ()
+>   %8 = Release %10 Exit local $0 #2 : ()
+>   %9 = Release %10 Exit local $1 #2 : ()
+>   %10 = Block %4 : O
 >   summary kept [] borrows [$0 $1] writes
 
 fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) -> usize $ Tag:
 > app/main/spread
 >   local $0 f: fn(string, List[i32]) -> usize [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 values: (string, List[i32]) [param read] value
->     uses $1: entry -> %3 consume last
->   %0 = Release %14 Exit local $0 #2 : ()
->   %1 = Retain %14 Entry local $1 #0 : ()
+>     uses $1: entry -> %2 consume last
+>   %0 = Retain %14 Entry local $1 #0 : ()
     call(f, values)
->   %2 = Read borrow [$0] : fn(string, List[i32]) -> usize
->   %3 = Read move [$1] : (string, List[i32])
->   %4 = CallValue %2 [%3] : usize
->   %5 = Retain %4 Operation row #0 : ()
->   %6 = Release %4 Operation row #2 : ()
->   %7 = Retain %4 Operation arguments #0 : ()
->   %8 = Release %4 Operation arguments #2 : ()
->   %9 = Drop [%3] : ()
->   %10 = Break L0 %4 : never
->   %11 = Block - : usize
->   %12 = Scope %11 [] : usize
->   %13 = Drop [$1] : ()
->   %14 = Block %12 : usize
+>   %1 = Read borrow [$0] : fn(string, List[i32]) -> usize
+>   %2 = Read move [$1] : (string, List[i32])
+>   %3 = CallValue %1 [%2] : usize
+>   %4 = Retain %3 Operation row #0 : ()
+>   %5 = Release %3 Operation row #2 : ()
+>   %6 = Retain %3 Operation arguments #0 : ()
+>   %7 = Release %3 Operation arguments #2 : ()
+>   %8 = Drop [%2] : ()
+>   %9 = Break L0 %3 : never
+>   %10 = Block - : usize
+>   %11 = Scope %10 [] : usize
+>   %12 = Drop [$1] : ()
+>   %13 = Release %14 Exit local $0 #2 : ()
+>   %14 = Block %11 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 
 fn scalars(f: fn(i32, usize) -> i32, values: (i32, usize)) -> i32:
+    call(f, values)
 > app/main/scalars
 >   local $0 f: fn(i32, usize) -> i32 [param read] value
->     uses $0: entry -> %3 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 values: (i32, usize) [param read] value
->     uses $1: entry -> %1 consume last
+>     uses $1: entry -> %0 consume last
 >   local $3 args: (i32, usize) [read] value
->     uses $3: %2 -> %4 consume last
->   %0 = Release %11 Exit local $0 #2 : ()
-    call(f, values)
->   %1 = Read copy [$1] : (i32, usize)
->   %2 = Store [$3] %1 : ()
->   %3 = Read borrow [$0] : fn(i32, usize) -> i32
->   %4 = Read copy [$3] : (i32, usize)
->   %5 = CallValue %3 [%4] : i32
->   %6 = Retain %5 Operation arguments #0 : ()
->   %7 = Release %5 Operation arguments #2 : ()
->   %8 = Break L0 %5 : never
->   %9 = Block - : i32
->   %10 = Scope %9 [] : i32
->   %11 = Block %10 : i32
+>     uses $3: %1 -> %3 consume last
+>   %0 = Read copy [$1] : (i32, usize)
+>   %1 = Store [$3] %0 : ()
+>   %2 = Read borrow [$0] : fn(i32, usize) -> i32
+>   %3 = Read copy [$3] : (i32, usize)
+>   %4 = CallValue %2 [%3] : i32
+>   %5 = Retain %4 Operation arguments #0 : ()
+>   %6 = Release %4 Operation arguments #2 : ()
+>   %7 = Break L0 %4 : never
+>   %8 = Block - : i32
+>   %9 = Scope %8 [] : i32
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %9 : i32
 >   summary kept [] borrows [$0] writes
 
 fn one(f: fn((string, List[i32])) -> usize, value: (string, List[i32])) -> usize:
+    f(value)
 > app/main/one
 >   local $0 f: fn((string, List[i32])) -> usize [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 value: (string, List[i32]) [param read] value
->     uses $1: entry -> %3 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Release %5 Exit local $1 #2 : ()
-    f(value)
->   %2 = Read borrow [$0] : fn((string, List[i32])) -> usize
->   %3 = Read borrow [$1] : (string, List[i32])
->   %4 = CallValue %2 [%3] : usize
->   %5 = Block %4 : usize
+>     uses $1: entry -> %1 lend last
+>   %0 = Read borrow [$0] : fn((string, List[i32])) -> usize
+>   %1 = Read borrow [$1] : (string, List[i32])
+>   %2 = CallValue %0 [%1] : usize
+>   %3 = Release %5 Exit local $0 #2 : ()
+>   %4 = Release %5 Exit local $1 #2 : ()
+>   %5 = Block %2 : usize
 >   summary kept [] borrows [$0 $1] writes

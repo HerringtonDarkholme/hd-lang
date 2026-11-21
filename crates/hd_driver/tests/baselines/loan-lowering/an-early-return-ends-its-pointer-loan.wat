@@ -282,84 +282,45 @@
   )
   (func $read (param $p i32) (param $alias i32) (param $early i32) (result i32 i32) (local $t0 i32) (local $value i32)
     ;; 23 |     value := p.first()
-    block
-      local.get $p
-      i32.const 4
-      i32.sub
-      local.tee $t0
-      i32.load $heap
-      i32.const 2097152
-      i32.and
-      local.get $value
-      i32.const 2097152
-      i32.and
-      i32.ne
-      if
-        call $rt:panic'2
-        unreachable
-      end
+    local.get $p
+    i32.const 4
+    i32.sub
+    local.tee $t0
+    i32.load $heap
+    i32.const 2097152
+    i32.and
+    if
+      call $rt:panic'2
+      unreachable
+    end
+    local.get $t0
+    i32.load $heap
+    local.tee $value
+    i32.const 2031616
+    i32.and
+    i32.const 2031616
+    i32.eq
+    if
       local.get $t0
-      i32.load $heap
-      local.tee $value
-      i32.const 2031616
-      i32.and
-      i32.const 2031616
-      i32.eq
-      if
-        local.get $t0
-        call $rt:loan_share
-      else
-        local.get $t0
-        local.get $value
-        i32.const 65536
-        i32.add
-        i32.store $heap
-      end
-      local.get $p
-      call $"impl Slots.first"
-      local.set $value
+      call $rt:loan_share
+    else
+      local.get $t0
+      local.get $value
+      i32.const 65536
+      i32.add
+      i32.store $heap
+    end
+    local.get $p
+    call $"impl Slots.first"
+    local.set $value
     ;; 24 |     maybe_change(alias, false)
-      local.get $alias
-      i32.const 0
-      call $maybe_change
+    local.get $alias
+    i32.const 0
+    call $maybe_change
     ;; 25 |     if early:
-      local.get $early
-      if
+    local.get $early
+    if
     ;; 26 |         return *value
-        local.get $value
-        i32.load $heap
-        local.get $value
-        i32.load $heap offset=4
-        local.set $alias
-        local.tee $early
-        if
-          local.get $early
-          call $retain
-        end
-        local.get $t0
-        if
-          local.get $t0
-          i32.load $heap
-          local.tee $value
-          i32.const 2031616
-          i32.and
-          i32.const 2031616
-          i32.eq
-          if
-            local.get $t0
-            call $rt:loan_unshare
-          else
-            local.get $t0
-            local.get $value
-            i32.const 65536
-            i32.sub
-            i32.store $heap
-          end
-        end
-        br 1
-    ;; 25 |     if early:
-      end
-    ;; 27 |     *value
       local.get $value
       i32.load $heap
       local.get $value
@@ -390,8 +351,54 @@
           i32.store $heap
         end
       end
-    ;; 23 |     value := p.first()
+      local.get $p
+      if
+        local.get $p
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $p
+          call $rt:release_ref
+        end
+      end
+      local.get $early
+      local.get $alias
+      return
+    ;; 25 |     if early:
     end
+    ;; 27 |     *value
+    local.get $value
+    i32.load $heap
+    local.get $value
+    i32.load $heap offset=4
+    local.set $alias
+    local.tee $early
+    if
+      local.get $early
+      call $retain
+    end
+    local.get $t0
+    if
+      local.get $t0
+      i32.load $heap
+      local.tee $value
+      i32.const 2031616
+      i32.and
+      i32.const 2031616
+      i32.eq
+      if
+        local.get $t0
+        call $rt:loan_unshare
+      else
+        local.get $t0
+        local.get $value
+        i32.const 65536
+        i32.sub
+        i32.store $heap
+      end
+    end
+    ;; 23 |     value := p.first()
     local.get $p
     if
       local.get $p

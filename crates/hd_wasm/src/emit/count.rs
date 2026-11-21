@@ -13,7 +13,6 @@
 //! including cancellation's stated unwind releases. It performs no separate
 //! parameter, capture, trait-slot or string-slice ownership analysis.
 
-use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_layout::shims::Count;
 use hd_tir::ir::count::{At, Info, Part};
@@ -212,7 +211,8 @@ impl Em<'_, '_, '_> {
                     .operation_count(x, Tag::Release, Part::Arguments)
                     .is_some()
             {
-                for (arg, borrowed) in self.input_carriers(a, &self.rec(w))? {
+                // Its arguments, not its provider footer.
+                for (arg, borrowed) in self.input_carriers(a, self.b.call_args(i))? {
                     if Ref(arg).as_inst().is_some()
                         && self.env().function_input(self.ty_of(arg)).transfer
                         && !self.input_transferred.contains_key(&arg)
@@ -777,6 +777,27 @@ impl Em<'_, '_, '_> {
         }
     }
 
+    /// A parameter's exit `Release` (`hd_tir::own::exits`), when this
+    /// instance owns the parameter: the whole-program pass does not lend
+    /// it, and its type here is an owned one.
+    pub(super) fn release_param(&mut self, l: usize) -> StageResult<()> {
+        let k = self.root_params.iter().position(|&p| p == l);
+        let ty = self.b.local_ty[l];
+        if !k.is_some_and(|k| matches!(self.parameter_pass(k, ty), Pass::Owned))
+            || self.mem_release(l)?
+        {
+            return Ok(());
+        }
+        if let Some(ls) = self.locals.get(&l).cloned() {
+            if self.is_cell(l) {
+                self.count_local(l, &ls, false)?;
+            } else {
+                self.release_drop_place(&ls, ty, &Self::local_place(l))?;
+            }
+        }
+        Ok(())
+    }
+
     /// Releases TIR local `l`'s count, when it holds a counted value, and
     /// zeroes its locals.
     pub(super) fn release_local(&mut self, l: usize) -> StageResult<()> {
@@ -833,62 +854,18 @@ impl Em<'_, '_, '_> {
 
     /// Releases what the function owns at its one exit: its sub-body's
     /// exit set.
-    pub(super) fn release_all(&mut self) -> StageResult<()> {
+    pub(super) fn release_all(&mut self) {
         let outer = self.f.origin_at;
         self.f.origin_at = self.f.origin_root;
         let was = self.f.reason;
-        let result = self.release_all_inner();
+        self.release_all_inner();
         self.f.reason = was;
         self.f.origin_at = outer;
-        result
     }
 
-    /// The backend's part of the exit: the parameters this instance
-    /// owns, the frame's saved referents and wakers. The exit set runs in
-    /// the body (`hd_tir::own::exits`).
-    fn release_all_inner(&mut self) -> StageResult<()> {
-        // A value made only of references needs no ownership drop, so
-        // the move pass may omit it from `exit_drops`. Its contained
-        // run-time loans still end when the value is released here.
-        // Exit release descriptors are lowered here on every return, but
-        // for a parameter this instance receives lent: the whole-program
-        // pass lends it, or its type here is no owned one.
-        let params = &self.root_params;
-        let mut exits: Vec<(usize, Reason)> = self
-            .rows
-            .iter()
-            .copied()
-            .filter_map(|i| {
-                if self.b.tags[i] != Tag::Release {
-                    return None;
-                }
-                let c = Info::read(self.b, i)?;
-                let Part::Local(local) = c.part else {
-                    return None;
-                };
-                (c.at == At::Exit
-                    && self.topo.sub[i] == u32::from(self.sub_id)
-                    && (params.iter().position(|&p| p == local as usize)).is_some_and(|k| {
-                        let ty = self.b.local_ty[local as usize];
-                        matches!(self.parameter_pass(k, ty), Pass::Owned)
-                    }))
-                .then_some((local as usize, Reason::from_word(c.reason)))
-            })
-            .collect();
-        exits.sort_stable_by_key(|x| x.0);
-        for (l, reason) in exits {
-            self.f.reason = Some(reason);
-            if self.mem_release(l)? {
-                continue;
-            }
-            if let Some(ls) = self.locals.get(&l).cloned() {
-                if self.is_cell(l) {
-                    self.count_local(l, &ls, false)?;
-                } else {
-                    self.release_drop_place(&ls, self.b.local_ty[l], &Self::local_place(l))?;
-                }
-            }
-        }
+    /// The backend's part of the exit: the frame's saved referents and
+    /// wakers. The exit set runs in the body (`hd_tir::own::exits`).
+    fn release_all_inner(&mut self) {
         // Saved reference-object slots have their own normal-exit contract.
         for saved in self.frame_refs.clone() {
             let local = super::required(
@@ -911,7 +888,6 @@ impl Em<'_, '_, '_> {
         for (node, i) in nodes {
             self.count_point_ref(i, Part::Waker, node, false);
         }
-        Ok(())
     }
 }
 
