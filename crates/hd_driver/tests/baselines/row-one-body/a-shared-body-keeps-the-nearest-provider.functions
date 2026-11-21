@@ -140,6 +140,7 @@ rt:poll_check
 rt:cancel_check
 rt:cancel_enter
 rt:cancel_leave
+rt:cancel_child
 rt:wake_mark
 rt:entry_cancel#0
 rt:entry_cancel#1

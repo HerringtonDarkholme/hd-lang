@@ -232,6 +232,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CancelLeave => cancel_leave(m),
+        Helper::CancelChild => cancel_child(m),
         Helper::WakeMark => wake_mark(m),
         Helper::WakeTake => wake_take(m),
         Helper::WakeSlot => wake_slot(m),
@@ -408,14 +409,21 @@ pub(crate) fn guard_frame(f: &mut Func) {
     let outer = f.origin_at;
     f.origin_at = f.origin_root;
     let previous = f.local(Val::I32);
+    let flags = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::If(BlockType::Empty));
+    // One load of the flags word: the previous bit, then the word with it.
+    f.get(0);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, F_FLAGS, 2)));
+    f.op(Instruction::LocalTee(flags));
     f.i32(RUNNING);
     f.op(Instruction::I32And);
     f.set(previous);
-    flags_or(f, 0, RUNNING);
+    f.get(flags);
+    f.i32(RUNNING);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::I32Store(mem(HEAP, F_FLAGS, 2)));
     f.op(Instruction::End);
     let restore = |f: &mut Func| {
         f.get(0);
@@ -615,6 +623,35 @@ fn cancel_check(m: &Module) -> Func {
     f.op(Instruction::I32Or);
     f.op(Instruction::I32Store(mem(HEAP, F_FLAGS, 2)));
     f.i32(1);
+    f
+}
+
+/// [`Helper::CancelChild`]: one copy of what each point's cancellation
+/// did inline: the cancel bracket around the child's cancel.
+fn cancel_child(m: &mut Module) -> Func {
+    let mut f = m.func("rt:cancel_child", vec![Val::I32], vec![Val::I32]);
+    let (seen, c, wait) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.helper(Helper::CancelEnter);
+    f.set(seen);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_CHILD, 2)));
+    f.set(c);
+    f.get(c);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(c);
+    f.get(c);
+    f.op(Instruction::I32Load(mem(HEAP, F_CANCEL, 2)));
+    f.call_indirect(vec![Val::I32], vec![]);
+    f.get(c);
+    f.op(Instruction::I32Load(mem(HEAP, F_FLAGS, 2)));
+    f.i32(UNWINDING);
+    f.op(Instruction::I32And);
+    f.set(wait);
+    f.op(Instruction::End);
+    f.get(0);
+    f.get(seen);
+    f.helper(Helper::CancelLeave);
+    f.get(wait);
     f
 }
 

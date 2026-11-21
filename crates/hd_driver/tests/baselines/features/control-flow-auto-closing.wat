@@ -5,7 +5,6 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "release_value[Guard]" (func $"release_value[Guard]" (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
@@ -71,7 +70,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $work (param $log i32) (param $label.0 i32) (param $label.1 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32) (local $t3 i32)
+  (func $work (param $log i32) (param $label.0 i32) (param $label.1 i32) (local $t1 i32) (local $t2 i32) (local $t0 i32)
     ;; 24 |     guard(log, label)
     global.get $stack
     global.get $stack_limit
@@ -120,61 +119,56 @@
     local.get $t2
     local.get $label.0
     i32.store $heap offset=8
-    i32.const 1
-    local.set $label.0
     ;; 25 |     log.push("work")
     local.get $log
     i32.load $heap
     call $rt:list_unique
-    local.set $label.1
+    local.set $label.0
     local.get $log
-    local.get $label.1
+    local.get $label.0
     i32.store $heap
-    local.get $label.1
+    local.get $label.0
     i32.load $heap offset=4
-    local.tee $t1
-    local.get $label.1
+    local.tee $label.1
+    local.get $label.0
     i32.load $heap
     i32.eq
     if
-      local.get $label.1
+      local.get $label.0
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
-      local.set $label.1
+      local.set $label.0
       local.get $log
-      local.get $label.1
+      local.get $label.0
       i32.store $heap
     end
+    local.get $label.0
     local.get $label.1
-    local.get $t1
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t3
+    local.tee $log
     i32.const 65 ;; &"work"
     i32.store $heap offset=16
-    local.get $t3
+    local.get $log
     i32.const 4
     i32.store $heap offset=20
+    local.get $label.0
     local.get $label.1
-    local.get $t1
     i32.const 1
     i32.add
     i32.store $heap offset=4
     ;; 24 |     guard(log, label)
-    local.get $label.0
-    if
-      global.get $forbid
-      i32.const 1
-      i32.add
-      global.set $forbid
-      local.get $t2
-      call $"impl Disposable for Guard.dispose"
-      global.get $forbid
-      i32.const -1
-      i32.add
-      global.set $forbid
-    end
+    global.get $forbid
+    i32.const 1
+    i32.add
+    global.set $forbid
+    local.get $t2
+    call $"impl Disposable for Guard.dispose"
+    global.get $forbid
+    i32.const -1
+    i32.add
+    global.set $forbid
     local.get $t2
     if
       local.get $t2
@@ -184,17 +178,6 @@
       local.get $t2
       i32.load $heap offset=8
       call $"release_value[Guard]"
-    end
-    local.get $log
-    if
-      local.get $log
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $log
-        call $rt:release_ref
-      end
     end
     local.get $t0
     i32.const 24

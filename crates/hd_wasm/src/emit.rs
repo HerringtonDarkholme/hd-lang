@@ -468,7 +468,9 @@ fn body_func<'i>(
             provs,
             alls: HashMap::default(),
             own,
+            park: None,
         });
+        em.open_park();
     }
     // A function that holds a counted reference ends at one exit, which
     // releases what it owns (`count.rs`): a return stores its value in
@@ -660,6 +662,10 @@ fn body_func<'i>(
     if em.f.local_names.is_some() {
         em.name_locals();
     }
+    if let Some(s) = em.susp.as_ref() {
+        em.exit_frame(s.cancelled, s.own);
+        em.close_park();
+    }
     let Some(suspension) = em.susp.take() else {
         if let Some((base, size)) = em.frame.filter(|f| f.0 != NONE) {
             crate::wide::locals_frame(&mut em.f, base, size);
@@ -669,7 +675,6 @@ fn body_func<'i>(
         }
         return Ok(em.f);
     };
-    em.exit_frame(suspension.cancelled, suspension.own);
     let held = if sub == 0 {
         input.entry.held(item)
     } else {
@@ -1165,6 +1170,12 @@ enum Ctl {
     Arm(u32, u32),
     /// The body of a function that counts: its end is the one exit.
     Exit,
+    /// The body of a suspending function with points: its end is the one
+    /// Pending exit (`susp::park`).
+    Park,
+    /// Inside [`Ctl::Park`]: its end is the one exit by cancellation of a
+    /// body that counts nothing.
+    Gone,
 }
 
 /// An enum read in place through a reference ([`Em::lazy_borrow`]): the
