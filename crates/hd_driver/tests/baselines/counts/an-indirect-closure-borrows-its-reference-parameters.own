@@ -6,21 +6,25 @@
 use std.annotation.inline
 
 @inline(.Never)
-> app/main/apply
->   local $0 by: fn(&i32, &i32) -> i32 [param read] value
->     uses $0: entry -> %1 lend last
->   local $1 left: &i32 [param read] value
->     uses $1: entry -> %2 lend last
->   local $2 right: &i32 [param read] value
->     uses $2: entry -> %3 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
 fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:
     by(left, right)
->   %1 = Read borrow [$0] : fn(&i32, &i32) -> i32
->   %2 = Read borrow [$1] : &i32
->   %3 = Read borrow [$2] : &i32
->   %4 = CallValue %1 [%2 %3] : i32
->   %5 = Block %4 : i32
+> app/main/apply
+>   local $0 by: fn(&i32, &i32) -> i32 [param read] value
+>     uses $0: entry -> %0 lend last
+>   local $1 left: &i32 [param read] value
+>     uses $1: entry -> %1 lend last
+>   local $2 right: &i32 [param read] value
+>     uses $2: entry -> %2 lend last
+>   %0 = Read borrow [$0] : fn(&i32, &i32) -> i32
+>   %1 = Read borrow [$1] : &i32
+>   %2 = Read borrow [$2] : &i32
+>   %3 = CallValue %0 [%1 %2] : i32
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %9 Exit local $0 #2 : ()
+>   %9 = Block %3 : i32
 >   summary kept [] borrows [$0] writes
 
 fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
@@ -29,52 +33,56 @@ fn difference(reverse: bool, left: &i32, right: &i32) -> i32:
 >   local $0 reverse: bool [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 left: &i32 [param read] value
->     uses $1: entry -> %26 lend last
+>     uses $1: entry -> %30 lend last
 >   local $2 right: &i32 [param read] value
->     uses $2: entry -> %27 lend last
+>     uses $2: entry -> %31 lend last
 >   local $3 a: &i32 [param read] value
 >     uses $3: entry -> %4 lend last
 >   local $4 b: &i32 [param read] value
 >     uses $4: entry -> %3 lend last
 >   local $5 a: &i32 [param read] value
->     uses $5: entry -> %15 lend last
+>     uses $5: entry -> %17 lend last
 >   local $6 b: &i32 [param read] value
->     uses $6: entry -> %16 lend last
+>     uses $6: entry -> %18 lend last
 >   local $7 by: fn(&i32, &i32) -> i32 [:= read assigned] value
->     uses $7: %24 -> %25 lend last
+>     uses $7: %28 -> %29 lend last
 >   %0 = Read copy [$0] : bool
->   %1 = Retain %9 Entry local $3 #0 : ()
->   %2 = Retain %9 Entry local $4 #0 : ()
+>   %1 = Retain %11 Entry local $3 #0 : ()
+>   %2 = Retain %11 Entry local $4 #0 : ()
 >   %3 = Read copy [*$4] : i32
 >   %4 = Read copy [*$3] : i32
 >   %5 = Prim Sub [%3 %4] : i32
 >   %6 = Drop [$3] : ()
 >   %7 = Drop [$4] : ()
 >   %8 = Coerce %5 [Identity -] : i32
->   %9 = Block %8 : i32
->   %10 = Closure #1 : fn(&i32, &i32) -> i32
->   %11 = Coerce %10 [Identity -] : fn(&i32, &i32) -> i32
->   %12 = Block %11 : fn(&i32, &i32) -> i32
->   %13 = Retain %20 Entry local $5 #0 : ()
->   %14 = Retain %20 Entry local $6 #0 : ()
->   %15 = Read copy [*$5] : i32
->   %16 = Read copy [*$6] : i32
->   %17 = Prim Sub [%15 %16] : i32
->   %18 = Drop [$5] : ()
->   %19 = Drop [$6] : ()
->   %20 = Block %17 : i32
->   %21 = Closure #2 : fn(&i32, &i32) -> i32
->   %22 = Block %21 : fn(&i32, &i32) -> i32
->   %23 = If %0 [%12 %22] : fn(&i32, &i32) -> i32
->   %24 = Store [$7] %23 : ()
->   %31 = Block %28 : i32
+>   %9 = Drop [$3] : ()
+>   %10 = Drop [$4] : ()
+>   %11 = Block %8 : i32
+>   %12 = Closure #1 : fn(&i32, &i32) -> i32
+>   %13 = Coerce %12 [Identity -] : fn(&i32, &i32) -> i32
+>   %14 = Block %13 : fn(&i32, &i32) -> i32
+>   %15 = Retain %24 Entry local $5 #0 : ()
+>   %16 = Retain %24 Entry local $6 #0 : ()
+>   %17 = Read copy [*$5] : i32
+>   %18 = Read copy [*$6] : i32
+>   %19 = Prim Sub [%17 %18] : i32
+>   %20 = Drop [$5] : ()
+>   %21 = Drop [$6] : ()
+>   %22 = Drop [$5] : ()
+>   %23 = Drop [$6] : ()
+>   %24 = Block %19 : i32
+>   %25 = Closure #2 : fn(&i32, &i32) -> i32
+>   %26 = Block %25 : fn(&i32, &i32) -> i32
+>   %27 = If %0 [%14 %26] : fn(&i32, &i32) -> i32
+>   %28 = Store [$7] %27 : ()
+>   %35 = Block %32 : i32
     apply(by, left, right)
->   %25 = Read move [$7] : fn(&i32, &i32) -> i32
->   %26 = Read borrow [$1] : &i32
->   %27 = Read borrow [$2] : &i32
->   %28 = Call app/main/apply[] (%25, %26, %27) : i32
->   %29 = Retain %28 Operation operand 0 #0 : ()
->   %30 = Drop [%25] : ()
+>   %29 = Read move [$7] : fn(&i32, &i32) -> i32
+>   %30 = Read borrow [$1] : &i32
+>   %31 = Read borrow [$2] : &i32
+>   %32 = Call app/main/apply[] (%29, %30, %31) : i32
+>   %33 = Retain %32 Operation operand 0 #0 : ()
+>   %34 = Drop [%29] : ()
 >   exit sub 1 drops [$3 $4]
 >   exit sub 2 drops [$5 $6]
 >   summary kept [] writes

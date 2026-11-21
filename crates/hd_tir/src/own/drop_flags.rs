@@ -69,14 +69,14 @@ pub struct MovePaths {
 
 /// The step words of place word `word`, one per field or variant step
 /// of a place [`key_of`] admits.
-fn step_words(b: &Body, word: u32) -> &[u32] {
+pub(crate) fn step_words(b: &Body, word: u32) -> &[u32] {
     let v = b.view(word);
     &b.extra[v.from as usize..v.to as usize]
 }
 
 /// The root key of place word `word`, when it names a part of a local or
 /// an instruction's value in place (fields and variants only).
-fn key_of(b: &Body, word: u32) -> Option<Key> {
+pub(crate) fn key_of(b: &Body, word: u32) -> Option<Key> {
     let p = b.view(word);
     let key = match p.root {
         Root::Local(l) => Key::Local(l),
@@ -215,7 +215,14 @@ fn path_word(b: &mut Body, paths: &MovePaths, at: u32) -> u32 {
         steps.push(paths.step[p as usize]);
         p = paths.parent[p as usize];
     }
-    let (root, v) = match paths.key[at as usize] {
+    steps.reverse();
+    word_of(b, paths.key[at as usize], &steps)
+}
+
+/// The place word of `key` then `steps`: a bare local, or a record in
+/// `b.extra`.
+pub(crate) fn word_of(b: &mut Body, key: Key, steps: &[u32]) -> u32 {
+    let (root, v) = match key {
         Key::Local(l) if steps.is_empty() => return place::BARE_LOCAL | l,
         Key::Local(l) => (place::ROOT_LOCAL, l),
         Key::Value(v) => (place::ROOT_VALUE, v),
@@ -223,8 +230,40 @@ fn path_word(b: &mut Body, paths: &MovePaths, at: u32) -> u32 {
     let word = u32_of(b.extra.len());
     b.extra.push(u32_of(steps.len() + 2));
     b.extra.extend([root, v]);
-    b.extra.extend(steps.iter().rev());
+    b.extra.extend(steps);
     word
+}
+
+/// Per local, whether it lives in a cell or a frame slot (a closure
+/// shares it, or a reference reaches it), which keeps its flags in its
+/// layout, and whether that is a slot.
+pub(crate) fn cells(b: &Body) -> (Vec<bool>, Vec<bool>) {
+    let mut cells = vec![false; b.local_ty.len()];
+    let mut slots = vec![false; b.local_ty.len()];
+    for r in &b.storage {
+        cells[r.1.idx()] = true;
+        slots[r.1.idx()] |= r.2 == Storage::Slot;
+    }
+    for (l, _) in (b.cap_local.iter().zip(&b.cap_mode))
+        .filter(|(_, m)| matches!(m, CaptureMode::Shared | CaptureMode::Frame))
+    {
+        cells[l.idx()] = true;
+    }
+    (cells, slots)
+}
+
+/// Whether the drops of `key`, no cell, read its flags: its value holds a
+/// hook, or it is a local kept by address that counts or holds one
+/// ([`elaborate`](super::elaborate)).
+pub(crate) fn read(b: &Body, cx: &dyn OwnCx, key: Key) -> bool {
+    let ty = match key {
+        Key::Local(l) => b.local_ty[l as usize],
+        Key::Value(v) => b.ty[v as usize],
+    };
+    let mut parts = Vec::new();
+    (cx.holds_drop(ty) != Tri::No
+        || matches!(key, Key::Local(_)) && cx.by_address(ty) != Tri::No && cx.counted(ty))
+        && (cx.drop_parts(ty, None, &mut parts) || cx.drop_parts(ty, Some(0), &mut parts))
 }
 
 /// The insertion point just after instruction `i`: past the count
@@ -247,19 +286,7 @@ fn after(b: &Body, topo: &Topology, i: usize) -> (u32, u32) {
 
 /// Writes the drop flags of `b`'s locals and values (module doc) as edits.
 pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut splice::Tables) {
-    // A local a closure shares, or a reference reaches, lives in a cell
-    // or a frame slot, which keeps its flags in its layout.
-    let mut cells = vec![false; b.local_ty.len()];
-    let mut slots = vec![false; b.local_ty.len()];
-    for r in &b.storage {
-        cells[r.1.idx()] = true;
-        slots[r.1.idx()] |= r.2 == Storage::Slot;
-    }
-    for (l, _) in (b.cap_local.iter().zip(&b.cap_mode))
-        .filter(|(_, m)| matches!(m, CaptureMode::Shared | CaptureMode::Frame))
-    {
-        cells[l.idx()] = true;
-    }
+    let (cells, slots) = cells(b);
     let mut dropped = HashMap::<Key, u32>::default();
     for &(_, l) in &b.exit_drops {
         *dropped.entry(Key::Local(l.raw())).or_default() += 1;
@@ -382,6 +409,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     // A parameter is whole at its sub-body's entry: a sub-body's own, and
     // the root's, each marked `PARAM` and no sub-body's.
     let mut sub_of = vec![0; b.local_ty.len()];
+    let mut starts = Vec::new();
     for s in 1..b.sub_params.len() {
         for &l in b.sub_param_locals(s) {
             sub_of[l as usize] = s;
@@ -392,8 +420,42 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
             && (!cells[l] || slots[l])
             && let Some(&at) = paths.by_key.get(&Key::Local(u32_of(l)))
         {
-            let root = b.sub_root[s];
-            put(root, 0, Tag::FlagSet, at, b.syn[root as usize]);
+            let (root, syn) = (b.sub_root[s], b.syn[b.sub_root[s] as usize]);
+            // An owned parameter is whole; a lent one is the caller's: the
+            // flag of a parameter whose drops read it starts as whether
+            // this instance owns it, a link-time fact the backend lowers
+            // to a constant (rustc's drop flags start from the place's
+            // initialization).
+            if cells[l] || !read(b, cx, Key::Local(u32_of(l))) {
+                put(root, 0, Tag::FlagSet, at, syn);
+                continue;
+            }
+            let mut c = paths.child[at as usize];
+            while c != NONE {
+                put(root, 0, Tag::FlagSet, c, syn);
+                c = paths.sibling[c as usize];
+            }
+            starts.push((root, syn, u32_of(l), at));
+        }
+    }
+    // A capture a closure holds by its own copy is whole at its
+    // sub-body's entry, as a parameter is.
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Closure) {
+        let (Some(&root), &[start, len, ..]) = (
+            b.sub_root
+                .get(b.data[i][0] as usize)
+                .filter(|&&r| r != NONE),
+            b.record(b.data[i][1]),
+        ) else {
+            continue;
+        };
+        for c in (start..start + len).map(|c| c as usize) {
+            let l = b.cap_local[c].idx();
+            if !cells[l]
+                && let Some(&at) = paths.by_key.get(&Key::Local(u32_of(l)))
+            {
+                put(root, 0, Tag::FlagSet, at, b.syn[root as usize]);
+            }
         }
     }
     for i in 0..b.len() {
@@ -423,6 +485,14 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
             _ => after(b, topo, i),
         };
         put(blk, pos, tag, at, syn);
+    }
+    for (root, syn, l, at) in starts {
+        b.consts.push((Ty::I32, u64::from(l)));
+        let args = b.push_record(&[crate::ir::Ref::konst(u32_of(b.consts.len() - 1)).0]);
+        let op = crate::ir::IntrinsicOp::ParamOwned as u32;
+        let e = edits.insert(root, 0, Tag::Intrinsic, [op, args], Ty::BOOL, syn);
+        let data = [place::BARE_LOCAL | flags[at as usize], u32_of(b.len()) + e];
+        edits.insert(root, 0, Tag::Store, data, Ty::VOID, syn);
     }
 }
 

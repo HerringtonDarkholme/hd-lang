@@ -20,10 +20,11 @@ fn received(items: List[Item]) -> List[Item]:
 > app/main/received
 >   local $0 items: List[Item] [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %2 Entry local $0 #0 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
     items
 >   %1 = Read move [$0] : List[Item]
->   %2 = Block %1 : List[Item]
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : List[Item]
 >   exit sub 0 drops [$0]
 
 fn read(items: List[Item]) -> string?:
@@ -31,7 +32,7 @@ fn read(items: List[Item]) -> string?:
 >   local $0 items: List[Item] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Item [read assigned captured captured-assigned] place
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     received(items)[0].label()
 >   %1 = Read move [$0] : List[Item]
 >   %2 = Call app/main/received[] (%1) : List[Item]
@@ -44,6 +45,7 @@ fn read(items: List[Item]) -> string?:
 >   %9 = Call app/main/impl Item.label[] (%8) : string?
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$1] : ()
->   %12 = Block %9 : string?
+>   %12 = Drop [$0] : ()
+>   %13 = Block %9 : string?
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot

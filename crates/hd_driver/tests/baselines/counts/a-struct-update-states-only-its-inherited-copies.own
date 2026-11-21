@@ -11,24 +11,21 @@ struct Record[T]:
 fn update[T](base: Record[T], name: string) -> Record[T]:
 > app/main/update
 >   local $0 base: Record[T] [param read] value
->     uses $0: entry -> %4 lend, %5 consume, %7 consume last
+>     uses $0: entry -> %2 lend, %3 consume, %4 consume last
 >   local $1 name: string [param read] value
->     uses $1: entry -> %11 consume last
->   %2 = Retain %13 Entry local $0 #0 : ()
->   %3 = Retain %13 Entry local $1 #0 : ()
+>     uses $1: entry -> %6 consume last
+>   %0 = Retain %10 Entry local $0 #0 : ()
+>   %1 = Retain %10 Entry local $1 #0 : ()
     Record::[T] { ...base, name }
->   %0 = FlagSet [$0] #2 : ()
->   %1 = FlagSet [$0 .kept] #3 : ()
->   %4 = Read borrow [$0] : Record[T]
->   %5 = Read move [$0 .kept] : T
->   %6 = FlagClear [$0 .kept] #3 : ()
->   %7 = Read copy [$0 .n] : usize
+>   %2 = Read borrow [$0] : Record[T]
+>   %3 = Read move [$0 .kept] : T
+>   %4 = Read copy [$0 .n] : usize
+>   %5 = Drop [$0] : ()
+>   %6 = Read move [$1] : string
+>   %7 = NewStruct [%3 %6 %4] : Record[T]
 >   %8 = Drop [$0] : ()
->   %9 = FlagClear [$0] #2 : ()
->   %10 = FlagClear [$0 .kept] #3 : ()
->   %11 = Read move [$1] : string
->   %12 = NewStruct [%5 %11 %7] : Record[T]
->   %13 = Block %12 : Record[T]
+>   %9 = Drop [$1] : ()
+>   %10 = Block %7 : Record[T]
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -38,8 +35,8 @@ fn counted(base: Record[List[string]], name: string) -> Record[List[string]]:
 >     uses $0: entry -> %2 lend, %3 consume, %4 consume last
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %5 consume last
->   %0 = Retain %11 Entry local $0 #0 : ()
->   %1 = Retain %11 Entry local $1 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
+>   %1 = Retain %13 Entry local $1 #0 : ()
     update(base, name)
 >   %2 = Read borrow [$0] : Record[List[string]]
 >   %3 = Read move [$0 .kept] : List[string]
@@ -50,43 +47,55 @@ fn counted(base: Record[List[string]], name: string) -> Record[List[string]]:
 >   %8 = Block - : Record[List[string]]
 >   %9 = Scope %8 [] : Record[List[string]]
 >   %10 = Drop [$0] : ()
->   %11 = Block %9 : Record[List[string]]
+>   %11 = Drop [$0] : ()
+>   %12 = Drop [$1] : ()
+>   %13 = Block %9 : Record[List[string]]
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
 fn scalar(base: Record[i32], name: string) -> Record[i32]:
 > app/main/scalar
 >   local $0 base: Record[i32] [param read] value
->     uses $0: entry -> %2 lend, %3 consume, %4 consume last
+>     uses $0: entry -> %1 lend, %2 consume, %3 consume last
 >   local $1 name: string [param read] value
->     uses $1: entry -> %5 consume last
->   %0 = Release %10 Exit local $0 #2 : ()
->   %1 = Retain %10 Entry local $1 #0 : ()
+>     uses $1: entry -> %4 consume last
+>   %0 = Retain %15 Entry local $1 #0 : ()
     update(base, name)
->   %2 = Read borrow [$0] : Record[i32]
->   %3 = Read copy [$0 .kept] : i32
->   %4 = Read copy [$0 .n] : usize
->   %5 = Read move [$1] : string
->   %6 = NewStruct [%3 %5 %4] : Record[i32]
->   %7 = Break L0 %6 : never
->   %8 = Block - : Record[i32]
->   %9 = Scope %8 [] : Record[i32]
->   %10 = Block %9 : Record[i32]
+>   %1 = Read borrow [$0] : Record[i32]
+>   %2 = Read copy [$0 .kept] : i32
+>   %3 = Read copy [$0 .n] : usize
+>   %4 = Read move [$1] : string
+>   %5 = NewStruct [%2 %4 %3] : Record[i32]
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : Record[i32]
+>   %8 = Scope %7 [] : Record[i32]
+>   %9 = Drop [$1] : ()
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $0 #2 : ()
+>   %15 = Block %8 : Record[i32]
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]
 
 fn replaced(base: Record[string], text: string) -> Record[string]:
 > app/main/replaced
 >   local $0 base: Record[string] [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %1 lend last
 >   local $1 text: string [param read] value
->     uses $1: entry -> %3 consume last
->   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Retain %5 Entry local $1 #0 : ()
+>     uses $1: entry -> %2 consume last
+>   %0 = Retain %10 Entry local $1 #0 : ()
     Record::[string] { ...base, kept: text, name: "new", n: 1 }
->   %2 = Read borrow [$0] : Record[string]
->   %3 = Read move [$1] : string
->   %4 = NewStruct [%3 "new" 1:usize] : Record[string]
->   %5 = Block %4 : Record[string]
+>   %1 = Read borrow [$0] : Record[string]
+>   %2 = Read move [$1] : string
+>   %3 = NewStruct [%2 "new" 1:usize] : Record[string]
+>   %4 = Drop [$1] : ()
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %3 : Record[string]
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0]

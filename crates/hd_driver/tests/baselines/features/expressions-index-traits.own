@@ -34,48 +34,53 @@ impl IndexSet[usize, string] for Names:
 >     uses $1: entry -> %1 lend last
 >   local $2 value: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %6 Entry local $2 #0 : ()
+>   %0 = Retain %7 Entry local $2 #0 : ()
         self.items[key] = value
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$2] : string
 >   %3 = IsUnique [*$0 .items] : ()
 >   %4 = Store [*$0 .items [%1]] %2 : ()
 >   %5 = Release %4 Operation #3 : ()
->   %6 = Block - : ()
+>   %6 = Drop [$2] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
 fn read_len(n: Names, i: usize) -> usize:
+    n[i].len()
 > app/main/read_len
 >   local $0 n: Names [param read captured] place
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %2 consume last
 >   local $2 self: &Names [read] value
->     uses $2: %4 -> %7 lend last
+>     uses $2: %3 -> %6 lend last
 >   local $3 key: usize [read] value
->     uses $3: %5 -> %6 lend last
->   %0 = Release %20 Exit local $0 #2 : ()
-    n[i].len()
->   %1 = Box #0 #0 : ()
->   %2 = Ref local frame [$0] : &Names
->   %3 = Read copy [$1] : usize
->   %4 = Store [$2] %2 : ()
->   %5 = Store [$3] %3 : ()
->   %6 = Read copy [$3] : usize
->   %7 = Ref local [*$2 .items [%6]] : &string
->   %8 = LoanBegin %7 #0 : ()
->   %9 = LoanClose %8 : ()
->   %10 = Break L0 %7 : never
->   %11 = Block - : &string
->   %12 = Scope %11 [] : &string
->   %13 = Ref local [*%12] : &string
->   %14 = LoanEnd [%12] : ()
->   %15 = LoanBegin %13 #0 : ()
->   %16 = Call std/text/impl string.len[] (%13) : usize
->   %17 = LoanClose %15 : ()
->   %18 = Drop [%13] : ()
->   %19 = LoanEnd [$2] : ()
->   %20 = Block %16 : usize
+>     uses $3: %4 -> %5 lend last
+>   %0 = Box #0 #0 : ()
+>   %1 = Ref local frame [$0] : &Names
+>   %2 = Read copy [$1] : usize
+>   %3 = Store [$2] %1 : ()
+>   %4 = Store [$3] %2 : ()
+>   %5 = Read copy [$3] : usize
+>   %6 = Ref local [*$2 .items [%5]] : &string
+>   %7 = LoanBegin %6 #0 : ()
+>   %8 = LoanClose %7 : ()
+>   %9 = Break L0 %6 : never
+>   %10 = Block - : &string
+>   %11 = Scope %10 [] : &string
+>   %12 = Ref local [*%11] : &string
+>   %13 = LoanEnd [%11] : ()
+>   %14 = LoanBegin %12 #0 : ()
+>   %15 = Call std/text/impl string.len[] (%12) : usize
+>   %16 = LoanClose %14 : ()
+>   %17 = Drop [%12] : ()
+>   %18 = LoanEnd [$2] : ()
+>   %19 = Intrinsic ParamOwned [0:i32] : bool
+>   %20 = Drop [$0] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $0 #2 : ()
+>   %24 = Block %15 : usize
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -87,20 +92,21 @@ fn write(n: &mut Names, i: usize, s: string) -> void:
 >     uses $1: entry -> %2 lend last
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %3 consume last
->   %0 = Retain %5 Entry local $2 #0 : ()
+>   %0 = Retain %6 Entry local $2 #0 : ()
     n[i] = s
 >   %1 = Read borrow [$0] : &mut Names
 >   %2 = Read copy [$1] : usize
 >   %3 = Read move [$2] : string
 >   %4 = Call std/ops/IndexSet.index_set for Names [usize, string] via Impl (%1, %2, %3) : ()
->   %5 = Block - : ()
+>   %5 = Drop [$2] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
 fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 > app/main/first
 >   local $0 items: C [param read captured] place
->   %0 = Retain %11 Entry local $0 #0 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
     items[0]
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &C
@@ -112,50 +118,55 @@ fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 >   %8 = Retain %7 Value #0 : ()
 >   %9 = Drop [%3] : ()
 >   %10 = Drop [$0] : ()
->   %11 = Block %7 : T
+>   %11 = Drop [$0] : ()
+>   %12 = Block %7 : T
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes
 
 fn generic_first(xs: List[string]) -> usize:
+    first(xs).len()
 > app/main/generic_first
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %1 consume last
+>     uses $0: entry -> %0 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %21 -> %22 lend last
+>     uses $1: %20 -> %21 lend last
 >   local $3 items: List[string] [read captured] place
 >   local $4 self: &List[string] [read] value
->     uses $4: %5 -> %8 lend last
+>     uses $4: %4 -> %7 lend last
 >   local $5 key: usize [read] value
->     uses $5: %6 -> %7 lend last
->   %0 = Release %27 Exit local $0 #2 : ()
-    first(xs).len()
->   %1 = Read borrow [$0] : List[string]
->   %2 = Box #3 #0 : ()
->   %3 = Store [$3] %1 : ()
->   %4 = Ref local frame [$3] : &List[string]
->   %5 = Store [$4] %4 : ()
->   %6 = Store [$5] 0:usize : ()
->   %7 = Read copy [$5] : usize
->   %8 = Ref local [*$4 [%7]] : &string
->   %9 = LoanBegin %8 #0 : ()
->   %10 = LoanClose %9 : ()
->   %11 = Break L1 %8 : never
->   %12 = Block - : &string
->   %13 = Scope %12 [] : &string
->   %14 = Read borrow [*%13] : string
->   %15 = LoanEnd [%13] : ()
->   %16 = LoanEnd [$4] : ()
->   %17 = Break L2 %14 : never
->   %18 = LoanEnd [$4] : ()
->   %19 = Block - : string
->   %20 = Scope %19 [] : string
->   %21 = Store [$1] %20 : ()
->   %22 = Read borrow [$1] : string
->   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
->   %24 = Break L0 %23 : never
->   %25 = Block - : usize
->   %26 = Scope %25 [] : usize
->   %27 = Block %26 : usize
+>     uses $5: %5 -> %6 lend last
+>   %0 = Read borrow [$0] : List[string]
+>   %1 = Box #3 #0 : ()
+>   %2 = Store [$3] %0 : ()
+>   %3 = Ref local frame [$3] : &List[string]
+>   %4 = Store [$4] %3 : ()
+>   %5 = Store [$5] 0:usize : ()
+>   %6 = Read copy [$5] : usize
+>   %7 = Ref local [*$4 [%6]] : &string
+>   %8 = LoanBegin %7 #0 : ()
+>   %9 = LoanClose %8 : ()
+>   %10 = Break L1 %7 : never
+>   %11 = Block - : &string
+>   %12 = Scope %11 [] : &string
+>   %13 = Read borrow [*%12] : string
+>   %14 = LoanEnd [%12] : ()
+>   %15 = LoanEnd [$4] : ()
+>   %16 = Break L2 %13 : never
+>   %17 = LoanEnd [$4] : ()
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Store [$1] %19 : ()
+>   %21 = Read borrow [$1] : string
+>   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %23 = Break L0 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
+>   %26 = Intrinsic ParamOwned [0:i32] : bool
+>   %27 = Drop [$0] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $0 #2 : ()
+>   %31 = Block %25 : usize
 >   storage sub 0: $3 slot
 >   summary kept [] borrows [$0]

@@ -5,87 +5,95 @@
 # expected: `count_while` takes no count per round; `build_while` retains
 # `s` once for `out` and appends in place each round.
 fn count_while(xs: List[string]) -> usize:
+    let i: usize = 0
 > app/main/count_while
 >   local $0 xs: List[string] [param read] value
->     uses $0: entry -> %4 lend, %9 lend
+>     uses $0: entry -> %3 lend, %8 lend
 >   local $1 i: usize [read assigned mutated] place
 >   local $2 n: usize [read assigned mutated] place
 >   local $3 self: string [read] value
->     uses $3: %10 -> %11 lend last
->   %0 = Release %28 Exit local $0 #2 : ()
-    let i: usize = 0
->   %1 = Store [$1] 0:usize : ()
->   %28 = Block %27 : usize
+>     uses $3: %9 -> %10 lend last
+>   %0 = Store [$1] 0:usize : ()
+>   %27 = Intrinsic ParamOwned [0:i32] : bool
+>   %28 = Drop [$0] : ()
+>   %29 = Block - : ()
+>   %30 = If %27 [%29 -] : ()
+>   %31 = Release %32 Exit local $0 #2 : ()
+>   %32 = Block %26 : usize
     let n: usize = 0
->   %2 = Store [$2] 0:usize : ()
+>   %1 = Store [$2] 0:usize : ()
     while i < xs.len():
->   %3 = Read copy [$1] : usize
->   %4 = Read borrow [$0] : List[string]
->   %5 = Intrinsic ListLen [%4] : usize
->   %6 = Prim Lt [%3 %5] : bool
->   %22 = Break L0 - : never
->   %23 = Block - : ()
->   %24 = If %6 [%21 %23] : ()
->   %25 = Block - : ()
->   %26 = Loop %25 - : ()
+>   %2 = Read copy [$1] : usize
+>   %3 = Read borrow [$0] : List[string]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Prim Lt [%2 %4] : bool
+>   %21 = Break L0 - : never
+>   %22 = Block - : ()
+>   %23 = If %5 [%20 %22] : ()
+>   %24 = Block - : ()
+>   %25 = Loop %24 - : ()
         n += xs[i].len()
->   %7 = Read copy [$2] : usize
->   %8 = Read copy [$1] : usize
->   %9 = Read borrow [$0 [%8]] : string
->   %10 = Store [$3] %9 : ()
->   %11 = Read borrow [$3] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
->   %13 = Break L1 %12 : never
->   %14 = Block - : usize
->   %15 = Scope %14 [] : usize
->   %16 = Prim Add [%7 %15] : usize
->   %17 = Store [$2] %16 : ()
->   %21 = Block - : ()
+>   %6 = Read copy [$2] : usize
+>   %7 = Read copy [$1] : usize
+>   %8 = Read borrow [$0 [%7]] : string
+>   %9 = Store [$3] %8 : ()
+>   %10 = Read borrow [$3] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L1 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Prim Add [%6 %14] : usize
+>   %16 = Store [$2] %15 : ()
+>   %20 = Block - : ()
         i += 1
->   %18 = Read copy [$1] : usize
->   %19 = Prim Add [%18 1:usize] : usize
->   %20 = Store [$1] %19 : ()
+>   %17 = Read copy [$1] : usize
+>   %18 = Prim Add [%17 1:usize] : usize
+>   %19 = Store [$1] %18 : ()
     n
->   %27 = Read copy [$2] : usize
+>   %26 = Read copy [$2] : usize
 >   summary kept [] borrows [$0]
->   loop %26 keeps [$0] (-..-)
+>   loop %25 keeps [$0] (-..-)
 
 fn build_while(s: string, k: usize) -> string:
+    let out = s
 > app/main/build_while
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 consume, %9 lend
+>     uses $0: entry -> %0 consume, %8 lend
 >   local $1 k: usize [param read] value
->     uses $1: entry -> %6 lend
+>     uses $1: entry -> %5 lend
 >   local $2 out: string [read assigned mutated] place
 >   local $3 i: usize [read assigned mutated] place
->   %0 = Release %23 Exit local $0 #2 : ()
-    let out = s
->   %1 = Read copy [$0] : string
->   %2 = Retain %1 Value #0 : ()
->   %3 = Store [$2] %1 : ()
->   %23 = Block %22 : string
+>   %0 = Read copy [$0] : string
+>   %1 = Retain %0 Value #0 : ()
+>   %2 = Store [$2] %0 : ()
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Release %27 Exit local $0 #2 : ()
+>   %27 = Block %21 : string
     let i: usize = 0
->   %4 = Store [$3] 0:usize : ()
+>   %3 = Store [$3] 0:usize : ()
     while i < k:
->   %5 = Read copy [$3] : usize
->   %6 = Read copy [$1] : usize
->   %7 = Prim Lt [%5 %6] : bool
->   %17 = Break L0 - : never
->   %18 = Block - : ()
->   %19 = If %7 [%16 %18] : ()
->   %20 = Block - : ()
->   %21 = Loop %20 - : ()
+>   %4 = Read copy [$3] : usize
+>   %5 = Read copy [$1] : usize
+>   %6 = Prim Lt [%4 %5] : bool
+>   %16 = Break L0 - : never
+>   %17 = Block - : ()
+>   %18 = If %6 [%15 %17] : ()
+>   %19 = Block - : ()
+>   %20 = Loop %19 - : ()
         out += s
->   %8 = Read borrow [$2] : string
->   %9 = Read borrow [$0] : string
->   %10 = Intrinsic StrConcat [%8 %9] : string
->   %11 = Store [$2] %10 : ()
->   %12 = Release %11 Operation #3 : ()
->   %16 = Block - : ()
+>   %7 = Read borrow [$2] : string
+>   %8 = Read borrow [$0] : string
+>   %9 = Intrinsic StrConcat [%7 %8] : string
+>   %10 = Store [$2] %9 : ()
+>   %11 = Release %10 Operation #3 : ()
+>   %15 = Block - : ()
         i += 1
->   %13 = Read copy [$3] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$3] %14 : ()
+>   %12 = Read copy [$3] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$3] %13 : ()
     out
->   %22 = Read move [$2] : string
+>   %21 = Read move [$2] : string
 >   summary kept [] borrows [$0]

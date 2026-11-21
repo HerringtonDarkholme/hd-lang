@@ -5,8 +5,8 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
-  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
@@ -258,6 +258,21 @@
                 local.get $t1
                 i32.const 0
                 i32.store $heap offset=16
+                local.get $t1
+                i32.load $heap offset=8
+                local.tee $t7
+                if
+                  local.get $t7
+                  i32.const 8
+                  i32.sub
+                  i32.load $heap
+                  global.get $tracing
+                  i32.or
+                  if
+                    local.get $t7
+                    call $rt:release_ref'2
+                  end
+                end
                 i32.const 1
                 local.set $t7
                 br 3
@@ -304,20 +319,20 @@
           local.get $t1
           i32.const 0
           i32.store $heap offset=8
-        end
-        local.get $t1
-        i32.load $heap offset=8
-        local.tee $t1
-        if
           local.get $t1
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
+          i32.load $heap offset=8
+          local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $t1
+              call $rt:release_ref'2
+            end
           end
         end
         local.get $frame

@@ -347,10 +347,19 @@ pub enum IntrinsicOp {
     /// `(map, slot) -> (&K, &mut V)`: lend a live entry of the original
     /// map place, made unique before the operation as for a map store.
     MapSlotEntryMut,
+    /// `(l) -> bool`, `l` a constant: whether this instance owns its
+    /// parameter local `l`, a link-time fact (the whole-program lends);
+    /// a lent parameter's drop flag starts false (`own::drop_flags`).
+    ParamOwned,
+    /// `(place) -> bool`, the place word a constant: whether the drop
+    /// slot of the place's node holds, the node and all under it whole,
+    /// in the cell its root local lives in or the memory a `Deref` at its
+    /// start reaches (the backend's slot layout, `own::elaborate`).
+    CellFlag,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 16] = [
+    pub const ALL: [IntrinsicOp; 18] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -367,6 +376,8 @@ impl IntrinsicOp {
         IntrinsicOp::MapEntry,
         IntrinsicOp::ListReserve,
         IntrinsicOp::MapSlotEntryMut,
+        IntrinsicOp::ParamOwned,
+        IntrinsicOp::CellFlag,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {
@@ -523,7 +534,7 @@ pub enum CaptureMode {
     Move,
     Shared,
     /// A `Shared` capture whose cell may live in a slot of the maker's
-    /// frame (`own::frame_cells`): the closure never outlives the frame,
+    /// frame (`own::frame::plan_cells`): the closure never outlives the frame,
     /// and the ownership passes keep the local alive over every use of
     /// the closure.
     Frame,
@@ -655,10 +666,10 @@ pub enum Proj {
     Deref,
     /// A slot of a list's buffer at an index value, bounds-checked unless
     /// a proof set its record word's [`place::ELEM_UNCHECKED`]: `[%n]`.
-    /// In stages 1 and 2 the projected value is the list header.
+    /// The projected value is the list header.
     Elem(Ref),
     /// The payload of an enum value known to be that variant, by
-    /// declaration index: `as .k` (stage 2).
+    /// declaration index: `as .k`.
     Variant(u32),
 }
 
@@ -1737,14 +1748,52 @@ impl Body {
     }
 
     /// What cancelling at each point releases, as (point, value): the
-    /// `Release` statements of each cancel block, in row and list order.
+    /// `Release` statements of each cancel block, in row and list order,
+    /// and the value `Drop`s its elaborated guards hold
+    /// (`own::elaborate`).
     pub fn cancel_releases(&self) -> impl Iterator<Item = (u32, u32)> + '_ {
         self.cancel.iter().flat_map(move |&(at, blk)| {
-            let list = self.record(self.data[blk as usize][0]);
-            list.iter()
-                .filter(|&&s| self.tags[s as usize] == Tag::Release)
-                .map(move |&s| (at, self.data[s as usize][0]))
+            let mut out = Vec::new();
+            let mut stack = vec![(blk, true)];
+            while let Some((blk, top)) = stack.pop() {
+                for &s in self.record(self.data[blk as usize][0]) {
+                    let [a, w] = self.data[s as usize];
+                    match self.tags[s as usize] {
+                        Tag::Release if top => out.push((at, a)),
+                        Tag::Drop if !top && w == crate::own::CANCELLED => {
+                            let v = self.view(a);
+                            if let Root::Value(v) = v.root
+                                && !out.contains(&(at, v))
+                            {
+                                out.push((at, v));
+                            }
+                        }
+                        Tag::If => stack.extend(
+                            self.record(w)
+                                .iter()
+                                .filter(|&&x| x != NONE)
+                                .map(|&x| (x, false)),
+                        ),
+                        _ => {}
+                    }
+                }
+            }
+            out
         })
+    }
+
+    /// The parameter local whose ownership value `v` is (an
+    /// `IntrinsicOp::ParamOwned`), if it is one.
+    #[must_use]
+    pub fn param_owned(&self, v: u32) -> Option<u32> {
+        let i = Ref(v).as_inst()?.0 as usize;
+        if self.tags.get(i) != Some(&Tag::Intrinsic)
+            || IntrinsicOp::from_u32(self.data[i][0]) != Some(IntrinsicOp::ParamOwned)
+        {
+            return None;
+        }
+        let k = *self.record(self.data[i][1]).first()? & !Ref::CONST_BIT;
+        u32::try_from(self.consts.get(k as usize)?.1).ok()
     }
 
     /// The parameter locals explicitly recorded for sub-body `sub`.

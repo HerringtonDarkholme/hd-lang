@@ -10,25 +10,29 @@ fn label!(s: string) -> string:
 > app/main/label
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %2 lend last
->   %0 = Retain %5 Cold local $0 #0 : ()
->   %1 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %6 Cold local $0 #0 : ()
+>   %1 = Retain %6 Entry local $0 #0 : ()
     s + "!"
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic StrConcat [%2 "!"] : string
 >   %4 = Drop [%2] : ()
->   %5 = Block %3 : string
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn one!(s: string) -> usize:
 > app/main/one
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %3 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %13 Cold local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
     label!(s).len()
->   %2 = Release %12 FrameDrop child #2 : ()
+>   %2 = Release %13 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Await app/main/label[] (%3) : string
 >   %5 = Release %4 Operation child #2 : ()
@@ -38,12 +42,15 @@ fn one!(s: string) -> usize:
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$1] : ()
->   %12 = Block %9 : usize
->   %13 = Return - #2 : never
+>   %12 = Drop [$0] : ()
+>   %13 = Block %9 : usize
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary none
->   cancel %4 releases [%4294967295]
+>   cancel %4 releases [%2147483648 %4294967295]
+>   cancel %13 releases [%2147483648]
 
 fn both!(a: string, b: string) -> usize:
 > app/main/both
@@ -53,10 +60,10 @@ fn both!(a: string, b: string) -> usize:
 >     uses $1: entry -> %6 consume last
 >   local $2 x: string [read assigned captured] place
 >   local $3 y: string [read assigned captured] place
->   %0 = Retain %32 Cold local $0 #0 : ()
->   %1 = Retain %32 Entry local $0 #0 : ()
->   %2 = Retain %32 Cold local $1 #0 : ()
->   %3 = Retain %32 Entry local $1 #0 : ()
+>   %0 = Retain %34 Cold local $0 #0 : ()
+>   %1 = Retain %34 Entry local $0 #0 : ()
+>   %2 = Retain %34 Cold local $1 #0 : ()
+>   %3 = Retain %34 Entry local $1 #0 : ()
     let (x, y) = join!(label(a), label(b))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/label[] (%4) : Suspend[string]
@@ -76,8 +83,12 @@ fn both!(a: string, b: string) -> usize:
 >   %19 = Store [$3] %17 : ()
 >   %21 = Block - : never
 >   %22 = Match %8 [%21 %15] : ()
->   %32 = Block %31 : usize
->   %35 = Return - #2 : never
+>   %32 = Drop [$0] : ()
+>   %33 = Drop [$1] : ()
+>   %34 = Block %31 : usize
+>   %41 = Drop [$0] : ()
+>   %42 = Drop [$1] : ()
+>   %43 = Block - : ()
     x.len() + y.len()
 >   %23 = Ref local [$2] : &string
 >   %24 = Call std/text/impl string.len[] (%23) : usize
@@ -91,7 +102,8 @@ fn both!(a: string, b: string) -> usize:
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell, $3 cell
 >   summary none
->   cancel %8 releases [%5 %7 %4294967295]
+>   cancel %8 releases [%5 %7 %2147483648 %2147483649 %4294967295]
+>   cancel %34 releases [%2147483648 %2147483649]
 
 fn either!(a: string, b: string) -> usize:
 > app/main/either
@@ -100,12 +112,12 @@ fn either!(a: string, b: string) -> usize:
 >   local $1 b: string [param read] value
 >     uses $1: entry -> %7 consume last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %18 Cold local $0 #0 : ()
->   %1 = Retain %18 Entry local $0 #0 : ()
->   %2 = Retain %18 Cold local $1 #0 : ()
->   %3 = Retain %18 Entry local $1 #0 : ()
+>   %0 = Retain %20 Cold local $0 #0 : ()
+>   %1 = Retain %20 Entry local $0 #0 : ()
+>   %2 = Retain %20 Cold local $1 #0 : ()
+>   %3 = Retain %20 Entry local $1 #0 : ()
     race!(label(a), label(b)).len()
->   %4 = Release %18 FrameDrop child #2 : ()
+>   %4 = Release %20 FrameDrop child #2 : ()
 >   %5 = Read move [$0] : string
 >   %6 = Call app/main/label[] (%5) : Suspend[string]
 >   %7 = Read move [$1] : string
@@ -119,9 +131,14 @@ fn either!(a: string, b: string) -> usize:
 >   %15 = Call std/text/impl string.len[] (%14) : usize
 >   %16 = LoanEnd [%14] : ()
 >   %17 = Drop [$2] : ()
->   %18 = Block %15 : usize
->   %19 = Return - #2 : never
+>   %18 = Drop [$0] : ()
+>   %19 = Drop [$1] : ()
+>   %20 = Block %15 : usize
+>   %25 = Drop [$0] : ()
+>   %26 = Drop [$1] : ()
+>   %27 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary none
->   cancel %10 releases [%4294967295]
+>   cancel %10 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %20 releases [%2147483648 %2147483649]

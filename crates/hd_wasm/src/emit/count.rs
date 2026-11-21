@@ -13,7 +13,6 @@
 //! including cancellation's stated unwind releases. It performs no separate
 //! parameter, capture, trait-slot or string-slice ownership analysis.
 
-use hd_base::SliceSort as _;
 use hd_base::StageResult;
 use hd_layout::shims::Count;
 use hd_tir::ir::count::{At, Info, Part};
@@ -24,7 +23,6 @@ use hd_types::{Ty, TyData};
 use super::Em;
 use super::refs::bare_local;
 use super::value::Src;
-use crate::layout::Pass;
 use crate::module::Val;
 use crate::op::Op as I;
 use crate::rt::Helper;
@@ -212,7 +210,8 @@ impl Em<'_, '_, '_> {
                     .operation_count(x, Tag::Release, Part::Arguments)
                     .is_some()
             {
-                for (arg, borrowed) in self.input_carriers(a, &self.rec(w))? {
+                // Its arguments, not its provider footer.
+                for (arg, borrowed) in self.input_carriers(a, self.b.call_args(i))? {
                     if Ref(arg).as_inst().is_some()
                         && self.env().function_input(self.ty_of(arg)).transfer
                         && !self.input_transferred.contains_key(&arg)
@@ -736,6 +735,19 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// An exit set's `Drop` of local `l` (`hd_tir::own::elaborate`): it ends
+    /// the body, so its locals stay as they are.
+    fn release_exit(&mut self, l: usize) -> StageResult<()> {
+        crate::work::exit_rows(1);
+        if self.borrowed.contains(&l) || self.mem_release(l)? {
+            return Ok(());
+        }
+        match self.locals.get(&l).cloned() {
+            Some(ls) => self.release_owned_local(l, &ls),
+            None => Ok(()),
+        }
+    }
+
     /// Releases TIR local `l`'s count, when it holds a counted value, and
     /// zeroes its locals.
     pub(super) fn release_local(&mut self, l: usize) -> StageResult<()> {
@@ -792,83 +804,18 @@ impl Em<'_, '_, '_> {
 
     /// Releases what the function owns at its one exit: its sub-body's
     /// exit set.
-    pub(super) fn release_all(&mut self) -> StageResult<()> {
+    pub(super) fn release_all(&mut self) {
         let outer = self.f.origin_at;
         self.f.origin_at = self.f.origin_root;
         let was = self.f.reason;
-        let result = self.release_all_inner();
+        self.release_all_inner();
         self.f.reason = was;
         self.f.origin_at = outer;
-        result
     }
 
-    fn release_all_inner(&mut self) -> StageResult<()> {
-        // The exit set: the locals that may still hold a value here.
-        self.f.reason = Some(Reason::LastUse);
-        // This sub-body's own rows of the exit set, indexed once per body
-        // (the TIR boundary exit rows): an emitter of one of n closures visits
-        // its rows, not the whole body's.
-        let boundary = std::sync::Arc::clone(&self.boundary);
-        let owners = boundary
-            .counts
-            .exits
-            .get(&u32::from(self.sub_id))
-            .map_or(&[][..], Vec::as_slice);
-        crate::work::exit_rows(owners.len());
-        let mut released = hd_base::HashSet::default();
-        for &l in owners {
-            if self.borrowed.contains(&l) {
-                continue;
-            }
-            if let Some(ls) = self.locals.get(&l).cloned() {
-                self.release_owned_local(l, &ls)?;
-                released.insert(l);
-            } else if self.mem_release(l)? {
-                released.insert(l);
-            }
-        }
-        // A value made only of references needs no ownership drop, so
-        // the move pass may omit it from `exit_drops`. Its contained
-        // run-time loans still end when the value is released here.
-        // Exit release descriptors are lowered here on every return, but
-        // for a parameter this instance receives lent: the whole-program
-        // pass lends it, or its type here is no owned one.
-        let params = &self.root_params;
-        let mut exits: Vec<(usize, Reason)> = self
-            .rows
-            .iter()
-            .copied()
-            .filter_map(|i| {
-                if self.b.tags[i] != Tag::Release {
-                    return None;
-                }
-                let c = Info::read(self.b, i)?;
-                let Part::Local(local) = c.part else {
-                    return None;
-                };
-                (c.at == At::Exit
-                    && self.topo.sub[i] == u32::from(self.sub_id)
-                    && (params.iter().position(|&p| p == local as usize)).is_some_and(|k| {
-                        let ty = self.b.local_ty[local as usize];
-                        matches!(self.parameter_pass(k, ty), Pass::Owned)
-                    }))
-                .then_some((local as usize, Reason::from_word(c.reason)))
-            })
-            .collect();
-        exits.sort_stable_by_key(|x| x.0);
-        for (l, reason) in exits {
-            self.f.reason = Some(reason);
-            if self.mem_release(l)? {
-                continue;
-            }
-            if let Some(ls) = self.locals.get(&l).cloned() {
-                if self.is_cell(l) {
-                    self.count_local(l, &ls, false)?;
-                } else {
-                    self.release_drop_place(&ls, self.b.local_ty[l], &Self::local_place(l))?;
-                }
-            }
-        }
+    /// The backend's part of the exit: the frame's saved referents and
+    /// wakers. The exit set runs in the body (`hd_tir::own::elaborate`).
+    fn release_all_inner(&mut self) {
         // Saved reference-object slots have their own normal-exit contract.
         for saved in self.frame_refs.clone() {
             let local = super::required(
@@ -891,7 +838,6 @@ impl Em<'_, '_, '_> {
         for (node, i) in nodes {
             self.count_point_ref(i, Part::Waker, node, false);
         }
-        Ok(())
     }
 }
 
@@ -919,9 +865,30 @@ impl Em<'_, '_, '_> {
     /// `Drop` of a part of a place.
     pub(super) fn own_drop(&mut self, i: u32) -> StageResult<()> {
         let word = self.b.data[i as usize][0];
+        let reason = self.b.data[i as usize][1];
         if word & hd_tir::ir::place::BARE_LOCAL != 0 {
             let l = bare_local(self.b, word);
+            // What a store overwrites in a cell is the value there, not
+            // the cell (`hd_tir::own::elaborate`).
+            if reason == hd_tir::own::OVERWRITTEN && self.is_cell(l) {
+                let root = hd_tir::ir::PlaceRoot::Local(hd_base::LocalId::from_raw(
+                    u32::try_from(l).expect("locals"),
+                ));
+                return self.drop_part(&hd_tir::ir::Place {
+                    root,
+                    proj: Vec::new(),
+                });
+            }
+            // Nothing reads the local after an exit's drop, and a store
+            // writes it after an overwrite's.
+            if reason == hd_tir::own::EXIT_DROP || reason == hd_tir::own::OVERWRITTEN {
+                return self.release_exit(l);
+            }
             return self.release_local(l);
+        }
+        // A part of a local or a value (`hd_tir::own::elaborate`).
+        if let Some(p) = self.b.decode_place(word).filter(|p| !p.proj.is_empty()) {
+            return self.drop_part(&p);
         }
         // ruled out: own::insert writes only [ROOT_VALUE, instruction] records
         // for non-local Drops; moves leave that whole root Drop in place.
@@ -930,6 +897,164 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         self.release_value(value)
+    }
+
+    /// A `Drop` of a part of a local or a value (`hd_tir::own::elaborate`):
+    /// the part's values, where the root's locals hold them or loaded from
+    /// where it lies in memory (a local kept by address, a cell, what a
+    /// `Deref` at the place's start reaches), while the enum on its path
+    /// holds each variant it names.
+    fn drop_part(&mut self, p: &hd_tir::ir::Place) -> StageResult<()> {
+        use crate::layout::{Disc, Is, LeafOps as _};
+        use hd_tir::ir::{PlaceRoot, Proj};
+        let root = match p.root {
+            PlaceRoot::Local(l) => Some(l.idx()),
+            _ => None,
+        };
+        // A borrowed local's value is its lender's; what it refers to is not.
+        let deref = p.proj.first() == Some(&Proj::Deref);
+        let lent = |l: usize| self.borrowed.contains(&l) || self.loan_locals.contains_key(&l);
+        if !deref && root.is_some_and(lent) {
+            return Ok(());
+        }
+        let (t, proj, base, ls) = match root {
+            Some(l) if deref => {
+                let TyData::Ref { inner, .. } = self.pool().get(self.b.local_ty[l]) else {
+                    return Err(hd_base::NotImplemented::bug(
+                        hd_base::Stage::Emit,
+                        "a cell's release through no reference",
+                    ));
+                };
+                (
+                    inner,
+                    &p.proj[1..],
+                    Some(self.local(u32::try_from(l).expect("locals"))?[0]),
+                    None,
+                )
+            }
+            Some(l) if self.is_cell(l) => (
+                self.b.local_ty[l],
+                &p.proj[..],
+                Some(self.cell_of(l)?),
+                None,
+            ),
+            Some(l) if let Some(&(at, off, _)) = self.mem_locals.get(&l) => {
+                let base = self.f.local(Val::I32);
+                super::indirect::address(&mut self.f, at, off);
+                self.f.set(base);
+                (self.b.local_ty[l], &p.proj[..], Some(base), None)
+            }
+            _ => match self.root_locals(p)? {
+                Some((t, ls)) => (t, &p.proj[..], None, Some(ls)),
+                None => return Ok(()),
+            },
+        };
+        let leaves = match base {
+            Some(_) => crate::layout::mem(self.pool(), self.env(), t)?.leaves,
+            None => Vec::new(),
+        };
+        crate::work::moved_paths(1);
+        let mut ls = ls.unwrap_or_else(|| vec![NONE; leaves.len()]);
+        // Each leaf in memory loads where it is first read.
+        let mut get = |em: &mut Self, k: usize| {
+            if let (Some(base), NONE) = (base, ls[k]) {
+                ls[k] = em.f.local(leaves[k].val);
+                em.f.get(base);
+                em.f.op(leaves[k].load(0));
+                em.f.set(ls[k]);
+            }
+            ls[k]
+        };
+        let part = super::required(
+            crate::layout::facts::place_part(self.pool(), self.env(), t, proj)?,
+            "ruled out: own::elaborate opens only fields and variants laid out in place",
+        );
+        let mut open = 0;
+        for (d, step) in proj.iter().enumerate() {
+            let Proj::Variant(v) = *step else { continue };
+            let outer = super::required(
+                crate::layout::facts::place_part(self.pool(), self.env(), t, &proj[..d])?,
+                "ruled out: a variant's enum lies in place as its payload does",
+            );
+            let s = crate::layout::strip_newtype(self.pool(), self.env(), outer.ty);
+            let disc = crate::layout::flat(self.pool(), self.env(), s)?.map(|f| f.disc);
+            let is = match disc {
+                Some(Disc::Cell(c)) => c.enc.is(v),
+                Some(Disc::One(w)) if w != v => Is::Never,
+                _ => continue,
+            };
+            if matches!(is, Is::Never) {
+                (0..open).for_each(|_| self.f.op(I::End));
+                return Ok(());
+            }
+            let Some(Disc::Cell(c)) = disc else { continue };
+            let x = get(self, outer.slots[c.value as usize]);
+            self.f.get(x);
+            for op in crate::layout::IsOps::ops(is) {
+                self.f.op(op);
+            }
+            self.f.op(I::If(BlockType::Empty));
+            open += 1;
+        }
+        // A part whose release runs where it lives takes its address.
+        let counted = crate::rt::counted_of(self.input, self.m, part.ty)?;
+        match (base, &counted, part.slots.first()) {
+            (Some(c), crate::rt::Counted::Shims(s), Some(&k)) if s.release_at => {
+                let off = leaves[k].offset - counted.first_offset();
+                let at = |f: &mut crate::module::Func| {
+                    f.get(c);
+                    if off != 0 {
+                        f.u32(off);
+                        f.op(I::I32Add);
+                    }
+                };
+                counted.emit_at(&mut self.f, self.m, &at, &|_, _| {}, false);
+            }
+            _ => {
+                let values: Vec<u32> = part.slots.iter().map(|&k| get(self, k)).collect();
+                self.release_locals(&values, part.ty)?;
+            }
+        }
+        (0..open).for_each(|_| self.f.op(I::End));
+        Ok(())
+    }
+
+    /// Pushes `CellFlag` of the place word `word`: its node's drop slot, in
+    /// the cell or memory its root reaches (`hd_tir::own::elaborate`).
+    pub(super) fn cell_flag(&mut self, word: u32) -> StageResult<()> {
+        let p = self.b.decode_place(word).ok_or_else(|| {
+            hd_base::NotImplemented::bug(hd_base::Stage::Emit, "a cell flag of no place")
+        })?;
+        let hd_tir::ir::PlaceRoot::Local(l) = p.root else {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a cell flag of no local",
+            ));
+        };
+        let (c, deref) = (
+            self.local(l.raw())?[0],
+            p.proj.first() == Some(&hd_tir::ir::Proj::Deref),
+        );
+        let t = match self.pool().get(self.b.local_ty[l.idx()]) {
+            TyData::Ref { inner, .. } if deref => inner,
+            _ => self.b.local_ty[l.idx()],
+        };
+        let slot = self
+            .cell_layout(t)
+            .and_then(|cell| cell.slot(&p.proj[usize::from(deref)..]));
+        let slot = slot.ok_or_else(|| {
+            hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a cell flag of a node with no drop slot",
+            )
+        })?;
+        self.f.get(c);
+        self.f.op(I::I32Load(crate::module::mem(
+            crate::module::HEAP,
+            u64::from(slot),
+            2,
+        )));
+        Ok(())
     }
 
     /// `LoanEnd` `i`: the holder's reference counts nothing, so only its

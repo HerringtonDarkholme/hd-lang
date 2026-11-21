@@ -47,6 +47,8 @@ fn held!(p: *mut Slots, alias: *mut Slots) -> string $ Clock:
     sleep!(Duration::milliseconds(500))
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release *mut app.main.Slots (last use)
+>   release *mut app.main.Slots (last use)
     *value
 >   retain string (stored)
 
@@ -87,6 +89,7 @@ pub fn main!() -> void $ Console + Clock:
 >   retain *mut app.main.Slots (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release *mut app.main.Slots (last use)
     p.items.push("after")
 >   unique List[string] (may be shared)
     println(p.items.len())
@@ -139,6 +142,8 @@ fn held!(p: *mut Slots, alias: *mut Slots) -> string $ Clock:
     sleep!(Duration::milliseconds(500))
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release *mut app.main.Slots (last use)
+>   release *mut app.main.Slots (last use)
     *value
 >   retain string (stored)
 
@@ -179,6 +184,7 @@ pub fn main!() -> void $ Console + Clock:
 >   retain *mut app.main.Slots (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release *mut app.main.Slots (last use)
 >   release string (last use)
     p.items.push("after")
 >   unique List[string] (may be shared)

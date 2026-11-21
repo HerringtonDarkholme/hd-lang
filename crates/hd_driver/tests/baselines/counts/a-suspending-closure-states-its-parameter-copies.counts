@@ -23,4 +23,5 @@ fn make() -> (fn!(string) -> usize $ Clock):
         sleep!(ms(1))
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
         text.len()

@@ -233,6 +233,18 @@
             local.get $t1
             i32.const 0
             i32.store $heap offset=16
+            local.get $t1
+            i32.load $heap offset=12
+            if
+              local.get $t1
+              i32.load $heap offset=12
+              i32.load $heap
+              local.tee $provider0
+              if
+                local.get $provider0
+                call $rt:release_ref
+              end
+            end
             i32.const 0
             local.set $provider0
             i32.const 1
@@ -258,17 +270,17 @@
           local.get $t1
           i32.const 0
           i32.store $heap offset=12
-        end
-        local.get $t1
-        i32.load $heap offset=12
-        if
           local.get $t1
           i32.load $heap offset=12
-          i32.load $heap
-          local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref
+            i32.load $heap offset=12
+            i32.load $heap
+            local.tee $t1
+            if
+              local.get $t1
+              call $rt:release_ref
+            end
           end
         end
         local.get $provider0

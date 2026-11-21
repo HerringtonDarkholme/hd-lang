@@ -21,10 +21,11 @@ impl Tag for Named:
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %2 Entry local $0 #0 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
         self.label
 >   %1 = Read move [$0 .label] : string
->   %2 = Block %1 : string
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -32,15 +33,19 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %2 lend last
->   %0 = Retain %5 Cold local $0 #0 : ()
->   %1 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %6 Cold local $0 #0 : ()
+>   %1 = Retain %6 Entry local $0 #0 : ()
     key + "?"
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic StrConcat [%2 "?"] : string
 >   %4 = Drop [%2] : ()
->   %5 = Block %3 : string
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
@@ -72,15 +77,18 @@ fn later!(key: string) -> usize:
 >   local $1 pending: Suspend[string] [read assigned] value
 >     uses $1: %5 -> %6 lend last
 >   local $2 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %17 Cold local $0 #0 : ()
->   %1 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %18 Cold local $0 #0 : ()
+>   %1 = Retain %18 Entry local $0 #0 : ()
     let mut pending = fetch(key)
->   %2 = Release %17 FrameDrop child #2 : ()
+>   %2 = Release %18 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : Suspend[string]
 >   %5 = Store [$1] %4 : ()
 >   %11 = Box #2 #1 : ()
->   %17 = Block %14 : usize
+>   %17 = Drop [$0] : ()
+>   %18 = Block %14 : usize
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
     pending!().len()
 >   %6 = Read move [$1] : Suspend[string]
 >   %7 = AwaitValue %6 : string
@@ -92,11 +100,11 @@ fn later!(key: string) -> usize:
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$2] : ()
->   %19 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary none
->   cancel %7 releases [%6 %4294967295]
+>   cancel %7 releases [%6 %2147483648 %4294967295]
+>   cancel %18 releases [%2147483648]
 
 fn blocking(key: string) -> usize:
 > app/main/blocking
@@ -104,7 +112,7 @@ fn blocking(key: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 v: string [read assigned] value
 >     uses $1: %13 -> %5 lend last
->   %0 = Retain %22 Entry local $0 #0 : ()
+>   %0 = Retain %23 Entry local $0 #0 : ()
     match block_on(fetch(key)):
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
@@ -113,7 +121,8 @@ fn blocking(key: string) -> usize:
 >   %19 = Block - : never
 >   %20 = Match %3 [%19 %10 %11] : usize
 >   %21 = Drop [%3] : ()
->   %22 = Block %20 : usize
+>   %22 = Drop [$0] : ()
+>   %23 = Block %20 : usize
         .Completed(v) => v.len()
 >   %5 = Read borrow [$1] : string
 >   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
@@ -134,12 +143,13 @@ fn discard(key: string) -> usize:
 > app/main/discard
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %5 Entry local $0 #0 : ()
     _ := fetch(key)
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Drop [%2] : ()
->   %4 = Block 0:usize : usize
+>   %4 = Drop [$0] : ()
+>   %5 = Block 0:usize : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
     0
@@ -153,10 +163,10 @@ fn bound!(s: string) -> usize:
 >   local $2 provider: Named [read] value
 >     uses $2: %5 -> %6 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %31 Cold local $0 #0 : ()
->   %1 = Retain %31 Entry local $0 #0 : ()
+>   %0 = Retain %32 Cold local $0 #0 : ()
+>   %1 = Retain %32 Entry local $0 #0 : ()
     let mut pending: Suspend[usize] = $.with(Tag=Named { label: s }):
->   %2 = Release %31 FrameDrop child #2 : ()
+>   %2 = Release %32 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = NewStruct [%3] : Named
 >   %5 = Store [$2] %4 : ()
@@ -178,7 +188,10 @@ fn bound!(s: string) -> usize:
 >   %23 = With [Tag %19] %22 : Suspend[usize]
 >   %24 = Drop [%19] : ()
 >   %25 = Store [$1] %23 : ()
->   %31 = Block %27 : usize
+>   %31 = Drop [$0] : ()
+>   %32 = Block %27 : usize
+>   %37 = Drop [$0] : ()
+>   %38 = Block - : ()
         tagged()
 >   %21 = Call app/main/tagged[] () : Suspend[usize]
 >   %22 = Block %21 : Suspend[usize]
@@ -188,8 +201,8 @@ fn bound!(s: string) -> usize:
 >   %28 = Release %27 Operation child #2 : ()
 >   %29 = Retain %27 Operation child #0 : ()
 >   %30 = Drop [%26] : ()
->   %33 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 cell
 >   summary none
->   cancel %27 releases [%26 %4294967295]
+>   cancel %27 releases [%26 %2147483648 %4294967295]
+>   cancel %32 releases [%2147483648]

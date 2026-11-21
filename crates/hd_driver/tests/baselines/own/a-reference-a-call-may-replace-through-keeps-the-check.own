@@ -27,135 +27,143 @@ fn swap_in(xs: &mut List[usize]) -> void:
 >   %4 = Block - : ()
 
 fn replaced(count: usize, transform: fn(usize) -> usize) -> List[usize]:
+    let mut output: List[usize] = []
 > app/main/replaced
 >   local $0 count: usize [param read] value
->     uses $0: entry -> %5 lend, %11 consume last
->   local $1 transform: fn(usize) -> usize [param read] value
->     uses $1: entry -> %28 lend
->   local $2 output: List[usize] [read assigned captured captured-assigned] place
->   local $3 $cur: usize [assigned] place
->   local $4 $end: usize [assigned] value
->     uses $4: %16 -> %21 lend
->   local $5 $incl: bool [assigned] value
->     uses $5: none
->   local $6 index: usize [read assigned] value
->     uses $6: %24 -> %29 lend last
->   %0 = Release %40 Exit local $1 #2 : ()
-    let mut output: List[usize] = []
->   %1 = NewList - [] : List[usize]
->   %2 = Box #2 #0 : ()
->   %3 = Store [$2] %1 : ()
->   %40 = Block %39 : List[usize]
-    output.reserve(count)
->   %4 = Ref mut local frame [$2] : &mut List[usize]
->   %5 = Read copy [$0] : usize
->   %6 = Call std/collections/impl[T] List[T].reserve[usize] (%4, %5) : ()
->   %7 = LoanEnd [%4] : ()
-    swap_in(&mut output)
->   %8 = Ref mut local frame [$2] : &mut List[usize]
->   %9 = Call app/main/swap_in[] (%8) : ()
->   %10 = LoanEnd [%8] : ()
-    for index in 0..count:
->   %11 = Read copy [$0] : usize
->   %12 = NewStruct [0:usize %11 0:bool] : Range[usize]
->   %13 = Read copy [%12 .start] : usize
->   %14 = Store [$3] %13 : ()
->   %15 = Read copy [%12 .end] : usize
->   %16 = Store [$4] %15 : ()
->   %17 = Read copy [%12 .inclusive] : bool
->   %18 = Store [$5] %17 : ()
->   %19 = IsUnique hoisted [$2] : ()
->   %20 = Read copy [$3] : usize
->   %21 = Read copy [$4] : usize
->   %22 = Prim Lt [%20 %21] : bool
->   %23 = Read copy [$3] : usize
->   %24 = Store [$6] %23 : ()
->   %25 = Read copy [$3] : usize
->   %26 = Prim Add [%25 1:usize] : usize
->   %27 = Store [$3] %26 : ()
->   %33 = Block - : ()
->   %34 = Break L0 - : never
->   %35 = Block - : ()
->   %36 = If %22 [%33 %35] : ()
->   %37 = Block - : ()
->   %38 = Loop %37 - : ()
-        output.push(transform(index))
->   %28 = Read borrow [$1] : fn(usize) -> usize
->   %29 = Read copy [$6] : usize
->   %30 = CallValue %28 [%29] : usize
->   %31 = Read borrow [$2] : List[usize]
->   %32 = Intrinsic ListPush [%31 %30] : ()
-    output
->   %39 = Read move [$2] : List[usize]
->   storage sub 0: $2 slot
-
-fn copied(count: usize, transform: fn(usize) -> usize) -> usize:
-> app/main/copied
->   local $0 count: usize [param read] value
->     uses $0: entry -> %5 lend, %11 consume last
+>     uses $0: entry -> %4 lend, %10 consume last
 >   local $1 transform: fn(usize) -> usize [param read] value
 >     uses $1: entry -> %27 lend
 >   local $2 output: List[usize] [read assigned captured captured-assigned] place
+>   local $3 $cur: usize [assigned] place
+>   local $4 $end: usize [assigned] value
+>     uses $4: %15 -> %20 lend
+>   local $5 $incl: bool [assigned] value
+>     uses $5: none
+>   local $6 index: usize [read assigned] value
+>     uses $6: %23 -> %28 lend last
+>   %0 = NewList - [] : List[usize]
+>   %1 = Box #2 #0 : ()
+>   %2 = Store [$2] %0 : ()
+>   %39 = Intrinsic ParamOwned [1:i32] : bool
+>   %40 = Drop [$1] : ()
+>   %41 = Block - : ()
+>   %42 = If %39 [%41 -] : ()
+>   %43 = Release %44 Exit local $1 #2 : ()
+>   %44 = Block %38 : List[usize]
+    output.reserve(count)
+>   %3 = Ref mut local frame [$2] : &mut List[usize]
+>   %4 = Read copy [$0] : usize
+>   %5 = Call std/collections/impl[T] List[T].reserve[usize] (%3, %4) : ()
+>   %6 = LoanEnd [%3] : ()
+    swap_in(&mut output)
+>   %7 = Ref mut local frame [$2] : &mut List[usize]
+>   %8 = Call app/main/swap_in[] (%7) : ()
+>   %9 = LoanEnd [%7] : ()
+    for index in 0..count:
+>   %10 = Read copy [$0] : usize
+>   %11 = NewStruct [0:usize %10 0:bool] : Range[usize]
+>   %12 = Read copy [%11 .start] : usize
+>   %13 = Store [$3] %12 : ()
+>   %14 = Read copy [%11 .end] : usize
+>   %15 = Store [$4] %14 : ()
+>   %16 = Read copy [%11 .inclusive] : bool
+>   %17 = Store [$5] %16 : ()
+>   %18 = IsUnique hoisted [$2] : ()
+>   %19 = Read copy [$3] : usize
+>   %20 = Read copy [$4] : usize
+>   %21 = Prim Lt [%19 %20] : bool
+>   %22 = Read copy [$3] : usize
+>   %23 = Store [$6] %22 : ()
+>   %24 = Read copy [$3] : usize
+>   %25 = Prim Add [%24 1:usize] : usize
+>   %26 = Store [$3] %25 : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If %21 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
+        output.push(transform(index))
+>   %27 = Read borrow [$1] : fn(usize) -> usize
+>   %28 = Read copy [$6] : usize
+>   %29 = CallValue %27 [%28] : usize
+>   %30 = Read borrow [$2] : List[usize]
+>   %31 = Intrinsic ListPush [%30 %29] : ()
+    output
+>   %38 = Read move [$2] : List[usize]
+>   storage sub 0: $2 slot
+
+fn copied(count: usize, transform: fn(usize) -> usize) -> usize:
+    let mut output: List[usize] = []
+> app/main/copied
+>   local $0 count: usize [param read] value
+>     uses $0: entry -> %4 lend, %10 consume last
+>   local $1 transform: fn(usize) -> usize [param read] value
+>     uses $1: entry -> %26 lend
+>   local $2 output: List[usize] [read assigned captured captured-assigned] place
 >   local $3 kept: List[usize] [:= read assigned] value
->     uses $3: %10 -> %39 lend last
+>     uses $3: %9 -> %38 lend last
 >   local $4 $cur: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %16 -> %20 lend
+>     uses $5: %15 -> %19 lend
 >   local $6 $incl: bool [assigned] value
 >     uses $6: none
 >   local $7 index: usize [read assigned] value
->     uses $7: %23 -> %28 lend last
->   %0 = Release %46 Exit local $1 #2 : ()
-    let mut output: List[usize] = []
->   %1 = NewList - [] : List[usize]
->   %2 = Box #2 #0 : ()
->   %3 = Store [$2] %1 : ()
->   %46 = Block %45 : usize
+>     uses $7: %22 -> %27 lend last
+>   %0 = NewList - [] : List[usize]
+>   %1 = Box #2 #0 : ()
+>   %2 = Store [$2] %0 : ()
+>   %45 = Intrinsic ParamOwned [1:i32] : bool
+>   %46 = Drop [$1] : ()
+>   %47 = Block - : ()
+>   %48 = If %45 [%47 -] : ()
+>   %49 = Release %50 Exit local $1 #2 : ()
+>   %50 = Block %44 : usize
     output.reserve(count)
->   %4 = Ref mut local frame [$2] : &mut List[usize]
->   %5 = Read copy [$0] : usize
->   %6 = Call std/collections/impl[T] List[T].reserve[usize] (%4, %5) : ()
->   %7 = LoanEnd [%4] : ()
+>   %3 = Ref mut local frame [$2] : &mut List[usize]
+>   %4 = Read copy [$0] : usize
+>   %5 = Call std/collections/impl[T] List[T].reserve[usize] (%3, %4) : ()
+>   %6 = LoanEnd [%3] : ()
     kept := output
->   %8 = Read copy [$2] : List[usize]
->   %9 = Retain %8 Value #0 : ()
->   %10 = Store [$3] %8 : ()
+>   %7 = Read copy [$2] : List[usize]
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Store [$3] %7 : ()
     for index in 0..count:
->   %11 = Read copy [$0] : usize
->   %12 = NewStruct [0:usize %11 0:bool] : Range[usize]
->   %13 = Read copy [%12 .start] : usize
->   %14 = Store [$4] %13 : ()
->   %15 = Read copy [%12 .end] : usize
->   %16 = Store [$5] %15 : ()
->   %17 = Read copy [%12 .inclusive] : bool
->   %18 = Store [$6] %17 : ()
->   %19 = Read copy [$4] : usize
->   %20 = Read copy [$5] : usize
->   %21 = Prim Lt [%19 %20] : bool
->   %22 = Read copy [$4] : usize
->   %23 = Store [$7] %22 : ()
->   %24 = Read copy [$4] : usize
->   %25 = Prim Add [%24 1:usize] : usize
->   %26 = Store [$4] %25 : ()
->   %33 = Block - : ()
->   %34 = Break L0 - : never
->   %35 = Block - : ()
->   %36 = If %21 [%33 %35] : ()
->   %37 = Block - : ()
->   %38 = Loop %37 - : ()
+>   %10 = Read copy [$0] : usize
+>   %11 = NewStruct [0:usize %10 0:bool] : Range[usize]
+>   %12 = Read copy [%11 .start] : usize
+>   %13 = Store [$4] %12 : ()
+>   %14 = Read copy [%11 .end] : usize
+>   %15 = Store [$5] %14 : ()
+>   %16 = Read copy [%11 .inclusive] : bool
+>   %17 = Store [$6] %16 : ()
+>   %18 = Read copy [$4] : usize
+>   %19 = Read copy [$5] : usize
+>   %20 = Prim Lt [%18 %19] : bool
+>   %21 = Read copy [$4] : usize
+>   %22 = Store [$7] %21 : ()
+>   %23 = Read copy [$4] : usize
+>   %24 = Prim Add [%23 1:usize] : usize
+>   %25 = Store [$4] %24 : ()
+>   %32 = Block - : ()
+>   %33 = Break L0 - : never
+>   %34 = Block - : ()
+>   %35 = If %20 [%32 %34] : ()
+>   %36 = Block - : ()
+>   %37 = Loop %36 - : ()
         output.push(transform(index))
->   %27 = Read borrow [$1] : fn(usize) -> usize
->   %28 = Read copy [$7] : usize
->   %29 = CallValue %27 [%28] : usize
->   %30 = IsUnique [$2] : ()
->   %31 = Read borrow [$2] : List[usize]
->   %32 = Intrinsic ListPush [%31 %29] : ()
+>   %26 = Read borrow [$1] : fn(usize) -> usize
+>   %27 = Read copy [$7] : usize
+>   %28 = CallValue %26 [%27] : usize
+>   %29 = IsUnique [$2] : ()
+>   %30 = Read borrow [$2] : List[usize]
+>   %31 = Intrinsic ListPush [%30 %28] : ()
     kept.len() + output.len()
->   %39 = Read move [$3] : List[usize]
->   %40 = Intrinsic ListLen [%39] : usize
->   %41 = Drop [%39] : ()
->   %42 = Read move [$2] : List[usize]
->   %43 = Intrinsic ListLen [%42] : usize
->   %44 = Drop [%42] : ()
->   %45 = Prim Add [%40 %43] : usize
+>   %38 = Read move [$3] : List[usize]
+>   %39 = Intrinsic ListLen [%38] : usize
+>   %40 = Drop [%38] : ()
+>   %41 = Read move [$2] : List[usize]
+>   %42 = Intrinsic ListLen [%41] : usize
+>   %43 = Drop [%41] : ()
+>   %44 = Prim Add [%39 %42] : usize
 >   storage sub 0: $2 slot

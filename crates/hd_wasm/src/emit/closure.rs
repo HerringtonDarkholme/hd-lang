@@ -227,19 +227,10 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let m = self.cell_mem(l)?;
-        // The slot's flag says it holds a value, and its address says it
-        // is made and not yet released: an exit after the slot's own end
-        // finds the address cleared, though the flag stays set.
-        match self.slot_flag(super::drop_flags::Root::Local(l))? {
-            Some(flag) => {
-                self.f.get(flag);
-                self.f.get(c);
-                self.f.i32(0);
-                self.f.op(I::I32Ne);
-                self.f.op(I::I32And);
-            }
-            None => self.f.get(c),
-        }
+        // Its address says it is made and not yet released: an exit after
+        // the slot's own end finds it cleared. Its whole flag guards this
+        // in TIR (`hd_tir::own::elaborate`).
+        self.f.get(c);
         self.f.op(I::If(BlockType::Empty));
         if !matches!(self.kind(t), crate::layout::Kind::Value) || self.cell_layout(t).is_none() {
             let ls = self.f.load_locals(c, &m.leaves);

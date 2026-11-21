@@ -288,6 +288,13 @@
             local.get $t1
             i32.const 0
             i32.store $heap offset=8
+            local.get $t1
+            i32.load $heap
+            local.tee $s.1
+            if
+              local.get $s.1
+              call $rt:release_ref'2
+            end
             i32.const 0
             local.set $s.1
             i32.const 1
@@ -313,13 +320,13 @@
           local.get $t1
           i32.const 0
           i32.store $heap offset=8
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $t1
-        if
           local.get $t1
-          call $rt:release_ref'2
+          i32.load $heap
+          local.tee $t1
+          if
+            local.get $t1
+            call $rt:release_ref'2
+          end
         end
         local.get $s.1
         local.get $frame
@@ -964,6 +971,13 @@
             local.get $t1
             i32.const 0
             i32.store $heap offset=8
+            local.get $t1
+            i32.load $heap
+            local.tee $t1
+            if
+              local.get $t1
+              call $rt:release_ref'2
+            end
             i32.const 0
             local.set $key.0
             i32.const 1
@@ -1016,13 +1030,13 @@
               call $rt:release_ref'1
             end
           end
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $t1
-        if
           local.get $t1
-          call $rt:release_ref'2
+          i32.load $heap
+          local.tee $t1
+          if
+            local.get $t1
+            call $rt:release_ref'2
+          end
         end
         local.get $key.0
         local.get $frame

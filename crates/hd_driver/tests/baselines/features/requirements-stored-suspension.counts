@@ -51,6 +51,7 @@ fn later!(key: string) -> usize:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[string] (cancelled)
+>   release string (last use)
 >   release Suspend[string] (last use)
 
 fn blocking(key: string) -> usize:
@@ -84,3 +85,4 @@ fn bound!(s: string) -> usize:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
+>   release string (last use)

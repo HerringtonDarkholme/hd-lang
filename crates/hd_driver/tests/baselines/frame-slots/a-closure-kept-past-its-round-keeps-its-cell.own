@@ -17,14 +17,15 @@ fn kept(n: i32) -> i32:
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   local $5 i: i32 [read assigned] value
->     uses $5: %15 -> %19 consume, %35 lend last
+>     uses $5: %15 -> %19 consume, %36 lend last
 >   local $6 total: i32 [read assigned captured captured-assigned] place
 >   local $7 step: fn() -> i32 [:= read assigned] value
->     uses $7: %34 -> %37 consume last
+>     uses $7: %35 -> %38 consume last
 >   %0 = Block 0:i32 : i32
 >   %1 = Closure #1 : fn() -> i32
 >   %2 = Store [$1] %1 : ()
->   %52 = Block %50 : i32
+>   %53 = Drop [$6] : ()
+>   %54 = Block %51 : i32
     for i in +0..n:
 >   %3 = Read copy [$0] : i32
 >   %4 = NewStruct [0:i32 %3 0:bool] : Range[i32]
@@ -43,23 +44,24 @@ fn kept(n: i32) -> i32:
 >   %17 = Prim Add [%16 1:i32] : i32
 >   %18 = Store [$2] %17 : ()
 >   %20 = Box #6 #1 : ()
->   %43 = Block - : ()
->   %44 = Break L0 - : never
->   %45 = Block - : ()
->   %46 = If %13 [%43 %45] : ()
->   %47 = Block - : ()
->   %48 = Loop %47 - : ()
+>   %44 = Block - : ()
+>   %45 = Break L0 - : never
+>   %46 = Block - : ()
+>   %47 = If %13 [%44 %46] : ()
+>   %48 = Block - : ()
+>   %49 = Loop %48 - : ()
         let total = i
 >   %19 = Read copy [$5] : i32
 >   %21 = Store [$6] %19 : ()
 >   %22 = Release %21 Operation #3 : ()
         step := fn() -> i32:
->   %23 = Retain %30 Entry captures #0 : ()
->   %30 = Block %28 : i32
->   %31 = Closure #2 : fn() -> i32
->   %32 = Retain %31 Operation captures #0 : ()
->   %33 = Drop [$6] : ()
->   %34 = Store [$7] %31 : ()
+>   %23 = Retain %31 Entry captures #0 : ()
+>   %30 = Drop [$6] : ()
+>   %31 = Block %28 : i32
+>   %32 = Closure #2 : fn() -> i32
+>   %33 = Retain %32 Operation captures #0 : ()
+>   %34 = Drop [$6] : ()
+>   %35 = Store [$7] %32 : ()
             total = total + 1
 >   %24 = Read copy [$6] : i32
 >   %25 = Prim Add [%24 1:i32] : i32
@@ -69,19 +71,19 @@ fn kept(n: i32) -> i32:
 >   %28 = Read copy [$6] : i32
 >   %29 = Drop [$6] : ()
         if i == 0:
->   %35 = Read copy [$5] : i32
->   %36 = Prim Eq [%35 0:i32] : bool
->   %41 = If %36 [%40 -] : ()
->   %42 = Drop [$7] : ()
+>   %36 = Read copy [$5] : i32
+>   %37 = Prim Eq [%36 0:i32] : bool
+>   %42 = If %37 [%41 -] : ()
+>   %43 = Drop [$7] : ()
             f = step
->   %37 = Read move [$7] : fn() -> i32
->   %38 = Store [$1] %37 : ()
->   %39 = Release %38 Operation #3 : ()
->   %40 = Block - : ()
+>   %38 = Read move [$7] : fn() -> i32
+>   %39 = Store [$1] %38 : ()
+>   %40 = Release %39 Operation #3 : ()
+>   %41 = Block - : ()
     f()
->   %49 = Read move [$1] : fn() -> i32
->   %50 = CallValue %49 [] : i32
->   %51 = Drop [%49] : ()
+>   %50 = Read move [$1] : fn() -> i32
+>   %51 = CallValue %50 [] : i32
+>   %52 = Drop [%50] : ()
 >   exit sub 0 drops [$6]
 >   exit sub 2 drops [$6]
 >   storage sub 0: $6 cell
@@ -105,7 +107,8 @@ fn fresh(n: i32) -> i32:
 >   local $6 total: i32 [read assigned captured captured-assigned] place
 >     frame cell [$6]
 >   %0 = Store [$1] 0:i32 : ()
->   %43 = Block %42 : i32
+>   %43 = Drop [$6] : ()
+>   %44 = Block %42 : i32
     for i in +0..n:
 >   %1 = Read copy [$0] : i32
 >   %2 = NewStruct [0:i32 %1 0:bool] : Range[i32]

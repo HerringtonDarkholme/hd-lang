@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "mk" (func $mk (param i32 i32)))
-  (import "fixture" "release_value[std.rt_tests.stage_case.Big]" (func $"release_value[std.rt_tests.stage_case.Big]" (param i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -32,8 +32,10 @@
     local.get $t0
     i32.load $heap offset=28
     local.set $x
+    ;; 65 |     let b = mk(x)
     local.get $t0
-    call $"release_value[std.rt_tests.stage_case.Big]"
+    call $rt:drop
+    ;; 66 |     b.f2 + b.f3
     i64.extend_i32_s
     local.get $x
     i64.extend_i32_s

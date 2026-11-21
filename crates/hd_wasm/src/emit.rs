@@ -194,7 +194,11 @@ pub(crate) fn shims(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         let hooked = kind == Shim::Release
             && portion != hd_layout::shims::Portion::Thin
             && hd_layout::holds_drop(input.pool, input.env, t);
-        m.define(Sym::Shim(key, kind == Shim::Retain, width, hooked), f);
+        let sym = match kind {
+            Shim::CellDrop => Sym::CellDrop(key),
+            _ => Sym::Shim(key, kind == Shim::Retain, width, hooked),
+        };
+        m.define(sym, f);
     }
     Ok(())
 }
@@ -648,7 +652,7 @@ fn body_func<'i>(
     }
     if em.counting {
         em.close();
-        em.release_all()?;
+        em.release_all();
         for l in em.ret.clone() {
             em.f.get(l);
         }
@@ -1284,11 +1288,6 @@ struct Em<'i, 'a, 'm> {
     /// reference owns. The direct drop can release the known table without
     /// resolving the interior address through the page table.
     map_probe_refs: HashMap<u32, (u32, bool)>,
-    /// While an open drop runs over leaves loaded from memory: the base
-    /// address local and each leaf local's offset from it, so a whole
-    /// node whose release runs in place gets its address
-    /// (`Em::release_node`).
-    node_base: Option<(u32, std::rc::Rc<HashMap<u32, u32>>)>,
     /// Each direct `string.slice` call consumed by string equality, with
     /// that equality instruction (`count.rs`).
     string_slice_comparisons: HashMap<u32, u32>,
@@ -1581,7 +1580,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             input_transferred: HashMap::default(),
             map_probes: HashMap::default(),
             map_probe_refs: HashMap::default(),
-            node_base: None,
             string_slice_comparisons: HashMap::default(),
             short_origins: hd_base::HashSet::default(),
             short_skips: hd_base::HashSet::default(),
@@ -1804,10 +1802,41 @@ impl Em<'_, '_, '_> {
         if Ref(r).as_inst().is_none() {
             return self.konst(r);
         }
+        if let Some(owned) = self.param_owned(r) {
+            self.f.u32(u32::from(owned));
+            return Ok(());
+        }
+        if self.b.tags[r as usize] == Tag::Intrinsic
+            && IntrinsicOp::from_u32(self.b.data[r as usize][0]) == Some(IntrinsicOp::CellFlag)
+        {
+            let k = self.b.record(self.b.data[r as usize][1])[0] & !Ref::CONST_BIT;
+            return self.cell_flag(
+                self.b
+                    .consts
+                    .get(k as usize)
+                    .and_then(|c| u32::try_from(c.1).ok())
+                    .unwrap_or(NONE),
+            );
+        }
         for l in self.computed(r) {
             self.f.get(l);
         }
         Ok(())
+    }
+
+    /// Whether this instance owns the parameter `ParamOwned` value `r`
+    /// names: the whole-program pass does not lend it, and its type here
+    /// is an owned one. `None` for any other value.
+    pub(super) fn param_owned(&self, r: u32) -> Option<bool> {
+        let l = self.b.param_owned(r)? as usize;
+        let (k, t) = (
+            self.root_params.iter().position(|&p| p == l),
+            self.b.local_ty[l],
+        );
+        // A lifted closure's input convention is the function-value one.
+        let lends = (self.sub_id == 0).then_some(self.lends);
+        let pass = k.map(|k| self.argument_pass(lends, k, t));
+        Some(matches!(pass, Some(Pass::Owned)))
     }
 
     #[inline(never)]
@@ -2776,6 +2805,9 @@ impl Em<'_, '_, '_> {
                     IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut => {
                         self.map_slot_entry(i, args[0], args[1])?;
                     }
+                    // A constant where it is used ([`Em::param_owned`]).
+                    // Read where it is used ([`Em::push`]).
+                    IntrinsicOp::ParamOwned | IntrinsicOp::CellFlag => {}
                     IntrinsicOp::Item => {
                         // ruled out: call::emit_call emits Tag::Call
                         // for named intrinsics, collected as call targets.
@@ -3059,16 +3091,6 @@ impl Em<'_, '_, '_> {
     pub(super) fn pass_at(&self, lends: u64, k: usize, t: Ty) -> Pass {
         let mode = self.env().parameter_mode(t, false).with_lends(lends, k);
         crate::layout::pass_mode(self.pool(), self.env(), true, t, mode)
-    }
-
-    /// The body's own input convention, distinct from a callee's. Lifted
-    /// closure code uses the common function-value input convention.
-    pub(super) fn parameter_pass(&self, k: usize, t: Ty) -> Pass {
-        if self.sub_id != 0 {
-            self.argument_pass(None, k, t)
-        } else {
-            self.pass_at(self.lends, k, t)
-        }
     }
 
     /// None selects a function-value input; Some selects a declaration
@@ -3682,15 +3704,10 @@ impl Em<'_, '_, '_> {
             self.ret = self.results.iter().map(|v| self.f.local(*v)).collect();
         }
         if a != NONE && !self.results.is_empty() {
-            // The value moves out at its only use, or takes a count for
-            // the caller.
+            // The value moves out at its only use, or took its count for
+            // the caller before the exit set (`hd_tir::own::elaborate`).
             let moved = !borrowed && self.take(a);
-            let s = if !moved && !borrowed {
-                self.retain_ref(a)?
-            } else {
-                value::Src::Ref(a)
-            };
-            self.push_src(&s)?;
+            self.push(a)?;
             for l in self.ret.clone().iter().rev() {
                 self.f.set(*l);
             }

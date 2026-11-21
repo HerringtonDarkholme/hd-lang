@@ -57,6 +57,7 @@ pub(crate) mod copy_struct;
 pub(crate) mod counts;
 pub(crate) mod derive;
 pub mod drop_flags;
+mod elaborate;
 pub mod flow;
 pub(crate) mod frame;
 pub(crate) mod join_results;
@@ -93,6 +94,7 @@ pub(crate) mod referent;
 pub(crate) mod retains;
 pub use retains::{provider_view, took_source};
 pub(crate) mod scopes;
+pub use elaborate::{cell_drop, elaborate};
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
@@ -104,11 +106,12 @@ pub use storage::captures as closure_captures;
 pub use storage::{declarations, settle};
 pub mod values;
 
+pub(crate) use reason::CANCELLED;
 #[cfg(not(target_arch = "wasm32"))]
 pub use reason::check_copy_reasons;
 #[cfg(all(feature = "test-utils", not(target_arch = "wasm32")))]
 pub use reason::check_write_sweep;
-pub use reason::{Reason, copy_reasons, reason};
+pub use reason::{EXIT_DROP, OVERWRITTEN, Reason, copy_reasons, reason};
 
 /// Whether a value of a type may be copied ([`OwnCx::copies`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -502,6 +505,12 @@ pub trait OwnCx {
     /// concrete layout is unavailable to this query. The move pass
     /// splits a base's `Drop` into its other parts' only when this holds.
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool;
+    /// [`OwnCx::parts`], and an enum's variants though it has a Drop
+    /// hook: the parts drop elaboration opens (`own::elaborate`), of a
+    /// value laid out in place. The default is `parts`.
+    fn drop_parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
+        self.parts(ty, variant, out)
+    }
     /// In declaration order, whether each in-place enum variant has no
     /// counted fields or runtime Drop hook. True means the complete
     /// answer is available (an empty vector means no splittable enum).

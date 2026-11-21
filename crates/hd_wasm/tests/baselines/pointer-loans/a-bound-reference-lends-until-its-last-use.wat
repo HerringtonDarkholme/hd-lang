@@ -5,7 +5,7 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $own_write (param $p i32) (param $alias i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 11 |     r := &mut p.value
     local.get $p
     i32.const 4
@@ -113,6 +113,8 @@
       local.get $t0
       call $rt:release_ref'1
     end
+    ;; 13 |     seen := *r
+    local.get $t2
     ;; 11 |     r := &mut p.value
     local.get $p
     if
@@ -136,7 +138,7 @@
         call $rt:release_ref'2
       end
     end
-    local.get $t2
+    ;; 13 |     seen := *r
     local.get $t1
   )
 )

@@ -177,7 +177,7 @@ pub(super) struct Susp {
     pub ranges: HashMap<u32, (u32, u32)>,
     /// The `ctl` index of the current point's cancellation block.
     pub cancel_to: Option<usize>,
-    /// Set when this invocation leaves by cancellation (`Exit::Cancel`),
+    /// Set when this invocation leaves by cancellation (`Em::leave_cancelled`),
     /// for the counting exit. It starts at zero on every poll and never
     /// belongs to the persistent frame.
     pub cancelled: u32,
@@ -648,8 +648,8 @@ impl Em<'_, '_, '_> {
         r?;
         self.f.op(I::Br(1));
         self.close();
-        // Cancel the child, then leave through the enclosing scopes'
-        // ladders. A child left unwinding is waited for here first; the
+        // Cancel the child, then leave through the point's cancel block
+        // (`hd_tir::own::scopes`). A child left unwinding is waited for here first; the
         // child cancels are bracketed as a frame's cancel brackets its
         // work (`req.abandon.carry`).
         let (c, wait, seen) = (
@@ -720,11 +720,11 @@ impl Em<'_, '_, '_> {
             self.f.i32(0);
             self.f.set(all.node);
         } else {
-            // A ladder that waits keeps its own child in the frame's slot.
+            // A waiting suite's point keeps its own child in the frame's slot.
             // A join's local c is zero: its children live in the argument list.
             self.release_child(i, c);
         }
-        // The ladders run as fresh code.
+        // The cancel block runs as fresh code.
         self.f.i32(0);
         self.f.set(pc);
         // The point's cancel block: the releases of what the point holds,
@@ -1645,6 +1645,9 @@ pub(super) fn finish(
         }
         Some(loaded)
     };
+    // Its root's cancel block (`hd_tir::own::elaborate`), over the saved
+    // owners rebound to their loaded values.
+    let mut body_places = Vec::new();
     for (l, ls) in places {
         // ruled out: every owned cold parameter/capture uses parameter
         // value locals or a distinct cell-address local. param_cell replaces
@@ -1656,14 +1659,14 @@ pub(super) fn finish(
             load(&mut em, &ls),
             "cold owned parameter and capture locals have frame save slots",
         );
-        em.because(Reason::Cancelled, |em| {
-            if em.is_cell(l) {
-                em.count_local(l, &loaded, false)
-            } else {
-                em.release_drop_place(&loaded, em.b.local_ty[l], &Em::local_place(l))
-            }
-        })?;
+        body_places.push((l, ls));
+        em.locals.insert(l, loaded);
     }
+    let root = em.b.sub_root[usize::from(em.sub_id)];
+    if let Some(blk) = em.b.cancel_block(root) {
+        em.because(Reason::Cancelled, |em| em.block_into(blk, None))?;
+    }
+    em.locals.extend(body_places);
     // Reference parameter slots precede all body-allocated waker nodes.
     // These typed identities replace opaque temporary ownership inference.
     for saved in em.frame_refs.clone() {
@@ -1689,7 +1692,7 @@ pub(super) fn finish(
     }
     em.f.op(I::End);
     // A parameter a body with no suspension point borrows from its
-    // frame (`Em::instance_loans`): the frame's count outlives the body.
+    // frame (`Em::borrowed`): the frame's count outlives the body.
     for &l in plocals {
         if em.borrowed.contains(&l)
             && let Some(ls) = em.locals.get(&l).cloned()

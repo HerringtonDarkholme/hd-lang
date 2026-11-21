@@ -42,5 +42,6 @@ std/rt_tests.stage_case/add
   %32 = Break L0 - : never
   %33 = Block - : ()
   %34 = Scope %33 [] : ()
-  %35 = Block - : ()
+  %35 = Drop [$1] : ()
+  %36 = Block - : ()
   exit sub 0 drops [$1]

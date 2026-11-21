@@ -2,15 +2,66 @@
 == @build: dev
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
+  (import "fixture" "release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (func $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $borrowed (param $t1 i32) (param $t0 i32)
+  (func $borrowed (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.0.2 i32) (param $x.0.0.3 i32) (param $x.0.0.4 i32) (param $x.0.0.5 i32) (param $x.0.0.6 i32) (param $x.0.0.7 i32) (param $x.0.0.8 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.1.2 i32) (param $x.0.1.3 i32) (param $x.0.1.4 i32) (param $x.0.1.5 i32) (param $x.0.1.6 i32) (param $x.0.1.7 i32) (param $x.0.1.8 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.0.2 i32) (param $x.1.0.3 i32) (param $x.1.0.4 i32) (param $x.1.0.5 i32) (param $x.1.0.6 i32) (param $x.1.0.7 i32) (param $x.1.0.8 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.1.2 i32) (param $x.1.1.3 i32) (param $x.1.1.4 i32) (param $x.1.1.5 i32) (param $x.1.1.6 i32) (param $x.1.1.7 i32) (param $x.1.1.8 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
-      local.get $t1
-      i32.const 72
-      memory.copy $heap $heap
+      local.get $x.0.0.0
+      i32.store $heap
+      local.get $t0
+      local.get $x.0.0.1
+      i32.store $heap offset=4
+      local.get $t0
+      local.get $x.0.0.2
+      i32.store $heap offset=8
+      local.get $t0
+      local.get $x.0.0.3
+      i32.store $heap offset=12
+      local.get $t0
+      local.get $x.0.0.4
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $x.0.0.5
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $x.0.0.6
+      i32.store $heap offset=24
+      local.get $t0
+      local.get $x.0.0.7
+      i32.store $heap offset=28
+      local.get $t0
+      local.get $x.0.0.8
+      i32.store $heap offset=32
+      local.get $t0
+      local.get $x.0.1.0
+      i32.store $heap offset=36
+      local.get $t0
+      local.get $x.0.1.1
+      i32.store $heap offset=40
+      local.get $t0
+      local.get $x.0.1.2
+      i32.store $heap offset=44
+      local.get $t0
+      local.get $x.0.1.3
+      i32.store $heap offset=48
+      local.get $t0
+      local.get $x.0.1.4
+      i32.store $heap offset=52
+      local.get $t0
+      local.get $x.0.1.5
+      i32.store $heap offset=56
+      local.get $t0
+      local.get $x.0.1.6
+      i32.store $heap offset=60
+      local.get $t0
+      local.get $x.0.1.7
+      i32.store $heap offset=64
+      local.get $t0
+      local.get $x.0.1.8
+      i32.store $heap offset=68
       return
     end
   )
@@ -146,16 +197,180 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.2.0 i32) (param $x.0.2.1 i32) (param $x.0.3.0 i32) (param $x.0.3.1 i32) (param $x.0.4.0 i32) (param $x.0.4.1 i32) (param $x.0.5.0 i32) (param $x.0.5.1 i32) (param $x.0.6.0 i32) (param $x.0.6.1 i32) (param $x.0.7.0 i32) (param $x.0.7.1 i32) (param $x.0.8.0 i32) (param $x.0.8.1 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.2.0 i32) (param $x.1.2.1 i32) (param $x.1.3.0 i32) (param $x.1.3.1 i32) (param $x.1.4.0 i32) (param $x.1.4.1 i32) (param $x.1.5.0 i32) (param $x.1.5.1 i32) (param $x.1.6.0 i32) (param $x.1.6.1 i32) (param $x.1.7.0 i32) (param $x.1.7.1 i32) (param $x.1.8.0 i32) (param $x.1.8.1 i32) (param $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $x.0.0.0
+      local.get $x.0.0.1
+      local.get $x.0.1.0
+      local.get $x.0.1.1
+      local.get $x.0.2.0
+      local.get $x.0.2.1
+      local.get $x.0.3.0
+      local.get $x.0.3.1
+      local.get $x.0.4.0
+      local.get $x.0.4.1
+      local.get $x.0.5.0
+      local.get $x.0.5.1
+      local.get $x.0.6.0
+      local.get $x.0.6.1
+      local.get $x.0.7.0
+      local.get $x.0.7.1
+      local.get $x.0.8.0
+      local.get $x.0.8.1
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      local.set $t9
+      local.set $t10
+      local.set $t11
+      local.set $t12
+      local.set $t13
+      local.set $t14
+      local.set $t15
+      local.set $t16
+      local.set $t17
+      i32.const 0
+      local.tee $x.0.0.0
+      local.tee $x.0.0.1
+      local.tee $x.0.1.0
+      local.tee $x.0.1.1
+      local.tee $x.0.2.0
+      local.tee $x.0.2.1
+      local.tee $x.0.3.0
+      local.tee $x.0.3.1
+      local.tee $x.0.4.0
+      local.tee $x.0.4.1
+      local.tee $x.0.5.0
+      local.tee $x.0.5.1
+      local.tee $x.0.6.0
+      local.tee $x.0.6.1
+      local.tee $x.0.7.0
+      local.tee $x.0.7.1
+      local.tee $x.0.8.0
+      local.set $x.0.8.1
+      local.get $t18
+      if
+        local.get $x.0.0.0
+        local.get $x.0.0.1
+        local.get $x.0.1.0
+        local.get $x.0.1.1
+        local.get $x.0.2.0
+        local.get $x.0.2.1
+        local.get $x.0.3.0
+        local.get $x.0.3.1
+        local.get $x.0.4.0
+        local.get $x.0.4.1
+        local.get $x.0.5.0
+        local.get $x.0.5.1
+        local.get $x.0.6.0
+        local.get $x.0.6.1
+        local.get $x.0.7.0
+        local.get $x.0.7.1
+        local.get $x.0.8.0
+        local.get $x.0.8.1
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]"
+      else
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t19
+      local.get $t17
+      i32.store $heap
+      local.get $t19
+      local.get $t16
+      i32.store $heap offset=4
+      local.get $t19
+      local.get $t15
+      i32.store $heap offset=8
+      local.get $t19
+      local.get $t14
+      i32.store $heap offset=12
+      local.get $t19
+      local.get $t13
+      i32.store $heap offset=16
+      local.get $t19
+      local.get $t12
+      i32.store $heap offset=20
+      local.get $t19
+      local.get $t11
+      i32.store $heap offset=24
+      local.get $t19
+      local.get $t10
+      i32.store $heap offset=28
+      local.get $t19
+      local.get $t9
+      i32.store $heap offset=32
+      local.get $t19
+      local.get $t8
+      i32.store $heap offset=36
+      local.get $t19
+      local.get $t7
+      i32.store $heap offset=40
+      local.get $t19
+      local.get $t6
+      i32.store $heap offset=44
+      local.get $t19
+      local.get $t5
+      i32.store $heap offset=48
+      local.get $t19
+      local.get $t4
+      i32.store $heap offset=52
+      local.get $t19
+      local.get $t3
+      i32.store $heap offset=56
+      local.get $t19
+      local.get $t2
+      i32.store $heap offset=60
+      local.get $t19
+      local.get $t1
+      i32.store $heap offset=64
+      local.get $t19
+      local.get $t0
+      i32.store $heap offset=68
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0
@@ -176,15 +391,66 @@
 == @build: checked
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
+  (import "fixture" "release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (func $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $borrowed (param $t1 i32) (param $t0 i32)
+  (func $borrowed (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.0.2 i32) (param $x.0.0.3 i32) (param $x.0.0.4 i32) (param $x.0.0.5 i32) (param $x.0.0.6 i32) (param $x.0.0.7 i32) (param $x.0.0.8 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.1.2 i32) (param $x.0.1.3 i32) (param $x.0.1.4 i32) (param $x.0.1.5 i32) (param $x.0.1.6 i32) (param $x.0.1.7 i32) (param $x.0.1.8 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.0.2 i32) (param $x.1.0.3 i32) (param $x.1.0.4 i32) (param $x.1.0.5 i32) (param $x.1.0.6 i32) (param $x.1.0.7 i32) (param $x.1.0.8 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.1.2 i32) (param $x.1.1.3 i32) (param $x.1.1.4 i32) (param $x.1.1.5 i32) (param $x.1.1.6 i32) (param $x.1.1.7 i32) (param $x.1.1.8 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
-      local.get $t1
-      i32.const 72
-      memory.copy $heap $heap
+      local.get $x.0.0.0
+      i32.store $heap
+      local.get $t0
+      local.get $x.0.0.1
+      i32.store $heap offset=4
+      local.get $t0
+      local.get $x.0.0.2
+      i32.store $heap offset=8
+      local.get $t0
+      local.get $x.0.0.3
+      i32.store $heap offset=12
+      local.get $t0
+      local.get $x.0.0.4
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $x.0.0.5
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $x.0.0.6
+      i32.store $heap offset=24
+      local.get $t0
+      local.get $x.0.0.7
+      i32.store $heap offset=28
+      local.get $t0
+      local.get $x.0.0.8
+      i32.store $heap offset=32
+      local.get $t0
+      local.get $x.0.1.0
+      i32.store $heap offset=36
+      local.get $t0
+      local.get $x.0.1.1
+      i32.store $heap offset=40
+      local.get $t0
+      local.get $x.0.1.2
+      i32.store $heap offset=44
+      local.get $t0
+      local.get $x.0.1.3
+      i32.store $heap offset=48
+      local.get $t0
+      local.get $x.0.1.4
+      i32.store $heap offset=52
+      local.get $t0
+      local.get $x.0.1.5
+      i32.store $heap offset=56
+      local.get $t0
+      local.get $x.0.1.6
+      i32.store $heap offset=60
+      local.get $t0
+      local.get $x.0.1.7
+      i32.store $heap offset=64
+      local.get $t0
+      local.get $x.0.1.8
+      i32.store $heap offset=68
       return
     end
   )
@@ -320,16 +586,180 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.2.0 i32) (param $x.0.2.1 i32) (param $x.0.3.0 i32) (param $x.0.3.1 i32) (param $x.0.4.0 i32) (param $x.0.4.1 i32) (param $x.0.5.0 i32) (param $x.0.5.1 i32) (param $x.0.6.0 i32) (param $x.0.6.1 i32) (param $x.0.7.0 i32) (param $x.0.7.1 i32) (param $x.0.8.0 i32) (param $x.0.8.1 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.2.0 i32) (param $x.1.2.1 i32) (param $x.1.3.0 i32) (param $x.1.3.1 i32) (param $x.1.4.0 i32) (param $x.1.4.1 i32) (param $x.1.5.0 i32) (param $x.1.5.1 i32) (param $x.1.6.0 i32) (param $x.1.6.1 i32) (param $x.1.7.0 i32) (param $x.1.7.1 i32) (param $x.1.8.0 i32) (param $x.1.8.1 i32) (param $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $x.0.0.0
+      local.get $x.0.0.1
+      local.get $x.0.1.0
+      local.get $x.0.1.1
+      local.get $x.0.2.0
+      local.get $x.0.2.1
+      local.get $x.0.3.0
+      local.get $x.0.3.1
+      local.get $x.0.4.0
+      local.get $x.0.4.1
+      local.get $x.0.5.0
+      local.get $x.0.5.1
+      local.get $x.0.6.0
+      local.get $x.0.6.1
+      local.get $x.0.7.0
+      local.get $x.0.7.1
+      local.get $x.0.8.0
+      local.get $x.0.8.1
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      local.set $t9
+      local.set $t10
+      local.set $t11
+      local.set $t12
+      local.set $t13
+      local.set $t14
+      local.set $t15
+      local.set $t16
+      local.set $t17
+      i32.const 0
+      local.tee $x.0.0.0
+      local.tee $x.0.0.1
+      local.tee $x.0.1.0
+      local.tee $x.0.1.1
+      local.tee $x.0.2.0
+      local.tee $x.0.2.1
+      local.tee $x.0.3.0
+      local.tee $x.0.3.1
+      local.tee $x.0.4.0
+      local.tee $x.0.4.1
+      local.tee $x.0.5.0
+      local.tee $x.0.5.1
+      local.tee $x.0.6.0
+      local.tee $x.0.6.1
+      local.tee $x.0.7.0
+      local.tee $x.0.7.1
+      local.tee $x.0.8.0
+      local.set $x.0.8.1
+      local.get $t18
+      if
+        local.get $x.0.0.0
+        local.get $x.0.0.1
+        local.get $x.0.1.0
+        local.get $x.0.1.1
+        local.get $x.0.2.0
+        local.get $x.0.2.1
+        local.get $x.0.3.0
+        local.get $x.0.3.1
+        local.get $x.0.4.0
+        local.get $x.0.4.1
+        local.get $x.0.5.0
+        local.get $x.0.5.1
+        local.get $x.0.6.0
+        local.get $x.0.6.1
+        local.get $x.0.7.0
+        local.get $x.0.7.1
+        local.get $x.0.8.0
+        local.get $x.0.8.1
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]"
+      else
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t19
+      local.get $t17
+      i32.store $heap
+      local.get $t19
+      local.get $t16
+      i32.store $heap offset=4
+      local.get $t19
+      local.get $t15
+      i32.store $heap offset=8
+      local.get $t19
+      local.get $t14
+      i32.store $heap offset=12
+      local.get $t19
+      local.get $t13
+      i32.store $heap offset=16
+      local.get $t19
+      local.get $t12
+      i32.store $heap offset=20
+      local.get $t19
+      local.get $t11
+      i32.store $heap offset=24
+      local.get $t19
+      local.get $t10
+      i32.store $heap offset=28
+      local.get $t19
+      local.get $t9
+      i32.store $heap offset=32
+      local.get $t19
+      local.get $t8
+      i32.store $heap offset=36
+      local.get $t19
+      local.get $t7
+      i32.store $heap offset=40
+      local.get $t19
+      local.get $t6
+      i32.store $heap offset=44
+      local.get $t19
+      local.get $t5
+      i32.store $heap offset=48
+      local.get $t19
+      local.get $t4
+      i32.store $heap offset=52
+      local.get $t19
+      local.get $t3
+      i32.store $heap offset=56
+      local.get $t19
+      local.get $t2
+      i32.store $heap offset=60
+      local.get $t19
+      local.get $t1
+      i32.store $heap offset=64
+      local.get $t19
+      local.get $t0
+      i32.store $heap offset=68
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0
@@ -350,15 +780,66 @@
 == @build: release
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
+  (import "fixture" "release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (func $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $borrowed (param $t1 i32) (param $t0 i32)
+  (func $borrowed (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.0.2 i32) (param $x.0.0.3 i32) (param $x.0.0.4 i32) (param $x.0.0.5 i32) (param $x.0.0.6 i32) (param $x.0.0.7 i32) (param $x.0.0.8 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.1.2 i32) (param $x.0.1.3 i32) (param $x.0.1.4 i32) (param $x.0.1.5 i32) (param $x.0.1.6 i32) (param $x.0.1.7 i32) (param $x.0.1.8 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.0.2 i32) (param $x.1.0.3 i32) (param $x.1.0.4 i32) (param $x.1.0.5 i32) (param $x.1.0.6 i32) (param $x.1.0.7 i32) (param $x.1.0.8 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.1.2 i32) (param $x.1.1.3 i32) (param $x.1.1.4 i32) (param $x.1.1.5 i32) (param $x.1.1.6 i32) (param $x.1.1.7 i32) (param $x.1.1.8 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
-      local.get $t1
-      i32.const 72
-      memory.copy $heap $heap
+      local.get $x.0.0.0
+      i32.store $heap
+      local.get $t0
+      local.get $x.0.0.1
+      i32.store $heap offset=4
+      local.get $t0
+      local.get $x.0.0.2
+      i32.store $heap offset=8
+      local.get $t0
+      local.get $x.0.0.3
+      i32.store $heap offset=12
+      local.get $t0
+      local.get $x.0.0.4
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $x.0.0.5
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $x.0.0.6
+      i32.store $heap offset=24
+      local.get $t0
+      local.get $x.0.0.7
+      i32.store $heap offset=28
+      local.get $t0
+      local.get $x.0.0.8
+      i32.store $heap offset=32
+      local.get $t0
+      local.get $x.0.1.0
+      i32.store $heap offset=36
+      local.get $t0
+      local.get $x.0.1.1
+      i32.store $heap offset=40
+      local.get $t0
+      local.get $x.0.1.2
+      i32.store $heap offset=44
+      local.get $t0
+      local.get $x.0.1.3
+      i32.store $heap offset=48
+      local.get $t0
+      local.get $x.0.1.4
+      i32.store $heap offset=52
+      local.get $t0
+      local.get $x.0.1.5
+      i32.store $heap offset=56
+      local.get $t0
+      local.get $x.0.1.6
+      i32.store $heap offset=60
+      local.get $t0
+      local.get $x.0.1.7
+      i32.store $heap offset=64
+      local.get $t0
+      local.get $x.0.1.8
+      i32.store $heap offset=68
       return
     end
   )
@@ -494,16 +975,180 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.2.0 i32) (param $x.0.2.1 i32) (param $x.0.3.0 i32) (param $x.0.3.1 i32) (param $x.0.4.0 i32) (param $x.0.4.1 i32) (param $x.0.5.0 i32) (param $x.0.5.1 i32) (param $x.0.6.0 i32) (param $x.0.6.1 i32) (param $x.0.7.0 i32) (param $x.0.7.1 i32) (param $x.0.8.0 i32) (param $x.0.8.1 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.2.0 i32) (param $x.1.2.1 i32) (param $x.1.3.0 i32) (param $x.1.3.1 i32) (param $x.1.4.0 i32) (param $x.1.4.1 i32) (param $x.1.5.0 i32) (param $x.1.5.1 i32) (param $x.1.6.0 i32) (param $x.1.6.1 i32) (param $x.1.7.0 i32) (param $x.1.7.1 i32) (param $x.1.8.0 i32) (param $x.1.8.1 i32) (param $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $x.0.0.0
+      local.get $x.0.0.1
+      local.get $x.0.1.0
+      local.get $x.0.1.1
+      local.get $x.0.2.0
+      local.get $x.0.2.1
+      local.get $x.0.3.0
+      local.get $x.0.3.1
+      local.get $x.0.4.0
+      local.get $x.0.4.1
+      local.get $x.0.5.0
+      local.get $x.0.5.1
+      local.get $x.0.6.0
+      local.get $x.0.6.1
+      local.get $x.0.7.0
+      local.get $x.0.7.1
+      local.get $x.0.8.0
+      local.get $x.0.8.1
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      local.set $t9
+      local.set $t10
+      local.set $t11
+      local.set $t12
+      local.set $t13
+      local.set $t14
+      local.set $t15
+      local.set $t16
+      local.set $t17
+      i32.const 0
+      local.tee $x.0.0.0
+      local.tee $x.0.0.1
+      local.tee $x.0.1.0
+      local.tee $x.0.1.1
+      local.tee $x.0.2.0
+      local.tee $x.0.2.1
+      local.tee $x.0.3.0
+      local.tee $x.0.3.1
+      local.tee $x.0.4.0
+      local.tee $x.0.4.1
+      local.tee $x.0.5.0
+      local.tee $x.0.5.1
+      local.tee $x.0.6.0
+      local.tee $x.0.6.1
+      local.tee $x.0.7.0
+      local.tee $x.0.7.1
+      local.tee $x.0.8.0
+      local.set $x.0.8.1
+      local.get $t18
+      if
+        local.get $x.0.0.0
+        local.get $x.0.0.1
+        local.get $x.0.1.0
+        local.get $x.0.1.1
+        local.get $x.0.2.0
+        local.get $x.0.2.1
+        local.get $x.0.3.0
+        local.get $x.0.3.1
+        local.get $x.0.4.0
+        local.get $x.0.4.1
+        local.get $x.0.5.0
+        local.get $x.0.5.1
+        local.get $x.0.6.0
+        local.get $x.0.6.1
+        local.get $x.0.7.0
+        local.get $x.0.7.1
+        local.get $x.0.8.0
+        local.get $x.0.8.1
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]"
+      else
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t19
+      local.get $t17
+      i32.store $heap
+      local.get $t19
+      local.get $t16
+      i32.store $heap offset=4
+      local.get $t19
+      local.get $t15
+      i32.store $heap offset=8
+      local.get $t19
+      local.get $t14
+      i32.store $heap offset=12
+      local.get $t19
+      local.get $t13
+      i32.store $heap offset=16
+      local.get $t19
+      local.get $t12
+      i32.store $heap offset=20
+      local.get $t19
+      local.get $t11
+      i32.store $heap offset=24
+      local.get $t19
+      local.get $t10
+      i32.store $heap offset=28
+      local.get $t19
+      local.get $t9
+      i32.store $heap offset=32
+      local.get $t19
+      local.get $t8
+      i32.store $heap offset=36
+      local.get $t19
+      local.get $t7
+      i32.store $heap offset=40
+      local.get $t19
+      local.get $t6
+      i32.store $heap offset=44
+      local.get $t19
+      local.get $t5
+      i32.store $heap offset=48
+      local.get $t19
+      local.get $t4
+      i32.store $heap offset=52
+      local.get $t19
+      local.get $t3
+      i32.store $heap offset=56
+      local.get $t19
+      local.get $t2
+      i32.store $heap offset=60
+      local.get $t19
+      local.get $t1
+      i32.store $heap offset=64
+      local.get $t19
+      local.get $t0
+      i32.store $heap offset=68
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0
@@ -524,15 +1169,66 @@
 == @build: release checked
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
+  (import "fixture" "release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (func $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $borrowed (param $t1 i32) (param $t0 i32)
+  (func $borrowed (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.0.2 i32) (param $x.0.0.3 i32) (param $x.0.0.4 i32) (param $x.0.0.5 i32) (param $x.0.0.6 i32) (param $x.0.0.7 i32) (param $x.0.0.8 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.1.2 i32) (param $x.0.1.3 i32) (param $x.0.1.4 i32) (param $x.0.1.5 i32) (param $x.0.1.6 i32) (param $x.0.1.7 i32) (param $x.0.1.8 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.0.2 i32) (param $x.1.0.3 i32) (param $x.1.0.4 i32) (param $x.1.0.5 i32) (param $x.1.0.6 i32) (param $x.1.0.7 i32) (param $x.1.0.8 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.1.2 i32) (param $x.1.1.3 i32) (param $x.1.1.4 i32) (param $x.1.1.5 i32) (param $x.1.1.6 i32) (param $x.1.1.7 i32) (param $x.1.1.8 i32) (param $t0 i32)
     ;; 44 |     return x._0
     block
       local.get $t0
-      local.get $t1
-      i32.const 72
-      memory.copy $heap $heap
+      local.get $x.0.0.0
+      i32.store $heap
+      local.get $t0
+      local.get $x.0.0.1
+      i32.store $heap offset=4
+      local.get $t0
+      local.get $x.0.0.2
+      i32.store $heap offset=8
+      local.get $t0
+      local.get $x.0.0.3
+      i32.store $heap offset=12
+      local.get $t0
+      local.get $x.0.0.4
+      i32.store $heap offset=16
+      local.get $t0
+      local.get $x.0.0.5
+      i32.store $heap offset=20
+      local.get $t0
+      local.get $x.0.0.6
+      i32.store $heap offset=24
+      local.get $t0
+      local.get $x.0.0.7
+      i32.store $heap offset=28
+      local.get $t0
+      local.get $x.0.0.8
+      i32.store $heap offset=32
+      local.get $t0
+      local.get $x.0.1.0
+      i32.store $heap offset=36
+      local.get $t0
+      local.get $x.0.1.1
+      i32.store $heap offset=40
+      local.get $t0
+      local.get $x.0.1.2
+      i32.store $heap offset=44
+      local.get $t0
+      local.get $x.0.1.3
+      i32.store $heap offset=48
+      local.get $t0
+      local.get $x.0.1.4
+      i32.store $heap offset=52
+      local.get $t0
+      local.get $x.0.1.5
+      i32.store $heap offset=56
+      local.get $t0
+      local.get $x.0.1.6
+      i32.store $heap offset=60
+      local.get $t0
+      local.get $x.0.1.7
+      i32.store $heap offset=64
+      local.get $t0
+      local.get $x.0.1.8
+      i32.store $heap offset=68
       return
     end
   )
@@ -668,16 +1364,180 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $x.0.0.0 i32) (param $x.0.0.1 i32) (param $x.0.1.0 i32) (param $x.0.1.1 i32) (param $x.0.2.0 i32) (param $x.0.2.1 i32) (param $x.0.3.0 i32) (param $x.0.3.1 i32) (param $x.0.4.0 i32) (param $x.0.4.1 i32) (param $x.0.5.0 i32) (param $x.0.5.1 i32) (param $x.0.6.0 i32) (param $x.0.6.1 i32) (param $x.0.7.0 i32) (param $x.0.7.1 i32) (param $x.0.8.0 i32) (param $x.0.8.1 i32) (param $x.1.0.0 i32) (param $x.1.0.1 i32) (param $x.1.1.0 i32) (param $x.1.1.1 i32) (param $x.1.2.0 i32) (param $x.1.2.1 i32) (param $x.1.3.0 i32) (param $x.1.3.1 i32) (param $x.1.4.0 i32) (param $x.1.4.1 i32) (param $x.1.5.0 i32) (param $x.1.5.1 i32) (param $x.1.6.0 i32) (param $x.1.6.1 i32) (param $x.1.7.0 i32) (param $x.1.7.1 i32) (param $x.1.8.0 i32) (param $x.1.8.1 i32) (param $t19 i32) (local $t18 i32) (local $t17 i32) (local $t16 i32) (local $t15 i32) (local $t14 i32) (local $t13 i32) (local $t12 i32) (local $t11 i32) (local $t10 i32) (local $t9 i32) (local $t8 i32) (local $t7 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $x.0.0.0
+      local.get $x.0.0.1
+      local.get $x.0.1.0
+      local.get $x.0.1.1
+      local.get $x.0.2.0
+      local.get $x.0.2.1
+      local.get $x.0.3.0
+      local.get $x.0.3.1
+      local.get $x.0.4.0
+      local.get $x.0.4.1
+      local.get $x.0.5.0
+      local.get $x.0.5.1
+      local.get $x.0.6.0
+      local.get $x.0.6.1
+      local.get $x.0.7.0
+      local.get $x.0.7.1
+      local.get $x.0.8.0
+      local.get $x.0.8.1
+      local.set $t0
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.set $t4
+      local.set $t5
+      local.set $t6
+      local.set $t7
+      local.set $t8
+      local.set $t9
+      local.set $t10
+      local.set $t11
+      local.set $t12
+      local.set $t13
+      local.set $t14
+      local.set $t15
+      local.set $t16
+      local.set $t17
+      i32.const 0
+      local.tee $x.0.0.0
+      local.tee $x.0.0.1
+      local.tee $x.0.1.0
+      local.tee $x.0.1.1
+      local.tee $x.0.2.0
+      local.tee $x.0.2.1
+      local.tee $x.0.3.0
+      local.tee $x.0.3.1
+      local.tee $x.0.4.0
+      local.tee $x.0.4.1
+      local.tee $x.0.5.0
+      local.tee $x.0.5.1
+      local.tee $x.0.6.0
+      local.tee $x.0.6.1
+      local.tee $x.0.7.0
+      local.tee $x.0.7.1
+      local.tee $x.0.8.0
+      local.set $x.0.8.1
+      local.get $t18
+      if
+        local.get $x.0.0.0
+        local.get $x.0.0.1
+        local.get $x.0.1.0
+        local.get $x.0.1.1
+        local.get $x.0.2.0
+        local.get $x.0.2.1
+        local.get $x.0.3.0
+        local.get $x.0.3.1
+        local.get $x.0.4.0
+        local.get $x.0.4.1
+        local.get $x.0.5.0
+        local.get $x.0.5.1
+        local.get $x.0.6.0
+        local.get $x.0.6.1
+        local.get $x.0.7.0
+        local.get $x.0.7.1
+        local.get $x.0.8.0
+        local.get $x.0.8.1
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string))]"
+      else
+        local.get $x.1.0.0
+        local.get $x.1.0.1
+        local.get $x.1.1.0
+        local.get $x.1.1.1
+        local.get $x.1.2.0
+        local.get $x.1.2.1
+        local.get $x.1.3.0
+        local.get $x.1.3.1
+        local.get $x.1.4.0
+        local.get $x.1.4.1
+        local.get $x.1.5.0
+        local.get $x.1.5.1
+        local.get $x.1.6.0
+        local.get $x.1.6.1
+        local.get $x.1.7.0
+        local.get $x.1.7.1
+        local.get $x.1.8.0
+        local.get $x.1.8.1
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t19
+      local.get $t17
+      i32.store $heap
+      local.get $t19
+      local.get $t16
+      i32.store $heap offset=4
+      local.get $t19
+      local.get $t15
+      i32.store $heap offset=8
+      local.get $t19
+      local.get $t14
+      i32.store $heap offset=12
+      local.get $t19
+      local.get $t13
+      i32.store $heap offset=16
+      local.get $t19
+      local.get $t12
+      i32.store $heap offset=20
+      local.get $t19
+      local.get $t11
+      i32.store $heap offset=24
+      local.get $t19
+      local.get $t10
+      i32.store $heap offset=28
+      local.get $t19
+      local.get $t9
+      i32.store $heap offset=32
+      local.get $t19
+      local.get $t8
+      i32.store $heap offset=36
+      local.get $t19
+      local.get $t7
+      i32.store $heap offset=40
+      local.get $t19
+      local.get $t6
+      i32.store $heap offset=44
+      local.get $t19
+      local.get $t5
+      i32.store $heap offset=48
+      local.get $t19
+      local.get $t4
+      i32.store $heap offset=52
+      local.get $t19
+      local.get $t3
+      i32.store $heap offset=56
+      local.get $t19
+      local.get $t2
+      i32.store $heap offset=60
+      local.get $t19
+      local.get $t1
+      i32.store $heap offset=64
+      local.get $t19
+      local.get $t0
+      i32.store $heap offset=68
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0

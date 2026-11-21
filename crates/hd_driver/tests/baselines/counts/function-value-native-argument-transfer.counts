@@ -167,8 +167,6 @@ fn empty_controls() -> void:
     assert_equal(read_empty(empty_size, EmptyResource {}), 0)
     assert_equal(empty_drops, 1, reason="a named callback drops its zero-leaf owner once")
     inspect := fn(value: EmptyResource) -> usize: 0
-> std/rt_tests.stage_case/empty_controls
->   release std.rt_tests.stage_case.EmptyResource (last use)
     assert_equal(read_empty(inspect, EmptyResource {}), 0)
     assert_equal(empty_drops, 2, reason="a literal callback drops its zero-leaf owner once")
     seen := box(+0)
@@ -207,6 +205,7 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
     sleep!(ms(1))
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release counted reference (last use)
     value.owned.len()
 
 @inline(.Never)
@@ -230,6 +229,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   retain counted reference (stored)
             cold_starts += 1
             sleep!(ms(1))
+>   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
             value.owned.len()
@@ -274,6 +274,8 @@ pub fn main!() -> void $ Clock:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
+>   release *mut i32 (last use)
+>   release List[bool] (last use)
 >   release Suspend[usize] (last use)
             1,
             reason="the suspended callback reads its unique input after awaiting",

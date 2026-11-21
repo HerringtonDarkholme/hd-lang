@@ -20,5 +20,6 @@ app/main/describe
   %15 = SwitchTag %2 [#0 %10 %14] : never
   %16 = Block - : never
   %17 = Match %2 [%16 %4 %6] : string
-  %18 = Block %17 : string
+  %18 = Drop [$0] : ()
+  %19 = Block %17 : string
   exit sub 0 drops [$0]
