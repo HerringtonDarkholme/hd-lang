@@ -2934,24 +2934,6 @@ impl Env<'_> {
         Some(self.node(def, args))
     }
 
-    /// Generic item `def`'s own body folded and inlined
-    /// ([`Env::inlined_instance`] at no type arguments), once: the shape
-    /// collection's analyses read (`ProgramEnv::shape_body`).
-    pub(super) fn generic_inlined(&self, def: DefId) -> Option<&(Body, Hash128)> {
-        let lazy = self.run.lazy_body(self.p, def)?;
-        let inlined = lazy.inlined.get_or_init(|| {
-            let (inlined, reads) = reading(|| self.inlined_instance((def, TyList::EMPTY)));
-            lock(&self.run.inlined_reads).insert(def, reads.into());
-            inlined.map(Box::new)
-        });
-        // The reads that made the form, here or under another body, are
-        // this body's too (#2028).
-        if let Some(reads) = lock(&self.run.inlined_reads).get(&def) {
-            note_reads(reads);
-        }
-        inlined.as_deref()
-    }
-
     /// Instance `node`'s body before the passes: an item's own body, or a
     /// generic item's at its type arguments (`hd_mono::instantiate`: its
     /// types substituted, its bound calls chosen as impl or builtin

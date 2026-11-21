@@ -1166,9 +1166,6 @@ struct LazyBody {
 struct BodyForms {
     body: OnceLock<Option<(Body, Hash128)>>,
     owned: OnceLock<Option<(Body, Hash128)>>,
-    /// A generic item's body folded and inlined, before the passes
-    /// (`ProgramEnv::shape_body`), and its hash.
-    inlined: OnceLock<Option<Box<(Body, Hash128)>>>,
     /// Set once a rendering build has offered the body to its view.
     rendered: OnceLock<()>,
     /// The body's TIR hash, read from its bytes once per run
@@ -1717,10 +1714,6 @@ struct Run<'a> {
     /// The roots only the entry calls (`OwnCx::entry_root`): `main`, or the
     /// test cases. Collection sets them before it asks for a body.
     entry_roots: OnceLock<hd_base::HashSet<DefId>>,
-    /// Per generic item, the bodies its folded and inlined form
-    /// (`BodyForms::inlined`) read: a body that substitutes the cached
-    /// form reads them too (`own::Run::package_owned_key`, #2028).
-    inlined_reads: Mutex<HashMap<DefId, Arc<[DefId]>>>,
     /// The hash of every non-std module's checked declarations, once per
     /// run (`own::Run::program_api_hash`).
     program_api: OnceLock<Hash128>,
@@ -2765,7 +2758,6 @@ fn build_packages_inner(
         lifted: Mutex::new(HashMap::default()),
         liftings: Mutex::new(HashMap::default()),
         entry_roots: OnceLock::new(),
-        inlined_reads: Mutex::new(HashMap::default()),
         program_api: OnceLock::new(),
         own_canons: Mutex::new(hd_mono::layout::CanonMemo::default()),
         promote_args: hd_opt::passes::pipeline(packages.target, packages.level)
@@ -13102,7 +13094,8 @@ impl ProgramEnv for Env<'_> {
         if !generic {
             return self.body(def);
         }
-        self.generic_inlined(def).map(|b| &b.0)
+        let lazy = self.run.lazy_body(self.p, def)?;
+        self.run.decode(lazy).map(|b| &b.0)
     }
     fn exclusive_body(&self, def: DefId, args: TyList) -> Option<(u64, Arc<Body>)> {
         self.run.summaries.as_ref()?.exclusive(self.node(def, args))

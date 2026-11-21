@@ -58,10 +58,10 @@ pub trait ProgramEnv: LayoutEnv {
     /// running the passes over it.
     fn has_body(&self, def: DefId) -> bool;
     /// The body whose types and calls collection's analyses read (exact
-    /// parameters, permission sharing): a generic item's body folded (and,
-    /// in release, inlined) but not owned, since each of its instances is
-    /// owned on its own (`ProgramEnv::instance_body`); else
-    /// [`ProgramEnv::body`]. The passes add counts and read modes only.
+    /// parameters, permission sharing): a generic item's body as checked,
+    /// not owned, since each of its instances is owned on its own
+    /// (`ProgramEnv::instance_body`); else [`ProgramEnv::body`]. The passes
+    /// add counts and read modes only.
     fn shape_body(&self, def: DefId) -> Option<&Body>;
     /// `def`'s body at `args`, with its types substituted, its impls
     /// rechosen, its facts folded, then, in release, inlined; and owned.
