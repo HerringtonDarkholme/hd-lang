@@ -5284,3 +5284,123 @@ fn borrowed_memory_local_emission_is_constant_at_two_widths()
     );
     Ok(())
 }
+
+// #2250: an input graph shared across many parameters is visited once,
+// including when its nested tuple type represents exponentially many leaves.
+#[test]
+fn const_inference_inputs_are_scanned_once_at_width_thousand_depth_twenty() {
+    fn source(
+        width: usize,
+        depth: usize,
+        explicit: bool,
+        calls: usize,
+        across_bodies: bool,
+    ) -> String {
+        let mut out =
+            String::from("struct Fixed[N < const usize]:\n    value: i32\ntype Layer0[T] = T\n");
+        for level in 1..=depth {
+            let before = level - 1;
+            let _ = writeln!(
+                out,
+                "type Layer{level}[T] = (Layer{before}[T], Layer{before}[T])"
+            );
+        }
+        let parameters = (0..width)
+            .map(|i| format!("p{i}: Layer{depth}[Fixed[N]]"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let arguments = vec!["value"; width].join(", ");
+        let written = if explicit { "::[4]" } else { "" };
+        if across_bodies {
+            let _ = writeln!(
+                out,
+                "fn inner[N < const usize]({parameters}) -> void:\n    pass"
+            );
+            for caller in 0..calls {
+                let _ = writeln!(
+                    out,
+                    "fn outer{caller}(value: Layer{depth}[Fixed[4]]) -> void:\n    inner{written}({arguments})"
+                );
+            }
+        } else {
+            let _ = writeln!(out, "fn outer(value: Layer{depth}[Fixed[4]]) -> void:");
+            let _ = writeln!(
+                out,
+                "    fn inner[N < const usize]({parameters}) -> void:\n        pass"
+            );
+            for _ in 0..calls {
+                let _ = writeln!(out, "    inner{written}({arguments})");
+            }
+        }
+        out
+    }
+    on_test_stack(|| {
+        // Warm only std, so the first measurement has the same cache
+        // starting point as the others; each subject source is still new.
+        let warm = compile("fn warm() -> void:\n    pass\n", &Goal::Analyze);
+        assert!(warm.diags.is_empty(), "{}", warm.render());
+        let mut shallow = 0;
+        for depth in [1, 20] {
+            let mut small = 0;
+            for width in [100, 1_000] {
+                let mut counts = [0; 2];
+                for (i, explicit) in [true, false].into_iter().enumerate() {
+                    let (out, steps) = hd_check::work::count_scan_work(|| {
+                        compile(&source(width, depth, explicit, 1, false), &Goal::Analyze)
+                    });
+                    assert!(
+                        out.diags.is_empty(),
+                        "width {width}, depth {depth}: {}",
+                        out.render()
+                    );
+                    counts[i] = steps;
+                }
+                let work = counts[1].saturating_sub(counts[0]);
+                eprintln!(
+                    "const input scan: width={width} depth={depth} explicit={} inferred={} incremental={work}",
+                    counts[0], counts[1]
+                );
+                // One root per input, two edges per tuple layer, and fixed
+                // call bookkeeping; no per-slot or per-input graph expansion.
+                assert!(work > 0 && work <= 4 * width as u64 + 16 * depth as u64 + 128);
+                if width == 100 {
+                    small = work;
+                }
+                assert!(work <= 11 * small);
+                if width == 1_000 {
+                    if depth == 1 {
+                        shallow = work;
+                    } else {
+                        assert!(work <= shallow + 16 * depth as u64 + 128);
+                    }
+                }
+            }
+        }
+        for across_bodies in [false, true] {
+            let mut first_walk = 0;
+            for calls in [1, 1_000] {
+                let mut counts = [0; 2];
+                for (i, explicit) in [true, false].into_iter().enumerate() {
+                    let (out, steps) = hd_check::work::count_scan_work(|| {
+                        compile(
+                            &source(1, 20, explicit, calls, across_bodies),
+                            &Goal::Analyze,
+                        )
+                    });
+                    assert!(out.diags.is_empty(), "calls {calls}: {}", out.render());
+                    counts[i] = steps;
+                }
+                let work = counts[1].saturating_sub(counts[0]);
+                let walk = work.saturating_sub(calls as u64);
+                eprintln!(
+                    "const input cache: across_bodies={across_bodies} calls={calls} incremental={work} after_probes={walk}"
+                );
+                if calls == 1 {
+                    first_walk = walk;
+                }
+                assert!(first_walk > 0);
+                assert_eq!(walk, first_walk, "a stable local signature is walked once");
+            }
+        }
+    });
+}

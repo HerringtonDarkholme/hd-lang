@@ -1301,3 +1301,5 @@ says that the check covered syntax only.
 | 2026-11-20 | #2228 Debug escape scan | api | `hd fmt lib/std/format.hd crates/hd_driver/tests/cases/stdlib/debug-escape-byte-runs.hd` | ``error: `hd fmt` takes at most one FILE`` | yes | Run `hd fmt` separately for each file | GPT-6 (Codex) |
 
 | 2026-11-21 | #1442 resolver variance stages | type | `values: (i32, T...)` | `` a rest element's type must be a `List` `` | yes | `values: (i32, List[T]...)` | GPT-6 (Codex) |
+
+| 2026-11-21 | #2250 expected function type | semantic | Expected `let selected: fn() -> Fixed[4] = inner` to reject a const-generic function value | ``cannot-infer-type: no argument's type names const parameter `N`, so it cannot be inferred: write it in the call, as in `f::[4](...)` `` | no; fn.type.generic.instantiate-from led to the fix | Preserve expected monomorphic function-type instantiation; apply the argument-types-only guard to calls | GPT-6 (Codex) |

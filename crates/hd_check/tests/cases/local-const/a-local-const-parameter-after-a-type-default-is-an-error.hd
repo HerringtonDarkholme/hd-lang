@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn outer() -> void:
+    fn inner[T = i32, N < const i32]() -> void:
+        pass
+    pass

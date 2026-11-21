@@ -1,0 +1,5 @@
+fn outer() -> void:
+    fn inner[N < const usize]() -> void:
+        pass
+    selected := inner # diagnostic: cannot-infer-type
+    pass

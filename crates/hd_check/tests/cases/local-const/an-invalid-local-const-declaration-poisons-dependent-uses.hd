@@ -1,0 +1,10 @@
+# @dump: diagnostics
+struct Fixed[N < const usize]:
+    value: i32
+fn outer() -> void:
+    fn inner[N < const f32](value: Fixed[N]) -> void:
+        pass
+    let value: Fixed[1] = Fixed { value: +1 }
+    selected := inner::[1]
+    selected(value)
+    inner::[1](value)

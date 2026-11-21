@@ -1,0 +1,6 @@
+fn outer() -> void:
+    fn inner[N < const usize]() -> void:
+        pass
+    inner::[1]()
+    let value: N = 1 # diagnostic: unknown-type
+    pass

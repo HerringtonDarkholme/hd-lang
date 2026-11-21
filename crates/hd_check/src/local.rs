@@ -46,6 +46,9 @@ pub(crate) struct LocalGeneric {
     /// Its function type over them; while its body is checked, the type
     /// its written result and row give.
     pub fn_ty: Ty,
+    /// Input occurrences of its own parameters, shared by inferred calls.
+    /// An input with unresolved inference variables is not cached.
+    pub const_inputs: Option<std::sync::Arc<[bool]>>,
     /// The outer locals it captures, settled for the whole lexical group
     /// before its final body check.
     pub caps: Option<Vec<LocalId>>,
@@ -283,24 +286,33 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let in_scope = self.gens.len();
         let in_rows = self.row_gens.len();
+        let in_consts = self.const_gens.len();
         let in_impl = self.impl_params.len();
         let first = self.next_gen;
         let mut params = Vec::new();
         let mut nodes = Vec::new();
         let mut generics = Vec::new();
-        for g in gl
-            .iter()
-            .flat_map(|gl| gl.children())
-            .filter(|c| c.kind() == SyntaxKind::GenericParameter)
-        {
+        let mut declared_names = hd_base::HashMap::default();
+        for g in gl.iter().flat_map(|gl| gl.children()).filter(|c| {
+            matches!(
+                c.kind(),
+                SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
+            )
+        }) {
             let Some(gt) = g.name(toks) else {
                 continue;
             };
             let sym = src.symbol(gt, self.cx.names.syms);
             self.check_prelude_shadow(sym, g);
             // `names.type-param.no-redeclare`: an earlier one of the list.
-            if self.gens[in_scope..].iter().any(|(x, _)| *x == sym) {
-                let msg = format!("`{}` is already a type parameter in scope", src.text(gt));
+            let is_const = g.kind() == SyntaxKind::ConstParameter;
+            if let Some(was_const) = declared_names.insert(sym, is_const) {
+                let kind = if is_const || was_const {
+                    "generic"
+                } else {
+                    "type"
+                };
+                let msg = format!("`{}` is already a {kind} parameter in scope", src.text(gt));
                 self.err(Code::DuplicateBinding, g, &msg);
             }
             let index = self.next_gen;
@@ -358,6 +370,42 @@ impl Ck<'_, '_> {
             nodes.push(t);
             generics.push(generic);
         }
+        // Register every const kind before any bound or header can name it,
+        // using the same metadata consumed by ordinary explicit const slots.
+        for (position, ((&param, &node), generic)) in
+            params.iter().zip(&nodes).zip(&mut generics).enumerate()
+        {
+            if node.kind() != SyntaxKind::ConstParameter {
+                continue;
+            }
+            let declared = match Src::type_child(node) {
+                Some(ty) => self.ty_node(ty)?,
+                None => Ty::POISON,
+            };
+            if let TyData::Prim(prim) = pool.get(declared)
+                && !prim.is_float()
+            {
+                generic.const_type = Some(prim);
+                if let TyData::Param(slot) = pool.get(param) {
+                    self.const_gens.push((generic.name, slot, prim));
+                }
+            } else {
+                if declared != Ty::POISON {
+                    let msg = format!(
+                        "const parameter `{}` has type `{}`; expected an integer type, `bool`, `char`, or `string`",
+                        self.cx.names.text(generic.name),
+                        self.show(declared)
+                    );
+                    self.err(Code::GenericKindMismatch, node, &msg);
+                }
+                // Error recovery, not a written const default: dependent
+                // arguments and unsolved slots inherit the declaration's error.
+                generic.default = Some(Ty::POISON);
+                if let Some((_, ty)) = self.gens.get_mut(in_scope + position) {
+                    *ty = Ty::POISON;
+                }
+            }
+        }
         let source_scope = self.generic_sources.len();
         self.generic_sources.push(GenericSource {
             owner: self.gen_owner,
@@ -371,6 +419,16 @@ impl Ck<'_, '_> {
         {
             if generic.anonymous {
                 generic.bounds = self.anonymous_bounds(p, g)?;
+                continue;
+            }
+            if g.kind() == SyntaxKind::ConstParameter {
+                if defaulted {
+                    self.err(
+                        Code::DefaultOrder,
+                        g,
+                        "a generic parameter following a default needs a default too",
+                    );
+                }
                 continue;
             }
             let mut bs = Vec::new();
@@ -462,6 +520,7 @@ impl Ck<'_, '_> {
             params,
             generics,
             fn_ty: Ty::POISON,
+            const_inputs: None,
             caps: None,
         });
         // `fn.default.eval`: each default is a generic closure of the
@@ -479,6 +538,7 @@ impl Ck<'_, '_> {
         self.generic_closure(n, &mut parts)?;
         self.gens.truncate(in_scope);
         self.row_gens.truncate(in_rows);
+        self.const_gens.truncate(in_consts);
         self.impl_params.truncate(in_impl);
         self.generic_sources.truncate(source_scope);
         Ok(())
@@ -538,6 +598,7 @@ impl Ck<'_, '_> {
         // `closure_with` enters a named generic closure in `local_generics`.
         let g = self.local_generic_entry(l)?;
         g.fn_ty = ft;
+        g.const_inputs = None;
         g.caps = Some(caps);
         let sub = g.sub as usize;
         let body = self.b.body_mut();
@@ -664,7 +725,7 @@ impl Ck<'_, '_> {
         explicit: &[Ty],
         n: NodeRef<'_>,
     ) -> (Ref, Ty) {
-        match self.local_generic_vars(l, explicit, n) {
+        match self.local_generic_vars(l, explicit, n, false) {
             Some(vars) => self.local_generic_inst(l, &vars, n),
             None => (Ref(NONE), Ty::NEVER),
         }
@@ -676,6 +737,7 @@ impl Ck<'_, '_> {
         l: LocalId,
         explicit: &[Ty],
         n: NodeRef<'_>,
+        from_call: bool,
     ) -> Option<Vec<Ty>> {
         let g = self.local_generics.get(&l).cloned()?;
         let pool = self.pool();
@@ -690,7 +752,7 @@ impl Ck<'_, '_> {
             self.err(Code::ArgumentCount, n, &msg);
         }
         self.check_fn_targ_kinds(&g.generics, explicit, n);
-        let vars: Vec<Ty> = (0..g.params.len())
+        let mut vars: Vec<Ty> = (0..g.params.len())
             .map(|i| {
                 explicit
                     .get(i)
@@ -699,6 +761,30 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.infer.fresh(pool, VarKind::General))
             })
             .collect();
+        if from_call
+            && g.generics
+                .iter()
+                .skip(explicit.len())
+                .any(|g| g.const_type.is_some())
+            && let TyData::Fn { params, .. } = pool.get(g.fn_ty)
+        {
+            crate::work::scan_work(1);
+            let named = if let Some(named) = &g.const_inputs {
+                std::sync::Arc::clone(named)
+            } else {
+                let (named, stable) = self.const_input_slots(
+                    g.generics.len(),
+                    pool.list_items(params).iter().copied(),
+                    (self.gen_owner, g.first),
+                );
+                let named: std::sync::Arc<[bool]> = named.into();
+                if stable && let Some(entry) = self.local_generics.get_mut(&l) {
+                    entry.const_inputs = Some(std::sync::Arc::clone(&named));
+                }
+                named
+            };
+            self.unsolvable_const_slots(&g.generics, &named, explicit.len(), &mut vars, n);
+        }
         self.row_argument_vars(self.gen_owner, &vars, n);
         let (owner, first) = (self.gen_owner, g.first);
         let inst = |t: Ty| {
@@ -871,6 +957,7 @@ mod metadata_tests {
                     params: vec![Ty::I32],
                     generics: Vec::new(),
                     fn_ty: Ty::POISON,
+                    const_inputs: None,
                     caps: None,
                 },
             );

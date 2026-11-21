@@ -1,0 +1,9 @@
+# @dump: diagnostics tir
+fn plain[N < const i32]() -> void:
+    pass
+
+fn outer() -> void:
+    fn inner[N < const i32]() -> void:
+        pass
+    plain::[1]()
+    inner::[1]()

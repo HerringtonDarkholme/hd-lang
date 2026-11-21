@@ -1,0 +1,43 @@
+use std.testing.{assert_equal, it}
+
+fn outer() -> void:
+    fn inner_i8[N < const i8]() -> void:
+        pass
+    inner_i8::[-1]()
+    fn inner_i16[N < const i16]() -> void:
+        pass
+    inner_i16::[-1]()
+    fn inner_i32[N < const i32]() -> void:
+        pass
+    inner_i32::[-1]()
+    fn inner_i64[N < const i64]() -> void:
+        pass
+    inner_i64::[-1]()
+    fn inner_u8[N < const u8]() -> void:
+        pass
+    inner_u8::[1]()
+    fn inner_u16[N < const u16]() -> void:
+        pass
+    inner_u16::[1]()
+    fn inner_u32[N < const u32]() -> void:
+        pass
+    inner_u32::[1]()
+    fn inner_u64[N < const u64]() -> void:
+        pass
+    inner_u64::[1]()
+    fn inner_usize[N < const usize]() -> void:
+        pass
+    inner_usize::[1]()
+    fn inner_bool[N < const bool]() -> void:
+        pass
+    inner_bool::[true]()
+    fn inner_char[N < const char]() -> void:
+        pass
+    inner_char::['x']()
+    fn inner_string[N < const string]() -> void:
+        pass
+    inner_string::["ok"]()
+
+tests:
+    it("all scalar local const calls"):
+        outer()

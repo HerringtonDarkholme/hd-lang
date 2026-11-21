@@ -1,0 +1,11 @@
+trait Get[N < const usize]:
+    fn get(self) -> i32
+struct Item:
+    value: i32
+impl Get[4] for Item:
+    fn get(self) -> i32:
+        self.value
+fn outer(value: Item) -> i32:
+    fn inner[T < Get[N], N < const usize](value: T) -> i32:
+        value.get()
+    inner::[Item, 4](value)

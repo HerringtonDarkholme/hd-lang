@@ -1,0 +1,19 @@
+use std.testing.{assert_equal, it}
+
+struct Fixed[N < const usize]:
+    value: i32
+fn global_keep[N < const usize](value: Fixed[N]) -> Fixed[N]:
+    value
+fn outer(value: Fixed[4]) -> Fixed[4]:
+    fn first[B < const bool]() -> void:
+        pass
+    first::[true]()
+    fn keep[N < const usize](value: Fixed[N]) -> Fixed[N]:
+        value
+    selected := keep::[4]
+    global_keep(global_keep(selected(keep(value))))
+
+tests:
+    it("local const argument type inference"):
+        let value: Fixed[4] = Fixed { value: +7 }
+        assert_equal(outer(value).value, +7)

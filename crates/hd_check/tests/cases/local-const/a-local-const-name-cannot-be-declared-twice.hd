@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn outer() -> void:
+    fn inner[N < const i32, N < const bool]() -> void:
+        pass
+    pass

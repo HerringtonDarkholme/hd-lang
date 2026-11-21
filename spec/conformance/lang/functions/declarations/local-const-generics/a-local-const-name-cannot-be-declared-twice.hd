@@ -1,0 +1,4 @@
+fn outer() -> void:
+    fn inner[N < const i32, N < const bool]() -> void: # diagnostic: duplicate-binding
+        pass
+    pass
