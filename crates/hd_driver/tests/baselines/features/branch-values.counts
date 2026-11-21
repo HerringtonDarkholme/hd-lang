@@ -29,9 +29,9 @@ fn pick_with_exit(k: i64, a: string, b: string) -> string:
 > app/main/pick_with_exit
 >   release string (last use)
 >   release string (last use)
->   release string (last use)
->   release string (last use)
         0 => a
         1 => b
         2 => return "returned"
+>   release string (last use)
+>   release string (last use)
         _ => panic("branch")

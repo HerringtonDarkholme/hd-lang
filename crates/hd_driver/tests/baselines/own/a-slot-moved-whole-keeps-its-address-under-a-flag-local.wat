@@ -576,8 +576,6 @@
       local.get $early
       if
     ;; 69 |         return consume(held)
-        i32.const 0
-        local.set $t1
         local.get $held
         i32.load $heap
         local.get $held
@@ -585,6 +583,15 @@
         i32.store $heap
         call $consume
         local.set $early
+        i32.const 0
+        local.get $held
+        i32.const 0
+        i32.ne
+        i32.and
+        if
+          local.get $held
+          call $rt:cell_drop
+        end
         br 1
     ;; 68 |     if early:
       end
@@ -604,15 +611,13 @@
       end
       i32.const 0
       local.set $held
-    end
-    local.get $t1
-    local.get $held
-    i32.const 0
-    i32.ne
-    i32.and
-    if
-      local.get $held
-      call $rt:cell_drop
+      local.get $t1
+      i32.const 0
+      i32.and
+      if
+        local.get $held
+        call $rt:cell_drop
+      end
     end
     local.get $early
     local.get $t0

@@ -63,7 +63,8 @@ pub fn main() -> void $ Console:
 >   %3 = NewList - [%0 %1 %2] : List[i64]
 >   %4 = Box #0 #0 : ()
 >   %5 = Store [$0] %3 : ()
->   %174 = Block - : ()
+>   %174 = Drop [$0] : ()
+>   %175 = Block - : ()
     reset := fn() -> void:
 >   %6 = Unreachable  : never
 >   %7 = Block %6 : never

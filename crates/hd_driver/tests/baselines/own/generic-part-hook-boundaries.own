@@ -18,14 +18,15 @@ fn label[T < ?Copy](value: Outer[T]) -> string:
 > app/main/label
 >   local $0 value: Outer[T] [param read] value
 >     uses $0: entry -> %2 consume last
->   %1 = Retain %6 Entry local $0 #0 : ()
+>   %1 = Retain %7 Entry local $0 #0 : ()
     value.inner.label
 >   %0 = FlagSet [$0] #1 : ()
 >   %2 = Read copy [$0 .inner .label] : string
 >   %3 = Retain %2 Value #0 : ()
 >   %4 = Drop [$0] : ()
 >   %5 = FlagClear [$0] #1 : ()
->   %6 = Block %2 : string
+>   %6 = Drop [$0] : ()
+>   %7 = Block %2 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

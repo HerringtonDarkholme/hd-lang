@@ -5,8 +5,8 @@
   (import "fixture" "sleep" (func $sleep (param i32 i64 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
@@ -191,6 +191,21 @@
                 call $rt:release_ref'1
               end
             end
+            local.get $t1
+            i32.load $heap
+            local.tee $provider0
+            if
+              local.get $provider0
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $provider0
+                call $rt:release_ref'2
+              end
+            end
             i32.const 0
             local.set $provider0
             i32.const 1
@@ -267,20 +282,20 @@
           i32.const 0
           i32.store $heap
     ;; 9 |     sleep!(ms(1))
-        end
-        local.get $t1
-        i32.load $heap
-        local.tee $t1
-        if
           local.get $t1
-          i32.const 8
-          i32.sub
           i32.load $heap
-          global.get $tracing
-          i32.or
+          local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $t1
+              call $rt:release_ref'2
+            end
           end
         end
         local.get $provider0

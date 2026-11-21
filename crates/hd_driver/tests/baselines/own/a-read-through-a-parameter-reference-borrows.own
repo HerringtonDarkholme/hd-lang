@@ -8,5 +8,6 @@ app/main/impl Log.add
   %2 = IsUnique [*$0 .lines] : ()
   %3 = Read borrow [*$0 .lines] : List[string]
   %4 = Intrinsic ListPush [%3 %1] : ()
-  %5 = Block - : ()
+  %5 = Drop [$1] : ()
+  %6 = Block - : ()
   exit sub 0 drops [$1]

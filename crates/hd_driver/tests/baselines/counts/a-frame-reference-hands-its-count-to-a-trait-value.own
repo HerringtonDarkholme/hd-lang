@@ -47,10 +47,10 @@ pub fn main!() -> void $ Console + Clock:
 >     uses $9: %49 -> %50 lend, %53 lend last
 >   local $10 count: i64 [read] value
 >     uses $10: %21 -> %22 lend last
->   %0 = Retain %90 Cold row #0 : ()
->   %1 = Retain %90 Materialize row #0 : ()
->   %2 = Release %90 FrameDrop row #2 : ()
->   %3 = Release %90 FrameDrop child #2 : ()
+>   %0 = Retain %91 Cold row #0 : ()
+>   %1 = Retain %91 Materialize row #0 : ()
+>   %2 = Release %91 FrameDrop row #2 : ()
+>   %3 = Release %91 FrameDrop child #2 : ()
 >   %4 = NewStruct [0:i32] : Counter
 >   %5 = Box #0 #1 : ()
 >   %6 = Store [$0] %4 : ()
@@ -58,7 +58,8 @@ pub fn main!() -> void $ Console + Clock:
 >   %8 = Retain %7 Value #0 : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Store [$1] %7 : ()
->   %90 = Block - : ()
+>   %90 = Drop [$1] : ()
+>   %91 = Block - : ()
     $.with(Meter=counter):
 >   %11 = Read copy [$1] : *mut Counter
 >   %12 = Retain %11 Value #0 : ()
@@ -82,7 +83,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %27 = Await std/time/sleep[] (%26) : ()
 >   %28 = Release %27 Operation child #2 : ()
 >   %37 = Block - : ()
->   %92 = Return - #2 : never
+>   %94 = Return - #2 : never
         $.use(Meter).record()
 >   %29 = ProviderGet #29 : Meter
 >   %30 = Coerce %29 [ProviderAsRef -] : &mut dyn Meter
@@ -146,4 +147,4 @@ pub fn main!() -> void $ Console + Clock:
 >   exit sub 0 drops [$1]
 >   storage sub 0: $0 cell
 >   summary none
->   cancel %27 releases [%19 %4294967295]
+>   cancel %27 releases [%19 %2147483649 %4294967295]

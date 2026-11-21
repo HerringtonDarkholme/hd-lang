@@ -16,16 +16,16 @@ fn size!(text: &string) -> usize $ Clock:
 >     uses $0: entry -> %17 lend last
 >   local $2 count: i64 [read] value
 >     uses $2: %9 -> %10 lend last
->   %0 = Retain %24 Cold local $0 #0 : ()
->   %1 = Retain %24 Entry local $0 #0 : ()
->   %5 = Retain %24 Cold referent $0 #8 : ()
->   %6 = Release %24 FrameDrop referent $0 #2 : ()
->   %7 = Release %24 Exit referent $0 #8 : ()
+>   %0 = Retain %25 Cold local $0 #0 : ()
+>   %1 = Retain %25 Entry local $0 #0 : ()
+>   %5 = Retain %25 Cold referent $0 #8 : ()
+>   %6 = Release %25 FrameDrop referent $0 #2 : ()
+>   %7 = Release %25 Exit referent $0 #8 : ()
     sleep!(ms(1))
->   %2 = Retain %24 Cold row #0 : ()
->   %3 = Retain %24 Materialize row #0 : ()
->   %4 = Release %24 FrameDrop row #2 : ()
->   %8 = Release %24 FrameDrop child #2 : ()
+>   %2 = Retain %25 Cold row #0 : ()
+>   %3 = Retain %25 Materialize row #0 : ()
+>   %4 = Release %25 FrameDrop row #2 : ()
+>   %8 = Release %25 FrameDrop child #2 : ()
 >   %9 = Store [$2] 1:i64 : ()
 >   %10 = Read copy [$2] : i64
 >   %11 = Call std/time/impl Duration.milliseconds[] (%10) : Duration
@@ -34,8 +34,9 @@ fn size!(text: &string) -> usize $ Clock:
 >   %14 = Scope %13 [] : Duration
 >   %15 = Await std/time/sleep[] (%14) : ()
 >   %16 = Release %15 Operation child #2 : ()
->   %24 = Block %22 : usize
->   %25 = Return - #2 : never
+>   %24 = Drop [$0] : ()
+>   %25 = Block %22 : usize
+>   %27 = Return - #2 : never
     text.len()
 >   %17 = Read borrow [$0] : &string
 >   %18 = Read borrow [*%17] : string
@@ -46,7 +47,7 @@ fn size!(text: &string) -> usize $ Clock:
 >   %23 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %15 releases [%4294967295]
+>   cancel %15 releases [%2147483648 %4294967295]
 
 fn later!(n: usize) -> usize $ Clock:
     let text = "x".repeat(n)
@@ -56,15 +57,16 @@ fn later!(n: usize) -> usize $ Clock:
 >   local $1 text: string [read assigned captured] place
 >   local $2 f: Suspend[usize] [:= read assigned] value
 >     uses $2: %11 -> %12 lend last
->   %0 = Retain %18 Cold row #0 : ()
->   %1 = Retain %18 Materialize row #0 : ()
->   %2 = Release %18 FrameDrop row #2 : ()
->   %3 = Release %18 FrameDrop child #2 : ()
+>   %0 = Retain %19 Cold row #0 : ()
+>   %1 = Retain %19 Materialize row #0 : ()
+>   %2 = Release %19 FrameDrop row #2 : ()
+>   %3 = Release %19 FrameDrop child #2 : ()
 >   %4 = Read copy [$0] : usize
 >   %5 = Call std/text/impl string.repeat[] ("x", %4) : string
 >   %6 = Box #1 #1 : ()
 >   %7 = Store [$1] %5 : ()
->   %18 = Block %13 : usize
+>   %18 = Drop [$1] : ()
+>   %19 = Block %13 : usize
     f := size(&text)
 >   %8 = Ref local lent [$1] : &string
 >   %9 = Call app/main/size[] (%8) : Suspend[usize]
@@ -77,11 +79,11 @@ fn later!(n: usize) -> usize $ Clock:
 >   %15 = Retain %13 Operation child #0 : ()
 >   %16 = Drop [%12] : ()
 >   %17 = Drop [$1] : ()
->   %20 = Return - #2 : never
+>   %22 = Return - #2 : never
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 cell
 >   summary none
->   cancel %13 releases [%12 %4294967295]
+>   cancel %13 releases [%12 %2147483649 %4294967295]
 
 fn both!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)
@@ -94,15 +96,17 @@ fn both!(n: usize) -> usize $ Clock:
 >     uses $3: %26 -> %31 lend last
 >   local $4 y: usize [read assigned] value
 >     uses $4: %27 -> %32 lend last
->   %0 = Retain %34 Cold row #0 : ()
->   %1 = Retain %34 Materialize row #0 : ()
->   %2 = Release %34 FrameDrop row #2 : ()
+>   %0 = Retain %36 Cold row #0 : ()
+>   %1 = Retain %36 Materialize row #0 : ()
+>   %2 = Release %36 FrameDrop row #2 : ()
 >   %3 = Read copy [$0] : usize
 >   %4 = Call std/text/impl string.repeat[] ("a", %3) : string
 >   %5 = Box #1 #1 : ()
 >   %6 = Store [$1] %4 : ()
 >   %9 = Box #2 #1 : ()
->   %34 = Block %33 : usize
+>   %34 = Drop [$1] : ()
+>   %35 = Drop [$2] : ()
+>   %36 = Block %33 : usize
     let b = "b".repeat(n)
 >   %7 = Read copy [$0] : usize
 >   %8 = Call std/text/impl string.repeat[] ("b", %7) : string
@@ -127,7 +131,7 @@ fn both!(n: usize) -> usize $ Clock:
 >   %27 = Store [$4] %25 : ()
 >   %29 = Block - : never
 >   %30 = Match %15 [%29 %23] : ()
->   %39 = Return - #2 : never
+>   %43 = Return - #2 : never
     x + y
 >   %31 = Read copy [$3] : usize
 >   %32 = Read copy [$4] : usize
@@ -135,7 +139,7 @@ fn both!(n: usize) -> usize $ Clock:
 >   exit sub 0 drops [$1 $2]
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
->   cancel %15 releases [%11 %12 %13 %14 %4294967295]
+>   cancel %15 releases [%11 %12 %13 %14 %2147483649 %2147483650 %4294967295]
 
 fn first!(n: usize) -> usize $ Clock:
     let a = "a".repeat(n)

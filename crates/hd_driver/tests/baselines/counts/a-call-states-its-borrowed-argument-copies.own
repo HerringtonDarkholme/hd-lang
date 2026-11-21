@@ -10,7 +10,7 @@ use std.annotation.cold
 >     uses $0: entry -> %2 consume last
 >   local $1 into: &mut List[T] [param read] value
 >     uses $1: entry -> %5 lend, %7 lend last
->   %1 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %10 Entry local $0 #0 : ()
 fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
     into.push(value)
 >   %0 = FlagSet [$0] #2 : ()
@@ -19,7 +19,8 @@ fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
 >   %4 = IsUnique [*$1] : ()
 >   %5 = Read borrow [*$1] : List[T]
 >   %6 = Intrinsic ListPush [%5 %2] : ()
->   %9 = Block %8 : usize
+>   %9 = Drop [$0] : ()
+>   %10 = Block %8 : usize
     into.len()
 >   %7 = Read borrow [*$1] : List[T]
 >   %8 = Intrinsic ListLen [%7] : usize
@@ -34,15 +35,17 @@ fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
 >     uses $1: entry -> %6 consume last
 >   local $2 into: &mut List[string] [param read] value
 >     uses $2: entry -> %4 lend, %8 lend, %10 lend last
->   %0 = Retain %12 Entry local $0 #0 : ()
->   %1 = Retain %12 Entry local $1 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
+>   %1 = Retain %14 Entry local $1 #0 : ()
 fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) -> usize:
     into.push(first)
 >   %2 = Read move [$0] : string
 >   %3 = IsUnique [*$2] : ()
 >   %4 = Read borrow [*$2] : List[string]
 >   %5 = Intrinsic ListPush [%4 %2] : ()
->   %12 = Block %11 : usize
+>   %12 = Drop [$0] : ()
+>   %13 = Drop [$1] : ()
+>   %14 = Block %11 : usize
     into.push(second)
 >   %6 = Read move [$1] : string
 >   %7 = IsUnique repeat [*$2] : ()
@@ -59,7 +62,7 @@ fn text(value: string) -> usize:
 >   local $0 value: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $3 $ref: List[string] [read assigned captured captured-assigned] place
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     store(value)
 >   %1 = Read move [$0] : string
 >   %2 = NewList - [] : List[string]
@@ -72,7 +75,8 @@ fn text(value: string) -> usize:
 >   %9 = Call app/main/store[string] (%1, %8) : usize
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$3] : ()
->   %12 = Block %9 : usize
+>   %12 = Drop [$0] : ()
+>   %13 = Block %9 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 slot
 >   summary kept [$0] writes
@@ -82,7 +86,7 @@ fn collection(values: List[string]) -> usize:
 >   local $0 values: List[string] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $3 $ref: List[List[string]] [read assigned captured captured-assigned] place
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     store(values)
 >   %1 = Read move [$0] : List[string]
 >   %2 = NewList - [] : List[List[string]]
@@ -95,7 +99,8 @@ fn collection(values: List[string]) -> usize:
 >   %9 = Call app/main/store[List[string]] (%1, %8) : usize
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$3] : ()
->   %12 = Block %9 : usize
+>   %12 = Drop [$0] : ()
+>   %13 = Block %9 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 slot
 >   summary kept [$0] writes
@@ -122,8 +127,8 @@ fn pair(first: string, second: string) -> usize:
 >   local $1 second: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $5 $ref: List[string] [read assigned captured captured-assigned] place
->   %0 = Retain %14 Entry local $0 #0 : ()
->   %1 = Retain %14 Entry local $1 #0 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
+>   %1 = Retain %16 Entry local $1 #0 : ()
     store_pair(first, second)
 >   %2 = Read move [$0] : string
 >   %3 = Read move [$1] : string
@@ -137,7 +142,9 @@ fn pair(first: string, second: string) -> usize:
 >   %11 = Call app/main/store_pair[] (%2, %3, %10) : usize
 >   %12 = LoanEnd [%10] : ()
 >   %13 = Drop [$5] : ()
->   %14 = Block %11 : usize
+>   %14 = Drop [$0] : ()
+>   %15 = Drop [$1] : ()
+>   %16 = Block %11 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $5 slot
 >   summary kept [$0 $1] writes

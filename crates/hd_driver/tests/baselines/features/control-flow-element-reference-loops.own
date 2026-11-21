@@ -115,11 +115,12 @@ fn shouted(prices: List[string]) -> List[string]:
 >   local $3 $pos: usize [assigned] place
 >   local $4 p: &mut string [read assigned] value
 >     uses $4: %23 -> %17 lend, %19 lend last
->   %0 = Retain %35 Entry local $0 #0 : ()
+>   %0 = Retain %36 Entry local $0 #0 : ()
     let mut out = prices
 >   %1 = Read move [$0] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %35 = Block %34 : List[string]
+>   %35 = Drop [$0] : ()
+>   %36 = Block %34 : List[string]
     for p in &mut out:
 >   %3 = Read borrow [$1] : List[string]
 >   %4 = Intrinsic ListLen [%3] : usize

@@ -217,11 +217,12 @@ fn declared(c: bool) -> usize:
 >   %0 = Call app/main/fresh[] () : UniqList[i32]
 >   %1 = Box #1 #0 : ()
 >   %2 = Store [$1] %0 : ()
->   %14 = Block 0:usize : usize
+>   %15 = Drop [$1] : ()
+>   %16 = Block 0:usize : usize
     if c:
 >   %3 = Read copy [$0] : bool
->   %12 = If %3 [%11 -] : ()
->   %13 = Drop [$1] : ()
+>   %13 = If %3 [%12 -] : ()
+>   %14 = Drop [$1] : ()
         return u.len()
 >   %4 = Ref local frame [$1] : &UniqList[i32]
 >   %5 = Read copy [*%4 .len] : usize
@@ -229,8 +230,9 @@ fn declared(c: bool) -> usize:
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
 >   %9 = LoanEnd [%4] : ()
->   %10 = Return %8 : never
->   %11 = Block - : never
+>   %10 = Drop [$1] : ()
+>   %11 = Return %8 : never
+>   %12 = Block - : never
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 slot
 >   summary kept [] writes

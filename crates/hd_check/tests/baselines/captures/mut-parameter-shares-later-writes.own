@@ -7,38 +7,41 @@ fn changed(mut value: usize) -> usize:
 >   local $0 value: usize [param read assigned mutated captured] place
 >     frame cell [$0]
 >   local $1 first: fn() -> usize [:= read assigned] value
->     uses $1: %7 -> %17 lend last
+>     uses $1: %8 -> %19 lend last
 >   local $2 second: fn() -> usize [:= read assigned] value
->     uses $2: %14 -> %20 lend last
+>     uses $2: %16 -> %22 lend last
 >   %0 = Box #0 #0 : ()
->   %1 = Retain %4 Entry captures #0 : ()
+>   %1 = Retain %5 Entry captures #0 : ()
 >   %2 = Read copy [$0] : usize
 >   %3 = Drop [$0] : ()
->   %4 = Block %2 : usize
->   %5 = Closure #1 : fn() -> usize
->   %6 = Retain %5 Operation captures #0 : ()
->   %7 = Store [$1] %5 : ()
->   %25 = Block %24 : usize
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : usize
+>   %6 = Closure #1 : fn() -> usize
+>   %7 = Retain %6 Operation captures #0 : ()
+>   %8 = Store [$1] %6 : ()
+>   %27 = Drop [$0] : ()
+>   %28 = Block %26 : usize
     second := fn() -> usize: value
->   %8 = Retain %11 Entry captures #0 : ()
->   %9 = Read copy [$0] : usize
->   %10 = Drop [$0] : ()
->   %11 = Block %9 : usize
->   %12 = Closure #2 : fn() -> usize
->   %13 = Retain %12 Operation captures #0 : ()
->   %14 = Store [$2] %12 : ()
+>   %9 = Retain %13 Entry captures #0 : ()
+>   %10 = Read copy [$0] : usize
+>   %11 = Drop [$0] : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Block %10 : usize
+>   %14 = Closure #2 : fn() -> usize
+>   %15 = Retain %14 Operation captures #0 : ()
+>   %16 = Store [$2] %14 : ()
     value = 91
->   %15 = Store [$0] 91:usize : ()
->   %16 = Release %15 Operation #3 : ()
+>   %17 = Store [$0] 91:usize : ()
+>   %18 = Release %17 Operation #3 : ()
     first() + second()
->   %17 = Read move [$1] : fn() -> usize
->   %18 = CallValue %17 [] : usize
->   %19 = Drop [%17] : ()
->   %20 = Read move [$2] : fn() -> usize
->   %21 = CallValue %20 [] : usize
->   %22 = Drop [%20] : ()
->   %23 = Drop [$0] : ()
->   %24 = Prim Add [%18 %21] : usize
+>   %19 = Read move [$1] : fn() -> usize
+>   %20 = CallValue %19 [] : usize
+>   %21 = Drop [%19] : ()
+>   %22 = Read move [$2] : fn() -> usize
+>   %23 = CallValue %22 [] : usize
+>   %24 = Drop [%22] : ()
+>   %25 = Drop [$0] : ()
+>   %26 = Prim Add [%20 %23] : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   exit sub 2 drops [$0]
@@ -61,34 +64,36 @@ fn closure_parameter() -> usize:
 > app/main/closure_parameter
 >   local $0 value: usize [param read assigned mutated captured] place
 >   local $1 change: fn(usize) -> usize [:= read assigned] value
->     uses $1: %16 -> %17 lend last
+>     uses $1: %18 -> %19 lend last
 >   local $2 read: fn() -> usize [:= read assigned] value
->     uses $2: %7 -> %11 lend last
+>     uses $2: %8 -> %12 lend last
 >   %0 = Box #0 #1 : ()
->   %14 = Block %12 : usize
->   %15 = Closure #1 : fn(usize) -> usize
->   %16 = Store [$1] %15 : ()
->   %20 = Block %18 : usize
+>   %15 = Drop [$0] : ()
+>   %16 = Block %13 : usize
+>   %17 = Closure #1 : fn(usize) -> usize
+>   %18 = Store [$1] %17 : ()
+>   %22 = Block %20 : usize
         read := fn() -> usize: value
->   %1 = Retain %4 Entry captures #0 : ()
+>   %1 = Retain %5 Entry captures #0 : ()
 >   %2 = Read copy [$0] : usize
 >   %3 = Drop [$0] : ()
->   %4 = Block %2 : usize
->   %5 = Closure #2 : fn() -> usize
->   %6 = Retain %5 Operation captures #0 : ()
->   %7 = Store [$2] %5 : ()
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : usize
+>   %6 = Closure #2 : fn() -> usize
+>   %7 = Retain %6 Operation captures #0 : ()
+>   %8 = Store [$2] %6 : ()
         value = 91
->   %8 = Store [$0] 91:usize : ()
->   %9 = Release %8 Operation #3 : ()
->   %10 = Drop [$0] : ()
+>   %9 = Store [$0] 91:usize : ()
+>   %10 = Release %9 Operation #3 : ()
+>   %11 = Drop [$0] : ()
         read()
->   %11 = Read move [$2] : fn() -> usize
->   %12 = CallValue %11 [] : usize
->   %13 = Drop [%11] : ()
+>   %12 = Read move [$2] : fn() -> usize
+>   %13 = CallValue %12 [] : usize
+>   %14 = Drop [%12] : ()
     change(3)
->   %17 = Read move [$1] : fn(usize) -> usize
->   %18 = CallValue %17 [3:usize] : usize
->   %19 = Drop [%17] : ()
+>   %19 = Read move [$1] : fn(usize) -> usize
+>   %20 = CallValue %19 [3:usize] : usize
+>   %21 = Drop [%19] : ()
 >   exit sub 1 drops [$0]
 >   exit sub 2 drops [$0]
 >   storage sub 0: $0 cell

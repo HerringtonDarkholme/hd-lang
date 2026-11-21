@@ -57,15 +57,17 @@ fn returning(callback: fn(string) -> string, value: string) -> string:
 fn retaining(value: string) -> fn() -> string:
 > app/main/retaining
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %2 consume, %4 consume last
->   %1 = Retain %6 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 consume, %5 consume last
+>   %1 = Retain %8 Entry local $0 #0 : ()
     fn() -> string: value
->   %0 = Retain %3 Entry captures #0 : ()
+>   %0 = Retain %4 Entry captures #0 : ()
 >   %2 = Read move [$0] : string
->   %3 = Block %2 : string
->   %4 = Closure #1 : fn() -> string
->   %5 = Retain %4 Operation captures #0 : ()
->   %6 = Block %4 : fn() -> string
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : string
+>   %5 = Closure #1 : fn() -> string
+>   %6 = Retain %5 Operation captures #0 : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : fn() -> string
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -120,7 +122,7 @@ fn moving(
 >     uses $0: entry -> %2 lend last
 >   local $1 value: UniqList[usize] [param read] value
 >     uses $1: entry -> %3 consume last
->   %1 = Release %6 Exit local $0 #2 : ()
+>   %1 = Release %7 Exit local $0 #2 : ()
     callback: fn(UniqList[usize]) -> UniqList[usize],
     value: UniqList[usize],
 ) -> UniqList[usize]:
@@ -130,6 +132,7 @@ fn moving(
 >   %3 = Read move [$1] : UniqList[usize]
 >   %4 = FlagClear [$1] #2 : ()
 >   %5 = CallValue %2 [%3] : UniqList[usize]
->   %6 = Block %5 : UniqList[usize]
+>   %6 = Drop [$1] : ()
+>   %7 = Block %5 : UniqList[usize]
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes

@@ -51,14 +51,15 @@ fn leftmost(n: *Node?, last: *Node) -> *Node:
 >     uses $1: entry -> %3 consume last
 >   local $2 node: *Node [read assigned] value
 >     uses $2: %15 -> %5 lend, %6 consume last
->   %0 = Release %21 Exit local $0 #2 : ()
->   %1 = Retain %21 Entry local $1 #0 : ()
+>   %0 = Release %22 Exit local $0 #2 : ()
+>   %1 = Retain %22 Entry local $1 #0 : ()
     match n:
 >   %2 = Read borrow [$0] : *Node?
 >   %10 = Drop [$1] : ()
 >   %19 = Block - : never
 >   %20 = Match %2 [%19 %4 %11] : *Node
->   %21 = Block %20 : *Node
+>   %21 = Drop [$1] : ()
+>   %22 = Block %20 : *Node
         .None => last
 >   %3 = Read move [$1] : *Node
 >   %4 = Block %3 : *Node

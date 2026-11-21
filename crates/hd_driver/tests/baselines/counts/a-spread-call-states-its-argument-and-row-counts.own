@@ -33,8 +33,8 @@ fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) 
 >     uses $0: entry -> %2 lend last
 >   local $1 values: (string, List[i32]) [param read] value
 >     uses $1: entry -> %3 consume last
->   %0 = Release %13 Exit local $0 #2 : ()
->   %1 = Retain %13 Entry local $1 #0 : ()
+>   %0 = Release %14 Exit local $0 #2 : ()
+>   %1 = Retain %14 Entry local $1 #0 : ()
     call(f, values)
 >   %2 = Read borrow [$0] : fn(string, List[i32]) -> usize
 >   %3 = Read move [$1] : (string, List[i32])
@@ -47,7 +47,8 @@ fn spread(f: fn(string, List[i32]) -> usize $ Tag, values: (string, List[i32])) 
 >   %10 = Break L0 %4 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
->   %13 = Block %12 : usize
+>   %13 = Drop [$1] : ()
+>   %14 = Block %12 : usize
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 

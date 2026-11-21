@@ -344,28 +344,25 @@
   )
   (func $loud_on (param $t1 i32) (param $go i32) (result i32) (local $t0 i32)
     ;; 63 |     if go:
-    block
-      i32.const 1
-      local.set $t0
-      local.get $go
-      if
+    i32.const 1
+    local.set $t0
+    local.get $go
+    if
     ;; 64 |         return hold(l)
-        local.get $t1
-        call $hold
-        local.set $go
-        br 1
-    ;; 63 |     if go:
-      end
-    ;; 65 |     l.big.f1
       local.get $t1
-      i32.load $heap offset=4
-      local.set $go
+      call $hold
+      return
     ;; 63 |     if go:
-      local.get $t0
-      if
-        local.get $t1
-        call $"release_value[std.rt_tests.stage_case.Loud]"
-      end
+    end
+    ;; 65 |     l.big.f1
+    local.get $t1
+    i32.load $heap offset=4
+    local.set $go
+    ;; 63 |     if go:
+    local.get $t0
+    if
+      local.get $t1
+      call $"release_value[std.rt_tests.stage_case.Loud]"
     end
     local.get $go
   )

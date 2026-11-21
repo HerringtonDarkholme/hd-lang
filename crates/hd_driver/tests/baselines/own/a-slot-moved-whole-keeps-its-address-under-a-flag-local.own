@@ -285,19 +285,21 @@ fn parameter(mut held: Held, early: bool) -> usize:
 >   %2 = Ref mut local frame [$0] : &mut Held
 >   %3 = Call std/rt_tests.stage_case/bump[] (%2) : ()
 >   %4 = LoanEnd [%2] : ()
->   %14 = Block %12 : usize
+>   %15 = Drop [$0] : ()
+>   %16 = Block %13 : usize
     if early:
 >   %5 = Read copy [$1] : bool
->   %11 = If %5 [%10 -] : ()
+>   %12 = If %5 [%11 -] : ()
         return consume(held)
 >   %6 = FlagClear [$0] #2 : ()
 >   %7 = Read move [$0] : Held
 >   %8 = Call std/rt_tests.stage_case/consume[] (%7) : usize
->   %9 = Return %8 : never
->   %10 = Block - : never
+>   %9 = Drop [$0] : ()
+>   %10 = Return %8 : never
+>   %11 = Block - : never
     held.id
->   %12 = Read copy [$0 .id] : usize
->   %13 = Drop [$0] : ()
+>   %13 = Read copy [$0 .id] : usize
+>   %14 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 

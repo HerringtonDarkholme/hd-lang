@@ -5,34 +5,35 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $question (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
+  (func $question (param $o.0 i32) (param $o.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 14 |     s := o?
-    block
-      local.get $o.0
-      i32.eqz
-      br_if 0
+    local.get $o.0
+    if
+    else
+      i32.const 0
+      i32.const 0
+      return
+    end
     ;; 15 |     .Some(s + "!")
-      local.get $o.1
-      i32.const 1
-      i32.add
-      local.tee $t0
-      call $rt:str
-      local.tee $t1
-      local.tee $t2
+    local.get $o.1
+    i32.const 1
+    i32.add
+    local.tee $t0
+    call $rt:str
+    local.tee $t1
+    local.tee $t2
+    local.get $o.0
+    local.get $o.1
+    call $rt:memory_copy/0/0
+    local.get $t2
+    local.get $o.1
+    i32.add
+    i32.const 33
+    i32.store8 $heap
+    local.get $o.0
+    if
       local.get $o.0
-      local.get $o.1
-      call $rt:memory_copy/0/0
-      local.get $t2
-      local.get $o.1
-      i32.add
-      i32.const 33
-      i32.store8 $heap
-      local.get $o.0
-      if
-        local.get $o.0
-        call $rt:release_ref
-      end
-    ;; 14 |     s := o?
+      call $rt:release_ref
     end
     local.get $t1
     local.get $t0

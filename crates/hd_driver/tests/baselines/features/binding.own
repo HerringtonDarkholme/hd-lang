@@ -42,9 +42,10 @@ fn bind_kept(xs: List[string], all: &mut List[List[string]]) -> void:
 >     uses $0: entry -> %1 consume last
 >   local $1 all: &mut List[List[string]] [param read] value
 >     uses $1: entry -> %3 lend last
->   %0 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %6 Entry local $0 #0 : ()
     ys := xs
->   %5 = Block - : ()
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
     all.push(ys)
 >   %1 = Read move [$0] : List[string]
 >   %2 = IsUnique [*$1] : ()

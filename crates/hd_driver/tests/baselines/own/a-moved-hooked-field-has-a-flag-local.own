@@ -21,5 +21,6 @@ std/rt_tests.stage_case/split
   %12 = Drop [$0] : ()
   %13 = FlagClear [$0] #3 : ()
   %14 = FlagClear [$0 .left] #4 : ()
-  %15 = Block - : ()
+  %15 = Drop [$0] : ()
+  %16 = Block - : ()
   exit sub 0 drops [$0]

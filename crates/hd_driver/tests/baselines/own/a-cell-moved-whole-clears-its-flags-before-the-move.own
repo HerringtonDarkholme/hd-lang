@@ -4,8 +4,8 @@ std/rt_tests.stage_case/moved_cell
     uses $0: entry -> %16 lend last
   local $1 value: Token [:= read assigned captured] place
   local $2 other: Token [:= read assigned] value
-    uses $2: %11 -> %24 consume last
-  %0 = Release %27 FrameDrop child #2 : ()
+    uses $2: %11 -> %26 consume last
+  %0 = Release %31 FrameDrop child #2 : ()
   %1 = NewStruct [1:usize] : Token
   %2 = Box #1 #1 : ()
   %3 = Store [$1] %1 : ()
@@ -25,15 +25,19 @@ std/rt_tests.stage_case/moved_cell
   %17 = FlagClear [$1] #3 : ()
   %18 = Read move [$1] : Token
   %19 = Call std/rt_tests.stage_case/take[] (%18) : usize
-  %20 = Return %19 : never
-  %21 = Block - : never
-  %22 = If %16 [%21 -] : ()
-  %23 = Drop [$1] : ()
-  %24 = Read copy [$2 .id] : usize
-  %25 = Drop [$2] : ()
-  %26 = FlagClear [$2] #4 : ()
-  %27 = Block %24 : usize
-  %28 = Return - #2 : never
+  %20 = Drop [$1] : ()
+  %21 = Drop [$2] : ()
+  %22 = Return %19 : never
+  %23 = Block - : never
+  %24 = If %16 [%23 -] : ()
+  %25 = Drop [$1] : ()
+  %26 = Read copy [$2 .id] : usize
+  %27 = Drop [$2] : ()
+  %28 = FlagClear [$2] #4 : ()
+  %29 = Drop [$1] : ()
+  %30 = Drop [$2] : ()
+  %31 = Block %26 : usize
+  %34 = Return - #2 : never
   exit sub 0 drops [$1 $2]
   storage sub 0: $1 cell
-  cancel %9 releases [%4294967295]
+  cancel %9 releases [%2147483649 %2147483650 %4294967295]
