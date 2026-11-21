@@ -12,7 +12,7 @@
 //! captures of its declaration, and collection makes one code instance per
 //! instantiation (`fn.type.generic.*` for a use as a value).
 
-use hd_base::{DefId, LocalId, StageResult};
+use hd_base::{DefId, LocalId, NotImplemented, Stage, StageResult};
 use hd_diag::Code;
 use hd_resolve::{Generic, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -258,7 +258,7 @@ impl Ck<'_, '_> {
         }
         parts.form = Some(form);
         let (r, ft, own) = self.closure_with(n, &parts, None)?;
-        let l = own.expect("a named closure binds its name");
+        let l = named_closure_binding(own)?;
         self.b.body_mut().local_ty[l.idx()] = ft;
         self.set_local(l, r, n.index());
         Ok(())
@@ -533,13 +533,10 @@ impl Ck<'_, '_> {
         parts: &mut ClosureParts<'_>,
     ) -> StageResult<LocalId> {
         let (r, ft, own) = self.closure_with(n, parts, None)?;
-        let l = own.expect("a named closure binds its name");
+        let l = named_closure_binding(own)?;
         let caps = self.closure_caps(r);
         // `closure_with` enters a named generic closure in `local_generics`.
-        let g = self
-            .local_generics
-            .get_mut(&l)
-            .expect("a generic local function's entry");
+        let g = self.local_generic_entry(l)?;
         g.fn_ty = ft;
         g.caps = Some(caps);
         let sub = g.sub as usize;
@@ -547,6 +544,13 @@ impl Ck<'_, '_> {
         body.local_ty[l.idx()] = ft;
         body.sub_flags[sub] |= sub_flags::GENERIC;
         Ok(l)
+    }
+
+    /// The entry `closure_with` registers before checking a named generic body.
+    fn local_generic_entry(&mut self, l: LocalId) -> StageResult<&mut LocalGeneric> {
+        self.local_generics
+            .get_mut(&l)
+            .ok_or_else(|| invalid_local_closure_metadata("registered generic entry"))
     }
 
     /// The expression of a parameter's default, if it has one.
@@ -616,11 +620,11 @@ impl Ck<'_, '_> {
         let checked = if parts.generic.is_some() {
             self.generic_closure(p, &mut parts)
         } else {
-            self.closure_with(p, &parts, None).map(|(r, ft, own)| {
-                let l = own.expect("a named closure binds its name");
+            self.closure_with(p, &parts, None).and_then(|(r, ft, own)| {
+                let l = named_closure_binding(own)?;
                 self.b.body_mut().local_ty[l.idx()] = ft;
                 self.set_local(l, r, p.index());
-                l
+                Ok(l)
             })
         };
         self.forbidden = saved;
@@ -819,5 +823,89 @@ impl Ck<'_, '_> {
         if captured {
             self.add_flags(l, local_flags::CAPTURED);
         }
+    }
+}
+
+/// A named closure's binding, which its producer creates before its body.
+fn named_closure_binding(own: Option<LocalId>) -> StageResult<LocalId> {
+    own.ok_or_else(|| invalid_local_closure_metadata("named closure binding"))
+}
+
+#[cold]
+fn invalid_local_closure_metadata(needed: &str) -> NotImplemented {
+    NotImplemented::bug(Stage::Body, format!("local closure requires {needed}"))
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::{LocalGeneric, named_closure_binding};
+    use hd_base::{LocalId, Stage};
+    use hd_types::Ty;
+
+    #[test]
+    fn named_binding_preserves_identity_and_rejects_absence() {
+        for local in [0, 1, 1_000] {
+            let local = LocalId::from_raw(local);
+            assert_eq!(
+                named_closure_binding(Some(local)).expect("named binding"),
+                local
+            );
+        }
+        let error = named_closure_binding(None).expect_err("absent binding");
+        assert_eq!(error.stage, Stage::Body);
+        assert!(error.bug);
+        assert!(!error.out_of_fuel);
+        assert_eq!(error.what, "local closure requires named closure binding");
+    }
+
+    #[test]
+    fn generic_entry_is_borrowed_and_missing_entry_changes_no_state() {
+        crate::body::with_checker(|ck| {
+            let local = LocalId::from_raw(3);
+            let missing = LocalId::from_raw(4);
+            ck.local_generics.insert(
+                local,
+                LocalGeneric {
+                    sub: 11,
+                    first: 7,
+                    params: vec![Ty::I32],
+                    generics: Vec::new(),
+                    fn_ty: Ty::POISON,
+                    caps: None,
+                },
+            );
+            let before = (
+                ck.b.body().len(),
+                ck.b.body().extra.len(),
+                ck.b.body().local_ty.len(),
+            );
+            let entry = ck.local_generic_entry(local).expect("registered entry");
+            assert_eq!(entry.sub, 11);
+            assert_eq!(entry.first, 7);
+            assert_eq!(entry.params, [Ty::I32]);
+            entry.fn_ty = Ty::STRING;
+            entry.caps = Some(vec![LocalId::from_raw(9)]);
+            let original = ck.local_generics.get(&local).expect("same entry");
+            assert_eq!(original.fn_ty, Ty::STRING);
+            assert_eq!(original.caps, Some(vec![LocalId::from_raw(9)]));
+            let error = ck.local_generic_entry(missing).expect_err("absent entry");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+            assert_eq!(
+                error.what,
+                "local closure requires registered generic entry"
+            );
+            assert_eq!(ck.local_generics.len(), 1);
+            assert!(!ck.local_generics.contains_key(&missing));
+            assert_eq!(
+                (
+                    ck.b.body().len(),
+                    ck.b.body().extra.len(),
+                    ck.b.body().local_ty.len()
+                ),
+                before
+            );
+        });
     }
 }
