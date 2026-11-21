@@ -7,6 +7,25 @@ use std::cell::Cell;
 thread_local! {
     static TYPE_NODES: Cell<Option<u64>> = const { Cell::new(None) };
     static RESOLVE_NODES: Cell<Option<u64>> = const { Cell::new(None) };
+    static ENV_LINKS: Cell<Option<u64>> = const { Cell::new(None) };
+}
+
+/// Count the clauses [`crate::solver::ParamEnv::renew_key`] links on
+/// this thread: the work of keeping environment keys current.
+pub fn count_env_links<R>(run: impl FnOnce() -> R) -> (R, u64) {
+    let previous = ENV_LINKS.with(|c| c.replace(Some(0)));
+    let result = run();
+    let n = ENV_LINKS.with(|c| c.replace(previous)).unwrap_or(0);
+    (result, n)
+}
+
+/// `n` clauses linked into environment keys.
+pub(crate) fn env_links(n: usize) {
+    ENV_LINKS.with(|c| {
+        if let Some(k) = c.get() {
+            c.set(Some(k + n as u64));
+        }
+    });
 }
 
 /// Count the type nodes `InferTable::resolve` walks on this thread: the

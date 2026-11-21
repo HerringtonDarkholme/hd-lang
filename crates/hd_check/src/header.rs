@@ -462,25 +462,21 @@ struct ItemCheck<'c, 'a> {
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
     /// The clauses the associated-type bounds give each projection inside
-    /// `t` (`trait.assoc.bound-use`), added once per projection; the
-    /// environment's key is renewed when one is new.
+    /// `t` (`trait.assoc.bound-use`), added once per projection.
     fn add_projection_clauses(&mut self, pool: Types<'_>, t: Ty) {
-        if crate::body::add_projection_bounds(
+        crate::body::add_projection_bounds(
             self.cx.lookup,
             pool,
             &mut self.env,
             t,
             self.cx.names.known.copy,
-        ) {
-            self.env.key = Some(self.cx.global.env_key(&self.env));
-        }
+        );
     }
 
     /// The goals of `it`, under its environment, with a fresh memo and
     /// `cx.fuel`; findings go to `out`.
     fn new(cx: &'c HeaderCx<'a>, it: &Item, out: &'c mut Vec<Finding>) -> Self {
-        let mut env = environment(cx, it);
-        env.key = Some(cx.global.env_key(&env));
+        let env = environment(cx, it);
         ItemCheck {
             cx,
             env,
@@ -1505,6 +1501,7 @@ impl<'a> ItemCheck<'_, 'a> {
             mut_: false,
         };
         let decls = self.cx.decls(&mut self.values.local);
+        self.env.renew_key(self.cx.global);
         let mut scx = SolveCx {
             pool,
             env: &self.env,
@@ -1555,6 +1552,7 @@ impl<'a> ItemCheck<'_, 'a> {
             mut_: false,
         };
         let decls = self.cx.decls(&mut self.values.local);
+        self.env.renew_key(self.cx.global);
         let mut scx = SolveCx {
             pool,
             env: &self.env,
@@ -1703,7 +1701,7 @@ impl<'a> ItemCheck<'_, 'a> {
             let env = if closed {
                 Some(EnvKey::EMPTY)
             } else {
-                self.env.key
+                Some(self.env.renew_key(self.cx.global))
             };
             if let Some(env) = env {
                 if self.clean.contains(&(t, env)) {

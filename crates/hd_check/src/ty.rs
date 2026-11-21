@@ -12,6 +12,15 @@ use hd_types::{Inputs, ParamRef, Prim, RowData, RowId, Ty, TyData, VarKind};
 
 use crate::body::Ck;
 
+/// A written type's bound check, held by [`Ck::header_waits`].
+pub(crate) struct WrittenBounds {
+    t: Ty,
+    def: DefId,
+    written: Vec<Ty>,
+    args: Vec<hd_base::NodeIdx>,
+    whole: hd_base::NodeIdx,
+}
+
 /// What a (possibly qualified) name in a body reaches.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Named {
@@ -892,6 +901,16 @@ impl Ck<'_, '_> {
         (def, written): (DefId, &[Ty]),
         (arg_nodes, whole): (&[NodeRef<'_>], NodeRef<'_>),
     ) -> StageResult<()> {
+        if let Some(waits) = &mut self.header_waits {
+            waits.push(WrittenBounds {
+                t,
+                def,
+                written: written.to_vec(),
+                args: arg_nodes.iter().map(|n| n.index()).collect(),
+                whole: whole.index(),
+            });
+            return Ok(());
+        }
         let pool = self.pool();
         let Some(item) = self.cx.lookup.item(def) else {
             return Ok(());
@@ -932,6 +951,16 @@ impl Ck<'_, '_> {
             if self.diags.len() != before {
                 missed = Some(i);
             }
+        }
+        Ok(())
+    }
+
+    /// The held checks of `waits`, in the order they were met.
+    pub(crate) fn check_held_bounds(&mut self, waits: Vec<WrittenBounds>) -> StageResult<()> {
+        let tree = &self.cx.src.parse.tree;
+        for w in waits {
+            let args: Vec<NodeRef<'_>> = w.args.iter().map(|&i| tree.node(i)).collect();
+            self.check_written_bounds(w.t, (w.def, &w.written), (&args, tree.node(w.whole)))?;
         }
         Ok(())
     }

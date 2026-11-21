@@ -1,0 +1,43 @@
+# @dump: diagnostics
+# A local generic header puts every bound in its environment before it
+# checks a written type against one (`types.generic.bound`), as a
+# top-level header does: a later parameter's `Copy`, a projection, a
+# default, sibling and nested scopes, and a binding merged into a clause
+# a supertrait gave. No diagnostics.
+trait Marker[A]:
+    pass
+
+trait Source:
+    type Item
+
+trait Base[K]:
+    type Out
+
+trait Derived[K] < Base[K]:
+    pass
+
+struct Pair[A, B < Marker[A]]:
+    left: A
+    right: B
+
+fn inspect() -> void:
+    fn later[T < Marker[A], A](value: T, marker: A) -> void:
+        pass
+
+    fn projected[S < Source, T < Marker[S::Item]](value: T, source: S) -> void:
+        pass
+
+    fn defaulted[A, B < Marker[A], P = Pair[A, B]](value: P) -> void:
+        pass
+
+    fn outer[A, T < Marker[A]](value: T, marker: A) -> void:
+        fn inner[U < Marker[B], B < Marker[A]](value: U, marker: B) -> void:
+            pass
+
+        pass
+
+    fn merged[K, C < Derived[K] & Base[K, Out = i32]](value: C, key: K) -> void:
+        let out: C::Out = 1
+        pass
+
+    pass

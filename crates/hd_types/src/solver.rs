@@ -116,15 +116,20 @@ impl EnvKey {
 /// The clauses an associated type's bounds give a projection
 /// (`trait.assoc.bound-use`) are added on demand, once per projection a
 /// body or header names; [`ParamEnv::elaborated`] records which.
+///
+/// Its key ([`Self::key`]) is never stale: a change drops the keys of
+/// the prefixes it touched, and [`Self::renew_key`] links only the
+/// clauses after the longest prefix still keyed.
 #[derive(Clone, Debug, Default)]
 pub struct ParamEnv {
-    pub key: Option<EnvKey>,
+    /// The key of each clause prefix the last renewal covered: entry `i`
+    /// names clauses `0..=i`.
+    keys: Vec<EnvKey>,
     clause_self: Vec<Ty>,
     clause_trait: Vec<DefId>,
     clause_args: Vec<TyList>,
     clause_bindings: Vec<Vec<(DefId, Ty)>>,
     clause_mut: Vec<bool>,
-    clause_origin: Vec<u16>,
     by_self: HashMap<Ty, Vec<u32>>,
     first_trait: HashMap<(Ty, DefId), u32>,
     present: HashMap<(Ty, DefId, TyList), u32>,
@@ -172,8 +177,8 @@ impl ParamEnv {
     }
 
     /// Appends a clause unless the same self type, trait and arguments
-    /// are already present: whether the environment changed. Its origin
-    /// is its index. A present clause takes the bindings it lacks
+    /// are already present: whether the environment changed. A present
+    /// clause takes the bindings it lacks
     /// (`trait.binding.meaning`): `IndexMut[K]` elaborates `Index[K]`
     /// with none, and a written `Index[K, Out = i32]` beside it still
     /// fixes `Out`, as rustc keeps a projection predicate beside its trait
@@ -200,6 +205,9 @@ impl ParamEnv {
             }
             let merged = have.len() != before;
             self.merges += usize::from(merged);
+            if merged {
+                self.keys.truncate(c as usize);
+            }
             return merged;
         }
         self.present.insert((self_ty, trait_, args), at);
@@ -210,11 +218,33 @@ impl ParamEnv {
         self.clause_args.push(args);
         self.clause_bindings.push(bindings);
         self.clause_mut.push(mut_);
-        self.clause_origin
-            .push(u16::try_from(i).unwrap_or(u16::MAX));
         self.projection_walk.changed((self_ty, trait_, Some(args)));
         self.projection_walk.changed((self_ty, trait_, None));
         true
+    }
+
+    /// The environment's key, if every clause is keyed: `None` after a
+    /// change until [`Self::renew_key`].
+    #[must_use]
+    pub fn key(&self) -> Option<EnvKey> {
+        (self.keys.len() == self.len()).then(|| self.keys.last().copied().unwrap_or(EnvKey::EMPTY))
+    }
+
+    /// Keys the clauses added since the longest prefix still keyed, one
+    /// interning each under one lock: an unchanged environment costs one
+    /// comparison, and `n` added bounds cost `n` links, never a pass over
+    /// the earlier clauses.
+    pub fn renew_key(&mut self, global: &GlobalMemo) -> EnvKey {
+        if let Some(k) = self.key() {
+            return k;
+        }
+        let mut m = global.envs.lock().unwrap_or_else(PoisonError::into_inner);
+        crate::work::env_links(self.len() - self.keys.len());
+        for i in self.keys.len()..self.len() {
+            let parent = self.keys.last().copied().unwrap_or(EnvKey::EMPTY);
+            self.keys.push(env_link(&mut m, parent, self, i));
+        }
+        self.keys.last().copied().unwrap_or(EnvKey::EMPTY)
     }
 
     /// Whether a clause on `self_ty`, `trait_` and `args` is present.
@@ -268,7 +298,7 @@ impl ParamEnv {
         }
         self.clause_bindings.truncate(n);
         self.clause_mut.truncate(n);
-        self.clause_origin.truncate(n);
+        self.keys.truncate(n);
         while let Some(&(p, end)) = self.elaborated.last()
             && end as usize > n
         {
@@ -1086,15 +1116,24 @@ pub struct MemoStats {
     pub misses: u64,
 }
 
-/// An environment's clauses: what `EnvKey` interns.
-type EnvClauses = (
-    Vec<Ty>,
-    Vec<DefId>,
-    Vec<TyList>,
-    Vec<Vec<(DefId, Ty)>>,
-    Vec<bool>,
-    Vec<u16>,
-);
+/// An environment's last clause and the key of the clauses before it:
+/// what `EnvKey` interns. A clause's origin is its index, the length of
+/// the chain, so equal clause lists get equal keys.
+type EnvLink = (EnvKey, Ty, DefId, TyList, Vec<(DefId, Ty)>, bool);
+
+/// The key of `env`'s clauses `0..=i`, given the key of those before.
+fn env_link(m: &mut HashMap<EnvLink, EnvKey>, parent: EnvKey, env: &ParamEnv, i: usize) -> EnvKey {
+    let link = (
+        parent,
+        env.clause_self[i],
+        env.clause_trait[i],
+        env.clause_args[i],
+        env.clause_bindings[i].clone(),
+        env.clause_mut[i],
+    );
+    let next = EnvKey(crate::word(m.len() + 1));
+    *m.entry(link).or_insert(next)
+}
 
 /// What a value of one declaration holds inline, as the checker's value
 /// rule decides it (`data.struct.contains`): rustc's `params_in_repr` and
@@ -1134,7 +1173,7 @@ pub struct GlobalMemo {
     shards: [Mutex<HashMap<MemoKey, u32>>; 16],
     entries: AppendVec<MemoEntry>,
     records: AppendVec<MemoRecord>,
-    envs: Mutex<HashMap<EnvClauses, EnvKey>>,
+    envs: Mutex<HashMap<EnvLink, EnvKey>>,
     /// The part of each closed type that keeps its values from being
     /// copied, or `None` when they copy (the checker's `ref.move.holds`
     /// walk): a type with no parameter, inference variable, projection or
@@ -1252,24 +1291,13 @@ impl GlobalMemo {
         i
     }
 
-    /// The interned key of an environment (§2.3): equal clause lists get
-    /// equal keys; no clause is `EnvKey::EMPTY`. A run ID: it keys the
-    /// memo, never a cache key or output.
+    /// The interned key of an environment (§2.3), linked from no clause
+    /// on: equal clause lists get equal keys; no clause is
+    /// `EnvKey::EMPTY`. A run ID: it keys the memo, never a cache key or
+    /// output. [`ParamEnv::renew_key`] keeps it without this pass.
     pub fn env_key(&self, env: &ParamEnv) -> EnvKey {
-        if env.is_empty() {
-            return EnvKey::EMPTY;
-        }
-        let clauses = (
-            env.clause_self.clone(),
-            env.clause_trait.clone(),
-            env.clause_args.clone(),
-            env.clause_bindings.clone(),
-            env.clause_mut.clone(),
-            env.clause_origin.clone(),
-        );
         let mut m = self.envs.lock().unwrap_or_else(PoisonError::into_inner);
-        let next = EnvKey(crate::word(m.len() + 1));
-        *m.entry(clauses).or_insert(next)
+        (0..env.len()).fold(EnvKey::EMPTY, |parent, i| env_link(&mut m, parent, env, i))
     }
 
     /// The copy blocker published for the closed type `t`, if any
@@ -2570,7 +2598,7 @@ struct Search<'s, 'a> {
 
 impl<'s, 'a> Search<'s, 'a> {
     fn new(cx: &'s mut SolveCx<'a>, fuel: &'s mut Fuel) -> Self {
-        let env = match cx.env.key {
+        let env = match cx.env.key() {
             Some(k) => {
                 debug_assert_eq!(k, cx.global.env_key(cx.env), "a stale EnvKey");
                 k
@@ -6132,6 +6160,58 @@ mod tests {
             env.clause_bindings()[0],
             [(out, Ty::I32), (other, Ty::STRING)]
         );
+    }
+
+    /// #2257: every change drops the key of the prefixes it touched, and
+    /// a renewal links only the clauses after them; the renewed key is the
+    /// one a whole pass gives, so a query never reads a stale key.
+    #[test]
+    fn a_changed_environment_renews_its_key_from_the_changed_clause() {
+        use super::EnvKey;
+        let gp = InternPool::new();
+        let g = gp.types();
+        let (_, [show, pick, _, _]) = show_table(g);
+        let (a, b) = (
+            param(g, DefId::from_raw(40), 0),
+            param(g, DefId::from_raw(40), 1),
+        );
+        let global = GlobalMemo::default();
+        let mut env = ParamEnv::default();
+        assert_eq!(env.key(), Some(EnvKey::EMPTY));
+        assert!(env.push(a, show, TyList::EMPTY, vec![], false));
+        assert_eq!(env.key(), None);
+        let one = env.renew_key(&global);
+        assert!(env.push(b, pick, TyList::EMPTY, vec![], false));
+        let ((), linked) = crate::work::count_env_links(|| {
+            env.renew_key(&global);
+        });
+        assert_eq!(linked, 1, "only the new clause is linked");
+        let two = env.key().expect("renewed");
+        assert_eq!(two, global.env_key(&env));
+        // An unchanged environment keeps its key without linking.
+        let ((), linked) = crate::work::count_env_links(|| {
+            assert!(!env.push(b, pick, TyList::EMPTY, vec![], false));
+            assert_eq!(env.renew_key(&global), two);
+        });
+        assert_eq!(linked, 0);
+        // A binding merged into the first clause re-keys both.
+        assert!(env.push(
+            a,
+            show,
+            TyList::EMPTY,
+            vec![(DefId::from_raw(50), Ty::I32)],
+            false
+        ));
+        assert_eq!(env.key(), None);
+        let merged = env.renew_key(&global);
+        assert_ne!(merged, two);
+        assert_eq!(merged, global.env_key(&env));
+        // Truncating keeps the prefix keyed: the merged first clause alone.
+        env.truncate(1);
+        assert_ne!(env.key(), Some(one));
+        assert_eq!(env.key(), Some(global.env_key(&env)));
+        env.truncate(0);
+        assert_eq!(env.key(), Some(EnvKey::EMPTY));
     }
 
     /// §2.2: body memo entries are canonical, so a trial that cached one

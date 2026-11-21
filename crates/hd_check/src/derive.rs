@@ -771,7 +771,6 @@ impl<'c> Ck<'_, 'c> {
                 self.add_bound(p, *b);
             }
         }
-        self.env.key = Some(self.cx.global.env_key(&self.env));
     }
 
     /// The walker, describer or source implementation that a `walk`,

@@ -441,6 +441,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// named type may omit arguments the expression infers
     /// (`h.fact::[MaxLen]()`); a written type elsewhere infers nothing.
     pub in_explicit_targs: bool,
+    /// The written-bound checks met while a generic local function's
+    /// bounds and defaults are read, held until every bound is in the
+    /// environment (`Ck::generic_local_fn`).
+    pub header_waits: Option<Vec<crate::ty::WrittenBounds>>,
     /// The next call's default bodies: callee, type arguments and the
     /// values before the first argument (a receiver).
     pub default_owner: Option<(DefId, TyList, Vec<Ref>)>,
@@ -837,6 +841,7 @@ pub(crate) fn new_ck<'a, 'c>(
         written_log: Vec::new(),
         dyn_recv: None,
         in_explicit_targs: false,
+        header_waits: None,
         default_owner: None,
         local_defaults: None,
         local_forms: HashMap::default(),
@@ -1021,9 +1026,6 @@ pub(crate) fn new_ck<'a, 'c>(
     };
     ck.add_generics(env, 0, &gs);
     ck.next_gen = u16::try_from(gs.len()).unwrap_or(u16::MAX);
-    // The environment is frozen from here: its memo key, once per body (a
-    // generic local function's bounds renew it).
-    ck.env.key = Some(cx.global.env_key(&ck.env));
     ck
 }
 
@@ -3507,8 +3509,7 @@ impl Ck<'_, '_> {
     }
 
     /// The clauses the associated-type bounds give each projection inside
-    /// `t` ([`add_projection_bounds`]), added once per projection; the
-    /// environment's key is renewed when one is new.
+    /// `t` ([`add_projection_bounds`]), added once per projection.
     pub(crate) fn add_projection_clauses(&mut self, t: Ty) {
         let pool = self.pool();
         // No projection reachable: nothing to add, and no walk (#1891).
@@ -3516,15 +3517,13 @@ impl Ck<'_, '_> {
             return;
         }
         let t = self.infer.resolve(pool, t);
-        if add_projection_bounds(
+        add_projection_bounds(
             self.cx.lookup,
             pool,
             &mut self.env,
             t,
             self.cx.names.known.copy,
-        ) {
-            self.env.key = Some(self.cx.global.env_key(&self.env));
-        }
+        );
     }
 
     /// Moves the checker to byte `at` of the module: the local declarations
@@ -3558,6 +3557,7 @@ impl Ck<'_, '_> {
         let view = self.cx.impls.hiding(self.unseen());
         let pool = self.pool();
         let decls = self.cx.decls(&mut self.inline);
+        self.env.renew_key(self.cx.global);
         let mut scx = SolveCx {
             pool,
             env: &self.env,

@@ -412,108 +412,121 @@ impl Ck<'_, '_> {
             first,
             params: nodes.iter().map(|n| n.index()).collect(),
         });
-        // Bounds and defaults, once every parameter has its name.
-        let mut defaulted = false;
-        for (position, ((&p, &g), generic)) in
-            params.iter().zip(&nodes).zip(&mut generics).enumerate()
-        {
-            if generic.anonymous {
-                generic.bounds = self.anonymous_bounds(p, g)?;
-                continue;
-            }
-            if g.kind() == SyntaxKind::ConstParameter {
-                if defaulted {
+        // Bounds and defaults, once every parameter has its name. Every
+        // bound is in the environment before any written type is checked
+        // against one, as rustc builds a `ParamEnv` from all predicates
+        // before checking any: `T < Marker[A], A` checks `A`'s default
+        // `Copy` (`types.generic.bound`).
+        let held = self.header_waits.replace(Vec::new());
+        let read = (|| -> StageResult<()> {
+            let mut defaulted = false;
+            for (position, ((&p, &g), generic)) in
+                params.iter().zip(&nodes).zip(&mut generics).enumerate()
+            {
+                if generic.anonymous {
+                    generic.bounds = self.anonymous_bounds(p, g)?;
+                    continue;
+                }
+                if g.kind() == SyntaxKind::ConstParameter {
+                    if defaulted {
+                        self.err(
+                            Code::DefaultOrder,
+                            g,
+                            "a generic parameter following a default needs a default too",
+                        );
+                    }
+                    continue;
+                }
+                let mut bs = Vec::new();
+                let mut lifted = false;
+                if let Some(bl) = Src::child(g, SyntaxKind::BoundList) {
+                    // `parser::ty_bound_trait` rejects `mut` in every bound.
+                    // The first token of each bound written after a `?`.
+                    let relaxed: Vec<u32> = (bl.direct_tokens())
+                        .filter(|&t| toks.kind(t) == TokenKind::Question)
+                        .map(|t| t.raw() + 1)
+                        .collect();
+                    for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
+                        let t = self.ty_node_as(b, NameRole::Trait)?;
+                        // `?Copy` lifts the default bound and adds none
+                        // (`ref.copy.generic.relaxed`).
+                        if relaxed.contains(&b.first_token().raw()) {
+                            if t != Ty::POISON
+                                && pool.trait_value(t).map(|(d, _)| d)
+                                    != Some(self.cx.names.known.copy)
+                            {
+                                let msg =
+                                    "only `Copy` is a default bound, so `?` lifts only `?Copy`";
+                                self.err(Code::InvalidRelaxedBound, b, msg);
+                            }
+                            lifted = true;
+                            continue;
+                        }
+                        if matches!(pool.get(t), TyData::TraitValue { .. }) {
+                            self.add_bound(p, t);
+                            bs.push(t);
+                        }
+                    }
+                    // `T < 'static` (ref.generic.static).
+                    if bl.direct_tokens().any(|t| self.cx.src.text(t) == "'static") {
+                        let t = pool.intern_ty(&TyData::TraitValue {
+                            def: self.cx.names.known.static_bound,
+                            args: hd_types::TyList::EMPTY,
+                            bindings: vec![],
+                        });
+                        self.add_bound(p, t);
+                        bs.push(t);
+                    }
+                }
+                // The default `Copy` bound (`ref.copy.generic.default`).
+                if !lifted && !generic.row {
+                    let copy = pool.intern_ty(&TyData::TraitValue {
+                        def: self.cx.names.known.copy,
+                        args: hd_types::TyList::EMPTY,
+                        bindings: vec![],
+                    });
+                    self.add_bound(p, copy);
+                    bs.push(copy);
+                }
+                generic.bounds = bs;
+                let written = Src::child(g, SyntaxKind::TypeDefault)
+                    .and_then(|d| d.children().find(|c| c.kind().is_type()));
+                if written.is_some() {
+                    defaulted = true;
+                } else if defaulted {
                     self.err(
                         Code::DefaultOrder,
                         g,
                         "a generic parameter following a default needs a default too",
                     );
                 }
-                continue;
-            }
-            let mut bs = Vec::new();
-            let mut lifted = false;
-            if let Some(bl) = Src::child(g, SyntaxKind::BoundList) {
-                // `parser::ty_bound_trait` rejects `mut` in every bound.
-                // The first token of each bound written after a `?`.
-                let relaxed: Vec<u32> = (bl.direct_tokens())
-                    .filter(|&t| toks.kind(t) == TokenKind::Question)
-                    .map(|t| t.raw() + 1)
-                    .collect();
-                for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
-                    let t = self.ty_node_as(b, NameRole::Trait)?;
-                    // `?Copy` lifts the default bound and adds none
-                    // (`ref.copy.generic.relaxed`).
-                    if relaxed.contains(&b.first_token().raw()) {
-                        if t != Ty::POISON
-                            && pool.trait_value(t).map(|(d, _)| d) != Some(self.cx.names.known.copy)
-                        {
-                            let msg = "only `Copy` is a default bound, so `?` lifts only `?Copy`";
-                            self.err(Code::InvalidRelaxedBound, b, msg);
+                generic.default = match written {
+                    Some(d) => {
+                        let from =
+                            first.saturating_add(u16::try_from(position).unwrap_or(u16::MAX));
+                        let saved = self.generic_default_from.replace(from);
+                        let checked = self.ty_node(d);
+                        self.generic_default_from = saved;
+                        let t = checked?;
+                        if t != Ty::POISON && matches!(pool.get(t), TyData::Row(_)) != generic.row {
+                            self.err(
+                                Code::GenericKindMismatch,
+                                d,
+                                "a generic default has its parameter's type or row kind",
+                            );
+                            Some(Ty::POISON)
+                        } else {
+                            Some(t)
                         }
-                        lifted = true;
-                        continue;
                     }
-                    if matches!(pool.get(t), TyData::TraitValue { .. }) {
-                        self.add_bound(p, t);
-                        bs.push(t);
-                    }
-                }
-                // `T < 'static` (ref.generic.static).
-                if bl.direct_tokens().any(|t| self.cx.src.text(t) == "'static") {
-                    let t = pool.intern_ty(&TyData::TraitValue {
-                        def: self.cx.names.known.static_bound,
-                        args: hd_types::TyList::EMPTY,
-                        bindings: vec![],
-                    });
-                    self.add_bound(p, t);
-                    bs.push(t);
-                }
+                    None => None,
+                };
             }
-            // The default `Copy` bound (`ref.copy.generic.default`).
-            if !lifted && !generic.row {
-                let copy = pool.intern_ty(&TyData::TraitValue {
-                    def: self.cx.names.known.copy,
-                    args: hd_types::TyList::EMPTY,
-                    bindings: vec![],
-                });
-                self.add_bound(p, copy);
-                bs.push(copy);
-            }
-            generic.bounds = bs;
-            let written = Src::child(g, SyntaxKind::TypeDefault)
-                .and_then(|d| d.children().find(|c| c.kind().is_type()));
-            if written.is_some() {
-                defaulted = true;
-            } else if defaulted {
-                self.err(
-                    Code::DefaultOrder,
-                    g,
-                    "a generic parameter following a default needs a default too",
-                );
-            }
-            generic.default = match written {
-                Some(d) => {
-                    let from = first.saturating_add(u16::try_from(position).unwrap_or(u16::MAX));
-                    let saved = self.generic_default_from.replace(from);
-                    let checked = self.ty_node(d);
-                    self.generic_default_from = saved;
-                    let t = checked?;
-                    if t != Ty::POISON && matches!(pool.get(t), TyData::Row(_)) != generic.row {
-                        self.err(
-                            Code::GenericKindMismatch,
-                            d,
-                            "a generic default has its parameter's type or row kind",
-                        );
-                        Some(Ty::POISON)
-                    } else {
-                        Some(t)
-                    }
-                }
-                None => None,
-            };
-        }
-        self.env.key = Some(self.cx.global.env_key(&self.env));
+            Ok(())
+        })();
+        let waits = std::mem::replace(&mut self.header_waits, held).unwrap_or_default();
+        read?;
+        self.check_held_bounds(waits)?;
         parts.generic = Some(LocalGeneric {
             sub: NONE,
             first,

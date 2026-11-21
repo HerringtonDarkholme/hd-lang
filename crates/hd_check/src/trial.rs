@@ -369,11 +369,7 @@ impl Ck<'_, '_> {
         self.opaque_rets.truncate(c.opaque_rets);
         self.strict_rets.truncate(c.strict_rets);
         self.recursive_returns.truncate(c.recursive_returns);
-        let clauses_added = self.env.len() > c.clauses;
         self.env.truncate(c.clauses);
-        if clauses_added {
-            self.env.key = Some(self.cx.global.env_key(&self.env));
-        }
         self.cond_flow = None;
         // A check that stopped with "not implemented" may leave frames
         // open; the body is abandoned then, so only shrink.

@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# #2257: a local generic header whose bound names an earlier parameter
+# checks with no diagnostics. Its `Copy` query on `A` once ran under a
+# stale environment key and panicked.
+trait Marker[A]:
+    pass
+
+fn inspect() -> void:
+    fn choose[A, T < Marker[A]](value: T, marker: A) -> void:
+        pass
+
+    pass

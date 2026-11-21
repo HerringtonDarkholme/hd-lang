@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# A local generic header's written-type checks wait for its bounds, and
+# still report a missed one once (`types.generic.bound`): `A` has no
+# `Shown`, in a bound and in a default.
+trait Shown:
+    pass
+
+trait Needs[A < Shown]:
+    pass
+
+struct Holder[A < Shown]:
+    value: A
+
+fn inspect() -> void:
+    fn choose[A, T < Needs[A]](value: T, marker: A) -> void:
+        pass
+
+    fn kept[A, H = Holder[A]](value: H) -> void:
+        pass
+
+    pass

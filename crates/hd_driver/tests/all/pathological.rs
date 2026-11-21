@@ -907,6 +907,66 @@ fn self_recursive_bound_environment_clauses() {
     );
 }
 
+/// A local generic header of `n` parameter pairs, each `T{i}` bounded by
+/// `Marker[A{i}]`, or `n` local generic functions nested in each other,
+/// each with one pair.
+fn local_generic_headers(n: usize, nested: bool) -> String {
+    let mut s = String::from("trait Marker[A]:\n    pass\n\nfn inspect() -> void:\n");
+    if nested {
+        for i in 0..n {
+            let indent = "    ".repeat(i + 1);
+            let _ = writeln!(
+                s,
+                "{indent}fn g{i}[A{i}, T{i} < Marker[A{i}]](value: T{i}) -> void:"
+            );
+        }
+        for i in (0..n).rev() {
+            let _ = writeln!(s, "{}pass\n", "    ".repeat(i + 2));
+        }
+    } else {
+        s.push_str("    fn choose[");
+        for i in 0..n {
+            let _ = write!(
+                s,
+                "{}A{i}, T{i} < Marker[A{i}]",
+                if i == 0 { "" } else { ", " }
+            );
+        }
+        s.push_str("](value: T0) -> void:\n        pass\n\n");
+    }
+    s.push_str("    pass\n");
+    s
+}
+
+/// #2257: a local generic header keys its environment as its bounds come
+/// in, linking each clause once: environment-key work grows with the
+/// bounds, never once per bound over the bounds before it.
+#[test]
+fn local_generic_header_environment_keys_grow_linearly() {
+    let work = |n, nested| {
+        let ((out, clauses), links) = hd_types::work::count_env_links(|| {
+            hd_check::work::count_env_clauses(|| {
+                compile(&local_generic_headers(n, nested), &Goal::Analyze)
+            })
+        });
+        assert!(!out.diags.has_errors(), "size {n}: {}", out.render());
+        (clauses, links)
+    };
+    // The first build also checks the standard library's items.
+    work(1, false);
+    for (nested, small, large) in [(false, 100, 1000), (true, 10, 20)] {
+        let ((c0, l0), (c1, l1)) = (work(small, nested), work(large, nested));
+        assert!(
+            l1 > l0 && l1 * small as u64 <= 5 * l0 * large as u64 / 4,
+            "key links for {small} and {large}: {l0} and {l1}",
+        );
+        assert!(
+            c1 * small as u64 <= 5 * c0 * large as u64 / 4,
+            "clauses for {small} and {large}: {c0} and {c1}",
+        );
+    }
+}
+
 fn nested_if(n: usize) -> String {
     let mut s = String::from("fn run(value: i32) -> i32:\n    let total = value\n");
     for i in 0..n {

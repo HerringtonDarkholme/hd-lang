@@ -1972,13 +1972,12 @@ stays valid after a rollback because it names no particular variable.
 
 ```rust
 pub struct ParamEnv {            // columns, appended only through `push`
-    pub key: Option<EnvKey>,     // interned by the run memo: equal environments, equal keys
+    keys: Vec<EnvKey>,           // each clause prefix's key, interned by the run memo
     clause_self: Vec<Ty>,        // a Param, an opaque type, or a projection of one
     clause_trait: Vec<DefId>,
     clause_args: Vec<TyList>,
     clause_bindings: Vec<Vec<(DefId, Ty)>>,
     clause_mut: Vec<bool>,
-    clause_origin: Vec<u16>,
     by_self: HashMap<Ty, Vec<u32>>,         // the clauses on each self type
     present: HashSet<(Ty, DefId, TyList)>,  // the duplicate check
     elaborated: Vec<(Ty, u32)>,             // projections elaborated, with the clause count after
@@ -2411,7 +2410,11 @@ A projection `<S as Tr[A]>::Name` is the pool's `Assoc` type (section
    bound types for one projection as `duplicate-associated-binding`, and
    two bounds declaring one name as `ambiguous-associated-type`
    (`hd_resolve::assoc`), before any body.
-5. The run memo interns the clause list; equal lists get one `EnvKey`.
+5. The run memo interns the clause list as a chain: each clause with
+   the key of the clauses before it. Equal lists get one `EnvKey`. A
+   change drops the keys from the changed clause on, so no query reads a
+   stale key, and a renewal links only the clauses after the longest
+   prefix still keyed (#2257).
 
 Cost: linear in the size of the supertrait closure of the declared
 bounds, once per item.
@@ -2788,7 +2791,7 @@ pub struct GlobalMemo {                    // one per run; shared by checking an
     shards: [Mutex<HashMap<MemoKey, u32>>; 16],
     entries: AppendVec<MemoEntry>,         // published entries never change
     records: AppendVec<MemoRecord>,        // key, answer, children, probes, scoped
-    envs: Mutex<HashMap<EnvClauses, EnvKey>>,
+    envs: Mutex<HashMap<EnvLink, EnvKey>>,  // (prefix key, clause) -> key
     copy_blockers: Mutex<HashMap<Ty, Option<Ty>>>,   // closed types' `ref.move.holds` answers
     field_indices: Mutex<HashMap<DefId, Arc<HashMap<Symbol, u32>>>>, // struct fields by name
     contained: Mutex<HashSet<(ImplUniverseId, Ty)>>,  // closed types with no projection cycle
