@@ -4199,7 +4199,7 @@ pub(super) mod owned_cache_tests {
         // its one instance (`Env::mark_instance`).
         assert_eq!(
             body.phase,
-            hd_tir::ir::Phase::Instance,
+            hd_tir::ir::Phase::Elaborated,
             "stored `{}`",
             run.names().path(body.item)
         );

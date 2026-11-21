@@ -1038,15 +1038,24 @@ pub enum Phase {
     /// does not apply, and a backend lowers each count statement as
     /// written, on a borrowed value too.
     Lowered,
+    /// An instance body after its last lowering (`own::elaborate`): what a
+    /// backend emits, checked by the lowered-TIR contract
+    /// (`verify_owned`, [`owned::lowered`]).
+    Elaborated,
 }
 
 impl Phase {
     /// The phase of wire byte `v`.
     #[must_use]
     pub fn from_u8(v: u8) -> Option<Self> {
-        [Phase::Checked, Phase::Instance, Phase::Lowered]
-            .get(usize::from(v))
-            .copied()
+        [
+            Phase::Checked,
+            Phase::Instance,
+            Phase::Lowered,
+            Phase::Elaborated,
+        ]
+        .get(usize::from(v))
+        .copied()
     }
 }
 
@@ -3324,6 +3333,7 @@ pub fn print(b: &Body) -> String {
         Phase::Checked => "",
         Phase::Instance => " Instance",
         Phase::Lowered => " Lowered",
+        Phase::Elaborated => " Elaborated",
     };
     let _ = writeln!(o, "body {} {:?}{phase}", b.item.raw(), b.kind);
     let words = |v: &[u32]| {
@@ -3498,6 +3508,7 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 None => Phase::Checked,
                 Some("Instance") => Phase::Instance,
                 Some("Lowered") => Phase::Lowered,
+                Some("Elaborated") => Phase::Elaborated,
                 Some(other) => return Err(e(format!("unknown phase `{other}`"))),
             };
             body = Some(b);

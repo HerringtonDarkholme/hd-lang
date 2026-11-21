@@ -456,6 +456,8 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     }
     super::scopes::place(b, n, spans, &gone)?;
     b.cancel.sort_stable();
+    // The last lowering: what is left is the backend's (`owned::lowered`).
+    b.phase = crate::ir::Phase::Elaborated;
     Ok(())
 }
 
