@@ -34,14 +34,15 @@ impl IndexSet[usize, string] for Names:
 >     uses $1: entry -> %1 lend last
 >   local $2 value: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %6 Entry local $2 #0 : ()
+>   %0 = Retain %7 Entry local $2 #0 : ()
         self.items[key] = value
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$2] : string
 >   %3 = IsUnique [*$0 .items] : ()
 >   %4 = Store [*$0 .items [%1]] %2 : ()
 >   %5 = Release %4 Operation #3 : ()
->   %6 = Block - : ()
+>   %6 = Drop [$2] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
@@ -87,20 +88,21 @@ fn write(n: &mut Names, i: usize, s: string) -> void:
 >     uses $1: entry -> %2 lend last
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %3 consume last
->   %0 = Retain %5 Entry local $2 #0 : ()
+>   %0 = Retain %6 Entry local $2 #0 : ()
     n[i] = s
 >   %1 = Read borrow [$0] : &mut Names
 >   %2 = Read copy [$1] : usize
 >   %3 = Read move [$2] : string
 >   %4 = Call std/ops/IndexSet.index_set for Names [usize, string] via Impl (%1, %2, %3) : ()
->   %5 = Block - : ()
+>   %5 = Drop [$2] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
 fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 > app/main/first
 >   local $0 items: C [param read captured] place
->   %0 = Retain %11 Entry local $0 #0 : ()
+>   %0 = Retain %12 Entry local $0 #0 : ()
     items[0]
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &C
@@ -112,7 +114,8 @@ fn first[T, C < Index[usize, Out = T]](items: C) -> T:
 >   %8 = Retain %7 Value #0 : ()
 >   %9 = Drop [%3] : ()
 >   %10 = Drop [$0] : ()
->   %11 = Block %7 : T
+>   %11 = Drop [$0] : ()
+>   %12 = Block %7 : T
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

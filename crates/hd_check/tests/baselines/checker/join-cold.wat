@@ -354,6 +354,21 @@
             local.get $t1
             local.get $env
             i32.store $heap offset=12
+            local.get $t1
+            i32.load $heap offset=4
+            local.tee $t5
+            if
+              local.get $t5
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $t5
+                call $rt:release_ref'1
+              end
+            end
             i32.const 0
             local.set $t5
             i32.const 1
@@ -378,20 +393,20 @@
           local.get $t1
           local.get $env
           i32.store $heap offset=12
-        end
-        local.get $t1
-        i32.load $heap offset=4
-        local.tee $t3
-        if
-          local.get $t3
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
+          local.get $t1
+          i32.load $heap offset=4
+          local.tee $t3
           if
             local.get $t3
-            call $rt:release_ref'1
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $t3
+              call $rt:release_ref'1
+            end
           end
         end
         local.get $t1

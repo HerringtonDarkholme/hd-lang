@@ -12,17 +12,18 @@ fn optional!(value: (&i32)?) -> i32:
 >     uses $0: entry -> %5 lend last
 >   local $1 item: &i32 [read assigned] value
 >     uses $1: %10 -> %6 lend last
->   %0 = Retain %19 Cold local $0 #0 : ()
->   %1 = Retain %19 Entry local $0 #0 : ()
->   %2 = Retain %19 Cold referent $0 #8 : ()
->   %3 = Release %19 FrameDrop referent $0 #2 : ()
->   %4 = Release %19 Exit referent $0 #8 : ()
+>   %0 = Retain %20 Cold local $0 #0 : ()
+>   %1 = Retain %20 Entry local $0 #0 : ()
+>   %2 = Retain %20 Cold referent $0 #8 : ()
+>   %3 = Release %20 FrameDrop referent $0 #2 : ()
+>   %4 = Release %20 Exit referent $0 #8 : ()
     match value:
 >   %5 = Read move [$0] : &i32?
 >   %16 = Block - : never
 >   %17 = Match %5 [%16 %7 %8] : i32
 >   %18 = Drop [%5] : ()
->   %19 = Block %17 : i32
+>   %19 = Drop [$0] : ()
+>   %20 = Block %17 : i32
         .Some(item) => *item
 >   %6 = Read copy [*$1] : i32
 >   %7 = Block %6 : i32
@@ -45,17 +46,18 @@ fn tagged!(value: Input[(&i32, i32)]) -> i32:
 >     uses $2: %24 -> %10 consume last
 >   local $3 self: string [read] value
 >     uses $3: %11 -> %12 lend last
->   %0 = Retain %31 Cold local $0 #0 : ()
->   %1 = Retain %31 Entry local $0 #0 : ()
->   %2 = Retain %31 Cold referent $0 #8 : ()
->   %3 = Release %31 FrameDrop referent $0 #2 : ()
->   %4 = Release %31 Exit referent $0 #8 : ()
+>   %0 = Retain %32 Cold local $0 #0 : ()
+>   %1 = Retain %32 Entry local $0 #0 : ()
+>   %2 = Retain %32 Cold referent $0 #8 : ()
+>   %3 = Release %32 FrameDrop referent $0 #2 : ()
+>   %4 = Release %32 Exit referent $0 #8 : ()
     match value:
 >   %5 = Read move [$0] : Input[(&i32, i32)]
 >   %28 = Block - : never
 >   %29 = Match %5 [%28 %9 %18] : i32
 >   %30 = Drop [%5] : ()
->   %31 = Block %29 : i32
+>   %31 = Drop [$0] : ()
+>   %32 = Block %29 : i32
         .Present(pair) => *pair._0 + pair._1
 >   %6 = Read copy [$1 .0 *] : i32
 >   %7 = Read copy [$1 .1] : i32

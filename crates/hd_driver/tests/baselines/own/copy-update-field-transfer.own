@@ -14,15 +14,17 @@ fn update(r: Rec, name: string) -> Rec:
 >     uses $0: entry -> %2 lend, %3 consume last
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %5 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
->   %1 = Retain %7 Entry local $1 #0 : ()
+>   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     Rec { ...r, name }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read move [$0 .tags] : List[string]
 >   %4 = Drop [$0] : ()
 >   %5 = Read move [$1] : string
 >   %6 = NewStruct [%5 %3] : Rec
->   %7 = Block %6 : Rec
+>   %7 = Drop [$0] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : Rec
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -32,15 +34,17 @@ fn still_live(r: Rec, name: string) -> (Rec, Rec):
 >     uses $0: entry -> %2 lend, %3 consume, %7 consume last
 >   local $1 name: string [param read] value
 >     uses $1: entry -> %5 consume last
->   %0 = Retain %9 Entry local $0 #0 : ()
->   %1 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $1 #0 : ()
     next := Rec { ...r, name }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read copy [$0 .tags] : List[string]
 >   %4 = Retain %3 Value #0 : ()
 >   %5 = Read move [$1] : string
 >   %6 = NewStruct [%5 %3] : Rec
->   %9 = Block %8 : (Rec, Rec)
+>   %9 = Drop [$0] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block %8 : (Rec, Rec)
     (r, next)
 >   %7 = Read move [$0] : Rec
 >   %8 = NewTuple - [%7 %6] : (Rec, Rec)
@@ -55,14 +59,16 @@ fn replace_all(r: Rec, name: string, tags: List[string]) -> Rec:
 >     uses $1: entry -> %4 consume last
 >   local $2 tags: List[string] [param read] value
 >     uses $2: entry -> %5 consume last
->   %0 = Release %7 Exit local $0 #2 : ()
->   %1 = Retain %7 Entry local $1 #0 : ()
->   %2 = Retain %7 Entry local $2 #0 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
+>   %2 = Retain %9 Entry local $2 #0 : ()
     Rec { ...r, name, tags }
 >   %3 = Read borrow [$0] : Rec
 >   %4 = Read move [$1] : string
 >   %5 = Read move [$2] : List[string]
 >   %6 = NewStruct [%4 %5] : Rec
->   %7 = Block %6 : Rec
+>   %7 = Drop [$1] : ()
+>   %8 = Drop [$2] : ()
+>   %9 = Block %6 : Rec
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0]

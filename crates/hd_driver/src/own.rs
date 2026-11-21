@@ -2089,6 +2089,9 @@ impl Env<'_> {
         }
         #[cfg(all(test, not(target_arch = "wasm32")))]
         metadata_tests::verify_fresh(self, &body);
+        // The exit set as statements, after the verifier
+        // (`hd_tir::own::exits`).
+        hd_tir::own::exits(&mut body, self).map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
         Ok((body, summary, relies))
     }
 

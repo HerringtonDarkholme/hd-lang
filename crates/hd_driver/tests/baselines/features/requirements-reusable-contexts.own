@@ -16,10 +16,11 @@ impl Tag for Named:
 > app/main/impl Tag for Named.name
 >   local $0 self: Named [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %2 Entry local $0 #0 : ()
+>   %0 = Retain %3 Entry local $0 #0 : ()
         self.label
 >   %1 = Read move [$0 .label] : string
->   %2 = Block %1 : string
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -50,7 +51,7 @@ fn make(s: string) -> $.Context[$ Tag]:
 >   local $1 provider: Named [read] value
 >     uses $1: %3 -> %4 consume last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %20 Entry local $0 #0 : ()
+>   %0 = Retain %21 Entry local $0 #0 : ()
     $.context(Tag=Named { label: s })
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1] : Named
@@ -71,7 +72,8 @@ fn make(s: string) -> $.Context[$ Tag]:
 >   %17 = ContextNew [Tag %15] : $.Context[$ Tag]
 >   %18 = Retain %17 Operation row #0 : ()
 >   %19 = Release %17 Operation operand 0 #2 : ()
->   %20 = Block %17 : $.Context[$ Tag]
+>   %20 = Drop [$0] : ()
+>   %21 = Block %17 : $.Context[$ Tag]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary kept [$0] writes

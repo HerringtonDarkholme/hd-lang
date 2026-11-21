@@ -17,14 +17,15 @@ fn widened(dog: *dyn Dog) -> *dyn Animal:
 >     uses $2: %5 -> %6 consume last
 >   local $3 $ref: *(*dyn Dog) [read assigned captured] value
 >     uses $3: %8 -> %9 lend last
->   %0 = Retain %15 Entry local $0 #0 : ()
+>   %0 = Retain %16 Entry local $0 #0 : ()
     nested := box(dog)
 >   %1 = Read move [$0] : *dyn Dog
 >   %2 = Box #1 #1 : ()
 >   %3 = Store [$1] %1 : ()
 >   %4 = Ref take mut [$1] : *mut (*dyn Dog)
 >   %5 = Store [$2] %4 : ()
->   %15 = Block %14 : *dyn Animal
+>   %15 = Drop [$0] : ()
+>   %16 = Block %14 : *dyn Animal
     nested
 >   %6 = Read move [$2] : *mut (*dyn Dog)
 >   %7 = Coerce %6 [Weaken -] : *(*dyn Dog)

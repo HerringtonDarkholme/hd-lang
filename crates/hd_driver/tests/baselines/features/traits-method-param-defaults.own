@@ -38,19 +38,20 @@ impl Joiner:
 > app/main/impl Joiner.tagged
 >   local $1 value: T [param read] value
 >     uses $1: entry -> %2 consume last
->   %1 = Retain %4 Entry local $1 #0 : ()
+>   %1 = Retain %5 Entry local $1 #0 : ()
         value
 >   %0 = FlagSet [$1] #2 : ()
 >   %2 = Read move [$1] : T
 >   %3 = FlagClear [$1] #2 : ()
->   %4 = Block %2 : T
+>   %4 = Drop [$1] : ()
+>   %5 = Block %2 : T
 >   exit sub 0 drops [$1]
 >   summary kept [$1] returns $1
 
 fn joined(j: Joiner) -> usize:
 > app/main/joined
 >   local $0 j: Joiner [param read captured] place
->   %0 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
     j.join()
 >   %1 = Box #0 #0 : ()
 >   %2 = Ref local frame [$0] : &Joiner
@@ -60,7 +61,8 @@ fn joined(j: Joiner) -> usize:
 >   %6 = Drop [%3] : ()
 >   %7 = LoanEnd [%2] : ()
 >   %8 = Drop [$0] : ()
->   %9 = Block %4 : usize
+>   %9 = Drop [$0] : ()
+>   %10 = Block %4 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   summary kept [$0] writes

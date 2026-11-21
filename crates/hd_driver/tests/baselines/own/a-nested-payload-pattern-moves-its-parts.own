@@ -27,7 +27,8 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
 >   %0 = FlagSet [$0] #9 : ()
 >   %1 = Store [$1] 0:usize : ()
 >   %8 = Box #2 #0 : ()
->   %54 = Block %53 : usize
+>   %54 = Drop [$0] : ()
+>   %55 = Block %53 : usize
     for (key, parcel) in parcels:
 >   %2 = Read move [$0] : UniqMap[string, Parcel]
 >   %3 = FlagClear [$0] #9 : ()

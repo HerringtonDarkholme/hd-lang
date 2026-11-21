@@ -19,11 +19,12 @@ fn doubled(values: List[string]) -> List[string]:
 >     uses $5: %8 -> %11 lend
 >   local $6 v: string [read assigned] value
 >     uses $6: %25 -> %18 consume last
->   %0 = Retain %37 Entry local $0 #0 : ()
+>   %0 = Retain %38 Entry local $0 #0 : ()
     let mut out = values
 >   %1 = Read move [$0] : List[string]
 >   %2 = Store [$1] %1 : ()
->   %37 = Block %36 : List[string]
+>   %37 = Drop [$0] : ()
+>   %38 = Block %36 : List[string]
     for v in out:
 >   %3 = Read copy [$1] : List[string]
 >   %4 = Retain %3 Value #0 : ()
@@ -77,13 +78,15 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >     uses $4: %35 -> %22 lend last
 >   local $6 self: List[string] [read] value
 >     uses $6: %6 -> %7 consume last
->   %0 = Retain %45 Entry local $0 #0 : ()
->   %1 = Retain %45 Entry local $1 #0 : ()
+>   %0 = Retain %47 Entry local $0 #0 : ()
+>   %1 = Retain %47 Entry local $1 #0 : ()
     let mut items = values
 >   %2 = Read move [$0] : List[string]
 >   %3 = Store [$2] %2 : ()
 >   %12 = Box #3 #0 : ()
->   %45 = Block %42 : usize
+>   %45 = Drop [$0] : ()
+>   %46 = Drop [$1] : ()
+>   %47 = Block %42 : usize
     let mut cursor = items.iter()
 >   %4 = Read copy [$2] : List[string]
 >   %5 = Retain %4 Value #0 : ()

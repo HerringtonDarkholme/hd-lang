@@ -4,6 +4,7 @@ app/main/run
   release counted reference (last use)
   release counted reference (last use)
   release app.main.Wait (cancelled)
+  release counted reference (last use)
   release app.main.Wait (last use)
   release counted reference (last use)
   release counted reference (last use)

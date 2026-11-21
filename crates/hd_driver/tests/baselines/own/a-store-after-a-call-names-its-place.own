@@ -60,7 +60,7 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
 >     uses $1: entry -> %2 lend last
 >   local $2 v: T [param read] value
 >     uses $2: entry -> %3 consume, %8 consume last
->   %1 = Retain %13 Entry local $2 #0 : ()
+>   %1 = Retain %14 Entry local $2 #0 : ()
     xs[k] = v
 >   %0 = FlagSet [$2] #3 : ()
 >   %2 = Read copy [$1] : usize
@@ -69,7 +69,8 @@ fn put[T](xs: &mut List[T], k: usize, v: T) -> void:
 >   %5 = IsUnique [*$0] : ()
 >   %6 = Store [*$0 [%2]] %3 : ()
 >   %7 = Release %6 Operation #3 : ()
->   %13 = Block - : ()
+>   %13 = Drop [$2] : ()
+>   %14 = Block - : ()
     xs.push(v)
 >   %8 = Read move [$2] : T
 >   %9 = FlagClear [$2] #3 : ()

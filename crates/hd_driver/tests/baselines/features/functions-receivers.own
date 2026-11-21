@@ -51,13 +51,15 @@ impl Vec2:
 >     uses $0: %3 -> %5 consume last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %2 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
->   %1 = Retain %6 Entry local $1 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
+>   %1 = Retain %8 Entry local $1 #0 : ()
         self.name = n
 >   %2 = Read move [$1] : string
 >   %3 = Store [$0 .name] %2 : ()
 >   %4 = Release %3 Operation #3 : ()
->   %6 = Block %5 : Vec2
+>   %6 = Drop [$0] : ()
+>   %7 = Drop [$1] : ()
+>   %8 = Block %5 : Vec2
         self
 >   %5 = Read move [$0] : Vec2
 >   exit sub 0 drops [$0 $1]
@@ -77,11 +79,12 @@ fn make(s: string) -> Vec2:
 > app/main/make
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
     Vec2 { name: s, x: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i64] : Vec2
->   %3 = Block %2 : Vec2
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : Vec2
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -210,8 +213,8 @@ fn mut_self(v: Vec2, n: string) -> usize:
 >   local $4 self: string [read] value
 >     uses $4: %14 -> %15 lend last
 >   local $5 self: Vec2 [read assigned mutated] place
->   %0 = Retain %30 Entry local $0 #0 : ()
->   %1 = Retain %30 Entry local $1 #0 : ()
+>   %0 = Retain %32 Entry local $0 #0 : ()
+>   %1 = Retain %32 Entry local $1 #0 : ()
     w := v.renamed(n)
 >   %2 = Read copy [$0] : Vec2
 >   %3 = Retain %2 Value #0 : ()
@@ -224,7 +227,9 @@ fn mut_self(v: Vec2, n: string) -> usize:
 >   %10 = Block - : Vec2
 >   %11 = Scope %10 [] : Vec2
 >   %12 = Store [$2] %11 : ()
->   %30 = Block %29 : usize
+>   %30 = Drop [$0] : ()
+>   %31 = Drop [$1] : ()
+>   %32 = Block %29 : usize
     w.name.len() + v.name.len()
 >   %13 = Read move [$2 .name] : string
 >   %14 = Store [$4] %13 : ()

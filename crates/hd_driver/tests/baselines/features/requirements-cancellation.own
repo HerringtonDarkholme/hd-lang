@@ -11,13 +11,14 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %2 lend last
->   %0 = Retain %5 Cold local $0 #0 : ()
->   %1 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %6 Cold local $0 #0 : ()
+>   %1 = Retain %6 Entry local $0 #0 : ()
     key + "?"
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic StrConcat [%2 "?"] : string
 >   %4 = Drop [%2] : ()
->   %5 = Block %3 : string
+>   %5 = Drop [$0] : ()
+>   %6 = Block %3 : string
 >   exit sub 0 drops [$0]
 >   summary none
 
@@ -29,20 +30,21 @@ fn stop!(key: string) -> bool:
 >     uses $1: %5 -> %6 consume last
 >   local $2 end: CleanupEnd [:= read assigned] value
 >     uses $2: %9 -> %10 lend last
->   %0 = Retain %20 Cold local $0 #0 : ()
->   %1 = Retain %20 Entry local $0 #0 : ()
+>   %0 = Retain %21 Cold local $0 #0 : ()
+>   %1 = Retain %21 Entry local $0 #0 : ()
     let mut job = fetch(key)
->   %2 = Release %20 FrameDrop child #2 : ()
+>   %2 = Release %21 FrameDrop child #2 : ()
 >   %3 = Read move [$0] : string
 >   %4 = Call app/main/fetch[] (%3) : Suspend[string]
 >   %5 = Store [$1] %4 : ()
->   %20 = Block %19 : bool
+>   %20 = Drop [$0] : ()
+>   %21 = Block %19 : bool
     end := job.cancel!()
 >   %6 = Read move [$1] : Suspend[string]
 >   %7 = Await std/task/impl[T] Suspend[T].cancel[string] (%6) : CleanupEnd
 >   %8 = Release %7 Operation child #2 : ()
 >   %9 = Store [$2] %7 : ()
->   %21 = Return - #2 : never
+>   %23 = Return - #2 : never
     match end:
 >   %10 = Read copy [$2] : CleanupEnd
 >   %18 = Block - : never
@@ -55,7 +57,7 @@ fn stop!(key: string) -> bool:
 >   %12 = Block 0:bool : bool
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %7 releases [%4294967295]
+>   cancel %7 releases [%2147483648 %4294967295]
 
 fn drop_now(key: string) -> void:
 > app/main/drop_now
@@ -63,12 +65,13 @@ fn drop_now(key: string) -> void:
 >     uses $0: entry -> %1 consume last
 >   local $1 job: Suspend[string] [read assigned] value
 >     uses $1: %3 -> %4 lend last
->   %0 = Retain %10 Entry local $0 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
     let mut job = fetch(key)
 >   %1 = Read move [$0] : string
 >   %2 = Call app/main/fetch[] (%1) : Suspend[string]
 >   %3 = Store [$1] %2 : ()
->   %10 = Block - : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
     job.abandon()
 >   %4 = Read borrow [$1] : Suspend[string]
 >   %5 = Call std/task/abandon_task[string] (%4) : ()

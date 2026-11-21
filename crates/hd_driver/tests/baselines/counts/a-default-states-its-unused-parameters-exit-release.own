@@ -9,15 +9,16 @@ fn note(log: *mut List[string], text: string) -> string:
 >     uses $0: entry -> %5 lend last
 >   local $1 text: string [param read] value
 >     uses $1: entry -> %2 consume, %7 consume last
->   %0 = Release %8 Exit local $0 #2 : ()
->   %1 = Retain %8 Entry local $1 #0 : ()
+>   %0 = Release %9 Exit local $0 #2 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     log.push(text)
 >   %2 = Read copy [$1] : string
 >   %3 = Retain %2 Value #0 : ()
 >   %4 = IsUnique [*$0] : ()
 >   %5 = Read borrow [*$0] : List[string]
 >   %6 = Intrinsic ListPush [%5 %2] : ()
->   %8 = Block %7 : string
+>   %8 = Drop [$1] : ()
+>   %9 = Block %7 : string
     text
 >   %7 = Read move [$1] : string
 >   exit sub 0 drops [$1]
@@ -71,9 +72,9 @@ fn join(
 >     uses $22: %14 -> %15 lend last
 >   local $23 value: string [read] value
 >     uses $23: %6 -> %7 lend last
->   %0 = Release %134 Exit local $0 #2 : ()
->   %1 = Release %134 Exit local $1 #2 : ()
->   %2 = Release %134 Exit local $2 #2 : ()
+>   %0 = Release %135 Exit local $0 #2 : ()
+>   %1 = Release %135 Exit local $1 #2 : ()
+>   %2 = Release %135 Exit local $2 #2 : ()
     log: *mut List[string],
     first: string,
     second: string = note(log, "second"),
@@ -82,11 +83,12 @@ fn join(
 >     uses $0: entry -> %2 consume last
 >   local $1 first: string [param] value
 >     uses $1: none
->   %0 = Release %4 Exit local $1 #2 : ()
->   %1 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Release %5 Exit local $1 #2 : ()
+>   %1 = Retain %5 Entry local $0 #0 : ()
 >   %2 = Read move [$0] : *mut List[string]
 >   %3 = Call app/main/note[] (%2, "second") : string
->   %4 = Block %3 : string
+>   %4 = Drop [$0] : ()
+>   %5 = Block %3 : string
 >   exit sub 0 drops [$0]
     limit: usize = 64,
 > app/main/join.limit
@@ -233,7 +235,8 @@ fn join(
 >   %131 = Block - : ()
 >   %132 = Scope %131 [] : ()
 >   %133 = Read move [%41] : string
->   %134 = Block %133 : string
+>   %134 = Drop [$3] : ()
+>   %135 = Block %133 : string
 >   exit sub 0 drops [$3]
 >   storage sub 0: $3 slot
 

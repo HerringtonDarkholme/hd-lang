@@ -17,7 +17,8 @@ fn eat(xs: UniqList[string]) -> usize:
 >   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%1) : usize
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Drop [$0] : ()
->   %5 = Block %2 : usize
+>   %5 = Drop [$0] : ()
+>   %6 = Block %2 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 
@@ -36,6 +37,7 @@ fn split(p: Pair) -> usize:
 >   %8 = LoanEnd [%6] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Prim Add [%5 %7] : usize
->   %11 = Block %10 : usize
+>   %11 = Drop [$0] : ()
+>   %12 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot

@@ -149,6 +149,11 @@
         local.get $s.0
         call $rt:release_ref
       end
+      local.get $s.0
+      if
+        local.get $s.0
+        call $rt:release_ref
+      end
       unreachable
     end
     i32.const 0

@@ -3,10 +3,10 @@ app/main/caller
   local $0 n: usize [param read] value
     uses $0: entry -> %4 lend last
   local $1 text: string [read assigned captured] place
-  %0 = Retain %13 Cold row #0 : ()
-  %1 = Retain %13 Materialize row #0 : ()
-  %2 = Release %13 FrameDrop row #2 : ()
-  %3 = Release %13 FrameDrop child #2 : ()
+  %0 = Retain %14 Cold row #0 : ()
+  %1 = Retain %14 Materialize row #0 : ()
+  %2 = Release %14 FrameDrop row #2 : ()
+  %3 = Release %14 FrameDrop child #2 : ()
   %4 = Read copy [$0] : usize
   %5 = Call std/text/impl string.repeat[] ("x", %4) : string
   %6 = Box #1 #0 : ()
@@ -16,9 +16,10 @@ app/main/caller
   %10 = Release %9 Operation child #2 : ()
   %11 = LoanEnd [%8] : ()
   %12 = Drop [$1] : ()
-  %13 = Block %9 : usize
-  %15 = Return - #2 : never
+  %13 = Drop [$1] : ()
+  %14 = Block %9 : usize
+  %17 = Return - #2 : never
   exit sub 0 drops [$1]
   storage sub 0: $1 slot
   summary none
-  cancel %9 releases [%8 %4294967295]
+  cancel %9 releases [%8 %2147483649 %4294967295]

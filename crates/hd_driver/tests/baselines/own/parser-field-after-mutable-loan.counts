@@ -27,12 +27,13 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 > app/main/length_after_loan
 >   release counted reference (last use)
->   release counted reference (last use)
->   release *i32 (last use)
     root := parser.expression()?
+>   release counted reference (last use)
     parser.whitespace()
     if parser.at != parser.chars.len():
         return .Err("trailing input")
+>   release counted reference (last use)
+>   release *i32 (last use)
     .Ok(root)
 
 fn length_across_write(text: string) -> usize:

@@ -51,14 +51,15 @@ fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %6 Entry local $2 #0 : ()
+>   %0 = Retain %7 Entry local $2 #0 : ()
     xs[i] = s
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$2] : string
 >   %3 = IsUnique [*$0] : ()
 >   %4 = Store [*$0 [%1]] %2 : ()
 >   %5 = Release %4 Operation #3 : ()
->   %6 = Block - : ()
+>   %6 = Drop [$2] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
@@ -104,8 +105,8 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 >     uses $1: entry -> %2 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %3 consume last
->   %0 = Release %8 Exit local $1 #2 : ()
->   %1 = Retain %8 Entry local $2 #0 : ()
+>   %0 = Release %9 Exit local $1 #2 : ()
+>   %1 = Retain %9 Entry local $2 #0 : ()
     m[k] = v
 >   %2 = Read borrow [$1] : string
 >   %3 = Read move [$2] : string
@@ -113,7 +114,8 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 >   %5 = Read borrow [*$0] : Map[string, string]
 >   %6 = Intrinsic MapSet [%5 %2 %3] : ()
 >   %7 = Retain %6 Operation operand 1 #0 : ()
->   %8 = Block - : ()
+>   %8 = Drop [$2] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 
@@ -193,7 +195,7 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >     uses $5: %4 -> %5 lend, %12 consume last
 >   local $7 index: usize [read] value
 >     uses $7: %13 -> %16 lend last
->   %0 = Retain %47 Entry local $2 #0 : ()
+>   %0 = Retain %48 Entry local $2 #0 : ()
     match xs.get_mut(i):
 >   %1 = Read borrow [$0] : &mut UniqList[string]
 >   %2 = Read copy [$1] : usize
@@ -228,7 +230,8 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %44 = Match %29 [%43 %33 %35] : ()
 >   %45 = LoanEnd [%29] : ()
 >   %46 = Drop [$2] : ()
->   %47 = Block - : ()
+>   %47 = Drop [$2] : ()
+>   %48 = Block - : ()
         .Some(r) => *r = s
 >   %30 = Read move [$2] : string
 >   %31 = Store [*$3] %30 : ()

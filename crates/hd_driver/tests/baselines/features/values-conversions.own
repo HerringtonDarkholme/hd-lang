@@ -105,13 +105,14 @@ fn local(s: string) -> usize:
 >     uses $3: %19 -> %20 consume last
 >   local $4 self: string [read] value
 >     uses $4: %22 -> %23 lend last
->   %0 = Retain %33 Entry local $0 #0 : ()
+>   %0 = Retain %34 Entry local $0 #0 : ()
     let mut origin = Point { name: s, n: 0 }
 >   %1 = Read move [$0] : string
 >   %2 = NewStruct [%1 0:i32] : Point
 >   %3 = Box #1 #0 : ()
 >   %4 = Store [$1] %2 : ()
->   %33 = Block %31 : usize
+>   %33 = Drop [$0] : ()
+>   %34 = Block %31 : usize
     nudge(&mut origin)
 >   %5 = Ref mut local frame [$1] : &mut Point
 >   %6 = Read copy [*%5 .n] : i32
