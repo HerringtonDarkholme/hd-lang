@@ -41,13 +41,13 @@
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $ctx
       i32.const 128
       i32.and
       local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $ctx
       i32.const 128
       i32.or
       i32.store $heap offset=12
@@ -207,13 +207,13 @@
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $ctx
       i32.const 128
       i32.and
       local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $ctx
       i32.const 128
       i32.or
       i32.store $heap offset=12

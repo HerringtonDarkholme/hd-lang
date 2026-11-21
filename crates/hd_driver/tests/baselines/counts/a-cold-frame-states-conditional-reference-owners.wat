@@ -10,18 +10,18 @@
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $tagged'1 (param $frame i32) (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32) (local $text.1 i32) (local $t1 i32) (local $t0 i32)
+  (func $tagged'1 (param $frame i32) (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $text.1 i32)
     ;; 14 |     match value:
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $text.1
       i32.const 128
       i32.and
       local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $text.1
       i32.const 128
       i32.or
       i32.store $heap offset=12
@@ -262,18 +262,18 @@
     end
     local.get $t0
   )
-  (func $optional'1 (param $frame i32) (param $value i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $optional'1 (param $frame i32) (param $value i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t0 i32)
     ;; 9 |     match value:
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $t0
       i32.const 128
       i32.and
-      local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.set $t1
+      local.get $t0
       i32.const 128
       i32.or
       i32.store $heap offset=12
@@ -285,7 +285,7 @@
       local.set $value
       local.get $frame
       i32.load $heap offset=28
-      local.set $t1
+      local.set $t2
     end
     block
       block
@@ -308,11 +308,11 @@
       i32.const -1
       local.set $value
     end
-    local.get $t1
+    local.get $t2
     if
-      local.get $t1
+      local.get $t2
       if
-        local.get $t1
+        local.get $t2
         call $rt:release_ref
       end
     end
@@ -334,7 +334,7 @@
       i32.load $heap offset=12
       i32.const -129
       i32.and
-      local.get $t0
+      local.get $t1
       i32.or
       i32.store $heap offset=12
     end

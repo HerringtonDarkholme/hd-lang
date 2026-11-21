@@ -67,21 +67,20 @@ pub(super) fn resident(f: &mut Func, plan: Plan<'_>, base: u32, stack: u32, stac
     }
     let body = std::mem::take(&mut f.body);
     let mut origins = Remap::new(f.origins.as_deref());
+    // One test of the frame: a frame's area, or a fresh one on the local
+    // stack, zeroed and given the arguments.
     let mut out = vec![
         Ins::Op(I::LocalGet(FRAME)),
-        Ins::Op(I::If(BlockType::Result(wasm_encoder::ValType::I32))),
+        Ins::Op(I::If(BlockType::Empty)),
         Ins::Op(I::LocalGet(FRAME)),
         Ins::Op(I::I32Const(start.cast_signed())),
         Ins::Op(I::I32Add),
+        Ins::Op(I::LocalSet(base)),
         Ins::Op(I::Else),
         Ins::Op(I::LocalGet(stack)),
         Ins::Op(I::I32Const(stack_offset.cast_signed())),
         Ins::Op(I::I32Add),
-        Ins::Op(I::End),
         Ins::Op(I::LocalSet(base)),
-        Ins::Op(I::LocalGet(FRAME)),
-        Ins::Op(I::I32Eqz),
-        Ins::Op(I::If(BlockType::Empty)),
         Ins::Op(I::LocalGet(base)),
         Ins::Op(I::I32Const(0)),
         Ins::Op(I::I32Const((size - start).cast_signed())),

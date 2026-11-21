@@ -117,6 +117,7 @@ rt:frame_ensure#4
 rt:poll_check
 rt:cancel_enter
 rt:cancel_leave
+rt:cancel_child
 rt:wake_mark
 rt:wake_take
 rt:wake_slot
