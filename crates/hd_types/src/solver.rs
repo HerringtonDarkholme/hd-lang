@@ -7808,6 +7808,8 @@ mod region_transport_tests {
             );
         }
         let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        // cost: test only; two threads, each dropping one shared
+        // 10,000-deep chain once, so O(chain length) in total.
         let spawn = |proof, barrier: std::sync::Arc<std::sync::Barrier>| {
             std::thread::Builder::new()
                 .stack_size(64 * 1024)

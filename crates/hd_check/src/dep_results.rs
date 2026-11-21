@@ -4531,6 +4531,10 @@ impl Ck<'_, '_> {
                 | Tag::OwnLoans => {}
             }
         }
+        // `proofs` borrows `self.region_uses`. Drop it here: on wasm32 the
+        // map is hashbrown's, whose destructor keeps the borrow alive to the
+        // end of the function, past the error reports below.
+        drop(proofs);
         // The arguments a call's result holds, for the backend's run-time
         // loans (`ref.excl.alias.loan`): its holders are the bindings the
         // result reaches, directly or through a match on it.
