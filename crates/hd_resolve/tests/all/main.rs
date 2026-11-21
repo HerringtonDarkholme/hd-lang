@@ -5,3 +5,4 @@ mod const_generics;
 mod iface_codec;
 mod known_items;
 mod show_ty;
+mod source_queries;
