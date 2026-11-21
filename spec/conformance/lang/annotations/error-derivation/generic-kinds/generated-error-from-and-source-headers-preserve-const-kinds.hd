@@ -1,0 +1,20 @@
+# test: generated error from and source headers preserve const kinds
+# expect: accept
+use std.convert.From
+use std.error.Error
+@error("inner")
+struct Inner[N < const i32]:
+    code: i32
+@error
+enum Outer[N < const i32]:
+    @error(transparent)
+    Inner(
+        @from
+        value: Inner[N],
+    )
+fn convert(value: Inner[2]) -> Outer[2]:
+    Outer::from(value)
+fn need_error[T < Error](value: T) -> void:
+    pass
+fn check(value: Outer[2]) -> void:
+    need_error(value)

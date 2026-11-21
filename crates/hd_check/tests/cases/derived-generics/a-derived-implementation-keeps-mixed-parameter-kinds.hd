@@ -1,0 +1,15 @@
+# @dump: diagnostics tir
+@derive(Eq, Debug)
+struct Fixed[N < const i32]:
+    value: i32
+@derive(Eq, Debug)
+struct Marker[$ R]: pass
+@derive(Eq, Debug)
+struct Mixed[T, N < const i32, $ R]:
+    value: T
+    fixed: Fixed[N]
+    marker: Marker[$ R]
+fn same(left: Mixed[i32, 2, $()], right: Mixed[i32, 2, $()]) -> bool:
+    left == right
+fn describe(value: Mixed[i32, 2, $()]) -> string:
+    debug(value)

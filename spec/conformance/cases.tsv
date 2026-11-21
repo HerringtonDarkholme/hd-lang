@@ -7106,6 +7106,15 @@ lang/annotations/two-annotate-forms/annotate-pattern-scope-alias.hd	type	reject:
 lang/annotations/two-annotate-forms/annotate-pattern-scope-qualified.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.pattern.scope
 lang/annotations/two-annotate-forms/annotate-pattern-noncopy-parameters.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.pattern.scope
 lang/annotations/two-annotate-forms/annotate-invalid-pattern-row.hd	type	reject:generic-kind-mismatch	lang/14-annotations.md#r-annot.typed-fact.pattern
+lang/annotations/typed-derivation/derived-bounds/generic-kinds/a-derived-enum-preserves-a-const-member-argument.hd	type	accept	lang/14-annotations.md#r-annot.bound.params
+lang/annotations/typed-derivation/derived-bounds/generic-kinds/a-derived-implementation-keeps-mixed-parameter-kinds.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.params
+lang/annotations/typed-derivation/derived-bounds/generic-kinds/a-derived-implementation-preserves-const-parameters-in-members.hd	type	accept	lang/14-annotations.md#r-annot.bound.params
+lang/annotations/typed-derivation/derived-bounds/generic-kinds/a-derived-implementation-preserves-row-parameters.hd	type	accept	lang/14-annotations.md#r-annot.bound.params
+lang/annotations/typed-derivation/derived-bounds/generic-kinds/a-derived-newtype-preserves-a-const-base-argument.hd	type	accept	lang/14-annotations.md#r-annot.bound.params
+lang/annotations/error-derivation/generic-kinds/a-generated-error-enum-preserves-const-parameters.hd	type	accept	lang/14-annotations.md#r-annot.error.bound.carried
+lang/annotations/error-derivation/generic-kinds/a-generated-error-implementation-preserves-const-and-row-kinds.hd	type	accept	lang/14-annotations.md#r-annot.error.bound.carried
+lang/annotations/typed-derivation/derived-bounds/generic-kinds/all-scalar-const-kinds-remain-values-in-derived-headers.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.params
+lang/annotations/error-derivation/generic-kinds/generated-error-from-and-source-headers-preserve-const-kinds.hd	type	accept	lang/14-annotations.md#r-annot.error.bound.carried
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

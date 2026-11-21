@@ -1,0 +1,42 @@
+# @dump: diagnostics tir
+@derive(Eq, Debug)
+struct Scalars[
+    B < const bool,
+    C < const char,
+    I8 < const i8,
+    I16 < const i16,
+    I32 < const i32,
+    I64 < const i64,
+    S < const string,
+    U8 < const u8,
+    U16 < const u16,
+    U32 < const u32,
+    U64 < const u64,
+    US < const usize,
+]:
+    value: i32
+@derive(Eq, Debug)
+struct Wrapped[
+    B < const bool,
+    C < const char,
+    I8 < const i8,
+    I16 < const i16,
+    I32 < const i32,
+    I64 < const i64,
+    S < const string,
+    U8 < const u8,
+    U16 < const u16,
+    U32 < const u32,
+    U64 < const u64,
+    US < const usize,
+]:
+    value: Scalars[B, C, I8, I16, I32, I64, S, U8, U16, U32, U64, US]
+fn same(
+    left: Wrapped[true, 'x', 1i8, 2i16, 3i32, 4i64, "ok", 6u8, 7u16, 8u32, 9u64, 10usize],
+    right: Wrapped[true, 'x', 1i8, 2i16, 3i32, 4i64, "ok", 6u8, 7u16, 8u32, 9u64, 10usize],
+) -> bool:
+    left == right
+fn describe(
+    value: Wrapped[true, 'x', 1i8, 2i16, 3i32, 4i64, "ok", 6u8, 7u16, 8u32, 9u64, 10usize],
+) -> string:
+    debug(value)

@@ -1,0 +1,10 @@
+# test: a generated error implementation preserves const and row kinds
+# expect: accept
+use std.error.Error
+@error("failed")
+struct Failure[T, N < const i32, $ R]:
+    value: T
+fn need_error[T < Error](value: T) -> void:
+    pass
+fn check(value: Failure[i32, 2, $()]) -> void:
+    need_error(value)

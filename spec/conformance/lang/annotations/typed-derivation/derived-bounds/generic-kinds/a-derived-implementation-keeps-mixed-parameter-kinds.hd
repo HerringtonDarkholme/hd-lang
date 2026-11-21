@@ -1,0 +1,26 @@
+# test: a derived implementation keeps mixed parameter kinds
+# expect-stdout: true
+# expect-stdout: true
+@derive(Eq, Debug)
+struct Fixed[N < const i32]:
+    value: i32
+@derive(Eq, Debug)
+struct Marker[$ R]: pass
+@derive(Eq, Debug)
+struct Mixed[T, N < const i32, $ R]:
+    value: T
+    fixed: Fixed[N]
+    marker: Marker[$ R]
+fn same(left: Mixed[i32, 2, $()], right: Mixed[i32, 2, $()]) -> bool:
+    left == right
+fn describe(value: Mixed[i32, 2, $()]) -> string:
+    debug(value)
+
+pub fn main() -> void $ Console:
+    let item: Mixed[i32, 2, $()] = Mixed {
+        value: +3,
+        fixed: Fixed { value: +4 },
+        marker: Marker {},
+    }
+    println(same(item, item))
+    println(describe(item).len() > 0)

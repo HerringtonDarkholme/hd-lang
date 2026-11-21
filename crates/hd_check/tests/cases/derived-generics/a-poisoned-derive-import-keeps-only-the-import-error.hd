@@ -1,0 +1,5 @@
+# @dump: diagnostics
+use pkg.absent.{Broken}
+@derive(Broken)
+struct Item:
+    value: i32

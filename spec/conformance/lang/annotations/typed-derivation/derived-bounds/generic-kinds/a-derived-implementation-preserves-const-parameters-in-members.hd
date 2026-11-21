@@ -1,0 +1,12 @@
+# test: a derived implementation preserves const parameters in members
+# expect: accept
+@derive(Eq, Debug)
+struct Fixed[N < const i32]:
+    value: i32
+@derive(Eq, Debug)
+struct Wrapped[N < const i32]:
+    value: Fixed[N]
+fn same(left: Wrapped[2], right: Wrapped[2]) -> bool:
+    left == right
+fn describe(value: Wrapped[2]) -> string:
+    debug(value)
