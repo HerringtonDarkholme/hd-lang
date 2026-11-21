@@ -76,6 +76,7 @@ impl Index {
         body: &Body,
         sub: usize,
         captures: &[(u32, crate::ir::CaptureMode)],
+        leading: bool,
         mut budget: usize,
     ) -> Option<(Body, HashMap<u32, u32>)> {
         let order = self.rows.get(sub)?;
@@ -127,6 +128,12 @@ impl Index {
         }
         let mut locals: Vec<_> = locals.into_iter().collect();
         locals.sort_stable();
+        // With `leading`, the captures are the copy's first locals, in order.
+        if leading {
+            let lead: HashSet<u32> = captures.iter().map(|c| c.0).collect();
+            locals.retain(|l| !lead.contains(l));
+            locals.splice(0..0, captures.iter().map(|c| c.0));
+        }
         let local_map: HashMap<_, _> = locals
             .iter()
             .enumerate()
@@ -689,8 +696,8 @@ struct Template {
 }
 
 fn template(body: &Body, index: &Index, made: usize, limit: usize) -> Option<Template> {
-    // Flow selects only ordinary Closure rows: instantiations are excluded
-    // when origins are seeded, and close_sub writes their two-word record.
+    // The caller selects only ordinary Closure rows, whose record has two
+    // words (close_sub).
     let record = body.record(body.data[made][1]);
     let (start, count) = (record[0], record[1]);
     // Capture lifetime uses alone already consume the instruction allowance.
@@ -714,7 +721,7 @@ fn template(body: &Body, index: &Index, made: usize, limit: usize) -> Option<Tem
     // Independently cap projected IR and source metadata. The instruction
     // heuristic does not count operand records or inline ancestry; without
     // this bound many tiny literals could each scan the same deep trace.
-    let (copy, locals) = index.extract(body, sub, &captures, limit.saturating_mul(16))?;
+    let (copy, locals) = index.extract(body, sub, &captures, false, limit.saturating_mul(16))?;
     let captures: Vec<_> = captures
         .into_iter()
         .map(|(outer, mode)| (locals[&outer], outer, mode))
@@ -725,6 +732,25 @@ fn template(body: &Body, index: &Index, made: usize, limit: usize) -> Option<Tem
         body: copy,
         captures,
     })
+}
+
+/// Generic local function `sub` of `b`, an instance of its template
+/// (`crate::ir::lift`), as a body of its own: its rows, its root last, and
+/// the captures the `Closure` that defines it lists as its first locals,
+/// in that order, which a call's environment binds to its caller's
+/// ([`super::inline_bound_calls`]). `None` without that `Closure` or past
+/// `budget` (`Index::extract`). O(`b`).
+#[must_use]
+pub fn function_body(b: &Body, sub: usize, budget: usize) -> Option<Body> {
+    let made = (0..b.len()).find(|&i| {
+        b.tags[i] == Tag::Closure && !b.is_instantiation(i) && b.data[i][0] as usize == sub
+    })?;
+    let r = b.record(b.data[made][1]);
+    let captures: Vec<_> = (r[0]..r[0] + r[1])
+        .map(|c| (b.cap_local[c as usize].raw(), b.cap_mode[c as usize]))
+        .collect();
+    let (copy, _) = Index::new(b).extract(b, sub, &captures, true, budget)?;
+    Some(copy)
 }
 
 /// Copy ordinary small literals only when every use of their function value
@@ -743,7 +769,9 @@ pub fn inline_local_closures(
     let mut selected = Vec::new();
     for made in 0..body.len() {
         work!(1);
-        if flow.calls[made].is_empty() || flow.escapes[made] {
+        // A generic local function's call is the inliner's, as any
+        // function's (`hd_opt`), not a literal's.
+        if flow.calls[made].is_empty() || flow.escapes[made] || body.is_instantiation(made) {
             continue;
         }
         let Some(template) = template(body, &index, made, limit) else {
@@ -840,12 +868,52 @@ pub fn inline_local_closures(
     }
     // Calls no longer reference the function value. Remove only closed alias
     // graphs with no observable use; capture snapshots remain ordinary locals.
+    let chosen = |b: &Body, made: u32| environments.contains_key(&b.data[made as usize]);
+    remove_unused(body, &chosen, &index.recursive)?;
+    // With no live function constructor, dead sub IDs have no code identity
+    // left to preserve. A bounded root projection lets ordinary callers copy
+    // the resulting small body, including its logical shared-cell facts.
+    if !body.tags.contains(&Tag::Closure) && body.label.is_empty() && body.susp.is_empty() {
+        let index = Index::new(body);
+        if let Some((mut root, _)) = index.extract(body, 0, &[], false, limit.saturating_mul(16)) {
+            root.kind = body.kind;
+            if super::copyable(&root) {
+                *body = root;
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// Removes each generic local function's instantiation no call, alias or
+/// escape uses, once its calls are copies (`hd_opt`'s inliner), as
+/// [`inline_local_closures`] removes its literals. O(`body`).
+///
+/// # Errors
+/// As [`super::inline_calls`].
+pub fn remove_unused_instantiations(body: &mut Body) -> Result<(), String> {
+    let recursive = crate::own::RecursiveBindings::new(body);
+    remove_unused(
+        body,
+        &|b, made| b.is_instantiation(made as usize),
+        &recursive,
+    )
+}
+
+/// Removes the `chosen` function values that no call, alias or escape
+/// uses (`Flow`), their aliases and the stores that bind them; a shared
+/// capture stays a logical alias of its cell (`erase_definitions`).
+fn remove_unused(
+    body: &mut Body,
+    chosen: &dyn Fn(&Body, u32) -> bool,
+    recursive: &crate::own::RecursiveBindings,
+) -> Result<(), String> {
     let flow = Flow::new(body);
     let topo = Topology::new(body);
     let mut edits = Tables::default();
     let dead = |made: u32| {
         made != NONE
-            && environments.contains_key(&body.data[made as usize])
+            && chosen(body, made)
             && !flow.escapes[made as usize]
             && flow.calls[made as usize].is_empty()
     };
@@ -865,21 +933,8 @@ pub fn inline_local_closures(
             edits.remove(u32_of(i));
         }
     }
-    erase_definitions(body, &topo, &definitions, &mut edits, &index.recursive);
-    splice::apply(body, &topo, &mut edits)?;
-    // With no live function constructor, dead sub IDs have no code identity
-    // left to preserve. A bounded root projection lets ordinary callers copy
-    // the resulting small body, including its logical shared-cell facts.
-    if !body.tags.contains(&Tag::Closure) && body.label.is_empty() && body.susp.is_empty() {
-        let index = Index::new(body);
-        if let Some((mut root, _)) = index.extract(body, 0, &[], limit.saturating_mul(16)) {
-            root.kind = body.kind;
-            if super::copyable(&root) {
-                *body = root;
-            }
-        }
-    }
-    Ok(true)
+    erase_definitions(body, &topo, &definitions, &mut edits, recursive);
+    splice::apply(body, &topo, &mut edits)
 }
 
 /// Sub IDs are code identities used by collection. Keep those identities,
@@ -896,15 +951,20 @@ fn erase_definitions(
     let mut remaining = vec![false; body.sub_root.len()];
     for i in 0..body.len() {
         work!(1);
-        if body.tags[i] == Tag::Closure && !removed.contains(&u32_of(i)) {
-            remaining[body.data[i][0] as usize] = true;
+        if body.tags[i] == Tag::Closure
+            && !removed.contains(&u32_of(i))
+            && let Some(r) = remaining.get_mut(body.data[i][0] as usize)
+        {
+            *r = true;
         }
     }
+    // An instantiation names its function's sub-body, possibly another
+    // body's (a lifted function's copy), and makes none.
     let mut dead_sub = vec![false; remaining.len()];
     for &made in removed {
         work!(1);
         let sub = body.data[made as usize][0] as usize;
-        if !remaining[sub] {
+        if !body.is_instantiation(made as usize) && !remaining[sub] {
             dead_sub[sub] = true;
         }
     }

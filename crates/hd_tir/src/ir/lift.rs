@@ -62,26 +62,13 @@ fn inside(enclosing: &[u32], mut s: usize, t: usize) -> bool {
 }
 
 /// Per sub-body of `b`, a checked body, the type-parameter ranges of the
-/// generic local functions it stands in, its own first when it is one.
-/// Collection keys a lifted function's instance by these alone.
+/// generic local functions it stands in, its own first when it is one
+/// ([`Lifting::scope`]). Collection keys a lifted function's instance by
+/// these alone.
 #[must_use]
 pub fn scopes(b: &Body, pool: &InternPool) -> Vec<Vec<(u32, u32)>> {
-    let enclosing = making(b, &Topology::new(b));
-    let range = ranges(b, pool);
-    (0..b.sub_root.len())
-        .map(|s| {
-            let mut out = Vec::new();
-            let mut at = s;
-            for _ in 0..enclosing.len() {
-                out.extend(range[at]);
-                match enclosing[at] {
-                    NONE => break,
-                    up => at = up as usize,
-                }
-            }
-            out
-        })
-        .collect()
+    let lifting = Lifting::new(b, pool);
+    (0..b.sub_root.len()).map(|s| lifting.scope(s)).collect()
 }
 
 /// A template's generic local functions, once per template: where each
@@ -104,6 +91,22 @@ impl Lifting {
             enclosing: making(b, &Topology::new(b)),
             range: ranges(b, pool),
         }
+    }
+
+    /// The type-parameter ranges of the generic local functions sub-body
+    /// `s` stands in, its own first when it is one. O(depth).
+    #[must_use]
+    pub fn scope(&self, s: usize) -> Vec<(u32, u32)> {
+        let mut out = Vec::new();
+        let mut at = s;
+        for _ in 0..self.enclosing.len() {
+            out.extend(self.range[at]);
+            match self.enclosing[at] {
+                NONE => break,
+                up => at = up as usize,
+            }
+        }
+        out
     }
 
     /// The functions an instance at arguments binding the parameter

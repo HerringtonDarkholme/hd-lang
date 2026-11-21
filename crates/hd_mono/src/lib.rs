@@ -3550,20 +3550,15 @@ impl Cx<'_> {
                         _ => Vec::new(),
                     };
                     let defaults = self.out.table.defaults[id.idx()].clone();
-                    // A generic local function's code (`hd_tir::ir::lift`) is
-                    // its sub-body at the item's arguments followed by its
-                    // own, by parameter index; an unbound one between stays
-                    // itself. Its body is the item's instance at those.
-                    // It binds the item's parameters and those of the
-                    // functions around it, which every call site sees bound;
-                    // any other stays itself, so the instance owns the
-                    // function alone (`hd_tir::ir::lift`).
+                    // A generic local function's code is its sub-body at
+                    // [`lifted_args`]; its body is the item's instance at those.
                     let at = if body.is_instantiation(i) {
                         let r = body.record(b);
-                        let own = pool.list_items(TyList(r[3]));
-                        let owner = env.generics_owner(item);
-                        let skip = env.parent(owner).map_or(0, |p| p.1);
-                        let fixed = env.generic_rows(owner).len();
+                        let own: Vec<Ty> = pool
+                            .list_items(TyList(r[3]))
+                            .iter()
+                            .map(|&t| s(t))
+                            .collect();
                         let scopes = self
                             .local_scopes
                             .entry(item)
@@ -3572,38 +3567,11 @@ impl Cx<'_> {
                         let around = scopes
                             .get(usize::from(sub_k))
                             .map_or(&[][..], Vec::as_slice);
-                        let current = pool.list_items(args);
-                        let first = skip + r[2] as usize;
-                        let len = around
-                            .iter()
-                            .map(|&(f, n)| skip + (f + n) as usize)
-                            .chain([first + own.len(), fixed])
-                            .max()
-                            .unwrap_or(0);
-                        let all: Option<Vec<Ty>> = (0..len)
-                            .map(|p| {
-                                let index = p.checked_sub(skip).and_then(|x| u32::try_from(x).ok());
-                                let mine = index.is_some_and(|x| {
-                                    x >= r[2] && (x - r[2]) < u32::try_from(own.len()).unwrap_or(0)
-                                });
-                                let kept = p < fixed
-                                    || index.is_some_and(|x| {
-                                        around.iter().any(|&(f, n)| x >= f && x < f + n)
-                                    });
-                                if mine {
-                                    Some(s(own[p - first]))
-                                } else if kept && let Some(&t) = current.get(p) {
-                                    Some(t)
-                                } else {
-                                    let index = u16::try_from(index?).ok()?;
-                                    Some(pool.intern_ty(&TyData::Param(ParamRef { owner, index })))
-                                }
-                            })
-                            .collect();
-                        let Some(all) = all else {
+                        let Some(at) = lifted_args(pool, env, item, args, around, r[2], &own)
+                        else {
                             return err("a local function's parameter outside its owner's");
                         };
-                        pool.list(&all)
+                        at
                     } else {
                         args
                     };
@@ -3773,6 +3741,52 @@ fn direct_calls(
         };
         calls.insert(ix, Target::KnownClosure(key));
     }
+}
+
+/// The arguments collection keys a lifted generic local function's
+/// instance by (`hd_tir::ir::lift`): its sub-body at item `item`'s
+/// instance arguments `args` followed by its own, `own` (from parameter
+/// index `first`), by parameter index. It binds the item's parameters and
+/// those of the functions it stands in, `around`
+/// (`hd_tir::ir::Lifting::scope`), which every call site sees bound; any
+/// other stays itself, so the instance owns the function alone. `None`
+/// for a parameter outside the item's owner's.
+pub fn lifted_args<E: ProgramEnv + ?Sized>(
+    pool: &InternPool,
+    env: &E,
+    item: DefId,
+    args: TyList,
+    around: &[(u32, u32)],
+    first: u32,
+    own: &[Ty],
+) -> Option<TyList> {
+    let owner = env.generics_owner(item);
+    let skip = env.parent(owner).map_or(0, |p| p.1);
+    let fixed = env.generic_rows(owner).len();
+    let current = pool.list_items(args);
+    let start = skip + first as usize;
+    let len = around
+        .iter()
+        .map(|&(f, n)| skip + (f + n) as usize)
+        .chain([start + own.len(), fixed])
+        .max()
+        .unwrap_or(0);
+    let all: Option<Vec<Ty>> = (0..len)
+        .map(|p| {
+            let index = p.checked_sub(skip).and_then(|x| u32::try_from(x).ok());
+            let kept = p < fixed
+                || index.is_some_and(|x| around.iter().any(|&(f, n)| x >= f && x < f + n));
+            if p >= start && p - start < own.len() {
+                Some(own[p - start])
+            } else if kept && let Some(&t) = current.get(p) {
+                Some(t)
+            } else {
+                let index = u16::try_from(index?).ok()?;
+                Some(pool.intern_ty(&TyData::Param(ParamRef { owner, index })))
+            }
+        })
+        .collect();
+    Some(pool.list(&all?))
 }
 
 /// Whether a body may run other code: a call of any form, or a map

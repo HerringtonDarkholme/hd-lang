@@ -1,6 +1,7 @@
 # @dump: own wat stdout
 # @build: release checked
-# expected: generic, wide-capture and reference-writing literals retain valid call boundaries.
+# expected: wide-capture and reference-writing literals retain valid call boundaries; a
+# generic local function's call is the ordinary inliner's (#2222).
 use std.annotation.cold
 use std.testing.assert_equal
 

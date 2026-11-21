@@ -2920,6 +2920,18 @@ can copy their provider lookups too.
 This exposes the existing direct-provider ABI without a context allocation
 or lookup.
 
+A call of a generic local function is an ordinary call site too (#2222).
+Its value is the `Closure` that instantiates the lifted function (Swift's
+`function_ref`, the call its `apply`), directly or through a local stored
+once with it, as an item reference's is. The inliner keys the copy by the
+lifted instance, the item at the function's arguments
+(`hd_mono::lifted_args`), copies the function from that instance's
+template with its captures as its first locals, and binds them to the
+locals the instantiation captured, as a literal's copy does. The rules
+below decide it as an undecorated function's call; an instantiation that
+only copied calls used goes. A value that reaches the call through a
+local captures nothing, since the local may outlive what it captures.
+
 It adds no row-specialized function entry and changes no callable
 ABI. Context construction, suspension and cleanup suites keep their call
 boundaries. Escaping reusable contexts, closures and cold frames still own

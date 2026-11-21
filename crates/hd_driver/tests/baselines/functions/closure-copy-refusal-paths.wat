@@ -4,9 +4,9 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 24 funcref))
+  (import "fixture" "table0" (table $table0 23 funcref))
   (func $written (param $seed i32) (result i32) (local $counter i32) (local $t0 i32)
-    ;; 61 |     let mut counter = Counter { value: seed }
+    ;; 62 |     let mut counter = Counter { value: seed }
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -30,23 +30,23 @@
     local.tee $counter
     local.get $seed
     i32.store $heap
-    ;; 63 |     local(&mut counter)
+    ;; 64 |     local(&mut counter)
     i32.const 0
     local.get $counter
     i32.const 0
     i32.const 2
     call_indirect $table0 (param i32 i32 i32)
-    ;; 64 |     counter.value
+    ;; 65 |     counter.value
     local.get $counter
     i32.load $heap
-    ;; 61 |     let mut counter = Counter { value: seed }
+    ;; 62 |     let mut counter = Counter { value: seed }
     local.get $t0
     i32.const 16
     i32.add
     global.set $stack
   )
   (func $written#1 (param $env i32) (param $value i32) (param $ctx i32)
-    ;; 62 |     local := fn(value: &mut Counter) -> void: value.value += 1
+    ;; 63 |     local := fn(value: &mut Counter) -> void: value.value += 1
     local.get $value
     local.get $value
     i32.load $heap

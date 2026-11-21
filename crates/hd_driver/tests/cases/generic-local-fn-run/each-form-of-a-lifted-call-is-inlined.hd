@@ -1,0 +1,41 @@
+# @dump: wat stdout
+# @build: release | release checked
+# Every form of a call of a small generic local function is inlined in
+# release (#2222): one lifted function calling another that captures, one nested in a
+# generic item's local function at that item's arguments, and one called
+# through a local that holds it. A recursive one copies until its cycle
+# is found, as any function's does.
+fn siblings(x: i32) -> i32:
+    fn one[T](v: T) -> T:
+        v
+    fn add[T](v: T) -> (T, i32):
+        (one(v), x)
+    fn two[T](v: T) -> (T, i32):
+        add(v)
+    let (a, b) = two(x)
+    a + b
+
+fn nested[U < 'static](u: U, n: i32) -> (U, i32):
+    fn outer[T](t: T, k: i32) -> (T, i32):
+        fn inner[V](v: V) -> V:
+            v
+        (inner(t), inner(k) + n)
+    outer(u, n)
+
+fn aliased(x: i32) -> i32:
+    fn twice[T](v: T) -> (T, T):
+        (v, v)
+    let f = twice::[i32]
+    let (a, b) = f(x)
+    a + b
+
+fn recursive(n: i32) -> i32:
+    fn down[T](v: T, k: i32) -> i32:
+        if k == 0:
+            return 0
+        1 + down(v, k - 1)
+    down(n, n)
+
+pub fn main() -> void $ Console:
+    let (s, m) = nested("s", 2)
+    println("${siblings(3)} ${aliased(4)} $s $m ${recursive(5)}")

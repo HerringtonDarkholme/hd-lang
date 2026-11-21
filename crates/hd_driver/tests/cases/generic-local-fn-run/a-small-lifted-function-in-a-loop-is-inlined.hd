@@ -1,12 +1,9 @@
 # @dump: wat
 # @build: release
-# expected: gap: #2222. A small generic local function called in a loop is
-# inlined, as it was before 3b, through an ordinary direct call to its
-# lifted instance (Swift's `apply %f<T>`), which the release inliner's
-# rule for any function decides. Today the call lowers as the function's
-# closure value and a `CallValue`, which no `Callee` can name since the
-# function has no item of its own: the loop calls the instance directly,
-# but nothing inlines it.
+# A small generic local function called in a loop is inlined (#2222):
+# the call names its lifted instance, as Swift's `apply %f<T>` names a
+# `function_ref`, so the release inliner's rule for any function decides
+# it. No closure value is made and no instance is left to emit.
 fn total(xs: List[i32]) -> i32:
     fn twice[T](x: T) -> (T, T):
         (x, x)

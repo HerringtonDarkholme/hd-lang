@@ -21,7 +21,10 @@ use crate::own::splice::permute_columns;
 
 mod closures;
 pub(crate) use closures::extract_subs;
-pub use closures::{called_parameters, inline_local_closures, literal_arguments};
+pub use closures::{
+    called_parameters, function_body, inline_local_closures, literal_arguments,
+    remove_unused_instantiations,
+};
 
 /// The statically known callee of call `i` when its requirement context
 /// needs no copying: a `Call` with no providers. Its argument record may
@@ -57,14 +60,17 @@ pub fn arguments(b: &Body, i: usize) -> &[u32] {
 #[must_use]
 pub fn plain_call(b: &Body, i: usize) -> Option<Callee> {
     let callee = known_call(b, i)?;
+    plain_args(b, i).then_some(callee)
+}
+
+/// Whether call `i` passes every argument, none an omitted one's
+/// `DefaultCall`.
+#[must_use]
+pub fn plain_args(b: &Body, i: usize) -> bool {
     let args = arguments(b, i);
-    let default = args
+    !args
         .iter()
-        .any(|&a| b.tags.get(a as usize) == Some(&Tag::DefaultCall));
-    if default {
-        return None;
-    }
-    Some(callee)
+        .any(|&a| b.tags.get(a as usize) == Some(&Tag::DefaultCall))
 }
 
 /// What a trait call chosen through a bound runs once its receiver is
@@ -116,14 +122,21 @@ pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<Chosen>
 
 /// Whether `c` may be copied structurally: a function of one sub-body, its
 /// root block last, with no suspension, `defer`, closure, escaping context or
-/// ownership statement, and no call with explicit providers. A copied `With`
+/// ownership statement, and no call with explicit providers. A generic
+/// local function's instantiation, which names its item's sub-body, is
+/// not a closure here: only that item's bodies copy one. A copied `With`
 /// retains its lexical scope; copied `ProviderGet`s resolve there, exactly
 /// as they resolved at the call. Context construction keeps its call boundary.
 #[must_use]
 pub fn copyable(c: &Body) -> bool {
     let n = c.len();
+    let held: usize = (0..n)
+        .filter(|&i| c.is_instantiation(i))
+        .map(|i| c.record(c.data[i][1])[1] as usize)
+        .sum();
     let refused = |i: usize| match c.tags[i] {
         Tag::Call => c.record(c.data[i][1]).iter().rev().nth(2) != Some(&0),
+        Tag::Closure => !c.is_instantiation(i),
         t => matches!(
             t,
             Tag::Await
@@ -152,9 +165,10 @@ pub fn copyable(c: &Body) -> bool {
         && n >= 1
         && c.sub_root == [u32_of(n - 1)]
         && c.susp.is_empty()
-        // Only eliminated shared-cell facts remain, not a callee environment.
-        && c.cap_local.len() == c.inlined_shared.len()
-        && c.inlined_shared.iter().enumerate().all(|(i, &(_, c))| c as usize == i)
+        // Only eliminated shared-cell facts and instantiations' captures
+        // remain, not a callee environment.
+        && c.cap_local.len() == c.inlined_shared.len() + held
+
         && c.label.is_empty()
         && !(0..n).any(refused)
 }
@@ -262,7 +276,12 @@ pub fn inline_calls(b: &mut Body, sites: Vec<Site>) -> Result<Vec<bool>, String>
     )
 }
 
-fn inline_bound_calls(
+/// [`inline_calls`] with each site's environment: the copy's captured
+/// locals, sorted, and the caller's locals each stands for.
+///
+/// # Errors
+/// As [`inline_calls`].
+pub fn inline_bound_calls(
     b: &mut Body,
     sites: Vec<(Site, Vec<(u32, u32)>)>,
 ) -> Result<Vec<bool>, String> {
@@ -811,15 +830,14 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
             .push((t, if t == Ty::STRING { bits + sbase } else { bits }));
     }
     out.strings.append(&mut k.strings);
-    let captures = u32_of(out.cap_local.len());
-    out.cap_local.extend(
-        k.cap_local
-            .iter()
-            .map(|l| LocalId::from_raw(relocated_local(l.raw(), lbase, &environment))),
-    );
-    out.cap_mode.append(&mut k.cap_mode);
-    out.inlined_shared
-        .extend(k.inlined_shared.iter().map(|&(_, c)| (sub, captures + c)));
+    // An instantiation's captures moved with it (`copy_rows`); the shared
+    // cells' facts take rows of their own.
+    for &(_, c) in &k.inlined_shared {
+        let local = relocated_local(k.cap_local[c as usize].raw(), lbase, &environment);
+        out.inlined_shared.push((sub, u32_of(out.cap_local.len())));
+        out.cap_local.push(LocalId::from_raw(local));
+        out.cap_mode.push(k.cap_mode[c as usize]);
+    }
     out.inlined_capture_origins
         .extend(
             k.inlined_capture_origins

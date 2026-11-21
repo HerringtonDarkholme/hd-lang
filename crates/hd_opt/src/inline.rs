@@ -164,6 +164,22 @@ pub trait InlineEnv: ProgramEnv {
     /// Whether `Call` or `Drop` `i` of `body` has no effect a caller sees
     /// (`hd_mono::defaults::collapse_quiet`).
     fn quiet(&self, body: &Body, i: usize) -> bool;
+    /// The arguments of the instance that runs generic local function
+    /// `sub` of `def`, instantiated from parameter index `first` at `own`
+    /// in `def`'s instance at `args` (`hd_mono::lifted_args`).
+    fn lifted_args(
+        &self,
+        def: DefId,
+        args: TyList,
+        sub: u32,
+        first: u32,
+        own: TyList,
+    ) -> Option<TyList>;
+    /// The generic local function `def`'s instance at `at` runs
+    /// (`hd_tir::ir::lift`), at its types, as a body of its own whose first
+    /// locals are its captures (`hd_tir::inline::function_body`), and the
+    /// checked body's hash; `None` for any other instance.
+    fn lifted_body(&self, def: DefId, at: TyList) -> Option<(Body, Hash128)>;
 }
 
 /// A release build's inliner state for one run. Only looked up, never
@@ -234,13 +250,10 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// allows (`docs/compiler/tir-v2.md`, "The inliner"), before the passes,
 /// each parameter bound by its pass mode, and returns the body's hash with
 /// each copied callee's TIR hash.
-pub fn inline_calls(env: &dyn InlineEnv, body: &mut Body, hash: Hash128) -> Hash128 {
-    run_inline(
-        env,
-        body,
-        hash,
-        &Stack::new((body.item, None), false, env.inline_hint(body.item)),
-    )
+pub fn inline_calls(env: &dyn InlineEnv, body: &mut Body, args: TyList, hash: Hash128) -> Hash128 {
+    let stack = Stack::new((body.item, None), false, env.inline_hint(body.item));
+    stack.root_args.set(args);
+    run_inline(env, body, hash, &stack)
 }
 
 /// The inliner's stack of copies ([`Frame`]), the caller first, and
@@ -256,6 +269,8 @@ struct Stack {
     work: Cell<InlineWork>,
     marks: RefCell<CycleMarks>,
     solving: bool,
+    /// The root body's type arguments, when its frame has none.
+    root_args: Cell<TyList>,
 }
 
 /// Every cycle selects a suffix. Sorted stacks need only inspect/pop their
@@ -370,6 +385,7 @@ impl Stack {
             work: Cell::new(InlineWork::default()),
             marks: RefCell::new(CycleMarks::default()),
             solving,
+            root_args: Cell::new(TyList::EMPTY),
         };
         stack.push(first, hint);
         stack
@@ -413,6 +429,11 @@ impl Stack {
             }
         }
     }
+    /// The type arguments of the body the top frame copies into.
+    fn args(&self) -> TyList {
+        let top = self.frames.borrow().last().and_then(|f| f.1);
+        top.unwrap_or(self.root_args.get())
+    }
     /// First matching concrete/wildcard ancestor; hash lookups do not walk depth.
     fn exact(&self, def: DefId, args: TyList) -> Option<usize> {
         let mut counts = self.work.get();
@@ -424,8 +445,20 @@ impl Stack {
             .filter_map(|key| keys.get(&key).and_then(|v| v.first()).copied())
             .min()
     }
-    fn cycle(&self, def: DefId, args: TyList) -> Option<usize> {
-        self.exact(def, args).or_else(|| {
+    /// The first active copy of `(def, args)`, or past the depth bound.
+    /// For a lifted function's (`lifted`), keyed by its item `def`, the
+    /// root's frame, which names `def` at any arguments, is one only at
+    /// the root's own.
+    fn cycle(&self, def: DefId, args: TyList, lifted: bool) -> Option<usize> {
+        let keys = self.by_key.borrow();
+        let first = |key: Frame| keys.get(&key).and_then(|v| v.first()).copied();
+        let root = || (self.root_args.get() == args).then(|| first((def, None)))?;
+        let active = if lifted {
+            first((def, Some(args))).or_else(root)
+        } else {
+            self.exact(def, args)
+        };
+        active.or_else(|| {
             let defs = self.by_def.borrow();
             let indices = defs.get(&def)?;
             (indices.len() >= usize::from(hd_mono::layout::MAX_DEPTH))
@@ -556,41 +589,13 @@ impl dyn InlineEnv + '_ {
         if !body.tags.contains(&Tag::ItemRef) {
             return false;
         }
-        let none = u32::MAX;
-        // Per local: its stores, and the value of the last whole one.
-        let mut sets = vec![(0u32, none); body.local_ty.len()];
-        for i in 0..body.len() {
-            if let Some((l, whole)) = body.stored_local(i) {
-                let s = &mut sets[l.idx()];
-                *s = (s.0 + 1, if whole { body.data[i][1] } else { none });
-            }
-            if body.tags[i] == Tag::Ref
-                && let Some(l) = body.local_in_place(body.data[i][0])
-            {
-                sets[l.idx()].0 = 2;
-            }
-        }
-        for (l, &f) in body.local_flags.iter().enumerate() {
-            if f & local_flags::PARAM != 0 {
-                sets[l].0 = 2;
-            }
-        }
+        let sets = value_sets(body);
         let mut changed = false;
         for i in 0..body.len() {
-            if body.tags[i] != Tag::CallValue {
+            let Some(made) =
+                known_value(body, &sets, i).filter(|&m| body.tags[m as usize] == Tag::ItemRef)
+            else {
                 continue;
-            }
-            let v = body.data[i][0];
-            let made = match body.tags.get(v as usize) {
-                Some(Tag::ItemRef) => v,
-                Some(Tag::Read) => match body.view(body.data[v as usize][0]) {
-                    p if p.whole() => match p.local().map(|l| sets[l as usize]) {
-                        Some((1, x)) if body.tags.get(x as usize) == Some(&Tag::ItemRef) => x,
-                        _ => continue,
-                    },
-                    _ => continue,
-                },
-                _ => continue,
             };
             let [a, w] = body.data[made as usize];
             let (Some(&d), Some(&targs)) = (body.record(a).first(), body.record(w).first()) else {
@@ -646,20 +651,31 @@ impl dyn InlineEnv + '_ {
             Vec::new()
         };
         let mut caller_effects = None;
+        let sets =
+            (self.memo().is_some() && body.tags.contains(&Tag::Closure)).then(|| value_sets(body));
+        let args = stack.args();
+        let mut lifted_sites = false;
         for c in (0..body.len()).rev() {
             let mut counts = stack.work.get();
             counts.rows += 1;
             stack.work.set(counts);
             let in_loop = loops[c] != hd_tir::ir::NONE;
-            let Some((def, targs)) =
-                hd_tir::inline::known_call(body, c).and_then(|callee| match callee {
+            let lifted = (sets.as_ref()).and_then(|sets| self.lifted_call(body, sets, c, args));
+            let Some((def, targs)) = hd_tir::inline::known_call(body, c)
+                .and_then(|callee| match callee {
                     Callee::Item { def, targs } => Some((def, targs)),
                     Callee::TraitMethod { .. } => self.impl_target(&callee),
                 })
+                .or(lifted.as_ref().map(|l| (body.item, l.0)))
             else {
                 continue;
             };
-            if loops_only && !in_loop && !self.declares_local_reference(def) {
+            // A lifted function has no declaration: an undecorated one.
+            let hint = match lifted {
+                Some(_) => InlineHint::Default,
+                None => self.inline_hint(def),
+            };
+            if loops_only && !in_loop && !(lifted.is_none() && self.declares_local_reference(def)) {
                 continue;
             }
             if body.tags[c] == Tag::DefaultCall
@@ -671,14 +687,16 @@ impl dyn InlineEnv + '_ {
                 // Keep that marker until it has folded those decisions.
                 continue;
             }
-            if self.inline_hint(def) == InlineHint::Default
-                && hd_tir::inline::plain_call(body, c).is_none()
-            {
+            if hint == InlineHint::Default && !hd_tir::inline::plain_args(body, c) {
                 continue;
             }
             // A flag method's call copies its solved value, even its own
             // call inside its body.
-            let folded = match self.flag_site(def, targs, stack.solving) {
+            let site = match lifted {
+                Some(_) => FlagSite::Plain,
+                None => self.flag_site(def, targs, stack.solving),
+            };
+            let folded = match site {
                 FlagSite::Folded(copy) => Some(*copy),
                 FlagSite::Kept => continue,
                 FlagSite::Plain => None,
@@ -689,7 +707,7 @@ impl dyn InlineEnv + '_ {
             // one function, collection's own bound on instance nesting,
             // which stops a polymorphic recursion's ever-larger types.
             if folded.is_none()
-                && let Some(at) = stack.cycle(def, targs)
+                && let Some(at) = stack.cycle(def, targs, lifted.is_some())
             {
                 self.found_stack_cycle(stack, at);
                 continue;
@@ -700,6 +718,9 @@ impl dyn InlineEnv + '_ {
             };
             let consumer = ordinary.is_none();
             let Some((mut copy, callee_hash)) = ordinary.or_else(|| {
+                if lifted.is_some() {
+                    return None;
+                }
                 self.literal_consumer(
                     def,
                     targs,
@@ -726,7 +747,7 @@ impl dyn InlineEnv + '_ {
             }
             // Over the ordinary budget only by `fits`'s allowance for a callee
             // that takes local references and runs no call of its own.
-            if self.inline_hint(def) == InlineHint::Default
+            if hint == InlineHint::Default
                 && !self.fits_size(&copy, INLINE_LIMIT)
                 && !in_loop
                 && writer_refs.is_none()
@@ -739,9 +760,11 @@ impl dyn InlineEnv + '_ {
             // argument names a place the copy may read once. A small
             // release reader can otherwise keep the reference itself.
             let mut by_ref = 0;
-            let by_value = if self.inline_hint(def) == InlineHint::Default
-                && self.takes_reference(def, &copy)
-            {
+            let result = match lifted {
+                Some(_) => root_type(&copy),
+                None => self.result(def),
+            };
+            let by_value = if hint == InlineHint::Default && self.takes_reference(result, &copy) {
                 let may_write = |c: &Callee| self.call_may_write(c);
                 let promote = self.by_value(&copy);
                 let (mask, counted, rooted) = promote.unwrap_or((0, 0, 0));
@@ -820,16 +843,24 @@ impl dyn InlineEnv + '_ {
                 };
                 copy = hd_tir::own::promote::promote(&copy, by_value, referent);
             }
-            sites.push(Site {
+            let site = Site {
                 call: c,
                 copy,
                 by_value,
                 by_ref,
-            });
+            };
+            lifted_sites |= lifted.is_some();
+            sites.push((site, lifted.map(|l| l.1).unwrap_or_default()));
             hashes.push((callee_hash, writer_refs.is_some()));
         }
-        // All of the body's copies in one rebuild.
-        let copied = hd_tir::inline::inline_calls(body, sites).unwrap_or_default();
+        // All of the body's copies in one rebuild; a lifted function's
+        // instantiation that only its copied calls used goes.
+        let copied = hd_tir::inline::inline_bound_calls(body, sites).unwrap_or_default();
+        // A body the removal refuses is malformed: the instance verifier
+        // rejects it.
+        if lifted_sites && copied.contains(&true) {
+            let _ = hd_tir::inline::remove_unused_instantiations(body);
+        }
         let mut writer = false;
         for (_, &(h, scalar_writer)) in copied.iter().zip(&hashes).filter(|(c, _)| **c) {
             k.hash(h);
@@ -937,7 +968,19 @@ impl dyn InlineEnv + '_ {
                 return None;
             }
         }
-        if self.const_fold()
+        // A lifted generic local function has no declaration: an
+        // undecorated function of its copy's result type.
+        let lifted = memo.and_then(|_| self.lifted_body(def, targs));
+        let hint = match lifted {
+            Some(_) => InlineHint::Default,
+            None => self.inline_hint(def),
+        };
+        let result = |copy: &Body| match lifted {
+            Some(_) => root_type(copy),
+            None => self.result(def),
+        };
+        if lifted.is_none()
+            && self.const_fold()
             && let Some(c) = self
                 .quiet_constant(def, targs, stack)
                 .await
@@ -948,12 +991,15 @@ impl dyn InlineEnv + '_ {
             }
             return Some(c);
         }
-        let instance = self.instance(def, targs);
+        let instance = match &lifted {
+            Some((copy, hash)) => self.lifted_instance(copy, *hash),
+            None => self.instance(def, targs),
+        };
         let nested = if let Some((copy, hash, _)) =
             instance.as_ref().filter(|c| !hd_tir::inline::leaf(&c.0))
         {
             let mut nested = copy.clone();
-            stack.push((def, Some(targs)), self.inline_hint(def));
+            stack.push((def, Some(targs)), hint);
             let h = self.inline_into(&mut nested, *hash, stack).await;
             stack.pop();
             // Settle the decisions exposed by copied constants before judging size.
@@ -975,15 +1021,15 @@ impl dyn InlineEnv + '_ {
                 && let Some(c) =
                     hd_mono::defaults::collapse(nested.as_ref().map_or(&copy, |n| &n.0))
             {
-                return (self.inline_hint(def) == InlineHint::Always
+                return (hint == InlineHint::Always
                     || !self.memory_value(c.ty[c.sub_root[0] as usize]).0)
                     .then_some((c, nested.as_ref().map_or(hash, |n| n.1)));
             }
             match nested {
-                Some((nested, h)) if fits && self.inline_hint(def) != InlineHint::Default => {
+                Some((nested, h)) if fits && hint != InlineHint::Default => Some((nested, h)),
+                Some((nested, h)) if self.fits_as(hint, result(&nested), &nested) => {
                     Some((nested, h))
                 }
-                Some((nested, h)) if self.fits(def, &nested) => Some((nested, h)),
                 // Charge a tiny one-call forwarding body as well as its
                 // scalar writer, rather than losing the known target at
                 // each forwarding layer. Memoized copies remain bounded
@@ -999,7 +1045,7 @@ impl dyn InlineEnv + '_ {
                 _ => fits.then_some((copy, hash)),
             }
         });
-        let made = made.filter(|(body, _)| self.copy_metadata_fits(def, body));
+        let made = made.filter(|(body, _)| hint != InlineHint::Default || copy_metadata_fits(body));
         if let Some(memo) = memo {
             lock(&memo.inlined).insert((def, targs), made.clone());
         }
@@ -1248,19 +1294,25 @@ impl dyn InlineEnv + '_ {
     /// limit. The checker has already rejected uncopyable `.Always`
     /// bodies.
     fn fits(&self, def: DefId, copy: &Body) -> bool {
-        match self.inline_hint(def) {
+        self.fits_as(self.inline_hint(def), self.result(def), copy)
+    }
+
+    /// [`Self::fits`] for a callee with hint `hint` and declared result
+    /// `result`.
+    fn fits_as(&self, hint: InlineHint, result: Option<Ty>, copy: &Body) -> bool {
+        match hint {
             InlineHint::Default => {
                 let release = self.memo().is_some();
                 (self.fits_size(copy, INLINE_LIMIT)
-                    && (!self.takes_reference(def, copy)
+                    && (!self.takes_reference(result, copy)
                         || self.by_value(copy).is_some()
                         || (release && self.read_only_refs(copy))))
                     || (release
-                        && !self.takes_reference(def, copy)
+                        && !self.takes_reference(result, copy)
                         && self.plain_memory(copy)
                         && self.fits_size(copy, AUTO_INLINE_LIMIT))
                     || (release
-                        && self.takes_reference(def, copy)
+                        && self.takes_reference(result, copy)
                         && self.only_local_references(copy)
                         && self.plain_memory(copy)
                         && copy
@@ -1321,7 +1373,7 @@ impl dyn InlineEnv + '_ {
             // The contextual size bonus does not enlarge dependent-result
             // scopes beyond the existing ordinary raw-body boundary.
             || copy.len() > INLINE_LIMIT && result_holds_local(self.pool(), &copy)
-            || self.takes_reference(def, &copy)
+            || self.takes_reference(self.result(def), &copy)
                 && self.by_value(&copy).is_none()
                 && !self.read_only_refs(&copy)
         {
@@ -1388,12 +1440,7 @@ impl dyn InlineEnv + '_ {
         // the automatic budget; a prior fast path stops the entry census.
         let fits = |limit| priced_inline(body, limit, |callee| self.retained_call_cost(callee));
         let body_fits = match hint {
-            InlineHint::Default => {
-                fits(INLINE_LIMIT)
-                    || (release
-                        && (self.declares_local_reference(def) || body.len() <= AUTO_INLINE_LIMIT)
-                        && fits(AUTO_INLINE_LIMIT))
-            }
+            InlineHint::Default => self.priced(body, self.declares_local_reference(def)),
             InlineHint::Auto => fits(AUTO_INLINE_LIMIT),
             InlineHint::Always => hd_tir::inline::copyable(body),
             InlineHint::Never => false,
@@ -1402,6 +1449,60 @@ impl dyn InlineEnv + '_ {
             return None;
         }
         Some((self.fresh_body(def)?, *hash))
+    }
+
+    /// Whether an undecorated function's `body`, as written, may copy
+    /// ([`priced_inline`]); a larger one in release when it is small or
+    /// declares a local reference (`local_ref`).
+    fn priced(&self, body: &Body, local_ref: bool) -> bool {
+        let fits = |limit| priced_inline(body, limit, |callee| self.retained_call_cost(callee));
+        fits(INLINE_LIMIT)
+            || (self.memo().is_some()
+                && (local_ref || body.len() <= AUTO_INLINE_LIMIT)
+                && fits(AUTO_INLINE_LIMIT))
+    }
+
+    /// A lifted generic local function's copy (`InlineEnv::lifted_body`)
+    /// when [`Self::instance`] would take it: an undecorated function's
+    /// body that may copy as written.
+    fn lifted_instance(&self, copy: &Body, hash: Hash128) -> Option<(Body, Hash128, bool)> {
+        if !copy_metadata_fits(copy)
+            || !self.priced(copy, false)
+            || !hd_mono::settled(self.pool(), copy, true)
+        {
+            return None;
+        }
+        let fits = self.fits_as(InlineHint::Default, root_type(copy), copy);
+        Some((copy.clone(), hash, fits))
+    }
+
+    /// A call `c` of a generic local function the body instantiates
+    /// (Swift's `apply` of a `function_ref`, `hd_tir::ir::lift`), in a
+    /// body at `args`: its instance's arguments, and the environment
+    /// binding the copy's captures, its first locals, to the caller's. A
+    /// value that reaches the call through a local captures nothing: the
+    /// local may outlive the locals it would read.
+    fn lifted_call(
+        &self,
+        body: &Body,
+        sets: &[(u32, u32)],
+        c: usize,
+        args: TyList,
+    ) -> Option<(TyList, Vec<(u32, u32)>)> {
+        let made = known_value(body, sets, c)?;
+        let &[start, count, first, own] = body.record(body.data[made as usize][1]) else {
+            return None;
+        };
+        if !body.is_instantiation(made as usize)
+            || body.call_providers(c) != hd_tir::ir::Providers::None
+            || (count > 0 && made != body.data[c][0])
+        {
+            return None;
+        }
+        let sub = body.data[made as usize][0];
+        let at = self.lifted_args(body.item, args, sub, first, TyList(own))?;
+        let environment = (0..count).map(|j| (j, body.cap_local[(start + j) as usize].raw()));
+        Some((at, environment.collect()))
     }
 
     fn copy_metadata_fits(&self, def: DefId, body: &Body) -> bool {
@@ -1414,18 +1515,16 @@ impl dyn InlineEnv + '_ {
     /// counted, and made a local it points at a counted cell, where a call
     /// lends both; so a callee that takes one stays a call (#856: copying
     /// `StringBuilder.push` into a loop made `string_build` 40% slower).
-    /// A getter's result holds a local reference, which borrows from its
-    /// one reference parameter (`ref.dep.elide`): the call already keeps
-    /// that local alive over the result's uses, so the copy's binding
-    /// points into a frame slot with no count
+    /// A getter's declared result, `result`, holds a local reference,
+    /// which borrows from its one reference parameter (`ref.dep.elide`):
+    /// the call already keeps that local alive over the result's uses, so
+    /// the copy's binding points into a frame slot with no count
     /// (`crates/hd_wasm/DESIGN.md` §23.38).
-    fn takes_reference(&self, def: DefId, copy: &Body) -> bool {
+    fn takes_reference(&self, result: Option<Ty>, copy: &Body) -> bool {
         let Some(refs) = self.reference_params(copy, false) else {
             return true;
         };
-        let getter = self
-            .result(def)
-            .is_some_and(|r| holds_local(self.pool(), r));
+        let getter = result.is_some_and(|r| holds_local(self.pool(), r));
         refs.len() > 1 || (refs.len() == 1 && !getter)
     }
 
@@ -1732,6 +1831,60 @@ impl dyn InlineEnv + '_ {
             && root.is_some_and(|root| fits(open(caller.ty[c]), root))
             && (!rebound || kinds_agree(copy))
     }
+}
+
+/// Per local of `body`: its stores, and the value of the last whole one;
+/// a parameter, or a local a `Ref` takes, counts as stored twice.
+fn value_sets(body: &Body) -> Vec<(u32, u32)> {
+    let none = u32::MAX;
+    let mut sets = vec![(0u32, none); body.local_ty.len()];
+    for i in 0..body.len() {
+        if let Some((l, whole)) = body.stored_local(i) {
+            let s = &mut sets[l.idx()];
+            *s = (s.0 + 1, if whole { body.data[i][1] } else { none });
+        }
+        if body.tags[i] == Tag::Ref
+            && let Some(l) = body.local_in_place(body.data[i][0])
+        {
+            sets[l.idx()].0 = 2;
+        }
+    }
+    for (l, &f) in body.local_flags.iter().enumerate() {
+        if f & local_flags::PARAM != 0 {
+            sets[l].0 = 2;
+        }
+    }
+    sets
+}
+
+/// The row that makes the function `CallValue` `i` calls when the body
+/// knows it statically, an `ItemRef` or a `Closure`: its callee, or the
+/// value of a local stored once with it (`sets`, [`value_sets`]).
+fn known_value(body: &Body, sets: &[(u32, u32)], i: usize) -> Option<u32> {
+    if body.tags[i] != Tag::CallValue {
+        return None;
+    }
+    let v = body.data[i][0];
+    let made = match body.tags.get(v as usize)? {
+        Tag::Read => match body.view(body.data[v as usize][0]) {
+            p if p.whole() => match p.local().map(|l| sets[l as usize]) {
+                Some((1, x)) => x,
+                _ => return None,
+            },
+            _ => return None,
+        },
+        _ => v,
+    };
+    matches!(
+        body.tags.get(made as usize),
+        Some(Tag::ItemRef | Tag::Closure)
+    )
+    .then_some(made)
+}
+
+/// The type of `copy`'s root, its result.
+fn root_type(copy: &Body) -> Option<Ty> {
+    copy.sub_root.first().map(|&r| copy.ty[r as usize])
 }
 
 /// Reject an oversized candidate before querying its call costs. Failed
@@ -2463,14 +2616,17 @@ mod tests {
             super::InlineHint::Default,
         );
         assert_eq!(root.exact(def(2), hd_types::TyList(1)), Some(1));
-        assert_eq!(root.cycle(def(2), hd_types::TyList(2)), None);
+        assert_eq!(root.cycle(def(2), hd_types::TyList(2), false), None);
         for i in 0..u32::from(hd_mono::layout::MAX_DEPTH) {
             root.push(
                 (def(3), Some(hd_types::TyList(i))),
                 super::InlineHint::Default,
             );
         }
-        assert_eq!(root.cycle(def(3), hd_types::TyList(u32::MAX)), Some(2));
+        assert_eq!(
+            root.cycle(def(3), hd_types::TyList(u32::MAX), false),
+            Some(2)
+        );
         assert_eq!(
             root.members(2).len(),
             usize::from(hd_mono::layout::MAX_DEPTH)
@@ -2478,7 +2634,7 @@ mod tests {
         for _ in 0..hd_mono::layout::MAX_DEPTH {
             root.pop();
         }
-        assert_eq!(root.cycle(def(3), hd_types::TyList(0)), None);
+        assert_eq!(root.cycle(def(3), hd_types::TyList(0), false), None);
         root.pop();
         root.push(
             (def(2), Some(hd_types::TyList(2))),
@@ -2509,7 +2665,7 @@ mod tests {
             }
             for i in 1..=depth {
                 assert_eq!(
-                    stack.cycle(DefId::from_raw(i), hd_types::TyList(0)),
+                    stack.cycle(DefId::from_raw(i), hd_types::TyList(0), false),
                     Some(i as usize)
                 );
             }

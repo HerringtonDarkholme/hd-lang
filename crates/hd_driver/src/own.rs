@@ -2289,6 +2289,38 @@ impl InlineEnv for Env<'_> {
         }
     }
 
+    fn lifted_args(
+        &self,
+        def: DefId,
+        args: TyList,
+        sub: u32,
+        first: u32,
+        own: TyList,
+    ) -> Option<TyList> {
+        let (generic, _) = InlineEnv::checked_body(self, def)?;
+        let around = self.lifting(def, generic).scope(sub as usize);
+        let own = self.run.pool.list_items(own);
+        hd_mono::lifted_args(&self.run.pool, self, def, args, &around, first, own)
+    }
+
+    fn lifted_body(&self, def: DefId, at: TyList) -> Option<(Body, Hash128)> {
+        let (generic, hash) = InlineEnv::checked_body(self, def)?;
+        let template = self.lifted_template(def, at, generic)?;
+        // The function, not the sub-bodies of its parameters' defaults.
+        let sub = (self.lifted_subs(def, at).into_iter()).find(|&k| generic.sub_is_generic(k))?;
+        let choose = |t, s, a| InlineEnv::select_choice(self, t, s, a);
+        let body = hd_mono::instantiate(
+            &self.run.pool,
+            self,
+            def,
+            at,
+            Cow::Borrowed(&*template),
+            &choose,
+        );
+        let budget = hd_opt::inline::AUTO_INLINE_LIMIT.saturating_mul(16);
+        Some((hd_tir::inline::function_body(&body, sub, budget)?, *hash))
+    }
+
     fn call_may_write(&self, callee: &Callee) -> bool {
         self.declared_may_write(callee)
     }
@@ -2800,7 +2832,7 @@ impl Env<'_> {
     /// inlined trait method's constant among them, #1518). The result's
     /// hash: the fold is a function of the inlined body and the pipeline,
     /// whose hash every code key carries.
-    pub(super) fn fold_and_inline(&self, body: &mut Body, hash: Hash128) -> Hash128 {
+    pub(super) fn fold_and_inline(&self, body: &mut Body, args: TyList, hash: Hash128) -> Hash128 {
         // A body with no type arguments gets no `hd_mono::instantiate`,
         // so its bound calls at a closed receiver are chosen here, as
         // collection selects them: at an opaque result's hidden type, or
@@ -2816,7 +2848,7 @@ impl Env<'_> {
         // Generated structure accessors and declaration facts can both
         // expose constant decisions before the general folding pipeline.
         let decided = facts != hash;
-        let hash = hd_opt::inline::inline_calls(self, body, facts);
+        let hash = hd_opt::inline::inline_calls(self, body, args, facts);
         if (decided || self.run.const_fold)
             && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
         {
@@ -2950,10 +2982,7 @@ impl Env<'_> {
         args: TyList,
         generic: &Body,
     ) -> Option<std::sync::Arc<Body>> {
-        let pool = &self.run.pool;
-        lock(&self.run.liftings)
-            .entry(def)
-            .or_insert_with(|| std::sync::Arc::new(hd_tir::ir::Lifting::new(generic, pool)));
+        self.lifting(def, generic);
         let ts = self.lifted_subs(def, args);
         let &first = ts.first()?;
         let mut memo = lock(&self.run.lifted);
@@ -2962,6 +2991,17 @@ impl Env<'_> {
                 (hd_tir::ir::function_template(generic, &ts).ok()).map(std::sync::Arc::new)
             })
             .clone()
+    }
+
+    /// The generic local functions of item `def`, with checked body
+    /// `generic`, once per run (`hd_tir::ir::Lifting`).
+    fn lifting(&self, def: DefId, generic: &Body) -> std::sync::Arc<hd_tir::ir::Lifting> {
+        let pool = &self.run.pool;
+        let mut liftings = lock(&self.run.liftings);
+        let entry = liftings.entry(def);
+        let lifting =
+            entry.or_insert_with(|| std::sync::Arc::new(hd_tir::ir::Lifting::new(generic, pool)));
+        lifting.clone()
     }
 
     /// A lifted generic local function's own body shows as `path#k` in
@@ -3051,7 +3091,7 @@ impl Env<'_> {
         } else {
             hash
         };
-        let hash = self.fold_and_inline(&mut body, hash);
+        let hash = self.fold_and_inline(&mut body, args, hash);
         Some((body, hash))
     }
 
@@ -3670,7 +3710,7 @@ impl Run<'_> {
         lock(&self.counters).bodies_owned.push(path);
         let owned = self.with_env(p, |env| {
             let mut body = body;
-            let hash = env.fold_and_inline(&mut body, hash);
+            let hash = env.fold_and_inline(&mut body, TyList::EMPTY, hash);
             env.own_inlined(body, hash, TyList::EMPTY)
         });
         match owned {

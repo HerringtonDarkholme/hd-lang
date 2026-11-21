@@ -1,0 +1,22 @@
+# @dump: wat stdout
+# @build: release | release checked
+# A small generic local function that captures locals is inlined in
+# release like any small function (#2222): the copy reads and writes the
+# caller's own locals, a mutated one (`seen`) and a counted one (`tag`)
+# among them, so no environment is made and the loop calls nothing. The
+# checked run's exit audit fails on a leak or a double free.
+fn total(xs: List[i32], offset: i32, tag: string, label: string) -> (i32, string, string):
+    let mut seen = 0
+    fn shift[T](x: T) -> (T, i32, string):
+        seen += 1
+        (x, offset + seen, tag)
+    let mut sum = 0
+    for x in xs:
+        let (a, b, _) = shift(x)
+        sum += a + b
+    let (l, _, t) = shift(label)
+    (sum + seen, l, t)
+
+pub fn main() -> void $ Console:
+    let (s, l, t) = total([1, 2, 3], 10, "t", "l")
+    println("$s $l $t")

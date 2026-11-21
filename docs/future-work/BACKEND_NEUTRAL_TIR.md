@@ -507,7 +507,7 @@ patterns overlap, so the rows do not sum to 154.
 | Flag and loan saves chosen by hand for the destructor | `select_frame_drop_flags`, `select_frame_loan_cells` | 2 |
 | Suspension liveness found twice | `susp.rs` `save_area`; `own/frame.rs` | 7 |
 | Per-body fact caches for the emitter | `emit/body_facts.rs`, `Em::tir_flags`, `cell_layouts`, `list_alias_memo` | 3, 6 |
-| The dev and release split | `Env::inlined_instance`'s `dev` flag, `generic_inlined` | 8 |
+| The dev and release split | `Env::inlined_instance`'s `dev` flag, and `generic_inlined` (both deleted) | 8, done |
 | `gap: #2075`, a projection chain past its depth | `hd_mono/src/lib.rs:590` | not on this path; stays with #2075 |
 
 **What instance TIR built.** Its record is in git history at 421bcec83,
@@ -540,7 +540,7 @@ are measured at ed579e47b in non-test lines (lane 211).
 | 3 | `closure.rs` cell functions 364 less 12 gone with step 4; `emit/drop_flags.rs` 473 less 3; `own/drop_flags.rs` 408 less `MovePaths` 165, which elaboration reuses; `promote.rs` 169 less `boundary_inputs` 37, which moves to the driver with `settled`; hook guards in `value.rs` 184; `is_cell` at 26 sites, 78; the cold destructor's flag save, select and reload in `susp.rs` 14; flag tags 60; `Body::storage` and `full_cells` 150 (lane 210) | lane 210's plan: `Box` tag +70, storage lowering +250 (`own/local_refs.rs`, a like rewrite, is 467), elaboration +400 (rustc's `elaborate_drops.rs` less unwinding and arrays), emitter `Box` lowering +80 |
 | 2b | `emit/scope.rs` 238: the 2b set 271 less `ready_frame` 24, kept for step 7, 6 gone with step 4 and 3 with step 5 | scope lowering +200 (the 271-line ladder rewritten at 0.75; rustc's drop tree gives each exit its own path) to +290 (lane 209's +330 plan for all of step 2, less 2a's 61); adapter +10: a point's cancel exit branches to its cancel block, until step 7 |
 | 7 | `susp.rs` 2,042 (2,058 less 14, 3 and 63 gone with steps 3, 4 and 5, plus the 64 lines of adapters and `ready_frame` that steps 5 and 2b leave there); `count.rs` suspension readers 101; `susp_spill.rs` 148; `frame_referents.rs` 151; `suspension_work.rs` 48; about 15 kept calls | coroutine lowering +1,550 (`susp.rs` has 2,029 non-test lines; rustc's transform is about 2,000); poll and destroy keys +50 |
-| 8 | `generic_inlined` 16; 24 `ReadMode` references left in `hd_wasm`, about 3 lines each; `own.rs` 50 | `verify_lowered` +250 (`ir/instance.rs` is 333) |
+| 8 | 24 `ReadMode` references left in `hd_wasm`, about 3 lines each; `own.rs` 50 | `verify_lowered` +250 (`ir/instance.rs` is 333) |
 
 **Plumbing, counted.** Past steps missed this by 300 to 450 lines.
 
