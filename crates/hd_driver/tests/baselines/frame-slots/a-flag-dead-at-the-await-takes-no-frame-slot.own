@@ -141,4 +141,6 @@ std/rt_tests.stage_case/wait
   %114 = FlagClear [$0] #14 : ()
   %115 = Drop [$1] : ()
   %116 = Block - : ()
+  %117 = Return - #2 : never
   exit sub 0 drops [$0 $1]
+  cancel %66 releases [%4294967295]

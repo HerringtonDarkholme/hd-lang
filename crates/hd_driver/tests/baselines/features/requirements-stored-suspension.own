@@ -92,10 +92,11 @@ fn later!(key: string) -> usize:
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$2] : ()
+>   %19 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary none
->   cancel %7 releases [%6]
+>   cancel %7 releases [%6 %4294967295]
 
 fn blocking(key: string) -> usize:
 > app/main/blocking
@@ -187,7 +188,8 @@ fn bound!(s: string) -> usize:
 >   %28 = Release %27 Operation child #2 : ()
 >   %29 = Retain %27 Operation child #0 : ()
 >   %30 = Drop [%26] : ()
+>   %33 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 cell
 >   summary none
->   cancel %27 releases [%26]
+>   cancel %27 releases [%26 %4294967295]

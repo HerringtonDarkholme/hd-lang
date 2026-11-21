@@ -5,7 +5,6 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
@@ -139,8 +138,8 @@
     local.get $log
     local.get $a.1
     i32.add
-    ;; 19 |     using first = Res { name: a, log: log }
     local.set $log
+    ;; 19 |     using first = Res { name: a, log: log }
     global.get $forbid
     i32.const 1
     i32.add
@@ -153,16 +152,7 @@
     i32.const -1
     i32.add
     global.set $forbid
-    global.get $forbid
-    i32.const 1
-    i32.add
-    global.set $forbid
-    local.get $first
-    call $"impl Disposable for Res.dispose"
-    global.get $forbid
-    i32.const -1
-    i32.add
-    global.set $forbid
+    ;; 20 |     using second = Res { name: b, log: log }
     local.get $a.0
     if
       local.get $a.0
@@ -173,6 +163,17 @@
       i32.load $heap offset=8
       call $rt:release
     end
+    ;; 19 |     using first = Res { name: a, log: log }
+    global.get $forbid
+    i32.const 1
+    i32.add
+    global.set $forbid
+    local.get $first
+    call $"impl Disposable for Res.dispose"
+    global.get $forbid
+    i32.const -1
+    i32.add
+    global.set $forbid
     local.get $first
     if
       local.get $first
@@ -301,7 +302,6 @@
         i32.const -1
         i32.add
         global.set $forbid
-    ;; 24 |     for x in xs:
         local.get $r
         if
           local.get $r
@@ -312,18 +312,8 @@
           i32.load $heap offset=8
           call $rt:release
         end
+    ;; 24 |     for x in xs:
         br 0
-      end
-    end
-    local.get $log
-    if
-      local.get $log
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $log
-        call $rt:release_ref
       end
     end
     local.get $t0

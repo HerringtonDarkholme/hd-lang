@@ -20,50 +20,50 @@ pub fn main() -> void $ Console:
 >   local $7 i: usize [read assigned] value
 >     uses $7: %26 -> %31 lend last
 >   local $9 result: string [read] value
->     uses $9: %156 -> %161 lend last
+>     uses $9: %157 -> %162 lend last
 >   local $10 offset: usize [read] value
->     uses $10: %157 -> %163 lend last
+>     uses $10: %158 -> %164 lend last
 >   local $11 value: u64 [read] value
->     uses $11: %158 -> %160 lend last
+>     uses $11: %159 -> %161 lend last
 >   local $12 width: usize [read] value
->     uses $12: %159 -> %165 lend last
+>     uses $12: %160 -> %166 lend last
 >   local $13 result: string [read] value
->     uses $13: %137 -> %140 lend last
+>     uses $13: %138 -> %141 lend last
 >   local $14 offset: usize [read] value
->     uses $14: %138 -> %143 lend last
+>     uses $14: %139 -> %144 lend last
 >   local $15 text: string [read] value
->     uses $15: %139 -> %145 lend, %148 lend last
+>     uses $15: %140 -> %146 lend, %149 lend last
 >   local $16 result: string [read] value
->     uses $16: %106 -> %111 lend last
+>     uses $16: %107 -> %112 lend last
 >   local $17 offset: usize [read] value
->     uses $17: %107 -> %113 lend last
+>     uses $17: %108 -> %114 lend last
 >   local $18 value: i64 [read] value
->     uses $18: %108 -> %110 consume last
+>     uses $18: %109 -> %111 consume last
 >   local $19 width: usize [read] value
->     uses $19: %109 -> %115 consume last
+>     uses $19: %110 -> %116 consume last
 >   local $20 size: usize [read] value
->     uses $20: %99 -> %100 lend last
+>     uses $20: %100 -> %101 lend last
 >   local $21 value: u64 [read] value
->     uses $21: %90 -> %91 lend last
+>     uses $21: %91 -> %92 lend last
 >   local $22 value: i64 [read] value
->     uses $22: %51 -> %52 consume last
+>     uses $22: %52 -> %53 consume last
 >   local $23 value: i64 [read] value
->     uses $23: %53 -> %54 consume, %72 lend last
+>     uses $23: %54 -> %55 consume, %73 lend last
 >   local $24 value: i64 [read] value
->     uses $24: %116 -> %119 lend, %124 lend last
+>     uses $24: %117 -> %120 lend, %125 lend last
 >   local $25 destination: Ptr[u8] [read] value
->     uses $25: %117 -> %121 lend, %126 lend last
+>     uses $25: %118 -> %122 lend, %127 lend last
 >   local $26 width: usize [read] value
->     uses $26: %118 -> %122 lend last
+>     uses $26: %119 -> %123 lend last
 >   local $27 value: i64 [read] value
->     uses $27: %55 -> %56 lend, %58 lend last, %64 lend last
+>     uses $27: %56 -> %57 lend, %59 lend last, %65 lend last
 >   %0 = Coerce 1:i64 [Identity -] : i64
 >   %1 = Coerce 2:i64 [Identity -] : i64
 >   %2 = Coerce 3:i64 [Identity -] : i64
 >   %3 = NewList - [%0 %1 %2] : List[i64]
 >   %4 = Box #0 #0 : ()
 >   %5 = Store [$0] %3 : ()
->   %173 = Block - : ()
+>   %174 = Block - : ()
     reset := fn() -> void:
 >   %6 = Unreachable  : never
 >   %7 = Block %6 : never
@@ -108,137 +108,138 @@ pub fn main() -> void $ Console:
     reset()
 >   %41 = NewList - [9:i64] : List[i64]
 >   %42 = Store [$0] %41 : ()
->   %43 = Read borrow [$0] : List[i64]
->   %44 = Block - : ()
->   %45 = Release %42 Operation #3 : ()
->   %46 = Break L1 - : never
->   %47 = Block - : ()
->   %48 = Scope %47 [%44] : ()
+>   %43 = Release %42 Operation #3 : ()
+>   %44 = Read borrow [$0] : List[i64]
+>   %45 = Block - : ()
+>   %46 = Scope %45 [] : ()
+>   %47 = Break L1 - : never
+>   %48 = Block - : ()
+>   %49 = Scope %48 [] : ()
     println("$s ${xs.len()}")
->   %49 = Read copy [$3] : i64
->   %50 = Prim Conv [%49] : i64
->   %51 = Store [$22] %50 : ()
->   %52 = Read copy [$22] : i64
->   %53 = Store [$23] %52 : ()
->   %54 = Read copy [$23] : i64
->   %55 = Store [$27] %54 : ()
->   %56 = Read copy [$27] : i64
->   %57 = Prim Lt [%56 0:i64] : bool
->   %58 = Read copy [$27] : i64
->   %59 = Prim Add [%58 1:i64] : i64
->   %60 = Prim Neg [%59] : i64
->   %61 = Prim Conv [%60] : u64
->   %62 = Prim Add [%61 1:u64] : u64
->   %63 = Block %62 : u64
->   %64 = Read copy [$27] : i64
->   %65 = Prim Conv [%64] : u64
->   %66 = Block %65 : u64
->   %67 = If %57 [%63 %66] : u64
->   %68 = Break L10 %67 : never
->   %69 = Block - : u64
->   %70 = Scope %69 [] : u64
->   %71 = Call std/rt.bytes/unsigned_width[] (%70) : usize
->   %72 = Read copy [$23] : i64
->   %73 = Prim Lt [%72 0:i64] : bool
->   %74 = Block 1:usize : usize
->   %75 = Block 0:usize : usize
->   %76 = If %73 [%74 %75] : usize
->   %77 = Prim Add [%71 %76] : usize
->   %78 = Break L7 %77 : never
->   %79 = Block - : usize
->   %80 = Scope %79 [] : usize
->   %81 = Break L8 %80 : never
->   %82 = Block - : usize
->   %83 = Scope %82 [] : usize
->   %84 = Read copy [$0] : List[i64]
->   %85 = Retain %84 Value #0 : ()
->   %86 = Drop [$0] : ()
->   %87 = Intrinsic ListLen [%84] : usize
->   %88 = Drop [%84] : ()
->   %89 = Prim Conv [%87] : u64
->   %90 = Store [$21] %89 : ()
->   %91 = Read copy [$21] : u64
->   %92 = Call std/rt.bytes/unsigned_width[] (%91) : usize
->   %93 = Break L6 %92 : never
->   %94 = Block - : usize
->   %95 = Scope %94 [] : usize
->   %96 = Prim Add [0:usize %83] : usize
->   %97 = Prim Add [%96 1:usize] : usize
->   %98 = Prim Add [%97 %95] : usize
->   %99 = Store [$20] %98 : ()
->   %100 = Read copy [$20] : usize
->   %101 = Call std/rt.memory/new_string[] (%100) : string
->   %102 = Break L5 %101 : never
->   %103 = Block - : string
->   %104 = Scope %103 [] : string
->   %105 = Read borrow [%104] : string
->   %106 = Store [$16] %105 : ()
->   %107 = Store [$17] 0:usize : ()
->   %108 = Store [$18] %50 : ()
->   %109 = Store [$19] %83 : ()
->   %110 = Read copy [$18] : i64
->   %111 = Read borrow [$16] : string
->   %112 = Call std/rt.memory/string_bytes[] (%111) : Ptr[u8]
->   %113 = Read copy [$17] : usize
->   %114 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%112, %113) : Ptr[u8]
->   %115 = Read copy [$19] : usize
->   %116 = Store [$24] %110 : ()
->   %117 = Store [$25] %114 : ()
->   %118 = Store [$26] %115 : ()
->   %119 = Read copy [$24] : i64
->   %120 = Call std/rt.bytes/signed_magnitude[] (%119) : u64
->   %121 = Read copy [$25] : Ptr[u8]
->   %122 = Read copy [$26] : usize
->   %123 = Call std/rt.bytes/write_unsigned_sized[] (%120, %121, %122) : ()
->   %124 = Read copy [$24] : i64
->   %125 = Prim Lt [%124 0:i64] : bool
->   %126 = Read copy [$25 .address] : usize
->   %127 = Call std/rt.memory/store_u8[] (%126, 45:u8) : ()
->   %128 = Block - : ()
->   %129 = If %125 [%128 -] : ()
->   %130 = Break L9 - : never
->   %131 = Block - : ()
->   %132 = Scope %131 [] : ()
->   %133 = Break L4 - : never
->   %134 = Block - : ()
->   %135 = Scope %134 [] : ()
->   %136 = Read borrow [%104] : string
->   %137 = Store [$13] %136 : ()
->   %138 = Store [$14] %96 : ()
->   %139 = Store [$15] " " : ()
->   %140 = Read borrow [$13] : string
->   %141 = Call std/rt.memory/string_bytes[] (%140) : Ptr[u8]
->   %142 = Read copy [%141 .address] : usize
->   %143 = Read copy [$14] : usize
->   %144 = Prim Add [%142 %143] : usize
->   %145 = Read borrow [$15] : string
->   %146 = Call std/rt.memory/string_bytes[] (%145) : Ptr[u8]
->   %147 = Read copy [%146 .address] : usize
->   %148 = Read borrow [$15] : string
->   %149 = Call std/rt.bytes/bytes_len[] (%148) : usize
->   %150 = Call std/rt.memory/copy[] (%144, %147, %149) : ()
->   %151 = Break L3 - : never
->   %152 = Block - : ()
->   %153 = Scope %152 [] : ()
->   %154 = Read borrow [%104] : string
->   %155 = Drop [$15] : ()
->   %156 = Store [$9] %154 : ()
->   %157 = Store [$10] %97 : ()
->   %158 = Store [$11] %89 : ()
->   %159 = Store [$12] %95 : ()
->   %160 = Read copy [$11] : u64
->   %161 = Read borrow [$9] : string
->   %162 = Call std/rt.memory/string_bytes[] (%161) : Ptr[u8]
->   %163 = Read copy [$10] : usize
->   %164 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%162, %163) : Ptr[u8]
->   %165 = Read copy [$12] : usize
->   %166 = Call std/rt.bytes/write_unsigned_sized[] (%160, %164, %165) : ()
->   %167 = Break L2 - : never
->   %168 = Block - : ()
->   %169 = Scope %168 [] : ()
->   %170 = Call std/console/println[string] (%104) : ()
->   %171 = Retain %170 Operation operand 0 #0 : ()
->   %172 = Drop [%104] : ()
+>   %50 = Read copy [$3] : i64
+>   %51 = Prim Conv [%50] : i64
+>   %52 = Store [$22] %51 : ()
+>   %53 = Read copy [$22] : i64
+>   %54 = Store [$23] %53 : ()
+>   %55 = Read copy [$23] : i64
+>   %56 = Store [$27] %55 : ()
+>   %57 = Read copy [$27] : i64
+>   %58 = Prim Lt [%57 0:i64] : bool
+>   %59 = Read copy [$27] : i64
+>   %60 = Prim Add [%59 1:i64] : i64
+>   %61 = Prim Neg [%60] : i64
+>   %62 = Prim Conv [%61] : u64
+>   %63 = Prim Add [%62 1:u64] : u64
+>   %64 = Block %63 : u64
+>   %65 = Read copy [$27] : i64
+>   %66 = Prim Conv [%65] : u64
+>   %67 = Block %66 : u64
+>   %68 = If %58 [%64 %67] : u64
+>   %69 = Break L10 %68 : never
+>   %70 = Block - : u64
+>   %71 = Scope %70 [] : u64
+>   %72 = Call std/rt.bytes/unsigned_width[] (%71) : usize
+>   %73 = Read copy [$23] : i64
+>   %74 = Prim Lt [%73 0:i64] : bool
+>   %75 = Block 1:usize : usize
+>   %76 = Block 0:usize : usize
+>   %77 = If %74 [%75 %76] : usize
+>   %78 = Prim Add [%72 %77] : usize
+>   %79 = Break L7 %78 : never
+>   %80 = Block - : usize
+>   %81 = Scope %80 [] : usize
+>   %82 = Break L8 %81 : never
+>   %83 = Block - : usize
+>   %84 = Scope %83 [] : usize
+>   %85 = Read copy [$0] : List[i64]
+>   %86 = Retain %85 Value #0 : ()
+>   %87 = Drop [$0] : ()
+>   %88 = Intrinsic ListLen [%85] : usize
+>   %89 = Drop [%85] : ()
+>   %90 = Prim Conv [%88] : u64
+>   %91 = Store [$21] %90 : ()
+>   %92 = Read copy [$21] : u64
+>   %93 = Call std/rt.bytes/unsigned_width[] (%92) : usize
+>   %94 = Break L6 %93 : never
+>   %95 = Block - : usize
+>   %96 = Scope %95 [] : usize
+>   %97 = Prim Add [0:usize %84] : usize
+>   %98 = Prim Add [%97 1:usize] : usize
+>   %99 = Prim Add [%98 %96] : usize
+>   %100 = Store [$20] %99 : ()
+>   %101 = Read copy [$20] : usize
+>   %102 = Call std/rt.memory/new_string[] (%101) : string
+>   %103 = Break L5 %102 : never
+>   %104 = Block - : string
+>   %105 = Scope %104 [] : string
+>   %106 = Read borrow [%105] : string
+>   %107 = Store [$16] %106 : ()
+>   %108 = Store [$17] 0:usize : ()
+>   %109 = Store [$18] %51 : ()
+>   %110 = Store [$19] %84 : ()
+>   %111 = Read copy [$18] : i64
+>   %112 = Read borrow [$16] : string
+>   %113 = Call std/rt.memory/string_bytes[] (%112) : Ptr[u8]
+>   %114 = Read copy [$17] : usize
+>   %115 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%113, %114) : Ptr[u8]
+>   %116 = Read copy [$19] : usize
+>   %117 = Store [$24] %111 : ()
+>   %118 = Store [$25] %115 : ()
+>   %119 = Store [$26] %116 : ()
+>   %120 = Read copy [$24] : i64
+>   %121 = Call std/rt.bytes/signed_magnitude[] (%120) : u64
+>   %122 = Read copy [$25] : Ptr[u8]
+>   %123 = Read copy [$26] : usize
+>   %124 = Call std/rt.bytes/write_unsigned_sized[] (%121, %122, %123) : ()
+>   %125 = Read copy [$24] : i64
+>   %126 = Prim Lt [%125 0:i64] : bool
+>   %127 = Read copy [$25 .address] : usize
+>   %128 = Call std/rt.memory/store_u8[] (%127, 45:u8) : ()
+>   %129 = Block - : ()
+>   %130 = If %126 [%129 -] : ()
+>   %131 = Break L9 - : never
+>   %132 = Block - : ()
+>   %133 = Scope %132 [] : ()
+>   %134 = Break L4 - : never
+>   %135 = Block - : ()
+>   %136 = Scope %135 [] : ()
+>   %137 = Read borrow [%105] : string
+>   %138 = Store [$13] %137 : ()
+>   %139 = Store [$14] %97 : ()
+>   %140 = Store [$15] " " : ()
+>   %141 = Read borrow [$13] : string
+>   %142 = Call std/rt.memory/string_bytes[] (%141) : Ptr[u8]
+>   %143 = Read copy [%142 .address] : usize
+>   %144 = Read copy [$14] : usize
+>   %145 = Prim Add [%143 %144] : usize
+>   %146 = Read borrow [$15] : string
+>   %147 = Call std/rt.memory/string_bytes[] (%146) : Ptr[u8]
+>   %148 = Read copy [%147 .address] : usize
+>   %149 = Read borrow [$15] : string
+>   %150 = Call std/rt.bytes/bytes_len[] (%149) : usize
+>   %151 = Call std/rt.memory/copy[] (%145, %148, %150) : ()
+>   %152 = Break L3 - : never
+>   %153 = Block - : ()
+>   %154 = Scope %153 [] : ()
+>   %155 = Read borrow [%105] : string
+>   %156 = Drop [$15] : ()
+>   %157 = Store [$9] %155 : ()
+>   %158 = Store [$10] %98 : ()
+>   %159 = Store [$11] %90 : ()
+>   %160 = Store [$12] %96 : ()
+>   %161 = Read copy [$11] : u64
+>   %162 = Read borrow [$9] : string
+>   %163 = Call std/rt.memory/string_bytes[] (%162) : Ptr[u8]
+>   %164 = Read copy [$10] : usize
+>   %165 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[u8] (%163, %164) : Ptr[u8]
+>   %166 = Read copy [$12] : usize
+>   %167 = Call std/rt.bytes/write_unsigned_sized[] (%161, %165, %166) : ()
+>   %168 = Break L2 - : never
+>   %169 = Block - : ()
+>   %170 = Scope %169 [] : ()
+>   %171 = Call std/console/println[string] (%105) : ()
+>   %172 = Retain %171 Operation operand 0 #0 : ()
+>   %173 = Drop [%105] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot
 >   storage sub 1: $0 cell

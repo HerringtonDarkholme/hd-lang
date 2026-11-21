@@ -24,4 +24,6 @@ fn make() -> (fn!() -> void $ Clock):
 >   %12 = Block - : ()
 >   %13 = Closure #1 : fn!() -> ()
 >   %14 = Block %13 : fn!() -> ()
+>   %15 = Return - #2 : never
 >   summary kept [] writes
+>   cancel %10 releases [%4294967295]

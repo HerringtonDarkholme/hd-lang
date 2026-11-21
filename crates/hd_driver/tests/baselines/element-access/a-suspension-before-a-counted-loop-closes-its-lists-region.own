@@ -58,6 +58,7 @@ fn total!(c: bool) -> i64 $ Clock:
 >   %24 = Scope %23 [] : Duration
 >   %25 = Await std/time/sleep[] (%24) : ()
 >   %26 = Release %25 Operation child #2 : ()
+>   %58 = Return - #2 : never
     let s = 0i64
 >   %27 = Store [$3] 0:i64 : ()
     for i in 0..n:
@@ -94,6 +95,7 @@ fn total!(c: bool) -> i64 $ Clock:
 >   %56 = Read copy [$3] : i64
 >   exit sub 0 drops [$1]
 >   summary none
+>   cancel %25 releases [%4294967295]
 >   loop %54 keeps [$1] (%25..%55)
 
 pub fn main!() -> void $ Console + Clock:
@@ -123,6 +125,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %6 = Box #0 #1 : ()
 >   %7 = Store [$0] %4 : ()
 >   %56 = Block - : ()
+>   %57 = Return - #2 : never
     println("$a")
 >   %8 = Ref local [$0] : &i64
 >   %9 = Read copy [*%8] : i64
@@ -174,3 +177,4 @@ pub fn main!() -> void $ Console + Clock:
 >   %55 = Drop [%37] : ()
 >   storage sub 0: $0 cell
 >   summary none
+>   cancel %4 releases [%4294967295]

@@ -39,9 +39,11 @@ fn one!(s: string) -> usize:
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$1] : ()
 >   %12 = Block %9 : usize
+>   %13 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary none
+>   cancel %4 releases [%4294967295]
 
 fn both!(a: string, b: string) -> usize:
 > app/main/both
@@ -75,6 +77,7 @@ fn both!(a: string, b: string) -> usize:
 >   %21 = Block - : never
 >   %22 = Match %8 [%21 %15] : ()
 >   %32 = Block %31 : usize
+>   %35 = Return - #2 : never
     x.len() + y.len()
 >   %23 = Ref local [$2] : &string
 >   %24 = Call std/text/impl string.len[] (%23) : usize
@@ -88,7 +91,7 @@ fn both!(a: string, b: string) -> usize:
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell, $3 cell
 >   summary none
->   cancel %8 releases [%5 %7]
+>   cancel %8 releases [%5 %7 %4294967295]
 
 fn either!(a: string, b: string) -> usize:
 > app/main/either
@@ -117,6 +120,8 @@ fn either!(a: string, b: string) -> usize:
 >   %16 = LoanEnd [%14] : ()
 >   %17 = Drop [$2] : ()
 >   %18 = Block %15 : usize
+>   %19 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary none
+>   cancel %10 releases [%4294967295]

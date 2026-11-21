@@ -61,6 +61,7 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   %27 = Closure #1 : fn!(string, List[string]) -> usize
 >   %28 = Store [$4] %27 : ()
 >   %40 = Block %33 : usize
+>   %47 = Return - #2 : never
     loader!(key, keys)
 >   %29 = Read move [$4] : fn!(string, List[string]) -> usize
 >   %30 = Read move [$0] : string
@@ -78,7 +79,8 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   storage sub 0: $5 cell
 >   storage sub 1: $5 cell
 >   summary none
->   cancel %33 releases [%29 %30 %31 %32]
+>   cancel %14 releases [%4294967295]
+>   cancel %33 releases [%29 %30 %31 %32 %4294967295]
 
 fn cancel(key: string, keys: List[string]) -> void:
 > app/main/cancel
@@ -121,6 +123,7 @@ fn cancel(key: string, keys: List[string]) -> void:
 >   %24 = Closure #1 : fn!(string, List[string]) -> usize
 >   %25 = Store [$4] %24 : ()
 >   %32 = Block - : ()
+>   %33 = Return - #2 : never
     _ := loader(key, keys)
 >   %26 = Read move [$4] : fn!(string, List[string]) -> usize
 >   %27 = Read borrow [$0] : string
@@ -132,6 +135,7 @@ fn cancel(key: string, keys: List[string]) -> void:
 >   storage sub 0: $5 cell
 >   storage sub 1: $5 cell
 >   summary kept [] borrows [$0 $1] writes
+>   cancel %11 releases [%4294967295]
 
 fn live!(key: string, keys: List[string]) -> usize:
 > app/main/live
@@ -179,6 +183,7 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   %28 = Closure #1 : fn!(string, List[string]) -> usize
 >   %29 = Store [$4] %28 : ()
 >   %50 = Block %49 : usize
+>   %55 = Return - #2 : never
     size := loader!(key, keys)
 >   %30 = Read move [$4] : fn!(string, List[string]) -> usize
 >   %31 = Read borrow [$0] : string
@@ -206,4 +211,5 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   storage sub 0: $0 cell, $5 cell
 >   storage sub 1: $0 cell, $5 cell
 >   summary none
->   cancel %34 releases [%30 %33]
+>   cancel %15 releases [%4294967295]
+>   cancel %34 releases [%30 %33 %4294967295]

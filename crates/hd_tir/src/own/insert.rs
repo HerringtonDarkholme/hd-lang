@@ -26,10 +26,7 @@
 //! 4. **Jumps.** A `Break`, `Continue` or `ToArm` gets a `Drop` before it
 //!    of each value and local whose home it leaves while it may still hold
 //!    a count; a `Return` of each such value (the exit set drops the
-//!    locals). A place that a crossed cleanup scope's suite reads is left
-//!    for the suite: its reads count at every exit of its scope, so the
-//!    drop after the scope covers the normal path and the exit set the
-//!    jump's.
+//!    locals).
 //!
 //! 5. **Uniqueness.** Every in-place change of a collection place gets an
 //!    `IsUnique` of that place just before it: a `Store` through an element
@@ -74,7 +71,7 @@ use hd_types::Ty;
 use super::reason::LAST_USE;
 use super::{
     Loc, Operand, OwnCx, OwnScratch, Role, consumes_counts as consumes, fill, operands, splice,
-    suite_touches, tracked,
+    tracked,
 };
 use crate::ir::{
     Body, IntrinsicOp, NONE, PlaceView, ReadMode, Ref, Root, Tag, Topology, local_flags, place,
@@ -130,9 +127,6 @@ pub(crate) struct Tables {
     items: Vec<Item>,
     item_start: Vec<u32>,
     sorted: Vec<Item>,
-    /// A crossed suite's reads carry the jump's stamp.
-    local_stamp: Vec<u32>,
-    value_stamp: Vec<u32>,
     stack: Vec<u32>,
     exits: Vec<(SubId, LocalId)>,
     /// Per read a change goes through (rules 5 and 6): whether the lists
@@ -176,8 +170,6 @@ impl Tables {
         fill(&mut self.celled, locals, false);
         fill(&mut self.placed, locals, NONE);
         fill(&mut self.item_start, n + 1, 0);
-        fill(&mut self.local_stamp, locals, NONE);
-        fill(&mut self.value_stamp, n, NONE);
         fill(&mut self.walked, n, 0);
         fill(&mut self.reread, n, NONE);
         self.elems.clear();
@@ -728,8 +720,11 @@ fn jumps(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tabl
     }
     for j in 0..n {
         let tag = b.tags[j];
+        // A cancel exit's values are released by its point's cancel
+        // block (`known`).
         if !matches!(tag, Tag::Break | Tag::Continue | Tag::Return | Tag::ToArm)
             || topo.blk[j] == NONE
+            || tag == Tag::Return && b.data[j][1] == crate::ir::return_word::CANCELLED
         {
             continue;
         }
@@ -741,30 +736,21 @@ fn jumps(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tabl
                 .unwrap_or(NONE),
             _ => NONE,
         };
-        let stamp = u32_of(j);
         let (jb, jp) = (topo.blk[j], topo.pos[j]);
-        let mut crossed = false;
         let (mut blk, mut ps) = (jb, jp);
         loop {
             for k in t.item_start[blk as usize]..t.item_start[blk as usize + 1] {
                 let it = t.sorted[k as usize];
                 if it.what & LOCAL_BIT != 0 {
                     let l = it.what & !LOCAL_BIT;
-                    if tag == Tag::Return
-                        || ps > it.last
-                        || (crossed && t.local_stamp[l as usize] == stamp)
-                    {
+                    if tag == Tag::Return || ps > it.last {
                         continue;
                     }
                     let word = l | place::BARE_LOCAL;
                     edits.insert(jb, jp, Tag::Drop, [word, LAST_USE], Ty::VOID, b.syn[j]);
                 } else {
                     let v = it.what;
-                    if v as usize >= j
-                        || ps < it.first
-                        || ps > it.last
-                        || (crossed && t.value_stamp[v as usize] == stamp)
-                    {
+                    if v as usize >= j || ps < it.first || ps > it.last {
                         continue;
                     }
                     let word = value_place(b, v);
@@ -780,35 +766,12 @@ fn jumps(b: &mut Body, topo: &Topology, t: &mut Tables, edits: &mut splice::Tabl
             if done {
                 break;
             }
-            // Leaving a cleanup scope's body: its suites run after the
-            // jump, so what they read stays for them.
-            if owner != NONE
-                && b.tags[owner as usize] == Tag::Scope
-                && b.data[owner as usize][0] == blk
-                && b.data[owner as usize][1] != NONE
-                && !b.record(b.data[owner as usize][1]).is_empty()
-            {
-                crossed = true;
-                mark_suites(b, t, owner, stamp);
-            }
             match topo.up(blk) {
                 Some(next) => (blk, ps) = next,
                 None => break,
             }
         }
     }
-}
-
-/// Stamps every local and value the suites of cleanup scope `scope` read
-/// ([`suite_touches`]).
-fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
-    let (ls, vs) = (&mut t.local_stamp, &mut t.value_stamp);
-    let (local, value) = (
-        |l: u32| ls[l as usize] = stamp,
-        |v: u32| vs[v as usize] = stamp,
-    );
-    let roots = b.record(b.data[scope as usize][1]);
-    suite_touches(b, roots, &mut t.stack, &mut t.ops, false, local, value);
 }
 
 /// Rules 5 and 6: an `IsUnique` before each in-place change of a list or

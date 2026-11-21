@@ -7,31 +7,33 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
     sum := fn(n: i32) -> i32:
 > app/main/nested_sum
 >   local $0 seed: i32 [param read captured] value
->     uses $0: entry -> %3 consume, %28 consume last
+>     uses $0: entry -> %3 consume, %29 consume last
 >   local $1 limit: i32 [param read] value
->     uses $1: entry -> %34 lend last
+>     uses $1: entry -> %35 lend last
 >   local $2 n: i32 [param read] value
 >     uses $2: entry -> %1 lend, %9 consume, %11 lend last
 >   local $3 sum: fn(i32) -> i32 [:= read assigned captured captured-assigned] place
->   local $5 sum: fn(i32) -> i32 [read assigned] place
->   local $6 n: i32 [read assigned] place
->   %0 = Retain %26 Entry captures #0 : ()
->   %26 = Block %24 : i32
->   %27 = Store [$3] - : ()
->   %28 = Closure #1 : fn(i32) -> i32
->   %29 = Store [$3] %28 : ()
->   %30 = Release %29 Operation #3 : ()
->   %37 = Block %35 : i32
+>   local $5 sum: fn(i32) -> i32 [read assigned] value
+>     uses $5: %8 -> %12 lend, %17 lend last
+>   local $6 n: i32 [read assigned] value
+>     uses $6: %10 -> %13 lend, %16 lend last
+>   %0 = Retain %27 Entry captures #0 : ()
+>   %27 = Block %25 : i32
+>   %28 = Store [$3] - : ()
+>   %29 = Closure #1 : fn(i32) -> i32
+>   %30 = Store [$3] %29 : ()
+>   %31 = Release %30 Operation #3 : ()
+>   %38 = Block %36 : i32
         if n == 0:
 >   %1 = Read copy [$2] : i32
 >   %2 = Prim Eq [%1 0:i32] : bool
->   %24 = If %2 [%4 %23] : i32
->   %25 = Drop [$3] : ()
+>   %25 = If %2 [%4 %24] : i32
+>   %26 = Drop [$3] : ()
             seed
 >   %3 = Read copy [$0] : i32
 >   %4 = Block %3 : i32
         else:
->   %23 = Block %22 : i32
+>   %24 = Block %23 : i32
             next := fn() -> i32: sum(n - 1)
 >   %5 = Unreachable  : never
 >   %6 = Block %5 : never
@@ -48,17 +50,18 @@ fn nested_sum(seed: i32, limit: i32) -> i32:
 >   %16 = Read borrow [$6] : i32
 >   %17 = Read borrow [$5] : fn(i32) -> i32
 >   %18 = Block - : ()
->   %19 = Break L0 %15 : never
->   %20 = Block - : i32
->   %21 = Scope %20 [%18] : i32
->   %22 = Prim Add [%11 %21] : i32
+>   %19 = Scope %18 [] : ()
+>   %20 = Break L0 %15 : never
+>   %21 = Block - : i32
+>   %22 = Scope %21 [] : i32
+>   %23 = Prim Add [%11 %22] : i32
     sum(limit)
->   %31 = Read copy [$3] : fn(i32) -> i32
->   %32 = Retain %31 Value #0 : ()
->   %33 = Drop [$3] : ()
->   %34 = Read copy [$1] : i32
->   %35 = CallValue %31 [%34] : i32
->   %36 = Drop [%31] : ()
+>   %32 = Read copy [$3] : fn(i32) -> i32
+>   %33 = Retain %32 Value #0 : ()
+>   %34 = Drop [$3] : ()
+>   %35 = Read copy [$1] : i32
+>   %36 = CallValue %32 [%35] : i32
+>   %37 = Drop [%32] : ()
 >   exit sub 0 drops [$3]
 >   exit sub 1 drops [$3]
 >   summary kept [] writes

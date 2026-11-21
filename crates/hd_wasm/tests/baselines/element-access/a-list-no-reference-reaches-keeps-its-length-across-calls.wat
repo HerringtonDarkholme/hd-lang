@@ -11,8 +11,8 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "println[i64]" (func $"println[i64]" (param i64 i32 i32)))
-  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "impl[T] List[T].pop[i64]" (func $"impl[T] List[T].pop[i64]" (param i32) (result i32 i64)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -273,7 +273,7 @@
     i32.add
     global.set $stack
   )
-  (func $captured (param $xs i32) (result i64) (local $out i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i64) (local $t5 i32)
+  (func $captured (param $xs i32) (result i64) (local $out i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t2 i64) (local $t3 i32)
     ;; 67 |     n := xs.len()
     local.get $xs
     ;; 68 |     let mut out: List[i64] = []
@@ -282,68 +282,57 @@
     i32.const 128 ;; &empty-buffer
     local.set $out
     local.set $t0
-    ;; 65 |     f := fn() -> i64:
-    local.get $xs
-    ;; 69 |     for i in 0..n:
-    i32.load $heap offset=4
-    local.set $t1
     ;; 71 |     i64(out.len())
     block
       loop
     ;; 69 |     for i in 0..n:
-        local.get $t2
+        local.get $t1
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $t2
+        local.get $t1
+        local.set $i
+        local.get $t1
     ;; 70 |         out.push(xs[i] + f())
         i32.const 1
         i32.add
-        local.set $t2
-        local.tee $t3
+        local.set $t1
         local.get $xs
-        i32.load $heap offset=4
-        i32.ge_u
-        if
-          call $rt:panic'2
-          unreachable
-        end
-        local.get $xs
-        local.get $t3
+        local.get $i
         i32.const 8
         i32.mul
         i32.add
         i64.load $heap offset=16
-        local.get $t1
+        local.get $xs
+        i32.load $heap offset=4
         i64.extend_i32_u
     ;; 69 |     for i in 0..n:
         i64.add
-        local.set $t4
+        local.set $t2
         local.get $out
-        local.tee $t3
+        local.tee $i
         i32.load $heap offset=4
-        local.tee $t5
-        local.get $t3
+        local.tee $t3
+        local.get $i
         i32.load $heap
         i32.eq
         if
-          local.get $t3
+          local.get $i
           i32.const 2
           call_indirect $table0 (param i32) (result i32)
-          local.tee $t3
+          local.tee $i
           local.set $out
         end
+        local.get $i
         local.get $t3
-        local.get $t5
         i32.const 8
         i32.mul
         i32.add
-        local.get $t4
+        local.get $t2
         i64.store $heap offset=16
+        local.get $i
         local.get $t3
-        local.get $t5
         i32.const 1
         i32.add
         i32.store $heap offset=4

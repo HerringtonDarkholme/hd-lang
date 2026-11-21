@@ -180,8 +180,6 @@
     local.get $s.0
     local.get $log
     i32.store $heap offset=8
-    i32.const 1
-    local.set $log
     ;; 25 |     if n < 0:
     local.get $n
     i32.const 0
@@ -200,22 +198,19 @@
     i32.load $heap
     local.get $s.0
     i32.load $heap offset=4
-    local.set $s.1
+    local.set $log
     drop
     ;; 24 |     using r = Res { name: s + "?", log: log }
-    local.get $log
-    if
-      global.get $forbid
-      i32.const 1
-      i32.add
-      global.set $forbid
-      local.get $s.0
-      call $"impl Disposable for Res.dispose"
-      global.get $forbid
-      i32.const -1
-      i32.add
-      global.set $forbid
-    end
+    global.get $forbid
+    i32.const 1
+    i32.add
+    global.set $forbid
+    local.get $s.0
+    call $"impl Disposable for Res.dispose"
+    global.get $forbid
+    i32.const -1
+    i32.add
+    global.set $forbid
     local.get $s.0
     if
       local.get $s.0
@@ -226,7 +221,7 @@
       i32.load $heap offset=8
       call $rt:release
     end
-    local.get $s.1
+    local.get $log
     local.get $t0
     i32.const 24
     i32.add

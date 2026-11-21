@@ -23,7 +23,7 @@
 //! passes or after them alike.
 
 use super::splice;
-use crate::ir::{Body, NONE, Proj, Ref, Role, Root, Tag, Topology, for_blocks, inside, u32_of};
+use crate::ir::{Body, NONE, Proj, Ref, Role, Root, Tag, Topology, for_blocks, u32_of};
 use hd_base::SliceSort as _;
 
 /// What one local of a body is ([`classify`]).
@@ -78,10 +78,6 @@ pub fn classify(b: &Body, out: &mut Vec<Local>) {
                     }
                 }
             }
-            Tag::Scope if b.data[i][1] != crate::ir::NONE => {
-                suite_places(b, b.record(b.data[i][1]), out);
-            }
-            Tag::Defer => suite_places(b, std::slice::from_ref(&b.data[i][0]), out),
             _ => {}
         }
     }
@@ -137,48 +133,8 @@ fn joined_places(b: &Body, out: &mut [Local]) {
     }
 }
 
-/// Marks as places the locals cleanup suites `roots` touch.
-fn suite_places(b: &Body, roots: &[u32], out: &mut [Local]) {
-    let mut stack = Vec::new();
-    inside(b, roots, &mut stack, |i| {
-        match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref => {
-                if let Some(l) = root_local(b, b.data[i][0])
-                    && let Some(c) = out.get_mut(l as usize)
-                {
-                    *c = Local::Place;
-                }
-            }
-            Tag::Closure => {
-                let rec = b.record(b.data[i][1]);
-                for c in rec[0]..rec[0] + rec[1] {
-                    if let Some(c) = out.get_mut(b.cap_local[c as usize].raw() as usize) {
-                        *c = Local::Place;
-                    }
-                }
-            }
-            _ => {}
-        }
-        true
-    });
-}
-
-/// The local place word `w` is rooted at, directly or through a chain of
-/// reads (`[%r .a]` after `%r = Read [$l]`).
-fn root_local(b: &Body, mut w: u32) -> Option<u32> {
-    for _ in 0..64 {
-        let view = b.view(w);
-        match view.root {
-            Root::Local(l) => return Some(l),
-            Root::Value(r) if b.tags[r as usize] == Tag::Read => w = b.data[r as usize][0],
-            _ => return None,
-        }
-    }
-    None
-}
-
-/// The local whose own storage place word `w` names: [`root_local`] when
-/// no step on the way is a dereference, which leaves the local for what
+/// The local whose own storage place word `w` names, directly or through a
+/// chain of reads, when no step on the way is a dereference, which leaves the local for what
 /// its reference refers to (`[*$self .infos]`).
 fn storage_local(b: &Body, mut w: u32) -> Option<u32> {
     for _ in 0..64 {
