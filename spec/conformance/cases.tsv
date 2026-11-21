@@ -4444,6 +4444,7 @@ lang/lexical/literals/multiline-string-literals.hd	runtime	accept	lang/01-lexica
 lang/lexical/literals/interpolation-forms.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.interp.forms
 lang/lexical/literals/interpolation-expression-spacing.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.interp.expression
 lang/lexical/literals/escape-sequences.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.escape.simple
+lang/lexical/literals/prefixed-string-crlf-raw-parts.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.prefix.lines
 lang/lexical/literals/prefixed-string-template.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.prefix.form
 lang/lexical/identifiers/identifier-spellings.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.ident.form
 lang/lexical/identifiers/raw-identifiers-as-names.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.raw.not-reserved
