@@ -4,7 +4,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[Res]" (func $"release_value[Res]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -171,7 +171,7 @@
       i32.load $heap offset=4
       local.get $a.0
       i32.load $heap offset=8
-      call $rt:release
+      call $"release_value[Res]"
     end
     local.get $first
     if
@@ -181,7 +181,7 @@
       i32.load $heap offset=4
       local.get $first
       i32.load $heap offset=8
-      call $rt:release
+      call $"release_value[Res]"
     end
     local.get $log
     local.get $t0
@@ -310,7 +310,7 @@
           i32.load $heap offset=4
           local.get $r
           i32.load $heap offset=8
-          call $rt:release
+          call $"release_value[Res]"
         end
         br 0
       end

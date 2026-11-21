@@ -4,7 +4,7 @@
   (import "fixture" "impl[T < Eq & Hash] Set[T].contains[string]" (func $"impl[T < Eq & Hash] Set[T].contains[string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "impl[T] Deque[T].push_back[string]" (func $"impl[T] Deque[T].push_back[string]" (param i32 i32 i32)))
   (import "fixture" "impl[T] Deque[T].pop_front[string]" (func $"impl[T] Deque[T].pop_front[string]" (param i32) (result i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[T < Ord] Heap[T].push[string]" (func $"impl[T < Ord] Heap[T].push[string]" (param i32 i32 i32)))
   (import "fixture" "impl[T < Ord] Heap[T].pop[string]" (func $"impl[T < Ord] Heap[T].pop[string]" (param i32) (result i32 i32)))
   (func $seen (param $s i32) (param $a.0 i32) (param $a.1 i32) (param $b.0 i32) (param $b.1 i32) (result i32)
@@ -51,8 +51,10 @@
     end
     ;; 15 |     q.push_back(a)
     local.get $a.0
-    local.get $q
-    call $rt:release
+    if
+      local.get $a.0
+      call $rt:release_ref
+    end
     local.get $x.1
   )
   (func $top (param $h i32) (param $a.0 i32) (param $a.1 i32) (result i32) (local $x.1 i32)
@@ -86,8 +88,10 @@
     end
     ;; 21 |     h.push(a)
     local.get $a.0
-    local.get $h
-    call $rt:release
+    if
+      local.get $a.0
+      call $rt:release_ref
+    end
     local.get $x.1
   )
 )

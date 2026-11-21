@@ -193,10 +193,25 @@ impl Entry {
 
 /// What [`build`] reads: the program's instances in content order, with
 /// each one's TIR body and collection's call targets.
+/// [`Input::shim`].
+pub type ShimFn<'a> = dyn Fn(
+        Ty,
+        hd_layout::shims::Shim,
+    ) -> StageResult<(
+        hd_layout::shims::Count,
+        Hash128,
+        Option<std::sync::Arc<Body>>,
+    )> + Sync
+    + 'a;
+
 #[derive(Clone)]
 pub struct Input<'a> {
     pub pool: &'a InternPool,
     pub env: &'a dyn ProgramEnv,
+    /// What counting a type takes, and its retain or release shim
+    /// (`hd_layout::shims`), made once per run: `None` when it counts
+    /// nothing or one address.
+    pub shim: &'a ShimFn<'a>,
     /// An item's stable path, for function names.
     pub path: &'a dyn Fn(DefId) -> String,
     /// Declared package host roots, and identities for their returned handles.
@@ -684,6 +699,7 @@ fn link(
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;
+    emit::shims(input, &mut m)?;
     #[cfg(feature = "checked-report")]
     if let Some(c) = m.runtime.checked
         && m.count_audit

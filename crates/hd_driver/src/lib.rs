@@ -11547,9 +11547,34 @@ impl Run<'_> {
                 || hd_opt::whole::mutation_targets(&self.pool, env, env, &instances);
             let coinductive_flags =
                 hd_opt::whole::coinductive_flags(env, &instances, &c.collected.calls);
+            // Each type's count shims, made once per run (`hd_layout::shims`).
+            let shims = std::sync::Mutex::new((
+                hd_layout::shims::Counts::default(),
+                HashMap::<(Ty, hd_layout::shims::Shim), Option<Arc<Body>>>::default(),
+            ));
+            let shim = |t: Ty, kind: hd_layout::shims::Shim| {
+                let mut memo = shims
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let (counts, made) = &mut *memo;
+                let count = counts.of(&self.pool, env, t)?;
+                let shape = counts.shape(&self.pool, env, t)?;
+                if let Some(b) = made.get(&(t, kind)) {
+                    return Ok((count, shape, b.clone()));
+                }
+                let item = match kind {
+                    hd_layout::shims::Shim::Retain => self.known.retain_value,
+                    hd_layout::shims::Shim::Release => self.known.release_value,
+                };
+                let b =
+                    hd_layout::shims::shim(&self.pool, env, counts, item, t, kind)?.map(Arc::new);
+                made.insert((t, kind), b.clone());
+                Ok((count, shape, b))
+            };
             let input = hd_wasm::Input {
                 pool: &self.pool,
                 env,
+                shim: &shim,
                 path: &path,
                 package_host: &package_host,
                 package_trait: &package_trait,

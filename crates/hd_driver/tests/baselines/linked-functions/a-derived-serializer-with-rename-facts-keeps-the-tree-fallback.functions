@@ -150,6 +150,21 @@ std/rt.cycle/init.init#0
 std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
+std/rt.alloc/release_value#0 [std.serde.EnumTagging]
+std/rt.alloc/retain_value#0 [std.json.OpenFrame]
+std/rt.alloc/release_value#0 [std.json.TextWriter]
+std/rt.alloc/release_value#0 [std.json.OpenFrame]
+std/rt.alloc/release_value#0 [(string, std.json.Json)?]
+std/rt.alloc/release_value#0 [std.json.JsonObject]
+std/rt.alloc/release_value#0 [(std.json.OpenFrame, List[string], List[std.json.Json])]
+std/rt.alloc/release_value#0 [std.json.JsonWriter]
+std/rt.alloc/release_value#0 [std.json.Json?]
+std/rt.alloc/retain_value#0 [std.json.ObjectEntry]
+std/rt.alloc/retain_value#0 [std.serde.EnumTagging]
+std/rt.alloc/release_value#0 [std.json.Json]
+std/rt.alloc/release_value#0 [std.json.ObjectEntry]
+std/rt.alloc/release_value#0 [std.json.ObjectEntry?]
+std/rt.alloc/retain_value#0 [std.json.Json]
 rt:memory_copy/0/0
 rt:memory_copy/0/1
 rt:memory_copy/1/0
@@ -181,23 +196,8 @@ rt:alloc_class/1
 rt:free_class
 rt:free_class_loaded
 rt:str
-rt:retain#0
-rt:retain#1
-rt:retain#2
-rt:retain#3
 rt:release#0
 rt:release#1
-rt:release#2
-rt:release#3
-rt:release#4
-rt:release#5
-rt:release#6
-rt:release#7
-rt:release#8
-rt:release#9
-rt:release#10
-rt:release#11
-rt:release#12
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

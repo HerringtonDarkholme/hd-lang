@@ -3,7 +3,7 @@
   (import "fixture" "rt:str_eq" (func $rt:str_eq (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[Bag]" (func $"release_value[Bag]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 4 funcref))
@@ -104,7 +104,7 @@
     local.get $bag.label.0
     local.get $bag.label.1
     i32.const 0
-    call $rt:release
+    call $"release_value[Bag]"
     i32.load $heap offset=4
     local.get $bag.items
     ;; 9 |     match other.label:
@@ -121,6 +121,6 @@
     local.get $other.label.0
     local.get $other.label.1
     local.get $other.items
-    call $rt:release
+    call $"release_value[Bag]"
   )
 )

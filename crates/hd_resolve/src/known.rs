@@ -230,6 +230,10 @@ pub struct KnownItems {
     /// build's room allocation swaps for `std.rt.checked.allocate`.
     pub room: DefId,
     pub alloc: DefId,
+    /// `std.rt.alloc.retain_value` and `release_value`: a count shim is
+    /// one of these at its type (`hd_layout::shims`).
+    pub retain_value: DefId,
+    pub release_value: DefId,
     pub checked_allocate: DefId,
     /// `std.rt.memory.free_room` and `std.rt.cycle.collect`, whose
     /// `std.rt.alloc.free_block` a checked build swaps for
@@ -367,6 +371,8 @@ impl KnownItems {
             drop_method: trait_method(drop_trait, "drop"),
             room: item("std.rt.memory", "room"),
             alloc: item("std.rt.alloc", "alloc"),
+            retain_value: item("std.rt.alloc", "retain_value"),
+            release_value: item("std.rt.alloc", "release_value"),
             checked_allocate: item(CHECKED_MODULE, "allocate"),
             free_room: item("std.rt.memory", "free_room"),
             cycle_collect: item("std.rt.cycle", "collect"),

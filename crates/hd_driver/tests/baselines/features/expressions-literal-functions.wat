@@ -5,7 +5,7 @@
   (import "fixture" "impl StringBuilder.value_text" (func $"impl StringBuilder.value_text" (param i32 i32 i32 i32 i32)))
   (import "fixture" "impl StringBuilder.value_signed" (func $"impl StringBuilder.value_signed" (param i32 i32 i32 i64 i32)))
   (import "fixture" "rt:list_buf'1" (func $rt:list_buf'1 (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "release_value[std.ops.Template[i64]]" (func $"release_value[std.ops.Template[i64]]" (param i32 i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
@@ -91,7 +91,7 @@
     i32.add
     local.get $t.raw_parts
     local.get $t.values
-    call $rt:release
+    call $"release_value[std.ops.Template[i64]]"
   )
   (func $prefixed (param $id i64) (result i32 i32) (local $t0 i32) (local $t1 i32)
     ;; 32 |     sql"select * from users where id = $id"

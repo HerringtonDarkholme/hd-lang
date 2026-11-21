@@ -66,6 +66,14 @@ std/rt.alloc/take#0
 std/rt.cycle/init.init#0
 std/collections/impl TextRoom.grow#0
 std/json/push_escaped#0
+std/rt.alloc/retain_value#0 [std.json.ObjectEntry]
+std/rt.alloc/release_value#0 [std.json.TextWriter]
+std/rt.alloc/release_value#0 [(string, std.json.Json)?]
+std/rt.alloc/release_value#0 [std.json.JsonWriter]
+std/rt.alloc/release_value#0 [std.json.Json]
+std/rt.alloc/release_value#0 [std.json.ObjectEntry?]
+std/rt.alloc/release_value#0 [std.json.ObjectEntry]
+std/rt.alloc/retain_value#0 [std.json.Json]
 rt:memory_copy/0/0
 rt:memory_copy/0/1
 rt:memory_copy/1/0
@@ -87,14 +95,8 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:str
-rt:retain#0
-rt:retain#1
 rt:release#0
 rt:release#1
-rt:release#2
-rt:release#3
-rt:release#4
-rt:release#5
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

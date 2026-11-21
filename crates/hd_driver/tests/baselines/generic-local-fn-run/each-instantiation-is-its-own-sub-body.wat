@@ -5,7 +5,7 @@
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
+  (import "fixture" "release_value[(string, string)]" (func $"release_value[(string, string)]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
@@ -198,7 +198,7 @@
     local.get $t0
     local.get $captured.1
     local.get $captured.0
-    call $rt:release
+    call $"release_value[(string, string)]"
     ;; 15 |     (a, n + m, s)
     local.get $a.0
     local.get $n

@@ -11,7 +11,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:frame'2" (func $rt:frame'2 (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32 i32)))
+  (import "fixture" "release_value[(string, string)]" (func $"release_value[(string, string)]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "rt:frame'4" (func $rt:frame'4 (result i32)))
   (import "fixture" "rt:frame'5" (func $rt:frame'5 (result i32)))
@@ -1276,7 +1276,7 @@
         local.get $t5
         local.get $t4
         local.get $t3
-        call $rt:release
+        call $"release_value[(string, string)]"
       end
     end
     local.get $t1
@@ -2243,7 +2243,7 @@
         local.get $t5
         local.get $t4
         local.get $t3
-        call $rt:release
+        call $"release_value[(string, string)]"
       end
     end
     local.get $t1
@@ -3550,7 +3550,7 @@
         local.get $t5
         local.get $t4
         local.get $t3
-        call $rt:release
+        call $"release_value[(string, string)]"
       end
     end
     local.get $t1

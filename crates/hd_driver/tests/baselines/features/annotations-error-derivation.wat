@@ -10,7 +10,6 @@
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
-  (import "fixture" "rt:retain" (func $rt:retain (param i32 i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $"error From 2.0 for LoadError.from" (param $value.0 i32) (param $value.1 i32) (result i32 i32 i32 i64 i32 i32)
@@ -239,8 +238,10 @@
     if (result i32)
     ;; 30 |         @source
       local.get $t1
-      local.get $self
-      call $rt:retain
+      if
+        local.get $t1
+        call $retain
+      end
     ;; 27 |     @error("cannot read $path")
       i32.const 8
       i32.const 1

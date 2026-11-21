@@ -92,6 +92,7 @@ std/collections/impl TextRoom.grow#0
 std/serde/impl[T < Serialize] Serialize for List[T].serialize#0 [app.main.Row, std.json.TextWriter]
 std/text/plain_windows#0
 std/json/push_escaped#0
+std/rt.alloc/release_value#0 [std.json.TextWriter]
 rt:memory_copy/0/0
 rt:memory_copy/0/1
 rt:memory_fill/0/0
@@ -116,8 +117,7 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:str
-rt:release#0
-rt:release#1
+rt:release
 rt:release_ref#0
 rt:release_drain
 rt:retain_known

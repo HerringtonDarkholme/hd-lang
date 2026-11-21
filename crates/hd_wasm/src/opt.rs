@@ -942,6 +942,7 @@ fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
         match &*symbols.get(*id) {
             Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown) => Some(1),
             Sym::Helper(Helper::Release { vals, .. }) => Some(vals.len()),
+            Sym::Shim(_, false, width) => usize::try_from(*width).ok(),
             _ => None,
         }
     };
@@ -3896,7 +3897,8 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
                     | Helper::ReleaseKnown
                     | Helper::Retain { .. }
                     | Helper::Release { .. },
-                ),
+                )
+                | Sym::Shim(..),
                 n,
                 0,
             ) => Some((n, n)),
@@ -4122,10 +4124,11 @@ fn fixed_locals(
     fixed
 }
 
-/// Makes each direct call of a runtime helper with no effect and no result
-/// the `drop` of its arguments. Such a helper is one whose body only reads
-/// and writes its locals and branches forward, or calls another such
-/// helper. A release helper whose counted part folded away is one. A body with a loop, a store, a
+/// Makes each direct call of a runtime helper or count shim with no effect
+/// and no result the `drop` of its arguments. Such a function is one whose
+/// body only reads and writes its locals and branches forward, or calls
+/// another such function. A release helper or shim whose counted part
+/// folded away is one. A body with a loop, a store, a
 /// trap or any other call keeps its calls. Gives, per function, whether
 /// any of its calls went.
 pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<bool> {
@@ -4139,7 +4142,7 @@ pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<b
                 || !f.results.is_empty()
                 || !matches!(
                     &*symbols.get(SymId(u32::try_from(k).expect("symbols"))),
-                    Sym::Helper(_)
+                    Sym::Helper(_) | Sym::Shim(..)
                 )
             {
                 continue;

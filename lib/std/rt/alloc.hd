@@ -310,6 +310,16 @@ pub fn release_known(address: usize) -> usize:
         suspect(block)
     0
 
+## One count more on each counted reference `value` holds. The compiler supplies each instance's body, the retain shim of `T` (`hd_layout::shims`).
+@intrinsic("count_retain")
+pub fn retain_value[T](value: T) -> void:
+    panic("intrinsic")
+
+## One count less on each counted reference `value` holds, after its `Drop` hook. The compiler supplies each instance's body, the release shim of `T`.
+@intrinsic("count_release")
+pub fn release_value[T](value: T) -> void:
+    panic("intrinsic")
+
 ## Takes one from the count of the block that holds `address`, as `release` does, in a program where no object takes part in cycle collection: the decrement alone, so nothing links the collector.
 pub fn release_acyclic(address: usize) -> usize:
     if address < heap:

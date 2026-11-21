@@ -146,15 +146,44 @@ struct Own {
     indirect: Option<indirect::Params>,
 }
 
+/// Emits each count shim emission asked for (`Module::shim_key`), until
+/// none is left: its body from [`Input::shim`], as an instance of its
+/// lang item at its type whose one parameter is lent, so the shim's own
+/// statements are its only counts. A shim may ask for its parts' shims.
+pub(crate) fn shims(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
+    use hd_layout::shims::Shim;
+    while let Some((t, kind, key)) = m.shim_queue.pop() {
+        let (_, _, Some(b)) = (input.shim)(t, kind)? else {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a count shim asked for a type that counts one address or none",
+            ));
+        };
+        let own = Own {
+            item: b.item,
+            args: input.pool.list(&[t]),
+            sub: Sub::Body(0),
+            key,
+            cold: None,
+            lends: 1,
+            indirect: None,
+        };
+        let f = body_func(input, m, &own, 0, &HashMap::default(), &b)?;
+        let width = u32::try_from(f.params.len()).unwrap_or(u32::MAX);
+        m.define(Sym::Shim(key, kind == Shim::Retain, width), f);
+    }
+    Ok(())
+}
+
 /// The function of body `b`'s sub-body `sub`, the instance `own`, whose
 /// call targets are `targets`.
-fn body_func<'a>(
-    input: &Input<'a>,
+fn body_func<'i>(
+    input: &'i Input<'_>,
     m: &mut Module,
     own: &Own,
     sub: u16,
-    targets: &HashMap<u32, Target>,
-    b: &'a Body,
+    targets: &'i HashMap<u32, Target>,
+    b: &'i Body,
 ) -> StageResult<Func> {
     let (item, args) = (own.item, own.args);
     let inst = m.inst_of.get(&own.key).copied();
@@ -1196,7 +1225,7 @@ impl FrameRefs {
 struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
-    b: &'a Body,
+    b: &'i Body,
     parameter_positions: HashMap<usize, usize>,
     recursive_bindings: std::sync::Arc<hd_tir::own::RecursiveBindings>,
     /// The instructions the emitter types otherwise than the body does:
@@ -1490,7 +1519,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
     fn new(
         input: &'i Input<'a>,
         m: &'m mut Module,
-        b: &'a Body,
+        b: &'i Body,
         item: DefId,
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
@@ -1500,10 +1529,12 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             &body_facts::BodyFacts,
         ),
     ) -> Self {
-        assert_eq!(
-            b.phase,
-            hd_tir::ir::Phase::Instance,
-            "the emitter lowers instance bodies only: `{}`",
+        assert!(
+            matches!(
+                b.phase,
+                hd_tir::ir::Phase::Instance | hd_tir::ir::Phase::Lowered
+            ),
+            "the emitter lowers instance and lowered bodies only: `{}`",
             (input.path)(item)
         );
         let f = m.func("", vec![], vec![]);
@@ -1716,11 +1747,15 @@ impl Em<'_, '_, '_> {
     /// In particular they must not create an empty fresh-only segment before
     /// the first suspension point.
     fn items(&self, list: u32) -> Vec<u32> {
+        // A lowered body's releases are statements where they stand; an
+        // owned body's lower at their value, operation or boundary.
+        let lowered = self.b.phase == hd_tir::ir::Phase::Lowered;
         self.rec(list)
             .into_iter()
-            .filter(|i| {
-                !matches!(self.b.tags[*i as usize], Tag::Block | Tag::Release)
-                    && !hd_tir::ir::count::boundary(self.b, *i as usize)
+            .filter(|i| match self.b.tags[*i as usize] {
+                Tag::Block => false,
+                Tag::Release => lowered,
+                _ => !hd_tir::ir::count::boundary(self.b, *i as usize),
             })
             .collect()
     }
@@ -2430,6 +2465,10 @@ impl Em<'_, '_, '_> {
                 self.store(i)?;
             }
             // The ownership passes' statements (`count.rs`).
+            // A lowered body's counts are its own (`Phase::Lowered`).
+            Tag::Retain | Tag::Release if self.b.phase == hd_tir::ir::Phase::Lowered => {
+                self.lowered_count(a, self.b.tags[i as usize] == Tag::Retain)?;
+            }
             Tag::Retain => {
                 if CountInfo::read(self.b, i as usize).is_some_and(|c| c.at == CountAt::Value) {
                     self.own_retain(a)?;

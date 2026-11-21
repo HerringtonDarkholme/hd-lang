@@ -6,7 +6,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[Res]" (func $"release_value[Res]" (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "forbid" (global $forbid (mut i32)))
@@ -224,7 +224,7 @@
       i32.load $heap offset=4
       local.get $s.0
       i32.load $heap offset=8
-      call $rt:release
+      call $"release_value[Res]"
     end
     local.get $s.1
     local.get $t0

@@ -3,8 +3,8 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[string]" (func $"impl[T] Iterator[T] for ListIter[T].next[string]" (param i32) (result i32 i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -70,8 +70,10 @@
           br 2
         end
         local.get $t2
-        local.get $x.1
-        call $rt:release
+        if
+          local.get $t2
+          call $rt:release_ref'1
+        end
         br 0
       end
     end
@@ -88,7 +90,7 @@
         i32.load $heap
         if
           local.get $x.1
-          call $rt:release_ref
+          call $rt:release_ref'2
         end
       end
     end
@@ -132,8 +134,10 @@
           br 2
         end
         local.get $t1
-        local.get $xs
-        call $rt:release
+        if
+          local.get $t1
+          call $rt:release_ref'1
+        end
         br 0
       end
     end
@@ -149,7 +153,7 @@
         i32.load $heap
         if
           local.get $xs
-          call $rt:release_ref
+          call $rt:release_ref'2
         end
       end
     end
@@ -216,8 +220,10 @@
           br 2
         end
         local.get $words.at
-        local.get $words.items
-        call $rt:release
+        if
+          local.get $words.at
+          call $rt:release_ref'1
+        end
         br 0
       end
     end
@@ -233,7 +239,7 @@
         i32.load $heap
         if
           local.get $words.items
-          call $rt:release_ref
+          call $rt:release_ref'2
         end
       end
     end

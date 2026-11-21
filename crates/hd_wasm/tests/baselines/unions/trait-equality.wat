@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[T < ?Copy & UnionType] Eq for T by Structure.eq[i32 | string]" (func $"impl[T < ?Copy & UnionType] Eq for T by Structure.eq[i32 | string]" (param i32 i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -54,17 +54,21 @@
     if
       local.get $left
       i32.load $heap
-      local.get $left
-      i32.load $heap offset=4
-      call $rt:release
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
     end
     local.get $right
     if
       local.get $right
       i32.load $heap
-      local.get $right
-      i32.load $heap offset=4
-      call $rt:release
+      local.tee $right
+      if
+        local.get $right
+        call $rt:release_ref
+      end
     end
     local.get $t1
     local.get $t0

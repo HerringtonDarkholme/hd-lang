@@ -18,7 +18,7 @@
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "rt:frame'4" (func $rt:frame'4 (result i32)))
   (import "fixture" "rt:forbid_check" (func $rt:forbid_check))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32 i32)))
+  (import "fixture" "release_value[std.task.BlockOn[string]]" (func $"release_value[std.task.BlockOn[string]]" (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
@@ -1496,7 +1496,7 @@
     local.get $t1
     local.get $t0
     local.get $key.1
-    call $rt:release
+    call $"release_value[std.task.BlockOn[string]]"
     local.get $v.1
   )
   (func $rt:frame_ensure'1 (param $t0 i32) (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)

@@ -30,6 +30,7 @@
 
 pub mod facts;
 pub mod layouts;
+pub mod shims;
 pub mod work;
 
 pub use layouts::{Fields, Layout, LayoutId, Layouts, Repr, Tag, Variants, layout, layouts};

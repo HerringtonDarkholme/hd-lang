@@ -15,6 +15,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::StageResult;
+use hd_layout::shims::Count;
 use hd_tir::ir::count::{At, Info, Part};
 use hd_tir::ir::{NONE, Ref, Tag};
 use hd_tir::own::Reason;
@@ -99,7 +100,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn own_retain(&mut self, value: u32) -> StageResult<()> {
         // A lent value (`Em::prepare_own_loans`) takes no count.
         if self.retained_before_result.remove(&value)
-            || self.loans.contains(&value)
+            || self.lent(value)
             || self.mem_retain(value)?
         {
             return Ok(());
@@ -113,6 +114,55 @@ impl Em<'_, '_, '_> {
         );
         let locals = self.vals[&value].clone();
         self.retain_locals(&locals, self.ty_of(value))
+    }
+
+    /// A count statement of a lowered body (a shim) on `value`, as the walk
+    /// helpers counted: an address by the runtime's own count call, which
+    /// tests null itself, and a part with its own shim by that shim. Inline
+    /// fast paths belong at an ordinary body's count sites, not in glue.
+    pub(super) fn lowered_count(&mut self, value: u32, retain: bool) -> StageResult<()> {
+        let Some(ls) = self.vals.get(&value).cloned() else {
+            return Ok(());
+        };
+        let t = self.ty(value);
+        let kind = if retain {
+            hd_layout::shims::Shim::Retain
+        } else {
+            hd_layout::shims::Shim::Release
+        };
+        let (count, shape, _) = (self.input.shim)(t, kind)?;
+        match count {
+            Count::None => {}
+            Count::Address { index, known } => {
+                self.f.get(ls[index as usize]);
+                let addr = if known {
+                    crate::layout::Addr::Known
+                } else {
+                    crate::layout::Addr::Ref
+                };
+                if retain {
+                    crate::rt::retain_call(self.m)(&mut self.f, addr);
+                } else {
+                    crate::rt::release_call(&mut self.f, addr);
+                }
+            }
+            Count::Parts | Count::Call => {
+                for l in &ls {
+                    self.f.get(*l);
+                }
+                let key = self.m.shim_key(t, shape, kind);
+                let width = u32::try_from(ls.len()).unwrap_or(u32::MAX);
+                self.f.call(crate::Sym::Shim(key, retain, width));
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether `value` is lent, so a count statement on it counts nothing:
+    /// never in a [`hd_tir::ir::Phase::Lowered`] body, whose count
+    /// statements are its counts, on borrowed values too.
+    fn lent(&self, value: u32) -> bool {
+        self.b.phase != hd_tir::ir::Phase::Lowered && self.loans.contains(&value)
     }
 
     /// Whether the passes state a `Retain` of `value`'s result right after
@@ -457,8 +507,24 @@ impl Em<'_, '_, '_> {
         if !retain && self.drop_inline(ls, t)? {
             return Ok(());
         }
-        let Some(mut w) = self.counted(t) else {
-            return Ok(());
+        let kind = if retain {
+            hd_layout::shims::Shim::Retain
+        } else {
+            hd_layout::shims::Shim::Release
+        };
+        let (count, shape, _) = (self.input.shim)(t, kind)?;
+        let (index, known) = match count {
+            Count::None => return Ok(()),
+            Count::Address { index, known } => (index, known),
+            Count::Parts | Count::Call => {
+                for l in ls {
+                    self.f.get(*l);
+                }
+                let key = self.m.shim_key(t, shape, kind);
+                let width = u32::try_from(ls.len()).unwrap_or(u32::MAX);
+                self.f.call(crate::Sym::Shim(key, retain, width));
+                return Ok(());
+            }
         };
         let colls = if retain { self.copied(t) } else { Vec::new() };
         for &c in &colls {
@@ -466,34 +532,20 @@ impl Em<'_, '_, '_> {
             self.f.helper(Helper::CollCopy);
             self.f.set(ls[c as usize]);
         }
+        // The one address is the collection, copied above.
         if !colls.is_empty() {
-            match w.without(&colls) {
-                Some(rest) => w = rest,
-                None => return Ok(()),
-            }
-        }
-        if let (Some(k), Some(addr)) = (w.single(), w.addr()) {
-            self.f.get(ls[k as usize]);
-            if w.known() {
-                if retain {
-                    self.f.helper(Helper::RetainKnown);
-                } else {
-                    crate::rt::release_call(&mut self.f, addr);
-                }
-            } else {
-                self.ref_count(retain);
-            }
             return Ok(());
         }
-        for l in ls {
-            self.f.get(*l);
-        }
-        let vals = self.vals(t)?;
-        self.f.helper(if retain {
-            Helper::Retain { vals, walk: w }
+        self.f.get(ls[index as usize]);
+        if known {
+            if retain {
+                self.f.helper(Helper::RetainKnown);
+            } else {
+                crate::rt::release_call(&mut self.f, crate::layout::Addr::Known);
+            }
         } else {
-            Helper::Release { vals, walk: w }
-        });
+            self.ref_count(retain);
+        }
         Ok(())
     }
 
@@ -701,7 +753,7 @@ impl Em<'_, '_, '_> {
         ledger!(if transferred.is_some() => "drop-value/input-transferred-flag");
         if self.owned_refs.contains(&x) {
             self.release_owned_ref(&ls, t)?;
-        } else if !self.loans.contains(&x) {
+        } else if !self.lent(x) {
             self.release_drop_place(&ls, t, &Self::value_place(x))?;
         }
         if let Some((flag, _)) = transferred {

@@ -103,6 +103,9 @@ impl DescriptorKey {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Sym {
     Inst(Hash128),
+    /// A type's count shim (`hd_layout::shims`, [`Module::shim_key`]): a
+    /// retain when `true`, else a release, of a value of `width` values.
+    Shim(Hash128, bool, u32),
     /// A part of a suspending instance, beside its cold constructor.
     Part(Hash128, Part),
     Helper(Helper),
@@ -202,6 +205,9 @@ impl Symbols {
                     .or_else(|| match symbol {
                         Sym::Helper(helper) => Some(crate::rt::arity(helper)),
                         Sym::Import(import) => Some((import.params.len(), import.results.len())),
+                        // A shim takes its value's values and gives nothing,
+                        // known before the drain defines it.
+                        Sym::Shim(_, _, width) => Some((*width as usize, 0)),
                         Sym::Inst(_) | Sym::Part(..) => None,
                     })
             })
@@ -1228,6 +1234,11 @@ pub struct Module {
     /// direct call of one as [`Func::cold_helper`] lowers a helper's
     /// (`annot.inline.cold`).
     pub cold_insts: BTreeSet<Hash128>,
+    /// Each count shim emission asked for (`emit::shims`), by shape and
+    /// kind: its key. Types of one shape share it; each is queued once, the
+    /// first type of its shape, so the drain ends.
+    pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim), Hash128>,
+    pub shim_queue: Vec<(hd_types::Ty, hd_layout::shims::Shim, Hash128)>,
     /// Whether [`Module::finish`] inlines the count fast paths
     /// ([`crate::Input::inline_counts`]).
     pub inline_counts: bool,
@@ -1328,6 +1339,8 @@ impl Module {
             std_insts: BTreeSet::default(),
             quiet_inits: BTreeSet::default(),
             cold_insts: BTreeSet::default(),
+            shims: hd_base::HashMap::default(),
+            shim_queue: Vec::new(),
             inline_counts: Default::default(),
             fixed_allocations: Default::default(),
             drain_glues: Vec::default(),
@@ -1395,8 +1408,28 @@ impl Module {
         Func::new(self.symbols.clone(), name, params, results)
     }
     /// Defines a symbol without moving its semantic ordering into the id.
+    /// The function key of `t`'s `kind` shim, queued for the drain the
+    /// first time it is asked for.
+    pub fn shim_key(
+        &mut self,
+        t: hd_types::Ty,
+        shape: Hash128,
+        kind: hd_layout::shims::Shim,
+    ) -> Hash128 {
+        if let Some(&key) = self.shims.get(&(shape, kind)) {
+            return key;
+        }
+        let mut h = hd_base::StableHasher::new("count-shim");
+        h.hash(shape);
+        h.u32(u32::from(kind == hd_layout::shims::Shim::Retain));
+        let key = h.finish();
+        self.shims.insert((shape, kind), key);
+        self.shim_queue.push((t, kind, key));
+        key
+    }
+
     pub fn define(&mut self, s: Sym, mut f: Func) {
-        let instance = matches!(s, Sym::Inst(_) | Sym::Part(..));
+        let instance = matches!(s, Sym::Inst(_) | Sym::Shim(..) | Sym::Part(..));
         let id = self.symbols.intern(s);
         assert!(
             Rc::ptr_eq(&self.symbols.0, &f.symbols.0),
@@ -1730,6 +1763,10 @@ impl Module {
                     {
                         crate::layout::releases_nothing(walk, c.cast_unsigned())
                     }
+                    // Every address count tests null: a release of null
+                    // releases nothing.
+                    Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)
+                    | Sym::Shim(_, false, 1) => c == 0,
                     _ => false,
                 },
                 _ => false,
@@ -2128,10 +2165,12 @@ impl Module {
                 known_inlined: self.inline_counts && r.checked.is_none(),
                 skipped: r.checked.map(|c| c.skipped_test),
             };
+            // Glue, a helper or a count shim, keeps its counts plain calls:
+            // the runtime's count functions test null and static data.
             for (k, slot) in self.funcs.iter_mut().enumerate() {
                 let id = SymId(u32::try_from(k).expect("symbols"));
                 if let Some(f) = slot.as_mut()
-                    && !matches!(&*self.symbols.get(id), Sym::Helper(_))
+                    && !matches!(&*self.symbols.get(id), Sym::Helper(_) | Sym::Shim(..))
                     && crate::count_tests::lower(f, counts)
                 {
                     crate::opt::locals(f, &arity);

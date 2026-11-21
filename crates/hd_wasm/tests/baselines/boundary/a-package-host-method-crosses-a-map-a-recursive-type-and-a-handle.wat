@@ -13,7 +13,7 @@
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:release" (func $rt:release (param i32 i32)))
+  (import "fixture" "release_value[Tree]" (func $"release_value[Tree]" (param i32 i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -125,10 +125,10 @@
     local.get $provider0.vtable
     i32.load $heap offset=4
     call_indirect $table0 (param i32 i32 i32) (result i32 i32)
-    call $rt:release
+    call $"release_value[Tree]"
     local.get $t0
     local.get $t4
-    call $rt:release
+    call $"release_value[Tree]"
     ;; 26 |     println("${store.pair(Tree.Leaf(+1), Tree.Leaf(+2))}")
     local.get $provider0
     i32.const 0
