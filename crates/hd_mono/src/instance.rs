@@ -23,8 +23,8 @@ use hd_types::{InternPool, Ty, TyList};
 
 use crate::{ProgramEnv, subst};
 
-/// Instance `(item, args)`'s body from `generic`, its item's body (as
-/// checked, or folded and inlined once per generic body in dev): types
+/// Instance `(item, args)`'s body from `generic`, its item's body as
+/// checked: types
 /// substituted ([`subst`]) and bound calls chosen by `pick`, which answers
 /// as collection selects. A non-generic callee copy passes empty `args`;
 /// a non-generic item's own instance body needs no copy. A borrowed template is
@@ -48,6 +48,20 @@ pub fn instantiate(
     substitute_body(pool, &mut body, &mut |t| subst(pool, env, item, args, t));
     rechoose(&mut body, pick);
     body
+}
+
+/// Whether every type an instance body records is settled enough to
+/// copy or specialize: no projection left open and no poison (an opaque
+/// result `subst` could not open), constants included; and unless `open`,
+/// no type parameter or opaque type either. One pass over its columns.
+#[must_use]
+pub fn settled(pool: &InternPool, body: &Body, open: bool) -> bool {
+    let types = || body.ty.iter().chain(&body.local_ty);
+    let closed = |t: Ty| open || !(pool.has_param(t) || pool.has_opaque(t));
+    types()
+        .chain(body.consts.iter().map(|c| &c.0))
+        .all(|&t| t != Ty::POISON)
+        && types().all(|&t| !pool.has_assoc(t) && closed(t))
 }
 
 /// Maps every type `body` records through `ty` (`hd_tir::ir::map_body_types`),

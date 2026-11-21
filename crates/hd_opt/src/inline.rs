@@ -1052,9 +1052,7 @@ impl dyn InlineEnv + '_ {
             Cow::Owned(self.fresh_body(def)?),
             &|t, s, a| self.select_choice(t, s, a),
         );
-        if scratch.ty.iter().chain(&scratch.local_ty).any(|&t| {
-            t == Ty::POISON || pool.has_param(t) || pool.has_assoc(t) || pool.has_opaque(t)
-        }) {
+        if !hd_mono::settled(pool, &scratch, false) {
             return None;
         }
         let prepared = self.prepare_copy(&mut scratch, hash);
@@ -1218,22 +1216,9 @@ impl dyn InlineEnv + '_ {
             self.select_choice(t, s, a)
         });
         // A projection left open names a type the caller's bounds may
-        // fix, which the call's type already shows; such a copy waits.
-        // An opaque result `subst` could not open (a trait method's at a
-        // receiver no impl is selected for) left poison: the copy would
-        // not know its own types, so the call stays.
-        if copy
-            .ty
-            .iter()
-            .chain(&copy.local_ty)
-            .any(|&t| pool.has_assoc(t))
-            || copy
-                .ty
-                .iter()
-                .chain(&copy.local_ty)
-                .chain(copy.consts.iter().map(|c| &c.0))
-                .any(|&t| t == Ty::POISON)
-        {
+        // fix, which the call's type already shows; such a copy waits, as
+        // does one an opaque result left poison: the call stays.
+        if !hd_mono::settled(pool, &copy, true) {
             return None;
         }
         let fits = self.fits(def, &copy);

@@ -37,7 +37,7 @@ mod type_depth;
 /// (`ProgramEnv::local_scopes`).
 type LocalScopes = Arc<Vec<Vec<(u32, u32)>>>;
 
-pub use instance::{close_body, instantiate, substitute_body};
+pub use instance::{close_body, instantiate, settled, substitute_body};
 pub use type_depth::type_argument_depth;
 
 pub use crate::layout::Sub;

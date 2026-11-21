@@ -567,13 +567,5 @@ fn instantiate(
         std::borrow::Cow::Owned(copy),
         &|trait_, self_ty, targs| env.select_choice(trait_, self_ty, targs),
     );
-    if copy
-        .ty
-        .iter()
-        .chain(&copy.local_ty)
-        .any(|&t| pool.has_param(t) || pool.has_assoc(t) || pool.has_opaque(t) || t == Ty::POISON)
-    {
-        return None;
-    }
-    Some((copy, hash))
+    hd_mono::settled(pool, &copy, false).then_some((copy, hash))
 }
