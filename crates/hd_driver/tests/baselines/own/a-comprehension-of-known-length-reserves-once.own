@@ -107,6 +107,10 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %34 = Block - : ()
 >   %35 = Loop %34 - : ()
 >   %36 = Read move [$1] : List[i32]
->   %37 = Release %38 Exit local $0 #2 : ()
->   %38 = Block %36 : List[i32]
+>   %37 = Intrinsic ParamOwned [0:i32] : bool
+>   %38 = Drop [$0] : ()
+>   %39 = Block - : ()
+>   %40 = If %37 [%39 -] : ()
+>   %41 = Release %42 Exit local $0 #2 : ()
+>   %42 = Block %36 : List[i32]
 >   loop %35 keeps len [$0] (-..-)

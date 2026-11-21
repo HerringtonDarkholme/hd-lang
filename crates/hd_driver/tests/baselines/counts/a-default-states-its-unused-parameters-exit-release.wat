@@ -18,7 +18,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 7 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t2 i32) (local $t1 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 18 |     log := box::[List[string]]([])
     i32.const 4
     i32.const 1
@@ -73,7 +73,30 @@
     end
     local.get $t2
     local.get $t1
-    i32.const 64
+    call $join.limit
+    local.set $t3
+    local.get $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:retain_known
+      end
+    end
+    local.get $t0
+    i32.const 152 ;; &"first"
+    i32.const 5
+    local.get $t2
+    if
+      local.get $t2
+      call $retain
+    end
+    local.get $t2
+    local.get $t1
+    local.get $t3
     call $join
     local.get $t2
     if
@@ -106,6 +129,31 @@
       local.get $first.0
       call $rt:release_ref'1
     end
+  )
+  (func $join.limit (param $log i32) (param $first.0 i32) (param $first.1 i32) (param $second.0 i32) (param $second.1 i32) (result i32)
+    ;; 13 |     limit: usize = 64,
+    local.get $log
+    if
+      local.get $log
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $log
+        call $rt:release_ref'2
+      end
+    end
+    local.get $first.0
+    if
+      local.get $first.0
+      call $rt:release_ref'1
+    end
+    local.get $second.0
+    if
+      local.get $second.0
+      call $rt:release_ref'1
+    end
+    i32.const 64
   )
   (func $note (param $log i32) (param $text.0 i32) (param $text.1 i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 6 |     log.push(text)

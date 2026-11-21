@@ -12,6 +12,10 @@ fn owner(name: string) -> string:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Intrinsic StrConcat ["the account owner is named " %0] : string
->   %2 = Release %3 Exit local $0 #2 : ()
->   %3 = Block %1 : string
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block %1 : string
 >   summary kept [] borrows [$0]

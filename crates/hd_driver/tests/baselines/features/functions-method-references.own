@@ -24,8 +24,12 @@ impl User:
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
->   %7 = Release %8 Exit local $0 #2 : ()
->   %8 = Block %6 : usize
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %12 Exit local $0 #2 : ()
+>   %12 = Block %6 : usize
 >   summary kept [] borrows [$0]
 
     fn rename(&mut self, n: string) -> void:
@@ -55,8 +59,12 @@ fn unbound(u: User) -> usize:
 >     uses $3: %5 -> %6 lend last
 >   %0 = ItemRef #0 [..] : fn(User) -> usize
 >   %1 = Store [$1] %0 : ()
->   %14 = Release %15 Exit local $0 #2 : ()
->   %15 = Block %13 : usize
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %19 Exit local $0 #2 : ()
+>   %19 = Block %13 : usize
     f(u)
 >   %2 = Read borrow [$1] : fn(User) -> usize
 >   %3 = Drop [$1] : ()
@@ -81,8 +89,12 @@ fn bound(u: User) -> usize:
 >     uses $4: %17 -> %18 lend last
 >   local $6 self: string [read] value
 >     uses $6: %1 -> %2 lend last
->   %33 = Release %34 Exit local $0 #2 : ()
->   %34 = Block %32 : usize
+>   %33 = Intrinsic ParamOwned [0:i32] : bool
+>   %34 = Drop [$0] : ()
+>   %35 = Block - : ()
+>   %36 = If %33 [%35 -] : ()
+>   %37 = Release %38 Exit local $0 #2 : ()
+>   %38 = Block %32 : usize
     f() + f()
 >   %0 = Read borrow [$0 .name] : string
 >   %1 = Store [$6] %0 : ()
@@ -129,15 +141,19 @@ fn bound_mut(u: *mut User, n: string) -> void:
 >     uses $2: %2 -> %3 consume last
 >   local $3 $receiver: *mut User [read assigned] value
 >     uses $3: %4 -> %5 lend, %11 lend last
->   %0 = Retain %19 Entry local $1 #0 : ()
+>   %0 = Retain %23 Entry local $1 #0 : ()
     f := u::rename
 >   %1 = Read borrow [$0] : *mut User
 >   %2 = Store [$2] %1 : ()
 >   %3 = Read borrow [$2] : *mut User
 >   %4 = Store [$3] %3 : ()
 >   %17 = Drop [$1] : ()
->   %18 = Release %19 Exit local $0 #2 : ()
->   %19 = Block - : ()
+>   %18 = Intrinsic ParamOwned [0:i32] : bool
+>   %19 = Drop [$0] : ()
+>   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Release %23 Exit local $0 #2 : ()
+>   %23 = Block - : ()
     f(n)
 >   %5 = Read borrow [$3] : *mut User
 >   %6 = LoanBegin %5 #0 : ()
@@ -167,8 +183,12 @@ fn adapter(us: List[User]) -> usize:
 >     uses $6: %31 -> %14 consume last
 >   local $9 self: string [read] value
 >     uses $9: %15 -> %16 lend last
->   %42 = Release %43 Exit local $0 #2 : ()
->   %43 = Block %41 : usize
+>   %42 = Intrinsic ParamOwned [0:i32] : bool
+>   %43 = Drop [$0] : ()
+>   %44 = Block - : ()
+>   %45 = If %42 [%44 -] : ()
+>   %46 = Release %47 Exit local $0 #2 : ()
+>   %47 = Block %41 : usize
     let n: usize = 0
 >   %0 = Store [$1] 0:usize : ()
     for u in us:

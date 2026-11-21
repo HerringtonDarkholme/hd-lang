@@ -95,8 +95,12 @@ fn promoted(p: Post) -> usize:
 >   %27 = Block - : usize
 >   %28 = Scope %27 [] : usize
 >   %29 = Prim Add [%21 %28] : usize
->   %30 = Release %31 Exit local $0 #2 : ()
->   %31 = Block %29 : usize
+>   %30 = Intrinsic ParamOwned [0:i32] : bool
+>   %31 = Drop [$0] : ()
+>   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = Release %35 Exit local $0 #2 : ()
+>   %35 = Block %29 : usize
 >   summary kept [] borrows [$0]
 
 fn stamp_of(p: &Post) -> Stamp:

@@ -61,8 +61,12 @@ fn read_cell(c: Cell) -> usize:
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
->   %10 = Release %11 Exit local $0 #2 : ()
->   %11 = Block %9 : usize
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $0 #2 : ()
+>   %15 = Block %9 : usize
 >   summary kept [] borrows [$0]
 
 fn store_cell(c: &mut Cell, s: string) -> void:
@@ -122,7 +126,15 @@ fn stored_fn(h: Handler, s: string) -> usize:
 >   %0 = Read borrow [$0 .callback] : fn(string) -> usize
 >   %1 = Read borrow [$1] : string
 >   %2 = CallValue %0 [%1] : usize
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : usize
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : usize
 >   summary kept [] borrows [$0 $1] writes

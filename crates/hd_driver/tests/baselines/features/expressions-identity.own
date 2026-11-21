@@ -29,9 +29,17 @@ fn same_box(a: *User, b: *User) -> bool:
 >   %0 = Read borrow [$0] : *User
 >   %1 = Read borrow [$1] : *User
 >   %2 = Is %0 %1 : bool
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : bool
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : bool
 >   summary kept [] borrows [$0 $1]
 
 fn mixed(a: *mut User, b: *User) -> bool:
@@ -44,7 +52,15 @@ fn mixed(a: *mut User, b: *User) -> bool:
 >   %0 = Read borrow [$0] : *mut User
 >   %1 = Read borrow [$1] : *User
 >   %2 = Is %0 %1 : bool
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : bool
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : bool
 >   summary kept [] borrows [$0 $1]

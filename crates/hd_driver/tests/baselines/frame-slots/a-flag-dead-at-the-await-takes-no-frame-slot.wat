@@ -1064,16 +1064,16 @@
             local.get $t1
             i32.load $heap offset=4
             call $rt:release_spilled
+            local.get $t1
+            i32.const 0
+            i32.store $heap
+            local.get $t1
+            i32.const 0
+            i32.store $heap offset=4
           end
+    ;; 30 |     if early:
           i32.const 0
           local.set $kept.name.0
-          local.get $t1
-          i32.const 0
-          i32.store $heap
-          local.get $t1
-          i32.const 0
-          i32.store $heap offset=4
-    ;; 30 |     if early:
           local.get $t1
           i32.const 0
           i32.store $heap offset=44

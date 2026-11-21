@@ -10,15 +10,19 @@ fn captured(text: string, suffix: string) -> string:
 >     uses $1: entry -> %6 lend, %12 lend last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   %0 = Retain %25 Entry local $0 #0 : ()
+>   %0 = Retain %29 Entry local $0 #0 : ()
     let current = text
 >   %1 = Read move [$0] : string
 >   %2 = Box #2 #0 : ()
 >   %3 = Store [$2] %1 : ()
 >   %22 = Drop [$0] : ()
 >   %23 = Drop [$2] : ()
->   %24 = Release %25 Exit local $1 #2 : ()
->   %25 = Block %19 : string
+>   %24 = Intrinsic ParamOwned [1:i32] : bool
+>   %25 = Drop [$1] : ()
+>   %26 = Block - : ()
+>   %27 = If %24 [%26 -] : ()
+>   %28 = Release %29 Exit local $1 #2 : ()
+>   %29 = Block %19 : string
     append := fn() -> void: current += suffix
     append()
 >   %4 = Read copy [$2] : string
@@ -52,15 +56,19 @@ fn dynamic(text: string, suffix: string) -> string:
 >     uses $1: entry -> %6 lend last
 >   local $2 current: string [read assigned captured captured-assigned] place
 >     frame cell [$2]
->   %0 = Retain %24 Entry local $0 #0 : ()
+>   %0 = Retain %28 Entry local $0 #0 : ()
     let current = text
 >   %1 = Read move [$0] : string
 >   %2 = Box #2 #0 : ()
 >   %3 = Store [$2] %1 : ()
 >   %21 = Drop [$0] : ()
 >   %22 = Drop [$2] : ()
->   %23 = Release %24 Exit local $1 #2 : ()
->   %24 = Block %18 : string
+>   %23 = Intrinsic ParamOwned [1:i32] : bool
+>   %24 = Drop [$1] : ()
+>   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Release %28 Exit local $1 #2 : ()
+>   %28 = Block %18 : string
     append := fn(suffix: string) -> void: current += suffix
     append(suffix)
 >   %4 = Read copy [$2] : string
@@ -97,8 +105,12 @@ fn borrowed(text: &mut string, suffix: string) -> void:
 >   %2 = Intrinsic StrConcat [%0 %1] : string
 >   %3 = Store [*$0] %2 : ()
 >   %4 = Release %3 Operation #3 : ()
->   %5 = Release %6 Exit local $1 #2 : ()
->   %6 = Block - : ()
+>   %5 = Intrinsic ParamOwned [1:i32] : bool
+>   %6 = Drop [$1] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $1 #2 : ()
+>   %10 = Block - : ()
 >   summary kept [] borrows [$1] writes
 
 fn replace(text: &mut string) -> string:
@@ -141,7 +153,15 @@ fn joined(left: string, right: string) -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat [%0 %1] : string
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : string
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : string
 >   summary kept [] borrows [$0 $1]

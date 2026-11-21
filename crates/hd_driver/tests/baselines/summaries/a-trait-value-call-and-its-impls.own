@@ -28,8 +28,12 @@ impl Sink for Count:
 >   %0 = Read borrow [$1 .name] : string
 >   %1 = Intrinsic StrEq [%0 ""] : bool
 >   %6 = If %1 [%5 -] : ()
->   %7 = Release %8 Exit local $1 #2 : ()
->   %8 = Block - : ()
+>   %7 = Intrinsic ParamOwned [1:i32] : bool
+>   %8 = Drop [$1] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %12 Exit local $1 #2 : ()
+>   %12 = Block - : ()
             self.n = self.n + 1
 >   %2 = Read copy [*$0 .n] : usize
 >   %3 = Prim Add [%2 1:usize] : usize
@@ -68,6 +72,10 @@ fn emit(s: &mut dyn Sink, m: Member) -> void:
 >   %3 = LoanBegin %0 #2 : ()
 >   %4 = Call app/main/Sink.put for Sink [] via TraitValue (%0, %2) : ()
 >   %5 = LoanClose %1 : ()
->   %6 = Release %7 Exit local $1 #2 : ()
->   %7 = Block - : ()
+>   %6 = Intrinsic ParamOwned [1:i32] : bool
+>   %7 = Drop [$1] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $1 #2 : ()
+>   %11 = Block - : ()
 >   summary kept [] borrows [$1] writes

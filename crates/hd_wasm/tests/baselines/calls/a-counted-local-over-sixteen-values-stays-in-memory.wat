@@ -8,6 +8,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -418,7 +419,7 @@
     i32.add
     global.set $stack
   )
-  (func $looped (param $n i32) (result i32) (local $t0 i32) (local $acc i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
+  (func $looped (param $n i32) (result i32) (local $t0 i32) (local $acc i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
     ;; 54 |     let acc = 0
     global.get $stack
     global.get $stack_limit
@@ -461,22 +462,19 @@
         local.get $t0
         i32.load $heap offset=16
         local.set $t2
+    ;; 55 |     for k in 0..n:
         local.get $t0
-        i32.load $heap
-        local.tee $t3
-        if
-          local.get $t3
-          call $rt:release_ref
-        end
+        call $rt:drop
+    ;; 57 |         acc += t.f2
         local.get $acc
         i64.extend_i32_s
         local.get $t2
         i64.extend_i32_s
         i64.add
-        local.tee $t4
+        local.tee $t3
         i64.const 2147483647
         i64.gt_s
-        local.get $t4
+        local.get $t3
         i64.const -2147483648
         i64.lt_s
         i32.or
@@ -484,7 +482,7 @@
           call $rt:panic'2
           unreachable
         end
-        local.get $t4
+        local.get $t3
         i32.wrap_i64
         local.set $acc
     ;; 55 |     for k in 0..n:
@@ -871,7 +869,7 @@
     i32.add
     global.set $stack
   )
-  (func $moved (param $x i32) (result i32) (local $t0 i32) (local $s.0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i64)
+  (func $moved (param $x i32) (result i32) (local $t.tag.0 i32) (local $t.inner.name.0 i32) (local $t.v i32) (local $t0 i64)
     ;; 43 |     let t = mk_outer(x)
     global.get $stack
     global.get $stack_limit
@@ -885,44 +883,108 @@
     global.get $stack
     i32.const 88
     i32.sub
-    local.tee $t0
+    local.tee $t.tag.0
     global.set $stack
     local.get $x
-    local.get $t0
+    local.get $t.tag.0
     call $mk_outer
-    ;; 44 |     let s = keep(t.tag)
-    local.get $t0
+    local.get $t.tag.0
+    i32.load $heap offset=8
+    local.get $t.tag.0
+    i32.load $heap offset=12
+    local.get $t.tag.0
+    i32.load $heap offset=16
+    local.get $t.tag.0
+    i32.load $heap offset=20
+    local.get $t.tag.0
+    i32.load $heap offset=24
+    local.get $t.tag.0
+    i32.load $heap offset=28
+    local.get $t.tag.0
+    i32.load $heap offset=32
+    local.get $t.tag.0
+    i32.load $heap offset=36
+    local.get $t.tag.0
+    i32.load $heap offset=40
+    local.get $t.tag.0
+    i32.load $heap offset=44
+    local.get $t.tag.0
+    i32.load $heap offset=48
+    local.get $t.tag.0
+    i32.load $heap offset=52
+    local.get $t.tag.0
+    i32.load $heap offset=56
+    local.get $t.tag.0
+    i32.load $heap offset=60
+    local.get $t.tag.0
+    i32.load $heap offset=64
+    local.get $t.tag.0
+    i32.load $heap offset=68
+    local.get $t.tag.0
+    i32.load $heap offset=72
+    local.get $t.tag.0
+    i32.load $heap
+    local.get $t.tag.0
+    i32.load $heap offset=4
+    local.get $t.tag.0
+    i32.load $heap offset=84
+    local.get $t.tag.0
     i32.load $heap offset=76
-    local.get $t0
+    local.get $t.tag.0
     i32.load $heap offset=80
+    local.get $t.tag.0
+    i32.const 88
+    i32.add
+    global.set $stack
+    local.set $x
+    local.set $t.tag.0
+    local.set $t.v
+    drop
+    local.set $t.inner.name.0
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    drop
+    ;; 44 |     let s = keep(t.tag)
+    local.get $t.tag.0
+    local.get $x
     call $keep
     local.set $x
-    local.set $s.0
+    local.set $t.tag.0
+    ;; 43 |     let t = mk_outer(x)
+    local.get $t.inner.name.0
+    if
+      local.get $t.inner.name.0
+      call $rt:release_ref
+    end
     ;; 45 |     t.v + i32(s.len())
-    local.get $t0
-    i32.load $heap offset=84
-    local.set $t1
-    local.get $t0
-    i32.load $heap
-    local.tee $t2
+    local.get $t.tag.0
     if
-      local.get $t2
+      local.get $t.tag.0
       call $rt:release_ref
     end
-    local.get $s.0
-    if
-      local.get $s.0
-      call $rt:release_ref
-    end
-    local.get $t1
+    local.get $t.v
     i64.extend_i32_s
     local.get $x
     i64.extend_i32_s
     i64.add
-    local.tee $t3
+    local.tee $t0
     i64.const 2147483647
     i64.gt_s
-    local.get $t3
+    local.get $t0
     i64.const -2147483648
     i64.lt_s
     i32.or
@@ -930,12 +992,7 @@
       call $rt:panic'2
       unreachable
     end
-    local.get $t3
-    i32.wrap_i64
-    ;; 43 |     let t = mk_outer(x)
     local.get $t0
-    i32.const 88
-    i32.add
-    global.set $stack
+    i32.wrap_i64
   )
 )

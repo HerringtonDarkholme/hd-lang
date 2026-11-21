@@ -13,8 +13,12 @@ fn str_slice(s: string) -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl string.slice[] (%0, 1:usize, 3:usize) : string
 >   %2 = Retain %1 Operation operand 0 #0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %1 : string
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %1 : string
 >   summary kept [] borrows [$0]
 
 fn str_slice_len(s: string, n: usize) -> usize:
@@ -37,8 +41,12 @@ fn str_slice_len(s: string, n: usize) -> usize:
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
 >   %10 = Drop [$2] : ()
->   %11 = Release %12 Exit local $0 #2 : ()
->   %12 = Block %9 : usize
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Release %16 Exit local $0 #2 : ()
+>   %16 = Block %9 : usize
 >   summary kept [] borrows [$0]
 
 fn list_slice(xs: List[string]) -> List[string]:
@@ -51,8 +59,12 @@ fn list_slice(xs: List[string]) -> List[string]:
 >   %3 = Ref local frame [$0] : &List[string]
 >   %4 = Call std/collections/impl[T] List[T].slice[string] (%3, 1:usize, %2) : List[string]
 >   %5 = LoanEnd [%3] : ()
->   %6 = Release %7 Exit local $0 #2 : ()
->   %7 = Block %4 : List[string]
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %4 : List[string]
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -66,8 +78,12 @@ fn list_full(xs: List[string]) -> List[string]:
 >   %3 = Ref local frame [$0] : &List[string]
 >   %4 = Call std/collections/impl[T] List[T].slice[string] (%3, 0:usize, %2) : List[string]
 >   %5 = LoanEnd [%3] : ()
->   %6 = Release %7 Exit local $0 #2 : ()
->   %7 = Block %4 : List[string]
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %4 : List[string]
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -81,7 +97,11 @@ fn list_slice_len(xs: List[string]) -> usize:
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Intrinsic ListLen [%2] : usize
 >   %5 = Drop [%2] : ()
->   %6 = Release %7 Exit local $0 #2 : ()
->   %7 = Block %4 : usize
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %4 : usize
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]

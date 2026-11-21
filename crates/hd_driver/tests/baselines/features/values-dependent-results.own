@@ -47,8 +47,12 @@ fn read(u: User) -> usize:
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = LoanEnd [%8] : ()
 >   %11 = LoanEnd [$1] : ()
->   %12 = Release %13 Exit local $0 #2 : ()
->   %13 = Block %9 : usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %9 : usize
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -70,8 +74,12 @@ fn read_list(us: List[User]) -> usize:
 >   %9 = Call std/text/impl string.len[] (%8) : usize
 >   %10 = LoanEnd [%8] : ()
 >   %11 = LoanEnd [$1] : ()
->   %12 = Release %13 Exit local $0 #2 : ()
->   %13 = Block %9 : usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %9 : usize
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -95,6 +103,10 @@ fn through_ptr(u: *User) -> usize:
 >   %10 = LoanClose %1 : ()
 >   %11 = LoanClose %4 : ()
 >   %12 = LoanEnd [%7] : ()
->   %13 = Release %14 Exit local $0 #2 : ()
->   %14 = Block %9 : usize
+>   %13 = Intrinsic ParamOwned [0:i32] : bool
+>   %14 = Drop [$0] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
+>   %17 = Release %18 Exit local $0 #2 : ()
+>   %18 = Block %9 : usize
 >   summary kept [] borrows [$0]

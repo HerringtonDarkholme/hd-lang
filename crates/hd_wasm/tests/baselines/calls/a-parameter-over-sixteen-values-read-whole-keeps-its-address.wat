@@ -4,15 +4,15 @@
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "release_value[std.rt_tests.stage_case.Loud]" (func $"release_value[std.rt_tests.stage_case.Loud]" (param i32)))
+  (import "fixture" "rt:drop'1" (func $rt:drop'1 (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:drop'2" (func $rt:drop'2 (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64) (local $value'1 i64) (local $t4 i32) (local $t5 i32) (local $value'2 i64) (local $t6 i32) (local $t7 i32) (local $value'3 i64) (local $t8 i32) (local $t10 i32) (local $t9 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i64) (local $value'1 i64) (local $t4 i32) (local $t5 i32) (local $value'2 i64) (local $t6 i32) (local $value'3 i64) (local $t7 i32) (local $t8 i32) (local $t10 i32) (local $t9 i32)
     ;; 68 |     let b = keep(make(1))
     global.get $stack
     global.get $stack_limit
@@ -170,15 +170,15 @@
     local.get $t0
     i32.load $heap offset=84
     local.set $t4
-    local.get $t0
-    i32.const 80
-    i32.add
-    local.set $t7
+    ;; 68 |     let b = keep(make(1))
     local.get $t2
     if
-      local.get $t7
-      call $"release_value[std.rt_tests.stage_case.Loud]"
+      local.get $t0
+      i32.const 80
+      i32.add
+      call $rt:drop'1
     end
+    ;; 71 |     println("${b.f16} ${moved_on(n, true)} ${loud_on(l, false)}")
     local.get $t4
     i64.extend_i32_s
     local.tee $value'2
@@ -191,11 +191,11 @@
     i64.lt_s
     if
       i32.const 1
-      local.set $t8
+      local.set $t7
     end
     local.get $t2
     i64.extend_i32_u
-    local.get $t8
+    local.get $t7
     i64.extend_i32_u
     i64.add
     local.tee $value'3
@@ -207,7 +207,7 @@
     end
     local.get $value'3
     i32.wrap_i64
-    local.set $t8
+    local.set $t7
     local.get $t5
     local.tee $t2
     i32.const -2
@@ -234,19 +234,19 @@
     local.get $value'3
     i32.wrap_i64
     local.tee $t4
-    local.tee $t7
+    local.tee $t8
     i32.const -2
     i32.gt_u
     if
       call $rt:panic'2
       unreachable
     end
-    local.get $t7
+    local.get $t8
     i32.const 1
     i32.add
-    local.tee $t7
+    local.tee $t8
     i64.extend_i32_u
-    local.get $t8
+    local.get $t7
     i64.extend_i32_u
     i64.add
     local.tee $value'3
@@ -310,9 +310,9 @@
     i32.store8 $heap
     local.get $value'2
     local.get $t10
-    local.get $t7
-    i32.add
     local.get $t8
+    i32.add
+    local.get $t7
     call $write_signed_sized
     local.get $t10
     local.get $t9
@@ -334,7 +334,7 @@
     local.get $t0
     i32.load $heap offset=68
     local.get $t0
-    call $"release_value[std.rt_tests.stage_case.Loud]"
+    call $rt:drop'1
   )
   (func $"impl Drop for Loud.drop" (param $self i32)
     ;; 44 |         self.id = 0
@@ -362,7 +362,7 @@
     local.get $t0
     if
       local.get $t1
-      call $"release_value[std.rt_tests.stage_case.Loud]"
+      call $rt:drop'1
     end
     local.get $go
   )
@@ -375,12 +375,7 @@
     local.set $self.1
     drop
     local.get $t0
-    i32.load $heap
-    local.tee $t0
-    if
-      local.get $t0
-      call $rt:release_ref
-    end
+    call $rt:drop'2
     local.get $self.1
   )
   (func $moved_on (param $t1 i32) (param $go i32) (result i32) (local $t0 i32)
@@ -400,16 +395,10 @@
     i32.load $heap offset=16
     local.set $go
     ;; 55 |     if go:
-    local.get $t1
-    i32.load $heap
-    local.set $t1
     local.get $t0
     if
       local.get $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
+      call $rt:drop'2
     end
     local.get $go
   )

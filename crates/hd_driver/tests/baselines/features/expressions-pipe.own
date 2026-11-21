@@ -111,8 +111,12 @@ fn clean(raw: string) -> string:
 >   %72 = Scope %71 [] : ()
 >   %73 = Read move [%16] : string
 >   %74 = Drop [$3] : ()
->   %75 = Release %76 Exit local $0 #2 : ()
->   %76 = Block %73 : string
+>   %75 = Intrinsic ParamOwned [0:i32] : bool
+>   %76 = Drop [$0] : ()
+>   %77 = Block - : ()
+>   %78 = If %75 [%77 -] : ()
+>   %79 = Release %80 Exit local $0 #2 : ()
+>   %80 = Block %73 : string
 >   summary kept [] borrows [$0] writes
 
 fn tag(label: string, level: i64) -> string:
@@ -241,8 +245,12 @@ fn tag(label: string, level: i64) -> string:
 >   %88 = Block - : ()
 >   %89 = Scope %88 [] : ()
 >   %90 = Read move [%36] : string
->   %91 = Release %92 Exit local $0 #2 : ()
->   %92 = Block %90 : string
+>   %91 = Intrinsic ParamOwned [0:i32] : bool
+>   %92 = Drop [$0] : ()
+>   %93 = Block - : ()
+>   %94 = If %91 [%93 -] : ()
+>   %95 = Release %96 Exit local $0 #2 : ()
+>   %96 = Block %90 : string
 >   summary kept [] borrows [$0] writes
 
 fn bare(raw: string) -> string:
@@ -269,8 +277,12 @@ fn bare(raw: string) -> string:
 >   %16 = Drop [%6] : ()
 >   %17 = Block - : string
 >   %18 = Scope %17 [] : string
->   %19 = Release %20 Exit local $0 #2 : ()
->   %20 = Block %18 : string
+>   %19 = Intrinsic ParamOwned [0:i32] : bool
+>   %20 = Drop [$0] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $0 #2 : ()
+>   %24 = Block %18 : string
 >   summary kept [] borrows [$0] writes
 
 fn chain(raw: string) -> string:
@@ -326,8 +338,12 @@ fn chain(raw: string) -> string:
 >   %41 = Block - : string
 >   %42 = Scope %41 [] : string
 >   %43 = Drop [$1] : ()
->   %44 = Release %45 Exit local $0 #2 : ()
->   %45 = Block %42 : string
+>   %44 = Intrinsic ParamOwned [0:i32] : bool
+>   %45 = Drop [$0] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Release %49 Exit local $0 #2 : ()
+>   %49 = Block %42 : string
 >   summary kept [] borrows [$0] writes
 
 fn direct(raw: string) -> string:
@@ -383,8 +399,12 @@ fn direct(raw: string) -> string:
 >   %41 = Block - : string
 >   %42 = Scope %41 [] : string
 >   %43 = Drop [$1] : ()
->   %44 = Release %45 Exit local $0 #2 : ()
->   %45 = Block %42 : string
+>   %44 = Intrinsic ParamOwned [0:i32] : bool
+>   %45 = Drop [$0] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Release %49 Exit local $0 #2 : ()
+>   %49 = Block %42 : string
 >   summary kept [] borrows [$0] writes
 
 fn method_slot(raw: string) -> usize:
@@ -397,8 +417,12 @@ fn method_slot(raw: string) -> usize:
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %4 : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %4 : usize
 >   summary kept [] borrows [$0]
 
 fn literal_slot(raw: string) -> Point:

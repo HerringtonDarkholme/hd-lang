@@ -26,8 +26,12 @@ fn read_user(u: User) -> usize:
 >   %5 = Store [$2] %3 : ()
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %1] : ()
->   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %16 : usize
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %16 : usize
     name.len() + tags.len()
 >   %9 = Read borrow [$1] : string
 >   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
@@ -52,8 +56,12 @@ fn take_name(u: User) -> string:
 >   %3 = Store [$1] %2 : ()
 >   %5 = Block - : never
 >   %6 = Match %0 [%5 %1] : ()
->   %9 = Release %10 Exit local $0 #2 : ()
->   %10 = Block %7 : string
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $0 #2 : ()
+>   %14 = Block %7 : string
     name
 >   %7 = Read copy [$1] : string
 >   %8 = Retain %7 Value #0 : ()
@@ -76,8 +84,12 @@ fn pair(p: (string, string)) -> usize:
 >   %5 = Store [$2] %3 : ()
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %1] : ()
->   %20 = Release %21 Exit local $0 #2 : ()
->   %21 = Block %19 : usize
+>   %20 = Intrinsic ParamOwned [0:i32] : bool
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Release %25 Exit local $0 #2 : ()
+>   %25 = Block %19 : usize
     a.len() + b.len()
 >   %9 = Read borrow [$1] : string
 >   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
@@ -98,25 +110,33 @@ fn present(o: string?) -> usize:
 >   local $0 o: string? [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 s: string [read assigned] value
->     uses $1: %6 -> %14 lend last
+>     uses $1: %10 -> %18 lend last
 >   %0 = Read borrow [$0] : string?
 >   %1 = Block - : ()
->   %2 = Release %20 Exit local $0 #2 : ()
->   %4 = Block - : never
->   %5 = Read borrow [%0 as #1 .0] : string
->   %6 = Store [$1] %5 : ()
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %28 Exit local $0 #2 : ()
 >   %8 = Block - : never
->   %11 = SwitchTag %0 [#1 %8 %10] : never
+>   %9 = Read borrow [%0 as #1 .0] : string
+>   %10 = Store [$1] %9 : ()
 >   %12 = Block - : never
->   %13 = Match %0 [%12 %1 %4] : ()
->   %19 = Release %20 Exit local $0 #2 : ()
->   %20 = Block %18 : usize
+>   %15 = SwitchTag %0 [#1 %12 %14] : never
+>   %16 = Block - : never
+>   %17 = Match %0 [%16 %1 %8] : ()
+>   %23 = Intrinsic ParamOwned [0:i32] : bool
+>   %24 = Drop [$0] : ()
+>   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Release %28 Exit local $0 #2 : ()
+>   %28 = Block %22 : usize
         return 0
->   %3 = Return 0:usize : never
+>   %7 = Return 0:usize : never
     s.len()
->   %14 = Read borrow [$1] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L0 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
+>   %18 = Read borrow [$1] : string
+>   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %20 = Break L0 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
 >   summary kept [] borrows [$0]

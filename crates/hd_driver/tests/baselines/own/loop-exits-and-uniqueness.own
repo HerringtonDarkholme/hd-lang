@@ -120,8 +120,12 @@ fn for_list(xs: &mut List[usize], source: List[usize]) -> void:
 >   %24 = If %7 [%21 %23] : ()
 >   %25 = Block - : ()
 >   %26 = Loop %25 - : ()
->   %27 = Release %28 Exit local $1 #2 : ()
->   %28 = Block - : ()
+>   %27 = Intrinsic ParamOwned [1:i32] : bool
+>   %28 = Drop [$1] : ()
+>   %29 = Block - : ()
+>   %30 = If %27 [%29 -] : ()
+>   %31 = Release %32 Exit local $1 #2 : ()
+>   %32 = Block - : ()
         xs.push(i)
 >   %13 = Read copy [$6] : usize
 >   %14 = Read borrow [*$0] : List[usize]

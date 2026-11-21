@@ -51,8 +51,12 @@ fn tick(s: string) -> usize $ Recorder:
 >   %0 = ProviderGet #0 : Recorder
 >   %1 = Coerce %0 [ProviderAsRef -] : &mut dyn Recorder
 >   %2 = Store [$1] %1 : ()
->   %14 = Release %15 Exit local $0 #2 : ()
->   %15 = Block %11 : usize
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %19 Exit local $0 #2 : ()
+>   %19 = Block %11 : usize
     rec.note(s)
 >   %3 = Read borrow [*$1] : Recorder
 >   %4 = LoanBegin %3 #0 : ()
@@ -90,9 +94,17 @@ fn demo(a: string, b: string) -> usize:
 >   %3 = Store [$2] %1 : ()
 >   %4 = Ref take mut [$2] : *mut Log
 >   %5 = Store [$3] %4 : ()
->   %56 = Release %58 Exit local $0 #2 : ()
->   %57 = Release %58 Exit local $1 #2 : ()
->   %58 = Block %54 : usize
+>   %56 = Intrinsic ParamOwned [0:i32] : bool
+>   %57 = Drop [$0] : ()
+>   %58 = Block - : ()
+>   %59 = If %56 [%58 -] : ()
+>   %60 = Release %66 Exit local $0 #2 : ()
+>   %61 = Intrinsic ParamOwned [1:i32] : bool
+>   %62 = Drop [$1] : ()
+>   %63 = Block - : ()
+>   %64 = If %61 [%63 -] : ()
+>   %65 = Release %66 Exit local $1 #2 : ()
+>   %66 = Block %54 : usize
     $.with(Recorder=tally):
 >   %6 = Read copy [$3] : *mut Log
 >   %7 = Retain %6 Value #0 : ()

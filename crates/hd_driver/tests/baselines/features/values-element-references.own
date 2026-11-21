@@ -71,13 +71,17 @@ fn by_key(m: Map[string, Player], k: string) -> Map[string, Player]:
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %4 lend last
 >   local $2 out: Map[string, Player] [read assigned] place
->   %0 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %17 Entry local $0 #0 : ()
     let mut out = m
 >   %1 = Read move [$0] : Map[string, Player]
 >   %2 = Store [$2] %1 : ()
 >   %11 = Drop [$0] : ()
->   %12 = Release %13 Exit local $1 #2 : ()
->   %13 = Block %10 : Map[string, Player]
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %10 : Map[string, Player]
     reward(&mut out[k], 10)
 >   %3 = Read borrow [$2] : Map[string, Player]
 >   %4 = Read borrow [$1] : string

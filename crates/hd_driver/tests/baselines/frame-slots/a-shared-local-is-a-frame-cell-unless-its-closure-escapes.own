@@ -42,9 +42,17 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %26 = If %6 [%23 %25] : ()
 >   %27 = Block - : ()
 >   %28 = Loop %27 - : ()
->   %29 = Release %31 Exit local $0 #2 : ()
->   %30 = Release %31 Exit local $1 #2 : ()
+>   %29 = Intrinsic ParamOwned [0:i32] : bool
+>   %30 = Drop [$0] : ()
 >   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Release %39 Exit local $0 #2 : ()
+>   %34 = Intrinsic ParamOwned [1:i32] : bool
+>   %35 = Drop [$1] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Release %39 Exit local $1 #2 : ()
+>   %39 = Block - : ()
         f(x)
 >   %12 = Read borrow [$1] : fn(string) -> ()
 >   %13 = Read copy [$6] : string
@@ -71,8 +79,12 @@ fn lent(xs: List[string]) -> usize:
 >   %0 = Box #1 #0 : ()
 >   %1 = Store [$1] 0:usize : ()
 >   %51 = Drop [$1] : ()
->   %52 = Release %53 Exit local $0 #2 : ()
->   %53 = Block %49 : usize
+>   %52 = Intrinsic ParamOwned [0:i32] : bool
+>   %53 = Drop [$0] : ()
+>   %54 = Block - : ()
+>   %55 = If %52 [%54 -] : ()
+>   %56 = Release %57 Exit local $0 #2 : ()
+>   %57 = Block %49 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Retain %6 Entry local $2 #0 : ()
 >   %3 = Drop [$2] : ()

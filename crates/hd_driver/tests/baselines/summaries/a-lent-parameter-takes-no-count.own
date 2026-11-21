@@ -35,8 +35,12 @@ fn weight(f: Field) -> i64:
 >   %14 = Read copy [$0 .n] : i64
 >   %15 = Prim Add [%14 6:i64] : i64
 >   %16 = Prim Div [%13 %15] : i64
->   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %16 : i64
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %16 : i64
 >   summary kept [] borrows [$0]
 
 fn remember(all: &mut List[Field], f: Field) -> void:
@@ -70,8 +74,12 @@ fn total(f: Field, times: i64) -> i64:
 >   local $5 $incl: bool [assigned] value
 >     uses $5: none
 >   %0 = Store [$2] 0:i64 : ()
->   %46 = Release %47 Exit local $0 #2 : ()
->   %47 = Block %45 : i64
+>   %46 = Intrinsic ParamOwned [0:i32] : bool
+>   %47 = Drop [$0] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Release %51 Exit local $0 #2 : ()
+>   %51 = Block %45 : i64
     for _ in 0..times:
 >   %1 = Read copy [$1] : i64
 >   %2 = NewStruct [0:i64 %1 0:bool] : Range[i64]
@@ -163,9 +171,17 @@ fn apply(g: fn(Field) -> i64, f: Field) -> i64:
 >   %0 = Read borrow [$0] : fn(Field) -> i64
 >   %1 = Read borrow [$1] : Field
 >   %2 = CallValue %0 [%1] : i64
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : i64
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : i64
 >   summary kept [] borrows [$0 $1] writes
 
 fn set_first(target: &i64, xs: List[i64]) -> i64:
@@ -178,8 +194,12 @@ fn set_first(target: &i64, xs: List[i64]) -> i64:
 >   %0 = Read copy [*$0] : i64
 >   %1 = Read copy [$1 [0:usize]] : i64
 >   %2 = Prim Add [%0 %1] : i64
->   %3 = Release %4 Exit local $1 #2 : ()
->   %4 = Block %2 : i64
+>   %3 = Intrinsic ParamOwned [1:i32] : bool
+>   %4 = Drop [$1] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $1 #2 : ()
+>   %8 = Block %2 : i64
 >   summary kept [] borrows [$1]
 
 fn pinned() -> i64:

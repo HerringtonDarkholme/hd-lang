@@ -23,9 +23,17 @@ fn map_index(m: Map[string, string], k: string) -> usize:
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
->   %10 = Release %12 Exit local $0 #2 : ()
->   %11 = Release %12 Exit local $1 #2 : ()
->   %12 = Block %9 : usize
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %20 Exit local $0 #2 : ()
+>   %15 = Intrinsic ParamOwned [1:i32] : bool
+>   %16 = Drop [$1] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $1 #2 : ()
+>   %20 = Block %9 : usize
 >   summary kept [] borrows [$0 $1]
 
 fn map_index_take(m: Map[string, string], k: string) -> string:
@@ -40,9 +48,17 @@ fn map_index_take(m: Map[string, string], k: string) -> string:
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
 >   %3 = Read copy [$0 [%2]] : string
 >   %4 = Retain %3 Value #0 : ()
->   %5 = Release %7 Exit local $0 #2 : ()
->   %6 = Release %7 Exit local $1 #2 : ()
->   %7 = Block %3 : string
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %15 Exit local $0 #2 : ()
+>   %10 = Intrinsic ParamOwned [1:i32] : bool
+>   %11 = Drop [$1] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $1 #2 : ()
+>   %15 = Block %3 : string
 >   summary kept [] borrows [$0 $1]
 
 fn string_byte(s: string, i: usize) -> u8:
@@ -55,8 +71,12 @@ fn string_byte(s: string, i: usize) -> u8:
 >   %0 = Read borrow [$0] : string
 >   %1 = Read copy [$1] : usize
 >   %2 = Intrinsic StrIndex [%0 %1] : u8
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %2 : u8
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %2 : u8
 >   summary kept [] borrows [$0]
 
 fn ref_list_index(xs: &List[string], i: usize) -> usize:

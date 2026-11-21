@@ -17,6 +17,10 @@ fn cursor(values: Map[u64, (u8, u64)]) -> MapEntries[u64, (u8, u64)]:
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : MapEntries[u64, (u8, u64)]
 >   %6 = Scope %5 [] : MapEntries[u64, (u8, u64)]
->   %7 = Release %8 Exit local $0 #2 : ()
->   %8 = Block %6 : MapEntries[u64, (u8, u64)]
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %12 Exit local $0 #2 : ()
+>   %12 = Block %6 : MapEntries[u64, (u8, u64)]
 >   summary kept [] borrows [$0] writes

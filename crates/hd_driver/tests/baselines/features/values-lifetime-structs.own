@@ -36,8 +36,12 @@ fn word['a](t: Token[string, 'a], fallback: &'a string) -> &'a string:
 >   %0 = Read borrow [$0] : Token[string]
 >   %14 = Block - : never
 >   %15 = Match %0 [%14 %3 %6] : &string
->   %16 = Release %17 Exit local $0 #2 : ()
->   %17 = Block %15 : &string
+>   %16 = Intrinsic ParamOwned [0:i32] : bool
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Release %21 Exit local $0 #2 : ()
+>   %21 = Block %15 : &string
         Token.Word(w) => w
 >   %1 = Read copy [$2] : &string
 >   %2 = Retain %1 Value #0 : ()
@@ -69,8 +73,12 @@ fn length(text: string) -> usize:
 >   %6 = Block - : Parser[string]
 >   %7 = Scope %6 [] : Parser[string]
 >   %8 = Store [$1] %7 : ()
->   %14 = Release %15 Exit local $0 #2 : ()
->   %15 = Block %13 : usize
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %19 Exit local $0 #2 : ()
+>   %19 = Block %13 : usize
     p.src.len() + p.pos
 >   %9 = Read borrow [$1 .src] : &string
 >   %10 = Call std/text/impl string.len[] (%9) : usize
@@ -117,8 +125,16 @@ fn token(text: string, other: string) -> usize:
 >   %26 = LoanEnd [$2] : ()
 >   %27 = Call std/text/impl string.len[] (%24) : usize
 >   %28 = Drop [%24] : ()
->   %29 = Release %31 Exit local $0 #2 : ()
->   %30 = Release %31 Exit local $1 #2 : ()
->   %31 = Block %27 : usize
+>   %29 = Intrinsic ParamOwned [0:i32] : bool
+>   %30 = Drop [$0] : ()
+>   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Release %39 Exit local $0 #2 : ()
+>   %34 = Intrinsic ParamOwned [1:i32] : bool
+>   %35 = Drop [$1] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Release %39 Exit local $1 #2 : ()
+>   %39 = Block %27 : usize
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]

@@ -12,38 +12,39 @@ fn forward[$ R](callback: fn() -> i32 $ R) -> i32 $ R:
     callback()
 > app/main/forward
 >   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = FlagSet [$0] #1 : ()
->   %1 = Read borrow [$0] : fn() -> i32
->   %2 = CallValue %1 [] : i32
->   %3 = Retain %2 Operation row #0 : ()
->   %4 = Release %2 Operation row #2 : ()
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %2 : i32
+>     uses $0: entry -> %0 lend last
+>   %0 = Read borrow [$0] : fn() -> i32
+>   %1 = CallValue %0 [] : i32
+>   %2 = Retain %1 Operation row #0 : ()
+>   %3 = Release %1 Operation row #2 : ()
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %9 Exit local $0 #2 : ()
+>   %9 = Block %1 : i32
 >   summary kept [] borrows [$0] writes
 
 fn later![$ R](callback: fn() -> i32 $ R) -> i32 $ R:
 > app/main/later
 >   local $0 callback: fn() -> i32 [param read] value
->     uses $0: entry -> %9 lend last
->   %1 = Retain %16 Cold local $0 #0 : ()
->   %2 = Retain %16 Entry local $0 #0 : ()
->   %6 = Retain %16 Cold referent $0 #8 : ()
->   %7 = Release %16 FrameDrop referent $0 #2 : ()
->   %8 = Release %16 Exit referent $0 #8 : ()
+>     uses $0: entry -> %8 lend last
+>   %0 = Retain %14 Cold local $0 #0 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
+>   %5 = Retain %14 Cold referent $0 #8 : ()
+>   %6 = Release %14 FrameDrop referent $0 #2 : ()
+>   %7 = Release %14 Exit referent $0 #8 : ()
     callback()
->   %0 = FlagSet [$0] #1 : ()
->   %3 = Retain %16 Cold row #0 : ()
->   %4 = Retain %16 Materialize row #0 : ()
->   %5 = Release %16 FrameDrop row #2 : ()
->   %9 = Read move [$0] : fn() -> i32
->   %10 = FlagClear [$0] #1 : ()
->   %11 = CallValue %9 [] : i32
->   %12 = Retain %11 Operation row #0 : ()
->   %13 = Release %11 Operation row #2 : ()
->   %14 = Drop [%9] : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %11 : i32
+>   %2 = Retain %14 Cold row #0 : ()
+>   %3 = Retain %14 Materialize row #0 : ()
+>   %4 = Release %14 FrameDrop row #2 : ()
+>   %8 = Read move [$0] : fn() -> i32
+>   %9 = CallValue %8 [] : i32
+>   %10 = Retain %9 Operation row #0 : ()
+>   %11 = Release %9 Operation row #2 : ()
+>   %12 = Drop [%8] : ()
+>   %13 = Drop [$0] : ()
+>   %14 = Block %9 : i32
 >   exit sub 0 drops [$0]
 >   summary none
 
@@ -57,8 +58,12 @@ fn ordinary(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   %2 = Retain %1 Operation row #0 : ()
 >   %3 = Release %1 Operation row #2 : ()
 >   %4 = Retain %1 Operation operand 0 #0 : ()
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %1 : i32
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %1 : i32
 >   summary kept [] borrows [$0] writes
 
 fn cold(callback: fn() -> i32 $ Tag) -> Suspend[i32] $ Tag:
@@ -108,6 +113,10 @@ fn empty(callback: fn() -> i32) -> i32:
 >   %0 = Read borrow [$0] : fn() -> i32
 >   %1 = Call app/main/forward[$()] (%0) : i32
 >   %2 = Retain %1 Operation operand 0 #0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %1 : i32
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %1 : i32
 >   summary kept [] borrows [$0] writes

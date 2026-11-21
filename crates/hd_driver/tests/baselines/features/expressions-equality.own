@@ -19,9 +19,17 @@ fn str_eq(a: string, b: string) -> bool:
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrEq [%0 %1] : bool
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : bool
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : bool
 >   summary kept [] borrows [$0 $1]
 
 fn list_ne(a: List[string], b: List[string]) -> bool:
@@ -37,9 +45,17 @@ fn list_ne(a: List[string], b: List[string]) -> bool:
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
 >   %7 = Prim Not [%4] : bool
->   %8 = Release %10 Exit local $0 #2 : ()
->   %9 = Release %10 Exit local $1 #2 : ()
->   %10 = Block %7 : bool
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %18 Exit local $0 #2 : ()
+>   %13 = Intrinsic ParamOwned [1:i32] : bool
+>   %14 = Drop [$1] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
+>   %17 = Release %18 Exit local $1 #2 : ()
+>   %18 = Block %7 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -55,9 +71,17 @@ fn rec_eq(a: Rec, b: Rec) -> bool:
 >   %4 = Call std/core/Eq.eq for Rec [] via Impl (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %7 = Release %9 Exit local $0 #2 : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block %4 : bool
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %17 Exit local $0 #2 : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %4 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -80,8 +104,12 @@ fn opt_none(o: string?) -> bool:
 >   %12 = Block 0:bool : bool
 >   %13 = Match %1 [%10 %11 %12] : bool
 >   %14 = LoanEnd [%1] : ()
->   %15 = Release %16 Exit local $0 #2 : ()
->   %16 = Block %13 : bool
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $0 #2 : ()
+>   %20 = Block %13 : bool
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -102,9 +130,17 @@ fn opt_some(o: string?, s: string) -> bool:
 >   %7 = Call std/core/Eq.eq for string? [] via Impl (%1, %6) : bool
 >   %8 = LoanEnd [%6] : ()
 >   %9 = LoanEnd [%1] : ()
->   %10 = Release %12 Exit local $0 #2 : ()
->   %11 = Release %12 Exit local $1 #2 : ()
->   %12 = Block %7 : bool
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %20 Exit local $0 #2 : ()
+>   %15 = Intrinsic ParamOwned [1:i32] : bool
+>   %16 = Drop [$1] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $1 #2 : ()
+>   %20 = Block %7 : bool
 >   storage sub 0: $0 slot, $2 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -120,7 +156,15 @@ fn map_eq(a: Map[string, string], b: Map[string, string]) -> bool:
 >   %4 = Call std/core/Eq.eq for Map[string, string] [] via Impl (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %7 = Release %9 Exit local $0 #2 : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block %4 : bool
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %17 Exit local $0 #2 : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %4 : bool
 >   summary kept [] borrows [$0 $1]

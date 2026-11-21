@@ -763,23 +763,31 @@ fn arm(x: Option[string]) -> string:
 >   local $1 v: string [read assigned captured] place
 >   %0 = Read borrow [$0] : string?
 >   %1 = Box #1 #256 : ()
->   %16 = Block - : never
->   %17 = Match %0 [%16 %5 %8] : string
->   %18 = Release %19 Exit local $0 #2 : ()
->   %19 = Block %17 : string
+>   %20 = Block - : never
+>   %21 = Match %0 [%20 %5 %12] : string
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Release %27 Exit local $0 #2 : ()
+>   %27 = Block %21 : string
         .Some(v) => show(&v)
 >   %2 = Ref local frame [$1] : &string
 >   %3 = Call std/rt_tests.stage_case/show[] (%2) : string
 >   %4 = LoanEnd [%2] : ()
 >   %5 = Block %3 : string
->   %9 = Read borrow [%0 as #1 .0] : string
->   %10 = Store [$1] %9 : ()
->   %12 = Block - : never
->   %15 = SwitchTag %0 [#1 %12 %14] : never
+>   %13 = Read borrow [%0 as #1 .0] : string
+>   %14 = Store [$1] %13 : ()
+>   %16 = Block - : never
+>   %19 = SwitchTag %0 [#1 %16 %18] : never
         .None => return "-"
->   %6 = Release %19 Exit local $0 #2 : ()
->   %7 = Return "-" : never
->   %8 = Block - : never
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %27 Exit local $0 #2 : ()
+>   %11 = Return "-" : never
+>   %12 = Block - : never
 >   storage sub 0: $1 slot
 
 fn param(p: string) -> string:

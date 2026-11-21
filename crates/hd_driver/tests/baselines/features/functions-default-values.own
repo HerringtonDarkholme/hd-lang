@@ -76,9 +76,17 @@ fn labeled(name: string, suffix: string = "!") -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat [%0 %1] : string
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : string
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : string
 >   summary kept [] borrows [$0 $1]
 
 fn use_label(s: string) -> string:
@@ -99,8 +107,12 @@ fn use_label(s: string) -> string:
 >   %8 = Block - : string
 >   %9 = Scope %8 [] : string
 >   %10 = Drop [$4] : ()
->   %11 = Release %12 Exit local $0 #2 : ()
->   %12 = Block %9 : string
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Release %16 Exit local $0 #2 : ()
+>   %16 = Block %9 : string
 >   summary kept [] borrows [$0]
 
 fn reference_default['a](

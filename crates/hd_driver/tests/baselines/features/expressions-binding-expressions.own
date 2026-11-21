@@ -23,8 +23,12 @@ fn guard(s: string) -> usize:
 >   %9 = Block %8 : usize
 >   %10 = Block 0:usize : usize
 >   %11 = If %7 [%9 %10] : usize
->   %12 = Release %13 Exit local $0 #2 : ()
->   %13 = Block %11 : usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %11 : usize
 >   summary kept [] borrows [$0]
 
 fn bind_counted(s: string) -> usize:
@@ -52,8 +56,12 @@ fn bind_counted(s: string) -> usize:
 >   %15 = Block 0:usize : usize
 >   %16 = If %8 [%14 %15] : usize
 >   %17 = Drop [$1] : ()
->   %18 = Release %19 Exit local $0 #2 : ()
->   %19 = Block %16 : usize
+>   %18 = Intrinsic ParamOwned [0:i32] : bool
+>   %19 = Drop [$0] : ()
+>   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Release %23 Exit local $0 #2 : ()
+>   %23 = Block %16 : usize
 >   summary kept [] borrows [$0]
 
 fn bind_param(xs: List[string]) -> usize:
@@ -69,6 +77,10 @@ fn bind_param(xs: List[string]) -> usize:
 >   %5 = Block %4 : usize
 >   %6 = Block 0:usize : usize
 >   %7 = If %2 [%5 %6] : usize
->   %8 = Release %9 Exit local $0 #2 : ()
->   %9 = Block %7 : usize
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $0 #2 : ()
+>   %13 = Block %7 : usize
 >   summary kept [] borrows [$0]

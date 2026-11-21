@@ -24,9 +24,17 @@ fn same(a: Key, b: Key) -> bool:
 >   %4 = Call std/core/Eq.eq for Key [] via Impl (%2, %3) : bool
 >   %5 = LoanEnd [%3] : ()
 >   %6 = LoanEnd [%2] : ()
->   %7 = Release %9 Exit local $0 #2 : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block %4 : bool
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %17 Exit local $0 #2 : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %4 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -49,9 +57,17 @@ fn before(a: Key, b: Key) -> bool:
 >   %11 = Block %10 : bool
 >   %12 = Block 0:bool : bool
 >   %13 = SwitchTag %4 [#1 %11 %12] : bool
->   %14 = Release %16 Exit local $0 #2 : ()
->   %15 = Release %16 Exit local $1 #2 : ()
->   %16 = Block %13 : bool
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %24 Exit local $0 #2 : ()
+>   %19 = Intrinsic ParamOwned [1:i32] : bool
+>   %20 = Drop [$1] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $1 #2 : ()
+>   %24 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -71,9 +87,17 @@ fn lookup(m: Map[Key, string], k: Key) -> usize:
 >   %18 = Block - : never
 >   %19 = Match %2 [%18 %9 %10] : usize
 >   %20 = Drop [%2] : ()
->   %21 = Release %23 Exit local $0 #2 : ()
->   %22 = Release %23 Exit local $1 #2 : ()
->   %23 = Block %19 : usize
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %31 Exit local $0 #2 : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %19 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : string
 >   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
@@ -118,7 +142,15 @@ fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
 >   %18 = Break L0 %17 : never
 >   %19 = Block - : i32
 >   %20 = Scope %19 [] : i32
->   %21 = Release %23 Exit local $0 #2 : ()
->   %22 = Release %23 Exit local $1 #2 : ()
->   %23 = Block %20 : i32
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %31 Exit local $0 #2 : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %20 : i32
 >   summary kept [] borrows [$0 $1]

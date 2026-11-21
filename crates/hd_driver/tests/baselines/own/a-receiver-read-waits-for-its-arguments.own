@@ -25,8 +25,12 @@ impl Members:
 >   %1 = Intrinsic ListLen [%0] : usize
 >   %2 = Read copy [$1] : usize
 >   %3 = Prim Add [%1 %2] : usize
->   %4 = Release %5 Exit local $0 #2 : ()
->   %5 = Block %3 : usize
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %9 Exit local $0 #2 : ()
+>   %9 = Block %3 : usize
 
     fn peek(&self, position: usize) -> usize:
         self.infos.len() + position

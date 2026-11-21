@@ -43,8 +43,12 @@ fn lens(xs: List[string]) -> usize:
 >   local $6 self: string [read] value
 >     uses $6: %21 -> %22 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %36 = Release %37 Exit local $0 #2 : ()
->   %37 = Block %35 : usize
+>   %36 = Intrinsic ParamOwned [0:i32] : bool
+>   %37 = Drop [$0] : ()
+>   %38 = Block - : ()
+>   %39 = If %36 [%38 -] : ()
+>   %40 = Release %41 Exit local $0 #2 : ()
+>   %41 = Block %35 : usize
     for i in 0..xs.len():
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

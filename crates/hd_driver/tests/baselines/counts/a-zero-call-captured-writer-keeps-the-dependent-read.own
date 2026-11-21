@@ -28,41 +28,44 @@ fn repeat[F < FnMut() -> void](n: usize, mut f: F) -> void:
     for _ in 0..n:
 > app/main/repeat
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %1 consume last
+>     uses $0: entry -> %0 consume last
 >   local $1 f: F [param read] value
->     uses $1: entry -> %16 lend
+>     uses $1: entry -> %15 lend
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
->     uses $3: %6 -> %10 lend
+>     uses $3: %5 -> %9 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
->   %0 = FlagSet [$1] #5 : ()
->   %1 = Read copy [$0] : usize
->   %2 = NewStruct [0:usize %1 0:bool] : Range[usize]
->   %3 = Read copy [%2 .start] : usize
->   %4 = Store [$2] %3 : ()
->   %5 = Read copy [%2 .end] : usize
->   %6 = Store [$3] %5 : ()
->   %7 = Read copy [%2 .inclusive] : bool
->   %8 = Store [$4] %7 : ()
->   %9 = Read copy [$2] : usize
->   %10 = Read copy [$3] : usize
->   %11 = Prim Lt [%9 %10] : bool
+>   %0 = Read copy [$0] : usize
+>   %1 = NewStruct [0:usize %0 0:bool] : Range[usize]
+>   %2 = Read copy [%1 .start] : usize
+>   %3 = Store [$2] %2 : ()
+>   %4 = Read copy [%1 .end] : usize
+>   %5 = Store [$3] %4 : ()
+>   %6 = Read copy [%1 .inclusive] : bool
+>   %7 = Store [$4] %6 : ()
+>   %8 = Read copy [$2] : usize
+>   %9 = Read copy [$3] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read copy [$2] : usize
 >   %12 = Read copy [$2] : usize
->   %13 = Read copy [$2] : usize
->   %14 = Prim Add [%13 1:usize] : usize
->   %15 = Store [$2] %14 : ()
->   %18 = Block - : ()
->   %19 = Break L0 - : never
->   %20 = Block - : ()
->   %21 = If %11 [%18 %20] : ()
->   %22 = Block - : ()
->   %23 = Loop %22 - : ()
->   %24 = Release %25 Exit local $1 #2 : ()
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$2] %13 : ()
+>   %17 = Block - : ()
+>   %18 = Break L0 - : never
+>   %19 = Block - : ()
+>   %20 = If %10 [%17 %19] : ()
+>   %21 = Block - : ()
+>   %22 = Loop %21 - : ()
+>   %23 = Intrinsic ParamOwned [1:i32] : bool
+>   %24 = Drop [$1] : ()
 >   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Release %28 Exit local $1 #2 : ()
+>   %28 = Block - : ()
         f()
->   %16 = Read borrow [$1] : F
->   %17 = CallValue %16 [] : ()
+>   %15 = Read borrow [$1] : F
+>   %16 = CallValue %15 [] : ()
 
 fn element() -> string:
     let mut ps = [box(P { name: "a" })]

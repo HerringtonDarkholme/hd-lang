@@ -28,5 +28,9 @@ app/main/label
   %20 = SwitchTag %0 [#1 %15 %19] : never
   %21 = Block - : never
   %22 = Match %0 [%21 %6 %9] : string
-  %23 = Release %24 Exit local $0 #2 : ()
-  %24 = Block %22 : string
+  %23 = Intrinsic ParamOwned [0:i32] : bool
+  %24 = Drop [$0] : ()
+  %25 = Block - : ()
+  %26 = If %23 [%25 -] : ()
+  %27 = Release %28 Exit local $0 #2 : ()
+  %28 = Block %22 : string

@@ -49,8 +49,12 @@ fn pick(xs: List[*mut Node], i: usize) -> *mut Node:
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0]] : *mut Node
 >   %2 = Retain %1 Value #0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %1 : *mut Node
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %1 : *mut Node
 >   summary kept [] borrows [$0]
 
 fn call_receiver(xs: List[*mut Node], s: string) -> void:
@@ -63,7 +67,7 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
 >     uses $2: %2 -> %5 lend last
 >   local $3 i: usize [read] value
 >     uses $3: %3 -> %4 lend last
->   %0 = Retain %16 Entry local $1 #0 : ()
+>   %0 = Retain %20 Entry local $1 #0 : ()
     pick(xs, 0).name = s
 >   %1 = Read borrow [$0] : List[*mut Node]
 >   %2 = Store [$2] %1 : ()
@@ -79,8 +83,12 @@ fn call_receiver(xs: List[*mut Node], s: string) -> void:
 >   %12 = Release %11 Operation #3 : ()
 >   %13 = Drop [%9] : ()
 >   %14 = Drop [$1] : ()
->   %15 = Release %16 Exit local $0 #2 : ()
->   %16 = Block - : ()
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $0 #2 : ()
+>   %20 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 

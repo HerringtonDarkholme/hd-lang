@@ -16,8 +16,12 @@ fn unwrap(o: string?) -> usize:
 >   %0 = Read borrow [$0] : string?
 >   %15 = Block - : never
 >   %16 = Match %0 [%15 %6 %7] : usize
->   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %16 : usize
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %16 : usize
         .Some(s) => s.len()
 >   %1 = Read borrow [$1] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -82,6 +86,10 @@ fn or_default(o: string?) -> string:
 >   %17 = Block - : string
 >   %18 = Scope %17 [] : string
 >   %19 = Drop [$2] : ()
->   %20 = Release %21 Exit local $0 #2 : ()
->   %21 = Block %18 : string
+>   %20 = Intrinsic ParamOwned [0:i32] : bool
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Release %25 Exit local $0 #2 : ()
+>   %25 = Block %18 : string
 >   summary kept [] borrows [$0]

@@ -115,8 +115,12 @@ fn eat(s: string) -> usize:
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %4 : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %4 : usize
 >   summary kept [] borrows [$0]
 
 fn local_over(k: i32) -> usize:

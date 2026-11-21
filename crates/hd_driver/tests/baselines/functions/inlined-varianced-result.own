@@ -67,8 +67,12 @@ fn use_view(value: *i32) -> i32:
 >   %10 = CallValue %8 [%9] : i32
 >   %11 = Drop [%8] : ()
 >   %12 = Prim Add [%6 %10] : i32
->   %13 = Release %14 Exit local $0 #2 : ()
->   %14 = Block %12 : i32
+>   %13 = Intrinsic ParamOwned [0:i32] : bool
+>   %14 = Drop [$0] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
+>   %17 = Release %18 Exit local $0 #2 : ()
+>   %18 = Block %12 : i32
 >   summary kept [] borrows [$0] writes
 
 fn use_early_view(first: bool, value: *i32) -> i32:
@@ -96,6 +100,10 @@ fn use_early_view(first: bool, value: *i32) -> i32:
 >   %13 = Read borrow [$1] : *i32
 >   %14 = CallValue %12 [%13] : i32
 >   %15 = Drop [%12] : ()
->   %16 = Release %17 Exit local $1 #2 : ()
->   %17 = Block %14 : i32
+>   %16 = Intrinsic ParamOwned [1:i32] : bool
+>   %17 = Drop [$1] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Release %21 Exit local $1 #2 : ()
+>   %21 = Block %14 : i32
 >   summary kept [] borrows [$1] writes

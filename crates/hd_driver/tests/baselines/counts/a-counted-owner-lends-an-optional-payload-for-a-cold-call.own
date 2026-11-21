@@ -16,8 +16,12 @@ fn read(value: (&i32)?) -> i32:
 >   %0 = Read borrow [$0] : &i32?
 >   %11 = Block - : never
 >   %12 = Match %0 [%11 %2 %3] : i32
->   %13 = Release %14 Exit local $0 #2 : ()
->   %14 = Block %12 : i32
+>   %13 = Intrinsic ParamOwned [0:i32] : bool
+>   %14 = Drop [$0] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
+>   %17 = Release %18 Exit local $0 #2 : ()
+>   %18 = Block %12 : i32
         .Some(item) => *item
 >   %1 = Read copy [*$1] : i32
 >   %2 = Block %1 : i32

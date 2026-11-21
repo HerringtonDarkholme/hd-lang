@@ -53,7 +53,7 @@ fn work(log: *mut List[string], label: string) -> void:
 >   local $1 label: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 $ref: Guard [:= read assigned captured captured-assigned] place
->   %0 = Retain %20 Entry local $1 #0 : ()
+>   %0 = Retain %24 Entry local $1 #0 : ()
     guard(log, label)
 >   %1 = Read copy [$0] : *mut List[string]
 >   %2 = Retain %1 Value #0 : ()
@@ -70,8 +70,12 @@ fn work(log: *mut List[string], label: string) -> void:
 >   %16 = Block - : ()
 >   %17 = Scope %16 [] : ()
 >   %18 = Drop [$1] : ()
->   %19 = Release %20 Exit local $0 #2 : ()
->   %20 = Block - : ()
+>   %19 = Intrinsic ParamOwned [0:i32] : bool
+>   %20 = Drop [$0] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $0 #2 : ()
+>   %24 = Block - : ()
     log.push("work")
 >   %7 = IsUnique [*$0] : ()
 >   %8 = Read borrow [*$0] : List[string]

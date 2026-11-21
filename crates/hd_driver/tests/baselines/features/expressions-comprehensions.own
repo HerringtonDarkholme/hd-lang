@@ -99,9 +99,17 @@ fn pairs(xs: List[string], ys: List[string]) -> List[(string, string)]:
 >   %69 = Block - : ()
 >   %70 = Loop %69 - : ()
 >   %71 = Read move [$2] : List[(string, string)]
->   %72 = Release %74 Exit local $0 #2 : ()
->   %73 = Release %74 Exit local $1 #2 : ()
->   %74 = Block %71 : List[(string, string)]
+>   %72 = Intrinsic ParamOwned [0:i32] : bool
+>   %73 = Drop [$0] : ()
+>   %74 = Block - : ()
+>   %75 = If %72 [%74 -] : ()
+>   %76 = Release %82 Exit local $0 #2 : ()
+>   %77 = Intrinsic ParamOwned [1:i32] : bool
+>   %78 = Drop [$1] : ()
+>   %79 = Block - : ()
+>   %80 = If %77 [%79 -] : ()
+>   %81 = Release %82 Exit local $1 #2 : ()
+>   %82 = Block %71 : List[(string, string)]
 >   summary kept [] borrows [$0 $1]
 >   loop %58 keeps len [$1] (-..-)
 >   loop %70 keeps len [$0] (-..-) len [$1] (-..-)
@@ -152,8 +160,12 @@ fn names(users: List[User]) -> List[string]:
 >   %32 = Block - : ()
 >   %33 = Loop %32 - : ()
 >   %34 = Read move [$1] : List[string]
->   %35 = Release %36 Exit local $0 #2 : ()
->   %36 = Block %34 : List[string]
+>   %35 = Intrinsic ParamOwned [0:i32] : bool
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Release %40 Exit local $0 #2 : ()
+>   %40 = Block %34 : List[string]
 >   summary kept [] borrows [$0]
 >   loop %33 keeps len [$0] (-..-)
 
@@ -204,8 +216,12 @@ fn by_name(users: List[User]) -> Map[string, i64]:
 >   %33 = Block - : ()
 >   %34 = Loop %33 - : ()
 >   %35 = Read move [$1] : Map[string, i64]
->   %36 = Release %37 Exit local $0 #2 : ()
->   %37 = Block %35 : Map[string, i64]
+>   %36 = Intrinsic ParamOwned [0:i32] : bool
+>   %37 = Drop [$0] : ()
+>   %38 = Block - : ()
+>   %39 = If %36 [%38 -] : ()
+>   %40 = Release %41 Exit local $0 #2 : ()
+>   %41 = Block %35 : Map[string, i64]
 >   summary kept [] borrows [$0]
 >   loop %34 keeps len [$0] (-..-)
 
@@ -267,7 +283,11 @@ fn sizes(users: List[User]) -> List[usize]:
 >   %40 = Block - : ()
 >   %41 = Loop %40 - : ()
 >   %42 = Read move [$1] : List[usize]
->   %43 = Release %44 Exit local $0 #2 : ()
->   %44 = Block %42 : List[usize]
+>   %43 = Intrinsic ParamOwned [0:i32] : bool
+>   %44 = Drop [$0] : ()
+>   %45 = Block - : ()
+>   %46 = If %43 [%45 -] : ()
+>   %47 = Release %48 Exit local $0 #2 : ()
+>   %48 = Block %42 : List[usize]
 >   summary kept [] borrows [$0]
 >   loop %41 keeps len [$0] (-..-)

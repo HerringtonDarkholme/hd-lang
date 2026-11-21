@@ -38,8 +38,12 @@ fn run_plain(f: fn() -> void) -> void:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : fn() -> ()
 >   %1 = CallValue %0 [] : ()
->   %2 = Release %3 Exit local $0 #2 : ()
->   %3 = Block - : ()
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block - : ()
 
 pub fn main!() -> void $ Console:
     p := box(Cell { value: "a", other: "o" })
@@ -178,8 +182,12 @@ fn run_plain(f: fn() -> void) -> void:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : fn() -> ()
 >   %1 = CallValue %0 [] : ()
->   %2 = Release %3 Exit local $0 #2 : ()
->   %3 = Block - : ()
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block - : ()
 >   summary kept [] borrows [$0] writes
 
 pub fn main!() -> void $ Console:

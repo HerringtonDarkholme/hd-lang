@@ -16,8 +16,12 @@ fn bump(a: *mut Box, b: &Box) -> i32:
 >     uses $1: entry -> %2 lend last
 >   %0 = Coerce 1:i32 [Weaken -] : i32
 >   %1 = Store [*$0 .n] %0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %2 : i32
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %2 : i32
     b.n
 >   %2 = Read copy [*$1 .n] : i32
 

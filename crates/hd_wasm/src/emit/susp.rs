@@ -1660,7 +1660,7 @@ pub(super) fn finish(
             if em.is_cell(l) {
                 em.count_local(l, &loaded, false)
             } else {
-                em.release_drop_place(&loaded, em.b.local_ty[l], &Em::local_place(l))
+                em.release_saved(&loaded, l)
             }
         })?;
     }

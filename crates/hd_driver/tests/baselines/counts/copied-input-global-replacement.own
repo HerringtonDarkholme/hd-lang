@@ -12,6 +12,10 @@ app/main/replace_after_copy
   %7 = Break L0 %6 : never
   %8 = Block - : usize
   %9 = Scope %8 [] : usize
-  %10 = Release %11 Exit local $0 #2 : ()
-  %11 = Block %9 : usize
+  %10 = Intrinsic ParamOwned [0:i32] : bool
+  %11 = Drop [$0] : ()
+  %12 = Block - : ()
+  %13 = If %10 [%12 -] : ()
+  %14 = Release %15 Exit local $0 #2 : ()
+  %15 = Block %9 : usize
   summary kept [] borrows [$0] writes

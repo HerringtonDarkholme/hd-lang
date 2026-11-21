@@ -38,8 +38,12 @@ fn first_long(xs: List[string]) -> string:
 >   %32 = If %6 [%29 %31] : ()
 >   %33 = Block - : ()
 >   %34 = Loop %33 - : string
->   %35 = Release %36 Exit local $0 #2 : ()
->   %36 = Block %34 : string
+>   %35 = Intrinsic ParamOwned [0:i32] : bool
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Release %40 Exit local $0 #2 : ()
+>   %40 = Block %34 : string
         if x.len() > 3:
 >   %12 = Read borrow [$5] : string
 >   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
@@ -67,8 +71,12 @@ fn first_index(xs: List[string]) -> usize:
 >   local $2 self: string [read] value
 >     uses $2: %7 -> %8 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %29 = Release %30 Exit local $0 #2 : ()
->   %30 = Block %28 : usize
+>   %29 = Intrinsic ParamOwned [0:i32] : bool
+>   %30 = Drop [$0] : ()
+>   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Release %34 Exit local $0 #2 : ()
+>   %34 = Block %28 : usize
     while i < xs.len():
 >   %1 = Read copy [$1] : usize
 >   %2 = Read borrow [$0] : List[string]

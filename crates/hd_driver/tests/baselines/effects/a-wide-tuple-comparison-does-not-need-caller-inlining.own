@@ -58,8 +58,16 @@ fn ordered(left: Words, right: Words) -> bool:
 >   %11 = Block %10 : bool
 >   %12 = Block 0:bool : bool
 >   %13 = SwitchTag %4 [#1 %11 %12] : bool
->   %14 = Release %16 Exit local $0 #2 : ()
->   %15 = Release %16 Exit local $1 #2 : ()
->   %16 = Block %13 : bool
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %24 Exit local $0 #2 : ()
+>   %19 = Intrinsic ParamOwned [1:i32] : bool
+>   %20 = Drop [$1] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $1 #2 : ()
+>   %24 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]

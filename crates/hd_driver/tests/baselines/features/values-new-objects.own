@@ -40,8 +40,12 @@ fn temp_ref(s: string) -> usize:
 >   %6 = Store [$1] %4 : ()
 >   %7 = Ref local frame [$1] : &Named
 >   %8 = Store [$2] %7 : ()
->   %19 = Release %20 Exit local $0 #2 : ()
->   %20 = Block %16 : usize
+>   %19 = Intrinsic ParamOwned [0:i32] : bool
+>   %20 = Drop [$0] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $0 #2 : ()
+>   %24 = Block %16 : usize
     n.name.len()
 >   %9 = Read borrow [*$2 .name] : string
 >   %10 = LoanBegin %9 #0 : ()

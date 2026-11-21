@@ -17,9 +17,17 @@ fn assign(a: string, b: string) -> usize:
 >     uses $3: %3 -> %4 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Store [$2] %0 : ()
->   %9 = Release %11 Exit local $0 #2 : ()
->   %10 = Release %11 Exit local $1 #2 : ()
->   %11 = Block %8 : usize
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %19 Exit local $0 #2 : ()
+>   %14 = Intrinsic ParamOwned [1:i32] : bool
+>   %15 = Drop [$1] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %19 Exit local $1 #2 : ()
+>   %19 = Block %8 : usize
     s = b
 >   %2 = Read borrow [$1] : string
     s.len()
@@ -64,9 +72,17 @@ fn assign_list(xs: List[string], ys: List[string]) -> usize:
 >     uses $2: none
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Store [$2] %0 : ()
->   %4 = Release %6 Exit local $0 #2 : ()
->   %5 = Release %6 Exit local $1 #2 : ()
->   %6 = Block %3 : usize
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %14 Exit local $0 #2 : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block %3 : usize
     zs = ys
 >   %2 = Read borrow [$1] : List[string]
     zs.len()

@@ -42,9 +42,17 @@ fn each(xs: List[string], f: fn(string) -> void) -> void:
 >   %26 = If %6 [%23 %25] : ()
 >   %27 = Block - : ()
 >   %28 = Loop %27 - : ()
->   %29 = Release %31 Exit local $0 #2 : ()
->   %30 = Release %31 Exit local $1 #2 : ()
+>   %29 = Intrinsic ParamOwned [0:i32] : bool
+>   %30 = Drop [$0] : ()
 >   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Release %39 Exit local $0 #2 : ()
+>   %34 = Intrinsic ParamOwned [1:i32] : bool
+>   %35 = Drop [$1] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Release %39 Exit local $1 #2 : ()
+>   %39 = Block - : ()
         f(x)
 >   %12 = Read borrow [$1] : fn(string) -> ()
 >   %13 = Read copy [$6] : string
@@ -61,8 +69,12 @@ fn keep(f: fn() -> void) -> fn() -> void:
 >   local $0 f: fn() -> () [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : fn() -> ()
->   %1 = Release %2 Exit local $0 #2 : ()
->   %2 = Block %0 : fn() -> ()
+>   %1 = Intrinsic ParamOwned [0:i32] : bool
+>   %2 = Drop [$0] : ()
+>   %3 = Block - : ()
+>   %4 = If %1 [%3 -] : ()
+>   %5 = Release %6 Exit local $0 #2 : ()
+>   %6 = Block %0 : fn() -> ()
 >   summary kept [] borrows [$0] returns $0
 
 fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
@@ -85,9 +97,17 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %0 = Box #2 #1 : ()
 >   %1 = Store [$2] 0:usize : ()
 >   %80 = Drop [$2] : ()
->   %81 = Release %83 Exit local $0 #2 : ()
->   %82 = Release %83 Exit local $1 #2 : ()
->   %83 = Block %78 : usize
+>   %81 = Intrinsic ParamOwned [0:i32] : bool
+>   %82 = Drop [$0] : ()
+>   %83 = Block - : ()
+>   %84 = If %81 [%83 -] : ()
+>   %85 = Release %91 Exit local $0 #2 : ()
+>   %86 = Intrinsic ParamOwned [1:i32] : bool
+>   %87 = Drop [$1] : ()
+>   %88 = Block - : ()
+>   %89 = If %86 [%88 -] : ()
+>   %90 = Release %91 Exit local $1 #2 : ()
+>   %91 = Block %78 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Retain %6 Entry local $3 #0 : ()
 >   %3 = Drop [$3] : ()

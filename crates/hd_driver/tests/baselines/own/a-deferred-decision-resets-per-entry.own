@@ -29,8 +29,12 @@ fn repeat_after_callback(xs: &mut List[i32], rounds: usize, tick: fn() -> i32) -
 >   local $11 i: usize [read assigned] value
 >     uses $11: %36 -> %40 lend, %45 lend last
 >   %0 = Store [$3] 0:i32 : ()
->   %67 = Release %68 Exit local $2 #2 : ()
->   %68 = Block %66 : i32
+>   %67 = Intrinsic ParamOwned [2:i32] : bool
+>   %68 = Drop [$2] : ()
+>   %69 = Block - : ()
+>   %70 = If %67 [%69 -] : ()
+>   %71 = Release %72 Exit local $2 #2 : ()
+>   %72 = Block %66 : i32
     for round in 0..rounds:
 >   %1 = Read copy [$1] : usize
 >   %2 = NewStruct [0:usize %1 0:bool] : Range[usize]

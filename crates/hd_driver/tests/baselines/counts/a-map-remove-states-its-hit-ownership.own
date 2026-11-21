@@ -16,8 +16,12 @@ fn remove_value[V](values: &mut Map[string, V], key: string) -> V?:
 >   %4 = Retain %3 Operation operand 0 #0 : ()
 >   %5 = Release %3 Operation operand 0 #2 : ()
 >   %6 = Release %3 Operation operand 1 #2 : ()
->   %7 = Release %8 Exit local $1 #2 : ()
->   %8 = Block %3 : V?
+>   %7 = Intrinsic ParamOwned [1:i32] : bool
+>   %8 = Drop [$1] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %12 Exit local $1 #2 : ()
+>   %12 = Block %3 : V?
 >   summary kept [] borrows [$1] writes
 
 fn text(values: &mut Map[string, string], key: string) -> string?:
@@ -31,8 +35,12 @@ fn text(values: &mut Map[string, string], key: string) -> string?:
 >   %1 = Read borrow [$1] : string
 >   %2 = Call app/main/remove_value[string] (%0, %1) : string?
 >   %3 = Retain %2 Operation operand 1 #0 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : string?
+>   %4 = Intrinsic ParamOwned [1:i32] : bool
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %9 Exit local $1 #2 : ()
+>   %9 = Block %2 : string?
 >   summary kept [] borrows [$1] writes
 
 fn lists(values: &mut Map[string, List[string]], key: string) -> List[string]?:
@@ -46,8 +54,12 @@ fn lists(values: &mut Map[string, List[string]], key: string) -> List[string]?:
 >   %1 = Read borrow [$1] : string
 >   %2 = Call app/main/remove_value[List[string]] (%0, %1) : List[string]?
 >   %3 = Retain %2 Operation operand 1 #0 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : List[string]?
+>   %4 = Intrinsic ParamOwned [1:i32] : bool
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %9 Exit local $1 #2 : ()
+>   %9 = Block %2 : List[string]?
 >   summary kept [] borrows [$1] writes
 
 fn scalar(values: &mut Map[usize, i32], key: usize) -> i32?:
@@ -93,6 +105,10 @@ fn unused(values: &mut Map[string, string], key: string) -> void:
 >   %5 = Release %3 Operation operand 0 #2 : ()
 >   %6 = Release %3 Operation operand 1 #2 : ()
 >   %7 = Drop [%3] : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block - : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block - : ()
 >   summary kept [] borrows [$1] writes

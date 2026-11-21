@@ -24,9 +24,17 @@ fn join2(first: string, second: string) -> usize:
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
 >   %11 = Prim Add [%5 %10] : usize
->   %12 = Release %14 Exit local $0 #2 : ()
->   %13 = Release %14 Exit local $1 #2 : ()
->   %14 = Block %11 : usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %22 Exit local $0 #2 : ()
+>   %17 = Intrinsic ParamOwned [1:i32] : bool
+>   %18 = Drop [$1] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $1 #2 : ()
+>   %22 = Block %11 : usize
 >   summary kept [] borrows [$0 $1]
 
 fn count(values...: List[string]) -> usize:
@@ -36,8 +44,12 @@ fn count(values...: List[string]) -> usize:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Release %3 Exit local $0 #2 : ()
->   %3 = Block %1 : usize
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block %1 : usize
 >   summary kept [] borrows [$0]
 
 fn named(a: string, b: string) -> usize:
@@ -52,9 +64,17 @@ fn named(a: string, b: string) -> usize:
 >   %2 = Call app/main/join2[] (%1, %0) : usize
 >   %3 = Retain %2 Operation operand 0 #0 : ()
 >   %4 = Retain %2 Operation operand 1 #0 : ()
->   %5 = Release %7 Exit local $0 #2 : ()
->   %6 = Release %7 Exit local $1 #2 : ()
->   %7 = Block %2 : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %15 Exit local $0 #2 : ()
+>   %10 = Intrinsic ParamOwned [1:i32] : bool
+>   %11 = Drop [$1] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $1 #2 : ()
+>   %15 = Block %2 : usize
 >   summary kept [] borrows [$0 $1]
 
 fn positional(a: string, b: string) -> usize:
@@ -69,9 +89,17 @@ fn positional(a: string, b: string) -> usize:
 >   %2 = Call app/main/join2[] (%0, %1) : usize
 >   %3 = Retain %2 Operation operand 0 #0 : ()
 >   %4 = Retain %2 Operation operand 1 #0 : ()
->   %5 = Release %7 Exit local $0 #2 : ()
->   %6 = Release %7 Exit local $1 #2 : ()
->   %7 = Block %2 : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %15 Exit local $0 #2 : ()
+>   %10 = Intrinsic ParamOwned [1:i32] : bool
+>   %11 = Drop [$1] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $1 #2 : ()
+>   %15 = Block %2 : usize
 >   summary kept [] borrows [$0 $1]
 
 fn spread_tuple(pair: (string, string)) -> usize:
@@ -84,8 +112,12 @@ fn spread_tuple(pair: (string, string)) -> usize:
 >   %2 = Call app/main/join2[] (%0, %1) : usize
 >   %3 = Retain %2 Operation operand 0 #0 : ()
 >   %4 = Retain %2 Operation operand 1 #0 : ()
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %2 : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %2 : usize
 >   summary kept [] borrows [$0]
 
 fn spread_list(xs: List[string]) -> usize:
@@ -98,8 +130,12 @@ fn spread_list(xs: List[string]) -> usize:
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %4 : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %4 : usize
 >   summary kept [] borrows [$0]
 
 fn collect(a: string, b: string) -> usize:

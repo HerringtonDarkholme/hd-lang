@@ -20,21 +20,23 @@ fn keep[T](x: T) -> void:
 > app/main/keep
 >   local $0 x: T [param] value
 >     uses $0: none
->   %0 = Release %1 Exit local $0 #2 : ()
->   %1 = Block - : ()
+>   %0 = Intrinsic ParamOwned [0:i32] : bool
+>   %1 = Drop [$0] : ()
+>   %2 = Block - : ()
+>   %3 = If %0 [%2 -] : ()
+>   %4 = Release %5 Exit local $0 #2 : ()
+>   %5 = Block - : ()
 >   summary kept [] borrows [$0]
 
 fn hold[T < ?Copy](x: T) -> T:
 > app/main/hold
 >   local $0 x: T [param read] value
->     uses $0: entry -> %2 consume last
->   %1 = Retain %5 Entry local $0 #0 : ()
+>     uses $0: entry -> %1 consume last
+>   %0 = Retain %3 Entry local $0 #0 : ()
     x
->   %0 = FlagSet [$0] #1 : ()
->   %2 = Read move [$0] : T
->   %3 = FlagClear [$0] #1 : ()
->   %4 = Drop [$0] : ()
->   %5 = Block %2 : T
+>   %1 = Read move [$0] : T
+>   %2 = Drop [$0] : ()
+>   %3 = Block %1 : T
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0
 
@@ -77,79 +79,85 @@ fn into_field(photo: Photo) -> Album:
 fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 > app/main/uniq
 >   local $0 xs: UniqList[string] [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %3 consume last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %45 consume last
+>     uses $1: entry -> %46 consume last
 >   local $2 ys: UniqList[string] [read assigned captured captured-assigned] place
 >   local $3 self: &mut UniqList[string] [read] value
->     uses $3: %8 -> %9 consume, %16 lend, %26 lend, %32 lend, %50 lend last
+>     uses $3: %9 -> %10 consume, %17 lend, %27 lend, %33 lend, %51 lend last
 >   local $5 size: usize [:= read assigned] value
->     uses $5: %15 -> %24 lend, %27 lend, %34 consume, %48 lend last
+>     uses $5: %16 -> %25 lend, %28 lend, %35 consume, %49 lend last
 >   local $7 index: usize [read] value
->     uses $7: %35 -> %38 lend last
->   %1 = Retain %59 Entry local $1 #0 : ()
+>     uses $7: %36 -> %39 lend last
+>   local $10 $temporary_owner: bool [read assigned] value
+>     uses $10: %1 -> %58 lend last
+>   %2 = Retain %63 Entry local $1 #0 : ()
     let mut ys = xs
->   %0 = FlagSet [$0] #10 : ()
->   %2 = Read move [$0] : UniqList[string]
->   %3 = FlagClear [$0] #10 : ()
->   %4 = Box #2 #0 : ()
->   %5 = Store [$2] %2 : ()
->   %6 = FlagSet [$2] #11 : ()
->   %57 = Drop [$0] : ()
->   %58 = Drop [$1] : ()
->   %59 = Block %56 : UniqList[string]
+>   %0 = Intrinsic ParamOwned [0:i32] : bool
+>   %1 = Store [$10] %0 : ()
+>   %3 = Read move [$0] : UniqList[string]
+>   %4 = FlagClear [$0] #10 : ()
+>   %5 = Box #2 #0 : ()
+>   %6 = Store [$2] %3 : ()
+>   %7 = FlagSet [$2] #11 : ()
+>   %58 = Read copy [$10] : bool
+>   %59 = Drop [$0] : ()
+>   %60 = Block - : ()
+>   %61 = If %58 [%60 -] : ()
+>   %62 = Drop [$1] : ()
+>   %63 = Block %57 : UniqList[string]
     ys.push(s)
->   %7 = Ref mut local frame [$2] : &mut UniqList[string]
->   %8 = Store [$3] %7 : ()
->   %9 = Read borrow [$3] : &mut UniqList[string]
->   %10 = Coerce %9 [Weaken -] : &UniqList[string]
->   %11 = Read copy [*%10 .len] : usize
->   %12 = Break L2 %11 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Store [$5] %14 : ()
->   %16 = Ref local [*$3 .buffer] : &Buffer[string]
->   %17 = LoanBegin %16 #0 : ()
->   %18 = Read copy [*%16 .capacity] : usize
->   %19 = Break L1 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = LoanClose %17 : ()
->   %23 = LoanEnd [%16] : ()
->   %24 = Read copy [$5] : usize
->   %25 = Prim Le [%21 %24] : bool
->   %26 = Read borrow [$3] : &mut UniqList[string]
->   %27 = Read copy [$5] : usize
->   %28 = Prim Add [%27 1:usize] : usize
->   %29 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[string] (%26, %28) : ()
->   %30 = Block - : ()
->   %31 = If %25 [%30 -] : ()
->   %32 = Ref local [*$3 .buffer] : &Buffer[string]
->   %33 = LoanBegin %32 #0 : ()
->   %34 = Read copy [$5] : usize
->   %35 = Store [$7] %34 : ()
->   %36 = Read copy [*%32 .address] : usize
->   %37 = NewStruct [%36] : Ptr[string]
->   %38 = Read copy [$7] : usize
->   %39 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[string] (%37, %38) : Ptr[string]
->   %40 = Break L0 %39 : never
->   %41 = Block - : Ptr[string]
->   %42 = Scope %41 [] : Ptr[string]
->   %43 = LoanClose %33 : ()
->   %44 = LoanEnd [%32] : ()
->   %45 = Read move [$1] : string
->   %46 = Store [ptr %42] %45 : ()
->   %47 = Release %46 Operation #3 : ()
->   %48 = Read copy [$5] : usize
->   %49 = Prim Add [%48 1:usize] : usize
->   %50 = Store [*$3 .len] %49 : ()
->   %51 = Break L3 - : never
->   %52 = Block - : ()
->   %53 = Scope %52 [] : ()
->   %54 = LoanEnd [$3] : ()
+>   %8 = Ref mut local frame [$2] : &mut UniqList[string]
+>   %9 = Store [$3] %8 : ()
+>   %10 = Read borrow [$3] : &mut UniqList[string]
+>   %11 = Coerce %10 [Weaken -] : &UniqList[string]
+>   %12 = Read copy [*%11 .len] : usize
+>   %13 = Break L2 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Store [$5] %15 : ()
+>   %17 = Ref local [*$3 .buffer] : &Buffer[string]
+>   %18 = LoanBegin %17 #0 : ()
+>   %19 = Read copy [*%17 .capacity] : usize
+>   %20 = Break L1 %19 : never
+>   %21 = Block - : usize
+>   %22 = Scope %21 [] : usize
+>   %23 = LoanClose %18 : ()
+>   %24 = LoanEnd [%17] : ()
+>   %25 = Read copy [$5] : usize
+>   %26 = Prim Le [%22 %25] : bool
+>   %27 = Read borrow [$3] : &mut UniqList[string]
+>   %28 = Read copy [$5] : usize
+>   %29 = Prim Add [%28 1:usize] : usize
+>   %30 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[string] (%27, %29) : ()
+>   %31 = Block - : ()
+>   %32 = If %26 [%31 -] : ()
+>   %33 = Ref local [*$3 .buffer] : &Buffer[string]
+>   %34 = LoanBegin %33 #0 : ()
+>   %35 = Read copy [$5] : usize
+>   %36 = Store [$7] %35 : ()
+>   %37 = Read copy [*%33 .address] : usize
+>   %38 = NewStruct [%37] : Ptr[string]
+>   %39 = Read copy [$7] : usize
+>   %40 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[string] (%38, %39) : Ptr[string]
+>   %41 = Break L0 %40 : never
+>   %42 = Block - : Ptr[string]
+>   %43 = Scope %42 [] : Ptr[string]
+>   %44 = LoanClose %34 : ()
+>   %45 = LoanEnd [%33] : ()
+>   %46 = Read move [$1] : string
+>   %47 = Store [ptr %43] %46 : ()
+>   %48 = Release %47 Operation #3 : ()
+>   %49 = Read copy [$5] : usize
+>   %50 = Prim Add [%49 1:usize] : usize
+>   %51 = Store [*$3 .len] %50 : ()
+>   %52 = Break L3 - : never
+>   %53 = Block - : ()
+>   %54 = Scope %53 [] : ()
+>   %55 = LoanEnd [$3] : ()
     ys
->   %55 = FlagClear [$2] #11 : ()
->   %56 = Read move [$2] : UniqList[string]
+>   %56 = FlagClear [$2] #11 : ()
+>   %57 = Read move [$2] : UniqList[string]
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1] writes

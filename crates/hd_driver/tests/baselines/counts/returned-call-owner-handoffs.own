@@ -20,6 +20,10 @@ app/main/temporary_handoff
   %13 = Call app/main/identity[] (%12) : string
   %14 = Retain %13 Value #0 : ()
   %15 = Drop [%12] : ()
-  %16 = Release %17 Exit local $1 #2 : ()
-  %17 = Block %13 : string
+  %16 = Intrinsic ParamOwned [1:i32] : bool
+  %17 = Drop [$1] : ()
+  %18 = Block - : ()
+  %19 = If %16 [%18 -] : ()
+  %20 = Release %21 Exit local $1 #2 : ()
+  %21 = Block %13 : string
   summary kept [] borrows [$1] writes

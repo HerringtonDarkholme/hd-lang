@@ -1140,6 +1140,11 @@ impl OwnCx for Env<'_> {
         matches!(pool.get(t), TyData::TraitValue { .. })
     }
 
+    fn drop_parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
+        out.clear();
+        !self.is_open(ty)
+            && hd_layout::facts::in_place_parts(&self.run.pool, self, ty, variant, out)
+    }
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
         if self.is_open(ty) {
             out.clear();
@@ -2092,6 +2097,8 @@ impl Env<'_> {
         // The exit set as statements, after the verifier
         // (`hd_tir::own::exits`).
         hd_tir::own::exits(&mut body, self).map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
+        hd_tir::own::elaborate(&mut body, self)
+            .map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
         Ok((body, summary, relies))
     }
 

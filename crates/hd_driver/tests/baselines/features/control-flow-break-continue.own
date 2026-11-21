@@ -19,8 +19,12 @@ fn until_long(xs: List[string]) -> usize:
 >   local $7 t: string [:= read assigned] value
 >     uses $7: %15 -> %16 lend, %26 lend, %37 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %58 = Release %59 Exit local $0 #2 : ()
->   %59 = Block %57 : usize
+>   %58 = Intrinsic ParamOwned [0:i32] : bool
+>   %59 = Drop [$0] : ()
+>   %60 = Block - : ()
+>   %61 = If %58 [%60 -] : ()
+>   %62 = Release %63 Exit local $0 #2 : ()
+>   %63 = Block %57 : usize
     for x in xs:
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize

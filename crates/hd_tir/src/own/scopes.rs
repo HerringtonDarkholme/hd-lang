@@ -551,8 +551,22 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
         }
     }
     // The copies' rows go before their anchors and the cancel blocks
-    // after the body; one permutation.
-    let mut spans = std::mem::take(&mut cx.spans);
+    // after the body.
+    b.cancel = std::mem::take(&mut cx.cancel);
+    place(b, n, cx.spans, &gone)?;
+    b.cancel.sort_stable();
+    Ok(())
+}
+
+/// Moves each span of new rows (anchor, first, end) of `b`, whose first
+/// `n` rows are old, before its anchor's row (`NONE`: to the end), drops
+/// the old rows `gone` marks, and renumbers once: one permutation.
+pub(crate) fn place(
+    b: &mut Body,
+    n: usize,
+    mut spans: Vec<(u32, u32, u32)>,
+    gone: &[bool],
+) -> Result<(), String> {
     spans.sort_stable_by_key(|s| s.0);
     let mut order = Vec::with_capacity(b.len());
     let mut k = 0;
@@ -573,16 +587,14 @@ pub(crate) fn lower(b: &mut Body) -> Result<(), String> {
         new_of[o as usize] = u32_of(k);
     }
     permute_columns(b, &order);
-    b.cancel = std::mem::take(&mut cx.cancel);
+    let konst = 0;
     renumber(
         b,
         &mut Through {
             new_of: &new_of,
-            konst: 0,
+            konst,
         },
-    )?;
-    b.cancel.sort_stable();
-    Ok(())
+    )
 }
 
 /// The exit set as statements (step 7c): a sub-body's exit `Drop`s

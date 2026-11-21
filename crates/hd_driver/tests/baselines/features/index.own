@@ -25,8 +25,12 @@ fn list_read(xs: List[string], i: usize) -> usize:
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
->   %8 = Release %9 Exit local $0 #2 : ()
->   %9 = Block %7 : usize
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $0 #2 : ()
+>   %13 = Block %7 : usize
 >   summary kept [] borrows [$0]
 
 fn list_take(xs: List[string], i: usize) -> string:
@@ -39,8 +43,12 @@ fn list_take(xs: List[string], i: usize) -> string:
 >   %0 = Read copy [$1] : usize
 >   %1 = Read copy [$0 [%0]] : string
 >   %2 = Retain %1 Value #0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %1 : string
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %1 : string
 >   summary kept [] borrows [$0]
 
 fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
@@ -79,9 +87,17 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 >   %18 = Block - : never
 >   %19 = Match %2 [%18 %9 %10] : usize
 >   %20 = Drop [%2] : ()
->   %21 = Release %23 Exit local $0 #2 : ()
->   %22 = Release %23 Exit local $1 #2 : ()
->   %23 = Block %19 : usize
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %31 Exit local $0 #2 : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %19 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : string
 >   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
@@ -105,7 +121,7 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %9 Entry local $2 #0 : ()
+>   %0 = Retain %13 Entry local $2 #0 : ()
     m[k] = v
 >   %1 = Read borrow [$1] : string
 >   %2 = Read move [$2] : string
@@ -114,8 +130,12 @@ fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 >   %5 = Intrinsic MapSet [%4 %1 %2] : ()
 >   %6 = Retain %5 Operation operand 1 #0 : ()
 >   %7 = Drop [$2] : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block - : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 

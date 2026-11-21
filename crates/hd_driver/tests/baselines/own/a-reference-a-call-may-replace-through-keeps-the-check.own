@@ -44,8 +44,12 @@ fn replaced(count: usize, transform: fn(usize) -> usize) -> List[usize]:
 >   %0 = NewList - [] : List[usize]
 >   %1 = Box #2 #0 : ()
 >   %2 = Store [$2] %0 : ()
->   %39 = Release %40 Exit local $1 #2 : ()
->   %40 = Block %38 : List[usize]
+>   %39 = Intrinsic ParamOwned [1:i32] : bool
+>   %40 = Drop [$1] : ()
+>   %41 = Block - : ()
+>   %42 = If %39 [%41 -] : ()
+>   %43 = Release %44 Exit local $1 #2 : ()
+>   %44 = Block %38 : List[usize]
     output.reserve(count)
 >   %3 = Ref mut local frame [$2] : &mut List[usize]
 >   %4 = Read copy [$0] : usize
@@ -109,8 +113,12 @@ fn copied(count: usize, transform: fn(usize) -> usize) -> usize:
 >   %0 = NewList - [] : List[usize]
 >   %1 = Box #2 #0 : ()
 >   %2 = Store [$2] %0 : ()
->   %45 = Release %46 Exit local $1 #2 : ()
->   %46 = Block %44 : usize
+>   %45 = Intrinsic ParamOwned [1:i32] : bool
+>   %46 = Drop [$1] : ()
+>   %47 = Block - : ()
+>   %48 = If %45 [%47 -] : ()
+>   %49 = Release %50 Exit local $1 #2 : ()
+>   %50 = Block %44 : usize
     output.reserve(count)
 >   %3 = Ref mut local frame [$2] : &mut List[usize]
 >   %4 = Read copy [$0] : usize

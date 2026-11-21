@@ -9,6 +9,7 @@
     ;; 5 |         return parts.len()
       local.get $parts
       i32.load $heap offset=4
+    ;; 4 |     if early:
       local.get $parts
       if
         local.get $parts
@@ -20,6 +21,7 @@
           call $rt:release_ref
         end
       end
+    ;; 5 |         return parts.len()
       return
     ;; 4 |     if early:
     end

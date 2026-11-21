@@ -19,9 +19,17 @@ fn apply(callback: fn(string) -> usize, value: string) -> usize:
 >   %0 = Read borrow [$0] : fn(string) -> usize
 >   %1 = Read borrow [$1] : string
 >   %2 = CallValue %0 [%1] : usize
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : usize
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : usize
 >   summary kept [] borrows [$0 $1] writes
 
 fn stored(handler: Handler, value: string) -> usize:
@@ -34,9 +42,17 @@ fn stored(handler: Handler, value: string) -> usize:
 >   %0 = Read borrow [$0 .callback] : fn(string) -> usize
 >   %1 = Read borrow [$1] : string
 >   %2 = CallValue %0 [%1] : usize
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : usize
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : usize
 >   summary kept [] borrows [$0 $1] writes
 
 fn returning(callback: fn(string) -> string, value: string) -> string:
@@ -49,9 +65,17 @@ fn returning(callback: fn(string) -> string, value: string) -> string:
 >   %0 = Read borrow [$0] : fn(string) -> string
 >   %1 = Read borrow [$1] : string
 >   %2 = CallValue %0 [%1] : string
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : string
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : string
 >   summary kept [] borrows [$0 $1] writes
 
 fn retaining(value: string) -> fn() -> string:
@@ -82,8 +106,12 @@ fn reader(value: string) -> usize:
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %4 : usize
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %4 : usize
 >   summary kept [] borrows [$0]
 
 fn reader_value() -> (fn(string) -> usize):
@@ -111,9 +139,17 @@ fn duplicate(callback: fn(string, string) -> string, value: string) -> string:
 >   %1 = Read borrow [$1] : string
 >   %2 = Read borrow [$1] : string
 >   %3 = CallValue %0 [%2 %1] : string
->   %4 = Release %6 Exit local $0 #2 : ()
->   %5 = Release %6 Exit local $1 #2 : ()
->   %6 = Block %3 : string
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %14 Exit local $0 #2 : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block %3 : string
 >   summary kept [] borrows [$0 $1] writes
 
 fn moving(
@@ -123,16 +159,26 @@ fn moving(
     callback(value)
 > app/main/moving
 >   local $0 callback: fn(UniqList[usize]) -> UniqList[usize] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %2 lend last
 >   local $1 value: UniqList[usize] [param read] value
->     uses $1: entry -> %2 consume last
->   %0 = FlagSet [$1] #2 : ()
->   %1 = Read borrow [$0] : fn(UniqList[usize]) -> UniqList[usize]
->   %2 = Read move [$1] : UniqList[usize]
->   %3 = FlagClear [$1] #2 : ()
->   %4 = CallValue %1 [%2] : UniqList[usize]
->   %5 = Drop [$1] : ()
->   %6 = Release %7 Exit local $0 #2 : ()
->   %7 = Block %4 : UniqList[usize]
+>     uses $1: entry -> %3 consume last
+>   local $2 $temporary_owner: bool [read assigned] value
+>     uses $2: %1 -> %6 lend last
+>   %0 = Intrinsic ParamOwned [1:i32] : bool
+>   %1 = Store [$2] %0 : ()
+>   %2 = Read borrow [$0] : fn(UniqList[usize]) -> UniqList[usize]
+>   %3 = Read move [$1] : UniqList[usize]
+>   %4 = FlagClear [$1] #2 : ()
+>   %5 = CallValue %2 [%3] : UniqList[usize]
+>   %6 = Read copy [$2] : bool
+>   %7 = Drop [$1] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $0 #2 : ()
+>   %15 = Block %5 : UniqList[usize]
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes

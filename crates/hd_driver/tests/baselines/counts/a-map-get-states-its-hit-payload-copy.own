@@ -6,17 +6,24 @@ fn lookup[T](values: Map[string, T], key: string) -> T?:
     values.get(key)
 > app/main/lookup
 >   local $0 values: Map[string, T] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 key: string [param read] value
->     uses $1: entry -> %2 lend last
->   %0 = FlagSet [$0] #2 : ()
->   %1 = Read borrow [$0] : Map[string, T]
->   %2 = Read borrow [$1] : string
->   %3 = Intrinsic MapGet [%1 %2] : T?
->   %4 = Retain %3 Operation operand 0 #0 : ()
->   %5 = Release %7 Exit local $0 #2 : ()
->   %6 = Release %7 Exit local $1 #2 : ()
->   %7 = Block %3 : T?
+>     uses $1: entry -> %1 lend last
+>   %0 = Read borrow [$0] : Map[string, T]
+>   %1 = Read borrow [$1] : string
+>   %2 = Intrinsic MapGet [%0 %1] : T?
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %14 Exit local $0 #2 : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block %2 : T?
 >   summary kept [] borrows [$0 $1]
 
 fn text(values: Map[string, string], key: string) -> string?:
@@ -33,9 +40,17 @@ fn text(values: Map[string, string], key: string) -> string?:
 >   %4 = Break L0 %2 : never
 >   %5 = Block - : string?
 >   %6 = Scope %5 [] : string?
->   %7 = Release %9 Exit local $0 #2 : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block %6 : string?
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %17 Exit local $0 #2 : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %6 : string?
 >   summary kept [] borrows [$0 $1]
 
 fn lists(values: Map[string, List[string]], key: string) -> List[string]?:
@@ -52,9 +67,17 @@ fn lists(values: Map[string, List[string]], key: string) -> List[string]?:
 >   %4 = Break L0 %2 : never
 >   %5 = Block - : List[string]?
 >   %6 = Scope %5 [] : List[string]?
->   %7 = Release %9 Exit local $0 #2 : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block %6 : List[string]?
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %17 Exit local $0 #2 : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %6 : List[string]?
 >   summary kept [] borrows [$0 $1]
 
 fn scalar(values: Map[string, i32], key: string) -> i32?:
@@ -70,9 +93,17 @@ fn scalar(values: Map[string, i32], key: string) -> i32?:
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : i32?
 >   %5 = Scope %4 [] : i32?
->   %6 = Release %8 Exit local $0 #2 : ()
->   %7 = Release %8 Exit local $1 #2 : ()
->   %8 = Block %5 : i32?
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %16 Exit local $0 #2 : ()
+>   %11 = Intrinsic ParamOwned [1:i32] : bool
+>   %12 = Drop [$1] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Release %16 Exit local $1 #2 : ()
+>   %16 = Block %5 : i32?
 >   summary kept [] borrows [$0 $1]
 
 fn unused(values: Map[string, string], key: string) -> void:
@@ -87,7 +118,15 @@ fn unused(values: Map[string, string], key: string) -> void:
 >   %2 = Intrinsic MapGet [%0 %1] : string?
 >   %3 = Retain %2 Operation operand 0 #0 : ()
 >   %4 = Drop [%2] : ()
->   %5 = Release %7 Exit local $0 #2 : ()
->   %6 = Release %7 Exit local $1 #2 : ()
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
 >   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %15 Exit local $0 #2 : ()
+>   %10 = Intrinsic ParamOwned [1:i32] : bool
+>   %11 = Drop [$1] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %15 Exit local $1 #2 : ()
+>   %15 = Block - : ()
 >   summary kept [] borrows [$0 $1]

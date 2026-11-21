@@ -13,56 +13,48 @@ struct Cell[T]:
 fn shift[T](items: List[T], i: usize) -> List[T]:
 > app/main/shift
 >   local $0 items: List[T] [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %6 lend, %7 lend last
+>     uses $1: entry -> %3 lend, %4 lend last
 >   local $2 xs: List[T] [read assigned] place
->   %1 = Retain %17 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     let mut xs = items
->   %0 = FlagSet [$0] #3 : ()
->   %2 = Read move [$0] : List[T]
->   %3 = FlagClear [$0] #3 : ()
->   %4 = Store [$2] %2 : ()
->   %5 = FlagSet [$2] #4 : ()
->   %16 = Drop [$0] : ()
->   %17 = Block %14 : List[T]
+>   %1 = Read move [$0] : List[T]
+>   %2 = Store [$2] %1 : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Block %11 : List[T]
     xs[i] = xs[i + 1]
->   %6 = Read copy [$1] : usize
->   %7 = Read copy [$1] : usize
->   %8 = Prim Add [%7 1:usize] : usize
->   %9 = Read copy [$2 [%8]] : T
->   %10 = Retain %9 Value #0 : ()
->   %11 = IsUnique [$2] : ()
->   %12 = Store [$2 [%6]] %9 : ()
->   %13 = Release %12 Operation #3 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Read copy [$1] : usize
+>   %5 = Prim Add [%4 1:usize] : usize
+>   %6 = Read copy [$2 [%5]] : T
+>   %7 = Retain %6 Value #0 : ()
+>   %8 = IsUnique [$2] : ()
+>   %9 = Store [$2 [%3]] %6 : ()
+>   %10 = Release %9 Operation #3 : ()
     xs
->   %14 = Read move [$2] : List[T]
->   %15 = FlagClear [$2] #4 : ()
+>   %11 = Read move [$2] : List[T]
 >   exit sub 0 drops [$0]
 
 fn bump[T](cells: List[Cell[T]], i: usize) -> List[Cell[T]]:
 > app/main/bump
 >   local $0 cells: List[Cell[T]] [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %1 consume last
 >   local $1 i: usize [param read] value
->     uses $1: entry -> %6 lend last
+>     uses $1: entry -> %3 lend last
 >   local $2 all: List[Cell[T]] [read assigned] place
->   %1 = Retain %14 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
     let mut all = cells
->   %0 = FlagSet [$0] #3 : ()
->   %2 = Read move [$0] : List[Cell[T]]
->   %3 = FlagClear [$0] #3 : ()
->   %4 = Store [$2] %2 : ()
->   %5 = FlagSet [$2] #4 : ()
->   %13 = Drop [$0] : ()
->   %14 = Block %11 : List[Cell[T]]
+>   %1 = Read move [$0] : List[Cell[T]]
+>   %2 = Store [$2] %1 : ()
+>   %9 = Drop [$0] : ()
+>   %10 = Block %8 : List[Cell[T]]
     all[i].hits += 1
->   %6 = Read copy [$1] : usize
->   %7 = Read copy [$2 [%6] .hits] : usize
->   %8 = Prim Add [%7 1:usize] : usize
->   %9 = IsUnique [$2] : ()
->   %10 = Store [$2 [%6] .hits] %8 : ()
+>   %3 = Read copy [$1] : usize
+>   %4 = Read copy [$2 [%3] .hits] : usize
+>   %5 = Prim Add [%4 1:usize] : usize
+>   %6 = IsUnique [$2] : ()
+>   %7 = Store [$2 [%3] .hits] %5 : ()
     all
->   %11 = Read move [$2] : List[Cell[T]]
->   %12 = FlagClear [$2] #4 : ()
+>   %8 = Read move [$2] : List[Cell[T]]
 >   exit sub 0 drops [$0]

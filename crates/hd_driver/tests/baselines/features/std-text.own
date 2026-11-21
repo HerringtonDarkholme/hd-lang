@@ -99,8 +99,12 @@ fn fields(line: string) -> usize:
 >   local $6 f: string [read assigned] value
 >     uses $6: %27 -> %18 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %39 = Release %40 Exit local $0 #2 : ()
->   %40 = Block %38 : usize
+>   %39 = Intrinsic ParamOwned [0:i32] : bool
+>   %40 = Drop [$0] : ()
+>   %41 = Block - : ()
+>   %42 = If %39 [%41 -] : ()
+>   %43 = Release %44 Exit local $0 #2 : ()
+>   %44 = Block %38 : usize
     for f in line.split(","):
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/text/impl string.split[] (%1, ",") : List[string]

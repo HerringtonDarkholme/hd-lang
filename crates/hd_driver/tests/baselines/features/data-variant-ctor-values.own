@@ -64,8 +64,12 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   %36 = Block - : ()
 >   %37 = Loop %36 - : ()
 >   %38 = Read move [$1] : List[SyncError]
->   %39 = Release %40 Exit local $0 #2 : ()
->   %40 = Block %38 : List[SyncError]
+>   %39 = Intrinsic ParamOwned [0:i32] : bool
+>   %40 = Drop [$0] : ()
+>   %41 = Block - : ()
+>   %42 = If %39 [%41 -] : ()
+>   %43 = Release %44 Exit local $0 #2 : ()
+>   %44 = Block %38 : List[SyncError]
 >   summary kept [] borrows [$0]
 >   loop %37 keeps len [$0] (-..-)
 
@@ -125,9 +129,17 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   %38 = Block - : ()
 >   %39 = Loop %38 - : ()
 >   %40 = Read move [$2] : List[SyncError]
->   %41 = Release %43 Exit local $0 #2 : ()
->   %42 = Release %43 Exit local $1 #2 : ()
->   %43 = Block %40 : List[SyncError]
+>   %41 = Intrinsic ParamOwned [0:i32] : bool
+>   %42 = Drop [$0] : ()
+>   %43 = Block - : ()
+>   %44 = If %41 [%43 -] : ()
+>   %45 = Release %51 Exit local $0 #2 : ()
+>   %46 = Intrinsic ParamOwned [1:i32] : bool
+>   %47 = Drop [$1] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Release %51 Exit local $1 #2 : ()
+>   %51 = Block %40 : List[SyncError]
 >   summary kept [] borrows [$0 $1] writes
 >   loop %39 keeps len [$0] (-..-)
 
@@ -196,8 +208,12 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >   %47 = Break L1 %46 : never
 >   %48 = Block - : List[SyncError]
 >   %49 = Scope %48 [] : List[SyncError]
->   %50 = Release %51 Exit local $0 #2 : ()
->   %51 = Block %49 : List[SyncError]
+>   %50 = Intrinsic ParamOwned [0:i32] : bool
+>   %51 = Drop [$0] : ()
+>   %52 = Block - : ()
+>   %53 = If %50 [%52 -] : ()
+>   %54 = Release %55 Exit local $0 #2 : ()
+>   %55 = Block %49 : List[SyncError]
 >   exit sub 1 drops [$1]
 >   summary kept [] borrows [$0]
 >   loop %45 keeps len [$0] (-..-)

@@ -234,7 +234,7 @@ impl Em<'_, '_, '_> {
 
     /// The locals of place `p`'s root, when the root's value lives in
     /// them (a local in no cell, or an instruction's value), and its type.
-    fn root_locals(&mut self, p: &Place) -> StageResult<Option<(Ty, Vec<u32>)>> {
+    pub(super) fn root_locals(&mut self, p: &Place) -> StageResult<Option<(Ty, Vec<u32>)>> {
         match p.root {
             PlaceRoot::Local(l) if !self.is_cell(l.idx()) => {
                 Ok(Some((self.at_root_ty(p.root), self.local(l.raw())?)))

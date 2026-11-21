@@ -29,7 +29,15 @@ app/main/lookup_size
   %21 = Block - : never
   %22 = Match %5 [%21 %12 %13] : usize
   %23 = Drop [%5] : ()
-  %24 = Release %26 Exit local $0 #2 : ()
-  %25 = Release %26 Exit local $1 #2 : ()
-  %26 = Block %22 : usize
+  %24 = Intrinsic ParamOwned [0:i32] : bool
+  %25 = Drop [$0] : ()
+  %26 = Block - : ()
+  %27 = If %24 [%26 -] : ()
+  %28 = Release %34 Exit local $0 #2 : ()
+  %29 = Intrinsic ParamOwned [1:i32] : bool
+  %30 = Drop [$1] : ()
+  %31 = Block - : ()
+  %32 = If %29 [%31 -] : ()
+  %33 = Release %34 Exit local $1 #2 : ()
+  %34 = Block %22 : usize
   summary kept [] borrows [$0 $1]

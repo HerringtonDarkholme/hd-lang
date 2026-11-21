@@ -41,6 +41,10 @@ app/main/exercise
   %30 = CallValue %28 [%29] : i32
   %31 = Drop [%28] : ()
   %32 = Prim Add [%10 %30] : i32
-  %33 = Release %34 Exit local $1 #2 : ()
-  %34 = Block %32 : i32
+  %33 = Intrinsic ParamOwned [1:i32] : bool
+  %34 = Drop [$1] : ()
+  %35 = Block - : ()
+  %36 = If %33 [%35 -] : ()
+  %37 = Release %38 Exit local $1 #2 : ()
+  %38 = Block %32 : i32
   summary kept [] borrows [$1] writes

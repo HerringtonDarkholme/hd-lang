@@ -18,25 +18,23 @@ impl[T] Echo[T] for Echoer:
 >   local $0 self: &Echoer [param] value
 >     uses $0: none
 >   local $1 value: T [param read] value
->     uses $1: entry -> %12 consume last
->   %1 = Retain %16 Cold local $0 #0 : ()
->   %2 = Retain %16 Entry local $0 #0 : ()
->   %3 = Retain %16 Cold local $1 #0 : ()
->   %4 = Retain %16 Entry local $1 #0 : ()
->   %5 = Retain %16 Cold referent $0 #8 : ()
->   %6 = Release %16 FrameDrop referent $0 #2 : ()
->   %7 = Release %16 Exit referent $0 #8 : ()
->   %8 = Retain %16 Cold referent $1 #8 : ()
->   %9 = Release %16 FrameDrop referent $1 #2 : ()
->   %10 = Release %16 Exit referent $1 #8 : ()
+>     uses $1: entry -> %11 consume last
+>   %0 = Retain %14 Cold local $0 #0 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
+>   %2 = Retain %14 Cold local $1 #0 : ()
+>   %3 = Retain %14 Entry local $1 #0 : ()
+>   %4 = Retain %14 Cold referent $0 #8 : ()
+>   %5 = Release %14 FrameDrop referent $0 #2 : ()
+>   %6 = Release %14 Exit referent $0 #8 : ()
+>   %7 = Retain %14 Cold referent $1 #8 : ()
+>   %8 = Release %14 FrameDrop referent $1 #2 : ()
+>   %9 = Release %14 Exit referent $1 #8 : ()
         value
->   %0 = FlagSet [$1] #2 : ()
->   %11 = Drop [$0] : ()
->   %12 = Read move [$1] : T
->   %13 = FlagClear [$1] #2 : ()
->   %14 = Drop [$0] : ()
->   %15 = Drop [$1] : ()
->   %16 = Block %12 : T
+>   %10 = Drop [$0] : ()
+>   %11 = Read move [$1] : T
+>   %12 = Drop [$0] : ()
+>   %13 = Drop [$1] : ()
+>   %14 = Block %11 : T
 >   exit sub 0 drops [$0 $1]
 >   summary none
 
@@ -47,8 +45,12 @@ impl[T] Echo[T] for Echoer:
 >     uses $1: entry -> %0 lend last
 >   %0 = Read borrow [$1] : List[string]
 >   %1 = Intrinsic ListLen [%0] : usize
->   %2 = Release %3 Exit local $1 #2 : ()
->   %3 = Block %1 : usize
+>   %2 = Intrinsic ParamOwned [1:i32] : bool
+>   %3 = Drop [$1] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $1 #2 : ()
+>   %7 = Block %1 : usize
 >   summary kept [] borrows [$1]
 
 fn cold_adapter(dynamic: *dyn Echo[List[string]]) -> (fn(List[string]) -> Suspend[List[string]]):

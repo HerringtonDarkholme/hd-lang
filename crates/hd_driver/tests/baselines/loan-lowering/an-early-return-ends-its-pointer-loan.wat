@@ -351,6 +351,7 @@
           i32.store $heap
         end
       end
+    ;; 25 |     if early:
       local.get $p
       if
         local.get $p
@@ -362,6 +363,7 @@
           call $rt:release_ref
         end
       end
+    ;; 26 |         return *value
       local.get $early
       local.get $alias
       return

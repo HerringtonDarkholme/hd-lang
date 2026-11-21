@@ -384,7 +384,7 @@ pub(crate) fn release(f: &mut Func, base: u32, size: i32) {
 }
 
 /// Pushes `base + off`.
-fn address(f: &mut Func, base: u32, off: u32) {
+pub(super) fn address(f: &mut Func, base: u32, off: u32) {
     f.get(base);
     if off != 0 {
         f.op(I::I32Const(off.cast_signed()));
@@ -1311,36 +1311,13 @@ impl Em<'_, '_, '_> {
         if !counted.counts() {
             return Ok(true);
         }
-        let paths = self
-            .tir_flags()
-            .get(&super::drop_flags::Root::Local(l))
-            .cloned()
-            .unwrap_or_default();
-        // No flag: the value is whole, released from its address by the
-        // type's object glue, one helper per layout, in place.
-        if paths.is_empty() {
-            address(&mut self.f, at, off);
-            self.f.helper(crate::rt::Helper::DropParts {
-                leaves: mem.leaves.clone(),
-                parts: vec![(0, counted)],
-            });
-            return Ok(true);
-        }
-        let base = self.f.local(crate::module::Val::I32);
+        // Released from its address by the type's object glue, one helper
+        // per layout, in place; its flags guard this (`hd_tir::own::elaborate`).
         address(&mut self.f, at, off);
-        self.f.set(base);
-        let ls = self.f.load_locals(base, &mem.leaves);
-        let offsets = ls
-            .iter()
-            .copied()
-            .zip(mem.leaves.iter().map(|x| x.offset))
-            .collect();
-        let was = self.node_base.replace((base, Rc::new(offsets)));
-        // ruled out: `indirect::params` keeps a move only through fields
-        // passed by address, the paths the open drop opens.
-        let done = self.open_drop(&ls, ty, &[], &super::drop_flags::Guards::Tir(paths));
-        self.node_base = was;
-        done?;
+        self.f.helper(crate::rt::Helper::DropParts {
+            leaves: mem.leaves.clone(),
+            parts: vec![(0, counted)],
+        });
         Ok(true)
     }
 }

@@ -58,6 +58,10 @@ fn name_len(s: string) -> usize:
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
->   %12 = Release %13 Exit local $0 #2 : ()
->   %13 = Block %11 : usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %11 : usize
 >   summary kept [] borrows [$0]

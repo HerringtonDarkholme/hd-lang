@@ -70,8 +70,12 @@ fn delegated(s: Service) -> usize:
 >   %14 = Break L0 %13 : never
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
->   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %16 : usize
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %16 : usize
 >   summary kept [] borrows [$0]
 
 fn explicit(s: Service) -> usize:
@@ -95,6 +99,10 @@ fn explicit(s: Service) -> usize:
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize
->   %12 = Release %13 Exit local $0 #2 : ()
->   %13 = Block %11 : usize
+>   %12 = Intrinsic ParamOwned [0:i32] : bool
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $0 #2 : ()
+>   %17 = Block %11 : usize
 >   summary kept [] borrows [$0]

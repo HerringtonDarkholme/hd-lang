@@ -29,8 +29,12 @@ fn construct(key: string) -> usize:
 >   %1 = Retain %0 Value #0 : ()
 >   %2 = Call app/main/fetch[] (%0) : Suspend[string]
 >   %3 = Drop [%2] : ()
->   %9 = Release %10 Exit local $0 #2 : ()
->   %10 = Block %8 : usize
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $0 #2 : ()
+>   %14 = Block %8 : usize
     key.len()
 >   %4 = Read borrow [$0] : string
 >   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize

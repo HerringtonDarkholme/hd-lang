@@ -420,17 +420,25 @@ fn parse(text: string) -> Result[i64, YamlError]:
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
 >   %5 = Prim Gt [%4 3:usize] : bool
->   %11 = If %5 [%10 -] : ()
->   %13 = Release %14 Exit local $0 #2 : ()
->   %14 = Block %12 : Result[i64, YamlError]
+>   %15 = If %5 [%14 -] : ()
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %16 : Result[i64, YamlError]
         return .Err(YamlError { line: 1 })
 >   %6 = NewStruct [1:i64] : YamlError
 >   %7 = NewVariant #1 [%6] : Result[i64, YamlError]
->   %8 = Release %14 Exit local $0 #2 : ()
->   %9 = Return %7 : never
->   %10 = Block - : never
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %22 Exit local $0 #2 : ()
+>   %13 = Return %7 : never
+>   %14 = Block - : never
     .Ok(+0)
->   %12 = NewVariant #0 [0:i64] : Result[i64, YamlError]
+>   %16 = NewVariant #0 [0:i64] : Result[i64, YamlError]
 >   summary kept [] borrows [$0]
 
 fn load(text: string) -> Result[i64, LoadError]:
@@ -465,14 +473,22 @@ fn load(text: string) -> Result[i64, LoadError]:
 >   %22 = Block - : LoadError
 >   %23 = Scope %22 [] : LoadError
 >   %24 = NewVariant #1 [%23] : Result[i64, LoadError]
->   %25 = Release %31 Exit local $0 #2 : ()
->   %26 = Return %24 : never
->   %27 = Block - : never
->   %28 = SwitchTag %14 [#0 %16 %27] : i64
->   %30 = Release %31 Exit local $0 #2 : ()
->   %31 = Block %29 : Result[i64, LoadError]
+>   %25 = Intrinsic ParamOwned [0:i32] : bool
+>   %26 = Drop [$0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Release %39 Exit local $0 #2 : ()
+>   %30 = Return %24 : never
+>   %31 = Block - : never
+>   %32 = SwitchTag %14 [#0 %16 %31] : i64
+>   %34 = Intrinsic ParamOwned [0:i32] : bool
+>   %35 = Drop [$0] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Release %39 Exit local $0 #2 : ()
+>   %39 = Block %33 : Result[i64, LoadError]
     .Ok(value)
->   %29 = NewVariant #0 [%28] : Result[i64, LoadError]
+>   %33 = NewVariant #0 [%32] : Result[i64, LoadError]
 >   summary kept [] borrows [$0]
 
 fn message(e: &LoadError) -> usize:

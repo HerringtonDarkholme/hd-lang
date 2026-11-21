@@ -59,8 +59,8 @@ fn replace_all(r: Rec, name: string, tags: List[string]) -> Rec:
 >     uses $1: entry -> %3 consume last
 >   local $2 tags: List[string] [param read] value
 >     uses $2: entry -> %4 consume last
->   %0 = Retain %9 Entry local $1 #0 : ()
->   %1 = Retain %9 Entry local $2 #0 : ()
+>   %0 = Retain %13 Entry local $1 #0 : ()
+>   %1 = Retain %13 Entry local $2 #0 : ()
     Rec { ...r, name, tags }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read move [$1] : string
@@ -68,7 +68,11 @@ fn replace_all(r: Rec, name: string, tags: List[string]) -> Rec:
 >   %5 = NewStruct [%3 %4] : Rec
 >   %6 = Drop [$1] : ()
 >   %7 = Drop [$2] : ()
->   %8 = Release %9 Exit local $0 #2 : ()
->   %9 = Block %5 : Rec
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $0 #2 : ()
+>   %13 = Block %5 : Rec
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0]

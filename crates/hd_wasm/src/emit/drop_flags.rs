@@ -218,7 +218,7 @@ impl Em<'_, '_, '_> {
         let Some(p) = self.b.decode_place(word) else {
             return Ok(());
         };
-        let Some((root, ty)) = self.drop_root(&p) else {
+        let Some((root, _)) = self.drop_root(&p) else {
             return Ok(());
         };
         let set = u32::from(self.b.tags[i as usize] == Tag::FlagSet);
@@ -226,12 +226,16 @@ impl Em<'_, '_, '_> {
         // flag local says whether it holds a value ([`Em::slot_flag`]).
         let slot =
             p.proj.is_empty() && matches!(root, Root::Local(l) if self.slots.contains_key(&l));
-        ledger!(if slot => "flag-stmt/slot-whole" else if self.cell_slots(root).is_some() => "flag-stmt/cell-slot"
-            else if self.tir_flagged(root, ty) => "flag-stmt/local" else "flag-stmt/ignored-here");
-        if let Some((c, cell)) = self.cell_slots(root).filter(|_| set == 1 || !slot) {
+        // Not a cell's: a flag the elaborated drops read, as
+        // `hd_tir::own::elaborate` keeps only those.
+        let cell = self.cell_slots(root);
+        let read = cell.is_none();
+        ledger!(if slot => "flag-stmt/slot-whole" else if cell.is_some() => "flag-stmt/cell-slot"
+            else if read => "flag-stmt/local" else "flag-stmt/ignored-here");
+        if let Some((c, cell)) = cell.filter(|_| set == 1 || !slot) {
             self.cell_statement(c, &cell, &p.proj, set == 1);
         }
-        if slot || self.tir_flagged(root, ty) {
+        if slot || read {
             let local = self.local(flag)?[0];
             self.f.u32(set);
             self.f.set(local);
@@ -519,27 +523,18 @@ impl Em<'_, '_, '_> {
             && matches!(self.kind(rt), Kind::Value)
             && crate::layout::holds_drop(self.pool(), self.env(), rt)
         {
-            let cell = self.cell_slots(root);
-            let whole = self.slot_flag(root)?;
-            let tir = self.tir_flags();
-            let paths = match (&cell, self.tir_flagged(root, rt)) {
-                (None, true) => tir.get(&root).map_or(&[][..], Vec::as_slice),
-                _ => &[],
-            };
-            // No flag guards a hook: the value is whole, and its release
-            // shim runs its hooks (`hd_layout::shims`). Flags on parts of
-            // a struct or tuple: the open drop.
-            if cell.is_none() && paths.is_empty() {
+            // Not a cell: TIR's elaborated drops read its flags
+            // (`hd_tir::own::elaborate`), and its release shim runs its
+            // hooks (`hd_layout::shims`). A cell's slots: the open drop.
+            let Some((c, cell)) = self.cell_slots(root) else {
                 return self.release_locals(ls, ty);
-            }
-            let guards = match &cell {
-                Some((c, cell)) => Guards::Cell {
-                    c: *c,
-                    cell: Rc::clone(cell),
-                    whole,
-                    at: None,
-                },
-                None => Guards::Tir(paths.to_vec()),
+            };
+            let whole = self.slot_flag(root)?;
+            let guards = Guards::Cell {
+                c,
+                cell,
+                whole,
+                at: None,
             };
             // ruled out: drop flags name field and variant paths only (the
             // checker refuses a move out of an element or through a
@@ -554,6 +549,24 @@ impl Em<'_, '_, '_> {
             return self.open_drop(ls, ty, &p.proj, &guards);
         }
         self.release_locals(ls, ty)
+    }
+
+    /// The frame glue's release of saved local `l`, its values `ls`, under
+    /// its reloaded TIR flags ([`Em::reload_drop_flags`]).
+    pub(super) fn release_saved(&mut self, ls: &[u32], l: usize) -> StageResult<()> {
+        let (root, ty) = (Root::Local(l), self.b.local_ty[l]);
+        let paths = self.tir_flags().get(&root).cloned().unwrap_or_default();
+        if self.is_cell(l) || paths.is_empty() || !self.tir_flagged(root, ty) {
+            return self.release_drop_place(ls, ty, &Self::local_place(l));
+        }
+        let guards = Guards::Tir(paths);
+        if !self.open_drop_fits(&guards, &[], ty, ls.len()) {
+            return Err(hd_base::NotImplemented::bug(
+                hd_base::Stage::Emit,
+                "a drop flag past the fields and variants the open drop opens",
+            ));
+        }
+        self.open_drop(ls, ty, &[], &guards)
     }
 
     pub(super) fn store_drop_place(&self) -> Option<Place> {

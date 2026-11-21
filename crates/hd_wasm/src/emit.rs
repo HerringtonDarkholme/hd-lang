@@ -1779,14 +1779,7 @@ impl Em<'_, '_, '_> {
             .into_iter()
             .filter(|i| match self.b.tags[*i as usize] {
                 Tag::Block => false,
-                // A parameter's exit release runs where it stands
-                // (`hd_tir::own::exits`).
-                Tag::Release => {
-                    lowered
-                        || CountInfo::read(self.b, *i as usize).is_some_and(|c| {
-                            c.at == CountAt::Exit && matches!(c.part, CountPart::Local(_))
-                        })
-                }
+                Tag::Release => lowered,
                 _ => !hd_tir::ir::count::boundary(self.b, *i as usize),
             })
             .collect()
@@ -1811,10 +1804,24 @@ impl Em<'_, '_, '_> {
         if Ref(r).as_inst().is_none() {
             return self.konst(r);
         }
+        if let Some(owned) = self.param_owned(r) {
+            self.f.u32(u32::from(owned));
+            return Ok(());
+        }
         for l in self.computed(r) {
             self.f.get(l);
         }
         Ok(())
+    }
+
+    /// Whether this instance owns the parameter `ParamOwned` value `r`
+    /// names: the whole-program pass does not lend it, and its type here
+    /// is an owned one. `None` for any other value.
+    pub(super) fn param_owned(&self, r: u32) -> Option<bool> {
+        let l = self.b.param_owned(r)? as usize;
+        let k = self.root_params.iter().position(|&p| p == l);
+        let ty = self.b.local_ty[l];
+        Some(k.is_some_and(|k| matches!(self.parameter_pass(k, ty), Pass::Owned)))
     }
 
     #[inline(never)]
@@ -2505,18 +2512,12 @@ impl Em<'_, '_, '_> {
             // only its point's cancellation branch lowers. A boundary
             // release, which a loop's entry-test prefix also passes here,
             // lowers at its named entry, exit or operation.
-            Tag::Release => match CountInfo::read(self.b, i as usize) {
-                Some(c) if c.at == CountAt::Value => {
+            Tag::Release => {
+                let info = CountInfo::read(self.b, i as usize);
+                if let Some(c) = info.filter(|c| c.at == CountAt::Value) {
                     self.because(Reason::from_word(c.reason), |em| em.release_value(a))?;
                 }
-                Some(c) if c.at == CountAt::Exit => {
-                    if let CountPart::Local(l) = c.part {
-                        let reason = Reason::from_word(c.reason);
-                        self.because(reason, |em| em.release_param(l as usize))?;
-                    }
-                }
-                _ => {}
-            },
+            }
             // Lowered in its store's walk of the place.
             Tag::MakeUnique => {}
             Tag::LoanBegin => self.loan_begin(i),
@@ -2789,6 +2790,8 @@ impl Em<'_, '_, '_> {
                     IntrinsicOp::MapSlotEntry | IntrinsicOp::MapSlotEntryMut => {
                         self.map_slot_entry(i, args[0], args[1])?;
                     }
+                    // A constant where it is used ([`Em::param_owned`]).
+                    IntrinsicOp::ParamOwned => {}
                     IntrinsicOp::Item => {
                         // ruled out: call::emit_call emits Tag::Call
                         // for named intrinsics, collected as call targets.

@@ -20,8 +20,12 @@ fn by_value(m: Map[string, string]) -> usize:
 >   local $7 v: &string [read assigned] value
 >     uses $7: %34 -> %25 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %46 = Release %47 Exit local $0 #2 : ()
->   %47 = Block %45 : usize
+>   %46 = Intrinsic ParamOwned [0:i32] : bool
+>   %47 = Drop [$0] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Release %51 Exit local $0 #2 : ()
+>   %51 = Block %45 : usize
     for (k, v) in m:
 >   %1 = Read borrow [$0] : Map[string, string]
 >   %2 = Intrinsic MapLen [%1] : usize
@@ -150,8 +154,12 @@ fn keys(m: Map[string, string]) -> List[string]:
 >     uses $6: %30 -> %23 lend last
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %44 = Release %45 Exit local $0 #2 : ()
->   %45 = Block %43 : List[string]
+>   %44 = Intrinsic ParamOwned [0:i32] : bool
+>   %45 = Drop [$0] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Release %49 Exit local $0 #2 : ()
+>   %49 = Block %43 : List[string]
     for (k, _) in m:
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Intrinsic MapLen [%2] : usize

@@ -27,10 +27,22 @@ app/main/impl Probes.alias_write
   %17 = If %2 [%14 %16] : ()
   %18 = Block - : ()
   %19 = Loop %18 - : ()
-  %20 = Release %23 Exit local $0 #2 : ()
-  %21 = Release %23 Exit local $1 #2 : ()
-  %22 = Release %23 Exit local $2 #2 : ()
-  %23 = Block - : ()
+  %20 = Intrinsic ParamOwned [0:i32] : bool
+  %21 = Drop [$0] : ()
+  %22 = Block - : ()
+  %23 = If %20 [%22 -] : ()
+  %24 = Release %35 Exit local $0 #2 : ()
+  %25 = Intrinsic ParamOwned [1:i32] : bool
+  %26 = Drop [$1] : ()
+  %27 = Block - : ()
+  %28 = If %25 [%27 -] : ()
+  %29 = Release %35 Exit local $1 #2 : ()
+  %30 = Intrinsic ParamOwned [2:i32] : bool
+  %31 = Drop [$2] : ()
+  %32 = Block - : ()
+  %33 = If %30 [%32 -] : ()
+  %34 = Release %35 Exit local $2 #2 : ()
+  %35 = Block - : ()
   summary kept [] borrows [$0 $1 $2] writes
 app/main/impl Probes.clean
   local $0 items: &mut List[usize] [param read] value
@@ -155,8 +167,20 @@ app/main/impl Probes.writing_call
   %20 = If %2 [%17 %19] : ()
   %21 = Block - : ()
   %22 = Loop %21 - : ()
-  %23 = Release %26 Exit local $0 #2 : ()
-  %24 = Release %26 Exit local $1 #2 : ()
-  %25 = Release %26 Exit local $2 #2 : ()
-  %26 = Block - : ()
+  %23 = Intrinsic ParamOwned [0:i32] : bool
+  %24 = Drop [$0] : ()
+  %25 = Block - : ()
+  %26 = If %23 [%25 -] : ()
+  %27 = Release %38 Exit local $0 #2 : ()
+  %28 = Intrinsic ParamOwned [1:i32] : bool
+  %29 = Drop [$1] : ()
+  %30 = Block - : ()
+  %31 = If %28 [%30 -] : ()
+  %32 = Release %38 Exit local $1 #2 : ()
+  %33 = Intrinsic ParamOwned [2:i32] : bool
+  %34 = Drop [$2] : ()
+  %35 = Block - : ()
+  %36 = If %33 [%35 -] : ()
+  %37 = Release %38 Exit local $2 #2 : ()
+  %38 = Block - : ()
   summary kept [] borrows [$0 $1 $2] writes

@@ -21,8 +21,12 @@ fn bump(items: &mut Map[string, i32], key: string) -> void:
 >   %6 = Prim Add [%5 1:i32] : i32
 >   %7 = Store [*%2] %6 : ()
 >   %8 = Drop [%2] : ()
->   %9 = Release %10 Exit local $1 #2 : ()
->   %10 = Block - : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block - : ()
 >   summary kept [] borrows [$1] writes
 
 @cold

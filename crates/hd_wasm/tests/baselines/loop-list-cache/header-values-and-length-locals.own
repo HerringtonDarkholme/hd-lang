@@ -223,8 +223,11 @@ fn by_value(xs: List[i64]) -> i64:
 >   local $7 $len: usize [read assigned] value
 >     uses $7: none
 >   %0 = Store [$1] 0:i64 : ()
->   %32 = Release %33 Exit local $0 #2 : ()
->   %33 = Block %31 : i64
+>   %32 = Intrinsic ParamOwned [0:i32] : bool
+>   %33 = Drop [$0] : ()
+>   %34 = Block - : ()
+>   %35 = If %32 [%34 -] : ()
+>   %36 = Block %31 : i64
     for v in xs:
 >   %1 = Read borrow [$0] : List[i64]
 >   %2 = Intrinsic ListLen [%1] : usize

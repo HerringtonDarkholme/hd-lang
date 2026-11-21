@@ -19,8 +19,12 @@ fn slice(text: string, start: usize, end: usize) -> string:
 >   %2 = Read copy [$2] : usize
 >   %3 = Call std/rt.bytes/bytes_slice[] (%0, %1, %2) : string
 >   %4 = Retain %3 Value #0 : ()
->   %5 = Release %6 Exit local $0 #2 : ()
->   %6 = Block %3 : string
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %3 : string
 
 fn discard_empty(text: string) -> void:
     _ := bytes_slice(text, 0, 0)
@@ -30,8 +34,12 @@ fn discard_empty(text: string) -> void:
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/rt.bytes/bytes_slice[] (%0, 0:usize, 0:usize) : string
 >   %2 = LoanEnd [%1] : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block - : ()
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block - : ()
 
 fn through_function(text: string) -> string:
     slice_fn := bytes_slice
@@ -42,8 +50,12 @@ fn through_function(text: string) -> string:
 >     uses $1: %1 -> %2 lend last
 >   %0 = ItemRef #0 [..] : fn(string, usize, usize) -> string
 >   %1 = Store [$1] %0 : ()
->   %6 = Release %7 Exit local $0 #2 : ()
->   %7 = Block %4 : string
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %4 : string
     slice_fn(text, 0, 1)
 >   %2 = Read move [$1] : fn(string, usize, usize) -> string
 >   %3 = Read borrow [$0] : string

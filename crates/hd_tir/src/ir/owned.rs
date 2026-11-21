@@ -1097,6 +1097,12 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         return;
     }
     let no_external_write = !crate::own::writes_in(b, 0..b.len(), &|c| own.may_write(c));
+    // Each flag local a parameter's ownership starts, as (place word,
+    // parameter).
+    let starts: Vec<(u32, u32)> = (0..b.len())
+        .filter(|&s| b.tags[s] == Tag::Store)
+        .filter_map(|s| Some((b.data[s][0], b.param_owned(b.data[s][1])?)))
+        .collect();
     let mut frame_slots = vec![false; b.local_ty.len()];
     for &(sub, l, storage) in &b.storage {
         if sub.idx() == 0 && storage == super::Storage::Slot && (lent[l.idx()] || binding[l.idx()])
@@ -1155,6 +1161,11 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
                         .all(|step| matches!(step, Proj::Field(_) | Proj::Variant(_)))
             })
         {
+            continue;
+        }
+        // A lent parameter's flag starts false: a drop under it never runs
+        // (`own::elaborate`).
+        if b.tags[i] == Tag::Drop && lent[l.idx()] && owned_guard(b, cx.topo, i, l.raw(), &starts) {
             continue;
         }
         let what = match b.tags[i] {
@@ -2488,6 +2499,32 @@ fn root_entry_locals(b: &Body, work: &mut impl FnMut()) -> Vec<usize> {
             (flags & super::local_flags::PARAM != 0 && !sub).then_some(l)
         })
         .collect()
+}
+
+/// Whether statement `i` runs only where this instance owns parameter
+/// `l`: an `If` around it tests `ParamOwned` of `l`, or a flag local
+/// that starts as it (`starts`).
+fn owned_guard(b: &Body, topo: &super::Topology, i: usize, l: u32, starts: &[(u32, u32)]) -> bool {
+    let flag = |v: u32| {
+        b.tags.get(v as usize) == Some(&Tag::Read) && starts.contains(&(b.data[v as usize][0], l))
+    };
+    let mut at = topo
+        .owner
+        .get(topo.blk[i] as usize)
+        .copied()
+        .unwrap_or(NONE);
+    while at != NONE {
+        let c = b.data[at as usize][0];
+        if b.tags[at as usize] == Tag::If && (b.param_owned(c) == Some(l) || flag(c)) {
+            return true;
+        }
+        at = topo
+            .owner
+            .get(topo.blk[at as usize] as usize)
+            .copied()
+            .unwrap_or(NONE);
+    }
+    false
 }
 
 #[cfg(test)]

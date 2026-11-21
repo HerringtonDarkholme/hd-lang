@@ -120,9 +120,17 @@ fn total(a: string, b: string) -> usize:
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
 >   %10 = Prim Add [%4 %9] : usize
->   %11 = Release %13 Exit local $0 #2 : ()
->   %12 = Release %13 Exit local $1 #2 : ()
->   %13 = Block %10 : usize
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Release %21 Exit local $0 #2 : ()
+>   %16 = Intrinsic ParamOwned [1:i32] : bool
+>   %17 = Drop [$1] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Release %21 Exit local $1 #2 : ()
+>   %21 = Block %10 : usize
 >   summary kept [] borrows [$0 $1]
 
 fn pause!() -> string $ Clock:

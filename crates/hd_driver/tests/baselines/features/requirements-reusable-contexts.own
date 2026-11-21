@@ -87,8 +87,12 @@ fn run(ctx: $.Context[$ Tag]) -> usize:
 >     uses $1: %6 -> %7 lend last
 >   %0 = Read borrow [$0] : $.Context[$ Tag]
 >   %17 = With [$.Context[$ Tag] %0] %16 : usize
->   %18 = Release %19 Exit local $0 #2 : ()
->   %19 = Block %17 : usize
+>   %18 = Intrinsic ParamOwned [0:i32] : bool
+>   %19 = Drop [$0] : ()
+>   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Release %23 Exit local $0 #2 : ()
+>   %23 = Block %17 : usize
         read_tag()
 >   %1 = ProviderGet #17 : Tag
 >   %2 = Coerce %1 [ProviderAsRef -] : &dyn Tag

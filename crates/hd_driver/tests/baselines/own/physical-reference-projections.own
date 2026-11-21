@@ -50,8 +50,12 @@ app/main/impl Probes.new_object
   %14 = LoanEnd [%12] : ()
   %15 = Drop [$1] : ()
   %16 = Prim Add [%10 %13] : usize
-  %17 = Release %18 Exit local $0 #2 : ()
-  %18 = Block %16 : usize
+  %17 = Intrinsic ParamOwned [0:i32] : bool
+  %18 = Drop [$0] : ()
+  %19 = Block - : ()
+  %20 = If %17 [%19 -] : ()
+  %21 = Release %22 Exit local $0 #2 : ()
+  %22 = Block %16 : usize
   storage sub 0: $1 slot
   summary kept [] borrows [$0]
 app/main/impl Probes.pointer
@@ -66,8 +70,12 @@ app/main/impl Probes.pointer
   %4 = Call std/text/impl string.len[] (%3) : usize
   %5 = LoanClose %1 : ()
   %6 = LoanEnd [%3] : ()
-  %7 = Release %8 Exit local $0 #2 : ()
-  %8 = Block %4 : usize
+  %7 = Intrinsic ParamOwned [0:i32] : bool
+  %8 = Drop [$0] : ()
+  %9 = Block - : ()
+  %10 = If %7 [%9 -] : ()
+  %11 = Release %12 Exit local $0 #2 : ()
+  %12 = Block %4 : usize
   summary kept [] borrows [$0]
 app/main/impl Probes.reborrow
   local $0 value: &string [param read] value

@@ -207,8 +207,12 @@ fn apply(f: fn() -> usize) -> usize:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : fn() -> usize
 >   %1 = CallValue %0 [] : usize
->   %2 = Release %3 Exit local $0 #2 : ()
->   %3 = Block %1 : usize
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %7 Exit local $0 #2 : ()
+>   %7 = Block %1 : usize
 >   summary kept [] borrows [$0] writes
 
 fn lexical(s: string) -> usize:
@@ -288,8 +292,12 @@ fn unrelated_provider(s: string) -> usize:
 >   local $5 provider: Named [read] value
 >     uses $5: %3 -> %4 consume last
 >   local $6 $ref: Named [read assigned captured captured-assigned] place
->   %47 = Release %48 Exit local $0 #2 : ()
->   %48 = Block %45 : usize
+>   %47 = Intrinsic ParamOwned [0:i32] : bool
+>   %48 = Drop [$0] : ()
+>   %49 = Block - : ()
+>   %50 = If %47 [%49 -] : ()
+>   %51 = Release %52 Exit local $0 #2 : ()
+>   %52 = Block %45 : usize
     $.with(Tag=Named { label: s }):
 >   %0 = Read copy [$0] : string
 >   %1 = Retain %0 Value #0 : ()

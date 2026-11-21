@@ -25,8 +25,12 @@ fn pick(t: Tag) -> string:
 >   %0 = Read borrow [$0] : Tag
 >   %52 = Block - : never
 >   %53 = Match %0 [%52 %10 %25 %28 %29] : string
->   %54 = Release %55 Exit local $0 #2 : ()
->   %55 = Block %53 : string
+>   %54 = Intrinsic ParamOwned [0:i32] : bool
+>   %55 = Drop [$0] : ()
+>   %56 = Block - : ()
+>   %57 = If %54 [%56 -] : ()
+>   %58 = Release %59 Exit local $0 #2 : ()
+>   %59 = Block %53 : string
         .Named(n) if n.len() > 3 => n
 >   %1 = Read borrow [$1] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize

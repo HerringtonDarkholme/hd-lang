@@ -18,9 +18,17 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
 >     uses $6: %3 -> %6 lend
 >   local $7 x: string [read assigned] value
 >     uses $7: %35 -> %19 lend last
->   %46 = Release %48 Exit local $0 #2 : ()
->   %47 = Release %48 Exit local $1 #2 : ()
->   %48 = Block %45 : usize
+>   %46 = Intrinsic ParamOwned [0:i32] : bool
+>   %47 = Drop [$0] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Release %56 Exit local $0 #2 : ()
+>   %51 = Intrinsic ParamOwned [1:i32] : bool
+>   %52 = Drop [$1] : ()
+>   %53 = Block - : ()
+>   %54 = If %51 [%53 -] : ()
+>   %55 = Release %56 Exit local $1 #2 : ()
+>   %56 = Block %45 : usize
         prefix.len() + s.len()
     let total: usize = 0
 >   %0 = Store [$2] 0:usize : ()
@@ -81,8 +89,12 @@ fn local_plain(xs: List[string]) -> usize:
 >     uses $0: entry -> %0 lend, %3 lend last
 >   local $2 self: string [read] value
 >     uses $2: %4 -> %5 lend last
->   %16 = Release %17 Exit local $0 #2 : ()
->   %17 = Block %15 : usize
+>   %16 = Intrinsic ParamOwned [0:i32] : bool
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Release %21 Exit local $0 #2 : ()
+>   %21 = Block %15 : usize
         if ys.len() > 0: ys[0].len() else: 0
     first_len(xs)
 >   %0 = Read borrow [$0] : List[string]

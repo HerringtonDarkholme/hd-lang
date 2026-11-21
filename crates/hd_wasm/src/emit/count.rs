@@ -23,7 +23,7 @@ use hd_types::{Ty, TyData};
 use super::Em;
 use super::refs::bare_local;
 use super::value::Src;
-use crate::layout::{Pass, coll_kind, coll_leaves};
+use crate::layout::{coll_kind, coll_leaves};
 use crate::module::Val;
 use crate::op::Op as I;
 use crate::rt::Helper;
@@ -768,34 +768,13 @@ impl Em<'_, '_, '_> {
     /// the body, so its locals stay as they are.
     fn release_exit(&mut self, l: usize) -> StageResult<()> {
         crate::work::exit_rows(1);
-        if self.borrowed.contains(&l) {
+        if self.borrowed.contains(&l) || self.mem_release(l)? {
             return Ok(());
         }
         match self.locals.get(&l).cloned() {
             Some(ls) => self.release_owned_local(l, &ls),
-            None => self.mem_release(l).map(|_| ()),
+            None => Ok(()),
         }
-    }
-
-    /// A parameter's exit `Release` (`hd_tir::own::exits`), when this
-    /// instance owns the parameter: the whole-program pass does not lend
-    /// it, and its type here is an owned one.
-    pub(super) fn release_param(&mut self, l: usize) -> StageResult<()> {
-        let k = self.root_params.iter().position(|&p| p == l);
-        let ty = self.b.local_ty[l];
-        if !k.is_some_and(|k| matches!(self.parameter_pass(k, ty), Pass::Owned))
-            || self.mem_release(l)?
-        {
-            return Ok(());
-        }
-        if let Some(ls) = self.locals.get(&l).cloned() {
-            if self.is_cell(l) {
-                self.count_local(l, &ls, false)?;
-            } else {
-                self.release_drop_place(&ls, ty, &Self::local_place(l))?;
-            }
-        }
-        Ok(())
     }
 
     /// Releases TIR local `l`'s count, when it holds a counted value, and
@@ -915,12 +894,19 @@ impl Em<'_, '_, '_> {
     /// `Drop` of a part of a place.
     pub(super) fn own_drop(&mut self, i: u32) -> StageResult<()> {
         let word = self.b.data[i as usize][0];
+        let reason = self.b.data[i as usize][1];
         if word & hd_tir::ir::place::BARE_LOCAL != 0 {
             let l = bare_local(self.b, word);
-            if self.b.data[i as usize][1] == hd_tir::own::EXIT_DROP {
+            // Nothing reads the local after an exit's drop, and a store
+            // writes it after an overwrite's.
+            if reason == hd_tir::own::EXIT_DROP || reason == hd_tir::own::OVERWRITTEN {
                 return self.release_exit(l);
             }
             return self.release_local(l);
+        }
+        // A part of a local or a value (`hd_tir::own::elaborate`).
+        if let Some(p) = self.b.decode_place(word).filter(|p| !p.proj.is_empty()) {
+            return self.drop_part(&p);
         }
         // ruled out: own::insert writes only [ROOT_VALUE, instruction] records
         // for non-local Drops; moves leave that whole root Drop in place.
@@ -929,6 +915,69 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         self.release_value(value)
+    }
+
+    /// A `Drop` of a part of a local or a value (`hd_tir::own::elaborate`):
+    /// the part's values, where the root's locals or its address hold
+    /// them, while the enum on its path holds each variant it names.
+    fn drop_part(&mut self, p: &hd_tir::ir::Place) -> StageResult<()> {
+        use crate::layout::{Disc, Is};
+        use hd_tir::ir::{PlaceRoot, Proj};
+        let root = match p.root {
+            PlaceRoot::Local(l) => Some(l.idx()),
+            _ => None,
+        };
+        if root.is_some_and(|l| self.borrowed.contains(&l) || self.loan_locals.contains_key(&l)) {
+            return Ok(());
+        }
+        let (t, ls) = match root.and_then(|l| Some((l, self.mem_locals.get(&l).cloned()?))) {
+            Some((l, (at, off, mem))) => {
+                let base = self.f.local(Val::I32);
+                super::indirect::address(&mut self.f, at, off);
+                self.f.set(base);
+                (self.b.local_ty[l], self.f.load_locals(base, &mem.leaves))
+            }
+            None => match self.root_locals(p)? {
+                Some(x) => x,
+                None => return Ok(()),
+            },
+        };
+        let part = super::required(
+            crate::layout::facts::place_part(self.pool(), self.env(), t, &p.proj)?,
+            "ruled out: own::elaborate opens only fields and variants laid out in place",
+        );
+        let mut open = 0;
+        for (d, step) in p.proj.iter().enumerate() {
+            let Proj::Variant(v) = *step else { continue };
+            let outer = super::required(
+                crate::layout::facts::place_part(self.pool(), self.env(), t, &p.proj[..d])?,
+                "ruled out: a variant's enum lies in place as its payload does",
+            );
+            let s = crate::layout::strip_newtype(self.pool(), self.env(), outer.ty);
+            let disc = crate::layout::flat(self.pool(), self.env(), s)?.map(|f| f.disc);
+            let is = match disc {
+                Some(Disc::Cell(c)) => c.enc.is(v),
+                Some(Disc::One(w)) if w != v => Is::Never,
+                _ => continue,
+            };
+            if matches!(is, Is::Never) {
+                (0..open).for_each(|_| self.f.op(I::End));
+                return Ok(());
+            }
+            let Some(Disc::Cell(c)) = disc else {
+                continue;
+            };
+            self.f.get(ls[outer.slots[c.value as usize]]);
+            for op in crate::layout::IsOps::ops(is) {
+                self.f.op(op);
+            }
+            self.f.op(I::If(BlockType::Empty));
+            open += 1;
+        }
+        let values: Vec<u32> = part.slots.iter().map(|&k| ls[k]).collect();
+        self.release_locals(&values, part.ty)?;
+        (0..open).for_each(|_| self.f.op(I::End));
+        Ok(())
     }
 
     /// `LoanEnd` `i`: the holder's reference counts nothing, so only its

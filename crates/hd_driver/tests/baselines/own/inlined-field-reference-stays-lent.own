@@ -119,8 +119,12 @@ fn recursive_owned(point: *Owner, depth: usize) -> usize:
 >   %0 = Ref local [*$0 .value] : &string
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Store [$2] %0 : ()
->   %22 = Release %23 Exit local $0 #2 : ()
->   %23 = Block %21 : usize
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Release %27 Exit local $0 #2 : ()
+>   %27 = Block %21 : usize
     below := if depth == 0: 0 else: recursive_owned(point, depth - 1)
 >   %3 = Read copy [$1] : usize
 >   %4 = Prim Eq [%3 0:usize] : bool

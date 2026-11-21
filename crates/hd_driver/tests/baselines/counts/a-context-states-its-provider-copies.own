@@ -63,8 +63,12 @@ fn spread(ctx: $.Context[$ Tag]) -> $.Context[$ Tag]:
 >   %0 = Read borrow [$0] : $.Context[$ Tag]
 >   %1 = ContextNew [$.Context[$ Tag] %0] : $.Context[$ Tag]
 >   %2 = Retain %1 Operation row #0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %1 : $.Context[$ Tag]
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %1 : $.Context[$ Tag]
 >   summary kept [] borrows [$0] writes
 
 fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
@@ -76,7 +80,7 @@ fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 >   local $2 provider: Named [read] value
 >     uses $2: %4 -> %5 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %23 Entry local $1 #0 : ()
+>   %0 = Retain %27 Entry local $1 #0 : ()
     $.context(ctx..., Tag=Named { label: label })
 >   %1 = Read borrow [$0] : $.Context[$ Tag]
 >   %2 = Read move [$1] : string
@@ -99,8 +103,12 @@ fn shadow(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 >   %19 = Retain %18 Operation row #0 : ()
 >   %20 = Release %18 Operation operand 1 #2 : ()
 >   %21 = Drop [$1] : ()
->   %22 = Release %23 Exit local $0 #2 : ()
->   %23 = Block %18 : $.Context[$ Tag]
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Release %27 Exit local $0 #2 : ()
+>   %27 = Block %18 : $.Context[$ Tag]
 >   exit sub 0 drops [$1]
 >   storage sub 0: $3 cell
 >   summary kept [$1] borrows [$0] writes
@@ -121,7 +129,7 @@ fn before_spread(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 >   local $2 provider: Named [read] value
 >     uses $2: %3 -> %4 consume last
 >   local $3 $ref: Named [read assigned captured captured-assigned] place
->   %0 = Retain %23 Entry local $1 #0 : ()
+>   %0 = Retain %27 Entry local $1 #0 : ()
     $.context(Tag=Named { label: label }, ctx...)
 >   %1 = Read move [$1] : string
 >   %2 = NewStruct [%1] : Named
@@ -144,8 +152,12 @@ fn before_spread(ctx: $.Context[$ Tag], label: string) -> $.Context[$ Tag]:
 >   %19 = Retain %18 Operation row #0 : ()
 >   %20 = Release %18 Operation operand 0 #2 : ()
 >   %21 = Drop [$1] : ()
->   %22 = Release %23 Exit local $0 #2 : ()
->   %23 = Block %18 : $.Context[$ Tag]
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Release %27 Exit local $0 #2 : ()
+>   %27 = Block %18 : $.Context[$ Tag]
 >   exit sub 0 drops [$1]
 >   storage sub 0: $3 cell
 >   summary kept [$1] borrows [$0] writes

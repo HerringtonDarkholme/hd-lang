@@ -17,6 +17,10 @@ app/main/impl[S] Source[S].empty_at
   %8 = Block - : bool
   %9 = Scope %8 [] : bool
   %10 = LoanClose %2 : ()
-  %11 = Release %12 Exit local $1 #2 : ()
-  %12 = Block %9 : bool
+  %11 = Intrinsic ParamOwned [1:i32] : bool
+  %12 = Drop [$1] : ()
+  %13 = Block - : ()
+  %14 = If %11 [%13 -] : ()
+  %15 = Release %16 Exit local $1 #2 : ()
+  %16 = Block %9 : bool
   summary kept [] borrows [$1]

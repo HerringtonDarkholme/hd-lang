@@ -23,9 +23,17 @@ impl Add for Tag:
 >   %1 = Read borrow [$1 .text] : string
 >   %2 = Intrinsic StrConcat [%0 %1] : string
 >   %3 = NewStruct [%2] : Tag
->   %4 = Release %6 Exit local $0 #2 : ()
->   %5 = Release %6 Exit local $1 #2 : ()
->   %6 = Block %3 : Tag
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %14 Exit local $0 #2 : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block %3 : Tag
 >   summary kept [] borrows [$0 $1]
 
 impl Neg for Tag:
@@ -38,8 +46,12 @@ impl Neg for Tag:
 >   %0 = Read borrow [$0 .text] : string
 >   %1 = Intrinsic StrConcat ["-" %0] : string
 >   %2 = NewStruct [%1] : Tag
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %2 : Tag
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %2 : Tag
 >   summary kept [] borrows [$0]
 
 fn add_tags(a: Tag, b: Tag) -> Tag:
@@ -56,9 +68,17 @@ fn add_tags(a: Tag, b: Tag) -> Tag:
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : Tag
 >   %6 = Scope %5 [] : Tag
->   %7 = Release %9 Exit local $0 #2 : ()
->   %8 = Release %9 Exit local $1 #2 : ()
->   %9 = Block %6 : Tag
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %17 Exit local $0 #2 : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %6 : Tag
 >   summary kept [] borrows [$0 $1]
 
 fn neg_tag(a: Tag) -> Tag:
@@ -72,73 +92,73 @@ fn neg_tag(a: Tag) -> Tag:
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : Tag
 >   %5 = Scope %4 [] : Tag
->   %6 = Release %7 Exit local $0 #2 : ()
->   %7 = Block %5 : Tag
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block %5 : Tag
 >   summary kept [] borrows [$0]
 
 fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 > app/main/sum
 >   local $0 items: List[T] [param read] value
->     uses $0: entry -> %7 lend, %15 lend
+>     uses $0: entry -> %3 lend, %11 lend
 >   local $1 zero: T [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %1 consume last
 >   local $2 total: T [read assigned mutated] place
 >   local $5 $pos: usize [assigned] place
 >   local $6 $end: usize [assigned] value
->     uses $6: %9 -> %12 lend
+>     uses $6: %5 -> %8 lend
 >   local $7 item: T [read assigned] value
->     uses $7: %29 -> %21 consume last
->   %2 = Retain %44 Entry local $1 #0 : ()
+>     uses $7: %23 -> %16 consume last
+>   %0 = Retain %40 Entry local $1 #0 : ()
     let total = zero
->   %0 = FlagSet [$0] #10 : ()
->   %1 = FlagSet [$1] #8 : ()
->   %3 = Read move [$1] : T
->   %4 = FlagClear [$1] #8 : ()
->   %5 = Store [$2] %3 : ()
->   %6 = FlagSet [$2] #9 : ()
->   %42 = Drop [$1] : ()
->   %43 = Release %44 Exit local $0 #2 : ()
->   %44 = Block %40 : T
+>   %1 = Read move [$1] : T
+>   %2 = Store [$2] %1 : ()
+>   %34 = Drop [$1] : ()
+>   %35 = Intrinsic ParamOwned [0:i32] : bool
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Release %40 Exit local $0 #2 : ()
+>   %40 = Block %33 : T
     for item in items:
->   %7 = Read borrow [$0] : List[T]
->   %8 = Intrinsic ListLen [%7] : usize
->   %9 = Store [$6] %8 : ()
->   %10 = Store [$5] 0:usize : ()
->   %11 = Read copy [$5] : usize
->   %12 = Read copy [$6] : usize
->   %13 = Prim Lt [%11 %12] : bool
->   %14 = Read copy [$5] : usize
->   %15 = Read borrow [$0 [%14]] : T
->   %16 = Read copy [$5] : usize
->   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Store [$5] %17 : ()
+>   %3 = Read borrow [$0] : List[T]
+>   %4 = Intrinsic ListLen [%3] : usize
+>   %5 = Store [$6] %4 : ()
+>   %6 = Store [$5] 0:usize : ()
+>   %7 = Read copy [$5] : usize
+>   %8 = Read copy [$6] : usize
+>   %9 = Prim Lt [%7 %8] : bool
+>   %10 = Read copy [$5] : usize
+>   %11 = Read borrow [$0 [%10]] : T
+>   %12 = Read copy [$5] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$5] %13 : ()
+>   %21 = Block - : ()
+>   %22 = Read borrow [%11] : T
+>   %23 = Store [$7] %22 : ()
+>   %25 = Block - : never
+>   %26 = Match %11 [%25 %21] : ()
 >   %27 = Block - : ()
->   %28 = Read borrow [%15] : T
->   %29 = Store [$7] %28 : ()
->   %30 = FlagSet [$7] #11 : ()
->   %32 = Block - : never
->   %33 = Match %15 [%32 %27] : ()
->   %34 = Block - : ()
->   %35 = Break L0 - : never
->   %36 = Block - : ()
->   %37 = If %13 [%34 %36] : ()
->   %38 = Block - : ()
->   %39 = Loop %38 - : ()
+>   %28 = Break L0 - : never
+>   %29 = Block - : ()
+>   %30 = If %9 [%27 %29] : ()
+>   %31 = Block - : ()
+>   %32 = Loop %31 - : ()
         total = total + item
->   %19 = Read move [$2] : T
->   %20 = FlagClear [$2] #9 : ()
->   %21 = Read copy [$7] : T
->   %22 = Retain %21 Value #0 : ()
->   %23 = Call std/ops/Add.add for T [T] via Bound (%19, %21) : T
->   %24 = Store [$2] %23 : ()
->   %25 = Release %24 Operation #3 : ()
->   %26 = FlagSet [$2] #9 : ()
+>   %15 = Read move [$2] : T
+>   %16 = Read copy [$7] : T
+>   %17 = Retain %16 Value #0 : ()
+>   %18 = Call std/ops/Add.add for T [T] via Bound (%15, %16) : T
+>   %19 = Store [$2] %18 : ()
+>   %20 = Release %19 Operation #3 : ()
     total
->   %40 = Read move [$2] : T
->   %41 = FlagClear [$2] #9 : ()
+>   %33 = Read move [$2] : T
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
->   loop %39 keeps len [$0] (-..-)
+>   loop %32 keeps len [$0] (-..-)
 
 fn sum_strings(xs: List[string]) -> string:
     sum(xs, "")
@@ -148,6 +168,10 @@ fn sum_strings(xs: List[string]) -> string:
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Call app/main/sum[string] (%0, "") : string
 >   %2 = Retain %1 Operation operand 0 #0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %1 : string
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %1 : string
 >   summary kept [] borrows [$0] writes

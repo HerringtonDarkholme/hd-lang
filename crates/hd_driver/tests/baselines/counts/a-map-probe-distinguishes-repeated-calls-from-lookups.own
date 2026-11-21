@@ -20,8 +20,12 @@ fn probes(items: &mut Map[string, i32], key: string) -> i32:
 >   %5 = Read copy [*%2] : i32
 >   %6 = Drop [%2] : ()
 >   %7 = Store [$2] %5 : ()
->   %18 = Release %19 Exit local $1 #2 : ()
->   %19 = Block %17 : i32
+>   %18 = Intrinsic ParamOwned [1:i32] : bool
+>   %19 = Drop [$1] : ()
+>   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Release %23 Exit local $1 #2 : ()
+>   %23 = Block %17 : i32
     second := *items.get_or_insert("other", +1)
 >   %8 = Read borrow [$0] : &mut Map[string, i32]
 >   %9 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%8, "other", 1:i32) : &mut i32
@@ -45,9 +49,17 @@ fn lookup(items: Map[string, i32], key: string) -> i32?:
 >   %0 = Read borrow [$0] : Map[string, i32]
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapGet [%0 %1] : i32?
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : i32?
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : i32?
 
 fn indexed(items: Map[string, i32], key: string) -> i32:
     items[key]
@@ -60,6 +72,14 @@ fn indexed(items: Map[string, i32], key: string) -> i32:
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic MapEntry [%0 %1] : usize
 >   %3 = Read copy [$0 [%2]] : i32
->   %4 = Release %6 Exit local $0 #2 : ()
->   %5 = Release %6 Exit local $1 #2 : ()
->   %6 = Block %3 : i32
+>   %4 = Intrinsic ParamOwned [0:i32] : bool
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
+>   %7 = If %4 [%6 -] : ()
+>   %8 = Release %14 Exit local $0 #2 : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block %3 : i32

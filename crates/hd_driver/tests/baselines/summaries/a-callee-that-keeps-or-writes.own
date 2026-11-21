@@ -108,8 +108,12 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %54 = Drop [$4] : ()
 >   %55 = Store [*$0 .name] %53 : ()
 >   %56 = Release %55 Operation #3 : ()
->   %57 = Release %58 Exit local $1 #2 : ()
->   %58 = Block - : ()
+>   %57 = Intrinsic ParamOwned [1:i32] : bool
+>   %58 = Drop [$1] : ()
+>   %59 = Block - : ()
+>   %60 = If %57 [%59 -] : ()
+>   %61 = Release %62 Exit local $1 #2 : ()
+>   %62 = Block - : ()
 >   summary kept [] borrows [$1] writes
 
 impl Tally:

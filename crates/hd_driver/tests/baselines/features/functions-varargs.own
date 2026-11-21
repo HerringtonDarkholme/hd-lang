@@ -18,8 +18,12 @@ fn total(parts...: List[string]) -> usize:
 >   local $6 p: string [read assigned] value
 >     uses $6: %23 -> %14 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %34 = Release %35 Exit local $0 #2 : ()
->   %35 = Block %33 : usize
+>   %34 = Intrinsic ParamOwned [0:i32] : bool
+>   %35 = Drop [$0] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Release %39 Exit local $0 #2 : ()
+>   %39 = Block %33 : usize
     for p in parts:
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -92,8 +96,12 @@ fn spread(xs: List[string]) -> usize:
 >   %0 = Read borrow [$0] : List[string]
 >   %1 = Call app/main/total[] (%0) : usize
 >   %2 = Retain %1 Operation operand 0 #0 : ()
->   %3 = Release %4 Exit local $0 #2 : ()
->   %4 = Block %1 : usize
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %8 Exit local $0 #2 : ()
+>   %8 = Block %1 : usize
 >   summary kept [] borrows [$0]
 
 fn none() -> usize:

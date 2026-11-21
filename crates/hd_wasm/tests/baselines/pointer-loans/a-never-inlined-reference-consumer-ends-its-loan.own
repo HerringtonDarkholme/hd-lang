@@ -341,9 +341,15 @@ fn probe(p: *mut Outer, alias: *mut Outer) -> string:
 >   %36 = LoanClose %31 : ()
 >   %37 = Drop [%29] : ()
 >   %38 = Store [$2] %32 : ()
->   %71 = Release %73 Exit local $0 #2 : ()
->   %72 = Release %73 Exit local $1 #2 : ()
->   %73 = Block %70 : string
+>   %71 = Intrinsic ParamOwned [0:i32] : bool
+>   %72 = Drop [$0] : ()
+>   %73 = Block - : ()
+>   %74 = If %71 [%73 -] : ()
+>   %75 = Intrinsic ParamOwned [1:i32] : bool
+>   %76 = Drop [$1] : ()
+>   %77 = Block - : ()
+>   %78 = If %75 [%77 -] : ()
+>   %79 = Block %70 : string
     for round in 0..16:
 >   %39 = NewStruct [0:usize 16:usize 0:bool] : Range[usize]
 >   %40 = Read copy [%39 .start] : usize

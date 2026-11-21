@@ -21,8 +21,12 @@ fn walk(n: *Node?) -> i64:
 >   %0 = Read borrow [$0] : *Node?
 >   %20 = Block - : never
 >   %21 = Match %0 [%20 %1 %12] : i64
->   %22 = Release %23 Exit local $0 #2 : ()
->   %23 = Block %21 : i64
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Release %27 Exit local $0 #2 : ()
+>   %27 = Block %21 : i64
         .None => 0
 >   %1 = Block 0:i64 : i64
 >   %14 = Block - : never
@@ -51,15 +55,19 @@ fn leftmost(n: *Node?, last: *Node) -> *Node:
 >     uses $1: entry -> %2 consume last
 >   local $2 node: *Node [read assigned] value
 >     uses $2: %14 -> %4 lend, %5 consume last
->   %0 = Retain %22 Entry local $1 #0 : ()
+>   %0 = Retain %26 Entry local $1 #0 : ()
     match n:
 >   %1 = Read borrow [$0] : *Node?
 >   %9 = Drop [$1] : ()
 >   %18 = Block - : never
 >   %19 = Match %1 [%18 %3 %10] : *Node
 >   %20 = Drop [$1] : ()
->   %21 = Release %22 Exit local $0 #2 : ()
->   %22 = Block %19 : *Node
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %26 Exit local $0 #2 : ()
+>   %26 = Block %19 : *Node
         .None => last
 >   %2 = Read move [$1] : *Node
 >   %3 = Block %2 : *Node

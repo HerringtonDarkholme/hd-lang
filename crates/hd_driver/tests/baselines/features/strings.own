@@ -130,8 +130,12 @@ fn interp(a: string, n: i64) -> string:
 >   %88 = Block - : ()
 >   %89 = Scope %88 [] : ()
 >   %90 = Read move [%36] : string
->   %91 = Release %92 Exit local $0 #2 : ()
->   %92 = Block %90 : string
+>   %91 = Intrinsic ParamOwned [0:i32] : bool
+>   %92 = Drop [$0] : ()
+>   %93 = Block - : ()
+>   %94 = If %91 [%93 -] : ()
+>   %95 = Release %96 Exit local $0 #2 : ()
+>   %96 = Block %90 : string
 >   summary kept [] borrows [$0] writes
 
 fn concat(a: string, b: string) -> string:
@@ -144,9 +148,17 @@ fn concat(a: string, b: string) -> string:
 >   %0 = Read borrow [$0] : string
 >   %1 = Read borrow [$1] : string
 >   %2 = Intrinsic StrConcat [%0 %1] : string
->   %3 = Release %5 Exit local $0 #2 : ()
->   %4 = Release %5 Exit local $1 #2 : ()
->   %5 = Block %2 : string
+>   %3 = Intrinsic ParamOwned [0:i32] : bool
+>   %4 = Drop [$0] : ()
+>   %5 = Block - : ()
+>   %6 = If %3 [%5 -] : ()
+>   %7 = Release %13 Exit local $0 #2 : ()
+>   %8 = Intrinsic ParamOwned [1:i32] : bool
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Release %13 Exit local $1 #2 : ()
+>   %13 = Block %2 : string
 >   summary kept [] borrows [$0 $1]
 
 fn concat_len(a: string, b: string) -> usize:
@@ -168,7 +180,15 @@ fn concat_len(a: string, b: string) -> usize:
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
 >   %9 = Drop [$2] : ()
->   %10 = Release %12 Exit local $0 #2 : ()
->   %11 = Release %12 Exit local $1 #2 : ()
->   %12 = Block %8 : usize
+>   %10 = Intrinsic ParamOwned [0:i32] : bool
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Release %20 Exit local $0 #2 : ()
+>   %15 = Intrinsic ParamOwned [1:i32] : bool
+>   %16 = Drop [$1] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $1 #2 : ()
+>   %20 = Block %8 : usize
 >   summary kept [] borrows [$0 $1]

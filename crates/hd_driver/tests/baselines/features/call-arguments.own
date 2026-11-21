@@ -46,8 +46,12 @@ fn by_value(s: string) -> usize:
 >   %31 = Scope %30 [] : usize
 >   %32 = Prim Add [%31 5:usize] : usize
 >   %33 = Prim Div [%26 %32] : usize
->   %34 = Release %35 Exit local $0 #2 : ()
->   %35 = Block %33 : usize
+>   %34 = Intrinsic ParamOwned [0:i32] : bool
+>   %35 = Drop [$0] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Release %39 Exit local $0 #2 : ()
+>   %39 = Block %33 : usize
 >   summary kept [] borrows [$0]
 
 fn by_ref(s: &string) -> usize:
@@ -165,8 +169,12 @@ fn by_ptr(n: *Node) -> usize:
 >   %40 = LoanClose %33 : ()
 >   %41 = Prim Add [%39 5:usize] : usize
 >   %42 = Prim Div [%31 %41] : usize
->   %43 = Release %44 Exit local $0 #2 : ()
->   %44 = Block %42 : usize
+>   %43 = Intrinsic ParamOwned [0:i32] : bool
+>   %44 = Drop [$0] : ()
+>   %45 = Block - : ()
+>   %46 = If %43 [%45 -] : ()
+>   %47 = Release %48 Exit local $0 #2 : ()
+>   %48 = Block %42 : usize
 >   summary kept [] borrows [$0]
 
 fn calls(s: string, n: *Node) -> usize:
@@ -175,7 +183,7 @@ fn calls(s: string, n: *Node) -> usize:
 >   local $1 n: *Node [param read] value
 >     uses $1: entry -> %22 lend last
 >   local $2 t: string [read assigned captured captured-assigned] place
->   %0 = Retain %28 Entry local $0 #0 : ()
+>   %0 = Retain %32 Entry local $0 #0 : ()
     let mut t = s
 >   %1 = Box #0 #255 : ()
 >   %2 = Read copy [$0] : string
@@ -183,8 +191,12 @@ fn calls(s: string, n: *Node) -> usize:
 >   %4 = Box #2 #0 : ()
 >   %5 = Store [$2] %2 : ()
 >   %26 = Drop [$0] : ()
->   %27 = Release %28 Exit local $1 #2 : ()
->   %28 = Block %25 : usize
+>   %27 = Intrinsic ParamOwned [1:i32] : bool
+>   %28 = Drop [$1] : ()
+>   %29 = Block - : ()
+>   %30 = If %27 [%29 -] : ()
+>   %31 = Release %32 Exit local $1 #2 : ()
+>   %32 = Block %25 : usize
     by_mut(&mut t)
 >   %6 = Ref mut local frame [$2] : &mut string
 >   %7 = Call app/main/by_mut[] (%6) : ()

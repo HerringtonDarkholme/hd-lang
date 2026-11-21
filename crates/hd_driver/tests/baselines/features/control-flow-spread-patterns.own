@@ -22,8 +22,12 @@ fn total(t: (string, List[string]...)) -> usize:
 >   %5 = Store [$2] %3 : ()
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %1] : ()
->   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %16 : usize
+>   %17 = Intrinsic ParamOwned [0:i32] : bool
+>   %18 = Drop [$0] : ()
+>   %19 = Block - : ()
+>   %20 = If %17 [%19 -] : ()
+>   %21 = Release %22 Exit local $0 #2 : ()
+>   %22 = Block %16 : usize
     a.len() + xs.len()
 >   %9 = Read borrow [$1] : string
 >   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
@@ -45,8 +49,12 @@ fn describe(t: (string, List[string]...)) -> usize:
 >   %0 = Read borrow [$0] : (string, List[string]...)
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %3] : usize
->   %9 = Release %10 Exit local $0 #2 : ()
->   %10 = Block %8 : usize
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $0 #2 : ()
+>   %14 = Block %8 : usize
         (_, xs...) => xs.len()
 >   %1 = Read borrow [$1] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -68,8 +76,12 @@ fn rest(t: (string, List[string]...)) -> List[string]:
 >   %3 = Store [$1] %2 : ()
 >   %5 = Block - : never
 >   %6 = Match %0 [%5 %1] : ()
->   %9 = Release %10 Exit local $0 #2 : ()
->   %10 = Block %7 : List[string]
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $0 #2 : ()
+>   %14 = Block %7 : List[string]
     xs
 >   %7 = Read copy [$1] : List[string]
 >   %8 = Retain %7 Value #0 : ()

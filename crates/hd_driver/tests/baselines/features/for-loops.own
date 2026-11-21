@@ -17,8 +17,12 @@ fn over_value(xs: List[string]) -> usize:
 >   local $6 x: string [read assigned] value
 >     uses $6: %23 -> %14 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %34 = Release %35 Exit local $0 #2 : ()
->   %35 = Block %33 : usize
+>   %34 = Intrinsic ParamOwned [0:i32] : bool
+>   %35 = Drop [$0] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Release %39 Exit local $0 #2 : ()
+>   %39 = Block %33 : usize
     for x in xs:
 >   %1 = Read borrow [$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -173,8 +177,12 @@ fn keep_each(xs: List[string]) -> List[string]:
 >     uses $6: %21 -> %14 consume last
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %32 = Release %33 Exit local $0 #2 : ()
->   %33 = Block %31 : List[string]
+>   %32 = Intrinsic ParamOwned [0:i32] : bool
+>   %33 = Drop [$0] : ()
+>   %34 = Block - : ()
+>   %35 = If %32 [%34 -] : ()
+>   %36 = Release %37 Exit local $0 #2 : ()
+>   %37 = Block %31 : List[string]
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -264,7 +272,11 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %38 = Block - : ()
 >   %39 = Loop %38 - : ()
 >   %40 = Read move [$1] : List[usize]
->   %41 = Release %42 Exit local $0 #2 : ()
->   %42 = Block %40 : List[usize]
+>   %41 = Intrinsic ParamOwned [0:i32] : bool
+>   %42 = Drop [$0] : ()
+>   %43 = Block - : ()
+>   %44 = If %41 [%43 -] : ()
+>   %45 = Release %46 Exit local $0 #2 : ()
+>   %46 = Block %40 : List[usize]
 >   summary kept [] borrows [$0]
 >   loop %39 keeps len [$0] (-..-)

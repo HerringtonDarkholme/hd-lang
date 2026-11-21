@@ -26,9 +26,17 @@ fn str_lt(a: string, b: string) -> bool:
 >   %13 = Block %12 : bool
 >   %14 = Block 0:bool : bool
 >   %15 = SwitchTag %8 [#1 %13 %14] : bool
->   %16 = Release %18 Exit local $0 #2 : ()
->   %17 = Release %18 Exit local $1 #2 : ()
->   %18 = Block %15 : bool
+>   %16 = Intrinsic ParamOwned [0:i32] : bool
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Release %26 Exit local $0 #2 : ()
+>   %21 = Intrinsic ParamOwned [1:i32] : bool
+>   %22 = Drop [$1] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %26 Exit local $1 #2 : ()
+>   %26 = Block %15 : bool
 >   summary kept [] borrows [$0 $1]
 
 fn list_le(a: List[string], b: List[string]) -> bool:
@@ -50,9 +58,17 @@ fn list_le(a: List[string], b: List[string]) -> bool:
 >   %11 = Block %10 : bool
 >   %12 = Block 0:bool : bool
 >   %13 = SwitchTag %4 [#1 %11 %12] : bool
->   %14 = Release %16 Exit local $0 #2 : ()
->   %15 = Release %16 Exit local $1 #2 : ()
->   %16 = Block %13 : bool
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %24 Exit local $0 #2 : ()
+>   %19 = Intrinsic ParamOwned [1:i32] : bool
+>   %20 = Drop [$1] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $1 #2 : ()
+>   %24 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -75,9 +91,17 @@ fn tuple_gt(a: (string, i64), b: (string, i64)) -> bool:
 >   %11 = Block %10 : bool
 >   %12 = Block 0:bool : bool
 >   %13 = SwitchTag %4 [#1 %11 %12] : bool
->   %14 = Release %16 Exit local $0 #2 : ()
->   %15 = Release %16 Exit local $1 #2 : ()
->   %16 = Block %13 : bool
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %24 Exit local $0 #2 : ()
+>   %19 = Intrinsic ParamOwned [1:i32] : bool
+>   %20 = Drop [$1] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $1 #2 : ()
+>   %24 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
@@ -100,8 +124,16 @@ fn opt_ge(a: string?, b: string?) -> bool:
 >   %11 = Block %10 : bool
 >   %12 = Block 0:bool : bool
 >   %13 = SwitchTag %4 [#1 %11 %12] : bool
->   %14 = Release %16 Exit local $0 #2 : ()
->   %15 = Release %16 Exit local $1 #2 : ()
->   %16 = Block %13 : bool
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %24 Exit local $0 #2 : ()
+>   %19 = Intrinsic ParamOwned [1:i32] : bool
+>   %20 = Drop [$1] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $1 #2 : ()
+>   %24 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
