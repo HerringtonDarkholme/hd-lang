@@ -8485,8 +8485,8 @@ impl Run<'_> {
             if let Ok(checked) = hd_check::derive::check_opt_in(tcx, opt, &methods) {
                 let compare = [k.eq, k.partial_ord, k.ord, k.hash].contains(&opt.trait_);
                 if checked.failures.is_empty() && checked.bodies.len() == methods.len() {
-                    for (def, b) in checked.bodies {
-                        if let Ok((it, b)) = hd_check::derive::instance(tcx, opt, def, b) {
+                    for template in checked.bodies {
+                        if let Ok((it, b)) = hd_check::derive::instance(tcx, opt, template) {
                             derived.items.push(it);
                             derived.bodies.push(b);
                         }
