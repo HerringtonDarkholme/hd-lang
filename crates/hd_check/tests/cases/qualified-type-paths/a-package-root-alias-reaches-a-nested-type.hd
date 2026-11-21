@@ -1,0 +1,16 @@
+# @dump: diagnostics functions
+# @main: src/main.hd
+use pkg as root
+use pkg.models.types
+fn identity(value: root.models.types.Token) -> root.models.types.Token:
+    value
+pub fn main() -> void:
+    identity(types.Token { value: +1 })
+    pass
+# @file: src/lib.hd
+pub struct Marker: pass
+# @file: src/models/mod.hd
+pub struct Marker: pass
+# @file: src/models/types.hd
+pub struct Token:
+    pub value: i32

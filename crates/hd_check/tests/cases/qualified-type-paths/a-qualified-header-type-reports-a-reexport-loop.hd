@@ -1,0 +1,8 @@
+# @dump: diagnostics
+use pkg.a
+struct Holder:
+    value: a.Token
+# @file: a.hd
+pub use pkg.b.{Token}
+# @file: b.hd
+pub use pkg.a.{Token}
