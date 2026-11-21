@@ -35,7 +35,9 @@
 use hd_base::HashMap;
 use hd_types::Ty;
 
+use super::reason::OVERWRITTEN;
 use super::{OwnCx, Tri, splice};
+use crate::ir::count::{At, Info, Part};
 use crate::ir::{
     Body, CaptureMode, NONE, ReadMode, Root, Storage, Tag, Topology, local_flags, place, u32_of,
 };
@@ -322,6 +324,20 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
     let mut paths = paths;
     for (&key, &at) in &paths.by_key {
         if matches!(key, Key::Local(l) if memory(l)) {
+            paths.moved[at as usize] = true;
+        }
+    }
+    // A store that may find its local holding a value releases the old one
+    // (`overwrites::plan`), but the local may be empty there, and a hook
+    // must not run on an empty value: a hooked local's whole flag says
+    // whether it holds one (rustc's flag of a maybe-initialized place).
+    let old = Some(Info::new(At::Operation, Part::Result, OVERWRITTEN));
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Release && Info::read(b, i) == old) {
+        let p = b.view(b.data[b.data[i][0] as usize][0]);
+        if let Some(l) = p.local().filter(|_| p.whole())
+            && !cells[l as usize]
+            && let Some(&at) = paths.by_key.get(&Key::Local(l))
+        {
             paths.moved[at as usize] = true;
         }
     }
