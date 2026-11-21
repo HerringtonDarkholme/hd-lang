@@ -1,0 +1,3 @@
+# @dump: diagnostics
+struct Holder[T < Missing]:
+    value: T::Item

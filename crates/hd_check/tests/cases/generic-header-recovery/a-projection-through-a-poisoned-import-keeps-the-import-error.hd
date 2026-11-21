@@ -1,0 +1,4 @@
+# @dump: diagnostics
+use pkg.absent.{Source}
+fn project[T < Source](value: T) -> T::Item:
+    panic("not called")
