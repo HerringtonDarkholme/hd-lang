@@ -2302,6 +2302,9 @@ impl InlineEnv for Env<'_> {
         // The function, not the sub-bodies of its parameters' defaults.
         let sub = (self.lifted_subs(def, at).into_iter()).find(|&k| generic.sub_is_generic(k))?;
         let choose = |t, s, a| InlineEnv::select_choice(self, t, s, a);
+        // One build per lifted instance: the inliner asks once per callee
+        // key (`hd_opt::inline::Memo`), as collection builds an instance.
+        lock(&self.run.counters).instances_built += 1;
         let body = hd_mono::instantiate(
             &self.run.pool,
             self,

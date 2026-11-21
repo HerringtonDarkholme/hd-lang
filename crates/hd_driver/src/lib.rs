@@ -15084,7 +15084,9 @@ mod instantiation_chain_tests {
     /// each distinct type arguments make one instance of its enclosing
     /// item, which emits that sub-body. `n` types, each instantiating it
     /// twice, build `n` more instances than one type does, at n and 10n,
-    /// in dev and release.
+    /// in dev and release. In release each call inlines its function's
+    /// copy, built once per instance (`InlineEnv::lifted_body`) and not
+    /// once per call.
     #[test]
     fn each_local_instantiation_is_one_instance() {
         use std::fmt::Write as _;
