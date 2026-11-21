@@ -1,9 +1,9 @@
 # @build: release
 # @dump: wat
-# expected: audit #1803 draft 58. The list `[1, 2, 3]` is allocated in this
-# function and owned by it alone, yet its release still tests the pointer for
-# null and loads the count header before calling the release. A fresh
-# allocation's release should go straight to the free path. Today it doesn't.
+# Audit #1803 draft 58, #2201: the list `[1, 2, 3]` is allocated in this
+# function and owned by it alone, so its `Drop` is fresh (`drop_word::FRESH`)
+# and its release goes straight to the free path (`rt:release_fresh`), with no
+# null test or count-header load.
 use std.annotation.inline
 
 @inline(.Never)

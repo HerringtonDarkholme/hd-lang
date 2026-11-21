@@ -114,11 +114,9 @@ rt:copy_elems#1
 rt:list_unique#0
 rt:list_unique#1
 rt:list_unique#2
-rt:list_unique#3
 rt:list_copy#0
 rt:list_copy#1
 rt:list_copy#2
-rt:list_copy#3
 rt:list_grow#0
 rt:list_grow#1
 rt:list_grow#2

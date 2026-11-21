@@ -4,6 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
+  (import "fixture" "rt:release_fresh" (func $rt:release_fresh (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
@@ -94,16 +95,7 @@
     local.get $t0
     i32.load $heap offset=4
     local.get $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref
-      end
-    end
+    call $rt:release_fresh
     i64.extend_i32_u
     local.tee $t4
     call $unsigned_width

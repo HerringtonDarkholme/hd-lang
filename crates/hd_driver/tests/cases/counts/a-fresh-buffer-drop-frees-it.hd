@@ -1,0 +1,60 @@
+# @build: release
+# @dump: wat stdout
+# A buffer this body allocated, nonempty, that nothing else holds is freed
+# at its `Drop` with no null test or header load (`rt:release_fresh`, #2201):
+# `pushed`'s local, pushed to and read, `aliased`'s, which a second name
+# only borrows, and `map`'s literal. Each neighbour keeps the tested
+# release: `lent` passes its list to a call, which may keep a copy;
+# `copied` puts it in a tuple twice, two counts; `empty` holds `[]`, which
+# may be the static empty buffer. A body's literal of constants is a buffer
+# of its own too (only a top-level binding's is static data): `literal`'s
+# element store needs no uniqueness check (`rt:list_unique`), and its drop
+# frees it.
+use std.annotation.inline
+
+@inline(.Never)
+fn count(xs: List[i32]) -> usize: xs.len()
+
+@inline(.Never)
+fn pushed(n: i32) -> usize:
+    let mut xs = [n]
+    xs.push(n + 1)
+    xs.len()
+
+@inline(.Never)
+fn map(n: i32) -> usize:
+    m := {"a": n}
+    m.len()
+
+@inline(.Never)
+fn lent(n: i32) -> usize:
+    xs := [n]
+    count(xs)
+
+@inline(.Never)
+fn aliased(n: i32) -> usize:
+    xs := [n]
+    ys := xs
+    xs.len() + ys.len()
+
+@inline(.Never)
+fn copied(n: i32) -> usize:
+    xs := [n]
+    pair := (xs, xs)
+    pair._0.len() + pair._1.len()
+
+@inline(.Never)
+fn empty() -> usize:
+    let mut xs: List[i32] = []
+    if xs.len() == 0:
+        xs.push(1)
+    xs.len()
+
+@inline(.Never)
+fn literal(n: i32) -> usize:
+    let mut xs = [1, 2, 3]
+    xs[0] = n
+    xs.len()
+
+pub fn main() -> void $ Console:
+    println("${pushed(1)} ${aliased(2)} ${map(3)} ${lent(4)} ${copied(5)} ${empty()} ${literal(6)}")

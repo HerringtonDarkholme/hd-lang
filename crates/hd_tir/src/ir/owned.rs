@@ -299,16 +299,24 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
     use super::unique_word::{DEFERRED, DEFERRED_CACHE, DEFERRED_INIT, FRESH, HOISTED, REPEAT};
     use crate::own::hoist;
     let n = b.len();
-    // A fresh buffer's `IsUnique` is of a local that keeps it fresh, and one
-    // that runs, which says its buffer may be shared, isn't of such a local.
-    if b.tags.contains(&Tag::IsUnique) {
-        let fresh = hoist::fresh_locals(b, cx);
+    // A fresh buffer's `IsUnique` is of a place that keeps it fresh, and one
+    // that runs isn't; a freeing `Drop` is of a buffer this body owns alone.
+    let fresh_drop = |i: usize| b.tags[i] == Tag::Drop && super::drop_word::fresh(b.data[i][1]);
+    if b.tags.contains(&Tag::IsUnique) || (0..n).any(fresh_drop) {
+        let fresh = hoist::fresh_buffers(b, cx);
         for i in 0..n {
+            if fresh_drop(i) && hoist::fresh_level(b, &fresh, b.data[i][0]) < hoist::OWNED {
+                err(
+                    errs,
+                    u32_of(i),
+                    "a freeing `Drop` of a buffer that may be shared or static".into(),
+                );
+            }
             if b.tags[i] != Tag::IsUnique {
                 continue;
             }
             let w = b.data[i][1];
-            let is_fresh = hoist::fresh_unique(b, &fresh, i);
+            let is_fresh = hoist::fresh_level(b, &fresh, b.data[i][0]) >= hoist::UNIQUE;
             if w == FRESH && !is_fresh {
                 err(
                     errs,

@@ -1191,6 +1191,13 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scratch.splice.clear();
     drop_flags::run(b, cx, &scratch.topo, &mut scratch.splice);
     splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+    // Each `Drop` of all of a buffer only this body holds frees it (#2201).
+    let fresh = hoist::fresh_buffers(b, cx);
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Drop && hoist::fresh_level(b, &fresh, b.data[i][0]) == hoist::OWNED {
+            b.data[i][1] |= crate::ir::drop_word::FRESH;
+        }
+    }
     scratch.topo.build(b);
     // Resident backend slots no longer require per-point serialized rows.
     // Keep the wire column readable for older artifacts and diagnostics.

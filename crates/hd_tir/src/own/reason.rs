@@ -94,7 +94,7 @@ pub fn reason(b: &Body, i: usize) -> Option<Reason> {
         Tag::Retain | Tag::Release | Tag::MakeUnique => {
             Reason::from_word(crate::ir::count::Info::read(b, i)?.reason)
         }
-        Tag::Drop => Reason::from_word(w),
+        Tag::Drop => Reason::from_word(w & !crate::ir::drop_word::FRESH),
         Tag::IsUnique if matches!(w, 0 | unique_word::HOISTED | unique_word::DEFERRED) => {
             Reason::MayBeShared
         }

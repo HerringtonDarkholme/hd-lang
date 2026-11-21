@@ -902,7 +902,7 @@ pub mod unique_word {
     pub const DEFERRED_CACHE: u32 = 7;
     /// Make unique on the first reached write, then reuse that decision.
     pub const DEFERRED: u32 = 6;
-    /// Of all of a fresh-buffer local (`own::hoist::fresh_locals`), whose
+    /// Of all of a fresh-buffer place (`own::hoist::fresh_buffers`), whose
     /// buffer nothing else can hold: always unique, so no check runs.
     pub const FRESH: u32 = 3;
     /// Of all of a local an earlier `IsUnique` of its block already made
@@ -910,6 +910,19 @@ pub mod unique_word {
     /// (`own::hoist::repeats`): no check runs. This decision precedes
     /// hoisting, which may later move its earlier check out of the loop.
     pub const REPEAT: u32 = 4;
+}
+
+/// A `Drop`'s data word b: its reason (`own::Reason::from_word`) and flags.
+pub mod drop_word {
+    /// Of all of a buffer this body allocated that nothing else holds
+    /// (`own::hoist::fresh_buffers`, #2201): it frees it with no test, as
+    /// Swift's SIL ends an unshared `alloc_ref` in `dealloc_ref`.
+    pub const FRESH: u32 = 1 << 4;
+    /// Whether word `w`, which may be `NONE`, has [`FRESH`].
+    #[must_use]
+    pub fn fresh(w: u32) -> bool {
+        w != super::NONE && w & FRESH != 0
+    }
 }
 
 /// How a `Read` reads its place (its `Meta` word b;

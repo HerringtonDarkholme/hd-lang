@@ -516,6 +516,11 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::RetainColl);
             } else if retain {
                 self.f.helper(Helper::RetainKnown);
+            } else if let Some(&d) = self.emitting.last()
+                && self.b.tags[d as usize] == Tag::Drop
+                && hd_tir::ir::drop_word::fresh(self.b.data[d as usize][1])
+            {
+                self.f.helper(Helper::ReleaseFresh);
             } else {
                 crate::rt::release_call(&mut self.f, crate::layout::Addr::Known);
             }

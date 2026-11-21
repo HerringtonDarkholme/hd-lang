@@ -4,9 +4,9 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "rt:release_fresh" (func $rt:release_fresh (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 16 |     println("${fresh()}")
@@ -35,7 +35,7 @@
     local.get $t3
     if
       local.get $t3
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
   )
   (func $fresh (result i32) (local $t0 i32) (local $t1 i32)
@@ -62,15 +62,6 @@
     i32.load $heap offset=4
     ;; 11 |     xs := [1, 2, 3]
     local.get $t0
-    if
-      local.get $t0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t0
-        call $rt:release_ref'2
-      end
-    end
+    call $rt:release_fresh
   )
 )

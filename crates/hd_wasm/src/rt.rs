@@ -289,6 +289,9 @@ pub enum Helper {
     /// Count a statically known payload start without a block lookup.
     RetainKnown,
     ReleaseKnown,
+    /// The last count of a buffer this body allocated and nothing else
+    /// holds (`drop_word::FRESH`): straight to the free path.
+    ReleaseFresh,
     /// `(coll)`: one more count on a list's or a map's buffer
     /// (`types.coll.value`), out of line: every copy of a collection
     /// shares this one call, which tests null and static data inside,
@@ -2274,6 +2277,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::ReleaseDrain
         | H::RetainKnown
         | H::ReleaseKnown
+        | H::ReleaseFresh
         | H::RetainColl
         | H::DropParts { .. }
         | H::RetainFields { .. }
@@ -2703,8 +2707,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.helper(Helper::New);
             f
         }
-        Helper::ReleaseRef => release_ref(m, Addr::Ref),
-        Helper::ReleaseKnown => release_ref(m, Addr::Known),
+        Helper::ReleaseRef | Helper::ReleaseKnown | Helper::ReleaseFresh => release_ref(m, h),
         Helper::ReleaseDrain => release_drain(m),
         Helper::TakeBox => take_box(m),
         Helper::RetainKnown | Helper::RetainColl => {
@@ -3639,14 +3642,26 @@ fn collect(m: &Module) -> Func {
 /// `visit` instead, checked here so that `visit` is called only during a
 /// collection (§23.28).
 ///
-/// `addr` says what the address is: any address ([`Helper::ReleaseRef`])
-/// or a known payload start ([`Helper::ReleaseKnown`]).
-fn release_ref(m: &Module, addr: Addr) -> Func {
-    let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
+/// `h` says what the address is: any address ([`Helper::ReleaseRef`]), a
+/// known payload start ([`Helper::ReleaseKnown`]), or a fresh buffer's
+/// last count, which no collector sees ([`Helper::ReleaseFresh`]).
+fn release_ref(m: &Module, h: &Helper) -> Func {
+    let fresh = *h == Helper::ReleaseFresh;
+    let name = if fresh {
+        "rt:release_fresh"
+    } else {
+        "rt:release_ref"
+    };
+    let mut f = m.func(name, vec![Val::I32], vec![]);
     let r = m.runtime;
-    let block = f.local(Val::I32);
-    let known = addr != Addr::Ref;
-    if !m.acyclic {
+    let block = if fresh { 0 } else { f.local(Val::I32) };
+    let known = *h == Helper::ReleaseKnown;
+    if fresh {
+        f.get(0);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.set(block);
+    } else if !m.acyclic {
         // A drain cannot overlap collector tracing. Nested releases therefore
         // bypass the collector test; only the outer release performs it.
         f.op(Instruction::Block(BlockType::Empty));
@@ -3665,14 +3680,16 @@ fn release_ref(m: &Module, addr: Addr) -> Func {
         f.op(Instruction::End);
         f.op(Instruction::End);
     }
-    f.get(0);
-    f.call(Sym::Inst(if known { r.release_known } else { r.release }));
-    f.set(block);
-    f.get(block);
-    f.op(Instruction::I32Eqz);
-    f.op(Instruction::If(BlockType::Empty));
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
+    if !fresh {
+        f.get(0);
+        f.call(Sym::Inst(if known { r.release_known } else { r.release }));
+        f.set(block);
+        f.get(block);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+    }
 
     // The final release already removed the block from cycle candidates.
     f.global_get(Global::Releasing);

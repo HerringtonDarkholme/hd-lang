@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
+  (import "fixture" "rt:release_fresh" (func $rt:release_fresh (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $local (result f64) (local $values i32) (local $t0 i32)
     ;; 10 |     values := [1.5, 2.5, 3.5]
@@ -36,16 +36,7 @@
     f64.load $heap offset=32
     ;; 10 |     values := [1.5, 2.5, 3.5]
     local.get $values
-    if
-      local.get $values
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $values
-        call $rt:release_ref
-      end
-    end
+    call $rt:release_fresh
   )
   (func $top (result f64)
     ;; 7 |     top_values[1]

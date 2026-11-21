@@ -224,6 +224,7 @@ pub(crate) fn helper_count_action(s: &crate::module::Sym) -> Option<CountAction>
         Sym::Helper(
             Helper::ReleaseRef
             | Helper::ReleaseKnown
+            | Helper::ReleaseFresh
             | Helper::TakeBox
             | Helper::DropParts { .. }
             | Helper::ReleaseSpilled { .. }

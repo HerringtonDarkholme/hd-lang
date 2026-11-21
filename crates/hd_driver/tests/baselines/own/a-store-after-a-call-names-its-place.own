@@ -27,14 +27,14 @@ fn fill(n: usize) -> List[usize]:
     xs[1] = n * 2
 >   %2 = Read copy [$0] : usize
 >   %3 = Prim Mul [%2 2:usize] : usize
->   %4 = IsUnique [$1] : ()
+>   %4 = IsUnique fresh [$1] : ()
 >   %5 = Store [$1 [1:usize]] %3 : ()
     xs[0] = n + usize(twice(1))
 >   %6 = Read copy [$0] : usize
 >   %7 = Call app/main/twice[] (1:i32) : i32
 >   %8 = Prim Conv [%7] : usize
 >   %9 = Prim Add [%6 %8] : usize
->   %10 = IsUnique [$1] : ()
+>   %10 = IsUnique fresh [$1] : ()
 >   %11 = Store [$1 [0:usize]] %9 : ()
     xs
 >   %12 = Read move [$1] : List[usize]

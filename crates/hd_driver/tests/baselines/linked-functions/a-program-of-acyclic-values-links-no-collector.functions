@@ -20,7 +20,6 @@ std/rt.alloc/start#0
 std/rt.alloc/free_block#0
 std/rt.bytes/unsigned_width#0
 std/rt.alloc/init.init#0
-std/rt.alloc/release_known_acyclic#0
 std/rt.bytes/signed_magnitude#0
 app/main/main#1
 std/rt.bytes/write_unsigned_sized#0
@@ -42,9 +41,9 @@ rt:panic_with
 rt:to_buf
 rt:new
 rt:str
-rt:release_ref#0
+rt:release_ref
 rt:release_drain
-rt:release_ref#1
+rt:release_fresh
 rt:list_buf
 rt:drop_elems
 rt:dyn_trap
