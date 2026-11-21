@@ -1,0 +1,37 @@
+# @dump: stdout
+# expected: borrows held by using! bindings across another binding's suspending dispose!: a reborrow of a
+# reference parameter, and borrows of two frame locals; each dispose! really suspends (sleep), and the
+# later disposes see the earlier writes, last in, first out
+use std.ops.AsyncDisposable
+use std.time.{Clock, Duration, sleep}
+
+struct R:
+    n: i32
+    log: *mut List[string]
+
+impl AsyncDisposable[$ Clock] for R:
+    fn dispose!(&mut self) -> void $ Clock:
+        sleep!(Duration::milliseconds(1))
+        self.n = self.n + 100
+        self.log.push("dispose ${self.n}")
+
+fn param!(r: &mut R) -> void $ Clock:
+    using! first = &mut *r
+    using! second = r
+    pass
+
+fn local!(log: *mut List[string]) -> i32 $ Clock:
+    let mut a = R { n: 1, log: log }
+    let mut b = R { n: 2, log: log }
+    using! first = &mut a
+    using! second = &mut b
+    pass
+    a.n
+
+pub fn main!() -> void $ Console + Clock:
+    let log: *mut List[string] = box([])
+    let mut r = R { n: 1, log: log }
+    param!(&mut r)
+    println("param: r.n = ${r.n}")
+    println("local: ${local!(log)}")
+    println(log.join(", "))
