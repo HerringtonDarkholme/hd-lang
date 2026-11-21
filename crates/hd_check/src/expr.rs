@@ -4,10 +4,10 @@
 
 use std::fmt::Write as _;
 
-use hd_base::{DefId, HashMap, StageResult, TokenIdx};
+use hd_base::{DefId, HashMap, NotImplemented, Stage, StageResult, TokenIdx};
 use hd_diag::{Code, FixSafety};
 use hd_intern::PathKind;
-use hd_resolve::{ItemData, Src, show_ty_rows_in};
+use hd_resolve::{Item, ItemData, Src, show_ty_rows_in};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
 use hd_types::solver::{Answer, TraitRef};
@@ -180,6 +180,26 @@ pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<
         }
     }
     Some(out)
+}
+
+/// The approved builder owns one byte buffer, initialized through its constructor.
+fn interpolation_buffer_field(item: Option<&Item>) -> StageResult<Ty> {
+    if let Some(ItemData::Struct(fields, _)) = item.map(|item| &item.data)
+        && let [field] = fields.as_slice()
+    {
+        return Ok(field.ty);
+    }
+    Err(invalid_interpolation_metadata(
+        "StringBuilder with one owning byte-buffer field",
+    ))
+}
+
+#[cold]
+fn invalid_interpolation_metadata(needed: &str) -> NotImplemented {
+    NotImplemented::bug(
+        Stage::Body,
+        format!("interpolation requires resolved std metadata for `{needed}`"),
+    )
 }
 
 impl Ck<'_, '_> {
@@ -478,11 +498,16 @@ impl Ck<'_, '_> {
                 n.index(),
             );
         }
-        let result = self.interpolation_internal("value_new", &[size], Ty::STRING, n);
+        let result = self.interpolation_internal("value_new", &[size], Ty::STRING, n)?;
         for ((piece, _), offset) in out.pieces.into_iter().zip(offsets) {
             match piece {
                 InterpolationPiece::Text(text) => {
-                    self.interpolation_internal("value_text", &[result, offset, text], Ty::VOID, n);
+                    self.interpolation_internal(
+                        "value_text",
+                        &[result, offset, text],
+                        Ty::VOID,
+                        n,
+                    )?;
                 }
                 InterpolationPiece::Signed(value, width) => {
                     self.interpolation_internal(
@@ -490,7 +515,7 @@ impl Ck<'_, '_> {
                         &[result, offset, value, width],
                         Ty::VOID,
                         n,
-                    );
+                    )?;
                 }
                 InterpolationPiece::Unsigned(value, width) => {
                     self.interpolation_internal(
@@ -498,7 +523,7 @@ impl Ck<'_, '_> {
                         &[result, offset, value, width],
                         Ty::VOID,
                         n,
-                    );
+                    )?;
                 }
                 InterpolationPiece::OpenInteger(value, ty, width) => {
                     let write = self.interpolation_internal(
@@ -506,8 +531,8 @@ impl Ck<'_, '_> {
                         &[result, offset, value, width],
                         Ty::VOID,
                         n,
-                    );
-                    let unsigned = self.unsigned_form("value_unsigned");
+                    )?;
+                    let unsigned = self.unsigned_form("value_unsigned")?;
                     self.open_integer_writes.push((ty, write, Some(unsigned)));
                 }
                 InterpolationPiece::Char(value) => {
@@ -516,7 +541,7 @@ impl Ck<'_, '_> {
                         &[result, offset, value],
                         Ty::VOID,
                         n,
-                    );
+                    )?;
                 }
             }
         }
@@ -563,7 +588,7 @@ impl Ck<'_, '_> {
         self.interpolate(*arg, &mut out)?;
         if !out.text.is_empty() {
             let text = self.b.const_str(&std::mem::take(&mut out.text));
-            return Ok(Some(self.builder_call("push", &[recv, text], n)));
+            return Ok(Some(self.builder_call("push", &[recv, text], n)?));
         }
         Ok(Some((Ref(NONE), Ty::VOID)))
     }
@@ -758,11 +783,11 @@ impl Ck<'_, '_> {
             if size != 0 {
                 let hint = self.b.const_value(Ty::prim(Prim::Usize), u64::from(size));
                 let receiver = self.interpolation_ref(builder, n);
-                self.builder_call("reserve", &[receiver, hint], n);
+                self.builder_call("reserve", &[receiver, hint], n)?;
             }
             out.reserved = true;
         }
-        self.push_pending_text(out, builder, n);
+        self.push_pending_text(out, builder, n)?;
         let display = self.cx.names.known.display;
         let value_receiver = self.eq_operand_ref((r, t, held), n);
         let receiver = self.interpolation_ref(builder, n);
@@ -772,22 +797,12 @@ impl Ck<'_, '_> {
     }
 
     /// Makes an empty local builder through its byte field's constructor.
-    fn new_interpolation_builder(&mut self, n: NodeRef<'_>) -> InterpolationBuilder {
+    fn new_interpolation_builder(&mut self, n: NodeRef<'_>) -> StageResult<InterpolationBuilder> {
         let pool = self.pool();
         let def = self.cx.names.known.string_builder;
-        let item = self.cx.lookup.item(def).expect("stdpack StringBuilder");
-        let ItemData::Struct(fields, _) = &item.data else {
-            unreachable!("stdpack StringBuilder is a struct");
-        };
-        let [field] = fields.as_slice() else {
-            unreachable!("stdpack StringBuilder has one byte buffer");
-        };
-        // The approved builder field owns its bytes. Initialize it
-        // through its ordinary constructor rather than assuming the
-        // representation of a built-in list.
-        let (init, _, vars) = self
-            .find_inherent_any(field.ty, "new")
-            .expect("stdpack byte buffer constructor");
+        let buffer_ty = interpolation_buffer_field(self.cx.lookup.item(def))?;
+        // Initialize the owning field through its ordinary constructor.
+        let (init, _, vars) = self.interpolation_inherent(buffer_ty, "new")?;
         self.note_call(init);
         let constructor = hd_tir::ir::Callee::Item {
             def: init,
@@ -797,7 +812,7 @@ impl Ck<'_, '_> {
             &constructor,
             &[],
             hd_tir::ir::Providers::None,
-            field.ty,
+            buffer_ty,
             n.index(),
         );
         let fields = self.b.refs_record(&[bytes]);
@@ -810,7 +825,7 @@ impl Ck<'_, '_> {
         let local = self.b.local(ty, name, local_flags::ASSIGNED, n.index());
         self.set_local(local, value, n.index());
         self.mut_locals.push(local);
-        InterpolationBuilder::Local(local)
+        Ok(InterpolationBuilder::Local(local))
     }
 
     fn prepare_pending_text(&mut self, out: &mut Interpolation) {
@@ -825,47 +840,62 @@ impl Ck<'_, '_> {
     /// The `StringBuilder` helper `name` that an open integer's signed
     /// call turns into if its class settles unsigned. Its call is noted
     /// now: the body's calls are recorded before it settles.
-    fn unsigned_form(&mut self, name: &str) -> DefId {
-        let def = self.string_builder_helper(name);
+    fn unsigned_form(&mut self, name: &str) -> StageResult<DefId> {
+        let def = self.string_builder_helper(name)?;
         self.note_call(def);
-        def
+        Ok(def)
     }
 
     /// The private `std.text.StringBuilder` helper `name`.
-    pub(crate) fn string_builder_helper(&mut self, name: &str) -> DefId {
+    pub(crate) fn string_builder_helper(&mut self, name: &str) -> StageResult<DefId> {
         let pool = self.pool();
         let sb = pool.intern_ty(&TyData::Adt {
             def: self.cx.names.known.string_builder,
             args: pool.list(&[]),
         });
-        // ruled out: every build loads the whole std (the CLI names no
-        // directory's program `std`, #1714, and rejects a manifest that
-        // names its package `std`, `cli.name.std.manifest`), its
-        // `StringBuilder` declares every helper the lowering names, and std
-        // is checked with the compiler's own tests.
-        self.find_inherent_any(sb, name)
-            .expect("stdpack interpolation method")
-            .0
+        Ok(self.interpolation_inherent(sb, name)?.0)
+    }
+
+    /// A required std method, preserving the selected constructor's type arguments.
+    fn interpolation_inherent(
+        &mut self,
+        receiver: Ty,
+        name: &str,
+    ) -> StageResult<(DefId, DefId, Vec<Ty>)> {
+        self.find_inherent_any(receiver, name)
+            .ok_or_else(|| invalid_interpolation_metadata(name))
     }
 
     /// A call to an ordinary private runtime helper, with no new intrinsic.
-    fn interpolation_helper(&mut self, name: &str, args: &[Ref], n: NodeRef<'_>) -> Ref {
+    fn interpolation_helper(
+        &mut self,
+        name: &str,
+        args: &[Ref],
+        n: NodeRef<'_>,
+    ) -> StageResult<Ref> {
         self.interpolation_internal(name, args, Ty::prim(Prim::Usize), n)
     }
 
     /// Private methods are named in the inherent index but do not export
     /// signatures. These desugaring helpers have fixed, compiler-owned call
     /// shapes; their bodies are still checked as ordinary std code.
-    fn interpolation_internal(&mut self, name: &str, args: &[Ref], ret: Ty, n: NodeRef<'_>) -> Ref {
+    fn interpolation_internal(
+        &mut self,
+        name: &str,
+        args: &[Ref],
+        ret: Ty,
+        n: NodeRef<'_>,
+    ) -> StageResult<Ref> {
         let pool = self.pool();
-        let def = self.string_builder_helper(name);
+        let def = self.string_builder_helper(name)?;
         self.note_call(def);
         let callee = hd_tir::ir::Callee::Item {
             def,
             targs: pool.list(&[]),
         };
-        self.b
-            .call(&callee, args, hd_tir::ir::Providers::None, ret, n.index())
+        Ok(self
+            .b
+            .call(&callee, args, hd_tir::ir::Providers::None, ret, n.index()))
     }
 
     /// Snapshot primitives at their segment position. User writes also run at
@@ -901,8 +931,8 @@ impl Ck<'_, '_> {
                 Ty::prim(Prim::I64),
                 n.index(),
             );
-            let width = self.interpolation_helper("signed_width", &[wide], n);
-            let unsigned = self.unsigned_form("unsigned_width");
+            let width = self.interpolation_helper("signed_width", &[wide], n)?;
+            let unsigned = self.unsigned_form("unsigned_width")?;
             self.open_integer_writes.push((ty, wide, None));
             self.open_integer_writes.push((ty, width, Some(unsigned)));
             out.pieces
@@ -917,7 +947,7 @@ impl Ck<'_, '_> {
                     r
                 };
                 if p == Prim::Char {
-                    let width = self.interpolation_helper("char_width", &[value], n);
+                    let width = self.interpolation_helper("char_width", &[value], n)?;
                     (InterpolationPiece::Char(value), width)
                 } else {
                     let signed = !p.is_unsigned();
@@ -931,7 +961,7 @@ impl Ck<'_, '_> {
                         },
                         &[value],
                         n,
-                    );
+                    )?;
                     (
                         if signed {
                             InterpolationPiece::Signed(value, width)
@@ -953,15 +983,15 @@ impl Ck<'_, '_> {
                         self.trait_call_args(display, "to_string", receiver, t, &[], n)?
                             .0
                     } else {
-                        let builder = self.new_interpolation_builder(n);
+                        let builder = self.new_interpolation_builder(n)?;
                         let dest = self.interpolation_ref(builder, n);
                         let bt = self.b.ty_of(dest);
                         self.trait_call_args(display, "write", receiver, t, &[(dest, bt, n)], n)?;
                         let dest = self.interpolation_ref(builder, n);
-                        self.builder_call("build", &[dest], n).0
+                        self.builder_call("build", &[dest], n)?.0
                     }
                 };
-                let width = self.interpolation_helper("text_width", &[text], n);
+                let width = self.interpolation_helper("text_width", &[text], n)?;
                 (InterpolationPiece::Text(text), width)
             }
         };
@@ -1029,29 +1059,33 @@ impl Ck<'_, '_> {
         out: &mut Interpolation,
         builder: InterpolationBuilder,
         n: NodeRef<'_>,
-    ) {
+    ) -> StageResult<()> {
         if out.text.is_empty() {
-            return;
+            return Ok(());
         }
         let text = self.b.const_str(&std::mem::take(&mut out.text));
         let receiver = self.interpolation_ref(builder, n);
-        self.builder_call("push", &[receiver, text], n);
+        self.builder_call("push", &[receiver, text], n)?;
+        Ok(())
     }
 
     /// A call of the `std.text.StringBuilder` method `name` that
     /// interpolation lowers to, each argument fitted to its parameter.
-    pub(crate) fn builder_call(&mut self, name: &str, args: &[Ref], n: NodeRef<'_>) -> (Ref, Ty) {
+    pub(crate) fn builder_call(
+        &mut self,
+        name: &str,
+        args: &[Ref],
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let def = self.cx.names.known.string_builder;
         let sb = pool.intern_ty(&TyData::Adt {
             def,
             args: pool.list(&[]),
         });
-        let (method, _, _) = self
-            .find_inherent_any(sb, name)
-            .expect("stdpack StringBuilder method");
+        let (method, _, _) = self.interpolation_inherent(sb, name)?;
         let Some(sig) = self.sig_of(method) else {
-            return self.poison_value(n);
+            return Ok(self.poison_value(n));
         };
         self.note_call(method);
         let mut refs = Vec::with_capacity(args.len());
@@ -1066,7 +1100,7 @@ impl Ck<'_, '_> {
         let r = self
             .b
             .call(&c, &refs, hd_tir::ir::Providers::None, sig.ret, n.index());
-        (r, sig.ret)
+        Ok((r, sig.ret))
     }
 
     /// The bits of the constant `bits` of type `ct`, negated: a float
@@ -6133,4 +6167,121 @@ pub(crate) struct ClosureParts<'t> {
     /// A local function's parameter names and default closures, kept for
     /// its calls (`fn.default.omit`, named arguments).
     pub form: Option<crate::local::LocalForm>,
+}
+
+#[cfg(test)]
+mod interpolation_metadata_tests {
+    use super::interpolation_buffer_field;
+    use hd_base::{DefId, Stage, Symbol};
+    use hd_resolve::{Field, Item, ItemData, TypeAttrs};
+    use hd_types::Ty;
+
+    fn item(data: ItemData) -> Item {
+        Item::new(DefId::from_raw(1), Symbol::from_raw(1), false, data)
+    }
+
+    fn field(ty: Ty) -> Field {
+        Field {
+            name: Symbol::from_raw(2),
+            ty,
+            public: false,
+            has_default: false,
+            embedded: false,
+            lifetimes: Vec::new(),
+            fn_lifetimes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_buffer_field_keeps_its_resolved_type() {
+        for ty in [Ty::I32, Ty::STRING] {
+            let declaration = item(ItemData::Struct(vec![field(ty)], TypeAttrs::default()));
+            assert_eq!(
+                interpolation_buffer_field(Some(&declaration)).expect("buffer"),
+                ty
+            );
+        }
+    }
+
+    #[test]
+    fn missing_or_wrong_builder_shapes_are_internal_errors() {
+        let builtin = item(ItemData::Builtin);
+        let empty = item(ItemData::Struct(vec![], TypeAttrs::default()));
+        let extra = item(ItemData::Struct(
+            vec![field(Ty::I32), field(Ty::STRING)],
+            TypeAttrs::default(),
+        ));
+        let enum_item = item(ItemData::Enum {
+            shared: vec![field(Ty::I32)],
+            variants: vec![],
+            attrs: TypeAttrs::default(),
+        });
+        for selected in [
+            None,
+            Some(&builtin),
+            Some(&empty),
+            Some(&extra),
+            Some(&enum_item),
+        ] {
+            let error = interpolation_buffer_field(selected).expect_err("invalid shape");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+        }
+    }
+
+    #[test]
+    fn missing_runtime_selections_propagate_without_emitting_tir() {
+        for has_builder in [false, true] {
+            crate::body::with_checker_items(
+                |names| {
+                    if has_builder {
+                        vec![Item::new(
+                            names.known.string_builder,
+                            names.syms.intern("StringBuilder"),
+                            false,
+                            ItemData::Struct(vec![field(Ty::I32)], TypeAttrs::default()),
+                        )]
+                    } else {
+                        Vec::new()
+                    }
+                },
+                |ck| {
+                    let node = ck.cx.src.parse.tree.root();
+                    let before = (
+                        ck.b.body().len(),
+                        ck.b.body().extra.len(),
+                        ck.b.body().local_ty.len(),
+                    );
+                    let results = [
+                        (
+                            if has_builder { "new" } else { "StringBuilder" },
+                            ck.new_interpolation_builder(node).map(|_| ()),
+                        ),
+                        (
+                            "value_new",
+                            ck.string_builder_helper("value_new").map(|_| ()),
+                        ),
+                        ("build", ck.builder_call("build", &[], node).map(|_| ())),
+                        ("new", ck.interpolation_inherent(Ty::I32, "new").map(|_| ())),
+                    ];
+                    for (needed, result) in results {
+                        let error = result.expect_err("missing runtime selection");
+                        assert_eq!(error.stage, Stage::Body);
+                        assert!(error.bug);
+                        assert!(!error.out_of_fuel);
+                        assert!(error.what.contains(needed), "{}", error.what);
+                    }
+                    assert_eq!(
+                        (
+                            ck.b.body().len(),
+                            ck.b.body().extra.len(),
+                            ck.b.body().local_ty.len()
+                        ),
+                        before,
+                    );
+                },
+            );
+        }
+    }
 }
