@@ -1,0 +1,21 @@
+# @dump: diagnostics tir
+struct Fixed[N < const usize]:
+    value: i32
+fn through_tuple(value: (Fixed[4], List[Fixed[4]])) -> Fixed[4]:
+    fn inner[N < const usize](value: (Fixed[N], List[Fixed[N]])) -> Fixed[N]:
+        value._0
+    inner(value)
+fn through_function(value: fn() -> Fixed[4]) -> Fixed[4]:
+    fn inner[N < const usize](value: fn() -> Fixed[N]) -> Fixed[N]:
+        value()
+    inner(value)
+fn through_reference(value: &Fixed[4]) -> Fixed[4]:
+    fn inner[N < const usize](value: &Fixed[N]) -> Fixed[N]:
+        *value
+    inner(value)
+trait Get[N < const usize]:
+    fn get(&self) -> i32
+fn through_trait_value(value: &dyn Get[4]) -> i32:
+    fn inner[N < const usize](value: &dyn Get[N]) -> i32:
+        value.get()
+    inner(value)

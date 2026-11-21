@@ -1304,3 +1304,4 @@ says that the check covered syntax only.
 
 | 2026-11-21 | #2249 raw local target declaration | syntax | `struct r#type:` | ``syntax-error: the file does not parse, so `hd fmt` leaves it as it is`` | no; read lex.raw.form | ``struct `type`:`` | GPT-6 (Codex) |
 | 2026-11-21 | #2249 raw local impl target | syntax | `impl r#type:` | ``syntax-error: the file does not parse, so `hd fmt` leaves it as it is`` | no; read lex.raw.form | ``impl `type`:`` | GPT-6 (Codex) |
+| 2026-11-21 | #2250 expected function type | semantic | Expected `let selected: fn() -> Fixed[4] = inner` to reject a const-generic function value | ``cannot-infer-type: no argument's type names const parameter `N`, so it cannot be inferred: write it in the call, as in `f::[4](...)` `` | no; fn.type.generic.instantiate-from led to the fix | Preserve expected monomorphic function-type instantiation; apply the argument-types-only guard to calls | GPT-6 (Codex) |

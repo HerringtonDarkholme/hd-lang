@@ -1,0 +1,4 @@
+fn outer() -> void:
+    fn inner[N < const i32](value: N) -> void: # diagnostic: generic-kind-mismatch
+        pass
+    pass

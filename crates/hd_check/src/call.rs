@@ -821,6 +821,7 @@ impl Ck<'_, '_> {
     /// trait (`s.f`, `S.f`), whose generics only its call's member lookup
     /// finds.
     fn path_generics(&self, callee: NodeRef<'_>) -> Option<Vec<hd_resolve::Generic>> {
+        let callee = self.named_function_callee(callee);
         if let Some(l) = self.local_generic_named(callee)
             && let Some(g) = self.local_generics.get(&l)
         {
@@ -870,8 +871,63 @@ impl Ck<'_, '_> {
         self.explicit_targs(callee, tl, &gens)
     }
 
+    /// Grouping a named declaration keeps its call metadata. A grouped
+    /// stored-field read stays a value call (names.lookup.stored-fn), and
+    /// grouping a type name does not make it a function value.
+    fn named_function_callee<'t>(&self, n: NodeRef<'t>) -> NodeRef<'t> {
+        if n.kind() != SyntaxKind::ParenExpr {
+            return n;
+        }
+        let mut core = n;
+        while core.kind() == SyntaxKind::ParenExpr {
+            let Some(inner) = core.children().next() else {
+                return n;
+            };
+            core = inner;
+        }
+        let mut head = core;
+        while matches!(
+            head.kind(),
+            SyntaxKind::ParenExpr | SyntaxKind::SuspendExpr | SyntaxKind::TypeArgsExpr
+        ) {
+            let Some(inner) = head.children().next() else {
+                return n;
+            };
+            head = inner;
+        }
+        let segments = self.segments_expr(head);
+        let Some(first) = segments.first() else {
+            return n;
+        };
+        let name = if head.kind() == SyntaxKind::NameExpr {
+            self.sym_of(head)
+        } else {
+            self.cx.names.syms.intern(first)
+        };
+        if let Some((local, _)) = self.find_local(name) {
+            return if head.kind() == SyntaxKind::NameExpr && self.local_forms.contains_key(&local) {
+                core
+            } else {
+                n
+            };
+        }
+        if self.cx.init.borrow().globals.contains_key(&name) {
+            return n;
+        }
+        if self
+            .resolve_path(&segments)
+            .and_then(|def| self.cx.lookup.item(def))
+            .is_some_and(|item| item.sig().is_some())
+        {
+            core
+        } else {
+            n
+        }
+    }
+
     /// The generic local function a name expression names, if it does.
     fn local_generic_named(&self, e: NodeRef<'_>) -> Option<hd_base::LocalId> {
+        let e = self.named_function_callee(e);
         if e.kind() != SyntaxKind::NameExpr {
             return None;
         }
@@ -984,20 +1040,79 @@ impl Ck<'_, '_> {
         vars: &mut [Ty],
         n: NodeRef<'_>,
     ) {
+        if !sig
+            .generics
+            .iter()
+            .skip(explicit)
+            .any(|g| g.const_type.is_some())
+        {
+            return;
+        }
+        crate::work::scan_work(1);
+        let named = if let Some(named) = self.cx.global.const_input_slots(owner) {
+            named
+        } else {
+            let (named, stable) = self.const_input_slots(
+                sig.generics.len(),
+                sig.params.iter().map(|(_, t)| *t),
+                (owner, 0),
+            );
+            let named: std::sync::Arc<[bool]> = named.into();
+            if stable {
+                self.cx.global.remember_const_input_slots(owner, named)
+            } else {
+                named
+            }
+        };
+        self.unsolvable_const_slots(&sig.generics, &named, explicit, vars, n);
+    }
+
+    /// Collect parameter identities through distinct input nodes. A local
+    /// function caches this summary only when its input types are stable.
+    pub(crate) fn const_input_slots(
+        &self,
+        count: usize,
+        inputs: impl IntoIterator<Item = Ty>,
+        (owner, first): (DefId, u16),
+    ) -> (Vec<bool>, bool) {
         let pool = self.pool();
-        for (i, g) in sig.generics.iter().enumerate().skip(explicit) {
-            if g.const_type.is_none() {
+        crate::work::scan_work(count);
+        let mut named = vec![false; count];
+        let mut open: Vec<Ty> = inputs.into_iter().collect();
+        let stable = open.iter().all(|&input| !pool.has_infer(input));
+        let mut seen = hd_base::HashSet::default();
+        while let Some(input) = open.pop() {
+            crate::work::scan_work(1);
+            let input = self.infer.resolve(pool, input);
+            if (!pool.has_param(input) && !pool.has_infer(input)) || !seen.insert(input) {
                 continue;
             }
-            let index = u16::try_from(i).unwrap_or(u16::MAX);
-            let named = std::cell::Cell::new(false);
-            for (_, t) in &sig.params {
-                pool.subst(*t, &|p| {
-                    named.set(named.get() || (p.owner == owner && p.index == index));
-                    None
-                });
+            if let TyData::Param(p) = pool.get(input) {
+                if p.owner == owner
+                    && let Some(index) = p.index.checked_sub(first)
+                    && let Some(present) = named.get_mut(usize::from(index))
+                {
+                    *present = true;
+                }
+            } else {
+                pool.children(input, &mut open);
             }
-            if !named.get() {
+        }
+        (named, stable)
+    }
+
+    /// Only argument types may solve an omitted const slot. The expected
+    /// result is deliberately absent from its input-mention summary.
+    pub(crate) fn unsolvable_const_slots(
+        &mut self,
+        generics: &[hd_resolve::Generic],
+        named: &[bool],
+        explicit: usize,
+        vars: &mut [Ty],
+        n: NodeRef<'_>,
+    ) {
+        for (i, g) in generics.iter().enumerate().skip(explicit) {
+            if g.const_type.is_some() && !named[i] {
                 let name = self.cx.names.text(g.name);
                 let msg = format!(
                     "no argument's type names const parameter `{name}`, so it cannot be inferred: write it in the call, as in `f::[4](...)`"
@@ -1086,7 +1201,13 @@ impl Ck<'_, '_> {
         args: &Args<'_>,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
+        let callee = self.named_function_callee(callee);
         let (callee, bang) = bang_callee(callee, false);
+        let callee = if bang {
+            self.named_function_callee(callee)
+        } else {
+            callee
+        };
         match callee.kind() {
             SyntaxKind::VariantExpr => self.variant_value(callee, args, want, Some(n)),
             SyntaxKind::NameExpr => {
@@ -1094,7 +1215,7 @@ impl Ck<'_, '_> {
                 if let Some((l, d)) = self.find_local(s) {
                     let form = self.local_forms.get(&l).cloned();
                     if let Some(form) = form {
-                        let vars = self.local_generic_vars(l, &[], callee);
+                        let vars = self.local_generic_vars(l, &[], callee, true);
                         let (f, ft) = match &vars {
                             Some(v) => self.local_generic_inst(l, v, callee),
                             None => self.read_local(l, d, callee),
@@ -1154,11 +1275,17 @@ impl Ck<'_, '_> {
                 let [inner, tl] = callee.parts();
                 // `f!::[T](..)`: the bang sits before the type arguments,
                 // inside the type-argument node (`grammar.expr.bang-suffix`).
+                let inner = self.named_function_callee(inner);
                 let (inner, bang) = bang_callee(inner, bang);
+                let inner = if bang {
+                    self.named_function_callee(inner)
+                } else {
+                    inner
+                };
                 let explicit = self.callee_targs(inner, tl)?;
                 // `f::[T](..)` of a generic local function.
                 if let Some(l) = self.local_generic_named(inner) {
-                    let vars = self.local_generic_vars(l, &explicit, callee);
+                    let vars = self.local_generic_vars(l, &explicit, callee, true);
                     let (f, ft) = match &vars {
                         Some(v) => self.local_generic_inst(l, v, callee),
                         None => (Ref(NONE), Ty::NEVER),

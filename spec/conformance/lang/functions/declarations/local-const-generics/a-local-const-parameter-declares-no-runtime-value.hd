@@ -1,0 +1,4 @@
+fn outer() -> void:
+    fn inner[N < const i32]() -> i32:
+        N # diagnostic: unknown-name
+    pass

@@ -1,0 +1,6 @@
+# @dump: diagnostics tir
+fn outer(value: i32) -> i32:
+    fn keep[T, N < const i32, $ R, B < const bool, C < const char, S < const string](value: T) -> T:
+        value
+    selected := keep::[i32, 1 + 2, $(), true, 'x', "ok"]
+    selected(keep::[i32, 3, $(), true, 'x', "ok"](value))

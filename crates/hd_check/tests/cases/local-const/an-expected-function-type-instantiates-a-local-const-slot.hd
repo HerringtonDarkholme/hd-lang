@@ -1,0 +1,13 @@
+# @dump: diagnostics tir
+struct Fixed[N < const usize]:
+    value: i32
+fn named[N < const usize]() -> Fixed[N]:
+    Fixed { value: +7 }
+fn apply(make: fn() -> Fixed[4]) -> Fixed[4]:
+    make()
+fn outer() -> i32:
+    fn inner[N < const usize]() -> Fixed[N]:
+        Fixed { value: +7 }
+    let selected: fn() -> Fixed[4] = inner
+    let other: fn() -> Fixed[5] = named
+    selected().value + other().value + apply(inner).value + ((inner::[4]))().value

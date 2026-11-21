@@ -1,0 +1,9 @@
+# @dump: diagnostics tir
+WIDTH := 2 + 2
+ALIAS := WIDTH
+struct Fixed[N < const usize]:
+    value: i32
+fn outer(value: Fixed[4]) -> Fixed[4]:
+    fn keep[N < const usize](value: Fixed[N]) -> Fixed[N]:
+        value
+    keep::[ALIAS](value)

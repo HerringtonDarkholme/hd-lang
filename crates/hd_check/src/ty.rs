@@ -250,8 +250,12 @@ impl Ck<'_, '_> {
                     declared = Some(*prim);
                     return ConstName::Param(*p);
                 }
-                if !in_binding && self.type_param(name).is_some() {
-                    return ConstName::Type;
+                if !in_binding && let Some(ty) = self.type_param(name) {
+                    return if ty == Ty::POISON {
+                        ConstName::Poison
+                    } else {
+                        ConstName::Type
+                    };
                 }
                 if !in_binding && self.find_local(sym).is_some() {
                     return ConstName::Runtime;
@@ -1267,6 +1271,9 @@ impl Ck<'_, '_> {
         g: Option<&Generic>,
         position: usize,
     ) -> StageResult<Ty> {
+        if g.is_some_and(|g| g.default == Some(Ty::POISON)) {
+            return Ok(Ty::POISON);
+        }
         if let Some(prim) = g.and_then(|g| g.const_type) {
             return Ok(self.const_arg(t, Some(prim)));
         }

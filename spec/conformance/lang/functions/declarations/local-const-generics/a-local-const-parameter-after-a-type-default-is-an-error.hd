@@ -1,0 +1,4 @@
+fn outer() -> void:
+    fn inner[T = i32, N < const i32]() -> void: # diagnostic: default-order
+        pass
+    pass

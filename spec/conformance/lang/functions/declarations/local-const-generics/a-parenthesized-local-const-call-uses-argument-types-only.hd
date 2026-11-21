@@ -1,0 +1,6 @@
+struct Fixed[N < const usize]:
+    value: i32
+fn outer() -> Fixed[4]:
+    fn inner[N < const usize]() -> Fixed[N]:
+        panic("not run")
+    ((inner))() # diagnostic: cannot-infer-type

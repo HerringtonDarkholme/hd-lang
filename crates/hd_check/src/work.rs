@@ -322,7 +322,8 @@ thread_local! {
 /// copy query walks (`crate::moves`), the fields a struct's field index
 /// holds and a literal or field read visits (`crate::expr`), a row's
 /// key index and its probes (`crate::rows`), a trait method lookup's
-/// probes (`crate::call`), the impl methods a call's initialization
+/// probes and the input types constraining const slots (`crate::call`),
+/// the impl methods a call's initialization
 /// facts reach (`crate::init`), the nodes of a scope path
 /// (`crate::dep_results`), and the body scans and per-argument windows
 /// of a call's exclusivity check (`dep_results::constraints::exclusive`). Use the driver's serial executor to measure a

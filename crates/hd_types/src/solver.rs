@@ -1143,6 +1143,9 @@ pub struct GlobalMemo {
     /// Each struct's fields by name, as indices in declaration order: the
     /// checker's literals and field reads probe it once per name.
     field_indices: Mutex<HashMap<DefId, Arc<HashMap<Symbol, u32>>>>,
+    /// Which generic slots occur in a callable's immutable input types.
+    /// Body-local functions keep this summary in their own local metadata.
+    const_input_slots: Mutex<HashMap<DefId, Arc<[bool]>>>,
     /// Each requirement key's strict supertrait keys, the keys it supplies
     /// beside itself (`req.row.entail.super`): a function of the key and
     /// the run's trait declarations, so every body shares one walk per key.
@@ -1167,6 +1170,28 @@ pub struct GlobalMemo {
 }
 
 impl GlobalMemo {
+    /// Input-parameter occurrences for a resolved callable declaration.
+    #[must_use]
+    pub fn const_input_slots(&self, def: DefId) -> Option<Arc<[bool]>> {
+        self.const_input_slots
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(&def)
+            .cloned()
+    }
+
+    /// Publish a stable declaration summary; concurrent readers share the
+    /// first writer's result, as the other run-local declaration queries do.
+    pub fn remember_const_input_slots(&self, def: DefId, slots: Arc<[bool]>) -> Arc<[bool]> {
+        Arc::clone(
+            self.const_input_slots
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .entry(def)
+                .or_insert(slots),
+        )
+    }
+
     fn shard(&self, k: &MemoKey) -> &Mutex<HashMap<MemoKey, u32>> {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
