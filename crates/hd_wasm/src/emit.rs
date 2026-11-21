@@ -1556,9 +1556,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         assert!(
             matches!(
                 b.phase,
-                hd_tir::ir::Phase::Instance | hd_tir::ir::Phase::Lowered
+                hd_tir::ir::Phase::Elaborated | hd_tir::ir::Phase::Lowered
             ),
-            "the emitter lowers instance and lowered bodies only: `{}`",
+            "the emitter lowers elaborated and lowered bodies only: `{}`",
             (input.path)(item)
         );
         let f = m.func("", vec![], vec![]);

@@ -110,6 +110,9 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         neutral_stores: &neutral_stores,
     };
     decided(b, &mut errs);
+    if b.phase == Phase::Elaborated {
+        lowered(b, &mut errs);
+    }
     instance(b, own, &mut errs);
     crate::own::return_loan::verify(b, own, |at, message| err(&mut errs, at, message));
     crate::own::counts::verify(b, own, &topo, |at, message| err(&mut errs, at, message));
@@ -531,7 +534,8 @@ fn hoisted(b: &Body, topo: &Topology, cx: &dyn OwnCx, errs: &mut Vec<VerifyError
 /// a bound at a receiver that is no trait value (`inline::rechoose`).
 /// Cost: one pass over the columns and records, an O(1) flag test a type.
 fn instance(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
-    let Some(pool) = cx.pool().filter(|_| b.phase == Phase::Instance) else {
+    let instance = matches!(b.phase, Phase::Instance | Phase::Elaborated);
+    let Some(pool) = cx.pool().filter(|_| instance) else {
         return;
     };
     let mut bad = |inst: u32, what: String| {
@@ -597,6 +601,45 @@ fn instance(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             bad(NONE, format!("record word {at}: {}", generic(t)));
         }
     });
+}
+
+/// The lowered-TIR contract a backend relies on, for a body after its last
+/// lowering (`Phase::Elaborated`, `own::elaborate`), invariant 25: no
+/// cleanup scope is left (`own::scopes`); every suspension point has its
+/// cancel block; every flag a local's drops test is read in TIR, the
+/// backend reading none (`own::drop_flags`; a cell's are its slots).
+/// O(instructions).
+fn lowered(b: &Body, errs: &mut Vec<VerifyError>) {
+    let mut bad = |inst: u32, what: String| {
+        errs.push(VerifyError {
+            invariant: 25,
+            inst,
+            what,
+        });
+    };
+    let (cells, _) = crate::own::drop_flags::cells(b);
+    let mut read = vec![false; b.local_ty.len()];
+    for (i, &[a, _]) in b.data.iter().enumerate() {
+        if b.tags[i] == Tag::Read && a & place::BARE_LOCAL != 0 {
+            read[(a & !place::BARE_LOCAL) as usize] = true;
+        }
+    }
+    for (i, (&tag, &[a, w])) in b.tags.iter().zip(&b.data).enumerate() {
+        let suites = tag == Tag::Scope && w != NONE && !b.record(w).is_empty();
+        let flag = matches!(tag, Tag::FlagSet | Tag::FlagClear)
+            && !matches!(b.view(a).root, Root::Local(l) if cells[l as usize])
+            && !read.get(w as usize).copied().unwrap_or(false);
+        let what = if tag == Tag::Defer || suites {
+            "a cleanup scope left to the backend"
+        } else if is_suspension(tag) && b.cancel_block(u32_of(i)).is_none() {
+            "a suspension point with no cancel block"
+        } else if flag {
+            "a drop flag no elaborated drop reads"
+        } else {
+            continue;
+        };
+        bad(u32_of(i), what.into());
+    }
 }
 
 /// The read modes and the side rows.
@@ -3050,6 +3093,48 @@ mod instance_tests {
         let mut body = b.finish(root, &[]).expect("verifies");
         body.phase = Phase::Instance;
         body
+    }
+
+    /// The lowered-TIR contract (invariant 25) holds of an elaborated body
+    /// and refuses a cleanup scope and a flag no drop reads, which only a
+    /// backend could still read.
+    #[test]
+    fn an_elaborated_body_keeps_no_cleanup_scope_or_unread_flag() {
+        let pool = InternPool::new();
+        let mut b = body(&pool, Ty::I32);
+        b.phase = Phase::Elaborated;
+        let lowered = |b: &Body| -> Vec<String> {
+            let errs = verify_owned(b, &Pooled(&pool)).into_iter();
+            errs.filter(|e| e.invariant == 25).map(|e| e.what).collect()
+        };
+        assert!(lowered(&b).is_empty(), "{:?}", lowered(&b));
+        let root = b.sub_root[0] as usize;
+        let flag = crate::ir::u32_of(b.local_ty.len());
+        b.local_ty.push(Ty::BOOL);
+        b.local_name.push(Symbol::from_raw(0));
+        b.local_syn.push(NodeIdx::from_raw(0));
+        b.local_flags.push(0);
+        for (tag, data) in [
+            (Tag::FlagSet, [crate::ir::place::BARE_LOCAL, flag]),
+            (Tag::Defer, [b.sub_root[0], 0]),
+        ] {
+            let mut list = b.record(b.data[root][0]).to_vec();
+            list.insert(0, crate::ir::u32_of(b.len()));
+            b.tags.push(tag);
+            b.data.push(data);
+            b.ty.push(Ty::VOID);
+            b.syn.push(NodeIdx::from_raw(0));
+            b.data[root][0] = b.push_record(&list);
+        }
+        let found = lowered(&b);
+        assert!(
+            found.iter().any(|w| w.contains("no elaborated drop reads")),
+            "{found:?}"
+        );
+        assert!(
+            found.iter().any(|w| w.contains("cleanup scope")),
+            "{found:?}"
+        );
     }
 
     /// The body's invariant 24 findings.
