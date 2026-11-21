@@ -1515,10 +1515,10 @@ impl Ck<'_, '_> {
                         self.literal_chain(rows, occs, m, j, p, lits)
                     }
                     other => {
-                        // ruled out: `settle` turns every other pattern a
-                        // column holds into `Wild`, and tuple and data
-                        // patterns are expanded above.
-                        unreachable!("settle and tuple/data expansion leave only tests: {other:?}")
+                        return Err(NotImplemented::bug(
+                            Stage::Body,
+                            format!("pattern decision requires a settled test, found {other:?}"),
+                        ));
                     }
                 },
                 Cell::Some(_) | Cell::Wild => self.switch(occs, m, j),
@@ -3289,6 +3289,55 @@ mod tests {
             assert_eq!(body.ty[before], hd_types::Ty::BOOL);
             let start = body.data[before][1] as usize;
             assert_eq!(&body.extra[start..start + 3], &[2, lo.0, hi.0]);
+        });
+    }
+
+    #[test]
+    fn unsettled_non_pattern_input_returns_an_error_without_a_decision_chain() {
+        crate::body::with_checker(|ck| {
+            let node = ck.cx.src.parse.tree.root();
+            let rows = [super::Row::rest()];
+            let matrix = vec![super::DRow {
+                row: 0,
+                cells: vec![super::Cell::Pat(node)],
+                sets: Vec::new(),
+            }];
+            let before = (
+                ck.b.body().len(),
+                ck.b.body().extra.len(),
+                ck.b.body().local_ty.len(),
+                ck.infer.var_count(),
+            );
+            let mut stack = Vec::new();
+            let error = ck
+                .matrix(
+                    &rows,
+                    vec![(hd_tir::ir::Ref(hd_tir::ir::NONE), hd_types::Ty::I32)],
+                    matrix,
+                    &mut hd_base::HashMap::default(),
+                    &mut stack,
+                )
+                .expect_err("unsettled non-test cell");
+            assert_eq!(error.stage, hd_base::Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+            assert_eq!(
+                error.what,
+                format!(
+                    "pattern decision requires a settled test, found {:?}",
+                    node.kind()
+                )
+            );
+            assert!(stack.is_empty());
+            assert_eq!(
+                (
+                    ck.b.body().len(),
+                    ck.b.body().extra.len(),
+                    ck.b.body().local_ty.len(),
+                    ck.infer.var_count()
+                ),
+                before
+            );
         });
     }
 
