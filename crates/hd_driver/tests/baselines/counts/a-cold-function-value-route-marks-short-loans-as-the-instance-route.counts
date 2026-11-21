@@ -57,7 +57,6 @@ pub fn main!() -> void:
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release Suspend[usize] (cancelled)
->   release *mut Map[string, string] (last use)
 >   release Suspend[usize] (last use)
     f := viewed()
     _ := f(values, "key")!()
@@ -67,4 +66,3 @@ pub fn main!() -> void:
 >   release fn!(*Map[string, string], string) -> usize (cancelled)
 >   release *Map[string, string] (cancelled)
 >   release Suspend[usize] (cancelled)
->   release *mut Map[string, string] (last use)

@@ -1749,7 +1749,7 @@ impl Body {
 
     /// What cancelling at each point releases, as (point, value): the
     /// `Release` statements of each cancel block, in row and list order,
-    /// and the value `Drop`s its elaborated guards hold
+    /// and the value `Drop`s its elaborated guards hold, once per part
     /// (`own::elaborate`).
     pub fn cancel_releases(&self) -> impl Iterator<Item = (u32, u32)> + '_ {
         self.cancel.iter().flat_map(move |&(at, blk)| {
@@ -1761,10 +1761,7 @@ impl Body {
                     match self.tags[s as usize] {
                         Tag::Release if top => out.push((at, a)),
                         Tag::Drop if !top && w == crate::own::CANCELLED => {
-                            let v = self.view(a);
-                            if let Root::Value(v) = v.root
-                                && !out.contains(&(at, v))
-                            {
+                            if let Root::Value(v) = self.view(a).root {
                                 out.push((at, v));
                             }
                         }

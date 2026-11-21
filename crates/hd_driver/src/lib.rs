@@ -14345,6 +14345,7 @@ pub fn main!() -> void $ Console + Server:
         let first = build_packages(&host, "app", &packages, &goal);
         assert!(!first.diags.has_errors(), "{}", first.render());
         let wasm = first.wasm.as_ref().expect("SDK program builds");
+        std::fs::write("/tmp/lt240/bad.wasm", wasm).ok();
         wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
             .validate_all(wasm)
             .expect("valid Wasm with nominal imports");

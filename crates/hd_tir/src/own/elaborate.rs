@@ -235,6 +235,19 @@ impl Elab<'_> {
         matches!(key_of(self.b, word), Some(Key::Local(l)) if self.cells[l as usize])
     }
 
+    /// The exit set `members` (exit `Drop`s and parameters' exit counts).
+    fn exit(&mut self, members: &[(u32, u32)]) -> Result<(), String> {
+        for &(word, count) in members {
+            self.release(word, EXIT_DROP, count != NONE)?;
+            if count != NONE {
+                let data = self.b.data[count as usize];
+                let count = self.row(Tag::Release, data, Ty::VOID);
+                self.out.push(count);
+            }
+        }
+        Ok(())
+    }
+
     /// Whether a flag stands at or under place `word`.
     fn flagged(&self, word: u32) -> bool {
         let paths = key_of(self.b, word).and_then(|k| self.flags.get(&k));
@@ -329,6 +342,21 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         syn: NodeIdx::NONE,
     };
     let old = Some(Info::new(At::Operation, Part::Result, OVERWRITTEN));
+    // A sub-body's cancel exits share one copy of its exit set: each
+    // breaks to the end of a block around its root's list, which runs it
+    // and leaves cancelled; the list's own end breaks past it (rustc's drop
+    // tree, one chain per target, as `scopes::lower` shares).
+    let mut ways = vec![0u32; exit.len()];
+    for x in (0..n).filter(|&x| e.b.tags[x] == Tag::Return && cancel.contains(&topo.blk[x])) {
+        ways[sub[x]] += u32::from(e.b.data[x][1] == return_word::CANCELLED);
+    }
+    let mut chain = vec![NONE; exit.len()];
+    for (s, c) in chain.iter_mut().enumerate() {
+        if !exit[s].is_empty() && e.b.sub_root[s] != NONE && ways[s] > 1 {
+            e.b.label_inst.extend([NONE, NONE]);
+            *c = u32_of(e.b.label_inst.len() - 2);
+        }
+    }
     for x in 0..n {
         let ([a, w], blk, b) = (e.b.data[x], topo.blk[x], &*e.b);
         let list = |at: u32| b.record(b.data[at as usize][0]);
@@ -354,8 +382,14 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
             }
             // A return's word: `NONE`, or one of [`return_word`]'s.
             Tag::Return if blk != NONE => ((NONE, w), false),
-            // A root's end, unless it leaves by a `return`.
-            Tag::Block if topo.is_root[x] && ends(list(u32_of(x)).last()) => ((NONE, NONE), true),
+            // A root's end, unless it leaves by a `return` or a chain.
+            Tag::Block
+                if topo.is_root[x]
+                    && chain[topo.sub[x] as usize] == NONE
+                    && ends(list(u32_of(x)).last()) =>
+            {
+                ((NONE, NONE), true)
+            }
             _ => continue,
         };
         e.syn = e.b.syn[x];
@@ -370,13 +404,10 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
                 let retain = e.row(Tag::Retain, data, Ty::VOID);
                 e.out.push(retain);
             }
-            for &(word, count) in &exit[sub[x]] {
-                e.release(word, EXIT_DROP, count != NONE)?;
-                if count != NONE {
-                    let data = e.b.data[count as usize];
-                    let count = e.row(Tag::Release, data, Ty::VOID);
-                    e.out.push(count);
-                }
+            if w == return_word::CANCELLED && cancel.contains(&blk) && chain[sub[x]] != NONE {
+                (e.b.tags[x], e.b.data[x]) = (Tag::Break, [chain[sub[x]], NONE]);
+            } else {
+                e.exit(&exit[sub[x]])?;
             }
         } else {
             // A store stays; the count it released what it overwrote by goes.
@@ -415,19 +446,49 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
             spans.push((NONE, first, u32_of(e.b.len())));
         }
     }
-    let b = e.b;
-    b.cancel.extend(cold);
+    e.b.cancel.extend(cold);
     blocks.sort_stable();
     blocks.dedup();
     for blk in blocks {
         let mut list = Vec::new();
-        for &x in b.record(b.data[blk as usize][0]) {
+        for &x in e.b.record(e.b.data[blk as usize][0]) {
             list.extend(put.get(&(x, false)).into_iter().flatten());
             list.extend(Some(x).filter(|&x| !gone[x as usize]));
         }
         list.extend(put.get(&(blk, true)).into_iter().flatten());
-        b.data[blk as usize][0] = b.push_record(&list);
+        e.b.data[blk as usize][0] = e.b.push_record(&list);
     }
+    for (s, &label) in chain.iter().enumerate().filter(|c| *c.1 != NONE) {
+        let root = e.b.sub_root[s];
+        let first = spans.last().map_or(u32_of(n), |s: &(u32, u32, u32)| s.2);
+        e.syn = e.b.syn[root as usize];
+        let ([list, tail], ty) = (e.b.data[root as usize], e.b.ty[root as usize]);
+        // The root's boundary counts stay its own (`own::counts::verify`).
+        let (marks, mut list): (Vec<u32>, Vec<u32>) = (e.b.record(list).iter()).partition(|&&m| {
+            matches!(e.b.tags[m as usize], Tag::Retain | Tag::Release)
+                && e.b.data[m as usize][0] == root
+        });
+        list.push(e.row(Tag::Break, [label + 1, tail], Ty::NEVER));
+        let list = e.b.push_record(&list);
+        let inner = e.row(Tag::Block, [list, NONE], Ty::VOID);
+        e.b.label_inst[label as usize] = inner;
+        // A plain wrapper runs a block, listed beside it (`scopes::lower`).
+        let suites = e.b.push_record(&[]);
+        let run = e.row(Tag::Scope, [inner, suites], Ty::VOID);
+        e.out.extend([inner, run]);
+        e.exit(&exit[s])?;
+        let leave = e.row(Tag::Return, [NONE, return_word::CANCELLED], Ty::NEVER);
+        e.out.push(leave);
+        let list = std::mem::take(&mut e.out);
+        let list = e.b.push_record(&list);
+        let outer = e.row(Tag::Block, [list, NONE], ty);
+        e.b.label_inst[label as usize + 1] = outer;
+        let run = e.row(Tag::Scope, [outer, suites], ty);
+        let list = [marks, vec![outer, run]].concat();
+        e.b.data[root as usize] = [e.b.push_record(&list), run];
+        spans.push((root, first, u32_of(e.b.len())));
+    }
+    let b = e.b;
     super::scopes::place(b, n, spans, &gone)?;
     b.cancel.sort_stable();
     Ok(())

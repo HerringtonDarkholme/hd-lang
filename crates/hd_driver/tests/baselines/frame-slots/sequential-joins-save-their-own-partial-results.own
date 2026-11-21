@@ -35,10 +35,10 @@ fn sequential!(left: string, right: string) -> string:
 >     uses $4: %34 -> %40 lend last
 >   local $5 d: string [read assigned] value
 >     uses $5: %35 -> %44 lend last
->   %0 = Retain %51 Cold local $0 #0 : ()
->   %1 = Retain %51 Entry local $0 #0 : ()
->   %2 = Retain %51 Cold local $1 #0 : ()
->   %3 = Retain %51 Entry local $1 #0 : ()
+>   %0 = Retain %57 Cold local $0 #0 : ()
+>   %1 = Retain %57 Entry local $0 #0 : ()
+>   %2 = Retain %57 Cold local $1 #0 : ()
+>   %3 = Retain %57 Entry local $1 #0 : ()
     let (a, b) = join!(ready(left), ready(right))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/ready[] (%4) : Suspend[string]
@@ -56,10 +56,16 @@ fn sequential!(left: string, right: string) -> string:
 >   %17 = Store [$3] %15 : ()
 >   %19 = Block - : never
 >   %20 = Match %8 [%19 %13] : ()
->   %48 = Drop [$0] : ()
->   %49 = Drop [$1] : ()
->   %50 = Drop [$2] : ()
->   %51 = Block %45 : string
+>   %48 = Break L1 %45 : never
+>   %49 = Block - : ()
+>   %50 = Scope %49 [] : ()
+>   %51 = Drop [$0] : ()
+>   %52 = Drop [$1] : ()
+>   %53 = Drop [$2] : ()
+>   %54 = Return - #2 : never
+>   %55 = Block - : string
+>   %56 = Scope %55 [] : string
+>   %57 = Block %56 : string
 >   %66 = Drop [$0] : ()
 >   %67 = Drop [$1] : ()
 >   %68 = Block - : ()
@@ -93,6 +99,6 @@ fn sequential!(left: string, right: string) -> string:
 >   %47 = Drop [%41] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   summary none
->   cancel %8 releases [%5 %7 %2147483648 %2147483649 %2147483650 %4294967295]
->   cancel %26 releases [%23 %25 %2147483648 %2147483649 %2147483650 %4294967295]
->   cancel %51 releases [%2147483648 %2147483649]
+>   cancel %8 releases [%5 %7 %0]
+>   cancel %26 releases [%23 %25 %0]
+>   cancel %57 releases [%2147483648 %2147483649]
