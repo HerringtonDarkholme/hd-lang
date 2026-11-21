@@ -1459,8 +1459,8 @@ impl Em<'_, '_, '_> {
         while let Some(&step) = steps.next() {
             match step {
                 Proj::Field(f) => ty = self.path_step(ty, f)?.0,
-                Proj::Elem(_) if self.cx().is_map(ty) => ty = self.entry(ty)?.1,
-                Proj::Elem(_) => ty = self.elem(ty)?.0,
+                Proj::Elem(_) if self.cx().is_map(ty) => ty = self.map_types(ty).1,
+                Proj::Elem(_) => ty = self.elem_ty(ty),
                 Proj::Deref => ty = self.checked_ref_target(ty).0,
                 Proj::Variant(v) => {
                     let f = place_field(steps.next());

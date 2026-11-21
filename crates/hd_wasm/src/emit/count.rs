@@ -152,7 +152,8 @@ impl Em<'_, '_, '_> {
                 }
                 let key = self.m.shim_key(t, shape, kind);
                 let width = u32::try_from(ls.len()).unwrap_or(u32::MAX);
-                self.f.call(crate::Sym::Shim(key, retain, width));
+                let hooked = !retain && hd_layout::holds_drop(self.pool(), self.env(), t);
+                self.f.call(crate::Sym::Shim(key, retain, width, hooked));
             }
         }
         Ok(())
@@ -504,9 +505,6 @@ impl Em<'_, '_, '_> {
     }
 
     fn count_locals_inner(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
-        if !retain && self.drop_inline(ls, t)? {
-            return Ok(());
-        }
         let kind = if retain {
             hd_layout::shims::Shim::Retain
         } else {
@@ -522,7 +520,8 @@ impl Em<'_, '_, '_> {
                 }
                 let key = self.m.shim_key(t, shape, kind);
                 let width = u32::try_from(ls.len()).unwrap_or(u32::MAX);
-                self.f.call(crate::Sym::Shim(key, retain, width));
+                let hooked = !retain && hd_layout::holds_drop(self.pool(), self.env(), t);
+                self.f.call(crate::Sym::Shim(key, retain, width, hooked));
                 return Ok(());
             }
         };

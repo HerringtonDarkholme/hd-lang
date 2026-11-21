@@ -4,7 +4,6 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -142,63 +141,51 @@
     ;; 29 |     s
     local.get $s
   )
-  (func $in_a_local (param $u.buffer.address i32) (param $u.buffer.capacity i32) (param $u.len i32) (param $n i32) (result i64) (local $t1 i32) (local $t0 i32) (local $key i32) (local $t2 i32) (local $s i64) (local $t3 i32)
+  (func $in_a_local (param $u.buffer.address i32) (param $u.buffer.capacity i32) (param $u.len i32) (param $n i32) (result i64) (local $t0 i32) (local $s i64) (local $t1 i32)
     ;; 38 |     h := Holder { store: box(u) }
-    local.get $u.buffer.address
-    local.get $u.buffer.capacity
-    local.get $u.len
-    local.set $key
-    local.set $t0
-    local.set $t1
-    i32.const 0
-    local.set $u.buffer.address
-    i32.const 0
-    local.set $u.buffer.capacity
-    i32.const 0
-    local.set $u.len
     i32.const 32
     i32.const 1
     call $rt:new/class-3
-    local.tee $t2
-    local.get $t1
+    local.tee $t0
+    local.get $u.buffer.address
     i32.store $heap
-    local.get $t2
     local.get $t0
+    local.get $u.buffer.capacity
     i32.store $heap offset=4
-    local.get $t2
-    local.get $key
+    local.get $t0
+    local.get $u.len
     i32.store $heap offset=8
-    local.get $t2
+    local.get $t0
     i32.const 1
     i32.store $heap offset=12
-    local.get $t2
+    local.get $t0
     i32.const 1
     i32.store $heap offset=16
-    local.get $t2
+    local.get $t0
     i32.const 1
     i32.store $heap offset=20
-    local.get $t2
+    local.get $t0
     i32.const 1
     i32.store $heap offset=24
-    local.get $t2
+    local.get $t0
     i32.const 1
     i32.store $heap offset=28
     ;; 40 |     for i in 0..n:
     block
       loop
-        local.get $t3
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t3
-        local.get $t3
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t3
+        local.set $t1
     ;; 41 |         s = s + h.store[i]
-        local.tee $key
-        local.get $t2
+        local.tee $u.buffer.address
+        local.get $t0
         i32.load $heap offset=8
         i32.ge_u
         if
@@ -211,9 +198,9 @@
           unreachable
         end
         local.get $s
-        local.get $t2
+        local.get $t0
         i32.load $heap
-        local.get $key
+        local.get $u.buffer.address
         i32.const 8
         i32.mul
         i32.add
@@ -224,24 +211,17 @@
         br 0
       end
     end
-    local.get $t2
+    local.get $t0
     if
-      local.get $t2
+      local.get $t0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $t2
+        local.get $t0
         call $rt:release_ref
       end
     end
-    ;; 38 |     h := Holder { store: box(u) }
-    local.get $u.buffer.address
-    local.get $u.buffer.capacity
-    local.get $u.len
-    i32.const 0
-    i32.const 0
-    call $rt:drop_value
     ;; 42 |     s
     local.get $s
   )

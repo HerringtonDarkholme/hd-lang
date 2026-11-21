@@ -2,7 +2,6 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[string]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[string]" (param i32 i32)))
-  (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32 i32 i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -26,7 +25,7 @@
     local.get $photo.width
     local.get $photo.tags
   )
-  (func $uniq (param $xs.buffer.address i32) (param $xs.buffer.capacity i32) (param $xs.len i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $t2 i32) (local $t1 i32) (local $size i32) (local $ys i32) (local $t0 i32)
+  (func $uniq (param $xs.buffer.address i32) (param $xs.buffer.capacity i32) (param $xs.len i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $ys i32) (local $t0 i32)
     ;; 31 |     let mut ys = xs
     global.get $stack
     global.get $stack_limit
@@ -42,18 +41,6 @@
     i32.sub
     local.tee $t0
     global.set $stack
-    local.get $xs.buffer.address
-    local.get $xs.buffer.capacity
-    local.get $xs.len
-    local.set $size
-    local.set $t1
-    local.set $t2
-    i32.const 0
-    local.set $xs.buffer.address
-    i32.const 0
-    local.set $xs.buffer.capacity
-    i32.const 0
-    local.set $xs.len
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -61,13 +48,13 @@
     i32.const 8
     i32.add
     local.tee $ys
-    local.get $t2
+    local.get $xs.buffer.address
     i32.store $heap
     local.get $ys
-    local.get $t1
+    local.get $xs.buffer.capacity
     i32.store $heap offset=4
     local.get $ys
-    local.get $size
+    local.get $xs.len
     i32.store $heap offset=8
     local.get $ys
     i32.const 1
@@ -87,32 +74,32 @@
     ;; 32 |     ys.push(s)
     local.get $ys
     i32.load $heap offset=8
-    local.set $size
+    local.set $xs.buffer.address
     local.get $ys
     i32.load $heap offset=4
-    local.get $size
+    local.get $xs.buffer.address
     i32.le_u
     if
       local.get $ys
-      local.get $size
+      local.get $xs.buffer.address
       i32.const 1
       i32.add
       call $"impl[T < ?Copy] UniqList[T].reserve_for[string]"
     end
     local.get $ys
     i32.load $heap
-    local.get $size
+    local.get $xs.buffer.address
     i32.const 8
     i32.mul
     i32.add
-    local.tee $t1
+    local.tee $xs.buffer.capacity
     local.get $s.0
     i32.store $heap
-    local.get $t1
+    local.get $xs.buffer.capacity
     local.get $s.1
     i32.store $heap offset=4
     local.get $ys
-    local.get $size
+    local.get $xs.buffer.address
     i32.const 1
     i32.add
     i32.store $heap offset=8
@@ -133,12 +120,6 @@
     i32.const 0
     i32.store $heap offset=8
     ;; 31 |     let mut ys = xs
-    local.get $xs.buffer.address
-    local.get $xs.buffer.capacity
-    local.get $xs.len
-    i32.const 0
-    i32.const 0
-    call $rt:drop_value
     local.get $t0
     i32.const 40
     i32.add

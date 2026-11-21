@@ -168,9 +168,31 @@ pub(crate) fn shims(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             lends: 1,
             indirect: None,
         };
-        let f = body_func(input, m, &own, 0, &HashMap::default(), &b)?;
+        // A shim calls only collected instances: its type's `Drop` hooks.
+        let table = &input.collected.table;
+        let calls: HashMap<u32, Target> = (0..b.len())
+            .filter(|&i| b.tags[i] == Tag::Call)
+            .filter_map(|i| {
+                let Some(hd_tir::ir::Callee::Item { def, targs }) =
+                    hd_tir::ir::Callee::from_words(b.record(b.data[i][0]))
+                else {
+                    return None;
+                };
+                let id = table.get(def, Sub::Body(0), targs)?;
+                let call = hd_mono::CallTarget {
+                    key: table.key[id.idx()],
+                    item: def,
+                    args: targs,
+                    ret: Ty::VOID,
+                    kind: hd_mono::TargetKind::Instance,
+                };
+                Some((u32::try_from(i).ok()?, Target::Call(call)))
+            })
+            .collect();
+        let f = body_func(input, m, &own, 0, &calls, &b)?;
         let width = u32::try_from(f.params.len()).unwrap_or(u32::MAX);
-        m.define(Sym::Shim(key, kind == Shim::Retain, width), f);
+        let hooked = kind == Shim::Release && hd_layout::holds_drop(input.pool, input.env, t);
+        m.define(Sym::Shim(key, kind == Shim::Retain, width, hooked), f);
     }
     Ok(())
 }

@@ -41,8 +41,6 @@ fn read(value: &string) -> usize:
 @cold
 fn unique(value: UniqList[i32]) -> UniqList[i32]:
     value
-> app/main/unique
->   release counted reference (last use)
 
 pub fn main() -> void $ Console:
     original := word(7)

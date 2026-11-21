@@ -768,6 +768,8 @@ pub struct Elem {
     pub size: u32,
     pub leaves: Vec<Leaf>,
     pub walk: Option<Walk>,
+    /// How an element counts: its type's shims (`hd_layout::shims`).
+    pub counted: Counted,
     /// Inline hooks for host/task argument areas; Copy list elements have none.
     pub drops: Vec<DropCall>,
     pub colls: Vec<u32>,
@@ -782,12 +784,103 @@ pub struct HostCounts {
     pub owned: Option<Walk>,
 }
 
+/// How a value of a layout record's type counts (`hd_layout::shims`):
+/// nothing, one address among its values, or its retain and release
+/// shims (their keys, the value's width, and whether the release runs a
+/// `Drop` hook).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Counted {
+    #[default]
+    None,
+    Address {
+        index: u32,
+        known: bool,
+    },
+    Shims(Box<ShimSyms>),
+}
+
+/// A type's retain and release shim keys (`Module::shim_key`), the width
+/// of its values, and whether its release runs a `Drop` hook.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ShimSyms {
+    pub retain: Hash128,
+    pub release: Hash128,
+    pub width: u32,
+    pub hooked: bool,
+}
+
+impl Counted {
+    /// Whether a value of the type counts anything.
+    #[must_use]
+    pub fn counts(&self) -> bool {
+        *self != Counted::None
+    }
+
+    /// One count more (`retain`) or less on the value whose `k`th value
+    /// `get` pushes: the address's count call, or a call of the shim.
+    pub(crate) fn emit(
+        &self,
+        f: &mut Func,
+        m: &Module,
+        get: &dyn Fn(&mut Func, u32),
+        retain: bool,
+    ) {
+        match *self {
+            Counted::None => {}
+            Counted::Address { index, known } => {
+                get(f, index);
+                let addr = if known { Addr::Known } else { Addr::Ref };
+                if retain {
+                    retain_call(m)(f, addr);
+                } else {
+                    release_call(f, addr);
+                }
+            }
+            Counted::Shims(ref s) => {
+                let ShimSyms {
+                    retain: r,
+                    release,
+                    width,
+                    hooked,
+                } = **s;
+                for k in 0..width {
+                    get(f, k);
+                }
+                f.call(if retain {
+                    Sym::Shim(r, true, width, false)
+                } else {
+                    Sym::Shim(release, false, width, hooked)
+                });
+            }
+        }
+    }
+}
+
+/// How a value of `t` counts, its shims queued for the drain when it has
+/// them (`Module::shim_key`): both kinds, since the glue that calls them
+/// is built at link, after the drain; one no glue reaches is not linked.
+pub(crate) fn counted_of(input: &Input<'_>, m: &mut Module, t: Ty) -> StageResult<Counted> {
+    use hd_layout::shims::{Count, Shim};
+    let (count, shape, _) = (input.shim)(t, Shim::Release)?;
+    Ok(match count {
+        Count::None => Counted::None,
+        Count::Address { index, known } => Counted::Address { index, known },
+        Count::Parts | Count::Call => Counted::Shims(Box::new(ShimSyms {
+            retain: m.shim_key(t, shape, Shim::Retain),
+            release: m.shim_key(t, shape, Shim::Release),
+            width: u32::try_from(crate::layout::vals(input.pool, input.env, t)?.len())
+                .unwrap_or(u32::MAX),
+            hooked: crate::layout::holds_drop(input.pool, input.env, t),
+        })),
+    })
+}
+
 impl Elem {
     /// Whether an element copied out of a shared buffer needs more than
     /// its bytes: counts, or copies of its collections.
     #[must_use]
     pub fn counts(&self) -> bool {
-        self.walk.is_some() || !self.colls.is_empty()
+        self.counted.counts() || !self.colls.is_empty()
     }
 }
 
@@ -933,6 +1026,10 @@ pub fn ctx_elem() -> Elem {
             leaf(12, Val::I32, 4),
         ],
         walk: Some(Walk::Ref(1)),
+        counted: Counted::Address {
+            index: 1,
+            known: false,
+        },
         drops: Vec::new(),
         colls: Vec::new(),
         cyclic: true,
@@ -3822,10 +3919,8 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f.op(Instruction::I32Mul);
     f.u32(LIST_ELEMS);
     f.op(Instruction::I32Add);
-    let glue = elem
-        .walk
-        .as_ref()
-        .map(|_| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
+    let glue =
+        (elem.counted.counts()).then(|| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
     push_desc(&mut f, glue, elem.cyclic);
     f.helper(Helper::New);
     f.set(b);
@@ -4006,7 +4101,7 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
     f.get(b);
     f.helper(Helper::ListUnique { elem: elem.clone() });
     f.set(b);
-    if let Some(walk) = &elem.walk {
+    if elem.counted.counts() {
         f.get(b);
         f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
         f.get(1);
@@ -4023,7 +4118,8 @@ fn list_truncate(m: &Module, elem: &Elem) -> Func {
         let ls = load_elem_locals(&mut f, &elem.leaves);
         each_elem(&mut f, at, n, elem.size, &|f| {
             fill_elem(f, at, &elem.leaves, &ls);
-            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
+            elem.counted
+                .emit(f, m, &|f, k| f.get(ls[k as usize]), false);
         });
     }
     f.get(b);
@@ -4047,9 +4143,8 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, at, n, elem.size, &|f| {
         fill_elem(f, at, &elem.leaves, &ls);
-        if let Some(walk) = &elem.walk {
-            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &release_call);
-        }
+        elem.counted
+            .emit(f, m, &|f, k| f.get(ls[k as usize]), false);
     });
     f
 }
@@ -4122,14 +4217,16 @@ fn fill_elem(f: &mut Func, at: u32, leaves: &[Leaf], ls: &[u32]) {
 fn copy_elems(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:copy_elems", vec![Val::I32, Val::I32], vec![]);
     let ls = load_elem_locals(&mut f, &elem.leaves);
-    let walk = elem.walk.as_ref().and_then(|w| w.without(&elem.colls));
-    let retain = retain_call(m);
+    // A shim retains every counted part, collections too; an element that
+    // is one collection is copied through the copy glue below.
+    let shims = matches!(elem.counted, Counted::Shims(_));
+    let colls: &[u32] = if shims { &[] } else { &elem.colls };
     each_elem(&mut f, 0, 1, elem.size, &|f| {
         fill_elem(f, 0, &elem.leaves, &ls);
-        if let Some(w) = &walk {
-            walk_code(f, w, &|f, k| f.get(ls[k as usize]), &retain);
+        if shims || colls.is_empty() {
+            elem.counted.emit(f, m, &|f, k| f.get(ls[k as usize]), true);
         }
-        for c in &elem.colls {
+        for c in colls {
             let l = elem.leaves[*c as usize];
             f.get(0);
             f.get(ls[*c as usize]);

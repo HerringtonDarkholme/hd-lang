@@ -453,10 +453,12 @@ fn of_at(
                     LTy::Bytes
                 } else {
                     let mem = layout::mem(pool, env, e)?;
+                    let counted = crate::rt::counted_of(input, m, e)?;
                     let elem = Elem {
                         size: mem.size,
                         leaves: mem.leaves,
                         walk: layout::walk(pool, env, e),
+                        counted,
                         drops: Vec::new(),
                         colls: layout::coll_leaves(pool, env, e),
                         cyclic: crate::cycle::object(pool, env, t),
@@ -473,7 +475,7 @@ fn of_at(
                     "ruled out: `Map` has a key and a value type"
                 );
                 let (k, v) = (items[0], items[1]);
-                let entry = crate::map::Entry::of(input, s, (k, v))?;
+                let entry = crate::map::Entry::of(input, m, s, (k, v))?;
                 let collected = &input.collected.boundary;
                 // ruled out: hd_mono's note_boundary_value selects the key
                 // operations of every map type a boundary value reaches.
@@ -610,10 +612,12 @@ fn object_of(
     let (pool, env) = (input.pool, input.env);
     let mem = layout::mem(pool, env, target)?;
     let tracked = crate::cycle::holding(pool, env, &[target]);
+    let counted = crate::rt::counted_of(input, m, target)?;
     let elem = Elem {
         size: mem.size,
         leaves: mem.leaves,
         walk: layout::count_walk(pool, env, target),
+        counted,
         drops: Vec::new(),
         colls: Vec::new(),
         cyclic: tracked,
@@ -1228,6 +1232,7 @@ fn args_area(
         size: mem.size,
         leaves: mem.leaves,
         walk: layout::fields_walk(pool, env, types),
+        counted: crate::rt::Counted::None,
         drops: argument_drops(input, types, &parts)?,
         colls: Vec::new(),
         // The leaf frame that keeps a host call's arguments takes part as
@@ -1264,6 +1269,7 @@ fn synchronous_owned_arguments(input: &Input<'_>, types: &[Ty]) -> StageResult<O
         size: mem.size,
         leaves: mem.leaves,
         walk: Some(walk),
+        counted: crate::rt::Counted::None,
         drops: argument_drops(input, types, &parts)?,
         colls: Vec::new(),
         cyclic: false,
@@ -2771,6 +2777,7 @@ fn byte_elem() -> Elem {
             signed: false,
         }],
         walk: None,
+        counted: crate::rt::Counted::None,
         drops: Vec::new(),
         colls: Vec::new(),
         cyclic: false,

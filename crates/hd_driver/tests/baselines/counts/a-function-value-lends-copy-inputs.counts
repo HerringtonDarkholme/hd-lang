@@ -40,5 +40,3 @@ fn moving(
     value: UniqList[usize],
 ) -> UniqList[usize]:
     callback(value)
-> app/main/moving
->   release counted reference (last use)

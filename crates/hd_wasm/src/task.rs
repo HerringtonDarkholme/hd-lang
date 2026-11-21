@@ -3278,6 +3278,7 @@ mod tests {
                     size: 0,
                     leaves: vec![],
                     walk: None,
+                    counted: crate::rt::Counted::None,
                     colls: vec![],
                     drops: vec![],
                     cyclic: false,
@@ -3331,6 +3332,7 @@ mod tests {
             size: 0,
             leaves: vec![],
             walk: None,
+            counted: crate::rt::Counted::None,
             colls: vec![],
             drops: vec![],
             cyclic: false,
@@ -3489,6 +3491,10 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                 })
                 .collect(),
             walk: Some(Walk::Ref(0)),
+            counted: crate::rt::Counted::Address {
+                index: 0,
+                known: false,
+            },
             colls: vec![],
             drops: vec![],
             cyclic: false,
@@ -3593,6 +3599,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             size: 4,
             leaves: vec![word],
             walk: None,
+            counted: crate::rt::Counted::None,
             colls: vec![],
             drops: vec![],
             cyclic: false,
@@ -3885,6 +3892,7 @@ mod native_leaf_drop_tests {
                 signed: false,
             }],
             walk: Some(Walk::Glue),
+            counted: crate::rt::Counted::None,
             colls: vec![],
             drops: vec![crate::rt::DropCall {
                 offset: 0,

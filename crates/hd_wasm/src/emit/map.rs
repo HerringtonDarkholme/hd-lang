@@ -45,15 +45,20 @@ impl Em<'_, '_, '_> {
 
     /// The key and value types of map type `t`, and its entry as the glue
     /// sees it.
-    pub(super) fn entry(&self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
+    pub(super) fn entry(&mut self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
+        let (kt, vt) = self.map_types(t);
+        Ok((kt, vt, Entry::of(self.input, self.m, t, (kt, vt))?))
+    }
+
+    /// The key and value types of map type `t`.
+    pub(super) fn map_types(&self, t: Ty) -> (Ty, Ty) {
         // ruled out: collected map operands are Map[K, V]; the driver roots std runtime items.
         let (_, args) =
             (self.pool().adt(strip_newtype(self.pool(), self.env(), t))).expect("a map");
-        let (kt, vt) = (
+        (
             self.pool().list_items(args)[0],
             self.pool().list_items(args)[1],
-        );
-        Ok((kt, vt, Entry::of(self.input, t, (kt, vt))?))
+        )
     }
 
     /// How instruction `i`'s map hashes and compares keys whose values

@@ -942,7 +942,7 @@ fn zero_releases_with(f: &mut Func, visit: &mut dyn FnMut()) -> bool {
         match &*symbols.get(*id) {
             Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown) => Some(1),
             Sym::Helper(Helper::Release { vals, .. }) => Some(vals.len()),
-            Sym::Shim(_, false, width) => usize::try_from(*width).ok(),
+            Sym::Shim(_, false, width, false) => usize::try_from(*width).ok(),
             _ => None,
         }
     };
@@ -3898,7 +3898,7 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
                     | Helper::Retain { .. }
                     | Helper::Release { .. },
                 )
-                | Sym::Shim(..),
+                | Sym::Shim(_, _, _, false),
                 n,
                 0,
             ) => Some((n, n)),

@@ -30,6 +30,18 @@ pub(super) type TirFlags = hd_base::HashMap<Root, Vec<(Vec<Proj>, u32)>>;
 
 /// A cell's flag slots after its value: their offset, and one node
 /// path per slot.
+/// Where the open drop reads whether a place is whole: TIR flag locals
+/// by path, or a cell's slot words (`cell_statement`), each AND the
+/// cell's whole flag.
+pub(super) enum Guards {
+    Tir(Vec<(Vec<Proj>, u32)>),
+    Cell {
+        c: u32,
+        cell: Rc<CellLayout>,
+        whole: Option<u32>,
+    },
+}
+
 pub(super) struct CellLayout {
     base: u32,
     pub(super) paths: Vec<Vec<Proj>>,
@@ -270,6 +282,196 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// Whether [`Em::open_drop`] descends the value: held in locals, one
+    /// per value of `ty` (not by address), with every flag at or below
+    /// `at` under fields and variants, each part's values among them.
+    fn open_drop_fits(&self, g: &Guards, at: &[Proj], ty: Ty, n: usize) -> bool {
+        let flagged = |p: &[Proj]| match g {
+            Guards::Tir(paths) => paths.iter().any(|(q, _)| q.starts_with(p)),
+            Guards::Cell { cell, .. } => cell.slot(p).is_some(),
+        };
+        if !flagged(at) {
+            return true;
+        }
+        // The open drop walks fields and variants only.
+        let walked = match g {
+            Guards::Tir(paths) => paths
+                .iter()
+                .filter(|(q, _)| q.starts_with(at))
+                .all(|(q, _)| {
+                    q[at.len()..]
+                        .iter()
+                        .all(|x| matches!(x, Proj::Field(_) | Proj::Variant(_)))
+                }),
+            Guards::Cell { .. } => true,
+        };
+        if !walked
+            || crate::layout::vals(self.pool(), self.env(), ty).map_or(true, |v| v.len() != n)
+        {
+            return false;
+        }
+        self.open_parts(ty).is_some_and(|parts| {
+            parts.iter().all(|(step, part, at_values)| {
+                let sub: Vec<Proj> = at.iter().copied().chain(step.iter().copied()).collect();
+                at_values.iter().all(|&k| (k as usize) < n)
+                    && self.open_drop_fits(g, &sub, *part, at_values.len())
+            })
+        })
+    }
+
+    /// The parts the open drop descends into, each with the projections
+    /// that reach it, its type and its values' indices among `ty`'s: a
+    /// struct's or tuple's fields, or each variant's payload fields
+    /// (behind `Proj::Variant`). `None` for a type with no parts to open.
+    #[allow(clippy::type_complexity)]
+    fn open_parts(&self, ty: Ty) -> Option<Vec<(Vec<Proj>, Ty, Vec<u32>)>> {
+        let s = crate::layout::strip_newtype(self.pool(), self.env(), ty);
+        if let Some(vs) = crate::layout::variants(self.pool(), self.env(), s) {
+            let flat = crate::layout::flat(self.pool(), self.env(), s).ok()??;
+            let mut out = Vec::new();
+            for (v, fields) in (0u32..).zip(vs.iter()) {
+                for (k, &f) in (0u32..).zip(fields) {
+                    let at = flat.positions.get(v as usize)?.get(k as usize)?.clone();
+                    out.push((vec![Proj::Variant(v), Proj::Field(k)], f, at));
+                }
+            }
+            return Some(out);
+        }
+        let parts = crate::layout::value_parts(self.pool(), self.env(), s);
+        let (_, places) = crate::layout::payload_mem(self.pool(), self.env(), &parts).ok()?;
+        Some(
+            (0u32..)
+                .zip(parts.iter().zip(&places))
+                .map(|(k, (&part, place))| {
+                    let first = u32::try_from(place.first).unwrap_or(u32::MAX);
+                    let count = u32::try_from(place.count).unwrap_or(0);
+                    (vec![Proj::Field(k)], part, (first..first + count).collect())
+                })
+                .collect(),
+        )
+    }
+
+    /// rustc's open drop (elaborate drops) of the value `ls` of type `ty`
+    /// at `at`, whose drop flags (`paths`) say which places are still
+    /// initialized. The flag at `at`, when there is one, guards it all: a
+    /// place moved whole leaves nothing. Under it, with no flag below, the
+    /// value releases whole: its shim, its hooks and fields. With flags
+    /// below, it releases whole when every one is set, as
+    /// `push_hook_guard` guards a hook; else each field drops the same
+    /// way, and the hook at `at` does not run. O(the flags and the fields
+    /// on their paths).
+    fn open_drop(&mut self, ls: &[u32], ty: Ty, at: &[Proj], g: &Guards) -> StageResult<()> {
+        // TIR flags: the flag at `at` guards it all, then the flags below.
+        // A cell's slot at `at` is both already (`cell_statement`).
+        let mut own = false;
+        let guarded = match g {
+            Guards::Tir(paths) => {
+                if let Some(flag) = paths
+                    .iter()
+                    .find(|(p, _)| p.as_slice() == at)
+                    .map(|&(_, f)| f)
+                {
+                    self.push_flags(&[flag])?;
+                    self.f.op(I::If(wasm_encoder::BlockType::Empty));
+                    own = true;
+                }
+                let below: Vec<u32> = paths
+                    .iter()
+                    .filter(|(p, _)| p.len() > at.len() && p.starts_with(at))
+                    .map(|&(_, f)| f)
+                    .collect();
+                if below.is_empty() {
+                    false
+                } else {
+                    self.push_flags(&below)?;
+                    true
+                }
+            }
+            Guards::Cell { c, cell, whole } => match cell.slot(at) {
+                None => false,
+                Some(off) => {
+                    self.count_flag_read();
+                    self.f.get(*c);
+                    self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
+                    if let Some(w) = whole {
+                        self.f.get(*w);
+                        self.f.op(I::I32And);
+                    }
+                    true
+                }
+            },
+        };
+        if guarded {
+            self.f.op(I::If(wasm_encoder::BlockType::Empty));
+            self.release_locals(ls, ty)?;
+            self.f.op(I::Else);
+            let s = crate::layout::strip_newtype(self.pool(), self.env(), ty);
+            // An enum opens the variant it holds: one test per variant,
+            // each opening that variant's payload fields.
+            let disc = crate::layout::variants(self.pool(), self.env(), s)
+                .and_then(|_| {
+                    crate::layout::flat(self.pool(), self.env(), s)
+                        .ok()
+                        .flatten()
+                })
+                .map(|flat| flat.disc);
+            let parts = self.open_parts(ty).unwrap_or_default();
+            let mut tested: Option<u32> = None;
+            for (step, part, at_values) in parts {
+                if let (Some(Proj::Variant(v)), Some(crate::layout::Disc::Cell(d))) =
+                    (step.first().copied(), disc)
+                    && tested != Some(v)
+                {
+                    if tested.take().is_some() {
+                        self.f.op(I::End);
+                    }
+                    let is = d.enc.is(v);
+                    if matches!(is, crate::layout::Is::Never) {
+                        continue;
+                    }
+                    self.f.get(ls[d.value as usize]);
+                    for op in crate::layout::IsOps::ops(is) {
+                        self.f.op(op);
+                    }
+                    self.f.op(I::If(wasm_encoder::BlockType::Empty));
+                    tested = Some(v);
+                }
+                if let Some(Proj::Variant(v)) = step.first().copied()
+                    && matches!(disc, Some(crate::layout::Disc::Cell(_)))
+                    && tested != Some(v)
+                {
+                    continue;
+                }
+                let sub: Vec<Proj> = at.iter().copied().chain(step.iter().copied()).collect();
+                let part_ls: Vec<u32> = at_values.iter().map(|&k| ls[k as usize]).collect();
+                self.open_drop(&part_ls, part, &sub, g)?;
+            }
+            if tested.is_some() {
+                self.f.op(I::End);
+            }
+            self.f.op(I::End);
+        } else {
+            self.release_locals(ls, ty)?;
+        }
+        if own {
+            self.f.op(I::End);
+        }
+        Ok(())
+    }
+
+    /// Pushes the AND of the drop flags `flags`, each a TIR local.
+    fn push_flags(&mut self, flags: &[u32]) -> StageResult<()> {
+        for (k, &flag) in flags.iter().enumerate() {
+            self.count_flag_read();
+            let local = self.local(flag)?[0];
+            self.f.get(local);
+            if k > 0 {
+                self.f.op(I::I32And);
+            }
+        }
+        Ok(())
+    }
+
     /// Counts one read of a TIR drop flag for the ledger, by the
     /// statement whose lowering reads it: a `Drop`, a `Store` releasing
     /// what it overwrites, or another (an exit or unwind release).
@@ -304,6 +506,23 @@ impl Em<'_, '_, '_> {
                 (None, true) => tir.get(&root).map_or(&[][..], Vec::as_slice),
                 _ => &[],
             };
+            // No flag guards a hook: the value is whole, and its release
+            // shim runs its hooks (`hd_layout::shims`). Flags on parts of
+            // a struct or tuple: the open drop.
+            if cell.is_none() && paths.is_empty() {
+                return self.release_locals(ls, ty);
+            }
+            let guards = match &cell {
+                Some((c, cell)) => Guards::Cell {
+                    c: *c,
+                    cell: Rc::clone(cell),
+                    whole,
+                },
+                None => Guards::Tir(paths.to_vec()),
+            };
+            if self.open_drop_fits(&guards, &p.proj, ty, ls.len()) {
+                return self.open_drop(ls, ty, &p.proj, &guards);
+            }
             for (_, child) in self.drop_paths(ty) {
                 let full: Vec<_> = p.proj.iter().chain(&child).copied().collect();
                 match &cell {

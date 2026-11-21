@@ -261,8 +261,8 @@ pub(crate) fn helper_count_action(s: &crate::module::Sym) -> Option<CountAction>
             | Helper::CycleRelease,
         ) => Some(Release),
         Sym::Helper(Helper::CycleFree) => Some(Free),
-        Sym::Shim(_, true, _) => Some(Retain),
-        Sym::Shim(_, false, _) => Some(Release),
+        Sym::Shim(_, true, ..) => Some(Retain),
+        Sym::Shim(_, false, ..) => Some(Release),
         _ => None,
     }
 }

@@ -11,7 +11,7 @@
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[std.rt_tests.stage_case.Item]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[std.rt_tests.stage_case.Item]" (param i32 i32)))
   (import "fixture" "impl[T < ?Copy] Buffer[T].at[std.rt_tests.stage_case.Item]" (func $"impl[T < ?Copy] Buffer[T].at[std.rt_tests.stage_case.Item]" (param i32 i32) (result i32)))
   (import "fixture" "rt:panic'5" (func $rt:panic'5))
-  (import "fixture" "rt:drop_value" (func $rt:drop_value (param i32 i32 i32)))
+  (import "fixture" "release_value[std.rt_tests.stage_case.Item]" (func $"release_value[std.rt_tests.stage_case.Item]" (param i32 i32)))
   (import "fixture" "impl Duration.milliseconds" (func $"impl Duration.milliseconds" (param i64) (result i64)))
   (import "fixture" "sleep" (func $sleep (param i32 i64 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
@@ -456,10 +456,12 @@
     ;; 27 |         if early:
           end
     ;; 25 |     if ready:
-          local.get $ready
-          local.get $bag
           local.get $kept.name.1
-          call $rt:drop_value
+          if
+            local.get $ready
+            local.get $bag
+            call $"release_value[std.rt_tests.stage_case.Item]"
+          end
         end
     ;; 29 |     sleep!(ms(1))
         local.get $t2
@@ -1106,13 +1108,13 @@
     ;; 25 |     if ready:
       local.get $t2
       i32.load $heap offset=44
-      local.set $kept.name.0
-      local.get $t2
-      i32.load $heap
-      local.get $t2
-      i32.load $heap offset=4
-      local.get $kept.name.0
-      call $rt:drop_value
+      if
+        local.get $t2
+        i32.load $heap
+        local.get $t2
+        i32.load $heap offset=4
+        call $"release_value[std.rt_tests.stage_case.Item]"
+      end
       i32.const 0
       local.set $kept.name.0
       local.get $t2
@@ -1147,13 +1149,13 @@
     end
     local.get $t2
     i32.load $heap offset=44
-    local.set $kept.name.0
-    local.get $t2
-    i32.load $heap
-    local.get $t2
-    i32.load $heap offset=4
-    local.get $kept.name.0
-    call $rt:drop_value
+    if
+      local.get $t2
+      i32.load $heap
+      local.get $t2
+      i32.load $heap offset=4
+      call $"release_value[std.rt_tests.stage_case.Item]"
+    end
     local.get $t2
     i32.load $heap offset=8
     local.tee $kept.name.0
@@ -1291,7 +1293,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $wait.drop (param $t0 i32) (local $t1 i32)
+  (func $wait.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 25 |     if ready:
     local.get $t0
     i32.load $heap offset=12
@@ -1301,13 +1303,17 @@
     if
       local.get $t0
       i32.load $heap offset=68
-      local.set $t1
       local.get $t0
       i32.load $heap offset=24
+      local.set $t1
       local.get $t0
       i32.load $heap offset=28
-      local.get $t1
-      call $rt:drop_value
+      local.set $t2
+      if
+        local.get $t1
+        local.get $t2
+        call $"release_value[std.rt_tests.stage_case.Item]"
+      end
       local.get $t0
       i32.load $heap offset=32
       local.tee $t1

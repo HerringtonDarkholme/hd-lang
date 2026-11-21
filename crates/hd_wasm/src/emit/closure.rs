@@ -449,7 +449,13 @@ impl Em<'_, '_, '_> {
     /// Moves parameter `l`, whose values are in `ls`, into a new cell, or
     /// its slot (`slot_locals`): the local's locals become its address.
     pub(super) fn param_cell(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
-        let at = self.new_cell(l, &Src::Locals(ls.to_vec()))?;
+        // A parameter kept by address is copied from where it is.
+        let t = self.b.local_ty[l];
+        let src = match ls {
+            &[at] if crate::layout::by_address(self.pool(), self.env(), t)? => Src::Ref(at),
+            _ => Src::Locals(ls.to_vec()),
+        };
+        let at = self.new_cell(l, &src)?;
         self.locals.insert(l, vec![at]);
         self.param_vals.insert(l, ls.to_vec());
         Ok(())

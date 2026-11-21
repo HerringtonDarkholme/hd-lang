@@ -1,0 +1,32 @@
+# @dump: stdout
+# @build: dev | checked
+# A value that holds a `Drop` hook (a `UniqList`, its newtype, a struct
+# of them with a string) releases through its type's release shim
+# (`hd_layout::shims`): the shim stores its parameter in a frame slot,
+# calls each layer's hook on it, outermost first, then releases the
+# fields (`module.rt.drop.glue`). The checked build's audit finds no
+# leaked block: each list's buffer is freed once.
+use std.collections.UniqList
+
+type Bag(UniqList[i32])
+
+struct Shelf:
+    bag: Bag
+    label: string
+
+impl !Copy for Shelf
+
+fn filled(n: i32) -> Bag:
+    let mut items = UniqList::[i32].new()
+    for i in 0..n:
+        items.push(i)
+    Bag(items)
+
+fn size(bag: Bag) -> usize:
+    UniqList(bag).len()
+
+pub fn main() -> void $ Console:
+    shelf := Shelf { bag: filled(3), label: "${"top"}" }
+    println("${shelf.label}")
+    other := Shelf { bag: filled(2), label: "${"low"}" }
+    println("${size(other.bag)}")

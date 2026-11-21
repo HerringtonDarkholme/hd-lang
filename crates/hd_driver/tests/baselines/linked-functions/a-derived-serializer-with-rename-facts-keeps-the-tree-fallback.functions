@@ -151,18 +151,18 @@ std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
 std/rt.alloc/release_value#0 [std.serde.EnumTagging]
-std/rt.alloc/retain_value#0 [std.json.OpenFrame]
 std/rt.alloc/release_value#0 [std.json.TextWriter]
-std/rt.alloc/release_value#0 [std.json.OpenFrame]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]
 std/rt.alloc/release_value#0 [std.json.JsonObject]
 std/rt.alloc/release_value#0 [(std.json.OpenFrame, List[string], List[std.json.Json])]
 std/rt.alloc/release_value#0 [std.json.JsonWriter]
+std/rt.alloc/release_value#0 [std.json.OpenFrame]
+std/rt.alloc/retain_value#0 [std.json.OpenFrame]
 std/rt.alloc/release_value#0 [std.json.Json?]
-std/rt.alloc/retain_value#0 [std.json.ObjectEntry]
 std/rt.alloc/retain_value#0 [std.serde.EnumTagging]
 std/rt.alloc/release_value#0 [std.json.Json]
 std/rt.alloc/release_value#0 [std.json.ObjectEntry]
+std/rt.alloc/retain_value#0 [std.json.ObjectEntry]
 std/rt.alloc/release_value#0 [std.json.ObjectEntry?]
 std/rt.alloc/retain_value#0 [std.json.Json]
 rt:memory_copy/0/0

@@ -11547,6 +11547,22 @@ impl Run<'_> {
                 || hd_opt::whole::mutation_targets(&self.pool, env, env, &instances);
             let coinductive_flags =
                 hd_opt::whole::coinductive_flags(env, &instances, &c.collected.calls);
+            // Each `Drop` implementation's instance, by its type, for the
+            // release shims: one pass over the instances.
+            let table = &c.collected.table;
+            let glue: hd_base::HashMap<Hash128, Ty> = c
+                .collected
+                .drop_glue
+                .iter()
+                .map(|(&t, &k)| (k, t))
+                .collect();
+            let hook_of: hd_base::HashMap<Ty, (DefId, TyList)> = (0..table.key.len())
+                .filter_map(|k| {
+                    let &t = glue.get(&table.key[k])?;
+                    Some((t, (table.item[k], table.args[k])))
+                })
+                .collect();
+            let hooks = |t: Ty| hook_of.get(&t).copied();
             // Each type's count shims, made once per run (`hd_layout::shims`).
             let shims = std::sync::Mutex::new((
                 hd_layout::shims::Counts::default(),
@@ -11566,8 +11582,8 @@ impl Run<'_> {
                     hd_layout::shims::Shim::Retain => self.known.retain_value,
                     hd_layout::shims::Shim::Release => self.known.release_value,
                 };
-                let b =
-                    hd_layout::shims::shim(&self.pool, env, counts, item, t, kind)?.map(Arc::new);
+                let b = hd_layout::shims::shim(&self.pool, env, counts, &hooks, item, t, kind)?
+                    .map(Arc::new);
                 made.insert((t, kind), b.clone());
                 Ok((count, shape, b))
             };

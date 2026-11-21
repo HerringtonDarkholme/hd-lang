@@ -1,0 +1,48 @@
+# @dump: counts wat
+# @build: std
+# A parameter moved out whole (`identity` returns it) leaves nothing to
+# drop: its drop flag at the root is clear, so the open drop releases
+# none of its parts. Recursing into the fields under a clear root flag
+# released each one whole, zeroed, through its release shim, and the
+# tuple's `Token` hook ran on zeros: one hook too many (std runtime test
+# `inline_drop_tests.hd`). `identity` must release nothing.
+use std.annotation.inline
+use std.rt.Drop
+
+let drops: usize = 0
+
+struct Token:
+    id: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        drops = drops + 1
+
+enum Slot[T < ?Copy]:
+    Vacant
+    Held(T)
+
+impl[T < ?Copy] !Copy for Slot[T]
+
+struct Outer:
+    pair: (usize, (string, Token))
+    maybe: Token?
+    slot: Slot[Token]
+    id: usize
+
+impl !Copy for Outer
+
+@inline(.Never)
+# subject
+fn identity[T < ?Copy](value: T) -> T:
+    value
+
+@inline(.Never)
+fn outer(id: usize) -> Outer:
+    Outer { pair: (id, ("pair", Token { id: 1 })), maybe: .Some(Token { id: 2 }), slot: Slot.Held(Token { id: 3 }), id: id }
+
+fn released(id: usize) -> usize:
+    value := identity(outer(id))
+    value.id

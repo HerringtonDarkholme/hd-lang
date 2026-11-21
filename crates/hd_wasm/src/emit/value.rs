@@ -362,10 +362,6 @@ impl Em<'_, '_, '_> {
 
     /// Moves an inline value's Wasm locals into a local-stack frame for
     /// its Drop hooks and the subsequent release of its fields.
-    pub(super) fn drop_inline(&mut self, ls: &[u32], t: Ty) -> StageResult<bool> {
-        self.drop_inline_flags(ls, t, &[])
-    }
-
     pub(super) fn drop_inline_flags(
         &mut self,
         ls: &[u32],

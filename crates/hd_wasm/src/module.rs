@@ -104,8 +104,10 @@ impl DescriptorKey {
 pub enum Sym {
     Inst(Hash128),
     /// A type's count shim (`hd_layout::shims`, [`Module::shim_key`]): a
-    /// retain when `true`, else a release, of a value of `width` values.
-    Shim(Hash128, bool, u32),
+    /// retain when `true`, else a release, of a value of `width` values;
+    /// last, whether it runs a `Drop` hook, so that releasing nothing
+    /// counted is not doing nothing.
+    Shim(Hash128, bool, u32, bool),
     /// A part of a suspending instance, beside its cold constructor.
     Part(Hash128, Part),
     Helper(Helper),
@@ -207,7 +209,7 @@ impl Symbols {
                         Sym::Import(import) => Some((import.params.len(), import.results.len())),
                         // A shim takes its value's values and gives nothing,
                         // known before the drain defines it.
-                        Sym::Shim(_, _, width) => Some((*width as usize, 0)),
+                        Sym::Shim(_, _, width, _) => Some((*width as usize, 0)),
                         Sym::Inst(_) | Sym::Part(..) => None,
                     })
             })
@@ -1766,7 +1768,7 @@ impl Module {
                     // Every address count tests null: a release of null
                     // releases nothing.
                     Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)
-                    | Sym::Shim(_, false, 1) => c == 0,
+                    | Sym::Shim(_, false, 1, false) => c == 0,
                     _ => false,
                 },
                 _ => false,

@@ -16,12 +16,13 @@
 //!
 //! [`INDIRECT`]: crate::INDIRECT
 
-use hd_base::{DefId, Hash128, HashMap, NodeIdx, StableHasher, Symbol};
+use hd_base::{DefId, Hash128, HashMap, LocalId, NodeIdx, StableHasher, SubId, Symbol};
 use hd_tir::ir::count::{At, Info, Part};
 use hd_tir::ir::{
-    Body, BodyKind, Phase, ReadMode, Ref, Tag, TirBuilder, TirSink, VerifyError, local_flags,
+    Body, BodyKind, Callee, Phase, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, Storage, Tag,
+    TirBuilder, TirSink, VerifyError, local_flags, ref_word,
 };
-use hd_types::{InternPool, Prim, Ty, TyData};
+use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 use crate::{
     Kind, ProgramEnv, StdKind, by_address, fat, kind, strip_newtype, tuple_members, value_parts,
@@ -88,6 +89,14 @@ impl Counts {
             },
             _ => Count::None,
         };
+        // A value that holds a `Drop` hook has its own release shim, which
+        // calls the hook before its fields' counts (`module.rt.drop.glue`).
+        // A newtype's layers are values whatever its base is.
+        let c = if (s != t || value_kind(pool, env, s)) && crate::holds_drop(pool, env, t) {
+            Count::Call
+        } else {
+            c
+        };
         self.counts.insert(t, c);
         Ok(c)
     }
@@ -116,6 +125,10 @@ impl Counts {
         };
         let vals = crate::vals(pool, env, t)?;
         let mut h = StableHasher::new("count-shape");
+        // A type with a hook has its own: its hook is its type's.
+        if crate::holds_drop(pool, env, t) {
+            h.u32(t.0);
+        }
         h.u64(std_hash(&|s| std::hash::Hash::hash(&vals, s)));
         match self.of(pool, env, t)? {
             Count::None => h.u32(0),
@@ -286,6 +299,18 @@ fn null_niche(
         && d.enc.is(1 - v) == crate::Is::Eq(0))
 }
 
+/// Whether `t`, stripped, is kept by value: a tuple, a union, or a struct
+/// or enum that is not boxed.
+fn value_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    match pool.get(t) {
+        TyData::Tuple { .. } | TyData::Union(_) => true,
+        TyData::Adt { def, .. } => {
+            env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value)
+        }
+        _ => false,
+    }
+}
+
 /// A counted reference (`whole`) counts its target, a known payload start
 /// when thin; a local one counts nothing (`ref.count.local`).
 fn reference(fat: bool, whole: bool) -> Count {
@@ -313,6 +338,7 @@ pub fn shim(
     pool: &InternPool,
     env: &dyn ProgramEnv,
     counts: &mut Counts,
+    hooks: &Hooks<'_>,
     item: DefId,
     t: Ty,
     kind: Shim,
@@ -324,6 +350,13 @@ pub fn shim(
     let mut b = TirBuilder::new(item, BodyKind::Fn);
     let x = b.local(t, Symbol::from_raw(0), local_flags::PARAM, n);
     let root = b.open_block();
+    // The hooks take the parameter's address, in heap form: it moves into
+    // a slot of the frame, a value kept in memory copied from where it is.
+    if kind == Shim::Release && hook_calls(pool, env, hooks, &mut b, x, t) {
+        b.body_mut()
+            .storage
+            .push((SubId::from_raw(0), x, Storage::Slot));
+    }
     let v = b.get(x, t, n);
     let mut w = Writer {
         pool,
@@ -339,6 +372,65 @@ pub fn shim(
     let body = (w.b.finish(root, &[]))
         .map_err(|e| VerifyError::bug(Stage::Collect, "count shim TIR verifier", &e))?;
     Ok(Some(body))
+}
+
+/// The `std.rt.Drop.drop` instance of a type that implements it: the impl
+/// method and its type arguments (`Collected::drop_glue`).
+pub type Hooks<'a> = dyn Fn(Ty) -> Option<(DefId, TyList)> + 'a;
+
+/// Calls the hooks of `t` on local `x`, each newtype layer's outermost
+/// first, then its base's (`module.rt.drop.glue`, as `newtype_layers`
+/// walks them), each on `&mut` of its layer: `x` behind as many `.0`
+/// projections, in its frame slot. Whether it called any.
+fn hook_calls(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    hooks: &Hooks<'_>,
+    b: &mut TirBuilder,
+    x: LocalId,
+    t: Ty,
+) -> bool {
+    let n = NodeIdx::from_raw(0);
+    let mut layers = Vec::new();
+    crate::newtype_layers(pool, env, t, &mut |layer| layers.push(layer));
+    layers.push(strip_newtype(pool, env, t));
+    let mut called = false;
+    for (depth, layer) in layers.into_iter().enumerate() {
+        let Some((def, targs)) = hooks(layer) else {
+            continue;
+        };
+        if !called {
+            // The parameter moves into its frame slot at entry: the
+            // prologue does it for a parameter its root's `Box` names.
+            b.emit(Tag::Box, x.raw(), Storage::Slot as u32, Ty::VOID, n);
+        }
+        let place = Place {
+            root: PlaceRoot::Local(x),
+            proj: vec![Proj::Field(0); depth],
+        };
+        let word = b.place(&place);
+        let to = pool.intern_ty(&TyData::Ref {
+            inner: layer,
+            mutable: true,
+            counted: false,
+        });
+        let r = b.emit(
+            Tag::Ref,
+            word,
+            ref_word::MUT | ref_word::LOCAL | ref_word::FRAME,
+            to,
+            n,
+        );
+        b.call(
+            &Callee::Item { def, targs },
+            &[r],
+            Providers::None,
+            Ty::VOID,
+            n,
+        );
+        called = true;
+    }
+    called
 }
 
 struct Writer<'a> {
@@ -360,6 +452,13 @@ impl Writer<'_> {
                 let f = self.field(v, 0, inner);
                 return self.whole(inner, f);
             }
+        }
+        // A base that is one address (a newtype's string), or that has
+        // its own shim, is a statement; this shim's own type, or a
+        // product, opens.
+        let own = self.counts.of(self.pool, self.env, t)?;
+        if matches!(own, Count::Address { .. }) {
+            return self.part(t, v);
         }
         match variants(self.pool, self.env, t) {
             Some(vs) => self.switch(v, &vs),
