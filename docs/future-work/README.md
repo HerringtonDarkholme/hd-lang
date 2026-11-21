@@ -35,7 +35,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 ### Memory model and performance
 
 - Parallelism and locality: folded into the execution-boundaries record, PR #1139 (`EXECUTION_BOUNDARIES.md` Appendix D), owner 2026-11-13.
-- [Backend-Neutral TIR](BACKEND_NEUTRAL_TIR.md): accepted design (owner, 2026-11-18), partly built (steps 0, 2a and 6a, most of 1, part of 6b): a last TIR phase, `Lowered`, is all a backend reads; drop flags, cells, loans, counts and suspension become ordinary locals, statements and blocks; layout moves to a shared per-type crate. It replaces the Instance TIR record (accepted 2026-11-17, built through step 7a; git history at 421bcec83) and folds in its open steps: #2102, #1420, #2107, #2127, #2165, #2166.
+- [Backend-Neutral TIR](BACKEND_NEUTRAL_TIR.md): accepted design (owner, 2026-11-18), partly built (steps 0, 1, 2a, 3, 5 and 6; step 4a is built, with per-type count and drop shims remaining in #2173): a last TIR phase, `Lowered`, is all a backend reads; drop flags, cells, loans, counts and suspension become ordinary locals, statements and blocks; layout moves to a shared per-type crate. It replaces the Instance TIR record (accepted 2026-11-17, built through step 7a; git history at 421bcec83) and folds in its open steps: #2102, #1420, #2107, #2127, #2165, #2166.
 - [The Path To Returned Local References](RETURNED_REFERENCES_PATH.md): accepted 2026-10-29, stages 1 to 9 built (the checker's region solver is [crates/hd_check/DESIGN.md §15](../../crates/hd_check/DESIGN.md#15-lifetimes-one-region-solver)); kept for the parts accepted but not built: view types for `&mut` parameters (#1357) and phantom markers.
 
 No native backend is planned (#188 closed), and no direct TLS streams are planned.

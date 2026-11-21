@@ -1,10 +1,14 @@
 # Backend-Neutral TIR: Lowered TIR Is All A Backend Reads
 
 Status: accepted design (owner, 2026-11-18: "accept all your
-recommendations"); domain: compiler internals; partly built (2026-11-20): steps 0, 1, 2a, 3, 5 and 6. It replaces
+recommendations"); domain: compiler internals. Built as of 2026-11-20:
+steps 0, 1, 2a, 3, 5 and 6, plus step 4a's boundary decisions.
+Step 4b's per-type count and drop shims remain in #2173. It replaces
 `INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
-#2127, #2165 and #2166. Under review: [tir-v2.md](../compiler/tir-v2.md),
+#2127, #2165 and #2166.
+
+Under review: [tir-v2.md](../compiler/tir-v2.md),
 [ownership.md](../compiler/ownership.md) and
 [crates/hd_wasm/DESIGN.md §23](../../crates/hd_wasm/DESIGN.md#23-linear-memory-layout).
 Owner direction, 2026-11-18: "push TIR to the end, this is what swift is
@@ -436,6 +440,7 @@ and its Wasm grows linearly with the source.
 
 **Every module of `crates/hd_wasm/src`**, by `wc -l`. A decision changes
 what the program does or which code exists. Lowering does not.
+This is the design-time inventory; its line counts predate the implementation steps below.
 
 | Class | Modules (lines) | Total | Share |
 | --- | --- | --- | --- |
@@ -489,7 +494,7 @@ patterns overlap, so the rows do not sum to 154.
 | Generic-body ownership that serves it | `Env::owned_generated`, `ProgramEnv::supplied_body` (#2102's second comment) | 1 |
 | Layout memo scopes | `layout::cached`, `cached_for_run`, `Scope`, 257 lines | 1 |
 | A second per-type fact memo | `own.rs` `TypeTable`, `TypeFacts`, 229 lines | 1 |
-| Step 4's second body copy | `ir/local_fns.rs`, 809 lines | 3b (#2180) |
+| Step 4's second body copy | `ir/local_fns.rs`, deleted in 28fb8575a | 3b (#2180), done |
 | Verifier checks that re-prove a pass | `ir/owned.rs`, deleted (step 0, −365) | 0, done |
 | Storage found twice | `closure.rs` `shared_locals`, `cell_locals`; `borrow.rs` `StorageRoots`; `own/storage.rs` | 3 |
 | The settle pass hosted in the backend | `promote.rs` `settled` | 3 |
