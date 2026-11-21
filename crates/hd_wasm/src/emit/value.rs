@@ -267,6 +267,10 @@ impl Em<'_, '_, '_> {
                         h.u32(*index);
                         h.u32(u32::from(*known));
                     }
+                    crate::rt::Counted::Optional { index, known } => {
+                        h.u32(*index);
+                        h.u32(2 | u32::from(*known));
+                    }
                     crate::rt::Counted::Shims(s) => h.hash(s.release),
                 }
                 for &k in ks {

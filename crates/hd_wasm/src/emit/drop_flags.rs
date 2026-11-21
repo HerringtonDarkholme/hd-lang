@@ -313,8 +313,8 @@ impl Em<'_, '_, '_> {
     /// initialized. The flag at `at`, when there is one, guards it all: a
     /// place moved whole leaves nothing. Under it, with no flag below, the
     /// value releases whole: its shim, its hooks and fields. With flags
-    /// below, it releases whole when every one is set, as
-    /// `push_hook_guard` guards a hook; else each field drops the same
+    /// below, it releases whole when every one is set; else each field
+    /// drops the same
     /// way, and the hook at `at` does not run. O(the flags and the fields
     /// on their paths).
     pub(super) fn open_drop(

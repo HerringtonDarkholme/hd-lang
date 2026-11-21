@@ -7,7 +7,7 @@
 //! copied elements' collections are copied in turn, so a nested write
 //! never reaches another list. A check or a change that replaces the
 //! buffer stores the new one into the place it names
-//! (`docs/compiler/tir-v2.md`, "List and Map buffers", 3f). A loop's
+//! (`docs/compiler/tir-v2.md`, "List and Map buffers"). A loop's
 //! stable lists come as TIR values: the header a hoisted `IsUnique`
 //! leaves, and the length a local holds (`hd_opt::prove`).
 

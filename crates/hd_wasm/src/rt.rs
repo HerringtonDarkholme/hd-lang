@@ -253,7 +253,7 @@ pub enum Helper {
     Alloc,
     /// `(size, descriptor) -> address`: a new counted object (§23.4) of
     /// `size` payload bytes, from std's allocator: its count 1 and its
-    /// descriptor word, the table slot of its [`Helper::DropFields`] plus
+    /// descriptor word, the table slot of its release glue plus
     /// one, or 0 when its payload holds no counted reference and has no
     /// `std.rt.Drop` hook. The address is its payload's.
     New,
@@ -759,14 +759,21 @@ pub struct HostCounts {
 }
 
 /// How a value of a layout record's type counts (`hd_layout::shims`):
-/// nothing, one address among its values, or its retain and release
-/// shims (their keys, the value's width, and whether the release runs a
-/// `Drop` hook).
+/// nothing, one address among its values, an optional's one address,
+/// null when it holds nothing, or its retain and release shims (their
+/// keys, the value's width, and whether the release runs a `Drop` hook).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Counted {
     #[default]
     None,
     Address {
+        index: u32,
+        known: bool,
+    },
+    /// A sum whose one counted address says its variant: null for the
+    /// empty one. It counts only when not null, as the variant's test
+    /// would, so an empty optional makes no count call.
+    Optional {
         index: u32,
         known: bool,
     },
@@ -816,6 +823,12 @@ impl Counted {
                 } else {
                     release_call(f, addr);
                 }
+            }
+            Counted::Optional { index, known } => {
+                get(f, index);
+                f.op(Instruction::If(BlockType::Empty));
+                Counted::Address { index, known }.emit(f, m, get, retain);
+                f.op(Instruction::End);
             }
             Counted::Shims(ref s) => {
                 let ShimSyms {
@@ -904,6 +917,13 @@ pub(crate) fn counted_of_portion(
     let (count, shape, _) = (input.shim)(t, Shim::Release, portion)?;
     Ok(match count {
         Count::None => Counted::None,
+        // An optional whose empty variant is its address null
+        // (`shims::null_niche`) counts under that test.
+        Count::Address { index, known }
+            if crate::layout::variants(input.pool, input.env, t).is_some() =>
+        {
+            Counted::Optional { index, known }
+        }
         Count::Address { index, known } => Counted::Address { index, known },
         Count::Parts | Count::Call => {
             use hd_layout::shims::{Shim, in_place};
@@ -3160,7 +3180,7 @@ fn parts_glue(
 }
 
 /// [`Helper::ReleaseSpilled`]: the value moves into a frame slot in heap
-/// form, as `drop_value_glue` puts one, and its in-place release runs
+/// form, after a zeroed frame header, and its in-place release runs
 /// there.
 fn release_spilled(m: &Module, size: u32, leaves: &[Leaf], shim: Sym) -> Func {
     let mut f = m.func(

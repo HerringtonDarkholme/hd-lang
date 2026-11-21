@@ -1,6 +1,6 @@
 //! Counting (`crates/hd_wasm/DESIGN.md` §23.16): every place that
 //! holds a counted reference owns one count. The ownership passes
-//! (`docs/compiler/tir-v2.md`, "Stage 2") decide the counts the body
+//! (`docs/compiler/tir-v2.md`, "The ownership passes") decide the counts the body
 //! they ran on shows ([`Em::owned`]), and this module lowers those
 //! decisions to count glue: a `Read` copies, moves or borrows as its mode
 //! says, a `Drop` releases (and zeroes) a value or a local, a value moves

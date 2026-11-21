@@ -434,7 +434,7 @@ impl Em<'_, '_, '_> {
     /// Stores the buffer in local `b` into place `word`, raw: the change
     /// that replaced the place's buffer gave up its count of the old one,
     /// and the new one's count is the place's (`docs/compiler/tir-v2.md`,
-    /// "List and Map buffers", 3f). The walk goes to the place's last
+    /// "List and Map buffers"). The walk goes to the place's last
     /// element or dereference: an element's slot, or a reference's
     /// referent at its address, past the fields that follow. A place with
     /// neither is in its root: a local's Wasm locals or cell, a value's
@@ -1193,8 +1193,8 @@ impl Em<'_, '_, '_> {
     }
 }
 
-/// Places rooted at a local (`docs/compiler/tir-v2.md`, stage 2 commit
-/// 12a): the checker names a place from its local through every step,
+/// Places rooted at a local (`docs/compiler/tir-v2.md`, "Places"): the
+/// checker names a place from its local through every step,
 /// `[*$0 [%5] .x]`, not each base read into a value first. One walk
 /// resolves such a place step by
 /// step from the root's value, and each instruction reads, stores or

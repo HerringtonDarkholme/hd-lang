@@ -218,7 +218,7 @@ impl Part {
     #[must_use]
     pub fn first_leaf(&self) -> u32 {
         // ruled out: a laid-out value is at most `VALUE_SIZE` bytes
-        // (`value_size` refuses more as `type-too-large`) and each value is
+        // ([`fits`] refuses more as `type-too-large`) and each value is
         // at least one byte, so a value index is below `VALUE_SIZE`, a u32.
         u32::try_from(self.first).unwrap_or(u32::MAX)
     }
@@ -368,10 +368,10 @@ pub const INDIRECT: usize = 16;
 /// Whether a value of `t` may live by address (#2031, steps 4 and 6;
 /// rustc's `BackendRepr::Memory`): a struct, a tuple or an enum of more
 /// than [`INDIRECT`] values, which may hold counted references and `Drop`
-/// hooks. Its counts move with its bits; a release walks them from the
-/// address (`emit/indirect.rs` `release_plan`), after its hooks ran on a
-/// heap copy (`rt::HookPlan`). One probe of its [`Layout`], which lists
-/// no leaves of a type past [`INDIRECT`].
+/// hooks. Its counts move with its bits; a release counts them where they
+/// lie, through its type's in-place shims (`shims::in_place`), hooks
+/// included. One probe of its [`Layout`], which lists no leaves of a type
+/// past [`INDIRECT`].
 pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<bool> {
     Ok(layout(pool, env, t)?.repr == Repr::Memory)
 }

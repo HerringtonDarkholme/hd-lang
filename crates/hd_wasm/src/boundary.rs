@@ -2440,7 +2440,7 @@ fn dec_body(f: &mut Func, b: &LTy, m: &mut Module) {
         LTy::Map(mp) => dec_map(f, mp),
         LTy::Object(o) => {
             // The referent's values, each with its count, move into a new
-            // object, as `box` makes one (`emit::value`'s `object_drops`).
+            // object, as `box` makes one (`emit::value`'s `object_parts`).
             let vals = dec_into(f, 0, &o.ty);
             let obj = f.local(Val::I32);
             f.u32(o.elem.size);

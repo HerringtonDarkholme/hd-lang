@@ -251,7 +251,8 @@ pub struct Input<'a> {
     /// The facts the ownership passes read (`hd_tir::own::OwnCx`). Every
     /// body went through the passes (`hd_tir::own`), so emission lowers
     /// their read modes, `Drop`s and exit sets and decides no count itself
-    /// (`docs/compiler/tir-v2.md`, "Stage 2"); from these facts it learns
+    /// (`docs/compiler/tir-v2.md`, "The ownership passes"); from these
+    /// facts it learns
     /// which use consumes each value (`hd_tir::own::consumers`).
     pub own_cx: &'a dyn hd_tir::own::OwnCx,
     /// The whole-program scan (`hd_opt::whole::mutation_targets`): concrete

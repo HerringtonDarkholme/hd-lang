@@ -55,25 +55,22 @@
 //! A parameter whose type holds counted references (step 4,
 //! [`crate::layout::by_address`]) passes by address too when the instance
 //! owns it: its counts move with its bits, and its `Drop` or exit release
-//! runs its type's release witness from the address
-//! ([`crate::layout::ReleasePlan`], Swift's value-witness `destroy`),
-//! skipping a field a move took out under that field's flag (rustc's drop
-//! elaboration; the flags are TIR's, `hd_tir::own::drop_flags`, read by
+//! counts it from the address: the open drop over its fields
+//! (`hd_layout::shims`, Swift's value-witness `destroy`), skipping a field
+//! a move took out under that field's flag (rustc's drop elaboration; the
+//! flags are TIR's, `hd_tir::own::drop_flags`, read by
 //! [`Em::mem_release`]). A result of such
 //! a type is written into its caller's block, and a frame local of one
 //! kept in memory is released from its slot while its whole path's flag
 //! is set (step 4b); a whole move of it clears the flag, and a whole copy to a
 //! callee that owns it is one `memory.copy` into the call's block, whose
-//! counts the type's copy glue takes from the address
-//! (`crate::rt::Helper::RetainAt`, Swift's `initializeWithCopy`).
+//! counts the type's retain glue takes from the address
+//! (`crate::rt::Helper::RetainFields`, Swift's `initializeWithCopy`).
 //!
 //! A type that holds a `Drop` hook is released the same way (#2031,
-//! [`Em::released`]); its hooks take a heap address, so its drop first
-//! copies the value into a heap frame (`crate::rt::Helper::HeapFrame`),
-//! runs its type's hook witness there (`crate::rt::HookPlan`, the leaf
-//! glue's pre-order) with each hook a moved field rules out skipped under
-//! that field's flag ([`Em::mem_hooks`]), and copies it back for the
-//! release. Cost:
+//! [`Em::released`]): its in-place release shim runs each hook on the
+//! value where it lives, and the open drop skips a hook a moved field
+//! rules out under that field's flag. Cost:
 //! [`params`] visits the
 //! callee's body once, memoized per instance; [`Em::forwarded`] and
 //! [`Em::kept_results`] visit only the sub-body being emitted, and the

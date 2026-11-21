@@ -1,7 +1,8 @@
 //! Shapes of a body that emission reads: its block tree (`Em::topo`), and
 //! what a store, a read or a reference names (a local, a list, a
 //! projection, a read through a reference). Nothing here decides a count:
-//! the ownership passes did (`docs/compiler/tir-v2.md`, "Stage 2").
+//! the ownership passes did (`docs/compiler/tir-v2.md`, "The ownership
+//! passes").
 
 use hd_tir::ir::{Body, PlaceRoot, Proj, Tag};
 

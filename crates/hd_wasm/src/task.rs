@@ -3011,7 +3011,7 @@ fn race_area(results: &[Val]) -> (Vec<(u32, Val)>, u32) {
     (out, at.div_ceil(8) * 8)
 }
 
-/// [`Helper::RaceCold`]: `(list) -> frame`, `race!`'s frame over its
+/// [`Helper::Race`] part 0: `(list) -> frame`, `race!`'s frame over its
 /// list of tasks, which it holds with a count of its own.
 fn race_cold(m: &Module, results: &[Val], counted: &crate::rt::Counted) -> Func {
     let (_, size) = race_area(results);
