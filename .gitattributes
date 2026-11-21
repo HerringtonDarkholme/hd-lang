@@ -17,3 +17,7 @@ spec/conformance/cli/check-fix-std-import-crlf/want/* -text
 spec/conformance/lang/lexical/physical-and-logical-lines/crlf-line-endings.hd -text whitespace=cr-at-eol
 spec/conformance/lang/lexical/physical-and-logical-lines/bare-carriage-return.hd -text
 spec/conformance/lang/lexical/processing-model/utf8-bom.hd -text
+
+# Prefixed string raw parts exercise physical CRLF before interpolation.
+crates/hd_driver/tests/cases/literal-lines/*-crlf.hd -text whitespace=cr-at-eol
+spec/conformance/lang/lexical/literals/prefixed-string-crlf-raw-parts.hd -text whitespace=cr-at-eol

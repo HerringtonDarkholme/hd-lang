@@ -1,0 +1,14 @@
+# @dump: diagnostics stdout
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn valid(t: Template[string]) -> bool:
+    t.raw_parts == ["first\n", "\nlast"] && t.values == ["middle"]
+
+pub fn main() -> void $ Console:
+    middle := "middle"
+    println(
+        valid"""first
+$middle
+last""",
+    )

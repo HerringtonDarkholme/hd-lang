@@ -1,0 +1,11 @@
+# @dump: diagnostics stdout
+use std.ops.{Template, str_prefix}
+
+@str_prefix
+fn raw(t: Template[string]) -> string:
+    t.raw_parts[0]
+
+pub fn main() -> void $ Console:
+    text := raw"""first
+second"""
+    println(text == "first\nsecond")
