@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: std dev | std checked | std release checked
+# expected: constant byte-set helpers keep semantic names in every profile and with checked-report.
+use std.rt.bytes.bytes_index_set
+
+fn escaped(text: string, start: usize) -> usize:
+    bytes_index_set(text, start, 0x0000_0014_FFFF_FFFF, 0x8000_0000_1000_0000, 0, 0)
+
+fn comma(text: string, start: usize) -> usize:
+    bytes_index_set(text, start, 0x0000_1000_0000_0000, 0, 0, 0)
