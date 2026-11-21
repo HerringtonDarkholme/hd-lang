@@ -1,0 +1,16 @@
+# test: an ordinary function named annotate attaches a fact rather than being consumed by spelling
+use std.annotation.facts_of
+
+struct Note: pass
+
+fn annotate() -> Note:
+    Note {}
+
+@annotate
+fn marked() -> void:
+    pass
+
+tests:
+    it("keeps an ordinary annotate value"):
+        assert_equal(facts_of(marked).items.len(), 1)
+        assert(facts_of(marked).find::[Note]().is_some())

@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# annot.error.form.argument: the message is one positional argument.
+@error(message="failed")
+struct Failure: pass

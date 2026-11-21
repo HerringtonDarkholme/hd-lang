@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# annot.metadata.value: member facts may be ordinary function values.
+use std.annotation.annotate
+use std.structure.Structure
+
+@annotate(.Field)
+struct Note: pass
+
+fn note() -> Note:
+    Note {}
+
+struct Record:
+    field: i32
+
+impl Record by Structure:
+    field = [note]

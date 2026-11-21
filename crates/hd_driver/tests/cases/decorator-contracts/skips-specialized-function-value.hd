@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# annot.impl-fact.skips.decl: the known callee's type argument is read without a call wrapper.
+use std.structure.skips
+
+struct Flag: pass
+struct Value: pass
+
+@skips::[Flag]
+impl Eq for Value:
+    fn eq(&self, other: &Self) -> bool:
+        true

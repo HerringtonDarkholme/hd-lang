@@ -5831,12 +5831,18 @@ impl Lower<'_, '_, '_> {
         }
     }
 
-    /// Whether a decorator names a literal marker or std's `inline` or
-    /// `cold`, which attach no value (`annot.inline.recognized`), resolved
-    /// once.
+    /// Whether a decorator names a literal marker or std's `inline`,
+    /// `cold` or `annotate`, which attach no runtime fact, resolved once
+    /// (`annot.inline.recognized`, `annot.facts-of.result.compiler-decorators.v2`).
     fn valueless_marker(&self, d: NodeRef<'_>) -> bool {
         let known = &self.names.known;
-        let markers = [known.num_suffix, known.str_prefix, known.inline, known.cold];
+        let markers = [
+            known.num_suffix,
+            known.str_prefix,
+            known.inline,
+            known.cold,
+            known.annotate,
+        ];
         self.decorator_def(d)
             .is_some_and(|def| markers.contains(&def))
     }

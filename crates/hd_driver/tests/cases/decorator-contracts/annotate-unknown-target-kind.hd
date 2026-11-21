@@ -1,0 +1,7 @@
+# @dump: diagnostics
+# expected: reject the unknown Target variant with unknown-variant (#2225).
+# annot.target.kind.*: an unknown target kind is rejected.
+use std.annotation.annotate
+
+@annotate(.Missing)
+struct Unknown: pass

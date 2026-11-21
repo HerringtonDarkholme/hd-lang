@@ -1291,3 +1291,7 @@ says that the check covered syntax only.
 | 2026-11-20 | #1442 parser recovery fixtures | syntax | `fn choose(value):` in three pattern cases | `syntax-error: expected ':', found ')'` | yes | Annotate `value: i32` so the fixture diagnoses only its intended pattern error | GPT-6 (Codex) |
 | 2026-11-20 | #2209 materializer fixture | CLI API | `hd fmt FILE1 FILE2` | ``error: `hd fmt` takes at most one FILE`` | yes | Format each file in a separate invocation | GPT-6 (Codex) |
 | 2026-11-20 | #2209 materializer fixture | syntax | Bind variables named `data` and `alias` | ``syntax-error: the file does not parse, so `hd fmt` leaves it as it is`` (14 locations) | no; formatter reported positions only; reserved declaration words caused the cascades | Rename the bindings to `values` and `snapshot` | GPT-6 (Codex) |
+
+| 2026-11-20 | #1442 decorator coverage | semantic | Put `@cfg(.Debug)` on `debug_only` and `@cfg(.Release)` on a different `release_only` method | ``invalid-cfg-declaration: a configured name has exactly one `@cfg(.Debug)` and one `@cfg(.Release)` declaration`` | yes | Give both profile declarations the same `selected` name, isolating the intended bodyless-method target diagnostic | GPT-6 (Codex) |
+
+| 2026-11-20 | #2225 argument-validation stage | syntax | `@annotation.annotate(...[.Missing])` | `syntax-error: a spread is written after its value: write 'value...'` | yes; the message named the spelling | `@annotation.annotate([.Missing]...)` | GPT-6 (Codex) |

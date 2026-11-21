@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# fn.caller.decorator: this marker is bare on a module-level function.
+@track_caller()
+fn called() -> void:
+    pass
+
+@track_caller::[i32]
+fn typed() -> void:
+    pass
+
+@track_caller::[i32]()
+fn typed_called() -> void:
+    pass

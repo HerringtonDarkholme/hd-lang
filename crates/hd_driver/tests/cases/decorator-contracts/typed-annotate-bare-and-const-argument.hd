@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# expected: reject the const argument in the pattern type slot with generic-kind-mismatch (#2225).
+# annot.typed-fact.declare: examine bare specialization and a non-type argument.
+use std.annotation.annotate
+
+@annotate::[i32]
+struct Bare: pass
+
+@annotate::[1](.Field)
+struct NonType: pass

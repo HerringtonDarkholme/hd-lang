@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# annot.inline.declared: named hint is accepted; wrong names and arities are rejected.
+use std.annotation.inline
+
+@inline(hint=.Never)
+fn accepted() -> void:
+    pass
+
+@inline(other=.Always)
+fn wrong_name() -> void:
+    pass
+
+@inline(.Auto, .Never)
+fn two_hints() -> void:
+    pass

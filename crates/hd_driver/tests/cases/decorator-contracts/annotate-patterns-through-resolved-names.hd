@@ -1,0 +1,27 @@
+# @dump: diagnostics
+# @build: dev | checked
+# test: aliased and qualified annotate patterns retain the fact type's own generic parameters
+use std.annotation
+use std.annotation.annotate as targets
+
+@targets::[List[T]](.Field)
+struct Sequence[T]: pass
+
+fn sequence[T]() -> Sequence[T]:
+    Sequence::[T] {}
+
+@annotation.annotate::[fn(T) -> R](.Field)
+struct Function[T, R]: pass
+
+fn function[T, R]() -> Function[T, R]:
+    Function::[T, R] {}
+
+struct Record:
+    @sequence
+    values: List[i32]
+    @function
+    convert: fn(i32) -> string
+    @sequence # diagnostic: type-mismatch
+    scalar: i32
+    @function # diagnostic: type-mismatch
+    text: string
