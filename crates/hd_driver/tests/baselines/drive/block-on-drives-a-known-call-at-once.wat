@@ -18,18 +18,18 @@
   (import "fixture" "rewake" (global $rewake (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 12 funcref))
-  (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
+  (func $fetch'1 (param $frame i32) (param $key.0 i32) (param $key.1 i32) (result i32 i32 i32) (local $t2 i32) (local $t3 i32) (local $t1 i32) (local $t0 i32)
     ;; 11 |     key + "?"
     local.get $frame
     if
       local.get $frame
+      local.get $frame
       i32.load $heap offset=12
+      local.tee $t0
       i32.const 128
       i32.and
-      local.set $t0
-      local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.set $t1
+      local.get $t0
       i32.const 128
       i32.or
       i32.store $heap offset=12
@@ -46,7 +46,7 @@
     local.get $key.1
     i32.const 1
     i32.add
-    local.tee $t1
+    local.tee $t0
     call $rt:str
     local.tee $t2
     local.tee $t3
@@ -64,7 +64,7 @@
       call $rt:release_ref'1
     end
     local.get $t2
-    local.get $t1
+    local.get $t0
     local.get $frame
     if
       local.get $frame
@@ -82,7 +82,7 @@
       i32.load $heap offset=12
       i32.const -129
       i32.and
-      local.get $t0
+      local.get $t1
       i32.or
       i32.store $heap offset=12
     end
