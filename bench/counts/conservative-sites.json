@@ -69,7 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 458
+      "sites": 461,
+      "explanation": "#2209: rt:list_reserve linked into list-stdlib-sort and log-stats (release old buffer, once per reservation), and rt:copy_elems in log-stats (its shared-buffer copy path, 0 executions on fresh outputs)"
     },
     {
       "reason": "conservative: unique",
