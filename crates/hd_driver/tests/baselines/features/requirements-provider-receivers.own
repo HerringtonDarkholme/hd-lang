@@ -124,6 +124,8 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %43 = Drop [$1] : ()
 >   %44 = Drop [$1] : ()
 >   %45 = Block - : ()
+>   %50 = Drop [$1] : ()
+>   %51 = Block - : ()
         $.use(Meter).record(i)
 >   %22 = ProviderGet #22 : Meter
 >   %23 = Coerce %22 [ProviderAsRef -] : &mut dyn Meter
@@ -141,11 +143,10 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %34 = Release %33 Operation child #2 : ()
 >   %35 = Retain %33 Operation child #0 : ()
 >   %36 = Drop [%31] : ()
->   %47 = Drop [$1] : ()
->   %48 = Return - #2 : never
 >   exit sub 0 drops [$1]
 >   summary none
 >   cancel %33 releases [%31 %2147483649 %4294967295]
+>   cancel %45 releases [%2147483649]
 
 pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })

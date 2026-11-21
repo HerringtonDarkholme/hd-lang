@@ -47,15 +47,16 @@ impl Sizer for Plain:
 >   %26 = Drop [$0] : ()
 >   %27 = Drop [$1] : ()
 >   %28 = Block %24 : usize
->   %29 = Drop [$0] : ()
->   %30 = Drop [$1] : ()
->   %31 = Return - #2 : never
+>   %33 = Drop [$0] : ()
+>   %34 = Drop [$1] : ()
+>   %35 = Block - : ()
         text.len()
 >   %23 = Read move [$1] : &string
 >   %24 = Call std/text/impl string.len[] (%23) : usize
 >   %25 = Drop [%23] : ()
 >   exit sub 0 drops [$0 $1]
 >   cancel %21 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %28 releases [%2147483648 %2147483649]
 
 fn known!(text: &string) -> usize $ Clock:
 > app/main/known
@@ -83,14 +84,15 @@ fn known!(text: &string) -> usize $ Clock:
 >   %16 = Release %15 Operation child #2 : ()
 >   %20 = Drop [$0] : ()
 >   %21 = Block %18 : usize
->   %22 = Drop [$0] : ()
->   %23 = Return - #2 : never
+>   %25 = Drop [$0] : ()
+>   %26 = Block - : ()
     text.len()
 >   %17 = Read move [$0] : &string
 >   %18 = Call std/text/impl string.len[] (%17) : usize
 >   %19 = Drop [%17] : ()
 >   exit sub 0 drops [$0]
 >   cancel %15 releases [%2147483648 %4294967295]
+>   cancel %21 releases [%2147483648]
 
 fn through_known!(n: usize) -> usize $ Clock:
     let text = "k".repeat(n)
@@ -144,6 +146,8 @@ fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 >   %22 = Drop [$0] : ()
 >   %23 = Drop [$2] : ()
 >   %24 = Block %15 : usize
+>   %30 = Drop [$0] : ()
+>   %31 = Block - : ()
     sizer.size!(&text)
 >   %13 = Read borrow [*$0] : Sizer
 >   %14 = Ref local [$2] : &string
@@ -154,12 +158,10 @@ fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 >   %19 = LoanEnd [%14] : ()
 >   %20 = Drop [$2] : ()
 >   %21 = Drop [$0] : ()
->   %26 = Drop [$0] : ()
->   %27 = Drop [$2] : ()
->   %28 = Return - #2 : never
 >   exit sub 0 drops [$0 $2]
 >   storage sub 0: $2 cell
 >   cancel %15 releases [%14 %2147483648 %2147483650 %4294967295]
+>   cancel %24 releases [%2147483648]
 
 pub fn main!() -> void $ Console + Clock:
     let plain = Plain {}

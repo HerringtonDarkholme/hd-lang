@@ -59,8 +59,9 @@ fn awaited!(work: &dyn Work) -> i32 $ Tag:
 >   %14 = Drop [$0] : ()
 >   %15 = Drop [$0] : ()
 >   %16 = Block %10 : i32
->   %17 = Drop [$0] : ()
->   %18 = Return - #2 : never
+>   %20 = Drop [$0] : ()
+>   %21 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
 >   cancel %10 releases [%2147483648 %4294967295]
+>   cancel %16 releases [%2147483648]

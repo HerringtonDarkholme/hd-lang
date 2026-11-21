@@ -748,6 +748,9 @@
     if
       local.get $t0
       i32.load $heap offset=24
+      local.get $t0
+      i32.load $heap offset=28
+      local.set $t0
       local.tee $t1
       if
         local.get $t1
@@ -762,8 +765,6 @@
         end
       end
       local.get $t0
-      i32.load $heap offset=28
-      local.tee $t0
       if
         local.get $t0
         i32.const 8

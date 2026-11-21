@@ -1319,7 +1319,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $wait.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $wait.drop (param $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 25 |     if ready:
     local.get $t0
     i32.load $heap offset=12
@@ -1335,23 +1335,24 @@
       local.get $t0
       i32.load $heap offset=28
       local.set $t2
+      local.get $t0
+      i32.load $heap offset=32
+      local.set $t3
       if
         local.get $t1
         local.get $t2
         call $rt:release_spilled
       end
-      local.get $t0
-      i32.load $heap offset=32
-      local.tee $t1
+      local.get $t3
       if
-        local.get $t1
+        local.get $t3
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t1
+          local.get $t3
           call $rt:release_ref'2
         end
       end

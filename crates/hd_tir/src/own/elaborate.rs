@@ -296,7 +296,35 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         put.insert((u32_of(x), end), std::mem::take(&mut e.out));
         blocks.push(if end { u32_of(x) } else { blk });
     }
+    // A suspending sub-body's frame, dropped before its first poll,
+    // releases what it holds of the exit set, its parameters and captures:
+    // the cancel block of its root (rustc's `coroutine_drop`).
+    let caps: hd_base::HashSet<_> = e.b.cap_local.iter().map(|l| l.raw()).collect();
+    let mut cold = Vec::new();
+    for s in super::cold::sub_bodies(e.b, cx)
+        .into_iter()
+        .map(|s| s as usize)
+    {
+        let root = e.b.sub_root[s];
+        e.syn = e.b.syn.get(root as usize).copied().unwrap_or(NodeIdx::NONE);
+        for &(word, _) in exit[s].iter().filter(|&&(_, count)| count == NONE) {
+            let l = word & !place::BARE_LOCAL;
+            if e.b.local_flags[l as usize] & local_flags::PARAM != 0 || caps.contains(&l) {
+                e.release(word, CANCELLED, false)?;
+            }
+        }
+        if !e.out.is_empty() {
+            let (first, out) = (
+                spans.last().map_or(u32_of(n), |s: &(u32, u32, u32)| s.2),
+                std::mem::take(&mut e.out),
+            );
+            let list = e.b.push_record(&out);
+            cold.push((root, e.row(Tag::Block, [list, NONE], Ty::VOID)));
+            spans.push((NONE, first, u32_of(e.b.len())));
+        }
+    }
     let b = e.b;
+    b.cancel.extend(cold);
     blocks.sort_stable();
     blocks.dedup();
     for blk in blocks {
@@ -308,5 +336,7 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         list.extend(put.get(&(blk, true)).into_iter().flatten());
         b.data[blk as usize][0] = b.push_record(&list);
     }
-    super::scopes::place(b, n, spans, &gone)
+    super::scopes::place(b, n, spans, &gone)?;
+    b.cancel.sort_stable();
+    Ok(())
 }

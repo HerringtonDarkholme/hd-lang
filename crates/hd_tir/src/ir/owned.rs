@@ -623,7 +623,9 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
         }
     }
     for (k, &(at, blk)) in b.cancel.iter().enumerate() {
-        let point = b.tags.get(at as usize).is_some_and(|&t| is_suspension(t));
+        // A root's: its frame's drop before its first poll (`own::elaborate`).
+        let point =
+            b.tags.get(at as usize).is_some_and(|&t| is_suspension(t)) || b.sub_root.contains(&at);
         if !point || b.tags.get(blk as usize) != Some(&Tag::Block) {
             err(
                 errs,

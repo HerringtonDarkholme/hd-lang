@@ -20,8 +20,11 @@ fn fetch!(key: string) -> string:
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn direct(key: string) -> usize:
 > app/main/direct

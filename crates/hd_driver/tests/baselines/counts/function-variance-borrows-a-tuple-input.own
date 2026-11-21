@@ -40,7 +40,10 @@ fn read_cold!(value: (&i32, i32)) -> i32:
 >   %8 = Drop [$0] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Block %7 : i32
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
 >   exit sub 0 drops [$0]
+>   cancel %10 releases [%2147483648]
 
 @cold
 > app/main/invoke

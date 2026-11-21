@@ -18,8 +18,11 @@ fn label!(s: string) -> string:
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn one!(s: string) -> usize:
 > app/main/one
@@ -41,12 +44,13 @@ fn one!(s: string) -> usize:
 >   %11 = Drop [$1] : ()
 >   %12 = Drop [$0] : ()
 >   %13 = Block %9 : usize
->   %14 = Drop [$0] : ()
->   %15 = Return - #2 : never
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary none
 >   cancel %4 releases [%2147483648 %4294967295]
+>   cancel %13 releases [%2147483648]
 
 fn both!(a: string, b: string) -> usize:
 > app/main/both
@@ -82,9 +86,9 @@ fn both!(a: string, b: string) -> usize:
 >   %32 = Drop [$0] : ()
 >   %33 = Drop [$1] : ()
 >   %34 = Block %31 : usize
->   %37 = Drop [$0] : ()
->   %38 = Drop [$1] : ()
->   %39 = Return - #2 : never
+>   %41 = Drop [$0] : ()
+>   %42 = Drop [$1] : ()
+>   %43 = Block - : ()
     x.len() + y.len()
 >   %23 = Ref local [$2] : &string
 >   %24 = Call std/text/impl string.len[] (%23) : usize
@@ -99,6 +103,7 @@ fn both!(a: string, b: string) -> usize:
 >   storage sub 0: $2 cell, $3 cell
 >   summary none
 >   cancel %8 releases [%5 %7 %2147483648 %2147483649 %4294967295]
+>   cancel %34 releases [%2147483648 %2147483649]
 
 fn either!(a: string, b: string) -> usize:
 > app/main/either
@@ -129,10 +134,11 @@ fn either!(a: string, b: string) -> usize:
 >   %18 = Drop [$0] : ()
 >   %19 = Drop [$1] : ()
 >   %20 = Block %15 : usize
->   %21 = Drop [$0] : ()
->   %22 = Drop [$1] : ()
->   %23 = Return - #2 : never
+>   %25 = Drop [$0] : ()
+>   %26 = Drop [$1] : ()
+>   %27 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary none
 >   cancel %10 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %20 releases [%2147483648 %2147483649]

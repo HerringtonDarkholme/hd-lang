@@ -27,7 +27,7 @@ std/rt_tests.stage_case/wait
   local $12 $temporary_owner: bool [read assigned] value
     uses $12: entry -> %57 lend last
   local $14 $temporary_owner: bool [read assigned] value
-    uses $14: %1 -> %117 lend, %123 lend last, %129 lend last
+    uses $14: %1 -> %117 lend, %123 lend last, %129 lend last, %136 lend
   %0 = Intrinsic ParamOwned [0:i32] : bool
   %1 = Store [$14] %0 : ()
   %2 = Retain %128 Cold local $1 #0 : ()
@@ -157,11 +157,12 @@ std/rt_tests.stage_case/wait
   %126 = If %123 [%125 -] : ()
   %127 = Drop [$1] : ()
   %128 = Block - : ()
-  %129 = Read copy [$14] : bool
-  %130 = Drop [$0] : ()
-  %131 = Block - : ()
-  %132 = If %129 [%131 -] : ()
-  %133 = Drop [$1] : ()
-  %134 = Return - #2 : never
+  %136 = Read copy [$14] : bool
+  %137 = Drop [$0] : ()
+  %138 = Block - : ()
+  %139 = If %136 [%138 -] : ()
+  %140 = Drop [$1] : ()
+  %141 = Block - : ()
   exit sub 0 drops [$0 $1]
   cancel %70 releases [%2147483662 %129 %2147483649 %4294967295]
+  cancel %128 releases [%2147483662 %136 %2147483649]

@@ -21,8 +21,11 @@ fn bump!(t: &mut Tally) -> void:
 >   %8 = Drop [$0] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Block - : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %10 releases [%2147483648]
 
 fn read!(t: &Tally) -> i64:
 > app/main/read
@@ -38,8 +41,11 @@ fn read!(t: &Tally) -> i64:
 >   %6 = Drop [$0] : ()
 >   %7 = Drop [$0] : ()
 >   %8 = Block %5 : i64
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %8 releases [%2147483648]
 
 fn local!() -> i64:
     run := fn!() -> i64:
@@ -115,8 +121,8 @@ fn shared!() -> i64:
 >   %17 = Closure #1 : fn!() -> ()
 >   %18 = Retain %17 Operation captures #0 : ()
 >   %19 = Store [$1] %17 : ()
->   %37 = Drop [$0] : ()
->   %38 = Return - #2 : never
+>   %42 = Drop [$0] : ()
+>   %43 = Block - : ()
     run!()
 >   %20 = Read move [$1] : fn!() -> ()
 >   %21 = CallValue %20 [] : Suspend[()]
@@ -134,7 +140,9 @@ fn shared!() -> i64:
 >   storage sub 1: $0 cell
 >   summary none
 >   cancel %11 releases [%10 %2147483648 %4294967295]
+>   cancel %16 releases [%2147483648]
 >   cancel %22 releases [%20 %21 %2147483648 %4294967295]
+>   cancel %30 releases [%2147483648]
 
 fn copied!() -> i64:
     tally := Tally { n: 0 }
@@ -163,8 +171,8 @@ fn copied!() -> i64:
 >   %15 = Closure #1 : fn!() -> i64
 >   %16 = Drop [$0] : ()
 >   %17 = Store [$1] %15 : ()
->   %33 = Drop [$0] : ()
->   %34 = Return - #2 : never
+>   %38 = Drop [$0] : ()
+>   %39 = Block - : ()
     run!()
 >   %18 = Read move [$1] : fn!() -> i64
 >   %19 = CallValue %18 [] : Suspend[i64]
@@ -178,4 +186,6 @@ fn copied!() -> i64:
 >   storage sub 0: $0 cell
 >   summary none
 >   cancel %9 releases [%8 %2147483648 %4294967295]
+>   cancel %14 releases [%2147483648]
 >   cancel %20 releases [%18 %19 %2147483648 %4294967295]
+>   cancel %26 releases [%2147483648]

@@ -26,8 +26,8 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %12 = Release %11 Operation child #2 : ()
 >   %17 = Drop [$0] : ()
 >   %18 = Block %14 : usize
->   %19 = Drop [$0] : ()
->   %20 = Return - #2 : never
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
     u.len()
 >   %13 = Ref local [$0] : &UniqList[i32]
 >   %14 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i32] (%13) : usize
@@ -36,6 +36,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
 >   cancel %11 releases [%2147483648 %4294967295]
+>   cancel %18 releases [%2147483648]
 
 pub fn main!() -> void $ Console + Clock:
     let mut u = UniqList::[i32].new()

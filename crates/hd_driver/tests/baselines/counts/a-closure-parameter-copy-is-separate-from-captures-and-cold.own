@@ -51,5 +51,9 @@ fn cold_capture(captured: string) -> (fn!(string) -> (string, string)):
 >   %15 = Retain %14 Operation captures #0 : ()
 >   %16 = Drop [$0] : ()
 >   %17 = Block %14 : fn!(string) -> (string, string)
+>   %18 = Drop [$0] : ()
+>   %19 = Drop [$1] : ()
+>   %20 = Block - : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0 $1]
+>   cancel %13 releases [%2147483648 %2147483649]

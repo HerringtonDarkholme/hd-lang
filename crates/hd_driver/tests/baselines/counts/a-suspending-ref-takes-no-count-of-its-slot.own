@@ -22,8 +22,11 @@ fn bump!(t: &mut Tally) -> void:
 >   %8 = Drop [$0] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Block - : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %10 releases [%2147483648]
 
 fn direct!() -> i64:
     let mut tally = Tally { n: 0 }

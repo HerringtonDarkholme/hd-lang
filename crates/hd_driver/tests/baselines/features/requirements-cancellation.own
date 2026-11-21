@@ -19,8 +19,11 @@ fn fetch!(key: string) -> string:
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn stop!(key: string) -> bool:
 > app/main/stop
@@ -39,13 +42,13 @@ fn stop!(key: string) -> bool:
 >   %5 = Store [$1] %4 : ()
 >   %20 = Drop [$0] : ()
 >   %21 = Block %19 : bool
+>   %25 = Drop [$0] : ()
+>   %26 = Block - : ()
     end := job.cancel!()
 >   %6 = Read move [$1] : Suspend[string]
 >   %7 = Await std/task/impl[T] Suspend[T].cancel[string] (%6) : CleanupEnd
 >   %8 = Release %7 Operation child #2 : ()
 >   %9 = Store [$2] %7 : ()
->   %22 = Drop [$0] : ()
->   %23 = Return - #2 : never
     match end:
 >   %10 = Read copy [$2] : CleanupEnd
 >   %18 = Block - : never
@@ -59,6 +62,7 @@ fn stop!(key: string) -> bool:
 >   exit sub 0 drops [$0]
 >   summary none
 >   cancel %7 releases [%2147483648 %4294967295]
+>   cancel %21 releases [%2147483648]
 
 fn drop_now(key: string) -> void:
 > app/main/drop_now

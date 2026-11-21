@@ -20,9 +20,12 @@ fn text(value: string) -> fn!() -> string:
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Block %9 : fn!() -> string
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
+>   cancel %8 releases [%2147483648]
 
 fn number(value: usize) -> fn!() -> usize:
     fn!() -> usize: value

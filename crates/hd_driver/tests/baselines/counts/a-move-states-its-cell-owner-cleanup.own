@@ -42,6 +42,8 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %15 = Drop [%11] : ()
 >   %27 = Drop [$0] : ()
 >   %28 = Block %25 : T
+>   %32 = Drop [$0] : ()
+>   %33 = Block - : ()
     sleep!(ms(1))
 >   %16 = Store [$1] 1:i64 : ()
 >   %17 = Read copy [$1] : i64
@@ -51,8 +53,6 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %21 = Scope %20 [] : Duration
 >   %22 = Await std/time/sleep[] (%21) : ()
 >   %23 = Release %22 Operation child #2 : ()
->   %29 = Drop [$0] : ()
->   %30 = Return - #2 : never
     value
 >   %24 = FlagClear [$0] #2 : ()
 >   %25 = Read move [$0] : T
@@ -60,6 +60,7 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
 >   cancel %22 releases [%2147483648 %4294967295]
+>   cancel %28 releases [%2147483648]
 
 @cold
 > std/rt_tests.stage_case/stack

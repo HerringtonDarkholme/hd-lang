@@ -25,7 +25,10 @@ fn bump!(c: &mut Counter) -> void:
 >   %8 = Drop [$0] : ()
 >   %9 = Drop [$0] : ()
 >   %10 = Block - : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Block - : ()
 >   exit sub 0 drops [$0]
+>   cancel %10 releases [%2147483648]
 
 fn tick(c: &mut Counter) -> void:
     c.hits = c.hits + 1

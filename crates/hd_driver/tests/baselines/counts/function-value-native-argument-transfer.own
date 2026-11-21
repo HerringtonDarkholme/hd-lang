@@ -1085,6 +1085,8 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   %7 = Store [@std/rt_tests.stage_case/cold_starts] %6 : ()
 >   %20 = Drop [$0] : ()
 >   %21 = Block %17 : usize
+>   %25 = Drop [$0] : ()
+>   %26 = Block - : ()
     sleep!(ms(1))
 >   %8 = Store [$1] 1:i64 : ()
 >   %9 = Read copy [$1] : i64
@@ -1094,8 +1096,6 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   %13 = Scope %12 [] : Duration
 >   %14 = Await std/time/sleep[] (%13) : ()
 >   %15 = Release %14 Operation child #2 : ()
->   %22 = Drop [$0] : ()
->   %23 = Return - #2 : never
     value.owned.len()
 >   %16 = Ref local [$0 .owned] : &UniqList[usize]
 >   %17 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%16) : usize
@@ -1104,6 +1104,7 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 cell
 >   cancel %14 releases [%2147483648 %4294967295]
+>   cancel %21 releases [%2147483648]
 
 @inline(.Never)
 > std/rt_tests.stage_case/prepared_native
@@ -1151,6 +1152,8 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %29 = Store [$2] %28 : ()
 >   %30 = Release %29 Operation #3 : ()
 >   %31 = Block - : ()
+>   %105 = Drop [$3] : ()
+>   %106 = Block - : ()
             cold_starts += 1
 >   %11 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
 >   %12 = Prim Add [%11 1:usize] : usize
@@ -1164,8 +1167,6 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %19 = Scope %18 [] : Duration
 >   %20 = Await std/time/sleep[] (%19) : ()
 >   %21 = Release %20 Operation child #2 : ()
->   %102 = Drop [$3] : ()
->   %103 = Return - #2 : never
             value.owned.len()
 >   %22 = Ref local [$3 .owned] : &UniqList[usize]
 >   %23 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%22) : usize
@@ -1245,6 +1246,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   storage sub 0: $3 cell, $4 slot
 >   storage sub 1: $3 cell, $4 cell
 >   cancel %20 releases [%2147483651 %4294967295]
+>   cancel %27 releases [%2147483651]
 
 pub fn main!() -> void $ Clock:
     plain_controls()

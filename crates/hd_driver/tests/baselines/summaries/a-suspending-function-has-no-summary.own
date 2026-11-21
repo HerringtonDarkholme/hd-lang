@@ -17,8 +17,11 @@ fn save!(m: Member) -> void:
 >   %2 = Drop [$0] : ()
 >   %3 = Drop [$0] : ()
 >   %4 = Block - : ()
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %4 releases [%2147483648]
 
 fn unnamed(m: Member) -> bool:
     m.name == ""

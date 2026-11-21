@@ -726,7 +726,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $cancel#1.drop (param $t0 i32) (local $t1 i32)
+  (func $cancel#1.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 13 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
@@ -736,14 +736,15 @@
     if
       local.get $t0
       i32.load $heap offset=28
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
       local.get $t0
       i32.load $heap offset=36
-      local.tee $t1
+      local.set $t1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'1
+      end
+      local.get $t1
       if
         local.get $t1
         i32.const 8
@@ -1319,7 +1320,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $live#1.drop (param $t0 i32) (local $t1 i32)
+  (func $live#1.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 17 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
@@ -1329,14 +1330,15 @@
     if
       local.get $t0
       i32.load $heap offset=28
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
       local.get $t0
       i32.load $heap offset=36
-      local.tee $t1
+      local.set $t1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'1
+      end
+      local.get $t1
       if
         local.get $t1
         i32.const 8
@@ -2011,7 +2013,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $stored.drop (param $t0 i32) (local $t1 i32)
+  (func $stored.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 9 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
@@ -2021,14 +2023,15 @@
     if
       local.get $t0
       i32.load $heap offset=24
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
       local.get $t0
       i32.load $heap offset=32
-      local.tee $t1
+      local.set $t1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'1
+      end
+      local.get $t1
       if
         local.get $t1
         i32.const 8
@@ -2601,7 +2604,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $stored#1.drop (param $t0 i32) (local $t1 i32)
+  (func $stored#1.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 9 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
@@ -2611,14 +2614,15 @@
     if
       local.get $t0
       i32.load $heap offset=28
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref'1
-      end
       local.get $t0
       i32.load $heap offset=36
-      local.tee $t1
+      local.set $t1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref'1
+      end
+      local.get $t1
       if
         local.get $t1
         i32.const 8
@@ -3299,7 +3303,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $live.drop (param $t0 i32) (local $t1 i32)
+  (func $live.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 17 |     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
     local.get $t0
     i32.load $heap offset=12
@@ -3309,22 +3313,23 @@
     if
       local.get $t0
       i32.load $heap offset=28
-      local.tee $t1
+      local.get $t0
+      i32.load $heap offset=24
+      local.set $t1
+      local.tee $t2
       if
-        local.get $t1
+        local.get $t2
         i32.const 8
         i32.sub
         i32.load $heap
         global.get $tracing
         i32.or
         if
-          local.get $t1
+          local.get $t2
           call $rt:release_ref'2
         end
       end
-      local.get $t0
-      i32.load $heap offset=24
-      local.tee $t1
+      local.get $t1
       if
         local.get $t1
         i32.const 8

@@ -41,8 +41,11 @@ fn fetch!(key: string) -> string:
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn tagged!() -> usize $ Tag:
     $.use(Tag).name().len()
@@ -84,6 +87,8 @@ fn later!(key: string) -> usize:
 >   %11 = Box #2 #1 : ()
 >   %17 = Drop [$0] : ()
 >   %18 = Block %14 : usize
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
     pending!().len()
 >   %6 = Read move [$1] : Suspend[string]
 >   %7 = AwaitValue %6 : string
@@ -95,12 +100,11 @@ fn later!(key: string) -> usize:
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$2] : ()
->   %20 = Drop [$0] : ()
->   %21 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary none
 >   cancel %7 releases [%6 %2147483648 %4294967295]
+>   cancel %18 releases [%2147483648]
 
 fn blocking(key: string) -> usize:
 > app/main/blocking
@@ -186,6 +190,8 @@ fn bound!(s: string) -> usize:
 >   %25 = Store [$1] %23 : ()
 >   %31 = Drop [$0] : ()
 >   %32 = Block %27 : usize
+>   %37 = Drop [$0] : ()
+>   %38 = Block - : ()
         tagged()
 >   %21 = Call app/main/tagged[] () : Suspend[usize]
 >   %22 = Block %21 : Suspend[usize]
@@ -195,9 +201,8 @@ fn bound!(s: string) -> usize:
 >   %28 = Release %27 Operation child #2 : ()
 >   %29 = Retain %27 Operation child #0 : ()
 >   %30 = Drop [%26] : ()
->   %34 = Drop [$0] : ()
->   %35 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 cell
 >   summary none
 >   cancel %27 releases [%26 %2147483648 %4294967295]
+>   cancel %32 releases [%2147483648]

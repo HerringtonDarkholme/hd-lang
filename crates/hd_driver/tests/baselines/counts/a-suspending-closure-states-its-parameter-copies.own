@@ -22,6 +22,8 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   %20 = Block %16 : usize
 >   %21 = Closure #1 : fn!(string) -> usize
 >   %22 = Block %21 : fn!(string) -> usize
+>   %26 = Drop [$0] : ()
+>   %27 = Block - : ()
         sleep!(ms(1))
 >   %7 = Store [$1] 1:i64 : ()
 >   %8 = Read copy [$1] : i64
@@ -31,8 +33,6 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   %12 = Scope %11 [] : Duration
 >   %13 = Await std/time/sleep[] (%12) : ()
 >   %14 = Release %13 Operation child #2 : ()
->   %23 = Drop [$0] : ()
->   %24 = Return - #2 : never
         text.len()
 >   %15 = Ref local [$0] : &string
 >   %16 = Call std/text/impl string.len[] (%15) : usize
@@ -43,3 +43,4 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   storage sub 1: $0 cell
 >   summary kept [] writes
 >   cancel %13 releases [%2147483648 %4294967295]
+>   cancel %20 releases [%2147483648]

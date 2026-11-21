@@ -24,6 +24,8 @@ fn optional!(value: (&i32)?) -> i32:
 >   %18 = Drop [%5] : ()
 >   %19 = Drop [$0] : ()
 >   %20 = Block %17 : i32
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
         .Some(item) => *item
 >   %6 = Read copy [*$1] : i32
 >   %7 = Block %6 : i32
@@ -35,6 +37,7 @@ fn optional!(value: (&i32)?) -> i32:
 >   %8 = Block 18446744073709551615:i32 : i32
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %20 releases [%2147483648]
 
 fn tagged!(value: Input[(&i32, i32)]) -> i32:
 > app/main/tagged
@@ -58,6 +61,8 @@ fn tagged!(value: Input[(&i32, i32)]) -> i32:
 >   %30 = Drop [%5] : ()
 >   %31 = Drop [$0] : ()
 >   %32 = Block %29 : i32
+>   %33 = Drop [$0] : ()
+>   %34 = Block - : ()
         .Present(pair) => *pair._0 + pair._1
 >   %6 = Read copy [$1 .0 *] : i32
 >   %7 = Read copy [$1 .1] : i32
@@ -81,3 +86,4 @@ fn tagged!(value: Input[(&i32, i32)]) -> i32:
 >   %24 = Store [$2] %23 : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %32 releases [%2147483648]

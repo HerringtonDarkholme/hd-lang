@@ -44,9 +44,9 @@ impl Measure for Reader:
 >   %23 = Drop [$0] : ()
 >   %24 = Drop [$1] : ()
 >   %25 = Block %21 : usize
->   %26 = Drop [$0] : ()
->   %27 = Drop [$1] : ()
->   %28 = Return - #2 : never
+>   %30 = Drop [$0] : ()
+>   %31 = Drop [$1] : ()
+>   %32 = Block - : ()
         values.len()
 >   %20 = Read move [$1] : List[string]
 >   %21 = Intrinsic ListLen [%20] : usize
@@ -54,6 +54,7 @@ impl Measure for Reader:
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   cancel %18 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %25 releases [%2147483648 %2147483649]
 
 pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 > app/main/known
@@ -81,12 +82,13 @@ pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 >   %16 = Drop [$0] : ()
 >   %17 = Drop [$1] : ()
 >   %18 = Block %13 : usize
->   %20 = Drop [$0] : ()
->   %21 = Drop [$1] : ()
->   %22 = Return - #2 : never
+>   %24 = Drop [$0] : ()
+>   %25 = Drop [$1] : ()
+>   %26 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   cancel %13 releases [%11 %2147483648 %2147483649 %4294967295]
+>   cancel %18 releases [%2147483648 %2147483649]
 
 pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 > app/main/dynamic
@@ -113,12 +115,13 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >   %15 = Drop [$0] : ()
 >   %16 = Drop [$1] : ()
 >   %17 = Block %10 : usize
->   %18 = Drop [$0] : ()
->   %19 = Drop [$1] : ()
->   %20 = Return - #2 : never
+>   %22 = Drop [$0] : ()
+>   %23 = Drop [$1] : ()
+>   %24 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   cancel %10 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %17 releases [%2147483648 %2147483649]
 
 pub fn main() -> void $ Clock:
     reader := Reader { padding: 0 }

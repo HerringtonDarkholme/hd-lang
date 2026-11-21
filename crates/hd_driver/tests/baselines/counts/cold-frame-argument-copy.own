@@ -21,5 +21,8 @@ fn length!(text: string) -> usize:
 >   %9 = Drop [$1] : ()
 >   %10 = Drop [$0] : ()
 >   %11 = Block %8 : usize
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %11 releases [%2147483648]

@@ -1645,6 +1645,9 @@ pub(super) fn finish(
         }
         Some(loaded)
     };
+    // Its root's cancel block (`hd_tir::own::elaborate`), over the saved
+    // owners rebound to their loaded values.
+    let mut body_places = Vec::new();
     for (l, ls) in places {
         // ruled out: every owned cold parameter/capture uses parameter
         // value locals or a distinct cell-address local. param_cell replaces
@@ -1656,14 +1659,14 @@ pub(super) fn finish(
             load(&mut em, &ls),
             "cold owned parameter and capture locals have frame save slots",
         );
-        em.because(Reason::Cancelled, |em| {
-            if em.is_cell(l) {
-                em.count_local(l, &loaded, false)
-            } else {
-                em.release_saved(&loaded, l)
-            }
-        })?;
+        body_places.push((l, ls));
+        em.locals.insert(l, loaded);
     }
+    let root = em.b.sub_root[usize::from(em.sub_id)];
+    if let Some(blk) = em.b.cancel_block(root) {
+        em.because(Reason::Cancelled, |em| em.block_into(blk, None))?;
+    }
+    em.locals.extend(body_places);
     // Reference parameter slots precede all body-allocated waker nodes.
     // These typed identities replace opaque temporary ownership inference.
     for saved in em.frame_refs.clone() {

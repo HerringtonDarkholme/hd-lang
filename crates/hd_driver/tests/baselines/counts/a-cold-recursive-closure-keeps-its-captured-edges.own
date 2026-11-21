@@ -28,6 +28,9 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %34 = Drop [$0] : ()
 >   %35 = Drop [$2] : ()
 >   %36 = Block %31 : fn!(usize) -> string
+>   %42 = Drop [$0] : ()
+>   %43 = Drop [$2] : ()
+>   %44 = Block - : ()
         if n == 0: value else: read!(n - 1)
 >   %7 = Read copy [$1] : usize
 >   %8 = Prim Eq [%7 0:usize] : bool
@@ -45,9 +48,6 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %20 = Block %15 : string
 >   %21 = If %8 [%10 %20] : string
 >   %22 = Drop [$2] : ()
->   %38 = Drop [$0] : ()
->   %39 = Drop [$2] : ()
->   %40 = Return - #2 : never
     read
 >   %31 = Read copy [$2] : fn!(usize) -> string
 >   %32 = Retain %31 Value #0 : ()
@@ -56,6 +56,7 @@ fn make(value: string) -> fn!(usize) -> string:
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes
 >   cancel %15 releases [%14 %2147483648 %2147483650 %4294967295]
+>   cancel %25 releases [%2147483648 %2147483650]
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
 > app/main/generic
@@ -75,9 +76,12 @@ fn generic[T < 'static](value: T) -> fn!() -> T:
 >   %10 = Retain %9 Operation captures #0 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Block %9 : fn!() -> T
+>   %13 = Drop [$0] : ()
+>   %14 = Block - : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
+>   cancel %8 releases [%2147483648]
 
 pub fn main!() -> void $ Console:
     read := make("kept")

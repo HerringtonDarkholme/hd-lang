@@ -11,9 +11,10 @@ app/main/generic
   %12 = Drop [$0] : ()
   %13 = Drop [$0] : ()
   %14 = Block %9 : T
-  %16 = Drop [$0] : ()
-  %17 = Return - #2 : never
+  %19 = Drop [$0] : ()
+  %20 = Block - : ()
   exit sub 0 drops [$0]
   storage sub 0: $0 cell
   summary none
   cancel %9 releases [%8 %2147483648 %4294967295]
+  cancel %14 releases [%2147483648]

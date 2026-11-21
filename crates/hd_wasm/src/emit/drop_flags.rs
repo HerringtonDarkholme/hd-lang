@@ -30,20 +30,16 @@ pub(super) type TirFlags = hd_base::HashMap<Root, Vec<(Vec<Proj>, u32)>>;
 
 /// A cell's flag slots after its value: their offset, and one node
 /// path per slot.
-/// Where the open drop reads whether a place is whole: TIR flag locals
-/// by path, or a cell's slot words (`cell_statement`), each AND the
-/// cell's whole flag.
-pub(super) enum Guards {
-    Tir(Vec<(Vec<Proj>, u32)>),
-    Cell {
-        c: u32,
-        cell: Rc<CellLayout>,
-        whole: Option<u32>,
-        /// In a cell's glue, each loaded leaf's local and its offset in
-        /// the cell: a whole node whose release runs in place gets its
-        /// address there.
-        at: Option<Rc<hd_base::HashMap<u32, u32>>>,
-    },
+/// Where the open drop reads whether a place is whole: a cell's slot
+/// words (`cell_statement`), each AND the cell's whole flag.
+pub(super) struct Guards {
+    c: u32,
+    cell: Rc<CellLayout>,
+    whole: Option<u32>,
+    /// In a cell's glue, each loaded leaf's local and its offset in the
+    /// cell: a whole node whose release runs in place gets its address
+    /// there.
+    at: Option<Rc<hd_base::HashMap<u32, u32>>>,
 }
 
 pub(super) struct CellLayout {
@@ -137,29 +133,6 @@ impl Em<'_, '_, '_> {
         out
     }
 
-    /// Whether this instance reads value root `root`'s TIR flags: its
-    /// value holds a hook and the body owns it. A lent parameter's, a
-    /// cell's and an address parameter's are never read.
-    fn tir_flagged(&self, root: Root, ty: Ty) -> bool {
-        // A local kept in memory reads its flags at its release
-        // ([`Em::mem_release`]).
-        if let Root::Local(l) = root
-            && self.mem_locals.contains_key(&l)
-        {
-            return !self.borrowed.contains(&l) && self.released(ty);
-        }
-        matches!(self.kind(ty), Kind::Value)
-            && crate::layout::holds_drop(self.pool(), self.env(), ty)
-            && match root {
-                Root::Local(l) => {
-                    !self.is_cell(l)
-                        && !self.borrowed.contains(&l)
-                        && !self.mem_locals.contains_key(&l)
-                }
-                Root::Value(_) => true,
-            }
-    }
-
     /// The flag local of slot `root`'s whole path, when a whole move may
     /// empty it: the slot keeps its address, and this says whether it
     /// holds a value, as rustc's drop flag of a maybe-moved place.
@@ -248,28 +221,10 @@ impl Em<'_, '_, '_> {
     /// per value of `ty` (not by address), with every flag at or below
     /// `at` under fields and variants, each part's values among them.
     fn open_drop_fits(&self, g: &Guards, at: &[Proj], ty: Ty, n: usize) -> bool {
-        let flagged = |p: &[Proj]| match g {
-            Guards::Tir(paths) => paths.iter().any(|(q, _)| q.starts_with(p)),
-            Guards::Cell { cell, .. } => cell.paths.iter().any(|q| q.starts_with(p)),
-        };
-        if !flagged(at) {
+        if !g.cell.paths.iter().any(|q| q.starts_with(at)) {
             return true;
         }
-        // The open drop walks fields and variants only.
-        let walked = match g {
-            Guards::Tir(paths) => paths
-                .iter()
-                .filter(|(q, _)| q.starts_with(at))
-                .all(|(q, _)| {
-                    q[at.len()..]
-                        .iter()
-                        .all(|x| matches!(x, Proj::Field(_) | Proj::Variant(_)))
-                }),
-            Guards::Cell { .. } => true,
-        };
-        if !walked
-            || crate::layout::vals(self.pool(), self.env(), ty).map_or(true, |v| v.len() != n)
-        {
+        if crate::layout::vals(self.pool(), self.env(), ty).map_or(true, |v| v.len() != n) {
             return false;
         }
         self.open_parts(ty).is_some_and(|parts| {
@@ -330,57 +285,22 @@ impl Em<'_, '_, '_> {
         g: &Guards,
     ) -> StageResult<()> {
         crate::work::moved_paths(1);
-        // TIR flags: the flag at `at` guards it all, then the flags below.
-        // A cell's slot at `at` is both already (`cell_statement`).
-        let mut own = false;
-        let guarded = match g {
-            Guards::Tir(paths) => {
-                if let Some(flag) = paths
-                    .iter()
-                    .find(|(p, _)| p.as_slice() == at)
-                    .map(|&(_, f)| f)
-                {
-                    self.push_flags(&[flag])?;
-                    self.f.op(I::If(wasm_encoder::BlockType::Empty));
-                    own = true;
-                }
-                let below: Vec<u32> = paths
-                    .iter()
-                    .filter(|(p, _)| p.len() > at.len() && p.starts_with(at))
-                    .map(|&(_, f)| f)
-                    .collect();
-                if below.is_empty() {
-                    false
-                } else {
-                    self.push_flags(&below)?;
-                    true
-                }
+        // A cell's slot at `at` says whether the node is whole
+        // (`cell_statement`).
+        let guarded = g.cell.slot(at).inspect(|&off| {
+            self.count_flag_read();
+            self.f.get(g.c);
+            self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
+            if let Some(w) = g.whole {
+                self.f.get(w);
+                self.f.op(I::I32And);
             }
-            Guards::Cell { c, cell, whole, .. } => match cell.slot(at) {
-                None => false,
-                Some(off) => {
-                    self.count_flag_read();
-                    self.f.get(*c);
-                    self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
-                    if let Some(w) = whole {
-                        self.f.get(*w);
-                        self.f.op(I::I32And);
-                    }
-                    true
-                }
-            },
-        };
-        // Below the node: TIR flags guard it when there are any; a cell
-        // has its slots, and a node with no slot of its own but slots
-        // below (a struct of hooked fields) opens unguarded. A cell's
-        // slot with none below is a leaf: clear, the place moved whole.
-        let below = match g {
-            Guards::Tir(_) => guarded,
-            Guards::Cell { cell, .. } => cell
-                .paths
-                .iter()
-                .any(|p| p.len() > at.len() && p.starts_with(at)),
-        };
+        });
+        let guarded = guarded.is_some();
+        // A node with no slot of its own but slots below (a struct of
+        // hooked fields) opens unguarded. A slot with none below is a
+        // leaf: clear, the place moved whole.
+        let below = (g.cell.paths.iter()).any(|p| p.len() > at.len() && p.starts_with(at));
         if guarded {
             self.f.op(I::If(wasm_encoder::BlockType::Empty));
             self.release_node(ls, ty, g)?;
@@ -394,9 +314,6 @@ impl Em<'_, '_, '_> {
         } else {
             self.release_node(ls, ty, g)?;
         }
-        if own {
-            self.f.op(I::End);
-        }
         Ok(())
     }
 
@@ -404,7 +321,7 @@ impl Em<'_, '_, '_> {
     /// glue, a release that runs in place gets the node's address in the
     /// cell; else from its values.
     fn release_node(&mut self, ls: &[u32], ty: Ty, g: &Guards) -> StageResult<()> {
-        if let Guards::Cell {
+        if let Guards {
             c, at: Some(at), ..
         } = g
             && let Some(&off) = ls.first().and_then(|l| at.get(l))
@@ -483,19 +400,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Pushes the AND of the drop flags `flags`, each a TIR local.
-    fn push_flags(&mut self, flags: &[u32]) -> StageResult<()> {
-        for (k, &flag) in flags.iter().enumerate() {
-            self.count_flag_read();
-            let local = self.local(flag)?[0];
-            self.f.get(local);
-            if k > 0 {
-                self.f.op(I::I32And);
-            }
-        }
-        Ok(())
-    }
-
     /// Counts one read of a TIR drop flag for the ledger, by the
     /// statement whose lowering reads it: a `Drop`, a `Store` releasing
     /// what it overwrites, or another (an exit or unwind release).
@@ -527,7 +431,7 @@ impl Em<'_, '_, '_> {
                 return self.release_locals(ls, ty);
             };
             let whole = self.slot_flag(root)?;
-            let guards = Guards::Cell {
+            let guards = Guards {
                 c,
                 cell,
                 whole,
@@ -546,24 +450,6 @@ impl Em<'_, '_, '_> {
             return self.open_drop(ls, ty, &p.proj, &guards);
         }
         self.release_locals(ls, ty)
-    }
-
-    /// The frame glue's release of saved local `l`, its values `ls`, under
-    /// its reloaded TIR flags ([`Em::reload_drop_flags`]).
-    pub(super) fn release_saved(&mut self, ls: &[u32], l: usize) -> StageResult<()> {
-        let (root, ty) = (Root::Local(l), self.b.local_ty[l]);
-        let paths = self.tir_flags().get(&root).cloned().unwrap_or_default();
-        if self.is_cell(l) || paths.is_empty() || !self.tir_flagged(root, ty) {
-            return self.release_drop_place(ls, ty, &Self::local_place(l));
-        }
-        let guards = Guards::Tir(paths);
-        if !self.open_drop_fits(&guards, &[], ty, ls.len()) {
-            return Err(hd_base::NotImplemented::bug(
-                hd_base::Stage::Emit,
-                "a drop flag past the fields and variants the open drop opens",
-            ));
-        }
-        self.open_drop(ls, ty, &[], &guards)
     }
 
     pub(super) fn store_drop_place(&self) -> Option<Place> {
@@ -694,7 +580,7 @@ impl Em<'_, '_, '_> {
                 .copied()
                 .zip(m.leaves.iter().map(|l| l.offset))
                 .collect();
-            let guards = Guards::Cell {
+            let guards = Guards {
                 c: 0,
                 cell,
                 whole: None,

@@ -16,8 +16,11 @@ fn read!(value: &i32) -> i32:
 >   %6 = Drop [$0] : ()
 >   %7 = Drop [$0] : ()
 >   %8 = Block %5 : i32
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %8 releases [%2147483648]
 
 fn plain(value: &i32) -> i32:
     *value

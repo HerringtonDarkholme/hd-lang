@@ -17,8 +17,11 @@ fn ready![T < 'static](value: T) -> T:
 >   %5 = Read move [$0] : T
 >   %6 = Drop [$0] : ()
 >   %7 = Block %5 : T
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %7 releases [%2147483648]
 
 fn generic![T < 'static](a: T, b: T) -> (T, T):
 > app/main/generic
@@ -49,12 +52,13 @@ fn generic![T < 'static](a: T, b: T) -> (T, T):
 >   %19 = Drop [$0] : ()
 >   %20 = Drop [$1] : ()
 >   %21 = Block %14 : (T, T)
->   %24 = Drop [$0] : ()
->   %25 = Drop [$1] : ()
->   %26 = Return - #2 : never
+>   %28 = Drop [$0] : ()
+>   %29 = Drop [$1] : ()
+>   %30 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   cancel %14 releases [%11 %13 %2147483648 %2147483649 %4294967295]
+>   cancel %21 releases [%2147483648 %2147483649]
 
 fn text!(a: string, b: string) -> (string, string):
 > app/main/text
@@ -75,12 +79,13 @@ fn text!(a: string, b: string) -> (string, string):
 >   %9 = Drop [$0] : ()
 >   %10 = Drop [$1] : ()
 >   %11 = Block %7 : (string, string)
->   %12 = Drop [$0] : ()
->   %13 = Drop [$1] : ()
->   %14 = Return - #2 : never
+>   %16 = Drop [$0] : ()
+>   %17 = Drop [$1] : ()
+>   %18 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   cancel %7 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %11 releases [%2147483648 %2147483649]
 
 fn scalar!(a: i32, b: i32) -> (i32, i32):
     join!(ready(a), ready(b))
@@ -128,6 +133,9 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %23 = Drop [$0] : ()
 >   %24 = Drop [$1] : ()
 >   %25 = Block %18 : (string, string)
+>   %38 = Drop [$0] : ()
+>   %39 = Drop [$1] : ()
+>   %40 = Block - : ()
     join!(ready(pair._0), ready(pair._1))
 >   %14 = Read move [$2 .0] : string
 >   %15 = Call app/main/ready[string] (%14) : Suspend[string]
@@ -138,10 +146,8 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %20 = Release %18 Operation waker #2 : ()
 >   %21 = Drop [%17] : ()
 >   %22 = Drop [%15] : ()
->   %34 = Drop [$0] : ()
->   %35 = Drop [$1] : ()
->   %36 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   cancel %8 releases [%5 %7 %2147483648 %2147483649 %4294967295]
 >   cancel %18 releases [%15 %17 %2147483648 %2147483649 %4294967295]
+>   cancel %25 releases [%2147483648 %2147483649]

@@ -20,8 +20,11 @@ fn fetch!(key: string) -> string:
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn all!(keys: List[string]) -> usize:
 > app/main/all
@@ -95,13 +98,13 @@ fn all!(keys: List[string]) -> usize:
 >   %45 = Store [$7] %44 : ()
 >   %83 = Drop [$0] : ()
 >   %84 = Block %82 : usize
+>   %88 = Drop [$0] : ()
+>   %89 = Block - : ()
     results := join!(tasks...)
 >   %46 = Read move [$7] : List[Suspend[string]]
 >   %47 = Await std/task/all_list[string] (%46) : List[string]
 >   %48 = Release %47 Operation child #2 : ()
 >   %49 = Store [$8] %47 : ()
->   %85 = Drop [$0] : ()
->   %86 = Return - #2 : never
     let mut n = 0
 >   %50 = Store [$9] 0:usize : ()
     for r in &results:
@@ -141,4 +144,5 @@ fn all!(keys: List[string]) -> usize:
 >   exit sub 0 drops [$0]
 >   summary none
 >   cancel %47 releases [%2147483648 %4294967295]
+>   cancel %84 releases [%2147483648]
 >   loop %42 keeps [$2] (%6..%43)

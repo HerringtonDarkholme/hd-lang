@@ -15,8 +15,11 @@ fn ready!(value: string) -> string:
 >   %2 = Read move [$0] : string
 >   %3 = Drop [$0] : ()
 >   %4 = Block %2 : string
+>   %5 = Drop [$0] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %4 releases [%2147483648]
 
 fn sequential!(left: string, right: string) -> string:
 > app/main/sequential
@@ -57,6 +60,9 @@ fn sequential!(left: string, right: string) -> string:
 >   %49 = Drop [$1] : ()
 >   %50 = Drop [$2] : ()
 >   %51 = Block %45 : string
+>   %66 = Drop [$0] : ()
+>   %67 = Drop [$1] : ()
+>   %68 = Block - : ()
     let (c, d) = join!(ready(a), ready(b))
 >   %21 = Read copy [$2] : string
 >   %22 = Retain %21 Value #0 : ()
@@ -75,10 +81,6 @@ fn sequential!(left: string, right: string) -> string:
 >   %35 = Store [$5] %33 : ()
 >   %37 = Block - : never
 >   %38 = Match %26 [%37 %31] : ()
->   %61 = Drop [$0] : ()
->   %62 = Drop [$1] : ()
->   %63 = Drop [$2] : ()
->   %64 = Return - #2 : never
     a + c + d
 >   %39 = Read move [$2] : string
 >   %40 = Read move [$4] : string
@@ -93,3 +95,4 @@ fn sequential!(left: string, right: string) -> string:
 >   summary none
 >   cancel %8 releases [%5 %7 %2147483648 %2147483649 %2147483650 %4294967295]
 >   cancel %26 releases [%23 %25 %2147483648 %2147483649 %2147483650 %4294967295]
+>   cancel %51 releases [%2147483648 %2147483649]

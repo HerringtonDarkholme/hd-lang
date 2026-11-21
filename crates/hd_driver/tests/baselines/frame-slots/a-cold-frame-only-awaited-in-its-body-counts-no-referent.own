@@ -36,8 +36,8 @@ fn size!(text: &string) -> usize $ Clock:
 >   %16 = Release %15 Operation child #2 : ()
 >   %24 = Drop [$0] : ()
 >   %25 = Block %22 : usize
->   %26 = Drop [$0] : ()
->   %27 = Return - #2 : never
+>   %29 = Drop [$0] : ()
+>   %30 = Block - : ()
     text.len()
 >   %17 = Read borrow [$0] : &string
 >   %18 = Read borrow [*%17] : string
@@ -49,6 +49,7 @@ fn size!(text: &string) -> usize $ Clock:
 >   exit sub 0 drops [$0]
 >   summary none
 >   cancel %15 releases [%2147483648 %4294967295]
+>   cancel %25 releases [%2147483648]
 
 fn later!(n: usize) -> usize $ Clock:
     let text = "x".repeat(n)

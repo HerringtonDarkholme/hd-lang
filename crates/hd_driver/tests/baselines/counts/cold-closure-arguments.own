@@ -15,8 +15,11 @@ fn fetch!(key: string) -> string:
 >   %4 = Drop [%2] : ()
 >   %5 = Drop [$0] : ()
 >   %6 = Block %3 : string
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %6 releases [%2147483648]
 
 fn stored!(key: string, keys: List[string]) -> usize:
 > app/main/stored
@@ -66,9 +69,9 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   %42 = Drop [$0] : ()
 >   %43 = Drop [$1] : ()
 >   %44 = Block %35 : usize
->   %53 = Drop [$2] : ()
->   %54 = Drop [$3] : ()
->   %55 = Return - #2 : never
+>   %60 = Drop [$2] : ()
+>   %61 = Drop [$3] : ()
+>   %62 = Block - : ()
     loader!(key, keys)
 >   %31 = Read move [$4] : fn!(string, List[string]) -> usize
 >   %32 = Read move [$0] : string
@@ -87,7 +90,9 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   storage sub 1: $5 cell
 >   summary none
 >   cancel %14 releases [%2147483650 %2147483651 %4294967295]
+>   cancel %28 releases [%2147483650 %2147483651]
 >   cancel %35 releases [%31 %32 %33 %34 %2147483648 %2147483649 %4294967295]
+>   cancel %44 releases [%2147483648 %2147483649]
 
 fn cancel(key: string, keys: List[string]) -> void:
     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
@@ -140,9 +145,9 @@ fn cancel(key: string, keys: List[string]) -> void:
 >   %40 = If %37 [%39 -] : ()
 >   %41 = Release %42 Exit local $1 #2 : ()
 >   %42 = Block - : ()
->   %43 = Drop [$2] : ()
->   %44 = Drop [$3] : ()
->   %45 = Return - #2 : never
+>   %47 = Drop [$2] : ()
+>   %48 = Drop [$3] : ()
+>   %49 = Block - : ()
     _ := loader(key, keys)
 >   %26 = Read move [$4] : fn!(string, List[string]) -> usize
 >   %27 = Read borrow [$0] : string
@@ -155,6 +160,7 @@ fn cancel(key: string, keys: List[string]) -> void:
 >   storage sub 1: $5 cell
 >   summary kept [] borrows [$0 $1] writes
 >   cancel %9 releases [%2147483650 %2147483651 %4294967295]
+>   cancel %23 releases [%2147483650 %2147483651]
 
 fn live!(key: string, keys: List[string]) -> usize:
 > app/main/live
@@ -206,9 +212,9 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   %52 = Drop [$0] : ()
 >   %53 = Drop [$1] : ()
 >   %54 = Block %51 : usize
->   %61 = Drop [$2] : ()
->   %62 = Drop [$3] : ()
->   %63 = Return - #2 : never
+>   %68 = Drop [$2] : ()
+>   %69 = Drop [$3] : ()
+>   %70 = Block - : ()
     size := loader!(key, keys)
 >   %32 = Read move [$4] : fn!(string, List[string]) -> usize
 >   %33 = Read borrow [$0] : string
@@ -237,4 +243,6 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   storage sub 1: $0 cell, $5 cell
 >   summary none
 >   cancel %15 releases [%2147483650 %2147483651 %4294967295]
+>   cancel %29 releases [%2147483650 %2147483651]
 >   cancel %36 releases [%32 %35 %2147483648 %2147483649 %4294967295]
+>   cancel %54 releases [%2147483648 %2147483649]
