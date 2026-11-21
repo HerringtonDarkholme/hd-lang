@@ -29,6 +29,7 @@ fn read(p: *mut Slots, alias: *mut Slots, early: bool) -> string:
 >   release *mut app.main.Slots (last use)
     maybe_change(alias, false)
     if early:
+>   release *mut app.main.Slots (last use)
         return *value
 >   retain string (stored)
     *value

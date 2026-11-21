@@ -53,11 +53,12 @@ impl Reason {
             0 => Reason::Stored,
             1 => Reason::SecondOwner,
             LAST_USE => Reason::LastUse,
-            3 => Reason::Overwritten,
+            OVERWRITTEN => Reason::Overwritten,
             CANCELLED => Reason::Cancelled,
             5 => Reason::MayBeShared,
             6 => Reason::PointerLoan,
             8 => Reason::ByDesign,
+            EXIT_DROP => Reason::LastUse,
             _ => Reason::Conservative("drop"),
         }
     }
@@ -65,6 +66,12 @@ impl Reason {
 
 /// The data word b of a `Drop` the passes place after a last use.
 pub(crate) const LAST_USE: u32 = 2;
+/// The data word b of an exit set's `Drop` (`own::elaborate`): a last
+/// use that ends the body, so nothing reads the local after it.
+pub const EXIT_DROP: u32 = 9;
+/// The reason word of a store's release of what it overwrites, and of
+/// the `Drop`s it elaborates to (`own::elaborate`).
+pub const OVERWRITTEN: u32 = 3;
 /// The reason word of a `Release` in a cancel block.
 pub(crate) const CANCELLED: u32 = 4;
 

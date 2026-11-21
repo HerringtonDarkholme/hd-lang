@@ -13,112 +13,144 @@ struct Key:
     n: i32
 
 fn same(a: Key, b: Key) -> bool:
+    a == b
 > app/main/same
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %0 = Release %9 Exit local $0 #2 : ()
->   %1 = Release %9 Exit local $1 #2 : ()
-    a == b
->   %2 = Box #0 #0 : ()
->   %3 = Box #1 #0 : ()
->   %4 = Ref local frame [$0] : &Key
->   %5 = Ref local frame [$1] : &Key
->   %6 = Call std/core/Eq.eq for Key [] via Impl (%4, %5) : bool
->   %7 = LoanEnd [%5] : ()
->   %8 = LoanEnd [%4] : ()
->   %9 = Block %6 : bool
+>   %0 = Box #0 #0 : ()
+>   %1 = Box #1 #0 : ()
+>   %2 = Ref local frame [$0] : &Key
+>   %3 = Ref local frame [$1] : &Key
+>   %4 = Call std/core/Eq.eq for Key [] via Impl (%2, %3) : bool
+>   %5 = LoanEnd [%3] : ()
+>   %6 = LoanEnd [%2] : ()
+>   %7 = Intrinsic ParamOwned [0:i32] : bool
+>   %8 = Drop [$0] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Release %17 Exit local $0 #2 : ()
+>   %12 = Intrinsic ParamOwned [1:i32] : bool
+>   %13 = Drop [$1] : ()
+>   %14 = Block - : ()
+>   %15 = If %12 [%14 -] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %4 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
 fn before(a: Key, b: Key) -> bool:
+    a < b
 > app/main/before
 >   local $0 a: Key [param read captured] place
 >   local $1 b: Key [param read captured] place
->   %0 = Release %16 Exit local $0 #2 : ()
->   %1 = Release %16 Exit local $1 #2 : ()
-    a < b
->   %2 = Box #0 #0 : ()
->   %3 = Box #1 #0 : ()
->   %4 = Ref local frame [$0] : &Key
->   %5 = Ref local frame [$1] : &Key
->   %6 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%4, %5) : Ordering?
->   %7 = LoanEnd [%5] : ()
->   %8 = LoanEnd [%4] : ()
->   %9 = Read copy [%6 as #1 .0] : Ordering
->   %10 = Block 1:bool : bool
->   %11 = Block 0:bool : bool
->   %12 = SwitchTag %9 [#0 %10 %11] : bool
->   %13 = Block %12 : bool
->   %14 = Block 0:bool : bool
->   %15 = SwitchTag %6 [#1 %13 %14] : bool
->   %16 = Block %15 : bool
+>   %0 = Box #0 #0 : ()
+>   %1 = Box #1 #0 : ()
+>   %2 = Ref local frame [$0] : &Key
+>   %3 = Ref local frame [$1] : &Key
+>   %4 = Call std/cmp/PartialOrd.partial_cmp for Key [] via Impl (%2, %3) : Ordering?
+>   %5 = LoanEnd [%3] : ()
+>   %6 = LoanEnd [%2] : ()
+>   %7 = Read copy [%4 as #1 .0] : Ordering
+>   %8 = Block 1:bool : bool
+>   %9 = Block 0:bool : bool
+>   %10 = SwitchTag %7 [#0 %8 %9] : bool
+>   %11 = Block %10 : bool
+>   %12 = Block 0:bool : bool
+>   %13 = SwitchTag %4 [#1 %11 %12] : bool
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Release %24 Exit local $0 #2 : ()
+>   %19 = Intrinsic ParamOwned [1:i32] : bool
+>   %20 = Drop [$1] : ()
+>   %21 = Block - : ()
+>   %22 = If %19 [%21 -] : ()
+>   %23 = Release %24 Exit local $1 #2 : ()
+>   %24 = Block %13 : bool
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]
 
 fn lookup(m: Map[Key, string], k: Key) -> usize:
+    match m.get(k):
 > app/main/lookup
 >   local $0 m: Map[Key, string] [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 k: Key [param read] value
->     uses $1: entry -> %3 lend last
+>     uses $1: entry -> %1 lend last
 >   local $2 v: string [read assigned] value
->     uses $2: %14 -> %6 lend last
->   %0 = Release %23 Exit local $0 #2 : ()
->   %1 = Release %23 Exit local $1 #2 : ()
-    match m.get(k):
->   %2 = Read borrow [$0] : Map[Key, string]
->   %3 = Read borrow [$1] : Key
->   %4 = Intrinsic MapGet [%2 %3] : string?
->   %5 = Retain %4 Operation operand 0 #0 : ()
->   %20 = Block - : never
->   %21 = Match %4 [%20 %11 %12] : usize
->   %22 = Drop [%4] : ()
->   %23 = Block %21 : usize
+>     uses $2: %12 -> %4 lend last
+>   %0 = Read borrow [$0] : Map[Key, string]
+>   %1 = Read borrow [$1] : Key
+>   %2 = Intrinsic MapGet [%0 %1] : string?
+>   %3 = Retain %2 Operation operand 0 #0 : ()
+>   %18 = Block - : never
+>   %19 = Match %2 [%18 %9 %10] : usize
+>   %20 = Drop [%2] : ()
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %31 Exit local $0 #2 : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %19 : usize
         .Some(v) => v.len()
->   %6 = Read borrow [$2] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
->   %8 = Break L0 %7 : never
->   %9 = Block - : usize
->   %10 = Scope %9 [] : usize
->   %11 = Block %10 : usize
->   %13 = Read borrow [%4 as #1 .0] : string
->   %14 = Store [$2] %13 : ()
->   %16 = Block - : never
->   %19 = SwitchTag %4 [#1 %16 %18] : never
+>   %4 = Read borrow [$2] : string
+>   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : usize
+>   %8 = Scope %7 [] : usize
+>   %9 = Block %8 : usize
+>   %11 = Read borrow [%2 as #1 .0] : string
+>   %12 = Store [$2] %11 : ()
+>   %14 = Block - : never
+>   %17 = SwitchTag %2 [#1 %14 %16] : never
         .None => 0
->   %12 = Block 0:usize : usize
+>   %10 = Block 0:usize : usize
 >   summary kept [] borrows [$0 $1]
 
 fn tuple_key(m: Map[(string, i32), i32], s: string) -> i32:
+    m.get((s, 1)).unwrap_or(0)
 > app/main/tuple_key
 >   local $0 m: Map[(string, i32), i32] [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 s: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %1 consume last
 >   local $3 fallback: i32 [read] value
->     uses $3: %6 -> %9 consume last
+>     uses $3: %4 -> %7 consume last
 >   local $4 value: i32 [read assigned] value
->     uses $4: %12 -> %7 consume last
->   %0 = Release %23 Exit local $0 #2 : ()
->   %1 = Release %23 Exit local $1 #2 : ()
-    m.get((s, 1)).unwrap_or(0)
->   %2 = Read borrow [$0] : Map[(string, i32), i32]
->   %3 = Read borrow [$1] : string
->   %4 = NewTuple - [%3 1:i32] : (string, i32)
->   %5 = Intrinsic MapGet [%2 %4] : i32?
->   %6 = Store [$3] 0:i32 : ()
->   %7 = Read copy [$4] : i32
+>     uses $4: %10 -> %5 consume last
+>   %0 = Read borrow [$0] : Map[(string, i32), i32]
+>   %1 = Read borrow [$1] : string
+>   %2 = NewTuple - [%1 1:i32] : (string, i32)
+>   %3 = Intrinsic MapGet [%0 %2] : i32?
+>   %4 = Store [$3] 0:i32 : ()
+>   %5 = Read copy [$4] : i32
+>   %6 = Block %5 : i32
+>   %7 = Read copy [$3] : i32
 >   %8 = Block %7 : i32
->   %9 = Read copy [$3] : i32
->   %10 = Block %9 : i32
->   %11 = Read copy [%5 as #1 .0] : i32
->   %12 = Store [$4] %11 : ()
->   %14 = Block - : never
->   %17 = SwitchTag %5 [#1 %14 %16] : never
->   %18 = Block - : never
->   %19 = Match %5 [%18 %8 %10] : i32
->   %20 = Break L0 %19 : never
->   %21 = Block - : i32
->   %22 = Scope %21 [] : i32
->   %23 = Block %22 : i32
+>   %9 = Read copy [%3 as #1 .0] : i32
+>   %10 = Store [$4] %9 : ()
+>   %12 = Block - : never
+>   %15 = SwitchTag %3 [#1 %12 %14] : never
+>   %16 = Block - : never
+>   %17 = Match %3 [%16 %6 %8] : i32
+>   %18 = Break L0 %17 : never
+>   %19 = Block - : i32
+>   %20 = Scope %19 [] : i32
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %31 Exit local $0 #2 : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %20 : i32
 >   summary kept [] borrows [$0 $1]

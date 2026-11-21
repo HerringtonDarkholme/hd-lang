@@ -9,13 +9,20 @@ fn ready!(value: string) -> string:
 > app/main/ready
 >   local $0 value: string [param read] value
 >     uses $0: entry -> %2 consume last
->   %0 = Retain %3 Cold local $0 #0 : ()
->   %1 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %4 Cold local $0 #0 : ()
+>   %1 = Retain %4 Entry local $0 #0 : ()
     value
 >   %2 = Read move [$0] : string
->   %3 = Block %2 : string
+>   %3 = Drop [$0] : ()
+>   %4 = Block %2 : string
+>   %5 = Intrinsic ParamOwned [0:i32] : bool
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
+>   %8 = If %5 [%7 -] : ()
+>   %9 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %4 releases [%16 %5]
 
 fn sequential!(left: string, right: string) -> string:
 > app/main/sequential
@@ -31,10 +38,10 @@ fn sequential!(left: string, right: string) -> string:
 >     uses $4: %34 -> %40 lend last
 >   local $5 d: string [read assigned] value
 >     uses $5: %35 -> %44 lend last
->   %0 = Retain %48 Cold local $0 #0 : ()
->   %1 = Retain %48 Entry local $0 #0 : ()
->   %2 = Retain %48 Cold local $1 #0 : ()
->   %3 = Retain %48 Entry local $1 #0 : ()
+>   %0 = Retain %51 Cold local $0 #0 : ()
+>   %1 = Retain %51 Entry local $0 #0 : ()
+>   %2 = Retain %51 Cold local $1 #0 : ()
+>   %3 = Retain %51 Entry local $1 #0 : ()
     let (a, b) = join!(ready(left), ready(right))
 >   %4 = Read move [$0] : string
 >   %5 = Call app/main/ready[] (%4) : Suspend[string]
@@ -52,7 +59,19 @@ fn sequential!(left: string, right: string) -> string:
 >   %17 = Store [$3] %15 : ()
 >   %19 = Block - : never
 >   %20 = Match %8 [%19 %13] : ()
->   %48 = Block %45 : string
+>   %48 = Drop [$0] : ()
+>   %49 = Drop [$1] : ()
+>   %50 = Drop [$2] : ()
+>   %51 = Block %45 : string
+>   %66 = Intrinsic ParamOwned [0:i32] : bool
+>   %67 = Drop [$0] : ()
+>   %68 = Block - : ()
+>   %69 = If %66 [%68 -] : ()
+>   %70 = Intrinsic ParamOwned [1:i32] : bool
+>   %71 = Drop [$1] : ()
+>   %72 = Block - : ()
+>   %73 = If %70 [%72 -] : ()
+>   %74 = Block - : ()
     let (c, d) = join!(ready(a), ready(b))
 >   %21 = Read copy [$2] : string
 >   %22 = Retain %21 Value #0 : ()
@@ -71,7 +90,6 @@ fn sequential!(left: string, right: string) -> string:
 >   %35 = Store [$5] %33 : ()
 >   %37 = Block - : never
 >   %38 = Match %26 [%37 %31] : ()
->   %55 = Return - #2 : never
     a + c + d
 >   %39 = Read move [$2] : string
 >   %40 = Read move [$4] : string
@@ -84,5 +102,6 @@ fn sequential!(left: string, right: string) -> string:
 >   %47 = Drop [%41] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   summary none
->   cancel %8 releases [%5 %7 %4294967295]
->   cancel %26 releases [%23 %25 %4294967295]
+>   cancel %8 releases [%5 %7 %2147483648 %2147483649 %2147483650 %4294967295]
+>   cancel %26 releases [%23 %25 %2147483648 %2147483649 %2147483650 %4294967295]
+>   cancel %51 releases [%16 %66 %16 %70]

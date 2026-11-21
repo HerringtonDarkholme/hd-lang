@@ -227,19 +227,10 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         let m = self.cell_mem(l)?;
-        // The slot's flag says it holds a value, and its address says it
-        // is made and not yet released: an exit after the slot's own end
-        // finds the address cleared, though the flag stays set.
-        match self.slot_flag(super::drop_flags::Root::Local(l))? {
-            Some(flag) => {
-                self.f.get(flag);
-                self.f.get(c);
-                self.f.i32(0);
-                self.f.op(I::I32Ne);
-                self.f.op(I::I32And);
-            }
-            None => self.f.get(c),
-        }
+        // Its address says it is made and not yet released: an exit after
+        // the slot's own end finds it cleared. Its whole flag guards this
+        // in TIR (`hd_tir::own::elaborate`).
+        self.f.get(c);
         self.f.op(I::If(BlockType::Empty));
         if !matches!(self.kind(t), crate::layout::Kind::Value) || self.cell_layout(t).is_none() {
             let ls = self.f.load_locals(c, &m.leaves);
@@ -403,8 +394,7 @@ impl Em<'_, '_, '_> {
         // its Box still controls the slot's lifetime.
         if self.placed.contains_key(&v) && self.written.contains(&v) {
             let at = self.cell_of(l)?;
-            let root = super::drop_flags::Root::Local(l);
-            let init = (!self.tir_flags().contains_key(&root)).then_some(true);
+            let init = (!self.flagged(l)).then_some(true);
             self.init_cell_drop(at, self.b.local_ty[l], init);
             return Ok(());
         }
@@ -422,9 +412,7 @@ impl Em<'_, '_, '_> {
         if self.cells.get(&l) == Some(&i) {
             let c = self.local(u32::try_from(l).expect("locals"))?[0];
             // A store the TIR flags track sets the slots after it.
-            let flagged = self
-                .tir_flags()
-                .contains_key(&super::drop_flags::Root::Local(l));
+            let flagged = self.flagged(l);
             return self.fill_cell(l, c, &src, (v == NONE || !flagged).then_some(v != NONE));
         }
         self.cell_put(l, &src)

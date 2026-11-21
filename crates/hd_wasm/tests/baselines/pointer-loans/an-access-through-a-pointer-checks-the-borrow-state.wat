@@ -215,7 +215,7 @@
       end
     end
   )
-  (func $read (param $t i32) (result i32) (local $t0 i32)
+  (func $read (param $t i32) (result i32)
     ;; 38 |     t.lead.age
     local.get $t
     i32.const 4
@@ -241,7 +241,6 @@
     local.get $t
     i32.load $heap
     i32.load $heap offset=8
-    local.set $t0
     local.get $t
     if
       local.get $t
@@ -253,7 +252,6 @@
         call $rt:release_ref'1
       end
     end
-    local.get $t0
   )
   (func $lend (param $t i32) (param $other i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 20 |     held := &t.lead.name

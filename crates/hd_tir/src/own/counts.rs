@@ -192,12 +192,11 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
             .binary_search_by_key(&key(b.tags[i], b.data[i][0], info), |&(key, _)| key)
             .ok()
             .map(|k| index[k].1);
-        if let Some(k) = found.filter(|&k| {
-            if info.at == At::Operation {
-                crate::ir::count::adjacent(b, topo, expected[k].1, u32_of(i))
-            } else {
-                topo.blk[i] == expected[k].1
-            }
+        if let Some(k) = found.filter(|&k| match info.at {
+            At::Operation => crate::ir::count::adjacent(b, topo, expected[k].1, u32_of(i)),
+            // A sub-body's exit count stands on its ways out ([`Exits`]).
+            At::Exit if b.sub_root.contains(&expected[k].1) => true,
+            _ => topo.blk[i] == expected[k].1,
         }) {
             seen[k] += 1;
         } else {
@@ -205,11 +204,86 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
         }
     }
     for (k, n) in seen.into_iter().enumerate() {
-        if n != 1 {
+        let (_, target, info) = expected[k];
+        if n == 0 || n > 1 && !(info.at == At::Exit && b.sub_root.contains(&target)) {
             err(
-                expected[k].1,
+                target,
                 "a required boundary count is absent or repeated".into(),
             );
         }
+    }
+    for &root in &b.sub_root {
+        let mut counts: Vec<_> = (expected.iter())
+            .filter(|&&(_, target, info)| target == root && info.at == At::Exit)
+            .map(|&(tag, target, info)| key(tag, target, info))
+            .collect();
+        if counts.is_empty() {
+            continue;
+        }
+        counts.sort_stable();
+        let mut walk = Exits {
+            counts,
+            errs: Vec::new(),
+        };
+        let mut s = super::flow::Flow::default();
+        s.arena.words = (3 * walk.counts.len()).div_ceil(64);
+        let st = s.arena.alloc(None);
+        for k in 0..walk.counts.len() {
+            s.arena.set(st, 3 * u32_of(k), true);
+        }
+        if super::flow::forward(b, topo, &mut s, &mut walk, root, st) {
+            walk.out(root, &s.arena, st);
+        }
+        for (x, what) in walk.errs {
+            err(x, what);
+        }
+    }
+}
+
+/// A sub-body's exit counts run exactly once on every way out of it: its
+/// end, each `return` and each cancel exit. Per count, the state holds
+/// which of 0, 1 or more runs a path may have made (bits `3k`, `3k + 1`,
+/// `3k + 2`), joined over paths.
+struct Exits {
+    counts: Vec<(u32, u32, Info)>,
+    errs: Vec<(u32, String)>,
+}
+
+impl Exits {
+    fn out(&mut self, x: u32, s: &super::flow::BitArena, st: usize) {
+        for k in 0..u32_of(self.counts.len()) {
+            if s.get(st, 3 * k) || s.get(st, 3 * k + 2) {
+                let what = "a boundary count is absent or repeated on a way out";
+                self.errs.push((x, what.into()));
+            }
+        }
+    }
+}
+
+impl super::flow::Forward for Exits {
+    const SUITES: super::flow::Suites = super::flow::Suites::FromEnd { union: false };
+
+    fn stmt(&mut self, b: &Body, x: u32, s: &mut super::flow::BitArena, st: usize) {
+        let i = x as usize;
+        let counted = matches!(b.tags[i], Tag::Retain | Tag::Release);
+        let Some(info) = Info::read(b, i).filter(|_| counted) else {
+            return;
+        };
+        if let Ok(k) = self
+            .counts
+            .binary_search(&key(b.tags[i], b.data[i][0], info))
+        {
+            let k = 3 * u32_of(k);
+            let (none, once) = (s.get(st, k), s.get(st, k + 1));
+            s.set(st, k, false);
+            s.set(st, k + 1, none);
+            s.set(st, k + 2, once || s.get(st, k + 2));
+        }
+    }
+
+    fn enter(&mut self, _: &Body, _: u32, _: &mut super::flow::BitArena, _: usize) {}
+
+    fn exit(&mut self, _: &Body, x: u32, s: &mut super::flow::BitArena, st: usize) {
+        self.out(x, s, st);
     }
 }

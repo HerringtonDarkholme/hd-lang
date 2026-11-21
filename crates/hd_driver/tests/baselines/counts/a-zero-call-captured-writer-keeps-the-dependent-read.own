@@ -25,44 +25,47 @@ fn name_of(p: &P) -> &string:
 >   %3 = Block %0 : &string
 
 fn repeat[F < FnMut() -> void](n: usize, mut f: F) -> void:
+    for _ in 0..n:
 > app/main/repeat
 >   local $0 n: usize [param read] value
->     uses $0: entry -> %2 consume last
+>     uses $0: entry -> %0 consume last
 >   local $1 f: F [param read] value
->     uses $1: entry -> %17 lend
+>     uses $1: entry -> %15 lend
 >   local $2 $cur: usize [assigned] place
 >   local $3 $end: usize [assigned] value
->     uses $3: %7 -> %11 lend
+>     uses $3: %5 -> %9 lend
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
->   %1 = Release %25 Exit local $1 #2 : ()
-    for _ in 0..n:
->   %0 = FlagSet [$1] #5 : ()
->   %2 = Read copy [$0] : usize
->   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
->   %4 = Read copy [%3 .start] : usize
->   %5 = Store [$2] %4 : ()
->   %6 = Read copy [%3 .end] : usize
->   %7 = Store [$3] %6 : ()
->   %8 = Read copy [%3 .inclusive] : bool
->   %9 = Store [$4] %8 : ()
->   %10 = Read copy [$2] : usize
->   %11 = Read copy [$3] : usize
->   %12 = Prim Lt [%10 %11] : bool
->   %13 = Read copy [$2] : usize
->   %14 = Read copy [$2] : usize
->   %15 = Prim Add [%14 1:usize] : usize
->   %16 = Store [$2] %15 : ()
+>   %0 = Read copy [$0] : usize
+>   %1 = NewStruct [0:usize %0 0:bool] : Range[usize]
+>   %2 = Read copy [%1 .start] : usize
+>   %3 = Store [$2] %2 : ()
+>   %4 = Read copy [%1 .end] : usize
+>   %5 = Store [$3] %4 : ()
+>   %6 = Read copy [%1 .inclusive] : bool
+>   %7 = Store [$4] %6 : ()
+>   %8 = Read copy [$2] : usize
+>   %9 = Read copy [$3] : usize
+>   %10 = Prim Lt [%8 %9] : bool
+>   %11 = Read copy [$2] : usize
+>   %12 = Read copy [$2] : usize
+>   %13 = Prim Add [%12 1:usize] : usize
+>   %14 = Store [$2] %13 : ()
+>   %17 = Block - : ()
+>   %18 = Break L0 - : never
 >   %19 = Block - : ()
->   %20 = Break L0 - : never
+>   %20 = If %10 [%17 %19] : ()
 >   %21 = Block - : ()
->   %22 = If %12 [%19 %21] : ()
->   %23 = Block - : ()
->   %24 = Loop %23 - : ()
+>   %22 = Loop %21 - : ()
+>   %23 = Intrinsic ParamOwned [1:i32] : bool
+>   %24 = Drop [$1] : ()
 >   %25 = Block - : ()
+>   %26 = If %23 [%25 -] : ()
+>   %27 = Release %28 Exit local $1 #2 : ()
+>   %28 = Block - : ()
         f()
->   %17 = Read borrow [$1] : F
->   %18 = CallValue %17 [] : ()
+>   %15 = Read borrow [$1] : F
+>   %16 = CallValue %15 [] : ()
 
 fn element() -> string:
     let mut ps = [box(P { name: "a" })]
@@ -70,10 +73,10 @@ fn element() -> string:
 >   local $0 $ref: P [read assigned captured captured-assigned] place
 >   local $1 ps: List[*mut P] [read assigned captured] place
 >   local $2 change: fn() -> () [:= read assigned] value
->     uses $2: %19 -> %27 consume last
+>     uses $2: %20 -> %28 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
 >   local $4 d: &string [:= read assigned] value
->     uses $4: %26 -> %29 lend last
+>     uses $4: %27 -> %30 lend last
 >   %0 = NewStruct ["a"] : P
 >   %1 = Box #0 #1 : ()
 >   %2 = Store [$0] %0 : ()
@@ -81,9 +84,10 @@ fn element() -> string:
 >   %4 = NewList - [%3] : List[*mut P]
 >   %5 = Box #1 #1 : ()
 >   %6 = Store [$1] %4 : ()
->   %35 = Block %29 : string
+>   %36 = Drop [$1] : ()
+>   %37 = Block %30 : string
     change := fn() -> void: ps[0] = box(P { name: "b" })
->   %7 = Retain %16 Entry captures #0 : ()
+>   %7 = Retain %17 Entry captures #0 : ()
 >   %8 = NewStruct ["b"] : P
 >   %9 = Box #3 #1 : ()
 >   %10 = Store [$3] %8 : ()
@@ -92,29 +96,30 @@ fn element() -> string:
 >   %13 = Store [$1 [0:usize]] %11 : ()
 >   %14 = Release %13 Operation #3 : ()
 >   %15 = Drop [$1] : ()
->   %16 = Block - : ()
->   %17 = Closure #1 : fn() -> ()
->   %18 = Retain %17 Operation captures #0 : ()
->   %19 = Store [$2] %17 : ()
+>   %16 = Drop [$1] : ()
+>   %17 = Block - : ()
+>   %18 = Closure #1 : fn() -> ()
+>   %19 = Retain %18 Operation captures #0 : ()
+>   %20 = Store [$2] %18 : ()
     d := name_of(ps[0])
->   %20 = IsUnique [$1] : ()
->   %21 = Ref local [$1 [0:usize] *] : &P
->   %22 = LoanBegin %21 #0 : ()
->   %23 = Call app/main/name_of[] (%21) : &string
->   %24 = LoanEnd [%21] : ()
->   %25 = LoanBegin %23 #4 : ()
->   %26 = Store [$4] %23 : ()
+>   %21 = IsUnique [$1] : ()
+>   %22 = Ref local [$1 [0:usize] *] : &P
+>   %23 = LoanBegin %22 #0 : ()
+>   %24 = Call app/main/name_of[] (%22) : &string
+>   %25 = LoanEnd [%22] : ()
+>   %26 = LoanBegin %24 #4 : ()
+>   %27 = Store [$4] %24 : ()
     repeat(0, change)
->   %27 = Read move [$2] : fn() -> ()
->   %28 = Call app/main/repeat[fn() -> ()] (0:usize, %27) : ()
->   %28 keeps %27
+>   %28 = Read move [$2] : fn() -> ()
+>   %29 = Call app/main/repeat[fn() -> ()] (0:usize, %28) : ()
+>   %29 keeps %28
     *d
->   %29 = Read copy [*$4] : string
->   %30 = Retain %29 Value #0 : ()
->   %31 = LoanClose %22 : ()
->   %32 = LoanClose %25 : ()
->   %33 = Drop [$4] : ()
->   %34 = Drop [$1] : ()
+>   %30 = Read copy [*$4] : string
+>   %31 = Retain %30 Value #0 : ()
+>   %32 = LoanClose %23 : ()
+>   %33 = LoanClose %26 : ()
+>   %34 = Drop [$4] : ()
+>   %35 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell
@@ -126,10 +131,10 @@ fn field() -> string:
 >   local $0 $ref: P [read assigned captured captured-assigned] place
 >   local $1 h: Holder [read assigned captured captured-assigned] place
 >   local $2 change: fn() -> () [:= read assigned] value
->     uses $2: %20 -> %27 consume last
+>     uses $2: %21 -> %28 consume last
 >   local $3 $ref: P [read assigned captured captured-assigned] place
 >   local $4 d: &string [:= read assigned] value
->     uses $4: %26 -> %29 lend last
+>     uses $4: %27 -> %30 lend last
 >   %0 = NewStruct ["e"] : P
 >   %1 = Box #0 #1 : ()
 >   %2 = Store [$0] %0 : ()
@@ -138,9 +143,10 @@ fn field() -> string:
 >   %5 = NewStruct [%4] : Holder
 >   %6 = Box #1 #1 : ()
 >   %7 = Store [$1] %5 : ()
->   %35 = Block %29 : string
+>   %36 = Drop [$1] : ()
+>   %37 = Block %30 : string
     change := fn() -> void: h.p = box(P { name: "f" })
->   %8 = Retain %17 Entry captures #0 : ()
+>   %8 = Retain %18 Entry captures #0 : ()
 >   %9 = NewStruct ["f"] : P
 >   %10 = Box #3 #1 : ()
 >   %11 = Store [$3] %9 : ()
@@ -149,28 +155,29 @@ fn field() -> string:
 >   %14 = Store [$1 .p] %13 : ()
 >   %15 = Release %14 Operation #3 : ()
 >   %16 = Drop [$1] : ()
->   %17 = Block - : ()
->   %18 = Closure #1 : fn() -> ()
->   %19 = Retain %18 Operation captures #0 : ()
->   %20 = Store [$2] %18 : ()
+>   %17 = Drop [$1] : ()
+>   %18 = Block - : ()
+>   %19 = Closure #1 : fn() -> ()
+>   %20 = Retain %19 Operation captures #0 : ()
+>   %21 = Store [$2] %19 : ()
     d := name_of(h.p)
->   %21 = Ref local [$1 .p *] : &P
->   %22 = LoanBegin %21 #0 : ()
->   %23 = Call app/main/name_of[] (%21) : &string
->   %24 = Drop [%21] : ()
->   %25 = LoanBegin %23 #4 : ()
->   %26 = Store [$4] %23 : ()
+>   %22 = Ref local [$1 .p *] : &P
+>   %23 = LoanBegin %22 #0 : ()
+>   %24 = Call app/main/name_of[] (%22) : &string
+>   %25 = Drop [%22] : ()
+>   %26 = LoanBegin %24 #4 : ()
+>   %27 = Store [$4] %24 : ()
     repeat(0, change)
->   %27 = Read move [$2] : fn() -> ()
->   %28 = Call app/main/repeat[fn() -> ()] (0:usize, %27) : ()
->   %28 keeps %27
+>   %28 = Read move [$2] : fn() -> ()
+>   %29 = Call app/main/repeat[fn() -> ()] (0:usize, %28) : ()
+>   %29 keeps %28
     *d
->   %29 = Read copy [*$4] : string
->   %30 = Retain %29 Value #0 : ()
->   %31 = LoanClose %22 : ()
->   %32 = LoanClose %25 : ()
->   %33 = Drop [$4] : ()
->   %34 = Drop [$1] : ()
+>   %30 = Read copy [*$4] : string
+>   %31 = Retain %30 Value #0 : ()
+>   %32 = LoanClose %23 : ()
+>   %33 = LoanClose %26 : ()
+>   %34 = Drop [$4] : ()
+>   %35 = Drop [$1] : ()
 >   exit sub 0 drops [$1]
 >   exit sub 1 drops [$1]
 >   storage sub 0: $0 cell, $1 cell, $3 cell

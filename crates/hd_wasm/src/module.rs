@@ -1427,7 +1427,12 @@ impl Module {
         }
         let mut h = hd_base::StableHasher::new("count-shim");
         h.hash(shape);
-        h.u32(u32::from(kind == hd_layout::shims::Shim::Retain) | u32::from(by_value) << 1);
+        let word = match kind {
+            hd_layout::shims::Shim::Retain => 1,
+            hd_layout::shims::Shim::Release => 0,
+            hd_layout::shims::Shim::CellDrop => 4,
+        };
+        h.u32(word | u32::from(by_value) << 1);
         let key = h.finish();
         self.shims.insert((shape, kind, by_value), key);
         self.shim_queue.push((t, kind, portion, by_value, key));

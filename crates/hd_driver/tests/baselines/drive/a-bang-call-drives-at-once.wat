@@ -182,6 +182,13 @@
             local.get $t0
             i32.const 0
             i32.store $heap offset=20
+            local.get $t0
+            i32.load $heap
+            local.tee $provider0.vtable
+            if
+              local.get $provider0.vtable
+              call $rt:release_ref
+            end
             i32.const 0
             local.set $provider0.vtable
             i32.const 1

@@ -247,7 +247,7 @@
     local.get $t0
     call $rt:cancel_leave
   )
-  (func $cold_capture#1.drop (param $t0 i32) (local $t1 i32)
+  (func $cold_capture#1.drop (param $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 9 |     fn!(value: string) -> (string, string): (captured, value)
     local.get $t0
     i32.load $heap offset=12
@@ -257,14 +257,15 @@
     if
       local.get $t0
       i32.load $heap offset=40
-      local.tee $t1
-      if
-        local.get $t1
-        call $rt:release_ref
-      end
       local.get $t0
       i32.load $heap offset=28
-      local.tee $t1
+      local.set $t1
+      local.tee $t2
+      if
+        local.get $t2
+        call $rt:release_ref
+      end
+      local.get $t1
       if
         local.get $t1
         call $rt:release_ref

@@ -4,14 +4,13 @@
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 16 funcref))
-  (func $later_list (param $tasks i32) (result i32) (local $t0 i32)
+  (func $later_list (param $tasks i32) (result i32)
     ;; 6 |     join(tasks...)
     i32.const 0
     local.get $tasks
     i32.const 0
     i32.const 5
     call_indirect $table0 (param i32 i32 i32) (result i32)
-    local.set $t0
     local.get $tasks
     if
       local.get $tasks
@@ -25,6 +24,5 @@
         call $rt:release_ref
       end
     end
-    local.get $t0
   )
 )

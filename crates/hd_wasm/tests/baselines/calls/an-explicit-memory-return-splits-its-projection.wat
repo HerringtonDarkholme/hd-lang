@@ -2,6 +2,7 @@
 == @build: dev
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
@@ -146,16 +147,25 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $t1 i32) (param $t2 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $t0
+      if
+        local.get $t1
+        call $rt:drop
+      else
+        local.get $t1
+        i32.const 72
+        i32.add
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t2
+      local.get $t1
+      i32.const 72
+      memory.copy $heap $heap
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0
@@ -176,6 +186,7 @@
 == @build: checked
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
@@ -320,16 +331,25 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $t1 i32) (param $t2 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $t0
+      if
+        local.get $t1
+        call $rt:drop
+      else
+        local.get $t1
+        i32.const 72
+        i32.add
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t2
+      local.get $t1
+      i32.const 72
+      memory.copy $heap $heap
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0
@@ -350,6 +370,7 @@
 == @build: release
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
@@ -494,16 +515,25 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $t1 i32) (param $t2 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $t0
+      if
+        local.get $t1
+        call $rt:drop
+      else
+        local.get $t1
+        i32.const 72
+        i32.add
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t2
+      local.get $t1
+      i32.const 72
+      memory.copy $heap $heap
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0
@@ -524,6 +554,7 @@
 == @build: release checked
 (module
   (import "fixture" "retain_value[(string, string, string, string, string, string, string, string, string)]" (func $"retain_value[(string, string, string, string, string, string, string, string, string)]" (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)))
+  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
   (import "fixture" "release_value[(string, string, string, string, string, string, string, string, string)]" (func $"release_value[(string, string, string, string, string, string, string, string, string)]" (param i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $borrowed (param $t1 i32) (param $t0 i32)
@@ -668,16 +699,25 @@
       return
     end
   )
-  (func $moved (param $t0 i32) (param $t1 i32)
+  (func $moved (param $t1 i32) (param $t2 i32) (local $t0 i32)
     ;; 22 |     return x._0
-    local.get $t0
-    i32.const 72
-    i32.add
-    call $"release_value[(string, string, string, string, string, string, string, string, string)]"
-    local.get $t1
-    local.get $t0
-    i32.const 72
-    memory.copy $heap $heap
+    block
+      local.get $t0
+      if
+        local.get $t1
+        call $rt:drop
+      else
+        local.get $t1
+        i32.const 72
+        i32.add
+        call $"release_value[(string, string, string, string, string, string, string, string, string)]"
+      end
+      local.get $t2
+      local.get $t1
+      i32.const 72
+      memory.copy $heap $heap
+      return
+    end
   )
   (func $explicit (param $t1 i32) (param $t0 i32)
     ;; 15 |     return x._0

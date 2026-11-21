@@ -48,11 +48,12 @@ fn user_cursor(words: Words) -> usize:
 >     uses $3: %6 -> %7 lend
 >   local $4 w: string [read assigned] value
 >     uses $4: %21 -> %10 lend last
->   %0 = Retain %35 Entry local $0 #0 : ()
+>   %0 = Retain %36 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %3 = Box #2 #0 : ()
->   %35 = Block %34 : usize
+>   %35 = Drop [$0] : ()
+>   %36 = Block %34 : usize
     for w in words:
 >   %2 = Read move [$0] : Words
 >   %4 = Store [$2] %2 : ()
@@ -102,12 +103,13 @@ fn twice(xs: List[string]) -> usize:
 >     uses $6: %47 -> %48 lend
 >   local $7 x: string [read assigned] value
 >     uses $7: %62 -> %51 lend last
->   %0 = Retain %76 Entry local $0 #0 : ()
+>   %0 = Retain %77 Entry local $0 #0 : ()
     let n: usize = 0
 >   %1 = Store [$1] 0:usize : ()
 >   %8 = Box #2 #0 : ()
 >   %44 = Box #5 #0 : ()
->   %76 = Block %75 : usize
+>   %76 = Drop [$0] : ()
+>   %77 = Block %75 : usize
     for x in xs.iter():
 >   %2 = Read copy [$0] : List[string]
 >   %3 = Retain %2 Value #0 : ()

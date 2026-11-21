@@ -29,6 +29,7 @@ fn all!(keys: List[string]) -> usize:
     results := join!(tasks...)
 >   release counted reference (last use)
 >   release counted reference (last use)
+>   release List[string] (last use)
     let mut n = 0
     for r in &results:
 >   release List[string] (last use)

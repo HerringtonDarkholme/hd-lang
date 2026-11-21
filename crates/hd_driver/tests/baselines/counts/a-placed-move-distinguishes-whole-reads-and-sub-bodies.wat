@@ -58,6 +58,8 @@
     i32.load $heap
     local.get $value
     i32.load $heap offset=4
+    local.set $t1
+    local.set $t2
     local.get $value
     i32.const 0
     i32.store $heap
@@ -65,8 +67,6 @@
     i32.const 0
     i32.store $heap offset=4
     ;; 27 |     _ := same(&value, &value)
-    local.set $t1
-    local.set $t2
     local.get $value
     if
       local.get $value
@@ -141,7 +141,7 @@
       end
     end
   )
-  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $t4 i32) (local $t3 i32) (local $value i32) (local $t0 i32)
+  (func $copied (param $t1 i32) (param $t2 i32) (result i32 i32 i32 i32) (local $value i32) (local $t0 i32) (local $t4 i32) (local $t3 i32)
     ;; 21 |     _ := same(&value, &value)
     global.get $stack
     global.get $stack_limit
@@ -200,11 +200,11 @@
     local.get $value
     i32.const 0
     i32.store $heap offset=4
-    ;; 21 |     _ := same(&value, &value)
     local.set $t1
     local.set $t2
     local.set $t3
     local.set $t4
+    ;; 21 |     _ := same(&value, &value)
     local.get $value
     if
       local.get $value

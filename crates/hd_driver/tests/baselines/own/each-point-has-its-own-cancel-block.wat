@@ -9,8 +9,8 @@
   (import "fixture" "rt:ctx_new" (func $rt:ctx_new (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> () $ Console]" (func $"impl[$ R, 'a, F < FnMut() -> void $ R & 'a] Disposable[$ R] for DeferGuard[F, $ R, 'a].dispose[{open row}, fn() -> () $ Console]" (param i32 i32)))
-  (import "fixture" "total" (func $total (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "total" (func $total (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_enter" (func $rt:cancel_enter (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
@@ -308,6 +308,21 @@
               i32.const -1
               i32.add
               global.set $forbid
+              local.get $t1
+              i32.load $heap offset=32
+              local.tee $t3
+              if
+                local.get $t3
+                i32.const 8
+                i32.sub
+                i32.load $heap
+                global.get $tracing
+                i32.or
+                if
+                  local.get $t3
+                  call $rt:release_ref'2
+                end
+              end
               i32.const 0
               local.set $provider0.vtable
               i32.const 1
@@ -498,9 +513,9 @@
             i32.store $heap offset=28
             local.get $t1
             i32.load $heap offset=16
-            local.tee $t4
+            local.tee $provider1.vtable
             if
-              local.get $t4
+              local.get $provider1.vtable
               call $retain
             end
             local.get $provider0.vtable
@@ -517,6 +532,21 @@
             i32.const -1
             i32.add
             global.set $forbid
+            local.get $t1
+            i32.load $heap offset=32
+            local.tee $provider1.vtable
+            if
+              local.get $provider1.vtable
+              i32.const 8
+              i32.sub
+              i32.load $heap
+              global.get $tracing
+              i32.or
+              if
+                local.get $provider1.vtable
+                call $rt:release_ref'2
+              end
+            end
             i32.const 1
             local.set $t4
             br 1
@@ -611,20 +641,20 @@
           local.get $t1
           local.get $provider0
           i32.store $heap offset=32
-        end
-        local.get $t1
-        i32.load $heap offset=32
-        local.tee $t1
-        if
           local.get $t1
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          global.get $tracing
-          i32.or
+          i32.load $heap offset=32
+          local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'2
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $t1
+              call $rt:release_ref'2
+            end
           end
         end
         local.get $provider0.vtable

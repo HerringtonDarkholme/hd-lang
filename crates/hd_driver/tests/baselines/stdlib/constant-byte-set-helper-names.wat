@@ -10,13 +10,11 @@
     local.get $text.1
     local.get $start
     call $rt:bytes_index_set'1
-    local.set $text.1
     local.get $text.0
     if
       local.get $text.0
       call $rt:release_ref
     end
-    local.get $text.1
   )
   (func $comma (param $text.0 i32) (param $text.1 i32) (param $start i32) (result i32)
     ;; 10 |     bytes_index_set(text, start, 0x0000_1000_0000_0000, 0, 0, 0)
@@ -24,13 +22,11 @@
     local.get $text.1
     local.get $start
     call $rt:bytes_index_set'2
-    local.set $text.1
     local.get $text.0
     if
       local.get $text.0
       call $rt:release_ref
     end
-    local.get $text.1
   )
 )
 == @build: std checked
@@ -45,7 +41,6 @@
     local.get $text.1
     local.get $start
     call $rt:bytes_index_set'1
-    local.set $text.1
     local.get $text.0
     if
       local.get $text.0
@@ -53,7 +48,6 @@
     else
       call $skipped_test
     end
-    local.get $text.1
   )
   (func $comma (param $text.0 i32) (param $text.1 i32) (param $start i32) (result i32)
     ;; 10 |     bytes_index_set(text, start, 0x0000_1000_0000_0000, 0, 0, 0)
@@ -61,7 +55,6 @@
     local.get $text.1
     local.get $start
     call $rt:bytes_index_set'2
-    local.set $text.1
     local.get $text.0
     if
       local.get $text.0
@@ -69,7 +62,6 @@
     else
       call $skipped_test
     end
-    local.get $text.1
   )
 )
 == @build: std release checked
