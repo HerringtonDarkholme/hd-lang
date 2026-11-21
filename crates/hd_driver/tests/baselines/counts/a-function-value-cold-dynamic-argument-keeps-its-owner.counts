@@ -22,7 +22,7 @@ impl[T] Echo[T] for Echoer:
 fn cold_adapter(dynamic: *dyn Echo[List[string]]) -> (fn(List[string]) -> Suspend[List[string]]):
     fn(value: List[string]) -> Suspend[List[string]]: dynamic.echo(value)
 > app/main/cold_adapter
->   copy List[string] (stored)
+>   retain List[string] (stored)
 
 fn reader_adapter(dynamic: *dyn Echo[List[string]]) -> (fn(List[string]) -> usize):
     fn(value: List[string]) -> usize: dynamic.read(value)

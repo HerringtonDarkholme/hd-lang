@@ -12,7 +12,7 @@
   (import "fixture" "rt:map_find" (func $rt:map_find (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put" (func $rt:map_put (param i32 i32 i32 i32 i32 i64) (result i32)))
   (import "fixture" "rt:list_buf'2" (func $rt:list_buf'2 (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "release_value[Outer]" (func $"release_value[Outer]" (param i32 i32 i32 i32 i32)))
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
@@ -167,8 +167,8 @@
     ;; 45 |     shared := items
     local.get $items
     i32.load $heap
-    call $rt:coll_copy
-    local.set $shared
+    local.tee $shared
+    call $rt:retain_coll
     ;; 46 |     element(&mut items, 0)
     local.get $items
     i32.const 0
@@ -386,14 +386,13 @@
     local.get $t0
     i32.load $heap offset=20
     local.set $t0
-    call $rt:coll_copy
+    local.tee $t1
+    call $rt:retain_coll
     local.get $t0
-    call $rt:coll_copy
-    local.set $t0
+    call $rt:retain_coll
     local.get $items
     local.get $i
     call $grow
-    local.set $t1
     local.set $t2
     local.get $items
     i32.load $heap
@@ -423,13 +422,13 @@
     i32.load $heap offset=24
     call $"release_value[Item]"
     local.get $items
-    local.get $t2
+    local.get $t1
     i32.store $heap offset=16
     local.get $items
     local.get $t0
     i32.store $heap offset=20
     local.get $items
-    local.get $t1
+    local.get $t2
     i32.store $heap offset=24
   )
   (func $replaced (param $p i32) (local $t0 i32)

@@ -10,7 +10,7 @@
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
@@ -291,11 +291,7 @@
           end
           local.get $t1
           i32.load $heap offset=12
-          call $rt:coll_copy
-          local.set $env
-          local.get $t1
-          local.get $env
-          i32.store $heap offset=12
+          call $rt:retain_coll
         end
         block
           local.get $t3
@@ -764,8 +760,7 @@
       call $retain
     end
     local.get $t2
-    call $rt:coll_copy
-    local.set $t2
+    call $rt:retain_coll
     local.get $t3
     i32.store $heap offset=24
     local.get $t0
@@ -862,11 +857,7 @@
           end
           local.get $t1
           i32.load $heap offset=12
-          call $rt:coll_copy
-          local.set $env
-          local.get $t1
-          local.get $env
-          i32.store $heap offset=12
+          call $rt:retain_coll
         end
         block
           local.get $t3
@@ -1335,8 +1326,7 @@
       call $retain
     end
     local.get $t2
-    call $rt:coll_copy
-    local.set $t2
+    call $rt:retain_coll
     local.get $t3
     i32.store $heap offset=24
     local.get $t0
@@ -2100,11 +2090,7 @@
           end
           local.get $t1
           i32.load $heap offset=12
-          call $rt:coll_copy
-          local.set $env
-          local.get $t1
-          local.get $env
-          i32.store $heap offset=12
+          call $rt:retain_coll
         end
         block
           local.get $t3
@@ -2573,8 +2559,7 @@
       call $retain
     end
     local.get $t2
-    call $rt:coll_copy
-    local.set $t2
+    call $rt:retain_coll
     local.get $t3
     i32.store $heap offset=24
     local.get $t0

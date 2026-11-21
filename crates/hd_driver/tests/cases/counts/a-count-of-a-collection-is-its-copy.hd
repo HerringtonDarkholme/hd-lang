@@ -1,6 +1,6 @@
 # @dump: counts
-# Every count of a list or a map runs its copy glue (`rt:coll_copy`, a
-# "copy" here), which a clone replaces when the collection is pinned: the
+# Every count of a list or a map is one more count on its buffer (a
+# "retain" here), which a clone replaces when the collection is pinned: the
 # struct field, the element, the capture and the tuple member each take
 # one. A string's count stays a plain retain.
 struct Bag:

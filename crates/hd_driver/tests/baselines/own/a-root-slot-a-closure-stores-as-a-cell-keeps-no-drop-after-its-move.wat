@@ -20,7 +20,7 @@
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "impl[T] List[T].map[string, string]" (func $"impl[T] List[T].map[string, string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -607,8 +607,8 @@
     ;; 26 |     for x in xs:
     local.get $xs
     i32.load $heap
-    call $rt:coll_copy
-    local.set $n
+    local.tee $n
+    call $rt:retain_coll
     local.get $xs
     if
       local.get $xs

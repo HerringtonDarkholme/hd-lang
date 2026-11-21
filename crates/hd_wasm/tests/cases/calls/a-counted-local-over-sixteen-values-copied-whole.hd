@@ -1,9 +1,9 @@
 # @dump: wat
 # A counted local over 16 values read whole stays in its frame slot
 # (#2031). `copied`'s `let b = a` copies `a`'s slot into `b`'s with one
-# memory.copy, then `Outer`'s copy glue (`rt:retain_at`) takes the
-# copy's counts from `b`'s address: `Big`'s glue for `inner`, the string
-# retained and the list through its copy glue, stored back; `take(b)`
+# memory.copy, then `Outer`'s retain shim takes the copy's counts from
+# `b`'s address: `Big`'s shim for `inner`, the string and the list's
+# buffer retained; `take(b)`
 # passes `b`'s address and clears its TIR flag. `moved`'s `let b = a`
 # shares `a`'s bits (no copy is needed), and its exit releases them.
 # `moved_on` moves `a` whole to `take`, clearing its TIR flag, so its

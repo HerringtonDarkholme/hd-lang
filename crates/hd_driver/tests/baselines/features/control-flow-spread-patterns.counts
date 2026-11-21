@@ -17,4 +17,4 @@ fn rest(t: (string, List[string]...)) -> List[string]:
     let (_, xs...) = t
     xs
 > app/main/rest
->   copy List[string] (stored)
+>   retain List[string] (stored)

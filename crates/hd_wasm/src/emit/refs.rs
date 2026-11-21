@@ -127,7 +127,6 @@ impl Em<'_, '_, '_> {
             size: m.size,
             leaves: m.leaves,
             counted: crate::rt::counted_of(self.input, self.m, ty)?,
-            colls: self.copied(ty).into(),
         })
     }
 
@@ -1587,7 +1586,6 @@ mod tests {
                 index: 0,
                 known: false,
             },
-            colls: Box::default(),
         };
         for fat in [false, true] {
             let mut function = Func::default();

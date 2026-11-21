@@ -36,7 +36,7 @@ pub fn main() -> void $ Console:
         trail.enter(i64(i))
     let mut local: List[i64] = [5, 6]
     saved := local
->   copy List[i64] (second owner)
+>   retain List[i64] (second owner)
     set_first(&mut local, 9)
     println("${trail.depth} ${saved[0]} ${local[0]}")
 >   release app.main.Trail [steps] (last use)

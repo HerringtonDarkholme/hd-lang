@@ -82,7 +82,6 @@ pub struct Entry {
     /// values follow the key's `keys`.
     pub key_counted: crate::rt::Counted,
     pub val_counted: crate::rt::Counted,
-    pub colls: Vec<u32>,
     /// Whether the map's header and tables take part in cycle collection
     /// (`crate::cycle`).
     pub cyclic: bool,
@@ -134,17 +133,12 @@ impl Entry {
         let (pool, env, counts) = (input.pool, input.env, true);
         let (mem, parts) = crate::layout::payload_mem(pool, env, &[kt, vt])?;
         let keys = parts[0].count;
-        let shift = n32(keys);
         Ok(Entry {
             size: mem.size,
             leaves: mem.leaves,
             keys,
             key_counted: crate::rt::counted_of(input, m, kt)?,
             val_counted: crate::rt::counted_of(input, m, vt)?,
-            colls: crate::layout::coll_leaves(pool, env, vt)
-                .into_iter()
-                .map(|k| k + shift)
-                .collect(),
             cyclic: counts && crate::cycle::object(pool, env, t),
         })
     }
@@ -1198,11 +1192,7 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
     f.get(t);
     table_bytes(&mut f, cap, entry.size);
     f.push(crate::bulk::copy(HEAP, HEAP));
-    // A value's shim retains its collections too; a value that is one
-    // collection is copied through the copy glue below.
-    let shims = matches!(entry.val_counted, crate::rt::Counted::Shims(_));
-    let colls: &[u32] = if shims { &[] } else { &entry.colls };
-    if entry.has_glue() || !colls.is_empty() {
+    if entry.has_glue() {
         let n = entry.leaves.len();
         let keys = u32::try_from(entry.keys).unwrap_or(u32::MAX);
         each_live(&mut f, nt, cap, e, &|f| {
@@ -1211,17 +1201,8 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
             f.get(at);
             let ls = load_entry(f, entry, 0, n);
             (entry.key_counted).emit(f, m, &|f, k| f.get(ls[k as usize]), true);
-            if shims || colls.is_empty() {
-                let get = |f: &mut Func, k: u32| f.get(ls[(keys + k) as usize]);
-                entry.val_counted.emit(f, m, &get, true);
-            }
-            for c in colls {
-                let l = entry.leaves[*c as usize];
-                f.get(at);
-                f.get(ls[*c as usize]);
-                f.helper(Helper::CollCopy);
-                f.op(I::I32Store(mem(HEAP, u64::from(l.offset), 2)));
-            }
+            let get = |f: &mut Func, k: u32| f.get(ls[(keys + k) as usize]);
+            entry.val_counted.emit(f, m, &get, true);
         });
     }
     f.get(t);
@@ -1386,7 +1367,6 @@ mod seed_tests {
             keys: 0,
             key_counted: crate::rt::Counted::None,
             val_counted: crate::rt::Counted::None,
-            colls: vec![],
             cyclic: false,
         };
         let mut make = m.func("test:map", vec![Val::I32], vec![Val::I32]);

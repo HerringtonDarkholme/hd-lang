@@ -4,7 +4,7 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_unique'2" (func $rt:list_unique'2 (param i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
@@ -333,8 +333,8 @@
     ;; 48 |     saved := q
     local.get $q
     i32.load $heap
-    call $rt:coll_copy
-    local.set $a.0
+    local.tee $a.0
+    call $rt:retain_coll
     ;; 49 |     q.settle(0, "z")
     local.get $q
     i32.const 0
@@ -770,8 +770,8 @@
     ;; 40 |     saved := q
     local.get $q
     i32.load $heap
-    call $rt:coll_copy
-    local.set $saved
+    local.tee $saved
+    call $rt:retain_coll
     ;; 41 |     q.settle(0, c)
     local.get $q
     i32.const 0
@@ -918,8 +918,8 @@
     ;; 56 |     saved := q
     local.get $q
     i32.load $heap
-    call $rt:coll_copy
-    local.set $saved
+    local.tee $saved
+    call $rt:retain_coll
     ;; 57 |     q.settle(0, (a, 2))
     local.get $q
     i32.const 0

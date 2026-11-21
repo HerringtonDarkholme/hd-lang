@@ -2,7 +2,7 @@
 == @build: release
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[string]" (func $"impl[T < Copy] UniqList[T].from_list[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[string]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[string]" (param i32)))
   (import "fixture" "rt:list_reserve'1" (func $rt:list_reserve'1 (param i32 i32) (result i32)))
@@ -52,7 +52,7 @@
     i32.lt_s
     i32.sub
   )
-  (func $"impl[T < Ord] List[T].sorted[string]" (param $t1 i32) (result i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $"impl[T < Ord] List[T].sorted[string]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -75,14 +75,13 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[string]"
-      local.set $t2
       local.set $t1
+      local.set $t2
       local.set $t3
       local.get $t0
       i64.const 0
@@ -94,10 +93,10 @@
       local.get $t3
       i32.store $heap
       local.get $t4
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=4
       local.get $t4
-      local.get $t2
+      local.get $t1
       i32.store $heap offset=8
       local.get $t4
       i32.const 1
@@ -117,27 +116,27 @@
       local.get $t4
       call $"impl[T < ?Copy & Ord] UniqList[T].sort[string]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
+      local.tee $t1
+      local.set $t2
       local.get $t4
       i32.load $heap offset=8
       local.tee $t3
       if
-        local.get $t1
+        local.get $t2
         local.get $t3
         call $rt:list_reserve'1
-        local.set $t2
+        local.set $t1
       end
       local.get $t4
       i32.load $heap offset=8
-      local.set $t1
+      local.set $t2
       local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t5
-          local.get $t1
+          local.get $t2
           i32.lt_u
           i32.eqz
           br_if 1
@@ -153,7 +152,7 @@
           i32.load $heap offset=4
           local.set $t3
           local.set $t6
-          local.get $t2
+          local.get $t1
           local.tee $t7
           i32.load $heap offset=4
           local.tee $t8
@@ -165,7 +164,7 @@
             i32.const 13
             call_indirect $table0 (param i32) (result i32)
             local.tee $t7
-            local.set $t2
+            local.set $t1
           end
           local.get $t7
           local.get $t8
@@ -196,13 +195,13 @@
         call $rt:cell_drop'1
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
     global.set $stack
   )
-  (func $"impl[T < Ord] List[T].sorted[i32]" (param $t1 i32) (result i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $"impl[T < Ord] List[T].sorted[i32]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -225,14 +224,13 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[i32]"
-      local.set $t2
       local.set $t1
+      local.set $t2
       local.set $t3
       local.get $t0
       i64.const 0
@@ -244,10 +242,10 @@
       local.get $t3
       i32.store $heap
       local.get $t4
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=4
       local.get $t4
-      local.get $t2
+      local.get $t1
       i32.store $heap offset=8
       local.get $t4
       i32.const 1
@@ -267,27 +265,27 @@
       local.get $t4
       call $"impl[T < ?Copy & Ord] UniqList[T].sort[i32]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
+      local.tee $t1
+      local.set $t2
       local.get $t4
       i32.load $heap offset=8
       local.tee $t3
       if
-        local.get $t1
+        local.get $t2
         local.get $t3
         call $rt:list_reserve'2
-        local.set $t2
+        local.set $t1
       end
       local.get $t4
       i32.load $heap offset=8
-      local.set $t1
+      local.set $t2
       local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t5
-          local.get $t1
+          local.get $t2
           i32.lt_u
           i32.eqz
           br_if 1
@@ -299,7 +297,7 @@
           i32.add
           i32.load $heap
           local.set $t3
-          local.get $t2
+          local.get $t1
           local.tee $t6
           i32.load $heap offset=4
           local.tee $t7
@@ -311,7 +309,7 @@
             i32.const 14
             call_indirect $table0 (param i32) (result i32)
             local.tee $t6
-            local.set $t2
+            local.set $t1
           end
           local.get $t6
           local.get $t7
@@ -338,7 +336,7 @@
         call $rt:cell_drop'2
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
@@ -447,8 +445,9 @@
     end
     local.get $t3
     i32.load $heap
-    call $rt:coll_copy
     local.tee $t3
+    call $rt:retain_coll
+    local.get $t3
     i32.load $heap offset=4
     local.set $t2
     block
@@ -537,7 +536,7 @@
     i32.add
     global.set $stack
   )
-  (func $"impl[T] List[T].sorted_by[i32]" (param $t1 i32) (param $t2 i32) (param $t6 i32) (result i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t0 i32) (local $t7 i32)
+  (func $"impl[T] List[T].sorted_by[i32]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -560,75 +559,74 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[i32]"
       local.set $t1
+      local.set $t2
       local.set $t3
-      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t5
-      local.get $t4
-      i32.store $heap
-      local.get $t5
+      local.tee $t4
       local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
       i32.store $heap offset=4
-      local.get $t5
+      local.get $t4
       local.get $t1
       i32.store $heap offset=8
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=12
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=16
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=20
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=24
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=28
+      local.get $t4
       local.get $t5
-      local.get $t2
       local.get $t6
       call $"impl[T < ?Copy] UniqList[T].sort_by[i32]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
-      local.get $t5
+      local.tee $t1
+      local.set $t5
+      local.get $t4
       i32.load $heap offset=8
       local.tee $t6
       if
-        local.get $t1
+        local.get $t5
         local.get $t6
         call $rt:list_reserve'2
-        local.set $t2
+        local.set $t1
       end
-      local.get $t5
+      local.get $t4
       i32.load $heap offset=8
-      local.set $t1
-      local.get $t5
+      local.set $t5
+      local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t7
-          local.get $t1
+          local.get $t5
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t5
+          local.get $t4
           i32.load $heap
           local.get $t7
           i32.const 4
@@ -636,29 +634,29 @@
           i32.add
           i32.load $heap
           local.set $t6
-          local.get $t2
-          local.tee $t3
+          local.get $t1
+          local.tee $t2
           i32.load $heap offset=4
-          local.tee $t4
-          local.get $t3
+          local.tee $t3
+          local.get $t2
           i32.load $heap
           i32.eq
           if
-            local.get $t3
+            local.get $t2
             i32.const 14
             call_indirect $table0 (param i32) (result i32)
-            local.tee $t3
-            local.set $t2
+            local.tee $t2
+            local.set $t1
           end
+          local.get $t2
           local.get $t3
-          local.get $t4
           i32.const 4
           i32.mul
           i32.add
           local.get $t6
           i32.store $heap offset=16
+          local.get $t2
           local.get $t3
-          local.get $t4
           i32.const 1
           i32.add
           i32.store $heap offset=4
@@ -669,13 +667,13 @@
           br 0
         end
       end
-      local.get $t5
+      local.get $t4
       if
-        local.get $t5
+        local.get $t4
         call $rt:cell_drop'2
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
@@ -1621,7 +1619,7 @@
     local.get $transform.1
     call $"std/collections/impl[T] List[T].map[i32, i32]'1"
   )
-  (func $"impl[T] List[T].sorted_by[(i32, usize)]" (param $t1 i32) (param $t2 i32) (param $t6 i32) (result i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $"impl[T] List[T].sorted_by[(i32, usize)]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -1644,75 +1642,74 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]"
       local.set $t1
+      local.set $t2
       local.set $t3
-      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t5
-      local.get $t4
-      i32.store $heap
-      local.get $t5
+      local.tee $t4
       local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
       i32.store $heap offset=4
-      local.get $t5
+      local.get $t4
       local.get $t1
       i32.store $heap offset=8
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=12
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=16
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=20
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=24
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=28
+      local.get $t4
       local.get $t5
-      local.get $t2
       local.get $t6
       call $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
-      local.get $t5
+      local.tee $t1
+      local.set $t5
+      local.get $t4
       i32.load $heap offset=8
       local.tee $t6
       if
-        local.get $t1
+        local.get $t5
         local.get $t6
         call $rt:list_reserve'3
-        local.set $t2
+        local.set $t1
       end
-      local.get $t5
+      local.get $t4
       i32.load $heap offset=8
-      local.set $t1
-      local.get $t5
+      local.set $t5
+      local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t7
-          local.get $t1
+          local.get $t5
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t5
+          local.get $t4
           i32.load $heap
           local.get $t7
           i32.const 8
@@ -1723,33 +1720,33 @@
           local.get $t6
           i32.load $heap offset=4
           local.set $t6
-          local.set $t3
-          local.get $t2
-          local.tee $t4
+          local.set $t2
+          local.get $t1
+          local.tee $t3
           i32.load $heap offset=4
           local.tee $t8
-          local.get $t4
+          local.get $t3
           i32.load $heap
           i32.eq
           if
-            local.get $t4
+            local.get $t3
             i32.const 25
             call_indirect $table0 (param i32) (result i32)
-            local.tee $t4
-            local.set $t2
+            local.tee $t3
+            local.set $t1
           end
-          local.get $t4
+          local.get $t3
           local.get $t8
           i32.const 8
           i32.mul
           i32.add
           local.tee $t9
-          local.get $t3
+          local.get $t2
           i32.store $heap offset=16
           local.get $t9
           local.get $t6
           i32.store $heap offset=20
-          local.get $t4
+          local.get $t3
           local.get $t8
           i32.const 1
           i32.add
@@ -1761,13 +1758,13 @@
           br 0
         end
       end
-      local.get $t5
+      local.get $t4
       if
-        local.get $t5
+        local.get $t4
         call $rt:cell_drop'3
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
@@ -1874,7 +1871,7 @@
     local.get $transform.1
     call $"std/collections/impl[T] List[T].map[i32, i32]'2"
   )
-  (func $"impl[T < Ord] List[T].sorted[(string, i32)]" (param $t1 i32) (result i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
+  (func $"impl[T < Ord] List[T].sorted[(string, i32)]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -1897,14 +1894,13 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[(string, i32)]"
-      local.set $t2
       local.set $t1
+      local.set $t2
       local.set $t3
       local.get $t0
       i64.const 0
@@ -1916,10 +1912,10 @@
       local.get $t3
       i32.store $heap
       local.get $t4
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=4
       local.get $t4
-      local.get $t2
+      local.get $t1
       i32.store $heap offset=8
       local.get $t4
       i32.const 1
@@ -1939,27 +1935,27 @@
       local.get $t4
       call $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
+      local.tee $t1
+      local.set $t2
       local.get $t4
       i32.load $heap offset=8
       local.tee $t3
       if
-        local.get $t1
+        local.get $t2
         local.get $t3
         call $rt:list_reserve'4
-        local.set $t2
+        local.set $t1
       end
       local.get $t4
       i32.load $heap offset=8
-      local.set $t1
+      local.set $t2
       local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t5
-          local.get $t1
+          local.get $t2
           i32.lt_u
           i32.eqz
           br_if 1
@@ -1978,7 +1974,7 @@
           local.set $t3
           local.set $t6
           local.set $t7
-          local.get $t2
+          local.get $t1
           local.tee $t8
           i32.load $heap offset=4
           local.tee $t9
@@ -1990,7 +1986,7 @@
             i32.const 26
             call_indirect $table0 (param i32) (result i32)
             local.tee $t8
-            local.set $t2
+            local.set $t1
           end
           local.get $t8
           local.get $t9
@@ -2024,7 +2020,7 @@
         call $rt:cell_drop'4
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
@@ -2223,7 +2219,7 @@
 == @build: release checked
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[string]" (func $"impl[T < Copy] UniqList[T].from_list[string]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[string]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[string]" (param i32)))
   (import "fixture" "rt:list_reserve'1" (func $rt:list_reserve'1 (param i32 i32) (result i32)))
@@ -2274,7 +2270,7 @@
     i32.lt_s
     i32.sub
   )
-  (func $"impl[T < Ord] List[T].sorted[string]" (param $t1 i32) (result i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $"impl[T < Ord] List[T].sorted[string]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -2297,14 +2293,13 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[string]"
-      local.set $t2
       local.set $t1
+      local.set $t2
       local.set $t3
       local.get $t0
       i64.const 0
@@ -2316,10 +2311,10 @@
       local.get $t3
       i32.store $heap
       local.get $t4
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=4
       local.get $t4
-      local.get $t2
+      local.get $t1
       i32.store $heap offset=8
       local.get $t4
       i32.const 1
@@ -2339,27 +2334,27 @@
       local.get $t4
       call $"impl[T < ?Copy & Ord] UniqList[T].sort[string]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
+      local.tee $t1
+      local.set $t2
       local.get $t4
       i32.load $heap offset=8
       local.tee $t3
       if
-        local.get $t1
+        local.get $t2
         local.get $t3
         call $rt:list_reserve'1
-        local.set $t2
+        local.set $t1
       end
       local.get $t4
       i32.load $heap offset=8
-      local.set $t1
+      local.set $t2
       local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t5
-          local.get $t1
+          local.get $t2
           i32.lt_u
           i32.eqz
           br_if 1
@@ -2375,7 +2370,7 @@
           i32.load $heap offset=4
           local.set $t3
           local.set $t6
-          local.get $t2
+          local.get $t1
           local.tee $t7
           i32.load $heap offset=4
           local.tee $t8
@@ -2387,7 +2382,7 @@
             i32.const 13
             call_indirect $table0 (param i32) (result i32)
             local.tee $t7
-            local.set $t2
+            local.set $t1
           end
           local.get $t7
           local.get $t8
@@ -2418,13 +2413,13 @@
         call $rt:cell_drop'1
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
     global.set $stack
   )
-  (func $"impl[T < Ord] List[T].sorted[i32]" (param $t1 i32) (result i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
+  (func $"impl[T < Ord] List[T].sorted[i32]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -2447,14 +2442,13 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[i32]"
-      local.set $t2
       local.set $t1
+      local.set $t2
       local.set $t3
       local.get $t0
       i64.const 0
@@ -2466,10 +2460,10 @@
       local.get $t3
       i32.store $heap
       local.get $t4
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=4
       local.get $t4
-      local.get $t2
+      local.get $t1
       i32.store $heap offset=8
       local.get $t4
       i32.const 1
@@ -2489,27 +2483,27 @@
       local.get $t4
       call $"impl[T < ?Copy & Ord] UniqList[T].sort[i32]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
+      local.tee $t1
+      local.set $t2
       local.get $t4
       i32.load $heap offset=8
       local.tee $t3
       if
-        local.get $t1
+        local.get $t2
         local.get $t3
         call $rt:list_reserve'2
-        local.set $t2
+        local.set $t1
       end
       local.get $t4
       i32.load $heap offset=8
-      local.set $t1
+      local.set $t2
       local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t5
-          local.get $t1
+          local.get $t2
           i32.lt_u
           i32.eqz
           br_if 1
@@ -2521,7 +2515,7 @@
           i32.add
           i32.load $heap
           local.set $t3
-          local.get $t2
+          local.get $t1
           local.tee $t6
           i32.load $heap offset=4
           local.tee $t7
@@ -2533,7 +2527,7 @@
             i32.const 14
             call_indirect $table0 (param i32) (result i32)
             local.tee $t6
-            local.set $t2
+            local.set $t1
           end
           local.get $t6
           local.get $t7
@@ -2560,7 +2554,7 @@
         call $rt:cell_drop'2
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
@@ -2669,8 +2663,9 @@
     end
     local.get $t3
     i32.load $heap
-    call $rt:coll_copy
     local.tee $t3
+    call $rt:retain_coll
+    local.get $t3
     i32.load $heap offset=4
     local.set $t2
     block
@@ -2763,7 +2758,7 @@
     i32.add
     global.set $stack
   )
-  (func $"impl[T] List[T].sorted_by[i32]" (param $t1 i32) (param $t2 i32) (param $t6 i32) (result i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t0 i32) (local $t7 i32)
+  (func $"impl[T] List[T].sorted_by[i32]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -2786,75 +2781,74 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[i32]"
       local.set $t1
+      local.set $t2
       local.set $t3
-      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t5
-      local.get $t4
-      i32.store $heap
-      local.get $t5
+      local.tee $t4
       local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
       i32.store $heap offset=4
-      local.get $t5
+      local.get $t4
       local.get $t1
       i32.store $heap offset=8
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=12
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=16
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=20
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=24
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=28
+      local.get $t4
       local.get $t5
-      local.get $t2
       local.get $t6
       call $"impl[T < ?Copy] UniqList[T].sort_by[i32]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
-      local.get $t5
+      local.tee $t1
+      local.set $t5
+      local.get $t4
       i32.load $heap offset=8
       local.tee $t6
       if
-        local.get $t1
+        local.get $t5
         local.get $t6
         call $rt:list_reserve'2
-        local.set $t2
+        local.set $t1
       end
-      local.get $t5
+      local.get $t4
       i32.load $heap offset=8
-      local.set $t1
-      local.get $t5
+      local.set $t5
+      local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t7
-          local.get $t1
+          local.get $t5
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t5
+          local.get $t4
           i32.load $heap
           local.get $t7
           i32.const 4
@@ -2862,29 +2856,29 @@
           i32.add
           i32.load $heap
           local.set $t6
-          local.get $t2
-          local.tee $t3
+          local.get $t1
+          local.tee $t2
           i32.load $heap offset=4
-          local.tee $t4
-          local.get $t3
+          local.tee $t3
+          local.get $t2
           i32.load $heap
           i32.eq
           if
-            local.get $t3
+            local.get $t2
             i32.const 14
             call_indirect $table0 (param i32) (result i32)
-            local.tee $t3
-            local.set $t2
+            local.tee $t2
+            local.set $t1
           end
+          local.get $t2
           local.get $t3
-          local.get $t4
           i32.const 4
           i32.mul
           i32.add
           local.get $t6
           i32.store $heap offset=16
+          local.get $t2
           local.get $t3
-          local.get $t4
           i32.const 1
           i32.add
           i32.store $heap offset=4
@@ -2895,13 +2889,13 @@
           br 0
         end
       end
-      local.get $t5
+      local.get $t4
       if
-        local.get $t5
+        local.get $t4
         call $rt:cell_drop'2
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
@@ -3857,7 +3851,7 @@
     local.get $transform.1
     call $"std/collections/impl[T] List[T].map[i32, i32]'1"
   )
-  (func $"impl[T] List[T].sorted_by[(i32, usize)]" (param $t1 i32) (param $t2 i32) (param $t6 i32) (result i32) (local $t4 i32) (local $t3 i32) (local $t5 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $"impl[T] List[T].sorted_by[(i32, usize)]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -3880,75 +3874,74 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]"
       local.set $t1
+      local.set $t2
       local.set $t3
-      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap
       local.get $t0
       i32.const 8
       i32.add
-      local.tee $t5
-      local.get $t4
-      i32.store $heap
-      local.get $t5
+      local.tee $t4
       local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
       i32.store $heap offset=4
-      local.get $t5
+      local.get $t4
       local.get $t1
       i32.store $heap offset=8
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=12
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=16
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=20
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=24
-      local.get $t5
+      local.get $t4
       i32.const 1
       i32.store $heap offset=28
+      local.get $t4
       local.get $t5
-      local.get $t2
       local.get $t6
       call $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
-      local.get $t5
+      local.tee $t1
+      local.set $t5
+      local.get $t4
       i32.load $heap offset=8
       local.tee $t6
       if
-        local.get $t1
+        local.get $t5
         local.get $t6
         call $rt:list_reserve'3
-        local.set $t2
+        local.set $t1
       end
-      local.get $t5
+      local.get $t4
       i32.load $heap offset=8
-      local.set $t1
-      local.get $t5
+      local.set $t5
+      local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t7
-          local.get $t1
+          local.get $t5
           i32.lt_u
           i32.eqz
           br_if 1
-          local.get $t5
+          local.get $t4
           i32.load $heap
           local.get $t7
           i32.const 8
@@ -3959,33 +3952,33 @@
           local.get $t6
           i32.load $heap offset=4
           local.set $t6
-          local.set $t3
-          local.get $t2
-          local.tee $t4
+          local.set $t2
+          local.get $t1
+          local.tee $t3
           i32.load $heap offset=4
           local.tee $t8
-          local.get $t4
+          local.get $t3
           i32.load $heap
           i32.eq
           if
-            local.get $t4
+            local.get $t3
             i32.const 25
             call_indirect $table0 (param i32) (result i32)
-            local.tee $t4
-            local.set $t2
+            local.tee $t3
+            local.set $t1
           end
-          local.get $t4
+          local.get $t3
           local.get $t8
           i32.const 8
           i32.mul
           i32.add
           local.tee $t9
-          local.get $t3
+          local.get $t2
           i32.store $heap offset=16
           local.get $t9
           local.get $t6
           i32.store $heap offset=20
-          local.get $t4
+          local.get $t3
           local.get $t8
           i32.const 1
           i32.add
@@ -3997,13 +3990,13 @@
           br 0
         end
       end
-      local.get $t5
+      local.get $t4
       if
-        local.get $t5
+        local.get $t4
         call $rt:cell_drop'3
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add
@@ -4112,7 +4105,7 @@
     local.get $transform.1
     call $"std/collections/impl[T] List[T].map[i32, i32]'2"
   )
-  (func $"impl[T < Ord] List[T].sorted[(string, i32)]" (param $t1 i32) (result i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
+  (func $"impl[T < Ord] List[T].sorted[(string, i32)]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -4135,14 +4128,13 @@
       i32.le_u
       if
         local.get $t1
-        call $rt:coll_copy
-        local.set $t2
+        call $rt:retain_coll
         br 1
       end
       local.get $t1
       call $"impl[T < Copy] UniqList[T].from_list[(string, i32)]"
-      local.set $t2
       local.set $t1
+      local.set $t2
       local.set $t3
       local.get $t0
       i64.const 0
@@ -4154,10 +4146,10 @@
       local.get $t3
       i32.store $heap
       local.get $t4
-      local.get $t1
+      local.get $t2
       i32.store $heap offset=4
       local.get $t4
-      local.get $t2
+      local.get $t1
       i32.store $heap offset=8
       local.get $t4
       i32.const 1
@@ -4177,27 +4169,27 @@
       local.get $t4
       call $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]"
       i32.const 80 ;; &empty-buffer
-      local.tee $t2
-      local.set $t1
+      local.tee $t1
+      local.set $t2
       local.get $t4
       i32.load $heap offset=8
       local.tee $t3
       if
-        local.get $t1
+        local.get $t2
         local.get $t3
         call $rt:list_reserve'4
-        local.set $t2
+        local.set $t1
       end
       local.get $t4
       i32.load $heap offset=8
-      local.set $t1
+      local.set $t2
       local.get $t4
       i32.const 0
       i32.store $heap offset=8
       block
         loop
           local.get $t5
-          local.get $t1
+          local.get $t2
           i32.lt_u
           i32.eqz
           br_if 1
@@ -4216,7 +4208,7 @@
           local.set $t3
           local.set $t6
           local.set $t7
-          local.get $t2
+          local.get $t1
           local.tee $t8
           i32.load $heap offset=4
           local.tee $t9
@@ -4228,7 +4220,7 @@
             i32.const 26
             call_indirect $table0 (param i32) (result i32)
             local.tee $t8
-            local.set $t2
+            local.set $t1
           end
           local.get $t8
           local.get $t9
@@ -4262,7 +4254,7 @@
         call $rt:cell_drop'4
       end
     end
-    local.get $t2
+    local.get $t1
     local.get $t0
     i32.const 40
     i32.add

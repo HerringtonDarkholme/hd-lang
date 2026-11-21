@@ -5,7 +5,7 @@
 # binding's initializer (#1399).
 # expected: the literal in `histogram` builds a fresh buffer (`rt:list_buf`),
 # and `shelf` copies the top-level `START`, whose literal is static data
-# (`rt:coll_copy` of its address). Both `add` and `put` keep their check.
+# (a retain of its address). Both `add` and `put` keep their check.
 let START: List[i64] = [7, 8]
 > app/main/init.init
 >   %0 = NewList - [7:i64 8:i64] : List[i64]

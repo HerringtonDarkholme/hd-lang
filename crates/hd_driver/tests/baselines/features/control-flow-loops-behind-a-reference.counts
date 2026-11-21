@@ -33,7 +33,7 @@ impl Parser:
 >   release List[usize] (last use)
         for i in 0..n:
             last = self.index
->   copy List[usize] (stored)
+>   retain List[usize] (stored)
 >   release List[usize] (overwritten)
             self.index[i] = self.held
 >   unique List[usize] (may be shared)

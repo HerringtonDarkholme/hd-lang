@@ -27,7 +27,7 @@ fn only_copy(a: string) -> usize:
 fn list_copy(a: List[usize]) -> usize:
     let mut t = a
 > app/main/list_copy
->   copy List[usize] (conservative: copy read)
+>   retain List[usize] (conservative: copy read)
     t.push(3)
 >   unique List[usize] (may be shared)
     t.len() + a.len()
@@ -48,7 +48,7 @@ fn early_copy(a: string) -> usize:
 fn early_list_copy(a: List[usize]) -> usize:
     let mut t = a
 > app/main/early_list_copy
->   copy List[usize] (conservative: copy read)
+>   retain List[usize] (conservative: copy read)
     n := a.len()
 >   release List[usize] (last use)
     t.push(3)

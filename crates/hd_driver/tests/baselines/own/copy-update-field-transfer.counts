@@ -16,7 +16,7 @@ fn update(r: Rec, name: string) -> Rec:
 fn still_live(r: Rec, name: string) -> (Rec, Rec):
     next := Rec { ...r, name }
 > app/main/still_live
->   copy List[string] (stored)
+>   retain List[string] (stored)
     (r, next)
 
 fn replace_all(r: Rec, name: string, tags: List[string]) -> Rec:

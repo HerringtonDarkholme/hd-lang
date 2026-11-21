@@ -107,7 +107,7 @@ fn heap(text: string) -> i64:
 fn indexed(items: List[i64]) -> i64:
     let mut value = Buffer { items }
 > app/main/indexed
->   copy List[i64] (stored)
+>   retain List[i64] (stored)
     view := &mut value
     view.items[0] = 9
 >   unique List[i64] (may be shared)
@@ -248,7 +248,7 @@ fn heap(text: string) -> i64:
 fn indexed(items: List[i64]) -> i64:
     let mut value = Buffer { items }
 > app/main/indexed
->   copy List[i64] (stored)
+>   retain List[i64] (stored)
     view := &mut value
     view.items[0] = 9
 >   unique List[i64] (may be shared)
@@ -379,7 +379,7 @@ fn heap(text: string) -> i64:
 fn indexed(items: List[i64]) -> i64:
     let mut value = Buffer { items }
 > app/main/indexed
->   copy List[i64] (stored)
+>   retain List[i64] (stored)
     view := &mut value
     view.items[0] = 9
 >   unique List[i64] (may be shared)
@@ -418,7 +418,7 @@ pub fn main() -> void $ Console:
 >   release *mut app.main.Record (last use)
 >   release counted reference (last use)
     println(indexed([1]))
->   copy List[i64] (stored)
+>   retain List[i64] (stored)
 >   unique List[i64] (may be shared)
 >   release app.main.Buffer (last use)
 >   release List[i64] (last use)

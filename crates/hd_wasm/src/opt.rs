@@ -3887,10 +3887,14 @@ pub fn static_counts(f: &mut Func, retain: Hash128, arity: &Arity, static_params
         };
         let (operands, results) = (*arity.get(id.idx())?)?;
         match (&*f.symbols.get(*id), operands, results) {
-            (Sym::Helper(Helper::CollCopy), 1, 1) => Some((1, 0)),
             (Sym::Inst(k), n, 0) if *k == retain => Some((n, n)),
             (
-                Sym::Helper(Helper::ReleaseRef | Helper::RetainKnown | Helper::ReleaseKnown)
+                Sym::Helper(
+                    Helper::ReleaseRef
+                    | Helper::RetainKnown
+                    | Helper::ReleaseKnown
+                    | Helper::RetainColl,
+                )
                 | Sym::Shim(_, _, _, false),
                 n,
                 0,
@@ -6935,7 +6939,7 @@ mod origin_tests {
                     op(I::I32Eqz),
                     op(I::If(empty)),
                     op(I::End),
-                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    call(&symbols, Sym::Helper(Helper::Alloc)),
                     op(I::If(empty)),
                     op(I::End),
                     op(I::LocalGet(0)),
@@ -6953,7 +6957,7 @@ mod origin_tests {
             format!(
                 "{:?}",
                 [
-                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    call(&symbols, Sym::Helper(Helper::Alloc)),
                     op(I::Drop),
                     op(I::LocalGet(0)),
                     op(I::If(empty)),
@@ -6987,7 +6991,7 @@ mod origin_tests {
                     op(I::I32Const(4)),
                     op(I::I32Add),
                     op(I::Drop),
-                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    call(&symbols, Sym::Helper(Helper::Alloc)),
                     op(I::Drop),
                 ],
             ),
@@ -7002,7 +7006,7 @@ mod origin_tests {
                 [
                     op(I::I32Const(3)),
                     op(I::LocalSet(1)),
-                    call(&symbols, Sym::Helper(Helper::CollCopy)),
+                    call(&symbols, Sym::Helper(Helper::Alloc)),
                     op(I::Drop),
                 ]
             )

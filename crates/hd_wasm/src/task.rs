@@ -3288,7 +3288,6 @@ mod tests {
                     size: 0,
                     leaves: vec![],
                     counted: crate::rt::Counted::None,
-                    colls: vec![],
                     parts: vec![],
                     cyclic: false,
                 },
@@ -3341,7 +3340,6 @@ mod tests {
             size: 0,
             leaves: vec![],
             counted: crate::rt::Counted::None,
-            colls: vec![],
             parts: vec![],
             cyclic: false,
         };
@@ -3502,7 +3500,6 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                 index: 0,
                 known: false,
             },
-            colls: vec![],
             parts: vec![(
                 0,
                 crate::rt::Counted::Address {
@@ -3612,7 +3609,6 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             size: 4,
             leaves: vec![word],
             counted: crate::rt::Counted::None,
-            colls: vec![],
             parts: vec![],
             cyclic: false,
         };
@@ -3909,7 +3905,6 @@ mod native_leaf_drop_tests {
             }],
             counted: crate::rt::Counted::None,
             parts: vec![(0, part.clone())],
-            colls: vec![],
             cyclic: false,
         };
         let Some(Sym::Helper(Helper::DropParts { leaves, parts })) = leaf_drop(&area) else {

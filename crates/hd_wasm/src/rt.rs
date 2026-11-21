@@ -113,8 +113,6 @@ pub struct RefLayout {
     /// How the value counts: its type's shims, which run its `Drop` hooks
     /// first (`hd_layout::shims`).
     pub counted: Counted,
-    /// The leaves a copy takes through the copy glue (`rt:coll_copy`).
-    pub colls: Box<[u32]>,
 }
 
 /// A generated function, by what it does.
@@ -291,6 +289,12 @@ pub enum Helper {
     /// Count a statically known payload start without a block lookup.
     RetainKnown,
     ReleaseKnown,
+    /// `(coll)`: one more count on a list's or a map's buffer
+    /// (`types.coll.value`), out of line: every copy of a collection
+    /// shares this one call, which tests null and static data inside,
+    /// where another known retain takes the inline test (about 36 bytes a
+    /// site, `count_tests`).
+    RetainColl,
     /// `(box) -> moved`: takes the value out of the counted box at
     /// payload start `box`, whose fields the caller has loaded. A box
     /// with one holder is freed without its glue, so its fields move out
@@ -331,9 +335,6 @@ pub enum Helper {
     DropElems {
         elem: Elem,
     },
-    /// `(coll) -> coll`: a copy of a list or a map (`types.coll.value`):
-    /// one more count on the same buffer. Its reserved word stays 0.
-    CollCopy,
     /// `(ctx, key) -> entry`: the entry of key id `key` in context `ctx`
     /// ([`ctx_elem`]), `LIST_ELEMS` before it. Checking covers every key a
     /// body looks up, so a miss is internal and traps.
@@ -345,8 +346,8 @@ pub enum Helper {
     /// A checked function-row evidence wrapper, using the function-value ABI.
     RowAdapter(RowAdapter),
     /// `(at, n)`: the `n` elements at `at`, just copied from a buffer that
-    /// keeps them too, take their own counts; each collection among an
-    /// element's values becomes its copy ([`Helper::CollCopy`]).
+    /// keeps them too, take their own counts: a collection's is one more
+    /// count on its buffer (`types.coll.value`).
     CopyElems {
         elem: Elem,
     },
@@ -731,10 +732,8 @@ pub enum Helper {
 }
 
 /// A list's element as the list glue sees it: its stride, its values in
-/// memory, which of them are counted, which are collections that a
-/// copy of the element copies (`layout::coll_leaves`), and whether the
-/// list's header and buffers take part in cycle collection
-/// (`crate::cycle`).
+/// memory, how they count, and whether the list's header and buffers take
+/// part in cycle collection (`crate::cycle`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Elem {
     pub size: u32,
@@ -744,7 +743,6 @@ pub struct Elem {
     /// A host argument area's arguments, each by its first leaf and how
     /// its type counts, hooks in its shims; none for a list's element.
     pub parts: Vec<(u32, Counted)>,
-    pub colls: Vec<u32>,
     pub cyclic: bool,
 }
 
@@ -757,9 +755,10 @@ pub struct HostCounts {
 }
 
 /// How a value of a layout record's type counts (`hd_layout::shims`):
-/// nothing, one address among its values, an optional's one address,
-/// null when it holds nothing, or its retain and release shims (their
-/// keys, the value's width, and whether the release runs a `Drop` hook).
+/// nothing, one address among its values, a collection's buffer, an
+/// optional's one address, null when it holds nothing, or its retain and
+/// release shims (their keys, the value's width, and whether the release
+/// runs a `Drop` hook).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Counted {
     #[default]
@@ -767,6 +766,12 @@ pub enum Counted {
     Address {
         index: u32,
         known: bool,
+    },
+    /// A list's or a map's buffer, or a struct's whose one counted value
+    /// is one (`hd_mono::holds_coll`): a known address, retained out of
+    /// line ([`Helper::RetainColl`]).
+    Coll {
+        index: u32,
     },
     /// A sum whose one counted address says its variant: null for the
     /// empty one. It counts only when not null, as the variant's test
@@ -817,6 +822,14 @@ impl Counted {
     ) {
         match *self {
             Counted::None => {}
+            Counted::Coll { index } if retain => {
+                get(f, index);
+                f.helper(Helper::RetainColl);
+            }
+            Counted::Coll { index } => {
+                get(f, index);
+                release_call(f, Addr::Known);
+            }
             Counted::Address { index, known } => {
                 get(f, index);
                 let addr = if known { Addr::Known } else { Addr::Ref };
@@ -927,6 +940,9 @@ pub(crate) fn counted_of_portion(
         {
             Counted::Optional { index, known }
         }
+        Count::Address { index, .. } if hd_mono::holds_coll(input.pool, input.env, t) => {
+            Counted::Coll { index }
+        }
         Count::Address { index, known } => Counted::Address { index, known },
         Count::Parts | Count::Call => {
             use hd_layout::shims::{Shim, in_place};
@@ -971,10 +987,10 @@ pub(crate) fn counted_of_portion(
 
 impl Elem {
     /// Whether an element copied out of a shared buffer needs more than
-    /// its bytes: counts, or copies of its collections.
+    /// its bytes: counts.
     #[must_use]
     pub fn counts(&self) -> bool {
-        self.counted.counts() || !self.colls.is_empty()
+        self.counted.counts()
     }
 }
 
@@ -1010,7 +1026,6 @@ pub fn ctx_elem() -> Elem {
             known: false,
         },
         parts: Vec::new(),
-        colls: Vec::new(),
         cyclic: true,
     }
 }
@@ -2152,7 +2167,6 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::Alloc
         | H::Str
         | H::TakeBox
-        | H::CollCopy
         | H::ListBuf { .. }
         | H::ListUnique { .. }
         | H::ListCopy { .. }
@@ -2181,6 +2195,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::ReleaseDrain
         | H::RetainKnown
         | H::ReleaseKnown
+        | H::RetainColl
         | H::DropParts { .. }
         | H::RetainFields { .. }
         | H::DropElems { .. }
@@ -2613,13 +2628,15 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ReleaseKnown => release_ref(m, Addr::Known),
         Helper::ReleaseDrain => release_drain(m),
         Helper::TakeBox => take_box(m),
-        Helper::RetainKnown => {
-            let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
-            {
-                let r = m.runtime;
-                f.get(0);
-                f.call(Sym::Inst(r.retain_known));
-            }
+        Helper::RetainKnown | Helper::RetainColl => {
+            let name = if *h == Helper::RetainColl {
+                "rt:retain_coll"
+            } else {
+                "rt:retain_known"
+            };
+            let mut f = m.func(name, vec![Val::I32], vec![]);
+            f.get(0);
+            f.call(Sym::Inst(m.runtime.retain_known));
             f
         }
         Helper::RetainFields { leaves, parts } => {
@@ -2631,7 +2648,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
-        Helper::CollCopy => coll_copy(m),
         Helper::RowAdapter(row) => row::build(m, row),
         Helper::CtxFind => ctx_find(m),
         Helper::CtxNew => ctx_new(m),
@@ -3713,19 +3729,6 @@ fn dispatch_glue(f: &mut Func, glues: &[Sym], block: u32, slot: u32) {
     f.op(Instruction::End);
 }
 
-/// [`Helper::CollCopy`]: one more count on the buffer of a list or a map,
-/// which counts its holders; a change through either holder copies it
-/// first (`rt:list_unique`). A local reference into it counts nothing, so
-/// its count is its holders' alone (`ref.count.local`).
-fn coll_copy(m: &Module) -> Func {
-    let mut f = m.func("rt:coll_copy", vec![Val::I32], vec![Val::I32]);
-    let b = 0;
-    f.get(b);
-    f.helper(Helper::RetainKnown);
-    f.get(b);
-    f
-}
-
 /// [`Helper::ListBuf`]: a capacity whose bytes pass 4 GiB is
 /// `heap-exhausted`.
 fn list_buf(m: &Module, elem: &Elem) -> Func {
@@ -3994,22 +3997,9 @@ fn fill_elem(f: &mut Func, at: u32, leaves: &[Leaf], ls: &[u32]) {
 fn copy_elems(elem: &Elem, m: &Module) -> Func {
     let mut f = m.func("rt:copy_elems", vec![Val::I32, Val::I32], vec![]);
     let ls = load_elem_locals(&mut f, &elem.leaves);
-    // A shim retains every counted part, collections too; an element that
-    // is one collection is copied through the copy glue below.
-    let shims = matches!(elem.counted, Counted::Shims(_));
-    let colls: &[u32] = if shims { &[] } else { &elem.colls };
     each_elem(&mut f, 0, 1, elem.size, &|f| {
         fill_elem(f, 0, &elem.leaves, &ls);
-        if shims || colls.is_empty() {
-            elem.counted.emit(f, m, &|f, k| f.get(ls[k as usize]), true);
-        }
-        for c in colls {
-            let l = elem.leaves[*c as usize];
-            f.get(0);
-            f.get(ls[*c as usize]);
-            f.helper(Helper::CollCopy);
-            f.op(Instruction::I32Store(mem(HEAP, u64::from(l.offset), 2)));
-        }
+        elem.counted.emit(f, m, &|f, k| f.get(ls[k as usize]), true);
     });
     f
 }
@@ -4506,31 +4496,13 @@ fn ref_count(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout, retain: bo
         .emit(f, m, &|f, k| f.get(ls[k as usize]), retain);
 }
 
-/// One more count on each counted reference of the value in locals `ls`,
-/// loads no count keeps: a collection's is the copy glue's result, which
-/// replaces it with the same buffer carrying one more count. The reserved
-/// collection word stays 0.
-fn ref_copy(f: &mut Func, m: &Module, ls: &[u32], value: &RefLayout) {
-    // A shim retains every counted part, collections too; a value that is
-    // one collection is copied through the copy glue.
-    if matches!(value.counted, Counted::Shims(_)) || value.colls.is_empty() {
-        ref_count(f, m, ls, value, true);
-        return;
-    }
-    for &c in &value.colls {
-        f.get(ls[c as usize]);
-        f.helper(Helper::CollCopy);
-        f.set(ls[c as usize]);
-    }
-}
-
 /// The value that the reference in local `at` names, in new locals with
 /// counts of their own: the leaves at the address. Emitted inline, so a
 /// value of any width stays in locals and never crosses a function's
 /// parameters or results.
 pub(crate) fn ref_load(f: &mut Func, m: &Module, at: u32, value: &RefLayout) -> Vec<u32> {
     let ls = ref_lend(f, at, value);
-    ref_copy(f, m, &ls, value);
+    ref_count(f, m, &ls, value, true);
     ls
 }
 

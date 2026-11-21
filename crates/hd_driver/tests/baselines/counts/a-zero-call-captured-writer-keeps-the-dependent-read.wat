@@ -16,7 +16,7 @@
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 16 funcref))
+  (import "fixture" "table0" (table $table0 17 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32)
     ;; 38 |     println(element())
     call $element
@@ -211,9 +211,9 @@
     local.get $change.1
     i32.store $heap
     ;; 25 |     change := fn() -> void: ps[0] = box(P { name: "b" })
-    i32.const 7
+    i32.const 8
     i32.const 4
-    i32.const -2147483646
+    i32.const -2147483645
     call $rt:new/class-1'2
     local.tee $change.1
     local.get $t0
@@ -338,15 +338,15 @@
     i32.const 1
     i32.store $heap offset=4
     i32.const 4
-    i32.const -2147483646
+    i32.const -2147483645
     call $rt:new/class-1'2
     local.tee $h
     local.get $t0
     i32.store $heap
     ;; 32 |     change := fn() -> void: h.p = box(P { name: "f" })
-    i32.const 8
+    i32.const 9
     i32.const 4
-    i32.const -2147483646
+    i32.const -2147483645
     call $rt:new/class-1'2
     local.tee $t0
     local.get $h

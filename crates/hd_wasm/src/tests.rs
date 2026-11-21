@@ -254,7 +254,6 @@ fn every_runtime_helper_validates() {
             size: 12,
             leaves: vec![word(0), word(4), word(8)],
             counted: crate::rt::Counted::None,
-            colls: vec![],
             parts: vec![],
             cyclic: false,
         },
@@ -307,7 +306,6 @@ fn string_area() -> Elem {
             index: 0,
             known: false,
         },
-        colls: vec![],
         parts: vec![(
             0,
             crate::rt::Counted::Address {
@@ -377,7 +375,6 @@ fn every_boundary_type() -> LTy {
                 size: 8,
                 leaves: vec![word(0), word(4)],
                 counted: crate::rt::Counted::None,
-                colls: vec![],
                 parts: vec![],
                 cyclic: false,
             },
@@ -1412,7 +1409,6 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         keys: 1,
         key_counted: crate::rt::Counted::None,
         val_counted: crate::rt::Counted::None,
-        colls: vec![],
         cyclic: false,
     };
     let ops = crate::map::KeyOps::I32(Hash128(7));
@@ -1480,7 +1476,6 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
                     size: 4,
                     leaves: vec![word(0)],
                     counted: crate::rt::Counted::None,
-                    colls: Box::new([]),
                 },
             },
             params: vec![Val::I64],
@@ -1509,7 +1504,6 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         leaves: vec![word(0)],
         counted: crate::rt::Counted::None,
         parts: vec![],
-        colls: vec![],
         cyclic: false,
     };
     for part in 0..=5 {
@@ -1550,7 +1544,6 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         leaves,
         counted: crate::rt::Counted::None,
         parts: vec![],
-        colls: vec![],
         cyclic: false,
     };
     let cold = |res| Helper::HostCold {
@@ -1897,7 +1890,6 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
         size,
         leaves: vec![],
         counted: crate::rt::Counted::None,
-        colls: vec![],
         parts: vec![],
         cyclic: false,
     };

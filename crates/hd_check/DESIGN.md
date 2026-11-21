@@ -110,8 +110,8 @@ the entry `MapEntry` finds just before each read, store or reference
 (`Ck::elem_index`), so a change through `m[k]` reaches the map as one
 through `xs[i]` reaches the list; and the checker writes
 no collection copy: a copy of a list or a map is a count of its buffer,
-which the backend takes through the copy glue (`rt:coll_copy`), and a
-change makes a shared buffer its own first.
+which the backend takes as any address's count (`rt:retain_known`), and
+a change makes a shared buffer its own first.
 
 **Conflicting access (#2137).** `ref.elem.conflict` is checked once, on
 TIR loans, by the exclusivity pass (`dep_results/constraints/exclusive.rs`).

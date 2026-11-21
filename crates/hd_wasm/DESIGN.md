@@ -424,7 +424,7 @@ The allocator is hd in `std.rt.alloc`, the refcount study's §6 (git history at 
 - **A map** is the address of its table, one counted block that holds
   the entries in the order they were added and a probing index over them
   (§23.18), with the reserved word at the offset a list buffer has it. A
-  copy of either is one more count of the buffer (`rt:coll_copy`).
+  copy of either is one more count of the buffer (`rt:retain_known`).
 
 | Buffer payload offset | Size | Field |
 | --- | --- | --- |
@@ -803,7 +803,7 @@ shims of the parts that have their own. A heap object's release glue
   references as plain `Ref`s, and element reads as
   plain `Read`s (docs/compiler/tir-v2.md, "What the checker emits"); TIR has
   no pin or element-write intrinsic, and no copy: every count of a
-  collection runs the copy glue (§23.17).
+  collection is a count of its buffer (§23.17).
 - **Moves of parts, taking references, borrows.** A `move` read of a
   part takes the part laid out in its root's locals (`Em::part_slots`:
   struct, tuple and newtype fields and enum payload fields), whose locals
@@ -901,14 +901,14 @@ changes preserve collection value semantics (§23.7).
   buffer, whose count word is 0, a static object's, so no count changes it and a change always copies it first. A
   tuple's rest list is its last member.
 - **Copies.** Every count of a list or a map counts
-  one more holder of the same buffer (`rt:coll_copy`), and the result
-  replaces the value in the copy. The reserved word stays 0. A
-  count of a struct copies each list among its fields at any depth
-  (`layout::coll_leaves`, after `hd_mono::holds_coll`). The count glue
-  does it for a value in locals (`Em::count_locals`, `Em::copy_locals`
-  for a value another place keeps), a new object's payload
-  (`Em::retain_fields`), a value read through a reference (`rt::ref_load`, inline)
-  and a frame's arguments and captures.
+  one more holder of the same buffer (`rt:retain_known`), as any known
+  address's count. The reserved word stays 0. A count of a struct
+  counts each list among its fields at any depth, through its type's
+  count shims (`hd_layout::shims`). The count glue does it for a value in
+  locals (`Em::count_locals`, `Em::copy_locals` for a value another place
+  keeps), a new object's payload (`Em::retain_fields`), a value read
+  through a reference (`rt::ref_load`, inline) and a frame's arguments and
+  captures.
 - **Changes.** The passes' `IsUnique` before a `push` or an element
   store makes the buffer the list's own (`rt:list_unique`). A shared
   buffer is copied: its elements take their own counts, the lists among

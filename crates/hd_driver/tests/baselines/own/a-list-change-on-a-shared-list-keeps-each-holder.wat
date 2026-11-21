@@ -9,7 +9,7 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:list_extend" (func $rt:list_extend (param i32 i32) (result i32)))
@@ -146,8 +146,8 @@
     i32.store $heap offset=16
     local.get $xs
     ;; 24 |     copy := xs
-    call $rt:coll_copy
-    local.set $copy
+    local.tee $copy
+    call $rt:retain_coll
     ;; 25 |     xs.reserve(count)
     local.get $count
     if
@@ -385,8 +385,9 @@
     ;; 19 |     xs.len() * 10 + xs[3]
     local.get $xs
     i32.load $heap
-    call $rt:coll_copy
     local.tee $count
+    call $rt:retain_coll
+    local.get $count
     i32.load $heap offset=4
     local.get $count
     if

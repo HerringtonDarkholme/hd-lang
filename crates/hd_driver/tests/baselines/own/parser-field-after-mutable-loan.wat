@@ -3,7 +3,7 @@
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]" (func $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]" (param i32 i32 i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
@@ -197,13 +197,12 @@
     call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
     local.tee $text.0
     ;; 35 |     chars := parser.chars
-    call $rt:coll_copy
-    local.set $text.1
+    call $rt:retain_coll
     ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     local.get $text.0
     ;; 36 |     parser.chars.push('x')
     call $rt:list_unique
-    local.tee $text.0
+    local.tee $text.1
     local.tee $t0
     i32.load $heap offset=4
     local.tee $t1
@@ -215,7 +214,7 @@
       i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.tee $t0
-      local.set $text.0
+      local.set $text.1
     end
     local.get $t0
     local.get $t1
@@ -229,22 +228,7 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    local.get $text.0
-    if
-      local.get $text.0
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $text.0
-        call $rt:release_ref
-      end
-    end
-    ;; 37 |     chars.len()
     local.get $text.1
-    i32.load $heap offset=4
-    local.get $text.1
-    ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
     if
       local.get $text.1
       i32.const 8
@@ -252,6 +236,21 @@
       i32.load $heap
       if
         local.get $text.1
+        call $rt:release_ref
+      end
+    end
+    ;; 37 |     chars.len()
+    local.get $text.0
+    i32.load $heap offset=4
+    local.get $text.0
+    ;; 34 |     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
+    if
+      local.get $text.0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $text.0
         call $rt:release_ref
       end
     end

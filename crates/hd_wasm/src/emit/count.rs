@@ -24,7 +24,7 @@ use hd_types::{Ty, TyData};
 use super::Em;
 use super::refs::bare_local;
 use super::value::Src;
-use crate::layout::{Pass, coll_kind, coll_leaves};
+use crate::layout::Pass;
 use crate::module::Val;
 use crate::op::Op as I;
 use crate::rt::Helper;
@@ -327,7 +327,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn known_address(&mut self, t: Ty) -> StageResult<bool> {
         Ok(matches!(
             crate::rt::counted_of(self.input, self.m, t)?,
-            crate::rt::Counted::Address { known: true, .. }
+            crate::rt::Counted::Address { known: true, .. } | crate::rt::Counted::Coll { .. }
         ))
     }
 
@@ -398,22 +398,10 @@ impl Em<'_, '_, '_> {
         crate::cycle::holding(self.pool(), self.env(), parts)
     }
 
-    /// The values of a `t` value that a count of it takes through the copy
-    /// glue (`rt:coll_copy`, `types.coll.value`): a list's or a map's own,
-    /// and each list or map in a struct's fields at any depth.
-    pub(super) fn copied(&self, t: Ty) -> Vec<u32> {
-        if coll_kind(self.pool(), self.env(), t).is_some() {
-            vec![0]
-        } else {
-            coll_leaves(self.pool(), self.env(), t)
-        }
-    }
-
     /// One count more (`retain`) or less on each counted reference of the
-    /// value in locals `ls` of type `t`. A count more of a collection is
-    /// its copy glue's result, which replaces it in `ls` with the same
-    /// buffer carrying another count. On retain, `ls` holds borrowed bits
-    /// to which the new count gives an owner; the reserved word stays 0.
+    /// value in locals `ls` of type `t`; a collection's is a count on its
+    /// buffer (`types.coll.value`). On retain, `ls` holds borrowed bits to
+    /// which the new count gives an owner; the reserved word stays 0.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         ledger!(if self.counted(t) || crate::layout::holds_drop(self.pool(), self.env(), t) =>
             "count/{}/at-{}/{:?}", if retain { "retain" } else { "release" },
@@ -522,19 +510,11 @@ impl Em<'_, '_, '_> {
                 return self.count_portion(ls, t, retain, hd_layout::shims::Portion::All);
             }
         };
-        let colls = if retain { self.copied(t) } else { Vec::new() };
-        for &c in &colls {
-            self.f.get(ls[c as usize]);
-            self.f.helper(Helper::CollCopy);
-            self.f.set(ls[c as usize]);
-        }
-        // The one address is the collection, copied above.
-        if !colls.is_empty() {
-            return Ok(());
-        }
         self.f.get(ls[index as usize]);
         if known {
-            if retain {
+            if retain && hd_mono::holds_coll(self.pool(), self.env(), t) {
+                self.f.helper(Helper::RetainColl);
+            } else if retain {
                 self.f.helper(Helper::RetainKnown);
             } else {
                 crate::rt::release_call(&mut self.f, crate::layout::Addr::Known);
@@ -622,18 +602,10 @@ impl Em<'_, '_, '_> {
     }
 
     /// The `t` value in locals `ls`, which keep it, as a copy with counts
-    /// of its own for another place: each collection is the copy glue's
-    /// result in a local of its own ([`Em::count_locals`]).
+    /// of its own for another place: the same locals, one count more.
     pub(super) fn copy_locals(&mut self, ls: &[u32], t: Ty) -> StageResult<Vec<u32>> {
-        let mut out = ls.to_vec();
-        for c in self.copied(t) {
-            let x = self.f.local(Val::I32);
-            self.f.get(ls[c as usize]);
-            self.f.set(x);
-            out[c as usize] = x;
-        }
-        self.retain_locals(&out, t)?;
-        Ok(out)
+        self.retain_locals(ls, t)?;
+        Ok(ls.to_vec())
     }
 
     /// Value `r` as a copy with counts of its own, for a place that keeps

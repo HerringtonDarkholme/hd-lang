@@ -25,7 +25,7 @@ pub fn main() -> void $ Console:
     let mut items = { "a": +1 }
     saved := items
 > app/main/main
->   copy Map[string, i32] (second owner)
+>   retain Map[string, i32] (second owner)
     bump(&mut items, "a")
     bump(&mut items, "b")
     println(items["a"])

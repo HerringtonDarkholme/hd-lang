@@ -204,6 +204,7 @@ rt:release_ref#0
 rt:release_drain
 rt:retain_known
 rt:release_ref#1
+rt:retain_coll
 rt:drop
 rt:list_buf#0
 rt:list_buf#1
@@ -219,7 +220,6 @@ rt:drop_elems#2
 rt:drop_elems#3
 rt:drop_elems#4
 rt:drop_elems#5
-rt:coll_copy
 rt:copy_elems#0
 rt:copy_elems#1
 rt:copy_elems#2

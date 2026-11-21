@@ -324,39 +324,6 @@ pub fn union_variants(pool: &InternPool, members: TyList) -> Vec<Vec<Ty>> {
         .collect()
 }
 
-/// The values of a `t` value that are collections a copy of it copies
-/// (`hd_mono::holds_coll`): a list's own, and each such value of a struct
-/// field, at any depth of structs.
-pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
-    if !hd_mono::holds_coll(pool, env, t) {
-        return Vec::new();
-    }
-    let s = strip_newtype(pool, env, t);
-    let TyData::Adt { def, args } = pool.get(s) else {
-        return Vec::new();
-    };
-    if env.std_kind(def) != StdKind::Other {
-        return vec![0];
-    }
-    let fields: Vec<Ty> = env
-        .data_fields(def)
-        .unwrap_or_default()
-        .into_iter()
-        .map(|f| subst(pool, env, def, args, f))
-        .collect();
-    let Ok((_, parts)) = payload_mem(pool, env, &fields) else {
-        return Vec::new();
-    };
-    fields
-        .iter()
-        .zip(&parts)
-        .flat_map(|(f, p)| {
-            let at = u32::try_from(p.first).expect("values");
-            coll_leaves(pool, env, *f).into_iter().map(move |k| at + k)
-        })
-        .collect()
-}
-
 /// The most scalar values a struct, tuple or enum passes as values. A larger one
 /// passes as one address (rustc's `PassMode::Indirect`, which the Rust ABI
 /// picks above two pointers): passing it costs one value however many it

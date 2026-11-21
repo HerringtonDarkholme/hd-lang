@@ -2,13 +2,13 @@
 # @build: dev | checked | release | release checked
 # A counted local over 16 values read whole stays in its frame slot
 # (#2031): a whole copy into another slot is one memory.copy, and the
-# type's copy glue (`rt:retain_at`) takes the copy's counts from the
+# type's retain shim takes the copy's counts from the
 # address; a whole move clears the source's TIR flag, so its exit
 # releases nothing. Each neighbour: a copy and a move into another local;
 # a move and a copy to a callee that owns its parameter; a copy moved on
 # to such a callee, the source still read; the same in a loop on half
 # its rounds; a field copied to such a callee; a copy of a nested struct (the glue calls the nested type's);
-# a list field (its copy glue's result stored back); a copy of a
+# a list field (one more count on its buffer); a copy of a
 # parameter's field; a copy before a `?` and an early `return`; a tuple;
 # a generic instance; a copy whose field is then assigned (stays
 # leaves). The checked builds find no leak at exit.

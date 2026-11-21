@@ -6,7 +6,7 @@
   (import "fixture" "rt:map_hash'1" (func $rt:map_hash'1 (param i32 i32 i64) (result i32)))
   (import "fixture" "rt:map_find'1" (func $rt:map_find'1 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_put'1" (func $rt:map_put'1 (param i32 i32 i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:map_lookup'1" (func $rt:map_lookup'1 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "println[i32]" (func $"println[i32]" (param i32 i32 i32)))
@@ -75,8 +75,9 @@
     ;; 20 |     saved := items
     local.get $items
     i32.load $heap
-    call $rt:coll_copy
     local.tee $saved
+    call $rt:retain_coll
+    local.get $saved
     ;; 21 |     bump(&mut items, "a")
     local.get $items
     i32.const 65 ;; &"a"

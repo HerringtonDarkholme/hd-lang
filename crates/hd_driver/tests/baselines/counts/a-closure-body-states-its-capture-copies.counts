@@ -15,7 +15,7 @@ fn word(i: i32) -> string:
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
 > app/main/keep
->   copy List[string] (stored)
+>   retain List[string] (stored)
 > app/main/keep
 >   retain *app.main.Named (stored)
 > app/main/keep
@@ -49,7 +49,7 @@ pub fn main() -> void $ Console:
     items := [original]
 >   retain string (stored)
     println(keep(items)().len())
->   copy List[string] (stored)
+>   retain List[string] (stored)
 >   release fn() -> List[string] (last use)
 >   release List[string] (last use)
     println(items[0])

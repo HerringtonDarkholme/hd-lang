@@ -1271,7 +1271,7 @@ Those test-only queries do not require a second checker-facing fact API.
   map value) and before each read such a change
   goes through, of every list on that read's path, and an `IsUnique` of
   each list on an element reference's path. A copy of a list or a map is
-  a count of its buffer, which the backend takes through the copy glue;
+  a count of its buffer, which the backend takes as any address's count;
   the passes keep a parameter that a change reaches in place owned; then
   borrow (`own/derive.rs`): a `copy` read whose value only lends,
   over a span no write of what it reads, call that may reach it or

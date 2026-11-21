@@ -2,13 +2,13 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 13 funcref))
+  (import "fixture" "table0" (table $table0 14 funcref))
   (func $list_size (param $t1 i32) (result i32) (local $items i32) (local $t0 i32) (local $t2 i32)
     ;; 12 |     read := fn() -> usize: items.len()
     global.get $stack
@@ -50,7 +50,7 @@
     i32.eq
     if
       local.get $t1
-      i32.const 4
+      i32.const 5
       call_indirect $table0 (param i32) (result i32)
       local.set $t1
       local.get $items
@@ -72,8 +72,9 @@
     ;; 14 |     read()
     local.get $items
     i32.load $heap
-    call $rt:coll_copy
     local.tee $t1
+    call $rt:retain_coll
+    local.get $t1
     i32.load $heap offset=4
     local.get $t1
     if

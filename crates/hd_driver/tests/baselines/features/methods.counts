@@ -25,7 +25,7 @@ impl Shelf:
 fn use_methods(s: Shelf, b: string) -> usize:
     let mut t = s
 > app/main/use_methods
->   copy app.main.Shelf (stored)
+>   retain app.main.Shelf (stored)
     t.by_mut(b)
     s.by_self() + s.by_ref() + t.consume().len()
 >   release app.main.Shelf (last use)

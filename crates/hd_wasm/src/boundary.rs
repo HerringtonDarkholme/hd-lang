@@ -459,7 +459,6 @@ fn of_at(
                         leaves: mem.leaves,
                         counted,
                         parts: Vec::new(),
-                        colls: layout::coll_leaves(pool, env, e),
                         cyclic: crate::cycle::object(pool, env, t),
                     };
                     let ty = of_at(input, m, e, path, at)?;
@@ -618,7 +617,6 @@ fn object_of(
         leaves: mem.leaves,
         counted,
         parts: Vec::new(),
-        colls: Vec::new(),
         cyclic: tracked,
     };
     let ty = of_at(input, m, target, path, at)?;
@@ -1247,7 +1245,6 @@ fn args_area(
         leaves: mem.leaves,
         counted: crate::rt::Counted::None,
         parts,
-        colls: Vec::new(),
         // The leaf frame that keeps a host call's arguments takes part as
         // they say: only an open value holds the frame.
         cyclic: crate::cycle::holding(pool, env, types),
@@ -1271,12 +1268,11 @@ fn synchronous_owned_arguments(
             parts.push((p.first_leaf(), counted));
         }
     }
-    Ok((!parts.is_empty()).then(|| Elem {
+    Ok((!parts.is_empty()).then_some(Elem {
         size: mem.size,
         leaves: mem.leaves,
         counted: crate::rt::Counted::None,
         parts,
-        colls: Vec::new(),
         cyclic: false,
     }))
 }
@@ -2681,7 +2677,6 @@ fn byte_elem() -> Elem {
         }],
         counted: crate::rt::Counted::None,
         parts: Vec::new(),
-        colls: Vec::new(),
         cyclic: false,
     }
 }

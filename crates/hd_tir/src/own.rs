@@ -203,7 +203,7 @@ pub trait OwnCx {
     fn parameter_mode(&self, _ty: Ty, _function: bool) -> ParameterMode {
         ParameterMode::Owned
     }
-    /// Whether a boundary copy runs collection copy glue for this value.
+    /// Whether a boundary copy counts a collection's buffer in this value.
     fn copies_collection(&self, ty: Ty) -> bool {
         self.holds_coll(ty)
     }

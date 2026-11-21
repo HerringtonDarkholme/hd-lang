@@ -27,7 +27,7 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   release counted reference (last use)
 > app/main/stored
 >   retain string (stored)
->   copy List[string] (stored)
+>   retain List[string] (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -41,7 +41,7 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   release counted reference (last use)
 > app/main/stored
 >   retain string (stored)
->   copy List[string] (stored)
+>   retain List[string] (stored)
 >   retain counted reference (stored)
 > app/main/stored
 >   retain counted reference (stored)
@@ -58,7 +58,7 @@ fn cancel(key: string, keys: List[string]) -> void:
     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
 > app/main/cancel
 >   retain string (stored)
->   copy List[string] (stored)
+>   retain List[string] (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -72,7 +72,7 @@ fn cancel(key: string, keys: List[string]) -> void:
 >   release counted reference (last use)
 > app/main/cancel
 >   retain string (stored)
->   copy List[string] (stored)
+>   retain List[string] (stored)
 >   retain counted reference (stored)
 > app/main/cancel
 >   release Suspend[usize] (last use)
@@ -84,7 +84,7 @@ fn live!(key: string, keys: List[string]) -> usize:
     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
 > app/main/live
 >   retain string (stored)
->   copy List[string] (stored)
+>   retain List[string] (stored)
 >   release counted reference (last use)
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -98,7 +98,7 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   release counted reference (last use)
 > app/main/live
 >   retain string (stored)
->   copy List[string] (stored)
+>   retain List[string] (stored)
 >   retain counted reference (stored)
 > app/main/live
 >   release counted reference (last use)

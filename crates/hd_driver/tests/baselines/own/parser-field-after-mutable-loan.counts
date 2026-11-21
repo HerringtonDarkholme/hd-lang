@@ -40,7 +40,7 @@ fn length_across_write(text: string) -> usize:
 > app/main/length_across_write
 >   release List[char] (last use)
     chars := parser.chars
->   copy List[char] (second owner)
+>   retain List[char] (second owner)
     parser.chars.push('x')
 >   unique List[char] (may be shared)
 >   release app.main.Parser [chars] (last use)

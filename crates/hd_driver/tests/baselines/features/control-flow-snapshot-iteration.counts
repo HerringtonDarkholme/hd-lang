@@ -10,7 +10,7 @@ fn doubled(values: List[string]) -> List[string]:
     let mut out = values
     for v in out:
 > app/main/doubled
->   copy List[string] (second owner)
+>   retain List[string] (second owner)
 >   release List[string] (last use)
         out.push(v)
 >   retain string (stored)
@@ -23,7 +23,7 @@ fn cursor_then_push(values: List[string], s: string) -> usize:
 >   release string? (last use)
 >   release List[string] (last use)
     let mut cursor = items.iter()
->   copy List[string] (stored)
+>   retain List[string] (stored)
     items.push(s)
 >   unique List[string] (may be shared)
     match cursor.next():

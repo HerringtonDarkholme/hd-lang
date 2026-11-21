@@ -58,7 +58,7 @@ pub fn numbers(a: i64, b: i64, c: i64) -> i64:
     q.add(c)
     saved := q
 > app/main/numbers
->   copy app.main.Queue[i64] (second owner)
+>   retain app.main.Queue[i64] (second owner)
     q.settle(0, c)
     q.items[0] + saved.items[0]
 >   release app.main.Queue[i64] (last use)
@@ -70,7 +70,7 @@ pub fn names(a: string, b: string) -> usize:
     q.add(b)
     saved := q
 > app/main/names
->   copy app.main.Queue[string] (second owner)
+>   retain app.main.Queue[string] (second owner)
     q.settle(0, "z")
     q.items[0].len() + saved.items[0].len()
 >   retain string (conservative: copy read)
@@ -86,7 +86,7 @@ pub fn pairs(a: i64, b: i64) -> i64:
     q.add((b, 1))
     saved := q
 > app/main/pairs
->   copy app.main.Queue[(i64, usize)] (second owner)
+>   retain app.main.Queue[(i64, usize)] (second owner)
     q.settle(0, (a, 2))
     q.items[0]._0 + saved.items[0]._0
 >   release app.main.Queue[(i64, usize)] (last use)

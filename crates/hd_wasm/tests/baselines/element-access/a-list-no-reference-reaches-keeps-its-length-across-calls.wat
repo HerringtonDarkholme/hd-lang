@@ -11,7 +11,7 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "println[i64]" (func $"println[i64]" (param i64 i32 i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "impl[T] List[T].pop[i64]" (func $"impl[T] List[T].pop[i64]" (param i32) (result i32 i64)))
   (import "fixture" "stack" (global $stack (mut i32)))
@@ -404,7 +404,9 @@
     if (result i32)
       local.get $b
       i32.load $heap
-      call $rt:coll_copy
+      local.tee $whole
+      call $rt:retain_coll
+      local.get $whole
     else
       i32.const 1
       call $rt:list_buf

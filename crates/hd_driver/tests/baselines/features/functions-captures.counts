@@ -15,7 +15,7 @@ fn copied(s: string) -> usize:
 fn shared_list(s: string) -> usize:
     let mut xs: List[string] = []
 > app/main/shared_list
->   copy List[string] (conservative: copy read)
+>   retain List[string] (conservative: copy read)
 >   release List[string] (last use)
     add := fn() -> void: xs.push(s)
     add()

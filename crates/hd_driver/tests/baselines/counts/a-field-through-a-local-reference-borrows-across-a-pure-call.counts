@@ -44,6 +44,6 @@ impl Reader:
 > app/main/impl Reader.count
 >   release *mut app.main.Frame (last use)
         self.tally(frame.facts)
->   copy std.structure.Facts (second owner)
+>   retain std.structure.Facts (second owner)
 >   release std.structure.Facts (last use)
         frame.next

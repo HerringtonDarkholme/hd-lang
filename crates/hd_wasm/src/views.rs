@@ -191,8 +191,6 @@ pub struct CountOperation {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CountAction {
     Retain,
-    /// A count of a collection through its copy glue (`rt:coll_copy`).
-    Copy,
     Release,
     Free,
     /// A list's or a map's uniqueness check (`rt:list_unique`,
@@ -205,7 +203,6 @@ impl CountAction {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Retain => "retain",
-            Self::Copy => "copy",
             Self::Release => "release",
             Self::Free => "free",
             Self::Unique => "unique",
@@ -215,13 +212,15 @@ impl CountAction {
 
 pub(crate) fn helper_count_action(s: &crate::module::Sym) -> Option<CountAction> {
     use crate::{Helper, module::Sym};
-    use CountAction::{Copy, Free, Release, Retain, Unique};
+    use CountAction::{Free, Release, Retain, Unique};
     match s {
-        Sym::Helper(Helper::CollCopy) => Some(Copy),
         Sym::Helper(Helper::ListUnique { .. } | Helper::MapUnique { .. }) => Some(Unique),
-        Sym::Helper(Helper::RetainKnown | Helper::RetainFields { .. } | Helper::RetainAny) => {
-            Some(Retain)
-        }
+        Sym::Helper(
+            Helper::RetainKnown
+            | Helper::RetainColl
+            | Helper::RetainFields { .. }
+            | Helper::RetainAny,
+        ) => Some(Retain),
         Sym::Helper(
             Helper::ReleaseRef
             | Helper::ReleaseKnown

@@ -74,10 +74,10 @@ pub fn plain_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> 
         && !crate::counted(pool, env, ty)
 }
 
-/// Concrete layout fact: copying this value runs collection copy glue.
+/// Concrete layout fact: copying this value counts a collection's buffer.
 #[must_use]
 pub fn copies_collection_type(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
-    crate::coll_kind(pool, env, t).is_some() || !crate::coll_leaves(pool, env, t).is_empty()
+    crate::coll_kind(pool, env, t).is_some() || hd_mono::holds_coll(pool, env, t)
 }
 
 /// A reference's ownership from one normalized layout query: None for a

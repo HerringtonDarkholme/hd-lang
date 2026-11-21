@@ -13,12 +13,12 @@
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 24 funcref))
+  (import "fixture" "table0" (table $table0 25 funcref))
   (func $"keep#1[i32]" (param $env i32) (param $ctx i32) (result i32)
     ;; 15 |     fn() -> T: value
     local.get $env
@@ -71,7 +71,7 @@
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $t0 i32) (local $items i32) (local $t1 i32) (local $t2 i32)
     ;; 22 |     original := word(7)
     i32.const 7
-    i32.const 7
+    i32.const 8
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $original.1
     local.tee $original.0
@@ -83,7 +83,7 @@
     end
     local.get $t0
     local.get $original.1
-    i32.const 8
+    i32.const 9
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t0
     local.set $items
@@ -117,7 +117,7 @@
     end
     ;; 24 |     println(keep(+7)())
     i32.const 7
-    i32.const 9
+    i32.const 10
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $t0
     local.set $items
@@ -149,7 +149,7 @@
     end
     local.get $original.0
     local.get $original.1
-    i32.const 10
+    i32.const 11
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t0
     local.set $items
@@ -204,7 +204,7 @@
       end
     end
     local.get $items
-    i32.const 11
+    i32.const 12
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $items
     local.set $t1
@@ -278,8 +278,10 @@
     i32.store $heap offset=20
     local.get $items
     ;; 29 |     println(keep(items)().len())
-    call $rt:coll_copy
-    i32.const 12
+    local.tee $t1
+    call $rt:retain_coll
+    local.get $t1
+    i32.const 13
     call_indirect $table0 (param i32) (result i32 i32)
     local.set $t1
     local.set $t2
@@ -414,7 +416,7 @@
   )
   (func $"keep[*Named]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    i32.const 13
+    i32.const 14
     i32.const 4
     i32.const -2147483646
     call $rt:new/class-1'2
@@ -427,13 +429,15 @@
     ;; 15 |     fn() -> T: value
     local.get $env
     i32.load $heap
-    call $rt:coll_copy
+    local.tee $env
+    call $rt:retain_coll
+    local.get $env
   )
   (func $"keep[List[string]]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    i32.const 14
+    i32.const 15
     i32.const 4
-    i32.const 2
+    i32.const 3
     call $rt:new/class-1'2
     local.tee $t0
     local.get $t1
@@ -442,7 +446,7 @@
   )
   (func $lend (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 19 |     fn() -> usize: value.len()
-    i32.const 15
+    i32.const 16
     i32.const 8
     i32.const 1
     call $rt:new/class-1'1
@@ -473,7 +477,7 @@
   )
   (func $"keep[string]" (param $t1 i32) (param $t2 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    i32.const 16
+    i32.const 17
     i32.const 8
     i32.const 1
     call $rt:new/class-1'1
@@ -487,7 +491,7 @@
   )
   (func $"keep[i32]" (param $t1 i32) (result i32 i32) (local $t0 i32)
     ;; 15 |     fn() -> T: value
-    i32.const 17
+    i32.const 18
     i32.const 4
     i32.const 0
     call $rt:new/class-1'2

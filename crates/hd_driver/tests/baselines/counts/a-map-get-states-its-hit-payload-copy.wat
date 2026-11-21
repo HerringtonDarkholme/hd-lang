@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:map_lookup'1" (func $rt:map_lookup'1 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:map_lookup'2" (func $rt:map_lookup'2 (param i32 i32 i32 i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:map_lookup'3" (func $rt:map_lookup'3 (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -39,7 +39,9 @@
       i32.mul
       i32.add
       i32.load $heap offset=8
-      call $rt:coll_copy
+      local.tee $values
+      call $rt:retain_coll
+      local.get $values
     else
       i32.const 0
     end

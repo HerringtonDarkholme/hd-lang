@@ -628,7 +628,7 @@ Insertion is the naive, correct ownership of crates/hd_wasm/DESIGN.md
    evaluation since its base was read. The reference counts nothing; the
    list's holder lives until its last use (#1336 phase 10).
 7. **Collection copies.** A copy of a list or a map is a count of its
-   buffer, which the backend takes through the copy glue; the passes
+   buffer, which the backend takes as any address's count; the passes
    keep a parameter that a change reaches in place owned
    ([List and Map buffers](#list-and-map-buffers)).
 
@@ -811,7 +811,7 @@ statements ([the summary](#summary)).
 A list or a map value is the address of its counted buffer (a map's
 table), whose count is its holder count (crates/hd_wasm/DESIGN.md
 §23.7, §23.17, §23.18). A copy of a collection is one more count of its
-buffer (`rt:coll_copy`), and a change first makes the buffer the place's
+buffer (`rt:retain_known`), and a change first makes the buffer the place's
 own: insertion puts an `IsUnique` before it, which copies a shared
 buffer, and every change that may replace the buffer (an `IsUnique`
 that copies it, a `push` that grows it, a put that grows a table,

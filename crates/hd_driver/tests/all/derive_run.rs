@@ -123,7 +123,9 @@ pub fn main() -> void $ Console:
     );
 }
 
-/// The synthesized initializer has no source span in the WAT view.
+/// The calls of the generated field handle named `suffix` to the count
+/// of a known address (`rt:retain_known`): a copy of its facts buffer
+/// is one.
 fn handle_copies(out: &Output, suffix: &str) -> Result<usize, Box<dyn std::error::Error>> {
     use wasmparser::{BinaryReader, Name, NameSectionReader, Operator, Parser, Payload, TypeRef};
 
@@ -150,7 +152,7 @@ fn handle_copies(out: &Output, suffix: &str) -> Result<usize, Box<dyn std::error
                             if entry.name.ends_with(suffix) {
                                 handle = Some(entry.index as usize);
                             }
-                            if entry.name == "rt:coll_copy" {
+                            if entry.name == "rt:retain_known" {
                                 copy = Some(entry.index);
                             }
                         }
@@ -174,6 +176,8 @@ fn handle_copies(out: &Output, suffix: &str) -> Result<usize, Box<dyn std::error
     Ok(copies)
 }
 
+/// A once handle's one count is its returned copy's: the cell keeps the
+/// buffer it fills, with no copy of its own.
 #[test]
 fn once_handles_keep_a_single_facts_owner() -> Result<(), Box<dyn std::error::Error>> {
     let static_facts = concat!(
@@ -198,7 +202,7 @@ fn once_handles_keep_a_single_facts_owner() -> Result<(), Box<dyn std::error::Er
         ),
     ] {
         let out = build_with(&MemoryStore::default(), &[("main.hd", source)]);
-        assert_eq!(handle_copies(&out, suffix)?, 0, "{name}");
+        assert_eq!(handle_copies(&out, suffix)?, 1, "{name}");
         assert_eq!(run(&out, name), expected);
     }
     Ok(())

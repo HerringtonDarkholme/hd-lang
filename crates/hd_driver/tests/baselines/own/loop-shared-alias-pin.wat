@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:loan_unshare" (func $rt:loan_unshare (param i32)))
@@ -37,8 +37,9 @@
     ;; 7 |     for c in &a:
     local.get $t0
     i32.load $heap
-    call $rt:coll_copy
     local.tee $t1
+    call $rt:retain_coll
+    local.get $t1
     i32.load $heap offset=4
     local.set $t2
     block

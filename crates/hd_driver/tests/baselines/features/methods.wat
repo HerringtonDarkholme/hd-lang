@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -94,7 +94,7 @@
     ;; 20 |         self.books
     local.get $self
   )
-  (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t1 i32) (local $t i32) (local $t0 i32)
+  (func $use_methods (param $s i32) (param $b.0 i32) (param $b.1 i32) (result i32) (local $t i32) (local $t0 i32)
     ;; 23 |     let mut t = s
     global.get $stack
     global.get $stack_limit
@@ -111,8 +111,7 @@
     local.tee $t0
     global.set $stack
     local.get $s
-    call $rt:coll_copy
-    local.set $t1
+    call $rt:retain_coll
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -120,7 +119,7 @@
     i32.const 8
     i32.add
     local.tee $t
-    local.get $t1
+    local.get $s
     i32.store $heap
     ;; 24 |     t.by_mut(b)
     local.get $t

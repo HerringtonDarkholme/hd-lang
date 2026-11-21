@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].new[u8]" (func $"impl[T < ?Copy] UniqList[T].new[u8]" (result i32 i32 i32)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
@@ -106,8 +106,9 @@
     ;; 11 |     for p in parts:
     local.get $parts
     i32.load $heap
-    call $rt:coll_copy
     local.tee $parts
+    call $rt:retain_coll
+    local.get $parts
     i32.load $heap offset=4
     local.set $t0
     block

@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:coll_copy" (func $rt:coll_copy (param i32) (result i32)))
+  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
@@ -59,8 +59,9 @@
     ;; 10 |     n := xs.len()
     local.get $xs
     i32.load $heap
-    call $rt:coll_copy
     local.tee $t1
+    call $rt:retain_coll
+    local.get $t1
     i32.load $heap offset=4
     local.get $t1
     if
@@ -169,8 +170,8 @@
     local.set $t2
     local.get $xs
     i32.load $heap
-    call $rt:coll_copy
-    local.set $t4
+    local.tee $t4
+    call $rt:retain_coll
     local.get $xs
     if
       local.get $xs

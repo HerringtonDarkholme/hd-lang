@@ -447,7 +447,7 @@ impl Em<'_, '_, '_> {
     /// The reads of a local this sub-body's direct calls pass to a worker
     /// parameter taken by address, that can pass as an address: a move,
     /// a read of a type that counts nothing, or a copy to a callee that
-    /// owns it (copied into the call's block, where the copy glue takes
+    /// owns it (copied into the call's block, where the retain shim takes
     /// its counts from the address, [`Em::push_worker_args`]). One visit
     /// of the sub-body's rows and each call's arguments.
     fn worker_reads(&mut self) -> Vec<u32> {
@@ -1070,7 +1070,7 @@ impl Em<'_, '_, '_> {
         // A whole read keeps it only when it passes by address to a worker
         // (`whole`, below): a move clears its TIR flag, and a copy to a
         // callee that owns it is copied into the call's block, where the
-        // copy glue takes its counts from the address.
+        // retain shim takes its counts from the address.
         let mut moves: Vec<(usize, u32)> = Vec::new();
         let mut whole_reads: Vec<(usize, u32)> = Vec::new();
         let mut dropped: HashSet<usize> = HashSet::default();

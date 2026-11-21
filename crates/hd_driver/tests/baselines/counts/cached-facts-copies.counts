@@ -31,8 +31,8 @@ impl[T] HasFacts for T by Structure:
 
 struct Record:
 > app/main/impl HasFacts for Record by Structure.structure member facts 0 0
->   copy std.structure.Facts (stored)
->   copy std.structure.Facts (stored)
+>   retain std.structure.Facts (stored)
+>   retain std.structure.Facts (stored)
     name: string
 
 impl HasFacts for Record by Structure:

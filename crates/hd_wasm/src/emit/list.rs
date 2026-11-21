@@ -1,8 +1,8 @@
 //! Lists (`crates/hd_wasm/DESIGN.md` §23.7, §23.17, job 9). A list value
 //! is the address of its buffer, a counted object holding the capacity,
 //! the length, a reserved word that stays 0 (§23.20), and the elements
-//! inline. Every copy (`rt:coll_copy`) counts one more holder of the same
-//! buffer. The ownership passes' `IsUnique` makes the buffer the list's
+//! inline. Every copy (`rt:retain_known`) counts one more holder of the
+//! same buffer. The ownership passes' `IsUnique` makes the buffer the list's
 //! own before a change (`rt:list_unique`): a shared one is copied, and the
 //! copied elements' collections are copied in turn, so a nested write
 //! never reaches another list. A check or a change that replaces the
@@ -20,7 +20,7 @@ use wasm_encoder::BlockType;
 
 use super::Em;
 use super::value::{Dst, Src};
-use crate::layout::{coll_leaves, mem as mem_of, strip_newtype};
+use crate::layout::{mem as mem_of, strip_newtype};
 use crate::module::{HEADER, HEAP, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, empty_buffer};
 
@@ -178,7 +178,6 @@ impl Em<'_, '_, '_> {
             leaves: m.leaves,
             counted,
             parts: Vec::new(),
-            colls: coll_leaves(self.pool(), self.env(), et),
             cyclic: self.cyclic_object(t),
         };
         Ok((et, elem))

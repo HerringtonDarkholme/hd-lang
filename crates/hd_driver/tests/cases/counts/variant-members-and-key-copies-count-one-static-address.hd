@@ -3,7 +3,7 @@
 # A variant's handle, a member directory and its keys are each one
 # reference to a record that a handle body builds once in static data
 # (#895): keeping a copy or looking up a key counts one address, which the
-# runtime skips for static data. No copy glue copies a record's
+# runtime skips for static data. No count reaches a record's
 # information, facts list or closures.
 use std.structure.{Key, Members, Variant}
 

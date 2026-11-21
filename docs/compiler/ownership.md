@@ -417,8 +417,8 @@ ownership passes keep its root alive until its last use
 the reference that made it: a hidden local the passes keep alive, a
 static cell in a top-level binding's initializer, or, for a default
 argument's `&mut []`, an object the caller releases after the call. The
-pin is gone: no `Pin` statement, no eager copy in `coll_copy`, and no
-owner-word test in `rt:list_unique`, `rt:map_unique` or a push. A
+pin is gone: no `Pin` statement, no eager copy at a collection's count,
+and no owner-word test in `rt:list_unique`, `rt:map_unique` or a push. A
 `Buffer`'s room keeps no count (#1321).
 
 A borrowed `&dyn` reference counts nothing too (#1354); an owned trait

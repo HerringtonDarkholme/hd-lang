@@ -52,8 +52,8 @@ fn grow(items: &mut List[Item], i: usize) -> usize:
 fn call_between(items: &mut List[Item], i: usize) -> void:
     items[i] = Item { ...items[i], r: grow(items, i) }
 > app/main/call_between
->   copy List[i64] (stored)
->   copy Map[string, i64] (stored)
+>   retain List[i64] (stored)
+>   retain Map[string, i64] (stored)
 >   unique List[app.main.Item] (may be shared)
 >   release app.main.Item [batches, depots] (overwritten)
 
@@ -61,7 +61,7 @@ pub fn main() -> void $ Console:
     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     shared := items
 > app/main/main
->   copy List[app.main.Item] (second owner)
+>   retain List[app.main.Item] (second owner)
     element(&mut items, 0)
     through_reference(&mut items[0])
 >   unique List[app.main.Item] (may be shared)
