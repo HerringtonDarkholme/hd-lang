@@ -22,4 +22,6 @@ fn pause!() -> void $ Clock:
 >   %10 = Await std/time/sleep[] (%9) : ()
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Block - : ()
+>   %13 = Return - #2 : never
 >   summary none
+>   cancel %10 releases [%4294967295]

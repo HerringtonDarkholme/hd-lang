@@ -1,0 +1,243 @@
+# @dump: stdout
+# @build: v8 release
+# expected: 100 returns under 20 using bindings share one exit chain per target
+# and registered count (`own::scopes`), as rustc's drop tree does. Measured: main
+# 15,314 B dev / 12,980 B release; a copy per exit site 56,986 / 54,652; shared
+# chains 15,181 / 12,847. Each way out disposes all 20, last in, first out.
+use std.ops.Disposable
+
+struct R:
+    n: i32
+    log: *mut List[i32]
+
+impl Disposable for R:
+    fn dispose(&mut self) -> void:
+        self.log.push(self.n)
+
+fn many(k: i32, log: *mut List[i32]) -> i32:
+    using r0 = R { n: 0, log: log }
+    using r1 = R { n: 1, log: log }
+    using r2 = R { n: 2, log: log }
+    using r3 = R { n: 3, log: log }
+    using r4 = R { n: 4, log: log }
+    using r5 = R { n: 5, log: log }
+    using r6 = R { n: 6, log: log }
+    using r7 = R { n: 7, log: log }
+    using r8 = R { n: 8, log: log }
+    using r9 = R { n: 9, log: log }
+    using r10 = R { n: 10, log: log }
+    using r11 = R { n: 11, log: log }
+    using r12 = R { n: 12, log: log }
+    using r13 = R { n: 13, log: log }
+    using r14 = R { n: 14, log: log }
+    using r15 = R { n: 15, log: log }
+    using r16 = R { n: 16, log: log }
+    using r17 = R { n: 17, log: log }
+    using r18 = R { n: 18, log: log }
+    using r19 = R { n: 19, log: log }
+    if k == 0:
+        return 0
+    if k == 1:
+        return 1
+    if k == 2:
+        return 2
+    if k == 3:
+        return 3
+    if k == 4:
+        return 4
+    if k == 5:
+        return 5
+    if k == 6:
+        return 6
+    if k == 7:
+        return 7
+    if k == 8:
+        return 8
+    if k == 9:
+        return 9
+    if k == 10:
+        return 10
+    if k == 11:
+        return 11
+    if k == 12:
+        return 12
+    if k == 13:
+        return 13
+    if k == 14:
+        return 14
+    if k == 15:
+        return 15
+    if k == 16:
+        return 16
+    if k == 17:
+        return 17
+    if k == 18:
+        return 18
+    if k == 19:
+        return 19
+    if k == 20:
+        return 20
+    if k == 21:
+        return 21
+    if k == 22:
+        return 22
+    if k == 23:
+        return 23
+    if k == 24:
+        return 24
+    if k == 25:
+        return 25
+    if k == 26:
+        return 26
+    if k == 27:
+        return 27
+    if k == 28:
+        return 28
+    if k == 29:
+        return 29
+    if k == 30:
+        return 30
+    if k == 31:
+        return 31
+    if k == 32:
+        return 32
+    if k == 33:
+        return 33
+    if k == 34:
+        return 34
+    if k == 35:
+        return 35
+    if k == 36:
+        return 36
+    if k == 37:
+        return 37
+    if k == 38:
+        return 38
+    if k == 39:
+        return 39
+    if k == 40:
+        return 40
+    if k == 41:
+        return 41
+    if k == 42:
+        return 42
+    if k == 43:
+        return 43
+    if k == 44:
+        return 44
+    if k == 45:
+        return 45
+    if k == 46:
+        return 46
+    if k == 47:
+        return 47
+    if k == 48:
+        return 48
+    if k == 49:
+        return 49
+    if k == 50:
+        return 50
+    if k == 51:
+        return 51
+    if k == 52:
+        return 52
+    if k == 53:
+        return 53
+    if k == 54:
+        return 54
+    if k == 55:
+        return 55
+    if k == 56:
+        return 56
+    if k == 57:
+        return 57
+    if k == 58:
+        return 58
+    if k == 59:
+        return 59
+    if k == 60:
+        return 60
+    if k == 61:
+        return 61
+    if k == 62:
+        return 62
+    if k == 63:
+        return 63
+    if k == 64:
+        return 64
+    if k == 65:
+        return 65
+    if k == 66:
+        return 66
+    if k == 67:
+        return 67
+    if k == 68:
+        return 68
+    if k == 69:
+        return 69
+    if k == 70:
+        return 70
+    if k == 71:
+        return 71
+    if k == 72:
+        return 72
+    if k == 73:
+        return 73
+    if k == 74:
+        return 74
+    if k == 75:
+        return 75
+    if k == 76:
+        return 76
+    if k == 77:
+        return 77
+    if k == 78:
+        return 78
+    if k == 79:
+        return 79
+    if k == 80:
+        return 80
+    if k == 81:
+        return 81
+    if k == 82:
+        return 82
+    if k == 83:
+        return 83
+    if k == 84:
+        return 84
+    if k == 85:
+        return 85
+    if k == 86:
+        return 86
+    if k == 87:
+        return 87
+    if k == 88:
+        return 88
+    if k == 89:
+        return 89
+    if k == 90:
+        return 90
+    if k == 91:
+        return 91
+    if k == 92:
+        return 92
+    if k == 93:
+        return 93
+    if k == 94:
+        return 94
+    if k == 95:
+        return 95
+    if k == 96:
+        return 96
+    if k == 97:
+        return 97
+    if k == 98:
+        return 98
+    if k == 99:
+        return 99
+    -1
+
+pub fn main() -> void $ Console:
+    let log: *mut List[i32] = box([])
+    println("${many(7, log)} ${many(99, log)} ${many(200, log)}")
+    println("${log.len()} ${log[0]} ${log[19]}")

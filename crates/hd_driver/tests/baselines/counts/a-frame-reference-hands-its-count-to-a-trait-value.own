@@ -82,6 +82,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %27 = Await std/time/sleep[] (%26) : ()
 >   %28 = Release %27 Operation child #2 : ()
 >   %37 = Block - : ()
+>   %92 = Return - #2 : never
         $.use(Meter).record()
 >   %29 = ProviderGet #29 : Meter
 >   %30 = Coerce %29 [ProviderAsRef -] : &mut dyn Meter
@@ -145,4 +146,4 @@ pub fn main!() -> void $ Console + Clock:
 >   exit sub 0 drops [$1]
 >   storage sub 0: $0 cell
 >   summary none
->   cancel %27 releases [%19]
+>   cancel %27 releases [%19 %4294967295]

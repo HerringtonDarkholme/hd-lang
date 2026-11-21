@@ -92,8 +92,10 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   %9 = Release %7 Operation row #2 : ()
 >   %10 = Release %7 Operation child #2 : ()
 >   %11 = Block %7 : i32
+>   %12 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %7 releases [%4294967295]
 
 fn empty(callback: fn() -> i32) -> i32:
 > app/main/empty

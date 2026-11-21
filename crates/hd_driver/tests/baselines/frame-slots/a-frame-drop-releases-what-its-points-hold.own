@@ -143,7 +143,9 @@ fn pause!() -> string $ Clock:
 >   %10 = Await std/time/sleep[] (%9) : ()
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Block "x" : string
+>   %13 = Return - #2 : never
 >   summary none
+>   cancel %10 releases [%4294967295]
     "x"
 
 fn holds!() -> usize $ Clock:
@@ -162,8 +164,9 @@ fn holds!() -> usize $ Clock:
 >   %10 = Drop [%5] : ()
 >   %11 = Drop [%4] : ()
 >   %12 = Block %7 : usize
+>   %14 = Return - #2 : never
 >   summary none
->   cancel %5 releases [%4]
+>   cancel %5 releases [%4 %4294967295]
 
 fn gone!() -> usize $ Clock:
     n := text(1).len()
@@ -195,7 +198,9 @@ fn gone!() -> usize $ Clock:
 >   %17 = Scope %16 [] : Duration
 >   %18 = Await std/time/sleep[] (%17) : ()
 >   %19 = Release %18 Operation child #2 : ()
+>   %22 = Return - #2 : never
     n
 >   %20 = Read copy [$1] : usize
 >   storage sub 0: $0 cell
 >   summary none
+>   cancel %18 releases [%4294967295]

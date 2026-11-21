@@ -67,7 +67,7 @@ use origins::{Column, Origins, Worklist};
 #[cfg(test)]
 mod tests;
 
-use super::{OwnCx, Role, fill, operands, suite_touches};
+use super::{OwnCx, Role, fill, operands};
 use crate::ir::{
     Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word,
     is_suspension, local_flags, slots, u32_of,
@@ -456,7 +456,7 @@ fn analyze(
             changed |= step(b, cx, t, &mut ops, i);
         }
     }
-    escape_exits(b, true, t, &mut ops);
+    escape_exits(b, t);
     t.ops = ops;
     let tracked = Origins::Small(u64::MAX >> (64 - t.cands.len()));
     let frame = tracked.without(&t.out);
@@ -592,7 +592,7 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> Orig
             changed |= step(b, cx, t, &mut ops, i);
         }
     }
-    escape_exits(b, false, t, &mut ops);
+    escape_exits(b, t);
     t.ops = ops;
     t.frame = Origins::Small(u64::MAX >> (64 - t.cands.len())).without(&t.out);
     t.frame.clone()
@@ -991,7 +991,7 @@ fn origin_uses(
         step(b, cx, t, &mut ops, i);
     }
     t.work = None;
-    escape_exits(b, false, t, &mut ops);
+    escape_exits(b, t);
     for i in 0..n {
         if b.tags[i] == Tag::Drop {
             continue;
@@ -1014,49 +1014,11 @@ fn origin_uses(
     t.ops = ops;
 }
 
-/// Returned values and cleanup suites outlive the ordinary instruction
-/// sequence, in both frame planning and projected-place liveness. In frame
-/// planning (`planning`), a suite's own access of a candidate (a `using`
-/// binding's `Ref` for its `dispose`) is no escape: insertion keeps a
-/// place a suite reads alive for it, dropping it after the scope or in the
-/// exit set, never at a jump that crosses the scope (its rule 4). What a
-/// local the suite reads holds, and what its other values point into,
-/// still escapes: a jump may drop that first.
-fn escape_exits(b: &Body, planning: bool, t: &mut Tables, ops: &mut Vec<super::Operand>) {
+/// Returned values outlive the ordinary instruction sequence, in both
+/// frame planning and projected-place liveness.
+fn escape_exits(b: &Body, t: &mut Tables) {
     for &r in &b.sub_root {
         t.out |= t.val.get(r as usize).cloned().unwrap_or_default();
-    }
-    let mut stack = Vec::new();
-    for i in 0..b.len() {
-        let roots = match b.tags[i] {
-            Tag::Scope if b.data[i][1] != NONE => b.record(b.data[i][1]),
-            Tag::Defer => std::slice::from_ref(&b.data[i][0]),
-            _ => continue,
-        };
-        let (held_out, val_out, own) = (
-            std::cell::RefCell::new(Origins::default()),
-            std::cell::RefCell::new(Origins::default()),
-            std::cell::RefCell::new(Origins::default()),
-        );
-        let (held, val, bit) = (&t.held, &t.val, &t.bit);
-        suite_touches(
-            b,
-            roots,
-            &mut stack,
-            ops,
-            true,
-            |l| {
-                *held_out.borrow_mut() |= held[l as usize].clone();
-                *own.borrow_mut() |= bit.get(l as usize).cloned().unwrap_or_default();
-            },
-            |v| *val_out.borrow_mut() |= val.get(v as usize).cloned().unwrap_or_default(),
-        );
-        let kept = if planning {
-            own.into_inner()
-        } else {
-            Origins::default()
-        };
-        t.out |= held_out.into_inner() | val_out.into_inner().without(&kept);
     }
 }
 

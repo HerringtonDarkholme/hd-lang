@@ -5,7 +5,7 @@ use hd_base::{HashMap, HashSet};
 use std::collections::VecDeque;
 
 use super::{Backward, Flow, Role, charge, operands};
-use crate::ir::{Body, NONE, Ref, Tag, Topology};
+use crate::ir::{Body, NONE, Ref, Tag, Topology, is_suspension};
 
 #[derive(Clone, Copy)]
 enum Action {
@@ -187,6 +187,15 @@ impl Graph {
                             }
                         }
                         Tag::Return | Tag::Unreachable => graph.next[node + 1].clear(),
+                        // A point's cancel exit leaves after its operands,
+                        // before its value is made (`own::scopes`).
+                        tag if is_suspension(tag) => {
+                            if let Some(c) = b.cancel_block(x) {
+                                let to = graph.node(b, c);
+                                graph.next[node].push(to);
+                                tasks.push(Task::Block(c, arms));
+                            }
+                        }
                         Tag::ToArm => {
                             graph.actions[node] = Action::None;
                             graph.next[node + 1].clear();

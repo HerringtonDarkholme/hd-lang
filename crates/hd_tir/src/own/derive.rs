@@ -25,11 +25,11 @@
 
 use hd_base::SliceSort as _;
 
-use super::flow::{Backward, BitArena, Flow, backward, backward_blocks};
+use super::flow::{Backward, BitArena, Flow, backward};
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
     Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Root,
-    Tag, Topology, inside, is_suspension, local_flags, ref_word, sub_flags, u32_of,
+    Tag, Topology, is_suspension, local_flags, ref_word, sub_flags, u32_of,
 };
 
 /// The longest chain of roots a read's source is followed through.
@@ -108,8 +108,6 @@ struct Value {
     bit: u32,
     keeps: bool,
     dropped: bool,
-    /// A cleanup suite it is not inside of uses it.
-    in_suite: bool,
     /// A reader needs a count, and this read may give it by moving: it stays
     /// a copy, which the move pass moves at its last use.
     moves: bool,
@@ -194,13 +192,6 @@ pub(crate) struct Tables {
     capture_drops: super::capture_env::ReferenceDrops,
     wpaths: Vec<u32>,
     effects: Vec<Effect>,
-    // Per `Scope` and `Defer`: the instructions of its suites, what it uses,
-    // and what suites around the walk's place keep live.
-    suites: Vec<(u32, u32, u32)>,
-    suite_insts: Vec<u32>,
-    suite_roots: Vec<u32>,
-    suite_bits: Vec<(u32, u32)>,
-    held: Vec<u32>,
     // Each use of what may point into a frame local a mutable reference can
     // write, as (instruction, local): only there can it change that local.
     frame_uses: Vec<(u32, u32)>,
@@ -215,7 +206,6 @@ pub(crate) struct Tables {
     scope_of: Vec<u32>,
     back: Flow,
     ops: Vec<super::Operand>,
-    stack: Vec<u32>,
     excl: bool,
     probe: bool,
     pub(crate) relies: u64,
@@ -252,7 +242,6 @@ impl Tables {
             bit: NONE,
             keeps: false,
             dropped: false,
-            in_suite: false,
             moves: false,
             borrows: false,
             rewrapped: false,
@@ -290,11 +279,6 @@ impl Tables {
         self.paths.clear();
         self.writes.clear();
         self.wpaths.clear();
-        self.suites.clear();
-        self.suite_insts.clear();
-        self.suite_roots.clear();
-        self.suite_bits.clear();
-        self.held.clear();
         self.frame_uses.clear();
         self.root_uses.clear();
         self.relies = 0;
@@ -830,42 +814,6 @@ fn wrappers_with(b: &Body, t: &mut Tables, sources: &[u32], mut visit: impl FnMu
     }
 }
 
-/// The cleanup suites: which values one reaches from outside it, and the
-/// instructions each holds. A suite runs at its scope's exits, which the walk
-/// does not follow.
-fn suites(b: &Body, t: &mut Tables) {
-    let mut stack = std::mem::take(&mut t.stack);
-    let mut ops = std::mem::take(&mut t.ops);
-    let mut mine = vec![NONE; b.len()];
-    for x in 0..b.len() {
-        let [a, w] = b.data[x];
-        let roots: Vec<u32> = match b.tags[x] {
-            Tag::Scope if w != NONE => b.record(w).to_vec(),
-            Tag::Defer => vec![a],
-            _ => continue,
-        };
-        let from = u32_of(t.suite_insts.len());
-        inside(b, &roots, &mut stack, |i| {
-            t.suite_insts.push(u32_of(i));
-            mine[i] = u32_of(x);
-            true
-        });
-        let to = u32_of(t.suite_insts.len());
-        t.suites.push((u32_of(x), from, to));
-        t.suite_roots.extend_from_slice(&roots);
-        for k in from..to {
-            operands(b, t.suite_insts[k as usize] as usize, &mut ops);
-            for op in &ops {
-                if mine[op.value as usize] != u32_of(x) {
-                    t.v[op.value as usize].in_suite = true;
-                }
-            }
-        }
-    }
-    t.stack = stack;
-    t.ops = ops;
-}
-
 /// Exclusive mode: the calls that receive a parameter's reference, and the
 /// parameters whose reference something else takes; then which parameters
 /// are read through such a reference.
@@ -996,28 +944,6 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             };
         }
     }
-    // What each suite uses, by bit: read through a binding, or an operand.
-    let mut ops = std::mem::take(&mut t.ops);
-    for k in 0..t.suites.len() {
-        let (x, from, to) = t.suites[k];
-        for j in from..to {
-            let i = t.suite_insts[j as usize] as usize;
-            if matches!(b.tags[i], Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Store)
-                && let Some(l) = b.view(b.data[i][0]).local()
-                && t.l[l as usize].bit != NONE
-            {
-                t.suite_bits.push((x, t.l[l as usize].bit));
-            }
-            operands(b, i, &mut ops);
-            for op in &ops {
-                let f = t.v[op.value as usize];
-                if f.in_suite && f.bit != NONE {
-                    t.suite_bits.push((x, f.bit));
-                }
-            }
-        }
-    }
-    t.ops = ops;
     let words = t.bits.len().div_ceil(64).max(1);
     for mask in [&mut t.changed, &mut t.heap, &mut t.exposed, &mut t.unframed] {
         fill(mask, words, 0);
@@ -1173,31 +1099,9 @@ fn overlap(a: &[u32], c: &[u32]) -> bool {
 impl Backward for Tables {
     fn recording(&mut self, record: bool) {
         self.record = record;
-        self.held.clear();
     }
-    fn stmt(&mut self, b: &Body, x: u32, s: &mut BitArena, live: usize) {
+    fn stmt(&mut self, _: &Body, x: u32, s: &mut BitArena, live: usize) {
         let i = x as usize;
-        // A suite runs after the statement it guards, on every way out, so
-        // what it uses lives through the scope.
-        if matches!(b.tags[i], Tag::Scope | Tag::Defer) {
-            let k = self.suites.partition_point(|e| e.0 < x);
-            if let Some(&(y, from, to)) = self.suites.get(k)
-                && y == x
-            {
-                for j in from..to {
-                    let inst = self.suite_insts[j as usize];
-                    self.change_at(inst, b.tags[inst as usize], s, live);
-                }
-                self.held.push(NONE);
-                for k in 0..self.suite_bits.len() {
-                    if self.suite_bits[k].0 == x {
-                        let bit = self.suite_bits[k].1;
-                        self.held.push(bit);
-                        self.set(bit, s, live, true);
-                    }
-                }
-            }
-        }
         // Its value is made here: dead before. A coercion's value is still
         // its read's.
         let bit = self.v[i].bit;
@@ -1206,14 +1110,6 @@ impl Backward for Tables {
                 self.bits[bit as usize].seen = true;
             }
             self.set(bit, s, live, false);
-        }
-    }
-
-    fn ran(&mut self, b: &Body, x: u32, _: &mut BitArena, _: usize) {
-        if matches!(b.tags[x as usize], Tag::Scope | Tag::Defer)
-            && self.suites.binary_search_by_key(&x, |e| e.0).is_ok()
-        {
-            while self.held.pop().is_some_and(|h| h != NONE) {}
         }
     }
 
@@ -1237,11 +1133,6 @@ impl Backward for Tables {
             && self.l[l as usize].bit != NONE
         {
             self.set(self.l[l as usize].bit, s, live, true);
-        }
-        for k in 0..self.held.len() {
-            if self.held[k] != NONE {
-                self.set(self.held[k], s, live, true);
-            }
         }
         let k = self.root_uses.partition_point(|u| u.0 < x);
         for &(_, bit) in self.root_uses[k..].iter().take_while(|u| u.0 == x) {
@@ -1592,11 +1483,9 @@ fn lend_copied_parameters_with(
     if !eligible.iter().any(|&yes| yes) {
         return false;
     }
-    if b.tags.iter().enumerate().any(|(i, &tag)| {
+    if b.tags.iter().any(|&tag| {
         visit();
         is_suspension(tag)
-            || tag == Tag::Defer
-            || tag == Tag::Scope && !b.record(b.data[i][1]).is_empty()
     }) {
         return false;
     }
@@ -1847,7 +1736,6 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables)
     t.reset(b.len(), b.local_ty.len());
     {
         let b = &*b;
-        suites(b, t);
         scan(b, cx, t, &constructors);
         let flagged = b
             .sub_flags
@@ -1882,9 +1770,6 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables)
     index_writes(b, cx, t);
     let mut back = std::mem::take(&mut t.back);
     backward(b, topo, &mut back, t);
-    let roots = std::mem::take(&mut t.suite_roots);
-    backward_blocks(b, topo, &mut back, t, &roots);
-    t.suite_roots = roots;
     t.back = back;
     solve(b, topo, cx, t);
     parameter_joins(b, topo, cx, t);

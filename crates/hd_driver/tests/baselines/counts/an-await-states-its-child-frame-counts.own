@@ -22,7 +22,9 @@ fn read!() -> i32 $ Clock:
 >   %10 = Await std/time/sleep[] (%9) : ()
 >   %11 = Release %10 Operation child #2 : ()
 >   %12 = Block 7:i32 : i32
+>   %13 = Return - #2 : never
 >   summary none
+>   cancel %10 releases [%4294967295]
     7
 
 fn stored!() -> i32 $ Clock:
@@ -43,5 +45,6 @@ fn stored!() -> i32 $ Clock:
 >   %8 = Release %7 Operation child #2 : ()
 >   %9 = Retain %7 Operation child #0 : ()
 >   %10 = Drop [%6] : ()
+>   %13 = Return - #2 : never
 >   summary none
->   cancel %7 releases [%6]
+>   cancel %7 releases [%6 %4294967295]

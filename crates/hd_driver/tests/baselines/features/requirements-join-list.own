@@ -98,6 +98,7 @@ fn all!(keys: List[string]) -> usize:
 >   %47 = Await std/task/all_list[string] (%46) : List[string]
 >   %48 = Release %47 Operation child #2 : ()
 >   %49 = Store [$8] %47 : ()
+>   %84 = Return - #2 : never
     let mut n = 0
 >   %50 = Store [$9] 0:usize : ()
     for r in &results:
@@ -136,4 +137,5 @@ fn all!(keys: List[string]) -> usize:
 >   %82 = Read copy [$9] : usize
 >   exit sub 0 drops [$0]
 >   summary none
+>   cancel %47 releases [%4294967295]
 >   loop %42 keeps [$2] (%6..%43)

@@ -12,7 +12,8 @@ app/main/generic
   %13 = FlagClear [%8] #1 : ()
   %14 = Drop [$0] : ()
   %15 = Block %10 : T
+  %17 = Return - #2 : never
   exit sub 0 drops [$0]
   storage sub 0: $0 cell
   summary none
-  cancel %10 releases [%8]
+  cancel %10 releases [%8 %4294967295]

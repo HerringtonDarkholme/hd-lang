@@ -33,7 +33,7 @@ use hd_types::Ty;
 
 use crate::ir::{
     Body, Callee, CaptureMode, Coercion, IntrinsicOp, NONE, ReadMode, Ref, Root, Tag, Topology,
-    Word, inside, slots, u32_of,
+    Word, slots, u32_of,
 };
 
 pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
@@ -92,6 +92,7 @@ mod ref_copy;
 pub(crate) mod referent;
 pub(crate) mod retains;
 pub use retains::{provider_view, took_source};
+pub(crate) mod scopes;
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
@@ -650,44 +651,6 @@ pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
     });
 }
 
-/// Marks what the cleanup suites `roots` touch, as [`inside`] walks
-/// them: each place's root local and each captured local with `local`,
-/// each operand with `value`, and with `own` each instruction's own value
-/// too. A suite runs at its scope's exits, which the passes' walks do not
-/// follow.
-pub(crate) fn suite_touches(
-    b: &Body,
-    roots: &[u32],
-    stack: &mut Vec<u32>,
-    ops: &mut Vec<Operand>,
-    own: bool,
-    mut local: impl FnMut(u32),
-    mut value: impl FnMut(u32),
-) {
-    inside(b, roots, stack, |i| {
-        match b.tags[i] {
-            Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::LoanEnd | Tag::IsUnique => {
-                if let Some(l) = b.view(b.data[i][0]).local() {
-                    local(l);
-                }
-            }
-            Tag::Closure => {
-                let rec = b.record(b.data[i][1]);
-                (rec[0]..rec[0] + rec[1]).for_each(|c| local(b.cap_local[c as usize].raw()));
-            }
-            _ => {}
-        }
-        operands(b, i, ops);
-        for op in ops.iter() {
-            value(op.value);
-        }
-        if own {
-            value(u32_of(i));
-        }
-        true
-    });
-}
-
 /// The block owners whose value takes their block's tail: the arms of an
 /// `If`, a `Match` and a switch (a switch outside a decision tree has a
 /// value, as a generated body's do), a cleanup scope's and a `With`'s
@@ -1156,6 +1119,7 @@ pub fn uncopied(b: &Body, cx: &dyn OwnCx, out: &mut Vec<Uncopied>) {
 /// The copy verifier ([`uncopied`]) leaves its findings in `scratch`.
 /// Malformed insertion or splice inputs return their structural error.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
+    scopes::lower(b)?;
     return_loan::forward_places(b, cx);
     local_refs::run(b, cx, &mut scratch.topo, &mut scratch.splice)?;
     copy_struct::expand(b, cx, &mut scratch.topo, &mut scratch.splice)?;
@@ -1189,7 +1153,6 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     )?;
     loans::share_counters(b, cx.temporary_owner_name())?;
     insert::run(b, cx, scratch)?;
-    known::cancel_blocks(b);
     scratch.topo.build(b);
     let (topo, edits) = (&scratch.topo, &mut scratch.splice);
     derive::run(b, topo, cx, &mut scratch.derive);
@@ -3257,7 +3220,7 @@ pub(crate) mod tests {
         assert_eq!(count(100), 3 * 100);
     }
 
-    /// Known-null at a suspension point: its cancel block releases the
+    /// Known-null at a suspension point: its cancel exit releases the
     /// values that may hold a count there, a lent argument and a value consumed
     /// after it, and a local that may hold a value there keeps its exit
     /// row although it is empty at the exit itself; a local moved before
@@ -3288,7 +3251,11 @@ pub(crate) mod tests {
         );
         assert!(text.contains("exit 0 $1\n"), "{text}");
         assert!(!text.contains("exit 0 $0"), "{text}");
-        assert!(text.contains("%18 Block [%16 %17]\n"), "{text}");
+        // The cancel exit releases what the point holds, then leaves.
+        assert!(
+            text.contains("%16 Release\n%17 Release\n%18 Return\n%19 Block [%16 %17 %18]\n"),
+            "{text}"
+        );
         assert!(
             text.contains("cancel %9 releases %7\ncancel %9 releases %8\n"),
             "{text}"

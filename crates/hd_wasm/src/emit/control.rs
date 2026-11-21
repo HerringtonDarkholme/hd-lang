@@ -13,7 +13,6 @@ pub(super) struct Stack {
     entries: Vec<(Ctl, Option<usize>)>,
     targets: hd_base::HashMap<Ctl, usize>,
     plain: Option<usize>,
-    scopes: Vec<(usize, u32)>,
 }
 
 impl Stack {
@@ -30,9 +29,6 @@ impl Stack {
             self.targets.insert(target, at)
         };
         self.entries.push((target, prior));
-        if let Ctl::Scope(scope) = target {
-            self.scopes.push((at, scope));
-        }
     }
 
     pub(super) fn pop(&mut self) -> Option<Ctl> {
@@ -45,9 +41,6 @@ impl Stack {
         } else {
             self.targets.remove(&target);
         }
-        if matches!(target, Ctl::Scope(_)) {
-            self.scopes.pop();
-        }
         Some(target)
     }
 
@@ -58,11 +51,6 @@ impl Stack {
         } else {
             self.targets.get(&target).copied()
         }
-    }
-
-    pub(super) fn last_scope(&self) -> Option<(usize, u32)> {
-        crate::work::control(1);
-        self.scopes.last().copied()
     }
 }
 
@@ -198,11 +186,10 @@ mod tests {
     }
 
     #[test]
-    fn popping_restores_shadowed_targets_and_the_nearest_cleanup_scope() {
+    fn popping_restores_shadowed_targets() {
         let mut stack = Stack::default();
         assert!(stack.pop().is_none());
         assert_eq!(stack.position(Ctl::Exit), None);
-        assert_eq!(stack.last_scope(), None);
         assert_eq!(stack.position(Ctl::Plain), None);
         stack.push(Ctl::Plain);
         stack.push(Ctl::Plain);
@@ -211,19 +198,14 @@ mod tests {
         assert_eq!(stack.position(Ctl::Plain), Some(0));
         assert!(stack.pop() == Some(Ctl::Plain));
         assert_eq!(stack.position(Ctl::Plain), None);
-        stack.push(Ctl::Scope(1));
         stack.push(Ctl::Brk(2));
-        stack.push(Ctl::Scope(3));
+        stack.push(Ctl::Plain);
         stack.push(Ctl::Brk(2));
-        assert_eq!(stack.position(Ctl::Brk(2)), Some(3));
-        assert_eq!(stack.last_scope(), Some((2, 3)));
+        assert_eq!(stack.position(Ctl::Brk(2)), Some(2));
         assert!(stack.pop() == Some(Ctl::Brk(2)));
-        assert_eq!(stack.position(Ctl::Brk(2)), Some(1));
-        assert!(stack.pop() == Some(Ctl::Scope(3)));
-        assert_eq!(stack.last_scope(), Some((0, 1)));
+        assert_eq!(stack.position(Ctl::Brk(2)), Some(0));
+        assert!(stack.pop() == Some(Ctl::Plain));
         assert!(stack.pop() == Some(Ctl::Brk(2)));
         assert_eq!(stack.position(Ctl::Brk(2)), None);
-        assert!(stack.pop() == Some(Ctl::Scope(1)));
-        assert_eq!(stack.last_scope(), None);
     }
 }

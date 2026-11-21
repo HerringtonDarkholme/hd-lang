@@ -17,7 +17,6 @@ use hd_tir::ir::{Body, NONE, Tag};
 use hd_tir::own::Reason;
 use wasm_encoder::BlockType;
 
-use super::scope::Exit;
 use super::{Ctl, Em};
 use crate::layout::IsOps as _;
 use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
@@ -57,7 +56,9 @@ fn operand_blocks(b: &Body, i: u32) -> Vec<u32> {
             blocks
         }
         Tag::And | Tag::Or | Tag::With => vec![bw],
-        _ => vec![],
+        // A point's cancel block runs the cleanup suites around it, which
+        // may wait (`own::scopes`).
+        _ => b.cancel_block(i).into_iter().collect(),
     };
     out.retain(|x| *x != NONE && b.tags.get(*x as usize) == Some(&Tag::Block));
     out
@@ -557,11 +558,18 @@ impl Em<'_, '_, '_> {
         // A point in a `using!` binding's dispose suite is shielded: it has
         // no cancellation branch, by (flow.using.async.cancel.shielded).
         if self.shield > 0 {
-            return self.await_point(i, k, a, bw);
+            return self.shielded_point(i, k, a, bw);
         }
         self.open(Ctl::Plain);
         self.open(Ctl::Plain);
         let at = self.ctl.len() - 1;
+        // A resume into a suite the cancel block runs enters it there.
+        let blk = self.b.cancel_block(i);
+        let inside = blk.and_then(|x| self.range(x));
+        if let Some((lo, hi)) = inside {
+            self.in_range(lo, hi);
+            self.f.op(I::BrIf(0));
+        }
         self.f.get(pc);
         self.f.u32(k);
         self.f.op(I::I32Eq);
@@ -590,6 +598,12 @@ impl Em<'_, '_, '_> {
             self.f.local(Val::I32),
             self.f.local(Val::I32),
         );
+        if let Some((lo, hi)) = inside {
+            self.in_range(lo, hi);
+            self.f.op(I::I32Eqz);
+            self.f.op(I::If(BlockType::Empty));
+            self.ctl.push(Ctl::Plain);
+        }
         self.f.i32(0);
         self.f.set(wait);
         self.f.helper(Helper::CancelEnter);
@@ -652,15 +666,60 @@ impl Em<'_, '_, '_> {
         // The ladders run as fresh code.
         self.f.i32(0);
         self.f.set(pc);
-        // The point's cancel block, before the scopes' suites run.
+        // The point's cancel block: the releases of what the point holds,
+        // then the suites of the cleanup scopes around it and a cancelled
+        // `Return` (`own::scopes`).
         if self.counting
-            && let Some(blk) = self.b.cancel_block(i)
+            && let Some(blk) = blk
         {
             for s in self.rec(self.b.data[blk as usize][0]) {
-                self.inst_body(s)?;
+                if self.b.tags[s as usize] == Tag::Release {
+                    self.inst_body(s)?;
+                }
             }
         }
-        self.exit(Exit::Cancel);
+        if inside.is_some() {
+            self.close();
+        }
+        match blk {
+            Some(blk) => self.block_into(blk, None)?,
+            None => self.leave_cancelled(),
+        }
+        self.close();
+        Ok(())
+    }
+
+    /// A point inside a waiting dispose suite: shielded, it has no
+    /// cancellation branch. Once it completes in a task cancelled
+    /// meanwhile, it takes its cancel block, the rest of the scopes'
+    /// suites and a cancelled `Return` (`own::scopes`); a resume into that
+    /// block enters it.
+    fn shielded_point(&mut self, i: u32, k: u32, a: u32, bw: u32) -> StageResult<()> {
+        let Some(blk) = self
+            .b
+            .cancel_block(i)
+            .filter(|&x| !self.b.record(self.b.data[x as usize][0]).is_empty())
+        else {
+            return self.await_point(i, k, a, bw);
+        };
+        self.open(Ctl::Plain);
+        self.open(Ctl::Plain);
+        if let Some((lo, hi)) = self.range(blk) {
+            self.in_range(lo, hi);
+            self.f.op(I::BrIf(0));
+        }
+        self.await_point(i, k, a, bw)?;
+        self.f.get(FRAME);
+        self.f
+            .op(I::If(BlockType::Result(wasm_encoder::ValType::I32)));
+        self.is_cancelled(FRAME);
+        self.f.op(I::Else);
+        self.f.i32(0);
+        self.f.op(I::End);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::BrIf(1));
+        self.close();
+        self.block_into(blk, None)?;
         self.close();
         Ok(())
     }
@@ -1303,12 +1362,31 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Store(mem(HEAP, F_FLAGS, 2)));
     }
 
-    /// The final step of `Exit::Cancel`: with the function's one exit,
+    /// In a suspending body, pushes the frame result of a direct return:
+    /// 0, Ready, once a frame it has is marked `EXITED`.
+    pub(super) fn ready_frame(&mut self) {
+        if self.susp.is_none() {
+            return;
+        }
+        self.f.get(FRAME);
+        self.f.op(I::If(BlockType::Empty));
+        self.f.get(FRAME);
+        self.f.get(FRAME);
+        self.f.op(I::I32Load(mem(HEAP, F_FLAGS, 2)));
+        self.f.i32(EXITED);
+        self.f.op(I::I32Or);
+        self.f.op(I::I32Store(mem(HEAP, F_FLAGS, 2)));
+        self.f.op(I::End);
+        self.free_own_frame(self.susp.as_ref().and_then(|s| s.own));
+        self.f.i32(0);
+    }
+
+    /// A cancellation's final step: with the function's one exit,
     /// noted for [`Self::exit_frame`] and taken; without, the zero
     /// results and the frame returned.
     pub(super) fn leave_cancelled(&mut self) {
-        // ruled out: Exit::Cancel comes only from point or a suspending
-        // dispose ladder; emit::instance installs Susp for their ABI.
+        // ruled out: only a point's cancellation leaves this way;
+        // emit::instance installs Susp for its ABI.
         let cancelled = self.susp.as_ref().map(|s| s.cancelled);
         assert!(
             cancelled.is_some(),
