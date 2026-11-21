@@ -648,7 +648,7 @@ fn body_func<'i>(
     }
     if em.counting {
         em.close();
-        em.release_all()?;
+        em.release_all();
         for l in em.ret.clone() {
             em.f.get(l);
         }
@@ -1779,7 +1779,14 @@ impl Em<'_, '_, '_> {
             .into_iter()
             .filter(|i| match self.b.tags[*i as usize] {
                 Tag::Block => false,
-                Tag::Release => lowered,
+                // A parameter's exit release runs where it stands
+                // (`hd_tir::own::exits`).
+                Tag::Release => {
+                    lowered
+                        || CountInfo::read(self.b, *i as usize).is_some_and(|c| {
+                            c.at == CountAt::Exit && matches!(c.part, CountPart::Local(_))
+                        })
+                }
                 _ => !hd_tir::ir::count::boundary(self.b, *i as usize),
             })
             .collect()
@@ -2498,12 +2505,18 @@ impl Em<'_, '_, '_> {
             // only its point's cancellation branch lowers. A boundary
             // release, which a loop's entry-test prefix also passes here,
             // lowers at its named entry, exit or operation.
-            Tag::Release => {
-                let info = CountInfo::read(self.b, i as usize);
-                if let Some(c) = info.filter(|c| c.at == CountAt::Value) {
+            Tag::Release => match CountInfo::read(self.b, i as usize) {
+                Some(c) if c.at == CountAt::Value => {
                     self.because(Reason::from_word(c.reason), |em| em.release_value(a))?;
                 }
-            }
+                Some(c) if c.at == CountAt::Exit => {
+                    if let CountPart::Local(l) = c.part {
+                        let reason = Reason::from_word(c.reason);
+                        self.because(reason, |em| em.release_param(l as usize))?;
+                    }
+                }
+                _ => {}
+            },
             // Lowered in its store's walk of the place.
             Tag::MakeUnique => {}
             Tag::LoanBegin => self.loan_begin(i),

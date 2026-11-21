@@ -2,20 +2,21 @@
 # @dump: own counts wat
 # expected: the ABI-owned parameter is released once at the common exit, including early return.
 fn length(parts: List[string], early: bool) -> usize:
+    if early:
 > app/main/length
 >   local $0 parts: List[string] [param read] value
->     uses $0: entry -> %2 lend last, %7 lend last
+>     uses $0: entry -> %1 lend last, %7 lend last
 >   local $1 early: bool [param read] value
->     uses $1: entry -> %1 lend last
->   %0 = Release %9 Exit local $0 #2 : ()
-    if early:
->   %1 = Read copy [$1] : bool
->   %6 = If %1 [%5 -] : ()
->   %9 = Block %8 : usize
+>     uses $1: entry -> %0 lend last
+>   %0 = Read copy [$1] : bool
+>   %6 = If %0 [%5 -] : ()
+>   %9 = Release %10 Exit local $0 #2 : ()
+>   %10 = Block %8 : usize
         return parts.len()
->   %2 = Read borrow [$0] : List[string]
->   %3 = Intrinsic ListLen [%2] : usize
->   %4 = Return %3 : never
+>   %1 = Read borrow [$0] : List[string]
+>   %2 = Intrinsic ListLen [%1] : usize
+>   %3 = Release %10 Exit local $0 #2 : ()
+>   %4 = Return %2 : never
 >   %5 = Block - : never
     parts.len()
 >   %7 = Read borrow [$0] : List[string]

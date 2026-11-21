@@ -9,7 +9,6 @@
     local.get $right.0
     local.get $right.1
     call $rt:str_eq
-    local.set $left.1
     local.get $left.0
     if
       local.get $left.0
@@ -20,6 +19,5 @@
       local.get $right.0
       call $rt:release_ref
     end
-    local.get $left.1
   )
 )

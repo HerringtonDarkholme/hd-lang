@@ -10,7 +10,6 @@
     local.get $ctx
     local.get $callback.0
     call_indirect $table0 (param i32 i32) (result i32)
-    local.set $callback.0
     local.get $callback.1
     if
       local.get $callback.1
@@ -24,6 +23,5 @@
         call $rt:release_ref
       end
     end
-    local.get $callback.0
   )
 )

@@ -9,18 +9,43 @@ enum SaveError:
     Failed(message: string)
 
 fn save(s: string) -> Result[string, SaveError]:
+    if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
 > app/main/save
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend, %7 lend last
->   %0 = Release %15 Exit local $0 #2 : ()
-    if s.len() > 0: .Ok(s + "!") else: .Err(SaveError.Failed("empty"))
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
->   %6 = Prim Gt [%5 0:usize] : bool
->   %7 = Read borrow [$0] : string
+>     uses $0: entry -> %0 lend, %6 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
+>   %5 = Prim Gt [%4 0:usize] : bool
+>   %6 = Read borrow [$0] : string
+>   %7 = Intrinsic StrConcat [%6 "!"] : string
+>   %8 = NewVariant #0 [%7] : Result[string, SaveError]
+>   %9 = Block %8 : Result[string, SaveError]
+>   %10 = NewVariant #0 ["empty"] : SaveError
+>   %11 = NewVariant #1 [%10] : Result[string, SaveError]
+>   %12 = Block %11 : Result[string, SaveError]
+>   %13 = If %5 [%9 %12] : Result[string, SaveError]
+>   %14 = Release %15 Exit local $0 #2 : ()
+>   %15 = Block %13 : Result[string, SaveError]
+>   summary kept [] borrows [$0]
+
+fn discard(s: string) -> usize:
+    _ := save(s)
+> app/main/discard
+>   local $0 s: string [param read] value
+>     uses $0: entry -> %0 consume, %19 consume, %42 lend last
+>   local $2 s: string [read captured] place
+>   local $3 s: string [read captured] place
+>   %0 = Read borrow [$0] : string
+>   %1 = Box #3 #255 : ()
+>   %2 = Store [$3] %0 : ()
+>   %3 = Ref local frame promoted [$3] : &string
+>   %4 = Call std/text/impl string.len[] (%3) : usize
+>   %5 = LoanEnd [%3] : ()
+>   %6 = Prim Gt [%4 0:usize] : bool
+>   %7 = Read borrow [$3] : string
 >   %8 = Intrinsic StrConcat [%7 "!"] : string
 >   %9 = NewVariant #0 [%8] : Result[string, SaveError]
 >   %10 = Block %9 : Result[string, SaveError]
@@ -28,79 +53,54 @@ fn save(s: string) -> Result[string, SaveError]:
 >   %12 = NewVariant #1 [%11] : Result[string, SaveError]
 >   %13 = Block %12 : Result[string, SaveError]
 >   %14 = If %6 [%10 %13] : Result[string, SaveError]
->   %15 = Block %14 : Result[string, SaveError]
->   summary kept [] borrows [$0]
-
-fn discard(s: string) -> usize:
-> app/main/discard
->   local $0 s: string [param read] value
->     uses $0: entry -> %1 consume, %20 consume, %43 lend last
->   local $2 s: string [read captured] place
->   local $3 s: string [read captured] place
->   %0 = Release %48 Exit local $0 #2 : ()
-    _ := save(s)
->   %1 = Read borrow [$0] : string
->   %2 = Box #3 #255 : ()
->   %3 = Store [$3] %1 : ()
->   %4 = Ref local frame promoted [$3] : &string
->   %5 = Call std/text/impl string.len[] (%4) : usize
->   %6 = LoanEnd [%4] : ()
->   %7 = Prim Gt [%5 0:usize] : bool
->   %8 = Read borrow [$3] : string
->   %9 = Intrinsic StrConcat [%8 "!"] : string
->   %10 = NewVariant #0 [%9] : Result[string, SaveError]
->   %11 = Block %10 : Result[string, SaveError]
->   %12 = NewVariant #0 ["empty"] : SaveError
->   %13 = NewVariant #1 [%12] : Result[string, SaveError]
->   %14 = Block %13 : Result[string, SaveError]
->   %15 = If %7 [%11 %14] : Result[string, SaveError]
->   %16 = Break L2 %15 : never
->   %17 = Block - : Result[string, SaveError]
->   %18 = Scope %17 [] : Result[string, SaveError]
->   %19 = Drop [%18] : ()
->   %21 = Box #2 #255 : ()
->   %48 = Block %47 : usize
+>   %15 = Break L2 %14 : never
+>   %16 = Block - : Result[string, SaveError]
+>   %17 = Scope %16 [] : Result[string, SaveError]
+>   %18 = Drop [%17] : ()
+>   %20 = Box #2 #255 : ()
+>   %47 = Release %48 Exit local $0 #2 : ()
+>   %48 = Block %46 : usize
     let _ = save(s)
->   %20 = Read borrow [$0] : string
->   %22 = Store [$2] %20 : ()
->   %23 = Ref local frame promoted [$2] : &string
->   %24 = Call std/text/impl string.len[] (%23) : usize
->   %25 = LoanEnd [%23] : ()
->   %26 = Prim Gt [%24 0:usize] : bool
->   %27 = Read borrow [$2] : string
->   %28 = Intrinsic StrConcat [%27 "!"] : string
->   %29 = NewVariant #0 [%28] : Result[string, SaveError]
->   %30 = Block %29 : Result[string, SaveError]
->   %31 = NewVariant #0 ["empty"] : SaveError
->   %32 = NewVariant #1 [%31] : Result[string, SaveError]
->   %33 = Block %32 : Result[string, SaveError]
->   %34 = If %26 [%30 %33] : Result[string, SaveError]
->   %35 = Break L1 %34 : never
->   %36 = Block - : Result[string, SaveError]
->   %37 = Scope %36 [] : Result[string, SaveError]
->   %38 = Drop [%37] : ()
->   %39 = Block - : ()
->   %41 = Block - : ()
->   %42 = Scope %39 [] : ()
+>   %19 = Read borrow [$0] : string
+>   %21 = Store [$2] %19 : ()
+>   %22 = Ref local frame promoted [$2] : &string
+>   %23 = Call std/text/impl string.len[] (%22) : usize
+>   %24 = LoanEnd [%22] : ()
+>   %25 = Prim Gt [%23 0:usize] : bool
+>   %26 = Read borrow [$2] : string
+>   %27 = Intrinsic StrConcat [%26 "!"] : string
+>   %28 = NewVariant #0 [%27] : Result[string, SaveError]
+>   %29 = Block %28 : Result[string, SaveError]
+>   %30 = NewVariant #0 ["empty"] : SaveError
+>   %31 = NewVariant #1 [%30] : Result[string, SaveError]
+>   %32 = Block %31 : Result[string, SaveError]
+>   %33 = If %25 [%29 %32] : Result[string, SaveError]
+>   %34 = Break L1 %33 : never
+>   %35 = Block - : Result[string, SaveError]
+>   %36 = Scope %35 [] : Result[string, SaveError]
+>   %37 = Drop [%36] : ()
+>   %38 = Block - : ()
+>   %40 = Block - : ()
+>   %41 = Scope %38 [] : ()
     s.len()
->   %43 = Read borrow [$0] : string
->   %44 = Call std/rt.bytes/bytes_len[] (%43) : usize
->   %45 = Break L0 %44 : never
->   %46 = Block - : usize
->   %47 = Scope %46 [] : usize
+>   %42 = Read borrow [$0] : string
+>   %43 = Call std/rt.bytes/bytes_len[] (%42) : usize
+>   %44 = Break L0 %43 : never
+>   %45 = Block - : usize
+>   %46 = Scope %45 [] : usize
 >   summary kept [] borrows [$0]
 
 fn unused(s: string) -> usize:
+    _kept := s
 > app/main/unused
 >   local $0 s: string [param read] value
->     uses $0: entry -> %1 lend last
->   %0 = Release %6 Exit local $0 #2 : ()
-    _kept := s
->   %6 = Block %5 : usize
+>     uses $0: entry -> %0 lend last
+>   %5 = Release %6 Exit local $0 #2 : ()
+>   %6 = Block %4 : usize
     s.len()
->   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
->   %3 = Break L0 %2 : never
->   %4 = Block - : usize
->   %5 = Scope %4 [] : usize
+>   %0 = Read borrow [$0] : string
+>   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : usize
+>   %4 = Scope %3 [] : usize
 >   summary kept [] borrows [$0]

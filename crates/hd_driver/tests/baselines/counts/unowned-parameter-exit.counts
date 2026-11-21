@@ -6,4 +6,5 @@ fn length(parts: List[string], early: bool) -> usize:
 > app/main/length
 >   release List[string] (last use)
         return parts.len()
+>   release List[string] (last use)
     parts.len()

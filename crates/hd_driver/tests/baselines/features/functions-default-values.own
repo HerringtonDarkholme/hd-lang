@@ -67,40 +67,40 @@ fn with_given(s: string, out: &mut List[string]) -> usize:
 >   summary kept [$0] writes
 
 fn labeled(name: string, suffix: string = "!") -> string:
+    name + suffix
 > app/main/labeled
 >   local $0 name: string [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 suffix: string [param read] value
->     uses $1: entry -> %3 lend last
->   %0 = Release %5 Exit local $0 #2 : ()
->   %1 = Release %5 Exit local $1 #2 : ()
-    name + suffix
->   %2 = Read borrow [$0] : string
->   %3 = Read borrow [$1] : string
->   %4 = Intrinsic StrConcat [%2 %3] : string
->   %5 = Block %4 : string
+>     uses $1: entry -> %1 lend last
+>   %0 = Read borrow [$0] : string
+>   %1 = Read borrow [$1] : string
+>   %2 = Intrinsic StrConcat [%0 %1] : string
+>   %3 = Release %5 Exit local $0 #2 : ()
+>   %4 = Release %5 Exit local $1 #2 : ()
+>   %5 = Block %2 : string
 >   summary kept [] borrows [$0 $1]
 
 fn use_label(s: string) -> string:
+    labeled(s)
 > app/main/use_label
 >   local $0 s: string [param read] value
->     uses $0: entry -> %5 lend last
+>     uses $0: entry -> %4 lend last
 >   local $4 suffix: string [read] value
->     uses $4: %4 -> %6 lend last
->   %0 = Release %12 Exit local $0 #2 : ()
-    labeled(s)
->   %1 = Break L0 "!" : never
->   %2 = Block - : string
->   %3 = Scope %2 [] : string
->   %4 = Store [$4] %3 : ()
->   %5 = Read borrow [$0] : string
->   %6 = Read borrow [$4] : string
->   %7 = Intrinsic StrConcat [%5 %6] : string
->   %8 = Break L1 %7 : never
->   %9 = Block - : string
->   %10 = Scope %9 [] : string
->   %11 = Drop [$4] : ()
->   %12 = Block %10 : string
+>     uses $4: %3 -> %5 lend last
+>   %0 = Break L0 "!" : never
+>   %1 = Block - : string
+>   %2 = Scope %1 [] : string
+>   %3 = Store [$4] %2 : ()
+>   %4 = Read borrow [$0] : string
+>   %5 = Read borrow [$4] : string
+>   %6 = Intrinsic StrConcat [%4 %5] : string
+>   %7 = Break L1 %6 : never
+>   %8 = Block - : string
+>   %9 = Scope %8 [] : string
+>   %10 = Drop [$4] : ()
+>   %11 = Release %12 Exit local $0 #2 : ()
+>   %12 = Block %9 : string
 >   summary kept [] borrows [$0]
 
 fn reference_default['a](

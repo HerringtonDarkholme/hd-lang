@@ -512,11 +512,10 @@
     i32.add
     global.set $stack
   )
-  (func $eat (param $xs i32) (result i32) (local $t0 i32)
+  (func $eat (param $xs i32) (result i32)
     ;; 36 |     xs.len()
     local.get $xs
     i32.load $heap offset=4
-    local.set $t0
     local.get $xs
     if
       local.get $xs
@@ -528,7 +527,6 @@
         call $rt:release_ref
       end
     end
-    local.get $t0
   )
   (func $parameter (param $t1 i32) (param $early i32) (result i32) (local $held i32) (local $t0 i32)
     ;; 67 |     bump(&mut held)

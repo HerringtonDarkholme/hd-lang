@@ -39,8 +39,6 @@
     local.get $alias
     call $"impl Slots.push"
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
-    local.set $message.1
-    local.set $message.0
     local.get $p
     if
       local.get $p
@@ -63,8 +61,6 @@
         call $rt:release_ref
       end
     end
-    local.get $message.0
-    local.get $message.1
   )
 )
 == @build: checked
@@ -108,8 +104,6 @@
     local.get $alias
     call $"impl Slots.push"
     ;; 30 |     seen := read(p.get_ref().expect("slot"))
-    local.set $message.1
-    local.set $message.0
     local.get $p
     if
       local.get $p
@@ -140,8 +134,6 @@
     else
       call $skipped_test
     end
-    local.get $message.0
-    local.get $message.1
   )
 )
 == @build: release

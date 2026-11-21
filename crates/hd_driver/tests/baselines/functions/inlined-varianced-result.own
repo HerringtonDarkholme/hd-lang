@@ -50,52 +50,52 @@ fn control() -> fn(*i32) -> i32:
 >   summary kept []
 
 fn use_view(value: *i32) -> i32:
+    view()(value) + control()(value)
 > app/main/use_view
 >   local $0 value: *i32 [param read] value
->     uses $0: entry -> %6 lend, %10 lend last
->   %0 = Release %14 Exit local $0 #2 : ()
-    view()(value) + control()(value)
->   %1 = ItemRef #37 [..] : fn(&i32) -> i32
->   %2 = Coerce %1 [Weaken -] : fn(*i32) -> i32
->   %3 = Break L0 %2 : never
->   %4 = Block - : fn(*i32) -> i32
->   %5 = Scope %4 [] : fn(*i32) -> i32
->   %6 = Read borrow [$0] : *i32
->   %7 = CallValue %5 [%6] : i32
->   %8 = Drop [%5] : ()
->   %9 = Call app/main/control[] () : fn(*i32) -> i32
->   %10 = Read borrow [$0] : *i32
->   %11 = CallValue %9 [%10] : i32
->   %12 = Drop [%9] : ()
->   %13 = Prim Add [%7 %11] : i32
->   %14 = Block %13 : i32
+>     uses $0: entry -> %5 lend, %9 lend last
+>   %0 = ItemRef #37 [..] : fn(&i32) -> i32
+>   %1 = Coerce %0 [Weaken -] : fn(*i32) -> i32
+>   %2 = Break L0 %1 : never
+>   %3 = Block - : fn(*i32) -> i32
+>   %4 = Scope %3 [] : fn(*i32) -> i32
+>   %5 = Read borrow [$0] : *i32
+>   %6 = CallValue %4 [%5] : i32
+>   %7 = Drop [%4] : ()
+>   %8 = Call app/main/control[] () : fn(*i32) -> i32
+>   %9 = Read borrow [$0] : *i32
+>   %10 = CallValue %8 [%9] : i32
+>   %11 = Drop [%8] : ()
+>   %12 = Prim Add [%6 %10] : i32
+>   %13 = Release %14 Exit local $0 #2 : ()
+>   %14 = Block %12 : i32
 >   summary kept [] borrows [$0] writes
 
 fn use_early_view(first: bool, value: *i32) -> i32:
+    early_view(first)(value)
 > app/main/use_early_view
 >   local $0 first: bool [param read] value
->     uses $0: entry -> %1 consume last
+>     uses $0: entry -> %0 consume last
 >   local $1 value: *i32 [param read] value
->     uses $1: entry -> %14 lend last
+>     uses $1: entry -> %13 lend last
 >   local $2 first: bool [read] value
->     uses $2: %2 -> %3 lend last
->   %0 = Release %17 Exit local $1 #2 : ()
-    early_view(first)(value)
->   %1 = Read copy [$0] : bool
->   %2 = Store [$2] %1 : ()
->   %3 = Read copy [$2] : bool
->   %4 = ItemRef #19 [..] : fn(&i32) -> i32
->   %5 = Coerce %4 [Weaken -] : fn(*i32) -> i32
->   %6 = Break L0 %5 : never
->   %7 = Block - : never
->   %8 = If %3 [%7 -] : ()
->   %9 = ItemRef #33 [..] : fn(&i32) -> i32
->   %10 = Coerce %9 [Weaken -] : fn(*i32) -> i32
->   %11 = Break L0 %10 : never
->   %12 = Block - : fn(*i32) -> i32
->   %13 = Scope %12 [] : fn(*i32) -> i32
->   %14 = Read borrow [$1] : *i32
->   %15 = CallValue %13 [%14] : i32
->   %16 = Drop [%13] : ()
->   %17 = Block %15 : i32
+>     uses $2: %1 -> %2 lend last
+>   %0 = Read copy [$0] : bool
+>   %1 = Store [$2] %0 : ()
+>   %2 = Read copy [$2] : bool
+>   %3 = ItemRef #19 [..] : fn(&i32) -> i32
+>   %4 = Coerce %3 [Weaken -] : fn(*i32) -> i32
+>   %5 = Break L0 %4 : never
+>   %6 = Block - : never
+>   %7 = If %2 [%6 -] : ()
+>   %8 = ItemRef #33 [..] : fn(&i32) -> i32
+>   %9 = Coerce %8 [Weaken -] : fn(*i32) -> i32
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : fn(*i32) -> i32
+>   %12 = Scope %11 [] : fn(*i32) -> i32
+>   %13 = Read borrow [$1] : *i32
+>   %14 = CallValue %12 [%13] : i32
+>   %15 = Drop [%12] : ()
+>   %16 = Release %17 Exit local $1 #2 : ()
+>   %17 = Block %14 : i32
 >   summary kept [] borrows [$1] writes

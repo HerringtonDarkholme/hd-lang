@@ -10,67 +10,67 @@ enum Tag:
     Pair(left: string, right: string)
 
 fn pick(t: Tag) -> string:
+    match t:
 > app/main/pick
 >   local $0 t: Tag [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 n: string [read assigned] value
->     uses $1: %32 -> %2 lend last, %9 consume last
+>     uses $1: %31 -> %1 lend last, %8 consume last
 >   local $2 l: string [read assigned] value
->     uses $2: %41 -> %12 lend last, %24 consume last
+>     uses $2: %40 -> %11 lend last, %23 consume last
 >   local $3 r: string [read assigned] value
->     uses $3: %43 -> %17 lend last
+>     uses $3: %42 -> %16 lend last
 >   local $4 r: string [read assigned] value
->     uses $4: %47 -> %27 consume last
->   %0 = Release %55 Exit local $0 #2 : ()
-    match t:
->   %1 = Read borrow [$0] : Tag
->   %53 = Block - : never
->   %54 = Match %1 [%53 %11 %26 %29 %30] : string
->   %55 = Block %54 : string
+>     uses $4: %46 -> %26 consume last
+>   %0 = Read borrow [$0] : Tag
+>   %52 = Block - : never
+>   %53 = Match %0 [%52 %10 %25 %28 %29] : string
+>   %54 = Release %55 Exit local $0 #2 : ()
+>   %55 = Block %53 : string
         .Named(n) if n.len() > 3 => n
->   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L2 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Prim Gt [%6 3:usize] : bool
->   %8 = Block %7 : bool
->   %9 = Read copy [$1] : string
->   %10 = Retain %9 Value #0 : ()
->   %11 = Block %9 : string
->   %31 = Read borrow [%1 as #0 .0] : string
->   %32 = Store [$1] %31 : ()
->   %38 = Block - : never
->   %52 = SwitchTag %1 [#0 %38 %51] : never
+>   %1 = Read borrow [$1] : string
+>   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %3 = Break L2 %2 : never
+>   %4 = Block - : usize
+>   %5 = Scope %4 [] : usize
+>   %6 = Prim Gt [%5 3:usize] : bool
+>   %7 = Block %6 : bool
+>   %8 = Read copy [$1] : string
+>   %9 = Retain %8 Value #0 : ()
+>   %10 = Block %8 : string
+>   %30 = Read borrow [%0 as #0 .0] : string
+>   %31 = Store [$1] %30 : ()
+>   %37 = Block - : never
+>   %51 = SwitchTag %0 [#0 %37 %50] : never
         .Pair(right=r, left=l) if l.len() > r.len() => l
->   %12 = Read borrow [$2] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L1 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Read borrow [$3] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
->   %19 = Break L0 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = Prim Gt [%16 %21] : bool
->   %23 = Block %22 : bool
->   %24 = Read copy [$2] : string
->   %25 = Retain %24 Value #0 : ()
->   %26 = Block %24 : string
->   %39 = Read borrow [%1 as #1 .0] : string
->   %40 = Read borrow [%1 as #1 .1] : string
->   %41 = Store [$2] %39 : ()
->   %42 = Read borrow [%40] : string
->   %43 = Store [$3] %42 : ()
+>   %11 = Read borrow [$2] : string
+>   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %13 = Break L1 %12 : never
+>   %14 = Block - : usize
+>   %15 = Scope %14 [] : usize
+>   %16 = Read borrow [$3] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L0 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = Prim Gt [%15 %20] : bool
+>   %22 = Block %21 : bool
+>   %23 = Read copy [$2] : string
+>   %24 = Retain %23 Value #0 : ()
+>   %25 = Block %23 : string
+>   %38 = Read borrow [%0 as #1 .0] : string
+>   %39 = Read borrow [%0 as #1 .1] : string
+>   %40 = Store [$2] %38 : ()
+>   %41 = Read borrow [%39] : string
+>   %42 = Store [$3] %41 : ()
         .Pair(left=_, right=r) => r
->   %27 = Read copy [$4] : string
->   %28 = Retain %27 Value #0 : ()
->   %29 = Block %27 : string
->   %46 = Read borrow [%40] : string
->   %47 = Store [$4] %46 : ()
+>   %26 = Read copy [$4] : string
+>   %27 = Retain %26 Value #0 : ()
+>   %28 = Block %26 : string
+>   %45 = Read borrow [%39] : string
+>   %46 = Store [$4] %45 : ()
         _ => "short"
->   %30 = Block "short" : string
+>   %29 = Block "short" : string
 >   summary kept [] borrows [$0]
 
 fn whole(o: string?) -> usize:

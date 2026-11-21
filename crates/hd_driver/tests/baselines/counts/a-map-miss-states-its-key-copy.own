@@ -3,22 +3,22 @@
 # @build: v8 release
 # expected: insertion takes the string key's stated count only on a miss; scalar keys need none.
 fn bump(items: &mut Map[string, i32], key: string) -> void:
+    *items.get_or_insert(key, +0) += 1
 > app/main/bump
 >   local $0 items: &mut Map[string, i32] [param read] value
->     uses $0: entry -> %1 lend last
+>     uses $0: entry -> %0 lend last
 >   local $1 key: string [param read] value
->     uses $1: entry -> %2 lend last
->   %0 = Release %10 Exit local $1 #2 : ()
-    *items.get_or_insert(key, +0) += 1
->   %1 = Read borrow [$0] : &mut Map[string, i32]
->   %2 = Read borrow [$1] : string
->   %3 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%1, %2, 0:i32) : &mut i32
->   %4 = MakeUnique %3 Operation operand 0 #5 : ()
->   %5 = Retain %3 Operation operand 1 #0 : ()
->   %6 = Read copy [*%3] : i32
->   %7 = Prim Add [%6 1:i32] : i32
->   %8 = Store [*%3] %7 : ()
->   %9 = Drop [%3] : ()
+>     uses $1: entry -> %1 lend last
+>   %0 = Read borrow [$0] : &mut Map[string, i32]
+>   %1 = Read borrow [$1] : string
+>   %2 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, i32] (%0, %1, 0:i32) : &mut i32
+>   %3 = MakeUnique %2 Operation operand 0 #5 : ()
+>   %4 = Retain %2 Operation operand 1 #0 : ()
+>   %5 = Read copy [*%2] : i32
+>   %6 = Prim Add [%5 1:i32] : i32
+>   %7 = Store [*%2] %6 : ()
+>   %8 = Drop [%2] : ()
+>   %9 = Release %10 Exit local $1 #2 : ()
 >   %10 = Block - : ()
 >   summary kept [] borrows [$1] writes
 
