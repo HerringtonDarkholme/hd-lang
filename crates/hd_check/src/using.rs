@@ -211,7 +211,7 @@ impl Ck<'_, '_> {
         };
         Ok(matches!(
             self.solve(goal)?,
-            Answer::Holds { evidence, .. } if !matches!(evidence, Evidence::Poison)
+            Answer::Holds { evidence, obligations, .. } if obligations.is_empty() && !matches!(evidence, Evidence::Poison)
         ))
     }
 

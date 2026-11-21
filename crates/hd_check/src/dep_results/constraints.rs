@@ -10,9 +10,9 @@ use hd_types::{Ty, TyData};
 
 use super::{
     ANY, BOX_MSG, CallSig, DepSig, ELEM_MSG, FIELD_MSG, FN_PARAM_MSG, HELD_MSG, HOST_MSG, Inputs,
-    LITERAL, Layout, Layouts, NO_SOURCE, Origin, PATH, PROVIDER_MSG, RunLoans, STATIC, STATIC_MSG,
-    STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty, capture_slot, closure_allows, intrinsic_ops,
-    local_ref, referent, returned, scoped_uses, site, source_arg, w,
+    LITERAL, Layout, Layouts, NO_SOURCE, Origin, PATH, PROOF_MSG, PROVIDER_MSG, RunLoans, STATIC,
+    STATIC_MSG, STORE_FN_MSG, Set, Var, Verdicts, call_arg_ty, capture_slot, closure_allows,
+    intrinsic_ops, local_ref, referent, returned, scoped_uses, site, source_arg, w,
 };
 use crate::local_refs::{capturing_field, holds_local_ref};
 use crate::regions::{Category, Constraints, Edge, Loan, Region, RegionTable, Solution};
@@ -2130,7 +2130,10 @@ impl Gen<'_, '_> {
         // written `&'static T` (`ref.static.value`).
         let statik = |o: Origin| {
             matches!(o, Origin::Static(_))
-                || r.own.is_some_and(|(own, _)| own.allows(ls, o, STATIC))
+                || r.own
+                    .map(|(own, _)| own)
+                    .or(self.s.own)
+                    .is_some_and(|own| own.allows(ls, o, STATIC))
         };
         let allowed = |e: &Edge, l: Loan| {
             let o = self.loans[l as usize];
@@ -2143,7 +2146,7 @@ impl Gen<'_, '_> {
                     e.cat != Category::Result || !results[&e.to].1.contains(&(PATH + k))
                 }
                 Category::Flow => true,
-                Category::Static => statik(o),
+                Category::Static | Category::StaticParam | Category::StaticProof => statik(o),
                 Category::Result => match (results[&e.to], r.own) {
                     ((None, ids), _) if ids.contains(&STATIC) => statik(o),
                     ((None, ids), Some((own, _))) => ids.iter().any(|&id| own.allows(ls, o, id)),
@@ -2262,6 +2265,7 @@ fn message(cat: Category, tag: Tag) -> &'static str {
         (Category::Provider, _) => PROVIDER_MSG,
         (Category::HostCall, _) => HOST_MSG,
         (Category::StaticParam, _) => STATIC_MSG,
+        (Category::StaticProof, _) => PROOF_MSG,
         (Category::FieldCapture, Tag::Store) => STORE_FN_MSG,
         (Category::FieldCapture, Tag::Intrinsic) => ELEM_MSG,
         (Category::FieldCapture, Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue)

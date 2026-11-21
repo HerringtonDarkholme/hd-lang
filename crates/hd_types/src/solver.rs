@@ -27,6 +27,165 @@ use crate::sealed::Row;
 pub use crate::sealed::{CopyDecl, Declarations, SealedTraits, TypeDecl};
 use crate::unify::VarKind;
 
+/// Deferred static requirements of a successful proof. Impl edges retain
+/// positions through their selected row and plan step, not type equality.
+#[derive(Clone, Default)]
+pub struct RegionObligations(Option<std::sync::Arc<RegionProof>>);
+
+pub type RegionParts<'a> = (Option<ImplRef>, TyList, &'a [(u16, RegionObligations)]);
+
+struct RegionProof {
+    row: Option<ImplRef>,
+    args: TyList,
+    steps: Vec<(u16, RegionObligations)>,
+    flags: u8,
+}
+
+#[cfg(test)]
+type RegionShape = (Option<ImplRef>, TyList, Vec<(u16, usize)>);
+
+impl RegionObligations {
+    #[must_use]
+    pub fn key(&self) -> usize {
+        self.0
+            .as_ref()
+            .map_or(0, |p| std::sync::Arc::as_ptr(p) as usize)
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_none()
+    }
+
+    /// None is the static leaf; Some supplies the selected impl inputs.
+    #[must_use]
+    pub fn parts(&self) -> Option<RegionParts<'_>> {
+        self.0.as_ref().map(|p| (p.row, p.args, p.steps.as_slice()))
+    }
+
+    fn new(pool: Types<'_>, row: Option<ImplRef>, args: TyList, steps: Vec<(u16, Self)>) -> Self {
+        let flags = u8::from(pool.list_has_infer(args))
+            | (u8::from(pool.list_has_canon(args)) << 1)
+            | steps.iter().fold(0, |f, (_, p)| f | p.flags());
+        Self(Some(std::sync::Arc::new(RegionProof {
+            row,
+            args,
+            steps,
+            flags,
+        })))
+    }
+
+    fn flags(&self) -> u8 {
+        self.0.as_ref().map_or(0, |p| p.flags)
+    }
+
+    /// Each distinct node is mapped once. Closed memo replay is O(1).
+    fn try_map<E>(
+        &self,
+        pool: Types<'_>,
+        flag: u8,
+        mut map: impl FnMut(TyList) -> Result<TyList, E>,
+    ) -> Result<Self, E> {
+        if self.flags() & flag == 0 {
+            return Ok(self.clone());
+        }
+        let mut done = HashMap::<usize, Self>::default();
+        let mut work = vec![(self, false)];
+        while let Some((p, exit)) = work.pop() {
+            if done.contains_key(&p.key()) {
+                continue;
+            }
+            if p.flags() & flag == 0 {
+                done.insert(p.key(), p.clone());
+                continue;
+            }
+            let Some(node) = &p.0 else { continue };
+            if exit {
+                let steps = node
+                    .steps
+                    .iter()
+                    .map(|(s, p)| (*s, done[&p.key()].clone()))
+                    .collect();
+                done.insert(p.key(), Self::new(pool, node.row, map(node.args)?, steps));
+            } else {
+                work.push((p, true));
+                work.extend(node.steps.iter().map(|(_, p)| (p, false)));
+            }
+        }
+        Ok(done[&self.key()].clone())
+    }
+
+    #[cfg(test)]
+    fn shape(&self) -> Vec<RegionShape> {
+        let mut done = HashMap::<usize, usize>::default();
+        let mut interned = HashMap::<RegionShape, usize>::default();
+        let mut shapes = Vec::new();
+        let mut work = vec![(self, false)];
+        while let Some((p, exit)) = work.pop() {
+            if p.is_empty() || done.contains_key(&p.key()) {
+                continue;
+            }
+            let Some(node) = &p.0 else { continue };
+            if exit {
+                let shape = (
+                    node.row,
+                    node.args,
+                    node.steps
+                        .iter()
+                        .map(|(s, p)| (*s, if p.is_empty() { 0 } else { done[&p.key()] }))
+                        .collect(),
+                );
+                let next = shapes.len() + 1;
+                let id = *interned.entry(shape.clone()).or_insert_with(|| {
+                    shapes.push(shape);
+                    next
+                });
+                done.insert(p.key(), id);
+            } else {
+                work.push((p, true));
+                work.extend(node.steps.iter().map(|(_, p)| (p, false)));
+            }
+        }
+        shapes
+    }
+}
+
+impl PartialEq for RegionObligations {
+    fn eq(&self, other: &Self) -> bool {
+        // A retained proof is an opaque query-result handle. Equality
+        // identifies that result, not independently equivalent derivations.
+        self.key() == other.key()
+    }
+}
+impl Eq for RegionObligations {}
+impl std::fmt::Debug for RegionObligations {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.is_empty() {
+            "NoOutlivesRequirement"
+        } else {
+            "DeferredOutlivesRequirement"
+        })
+    }
+}
+impl Drop for RegionObligations {
+    fn drop(&mut self) {
+        let Some(root) = self.0.take() else { return };
+        // Follow std Arc::into_inner's linked-list destructor, including
+        // concurrent last owners; native stack depth never follows input.
+        let Some(root) = std::sync::Arc::into_inner(root) else {
+            return;
+        };
+        let mut pending = vec![root];
+        while let Some(mut node) = pending.pop() {
+            for (_, p) in &mut node.steps {
+                if let Some(child) = p.0.take().and_then(std::sync::Arc::into_inner) {
+                    pending.push(child);
+                }
+            }
+        }
+    }
+}
+
 /// A trait reference: `self_ty: trait_[args]` (§2.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TraitRef {
@@ -1027,6 +1186,7 @@ const CYCLE: u8 = u8::MAX;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CanonAnswer {
     Holds {
+        obligations: RegionObligations,
         evidence: Evidence,
         learned: Vec<(u8, Ty)>,
     },
@@ -1626,6 +1786,7 @@ pub struct FailInfo {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Answer {
     Holds {
+        obligations: RegionObligations,
         evidence: Evidence,
         learned: Vec<(InferVar, Ty)>,
     },
@@ -1947,7 +2108,14 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
     };
     let mut place = Leaves::infer(&mut place);
     Some(match a {
-        Answer::Holds { evidence, learned } => CanonAnswer::Holds {
+        Answer::Holds {
+            evidence,
+            learned,
+            obligations,
+        } => CanonAnswer::Holds {
+            obligations: obligations
+                .try_map(pool, 1, |args| fold_list(pool, args, &mut place))
+                .ok()?,
             evidence: match evidence {
                 Evidence::Impl { row, args } => Evidence::Impl {
                     row: *row,
@@ -2010,7 +2178,17 @@ fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer 
         l
     };
     match a {
-        CanonAnswer::Holds { evidence, learned } => Answer::Holds {
+        CanonAnswer::Holds {
+            evidence,
+            learned,
+            obligations,
+        } => Answer::Holds {
+            obligations: match obligations.try_map(pool, 2, |args| {
+                Ok::<_, std::convert::Infallible>(list(args, &mut back))
+            }) {
+                Ok(p) => p,
+                Err(never) => match never {},
+            },
             evidence: match evidence {
                 Evidence::Impl { row, args } => Evidence::Impl {
                     row: *row,
@@ -2866,6 +3044,7 @@ impl<'s, 'a> Search<'s, 'a> {
         let impls = self.cx.impls;
         if pool.has_poison(tref.self_ty) {
             let holds = Answer::Holds {
+                obligations: RegionObligations::default(),
                 evidence: Evidence::Poison,
                 learned: vec![],
             };
@@ -2882,6 +3061,7 @@ impl<'s, 'a> Search<'s, 'a> {
                 // every trait for its parameter.
                 if env.clause_self[i] == self_ty && env.clause_trait[i] == DefId::NONE {
                     let holds = Answer::Holds {
+                        obligations: RegionObligations::default(),
                         evidence: Evidence::Poison,
                         learned: vec![],
                     };
@@ -2897,6 +3077,7 @@ impl<'s, 'a> Search<'s, 'a> {
                     let learned = learned_from(pool, env.clause_args[i], tref.args);
                     let index = u16::try_from(i).unwrap_or(u16::MAX);
                     let holds = Answer::Holds {
+                        obligations: RegionObligations::default(),
                         evidence: Evidence::Bound { param, index },
                         learned,
                     };
@@ -2925,6 +3106,7 @@ impl<'s, 'a> Search<'s, 'a> {
                 trait_value_holds(pool, self.cx.decls, (def, args), self_ty, tref)
         {
             let holds = Answer::Holds {
+                obligations: RegionObligations::default(),
                 evidence: Evidence::TraitValue { trait_: def },
                 learned,
             };
@@ -3101,6 +3283,7 @@ impl<'s, 'a> Search<'s, 'a> {
                 let expected = pool.list(&[input, result, row]);
                 match match_list(pool, DefId::NONE, expected, tref.args, &mut Vec::new()) {
                     M::Yes => Answer::Holds {
+                        obligations: RegionObligations::default(),
                         evidence: Evidence::Builtin(
                             if tref.trait_ == self.cx.decls.sealed().fn_mut_trait {
                                 BuiltinImpl::FnMut
@@ -3198,6 +3381,20 @@ impl<'s, 'a> Search<'s, 'a> {
         }
         let holds = Outcome {
             answer: Answer::Holds {
+                obligations: if b == BuiltinImpl::Static
+                    && !matches!(
+                        self.cx.pool.get(cg.self_ty),
+                        TyData::Prim(_)
+                            | TyData::Never
+                            | TyData::Poison
+                            | TyData::Const(_)
+                            | TyData::Row(_)
+                            | TyData::Context(_)
+                    ) {
+                    RegionObligations::new(self.cx.pool, None, TyList::EMPTY, Vec::new())
+                } else {
+                    RegionObligations::default()
+                },
                 evidence: Evidence::Builtin(b),
                 learned: vec![],
             },
@@ -3221,6 +3418,7 @@ impl<'s, 'a> Search<'s, 'a> {
         let mut height = 1;
         let mut step_args = args.clone();
         let mut goals = row_goals(pool, self.cx.impls, t, r, &step_args);
+        let mut requirements = Vec::new();
         let mut k = 0;
         while let Some(&(step, sub)) = goals.get(k) {
             k += 1;
@@ -3236,7 +3434,14 @@ impl<'s, 'a> Search<'s, 'a> {
                 continue;
             }
             match o.answer {
-                Answer::Holds { learned, .. } => {
+                Answer::Holds {
+                    learned,
+                    obligations,
+                    ..
+                } => {
+                    if !obligations.is_empty() {
+                        requirements.push((step, obligations));
+                    }
                     // A bare variable that a step learned fixes the impl
                     // argument for the later steps, as the default `Copy`
                     // bound after `I < Iterator[T]` (`ref.copy.generic.default`).
@@ -3291,6 +3496,11 @@ impl<'s, 'a> Search<'s, 'a> {
             .collect();
         Ok(Outcome {
             answer: Answer::Holds {
+                obligations: if requirements.is_empty() {
+                    RegionObligations::default()
+                } else {
+                    RegionObligations::new(pool, Some(row), pool.list(&step_args), requirements)
+                },
                 evidence: Evidence::Impl {
                     row,
                     args: pool.list(&args),
@@ -3487,6 +3697,7 @@ impl Search<'_, '_> {
         match pool.get(self_ty) {
             TyData::Poison => {
                 let holds = Answer::Holds {
+                    obligations: RegionObligations::default(),
                     evidence: Evidence::Poison,
                     learned: vec![],
                 };
@@ -4154,6 +4365,7 @@ mod tests {
         }
     }
 
+    use super::RegionObligations;
     use super::{
         BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
         ImplUniverses, M, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
@@ -4972,6 +5184,7 @@ mod tests {
                 Answer::Holds {
                     evidence: Evidence::Impl { row, .. },
                     learned,
+                    ..
                 },
                 key,
             ) => {
@@ -7332,6 +7545,7 @@ mod tests {
         let p = gp.types();
         let (table, [pick, show, ..]) = pick_table(p);
         let expected = Answer::Holds {
+            obligations: RegionObligations::default(),
             evidence: Evidence::Poison,
             learned: vec![],
         };
@@ -7495,5 +7709,117 @@ mod tests {
                 assert!(groups.is_empty());
             });
         }
+    }
+}
+
+#[cfg(test)]
+mod region_transport_tests {
+    use super::*;
+    use crate::{InternPool, LocalPool};
+
+    #[test]
+    fn canonical_replay_remaps_retained_arguments() -> Result<(), &'static str> {
+        let (global, local) = (InternPool::new(), LocalPool::new());
+        let pool = Types::with_local(&global, &local);
+        let from = InferVar::from_raw(10);
+        let to = InferVar::from_raw(20);
+        let vars = |v| CanonVars {
+            map: vec![v],
+            kinds: vec![VarKind::General],
+        };
+        let answer = Answer::Holds {
+            evidence: Evidence::Builtin(BuiltinImpl::Static),
+            learned: Vec::new(),
+            obligations: RegionObligations::new(
+                pool,
+                Some(ImplRef {
+                    module: ModuleId::from_raw(0),
+                    row: 0,
+                }),
+                pool.list(&[pool.intern_ty(&TyData::Infer(from))]),
+                vec![(
+                    0,
+                    RegionObligations::new(pool, None, TyList::EMPTY, Vec::new()),
+                )],
+            ),
+        };
+        let canonical =
+            canon_answer(pool, &answer, &vars(from)).ok_or("proof did not canonicalize")?;
+        let Answer::Holds { obligations, .. } = decanon_answer(pool, &canonical, &vars(to)) else {
+            return Err("proof did not replay");
+        };
+        let (_, args, steps) = obligations.parts().ok_or("replayed proof lost its impl")?;
+        assert_eq!(pool.list_items(args), &[pool.intern_ty(&TyData::Infer(to))]);
+        assert!(!steps[0].1.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn shared_mapping_and_closed_replay_count_actual_mapper_calls() -> Result<(), &'static str> {
+        let (global, local) = (InternPool::new(), LocalPool::new());
+        let pool = Types::with_local(&global, &local);
+        let infer = pool.list(&[pool.intern_ty(&TyData::Infer(InferVar::from_raw(0)))]);
+        for width in [100, 1000] {
+            let mut proof = RegionObligations::new(pool, None, TyList::EMPTY, Vec::new());
+            for _ in 0..20 {
+                proof = RegionObligations::new(
+                    pool,
+                    Some(ImplRef {
+                        module: ModuleId::from_raw(0),
+                        row: 0,
+                    }),
+                    infer,
+                    (0..width).map(|step| (step, proof.clone())).collect(),
+                );
+            }
+            let mut calls = 0;
+            let mapped = proof.try_map(pool, 1, |_| {
+                calls += 1;
+                Ok::<_, &'static str>(pool.list(&[Ty::I32]))
+            })?;
+            assert_eq!(calls, 20);
+            assert_eq!(mapped.shape().len(), 21);
+            let replay = mapped.try_map(pool, 1, |args| {
+                calls += 1;
+                Ok::<_, &'static str>(args)
+            })?;
+            assert_eq!(calls, 20);
+            assert_eq!(mapped.key(), replay.key());
+            assert_eq!(mapped, replay);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deep_shared_proofs_drop_iteratively_with_concurrent_last_owners() -> Result<(), &'static str>
+    {
+        let global = InternPool::new();
+        let pool = global.types();
+        let mut proof = RegionObligations::new(pool, None, TyList::EMPTY, Vec::new());
+        for _ in 0..10_000 {
+            proof = RegionObligations::new(
+                pool,
+                Some(ImplRef {
+                    module: ModuleId::from_raw(0),
+                    row: 0,
+                }),
+                TyList::EMPTY,
+                vec![(0, proof)],
+            );
+        }
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let spawn = |proof, barrier: std::sync::Arc<std::sync::Barrier>| {
+            std::thread::Builder::new()
+                .stack_size(64 * 1024)
+                .spawn(move || {
+                    barrier.wait();
+                    drop(proof);
+                })
+        };
+        let a = spawn(proof.clone(), barrier.clone()).map_err(|_| "start first worker")?;
+        let b = spawn(proof, barrier).map_err(|_| "start second worker")?;
+        a.join().map_err(|_| "first worker failed")?;
+        b.join().map_err(|_| "second worker failed")?;
+        Ok(())
     }
 }

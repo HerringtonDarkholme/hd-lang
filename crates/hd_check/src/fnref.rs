@@ -781,7 +781,7 @@ impl Ck<'_, '_> {
             self.impl_bounds_of(*def, args, n)?;
         }
         let inst = |x: Ty| inst(pool, m, x);
-        self.bounds_of(&m.sig, &m.vars, &inst, n)
+        self.bounds_of(m.def, &m.sig, &m.vars, &inst, n)
     }
 
     /// Records the reference's type variables, decided at the end of the

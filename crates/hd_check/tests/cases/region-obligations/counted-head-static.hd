@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn number(&self) -> i32
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for *mut Wrapped[T]:
+    fn number(&self) -> i32:
+        +7
+
+fn saved[T < Saved](value: T) -> i32:
+    value.number()
+
+# expected: a counted impl head preserves the static reference's slot
+fn accepted(value: *mut Wrapped[&'static i32]) -> i32:
+    saved(value)

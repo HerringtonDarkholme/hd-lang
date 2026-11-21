@@ -1,3 +1,1 @@
 path	issue	engine	reason
-lang/references/static-references/static-reference-stored-and-called.hd	#1435		`T < 'static` rejects a `&T` argument by its type; the static source is not asked
-lang/references/static-references/static-reference-bound-with-sub-obligations.hd	#1435		`Saved` selects an impl with a static sub-obligation; successful solver answers do not yet carry region obligations

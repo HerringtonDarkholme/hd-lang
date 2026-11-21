@@ -1491,6 +1491,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let inner = t;
         if inner == Ty::NEVER {
             return Ok(Answer::Holds {
+                obligations: hd_types::solver::RegionObligations::default(),
                 evidence: hd_types::solver::Evidence::Poison,
                 learned: Vec::new(),
             });

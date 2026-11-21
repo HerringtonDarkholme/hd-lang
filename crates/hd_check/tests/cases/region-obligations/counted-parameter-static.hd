@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+struct Wrapped[T]:
+    value: T
+
+fn require_static[T < 'static](value: *mut Wrapped[T]) -> void:
+    pass
+
+# expected: the structured parameter accepts the static slot
+fn inspect(value: *mut Wrapped[&'static i32]) -> void:
+    require_static(value)
