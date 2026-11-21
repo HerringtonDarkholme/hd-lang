@@ -23,7 +23,7 @@
 
 use hd_base::HashMap;
 
-use hd_base::{DefId, LocalId, StageResult, Symbol};
+use hd_base::{DefId, LocalId, NotImplemented, Stage, StageResult, Symbol};
 use hd_diag::DiagBuf;
 use hd_resolve::error_type::{ErrorShape, Generated, Message, interpolated, label};
 use hd_resolve::{Field, FnSig, ItemData};
@@ -56,7 +56,10 @@ pub fn error_bodies(
     diags: &mut DiagBuf,
 ) -> StageResult<Vec<Body>> {
     let names = &cx.names;
-    let item = cx.lookup.item(ty).expect("resolved @error target");
+    let item = cx
+        .lookup
+        .item(ty)
+        .ok_or_else(|| invalid_error_metadata("resolved @error target"))?;
     let fields = hd_resolve::error_type::fields(&item.data)
         .into_iter()
         .map(<[Field]>::to_vec)
@@ -371,10 +374,7 @@ impl Target<'_, '_> {
         };
         let pool = ck.cx.names.pool;
         let option = ck.cx.names.known.option;
-        let Some(erased) = pool.sole_arg(ret, option) else {
-            // ruled out: std's `Error.source` returns `(*Error)?`.
-            unreachable!("stdpack Error.source returns an optional reference");
-        };
+        let erased = source_payload(ck.cx, ret)?;
         if let (Message::Transparent, [f]) = (v.message, fs) {
             let node = v.members[0].node;
             let t = own(f.ty);
@@ -422,5 +422,134 @@ impl Target<'_, '_> {
         let (r, t) = ck.new_object_ref(r, t, false, node);
         let d = ck.coerce(r, t, erased, node, "a cause", ExpectPosition::General);
         Ok(ck.coerce(d, erased, ret, node, "a cause", ExpectPosition::General))
+    }
+}
+
+/// The exact payload of std's optional `Error.source` result.
+fn source_payload(cx: &BodyCx<'_>, ret: Ty) -> StageResult<Ty> {
+    cx.names
+        .pool
+        .sole_arg(ret, cx.names.known.option)
+        .ok_or_else(|| invalid_error_metadata("optional Error.source result"))
+}
+
+#[cold]
+fn invalid_error_metadata(needed: &str) -> NotImplemented {
+    NotImplemented::bug(Stage::Body, format!("error derivation requires {needed}"))
+}
+
+#[cfg(test)]
+mod metadata_tests {
+    use super::{error_bodies, source_payload};
+    use hd_base::Stage;
+    use hd_diag::DiagBuf;
+    use hd_resolve::error_type::ErrorShape;
+    use hd_types::{Ty, TyData, TyList};
+
+    #[test]
+    fn missing_target_metadata_returns_before_generating_bodies() {
+        crate::body::with_checker(|ck| {
+            let shape = ErrorShape {
+                line: ck.cx.src.parse.tree.root(),
+                is_enum: false,
+                variants: Vec::new(),
+            };
+            let mut diags = DiagBuf::default();
+            let error = error_bodies(ck.cx, hd_base::DefId::from_raw(1), &shape, &mut diags)
+                .expect_err("missing resolved declaration");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+            assert_eq!(
+                error.what,
+                "error derivation requires resolved @error target"
+            );
+            assert!(diags.is_empty());
+        });
+    }
+
+    #[test]
+    fn malformed_source_result_propagates_without_emitting_an_arm() {
+        crate::body::with_checker(|ck| {
+            let node = ck.cx.src.parse.tree.root();
+            let shape = ErrorShape {
+                line: node,
+                is_enum: false,
+                variants: vec![hd_resolve::error_type::ErrVariant {
+                    node,
+                    message: hd_resolve::error_type::Message::Absent,
+                    members: Vec::new(),
+                }],
+            };
+            let target = super::Target {
+                ty: hd_base::DefId::from_raw(1),
+                shape: &shape,
+                fields: vec![Vec::new()],
+                variants: Vec::new(),
+                shared: Vec::new(),
+            };
+            let before = (ck.b.body().len(), ck.b.body().extra.len());
+            let error = target
+                .cause_arm(
+                    ck,
+                    (hd_base::LocalId::from_raw(0), Ty::I32),
+                    0,
+                    Ty::I32,
+                    &|ty| ty,
+                )
+                .expect_err("malformed source signature");
+            assert_eq!(error.stage, Stage::Body);
+            assert!(error.bug);
+            assert_eq!(
+                error.what,
+                "error derivation requires optional Error.source result"
+            );
+            assert_eq!((ck.b.body().len(), ck.b.body().extra.len()), before);
+        });
+    }
+
+    #[test]
+    fn optional_source_payload_is_preserved_and_malformed_metadata_is_fallible() {
+        crate::body::with_checker(|ck| {
+            let pool = ck.cx.names.pool;
+            let option = ck.cx.names.known.option;
+            let erased = pool.intern_ty(&TyData::TraitValue {
+                def: ck.cx.names.known.error,
+                args: TyList::EMPTY,
+                bindings: Vec::new(),
+            });
+            let reference = pool.intern_ty(&TyData::Ref {
+                inner: erased,
+                mutable: false,
+                counted: false,
+            });
+            for payload in [Ty::I32, Ty::STRING, ck.optional(Ty::STRING), reference] {
+                assert_eq!(
+                    source_payload(ck.cx, ck.optional(payload)).expect("optional result"),
+                    payload,
+                );
+            }
+            let no_args = pool.intern_ty(&TyData::Adt {
+                def: option,
+                args: TyList::EMPTY,
+            });
+            let two_args = pool.intern_ty(&TyData::Adt {
+                def: option,
+                args: pool.list(&[Ty::I32, Ty::STRING]),
+            });
+            let foreign = pool.applied(ck.cx.names.known.string_builder, Ty::I32);
+            let before = (ck.b.body().len(), ck.b.body().extra.len());
+            for ret in [Ty::I32, Ty::POISON, no_args, two_args, foreign] {
+                let error = source_payload(ck.cx, ret).expect_err("non-optional result");
+                assert_eq!(error.stage, Stage::Body);
+                assert!(error.bug);
+                assert!(!error.out_of_fuel);
+                assert_eq!(
+                    error.what,
+                    "error derivation requires optional Error.source result"
+                );
+            }
+            assert_eq!((ck.b.body().len(), ck.b.body().extra.len()), before);
+        });
     }
 }
