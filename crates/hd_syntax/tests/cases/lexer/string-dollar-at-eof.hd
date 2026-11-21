@@ -1,0 +1,3 @@
+# @dump: tokens
+# expected: preserve the final dollar in the unterminated string.
+value := "last $

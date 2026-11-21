@@ -8,4 +8,5 @@ mod fuzz;
 mod legacy_syntax;
 mod messages;
 mod parents;
+mod source_boundaries;
 mod stages;
