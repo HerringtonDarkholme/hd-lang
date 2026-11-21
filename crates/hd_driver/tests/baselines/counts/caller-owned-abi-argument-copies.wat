@@ -25,7 +25,7 @@
     local.tee $t2
     local.get $t1
     i32.const 0
-    i32.const 362 ;; &"s"
+    i32.const 345 ;; &"s"
     i32.const 1
     call $"impl StringBuilder.value_text"
     local.get $t2
