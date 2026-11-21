@@ -658,3 +658,94 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     });
     Row::Holds(BuiltinImpl::Static, subs)
 }
+
+#[cfg(test)]
+mod coverage_contracts {
+    use super::*;
+
+    struct Decl {
+        sealed: SealedTraits,
+        unavailable: bool,
+    }
+
+    impl Declarations for Decl {
+        fn sealed(&self) -> &SealedTraits {
+            &self.sealed
+        }
+        fn type_decl(&self, _: DefId) -> TypeDecl {
+            TypeDecl::Builtin
+        }
+        fn supertraits(&self, _: DefId) -> &[Ty] {
+            &[]
+        }
+        fn has_unavailable_member(&self, _: DefId) -> bool {
+            self.unavailable
+        }
+        fn is_local(&self, _: DefId) -> bool {
+            false
+        }
+        fn copy_decl(&self, _: DefId) -> CopyDecl {
+            CopyDecl::Copies
+        }
+        fn trait_requires_copy(&self, _: DefId) -> bool {
+            false
+        }
+    }
+
+    #[test]
+    fn default_reference_member_availability_delegates_for_both_permissions() {
+        for unavailable in [false, true] {
+            let decl = Decl {
+                sealed: SealedTraits::default(),
+                unavailable,
+            };
+            let declarations: &dyn Declarations = &decl;
+            for mutable in [false, true] {
+                assert_eq!(
+                    declarations.has_unavailable_reference_member(DefId::from_raw(1), mutable),
+                    unavailable
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn projected_static_rows_keep_base_and_argument_subgoals() {
+        let global = crate::InternPool::new();
+        let p = global.types();
+        let owner = DefId::from_raw(1);
+        let base = p.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
+        let argument = p.intern_ty(&TyData::Param(ParamRef { owner, index: 1 }));
+        let reference = p.intern_ty(&TyData::Ref {
+            inner: Ty::BOOL,
+            mutable: false,
+            counted: true,
+        });
+        let projection = |base, args: &[Ty]| {
+            p.intern_ty(&TyData::Assoc {
+                assoc: DefId::from_raw(2),
+                trait_: owner,
+                self_ty: base,
+                args: p.list(args),
+            })
+        };
+        assert_eq!(
+            static_row(p, projection(base, &[Ty::I32, reference, argument])),
+            Row::Holds(BuiltinImpl::Static, vec![base, reference, argument]),
+        );
+        assert_eq!(
+            static_row(p, projection(Ty::I32, &[Ty::BOOL])),
+            Row::Holds(BuiltinImpl::Static, vec![]),
+        );
+        let local = p.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+            counted: false,
+        });
+        assert_eq!(
+            static_row(p, projection(Ty::I32, &[local])),
+            Row::Holds(BuiltinImpl::Static, vec![local]),
+        );
+        assert_eq!(static_row(p, local), Row::Fails(FailReason::NoImpl));
+    }
+}
