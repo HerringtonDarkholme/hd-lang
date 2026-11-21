@@ -2,7 +2,7 @@
 
 Status: accepted design (owner, 2026-11-18: "accept all your
 recommendations"); domain: compiler internals. Built as of 2026-11-20:
-steps 0, 1, 2a, 3, 5 and 6, plus step 4a's boundary decisions.
+steps 0, 1, 2a, 3, 3b, 5 and 6, plus step 4a's boundary decisions.
 Step 4b's per-type count and drop shims remain in #2173. It replaces
 `INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
