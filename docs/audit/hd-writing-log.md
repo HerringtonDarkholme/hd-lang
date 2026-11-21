@@ -1299,3 +1299,5 @@ says that the check covered syntax only.
 | 2026-11-20 | #1804 Debug escape scan | api | `char_from_scalar(u32(bytes_at(text, at))).unwrap()` | ``unknown-method: no method `unwrap` on char?; use `expect(message)` or `unwrap_or(fallback)` `` | yes; the diagnostic and fix-it named `expect` | `.expect("an ASCII search byte is a scalar")`; the search set contains only valid ASCII scalars | GPT-6 (Codex) |
 
 | 2026-11-20 | #2228 Debug escape scan | api | `hd fmt lib/std/format.hd crates/hd_driver/tests/cases/stdlib/debug-escape-byte-runs.hd` | ``error: `hd fmt` takes at most one FILE`` | yes | Run `hd fmt` separately for each file | GPT-6 (Codex) |
+
+| 2026-11-21 | #1442 resolver variance stages | type | `values: (i32, T...)` | `` a rest element's type must be a `List` `` | yes | `values: (i32, List[T]...)` | GPT-6 (Codex) |
