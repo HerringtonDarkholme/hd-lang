@@ -69,8 +69,7 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 422,
-      "explanation": "Reclassified, no proof lost (#2173 step 4, measured against 9261054b1: 1,260 sites fell to 1,250). Runtime glue now states a small struct's counts inline (rt:drop +4, rt:drop_elems +10), which were 15 'stored' release sites in release_value shim bodies; runtime glue has no TIR reason, so each reads as a source call. A collection's copy moved from rt:coll_copy (8) and rt:retain_known (-6) to rt:retain_coll (9) and rt:copy_elems (+2); two rt:release_spilled sites are gone."
+      "sites": 388
     },
     {
       "reason": "conservative: unique",
