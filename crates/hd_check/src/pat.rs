@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 
-use hd_base::{LocalId, NodeIdx, StageResult};
+use hd_base::{LocalId, NodeIdx, NotImplemented, Stage, StageResult};
 use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
@@ -2435,26 +2435,20 @@ impl Ck<'_, '_> {
         if p.kind() == SyntaxKind::RangePattern {
             // `flow.match.range.*`: bound comparisons, no range value.
             let bounds = self.range_bounds(p);
-            let mut tests = Vec::new();
-            if let Some(lo) = bounds.lo {
+            let lo = bounds.lo.map(|lo| {
                 let (l, _) = self.bound_literal(lo, t, p);
-                tests.push(self.b.prim(PrimOp::Ge as u32, &[v, l], Ty::BOOL, p.index()));
-            }
-            if let Some(hi) = bounds.hi {
+                self.b.prim(PrimOp::Ge as u32, &[v, l], Ty::BOOL, p.index())
+            });
+            let hi = bounds.hi.map(|hi| {
                 let (h, _) = self.bound_literal(hi, t, p);
                 let op = if bounds.inclusive {
                     PrimOp::Le
                 } else {
                     PrimOp::Lt
                 };
-                tests.push(self.b.prim(op as u32, &[v, h], Ty::BOOL, p.index()));
-            }
-            // The parser builds a range pattern with a bound.
-            let test = tests.into_iter().reduce(|a, c| {
-                self.b
-                    .prim(PrimOp::And as u32, &[a, c], Ty::BOOL, p.index())
+                self.b.prim(op as u32, &[v, h], Ty::BOOL, p.index())
             });
-            return Ok(test.expect("a range pattern's bound"));
+            return self.range_comparison(lo, hi, p.index());
         }
         let (lit, _) = self.pattern_literal(p, Some(t))?;
         let pool = self.pool();
@@ -2472,6 +2466,24 @@ impl Ck<'_, '_> {
         Ok(self
             .b
             .prim(PrimOp::Eq as u32, &[v, lit], Ty::BOOL, p.index()))
+    }
+
+    /// Combine the comparisons of the written range bounds, in source order.
+    /// A range pattern must have at least one bound (`flow.match.range.*`).
+    fn range_comparison(
+        &mut self,
+        lo: Option<Ref>,
+        hi: Option<Ref>,
+        at: NodeIdx,
+    ) -> StageResult<Ref> {
+        match (lo, hi) {
+            (Some(lo), Some(hi)) => Ok(self.b.prim(PrimOp::And as u32, &[lo, hi], Ty::BOOL, at)),
+            (Some(test), None) | (None, Some(test)) => Ok(test),
+            (None, None) => Err(NotImplemented::bug(
+                Stage::Body,
+                "range-pattern comparison requires at least one bound",
+            )),
+        }
     }
 
     // ------------------------------------------------------------ exhaustiveness
@@ -3230,6 +3242,55 @@ fn variant_list(names: &[&str]) -> String {
 #[cfg(test)]
 mod tests {
     use super::variant_list;
+
+    #[test]
+    fn range_comparisons_preserve_single_bounds_and_reject_missing_bounds() {
+        crate::body::with_checker(|ck| {
+            let before = (ck.b.body().len(), ck.b.body().extra.len());
+            for (lo, hi, expected) in [
+                (Some(hd_tir::ir::Ref(31)), None, hd_tir::ir::Ref(31)),
+                (None, Some(hd_tir::ir::Ref(47)), hd_tir::ir::Ref(47)),
+            ] {
+                assert_eq!(
+                    ck.range_comparison(lo, hi, hd_base::NodeIdx::NONE)
+                        .expect("one written bound"),
+                    expected,
+                );
+            }
+            let error = ck
+                .range_comparison(None, None, hd_base::NodeIdx::NONE)
+                .expect_err("no written bounds");
+            assert_eq!(error.stage, hd_base::Stage::Body);
+            assert!(error.bug);
+            assert!(!error.out_of_fuel);
+            assert_eq!(
+                error.what,
+                "range-pattern comparison requires at least one bound"
+            );
+            assert_eq!((ck.b.body().len(), ck.b.body().extra.len()), before);
+        });
+    }
+
+    #[test]
+    fn two_range_comparisons_emit_one_ordered_and() {
+        use hd_tir::ir::PrimOp;
+        crate::body::with_checker(|ck| {
+            let lo = ck.b.const_value(hd_types::Ty::BOOL, 0);
+            let hi = ck.b.const_value(hd_types::Ty::BOOL, 1);
+            let before = ck.b.body().len();
+            let result = ck
+                .range_comparison(Some(lo), Some(hi), hd_base::NodeIdx::NONE)
+                .expect("two written bounds");
+            let body = ck.b.body();
+            assert_eq!(body.len(), before + 1);
+            assert_eq!(result.0 as usize, before);
+            assert_eq!(body.tags[before], hd_tir::ir::Tag::Prim);
+            assert_eq!(body.data[before][0], PrimOp::And as u32);
+            assert_eq!(body.ty[before], hd_types::Ty::BOOL);
+            let start = body.data[before][1] as usize;
+            assert_eq!(&body.extra[start..start + 3], &[2, lo.0, hi.0]);
+        });
+    }
 
     #[test]
     fn variant_lists_stay_short() {
