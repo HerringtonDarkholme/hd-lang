@@ -15,7 +15,7 @@
   (import "fixture" "heap" (memory $heap 17))
   (func $init.init
     ;; 14 | record("main")
-    i32.const 123 ;; &"main"
+    i32.const 106 ;; &"main"
     i32.const 4
     call $app/log/record
   )
@@ -29,7 +29,7 @@
     i32.store $heap offset=4
     local.get $t0
     local.tee $text.0'1
-    i32.const 163 ;; &"a"
+    i32.const 146 ;; &"a"
     i32.store $heap offset=16
     local.get $text.0'1
     i32.const 1
@@ -47,7 +47,7 @@
     i32.const 8
     i32.add
     local.tee $text.0'1
-    i32.const 170 ;; &"c"
+    i32.const 153 ;; &"c"
     i32.store $heap offset=16
     local.get $text.0'1
     i32.const 1
@@ -56,7 +56,7 @@
     i32.const 8
     i32.add
     local.tee $text.0'1
-    i32.const 123 ;; &"main"
+    i32.const 106 ;; &"main"
     i32.store $heap offset=16
     local.get $text.0'1
     i32.const 4

@@ -1,8 +1,10 @@
-# @dump: stdout
+# @dump: stdout wat
 # @build: dev | checked | release checked
+# @helper: std/format/escape_text
 # expected: source escapes remain exact beside UTF-8 at byte-search boundaries.
 pub fn main() -> void $ Console:
     for count in [0, 1, 15, 16, 17, 31, 32, 33]:
         plain := "x".repeat(count)
         text := plain + "\nλ😀\$\\\"\u{7f}" + plain
+        # subject
         println(debug(text))

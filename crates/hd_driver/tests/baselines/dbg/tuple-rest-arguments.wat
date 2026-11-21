@@ -27,7 +27,7 @@
   (func $direct (param $values i32)
     ;; 5 |     dbg(values...)
     local.get $values
-    i32.const 129 ;; &"1\u{1f}5\u{1f}5\u{1f}main.hd"
+    i32.const 112 ;; &"1\u{1f}5\u{1f}5\u{1f}main.hd"
     i32.const 13
     call $"dbg[(List[string]...)]"
   )
