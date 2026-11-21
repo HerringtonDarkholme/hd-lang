@@ -1,0 +1,4 @@
+# @dump: diagnostics
+type Reordered[A, B] = (B, A)
+fn take['a, 'b](value: Reordered[&'a string, &'b string]) -> void:
+    pass

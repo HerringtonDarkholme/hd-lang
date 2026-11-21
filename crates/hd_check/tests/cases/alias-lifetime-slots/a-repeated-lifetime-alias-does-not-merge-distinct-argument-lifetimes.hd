@@ -1,0 +1,8 @@
+# @dump: diagnostics
+type Repeated[A, B, 'keep] = (B, A, B, &'keep string)
+fn wrong['a, 'b, 'c](
+    left: &'a string,
+    right: &'b string,
+    kept: &'c string,
+) -> Repeated[&'a string, &'b string, 'c]:
+    (left, right, left, kept)

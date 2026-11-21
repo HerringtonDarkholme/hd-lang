@@ -1,0 +1,4 @@
+# @dump: diagnostics
+type Mixed[T, 'keep, U = &string] = (&'keep string, T, U)
+fn third['a, 'b](value: Mixed[&'a string, 'b]) -> &'a string:
+    value._2

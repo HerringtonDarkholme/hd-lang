@@ -1,0 +1,9 @@
+# @dump: diagnostics tir
+type Mixed[T, 'keep, U = &string] = (&'keep string, T, U)
+fn take['a, 'b](value: Mixed[&'a string, 'b]) -> void:
+    pass
+
+fn first['a, 'b](value: Mixed[&'a string, 'b]) -> &'b string:
+    value._0
+fn second['a, 'b](value: Mixed[&'a string, 'b]) -> &'a string:
+    value._1
