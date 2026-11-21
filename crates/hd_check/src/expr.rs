@@ -2439,7 +2439,8 @@ impl Ck<'_, '_> {
                 deps,
             });
             let tref = self.op_tref(tr, near, Some(ct));
-            if !matches!(self.solve(tref)?, Answer::Holds { .. }) {
+            if !matches!(self.solve(tref)?, Answer::Holds { obligations, .. } if obligations.is_empty())
+            {
                 continue;
             }
             // The suggestion names the function type with its row: the
@@ -3781,7 +3782,7 @@ impl Ck<'_, '_> {
                 };
                 self.read_local(l, d, *a)
             };
-            if a.children().next().is_none() && self.implements_auto_closing(t)? {
+            if a.children().next().is_none() && self.implements_auto_closing(r, t, *a)? {
                 self.err(
                     Code::UnregisteredAutoClosing,
                     *a,

@@ -212,6 +212,14 @@ pub struct Generic {
     pub bound: Option<DefId>,
     pub bounds: Vec<Ty>,
     pub default: Option<Ty>,
+    /// The default type's written reference lifetimes, followed by its
+    /// suspension lifetimes, in the same order as [`FnSig::lifetimes`].
+    /// Empty when none is written. These qualify the default's positions,
+    /// not its erased type identity.
+    pub default_lifetimes: Vec<u16>,
+    /// Written lifetimes inside function types in the default, in
+    /// [`hd_types::Types::fn_written_slots`] order, as [`Field::fn_lifetimes`].
+    pub default_fn_lifetimes: Vec<u16>,
     /// A row parameter (`$R`).
     pub row: bool,
     /// The declared variance marker: `+T` is 1, `-T` is -1, unmarked 0.
@@ -253,6 +261,8 @@ impl Generic {
             bound: None,
             bounds: Vec::new(),
             default: None,
+            default_lifetimes: Vec::new(),
+            default_fn_lifetimes: Vec::new(),
             row: false,
             variance: 0,
             lifetime: false,
@@ -736,7 +746,8 @@ pub enum ItemData {
         /// The implementation lifetime for each lifetime parameter of the
         /// trait, in declaration order (`ref.lifetime.trait.impl-target`).
         trait_lifetimes: Vec<u16>,
-        /// The implementation lifetime of each reference slot of `self_ty`.
+        /// The implementation lifetimes of `self_ty`'s reference slots,
+        /// followed by its suspension slots, as in [`FnSig::lifetimes`].
         self_lifetimes: Vec<u16>,
         /// The implementation lifetime of each reference slot of
         /// `trait_args`, in [`hd_types::Types::ref_slots`] order, 0 where none is
@@ -746,6 +757,9 @@ pub enum ItemData {
         self_ty: Ty,
         methods: Vec<(Symbol, DefId)>,
         assoc: Vec<(DefId, Ty)>,
+        /// The assigned type's reference and suspension lifetimes, parallel
+        /// to `assoc`, in the implementation's lifetime scope.
+        assoc_lifetimes: Vec<Vec<u16>>,
         by: Option<Symbol>,
         kind: ImplKind,
         /// Carries `std.structure`'s `fills_defaults()`
@@ -1638,6 +1652,8 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
         w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst | anonymous | outer);
         w.u32(u32::from(g.outlives));
         put_lifetime_lists(w, &g.bound_lifetimes);
+        put_lifetimes(w, &g.default_lifetimes);
+        put_lifetimes(w, &g.default_fn_lifetimes);
         if let Some(p) = g.const_type {
             w.u8(p as u8);
         }
@@ -1660,6 +1676,8 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
         let flags = r.u8();
         let outlives = u16::try_from(r.u32()).ok()?;
         let bound_lifetimes = get_lifetime_lists(r)?;
+        let default_lifetimes = get_lifetimes(r)?;
+        let default_fn_lifetimes = get_lifetimes(r)?;
         let const_type = if flags & 0b10_0000 == 0 {
             None
         } else {
@@ -1679,6 +1697,8 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
             lifetime: flags & 0b1_0000 != 0,
             outlives,
             bound_lifetimes,
+            default_lifetimes,
+            default_fn_lifetimes,
             const_type,
             anonymous: flags & 0b100_0000 != 0,
             outer: flags & 0b1000_0000 != 0,
@@ -1687,25 +1707,34 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
     Some(out)
 }
 
+/// One written type's slot lifetimes.
+fn put_lifetimes(w: &mut Writer, lifetimes: &[u16]) {
+    w.len_of(lifetimes);
+    for &lifetime in lifetimes {
+        w.u32(u32::from(lifetime));
+    }
+}
+
+fn get_lifetimes(r: &mut Reader<'_>) -> Option<Vec<u16>> {
+    let mut out = Vec::new();
+    for _ in 0..r.count() {
+        out.push(u16::try_from(r.u32()).ok()?);
+    }
+    Some(out)
+}
+
 /// A list of slot-lifetime lists, as [`Generic::bound_lifetimes`].
 fn put_lifetime_lists(w: &mut Writer, lists: &[Vec<u16>]) {
     w.len_of(lists);
-    for l in lists {
-        w.len_of(l);
-        for x in l {
-            w.u32(u32::from(*x));
-        }
+    for list in lists {
+        put_lifetimes(w, list);
     }
 }
 
 fn get_lifetime_lists(r: &mut Reader<'_>) -> Option<Vec<Vec<u16>>> {
     let mut out = Vec::new();
     for _ in 0..r.count() {
-        let mut l = Vec::new();
-        for _ in 0..r.count() {
-            l.push(u16::try_from(r.u32()).ok()?);
-        }
-        out.push(l);
+        out.push(get_lifetimes(r)?);
     }
     Some(out)
 }
@@ -1910,6 +1939,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             self_ty,
             methods,
             assoc,
+            assoc_lifetimes,
             by,
             kind,
             fills_defaults,
@@ -1941,6 +1971,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 w.u32(t.def(*d));
                 w.u32(t.ty(*x)?);
             }
+            put_lifetime_lists(w, assoc_lifetimes);
             w.u32(by.map_or(u32::MAX, |s| t.sym(s)));
             w.u8(*kind as u8 | if *fills_defaults { FILLS_DEFAULTS } else { 0 });
             put_tys(w, t, skips)?;
@@ -2066,6 +2097,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 let d = t.def(r.u32())?;
                 assoc.push((d, t.ty(r.u32())?));
             }
+            let assoc_lifetimes = get_lifetime_lists(r)?;
             let b = r.u32();
             let by = if b == u32::MAX { None } else { Some(t.sym(b)?) };
             let k = r.u8();
@@ -2079,6 +2111,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 self_ty,
                 methods,
                 assoc,
+                assoc_lifetimes,
                 by,
                 kind,
                 fills_defaults: k & FILLS_DEFAULTS != 0,
@@ -3655,7 +3688,7 @@ mod tests {
     }
 
     #[test]
-    fn items_round_trip_into_a_fresh_run() {
+    fn items_round_trip_into_a_fresh_run() -> Result<(), &'static str> {
         let (pool, paths, syms) = (
             InternPool::new(),
             PathTable::new(),
@@ -3687,7 +3720,37 @@ mod tests {
             reads_args: true,
         };
         let item = Item::new(f, syms.intern("first"), true, ItemData::Fn(sig, attrs));
-        let items = vec![item];
+        // Equal erased types retain distinct assignment qualifiers through
+        // a fresh pool; source behavior is covered by stage fixtures.
+        let reference = pool.intern_ty(&TyData::Ref {
+            inner: Ty::VOID,
+            mutable: false,
+            counted: false,
+        });
+        let implementation = Item::new(
+            n.item("app.geo", "implementation"),
+            syms.intern("implementation"),
+            true,
+            ItemData::Impl {
+                trait_: n.item("app.geo", "Shelf"),
+                trait_args: hd_types::TyList::EMPTY,
+                trait_lifetimes: vec![],
+                self_lifetimes: vec![1],
+                trait_slots: vec![],
+                self_ty: reference,
+                methods: vec![],
+                assoc: vec![
+                    (n.item("app.geo", "First"), reference),
+                    (n.item("app.geo", "Second"), reference),
+                ],
+                assoc_lifetimes: vec![vec![1], vec![super::STATIC_LIFETIME]],
+                by: None,
+                kind: super::ImplKind::Written,
+                fills_defaults: false,
+                skips: vec![],
+            },
+        );
+        let items = vec![item, implementation];
         let exports = vec![Export {
             module: "app.geo".into(),
             name: syms.intern("first"),
@@ -3720,9 +3783,20 @@ mod tests {
         assert!(back_attrs.track_caller && back_attrs.reads_site && back_attrs.reads_args);
         assert_eq!(back[0].intrinsic().map(|k| n2.text(k)), Some("first"));
         assert!(sig.generics[0].anonymous);
+        let ItemData::Impl {
+            assoc,
+            assoc_lifetimes,
+            ..
+        } = &back[1].data
+        else {
+            return Err("decoded associated metadata must belong to an implementation");
+        };
+        assert_eq!(assoc[0].1, assoc[1].1);
+        assert_eq!(assoc_lifetimes, &[vec![1], vec![super::STATIC_LIFETIME]]);
         assert_eq!(encode_items(&n2, &back, &ex).expect("again"), blob);
         // The parameter names come with the index, before any record.
         assert_eq!(n2.param_name(back[0].def, 0), "T");
+        Ok(())
     }
 
     #[test]

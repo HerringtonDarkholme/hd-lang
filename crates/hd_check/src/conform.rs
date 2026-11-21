@@ -370,7 +370,7 @@ impl Ck<'_, '_> {
             self.trait_fn_deps(
                 tsig,
                 sig,
-                (trait_, *trait_args),
+                (trait_, *trait_args, self_ty),
                 (trait_lifetimes, self_lifetimes, trait_slots),
                 impl_item.generics.iter().filter(|g| g.lifetime).count(),
             ),

@@ -31,7 +31,7 @@ impl Ck<'_, '_> {
         self.fuel = fuel;
         std::mem::swap(&mut self.memo, &mut self.advice_memo);
         self.infer.rollback_trial(mark);
-        matches!(answer, Ok(Answer::Holds { evidence, .. }) if !matches!(evidence, Evidence::Poison))
+        matches!(answer, Ok(Answer::Holds { evidence, obligations, .. }) if !matches!(evidence, Evidence::Poison) && obligations.is_empty())
     }
 
     /// An existing Default name, or one cached-position import, only when

@@ -136,6 +136,7 @@ impl<'a> BodyFork<'a> {
             impls: self.impls,
             global: self.global,
             solver: self.solver,
+            region_layouts: crate::RegionLayouts::default(),
             methods: self.methods.clone(),
             init: RefCell::new(self.init.fork()),
             results: RefCell::new(self.results.fork()),

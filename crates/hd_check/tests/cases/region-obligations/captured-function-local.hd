@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    pass
+
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+
+# expected: a captured local reference fails the nested static bound
+fn inspect(value: &i32) -> void:
+    require_saved(Wrapped { value: fn() -> i32: *value })

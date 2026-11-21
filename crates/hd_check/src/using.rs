@@ -193,7 +193,12 @@ impl Ck<'_, '_> {
     }
 
     /// Whether `t` implements the compiler-known `AutoClosing` marker.
-    pub(crate) fn implements_auto_closing(&mut self, t: Ty) -> StageResult<bool> {
+    pub(crate) fn implements_auto_closing(
+        &mut self,
+        value: hd_tir::ir::Ref,
+        t: Ty,
+        at: NodeRef<'_>,
+    ) -> StageResult<bool> {
         let auto_closing = self.cx.names.known.auto_closing;
         // A head no row of the trait can take answers without resolving
         // the whole type or asking the solver (#1891).
@@ -209,10 +214,22 @@ impl Ck<'_, '_> {
             self_ty,
             args: hd_types::TyList::EMPTY,
         };
-        Ok(matches!(
-            self.solve(goal)?,
-            Answer::Holds { evidence, .. } if !matches!(evidence, Evidence::Poison)
-        ))
+        match self.solve(goal)? {
+            Answer::Holds {
+                evidence,
+                obligations,
+                ..
+            } if !matches!(evidence, Evidence::Poison) => {
+                self.record_region_obligations(
+                    goal,
+                    at.index(),
+                    crate::body::ProofSource::Value(value),
+                    obligations,
+                );
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
     }
 
     /// Checks an expression whose value is about to be stored in an
@@ -226,18 +243,19 @@ impl Ck<'_, '_> {
         let before = self.diags.mark();
         let (value, ty) = self.expr(expression, want)?;
         if self.diags.errors_since(before) == 0 {
-            self.check_stored_value(ty, expression, place)?;
+            self.check_stored_value(value, ty, expression, place)?;
         }
         Ok((value, ty))
     }
 
     pub(crate) fn check_stored_value(
         &mut self,
+        value: hd_tir::ir::Ref,
         ty: Ty,
         expression: NodeRef<'_>,
         place: &str,
     ) -> StageResult<()> {
-        if self.implements_auto_closing(ty)? {
+        if self.implements_auto_closing(value, ty, expression)? {
             let message = format!(
                 "an AutoClosing value cannot be stored {place}; call its `@auto_closing` constructor as a statement"
             );

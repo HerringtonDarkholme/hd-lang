@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: a static reference satisfies a generic default's outlives bound
+fn accepted[T < 'static = &'static i32](value: T) -> void:
+    pass

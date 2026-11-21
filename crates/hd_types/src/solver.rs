@@ -27,6 +27,9 @@ use crate::sealed::Row;
 pub use crate::sealed::{CopyDecl, Declarations, SealedTraits, TypeDecl};
 use crate::unify::VarKind;
 
+mod regions;
+pub use regions::{RegionBound, RegionObligation, RegionObligations, RegionProofId};
+
 /// A trait reference: `self_ty: trait_[args]` (§2.1).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TraitRef {
@@ -890,6 +893,9 @@ pub struct Candidate {
     pub impl_args: TyList,
     pub args: TyList,
     pub residual: Vec<u16>,
+    /// Requirements of the fixed plan steps already proved. Residual
+    /// steps contribute theirs when a call finishes their inference.
+    pub obligations: RegionObligations,
 }
 
 /// The impl candidates of one trait for one receiver (an `Instantiations`
@@ -1029,6 +1035,7 @@ pub enum CanonAnswer {
     Holds {
         evidence: Evidence,
         learned: Vec<(u8, Ty)>,
+        obligations: RegionObligations,
     },
     Candidates(Vec<Candidate>),
     Fails(Box<FailInfo>),
@@ -1628,6 +1635,7 @@ pub enum Answer {
     Holds {
         evidence: Evidence,
         learned: Vec<(InferVar, Ty)>,
+        obligations: RegionObligations,
     },
     Candidates(Vec<Candidate>),
     Fails(Box<FailInfo>),
@@ -1946,8 +1954,16 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
             .ok_or(())
     };
     let mut place = Leaves::infer(&mut place);
+    let mut region_maps = HashMap::default();
     Some(match a {
-        Answer::Holds { evidence, learned } => CanonAnswer::Holds {
+        Answer::Holds {
+            evidence,
+            learned,
+            obligations,
+        } => CanonAnswer::Holds {
+            obligations: obligations
+                .try_map_infer_with(pool, |t| fold_vars(pool, t, &mut place), &mut region_maps)
+                .ok()?,
             evidence: match evidence {
                 Evidence::Impl { row, args } => Evidence::Impl {
                     row: *row,
@@ -1965,6 +1981,14 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
                 .iter()
                 .map(|c| {
                     Some(Candidate {
+                        obligations: c
+                            .obligations
+                            .try_map_infer_with(
+                                pool,
+                                |t| fold_vars(pool, t, &mut place),
+                                &mut region_maps,
+                            )
+                            .ok()?,
                         impl_args: fold_list(pool, c.impl_args, &mut place).ok()?,
                         args: fold_list(pool, c.args, &mut place).ok()?,
                         ..c.clone()
@@ -2009,8 +2033,21 @@ fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer 
         let Ok(l) = fold_list(pool, l, leaves);
         l
     };
+    let mut region_maps = HashMap::default();
     match a {
-        CanonAnswer::Holds { evidence, learned } => Answer::Holds {
+        CanonAnswer::Holds {
+            evidence,
+            learned,
+            obligations,
+        } => Answer::Holds {
+            obligations: match obligations.try_map_canon_with(
+                pool,
+                |t| fold_vars(pool, t, &mut back),
+                &mut region_maps,
+            ) {
+                Ok(obligations) => obligations,
+                Err(never) => match never {},
+            },
             evidence: match evidence {
                 Evidence::Impl { row, args } => Evidence::Impl {
                     row: *row,
@@ -2030,6 +2067,14 @@ fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer 
             cands
                 .iter()
                 .map(|c| Candidate {
+                    obligations: match c.obligations.try_map_canon_with(
+                        pool,
+                        |t| fold_vars(pool, t, &mut back),
+                        &mut region_maps,
+                    ) {
+                        Ok(obligations) => obligations,
+                        Err(never) => match never {},
+                    },
                     impl_args: list(c.impl_args, &mut back),
                     args: list(c.args, &mut back),
                     ..c.clone()
@@ -2867,6 +2912,7 @@ impl<'s, 'a> Search<'s, 'a> {
         if pool.has_poison(tref.self_ty) {
             let holds = Answer::Holds {
                 evidence: Evidence::Poison,
+                obligations: RegionObligations::default(),
                 learned: vec![],
             };
             return Ok(self.leaf(key, root, holds));
@@ -2883,6 +2929,7 @@ impl<'s, 'a> Search<'s, 'a> {
                 if env.clause_self[i] == self_ty && env.clause_trait[i] == DefId::NONE {
                     let holds = Answer::Holds {
                         evidence: Evidence::Poison,
+                        obligations: RegionObligations::default(),
                         learned: vec![],
                     };
                     return Ok(self.leaf(key, root, holds));
@@ -2898,6 +2945,7 @@ impl<'s, 'a> Search<'s, 'a> {
                     let index = u16::try_from(i).unwrap_or(u16::MAX);
                     let holds = Answer::Holds {
                         evidence: Evidence::Bound { param, index },
+                        obligations: RegionObligations::default(),
                         learned,
                     };
                     return Ok(self.leaf(key, root, holds));
@@ -2926,6 +2974,7 @@ impl<'s, 'a> Search<'s, 'a> {
         {
             let holds = Answer::Holds {
                 evidence: Evidence::TraitValue { trait_: def },
+                obligations: RegionObligations::default(),
                 learned,
             };
             return Ok(self.leaf(key, root, holds));
@@ -2948,7 +2997,7 @@ impl<'s, 'a> Search<'s, 'a> {
             self_ty,
             &mut cx.body_memo.copies,
         ) {
-            return self.supplied(key, cg, tref.trait_, row, depth, root);
+            return self.supplied(key, cg, tref.trait_, self_ty, row, depth, root);
         }
         if let TyData::Infer(v) = pool.get(self_ty) {
             return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] }));
@@ -3101,6 +3150,7 @@ impl<'s, 'a> Search<'s, 'a> {
                 let expected = pool.list(&[input, result, row]);
                 match match_list(pool, DefId::NONE, expected, tref.args, &mut Vec::new()) {
                     M::Yes => Answer::Holds {
+                        obligations: RegionObligations::default(),
                         evidence: Evidence::Builtin(
                             if tref.trait_ == self.cx.decls.sealed().fn_mut_trait {
                                 BuiltinImpl::FnMut
@@ -3147,10 +3197,12 @@ impl<'s, 'a> Search<'s, 'a> {
         key: &MemoKey,
         cg: CanonGoal,
         trait_: DefId,
+        self_ty: Ty,
         row: Row,
         depth: u32,
         root: bool,
     ) -> StageResult<(Outcome, u16)> {
+        let pool = self.cx.pool;
         let (b, subs) = match row {
             Row::Stalled(v) => return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] })),
             Row::Fails(reason) => {
@@ -3168,6 +3220,19 @@ impl<'s, 'a> Search<'s, 'a> {
             return Ok((Outcome::leaf(Answer::OutOfFuel), 0));
         }
         let mut height = 1;
+        // Value origins are separate from Ty: function captures and
+        // suspension state may borrow even when no reference type occurs.
+        // Defer every compound value's outlives check, not only references.
+        let mut needs_regions = b == BuiltinImpl::Static
+            && !matches!(
+                pool.get(self_ty),
+                TyData::Prim(_)
+                    | TyData::Never
+                    | TyData::Poison
+                    | TyData::Const(_)
+                    | TyData::Row(_)
+                    | TyData::Context(_)
+            );
         for self_ty in subs {
             let sub = TraitRef {
                 trait_,
@@ -3177,7 +3242,9 @@ impl<'s, 'a> Search<'s, 'a> {
             let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
             height = height.max(above(o.height));
             match o.answer {
-                Answer::Holds { .. } => {}
+                Answer::Holds { obligations, .. } => {
+                    needs_regions |= !obligations.is_empty();
+                }
                 Answer::Fails(info) => {
                     let out = Outcome {
                         answer: Answer::Fails(info),
@@ -3199,6 +3266,17 @@ impl<'s, 'a> Search<'s, 'a> {
         let holds = Outcome {
             answer: Answer::Holds {
                 evidence: Evidence::Builtin(b),
+                obligations: if needs_regions {
+                    RegionObligations::new(
+                        pool,
+                        vec![RegionObligation::TypeOutlives {
+                            ty: self_ty,
+                            region: RegionBound::Static,
+                        }],
+                    )
+                } else {
+                    RegionObligations::default()
+                },
                 learned: vec![],
             },
             height,
@@ -3221,6 +3299,7 @@ impl<'s, 'a> Search<'s, 'a> {
         let mut height = 1;
         let mut step_args = args.clone();
         let mut goals = row_goals(pool, self.cx.impls, t, r, &step_args);
+        let mut requirements = Vec::new();
         let mut k = 0;
         while let Some(&(step, sub)) = goals.get(k) {
             k += 1;
@@ -3236,7 +3315,14 @@ impl<'s, 'a> Search<'s, 'a> {
                 continue;
             }
             match o.answer {
-                Answer::Holds { learned, .. } => {
+                Answer::Holds {
+                    learned,
+                    obligations,
+                    ..
+                } => {
+                    if !obligations.is_empty() {
+                        requirements.push((step, obligations));
+                    }
                     // A bare variable that a step learned fixes the impl
                     // argument for the later steps, as the default `Copy`
                     // bound after `I < Iterator[T]` (`ref.copy.generic.default`).
@@ -3289,8 +3375,22 @@ impl<'s, 'a> Search<'s, 'a> {
                 (v, x)
             })
             .collect();
+        let obligation_args = pool.list(&step_args);
+        let obligations = RegionObligations::new(
+            pool,
+            requirements
+                .into_iter()
+                .map(|(step, obligations)| RegionObligation::ImplBound {
+                    row,
+                    args: obligation_args,
+                    step,
+                    obligations,
+                })
+                .collect(),
+        );
         Ok(Outcome {
             answer: Answer::Holds {
+                obligations,
                 evidence: Evidence::Impl {
                     row,
                     args: pool.list(&args),
@@ -3488,6 +3588,7 @@ impl Search<'_, '_> {
             TyData::Poison => {
                 let holds = Answer::Holds {
                     evidence: Evidence::Poison,
+                    obligations: RegionObligations::default(),
                     learned: vec![],
                 };
                 return Ok(self.leaf(key, root, holds));
@@ -3589,12 +3690,22 @@ impl Search<'_, '_> {
                     })
                     .unwrap_or_default();
                 let mut residual = Vec::new();
+                let mut requirements = Vec::new();
                 let mut dropped = false;
                 for (i, sub) in goals {
                     let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
                     height = height.max(above(o.height));
                     match o.answer {
-                        Answer::Holds { .. } => {}
+                        Answer::Holds { obligations, .. } => {
+                            if !obligations.is_empty() {
+                                requirements.push(RegionObligation::ImplBound {
+                                    row: at,
+                                    args: TyList::EMPTY,
+                                    step: i,
+                                    obligations,
+                                });
+                            }
+                        }
                         Answer::Fails(_) => {
                             dropped = true;
                             break;
@@ -3617,6 +3728,7 @@ impl Search<'_, '_> {
                         impl_args: TyList::EMPTY,
                         args: t.head_args[r],
                         residual,
+                        obligations: RegionObligations::new(pool, requirements),
                     });
                 }
                 continue;
@@ -3630,6 +3742,7 @@ impl Search<'_, '_> {
                 .collect();
             let goals = plan_goals(pool, t, r, &impl_args);
             let mut residual = Vec::new();
+            let mut requirements = Vec::new();
             let mut dropped = false;
             for (i, step) in (0u16..).zip(&t.plan[r]) {
                 let PlanStep::Bound {
@@ -3653,7 +3766,16 @@ impl Search<'_, '_> {
                 let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
                 height = height.max(above(o.height));
                 match o.answer {
-                    Answer::Holds { .. } => {}
+                    Answer::Holds { obligations, .. } => {
+                        if !obligations.is_empty() {
+                            requirements.push(RegionObligation::ImplBound {
+                                row: at,
+                                args: pool.list(&impl_args),
+                                step: i,
+                                obligations,
+                            });
+                        }
+                    }
                     Answer::Fails(_) => {
                         dropped = true;
                         break;
@@ -3690,6 +3812,7 @@ impl Search<'_, '_> {
                 impl_args: pool.list(&impl_args),
                 args: pool.list(&args),
                 residual,
+                obligations: RegionObligations::new(pool, requirements),
             });
         }
         let done = |answer| {
@@ -4156,14 +4279,61 @@ mod tests {
 
     use super::{
         BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
-        ImplUniverses, M, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
-        TraitRef, canonicalize, match_ty,
+        ImplUniverses, M, MemoEntry, MemoKey, MemoKind, ParamEnv, RegionObligations, SolveCx,
+        Solver, TableSolver, TraitRef, canonicalize, match_ty,
     };
     use crate::pool::{
         InternPool, LocalPool, Prim, RowData, RowParamRef, Ty, TyData, TyList, Types,
     };
     use crate::unify::{InferTable, VarKind};
     use hd_base::{DefId, FolderId, Fuel, ModuleId};
+
+    #[test]
+    fn a_holds_answer_preserves_its_outlives_obligation_through_canonical_replay()
+    -> Result<(), &'static str> {
+        use super::{Answer, CanonVars, Evidence, RegionBound, RegionObligation};
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let pool = Types::with_local(&gp, &lp);
+        let reference = |v| {
+            pool.intern_ty(&TyData::Ref {
+                inner: pool.intern_ty(&TyData::Infer(v)),
+                mutable: false,
+                counted: false,
+            })
+        };
+        let from = hd_base::InferVar::from_raw(10);
+        let to = hd_base::InferVar::from_raw(20);
+        let vars = |v| CanonVars {
+            map: vec![v],
+            kinds: vec![VarKind::General],
+        };
+        let answer = Answer::Holds {
+            evidence: Evidence::Builtin(super::BuiltinImpl::Static),
+            learned: vec![],
+            obligations: RegionObligations::new(
+                pool,
+                vec![RegionObligation::TypeOutlives {
+                    ty: reference(from),
+                    region: RegionBound::Static,
+                }],
+            ),
+        };
+        let canonical = super::canon_answer(pool, &answer, &vars(from))
+            .ok_or("an obligation in the goal's variable must canonicalize")?;
+        let replay = super::decanon_answer(pool, &canonical, &vars(to));
+        let Answer::Holds { obligations, .. } = replay else {
+            return Err("a successful proof must replay as Holds");
+        };
+        assert_eq!(
+            obligations.iter().collect::<Vec<_>>(),
+            [&RegionObligation::TypeOutlives {
+                ty: reference(to),
+                region: RegionBound::Static,
+            }]
+        );
+        assert_ne!(answer, super::decanon_answer(pool, &canonical, &vars(to)));
+        Ok(())
+    }
 
     #[test]
     fn variable_collection_at_depth_1000_fits_a_small_stack() {
@@ -4972,6 +5142,7 @@ mod tests {
                 Answer::Holds {
                     evidence: Evidence::Impl { row, .. },
                     learned,
+                    ..
                 },
                 key,
             ) => {
@@ -7333,6 +7504,7 @@ mod tests {
         let (table, [pick, show, ..]) = pick_table(p);
         let expected = Answer::Holds {
             evidence: Evidence::Poison,
+            obligations: RegionObligations::default(),
             learned: vec![],
         };
         assert_eq!(

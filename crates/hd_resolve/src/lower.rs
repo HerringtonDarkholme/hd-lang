@@ -2281,7 +2281,13 @@ fn prelude(
 /// implementation, and its bounds in a trait (`trait.assoc.bound-decl`).
 /// An associated type's name, definition, value and bounds, with each
 /// bound's written lifetimes as [`Lower::with_slots`] records them.
-type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<Ty>, Vec<Vec<u16>>);
+type AssocDecl = (Symbol, DefId, Option<WrittenType>, Vec<Ty>, Vec<Vec<u16>>);
+
+/// An assigned type's identity and its positional lifetime qualifiers.
+struct WrittenType {
+    ty: Ty,
+    lifetimes: Vec<u16>,
+}
 
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
@@ -2475,6 +2481,7 @@ struct Gen {
     /// The lifetime of each reference slot of an implementation's target,
     /// which `self` and `Self` take (`ref.lifetime.struct.impl`).
     self_slots: Vec<u16>,
+    self_held: Vec<u16>,
     self_trait: Option<BoundRef>,
 }
 
@@ -3482,6 +3489,14 @@ impl Lower<'_, '_, '_> {
         }
     }
 
+    fn alias_has_qualifiers(&self, def: DefId) -> bool {
+        if let Some((_, _, lifetimes)) = self.r.aliases.borrow().get(&def) {
+            return !lifetimes.is_empty();
+        }
+        matches!(self.r.item(def).map(|item| item.data),
+            Some(ItemData::Alias { lifetimes, .. }) if !lifetimes.is_empty())
+    }
+
     /// An alias applied to `args`: its body with them substituted, after
     /// each argument's kind is checked against its parameter's
     /// (`req.row.alias.generic.kind`, `req.row.slot.dollar`).
@@ -3760,6 +3775,9 @@ impl Lower<'_, '_, '_> {
                 {
                     slots.extend(&gn.self_slots);
                 }
+                if let Some(held) = &mut self.held {
+                    held.extend(&gn.self_held);
+                }
                 return self_ty;
             }
             let sym = self.sym_token(ft);
@@ -3838,13 +3856,15 @@ impl Lower<'_, '_, '_> {
         if let (Some((o, s, _)), Some(b)) = (self.opaque_result, borrows) {
             self.opaque_result = Some((o, s, b));
         }
-        let alias_arg_slots = (kind == HeadKind::Alias && self.r.lifetime_count(def) != 0)
-            .then(|| {
-                self.slots
-                    .as_ref()
-                    .and_then(|slots| before.map(|from| slots[from..].to_vec()))
-            })
-            .flatten();
+        let lifetime_alias = kind == HeadKind::Alias && self.r.lifetime_count(def) != 0;
+        let mut alias_arg_slots = (kind == HeadKind::Alias
+            && (lifetime_alias || self.alias_has_qualifiers(def)))
+        .then(|| {
+            self.slots
+                .as_ref()
+                .and_then(|slots| before.map(|from| slots[from..].to_vec()))
+        })
+        .flatten();
         // Only a trait has associated types (trait.binding.non-trait).
         if matches!(kind, HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype)
             && let Some((name, _)) = bindings.first()
@@ -3859,6 +3879,18 @@ impl Lower<'_, '_, '_> {
         let t = self.ctor(def, (kind, gn, referent), &args, row, span);
         let lifetime_args = self.lifetime_args(n, (def, kind), gn);
         if let Some(before) = before {
+            // Fixed qualifiers do not grant a non-lifetime alias the ability
+            // to reorder variable arguments (ref.lifetime.not-yet.alias).
+            if !lifetime_alias
+                && let Some(arguments) = &mut alias_arg_slots
+                && arguments
+                    .iter()
+                    .any(|&l| l != 0 && l < crate::iface::STATIC_LIFETIME)
+                && !self.alias_in_order(def)
+            {
+                self.unplaced_slots(n, before);
+                arguments.fill(0);
+            }
             let placed_alias = alias_arg_slots.is_some_and(|arg_slots| {
                 self.place_alias_slots(def, &args, &arg_slots, &lifetime_args, before, t)
             });
@@ -3978,12 +4010,14 @@ impl Lower<'_, '_, '_> {
                 SlotItem::Ref => {
                     let lifetime = body_lifetimes.get(declared_at).copied().unwrap_or(0);
                     declared_at += 1;
-                    out.push(
+                    out.push(if lifetime == crate::iface::STATIC_LIFETIME {
+                        lifetime
+                    } else {
                         lifetime
                             .checked_sub(1)
                             .and_then(|l| lifetime_args.get(usize::from(l)).copied())
-                            .unwrap_or(0),
-                    );
+                            .unwrap_or(0)
+                    });
                 }
             }
         }
@@ -4825,7 +4859,17 @@ impl Lower<'_, '_, '_> {
                     .children()
                     .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow)
                 {
-                    g.default = Some(self.ty(Some(c), gn));
+                    let saved_functions = std::mem::take(&mut self.fn_written);
+                    let saved_held = self.held.replace(Vec::new());
+                    let (default, mut lifetimes) = self.with_slots(|low| low.ty(Some(c), gn));
+                    g.default_fn_lifetimes = self.take_fn_written(default);
+                    self.fn_written = saved_functions;
+                    let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
+                    with_held(&mut lifetimes, [default], &held, self.names.pool.types());
+                    if lifetimes.iter().any(|&l| l != 0) {
+                        g.default_lifetimes = lifetimes;
+                    }
+                    g.default = Some(default);
                 }
             }
             g.row = row;
@@ -5186,6 +5230,9 @@ impl Lower<'_, '_, '_> {
                         }
                         own.resize(want, 0);
                         slots.extend(own);
+                    }
+                    if let Some(held) = &mut self.held {
+                        held.extend(&gn.self_held);
                     }
                     params.push((self.sym_token(token), st));
                     defaults.push(false);
@@ -5827,7 +5874,7 @@ impl Lower<'_, '_, '_> {
                     };
                     let text = self.src.text(t).to_owned();
                     let def = self.names.member(owner, PathKind::Member, &text);
-                    let ty = Src::type_child(f).map(|c| self.ty(Some(c), gn));
+                    let ty = Src::type_child(f).map(|c| self.written_type(Some(c), gn));
                     let (mut bounds, mut written) = (Vec::new(), Vec::new());
                     if let Some(bl) = Src::child(f, SyntaxKind::BoundList) {
                         for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
@@ -6041,6 +6088,7 @@ impl Lower<'_, '_, '_> {
                 self_ty,
                 methods: vec![],
                 assoc: vec![],
+                assoc_lifetimes: vec![],
                 by: None,
                 kind: ImplKind::Poison,
                 fills_defaults: false,
@@ -6105,8 +6153,10 @@ impl Lower<'_, '_, '_> {
         // `ref.lifetime.impl-target`: the target's lifetimes are those of
         // its methods' `self` and `Self`.
         let saved = self.slots.replace(Vec::new());
+        let saved_held = self.held.replace(Vec::new());
         let self_ty = self.ty_at(Some(target), &gn, true);
         gn.self_slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+        gn.self_held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
         // `ref.lifetime.struct.impl.elided`: a lifetime struct's
         // lifetimes are its last slots.
         if let TyData::Adt { def, .. } = pool.get(self_ty)
@@ -6384,16 +6434,27 @@ impl Lower<'_, '_, '_> {
         {
             self.impl_variance(h.def, &generics, (self_ty, &mut gn), b);
         }
+        // The parser rejects associated bindings in an impl header. Keep
+        // empty qualifier entries for its recovery-only bindings; valid
+        // assignments below come from associated-type members.
+        let mut assoc_lifetimes = vec![Vec::new(); header_bindings.len()];
         let mut assoc: Vec<(DefId, Ty)> = header_bindings;
         for (name, _, ty, ..) in assoc_decls {
             if trait_ != DefId::NONE {
+                let written = ty.unwrap_or(WrittenType {
+                    ty: Ty::POISON,
+                    lifetimes: Vec::new(),
+                });
+                assoc_lifetimes.push(written.lifetimes);
                 assoc.push((
                     self.names
                         .member(trait_, PathKind::Member, self.names.text(name)),
-                    ty.unwrap_or(Ty::POISON),
+                    written.ty,
                 ));
             }
         }
+        let mut self_lifetimes = gn.self_slots.clone();
+        with_held(&mut self_lifetimes, [self_ty], &gn.self_held, pool.types());
         let mut it = Item::new(
             h.def,
             h.name,
@@ -6402,11 +6463,12 @@ impl Lower<'_, '_, '_> {
                 trait_,
                 trait_args,
                 trait_lifetimes,
-                self_lifetimes: gn.self_slots.clone(),
+                self_lifetimes,
                 trait_slots,
                 self_ty,
                 methods,
                 assoc,
+                assoc_lifetimes,
                 by: by.map(|b| self.sym(&b)),
                 kind,
                 fills_defaults: self.fills_defaults(h.node),
@@ -6683,6 +6745,7 @@ impl Lower<'_, '_, '_> {
                         self_ty,
                         methods: vec![],
                         assoc: vec![],
+                        assoc_lifetimes: vec![],
                         by: None,
                         kind: ImplKind::Derived,
                         fills_defaults: false,
@@ -6909,6 +6972,7 @@ impl Lower<'_, '_, '_> {
                     self_ty,
                     methods,
                     assoc: vec![],
+                    assoc_lifetimes: vec![],
                     by: None,
                     kind: ImplKind::Error,
                     fills_defaults: false,
@@ -6990,6 +7054,15 @@ impl Lower<'_, '_, '_> {
         }
         let lifetimes = self.slot_lists(&supers, written_lifetimes);
         (supers, lifetimes)
+    }
+
+    /// Retain reference and suspension qualifiers of an assigned type.
+    fn written_type(&mut self, node: Option<NodeRef<'_>>, gn: &Gen) -> WrittenType {
+        let saved = self.held.replace(Vec::new());
+        let (ty, mut lifetimes) = self.with_slots(|low| low.ty(node, gn));
+        let held = std::mem::replace(&mut self.held, saved).unwrap_or_default();
+        with_held(&mut lifetimes, [ty], &held, self.names.pool.types());
+        WrittenType { ty, lifetimes }
     }
 
     /// Lowers with a slot table, as an implementation header does: the
@@ -7435,10 +7508,7 @@ impl Lower<'_, '_, '_> {
         let _shown = crate::ShowAlias::enter(h.def);
         let generics = self.own_generics_as(gl, (h.def, owner), &mut gn);
         let body = n.children().find(|c| c.kind().is_type());
-        let saved = std::mem::replace(
-            &mut self.slots,
-            generics.iter().any(|g| g.lifetime).then(Vec::new),
-        );
+        let saved = self.slots.replace(Vec::new());
         let t = match body {
             _ if cyclic => Ty::POISON,
             Some(b) if b.kind() == SyntaxKind::RequirementRow => {
@@ -7460,7 +7530,10 @@ impl Lower<'_, '_, '_> {
             }
             b => self.ty_in_slot(1, b, &gn),
         };
-        let lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+        let mut lifetimes = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
+        if lifetimes.iter().all(|&l| l == 0) {
+            lifetimes.clear();
+        }
         let rows = generics.iter().map(|g| g.row).collect();
         self.r
             .aliases

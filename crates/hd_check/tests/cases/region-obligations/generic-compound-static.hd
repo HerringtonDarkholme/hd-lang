@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+struct Wrapped[T]:
+    value: T
+
+fn require_static[T < 'static](value: T) -> void:
+    pass
+
+fn inspect[T < 'static](value: T) -> void:
+    require_static(Wrapped { value })

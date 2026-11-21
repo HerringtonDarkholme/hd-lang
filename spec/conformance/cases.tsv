@@ -7106,6 +7106,7 @@ lang/annotations/two-annotate-forms/annotate-pattern-scope-alias.hd	type	reject:
 lang/annotations/two-annotate-forms/annotate-pattern-scope-qualified.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.pattern.scope
 lang/annotations/two-annotate-forms/annotate-pattern-noncopy-parameters.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.pattern.scope
 lang/annotations/two-annotate-forms/annotate-invalid-pattern-row.hd	type	reject:generic-kind-mismatch	lang/14-annotations.md#r-annot.typed-fact.pattern
+typing/invalid/static-bound-through-an-impl-rejects-a-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.impl
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

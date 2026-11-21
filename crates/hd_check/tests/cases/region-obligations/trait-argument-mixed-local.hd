@@ -1,0 +1,23 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved[A]:
+    pass
+
+trait Need[A]:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[U < 'static] Need[U] for i32:
+    pass
+
+impl['b, T < Need[(&'b i32, fn() -> void)]] Saved[(&'b i32, fn() -> void)] for Wrapped[T]:
+    pass
+
+fn inspect['a, T < Saved[(&'a i32, fn() -> void)]](value: T, marker: &'a i32) -> void:
+    pass
+
+# expected: a bound through a trait argument rejects local-reference-escapes for the local marker
+fn probe['a](value: Wrapped[i32], marker: &'a i32) -> void:
+    inspect(value, marker)

@@ -20,6 +20,7 @@ mod frames;
 pub use dbg::DbgRef;
 pub mod delegate;
 mod dep_results;
+pub use dep_results::RegionLayouts;
 pub mod derive;
 mod dupfacts;
 mod dynref;

@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn get(&self) -> &i32
+
+struct Wrapped[T]:
+    value: T
+    number: i32
+
+impl[T < 'static] Saved for Wrapped[T]:
+    fn get(&self) -> &i32:
+        &self.number
+
+struct Holder[T]:
+    Wrapped[T]
+
+impl['a] Saved for Holder[&'a i32] by Wrapped

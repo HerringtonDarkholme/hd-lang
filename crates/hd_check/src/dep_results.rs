@@ -48,6 +48,7 @@ use crate::regions::Category;
 
 mod constraints;
 mod loan_shapes;
+mod proof_regions;
 
 /// The lifetime of an input slot that writes none: its own, `ANON` plus
 /// the slot's index. A written lifetime is its 1-based place in scope.
@@ -384,13 +385,13 @@ impl DepSig {
         self,
         ls: &Layouts<'_>,
         params: &[(hd_base::Symbol, Ty)],
-        (ret, impl_outs, proj): (Ty, &[Option<u32>], ProjLifetimes<'_>),
+        (ret, impl_outs, proj): (Ty, Option<&[Option<u32>]>, ProjLifetimes<'_>),
         trait_: DefId,
         (trait_lifetimes, self_lifetimes, arg_lifetimes): (&[u16], &[u16], &[Vec<u32>]),
         impl_lifetime_count: usize,
     ) -> DepSig {
         let remap = |id: u32| {
-            if id == 0 || id >= ANON {
+            if id == 0 || id >= STATIC {
                 return id;
             }
             let at = id as usize - 1;
@@ -475,7 +476,7 @@ impl DepSig {
                 }
             })
             .collect();
-        let outs = align(self.ret, ret, &self.outs, Some(impl_outs)).unwrap_or_default();
+        let outs = align(self.ret, ret, &self.outs, impl_outs).unwrap_or_default();
         DepSig {
             params,
             outs,
@@ -572,22 +573,29 @@ fn slot_ids(
     ids
 }
 
-/// Splits `lts`, one lifetime per reference slot of `args` in
-/// [`Types::ref_slots`] order, into each argument's [`Layout`] slots; 0
-/// for each slot of an argument whose layout has other slots too.
+/// Splits written reference lifetimes into each argument's layout slots.
+/// Captures, held state and whole-referent slots have no entry in `lts`;
+/// they must not erase the neighboring reference positions' lifetimes.
 fn arg_ids(ls: &Layouts<'_>, args: &[Ty], lts: &[u32]) -> Vec<Vec<u32>> {
-    let pool = ls.pool;
     let mut at = 0;
-    (args.iter())
-        .map(|&a| {
-            let (n, lay) = (pool.ref_slots(a), ls.of(a));
-            let mine = lts.get(at..at + n);
-            at += n;
-            let plain = lay.slots.len() == n && lay.slots.iter().all(|s| !s.fun);
-            match mine {
-                Some(m) if plain => m.to_vec(),
-                _ => vec![0; lay.slots.len()],
-            }
+    args.iter()
+        .map(|&ty| {
+            let start = at;
+            at += ls.pool.ref_slots(ty);
+            let mut reference = start;
+            ls.of(ty)
+                .slots
+                .iter()
+                .map(|slot| {
+                    if slot.fun || slot.whole {
+                        0
+                    } else {
+                        let id = lts.get(reference).copied().unwrap_or(0);
+                        reference += 1;
+                        id
+                    }
+                })
+                .collect()
         })
         .collect()
 }
@@ -919,6 +927,7 @@ fn line_up_with(
                 true
             }
             (TyData::Ref { counted: true, .. }, TyData::Ref { counted: true, .. }) => true,
+            (TyData::Union(a), TyData::Union(b)) => list(stack, a, b),
             // A rest that does not line up fails the whole walk, so it
             // fails before the elements are entered.
             (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
@@ -958,6 +967,7 @@ fn capture_slot(pool: Types<'_>, t: Ty) -> bool {
 
 /// One origin slot of a type ([`Layout`]).
 #[derive(Clone, Copy)]
+#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 struct Slot {
     /// A local reference type, a borrowing opaque type, or a function
     /// type, whose slot holds what its closure captures.
@@ -1083,6 +1093,21 @@ impl Layout {
             if depth > hd_base::limits::TYPE_DEPTH || ls.slotless.borrow().contains(&t) {
                 continue;
             }
+            if depth + pool.depth(t) <= hd_base::limits::TYPE_DEPTH
+                && let Some(layout) = ls.cached(t)
+            {
+                crate::work::layout_step();
+                let start = out.len();
+                out.extend(layout.slots.iter().map(|slot| {
+                    crate::work::layout_step();
+                    Slot {
+                        top: top && slot.top,
+                        end: start + slot.end,
+                        ..*slot
+                    }
+                }));
+                continue;
+            }
             crate::work::layout_step();
             stack.push((t, top, depth, Some(out.len())));
             let (first, d) = (stack.len(), depth + 1);
@@ -1103,13 +1128,14 @@ impl Layout {
                     let parts = pool.list_items(elems).iter().chain(rest.iter());
                     stack.extend(parts.map(|&e| (e, top, d, None)));
                 }
-                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+                TyData::Adt { args, .. }
+                | TyData::TraitValue { args, .. }
+                | TyData::Union(args) => {
                     stack.extend(pool.list_items(args).iter().map(|&a| (a, top, d, None)));
                 }
                 TyData::Prim(_)
                 | TyData::Never
                 | TyData::Poison
-                | TyData::Union(_)
                 | TyData::Opaque { borrows: false, .. }
                 | TyData::Param(_)
                 | TyData::Const(_)
@@ -1175,7 +1201,7 @@ impl SlotCounts {
                 out.extend(pool.list_items(args));
                 u32::from(def == self.suspend)
             }
-            TyData::TraitValue { args, .. } => {
+            TyData::TraitValue { args, .. } | TyData::Union(args) => {
                 out.extend(pool.list_items(args));
                 0
             }
@@ -1230,44 +1256,84 @@ struct FieldMap {
     statik: bool,
 }
 
-/// The slot layouts of the types one check meets, and the slot maps of
-/// the fields it projects, each made once.
-struct Layouts<'a> {
-    pool: Types<'a>,
-    /// `Suspend`'s definition.
-    suspend: DefId,
-    lifetimed: Lifetimed<'a>,
+/// Closed region layouts shared by the bodies of one module worker.
+/// Inference-local types remain in each check's short-lived cache. Global
+/// interning rejects local children, so a non-local layout retains no local IDs.
+#[derive(Default)]
+pub struct RegionLayouts {
     types: RefCell<HashMap<Ty, Rc<Layout>>>,
-    /// The types whose walk pushed no slot ([`Layout::walk`]).
+}
+
+/// The layout caches of one checker context, reusable across header items.
+#[derive(Default)]
+struct LayoutCache {
+    types: RefCell<HashMap<Ty, Rc<Layout>>>,
     slotless: RefCell<HashSet<Ty>>,
-    /// Each type's [`own_proj`] answer under `lifetimed`, kept for every
-    /// part a search enters ([`Layouts::own_proj`]).
     own_projs: RefCell<HashMap<Ty, bool>>,
     fields: RefCell<HashMap<(Ty, u32, u32), Option<FieldMap>>>,
     loan_shapes: RefCell<loan_shapes::Shapes>,
 }
 
+/// A view of a context's caches. Body checks own their cache on the stack;
+/// a header pass keeps one cache across all its item checks.
+struct Layouts<'a> {
+    pool: Types<'a>,
+    suspend: DefId,
+    lifetimed: Lifetimed<'a>,
+    cache: &'a LayoutCache,
+    shared: Option<&'a RegionLayouts>,
+}
+
+impl std::ops::Deref for Layouts<'_> {
+    type Target = LayoutCache;
+    fn deref(&self) -> &Self::Target {
+        self.cache
+    }
+}
+
 impl<'a> Layouts<'a> {
-    fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
+    fn new(
+        pool: Types<'a>,
+        suspend: DefId,
+        lifetimed: Lifetimed<'a>,
+        cache: &'a LayoutCache,
+    ) -> Self {
         Layouts {
             pool,
             suspend,
             lifetimed,
-            types: RefCell::default(),
-            slotless: RefCell::default(),
-            own_projs: RefCell::default(),
-            fields: RefCell::default(),
-            loan_shapes: RefCell::default(),
+            cache,
+            shared: None,
         }
     }
 
-    fn of(&self, t: Ty) -> Rc<Layout> {
-        if let Some(l) = self.types.borrow().get(&t) {
-            return Rc::clone(l);
+    fn with_shared(mut self, shared: &'a RegionLayouts) -> Self {
+        self.shared = Some(shared);
+        self
+    }
+
+    fn cached(&self, ty: Ty) -> Option<Rc<Layout>> {
+        if !ty.is_local()
+            && let Some(shared) = self.shared
+        {
+            return shared.types.borrow().get(&ty).cloned();
         }
-        let l = Rc::new(Layout::new(self, t));
-        self.types.borrow_mut().insert(t, Rc::clone(&l));
-        l
+        self.types.borrow().get(&ty).cloned()
+    }
+
+    fn of(&self, t: Ty) -> Rc<Layout> {
+        if let Some(layout) = self.cached(t) {
+            return layout;
+        }
+        let layout = Rc::new(Layout::new(self, t));
+        if !t.is_local()
+            && let Some(shared) = self.shared
+        {
+            shared.types.borrow_mut().insert(t, Rc::clone(&layout));
+        } else {
+            self.types.borrow_mut().insert(t, Rc::clone(&layout));
+        }
+        layout
     }
 
     /// Whether a value of type `t` may have origins: it holds a local
@@ -1319,18 +1385,25 @@ impl<'a> Layouts<'a> {
     /// A field's `lifetimes` by slot of `f`, a suspension's from past the
     /// reference slots' (`ref.dep.suspension.lifetime`); as written when
     /// it names none or `f` has a capture slot.
-    fn slot_lifetimes(&self, f: Ty, lifetimes: &[u16]) -> Vec<u16> {
-        let (refs, decl) = (self.pool.ref_slots(f), self.of(f));
-        if lifetimes.len() <= refs || decl.slots.iter().any(|s| s.fun && !s.hold) {
-            return lifetimes.to_vec();
-        }
-        let (mut r, mut h) = (0, refs);
-        let next = |k: &mut usize| {
-            *k += 1;
-            lifetimes.get(*k - 1).copied().unwrap_or(0)
-        };
-        (decl.slots.iter())
-            .map(|s| if s.hold { next(&mut h) } else { next(&mut r) })
+    fn slot_lifetimes(&self, ty: Ty, lifetimes: &[u16]) -> Vec<u16> {
+        let (mut reference, mut held) = (0, self.pool.ref_slots(ty));
+        self.of(ty)
+            .slots
+            .iter()
+            .map(|slot| {
+                let at = if slot.hold {
+                    let at = held;
+                    held += 1;
+                    at
+                } else if slot.fun || slot.whole {
+                    return 0;
+                } else {
+                    let at = reference;
+                    reference += 1;
+                    at
+                };
+                lifetimes.get(at).copied().unwrap_or(0)
+            })
             .collect()
     }
 
@@ -1599,6 +1672,65 @@ const HOST_MSG: &str =
 const HELD_MSG: &str = "a suspension that holds a local reference never escapes to a box, a provider, a host call, a top-level binding, or a field that names no lifetime for it, as `Suspend[R, 'a]` does";
 const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the caller owns, unless the type of that place names the reference's lifetime";
 
+/// An inherited bound is written in a declaration's scope and instantiated
+/// with another header's arguments. Keep that positional substitution,
+/// including lifetime arguments, beside the erased result type.
+pub(crate) struct WrittenInstantiation<'a> {
+    pub declaration: DefId,
+    pub self_ty: Ty,
+    pub self_lifetimes: &'a [u16],
+    pub args: hd_types::TyList,
+    pub argument_lifetimes: &'a [u16],
+    pub lifetimes: &'a [u16],
+    pub pattern: Ty,
+}
+
+/// A type written over a nominal declaration's parameters, instantiated
+/// with a header's actual arguments and their positional qualifiers.
+pub(crate) struct WrittenProjection<'a> {
+    pub declaration: DefId,
+    pub args: hd_types::TyList,
+    pub source_lifetimes: &'a [u16],
+    pub pattern: Ty,
+    pub pattern_lifetimes: &'a [u16],
+}
+
+/// A successful header proof and the written lifetimes of its inputs.
+pub(crate) struct WrittenProof<'a> {
+    pub owner: DefId,
+    pub tref: hd_types::solver::TraitRef,
+    pub obligations: &'a hd_types::solver::RegionObligations,
+    pub subject_lifetimes: &'a [u16],
+    pub subject_projection: Option<WrittenProjection<'a>>,
+    pub argument_lifetimes: &'a [u16],
+    pub instantiation: Option<WrittenInstantiation<'a>>,
+}
+
+/// Shared schema caches for a complete header pass.
+#[derive(Default)]
+pub(crate) struct HeaderProofs {
+    layouts: LayoutCache,
+    projection: proof_regions::HeaderProofs,
+}
+
+impl HeaderProofs {
+    pub(crate) fn fails(
+        &mut self,
+        pool: Types<'_>,
+        lookup: &hd_resolve::Lookup<'_>,
+        impls: hd_types::solver::Impls<'_>,
+        suspend: DefId,
+        proof: &WrittenProof<'_>,
+    ) -> hd_base::StageResult<bool> {
+        if proof.obligations.is_empty() {
+            return Ok(false);
+        }
+        let lifetimed = lifetimed(lookup);
+        let layouts = Layouts::new(pool, suspend, &lifetimed, &self.layouts);
+        self.projection.fails(&layouts, lookup, impls, proof)
+    }
+}
+
 /// A callee variable of a call (`ref.dep.call`): a callee lifetime, a slot
 /// of what a type parameter stands for (`ref.generic.call`), or what a
 /// suspension holds: every argument but a counted reference the call
@@ -1606,6 +1738,8 @@ const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the c
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Var {
     Life(u32),
+    /// An existential lifetime of one deferred proof application.
+    Proof(u32),
     Param(hd_types::ParamRef, usize),
     Held,
     /// The calling body's own lifetime, as a bound writes it for a trait
@@ -1743,7 +1877,8 @@ mod line_up_tests {
     fn doubling_pairs_are_checked_once() {
         let pool = InternPool::new();
         let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+        let cache = LayoutCache::default();
+        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed, &cache);
         for depth in [13, 26] {
             let mut pair = [Ty::I32, Ty::BOOL];
             for _ in 0..depth {
@@ -1776,7 +1911,8 @@ mod line_up_tests {
         let d = tuple(&pool, &[r, param]);
         let t = tuple(&pool, &[r, r]);
         let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+        let cache = LayoutCache::default();
+        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed, &cache);
         assert_eq!(
             line_up(&ls, tuple(&pool, &[d, d]), tuple(&pool, &[t, t])),
             Some(vec![
@@ -1803,7 +1939,8 @@ mod line_up_tests {
         }
         let root = tuple(&pool, &[shallow, deep]);
         let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+        let cache = LayoutCache::default();
+        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed, &cache);
         assert!(line_up(&ls, root, root).is_none());
     }
 
@@ -1838,7 +1975,8 @@ mod line_up_tests {
                     deep = (pair(deep.0), pair(deep.1));
                 }
                 let lifetimed = |_: DefId| false;
-                let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
+                let cache = LayoutCache::default();
+                let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed, &cache);
                 let keys = line_up(&ls, deep.0, deep.1).expect("the two line up");
                 let n = hd_base::limits::TYPE_DEPTH as usize;
                 assert_eq!(keys.len(), n);
@@ -1916,7 +2054,8 @@ mod projection_lifetime_tests {
                             let owner = ck.cx.names.item("app.main", "Holder");
                             let other = ck.cx.names.item("app.main", "Other");
                             let lifetimed = |_: DefId| false;
-                            let ls = Layouts::new(p, ck.cx.names.known.suspend, &lifetimed);
+                            let cache = LayoutCache::default();
+                            let ls = Layouts::new(p, ck.cx.names.known.suspend, &lifetimed, &cache);
                             for depth in [100, 1000] {
                                 let mut root =
                                     p.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
@@ -1981,6 +2120,8 @@ mod projection_lifetime_tests {
 
 /// A call's map over the types it instantiates (`ref.generic.call`).
 struct CallSig {
+    /// The successful trait proofs' deferred outlives checks.
+    proof_checks: Box<[proof_regions::Check]>,
     /// Each parameter's type, its argument's where the two line up, and
     /// for each of its slots the variable it takes and, for a capture slot
     /// the call may keep, the category of its check.
@@ -2164,6 +2305,8 @@ fn w(i: usize) -> u32 {
 type Set = Vec<Origin>;
 
 /// What the constraint generator reads of one body besides its TIR.
+type ValueProofs = HashMap<u32, Vec<(NodeIdx, Box<[proof_regions::Check]>)>>;
+
 struct Inputs<'a> {
     b: &'a Body,
     pool: Types<'a>,
@@ -2171,6 +2314,8 @@ struct Inputs<'a> {
     cx: &'a BodyCx<'a>,
     /// The maps of the calls that pass or return origins.
     calls: &'a HashMap<u32, CallSig>,
+    /// Proofs committed by conversions, indexed by their source instruction.
+    value_proofs: &'a ValueProofs,
     /// Each parameter's type, which `Origin::Param` slots index.
     params: Vec<Ty>,
     /// The function's own map, whose parameters' lifetimes decide what a
@@ -2360,7 +2505,9 @@ impl Ck<'_, '_> {
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
         let lifetimed = lifetimed(self.cx.lookup);
-        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
+        let cache = LayoutCache::default();
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed, &cache)
+            .with_shared(&self.cx.region_layouts);
         DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
             .with_paths(ls, &sig.paths)
             .to_fn(ls, skip)
@@ -2374,7 +2521,7 @@ impl Ck<'_, '_> {
         &self,
         tsig: &hd_resolve::FnSig,
         sig: &hd_resolve::FnSig,
-        (trait_, trait_args): (DefId, hd_types::TyList),
+        (trait_, trait_args, self_ty): (DefId, hd_types::TyList, Ty),
         (trait_lifetimes, self_lifetimes, trait_slots): (&[u16], &[u16], &[u16]),
         impl_lifetime_count: usize,
     ) -> hd_types::FnDeps {
@@ -2382,7 +2529,9 @@ impl Ck<'_, '_> {
         let names = &self.cx.names;
         let is_self = |s| names.text(s) == "self";
         let lifetimed = lifetimed(self.cx.lookup);
-        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
+        let cache = LayoutCache::default();
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed, &cache)
+            .with_shared(&self.cx.region_layouts);
         let dep = DepSig::new(ls, &tsig.params, is_self, tsig.ret, &tsig.lifetimes);
         let dep = if pool.has_opaque(tsig.ret) && pool.ref_slots(tsig.ret) != 0 {
             dep.open(ls, sig.ret)
@@ -2394,15 +2543,81 @@ impl Ck<'_, '_> {
             .outs;
         let slots: Vec<u32> = trait_slots.iter().map(|&l| u32::from(l)).collect();
         let arg_lifetimes = arg_ids(ls, pool.list_items(trait_args), &slots);
+        let self_lifetimes = ls.slot_lifetimes(self_ty, self_lifetimes);
         dep.align_trait_impl(
             ls,
             &sig.params,
-            (sig.ret, &impl_outs, &|t| self.proj_lifetimes(ls, t)),
+            (sig.ret, Some(&impl_outs), &|t| self.proj_lifetimes(ls, t)),
             trait_,
-            (trait_lifetimes, self_lifetimes, &arg_lifetimes),
+            (trait_lifetimes, &self_lifetimes, &arg_lifetimes),
             impl_lifetime_count,
         )
         .to_fn(ls, 0)
+    }
+
+    /// Generated methods have a trait declaration as their signature source,
+    /// even though no `FnDecl` node exists. Reuse the ordinary trait-impl
+    /// positional alignment; its outputs are exact substitutions here.
+    fn body_dep_sig(
+        &self,
+        ls: &Layouts<'_>,
+        sig: &hd_resolve::FnSig,
+        ret: Ty,
+    ) -> hd_base::StageResult<DepSig> {
+        let names = &self.cx.names;
+        let is_self = |s| names.text(s) == "self";
+        let Some(method) = self.forwarded_method else {
+            return Ok(DepSig::new(ls, &sig.params, is_self, ret, &sig.lifetimes));
+        };
+        let bug = |message| hd_base::NotImplemented::bug(hd_base::Stage::Body, message);
+        let item = self
+            .cx
+            .lookup
+            .item(self.b.body().item)
+            .ok_or_else(|| bug("a generated body lost its method"))?;
+        let ItemData::Method { owner, .. } = &item.data else {
+            return Err(bug("a generated method has no implementation owner"));
+        };
+        let implementation = self
+            .cx
+            .lookup
+            .item(*owner)
+            .ok_or_else(|| bug("a generated body lost its implementation"))?;
+        let ItemData::Impl {
+            trait_,
+            trait_args,
+            trait_lifetimes,
+            self_lifetimes,
+            self_ty,
+            trait_slots,
+            ..
+        } = &implementation.data
+        else {
+            return Err(bug("a generated method belongs to a non-implementation"));
+        };
+        let source = self
+            .cx
+            .lookup
+            .item(method)
+            .and_then(|item| item.sig())
+            .ok_or_else(|| bug("a generated method lost its trait signature"))?;
+        let dep = DepSig::new(ls, &source.params, is_self, source.ret, &source.lifetimes);
+        let written: Vec<u32> = trait_slots.iter().map(|&l| u32::from(l)).collect();
+        let arguments = arg_ids(ls, ls.pool.list_items(*trait_args), &written);
+        let count = implementation
+            .generics
+            .iter()
+            .filter(|g| g.lifetime)
+            .count();
+        let self_lifetimes = ls.slot_lifetimes(*self_ty, self_lifetimes);
+        Ok(dep.align_trait_impl(
+            ls,
+            &sig.params,
+            (ret, None, &|t| self.proj_lifetimes(ls, t)),
+            *trait_,
+            (trait_lifetimes, &self_lifetimes, &arguments),
+            count,
+        ))
     }
 
     /// The map of call `i` of `b` when it passes or returns a value that
@@ -2419,9 +2634,10 @@ impl Ck<'_, '_> {
         b: &Body,
         i: usize,
         values: &FnValues<'_>,
-    ) -> Option<CallSig> {
+        requires_regions: bool,
+    ) -> Option<(CallSig, Vec<(Key, Var)>)> {
         let (pool, tag, names) = (ls.pool, b.tags[i], &self.cx.names);
-        let (mut holds, mut held) = (ls.holds(b.ty[i]), false);
+        let (mut holds, mut held) = (ls.holds(b.ty[i]) || requires_regions, false);
         let receiver = (tag == Tag::CallDyn).then(|| b.data[i][0]);
         // The caller's own lifetime of each slot of each trait argument, by
         // the bound a call through a type parameter's or an associated
@@ -2867,18 +3083,22 @@ impl Ck<'_, '_> {
         } else {
             (Vec::new(), Vec::new())
         };
-        Some(CallSig {
-            links,
-            by_value,
-            paths,
-            store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
-            result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
-            bare,
-            params,
-            outs,
-            held: held_args,
-            loan_slots,
-        })
+        Some((
+            CallSig {
+                proof_checks: Box::default(),
+                links,
+                by_value,
+                paths,
+                store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
+                result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
+                bare,
+                params,
+                outs,
+                held: held_args,
+                loan_slots,
+            },
+            took,
+        ))
     }
 
     fn call_loan_slots(
@@ -3985,6 +4205,7 @@ impl Ck<'_, '_> {
             trait_args,
             trait_lifetimes: t,
             self_lifetimes,
+            self_ty,
             trait_slots,
             ..
         }) = self.cx.lookup.item(imp).map(|i| &i.data)
@@ -3992,7 +4213,12 @@ impl Ck<'_, '_> {
             return Vec::new();
         };
         let pool = ls.pool;
-        let mut lts: Vec<Vec<u32>> = vec![self_lifetimes.iter().map(|&l| u32::from(l)).collect()];
+        let mut lts: Vec<Vec<u32>> = vec![
+            ls.slot_lifetimes(*self_ty, self_lifetimes)
+                .into_iter()
+                .map(u32::from)
+                .collect(),
+        ];
         if !trait_slots.is_empty() {
             let args = pool.list_items(*trait_args);
             let written: Vec<u32> = trait_slots.iter().map(|&l| u32::from(l)).collect();
@@ -4064,13 +4290,16 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
         facts: &crate::moves::MoveFacts,
-    ) {
+    ) -> hd_base::StageResult<()> {
         let pool = self.pool();
         let lifetimed = lifetimed(self.cx.lookup);
-        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
+        let cache = LayoutCache::default();
+        let ls = &Layouts::new(pool, self.cx.names.known.suspend, &lifetimed, &cache)
+            .with_shared(&self.cx.region_layouts);
         let body = self.b.body();
         // The body's own map: parameter k is local k.
-        let fn_body = body.kind == BodyKind::Fn && fun.is_some() && ls.holds(ret);
+        let signature_context = fun.is_some() || self.forwarded_method.is_some();
+        let fn_body = body.kind == BodyKind::Fn && signature_context && ls.holds(ret);
         let mut opaque = false;
         let own_sig = fn_body
             .then(|| {
@@ -4089,18 +4318,12 @@ impl Ck<'_, '_> {
                 if let Some(f) = fun {
                     paths = self.own_paths(ls, &sig, f, &mut errs);
                 }
-                let names = &self.cx.names;
                 // A hidden result is checked against its opaque types'
                 // lifetimes (`types.opaque.borrows.body`).
                 opaque = pool.has_opaque(sig.ret);
-                let dep = DepSig::new(
-                    ls,
-                    &sig.params,
-                    |s| names.text(s) == "self",
-                    if opaque { sig.ret } else { ret },
-                    &sig.lifetimes,
-                )
-                .with_paths(ls, &sig.paths);
+                let dep = self
+                    .body_dep_sig(ls, &sig, if opaque { sig.ret } else { ret })?
+                    .with_paths(ls, &sig.paths);
                 let dep = self.with_wholes(ls, dep);
                 Some(if opaque { dep.open(ls, ret) } else { dep })
             }
@@ -4109,21 +4332,57 @@ impl Ck<'_, '_> {
         // The parameters' lifetimes, which decide what a place the caller
         // owns may take (`ref.lifetime.store`), from the declared
         // signature: an omitted result is no part of it.
-        let declared = (body.kind == BodyKind::Fn && fun.is_some())
+        let declared = (body.kind == BodyKind::Fn && signature_context)
             .then(|| self.cx.lookup.item(body.item).and_then(|i| i.sig()))
             .flatten();
-        let mine = declared.map(|sig| {
-            let names = &self.cx.names;
-            let is_self = |s| names.text(s) == "self";
-            self.with_wholes(
-                ls,
-                DepSig::new(ls, &sig.params, is_self, Ty::VOID, &sig.lifetimes),
-            )
-        });
+        let mine = match declared {
+            Some(sig) => Some(self.with_wholes(ls, self.body_dep_sig(ls, sig, Ty::VOID)?)),
+            None => None,
+        };
         let values = FnValues::new(body, mine.as_ref());
+        let mut proofs: HashMap<NodeIdx, Vec<crate::body::ProofUse>> = HashMap::default();
+        let mut value_proofs = ValueProofs::default();
+        for proof in &self.region_obligations {
+            let mut proof = proof.clone();
+            proof.tref.self_ty = self.infer.resolve(pool, proof.tref.self_ty);
+            proof.tref.args = pool.list(
+                &pool
+                    .list_items(proof.tref.args)
+                    .iter()
+                    .map(|&ty| self.infer.resolve(pool, ty))
+                    .collect::<Vec<_>>(),
+            );
+            proof.obligations = proof
+                .obligations
+                .map_infer(pool, |ty| self.infer.resolve(pool, ty));
+            if let crate::body::ProofSource::Value(value) = proof.source {
+                let inst = value.as_inst().ok_or_else(|| {
+                    hd_base::NotImplemented::bug(
+                        hd_base::Stage::Body,
+                        "a conditional conversion proof has no value instruction",
+                    )
+                })?;
+                let checks = self.call_proof_checks(
+                    ls,
+                    body,
+                    inst.0 as usize,
+                    &[],
+                    std::slice::from_ref(&proof),
+                )?;
+                if !checks.is_empty() {
+                    value_proofs
+                        .entry(inst.0)
+                        .or_default()
+                        .push((proof.at, checks));
+                }
+            } else {
+                proofs.entry(proof.at).or_default().push(proof);
+            }
+        }
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
-        let mut through = !self.static_values.is_empty()
+        let mut through = !value_proofs.is_empty()
+            || !self.static_values.is_empty()
             || body.local_ty.iter().enumerate().any(|(l, &t)| {
                 body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
             });
@@ -4132,12 +4391,20 @@ impl Ck<'_, '_> {
             if matches!(
                 body.tags[i],
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
-            ) && let Some(sig) = self.call_sig(ls, body, i, &values)
+            ) && let Some((mut sig, took)) =
+                self.call_sig(ls, body, i, &values, proofs.contains_key(&body.syn[i]))
             {
+                if let Some(uses) = proofs.get(&body.syn[i]) {
+                    sig.proof_checks = self.call_proof_checks(ls, body, i, &took, uses)?;
+                }
                 // A suspension that holds an argument may be kept
                 // (`ref.dep.suspension.local`).
                 let held = sig.result && ls.of(body.ty[i]).slots.iter().any(|s| s.hold);
-                through |= sig.store || held || sig.passes_own() || sig.passes_static();
+                through |= sig.store
+                    || held
+                    || sig.passes_own()
+                    || sig.passes_static()
+                    || !sig.proof_checks.is_empty();
                 calls.insert(w(i), sig);
             }
             // A call that takes a reference beside another argument
@@ -4360,7 +4627,7 @@ impl Ck<'_, '_> {
             || (runtime.iter().enumerate())
                 .any(|(i, &site)| site && self.b.body().tags[i] == Tag::Ref);
         if own.is_none() && !through && !lends && closures.is_empty() {
-            return;
+            return Ok(());
         }
         let body = self.b.body();
         let params: Vec<Ty> = (0..body.local_ty.len())
@@ -4375,6 +4642,7 @@ impl Ck<'_, '_> {
             ls,
             cx: self.cx,
             calls: &calls,
+            value_proofs: &value_proofs,
             params,
             own: mine.as_ref(),
             boxes: &self.boxes,
@@ -4415,6 +4683,7 @@ impl Ck<'_, '_> {
         if !run_loans.0.is_empty() {
             self.run_loans = Some(run_loans);
         }
+        Ok(())
     }
 
     /// Each argument a call lends to a local-reference parameter of its
@@ -4642,6 +4911,11 @@ impl Ck<'_, '_> {
         };
         for at in stores {
             push(at, &|| CALLER_PLACE_MSG.to_owned());
+        }
+        for at in v.proofs {
+            push(at, &|| {
+                "a reference does not outlive the lifetime required by its trait bound".to_owned()
+            });
         }
         if let Some(own) = own.or(mine) {
             for (at, o, l, value) in v.bounds {
@@ -4990,6 +5264,8 @@ fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
 /// The diagnostics one solver gives a body, before their messages.
 #[derive(Default)]
 struct Verdicts {
+    /// A written lifetime cannot satisfy a deferred proof's requirement.
+    proofs: Vec<NodeIdx>,
     /// The run-time loan sites and their holders (`ref.excl.alias.loan`).
     run_loans: RunLoans,
     /// Stores into a place the caller owns (`ref.dep.store`).
@@ -5609,5 +5885,90 @@ fn scope_message(
         format!("{holder} may point into {target} from an earlier iteration of its loop")
     } else {
         format!("{holder} may point into {target}, whose block has ended")
+    }
+}
+
+#[cfg(test)]
+mod shared_layout_tests {
+    use super::*;
+    use hd_types::{FnDeps, Inputs, InternPool, LocalPool, RowId, TyList};
+
+    #[test]
+    fn cached_parts_rebase_ranges_and_context_flags() {
+        let global = InternPool::new();
+        let pool = global.types();
+        let function = pool.intern_ty(&TyData::Fn {
+            params: TyList::EMPTY,
+            result: Ty::VOID,
+            row: RowId::EMPTY,
+            suspends: false,
+            inputs: Inputs::Fixed,
+            deps: FnDeps::NONE,
+        });
+        let reference = |inner, mutable, counted| {
+            pool.intern_ty(&TyData::Ref {
+                inner,
+                mutable,
+                counted,
+            })
+        };
+        let tuple = |values: &[Ty]| {
+            pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(values),
+                rest: None,
+            })
+        };
+        let suspend = DefId::from_raw(77);
+        let pair = tuple(&[function, reference(function, false, false)]);
+        let mutable = reference(pair, true, true);
+        let held = pool.intern_ty(&TyData::Adt {
+            def: suspend,
+            args: pool.list(&[pair]),
+        });
+        let root = tuple(&[function, mutable, reference(pair, false, false), held]);
+        let lifetimed = |_: DefId| false;
+        let shared = RegionLayouts::default();
+        let cache = LayoutCache::default();
+        let warm = Layouts::new(pool, suspend, &lifetimed, &cache).with_shared(&shared);
+        for ty in [function, pair, mutable, held] {
+            warm.of(ty);
+        }
+        let fresh_cache = LayoutCache::default();
+        let fresh = Layouts::new(pool, suspend, &lifetimed, &fresh_cache);
+        let (actual, expected) = (warm.of(root), fresh.of(root));
+        assert_eq!(actual.slots, expected.slots);
+        assert_eq!(actual.tops, expected.tops);
+        assert_eq!(actual.width, expected.width);
+    }
+
+    #[test]
+    fn shared_layout_cache_retains_no_inference_local_types() {
+        let global = InternPool::new();
+        let shared = RegionLayouts::default();
+        let lifetimed = |_: DefId| false;
+        let cache = LayoutCache::default();
+        let global_view =
+            Layouts::new(global.types(), DefId::NONE, &lifetimed, &cache).with_shared(&shared);
+        global_view.of(Ty::VOID);
+        let entries = shared.types.borrow().len();
+        for width in [2, 3] {
+            let local = LocalPool::new();
+            let pool = Types::with_local(&global, &local);
+            let infer = pool.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(0)));
+            let reference = pool.intern_ty(&TyData::Ref {
+                inner: infer,
+                mutable: false,
+                counted: false,
+            });
+            let root = pool.intern_ty(&TyData::Tuple {
+                elems: pool.list(&vec![reference; width]),
+                rest: None,
+            });
+            assert!(root.is_local());
+            let cache = LayoutCache::default();
+            let view = Layouts::new(pool, DefId::NONE, &lifetimed, &cache).with_shared(&shared);
+            assert_eq!(view.of(root).slots.len(), width);
+            assert_eq!(shared.types.borrow().len(), entries);
+        }
     }
 }

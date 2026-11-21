@@ -33,6 +33,7 @@ struct Gen<'s, 'a> {
     s: &'s Inputs<'a>,
     t: RegionTable,
     c: Constraints,
+    proof_failures: Vec<NodeIdx>,
     /// Each loan's origin: loan `l` is `loans[l]`, placeholders first.
     loans: Vec<Origin>,
     ids: HashMap<Origin, Loan>,
@@ -738,6 +739,85 @@ impl Gen<'_, '_> {
         index.get(&l)?.as_deref()
     }
 
+    /// Discharge committed call or conversion proofs in the same region
+    /// graph. Each grouped source and target gets one hub, avoiding a
+    /// Cartesian product of equal-typed input positions.
+    fn proof_checks(
+        &mut self,
+        checks: &[super::proof_regions::Check],
+        node: NodeIdx,
+        mut var: impl FnMut(&mut RegionTable, Var) -> Region,
+    ) {
+        for check in checks {
+            use super::proof_regions::Region as ProofRegion;
+            use hd_types::solver::RegionBound;
+            let known = |r: ProofRegion| match r {
+                ProofRegion::Declared(r) => Some(r),
+                _ => None,
+            };
+            let mut region = |this: &mut Self, r: ProofRegion| -> Option<Region> {
+                match r {
+                    ProofRegion::Call(v) => Some(var(&mut this.t, v)),
+                    ProofRegion::Inference(id) => Some(var(&mut this.t, Var::Proof(id))),
+                    ProofRegion::Value(v, slot) => {
+                        this.s.ty(v)?;
+                        let range = this.t.slots(this.locals + v);
+                        (slot < (range.end - range.start) as usize).then(|| range.start + w(slot))
+                    }
+                    ProofRegion::Declared(RegionBound::Static) => Some(this.stat),
+                    ProofRegion::Declared(RegionBound::Lifetime { owner, index }) => {
+                        if owner == this.s.b.item {
+                            Some(this.own_lifetime(index))
+                        } else {
+                            Some(var(&mut this.t, Var::Life(index)))
+                        }
+                    }
+                }
+            };
+            let mut sources = Vec::new();
+            for &from in &check.from {
+                if from == ProofRegion::Declared(RegionBound::Static) {
+                    continue;
+                }
+                if let Some(from) = known(from) {
+                    if !check
+                        .to
+                        .iter()
+                        .any(|&to| known(to).is_some_and(|to| to == from))
+                    {
+                        self.proof_failures.push(node);
+                    }
+                    continue;
+                }
+                if let Some(from) = region(self, from) {
+                    sources.push(from);
+                } else {
+                    self.proof_failures.push(node);
+                }
+            }
+            if sources.is_empty() {
+                continue;
+            }
+            let targets: Vec<_> = check.to.iter().filter_map(|&r| region(self, r)).collect();
+            if targets.is_empty() {
+                self.proof_failures.push(node);
+                continue;
+            }
+            let from = if let [from] = sources.as_slice() {
+                *from
+            } else {
+                let hub = self.t.fresh(1).start;
+                self.each_into(&sources, &[hub]);
+                hub
+            };
+            // One shared source hub, then one checked edge per target:
+            // every universal target retains its own admissible origins.
+            for to in targets {
+                self.checked(from, to, Category::Outlives, node);
+            }
+        }
+    }
+
     /// A call by its map `sig` (`ref.dep.call`): one fresh variable per
     /// callee lifetime and type-parameter slot, each argument slot ⊑ its
     /// variable, equal under a `&mut` (`ref.generic.store`), and the slots
@@ -753,7 +833,7 @@ impl Gen<'_, '_> {
     /// call returns (`ref.lifetime.trait.bound-argument`).
     fn call(&mut self, sig: &CallSig, me: &View) {
         let (b, pool, ls, iu) = (self.s.b, self.s.pool, self.s.ls, self.at as usize);
-        let flows = sig.result || sig.store;
+        let flows = sig.result || sig.store || !sig.proof_checks.is_empty();
         let cat = if sig.store {
             Category::CallerPlace
         } else {
@@ -928,6 +1008,7 @@ impl Gen<'_, '_> {
                 }
             }
         }
+        self.proof_checks(&sig.proof_checks, self.s.b.syn[self.at as usize], &mut var);
         if !sig.result {
             return;
         }
@@ -1608,6 +1689,7 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         s,
         t: RegionTable::default(),
         c: Constraints::default(),
+        proof_failures: Vec::new(),
         loans: Vec::new(),
         ids: HashMap::default(),
         locals: w(b.local_ty.len()),
@@ -1660,6 +1742,14 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
     for i in 0..w(b.tags.len()) {
         g.at = i;
         g.step(i);
+        if let Some(proofs) = s.value_proofs.get(&i) {
+            for (node, checks) in proofs {
+                let mut vars = HashMap::default();
+                g.proof_checks(checks, *node, |t, v| {
+                    *vars.entry(v).or_insert_with(|| t.fresh(1).start)
+                });
+            }
+        }
         g.escapes(i);
     }
     // `ref.static.value`: each value a `&'static T` binding takes, one
@@ -2148,7 +2238,10 @@ impl Gen<'_, '_> {
         // written `&'static T` (`ref.static.value`).
         let statik = |o: Origin| {
             matches!(o, Origin::Static(_))
-                || r.own.is_some_and(|(own, _)| own.allows(ls, o, STATIC))
+                || r.own
+                    .map(|(own, _)| own)
+                    .or(self.s.own)
+                    .is_some_and(|own| own.allows(ls, o, STATIC))
         };
         let allowed = |e: &Edge, l: Loan| {
             let o = self.loans[l as usize];
@@ -2162,6 +2255,7 @@ impl Gen<'_, '_> {
                 }
                 Category::Flow => true,
                 Category::Static => statik(o),
+                Category::Outlives if e.to == self.stat => statik(o),
                 Category::Result => match (results[&e.to], r.own) {
                     ((None, ids), _) if ids.contains(&STATIC) => statik(o),
                     ((None, ids), Some((own, _))) => ids.iter().any(|&id| own.allows(ls, o, id)),
@@ -2184,7 +2278,7 @@ impl Gen<'_, '_> {
                 // lifetimes its call passed a parameter's slot at, whatever
                 // function value the result holds
                 // (`fn.type.lifetime.call.written`).
-                Category::Bound => {
+                Category::Bound | Category::Outlives => {
                     global
                         || (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
                             .all(|&(l, _)| self.s.allows(o, l))
@@ -2195,6 +2289,7 @@ impl Gen<'_, '_> {
         };
         let has = |v: u32, o: Origin| self.has(sol, v, o);
         let mut v = Verdicts::default();
+        v.proofs.clone_from(&self.proof_failures);
         let mut returns = HashSet::default();
         let violations = sol.violations(&self.c, allowed);
         let mut passed: HashSet<Origin> = HashSet::default();
@@ -2280,6 +2375,9 @@ fn message(cat: Category, tag: Tag) -> &'static str {
         (Category::Provider, _) => PROVIDER_MSG,
         (Category::HostCall, _) => HOST_MSG,
         (Category::StaticParam, _) => STATIC_MSG,
+        (Category::Outlives, _) => {
+            "a reference does not outlive the lifetime required by its trait bound"
+        }
         (Category::FieldCapture, Tag::Store) => STORE_FN_MSG,
         (Category::FieldCapture, Tag::Intrinsic) => ELEM_MSG,
         (Category::FieldCapture, Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue)

@@ -619,7 +619,11 @@ fn fails(memo: &mut CopyMemo, root: Ty) -> bool {
 fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
     match pool.get(self_ty) {
-        TyData::Ref { counted: false, .. } => return Row::Fails(FailReason::NoImpl),
+        // The type carries no lifetime. Selection defers this reference's
+        // outlives requirement to the checker's region constraints.
+        TyData::Ref { counted: false, .. } => {
+            return Row::Holds(BuiltinImpl::Static, Vec::new());
+        }
         // A counted reference meets it when its referent does. A trait
         // value is only ever a reference's referent, and meets it.
         TyData::Ref { inner, .. } => subs.push(inner),
@@ -639,9 +643,9 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
         }
         // An environment clause answers a parameter before this row.
         TyData::Param(_) | TyData::Opaque { .. } => return Row::Fails(FailReason::NoImpl),
-        // No part to check: a value with no reference inside, a function
-        // type, which always meets it (`ref.generic.static.no-local`), a goal
-        // already in error, or one the solver stalls on before this row.
+        // No type sub-obligations: function captures are value origins,
+        // which selection defers to the checker's region constraints.
+        // The rest are scalars, goals in error, or goals stalled earlier.
         TyData::Prim(_)
         | TyData::Never
         | TyData::Poison
@@ -746,6 +750,11 @@ mod coverage_contracts {
             static_row(p, projection(Ty::I32, &[local])),
             Row::Holds(BuiltinImpl::Static, vec![local]),
         );
-        assert_eq!(static_row(p, local), Row::Fails(FailReason::NoImpl));
+        // Its lifetime is checked by the successful solver answer's
+        // outlives obligation, rather than rejected from its type alone.
+        assert_eq!(
+            static_row(p, local),
+            Row::Holds(BuiltinImpl::Static, vec![])
+        );
     }
 }

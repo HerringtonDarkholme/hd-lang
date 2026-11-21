@@ -173,6 +173,7 @@ fn stage_b_over<'i>(
     let mut values = crate::value::InlinePass::default();
     let mut private = hd_base::HashMap::default();
     let mut slots = crate::dep_results::SlotCounts::new(cx.names.known.suspend);
+    let mut proofs = crate::dep_results::HeaderProofs::default();
     for it in items {
         let mut hc = ItemCheck::new(cx, it, &mut out);
         hc.cycles = cycles;
@@ -180,12 +181,14 @@ fn stage_b_over<'i>(
         hc.values = values;
         hc.private = private;
         hc.slots = slots;
+        hc.proofs = proofs;
         hc.item(it)?;
         cycles = hc.cycles;
         clean = hc.clean;
         values = hc.values;
         private = hc.private;
         slots = hc.slots;
+        proofs = hc.proofs;
     }
     Ok(out)
 }
@@ -458,6 +461,7 @@ struct ItemCheck<'c, 'a> {
     /// The origin slots of written types (`types.limit.references`),
     /// kept across the items of one stage-B pass.
     slots: crate::dep_results::SlotCounts,
+    proofs: crate::dep_results::HeaderProofs,
 }
 
 impl<'c, 'a> ItemCheck<'c, 'a> {
@@ -496,6 +500,7 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
             values: crate::value::InlinePass::default(),
             private: hd_base::HashMap::default(),
             slots: crate::dep_results::SlotCounts::new(cx.names.known.suspend),
+            proofs: crate::dep_results::HeaderProofs::default(),
         }
     }
 }
@@ -662,18 +667,55 @@ impl<'a> ItemCheck<'_, 'a> {
             let Some(d) = g.default else {
                 continue;
             };
-            for b in &g.bounds {
-                if self.fails(d, *b, 0)? {
-                    let message = format!(
-                        "the default {} does not implement {}",
-                        self.show(d),
-                        self.show(*b)
-                    );
-                    self.report(0, Code::UnsatisfiedTraitBound, message);
-                    break;
+            for (index, &bound) in g.bounds.iter().enumerate() {
+                let Some((trait_, args)) = self.pool().trait_value(bound) else {
+                    continue;
+                };
+                let tref = TraitRef {
+                    trait_,
+                    self_ty: d,
+                    args,
+                };
+                match self.answer_ref(tref, 0)? {
+                    Answer::Holds { obligations, .. } => {
+                        let failed = self.proofs.fails(
+                            self.cx.names.pool.types(),
+                            self.cx.lookup,
+                            Impls::Owned(self.cx.impls),
+                            self.cx.names.known.suspend,
+                            &crate::dep_results::WrittenProof {
+                                owner: self.item,
+                                instantiation: None,
+                                tref,
+                                obligations: &obligations,
+                                subject_lifetimes: &g.default_lifetimes,
+                                subject_projection: None,
+                                argument_lifetimes: g
+                                    .bound_lifetimes
+                                    .get(index)
+                                    .map_or(&[], Vec::as_slice),
+                            },
+                        )?;
+                        if failed {
+                            self.report(0, Code::LocalReferenceEscapes,
+                                format!("the default {} does not outlive the lifetime required by its bound", self.show(d)));
+                            break;
+                        }
+                    }
+                    Answer::Fails(_) => {
+                        let message = format!(
+                            "the default {} does not implement {}",
+                            self.show(d),
+                            self.show(bound)
+                        );
+                        self.report(0, Code::UnsatisfiedTraitBound, message);
+                        break;
+                    }
+                    _ => {}
                 }
             }
         }
+
         match &it.data {
             ItemData::Trait(t) => {
                 let (this, identity) = trait_identity(self.pool(), it.def, &it.generics);
@@ -1028,6 +1070,9 @@ impl<'a> ItemCheck<'_, 'a> {
             trait_,
             trait_args,
             self_ty,
+            self_lifetimes,
+            trait_slots,
+            trait_lifetimes,
             kind,
             ..
         } = &it.data
@@ -1050,8 +1095,62 @@ impl<'a> ItemCheck<'_, 'a> {
         {
             return Ok(());
         }
-        for s in self.supers(*trait_, *trait_args, *self_ty) {
-            if self.fails(*self_ty, s, 0)? {
+        for (s, pattern, index) in self.supers(*trait_, *trait_args, *self_ty) {
+            let Some((supertrait, args)) = self.pool().trait_value(s) else {
+                continue;
+            };
+            let tref = TraitRef {
+                trait_: supertrait,
+                self_ty: *self_ty,
+                args,
+            };
+            let answer = self.answer_ref(tref, 0)?;
+            if let Answer::Holds { obligations, .. } = &answer {
+                let written = self
+                    .cx
+                    .lookup
+                    .item(*trait_)
+                    .and_then(|it| match &it.data {
+                        ItemData::Trait(t) => t.super_lifetimes.get(index),
+                        _ => None,
+                    })
+                    .map_or(&[][..], Vec::as_slice);
+                if self.proofs.fails(
+                    self.cx.names.pool.types(),
+                    self.cx.lookup,
+                    Impls::Owned(self.cx.impls),
+                    self.cx.names.known.suspend,
+                    &crate::dep_results::WrittenProof {
+                        owner: self.item,
+                        tref,
+                        obligations,
+                        subject_lifetimes: self_lifetimes,
+                        subject_projection: None,
+                        argument_lifetimes: written,
+                        instantiation: Some(crate::dep_results::WrittenInstantiation {
+                            declaration: *trait_,
+                            self_ty: *self_ty,
+                            self_lifetimes,
+                            args: *trait_args,
+                            argument_lifetimes: trait_slots,
+                            lifetimes: trait_lifetimes,
+                            pattern,
+                        }),
+                    },
+                )? {
+                    self.report(
+                        0,
+                        Code::LocalReferenceEscapes,
+                        format!(
+                            "the implementation for {} does not satisfy the lifetime required by its supertrait {}",
+                            self.show(*self_ty),
+                            self.show(s)
+                        ),
+                    );
+                    continue;
+                }
+            }
+            if matches!(answer, Answer::Fails(_)) {
                 let message = format!(
                     "{} implements {} but not {}",
                     self.show(*self_ty),
@@ -1074,6 +1173,10 @@ impl<'a> ItemCheck<'_, 'a> {
             trait_args,
             self_ty,
             assoc,
+            assoc_lifetimes,
+            self_lifetimes,
+            trait_lifetimes,
+            trait_slots,
             kind: ImplKind::Written,
             ..
         } = &it.data
@@ -1082,14 +1185,18 @@ impl<'a> ItemCheck<'_, 'a> {
         };
         let pool = self.pool();
         let args = pool.list_items(*trait_args);
-        for (a, bound_to) in assoc {
+        for (assigned, (a, bound_to)) in assoc.iter().enumerate() {
             self.check_ty(*bound_to, 0)?;
-            let Some(ItemData::AssocType { bounds, .. }) = self.cx.lookup.item(*a).map(|i| &i.data)
+            let Some(ItemData::AssocType {
+                bounds,
+                bound_lifetimes,
+                ..
+            }) = self.cx.lookup.item(*a).map(|i| &i.data)
             else {
                 continue;
             };
-            for b in bounds.clone() {
-                let b = pool.subst(b, &|p: ParamRef| {
+            for (index, &pattern) in bounds.iter().enumerate() {
+                let b = pool.subst(pattern, &|p: ParamRef| {
                     (p.owner == *trait_).then(|| {
                         if p.index == 0 {
                             Some(*self_ty)
@@ -1101,7 +1208,56 @@ impl<'a> ItemCheck<'_, 'a> {
                 if pool.has_poison(*bound_to) {
                     continue;
                 }
-                if !self.fails(*bound_to, b, 0)? {
+                let Some((bound_trait, args)) = pool.trait_value(b) else {
+                    continue;
+                };
+                let tref = TraitRef {
+                    trait_: bound_trait,
+                    self_ty: *bound_to,
+                    args,
+                };
+                let answer = self.answer_ref(tref, 0)?;
+                if let Answer::Holds { obligations, .. } = &answer
+                    && self.proofs.fails(
+                        pool,
+                        self.cx.lookup,
+                        Impls::Owned(self.cx.impls),
+                        self.cx.names.known.suspend,
+                        &crate::dep_results::WrittenProof {
+                            owner: self.item,
+                            tref,
+                            obligations,
+                            subject_projection: None,
+                            subject_lifetimes: assoc_lifetimes
+                                .get(assigned)
+                                .map_or(&[], Vec::as_slice),
+                            argument_lifetimes: bound_lifetimes
+                                .get(index)
+                                .map_or(&[], Vec::as_slice),
+                            instantiation: Some(crate::dep_results::WrittenInstantiation {
+                                declaration: *trait_,
+                                self_ty: *self_ty,
+                                self_lifetimes,
+                                args: *trait_args,
+                                argument_lifetimes: trait_slots,
+                                lifetimes: trait_lifetimes,
+                                pattern,
+                            }),
+                        },
+                    )?
+                {
+                    self.report(
+                        0,
+                        Code::LocalReferenceEscapes,
+                        format!(
+                            "the assigned type {} does not satisfy the lifetime required by {}",
+                            self.show(*bound_to),
+                            self.show(b)
+                        ),
+                    );
+                    continue;
+                }
+                if !matches!(answer, Answer::Fails(_)) {
                     self.assoc_bound_bindings(*self_ty, *a, *bound_to, b)?;
                     continue;
                 }
@@ -1419,7 +1575,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// The supertraits of `trait_[args]`, `Self` replaced by `self_ty`,
     /// then `Copy` unless the trait is declared `< ?Copy`
     /// (`ref.copy.trait.default`).
-    fn supers(&self, trait_: DefId, args: TyList, self_ty: Ty) -> Vec<Ty> {
+    fn supers(&self, trait_: DefId, args: TyList, self_ty: Ty) -> Vec<(Ty, Ty, usize)> {
         let pool = self.pool();
         let Some(it) = self.cx.lookup.item(trait_) else {
             return Vec::new();
@@ -1439,8 +1595,9 @@ impl<'a> ItemCheck<'_, 'a> {
         t.supers
             .iter()
             .chain(&implied)
-            .map(|s| {
-                pool.subst(*s, &|p: ParamRef| {
+            .enumerate()
+            .map(|(index, s)| {
+                let actual = pool.subst(*s, &|p: ParamRef| {
                     (p.owner == trait_).then(|| {
                         if p.index == 0 {
                             Some(self_ty)
@@ -1448,7 +1605,8 @@ impl<'a> ItemCheck<'_, 'a> {
                             args.get(usize::from(p.index) - 1).copied()
                         }
                     })?
-                })
+                });
+                (actual, *s, index)
             })
             .collect()
     }
@@ -1491,6 +1649,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let inner = t;
         if inner == Ty::NEVER {
             return Ok(Answer::Holds {
+                obligations: hd_types::solver::RegionObligations::default(),
                 evidence: hd_types::solver::Evidence::Poison,
                 learned: Vec::new(),
             });
@@ -2001,6 +2160,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let Some(ItemData::Struct(fields, _)) = lookup.item(def).map(|i| &i.data) else {
             return Ok(());
         };
+        let source_args = args;
         let args = pool.list_items(args);
         let Some(f) = fields.iter().find(|f| f.embedded && f.name == by) else {
             let message = format!(
@@ -2014,7 +2174,61 @@ impl<'a> ItemCheck<'_, 'a> {
         let ft = pool.subst(f.ty, &|p: ParamRef| {
             (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
         });
-        if self.fails(ft, tv, 0)? {
+        let Some((trait_, trait_args)) = pool.trait_value(tv) else {
+            return Ok(());
+        };
+        let tref = TraitRef {
+            trait_,
+            self_ty: ft,
+            args: trait_args,
+        };
+        let answer = self.answer_ref(tref, 0)?;
+        if let Answer::Holds { obligations, .. } = &answer {
+            // ruled out: delegation is called only for an impl item.
+            let Some(ItemData::Impl {
+                self_lifetimes,
+                trait_slots,
+                ..
+            }) = lookup.item(self.item).map(|it| &it.data)
+            else {
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::HeaderCheck,
+                    "a delegation lost its implementation header",
+                ));
+            };
+            if self.proofs.fails(
+                pool,
+                lookup,
+                Impls::Owned(self.cx.impls),
+                self.cx.names.known.suspend,
+                &crate::dep_results::WrittenProof {
+                    owner: self.item,
+                    tref,
+                    obligations,
+                    subject_lifetimes: &[],
+                    subject_projection: Some(crate::dep_results::WrittenProjection {
+                        declaration: def,
+                        args: source_args,
+                        source_lifetimes: self_lifetimes,
+                        pattern: f.ty,
+                        pattern_lifetimes: &f.lifetimes,
+                    }),
+                    argument_lifetimes: trait_slots,
+                    instantiation: None,
+                },
+            )? {
+                self.report(
+                    0,
+                    Code::LocalReferenceEscapes,
+                    format!(
+                        "the delegated field `{}` does not satisfy the lifetime required by {}",
+                        self.cx.names.text(by),
+                        self.show(tv)
+                    ),
+                );
+            }
+        }
+        if matches!(answer, Answer::Fails(_)) {
             let message = format!(
                 "the field `{}` does not implement {}",
                 self.cx.names.text(by),

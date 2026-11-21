@@ -6852,6 +6852,7 @@ impl Run<'_> {
             impls: &impls,
             global: &self.memo,
             solver: &solver,
+            region_layouts: hd_check::RegionLayouts::default(),
             methods: self.method_index(&lookup, &iface_folders),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
                 self.earlier_bindings(m),
@@ -8336,6 +8337,7 @@ impl Run<'_> {
             impls: &view,
             global: &self.memo,
             solver: &TableSolver,
+            region_layouts: hd_check::RegionLayouts::default(),
             methods: self.method_index(&lookup, &iface_folders),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
@@ -8412,6 +8414,7 @@ impl Run<'_> {
             impls: &view,
             global: &memo,
             solver: &TableSolver,
+            region_layouts: hd_check::RegionLayouts::default(),
             methods: self.method_index(&lookup, &iface_folders),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),

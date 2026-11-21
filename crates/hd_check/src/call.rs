@@ -2496,7 +2496,7 @@ impl Ck<'_, '_> {
                     if let Some(place) = formals.destination.storage()
                         && self.diags.errors_since(before) == 0
                     {
-                        self.check_stored_value(t, block, place)?;
+                        self.check_stored_value(r, t, block, place)?;
                     }
                     let (r, t) = self.bounded_closure(r, t, last_want.map(|f| f.ty), block);
                     let r = self.coerce(r, t, w, block, "argument", ExpectPosition::General);
@@ -2779,7 +2779,7 @@ impl Ck<'_, '_> {
                     let idx = u32::try_from(k).unwrap_or(0);
                     let g = self.b.field(r, idx, et, e.index());
                     if check_storage && let Some(place) = destination.storage() {
-                        self.check_stored_value(et, e, place)?;
+                        self.check_stored_value(g, et, e, place)?;
                     }
                     let w = self.argument_ty(tys[i])?;
                     slots[i] = Some(self.coerce(g, et, w, e, "argument", ExpectPosition::General));
@@ -3004,8 +3004,9 @@ impl Ck<'_, '_> {
                     open.iter()
                         .any(|&k| crate::trial::names_param(pool, b, def, k))
                 };
-                for (i, g) in sig.generics.iter().enumerate() {
-                    for b in &g.bounds {
+                for (index, g) in (0u16..).zip(&sig.generics) {
+                    let i = usize::from(index);
+                    for (bound, b) in g.bounds.iter().enumerate() {
                         let waiting = waits(*b);
                         let b = inst(*b);
                         if let TyData::TraitValue {
@@ -3022,12 +3023,21 @@ impl Ck<'_, '_> {
                                 self.pending.push(crate::body::PendingGoal {
                                     tref,
                                     at: n.index(),
+                                    source: crate::body::ProofSource::Param {
+                                        param: ParamRef { owner: def, index },
+                                        bound,
+                                    },
                                     kind: crate::body::Waiting::Bound {
                                         code: Code::UnsatisfiedTraitBound,
                                     },
                                 });
                             } else {
-                                self.require_ref(tref, n)?;
+                                self.require_param_bound(
+                                    tref,
+                                    n,
+                                    ParamRef { owner: def, index },
+                                    bound,
+                                )?;
                             }
                         }
                     }
@@ -3686,6 +3696,7 @@ impl Ck<'_, '_> {
                                 },
                                 at: n.index(),
                                 kind: crate::body::Waiting::Project { assoc, var, site },
+                                source: crate::body::ProofSource::Expression,
                             });
                             values[out] = var;
                             return true;
@@ -4253,7 +4264,7 @@ impl Ck<'_, '_> {
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
             self.row_argument_vars(impl_def, &impl_args, n);
             self.open_call_params(method, &vars, &refs, n);
-            self.bounds_of(&sig, &vars, &inst, n)?;
+            self.bounds_of(method, &sig, &vars, &inst, n)?;
             self.impl_bounds_of(impl_def, &impl_args, n)?;
             self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n);
             let mut targs = impl_args.clone();
@@ -4455,14 +4466,16 @@ impl Ck<'_, '_> {
     /// instantiation (`Self` and the owner's parameters included).
     pub(crate) fn bounds_of(
         &mut self,
+        owner: DefId,
         sig: &FnSig,
         vars: &[Ty],
         inst: &dyn Fn(Ty) -> Ty,
         n: NodeRef<'_>,
     ) -> StageResult<()> {
         let pool = self.pool();
-        for (i, g) in sig.generics.iter().enumerate() {
-            for b in &g.bounds {
+        for (index, g) in (0u16..).zip(&sig.generics) {
+            let i = usize::from(index);
+            for (bound, b) in g.bounds.iter().enumerate() {
                 let b = inst(*b);
                 if let TyData::TraitValue {
                     def: tr, args: ta, ..
@@ -4473,7 +4486,7 @@ impl Ck<'_, '_> {
                         self_ty: vars[i],
                         args: ta,
                     };
-                    self.require_ref(tref, n)?;
+                    self.require_param_bound(tref, n, ParamRef { owner, index }, bound)?;
                 }
             }
         }
@@ -5571,7 +5584,7 @@ impl Ck<'_, '_> {
                         self.handle_fact_type(rt, m, n)?;
                     }
                 } else {
-                    self.bounds_of(&sig, &vars, &inst, n)?;
+                    self.bounds_of(method, &sig, &vars, &inst, n)?;
                 }
                 self.impl_bounds_of(impl_def, &impl_args, n)?;
                 self.inherent_row(method, &sig, (impl_def, &impl_args), &vars, n);
@@ -5996,7 +6009,7 @@ impl Ck<'_, '_> {
         }
         self.fill_method_defaults(&sig, &vars, &inst, want)?;
         self.open_call_params(method, &vars, &refs, n);
-        self.bounds_of(&sig, &vars, &inst, n)?;
+        self.bounds_of(method, &sig, &vars, &inst, n)?;
         // At an opt-in, or in a tuple template's plan, a `walk`,
         // `describe` or `build` call's walker, describer or source type
         // carries the member obligations.
@@ -6489,6 +6502,7 @@ impl Ck<'_, '_> {
                     args: impl_args,
                 },
             learned,
+            ..
         } = answer
             && let Some(table) = self.cx.impl_table(row.module)
         {

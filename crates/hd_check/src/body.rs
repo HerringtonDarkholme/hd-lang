@@ -43,6 +43,8 @@ pub struct BodyCx<'a> {
     pub impls: &'a ImplView<'a>,
     pub global: &'a GlobalMemo,
     pub solver: &'a dyn Solver,
+    /// Pure closed-type region layouts reused across this worker's bodies.
+    pub region_layouts: crate::RegionLayouts,
     /// The methods of the closure by name, shared with the module's forked
     /// contexts ([`crate::fork`]).
     pub methods: std::sync::Arc<crate::MethodIndex>,
@@ -157,6 +159,7 @@ enum ProofAnswer {
     Holds {
         evidence: Evidence,
         learned: Vec<(InferVar, Ty)>,
+        obligations: hd_types::solver::RegionObligations,
     },
     Fails,
     Stalled,
@@ -168,7 +171,15 @@ impl TryFrom<Answer> for ProofAnswer {
 
     fn try_from(answer: Answer) -> StageResult<Self> {
         match answer {
-            Answer::Holds { evidence, learned } => Ok(Self::Holds { evidence, learned }),
+            Answer::Holds {
+                evidence,
+                learned,
+                obligations,
+            } => Ok(Self::Holds {
+                evidence,
+                learned,
+                obligations,
+            }),
             Answer::Fails(_) => Ok(Self::Fails),
             Answer::Stalled { .. } => Ok(Self::Stalled),
             Answer::Overflow => Ok(Self::Overflow),
@@ -413,6 +424,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// the end of the body, calls and projections also at the end of
     /// their statement.
     pub pending: Vec<PendingGoal>,
+    /// Requirements retained only by committed proof uses. Trials truncate
+    /// this list along with their pending goals before inference rolls back.
+    pub region_obligations: Vec<ProofUse>,
+    pub forwarded_method: Option<DefId>,
     /// Type parameters an argument of type `never` was passed for, with no
     /// earlier error to have left that `never`: one that nothing else
     /// solves is `never` at the end of the body.
@@ -736,6 +751,33 @@ pub(crate) struct PendingGoal {
     pub tref: TraitRef,
     pub at: NodeRefIdx,
     pub kind: Waiting,
+    pub source: ProofSource,
+}
+
+/// The value positions a committed proof constrains. The parameter's
+/// identity survives instantiation even when two arguments have equal types.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) enum ProofSource {
+    #[default]
+    Expression,
+    Param {
+        param: ParamRef,
+        bound: usize,
+    },
+    /// A generated call carries its implementation header for type-only inputs.
+    Implementation(DefId),
+    Receiver(Ref),
+    /// A value use commits this proof for an existing value, even when
+    /// no call follows. Its instruction anchors the region constraint.
+    Value(Ref),
+}
+
+#[derive(Clone)]
+pub(crate) struct ProofUse {
+    pub at: hd_base::NodeIdx,
+    pub tref: TraitRef,
+    pub source: ProofSource,
+    pub obligations: hd_types::solver::RegionObligations,
 }
 
 /// What a waiting goal decides once its types are known.
@@ -830,6 +872,8 @@ pub(crate) fn new_ck<'a, 'c>(
         impl_params: Vec::new(),
         subs: Vec::new(),
         pending: Vec::new(),
+        region_obligations: Vec::new(),
+        forwarded_method: None,
         never_args: Vec::new(),
         fell_back: HashSet::default(),
         method_targs: Vec::new(),
@@ -3034,9 +3078,34 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
         code: Code,
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
+        self.require_ref_noting_source(tref, at, code, ProofSource::Expression)
+    }
+
+    pub(crate) fn require_param_bound(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        param: ParamRef,
+        bound: usize,
+    ) -> StageResult<Option<hd_types::solver::Evidence>> {
+        self.require_ref_noting_source(
+            tref,
+            at,
+            Code::UnsatisfiedTraitBound,
+            ProofSource::Param { param, bound },
+        )
+    }
+
+    fn require_ref_noting_source(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        code: Code,
+        source: ProofSource,
+    ) -> StageResult<Option<hd_types::solver::Evidence>> {
         let trait_ = tref.trait_;
         let waiting = self.pending.len();
-        let ev = self.require_ref_as(tref, at, code)?;
+        let ev = self.require_ref_source(tref, at, code, source)?;
         if ev.is_some() || self.pending.len() > waiting {
             self.note_impl_use(trait_, ev.as_ref());
         }
@@ -3136,7 +3205,7 @@ impl Ck<'_, '_> {
             self.fuel = fuel;
             self.memo = memo;
             self.infer.rollback_trial(mark);
-            if matches!(answer, Ok(Answer::Holds { evidence, .. }) if !matches!(evidence, Evidence::Poison))
+            if matches!(answer, Ok(Answer::Holds { evidence, obligations, .. }) if !matches!(evidence, Evidence::Poison) && obligations.is_empty())
             {
                 return true;
             }
@@ -3318,7 +3387,7 @@ impl Ck<'_, '_> {
         self.fuel = fuel;
         self.memo = memo;
         self.infer.rollback_trial(mark);
-        if !matches!(answer, Ok(Answer::Holds { evidence, .. }) if !matches!(evidence, Evidence::Poison))
+        if !matches!(answer, Ok(Answer::Holds { evidence, obligations, .. }) if !matches!(evidence, Evidence::Poison) && obligations.is_empty())
         {
             return;
         }
@@ -3378,6 +3447,16 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
         code: Code,
     ) -> StageResult<Option<hd_types::solver::Evidence>> {
+        self.require_ref_source(tref, at, code, ProofSource::Expression)
+    }
+
+    pub(crate) fn require_ref_source(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        code: Code,
+        source: ProofSource,
+    ) -> StageResult<Option<hd_types::solver::Evidence>> {
         let origin = tref;
         let pool = self.pool();
         // Projections with a known base normalize before the goal is
@@ -3406,7 +3485,12 @@ impl Ck<'_, '_> {
             return Ok(Some(evidence));
         }
         match ProofAnswer::try_from(self.solve(tref)?)? {
-            ProofAnswer::Holds { evidence, learned } => {
+            ProofAnswer::Holds {
+                evidence,
+                learned,
+                obligations,
+            } => {
+                self.record_region_obligations(tref, at.index(), source, obligations);
                 for (v, t) in learned {
                     let var = pool.intern_ty(&TyData::Infer(v));
                     let _ = self.infer.unify(pool, var, t);
@@ -3449,6 +3533,7 @@ impl Ck<'_, '_> {
                     tref,
                     at: at.index(),
                     kind: Waiting::Bound { code },
+                    source,
                 });
                 Ok(None)
             }
@@ -3467,6 +3552,23 @@ impl Ck<'_, '_> {
             self.cx.names.display_name(tref.trait_)
         );
         self.depth_err(self.cx.src.span(at), &msg);
+    }
+
+    pub(crate) fn record_region_obligations(
+        &mut self,
+        tref: TraitRef,
+        at: hd_base::NodeIdx,
+        source: ProofSource,
+        obligations: hd_types::solver::RegionObligations,
+    ) {
+        if !obligations.is_empty() {
+            self.region_obligations.push(ProofUse {
+                at,
+                tref,
+                source,
+                obligations,
+            });
+        }
     }
 
     pub(crate) fn solve(&mut self, tref: TraitRef) -> StageResult<Answer> {
@@ -3675,7 +3777,7 @@ impl Ck<'_, '_> {
                 if self.fn_body == Some(block.index())
                     && !self.auto_closing_function
                     && self.diags.errors_since(value_diags) == 0
-                    && self.implements_auto_closing(t)?
+                    && self.implements_auto_closing(r, t, e)?
                 {
                     self.err(
                         Code::UnregisteredAutoClosing,
@@ -4110,7 +4212,12 @@ impl Ck<'_, '_> {
             return Ok(true);
         }
         match ProofAnswer::try_from(self.solve(tref)?)? {
-            ProofAnswer::Holds { learned, .. } => {
+            ProofAnswer::Holds {
+                learned,
+                obligations,
+                ..
+            } => {
+                self.record_region_obligations(tref, node.index(), g.source, obligations);
                 if matches!(g.kind, Waiting::Bound { .. }) {
                     return Ok(true);
                 }
@@ -4418,7 +4525,7 @@ impl Ck<'_, '_> {
                     let (r, t) = self.expr(*e, Some(ret))?;
                     if !(self.auto_closing_function && self.rets.len() == 1)
                         && self.diags.errors_since(value_diags) == 0
-                        && self.implements_auto_closing(t)?
+                        && self.implements_auto_closing(r, t, *e)?
                     {
                         self.err(
                             Code::UnregisteredAutoClosing,
@@ -5564,7 +5671,7 @@ impl Ck<'_, '_> {
             self.check_moves_out_of_place(&mut cx);
         }
         if !self.too_many_slots && !slots.over(pool, ret) {
-            self.check_dependent_results(root, ret, fun, &move_facts);
+            self.check_dependent_results(root, ret, fun, &move_facts)?;
         }
         if let Some(node) = fun {
             self.check_inferred_result(node, ret);
@@ -5783,6 +5890,7 @@ pub(crate) fn with_checker_items(
         impls: &impls,
         global: &global,
         solver: &TableSolver,
+        region_layouts: crate::RegionLayouts::default(),
         methods: Arc::default(),
         init: RefCell::default(),
         results: RefCell::default(),
@@ -5967,8 +6075,16 @@ mod proof_answer_tests {
             ];
             let ptr = learned.as_ptr();
             let capacity = learned.capacity();
-            let proof = ProofAnswer::try_from(Answer::Holds { evidence, learned }).expect("proof");
-            let ProofAnswer::Holds { evidence, learned } = proof else {
+            let proof = ProofAnswer::try_from(Answer::Holds {
+                evidence,
+                learned,
+                obligations: hd_types::solver::RegionObligations::default(),
+            })
+            .expect("proof");
+            let ProofAnswer::Holds {
+                evidence, learned, ..
+            } = proof
+            else {
                 panic!("successful proof lost its outcome");
             };
             assert_eq!(evidence, expected);

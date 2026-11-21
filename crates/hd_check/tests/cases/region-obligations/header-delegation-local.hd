@@ -1,0 +1,15 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    pass
+
+struct Holder[T]:
+    Wrapped[T]
+
+impl['a] Saved for Holder[&'a i32] by Wrapped

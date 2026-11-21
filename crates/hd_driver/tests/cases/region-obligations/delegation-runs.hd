@@ -1,0 +1,27 @@
+# @dump: stdout
+# @build: dev | checked | release
+trait Read[A]:
+    fn get(&self) -> A
+    fn borrowed(&self) -> &i32
+
+struct Wrapped[T]:
+    value: T
+    number: i32
+
+impl[T < 'static] Read[T] for Wrapped[T]:
+    fn get(&self) -> T:
+        self.value
+    fn borrowed(&self) -> &i32:
+        &self.number
+
+struct Holder[T]:
+    Wrapped[T]
+
+impl Read[&'static i32] for Holder[&'static i32] by Wrapped
+
+origin := +7
+
+pub fn main() -> void $ Console:
+    holder := Holder { Wrapped: Wrapped { value: &origin, number: +9 } }
+    println(*holder.get())
+    println(*holder.borrowed())

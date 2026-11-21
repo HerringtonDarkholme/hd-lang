@@ -63,6 +63,7 @@ pub(crate) struct Checkpoint {
     infer: TrialMark,
     diags: DiagMark,
     pending: usize,
+    region_obligations: usize,
     tool_facts: crate::comparison::FactsMark,
     mut_bindings: usize,
     ref_taken: usize,
@@ -264,6 +265,7 @@ impl Ck<'_, '_> {
             infer: self.infer.trial_mark(),
             diags: self.diags.mark(),
             pending: self.pending.len(),
+            region_obligations: self.region_obligations.len(),
             tool_facts: self.tool_facts.mark(),
             mut_bindings: self.mut_bindings.len(),
             ref_taken: self.ref_taken.len(),
@@ -355,6 +357,7 @@ impl Ck<'_, '_> {
         self.infer.rollback_trial(c.infer);
         self.diags.truncate(c.diags);
         self.pending.truncate(c.pending);
+        self.region_obligations.truncate(c.region_obligations);
         self.lit_nodes.truncate(c.lit_nodes);
         self.overflow_lits.truncate(c.overflow_lits);
         self.neg_nodes.truncate(c.neg_nodes);
@@ -717,6 +720,19 @@ impl Ck<'_, '_> {
             .map(|x| inst(*x))
             .collect();
         let targs: Vec<Ty> = pool.list_items(c.args).iter().map(|x| inst(*x)).collect();
+        self.record_region_obligations(
+            TraitRef {
+                trait_,
+                self_ty,
+                args: pool.list(&targs),
+            },
+            n.index(),
+            recv.map_or(
+                crate::body::ProofSource::Expression,
+                crate::body::ProofSource::Receiver,
+            ),
+            c.obligations.map_params(pool, inst),
+        );
         // A tuple template's member steps number on after its bound
         // plan's, at the receiver's tuple type (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
         let mut goals = plan_goals(pool, table, row, &impl_args);
@@ -1451,6 +1467,7 @@ mod candidate_metadata_tests {
                 impl_args: ck.pool().list(&[Ty::I32]),
                 args: TyList::EMPTY,
                 residual: Vec::new(),
+                obligations: hd_types::solver::RegionObligations::default(),
             };
             let vars_before = ck.infer.var_count();
             let before = (

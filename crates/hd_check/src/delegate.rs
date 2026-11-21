@@ -173,6 +173,7 @@ impl Forwarder {
             (sig.ret, sig.row),
             diags,
         );
+        ck.forwarded_method = Some(self.tm);
         let pool = ck.pool();
         let at = node.index();
         // As a written method's body: what is in scope where the
@@ -236,9 +237,29 @@ impl Forwarder {
         };
         // A part that does not implement the trait is the header's
         // `invalid-delegation` (trait.by.part-impl): nothing to forward to.
-        let hd_types::solver::Answer::Holds { evidence, .. } = ck.solve(tref)? else {
+        let hd_types::solver::Answer::Holds {
+            evidence,
+            obligations,
+            ..
+        } = ck.solve(tref)?
+        else {
             return Ok(Forwarded::Nothing);
         };
+        let owner = match cx.lookup.item(self.def).map(|item| &item.data) {
+            Some(ItemData::Method { owner, .. }) => *owner,
+            _ => {
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::Body,
+                    "a generated method lost its implementation declaration",
+                ));
+            }
+        };
+        ck.record_region_obligations(
+            tref,
+            at,
+            crate::body::ProofSource::Implementation(owner),
+            obligations,
+        );
         let choice = ck.choice_of(Some(&evidence));
         let Some(tsig) = ck.sig_of(self.tm) else {
             return Ok(Forwarded::Nothing);

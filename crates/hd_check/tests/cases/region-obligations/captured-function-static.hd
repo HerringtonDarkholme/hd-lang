@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    pass
+
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+
+# expected: a capture-free function satisfies the nested static bound
+fn inspect() -> void:
+    require_saved(Wrapped { value: fn() -> i32: +7 })

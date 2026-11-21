@@ -793,7 +793,8 @@ impl Ck<'_, '_> {
                 (p.owner == owner).then(|| vars.get(k).copied()).flatten()
             })
         };
-        for (i, &v) in vars.iter().enumerate() {
+        for (index, &v) in (g.first..).zip(&vars) {
+            let i = usize::from(index - g.first);
             if i >= explicit.len() || matches!(pool.get(v), TyData::Infer(_)) {
                 let generic = &g.generics[i];
                 let d = generic.default.map(inst).or_else(|| {
@@ -803,7 +804,7 @@ impl Ck<'_, '_> {
                 });
                 self.ref_params.push((v, d, n.index()));
             }
-            for &b in &g.generics[i].bounds {
+            for (bound, &b) in g.generics[i].bounds.iter().enumerate() {
                 if let TyData::TraitValue {
                     def: trait_, args, ..
                 } = pool.get(inst(b))
@@ -816,6 +817,10 @@ impl Ck<'_, '_> {
                             args,
                         },
                         at: n.index(),
+                        source: crate::body::ProofSource::Param {
+                            param: ParamRef { owner, index },
+                            bound,
+                        },
                         kind: Waiting::Bound {
                             code: Code::UnsatisfiedTraitBound,
                         },

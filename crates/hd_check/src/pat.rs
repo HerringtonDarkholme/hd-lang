@@ -1145,7 +1145,7 @@ impl Ck<'_, '_> {
             }
         };
         let initializer_failed = self.diags.errors_since(initializer_diags) != 0;
-        if !using && !initializer_failed && self.implements_auto_closing(t)? {
+        if !using && !initializer_failed && self.implements_auto_closing(r, t, rhs)? {
             self.err(
                 Code::UnregisteredAutoClosing,
                 rhs,

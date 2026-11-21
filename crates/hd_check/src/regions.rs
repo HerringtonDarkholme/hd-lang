@@ -95,6 +95,8 @@ pub(crate) enum Category {
     Held,
     /// An argument of a `'static` type parameter.
     StaticParam,
+    /// A successful trait proof's deferred type-outlives requirement.
+    Outlives,
     /// A value where a static reference is expected, into `'static`
     /// (`ref.static.source.error`).
     Static,
