@@ -1040,86 +1040,241 @@ fn parameter_names<'s>(
         .filter_map(|g| g.name(&src.parse.tokens))
 }
 
-/// The declarations around each declaration of a module (#1890): the
-/// type, const and row parameter lists of those around it, outermost
-/// first, and the innermost impl or trait around it, whose `Self` it
-/// sees. Their parameters, and that `Self`, are the names a local
-/// declaration may take from around it. A local function's list is one
-/// of them: its parameters are a generic sub-body's, which the checker
-/// keeps in scope there.
+/// Each declaration's visible type, const and row parameter context,
+/// plus its lexical context for diagnosing untaken names (#1890, #2249).
+/// Impl boundaries inherit only their local target's and trait's captures;
+/// method-own parameters extend that context. Captured trait Self is kept
+/// separately from the nearest lexical owner of the Self spelling.
 ///
-/// One preorder walk of the module's tree keeps the declarations open
-/// around the node it is at as a stack of frames, each linked to the one
-/// around it, and records each declaration's frame; a declaration's lists
-/// are then read by following its frame's links, one per list. Built on
-/// the first local header a module lowers, and shared by every pass.
+/// One iterative preorder walk builds shared contexts. Appends are O(1);
+/// a true target/trait union is linear in their visible lists. A header
+/// query reads its visible lists and raw lexical ancestors once. Local
+/// names precede their uses, so the walk needs no retry or recursive query.
 pub(crate) struct Enclosing {
     frames: Vec<Frame>,
-    at: HashMap<hd_base::NodeIdx, u32>,
+    lists: CaptureLists,
+    at: HashMap<u32, Enclosed>,
 }
 
-/// A declaration that adds a generic list or a `Self` to those around it.
+/// A persistent visible parameter context. The trait Self remains a
+/// parameter when a local target carries it through an intervening impl.
+#[derive(Clone, Copy, Default)]
+struct Captures {
+    lists: usize,
+    trait_self: Option<hd_base::NodeIdx>,
+}
+
+/// Appending a declaration's own list shares its parent. An impl unions
+/// the lists of its target and trait; only a genuine non-prefix union
+/// stores a flat list. Thus nested functions add no copied parent lists.
+#[derive(Default)]
+struct CaptureLists {
+    nodes: Vec<CaptureList>,
+}
+
+enum CaptureList {
+    Append {
+        parent: usize,
+        list: hd_base::NodeIdx,
+    },
+    Union(Vec<hd_base::NodeIdx>),
+}
+
+impl CaptureLists {
+    // Zero is the empty context; stored contexts are numbered from one.
+    fn append(&mut self, parent: usize, list: hd_base::NodeIdx) -> usize {
+        self.nodes.push(CaptureList::Append { parent, list });
+        self.nodes.len()
+    }
+
+    fn read(&self, mut context: usize) -> Vec<hd_base::NodeIdx> {
+        let mut tail = Vec::new();
+        while context != 0 {
+            match &self.nodes[context - 1] {
+                CaptureList::Append { parent, list } => {
+                    crate::work::enclosing_step();
+                    tail.push(*list);
+                    context = *parent;
+                }
+                CaptureList::Union(prefix) => {
+                    let mut out = Vec::with_capacity(prefix.len() + tail.len());
+                    out.extend(
+                        prefix
+                            .iter()
+                            .inspect(|_| crate::work::enclosing_step())
+                            .copied(),
+                    );
+                    out.extend(tail.into_iter().rev());
+                    return out;
+                }
+            }
+        }
+        tail.reverse();
+        tail
+    }
+
+    fn union(&mut self, left: usize, right: usize) -> usize {
+        if left == 0 || left == right {
+            return right;
+        }
+        if right == 0 {
+            return left;
+        }
+        let (a, b) = (self.read(left), self.read(right));
+        let mut out = Vec::with_capacity(a.len() + b.len());
+        let (mut i, mut j) = (0, 0);
+        while i < a.len() && j < b.len() {
+            crate::work::enclosing_step();
+            match a[i].raw().cmp(&b[j].raw()) {
+                std::cmp::Ordering::Less => {
+                    out.push(a[i]);
+                    i += 1;
+                }
+                std::cmp::Ordering::Greater => {
+                    out.push(b[j]);
+                    j += 1;
+                }
+                std::cmp::Ordering::Equal => {
+                    out.push(a[i]);
+                    i += 1;
+                    j += 1;
+                }
+            }
+        }
+        out.extend_from_slice(&a[i..]);
+        out.extend_from_slice(&b[j..]);
+        // Reuse subset contexts, so repeated nested unions cannot build
+        // an ever-deeper chain that adds no visible parameter.
+        if out == a {
+            return left;
+        }
+        if out == b {
+            return right;
+        }
+        self.nodes.push(CaptureList::Union(out));
+        self.nodes.len()
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Enclosed {
+    around: u32,
+    captures: Captures,
+}
+
+#[derive(Default)]
+struct EnclosingScope {
+    raw_lists: Vec<hd_base::NodeIdx>,
+    lists: Vec<hd_base::NodeIdx>,
+    self_owner: Option<hd_base::NodeIdx>,
+    trait_self: Option<hd_base::NodeIdx>,
+}
+
+/// One lexical frame, with a shared visible-parameter context.
 #[derive(Clone, Copy)]
 struct Frame {
     around: u32,
     list: Option<hd_base::NodeIdx>,
     self_owner: Option<hd_base::NodeIdx>,
+    captures: Captures,
 }
 
 impl Enclosing {
-    fn new(src: &Src<'_>) -> Self {
+    fn new(src: &Src<'_>, locals: &crate::Locals, names: &Names<'_>) -> Self {
         let mut frames = vec![Frame {
             around: 0,
             list: None,
             self_owner: None,
+            captures: Captures::default(),
         }];
-        let mut at = HashMap::default();
-        // The frames open around the walk, each with the end of its
-        // declaration's subtree.
+        let mut at = HashMap::<u32, Enclosed>::default();
+        let mut lists = CaptureLists::default();
         let mut open: Vec<(u32, u32)> = Vec::new();
         for n in src.root().descendants() {
             crate::work::enclosing_step();
             while open.last().is_some_and(|&(end, _)| n.index().raw() >= end) {
                 open.pop();
             }
-            if decl_kind(src, n).is_none() {
+            let Some(kind) = decl_kind(src, n) else {
                 continue;
-            }
+            };
             let around = open.last().map_or(0, |&(_, f)| f);
-            at.insert(n.index(), around);
+            let mut captures = frames[around as usize].captures;
+            if kind == HeadKind::Impl {
+                let mut types = n.children().filter(|c| c.kind().is_type());
+                let first = types.next();
+                let second = types.next();
+                let lookup = |ty: Option<NodeRef<'_>>, trait_only| {
+                    let token = src.first_ident(ty?)?;
+                    let local = locals.at(src.symbol(token, names.syms), src.span(n).lo)?;
+                    if trait_only && local.kind != HeadKind::Trait {
+                        return None;
+                    }
+                    // Valid local names precede their uses (names.local-type.name).
+                    // Broken declarations are diagnosed by ordinary header lowering.
+                    crate::work::enclosing_step();
+                    at.get(&local.lo).map(|entry| entry.captures)
+                };
+                let target = lookup(second.or(first), false).unwrap_or_default();
+                let tr = second.and_then(|_| lookup(first, true)).unwrap_or_default();
+                captures = Captures {
+                    lists: lists.union(target.lists, tr.lists),
+                    trait_self: target.trait_self.or(tr.trait_self),
+                };
+            } else if kind == HeadKind::Trait {
+                // A local trait declares its own Self, rather than taking
+                // the Self of the trait around its declaration.
+                captures.trait_self = None;
+            }
+            at.insert(src.span(n).lo, Enclosed { around, captures });
             let owns_self = matches!(n.kind(), SyntaxKind::ImplDecl | SyntaxKind::TraitDecl);
-            let list = Src::child(n, SyntaxKind::GenericParameterList).map(NodeRef::index);
+            let list = Src::child(n, SyntaxKind::GenericParameterList);
             if owns_self || list.is_some() {
                 let self_owner = if owns_self {
                     Some(n.index())
                 } else {
                     frames[around as usize].self_owner
                 };
+                let frame = u32::try_from(frames.len()).unwrap_or(0);
+                if let Some(gl) = list {
+                    captures.lists = lists.append(captures.lists, gl.index());
+                }
+                if kind == HeadKind::Trait {
+                    captures.trait_self = Some(n.index());
+                }
                 frames.push(Frame {
                     around,
-                    list,
+                    list: list.map(NodeRef::index),
                     self_owner,
+                    captures,
                 });
-                open.push((n.end().raw(), u32::try_from(frames.len() - 1).unwrap_or(0)));
+                open.push((n.end().raw(), frame));
             }
         }
-        Enclosing { frames, at }
+        Enclosing { frames, lists, at }
     }
 
-    /// The generic lists of the declarations around declaration `decl`,
-    /// outermost first, and the innermost impl or trait around it.
-    fn of(&self, decl: hd_base::NodeIdx) -> (Vec<hd_base::NodeIdx>, Option<hd_base::NodeIdx>) {
-        let mut f = self.at.get(&decl).copied().unwrap_or(0);
-        let self_owner = self.frames[f as usize].self_owner;
-        let mut lists = Vec::new();
+    fn of(&self, decl: u32) -> EnclosingScope {
+        let Some(&Enclosed { around, captures }) = self.at.get(&decl) else {
+            return EnclosingScope::default();
+        };
+        let mut out = EnclosingScope {
+            self_owner: self.frames[around as usize].self_owner,
+            trait_self: captures.trait_self,
+            lists: self.lists.read(captures.lists),
+            ..EnclosingScope::default()
+        };
+        let mut f = around;
+        // The raw view is kept only for diagnosing names an impl cannot
+        // see; ordinary header lowering uses the visible context above.
         while f != 0 {
             crate::work::enclosing_step();
             let frame = self.frames[f as usize];
-            lists.extend(frame.list);
+            out.raw_lists.extend(frame.list);
             f = frame.around;
         }
-        lists.reverse();
-        (lists, self_owner)
+        out.raw_lists.reverse();
+        out
     }
 }
 
@@ -1324,11 +1479,11 @@ impl Resolver<'_, '_> {
 
     /// The declarations around each declaration of `module`, whose source
     /// is `src`, indexed on first use and shared by every pass (#1890).
-    fn enclosing(&self, module: &str, src: &Src<'_>) -> Arc<Enclosing> {
+    fn enclosing(&self, module: &str, src: &Src<'_>, locals: &crate::Locals) -> Arc<Enclosing> {
         if let Some(e) = self.enclosing.borrow().get(module) {
             return Arc::clone(e);
         }
-        let e = Arc::new(Enclosing::new(src));
+        let e = Arc::new(Enclosing::new(src, locals, &self.cx.names));
         self.enclosing
             .borrow_mut()
             .insert(module.into(), Arc::clone(&e));
@@ -2443,6 +2598,8 @@ struct Lower<'a, 'r, 'x> {
     /// whose `Self` it names when it has none of its own
     /// (`names.self-type.impl`, `names.local-type.refs`).
     outer_self: Option<hd_base::NodeIdx>,
+    /// The trait whose Self is carried by the visible capture context.
+    outer_trait: Option<hd_base::NodeIdx>,
     /// For a local declaration that takes the parameters around it inside
     /// a trait: it takes the trait's `Self` too, as a leading parameter
     /// named `Self` (`names.local-type.refs`), since `Self` there is the
@@ -2487,129 +2644,39 @@ impl Lower<'_, '_, '_> {
     fn enter(&mut self, h: &Head<'_>) {
         self.at = self.src.span(h.node).lo;
         self.r.use_at.set((h.def, 0, 1));
-        let (lists, self_owner) = match h.local {
-            Some(_) => self.r.enclosing(self.module, &self.src).of(h.node.index()),
-            None => Default::default(),
+        let scope = match h.local {
+            Some(_) => self
+                .r
+                .enclosing(self.module, &self.src, self.locals)
+                .of(self.at),
+            None => EnclosingScope::default(),
         };
         self.outer = Outer {
-            lists: lists.clone(),
-            has_self: self_owner.is_some(),
+            lists: scope.raw_lists,
+            has_self: scope.self_owner.is_some(),
             names: OnceCell::new(),
         };
-        self.outer_self = self_owner;
-        self.outer_lists = Vec::new();
-        self.outer_takes_self = false;
-        // A local trait or impl has a `Self` of its own.
-        let trait_self = !matches!(h.kind, HeadKind::Trait | HeadKind::Impl)
-            && self_owner
-                .is_some_and(|o| self.src.parse.tree.node(o).kind() == SyntaxKind::TraitDecl);
-        if lists.is_empty() && !trait_self && h.kind != HeadKind::Impl {
-            return;
-        }
-        // A const or row parameter has a type parameter's scopes
-        // (`types.generic.const.positions`, `req.row.param.scopes`).
-        let mut lists = lists;
-        let takes = match h.kind {
-            HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype | HeadKind::Alias => true,
-            // An impl takes those its local target or local trait takes
-            // (`names.local-type.refs.impl`). The declarations around a
-            // local type visible here are the outermost of those around
-            // the impl, so the count it takes names a prefix of them:
-            // `Self` of a trait around both first, then each list.
-            HeadKind::Impl => {
-                let taken = self
-                    .impl_target_outer(h.node)
-                    .max(self.impl_trait_outer(h.node))
-                    .unwrap_or(0);
-                let mut sum =
-                    usize::from(self_owner.is_some_and(|o| {
-                        self.src.parse.tree.node(o).kind() == SyntaxKind::TraitDecl
-                    }));
-                let mut prefix = (taken == sum).then_some(0);
-                for (i, &gl) in lists.iter().enumerate() {
-                    if prefix.is_some() {
-                        break;
-                    }
-                    sum += self
-                        .src
-                        .parse
-                        .tree
-                        .node(gl)
-                        .children()
-                        .filter(|g| {
-                            matches!(
-                                g.kind(),
-                                SyntaxKind::GenericParameter | SyntaxKind::ConstParameter
-                            )
-                        })
-                        .count();
-                    prefix = (taken == sum).then_some(i + 1);
-                }
-                match prefix {
-                    Some(p) if taken > 0 => {
-                        lists.truncate(p);
-                        true
-                    }
-                    _ => false,
-                }
-            }
-            // A local trait takes them after its `Self`, so its members
-            // name them as its own.
-            HeadKind::Trait => true,
-            HeadKind::Fn => false,
-        };
-        if takes {
-            self.outer_lists = lists;
-            self.outer_takes_self = trait_self
-                || (h.kind == HeadKind::Impl
-                    && self_owner.is_some_and(|o| {
-                        self.src.parse.tree.node(o).kind() == SyntaxKind::TraitDecl
-                    }));
-        }
+        self.outer_self = scope.self_owner;
+        self.outer_trait = scope.trait_self;
+        let takes = h.kind != HeadKind::Fn;
+        self.outer_takes_self = takes && scope.trait_self.is_some();
+        self.outer_lists = if takes { scope.lists } else { Vec::new() };
     }
 
-    /// The trait around a local declaration ([`Self::outer_self`]), when
-    /// the innermost impl or trait around it is a trait.
+    /// The trait whose Self the visible context captures, including
+    /// through a local target inside an intervening impl.
     fn enclosing_trait(&self) -> Option<DefId> {
-        let owner = self.src.parse.tree.node(self.outer_self?);
+        let owner = self.src.parse.tree.node(self.outer_trait?);
         if owner.kind() != SyntaxKind::TraitDecl {
             return None;
         }
         let name = owner.name(&self.src.parse.tokens)?;
-        let sym = self.names.syms.intern(self.src.text(name));
+        let sym = self.src.symbol(name, self.names.syms);
         if let Some(local) = self.locals.at(sym, self.src.span(owner).lo) {
             return Some(local.def);
         }
         let b = self.scope.lookup(sym)?;
         (b.kind == BindingKind::Item).then(|| DefId::from_raw(b.value))
-    }
-
-    /// How many parameters from around it the local trait an impl at `n`
-    /// implements takes.
-    fn impl_trait_outer(&self, n: NodeRef<'_>) -> Option<usize> {
-        let mut types = n.children().filter(|c| c.kind().is_type());
-        // `impl Trait for Target`: the trait is the first of two types.
-        let tr = types.next()?;
-        types.next()?;
-        let name = self.src.first_ident(tr)?;
-        let sym = self.names.syms.intern(self.src.text(name));
-        let local = self.locals.at(sym, self.at)?;
-        if self.kinds.get(&local.def) != Some(&HeadKind::Trait) {
-            return None;
-        }
-        self.r
-            .with_generics(local.def, |g| g.iter().take_while(|g| g.outer).count())
-    }
-
-    /// How many parameters from around it the local type an impl at `n`
-    /// targets takes.
-    fn impl_target_outer(&self, n: NodeRef<'_>) -> Option<usize> {
-        let target = n.children().filter(|c| c.kind().is_type()).last()?;
-        let name = self.src.first_ident(target)?;
-        let sym = self.names.syms.intern(self.src.text(name));
-        let local = self.locals.at(sym, self.at)?;
-        self.r
-            .with_generics(local.def, |g| g.iter().take_while(|g| g.outer).count())
     }
 
     /// The type parameters of the declarations around a local one, which
@@ -7598,6 +7665,7 @@ fn lower_aliases(
                 outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_trait: None,
                 outer_takes_self: false,
                 chains: Vec::new(),
             };
@@ -7673,6 +7741,7 @@ fn lower_aliases(
                 outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_trait: None,
                 outer_takes_self: false,
                 chains: Vec::new(),
             };
@@ -9188,6 +9257,7 @@ pub fn build_folder(
                     outer: Outer::default(),
                     outer_lists: Vec::new(),
                     outer_self: None,
+                    outer_trait: None,
                     outer_takes_self: false,
                     chains: Vec::new(),
                 };
@@ -9339,6 +9409,7 @@ pub fn build_folder(
                 outer: Outer::default(),
                 outer_lists: Vec::new(),
                 outer_self: None,
+                outer_trait: None,
                 outer_takes_self: false,
                 chains: Vec::new(),
             };

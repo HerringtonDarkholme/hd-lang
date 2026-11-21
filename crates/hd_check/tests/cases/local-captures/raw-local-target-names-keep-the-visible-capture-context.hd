@@ -1,0 +1,12 @@
+# @dump: diagnostics tir
+fn outer[T](x: T) -> T:
+    struct `type`:
+        value: T
+    fn inner[U](x: T) -> T:
+        impl `type`:
+            fn read(self) -> T:
+                struct Inner:
+                    value: Self
+                Inner { value: self }.value.value
+        `type` { value: x }.read()
+    inner::[i32](x)

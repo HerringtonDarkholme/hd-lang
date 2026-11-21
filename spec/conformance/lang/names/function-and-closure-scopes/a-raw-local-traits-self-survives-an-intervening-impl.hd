@@ -1,0 +1,19 @@
+fn outer[T](x: T) -> T:
+    trait `type`:
+        fn take(self) -> T
+        fn wrapped(self) -> T:
+            struct Held:
+                value: Self
+            impl Held:
+                fn read(self) -> T:
+                    self.value.take()
+            Held { value: self }.read()
+    struct Cell:
+        value: T
+    impl `type` for Cell:
+        fn take(self) -> T:
+            self.value
+    Cell { value: x }.wrapped()
+
+fn uses() -> i32:
+    outer(+3)

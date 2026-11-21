@@ -1,0 +1,35 @@
+fn outer[T](x: T) -> void:
+    struct Cell:
+        value: T
+    trait Base:
+        fn base(self) -> void
+    fn inner[U]() -> void:
+        struct Existing:
+            value: U
+        trait Pick:
+            fn pick(self, value: U) -> U
+        impl Cell:
+            fn visit[V](self, v: V) -> void:
+                struct Child:
+                    value: V
+                trait Own:
+                    fn own(self, value: V) -> V
+                impl Pick for Child:
+                    fn pick(self, value: U) -> U:
+                        struct Inner:
+                            value: U
+                        Inner { value }.value
+                impl Own for Existing:
+                    fn own(self, value: V) -> V:
+                        struct Other:
+                            value: V
+                        Other { value }.value
+                impl Base for Child:
+                    fn base(self) -> void:
+                        pass
+                impl Own for Cell:
+                    fn own(self, value: V) -> V:
+                        value
+                pass
+        pass
+    pass

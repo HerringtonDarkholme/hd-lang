@@ -1,0 +1,12 @@
+# @dump: diagnostics tir
+fn outer[T](x: T) -> i32:
+    struct Cell:
+        value: T
+    fn inner[U](x: T) -> i32:
+        impl Cell:
+            fn read[V, M < const i32, $ S](self, v: V) -> V:
+                struct Inner:
+                    value: V
+                Inner { value: v }.value
+        Cell { value: x }.read::[i32, 1, $()](+3)
+    inner::[string](x)
