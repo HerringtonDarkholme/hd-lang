@@ -1,0 +1,21 @@
+# @dump: stdout
+# @build: dev | release
+# #1436, route B: the closure replaces `transform` of the local `m` it
+# captured, which makes `m` a `*mut` cell (`ownership.md`, "Pointer
+# Loans", question 6). `m.apply` then lends `&*m` with the call's loan,
+# so the closure's write while `apply` borrows `transform` panics
+# `borrow-conflict` instead of releasing the running closure.
+struct Mapper:
+    transform: fn(i32) -> i32
+
+impl Mapper:
+    fn apply(&self, x: i32) -> i32:
+        (self.transform)(x)
+
+pub fn main() -> void $ Console:
+    let mut m = Mapper { transform: fn(x): x }
+    tag := "kept-" + "z".repeat(40)
+    m.transform = fn(x):
+        m.transform = fn(y): y + 100
+        x + i32(tag.len())
+    println("${m.apply(1)}")

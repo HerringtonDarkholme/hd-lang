@@ -1,0 +1,22 @@
+# @dump: stdout
+# @build: dev | release
+# #1436, route B: `apply` borrows `self.transform`'s environment for the
+# call, with no count. The closure replaces `transform` through an alias
+# while it runs; the caller's loan on the boxed `Mapper` lasts the call,
+# so the alias's write panics `borrow-conflict` before the environment
+# could be released under the running closure.
+struct Mapper:
+    transform: fn(i32) -> i32
+
+impl Mapper:
+    fn apply(&self, x: i32) -> i32:
+        (self.transform)(x)
+
+pub fn main() -> void $ Console:
+    let m: *mut Mapper = box(Mapper { transform: fn(x): x })
+    alias := m
+    tag := "kept-" + "z".repeat(40)
+    m.transform = fn(x):
+        alias.transform = fn(y): y + 100
+        x + i32(tag.len())
+    println("${m.apply(1)}")

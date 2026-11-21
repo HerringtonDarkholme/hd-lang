@@ -1,0 +1,24 @@
+# @dump: stdout counts
+# @build: dev | checked | release
+# #1436: the call receives `self` itself, so the closure may replace
+# `transform` while it runs, and nothing stops that write. The callee
+# read keeps its count, so the running closure's environment (`tag`)
+# outlives the replacement. The checked build finds no leak.
+use std.annotation.inline
+
+struct Mapper:
+    transform: fn(&mut Mapper, i32) -> i32
+
+impl Mapper:
+    @inline(.Never)
+    fn apply(&mut self, x: i32) -> i32:
+        (self.transform)(self, x)
+
+pub fn main() -> void $ Console:
+    tag := "kept-" + "z".repeat(40)
+    let mut m = Mapper { transform: fn(s, x): x }
+    m.transform = fn(s, x):
+        s.transform = fn(t, y): y + 100
+        x + i32(tag.len())
+    first := m.apply(1)
+    println("$first ${m.apply(1)}")

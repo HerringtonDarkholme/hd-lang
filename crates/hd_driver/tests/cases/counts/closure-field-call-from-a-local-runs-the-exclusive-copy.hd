@@ -3,8 +3,9 @@
 # Stage 8 (#1118): `apply` has two instances. `run` lends `&m` of a local
 # no closure captures, which stage 7 keeps exclusive for the call, so it
 # calls the exclusive copy, which takes no count of the environment.
-# `run_counted` lends a place behind a `*mut`, which another alias may
-# change during the call, so it calls the plain body, which counts it.
+# `run_counted` lends a place behind a `*mut`, so it calls the plain
+# body; since #1436 that body borrows the environment too, as the call's
+# loan on `*m` stops an alias from changing `transform` during the call.
 # `apply` stays a call, as a release build would otherwise copy it into
 # `run`.
 use std.annotation.inline

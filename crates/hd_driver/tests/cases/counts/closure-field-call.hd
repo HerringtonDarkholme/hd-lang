@@ -1,10 +1,11 @@
 # @dump: counts own
 # @build: v8 release
-# This plain body keeps its count of the environment for the call: a
-# caller may pass a `self` that another alias can replace `transform`
-# through while the closure runs. A caller whose `self` stage 7 keeps
-# exclusive runs the exclusive copy instead, with no count (#1118,
-# closure-field-call-from-a-local-runs-the-exclusive-copy).
+# The callee read through `&self` borrows the environment, with no count
+# (#1436): no alias can replace `transform` while the closure runs, as a
+# path with no `*T` is exclusive at compile time and a caller's loan on a
+# `*T` it crossed lasts the call (a-closure-replacing-its-own-field-
+# during-the-call-panics). Through a bare `*mut` the count stays
+# (closure-field-call-through-a-counted-reference).
 struct Mapper:
     transform: fn(i32) -> i32
 

@@ -28,8 +28,8 @@ use hd_base::SliceSort as _;
 use super::flow::{Backward, BitArena, Flow, backward};
 use super::{Loc, OwnCx, Pass, Role, Tri, consumes, fill, operands, splice};
 use crate::ir::{
-    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, ReadMode, Ref, Root,
-    Tag, Topology, is_suspension, local_flags, ref_word, sub_flags, u32_of,
+    Body, BodyKind, Callee, DEREF, ELEM, IntrinsicOp, NONE, PlaceRoot, Proj, Providers, ReadMode,
+    Ref, Root, Tag, Topology, is_suspension, local_flags, ref_word, sub_flags, u32_of,
 };
 
 /// The longest chain of roots a read's source is followed through.
@@ -93,6 +93,9 @@ struct Effect {
     reach: bool,
     may: bool,
     through: u32,
+    /// A `CallValue`'s callee read through a local reference, which the
+    /// call cannot change ([`borrowed_callee`]).
+    callee: u32,
 }
 
 /// The facts of one value.
@@ -267,6 +270,7 @@ impl Tables {
             reach: false,
             may: false,
             through: NONE,
+            callee: NONE,
         };
         fill(&mut self.v, n, value);
         fill(&mut self.l, locals, local);
@@ -546,7 +550,21 @@ impl Tables {
             // Exclusive mode: the call reaches the place only through the
             // reference, so only when it receives the reference itself.
             self.mask.clone_from(&self.heap);
+            // A callee the call cannot change (`borrowed_callee`) borrows in
+            // the plain body too. The body still relies on the parameter, so
+            // its exclusive copy, which lends its callees exclusive places,
+            // stays.
+            let callee = self.v.get(e.callee as usize).map_or(NONE, |f| f.bit);
+            if callee != NONE {
+                self.mask[callee as usize / 64] &= !(1u64 << (callee % 64));
+            }
             for &(bit, l, param) in &self.excl_reads {
+                if bit == callee {
+                    if s.get(live, bit) {
+                        self.relies |= 1 << param;
+                    }
+                    continue;
+                }
                 let k = self.receives.partition_point(|&(c, _)| c < x);
                 let takes = self.receives[k..]
                     .iter()
@@ -1022,6 +1040,40 @@ fn sources(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     }
 }
 
+/// The read that `CallValue` `i` calls when it is read through a local
+/// reference and fields alone (`(self.transform)(x)`) and the call is
+/// given no reference, else `NONE`. The call cannot change that place
+/// (#1436): with no `*T` on the way, only the reference reaches it, which
+/// the call does not receive; past one, the reference's loan lasts the
+/// call, as a function value's call writes everything and never elides
+/// it, so an alias's write panics `borrow-conflict`
+/// (`docs/compiler/ownership.md`, "Pointer Loans"). Swift's SIL applies a
+/// field of a `@guaranteed` struct the same way, with no retain.
+fn borrowed_callee(b: &Body, cx: &dyn OwnCx, i: usize) -> u32 {
+    let Some(r) = Ref(b.data[i][0]).as_inst().map(|r| r.0 as usize) else {
+        return NONE;
+    };
+    let given = |&x: &u32| {
+        Ref(x)
+            .as_inst()
+            .is_some_and(|x| cx.holds_ref(b.ty[x.0 as usize]))
+    };
+    if b.call_args(i).iter().any(given) || !matches!(b.call_providers(i), Providers::None) {
+        return NONE;
+    }
+    let p = b.view(b.data[r][0]);
+    let through_ref = |l: u32| {
+        let ty = b.local_ty[l as usize];
+        cx.reference_target(ty).is_some() && cx.plain_reference(ty)
+    };
+    match p.root {
+        Root::Local(l) if b.tags[r] == Tag::Read && p.kinds(b) == (1, false) && through_ref(l) => {
+            u32_of(r)
+        }
+        _ => NONE,
+    }
+}
+
 /// What each instruction writes.
 fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     let n = b.len();
@@ -1035,6 +1087,9 @@ fn index_writes(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
             Tag::CallValue | Tag::CallHost | Tag::DefaultCall | Tag::Hook | Tag::Await => true,
             _ => false,
         };
+        if tag == Tag::CallValue {
+            t.effects[i].callee = borrowed_callee(b, cx, i);
+        }
         t.write_start[i] = u32_of(t.writes.len());
         let k = t.frame_uses.partition_point(|u| (u.0 as usize) < i);
         for u in k..t.frame_uses.len() {
