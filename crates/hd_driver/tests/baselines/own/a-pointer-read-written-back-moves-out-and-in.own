@@ -13,11 +13,11 @@ fn size(p: Ptr[List[i32]]) -> usize:
 >   local $1 xs: List[i32] [:= read assigned] value
 >     uses $1: %2 -> %3 lend, %7 consume last
 >   local $2 n: usize [:= read assigned] value
->     uses $2: %5 -> %10 consume last
+>     uses $2: %5 -> %11 consume last
 >   %0 = Read copy [$0] : Ptr[List[i32]]
 >   %1 = Read move [ptr %0] : List[i32]
 >   %2 = Store [$1] %1 : ()
->   %11 = Block %10 : usize
+>   %12 = Block %11 : usize
     n := xs.len()
 >   %3 = Read borrow [$1] : List[i32]
 >   %4 = Intrinsic ListLen [%3] : usize
@@ -25,7 +25,8 @@ fn size(p: Ptr[List[i32]]) -> usize:
     p.write(xs)
 >   %6 = Read copy [$0] : Ptr[List[i32]]
 >   %7 = Read move [$1] : List[i32]
->   %8 = Store [ptr %6] %7 : ()
->   %9 = Release %8 Operation #3 : ()
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Store [ptr %6] %7 : ()
+>   %10 = Release %9 Operation #3 : ()
     n
->   %10 = Read copy [$2] : usize
+>   %11 = Read copy [$2] : usize

@@ -83,7 +83,8 @@ fn unexpected(at: usize) -> string:
 >   %48 = Block - : ()
 >   %49 = Scope %48 [] : ()
 >   %50 = Read move [%15] : string
->   %51 = Block %50 : string
+>   %51 = Intrinsic Empty [] : ()
+>   %52 = Block %50 : string
 >   summary kept [] writes
 
 @inline(.Never)

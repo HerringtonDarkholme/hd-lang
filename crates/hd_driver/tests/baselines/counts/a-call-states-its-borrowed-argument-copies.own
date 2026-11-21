@@ -9,19 +9,20 @@ use std.annotation.cold
 >   local $0 value: T [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 into: &mut List[T] [param read] value
->     uses $1: entry -> %3 lend, %5 lend last
->   %0 = Retain %8 Entry local $0 #0 : ()
+>     uses $1: entry -> %4 lend, %6 lend last
+>   %0 = Retain %9 Entry local $0 #0 : ()
 fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
     into.push(value)
 >   %1 = Read move [$0] : T
->   %2 = IsUnique [*$1] : ()
->   %3 = Read borrow [*$1] : List[T]
->   %4 = Intrinsic ListPush [%3 %1] : ()
->   %7 = Drop [$0] : ()
->   %8 = Block %6 : usize
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = IsUnique [*$1] : ()
+>   %4 = Read borrow [*$1] : List[T]
+>   %5 = Intrinsic ListPush [%4 %1] : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block %7 : usize
     into.len()
->   %5 = Read borrow [*$1] : List[T]
->   %6 = Intrinsic ListLen [%5] : usize
+>   %6 = Read borrow [*$1] : List[T]
+>   %7 = Intrinsic ListLen [%6] : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -30,28 +31,30 @@ fn store[T](value: T, into: &mut List[T] = &mut []) -> usize:
 >   local $0 first: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 second: string [param read] value
->     uses $1: entry -> %6 consume last
+>     uses $1: entry -> %7 consume last
 >   local $2 into: &mut List[string] [param read] value
->     uses $2: entry -> %4 lend, %8 lend, %10 lend last
->   %0 = Retain %14 Entry local $0 #0 : ()
->   %1 = Retain %14 Entry local $1 #0 : ()
+>     uses $2: entry -> %5 lend, %10 lend, %12 lend last
+>   %0 = Retain %16 Entry local $0 #0 : ()
+>   %1 = Retain %16 Entry local $1 #0 : ()
 fn store_pair(first: string, second: string, into: &mut List[string] = &mut []) -> usize:
     into.push(first)
 >   %2 = Read move [$0] : string
->   %3 = IsUnique [*$2] : ()
->   %4 = Read borrow [*$2] : List[string]
->   %5 = Intrinsic ListPush [%4 %2] : ()
->   %12 = Drop [$0] : ()
->   %13 = Drop [$1] : ()
->   %14 = Block %11 : usize
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = IsUnique [*$2] : ()
+>   %5 = Read borrow [*$2] : List[string]
+>   %6 = Intrinsic ListPush [%5 %2] : ()
+>   %14 = Drop [$0] : ()
+>   %15 = Drop [$1] : ()
+>   %16 = Block %13 : usize
     into.push(second)
->   %6 = Read move [$1] : string
->   %7 = IsUnique repeat [*$2] : ()
->   %8 = Read borrow [*$2] : List[string]
->   %9 = Intrinsic ListPush [%8 %6] : ()
-    into.len()
+>   %7 = Read move [$1] : string
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = IsUnique repeat [*$2] : ()
 >   %10 = Read borrow [*$2] : List[string]
->   %11 = Intrinsic ListLen [%10] : usize
+>   %11 = Intrinsic ListPush [%10 %7] : ()
+    into.len()
+>   %12 = Read borrow [*$2] : List[string]
+>   %13 = Intrinsic ListLen [%12] : usize
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes
 
@@ -60,21 +63,22 @@ fn text(value: string) -> usize:
 >   local $0 value: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $3 $ref: List[string] [read assigned captured captured-assigned] place
->   %0 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
     store(value)
 >   %1 = Read move [$0] : string
->   %2 = NewList - [] : List[string]
->   %3 = Box #3 #0 : ()
->   %4 = Store [$3] %2 : ()
->   %5 = Ref mut local frame [$3] : &mut List[string]
->   %6 = Break L0 %5 : never
->   %7 = Block - : &mut List[string]
->   %8 = Scope %7 [] : &mut List[string]
->   %9 = Call app/main/store[string] (%1, %8) : usize
->   %10 = LoanEnd [%8] : ()
->   %11 = Drop [$3] : ()
->   %12 = Drop [$0] : ()
->   %13 = Block %9 : usize
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewList - [] : List[string]
+>   %4 = Box #3 #0 : ()
+>   %5 = Store [$3] %3 : ()
+>   %6 = Ref mut local frame [$3] : &mut List[string]
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : &mut List[string]
+>   %9 = Scope %8 [] : &mut List[string]
+>   %10 = Call app/main/store[string] (%1, %9) : usize
+>   %11 = LoanEnd [%9] : ()
+>   %12 = Drop [$3] : ()
+>   %13 = Drop [$0] : ()
+>   %14 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 slot
 >   summary kept [$0] writes
@@ -84,21 +88,22 @@ fn collection(values: List[string]) -> usize:
 >   local $0 values: List[string] [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $3 $ref: List[List[string]] [read assigned captured captured-assigned] place
->   %0 = Retain %13 Entry local $0 #0 : ()
+>   %0 = Retain %14 Entry local $0 #0 : ()
     store(values)
 >   %1 = Read move [$0] : List[string]
->   %2 = NewList - [] : List[List[string]]
->   %3 = Box #3 #0 : ()
->   %4 = Store [$3] %2 : ()
->   %5 = Ref mut local frame [$3] : &mut List[List[string]]
->   %6 = Break L0 %5 : never
->   %7 = Block - : &mut List[List[string]]
->   %8 = Scope %7 [] : &mut List[List[string]]
->   %9 = Call app/main/store[List[string]] (%1, %8) : usize
->   %10 = LoanEnd [%8] : ()
->   %11 = Drop [$3] : ()
->   %12 = Drop [$0] : ()
->   %13 = Block %9 : usize
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewList - [] : List[List[string]]
+>   %4 = Box #3 #0 : ()
+>   %5 = Store [$3] %3 : ()
+>   %6 = Ref mut local frame [$3] : &mut List[List[string]]
+>   %7 = Break L0 %6 : never
+>   %8 = Block - : &mut List[List[string]]
+>   %9 = Scope %8 [] : &mut List[List[string]]
+>   %10 = Call app/main/store[List[string]] (%1, %9) : usize
+>   %11 = LoanEnd [%9] : ()
+>   %12 = Drop [$3] : ()
+>   %13 = Drop [$0] : ()
+>   %14 = Block %10 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 slot
 >   summary kept [$0] writes
@@ -126,26 +131,28 @@ fn pair(first: string, second: string) -> usize:
 >   local $0 first: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 second: string [param read] value
->     uses $1: entry -> %3 consume last
+>     uses $1: entry -> %4 consume last
 >   local $5 $ref: List[string] [read assigned captured captured-assigned] place
->   %0 = Retain %16 Entry local $0 #0 : ()
->   %1 = Retain %16 Entry local $1 #0 : ()
+>   %0 = Retain %18 Entry local $0 #0 : ()
+>   %1 = Retain %18 Entry local $1 #0 : ()
     store_pair(first, second)
 >   %2 = Read move [$0] : string
->   %3 = Read move [$1] : string
->   %4 = NewList - [] : List[string]
->   %5 = Box #5 #0 : ()
->   %6 = Store [$5] %4 : ()
->   %7 = Ref mut local frame [$5] : &mut List[string]
->   %8 = Break L0 %7 : never
->   %9 = Block - : &mut List[string]
->   %10 = Scope %9 [] : &mut List[string]
->   %11 = Call app/main/store_pair[] (%2, %3, %10) : usize
->   %12 = LoanEnd [%10] : ()
->   %13 = Drop [$5] : ()
->   %14 = Drop [$0] : ()
->   %15 = Drop [$1] : ()
->   %16 = Block %11 : usize
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Read move [$1] : string
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = NewList - [] : List[string]
+>   %7 = Box #5 #0 : ()
+>   %8 = Store [$5] %6 : ()
+>   %9 = Ref mut local frame [$5] : &mut List[string]
+>   %10 = Break L0 %9 : never
+>   %11 = Block - : &mut List[string]
+>   %12 = Scope %11 [] : &mut List[string]
+>   %13 = Call app/main/store_pair[] (%2, %4, %12) : usize
+>   %14 = LoanEnd [%12] : ()
+>   %15 = Drop [$5] : ()
+>   %16 = Drop [$0] : ()
+>   %17 = Drop [$1] : ()
+>   %18 = Block %13 : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $5 slot
 >   summary kept [$0 $1] writes

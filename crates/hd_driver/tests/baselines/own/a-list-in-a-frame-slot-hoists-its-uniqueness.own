@@ -104,7 +104,7 @@ fn touch_each(n: usize) -> usize:
 >   %0 = NewList - [] : List[u32]
 >   %1 = Box #1 #0 : ()
 >   %2 = Store [$1] %0 : ()
->   %36 = Block %34 : usize
+>   %37 = Block %35 : usize
     for i in 0..n:
 >   %3 = Read copy [$0] : usize
 >   %4 = NewStruct [0:usize %3 0:bool] : Range[usize]
@@ -140,7 +140,8 @@ fn touch_each(n: usize) -> usize:
 >   %26 = LoanEnd [%24] : ()
     xs.len()
 >   %33 = Read move [$1] : List[u32]
->   %34 = Intrinsic ListLen [%33] : usize
->   %35 = Drop [%33] : ()
+>   %34 = Intrinsic Empty [] : ()
+>   %35 = Intrinsic ListLen [%33] : usize
+>   %36 = Drop [%33] : ()
 >   storage sub 0: $1 slot
 >   summary kept [] writes

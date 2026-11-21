@@ -31,7 +31,7 @@ fn build(parts: &List[string]) -> string:
 >   %6 = Block - : *mut StringBuilder
 >   %7 = Scope %6 [] : *mut StringBuilder
 >   %8 = Store [$1] %7 : ()
->   %55 = Block %52 : string
+>   %56 = Block %53 : string
     for p in parts:
 >   %9 = Read copy [*$0] : List[string]
 >   %10 = Retain %9 Value #0 : ()
@@ -76,11 +76,12 @@ fn build(parts: &List[string]) -> string:
 >   %35 = LoanClose %32 : ()
     sb.build()
 >   %49 = Read move [$1] : *mut StringBuilder
->   %50 = LoanBegin %49 #0 : ()
->   %51 = LoanBegin %49 #2 : ()
->   %52 = Call std/text/impl StringBuilder.build[] (%49) : string
->   %53 = LoanClose %50 : ()
->   %54 = Drop [%49] : ()
+>   %50 = Intrinsic Empty [] : ()
+>   %51 = LoanBegin %49 #0 : ()
+>   %52 = LoanBegin %49 #2 : ()
+>   %53 = Call std/text/impl StringBuilder.build[] (%49) : string
+>   %54 = LoanClose %51 : ()
+>   %55 = Drop [%49] : ()
 >   storage sub 0: $7 cell
 >   summary kept [$0] writes relies [$0]
 >   loop %47 keeps [$2] (%11..%48)

@@ -50,53 +50,56 @@ fn install(s: string) -> usize:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Fixed [read assigned captured captured-assigned] place
 >   local $2 f: *mut Fixed [:= read assigned] value
->     uses $2: %6 -> %7 consume last
+>     uses $2: %7 -> %8 consume last
 >   local $3 $ref: *Fixed [read assigned captured] value
->     uses $3: %9 -> %10 lend last
+>     uses $3: %11 -> %12 lend last
 >   local $4 $ref: string [read assigned captured captured-assigned] value
->     uses $4: %24 -> %25 lend last
->   %0 = Retain %38 Entry local $0 #0 : ()
+>     uses $4: %27 -> %28 lend last
+>   %0 = Retain %41 Entry local $0 #0 : ()
     f := box(Fixed { n: s })
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1] : Fixed
->   %3 = Box #1 #1 : ()
->   %4 = Store [$1] %2 : ()
->   %5 = Ref take mut [$1] : *mut Fixed
->   %6 = Store [$2] %5 : ()
->   %37 = Drop [$0] : ()
->   %38 = Block %35 : usize
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1] : Fixed
+>   %4 = Box #1 #1 : ()
+>   %5 = Store [$1] %3 : ()
+>   %6 = Ref take mut [$1] : *mut Fixed
+>   %7 = Store [$2] %6 : ()
+>   %40 = Drop [$0] : ()
+>   %41 = Block %38 : usize
     $.with(Namer=f):
->   %7 = Read move [$2] : *mut Fixed
->   %8 = Coerce %7 [Weaken -] : *Fixed
->   %9 = Store [$3] %8 : ()
->   %10 = Read move [$3] : *Fixed
->   %11 = Coerce %10 [RefToTraitValue -] : Namer
->   %12 = LoanEnd [%10] : ()
->   %13 = Block %11 : Namer
->   %14 = RefDyn %13 : *dyn Namer
->   %15 = Coerce %14 [RefAsProvider -] : Namer
->   %16 = LoanEnd [%14] : ()
->   %35 = With [Namer %15] %34 : usize
->   %36 = Drop [%15] : ()
+>   %8 = Read move [$2] : *mut Fixed
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Coerce %8 [Weaken -] : *Fixed
+>   %11 = Store [$3] %10 : ()
+>   %12 = Read move [$3] : *Fixed
+>   %13 = Intrinsic Empty [] : ()
+>   %14 = Coerce %12 [RefToTraitValue -] : Namer
+>   %15 = LoanEnd [%12] : ()
+>   %16 = Block %14 : Namer
+>   %17 = RefDyn %16 : *dyn Namer
+>   %18 = Coerce %17 [RefAsProvider -] : Namer
+>   %19 = LoanEnd [%17] : ()
+>   %38 = With [Namer %18] %37 : usize
+>   %39 = Drop [%18] : ()
         ask()
->   %17 = ProviderGet #41 : Namer
->   %18 = Coerce %17 [ProviderAsRef -] : &dyn Namer
->   %19 = Read borrow [*%18] : Namer
->   %20 = Drop [%18] : ()
->   %21 = LoanBegin %19 #0 : ()
->   %22 = Call app/main/Namer.name for Namer [] via TraitValue (%19) : string
->   %23 = LoanClose %21 : ()
->   %24 = Store [$4] %22 : ()
->   %25 = Read borrow [$4] : string
->   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
->   %27 = Break L0 %26 : never
->   %28 = Block - : usize
->   %29 = Scope %28 [] : usize
->   %30 = Drop [$4] : ()
->   %31 = Break L1 %29 : never
->   %32 = Block - : usize
->   %33 = Scope %32 [] : usize
->   %34 = Block %33 : usize
+>   %20 = ProviderGet #41 : Namer
+>   %21 = Coerce %20 [ProviderAsRef -] : &dyn Namer
+>   %22 = Read borrow [*%21] : Namer
+>   %23 = Drop [%21] : ()
+>   %24 = LoanBegin %22 #0 : ()
+>   %25 = Call app/main/Namer.name for Namer [] via TraitValue (%22) : string
+>   %26 = LoanClose %24 : ()
+>   %27 = Store [$4] %25 : ()
+>   %28 = Read borrow [$4] : string
+>   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %30 = Break L0 %29 : never
+>   %31 = Block - : usize
+>   %32 = Scope %31 [] : usize
+>   %33 = Drop [$4] : ()
+>   %34 = Break L1 %32 : never
+>   %35 = Block - : usize
+>   %36 = Scope %35 [] : usize
+>   %37 = Block %36 : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0] writes

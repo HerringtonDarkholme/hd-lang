@@ -46,20 +46,21 @@ fn read_copy(r: &User) -> usize:
 fn reset(r: &mut User, s: string) -> void:
 > app/main/reset
 >   local $0 r: &mut User [param read] value
->     uses $0: entry -> %3 lend, %5 lend, %7 lend last
+>     uses $0: entry -> %4 lend, %6 lend, %8 lend last
 >   local $1 s: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %9 Entry local $1 #0 : ()
+>   %0 = Retain %10 Entry local $1 #0 : ()
     *r = User { name: s, n: 0 }
 >   %1 = Read move [$1] : string
->   %2 = NewStruct [%1 0:i32] : User
->   %3 = Store [*$0] %2 : ()
->   %4 = Release %3 Operation #3 : ()
->   %8 = Drop [$1] : ()
->   %9 = Block - : ()
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1 0:i32] : User
+>   %4 = Store [*$0] %3 : ()
+>   %5 = Release %4 Operation #3 : ()
+>   %9 = Drop [$1] : ()
+>   %10 = Block - : ()
     r.n += 1
->   %5 = Read copy [*$0 .n] : i32
->   %6 = Prim Add [%5 1:i32] : i32
->   %7 = Store [*$0 .n] %6 : ()
+>   %6 = Read copy [*$0 .n] : i32
+>   %7 = Prim Add [%6 1:i32] : i32
+>   %8 = Store [*$0 .n] %7 : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes

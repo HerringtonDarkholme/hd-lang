@@ -1213,15 +1213,15 @@
     i32.load $heap
     local.get $value
     i32.load $heap offset=4
+    local.set $t1
+    local.set $t2
+    ;; 18 |     _ := same(&value, &value)
     local.get $value
     i32.const 0
     i32.store $heap
     local.get $value
     i32.const 0
     i32.store $heap offset=4
-    local.set $t1
-    local.set $t2
-    ;; 18 |     _ := same(&value, &value)
     local.get $value
     if
       local.get $value

@@ -5,30 +5,31 @@
 fn text(value: string) -> fn!() -> string:
 > app/main/text
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %6 consume, %9 consume last
->   %5 = Retain %12 Entry local $0 #0 : ()
+>     uses $0: entry -> %6 consume, %10 consume last
+>   %5 = Retain %13 Entry local $0 #0 : ()
     fn!() -> string: value
->   %0 = Retain %8 Cold row #0 : ()
->   %1 = Retain %8 Materialize row #0 : ()
->   %2 = Release %8 FrameDrop row #2 : ()
->   %3 = Retain %8 Cold captures #0 : ()
->   %4 = Retain %8 Entry captures #0 : ()
+>   %0 = Retain %9 Cold row #0 : ()
+>   %1 = Retain %9 Materialize row #0 : ()
+>   %2 = Release %9 FrameDrop row #2 : ()
+>   %3 = Retain %9 Cold captures #0 : ()
+>   %4 = Retain %9 Entry captures #0 : ()
 >   %6 = Read move [$0] : string
->   %7 = Drop [$0] : ()
->   %8 = Block %6 : string
->   %9 = Closure #1 : fn!() -> string
->   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Drop [$0] : ()
->   %12 = Block %9 : fn!() -> string
->   %13 = Intrinsic ParamOwned [0:i32] : bool
->   %14 = Drop [$0] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Block - : ()
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block %6 : string
+>   %10 = Closure #1 : fn!() -> string
+>   %11 = Retain %10 Operation captures #0 : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Block %10 : fn!() -> string
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Block - : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
->   cancel %8 releases [%16 %13]
+>   cancel %9 releases [%16 %14]
 
 fn number(value: usize) -> fn!() -> usize:
     fn!() -> usize: value

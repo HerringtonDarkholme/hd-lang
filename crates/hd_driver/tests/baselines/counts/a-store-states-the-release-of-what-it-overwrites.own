@@ -101,7 +101,8 @@ fn make(n: i32) -> string:
 >   %60 = Block - : ()
 >   %61 = Scope %60 [] : ()
 >   %62 = Read move [%27] : string
->   %63 = Block %62 : string
+>   %63 = Intrinsic Empty [] : ()
+>   %64 = Block %62 : string
 >   summary kept [] writes
 
 @inline(.Never)
@@ -132,7 +133,7 @@ fn local_over(k: i32) -> usize:
 >   %0 = Read copy [$0] : i32
 >   %1 = Call app/main/make[] (%0) : string
 >   %2 = Store [$1] %1 : ()
->   %16 = Block %13 : usize
+>   %17 = Block %14 : usize
     if k > 0:
 >   %3 = Read copy [$0] : i32
 >   %4 = Prim Gt [%3 0:i32] : bool
@@ -146,9 +147,10 @@ fn local_over(k: i32) -> usize:
 >   %10 = Block - : ()
     eat(s)
 >   %12 = Read move [$1] : string
->   %13 = Call app/main/eat[] (%12) : usize
->   %14 = Retain %13 Operation operand 0 #0 : ()
->   %15 = Drop [%12] : ()
+>   %13 = Intrinsic Empty [] : ()
+>   %14 = Call app/main/eat[] (%12) : usize
+>   %15 = Retain %14 Operation operand 0 #0 : ()
+>   %16 = Drop [%12] : ()
 >   summary kept [] writes
 
 fn element_over(xs: &mut List[string], i: usize, k: i32) -> void:

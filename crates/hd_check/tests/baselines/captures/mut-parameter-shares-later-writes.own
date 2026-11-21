@@ -9,7 +9,7 @@ fn changed(mut value: usize) -> usize:
 >   local $1 first: fn() -> usize [:= read assigned] value
 >     uses $1: %8 -> %19 lend last
 >   local $2 second: fn() -> usize [:= read assigned] value
->     uses $2: %16 -> %22 lend last
+>     uses $2: %16 -> %23 lend last
 >   %0 = Box #0 #0 : ()
 >   %1 = Retain %5 Entry captures #0 : ()
 >   %2 = Read copy [$0] : usize
@@ -19,8 +19,8 @@ fn changed(mut value: usize) -> usize:
 >   %6 = Closure #1 : fn() -> usize
 >   %7 = Retain %6 Operation captures #0 : ()
 >   %8 = Store [$1] %6 : ()
->   %27 = Drop [$0] : ()
->   %28 = Block %26 : usize
+>   %29 = Drop [$0] : ()
+>   %30 = Block %28 : usize
     second := fn() -> usize: value
 >   %9 = Retain %13 Entry captures #0 : ()
 >   %10 = Read copy [$0] : usize
@@ -35,13 +35,15 @@ fn changed(mut value: usize) -> usize:
 >   %18 = Release %17 Operation #3 : ()
     first() + second()
 >   %19 = Read move [$1] : fn() -> usize
->   %20 = CallValue %19 [] : usize
->   %21 = Drop [%19] : ()
->   %22 = Read move [$2] : fn() -> usize
->   %23 = CallValue %22 [] : usize
->   %24 = Drop [%22] : ()
->   %25 = Drop [$0] : ()
->   %26 = Prim Add [%20 %23] : usize
+>   %20 = Intrinsic Empty [] : ()
+>   %21 = CallValue %19 [] : usize
+>   %22 = Drop [%19] : ()
+>   %23 = Read move [$2] : fn() -> usize
+>   %24 = Intrinsic Empty [] : ()
+>   %25 = CallValue %23 [] : usize
+>   %26 = Drop [%23] : ()
+>   %27 = Drop [$0] : ()
+>   %28 = Prim Add [%21 %25] : usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   exit sub 2 drops [$0]
@@ -64,15 +66,15 @@ fn closure_parameter() -> usize:
 > app/main/closure_parameter
 >   local $0 value: usize [param read assigned mutated captured] place
 >   local $1 change: fn(usize) -> usize [:= read assigned] value
->     uses $1: %18 -> %19 lend last
+>     uses $1: %19 -> %20 lend last
 >   local $2 read: fn() -> usize [:= read assigned] value
 >     uses $2: %8 -> %12 lend last
 >   %0 = Box #0 #1 : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %13 : usize
->   %17 = Closure #1 : fn(usize) -> usize
->   %18 = Store [$1] %17 : ()
->   %22 = Block %20 : usize
+>   %16 = Drop [$0] : ()
+>   %17 = Block %14 : usize
+>   %18 = Closure #1 : fn(usize) -> usize
+>   %19 = Store [$1] %18 : ()
+>   %24 = Block %22 : usize
         read := fn() -> usize: value
 >   %1 = Retain %5 Entry captures #0 : ()
 >   %2 = Read copy [$0] : usize
@@ -88,12 +90,14 @@ fn closure_parameter() -> usize:
 >   %11 = Drop [$0] : ()
         read()
 >   %12 = Read move [$2] : fn() -> usize
->   %13 = CallValue %12 [] : usize
->   %14 = Drop [%12] : ()
+>   %13 = Intrinsic Empty [] : ()
+>   %14 = CallValue %12 [] : usize
+>   %15 = Drop [%12] : ()
     change(3)
->   %19 = Read move [$1] : fn(usize) -> usize
->   %20 = CallValue %19 [3:usize] : usize
->   %21 = Drop [%19] : ()
+>   %20 = Read move [$1] : fn(usize) -> usize
+>   %21 = Intrinsic Empty [] : ()
+>   %22 = CallValue %20 [3:usize] : usize
+>   %23 = Drop [%20] : ()
 >   exit sub 1 drops [$0]
 >   exit sub 2 drops [$0]
 >   storage sub 0: $0 cell

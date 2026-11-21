@@ -3,23 +3,28 @@ app/main/describe
   local $0 key: string [param read] value
     uses $0: entry -> %1 consume last
   local $1 found: string [read assigned] value
-    uses $1: %8 -> %3 consume last
+    uses $1: %12 -> %4 consume last
   local $2 reason: string [read assigned] value
-    uses $2: %12 -> %5 consume last
+    uses $2: %17 -> %7 consume last
   %1 = Read move [$0] : string
-  %2 = Call app/main/lookup[] (%1) : Result[string, string]
-  %3 = Read move [$1] : string
-  %4 = Block %3 : string
-  %5 = Read move [$2] : string
-  %6 = Block %5 : string
-  %7 = Read move [%2 as #0 .0] : string
-  %8 = Store [$1] %7 : ()
-  %10 = Block - : never
-  %11 = Read move [%2 as #1 .0] : string
-  %12 = Store [$2] %11 : ()
-  %15 = SwitchTag %2 [#0 %10 %14] : never
-  %16 = Block - : never
-  %17 = Match %2 [%16 %4 %6] : string
-  %18 = Drop [$0] : ()
-  %19 = Block %17 : string
+  %2 = Intrinsic Empty [] : ()
+  %3 = Call app/main/lookup[] (%1) : Result[string, string]
+  %4 = Read move [$1] : string
+  %5 = Intrinsic Empty [] : ()
+  %6 = Block %4 : string
+  %7 = Read move [$2] : string
+  %8 = Intrinsic Empty [] : ()
+  %9 = Block %7 : string
+  %10 = Read move [%3 as #0 .0] : string
+  %11 = Intrinsic Empty [] : ()
+  %12 = Store [$1] %10 : ()
+  %14 = Block - : never
+  %15 = Read move [%3 as #1 .0] : string
+  %16 = Intrinsic Empty [] : ()
+  %17 = Store [$2] %15 : ()
+  %20 = SwitchTag %3 [#0 %14 %19] : never
+  %21 = Block - : never
+  %22 = Match %3 [%21 %6 %9] : string
+  %23 = Drop [$0] : ()
+  %24 = Block %22 : string
   exit sub 0 drops [$0]

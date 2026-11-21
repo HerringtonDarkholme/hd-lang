@@ -344,6 +344,8 @@ impl Em<'_, '_, '_> {
                         | IntrinsicOp::StrIndex
                         | IntrinsicOp::StrConcat
                         | IntrinsicOp::StrEq
+                        // A moved place left empty is no map's buffer.
+                        | IntrinsicOp::Empty
                 )
             ),
             _ => false,

@@ -9,31 +9,33 @@ fn both!(a: Suspend[i32], b: Suspend[i32]) -> (i32, i32):
 >   local $0 a: Suspend[i32] [param read] value
 >     uses $0: entry -> %4 lend last
 >   local $1 b: Suspend[i32] [param read] value
->     uses $1: entry -> %5 lend last
->   %0 = Retain %12 Cold local $0 #0 : ()
->   %1 = Retain %12 Entry local $0 #0 : ()
->   %2 = Retain %12 Cold local $1 #0 : ()
->   %3 = Retain %12 Entry local $1 #0 : ()
+>     uses $1: entry -> %6 lend last
+>   %0 = Retain %14 Cold local $0 #0 : ()
+>   %1 = Retain %14 Entry local $0 #0 : ()
+>   %2 = Retain %14 Cold local $1 #0 : ()
+>   %3 = Retain %14 Entry local $1 #0 : ()
     join!(a, b)
 >   %4 = Read move [$0] : Suspend[i32]
->   %5 = Read move [$1] : Suspend[i32]
->   %6 = AwaitAll [%4 %5] : (i32, i32)
->   %7 = Release %6 Operation waker #2 : ()
->   %8 = Drop [%5] : ()
->   %9 = Drop [%4] : ()
->   %10 = Drop [$0] : ()
->   %11 = Drop [$1] : ()
->   %12 = Block %6 : (i32, i32)
->   %19 = Intrinsic ParamOwned [0:i32] : bool
->   %20 = Drop [$0] : ()
->   %21 = Block - : ()
->   %22 = If %19 [%21 -] : ()
->   %23 = Intrinsic ParamOwned [1:i32] : bool
->   %24 = Drop [$1] : ()
->   %25 = Block - : ()
->   %26 = If %23 [%25 -] : ()
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = Read move [$1] : Suspend[i32]
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = AwaitAll [%4 %6] : (i32, i32)
+>   %9 = Release %8 Operation waker #2 : ()
+>   %10 = Drop [%6] : ()
+>   %11 = Drop [%4] : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Drop [$1] : ()
+>   %14 = Block %8 : (i32, i32)
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Intrinsic ParamOwned [1:i32] : bool
+>   %26 = Drop [$1] : ()
 >   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %6 releases [%4 %5 %2147483648 %2147483649 %4294967295]
->   cancel %12 releases [%16 %19 %16 %23]
+>   cancel %8 releases [%4 %6 %2147483648 %2147483649 %4294967295]
+>   cancel %14 releases [%16 %21 %16 %25]

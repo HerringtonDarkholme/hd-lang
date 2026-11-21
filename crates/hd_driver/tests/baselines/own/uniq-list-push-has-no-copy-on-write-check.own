@@ -5,9 +5,9 @@ std/rt_tests.stage_case/add
   local $1 ticket: Ticket [param read] value
     uses $1: entry -> %26 consume last
   local $2 self: &mut UniqList[Ticket] [read] value
-    uses $2: %2 -> %3 consume, %7 lend, %14 lend, %20 lend, %31 lend last
+    uses $2: %2 -> %3 consume, %7 lend, %14 lend, %20 lend, %32 lend last
   local $4 size: usize [:= read assigned] value
-    uses $4: %6 -> %12 lend, %15 lend, %22 lend, %29 lend last
+    uses $4: %6 -> %12 lend, %15 lend, %22 lend, %30 lend last
   %1 = Read borrow [$0] : &mut UniqList[Ticket]
   %2 = Store [$2] %1 : ()
   %3 = Read borrow [$2] : &mut UniqList[Ticket]
@@ -34,14 +34,15 @@ std/rt_tests.stage_case/add
   %24 = LoanClose %21 : ()
   %25 = LoanEnd [%20] : ()
   %26 = Read move [$1] : Ticket
-  %27 = Store [ptr %23] %26 : ()
-  %28 = Release %27 Operation #3 : ()
-  %29 = Read copy [$4] : usize
-  %30 = Prim Add [%29 1:usize] : usize
-  %31 = Store [*$2 .len] %30 : ()
-  %32 = Break L0 - : never
-  %33 = Block - : ()
-  %34 = Scope %33 [] : ()
-  %35 = Drop [$1] : ()
-  %36 = Block - : ()
+  %27 = Intrinsic Empty [] : ()
+  %28 = Store [ptr %23] %26 : ()
+  %29 = Release %28 Operation #3 : ()
+  %30 = Read copy [$4] : usize
+  %31 = Prim Add [%30 1:usize] : usize
+  %32 = Store [*$2 .len] %31 : ()
+  %33 = Break L0 - : never
+  %34 = Block - : ()
+  %35 = Scope %34 [] : ()
+  %36 = Drop [$1] : ()
+  %37 = Block - : ()
   exit sub 0 drops [$1]

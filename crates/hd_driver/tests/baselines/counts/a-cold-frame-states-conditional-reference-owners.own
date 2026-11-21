@@ -11,85 +11,87 @@ fn optional!(value: (&i32)?) -> i32:
 >   local $0 value: &i32? [param read] value
 >     uses $0: entry -> %5 lend last
 >   local $1 item: &i32 [read assigned] value
->     uses $1: %10 -> %6 lend last
->   %0 = Retain %20 Cold local $0 #0 : ()
->   %1 = Retain %20 Entry local $0 #0 : ()
->   %2 = Retain %20 Cold referent $0 #8 : ()
->   %3 = Release %20 FrameDrop referent $0 #2 : ()
->   %4 = Release %20 Exit referent $0 #8 : ()
+>     uses $1: %11 -> %7 lend last
+>   %0 = Retain %21 Cold local $0 #0 : ()
+>   %1 = Retain %21 Entry local $0 #0 : ()
+>   %2 = Retain %21 Cold referent $0 #8 : ()
+>   %3 = Release %21 FrameDrop referent $0 #2 : ()
+>   %4 = Release %21 Exit referent $0 #8 : ()
     match value:
 >   %5 = Read move [$0] : &i32?
->   %16 = Block - : never
->   %17 = Match %5 [%16 %7 %8] : i32
->   %18 = Drop [%5] : ()
->   %19 = Drop [$0] : ()
->   %20 = Block %17 : i32
->   %21 = Intrinsic ParamOwned [0:i32] : bool
->   %22 = Drop [$0] : ()
->   %23 = Block - : ()
->   %24 = If %21 [%23 -] : ()
->   %25 = Block - : ()
+>   %6 = Intrinsic Empty [] : ()
+>   %17 = Block - : never
+>   %18 = Match %5 [%17 %8 %9] : i32
+>   %19 = Drop [%5] : ()
+>   %20 = Drop [$0] : ()
+>   %21 = Block %18 : i32
+>   %22 = Intrinsic ParamOwned [0:i32] : bool
+>   %23 = Drop [$0] : ()
+>   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Block - : ()
         .Some(item) => *item
->   %6 = Read copy [*$1] : i32
->   %7 = Block %6 : i32
->   %9 = Read borrow [%5 as #1 .0] : &i32
->   %10 = Store [$1] %9 : ()
->   %12 = Block - : never
->   %15 = SwitchTag %5 [#1 %12 %14] : never
+>   %7 = Read copy [*$1] : i32
+>   %8 = Block %7 : i32
+>   %10 = Read borrow [%5 as #1 .0] : &i32
+>   %11 = Store [$1] %10 : ()
+>   %13 = Block - : never
+>   %16 = SwitchTag %5 [#1 %13 %15] : never
         .None => -1
->   %8 = Block 18446744073709551615:i32 : i32
+>   %9 = Block 18446744073709551615:i32 : i32
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %20 releases [%16 %21]
+>   cancel %21 releases [%16 %22]
 
 fn tagged!(value: Input[(&i32, i32)]) -> i32:
 > app/main/tagged
 >   local $0 value: Input[(&i32, i32)] [param read] value
 >     uses $0: entry -> %5 lend last
 >   local $1 pair: (&i32, i32) [read assigned] value
->     uses $1: %20 -> %6 lend, %7 lend last
+>     uses $1: %21 -> %7 lend, %8 lend last
 >   local $2 text: string [read assigned] value
->     uses $2: %24 -> %10 consume last
+>     uses $2: %25 -> %11 consume last
 >   local $3 self: string [read] value
->     uses $3: %11 -> %12 lend last
->   %0 = Retain %32 Cold local $0 #0 : ()
->   %1 = Retain %32 Entry local $0 #0 : ()
->   %2 = Retain %32 Cold referent $0 #8 : ()
->   %3 = Release %32 FrameDrop referent $0 #2 : ()
->   %4 = Release %32 Exit referent $0 #8 : ()
+>     uses $3: %12 -> %13 lend last
+>   %0 = Retain %33 Cold local $0 #0 : ()
+>   %1 = Retain %33 Entry local $0 #0 : ()
+>   %2 = Retain %33 Cold referent $0 #8 : ()
+>   %3 = Release %33 FrameDrop referent $0 #2 : ()
+>   %4 = Release %33 Exit referent $0 #8 : ()
     match value:
 >   %5 = Read move [$0] : Input[(&i32, i32)]
->   %28 = Block - : never
->   %29 = Match %5 [%28 %9 %18] : i32
->   %30 = Drop [%5] : ()
->   %31 = Drop [$0] : ()
->   %32 = Block %29 : i32
->   %33 = Intrinsic ParamOwned [0:i32] : bool
->   %34 = Drop [$0] : ()
->   %35 = Block - : ()
->   %36 = If %33 [%35 -] : ()
->   %37 = Block - : ()
+>   %6 = Intrinsic Empty [] : ()
+>   %29 = Block - : never
+>   %30 = Match %5 [%29 %10 %19] : i32
+>   %31 = Drop [%5] : ()
+>   %32 = Drop [$0] : ()
+>   %33 = Block %30 : i32
+>   %34 = Intrinsic ParamOwned [0:i32] : bool
+>   %35 = Drop [$0] : ()
+>   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Block - : ()
         .Present(pair) => *pair._0 + pair._1
->   %6 = Read copy [$1 .0 *] : i32
->   %7 = Read copy [$1 .1] : i32
->   %8 = Prim Add [%6 %7] : i32
->   %9 = Block %8 : i32
->   %19 = Read borrow [%5 as #1 .0] : (&i32, i32)
->   %20 = Store [$1] %19 : ()
->   %22 = Block - : never
->   %27 = SwitchTag %5 [#1 %22 %26] : never
+>   %7 = Read copy [$1 .0 *] : i32
+>   %8 = Read copy [$1 .1] : i32
+>   %9 = Prim Add [%7 %8] : i32
+>   %10 = Block %9 : i32
+>   %20 = Read borrow [%5 as #1 .0] : (&i32, i32)
+>   %21 = Store [$1] %20 : ()
+>   %23 = Block - : never
+>   %28 = SwitchTag %5 [#1 %23 %27] : never
         .Missing(text) => i32(text.len())
->   %10 = Read borrow [$2] : string
->   %11 = Store [$3] %10 : ()
->   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = Prim Conv [%16] : i32
->   %18 = Block %17 : i32
->   %23 = Read borrow [%5 as #0 .0] : string
->   %24 = Store [$2] %23 : ()
+>   %11 = Read borrow [$2] : string
+>   %12 = Store [$3] %11 : ()
+>   %13 = Read borrow [$3] : string
+>   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Prim Conv [%17] : i32
+>   %19 = Block %18 : i32
+>   %24 = Read borrow [%5 as #0 .0] : string
+>   %25 = Store [$2] %24 : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %32 releases [%16 %33]
+>   cancel %33 releases [%16 %34]

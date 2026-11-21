@@ -17,56 +17,59 @@ fn copy_box(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %11 consume last
+>     uses $1: entry -> %12 consume last
 >   local $2 p: Point [read assigned mutated] value ×2
->     uses $2: %4 -> %5 consume last; %12 -> %24 consume last
+>     uses $2: %5 -> %6 consume last; %14 -> %26 consume last
 >   local $3 $ref: Point [read assigned captured captured-assigned] place
 >   local $4 copy: *mut Point [:= read assigned] value
->     uses $4: %10 -> %14 lend last
+>     uses $4: %11 -> %16 lend last
 >   local $5 self: string [read] value
->     uses $5: %25 -> %26 lend last
+>     uses $5: %28 -> %29 lend last
 >   local $6 self: string [read] value
->     uses $6: %16 -> %17 lend last
->   %0 = Retain %35 Entry local $0 #0 : ()
->   %1 = Retain %35 Entry local $1 #0 : ()
+>     uses $6: %18 -> %19 lend last
+>   %0 = Retain %38 Entry local $0 #0 : ()
+>   %1 = Retain %38 Entry local $1 #0 : ()
     let mut p = Point { name: s }
 >   %2 = Read move [$0] : string
->   %3 = NewStruct [%2] : Point
->   %4 = Store [$2] %3 : ()
->   %7 = Box #3 #1 : ()
->   %33 = Drop [$0] : ()
->   %34 = Drop [$1] : ()
->   %35 = Block %32 : usize
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = NewStruct [%2] : Point
+>   %5 = Store [$2] %4 : ()
+>   %8 = Box #3 #1 : ()
+>   %36 = Drop [$0] : ()
+>   %37 = Drop [$1] : ()
+>   %38 = Block %35 : usize
     copy := box(p)
->   %5 = Read copy [$2] : Point
->   %6 = Retain %5 Value #0 : ()
->   %8 = Store [$3] %5 : ()
->   %9 = Ref take mut [$3] : *mut Point
->   %10 = Store [$4] %9 : ()
+>   %6 = Read copy [$2] : Point
+>   %7 = Retain %6 Value #0 : ()
+>   %9 = Store [$3] %6 : ()
+>   %10 = Ref take mut [$3] : *mut Point
+>   %11 = Store [$4] %10 : ()
     p.name = t
->   %11 = Read move [$1] : string
->   %12 = Store [$2 .name] %11 : ()
->   %13 = Release %12 Operation #3 : ()
+>   %12 = Read move [$1] : string
+>   %13 = Intrinsic Empty [] : ()
+>   %14 = Store [$2 .name] %12 : ()
+>   %15 = Release %14 Operation #3 : ()
     copy.name.len() + p.name.len()
->   %14 = Read borrow [*$4 .name] : string
->   %15 = LoanBegin %14 #0 : ()
->   %16 = Store [$6] %14 : ()
->   %17 = Read borrow [$6] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
->   %19 = Break L1 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = LoanClose %15 : ()
->   %23 = Drop [$4] : ()
->   %24 = Read move [$2 .name] : string
->   %25 = Store [$5] %24 : ()
->   %26 = Read borrow [$5] : string
->   %27 = Call std/rt.bytes/bytes_len[] (%26) : usize
->   %28 = Break L0 %27 : never
->   %29 = Block - : usize
->   %30 = Scope %29 [] : usize
->   %31 = Drop [$5] : ()
->   %32 = Prim Add [%21 %30] : usize
+>   %16 = Read borrow [*$4 .name] : string
+>   %17 = LoanBegin %16 #0 : ()
+>   %18 = Store [$6] %16 : ()
+>   %19 = Read borrow [$6] : string
+>   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
+>   %21 = Break L1 %20 : never
+>   %22 = Block - : usize
+>   %23 = Scope %22 [] : usize
+>   %24 = LoanClose %17 : ()
+>   %25 = Drop [$4] : ()
+>   %26 = Read move [$2 .name] : string
+>   %27 = Intrinsic Empty [] : ()
+>   %28 = Store [$5] %26 : ()
+>   %29 = Read borrow [$5] : string
+>   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+>   %31 = Break L0 %30 : never
+>   %32 = Block - : usize
+>   %33 = Scope %32 [] : usize
+>   %34 = Drop [$5] : ()
+>   %35 = Prim Add [%23 %33] : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $3 cell
 >   summary kept [$0 $1]
@@ -76,16 +79,17 @@ fn move_box(s: string) -> *mut Point:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     p := Point { name: s }
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1] : Point
->   %3 = Box #2 #1 : ()
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : *mut Point
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1] : Point
+>   %4 = Box #2 #1 : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block %6 : *mut Point
     box(p)
->   %4 = Store [$2] %2 : ()
->   %5 = Ref take mut [$2] : *mut Point
+>   %5 = Store [$2] %3 : ()
+>   %6 = Ref take mut [$2] : *mut Point
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
 >   summary kept [$0]
@@ -95,47 +99,49 @@ fn shared(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %12 consume last
+>     uses $1: entry -> %13 consume last
 >   local $2 $ref: Point [read assigned captured captured-assigned] place
 >   local $3 b: *mut Point [:= read assigned] value
->     uses $3: %7 -> %8 consume, %13 lend last
+>     uses $3: %8 -> %9 consume, %15 lend last
 >   local $4 h: Holder [:= read assigned] value
->     uses $4: %11 -> %16 lend last
+>     uses $4: %12 -> %18 lend last
 >   local $5 self: string [read] value
->     uses $5: %18 -> %19 lend last
->   %0 = Retain %28 Entry local $0 #0 : ()
->   %1 = Retain %28 Entry local $1 #0 : ()
+>     uses $5: %20 -> %21 lend last
+>   %0 = Retain %30 Entry local $0 #0 : ()
+>   %1 = Retain %30 Entry local $1 #0 : ()
     b := box(Point { name: s })
 >   %2 = Read move [$0] : string
->   %3 = NewStruct [%2] : Point
->   %4 = Box #2 #1 : ()
->   %5 = Store [$2] %3 : ()
->   %6 = Ref take mut [$2] : *mut Point
->   %7 = Store [$3] %6 : ()
->   %26 = Drop [$0] : ()
->   %27 = Drop [$1] : ()
->   %28 = Block %23 : usize
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = NewStruct [%2] : Point
+>   %5 = Box #2 #1 : ()
+>   %6 = Store [$2] %4 : ()
+>   %7 = Ref take mut [$2] : *mut Point
+>   %8 = Store [$3] %7 : ()
+>   %28 = Drop [$0] : ()
+>   %29 = Drop [$1] : ()
+>   %30 = Block %25 : usize
     h := Holder { point: b }
->   %8 = Read copy [$3] : *mut Point
->   %9 = Retain %8 Value #0 : ()
->   %10 = NewStruct [%8] : Holder
->   %11 = Store [$4] %10 : ()
+>   %9 = Read copy [$3] : *mut Point
+>   %10 = Retain %9 Value #0 : ()
+>   %11 = NewStruct [%9] : Holder
+>   %12 = Store [$4] %11 : ()
     b.name = t
->   %12 = Read move [$1] : string
->   %13 = Store [*$3 .name] %12 : ()
->   %14 = Release %13 Operation #3 : ()
->   %15 = Drop [$3] : ()
+>   %13 = Read move [$1] : string
+>   %14 = Intrinsic Empty [] : ()
+>   %15 = Store [*$3 .name] %13 : ()
+>   %16 = Release %15 Operation #3 : ()
+>   %17 = Drop [$3] : ()
     h.point.name.len()
->   %16 = Read borrow [$4 .point * .name] : string
->   %17 = LoanBegin %16 #0 : ()
->   %18 = Store [$5] %16 : ()
->   %19 = Read borrow [$5] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L0 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %24 = LoanClose %17 : ()
->   %25 = Drop [$4] : ()
+>   %18 = Read borrow [$4 .point * .name] : string
+>   %19 = LoanBegin %18 #0 : ()
+>   %20 = Store [$5] %18 : ()
+>   %21 = Read borrow [$5] : string
+>   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %23 = Break L0 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
+>   %26 = LoanClose %19 : ()
+>   %27 = Drop [$4] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 cell
 >   summary kept [$0 $1] writes

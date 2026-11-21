@@ -12,12 +12,13 @@ fn make(s: string) -> Named:
 > app/main/make
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %5 Entry local $0 #0 : ()
     Named { name: s }
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1] : Named
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : Named
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1] : Named
+>   %4 = Drop [$0] : ()
+>   %5 = Block %3 : Named
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -65,40 +66,42 @@ fn new_mut(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %8 consume last
+>     uses $1: entry -> %9 consume last
 >   local $2 $ref: Named [read assigned captured captured-assigned] place
 >   local $3 m: &mut Named [:= read assigned] value
->     uses $3: %7 -> %9 lend, %11 lend last
+>     uses $3: %8 -> %11 lend, %13 lend last
 >   local $4 self: string [read] value
->     uses $4: %13 -> %14 lend last
->   %0 = Retain %24 Entry local $0 #0 : ()
->   %1 = Retain %24 Entry local $1 #0 : ()
+>     uses $4: %15 -> %16 lend last
+>   %0 = Retain %26 Entry local $0 #0 : ()
+>   %1 = Retain %26 Entry local $1 #0 : ()
     m := &mut Named { name: s }
 >   %2 = Read move [$0] : string
->   %3 = NewStruct [%2] : Named
->   %4 = Box #2 #0 : ()
->   %5 = Store [$2] %3 : ()
->   %6 = Ref mut local frame [$2] : &mut Named
->   %7 = Store [$3] %6 : ()
->   %22 = Drop [$0] : ()
->   %23 = Drop [$1] : ()
->   %24 = Block %18 : usize
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = NewStruct [%2] : Named
+>   %5 = Box #2 #0 : ()
+>   %6 = Store [$2] %4 : ()
+>   %7 = Ref mut local frame [$2] : &mut Named
+>   %8 = Store [$3] %7 : ()
+>   %24 = Drop [$0] : ()
+>   %25 = Drop [$1] : ()
+>   %26 = Block %20 : usize
     m.name = t
->   %8 = Read move [$1] : string
->   %9 = Store [*$3 .name] %8 : ()
->   %10 = Release %9 Operation #3 : ()
+>   %9 = Read move [$1] : string
+>   %10 = Intrinsic Empty [] : ()
+>   %11 = Store [*$3 .name] %9 : ()
+>   %12 = Release %11 Operation #3 : ()
     m.name.len()
->   %11 = Read borrow [*$3 .name] : string
->   %12 = LoanBegin %11 #0 : ()
->   %13 = Store [$4] %11 : ()
->   %14 = Read borrow [$4] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L0 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = LoanClose %12 : ()
->   %20 = LoanEnd [$3] : ()
->   %21 = Drop [$2] : ()
+>   %13 = Read borrow [*$3 .name] : string
+>   %14 = LoanBegin %13 #0 : ()
+>   %15 = Store [$4] %13 : ()
+>   %16 = Read borrow [$4] : string
+>   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %18 = Break L0 %17 : never
+>   %19 = Block - : usize
+>   %20 = Scope %19 [] : usize
+>   %21 = LoanClose %14 : ()
+>   %22 = LoanEnd [$3] : ()
+>   %23 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1]
@@ -108,39 +111,42 @@ fn field_ref(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %8 consume last
+>     uses $1: entry -> %9 consume last
 >   local $2 p: Named [read assigned captured captured-assigned] place
 >   local $3 q: &mut string [:= read assigned] value
->     uses $3: %7 -> %9 lend last
+>     uses $3: %8 -> %11 lend last
 >   local $4 self: string [read] value
->     uses $4: %13 -> %14 lend last
->   %0 = Retain %22 Entry local $0 #0 : ()
->   %1 = Retain %22 Entry local $1 #0 : ()
+>     uses $4: %16 -> %17 lend last
+>   %0 = Retain %25 Entry local $0 #0 : ()
+>   %1 = Retain %25 Entry local $1 #0 : ()
     let mut p = Named { name: s }
 >   %2 = Read move [$0] : string
->   %3 = NewStruct [%2] : Named
->   %4 = Box #2 #0 : ()
->   %5 = Store [$2] %3 : ()
->   %20 = Drop [$0] : ()
->   %21 = Drop [$1] : ()
->   %22 = Block %18 : usize
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = NewStruct [%2] : Named
+>   %5 = Box #2 #0 : ()
+>   %6 = Store [$2] %4 : ()
+>   %23 = Drop [$0] : ()
+>   %24 = Drop [$1] : ()
+>   %25 = Block %21 : usize
     q := &mut p.name
->   %6 = Ref mut local frame [$2 .name] : &mut string
->   %7 = Store [$3] %6 : ()
+>   %7 = Ref mut local frame [$2 .name] : &mut string
+>   %8 = Store [$3] %7 : ()
     *q = t
->   %8 = Read move [$1] : string
->   %9 = Store [*$3] %8 : ()
->   %10 = Release %9 Operation #3 : ()
->   %11 = LoanEnd [$3] : ()
+>   %9 = Read move [$1] : string
+>   %10 = Intrinsic Empty [] : ()
+>   %11 = Store [*$3] %9 : ()
+>   %12 = Release %11 Operation #3 : ()
+>   %13 = LoanEnd [$3] : ()
     p.name.len()
->   %12 = Read move [$2 .name] : string
->   %13 = Store [$4] %12 : ()
->   %14 = Read borrow [$4] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
->   %16 = Break L0 %15 : never
->   %17 = Block - : usize
->   %18 = Scope %17 [] : usize
->   %19 = Drop [$4] : ()
+>   %14 = Read move [$2 .name] : string
+>   %15 = Intrinsic Empty [] : ()
+>   %16 = Store [$4] %14 : ()
+>   %17 = Read borrow [$4] : string
+>   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %19 = Break L0 %18 : never
+>   %20 = Block - : usize
+>   %21 = Scope %20 [] : usize
+>   %22 = Drop [$4] : ()
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $2 slot
 >   summary kept [$0 $1]

@@ -162,7 +162,7 @@ impl Em<'_, '_, '_> {
 
     /// Pushes the zero of each value of local `l`'s type, for a cell that
     /// a capture reaches before its declaration stores into it.
-    fn zero_src(&mut self, l: usize) -> StageResult<Src> {
+    pub(super) fn zero_src(&mut self, l: usize) -> StageResult<Src> {
         let m = self.cell_mem(l)?;
         let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
         Ok(Src::Locals(ls))
@@ -363,23 +363,9 @@ impl Em<'_, '_, '_> {
     /// reads the value before such a store; shared captures are not
     /// candidates.
     pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
-        let m = self.cell_mem(l)?;
-        let counted = self.counted(self.b.local_ty[l]);
-        let c = self.cell_of(l)?;
-        let held = self.f.load_locals(c, &m.leaves);
-        // Only a counted payload needs its old copy cleared: an uncounted
-        // one is never released from the cell, and the move's `FlagClear`
-        // came before it for a payload with a drop hook.
-        if counted {
-            let zero = self.zero_src(l)?;
-            let all = Part {
-                first: 0,
-                count: m.leaves.len(),
-                offset: 0,
-            };
-            self.store_part(c, &m, all, &zero)?;
-        }
-        for x in held {
+        let (m, c) = (self.cell_mem(l)?, self.cell_of(l)?);
+        // Its `Empty` clears the payload (`Em::empty_place`).
+        for x in self.f.load_locals(c, &m.leaves) {
             self.f.get(x);
         }
         self.store(i)

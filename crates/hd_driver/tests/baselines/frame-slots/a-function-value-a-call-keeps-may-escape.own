@@ -83,7 +83,7 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   local $0 xs: List[string] [param read] value
 >     uses $0: entry -> %7 lend, %15 lend
 >   local $1 g: fn(fn() -> ()) -> () [param read] value
->     uses $1: entry -> %65 lend last
+>     uses $1: entry -> %66 lend last
 >   local $2 n: usize [read assigned captured captured-assigned] place
 >   local $3 x: string [param read] value
 >     uses $3: none
@@ -96,18 +96,18 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >     uses $11: %36 -> %20 lend last
 >   %0 = Box #2 #1 : ()
 >   %1 = Store [$2] 0:usize : ()
->   %80 = Drop [$2] : ()
->   %81 = Intrinsic ParamOwned [0:i32] : bool
->   %82 = Drop [$0] : ()
->   %83 = Block - : ()
->   %84 = If %81 [%83 -] : ()
->   %85 = Release %91 Exit local $0 #2 : ()
->   %86 = Intrinsic ParamOwned [1:i32] : bool
->   %87 = Drop [$1] : ()
->   %88 = Block - : ()
->   %89 = If %86 [%88 -] : ()
->   %90 = Release %91 Exit local $1 #2 : ()
->   %91 = Block %78 : usize
+>   %81 = Drop [$2] : ()
+>   %82 = Intrinsic ParamOwned [0:i32] : bool
+>   %83 = Drop [$0] : ()
+>   %84 = Block - : ()
+>   %85 = If %82 [%84 -] : ()
+>   %86 = Release %92 Exit local $0 #2 : ()
+>   %87 = Intrinsic ParamOwned [1:i32] : bool
+>   %88 = Drop [$1] : ()
+>   %89 = Block - : ()
+>   %90 = If %87 [%89 -] : ()
+>   %91 = Release %92 Exit local $1 #2 : ()
+>   %92 = Block %79 : usize
     each(xs, fn(x: string) -> void: n += x.len())
 >   %2 = Retain %6 Entry local $3 #0 : ()
 >   %3 = Drop [$3] : ()
@@ -171,26 +171,27 @@ fn run(xs: List[string], g: fn(fn() -> void) -> void) -> usize:
 >   %61 = Store [$4] %59 : ()
     later()
 >   %62 = Read move [$4] : fn() -> ()
->   %63 = CallValue %62 [] : ()
->   %64 = Drop [%62] : ()
+>   %63 = Intrinsic Empty [] : ()
+>   %64 = CallValue %62 [] : ()
+>   %65 = Drop [%62] : ()
     g(fn() -> void: n += 2)
->   %65 = Read borrow [$1] : fn(fn() -> ()) -> ()
->   %66 = Retain %73 Entry captures #0 : ()
->   %67 = Read copy [$2] : usize
->   %68 = Prim Add [%67 2:usize] : usize
->   %69 = Store [$2] %68 : ()
->   %70 = Release %69 Operation #3 : ()
->   %71 = Drop [$2] : ()
+>   %66 = Read borrow [$1] : fn(fn() -> ()) -> ()
+>   %67 = Retain %74 Entry captures #0 : ()
+>   %68 = Read copy [$2] : usize
+>   %69 = Prim Add [%68 2:usize] : usize
+>   %70 = Store [$2] %69 : ()
+>   %71 = Release %70 Operation #3 : ()
 >   %72 = Drop [$2] : ()
->   %73 = Block - : ()
->   %74 = Closure #3 : fn() -> ()
->   %75 = Retain %74 Operation captures #0 : ()
->   %76 = CallValue %65 [%74] : ()
->   %76 keeps %74
->   %77 = Drop [%74] : ()
+>   %73 = Drop [$2] : ()
+>   %74 = Block - : ()
+>   %75 = Closure #3 : fn() -> ()
+>   %76 = Retain %75 Operation captures #0 : ()
+>   %77 = CallValue %66 [%75] : ()
+>   %77 keeps %75
+>   %78 = Drop [%75] : ()
     n
->   %78 = Read copy [$2] : usize
->   %79 = Drop [$2] : ()
+>   %79 = Read copy [$2] : usize
+>   %80 = Drop [$2] : ()
 >   exit sub 0 drops [$2]
 >   exit sub 1 drops [$3]
 >   exit sub 2 drops [$2]

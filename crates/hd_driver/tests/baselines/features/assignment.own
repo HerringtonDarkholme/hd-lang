@@ -44,20 +44,22 @@ fn compound(a: string) -> string:
 >   local $0 a: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 s: string [read assigned mutated] value ×2
->     uses $1: %2 -> %3 lend last; %5 -> %7 consume last
->   %0 = Retain %9 Entry local $0 #0 : ()
+>     uses $1: %3 -> %4 lend last; %6 -> %8 consume last
+>   %0 = Retain %11 Entry local $0 #0 : ()
     let s = a
 >   %1 = Read move [$0] : string
->   %2 = Store [$1] %1 : ()
->   %8 = Drop [$0] : ()
->   %9 = Block %7 : string
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Store [$1] %1 : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Block %8 : string
     s += "x"
->   %3 = Read borrow [$1] : string
->   %4 = Intrinsic StrConcat [%3 "x"] : string
->   %5 = Store [$1] %4 : ()
->   %6 = Release %5 Operation #3 : ()
+>   %4 = Read borrow [$1] : string
+>   %5 = Intrinsic StrConcat [%4 "x"] : string
+>   %6 = Store [$1] %5 : ()
+>   %7 = Release %6 Operation #3 : ()
     s
->   %7 = Read move [$1] : string
+>   %8 = Read move [$1] : string
+>   %9 = Intrinsic Empty [] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

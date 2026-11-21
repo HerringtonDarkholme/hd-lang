@@ -254,10 +254,10 @@
     local.set $b
     local.get $by
     i32.load $heap
+    local.tee $seen
     local.get $by
     i32.const 0
     i32.store $heap
-    local.tee $seen
     i32.load $heap
     local.set $self.1'1
     local.get $seen

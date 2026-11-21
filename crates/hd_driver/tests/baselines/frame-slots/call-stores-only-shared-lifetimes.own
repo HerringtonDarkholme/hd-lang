@@ -36,14 +36,14 @@ fn non_storing(xs: List[string]) -> usize:
 > app/main/non_storing
 >   local $0 xs: List[string] [param read captured] place
 >   local $1 out: List[&string] [read assigned captured captured-assigned] place
->   %0 = Retain %16 Entry local $0 #0 : ()
+>   %0 = Retain %17 Entry local $0 #0 : ()
     let mut out: List[&string] = []
 >   %1 = Box #0 #255 : ()
 >   %2 = NewList - [] : List[&string]
 >   %3 = Box #1 #0 : ()
 >   %4 = Store [$1] %2 : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %14 : usize
+>   %16 = Drop [$0] : ()
+>   %17 = Block %15 : usize
     size := push_len(&mut out, &xs)
 >   %5 = Ref mut local frame [$1] : &mut List[&string]
 >   %6 = Ref local frame promoted [$0] : &List[string]
@@ -53,9 +53,10 @@ fn non_storing(xs: List[string]) -> usize:
 >   %10 = Drop [$0] : ()
     size + out.len()
 >   %11 = Read move [$1] : List[&string]
->   %12 = Intrinsic ListLen [%11] : usize
->   %13 = Drop [%11] : ()
->   %14 = Prim Add [%7 %12] : usize
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Intrinsic ListLen [%11] : usize
+>   %14 = Drop [%11] : ()
+>   %15 = Prim Add [%7 %13] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 slot
 >   summary kept [$0] writes

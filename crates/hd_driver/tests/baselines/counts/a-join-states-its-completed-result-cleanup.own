@@ -8,99 +8,104 @@ fn ready![T < 'static](value: T) -> T:
 > app/main/ready
 >   local $0 value: T [param read] value
 >     uses $0: entry -> %5 consume last
->   %0 = Retain %7 Cold local $0 #0 : ()
->   %1 = Retain %7 Entry local $0 #0 : ()
->   %2 = Retain %7 Cold referent $0 #8 : ()
->   %3 = Release %7 FrameDrop referent $0 #2 : ()
->   %4 = Release %7 Exit referent $0 #8 : ()
+>   %0 = Retain %8 Cold local $0 #0 : ()
+>   %1 = Retain %8 Entry local $0 #0 : ()
+>   %2 = Retain %8 Cold referent $0 #8 : ()
+>   %3 = Release %8 FrameDrop referent $0 #2 : ()
+>   %4 = Release %8 Exit referent $0 #8 : ()
     value
 >   %5 = Read move [$0] : T
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : T
->   %8 = Intrinsic ParamOwned [0:i32] : bool
->   %9 = Drop [$0] : ()
->   %10 = Block - : ()
->   %11 = If %8 [%10 -] : ()
->   %12 = Block - : ()
+>   %6 = Intrinsic Empty [] : ()
+>   %7 = Drop [$0] : ()
+>   %8 = Block %5 : T
+>   %9 = Intrinsic ParamOwned [0:i32] : bool
+>   %10 = Drop [$0] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %7 releases [%16 %8]
+>   cancel %8 releases [%16 %9]
 
 fn generic![T < 'static](a: T, b: T) -> (T, T):
 > app/main/generic
 >   local $0 a: T [param read] value
 >     uses $0: entry -> %10 consume last
 >   local $1 b: T [param read] value
->     uses $1: entry -> %12 consume last
->   %0 = Retain %21 Cold local $0 #0 : ()
->   %1 = Retain %21 Entry local $0 #0 : ()
->   %2 = Retain %21 Cold local $1 #0 : ()
->   %3 = Retain %21 Entry local $1 #0 : ()
->   %4 = Retain %21 Cold referent $0 #8 : ()
->   %5 = Release %21 FrameDrop referent $0 #2 : ()
->   %6 = Release %21 Exit referent $0 #8 : ()
->   %7 = Retain %21 Cold referent $1 #8 : ()
->   %8 = Release %21 FrameDrop referent $1 #2 : ()
->   %9 = Release %21 Exit referent $1 #8 : ()
+>     uses $1: entry -> %13 consume last
+>   %0 = Retain %23 Cold local $0 #0 : ()
+>   %1 = Retain %23 Entry local $0 #0 : ()
+>   %2 = Retain %23 Cold local $1 #0 : ()
+>   %3 = Retain %23 Entry local $1 #0 : ()
+>   %4 = Retain %23 Cold referent $0 #8 : ()
+>   %5 = Release %23 FrameDrop referent $0 #2 : ()
+>   %6 = Release %23 Exit referent $0 #8 : ()
+>   %7 = Retain %23 Cold referent $1 #8 : ()
+>   %8 = Release %23 FrameDrop referent $1 #2 : ()
+>   %9 = Release %23 Exit referent $1 #8 : ()
     join!(ready(a), ready(b))
 >   %10 = Read move [$0] : T
->   %11 = Call app/main/ready[T] (%10) : Suspend[T]
->   %12 = Read move [$1] : T
->   %13 = Call app/main/ready[T] (%12) : Suspend[T]
->   %14 = AwaitAll [%11 %13] : (T, T)
->   %15 = Release %14 Operation results #2 : ()
->   %16 = Release %14 Operation waker #2 : ()
->   %17 = Drop [%13] : ()
->   %18 = Drop [%11] : ()
->   %19 = Drop [$0] : ()
->   %20 = Drop [$1] : ()
->   %21 = Block %14 : (T, T)
->   %28 = Intrinsic ParamOwned [0:i32] : bool
->   %29 = Drop [$0] : ()
->   %30 = Block - : ()
->   %31 = If %28 [%30 -] : ()
->   %32 = Intrinsic ParamOwned [1:i32] : bool
->   %33 = Drop [$1] : ()
->   %34 = Block - : ()
->   %35 = If %32 [%34 -] : ()
+>   %11 = Intrinsic Empty [] : ()
+>   %12 = Call app/main/ready[T] (%10) : Suspend[T]
+>   %13 = Read move [$1] : T
+>   %14 = Intrinsic Empty [] : ()
+>   %15 = Call app/main/ready[T] (%13) : Suspend[T]
+>   %16 = AwaitAll [%12 %15] : (T, T)
+>   %17 = Release %16 Operation results #2 : ()
+>   %18 = Release %16 Operation waker #2 : ()
+>   %19 = Drop [%15] : ()
+>   %20 = Drop [%12] : ()
+>   %21 = Drop [$0] : ()
+>   %22 = Drop [$1] : ()
+>   %23 = Block %16 : (T, T)
+>   %30 = Intrinsic ParamOwned [0:i32] : bool
+>   %31 = Drop [$0] : ()
+>   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = Intrinsic ParamOwned [1:i32] : bool
+>   %35 = Drop [$1] : ()
 >   %36 = Block - : ()
+>   %37 = If %34 [%36 -] : ()
+>   %38 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %14 releases [%11 %13 %2147483648 %2147483649 %4294967295]
->   cancel %21 releases [%16 %28 %16 %32]
+>   cancel %16 releases [%12 %15 %2147483648 %2147483649 %4294967295]
+>   cancel %23 releases [%16 %30 %16 %34]
 
 fn text!(a: string, b: string) -> (string, string):
 > app/main/text
 >   local $0 a: string [param read] value
 >     uses $0: entry -> %5 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %6 consume last
->   %0 = Retain %11 Cold local $0 #0 : ()
->   %1 = Retain %11 Entry local $0 #0 : ()
->   %2 = Retain %11 Cold local $1 #0 : ()
->   %3 = Retain %11 Entry local $1 #0 : ()
+>     uses $1: entry -> %7 consume last
+>   %0 = Retain %13 Cold local $0 #0 : ()
+>   %1 = Retain %13 Entry local $0 #0 : ()
+>   %2 = Retain %13 Cold local $1 #0 : ()
+>   %3 = Retain %13 Entry local $1 #0 : ()
     generic!(a, b)
->   %4 = Release %11 FrameDrop child #2 : ()
+>   %4 = Release %13 FrameDrop child #2 : ()
 >   %5 = Read move [$0] : string
->   %6 = Read move [$1] : string
->   %7 = Await app/main/generic[string] (%5, %6) : (string, string)
->   %8 = Release %7 Operation child #2 : ()
->   %9 = Drop [$0] : ()
->   %10 = Drop [$1] : ()
->   %11 = Block %7 : (string, string)
->   %16 = Intrinsic ParamOwned [0:i32] : bool
->   %17 = Drop [$0] : ()
->   %18 = Block - : ()
->   %19 = If %16 [%18 -] : ()
->   %20 = Intrinsic ParamOwned [1:i32] : bool
->   %21 = Drop [$1] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
+>   %6 = Intrinsic Empty [] : ()
+>   %7 = Read move [$1] : string
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Await app/main/generic[string] (%5, %7) : (string, string)
+>   %10 = Release %9 Operation child #2 : ()
+>   %11 = Drop [$0] : ()
+>   %12 = Drop [$1] : ()
+>   %13 = Block %9 : (string, string)
+>   %18 = Intrinsic ParamOwned [0:i32] : bool
+>   %19 = Drop [$0] : ()
+>   %20 = Block - : ()
+>   %21 = If %18 [%20 -] : ()
+>   %22 = Intrinsic ParamOwned [1:i32] : bool
+>   %23 = Drop [$1] : ()
 >   %24 = Block - : ()
+>   %25 = If %22 [%24 -] : ()
+>   %26 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %7 releases [%2147483648 %2147483649 %4294967295]
->   cancel %11 releases [%16 %16 %16 %20]
+>   cancel %9 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %13 releases [%16 %18 %16 %22]
 
 fn scalar!(a: i32, b: i32) -> (i32, i32):
     join!(ready(a), ready(b))
@@ -127,48 +132,52 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   local $0 a: string [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %6 consume last
+>     uses $1: entry -> %7 consume last
 >   local $2 pair: (string, string) [:= read assigned] value
->     uses $2: %13 -> %14 consume, %16 consume last
->   %0 = Retain %25 Cold local $0 #0 : ()
->   %1 = Retain %25 Entry local $0 #0 : ()
->   %2 = Retain %25 Cold local $1 #0 : ()
->   %3 = Retain %25 Entry local $1 #0 : ()
+>     uses $2: %15 -> %16 consume, %19 consume last
+>   %0 = Retain %29 Cold local $0 #0 : ()
+>   %1 = Retain %29 Entry local $0 #0 : ()
+>   %2 = Retain %29 Cold local $1 #0 : ()
+>   %3 = Retain %29 Entry local $1 #0 : ()
     pair := join!(ready(a), ready(b))
 >   %4 = Read move [$0] : string
->   %5 = Call app/main/ready[string] (%4) : Suspend[string]
->   %6 = Read move [$1] : string
->   %7 = Call app/main/ready[string] (%6) : Suspend[string]
->   %8 = AwaitAll [%5 %7] : (string, string)
->   %9 = Release %8 Operation results #2 : ()
->   %10 = Release %8 Operation waker #2 : ()
->   %11 = Drop [%7] : ()
->   %12 = Drop [%5] : ()
->   %13 = Store [$2] %8 : ()
->   %23 = Drop [$0] : ()
->   %24 = Drop [$1] : ()
->   %25 = Block %18 : (string, string)
->   %38 = Intrinsic ParamOwned [0:i32] : bool
->   %39 = Drop [$0] : ()
->   %40 = Block - : ()
->   %41 = If %38 [%40 -] : ()
->   %42 = Intrinsic ParamOwned [1:i32] : bool
->   %43 = Drop [$1] : ()
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = Call app/main/ready[string] (%4) : Suspend[string]
+>   %7 = Read move [$1] : string
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Call app/main/ready[string] (%7) : Suspend[string]
+>   %10 = AwaitAll [%6 %9] : (string, string)
+>   %11 = Release %10 Operation results #2 : ()
+>   %12 = Release %10 Operation waker #2 : ()
+>   %13 = Drop [%9] : ()
+>   %14 = Drop [%6] : ()
+>   %15 = Store [$2] %10 : ()
+>   %27 = Drop [$0] : ()
+>   %28 = Drop [$1] : ()
+>   %29 = Block %22 : (string, string)
+>   %42 = Intrinsic ParamOwned [0:i32] : bool
+>   %43 = Drop [$0] : ()
 >   %44 = Block - : ()
 >   %45 = If %42 [%44 -] : ()
->   %46 = Block - : ()
+>   %46 = Intrinsic ParamOwned [1:i32] : bool
+>   %47 = Drop [$1] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Block - : ()
     join!(ready(pair._0), ready(pair._1))
->   %14 = Read move [$2 .0] : string
->   %15 = Call app/main/ready[string] (%14) : Suspend[string]
->   %16 = Read move [$2 .1] : string
->   %17 = Call app/main/ready[string] (%16) : Suspend[string]
->   %18 = AwaitAll [%15 %17] : (string, string)
->   %19 = Release %18 Operation results #2 : ()
->   %20 = Release %18 Operation waker #2 : ()
->   %21 = Drop [%17] : ()
->   %22 = Drop [%15] : ()
+>   %16 = Read move [$2 .0] : string
+>   %17 = Intrinsic Empty [] : ()
+>   %18 = Call app/main/ready[string] (%16) : Suspend[string]
+>   %19 = Read move [$2 .1] : string
+>   %20 = Intrinsic Empty [] : ()
+>   %21 = Call app/main/ready[string] (%19) : Suspend[string]
+>   %22 = AwaitAll [%18 %21] : (string, string)
+>   %23 = Release %22 Operation results #2 : ()
+>   %24 = Release %22 Operation waker #2 : ()
+>   %25 = Drop [%21] : ()
+>   %26 = Drop [%18] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %8 releases [%5 %7 %2147483648 %2147483649 %4294967295]
->   cancel %18 releases [%15 %17 %2147483648 %2147483649 %4294967295]
->   cancel %25 releases [%16 %38 %16 %42]
+>   cancel %10 releases [%6 %9 %2147483648 %2147483649 %4294967295]
+>   cancel %22 releases [%18 %21 %2147483648 %2147483649 %4294967295]
+>   cancel %29 releases [%16 %42 %16 %46]

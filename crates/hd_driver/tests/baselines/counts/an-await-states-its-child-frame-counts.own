@@ -32,19 +32,20 @@ fn stored!() -> i32 $ Clock:
 > app/main/stored
 >   local $0 pending: Suspend[i32] [read assigned] value
 >     uses $0: %5 -> %6 lend last
->   %0 = Retain %11 Cold row #0 : ()
->   %1 = Retain %11 Materialize row #0 : ()
->   %2 = Release %11 FrameDrop row #2 : ()
->   %3 = Release %11 FrameDrop child #2 : ()
+>   %0 = Retain %12 Cold row #0 : ()
+>   %1 = Retain %12 Materialize row #0 : ()
+>   %2 = Release %12 FrameDrop row #2 : ()
+>   %3 = Release %12 FrameDrop child #2 : ()
 >   %4 = Call app/main/read[] () : Suspend[i32]
 >   %5 = Store [$0] %4 : ()
->   %11 = Block %7 : i32
+>   %12 = Block %8 : i32
     pending!()
 >   %6 = Read move [$0] : Suspend[i32]
->   %7 = AwaitValue %6 : i32
->   %8 = Release %7 Operation child #2 : ()
->   %9 = Retain %7 Operation child #0 : ()
->   %10 = Drop [%6] : ()
->   %13 = Return - #2 : never
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = AwaitValue %6 : i32
+>   %9 = Release %8 Operation child #2 : ()
+>   %10 = Retain %8 Operation child #0 : ()
+>   %11 = Drop [%6] : ()
+>   %14 = Return - #2 : never
 >   summary none
->   cancel %7 releases [%6 %4294967295]
+>   cancel %8 releases [%6 %4294967295]

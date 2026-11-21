@@ -263,6 +263,19 @@ impl Elab<'_> {
 /// # Errors
 /// A flag under a part that does not open, or a refused renumbering.
 pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
+    // Each move leaves its place empty, a statement after its counts
+    // (`owned::lowered`, L3).
+    let (topo, mut edits) = (Topology::new(b), super::splice::Tables::default());
+    for i in 0..b.len() {
+        let read = b.tags[i] == Tag::Read && topo.blk[i] != NONE;
+        if read && b.data[i][1] == ReadMode::Move as u32 && key_of(b, b.data[i][0]).is_some() {
+            let (blk, pos) = super::drop_flags::after(b, &topo, i);
+            let args = b.push_record(&[]);
+            let data = [IntrinsicOp::Empty as u32, args];
+            edits.insert(blk, pos, Tag::Intrinsic, data, Ty::VOID, b.syn[i]);
+        }
+    }
+    super::splice::apply(b, &topo, &mut edits)?;
     let (mut cells, slots) = cells(b);
     let (n, topo) = (b.len(), Topology::new(b));
     let boxed: hd_base::HashSet<u32> = (super::storage::declarations(b, &topo.sub).into_iter())

@@ -18,20 +18,21 @@ fn make(name: string) -> Config:
 > app/main/make
 >   local $0 name: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %12 Entry local $0 #0 : ()
+>   %0 = Retain %13 Entry local $0 #0 : ()
     Config { name: name }
 >   %1 = Read move [$0] : string
->   %2 = DefaultCall [app/main/Config.retries []] [] : i32
->   %3 = Break L1 "default" : never
->   %4 = Block - : string
->   %5 = Scope %4 [] : string
->   %6 = NewList - [] : List[string]
->   %7 = Break L0 %6 : never
->   %8 = Block - : List[string]
->   %9 = Scope %8 [] : List[string]
->   %10 = NewStruct [%2 %5 %9 %1] : Config
->   %11 = Drop [$0] : ()
->   %12 = Block %10 : Config
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = DefaultCall [app/main/Config.retries []] [] : i32
+>   %4 = Break L1 "default" : never
+>   %5 = Block - : string
+>   %6 = Scope %5 [] : string
+>   %7 = NewList - [] : List[string]
+>   %8 = Break L0 %7 : never
+>   %9 = Block - : List[string]
+>   %10 = Scope %9 [] : List[string]
+>   %11 = NewStruct [%3 %6 %10 %1] : Config
+>   %12 = Drop [$0] : ()
+>   %13 = Block %11 : Config
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -40,19 +41,21 @@ fn shorthand(name: string, tags: List[string]) -> Config:
 >   local $0 name: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 tags: List[string] [param read] value
->     uses $1: entry -> %3 consume last
->   %0 = Retain %11 Entry local $0 #0 : ()
->   %1 = Retain %11 Entry local $1 #0 : ()
+>     uses $1: entry -> %4 consume last
+>   %0 = Retain %13 Entry local $0 #0 : ()
+>   %1 = Retain %13 Entry local $1 #0 : ()
     Config { name, tags }
 >   %2 = Read move [$0] : string
->   %3 = Read move [$1] : List[string]
->   %4 = DefaultCall [app/main/Config.retries []] [] : i32
->   %5 = Break L0 "default" : never
->   %6 = Block - : string
->   %7 = Scope %6 [] : string
->   %8 = NewStruct [%4 %7 %3 %2] : Config
->   %9 = Drop [$0] : ()
->   %10 = Drop [$1] : ()
->   %11 = Block %8 : Config
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Read move [$1] : List[string]
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = DefaultCall [app/main/Config.retries []] [] : i32
+>   %7 = Break L0 "default" : never
+>   %8 = Block - : string
+>   %9 = Scope %8 [] : string
+>   %10 = NewStruct [%6 %9 %4 %2] : Config
+>   %11 = Drop [$0] : ()
+>   %12 = Drop [$1] : ()
+>   %13 = Block %10 : Config
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1] writes

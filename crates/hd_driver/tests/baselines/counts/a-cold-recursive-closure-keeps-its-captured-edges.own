@@ -5,92 +5,94 @@
 fn make(value: string) -> fn!(usize) -> string:
 > app/main/make
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %9 consume, %27 consume last
+>     uses $0: entry -> %9 consume, %28 consume last
 >   local $1 n: usize [param read] value
->     uses $1: entry -> %7 lend, %12 lend last
+>     uses $1: entry -> %7 lend, %13 lend last
 >   local $2 read: fn!(usize) -> string [:= read assigned captured captured-assigned] place
->   %5 = Retain %36 Entry local $0 #0 : ()
+>   %5 = Retain %37 Entry local $0 #0 : ()
     read := fn!(n: usize) -> string:
->   %0 = Retain %25 Cold row #0 : ()
->   %1 = Retain %25 Materialize row #0 : ()
->   %2 = Release %25 FrameDrop row #2 : ()
->   %3 = Retain %25 Cold captures #0 : ()
->   %4 = Retain %25 Entry captures #0 : ()
->   %6 = Release %25 FrameDrop child #2 : ()
->   %23 = Drop [$0] : ()
->   %24 = Drop [$2] : ()
->   %25 = Block %21 : string
->   %26 = Store [$2] - : ()
->   %27 = Closure #1 : fn!(usize) -> string
->   %28 = Retain %27 Operation captures #0 : ()
->   %29 = Store [$2] %27 : ()
->   %30 = Release %29 Operation #3 : ()
->   %34 = Drop [$0] : ()
->   %35 = Drop [$2] : ()
->   %36 = Block %31 : fn!(usize) -> string
->   %42 = Intrinsic ParamOwned [0:i32] : bool
->   %43 = Drop [$0] : ()
->   %44 = Block - : ()
->   %45 = If %42 [%44 -] : ()
->   %46 = Intrinsic ParamOwned [2:i32] : bool
->   %47 = Drop [$2] : ()
->   %48 = Block - : ()
->   %49 = If %46 [%48 -] : ()
->   %50 = Block - : ()
+>   %0 = Retain %26 Cold row #0 : ()
+>   %1 = Retain %26 Materialize row #0 : ()
+>   %2 = Release %26 FrameDrop row #2 : ()
+>   %3 = Retain %26 Cold captures #0 : ()
+>   %4 = Retain %26 Entry captures #0 : ()
+>   %6 = Release %26 FrameDrop child #2 : ()
+>   %24 = Drop [$0] : ()
+>   %25 = Drop [$2] : ()
+>   %26 = Block %22 : string
+>   %27 = Store [$2] - : ()
+>   %28 = Closure #1 : fn!(usize) -> string
+>   %29 = Retain %28 Operation captures #0 : ()
+>   %30 = Store [$2] %28 : ()
+>   %31 = Release %30 Operation #3 : ()
+>   %35 = Drop [$0] : ()
+>   %36 = Drop [$2] : ()
+>   %37 = Block %32 : fn!(usize) -> string
+>   %43 = Intrinsic ParamOwned [0:i32] : bool
+>   %44 = Drop [$0] : ()
+>   %45 = Block - : ()
+>   %46 = If %43 [%45 -] : ()
+>   %47 = Intrinsic ParamOwned [2:i32] : bool
+>   %48 = Drop [$2] : ()
+>   %49 = Block - : ()
+>   %50 = If %47 [%49 -] : ()
+>   %51 = Block - : ()
         if n == 0: value else: read!(n - 1)
 >   %7 = Read copy [$1] : usize
 >   %8 = Prim Eq [%7 0:usize] : bool
 >   %9 = Read move [$0] : string
->   %10 = Block %9 : string
->   %11 = Read borrow [$2] : fn!(usize) -> string
->   %12 = Read copy [$1] : usize
->   %13 = Prim Sub [%12 1:usize] : usize
->   %14 = CallValue %11 [%13] : Suspend[string]
->   %15 = AwaitValue %14 : string
->   %16 = Release %15 Operation child #2 : ()
->   %17 = Retain %15 Operation child #0 : ()
->   %18 = Drop [%14] : ()
->   %19 = Drop [$0] : ()
->   %20 = Block %15 : string
->   %21 = If %8 [%10 %20] : string
->   %22 = Drop [$2] : ()
+>   %10 = Intrinsic Empty [] : ()
+>   %11 = Block %9 : string
+>   %12 = Read borrow [$2] : fn!(usize) -> string
+>   %13 = Read copy [$1] : usize
+>   %14 = Prim Sub [%13 1:usize] : usize
+>   %15 = CallValue %12 [%14] : Suspend[string]
+>   %16 = AwaitValue %15 : string
+>   %17 = Release %16 Operation child #2 : ()
+>   %18 = Retain %16 Operation child #0 : ()
+>   %19 = Drop [%15] : ()
+>   %20 = Drop [$0] : ()
+>   %21 = Block %16 : string
+>   %22 = If %8 [%11 %21] : string
+>   %23 = Drop [$2] : ()
     read
->   %31 = Read copy [$2] : fn!(usize) -> string
->   %32 = Retain %31 Value #0 : ()
->   %33 = Drop [$2] : ()
+>   %32 = Read copy [$2] : fn!(usize) -> string
+>   %33 = Retain %32 Value #0 : ()
+>   %34 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $2]
 >   exit sub 1 drops [$0 $2]
 >   summary kept [$0] writes
->   cancel %15 releases [%14 %2147483648 %2147483650 %4294967295]
->   cancel %25 releases [%16 %42 %16 %46]
+>   cancel %16 releases [%15 %2147483648 %2147483650 %4294967295]
+>   cancel %26 releases [%16 %43 %16 %47]
 
 fn generic[T < 'static](value: T) -> fn!() -> T:
 > app/main/generic
 >   local $0 value: T [param read captured] value
->     uses $0: entry -> %6 consume, %9 consume last
->   %5 = Retain %12 Entry local $0 #0 : ()
+>     uses $0: entry -> %6 consume, %10 consume last
+>   %5 = Retain %13 Entry local $0 #0 : ()
     fn!() -> T: value
->   %0 = Retain %8 Cold row #0 : ()
->   %1 = Retain %8 Materialize row #0 : ()
->   %2 = Release %8 FrameDrop row #2 : ()
->   %3 = Retain %8 Cold captures #0 : ()
->   %4 = Retain %8 Entry captures #0 : ()
+>   %0 = Retain %9 Cold row #0 : ()
+>   %1 = Retain %9 Materialize row #0 : ()
+>   %2 = Release %9 FrameDrop row #2 : ()
+>   %3 = Retain %9 Cold captures #0 : ()
+>   %4 = Retain %9 Entry captures #0 : ()
 >   %6 = Read move [$0] : T
->   %7 = Drop [$0] : ()
->   %8 = Block %6 : T
->   %9 = Closure #1 : fn!() -> T
->   %10 = Retain %9 Operation captures #0 : ()
->   %11 = Drop [$0] : ()
->   %12 = Block %9 : fn!() -> T
->   %13 = Intrinsic ParamOwned [0:i32] : bool
->   %14 = Drop [$0] : ()
->   %15 = Block - : ()
->   %16 = If %13 [%15 -] : ()
->   %17 = Block - : ()
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block %6 : T
+>   %10 = Closure #1 : fn!() -> T
+>   %11 = Retain %10 Operation captures #0 : ()
+>   %12 = Drop [$0] : ()
+>   %13 = Block %10 : fn!() -> T
+>   %14 = Intrinsic ParamOwned [0:i32] : bool
+>   %15 = Drop [$0] : ()
+>   %16 = Block - : ()
+>   %17 = If %14 [%16 -] : ()
+>   %18 = Block - : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
->   cancel %8 releases [%16 %13]
+>   cancel %9 releases [%16 %14]
 
 pub fn main!() -> void $ Console:
     read := make("kept")
@@ -98,58 +100,61 @@ pub fn main!() -> void $ Console:
 >   local $0 read: fn!(usize) -> string [:= read assigned] value
 >     uses $0: %5 -> %6 lend last
 >   local $1 text: fn!() -> string [:= read assigned] value
->     uses $1: %17 -> %20 lend last
+>     uses $1: %18 -> %21 lend last
 >   local $2 number: fn!() -> i32 [:= read assigned] value
->     uses $2: %19 -> %30 lend last
->   %0 = Retain %39 Cold row #0 : ()
->   %1 = Retain %39 Materialize row #0 : ()
->   %2 = Release %39 FrameDrop row #2 : ()
->   %3 = Release %39 FrameDrop child #2 : ()
+>     uses $2: %20 -> %32 lend last
+>   %0 = Retain %42 Cold row #0 : ()
+>   %1 = Retain %42 Materialize row #0 : ()
+>   %2 = Release %42 FrameDrop row #2 : ()
+>   %3 = Release %42 FrameDrop child #2 : ()
 >   %4 = Call app/main/make[] ("kept") : fn!(usize) -> string
 >   %5 = Store [$0] %4 : ()
->   %38 = Drop [$2] : ()
->   %39 = Block - : ()
+>   %41 = Drop [$2] : ()
+>   %42 = Block - : ()
     println(read!(3))
 >   %6 = Read move [$0] : fn!(usize) -> string
->   %7 = CallValue %6 [3:usize] : Suspend[string]
->   %8 = AwaitValue %7 : string
->   %9 = Release %8 Operation child #2 : ()
->   %10 = Retain %8 Operation child #0 : ()
->   %11 = Drop [%7] : ()
->   %12 = Drop [%6] : ()
->   %13 = Call std/console/println[string] (%8) : ()
->   %14 = Retain %13 Operation operand 0 #0 : ()
->   %15 = Drop [%8] : ()
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = CallValue %6 [3:usize] : Suspend[string]
+>   %9 = AwaitValue %8 : string
+>   %10 = Release %9 Operation child #2 : ()
+>   %11 = Retain %9 Operation child #0 : ()
+>   %12 = Drop [%8] : ()
+>   %13 = Drop [%6] : ()
+>   %14 = Call std/console/println[string] (%9) : ()
+>   %15 = Retain %14 Operation operand 0 #0 : ()
+>   %16 = Drop [%9] : ()
     text := generic("text")
->   %16 = Call app/main/generic[string] ("text") : fn!() -> string
->   %17 = Store [$1] %16 : ()
+>   %17 = Call app/main/generic[string] ("text") : fn!() -> string
+>   %18 = Store [$1] %17 : ()
     number := generic(+7)
->   %18 = Call app/main/generic[i32] (7:i32) : fn!() -> i32
->   %19 = Store [$2] %18 : ()
+>   %19 = Call app/main/generic[i32] (7:i32) : fn!() -> i32
+>   %20 = Store [$2] %19 : ()
     println(text!())
->   %20 = Read move [$1] : fn!() -> string
->   %21 = CallValue %20 [] : Suspend[string]
->   %22 = AwaitValue %21 : string
->   %23 = Release %22 Operation child #2 : ()
->   %24 = Retain %22 Operation child #0 : ()
->   %25 = Drop [%21] : ()
->   %26 = Drop [%20] : ()
->   %27 = Call std/console/println[string] (%22) : ()
->   %28 = Retain %27 Operation operand 0 #0 : ()
->   %29 = Drop [%22] : ()
+>   %21 = Read move [$1] : fn!() -> string
+>   %22 = Intrinsic Empty [] : ()
+>   %23 = CallValue %21 [] : Suspend[string]
+>   %24 = AwaitValue %23 : string
+>   %25 = Release %24 Operation child #2 : ()
+>   %26 = Retain %24 Operation child #0 : ()
+>   %27 = Drop [%23] : ()
+>   %28 = Drop [%21] : ()
+>   %29 = Call std/console/println[string] (%24) : ()
+>   %30 = Retain %29 Operation operand 0 #0 : ()
+>   %31 = Drop [%24] : ()
     println(number!())
->   %30 = Read move [$2] : fn!() -> i32
->   %31 = CallValue %30 [] : Suspend[i32]
->   %32 = AwaitValue %31 : i32
->   %33 = Release %32 Operation child #2 : ()
->   %34 = Retain %32 Operation child #0 : ()
->   %35 = Drop [%31] : ()
->   %36 = Drop [%30] : ()
->   %37 = Call std/console/println[i32] (%32) : ()
->   %52 = Drop [$2] : ()
->   %53 = Return - #2 : never
+>   %32 = Read move [$2] : fn!() -> i32
+>   %33 = Intrinsic Empty [] : ()
+>   %34 = CallValue %32 [] : Suspend[i32]
+>   %35 = AwaitValue %34 : i32
+>   %36 = Release %35 Operation child #2 : ()
+>   %37 = Retain %35 Operation child #0 : ()
+>   %38 = Drop [%34] : ()
+>   %39 = Drop [%32] : ()
+>   %40 = Call std/console/println[i32] (%35) : ()
+>   %55 = Drop [$2] : ()
+>   %56 = Return - #2 : never
 >   exit sub 0 drops [$2]
 >   summary none
->   cancel %8 releases [%6 %7 %2147483650 %4294967295]
->   cancel %22 releases [%20 %21 %2147483650 %4294967295]
->   cancel %32 releases [%30 %31 %2147483650 %4294967295]
+>   cancel %9 releases [%6 %8 %2147483650 %4294967295]
+>   cancel %24 releases [%21 %23 %2147483650 %4294967295]
+>   cancel %35 releases [%32 %34 %2147483650 %4294967295]

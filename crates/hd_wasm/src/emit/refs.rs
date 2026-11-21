@@ -267,27 +267,69 @@ impl Em<'_, '_, '_> {
             ledger!("partial-move/TIR-move-emitted-as-copy(part not in place)");
             return Ok(false);
         };
-        let empty = (self.needs_drop(part.ty))
-            .then(|| part.empty_pattern(self.pool(), self.env(), t))
-            .transpose()?;
-        ledger!(if empty.is_some() => "partial-move/zeroed-in-place"
-            else "partial-move/plain-untracked");
-        ledger!("partial-move/niche-repairs" += empty.as_ref().map_or(0, |e| e.1.len()));
         for &k in &part.slots {
             self.f.get(ls[k]);
         }
+        // Its `Empty` leaves the part empty (`Em::empty_place`).
         self.store(i)?;
-        if let Some((zeroed, repairs)) = empty {
-            for k in zeroed {
-                self.f.zero(ls[k]);
-            }
-            for (slot, value) in repairs {
-                let value = value.unwrap_or_else(|| crate::rt::empty_buffer(self.m));
-                self.f.u32(value);
-                self.f.set(ls[slot]);
-            }
-        }
         Ok(true)
+    }
+
+    /// `Empty` of the place word `word` (`hd_tir::own::elaborate`): the
+    /// place a move took, left empty where this instance lays it out:
+    /// zeros in a local's values or a cell's payload when they count, and
+    /// in a part's, its enums' niches repaired; a value's locals for a
+    /// cancel path ([`Em::settle_value`]). A local kept in memory is its
+    /// flags' (`Em::mem_read`).
+    pub(super) fn empty_place(&mut self, word: u32) -> StageResult<()> {
+        let p = self.place(word);
+        if matches!(p.root, PlaceRoot::Local(l) if self.mem_locals.contains_key(&l.idx())) {
+            return Ok(());
+        }
+        if let (PlaceRoot::Value(r), true) = (p.root, p.proj.is_empty()) {
+            if self.needs_drop(self.ty_of(r.0)) {
+                self.settle_value(r.0);
+            }
+            return Ok(());
+        }
+        if let (PlaceRoot::Local(id), true) = (p.root, p.proj.is_empty()) {
+            let (l, t) = (id.idx(), self.b.local_ty[id.idx()]);
+            if self.is_cell(l) && self.counted(t) {
+                let (m, c) = (self.cell_mem(l)?, self.cell_of(l)?);
+                let all = Part {
+                    first: 0,
+                    count: m.leaves.len(),
+                    offset: 0,
+                };
+                let zero = self.zero_src(l)?;
+                self.store_part(c, &m, all, &zero)?;
+            } else if !self.is_cell(l) && self.needs_drop(t) {
+                for x in self.local(id.raw())? {
+                    self.f.zero(x);
+                }
+            }
+            return Ok(());
+        }
+
+        let Some((t, ls)) = self.root_locals(&p)? else {
+            return Ok(());
+        };
+        let Some(part) = place_part(self.pool(), self.env(), t, &p.proj)? else {
+            return Ok(());
+        };
+        if !self.needs_drop(part.ty) {
+            return Ok(());
+        }
+        let (zeroed, repairs) = part.empty_pattern(self.pool(), self.env(), t)?;
+        for k in zeroed {
+            self.f.zero(ls[k]);
+        }
+        for (slot, value) in repairs {
+            let value = value.unwrap_or_else(|| crate::rt::empty_buffer(self.m));
+            self.f.u32(value);
+            self.f.set(ls[slot]);
+        }
+        Ok(())
     }
 
     /// `Drop [%r]` `i` of a whole value after moves or drops of its parts

@@ -96,24 +96,26 @@ fn word(i: i32) -> string:
 >   %60 = Block - : ()
 >   %61 = Scope %60 [] : ()
 >   %62 = Read move [%27] : string
->   %63 = Block %62 : string
+>   %63 = Intrinsic Empty [] : ()
+>   %64 = Block %62 : string
 >   summary kept [] writes
 
 @cold
 > app/main/keep
 >   local $0 value: T [param read captured] value
->     uses $0: entry -> %2 consume, %5 consume last
->   %1 = Retain %8 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 consume, %6 consume last
+>   %1 = Retain %9 Entry local $0 #0 : ()
 fn keep[T < 'static](value: T) -> fn() -> T:
     fn() -> T: value
->   %0 = Retain %4 Entry captures #0 : ()
+>   %0 = Retain %5 Entry captures #0 : ()
 >   %2 = Read move [$0] : T
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : T
->   %5 = Closure #1 : fn() -> T
->   %6 = Retain %5 Operation captures #0 : ()
->   %7 = Drop [$0] : ()
->   %8 = Block %5 : fn() -> T
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : T
+>   %6 = Closure #1 : fn() -> T
+>   %7 = Retain %6 Operation captures #0 : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block %6 : fn() -> T
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -155,7 +157,7 @@ pub fn main() -> void $ Console:
 >   %0 = Call app/main/word[] (7:i32) : string
 >   %1 = Store [$0] %0 : ()
 >   %23 = Box #1 #1 : ()
->   %67 = Block - : ()
+>   %68 = Block - : ()
     println(keep(original)())
 >   %2 = Read copy [$0] : string
 >   %3 = Retain %2 Value #0 : ()
@@ -227,8 +229,9 @@ pub fn main() -> void $ Console:
 >   %62 = Drop [$2] : ()
     println(original)
 >   %63 = Read move [$0] : string
->   %64 = Call std/console/println[string] (%63) : ()
->   %65 = Retain %64 Operation operand 0 #0 : ()
->   %66 = Drop [%63] : ()
+>   %64 = Intrinsic Empty [] : ()
+>   %65 = Call std/console/println[string] (%63) : ()
+>   %66 = Retain %65 Operation operand 0 #0 : ()
+>   %67 = Drop [%63] : ()
 >   storage sub 0: $1 cell
 >   summary kept [] writes

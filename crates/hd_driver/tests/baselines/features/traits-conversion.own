@@ -14,12 +14,13 @@ impl From[string] for Name:
 > app/main/impl From[string] for Name.from
 >   local $0 value: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %5 Entry local $0 #0 : ()
         Name { text: value }
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1] : Name
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : Name
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1] : Name
+>   %4 = Drop [$0] : ()
+>   %5 = Block %3 : Name
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -27,15 +28,16 @@ fn convert(s: string) -> Name:
 > app/main/convert
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
+>   %0 = Retain %8 Entry local $0 #0 : ()
     Name::from(s)
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1] : Name
->   %3 = Break L0 %2 : never
->   %4 = Block - : Name
->   %5 = Scope %4 [] : Name
->   %6 = Drop [$0] : ()
->   %7 = Block %5 : Name
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1] : Name
+>   %4 = Break L0 %3 : never
+>   %5 = Block - : Name
+>   %6 = Scope %5 [] : Name
+>   %7 = Drop [$0] : ()
+>   %8 = Block %6 : Name
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 

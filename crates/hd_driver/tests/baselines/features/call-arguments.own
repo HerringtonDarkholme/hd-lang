@@ -181,22 +181,22 @@ fn calls(s: string, n: *Node) -> usize:
 > app/main/calls
 >   local $0 s: string [param read captured] place
 >   local $1 n: *Node [param read] value
->     uses $1: entry -> %22 lend last
+>     uses $1: entry -> %23 lend last
 >   local $2 t: string [read assigned captured captured-assigned] place
->   %0 = Retain %32 Entry local $0 #0 : ()
+>   %0 = Retain %33 Entry local $0 #0 : ()
     let mut t = s
 >   %1 = Box #0 #255 : ()
 >   %2 = Read copy [$0] : string
 >   %3 = Retain %2 Value #0 : ()
 >   %4 = Box #2 #0 : ()
 >   %5 = Store [$2] %2 : ()
->   %26 = Drop [$0] : ()
->   %27 = Intrinsic ParamOwned [1:i32] : bool
->   %28 = Drop [$1] : ()
->   %29 = Block - : ()
->   %30 = If %27 [%29 -] : ()
->   %31 = Release %32 Exit local $1 #2 : ()
->   %32 = Block %25 : usize
+>   %27 = Drop [$0] : ()
+>   %28 = Intrinsic ParamOwned [1:i32] : bool
+>   %29 = Drop [$1] : ()
+>   %30 = Block - : ()
+>   %31 = If %28 [%30 -] : ()
+>   %32 = Release %33 Exit local $1 #2 : ()
+>   %33 = Block %26 : usize
     by_mut(&mut t)
 >   %6 = Ref mut local frame [$2] : &mut string
 >   %7 = Call app/main/by_mut[] (%6) : ()
@@ -211,14 +211,15 @@ fn calls(s: string, n: *Node) -> usize:
 >   %15 = Drop [$0] : ()
 >   %16 = Prim Add [%10 %13] : usize
 >   %17 = Read move [$2] : string
->   %18 = Call app/main/by_value[] (%17) : usize
->   %19 = Retain %18 Operation operand 0 #0 : ()
->   %20 = Drop [%17] : ()
->   %21 = Prim Add [%16 %18] : usize
->   %22 = Read borrow [$1] : *Node
->   %23 = Call app/main/by_ptr[] (%22) : usize
->   %24 = Retain %23 Operation operand 0 #0 : ()
->   %25 = Prim Add [%21 %23] : usize
+>   %18 = Intrinsic Empty [] : ()
+>   %19 = Call app/main/by_value[] (%17) : usize
+>   %20 = Retain %19 Operation operand 0 #0 : ()
+>   %21 = Drop [%17] : ()
+>   %22 = Prim Add [%16 %19] : usize
+>   %23 = Read borrow [$1] : *Node
+>   %24 = Call app/main/by_ptr[] (%23) : usize
+>   %25 = Retain %24 Operation operand 0 #0 : ()
+>   %26 = Prim Add [%22 %24] : usize
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
 >   summary kept [$0] borrows [$1] writes

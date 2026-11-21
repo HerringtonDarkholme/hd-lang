@@ -21,7 +21,7 @@ fn local_copy(from: usize, n: usize) -> string:
 >   %0 = Read copy [$1] : usize
 >   %1 = Call std/rt.memory/new_string[] (%0) : string
 >   %2 = Store [$2] %1 : ()
->   %12 = Block %11 : string
+>   %13 = Block %11 : string
     address := string_bytes(result).address
 >   %3 = Read borrow [$2] : string
 >   %4 = Call std/rt.memory/string_bytes[] (%3) : Ptr[u8]
@@ -34,6 +34,7 @@ fn local_copy(from: usize, n: usize) -> string:
 >   %10 = Call std/rt.memory/copy[] (%7, %8, %9) : ()
     result
 >   %11 = Read move [$2] : string
+>   %12 = Intrinsic Empty [] : ()
 >   summary kept []
 
 fn local_pointer_write() -> string:
@@ -43,13 +44,14 @@ fn local_pointer_write() -> string:
 >     uses $0: %1 -> %2 lend, %5 consume last
 >   %0 = Call std/rt.memory/new_string[] (1:usize) : string
 >   %1 = Store [$0] %0 : ()
->   %6 = Block %5 : string
+>   %7 = Block %5 : string
     string_bytes(result).write(65)
 >   %2 = Read borrow [$0] : string
 >   %3 = Call std/rt.memory/string_bytes[] (%2) : Ptr[u8]
 >   %4 = Store [ptr %3] 65:u8 : ()
     result
 >   %5 = Read move [$0] : string
+>   %6 = Intrinsic Empty [] : ()
 >   summary kept []
 
 fn taken_then_write(mut strings: List[string]) -> void:
@@ -58,12 +60,12 @@ fn taken_then_write(mut strings: List[string]) -> void:
 >     uses $0: entry -> %6 lend last
 >   local $1 result: string [:= read assigned] value
 >     uses $1: %2 -> %3 consume, %9 lend last
->   %0 = Retain %14 Entry local $0 #0 : ()
+>   %0 = Retain %15 Entry local $0 #0 : ()
     result := new_string(1)
 >   %1 = Call std/rt.memory/new_string[] (1:usize) : string
 >   %2 = Store [$1] %1 : ()
->   %13 = Drop [$0] : ()
->   %14 = Block - : ()
+>   %14 = Drop [$0] : ()
+>   %15 = Block - : ()
     strings.push(result)
 >   %3 = Read copy [$1] : string
 >   %4 = Retain %3 Value #0 : ()
@@ -73,9 +75,10 @@ fn taken_then_write(mut strings: List[string]) -> void:
 >   %8 = Drop [$0] : ()
     string_bytes(result).write(65)
 >   %9 = Read move [$1] : string
->   %10 = Call std/rt.memory/string_bytes[] (%9) : Ptr[u8]
->   %11 = Drop [%9] : ()
->   %12 = Store [ptr %10] 65:u8 : ()
+>   %10 = Intrinsic Empty [] : ()
+>   %11 = Call std/rt.memory/string_bytes[] (%9) : Ptr[u8]
+>   %12 = Drop [%9] : ()
+>   %13 = Store [ptr %11] 65:u8 : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 

@@ -13,21 +13,23 @@ fn pick(c: bool, a: string, b: string) -> string:
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %6 consume last
->   %0 = Retain %12 Entry local $1 #0 : ()
->   %1 = Retain %12 Entry local $2 #0 : ()
+>     uses $2: entry -> %7 consume last
+>   %0 = Retain %14 Entry local $1 #0 : ()
+>   %1 = Retain %14 Entry local $2 #0 : ()
     if c: a else: b
 >   %2 = Read copy [$0] : bool
 >   %3 = Read move [$1] : string
->   %4 = Drop [$2] : ()
->   %5 = Block %3 : string
->   %6 = Read move [$2] : string
->   %7 = Drop [$1] : ()
->   %8 = Block %6 : string
->   %9 = If %2 [%5 %8] : string
->   %10 = Drop [$1] : ()
->   %11 = Drop [$2] : ()
->   %12 = Block %9 : string
+>   %4 = Intrinsic Empty [] : ()
+>   %5 = Drop [$2] : ()
+>   %6 = Block %3 : string
+>   %7 = Read move [$2] : string
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Drop [$1] : ()
+>   %10 = Block %7 : string
+>   %11 = If %2 [%6 %10] : string
+>   %12 = Drop [$1] : ()
+>   %13 = Drop [$2] : ()
+>   %14 = Block %11 : string
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2]
 
@@ -76,28 +78,30 @@ fn pick_match(k: i64, a: string, b: string) -> string:
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %6 consume last
->   %0 = Retain %19 Entry local $1 #0 : ()
->   %1 = Retain %19 Entry local $2 #0 : ()
+>     uses $2: entry -> %7 consume last
+>   %0 = Retain %21 Entry local $1 #0 : ()
+>   %1 = Retain %21 Entry local $2 #0 : ()
     match k:
 >   %2 = Read copy [$0] : i64
->   %4 = Drop [$2] : ()
->   %7 = Drop [$1] : ()
->   %15 = Block - : never
->   %16 = Match %2 [%15 %5 %8] : string
->   %17 = Drop [$1] : ()
->   %18 = Drop [$2] : ()
->   %19 = Block %16 : string
+>   %5 = Drop [$2] : ()
+>   %9 = Drop [$1] : ()
+>   %17 = Block - : never
+>   %18 = Match %2 [%17 %6 %10] : string
+>   %19 = Drop [$1] : ()
+>   %20 = Drop [$2] : ()
+>   %21 = Block %18 : string
         0 => a
 >   %3 = Read move [$1] : string
->   %5 = Block %3 : string
->   %9 = Prim Eq [%2 0:i64] : bool
->   %11 = Block - : never
+>   %4 = Intrinsic Empty [] : ()
+>   %6 = Block %3 : string
+>   %11 = Prim Eq [%2 0:i64] : bool
 >   %13 = Block - : never
->   %14 = If %9 [%11 %13] : never
+>   %15 = Block - : never
+>   %16 = If %11 [%13 %15] : never
         _ => b
->   %6 = Read move [$2] : string
->   %8 = Block %6 : string
+>   %7 = Read move [$2] : string
+>   %8 = Intrinsic Empty [] : ()
+>   %10 = Block %7 : string
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2]
 
@@ -108,43 +112,45 @@ fn pick_with_exit(k: i64, a: string, b: string) -> string:
 >   local $1 a: string [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 b: string [param read] value
->     uses $2: entry -> %6 consume last
->   %0 = Retain %35 Entry local $1 #0 : ()
->   %1 = Retain %35 Entry local $2 #0 : ()
+>     uses $2: entry -> %7 consume last
+>   %0 = Retain %37 Entry local $1 #0 : ()
+>   %1 = Retain %37 Entry local $2 #0 : ()
     match k:
 >   %2 = Read copy [$0] : i64
->   %4 = Drop [$2] : ()
->   %7 = Drop [$1] : ()
->   %31 = Block - : never
->   %32 = Match %2 [%31 %5 %8 %12 %14] : string
->   %33 = Drop [$1] : ()
->   %34 = Drop [$2] : ()
->   %35 = Block %32 : string
+>   %5 = Drop [$2] : ()
+>   %9 = Drop [$1] : ()
+>   %33 = Block - : never
+>   %34 = Match %2 [%33 %6 %10 %14 %16] : string
+>   %35 = Drop [$1] : ()
+>   %36 = Drop [$2] : ()
+>   %37 = Block %34 : string
         0 => a
 >   %3 = Read move [$1] : string
->   %5 = Block %3 : string
->   %15 = Prim Eq [%2 0:i64] : bool
->   %17 = Block - : never
->   %29 = Block - : never
->   %30 = If %15 [%17 %29] : never
+>   %4 = Intrinsic Empty [] : ()
+>   %6 = Block %3 : string
+>   %17 = Prim Eq [%2 0:i64] : bool
+>   %19 = Block - : never
+>   %31 = Block - : never
+>   %32 = If %17 [%19 %31] : never
         1 => b
->   %6 = Read move [$2] : string
->   %8 = Block %6 : string
->   %18 = Prim Eq [%2 1:i64] : bool
->   %20 = Block - : never
->   %27 = Block - : never
->   %28 = If %18 [%20 %27] : never
+>   %7 = Read move [$2] : string
+>   %8 = Intrinsic Empty [] : ()
+>   %10 = Block %7 : string
+>   %20 = Prim Eq [%2 1:i64] : bool
+>   %22 = Block - : never
+>   %29 = Block - : never
+>   %30 = If %20 [%22 %29] : never
         2 => return "returned"
->   %9 = Drop [$1] : ()
->   %10 = Drop [$2] : ()
->   %11 = Return "returned" : never
->   %12 = Block - : never
->   %21 = Prim Eq [%2 2:i64] : bool
->   %23 = Block - : never
->   %25 = Block - : never
->   %26 = If %21 [%23 %25] : never
-        _ => panic("branch")
->   %13 = Call std/core/panic[] ("branch") : never
+>   %11 = Drop [$1] : ()
+>   %12 = Drop [$2] : ()
+>   %13 = Return "returned" : never
 >   %14 = Block - : never
+>   %23 = Prim Eq [%2 2:i64] : bool
+>   %25 = Block - : never
+>   %27 = Block - : never
+>   %28 = If %23 [%25 %27] : never
+        _ => panic("branch")
+>   %15 = Call std/core/panic[] ("branch") : never
+>   %16 = Block - : never
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2]

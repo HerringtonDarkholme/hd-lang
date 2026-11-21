@@ -3,4 +3,5 @@ app/main/last
   local $0 xs: List[i32] [param read] value
     uses $0: entry -> %1 consume last
   %1 = Read move [$0] : List[i32]
+  %2 = Intrinsic Empty [] : ()
   exit sub 0 drops [$0]

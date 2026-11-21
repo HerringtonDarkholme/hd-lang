@@ -50,7 +50,8 @@ fn evens(n: usize) -> List[usize]:
 >   %31 = Block - : ()
 >   %32 = Loop %31 - : ()
 >   %33 = Read move [$1] : List[usize]
->   %34 = Block %33 : List[usize]
+>   %34 = Intrinsic Empty [] : ()
+>   %35 = Block %33 : List[usize]
 
 fn counted(n: usize) -> List[usize]:
     [for i in (0..n).iter() => i]
@@ -91,5 +92,6 @@ fn counted(n: usize) -> List[usize]:
 >   %29 = LoanEnd [$3] : ()
 >   %30 = Drop [$2] : ()
 >   %31 = Read move [$1] : List[usize]
->   %32 = Block %31 : List[usize]
+>   %32 = Intrinsic Empty [] : ()
+>   %33 = Block %31 : List[usize]
 >   storage sub 0: $2 slot

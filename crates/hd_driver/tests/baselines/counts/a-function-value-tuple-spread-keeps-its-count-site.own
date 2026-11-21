@@ -32,36 +32,39 @@ fn call[Args < Tuple, O](f: Fn[Args, O, $()], args: Args) -> O:
 fn through(f: fn(string, List[i32]) -> usize, text: string, values: List[i32]) -> usize:
 > app/main/through
 >   local $0 f: fn(string, List[i32]) -> usize [param read] value
->     uses $0: entry -> %6 lend last
+>     uses $0: entry -> %8 lend last
 >   local $1 text: string [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 values: List[i32] [param read] value
->     uses $2: entry -> %3 consume last
+>     uses $2: entry -> %4 consume last
 >   local $4 args: (string, List[i32]) [read] value
->     uses $4: %5 -> %7 consume last
->   %0 = Retain %22 Entry local $1 #0 : ()
->   %1 = Retain %22 Entry local $2 #0 : ()
+>     uses $4: %7 -> %9 consume last
+>   %0 = Retain %25 Entry local $1 #0 : ()
+>   %1 = Retain %25 Entry local $2 #0 : ()
     call(f, (text, values))
 >   %2 = Read move [$1] : string
->   %3 = Read move [$2] : List[i32]
->   %4 = NewTuple - [%2 %3] : (string, List[i32])
->   %5 = Store [$4] %4 : ()
->   %6 = Read borrow [$0] : fn(string, List[i32]) -> usize
->   %7 = Read move [$4] : (string, List[i32])
->   %8 = CallValue %6 [%7] : usize
->   %9 = Retain %8 Operation arguments #0 : ()
->   %10 = Release %8 Operation arguments #2 : ()
->   %11 = Drop [%7] : ()
->   %12 = Break L0 %8 : never
->   %13 = Block - : usize
->   %14 = Scope %13 [] : usize
->   %15 = Drop [$1] : ()
->   %16 = Drop [$2] : ()
->   %17 = Intrinsic ParamOwned [0:i32] : bool
->   %18 = Drop [$0] : ()
->   %19 = Block - : ()
->   %20 = If %17 [%19 -] : ()
->   %21 = Release %22 Exit local $0 #2 : ()
->   %22 = Block %14 : usize
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Read move [$2] : List[i32]
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = NewTuple - [%2 %4] : (string, List[i32])
+>   %7 = Store [$4] %6 : ()
+>   %8 = Read borrow [$0] : fn(string, List[i32]) -> usize
+>   %9 = Read move [$4] : (string, List[i32])
+>   %10 = Intrinsic Empty [] : ()
+>   %11 = CallValue %8 [%9] : usize
+>   %12 = Retain %11 Operation arguments #0 : ()
+>   %13 = Release %11 Operation arguments #2 : ()
+>   %14 = Drop [%9] : ()
+>   %15 = Break L0 %11 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Drop [$1] : ()
+>   %19 = Drop [$2] : ()
+>   %20 = Intrinsic ParamOwned [0:i32] : bool
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Release %25 Exit local $0 #2 : ()
+>   %25 = Block %17 : usize
 >   exit sub 0 drops [$1 $2]
 >   summary kept [$1 $2] borrows [$0] writes

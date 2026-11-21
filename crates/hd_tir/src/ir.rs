@@ -356,10 +356,14 @@ pub enum IntrinsicOp {
     /// in the cell its root local lives in or the memory a `Deref` at its
     /// start reaches (the backend's slot layout, `own::elaborate`).
     CellFlag,
+    /// `()`: the place the `Read move` right before it (past its counts)
+    /// took, left empty: zeros where its values were, its enums still
+    /// reading their variants (`own::elaborate`).
+    Empty,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 18] = [
+    pub const ALL: [IntrinsicOp; 19] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::MapLen,
@@ -378,6 +382,7 @@ impl IntrinsicOp {
         IntrinsicOp::MapSlotEntryMut,
         IntrinsicOp::ParamOwned,
         IntrinsicOp::CellFlag,
+        IntrinsicOp::Empty,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

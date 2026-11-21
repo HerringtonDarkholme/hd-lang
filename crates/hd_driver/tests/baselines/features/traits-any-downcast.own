@@ -16,21 +16,22 @@ fn user_name(value: &dyn Inspectable) -> string:
 >   local $0 value: &dyn Inspectable [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 user: &User [read assigned] value
->     uses $1: %8 -> %2 lend last
+>     uses $1: %9 -> %2 lend last
 >   %0 = Read borrow [$0] : &dyn Inspectable
 >   %1 = Call std/inspect/impl dyn Inspectable.downcast_ref[User] (%0) : &User?
 >   %4 = Drop [$1] : ()
->   %14 = Block - : never
->   %15 = Match %1 [%14 %5 %6] : string
->   %16 = Block %15 : string
+>   %15 = Block - : never
+>   %16 = Match %1 [%15 %5 %6] : string
+>   %17 = Block %16 : string
         .Some(user) => user.name
 >   %2 = Read copy [*$1 .name] : string
 >   %3 = Retain %2 Value #0 : ()
 >   %5 = Block %2 : string
 >   %7 = Read move [%1 as #1 .0] : &User
->   %8 = Store [$1] %7 : ()
->   %10 = Block - : never
->   %13 = SwitchTag %1 [#1 %10 %12] : never
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Store [$1] %7 : ()
+>   %11 = Block - : never
+>   %14 = SwitchTag %1 [#1 %11 %13] : never
         .None => "not a user"
 >   %6 = Block "not a user" : string
 >   summary kept []
@@ -66,22 +67,24 @@ fn erase(u: User) -> *dyn Inspectable:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: User [read assigned captured captured-assigned] place
 >   local $2 $ref: *User [read assigned captured] value
->     uses $2: %6 -> %7 lend last
->   %0 = Retain %13 Entry local $0 #0 : ()
+>     uses $2: %7 -> %8 lend last
+>   %0 = Retain %15 Entry local $0 #0 : ()
     box(u)
 >   %1 = Read move [$0] : User
->   %2 = Box #1 #1 : ()
->   %3 = Store [$1] %1 : ()
->   %4 = Ref take mut [$1] : *mut User
->   %5 = Coerce %4 [Weaken -] : *User
->   %6 = Store [$2] %5 : ()
->   %7 = Read move [$2] : *User
->   %8 = Coerce %7 [RefToTraitValue -] : Inspectable
->   %9 = LoanEnd [%7] : ()
->   %10 = Block %8 : Inspectable
->   %11 = RefDyn %10 : *dyn Inspectable
->   %12 = Drop [$0] : ()
->   %13 = Block %11 : *dyn Inspectable
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Box #1 #1 : ()
+>   %4 = Store [$1] %1 : ()
+>   %5 = Ref take mut [$1] : *mut User
+>   %6 = Coerce %5 [Weaken -] : *User
+>   %7 = Store [$2] %6 : ()
+>   %8 = Read move [$2] : *User
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Coerce %8 [RefToTraitValue -] : Inspectable
+>   %11 = LoanEnd [%8] : ()
+>   %12 = Block %10 : Inspectable
+>   %13 = RefDyn %12 : *dyn Inspectable
+>   %14 = Drop [$0] : ()
+>   %15 = Block %13 : *dyn Inspectable
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

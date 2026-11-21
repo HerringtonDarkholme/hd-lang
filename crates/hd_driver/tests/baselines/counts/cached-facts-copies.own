@@ -114,12 +114,12 @@ struct Record:
 >   local $0 $ref: Mark [read assigned captured captured-assigned] place
 >   local $1 $ref: *Mark [read assigned captured] value
 >     uses $1: %6 -> %7 lend last
->   %0 = Retain %14 CacheRead #0 : ()
->   %1 = Retain %14 CacheWrite #0 : ()
+>   %0 = Retain %15 CacheRead #0 : ()
+>   %1 = Retain %15 CacheWrite #0 : ()
 >   %3 = Box #0 #1 : ()
->   %12 = NewList - [%11] : List[*dyn Inspectable]
->   %13 = NewStruct [%12] : Facts
->   %14 = Block %13 : Facts
+>   %13 = NewList - [%12] : List[*dyn Inspectable]
+>   %14 = NewStruct [%13] : Facts
+>   %15 = Block %14 : Facts
     name: string
 
 impl HasFacts for Record by Structure:
@@ -129,10 +129,11 @@ impl HasFacts for Record by Structure:
 >   %5 = Ref take [$0] : *Mark
 >   %6 = Store [$1] %5 : ()
 >   %7 = Read move [$1] : *Mark
->   %8 = Coerce %7 [RefToTraitValue -] : Inspectable
->   %9 = LoanEnd [%7] : ()
->   %10 = Block %8 : Inspectable
->   %11 = RefDyn %10 : *dyn Inspectable
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Coerce %7 [RefToTraitValue -] : Inspectable
+>   %10 = LoanEnd [%7] : ()
+>   %11 = Block %9 : Inspectable
+>   %12 = RefDyn %11 : *dyn Inspectable
 >   storage sub 0: $0 cell
 
 fn inspect_field() -> bool:

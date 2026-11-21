@@ -145,65 +145,70 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >     uses $0: entry -> %1 consume last
 >   local $1 parser: Parser [read assigned captured captured-assigned] place
 >   local $2 root: *i32 [:= read assigned] value
->     uses $2: %28 -> %43 consume last
+>     uses $2: %32 -> %47 consume last
 >   local $3 self: Chars [read] value
->     uses $3: %6 -> %7 consume last
->   %0 = Retain %49 Entry local $0 #0 : ()
+>     uses $3: %7 -> %8 consume last
+>   %0 = Retain %54 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1 0:usize] : Chars
->   %3 = Break L1 %2 : never
->   %4 = Block - : Chars
->   %5 = Scope %4 [] : Chars
->   %6 = Store [$3] %5 : ()
->   %7 = Read move [$3] : Chars
->   %8 = Call std/iter/FromIterator.from_iter for List[char] [char, Chars] via Impl (%7) : List[char]
->   %9 = Break L0 %8 : never
->   %10 = Block - : List[char]
->   %11 = Scope %10 [] : List[char]
->   %12 = NewStruct [%11 0:usize] : Parser
->   %13 = Box #1 #1 : ()
->   %14 = Store [$1] %12 : ()
->   %46 = Drop [$0] : ()
->   %47 = Drop [$1] : ()
->   %48 = Drop [$2] : ()
->   %49 = Block %44 : Result[*i32, string]
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1 0:usize] : Chars
+>   %4 = Break L1 %3 : never
+>   %5 = Block - : Chars
+>   %6 = Scope %5 [] : Chars
+>   %7 = Store [$3] %6 : ()
+>   %8 = Read move [$3] : Chars
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Call std/iter/FromIterator.from_iter for List[char] [char, Chars] via Impl (%8) : List[char]
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : List[char]
+>   %13 = Scope %12 [] : List[char]
+>   %14 = NewStruct [%13 0:usize] : Parser
+>   %15 = Box #1 #1 : ()
+>   %16 = Store [$1] %14 : ()
+>   %51 = Drop [$0] : ()
+>   %52 = Drop [$1] : ()
+>   %53 = Drop [$2] : ()
+>   %54 = Block %49 : Result[*i32, string]
     root := parser.expression()?
->   %15 = Ref mut local [$1] : &mut Parser
->   %16 = Call app/main/impl Parser.expression[] (%15) : Result[*i32, string]
->   %17 = LoanEnd [%15] : ()
->   %18 = Read move [%16 as #0 .0] : *i32
->   %19 = Block %18 : *i32
->   %20 = Read move [%16 as #1 .0] : string
->   %21 = NewVariant #1 [%20] : Result[*i32, string]
->   %22 = Drop [$0] : ()
->   %23 = Drop [$1] : ()
->   %24 = Drop [$2] : ()
->   %25 = Return %21 : never
->   %26 = Block - : never
->   %27 = SwitchTag %16 [#0 %19 %26] : *i32
->   %28 = Store [$2] %27 : ()
+>   %17 = Ref mut local [$1] : &mut Parser
+>   %18 = Call app/main/impl Parser.expression[] (%17) : Result[*i32, string]
+>   %19 = LoanEnd [%17] : ()
+>   %20 = Read move [%18 as #0 .0] : *i32
+>   %21 = Intrinsic Empty [] : ()
+>   %22 = Block %20 : *i32
+>   %23 = Read move [%18 as #1 .0] : string
+>   %24 = Intrinsic Empty [] : ()
+>   %25 = NewVariant #1 [%23] : Result[*i32, string]
+>   %26 = Drop [$0] : ()
+>   %27 = Drop [$1] : ()
+>   %28 = Drop [$2] : ()
+>   %29 = Return %25 : never
+>   %30 = Block - : never
+>   %31 = SwitchTag %18 [#0 %22 %30] : *i32
+>   %32 = Store [$2] %31 : ()
     parser.whitespace()
->   %29 = Ref mut local [$1] : &mut Parser
->   %30 = Call app/main/impl Parser.whitespace[] (%29) : ()
->   %31 = LoanEnd [%29] : ()
+>   %33 = Ref mut local [$1] : &mut Parser
+>   %34 = Call app/main/impl Parser.whitespace[] (%33) : ()
+>   %35 = LoanEnd [%33] : ()
     if parser.at != parser.chars.len():
->   %32 = Read copy [$1 .at] : usize
->   %33 = Read borrow [$1 .chars] : List[char]
->   %34 = Intrinsic ListLen [%33] : usize
->   %35 = Prim Ne [%32 %34] : bool
->   %42 = If %35 [%41 -] : ()
+>   %36 = Read copy [$1 .at] : usize
+>   %37 = Read borrow [$1 .chars] : List[char]
+>   %38 = Intrinsic ListLen [%37] : usize
+>   %39 = Prim Ne [%36 %38] : bool
+>   %46 = If %39 [%45 -] : ()
         return .Err("trailing input")
->   %36 = NewVariant #1 ["trailing input"] : Result[*i32, string]
->   %37 = Drop [$0] : ()
->   %38 = Drop [$1] : ()
->   %39 = Drop [$2] : ()
->   %40 = Return %36 : never
->   %41 = Block - : never
+>   %40 = NewVariant #1 ["trailing input"] : Result[*i32, string]
+>   %41 = Drop [$0] : ()
+>   %42 = Drop [$1] : ()
+>   %43 = Drop [$2] : ()
+>   %44 = Return %40 : never
+>   %45 = Block - : never
     .Ok(root)
->   %43 = Read move [$2] : *i32
->   %44 = NewVariant #0 [%43] : Result[*i32, string]
->   %45 = Drop [$1] : ()
+>   %47 = Read move [$2] : *i32
+>   %48 = Intrinsic Empty [] : ()
+>   %49 = NewVariant #0 [%47] : Result[*i32, string]
+>   %50 = Drop [$1] : ()
 >   exit sub 0 drops [$0 $1 $2]
 >   storage sub 0: $1 cell
 >   summary kept [$0]
@@ -213,40 +218,43 @@ fn length_across_write(text: string) -> usize:
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 parser: Parser [read assigned] value
->     uses $1: %13 -> %14 consume, %18 lend last
+>     uses $1: %15 -> %16 consume, %20 lend last
 >   local $2 chars: List[char] [:= read assigned] value
->     uses $2: %16 -> %21 lend last
+>     uses $2: %18 -> %23 lend last
 >   local $3 self: Chars [read] value
->     uses $3: %6 -> %7 consume last
->   %0 = Retain %25 Entry local $0 #0 : ()
+>     uses $3: %7 -> %8 consume last
+>   %0 = Retain %28 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1 0:usize] : Chars
->   %3 = Break L1 %2 : never
->   %4 = Block - : Chars
->   %5 = Scope %4 [] : Chars
->   %6 = Store [$3] %5 : ()
->   %7 = Read move [$3] : Chars
->   %8 = Call std/iter/FromIterator.from_iter for List[char] [char, Chars] via Impl (%7) : List[char]
->   %9 = Break L0 %8 : never
->   %10 = Block - : List[char]
->   %11 = Scope %10 [] : List[char]
->   %12 = NewStruct [%11 0:usize] : Parser
->   %13 = Store [$1] %12 : ()
->   %24 = Drop [$0] : ()
->   %25 = Block %22 : usize
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1 0:usize] : Chars
+>   %4 = Break L1 %3 : never
+>   %5 = Block - : Chars
+>   %6 = Scope %5 [] : Chars
+>   %7 = Store [$3] %6 : ()
+>   %8 = Read move [$3] : Chars
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Call std/iter/FromIterator.from_iter for List[char] [char, Chars] via Impl (%8) : List[char]
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : List[char]
+>   %13 = Scope %12 [] : List[char]
+>   %14 = NewStruct [%13 0:usize] : Parser
+>   %15 = Store [$1] %14 : ()
+>   %27 = Drop [$0] : ()
+>   %28 = Block %25 : usize
     chars := parser.chars
->   %14 = Read copy [$1 .chars] : List[char]
->   %15 = Retain %14 Value #0 : ()
->   %16 = Store [$2] %14 : ()
+>   %16 = Read copy [$1 .chars] : List[char]
+>   %17 = Retain %16 Value #0 : ()
+>   %18 = Store [$2] %16 : ()
     parser.chars.push('x')
->   %17 = IsUnique [$1 .chars] : ()
->   %18 = Read borrow [$1 .chars] : List[char]
->   %19 = Intrinsic ListPush [%18 120:char] : ()
->   %20 = Drop [$1] : ()
+>   %19 = IsUnique [$1 .chars] : ()
+>   %20 = Read borrow [$1 .chars] : List[char]
+>   %21 = Intrinsic ListPush [%20 120:char] : ()
+>   %22 = Drop [$1] : ()
     chars.len()
->   %21 = Read move [$2] : List[char]
->   %22 = Intrinsic ListLen [%21] : usize
->   %23 = Drop [%21] : ()
+>   %23 = Read move [$2] : List[char]
+>   %24 = Intrinsic Empty [] : ()
+>   %25 = Intrinsic ListLen [%23] : usize
+>   %26 = Drop [%23] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

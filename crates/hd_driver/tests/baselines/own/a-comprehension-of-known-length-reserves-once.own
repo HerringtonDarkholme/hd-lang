@@ -55,7 +55,8 @@ fn fill(n: usize) -> List[bool]:
 >   %37 = Block - : ()
 >   %38 = Loop %37 - : ()
 >   %39 = Read move [$1] : List[bool]
->   %40 = Block %39 : List[bool]
+>   %40 = Intrinsic Empty [] : ()
+>   %41 = Block %39 : List[bool]
 
 fn doubled(xs: List[i32]) -> List[i32]:
     [for x in xs => x * 2]
@@ -107,10 +108,11 @@ fn doubled(xs: List[i32]) -> List[i32]:
 >   %34 = Block - : ()
 >   %35 = Loop %34 - : ()
 >   %36 = Read move [$1] : List[i32]
->   %37 = Intrinsic ParamOwned [0:i32] : bool
->   %38 = Drop [$0] : ()
->   %39 = Block - : ()
->   %40 = If %37 [%39 -] : ()
->   %41 = Release %42 Exit local $0 #2 : ()
->   %42 = Block %36 : List[i32]
+>   %37 = Intrinsic Empty [] : ()
+>   %38 = Intrinsic ParamOwned [0:i32] : bool
+>   %39 = Drop [$0] : ()
+>   %40 = Block - : ()
+>   %41 = If %38 [%40 -] : ()
+>   %42 = Release %43 Exit local $0 #2 : ()
+>   %43 = Block %36 : List[i32]
 >   loop %35 keeps len [$0] (-..-)

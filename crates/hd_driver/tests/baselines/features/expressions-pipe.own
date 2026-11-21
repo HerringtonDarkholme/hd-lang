@@ -110,13 +110,14 @@ fn clean(raw: string) -> string:
 >   %71 = Block - : ()
 >   %72 = Scope %71 [] : ()
 >   %73 = Read move [%16] : string
->   %74 = Drop [$3] : ()
->   %75 = Intrinsic ParamOwned [0:i32] : bool
->   %76 = Drop [$0] : ()
->   %77 = Block - : ()
->   %78 = If %75 [%77 -] : ()
->   %79 = Release %80 Exit local $0 #2 : ()
->   %80 = Block %73 : string
+>   %74 = Intrinsic Empty [] : ()
+>   %75 = Drop [$3] : ()
+>   %76 = Intrinsic ParamOwned [0:i32] : bool
+>   %77 = Drop [$0] : ()
+>   %78 = Block - : ()
+>   %79 = If %76 [%78 -] : ()
+>   %80 = Release %81 Exit local $0 #2 : ()
+>   %81 = Block %73 : string
 >   summary kept [] borrows [$0] writes
 
 fn tag(label: string, level: i64) -> string:
@@ -245,12 +246,13 @@ fn tag(label: string, level: i64) -> string:
 >   %88 = Block - : ()
 >   %89 = Scope %88 [] : ()
 >   %90 = Read move [%36] : string
->   %91 = Intrinsic ParamOwned [0:i32] : bool
->   %92 = Drop [$0] : ()
->   %93 = Block - : ()
->   %94 = If %91 [%93 -] : ()
->   %95 = Release %96 Exit local $0 #2 : ()
->   %96 = Block %90 : string
+>   %91 = Intrinsic Empty [] : ()
+>   %92 = Intrinsic ParamOwned [0:i32] : bool
+>   %93 = Drop [$0] : ()
+>   %94 = Block - : ()
+>   %95 = If %92 [%94 -] : ()
+>   %96 = Release %97 Exit local $0 #2 : ()
+>   %97 = Block %90 : string
 >   summary kept [] borrows [$0] writes
 
 fn bare(raw: string) -> string:
@@ -273,16 +275,17 @@ fn bare(raw: string) -> string:
 >   %12 = Call std/text/impl StringBuilder.value_text[] (%6, %4, "]") : ()
 >   %13 = Retain %12 Operation operand 0 #0 : ()
 >   %14 = Read move [%6] : string
->   %15 = Break L0 %14 : never
->   %16 = Drop [%6] : ()
->   %17 = Block - : string
->   %18 = Scope %17 [] : string
->   %19 = Intrinsic ParamOwned [0:i32] : bool
->   %20 = Drop [$0] : ()
->   %21 = Block - : ()
->   %22 = If %19 [%21 -] : ()
->   %23 = Release %24 Exit local $0 #2 : ()
->   %24 = Block %18 : string
+>   %15 = Intrinsic Empty [] : ()
+>   %16 = Break L0 %14 : never
+>   %17 = Drop [%6] : ()
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Intrinsic ParamOwned [0:i32] : bool
+>   %21 = Drop [$0] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Release %25 Exit local $0 #2 : ()
+>   %25 = Block %19 : string
 >   summary kept [] borrows [$0] writes
 
 fn chain(raw: string) -> string:
@@ -291,9 +294,9 @@ fn chain(raw: string) -> string:
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 label: string [read] value
->     uses $1: %19 -> %21 lend last
+>     uses $1: %20 -> %22 lend last
 >   local $2 level: i64 [read captured] value
->     uses $2: %20 -> %24 lend last
+>     uses $2: %21 -> %25 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
 >   %2 = Retain %1 Operation operand 0 #0 : ()
@@ -309,41 +312,43 @@ fn chain(raw: string) -> string:
 >   %12 = Call std/text/impl StringBuilder.value_text[] (%6, %4, "]") : ()
 >   %13 = Retain %12 Operation operand 0 #0 : ()
 >   %14 = Read move [%6] : string
->   %15 = Break L1 %14 : never
->   %16 = Drop [%6] : ()
->   %17 = Block - : string
->   %18 = Scope %17 [] : string
->   %19 = Store [$1] %18 : ()
->   %20 = Store [$2] 2:i64 : ()
->   %21 = Read borrow [$1] : string
->   %22 = Call std/text/impl StringBuilder.text_width[] (%21) : usize
->   %23 = Retain %22 Operation operand 0 #0 : ()
->   %24 = Read copy [$2] : i64
->   %25 = Prim Conv [%24] : i64
->   %26 = Call std/text/impl StringBuilder.signed_width[] (%25) : usize
->   %27 = Prim Add [0:usize %22] : usize
->   %28 = Prim Add [%27 1:usize] : usize
->   %29 = Prim Add [%28 %26] : usize
->   %30 = Call std/text/impl StringBuilder.value_new[] (%29) : string
->   %31 = Call std/text/impl StringBuilder.value_text[] (%30, 0:usize, %21) : ()
->   %32 = Retain %31 Operation operand 0 #0 : ()
->   %33 = Retain %31 Operation operand 2 #0 : ()
->   %34 = Call std/text/impl StringBuilder.value_text[] (%30, %27, ":") : ()
->   %35 = Retain %34 Operation operand 0 #0 : ()
->   %36 = Call std/text/impl StringBuilder.value_signed[] (%30, %28, %25, %26) : ()
->   %37 = Retain %36 Operation operand 0 #0 : ()
->   %38 = Read move [%30] : string
->   %39 = Break L0 %38 : never
->   %40 = Drop [%30] : ()
->   %41 = Block - : string
->   %42 = Scope %41 [] : string
->   %43 = Drop [$1] : ()
->   %44 = Intrinsic ParamOwned [0:i32] : bool
->   %45 = Drop [$0] : ()
->   %46 = Block - : ()
->   %47 = If %44 [%46 -] : ()
->   %48 = Release %49 Exit local $0 #2 : ()
->   %49 = Block %42 : string
+>   %15 = Intrinsic Empty [] : ()
+>   %16 = Break L1 %14 : never
+>   %17 = Drop [%6] : ()
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Store [$1] %19 : ()
+>   %21 = Store [$2] 2:i64 : ()
+>   %22 = Read borrow [$1] : string
+>   %23 = Call std/text/impl StringBuilder.text_width[] (%22) : usize
+>   %24 = Retain %23 Operation operand 0 #0 : ()
+>   %25 = Read copy [$2] : i64
+>   %26 = Prim Conv [%25] : i64
+>   %27 = Call std/text/impl StringBuilder.signed_width[] (%26) : usize
+>   %28 = Prim Add [0:usize %23] : usize
+>   %29 = Prim Add [%28 1:usize] : usize
+>   %30 = Prim Add [%29 %27] : usize
+>   %31 = Call std/text/impl StringBuilder.value_new[] (%30) : string
+>   %32 = Call std/text/impl StringBuilder.value_text[] (%31, 0:usize, %22) : ()
+>   %33 = Retain %32 Operation operand 0 #0 : ()
+>   %34 = Retain %32 Operation operand 2 #0 : ()
+>   %35 = Call std/text/impl StringBuilder.value_text[] (%31, %28, ":") : ()
+>   %36 = Retain %35 Operation operand 0 #0 : ()
+>   %37 = Call std/text/impl StringBuilder.value_signed[] (%31, %29, %26, %27) : ()
+>   %38 = Retain %37 Operation operand 0 #0 : ()
+>   %39 = Read move [%31] : string
+>   %40 = Intrinsic Empty [] : ()
+>   %41 = Break L0 %39 : never
+>   %42 = Drop [%31] : ()
+>   %43 = Block - : string
+>   %44 = Scope %43 [] : string
+>   %45 = Drop [$1] : ()
+>   %46 = Intrinsic ParamOwned [0:i32] : bool
+>   %47 = Drop [$0] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Release %51 Exit local $0 #2 : ()
+>   %51 = Block %44 : string
 >   summary kept [] borrows [$0] writes
 
 fn direct(raw: string) -> string:
@@ -352,9 +357,9 @@ fn direct(raw: string) -> string:
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 label: string [read] value
->     uses $1: %19 -> %21 lend last
+>     uses $1: %20 -> %22 lend last
 >   local $2 level: i64 [read captured] value
->     uses $2: %20 -> %24 lend last
+>     uses $2: %21 -> %25 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
 >   %2 = Retain %1 Operation operand 0 #0 : ()
@@ -370,41 +375,43 @@ fn direct(raw: string) -> string:
 >   %12 = Call std/text/impl StringBuilder.value_text[] (%6, %4, "]") : ()
 >   %13 = Retain %12 Operation operand 0 #0 : ()
 >   %14 = Read move [%6] : string
->   %15 = Break L1 %14 : never
->   %16 = Drop [%6] : ()
->   %17 = Block - : string
->   %18 = Scope %17 [] : string
->   %19 = Store [$1] %18 : ()
->   %20 = Store [$2] 2:i64 : ()
->   %21 = Read borrow [$1] : string
->   %22 = Call std/text/impl StringBuilder.text_width[] (%21) : usize
->   %23 = Retain %22 Operation operand 0 #0 : ()
->   %24 = Read copy [$2] : i64
->   %25 = Prim Conv [%24] : i64
->   %26 = Call std/text/impl StringBuilder.signed_width[] (%25) : usize
->   %27 = Prim Add [0:usize %22] : usize
->   %28 = Prim Add [%27 1:usize] : usize
->   %29 = Prim Add [%28 %26] : usize
->   %30 = Call std/text/impl StringBuilder.value_new[] (%29) : string
->   %31 = Call std/text/impl StringBuilder.value_text[] (%30, 0:usize, %21) : ()
->   %32 = Retain %31 Operation operand 0 #0 : ()
->   %33 = Retain %31 Operation operand 2 #0 : ()
->   %34 = Call std/text/impl StringBuilder.value_text[] (%30, %27, ":") : ()
->   %35 = Retain %34 Operation operand 0 #0 : ()
->   %36 = Call std/text/impl StringBuilder.value_signed[] (%30, %28, %25, %26) : ()
->   %37 = Retain %36 Operation operand 0 #0 : ()
->   %38 = Read move [%30] : string
->   %39 = Break L0 %38 : never
->   %40 = Drop [%30] : ()
->   %41 = Block - : string
->   %42 = Scope %41 [] : string
->   %43 = Drop [$1] : ()
->   %44 = Intrinsic ParamOwned [0:i32] : bool
->   %45 = Drop [$0] : ()
->   %46 = Block - : ()
->   %47 = If %44 [%46 -] : ()
->   %48 = Release %49 Exit local $0 #2 : ()
->   %49 = Block %42 : string
+>   %15 = Intrinsic Empty [] : ()
+>   %16 = Break L1 %14 : never
+>   %17 = Drop [%6] : ()
+>   %18 = Block - : string
+>   %19 = Scope %18 [] : string
+>   %20 = Store [$1] %19 : ()
+>   %21 = Store [$2] 2:i64 : ()
+>   %22 = Read borrow [$1] : string
+>   %23 = Call std/text/impl StringBuilder.text_width[] (%22) : usize
+>   %24 = Retain %23 Operation operand 0 #0 : ()
+>   %25 = Read copy [$2] : i64
+>   %26 = Prim Conv [%25] : i64
+>   %27 = Call std/text/impl StringBuilder.signed_width[] (%26) : usize
+>   %28 = Prim Add [0:usize %23] : usize
+>   %29 = Prim Add [%28 1:usize] : usize
+>   %30 = Prim Add [%29 %27] : usize
+>   %31 = Call std/text/impl StringBuilder.value_new[] (%30) : string
+>   %32 = Call std/text/impl StringBuilder.value_text[] (%31, 0:usize, %22) : ()
+>   %33 = Retain %32 Operation operand 0 #0 : ()
+>   %34 = Retain %32 Operation operand 2 #0 : ()
+>   %35 = Call std/text/impl StringBuilder.value_text[] (%31, %28, ":") : ()
+>   %36 = Retain %35 Operation operand 0 #0 : ()
+>   %37 = Call std/text/impl StringBuilder.value_signed[] (%31, %29, %26, %27) : ()
+>   %38 = Retain %37 Operation operand 0 #0 : ()
+>   %39 = Read move [%31] : string
+>   %40 = Intrinsic Empty [] : ()
+>   %41 = Break L0 %39 : never
+>   %42 = Drop [%31] : ()
+>   %43 = Block - : string
+>   %44 = Scope %43 [] : string
+>   %45 = Drop [$1] : ()
+>   %46 = Intrinsic ParamOwned [0:i32] : bool
+>   %47 = Drop [$0] : ()
+>   %48 = Block - : ()
+>   %49 = If %46 [%48 -] : ()
+>   %50 = Release %51 Exit local $0 #2 : ()
+>   %51 = Block %44 : string
 >   summary kept [] borrows [$0] writes
 
 fn method_slot(raw: string) -> usize:
@@ -429,11 +436,12 @@ fn literal_slot(raw: string) -> Point:
 > app/main/literal_slot
 >   local $0 raw: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %5 Entry local $0 #0 : ()
     raw |> Point { name: _, x: 0 }
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1 0:usize] : Point
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : Point
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1 0:usize] : Point
+>   %4 = Drop [$0] : ()
+>   %5 = Block %3 : Point
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

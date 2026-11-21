@@ -130,12 +130,13 @@ fn interp(a: string, n: i64) -> string:
 >   %88 = Block - : ()
 >   %89 = Scope %88 [] : ()
 >   %90 = Read move [%36] : string
->   %91 = Intrinsic ParamOwned [0:i32] : bool
->   %92 = Drop [$0] : ()
->   %93 = Block - : ()
->   %94 = If %91 [%93 -] : ()
->   %95 = Release %96 Exit local $0 #2 : ()
->   %96 = Block %90 : string
+>   %91 = Intrinsic Empty [] : ()
+>   %92 = Intrinsic ParamOwned [0:i32] : bool
+>   %93 = Drop [$0] : ()
+>   %94 = Block - : ()
+>   %95 = If %92 [%94 -] : ()
+>   %96 = Release %97 Exit local $0 #2 : ()
+>   %97 = Block %90 : string
 >   summary kept [] borrows [$0] writes
 
 fn concat(a: string, b: string) -> string:

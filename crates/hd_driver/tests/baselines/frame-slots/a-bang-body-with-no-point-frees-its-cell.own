@@ -9,15 +9,16 @@ app/main/helper
   %3 = Ref mut local [$0] : &mut Sink
   %4 = Store [$2] "helper" : ()
   %5 = Read move [$2] : string
-  %6 = Store [*%3 .text] %5 : ()
-  %7 = Release %6 Operation #3 : ()
-  %8 = Break L0 - : never
-  %9 = Block - : ()
-  %10 = Scope %9 [] : ()
-  %11 = LoanEnd [%3] : ()
-  %12 = Read copy [$0 .text] : string
-  %13 = Retain %12 Value #0 : ()
-  %14 = Drop [$0] : ()
-  %15 = Block %12 : string
+  %6 = Intrinsic Empty [] : ()
+  %7 = Store [*%3 .text] %5 : ()
+  %8 = Release %7 Operation #3 : ()
+  %9 = Break L0 - : never
+  %10 = Block - : ()
+  %11 = Scope %10 [] : ()
+  %12 = LoanEnd [%3] : ()
+  %13 = Read copy [$0 .text] : string
+  %14 = Retain %13 Value #0 : ()
+  %15 = Drop [$0] : ()
+  %16 = Block %13 : string
   storage sub 0: $0 cell
   summary none

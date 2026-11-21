@@ -82,62 +82,63 @@ fn whole(o: string?) -> usize:
 >   local $0 o: string? [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 s: string [read assigned] value
->     uses $1: %37 -> %2 lend last, %9 lend last
+>     uses $1: %38 -> %3 lend last, %10 lend last
 >   local $2 other: string? [read assigned] place
 >   local $3 self: string? [read] value
->     uses $3: %16 -> %17 lend last
->   %0 = Retain %58 Entry local $0 #0 : ()
+>     uses $3: %17 -> %18 lend last
+>   %0 = Retain %59 Entry local $0 #0 : ()
     match o:
 >   %1 = Read move [$0] : string?
->   %34 = Drop [$2] : ()
->   %54 = Block - : never
->   %55 = Match %1 [%54 %14 %35] : usize
->   %56 = Drop [%1] : ()
->   %57 = Drop [$0] : ()
->   %58 = Block %55 : usize
+>   %2 = Intrinsic Empty [] : ()
+>   %35 = Drop [$2] : ()
+>   %55 = Block - : never
+>   %56 = Match %1 [%55 %15 %36] : usize
+>   %57 = Drop [%1] : ()
+>   %58 = Drop [$0] : ()
+>   %59 = Block %56 : usize
         .Some(s) if s.len() > 0 => s.len()
->   %2 = Read borrow [$1] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
->   %4 = Break L2 %3 : never
->   %5 = Block - : usize
->   %6 = Scope %5 [] : usize
->   %7 = Prim Gt [%6 0:usize] : bool
->   %8 = Block %7 : bool
->   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
->   %11 = Break L1 %10 : never
->   %12 = Block - : usize
->   %13 = Scope %12 [] : usize
->   %14 = Block %13 : usize
->   %36 = Read borrow [%1 as #1 .0] : string
->   %37 = Store [$1] %36 : ()
->   %46 = Block - : never
->   %53 = SwitchTag %1 [#1 %46 %52] : never
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %5 = Break L2 %4 : never
+>   %6 = Block - : usize
+>   %7 = Scope %6 [] : usize
+>   %8 = Prim Gt [%7 0:usize] : bool
+>   %9 = Block %8 : bool
+>   %10 = Read borrow [$1] : string
+>   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %12 = Break L1 %11 : never
+>   %13 = Block - : usize
+>   %14 = Scope %13 [] : usize
+>   %15 = Block %14 : usize
+>   %37 = Read borrow [%1 as #1 .0] : string
+>   %38 = Store [$1] %37 : ()
+>   %47 = Block - : never
+>   %54 = SwitchTag %1 [#1 %47 %53] : never
         other =>
->   %40 = Read copy [%1] : string?
->   %41 = Retain %40 Value #0 : ()
->   %42 = Store [$2] %40 : ()
->   %47 = Read copy [%1] : string?
->   %48 = Retain %47 Value #0 : ()
->   %49 = Store [$2] %47 : ()
->   %50 = Release %49 Operation #3 : ()
+>   %41 = Read copy [%1] : string?
+>   %42 = Retain %41 Value #0 : ()
+>   %43 = Store [$2] %41 : ()
+>   %48 = Read copy [%1] : string?
+>   %49 = Retain %48 Value #0 : ()
+>   %50 = Store [$2] %48 : ()
+>   %51 = Release %50 Operation #3 : ()
             if other.is_some(): 1 else: 0
->   %15 = Read borrow [$2] : string?
->   %16 = Store [$3] %15 : ()
->   %17 = Read borrow [$3] : string?
->   %18 = Block 1:bool : bool
->   %19 = Block 0:bool : bool
->   %20 = Read borrow [%17] : string?
->   %22 = Block - : never
->   %25 = SwitchTag %20 [#1 %22 %24] : never
->   %26 = Block - : never
->   %27 = Match %17 [%26 %18 %19] : bool
->   %28 = Break L0 %27 : never
->   %29 = Block - : bool
->   %30 = Scope %29 [] : bool
->   %31 = Block 1:usize : usize
->   %32 = Block 0:usize : usize
->   %33 = If %30 [%31 %32] : usize
->   %35 = Block %33 : usize
+>   %16 = Read borrow [$2] : string?
+>   %17 = Store [$3] %16 : ()
+>   %18 = Read borrow [$3] : string?
+>   %19 = Block 1:bool : bool
+>   %20 = Block 0:bool : bool
+>   %21 = Read borrow [%18] : string?
+>   %23 = Block - : never
+>   %26 = SwitchTag %21 [#1 %23 %25] : never
+>   %27 = Block - : never
+>   %28 = Match %18 [%27 %19 %20] : bool
+>   %29 = Break L0 %28 : never
+>   %30 = Block - : bool
+>   %31 = Scope %30 [] : bool
+>   %32 = Block 1:usize : usize
+>   %33 = Block 0:usize : usize
+>   %34 = If %31 [%32 %33] : usize
+>   %36 = Block %34 : usize
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
