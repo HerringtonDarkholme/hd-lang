@@ -10,48 +10,48 @@
     ;; 17 |     if facts.find::[EnumTagging]().is_some():
     local.get $t0
     i32.load $heap
+    local.tee $t1
     local.get $t0
     i32.const 0
     i32.store $heap
-    local.tee $t0
     call $"impl Facts.find[std.serde.EnumTagging]"
-    local.set $t1
+    local.set $t0
     local.set $t2
     local.set $t3
     local.set $t4
     local.set $t5
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t0
+        local.get $t1
         call $rt:release_ref
       end
     end
     ;; ...
     local.get $t5
     i32.store $heap
-    local.get $t0
+    local.get $t1
     local.get $t4
     i32.store $heap offset=4
-    local.get $t0
+    local.get $t1
     local.get $t3
     i32.store $heap offset=8
-    local.get $t0
+    local.get $t1
     local.get $t2
     i32.store $heap offset=12
-    local.get $t0
     local.get $t1
+    local.get $t0
     i32.store $heap offset=16
     block
       block
         block
-          local.get $t0
+          local.get $t1
           i32.load $heap
           i32.const 3
           i32.ne
@@ -64,17 +64,17 @@
         br 1
       end
     end
-    local.get $t0
+    local.get $t1
     if
-      local.get $t0
+      local.get $t1
       i32.load $heap
-      local.get $t0
+      local.get $t1
       i32.load $heap offset=4
-      local.get $t0
+      local.get $t1
       i32.load $heap offset=8
-      local.get $t0
+      local.get $t1
       i32.load $heap offset=12
-      local.get $t0
+      local.get $t1
       i32.load $heap offset=16
       call $"release_value[std.serde.EnumTagging?]"
     end

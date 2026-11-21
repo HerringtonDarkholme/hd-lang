@@ -4,10 +4,10 @@ std/rt_tests.stage_case/moved_cell
     uses $0: entry -> %16 lend last
   local $1 value: Token [:= read assigned captured] place
   local $2 other: Token [:= read assigned] value
-    uses $2: %11 -> %29 consume last
+    uses $2: %11 -> %30 consume last
   local $4 $temporary_owner: bool [read assigned] value
-    uses $4: entry -> %21 lend last, %30 lend, %36 lend last, %42 lend last
-  %0 = Release %40 FrameDrop child #2 : ()
+    uses $4: entry -> %22 lend last, %31 lend, %37 lend last, %43 lend last
+  %0 = Release %41 FrameDrop child #2 : ()
   %1 = NewStruct [1:usize] : Token
   %2 = Box #1 #1 : ()
   %3 = Store [$1] %1 : ()
@@ -26,34 +26,35 @@ std/rt_tests.stage_case/moved_cell
   %16 = Read copy [$0] : bool
   %17 = FlagClear [$1] #3 : ()
   %18 = Read move [$1] : Token
-  %19 = Call std/rt_tests.stage_case/take[] (%18) : usize
-  %20 = Drop [$1] : ()
-  %21 = Read copy [$4] : bool
-  %22 = Drop [$2] : ()
-  %23 = Block - : ()
-  %24 = If %21 [%23 -] : ()
-  %25 = Return %19 : never
-  %26 = Block - : never
-  %27 = If %16 [%26 -] : ()
-  %28 = Drop [$1] : ()
-  %29 = Read copy [$2 .id] : usize
-  %30 = Read copy [$4] : bool
-  %31 = Drop [$2] : ()
-  %32 = Block - : ()
-  %33 = If %30 [%32 -] : ()
-  %34 = FlagClear [$2] #4 : ()
-  %35 = Drop [$1] : ()
-  %36 = Read copy [$4] : bool
-  %37 = Drop [$2] : ()
-  %38 = Block - : ()
-  %39 = If %36 [%38 -] : ()
-  %40 = Block %29 : usize
-  %41 = Drop [$1] : ()
-  %42 = Read copy [$4] : bool
-  %43 = Drop [$2] : ()
-  %44 = Block - : ()
-  %45 = If %42 [%44 -] : ()
-  %46 = Return - #2 : never
+  %19 = Intrinsic Empty [] : ()
+  %20 = Call std/rt_tests.stage_case/take[] (%18) : usize
+  %21 = Drop [$1] : ()
+  %22 = Read copy [$4] : bool
+  %23 = Drop [$2] : ()
+  %24 = Block - : ()
+  %25 = If %22 [%24 -] : ()
+  %26 = Return %20 : never
+  %27 = Block - : never
+  %28 = If %16 [%27 -] : ()
+  %29 = Drop [$1] : ()
+  %30 = Read copy [$2 .id] : usize
+  %31 = Read copy [$4] : bool
+  %32 = Drop [$2] : ()
+  %33 = Block - : ()
+  %34 = If %31 [%33 -] : ()
+  %35 = FlagClear [$2] #4 : ()
+  %36 = Drop [$1] : ()
+  %37 = Read copy [$4] : bool
+  %38 = Drop [$2] : ()
+  %39 = Block - : ()
+  %40 = If %37 [%39 -] : ()
+  %41 = Block %30 : usize
+  %42 = Drop [$1] : ()
+  %43 = Read copy [$4] : bool
+  %44 = Drop [$2] : ()
+  %45 = Block - : ()
+  %46 = If %43 [%45 -] : ()
+  %47 = Return - #2 : never
   exit sub 0 drops [$1 $2]
   storage sub 0: $1 cell
-  cancel %9 releases [%2147483649 %2147483652 %42 %4294967295]
+  cancel %9 releases [%2147483649 %2147483652 %43 %4294967295]

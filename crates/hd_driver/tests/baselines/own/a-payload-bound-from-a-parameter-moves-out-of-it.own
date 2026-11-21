@@ -13,21 +13,24 @@ fn label(value: Parcel?) -> string:
 >   local $0 value: Parcel? [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 parcel: Parcel [read assigned] value
->     uses $1: %6 -> %2 consume last
->   %0 = Retain %15 Entry local $0 #0 : ()
+>     uses $1: %9 -> %3 consume last
+>   %0 = Retain %18 Entry local $0 #0 : ()
     match value:
 >   %1 = Read move [$0] : Parcel?
->   %12 = Block - : never
->   %13 = Match %1 [%12 %3 %4] : string
->   %14 = Drop [$0] : ()
->   %15 = Block %13 : string
+>   %2 = Intrinsic Empty [] : ()
+>   %15 = Block - : never
+>   %16 = Match %1 [%15 %5 %6] : string
+>   %17 = Drop [$0] : ()
+>   %18 = Block %16 : string
         .Some(parcel) => parcel.label
->   %2 = Read move [$1 .label] : string
->   %3 = Block %2 : string
->   %5 = Read move [%1 as #1 .0] : Parcel
->   %6 = Store [$1] %5 : ()
->   %8 = Block - : never
->   %11 = SwitchTag %1 [#1 %8 %10] : never
+>   %3 = Read move [$1 .label] : string
+>   %4 = Intrinsic Empty [] : ()
+>   %5 = Block %3 : string
+>   %7 = Read move [%1 as #1 .0] : Parcel
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Store [$1] %7 : ()
+>   %11 = Block - : never
+>   %14 = SwitchTag %1 [#1 %11 %13] : never
         .None => "none"
->   %4 = Block "none" : string
+>   %6 = Block "none" : string
 >   exit sub 0 drops [$0]

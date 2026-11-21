@@ -63,13 +63,13 @@
     local.get $p
     i32.load $heap offset=4
     local.set $t1
+    local.tee $t2
     local.get $p
     i32.const 0
     i32.store $heap
     local.get $p
     i32.const 0
     i32.store $heap offset=4
-    local.tee $t2
     local.get $t1
     call $"loud[Pup]"
     local.get $t2

@@ -110,25 +110,25 @@ pub fn go() -> usize:
 > app/main/go
 >   local $0 $ref: Count [read assigned captured captured-assigned] place
 >   local $1 first: *mut Count [:= read assigned] value
->     uses $1: %4 -> %10 consume, %56 lend last
+>     uses $1: %4 -> %10 consume, %57 lend last
 >   local $2 $ref: Count [read assigned captured captured-assigned] place
 >   local $3 second: *mut Count [:= read assigned] value
->     uses $3: %9 -> %40 lend, %57 lend last
+>     uses $3: %9 -> %41 lend, %58 lend last
 >   local $4 $ref: *mut Count [read assigned captured] value
 >     uses $4: %12 -> %13 lend last
 >   local $5 $ref: &mut Count [read assigned captured] value
->     uses $5: %42 -> %43 lend last
+>     uses $5: %43 -> %44 lend last
 >   local $6 text: string [read] value
->     uses $6: %20 -> %26 lend last
+>     uses $6: %21 -> %27 lend last
 >   local $7 sink: &mut dyn Sink [read assigned] value
->     uses $7: %23 -> %24 lend, %30 lend last
+>     uses $7: %24 -> %25 lend, %31 lend last
 >   %0 = NewStruct [0:usize] : Count
 >   %1 = Box #0 #1 : ()
 >   %2 = Store [$0] %0 : ()
 >   %3 = Ref take mut [$0] : *mut Count
 >   %4 = Store [$1] %3 : ()
 >   %6 = Box #2 #1 : ()
->   %61 = Block %58 : usize
+>   %62 = Block %59 : usize
     second := box(Count { n: 0 })
 >   %5 = NewStruct [0:usize] : Count
 >   %7 = Store [$2] %5 : ()
@@ -139,55 +139,56 @@ pub fn go() -> usize:
 >   %11 = Retain %10 Value #0 : ()
 >   %12 = Store [$4] %10 : ()
 >   %13 = Read move [$4] : *mut Count
->   %14 = Coerce %13 [RefToTraitValue -] : Sink
->   %15 = LoanEnd [%13] : ()
->   %16 = Block %14 : Sink
->   %17 = RefDyn %16 : *mut dyn Sink
->   %18 = Coerce %17 [RefAsProvider -] : Sink
->   %19 = LoanEnd [%17] : ()
->   %54 = With [Sink %18] %53 : ()
->   %55 = Drop [%18] : ()
+>   %14 = Intrinsic Empty [] : ()
+>   %15 = Coerce %13 [RefToTraitValue -] : Sink
+>   %16 = LoanEnd [%13] : ()
+>   %17 = Block %15 : Sink
+>   %18 = RefDyn %17 : *mut dyn Sink
+>   %19 = Coerce %18 [RefAsProvider -] : Sink
+>   %20 = LoanEnd [%18] : ()
+>   %55 = With [Sink %19] %54 : ()
+>   %56 = Drop [%19] : ()
         line("ab")
->   %20 = Store [$6] "ab" : ()
->   %21 = ProviderGet #86 : Sink
->   %22 = Coerce %21 [ProviderAsRef -] : &mut dyn Sink
->   %23 = Store [$7] %22 : ()
->   %24 = Read borrow [*$7] : Sink
->   %25 = LoanBegin %24 #0 : ()
->   %26 = Read borrow [$6] : string
->   %27 = LoanBegin %24 #2 : ()
->   %28 = Call app/main/Sink.put for Sink [] via TraitValue (%24, %26) : ()
->   %29 = LoanClose %25 : ()
->   %30 = Read borrow [*$7] : Sink
->   %31 = LoanBegin %30 #0 : ()
->   %32 = LoanBegin %30 #2 : ()
->   %33 = Call app/main/Sink.put for Sink [] via TraitValue (%30, "!") : ()
->   %34 = LoanClose %31 : ()
->   %35 = Drop [$7] : ()
->   %36 = Break L0 - : never
->   %37 = Block - : ()
->   %38 = Scope %37 [] : ()
->   %39 = Drop [$6] : ()
->   %53 = Block - : ()
+>   %21 = Store [$6] "ab" : ()
+>   %22 = ProviderGet #86 : Sink
+>   %23 = Coerce %22 [ProviderAsRef -] : &mut dyn Sink
+>   %24 = Store [$7] %23 : ()
+>   %25 = Read borrow [*$7] : Sink
+>   %26 = LoanBegin %25 #0 : ()
+>   %27 = Read borrow [$6] : string
+>   %28 = LoanBegin %25 #2 : ()
+>   %29 = Call app/main/Sink.put for Sink [] via TraitValue (%25, %27) : ()
+>   %30 = LoanClose %26 : ()
+>   %31 = Read borrow [*$7] : Sink
+>   %32 = LoanBegin %31 #0 : ()
+>   %33 = LoanBegin %31 #2 : ()
+>   %34 = Call app/main/Sink.put for Sink [] via TraitValue (%31, "!") : ()
+>   %35 = LoanClose %32 : ()
+>   %36 = Drop [$7] : ()
+>   %37 = Break L0 - : never
+>   %38 = Block - : ()
+>   %39 = Scope %38 [] : ()
+>   %40 = Drop [$6] : ()
+>   %54 = Block - : ()
         swapped("c", second)
->   %40 = Ref mut local [*$3] : &mut Count
->   %41 = LoanBegin %40 #1 : ()
->   %42 = Store [$5] %40 : ()
->   %43 = Read copy [$5] : &mut Count
->   %44 = Retain %43 Value #0 : ()
->   %45 = Coerce %43 [RefToTraitValue -] : Sink
->   %46 = LoanEnd [%43] : ()
->   %47 = Block %45 : Sink
->   %48 = RefDyn %47 : &mut dyn Sink
->   %49 = Call app/main/swapped[] ("c", %48) : ()
->   %50 = LoanClose %41 : ()
->   %51 = Drop [%48] : ()
->   %52 = LoanEnd [$5] : ()
+>   %41 = Ref mut local [*$3] : &mut Count
+>   %42 = LoanBegin %41 #1 : ()
+>   %43 = Store [$5] %41 : ()
+>   %44 = Read copy [$5] : &mut Count
+>   %45 = Retain %44 Value #0 : ()
+>   %46 = Coerce %44 [RefToTraitValue -] : Sink
+>   %47 = LoanEnd [%44] : ()
+>   %48 = Block %46 : Sink
+>   %49 = RefDyn %48 : &mut dyn Sink
+>   %50 = Call app/main/swapped[] ("c", %49) : ()
+>   %51 = LoanClose %42 : ()
+>   %52 = Drop [%49] : ()
+>   %53 = LoanEnd [$5] : ()
     first.n + second.n
->   %56 = Read copy [*$1 .n] : usize
->   %57 = Read copy [*$3 .n] : usize
->   %58 = Prim Add [%56 %57] : usize
->   %59 = Drop [$3] : ()
->   %60 = Drop [$1] : ()
+>   %57 = Read copy [*$1 .n] : usize
+>   %58 = Read copy [*$3 .n] : usize
+>   %59 = Prim Add [%57 %58] : usize
+>   %60 = Drop [$3] : ()
+>   %61 = Drop [$1] : ()
 >   storage sub 0: $0 cell, $2 cell
 >   summary kept [] writes

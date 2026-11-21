@@ -5,11 +5,11 @@ app/main/replaced
   local $2 q: P [:= read assigned captured] place
   local $3 ps: List[&P] [read assigned] place
   local $4 d: &string [:= read assigned] value
-    uses $4: %16 -> %88 lend last
+    uses $4: %16 -> %89 lend last
   local $5 junk: string [:= read assigned] value
-    uses $5: %87 -> %105 lend last
+    uses $5: %88 -> %107 lend last
   local $7 self: string [read] value
-    uses $7: %94 -> %95 lend last
+    uses $7: %96 -> %97 lend last
   local $8 result: string [read] value
     uses $8: %72 -> %77 lend last
   local $9 offset: usize [read] value
@@ -117,32 +117,34 @@ app/main/replaced
   %84 = Block - : ()
   %85 = Scope %84 [] : ()
   %86 = Read move [%51] : string
-  %87 = Store [$5] %86 : ()
-  %88 = Read move [$4] : &string
-  %89 = Call std/text/impl string.len[] (%88) : usize
-  %90 = LoanClose %15 : ()
-  %91 = LoanEnd [%88] : ()
-  %92 = Read borrow [$3 [0:usize] * .name] : string
-  %93 = LoanBegin %92 #0 : ()
-  %94 = Store [$7] %92 : ()
-  %95 = Read borrow [$7] : string
-  %96 = Call std/rt.bytes/bytes_len[] (%95) : usize
-  %97 = Break L1 %96 : never
-  %98 = Block - : usize
-  %99 = Scope %98 [] : usize
-  %100 = LoanClose %93 : ()
-  %101 = Drop [$3] : ()
-  %102 = Drop [$2] : ()
-  %103 = Drop [$1] : ()
-  %104 = Prim Add [%89 %99] : usize
-  %105 = Read borrow [$5] : string
-  %106 = Call std/rt.bytes/bytes_len[] (%105) : usize
-  %107 = Break L0 %106 : never
-  %108 = Block - : usize
-  %109 = Scope %108 [] : usize
-  %110 = Drop [$5] : ()
-  %111 = Prim Add [%104 %109] : usize
-  %112 = Drop [$0] : ()
-  %113 = Block %111 : usize
+  %87 = Intrinsic Empty [] : ()
+  %88 = Store [$5] %86 : ()
+  %89 = Read move [$4] : &string
+  %90 = Intrinsic Empty [] : ()
+  %91 = Call std/text/impl string.len[] (%89) : usize
+  %92 = LoanClose %15 : ()
+  %93 = LoanEnd [%89] : ()
+  %94 = Read borrow [$3 [0:usize] * .name] : string
+  %95 = LoanBegin %94 #0 : ()
+  %96 = Store [$7] %94 : ()
+  %97 = Read borrow [$7] : string
+  %98 = Call std/rt.bytes/bytes_len[] (%97) : usize
+  %99 = Break L1 %98 : never
+  %100 = Block - : usize
+  %101 = Scope %100 [] : usize
+  %102 = LoanClose %95 : ()
+  %103 = Drop [$3] : ()
+  %104 = Drop [$2] : ()
+  %105 = Drop [$1] : ()
+  %106 = Prim Add [%91 %101] : usize
+  %107 = Read borrow [$5] : string
+  %108 = Call std/rt.bytes/bytes_len[] (%107) : usize
+  %109 = Break L0 %108 : never
+  %110 = Block - : usize
+  %111 = Scope %110 [] : usize
+  %112 = Drop [$5] : ()
+  %113 = Prim Add [%106 %111] : usize
+  %114 = Drop [$0] : ()
+  %115 = Block %113 : usize
   exit sub 0 drops [$0]
   storage sub 0: $0 slot, $1 slot, $2 slot

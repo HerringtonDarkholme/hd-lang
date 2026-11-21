@@ -1251,17 +1251,7 @@ impl Em<'_, '_, '_> {
         for x in &ls {
             self.f.get(*x);
         }
-        match mode {
-            Some(ReadMode::Move) => {
-                self.store(i)?;
-                if self.needs_drop(self.ty(i)) {
-                    for x in ls {
-                        self.f.zero(x);
-                    }
-                }
-                Ok(())
-            }
-            _ => self.store(i),
-        }
+        // A move's `Empty` zeroes the local (`Em::empty_place`).
+        self.store(i)
     }
 }

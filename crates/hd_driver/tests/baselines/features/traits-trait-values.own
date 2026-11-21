@@ -50,16 +50,17 @@ impl Greet for User:
     fn rename(&mut self, n: string) -> void:
 > app/main/impl Greet for User.rename
 >   local $0 self: &mut User [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %3 lend last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %5 Entry local $1 #0 : ()
+>   %0 = Retain %6 Entry local $1 #0 : ()
         self.name = n
 >   %1 = Read move [$1] : string
->   %2 = Store [*$0 .name] %1 : ()
->   %3 = Release %2 Operation #3 : ()
->   %4 = Drop [$1] : ()
->   %5 = Block - : ()
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Store [*$0 .name] %1 : ()
+>   %4 = Release %3 Operation #3 : ()
+>   %5 = Drop [$1] : ()
+>   %6 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -69,22 +70,24 @@ fn boxed(u: User) -> *dyn Greet:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: User [read assigned captured captured-assigned] place
 >   local $2 $ref: *User [read assigned captured] value
->     uses $2: %6 -> %7 lend last
->   %0 = Retain %13 Entry local $0 #0 : ()
+>     uses $2: %7 -> %8 lend last
+>   %0 = Retain %15 Entry local $0 #0 : ()
     box(u)
 >   %1 = Read move [$0] : User
->   %2 = Box #1 #1 : ()
->   %3 = Store [$1] %1 : ()
->   %4 = Ref take mut [$1] : *mut User
->   %5 = Coerce %4 [Weaken -] : *User
->   %6 = Store [$2] %5 : ()
->   %7 = Read move [$2] : *User
->   %8 = Coerce %7 [RefToTraitValue -] : Greet
->   %9 = LoanEnd [%7] : ()
->   %10 = Block %8 : Greet
->   %11 = RefDyn %10 : *dyn Greet
->   %12 = Drop [$0] : ()
->   %13 = Block %11 : *dyn Greet
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Box #1 #1 : ()
+>   %4 = Store [$1] %1 : ()
+>   %5 = Ref take mut [$1] : *mut User
+>   %6 = Coerce %5 [Weaken -] : *User
+>   %7 = Store [$2] %6 : ()
+>   %8 = Read move [$2] : *User
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Coerce %8 [RefToTraitValue -] : Greet
+>   %11 = LoanEnd [%8] : ()
+>   %12 = Block %10 : Greet
+>   %13 = RefDyn %12 : *dyn Greet
+>   %14 = Drop [$0] : ()
+>   %15 = Block %13 : *dyn Greet
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]
@@ -119,37 +122,38 @@ fn local_mut(u: User, n: string) -> usize:
 >   local $0 u: User [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %13 lend last
 >   local $2 v: User [read assigned captured captured-assigned] place
 >   local $3 $ref: &mut User [read assigned captured] value
->     uses $3: %5 -> %6 lend last
->   %0 = Retain %24 Entry local $0 #0 : ()
+>     uses $3: %6 -> %7 lend last
+>   %0 = Retain %25 Entry local $0 #0 : ()
     let mut v = u
 >   %1 = Read move [$0] : User
->   %2 = Box #2 #0 : ()
->   %3 = Store [$2] %1 : ()
->   %18 = Drop [$0] : ()
->   %19 = Intrinsic ParamOwned [1:i32] : bool
->   %20 = Drop [$1] : ()
->   %21 = Block - : ()
->   %22 = If %19 [%21 -] : ()
->   %23 = Release %24 Exit local $1 #2 : ()
->   %24 = Block %13 : usize
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Box #2 #0 : ()
+>   %4 = Store [$2] %1 : ()
+>   %19 = Drop [$0] : ()
+>   %20 = Intrinsic ParamOwned [1:i32] : bool
+>   %21 = Drop [$1] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Release %25 Exit local $1 #2 : ()
+>   %25 = Block %14 : usize
     through_mut(&mut v, n)
->   %4 = Ref mut local frame [$2] : &mut User
->   %5 = Store [$3] %4 : ()
->   %6 = Read copy [$3] : &mut User
->   %7 = Retain %6 Value #0 : ()
->   %8 = Coerce %6 [RefToTraitValue -] : Greet
->   %9 = LoanEnd [%6] : ()
->   %10 = Block %8 : Greet
->   %11 = RefDyn %10 : &mut dyn Greet
->   %12 = Read borrow [$1] : string
->   %13 = Call app/main/through_mut[] (%11, %12) : usize
->   %14 = Retain %13 Operation operand 1 #0 : ()
->   %15 = Drop [%11] : ()
->   %16 = LoanEnd [$3] : ()
->   %17 = Drop [$2] : ()
+>   %5 = Ref mut local frame [$2] : &mut User
+>   %6 = Store [$3] %5 : ()
+>   %7 = Read copy [$3] : &mut User
+>   %8 = Retain %7 Value #0 : ()
+>   %9 = Coerce %7 [RefToTraitValue -] : Greet
+>   %10 = LoanEnd [%7] : ()
+>   %11 = Block %9 : Greet
+>   %12 = RefDyn %11 : &mut dyn Greet
+>   %13 = Read borrow [$1] : string
+>   %14 = Call app/main/through_mut[] (%12, %13) : usize
+>   %15 = Retain %14 Operation operand 1 #0 : ()
+>   %16 = Drop [%12] : ()
+>   %17 = LoanEnd [$3] : ()
+>   %18 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 slot
 >   summary kept [$0] borrows [$1] writes

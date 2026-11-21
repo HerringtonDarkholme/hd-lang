@@ -4,7 +4,8 @@ std/rt_tests.stage_case/keep
     uses $0: entry -> %66 lend last
   %66 = Read copy [$0] : Ptr[string]
   %67 = Read move [%31] : string
-  %68 = Store [ptr %66] %67 : ()
-  %69 = Release %68 Operation #3 : ()
+  %68 = Intrinsic Empty [] : ()
+  %69 = Store [ptr %66] %67 : ()
+  %70 = Release %69 Operation #3 : ()
   exit sub 0 drops [$1]
   storage sub 0: $1 slot

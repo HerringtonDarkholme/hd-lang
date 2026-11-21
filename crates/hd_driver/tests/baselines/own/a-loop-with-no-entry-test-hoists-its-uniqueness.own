@@ -65,7 +65,8 @@ fn filled(n: usize, value: usize) -> List[usize]:
 >   %38 = Block - : ()
 >   %39 = Loop %38 - : ()
 >   %40 = Read move [$2] : List[usize]
->   %41 = Block %40 : List[usize]
+>   %41 = Intrinsic Empty [] : ()
+>   %42 = Block %40 : List[usize]
 
 fn rotate(n: usize) -> usize:
     let mut items = filled(n, 0)

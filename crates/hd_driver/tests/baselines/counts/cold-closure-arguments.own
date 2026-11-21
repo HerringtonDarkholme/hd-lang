@@ -7,207 +7,54 @@ fn fetch!(key: string) -> string:
 > app/main/fetch
 >   local $0 key: string [param read] value
 >     uses $0: entry -> %2 lend last
->   %0 = Retain %6 Cold local $0 #0 : ()
->   %1 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %7 Cold local $0 #0 : ()
+>   %1 = Retain %7 Entry local $0 #0 : ()
     key + "?"
 >   %2 = Read move [$0] : string
->   %3 = Intrinsic StrConcat [%2 "?"] : string
->   %4 = Drop [%2] : ()
->   %5 = Drop [$0] : ()
->   %6 = Block %3 : string
->   %7 = Intrinsic ParamOwned [0:i32] : bool
->   %8 = Drop [$0] : ()
->   %9 = Block - : ()
->   %10 = If %7 [%9 -] : ()
->   %11 = Block - : ()
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Intrinsic StrConcat [%2 "?"] : string
+>   %5 = Drop [%2] : ()
+>   %6 = Drop [$0] : ()
+>   %7 = Block %4 : string
+>   %8 = Intrinsic ParamOwned [0:i32] : bool
+>   %9 = Drop [$0] : ()
+>   %10 = Block - : ()
+>   %11 = If %8 [%10 -] : ()
+>   %12 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary none
->   cancel %6 releases [%16 %7]
+>   cancel %7 releases [%16 %8]
 
 fn stored!(key: string, keys: List[string]) -> usize:
 > app/main/stored
 >   local $0 key: string [param read] value
->     uses $0: entry -> %32 lend last
+>     uses $0: entry -> %35 lend last
 >   local $1 keys: List[string] [param read] value
->     uses $1: entry -> %33 lend last
+>     uses $1: entry -> %37 lend last
 >   local $2 word: string [param read] value
 >     uses $2: entry -> %13 consume last
 >   local $3 words: List[string] [param read] value
->     uses $3: entry -> %22 lend last
->   local $4 loader: fn!(string, List[string]) -> usize [:= read assigned] value
->     uses $4: %30 -> %31 lend last
->   local $5 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %44 Cold local $0 #0 : ()
->   %1 = Retain %44 Entry local $0 #0 : ()
->   %2 = Retain %44 Cold local $1 #0 : ()
->   %3 = Retain %44 Entry local $1 #0 : ()
-    loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
->   %4 = Retain %28 Cold local $2 #0 : ()
->   %5 = Retain %28 Entry local $2 #0 : ()
->   %6 = Retain %28 Cold local $3 #0 : ()
->   %7 = Retain %28 Entry local $3 #0 : ()
->   %8 = Retain %28 Cold row #0 : ()
->   %9 = Retain %28 Materialize row #0 : ()
->   %10 = Release %28 FrameDrop row #2 : ()
->   %11 = Release %44 FrameDrop child #2 : ()
->   %12 = Release %28 FrameDrop child #2 : ()
->   %13 = Read move [$2] : string
->   %14 = Await app/main/fetch[] (%13) : string
->   %15 = Release %14 Operation child #2 : ()
->   %16 = Box #5 #1 : ()
->   %17 = Store [$5] %14 : ()
->   %18 = Ref local [$5] : &string
->   %19 = Call std/text/impl string.len[] (%18) : usize
->   %20 = LoanEnd [%18] : ()
->   %21 = Drop [$5] : ()
->   %22 = Read move [$3] : List[string]
->   %23 = Intrinsic ListLen [%22] : usize
->   %24 = Drop [%22] : ()
->   %25 = Prim Add [%19 %23] : usize
->   %26 = Drop [$2] : ()
->   %27 = Drop [$3] : ()
->   %28 = Block %25 : usize
->   %29 = Closure #1 : fn!(string, List[string]) -> usize
->   %30 = Store [$4] %29 : ()
->   %42 = Drop [$0] : ()
->   %43 = Drop [$1] : ()
->   %44 = Block %35 : usize
->   %66 = Intrinsic ParamOwned [2:i32] : bool
->   %67 = Drop [$2] : ()
->   %68 = Block - : ()
->   %69 = If %66 [%68 -] : ()
->   %70 = Intrinsic ParamOwned [3:i32] : bool
->   %71 = Drop [$3] : ()
->   %72 = Block - : ()
->   %73 = If %70 [%72 -] : ()
->   %74 = Block - : ()
-    loader!(key, keys)
->   %31 = Read move [$4] : fn!(string, List[string]) -> usize
->   %32 = Read move [$0] : string
->   %33 = Read move [$1] : List[string]
->   %34 = CallValue %31 [%32 %33] : Suspend[usize]
->   %35 = AwaitValue %34 : usize
->   %36 = Release %35 Operation child #2 : ()
->   %37 = Retain %35 Operation child #0 : ()
->   %38 = Drop [%34] : ()
->   %39 = Drop [%33] : ()
->   %40 = Drop [%32] : ()
->   %41 = Drop [%31] : ()
->   exit sub 0 drops [$0 $1]
->   exit sub 1 drops [$2 $3]
->   storage sub 0: $5 cell
->   storage sub 1: $5 cell
->   summary none
->   cancel %14 releases [%2147483650 %2147483651 %4294967295]
->   cancel %28 releases [%16 %66 %16 %70]
->   cancel %35 releases [%31 %32 %33 %34 %2147483648 %2147483649 %4294967295]
->   cancel %44 releases [%16 %57 %16 %61]
-
-fn cancel(key: string, keys: List[string]) -> void:
-    loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
-> app/main/cancel
->   local $0 key: string [param read] value
->     uses $0: entry -> %27 lend last
->   local $1 keys: List[string] [param read] value
->     uses $1: entry -> %28 lend last
->   local $2 word: string [param read] value
->     uses $2: entry -> %8 consume last
->   local $3 words: List[string] [param read] value
->     uses $3: entry -> %17 lend last
->   local $4 loader: fn!(string, List[string]) -> usize [:= read assigned] value
->     uses $4: %25 -> %26 lend last
->   local $5 $ref: string [read assigned captured captured-assigned] place
->   %0 = Retain %23 Cold local $2 #0 : ()
->   %1 = Retain %23 Entry local $2 #0 : ()
->   %2 = Retain %23 Cold local $3 #0 : ()
->   %3 = Retain %23 Entry local $3 #0 : ()
->   %4 = Retain %23 Cold row #0 : ()
->   %5 = Retain %23 Materialize row #0 : ()
->   %6 = Release %23 FrameDrop row #2 : ()
->   %7 = Release %23 FrameDrop child #2 : ()
->   %8 = Read move [$2] : string
->   %9 = Await app/main/fetch[] (%8) : string
->   %10 = Release %9 Operation child #2 : ()
->   %11 = Box #5 #1 : ()
->   %12 = Store [$5] %9 : ()
->   %13 = Ref local [$5] : &string
->   %14 = Call std/text/impl string.len[] (%13) : usize
->   %15 = LoanEnd [%13] : ()
->   %16 = Drop [$5] : ()
->   %17 = Read move [$3] : List[string]
->   %18 = Intrinsic ListLen [%17] : usize
->   %19 = Drop [%17] : ()
->   %20 = Prim Add [%14 %18] : usize
->   %21 = Drop [$2] : ()
->   %22 = Drop [$3] : ()
->   %23 = Block %20 : usize
->   %24 = Closure #1 : fn!(string, List[string]) -> usize
->   %25 = Store [$4] %24 : ()
->   %32 = Intrinsic ParamOwned [0:i32] : bool
->   %33 = Drop [$0] : ()
->   %34 = Block - : ()
->   %35 = If %32 [%34 -] : ()
->   %36 = Release %42 Exit local $0 #2 : ()
->   %37 = Intrinsic ParamOwned [1:i32] : bool
->   %38 = Drop [$1] : ()
->   %39 = Block - : ()
->   %40 = If %37 [%39 -] : ()
->   %41 = Release %42 Exit local $1 #2 : ()
->   %42 = Block - : ()
->   %47 = Intrinsic ParamOwned [2:i32] : bool
->   %48 = Drop [$2] : ()
->   %49 = Block - : ()
->   %50 = If %47 [%49 -] : ()
->   %51 = Intrinsic ParamOwned [3:i32] : bool
->   %52 = Drop [$3] : ()
->   %53 = Block - : ()
->   %54 = If %51 [%53 -] : ()
->   %55 = Block - : ()
-    _ := loader(key, keys)
->   %26 = Read move [$4] : fn!(string, List[string]) -> usize
->   %27 = Read borrow [$0] : string
->   %28 = Read borrow [$1] : List[string]
->   %29 = CallValue %26 [%27 %28] : Suspend[usize]
->   %30 = Drop [%29] : ()
->   %31 = Drop [%26] : ()
->   exit sub 1 drops [$2 $3]
->   storage sub 0: $5 cell
->   storage sub 1: $5 cell
->   summary kept [] borrows [$0 $1] writes
->   cancel %9 releases [%2147483650 %2147483651 %4294967295]
->   cancel %23 releases [%16 %47 %16 %51]
-
-fn live!(key: string, keys: List[string]) -> usize:
-> app/main/live
->   local $0 key: string [param read captured] place
->   local $1 keys: List[string] [param read] value
->     uses $1: entry -> %34 lend, %48 lend last
->   local $2 word: string [param read] value
->     uses $2: entry -> %14 consume last
->   local $3 words: List[string] [param read] value
 >     uses $3: entry -> %23 lend last
 >   local $4 loader: fn!(string, List[string]) -> usize [:= read assigned] value
->     uses $4: %31 -> %32 lend last
+>     uses $4: %32 -> %33 lend last
 >   local $5 $ref: string [read assigned captured captured-assigned] place
->   local $6 size: usize [:= read assigned] value
->     uses $6: %41 -> %42 lend last
->   %0 = Retain %54 Cold local $0 #0 : ()
->   %1 = Retain %54 Entry local $0 #0 : ()
->   %2 = Retain %54 Cold local $1 #0 : ()
->   %3 = Retain %54 Entry local $1 #0 : ()
+>   %0 = Retain %49 Cold local $0 #0 : ()
+>   %1 = Retain %49 Entry local $0 #0 : ()
+>   %2 = Retain %49 Cold local $1 #0 : ()
+>   %3 = Retain %49 Entry local $1 #0 : ()
     loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
->   %4 = Release %54 FrameDrop child #2 : ()
->   %5 = Box #0 #1 : ()
->   %6 = Retain %29 Cold local $2 #0 : ()
->   %7 = Retain %29 Entry local $2 #0 : ()
->   %8 = Retain %29 Cold local $3 #0 : ()
->   %9 = Retain %29 Entry local $3 #0 : ()
->   %10 = Retain %29 Cold row #0 : ()
->   %11 = Retain %29 Materialize row #0 : ()
->   %12 = Release %29 FrameDrop row #2 : ()
->   %13 = Release %29 FrameDrop child #2 : ()
->   %14 = Read move [$2] : string
->   %15 = Await app/main/fetch[] (%14) : string
+>   %4 = Retain %30 Cold local $2 #0 : ()
+>   %5 = Retain %30 Entry local $2 #0 : ()
+>   %6 = Retain %30 Cold local $3 #0 : ()
+>   %7 = Retain %30 Entry local $3 #0 : ()
+>   %8 = Retain %30 Cold row #0 : ()
+>   %9 = Retain %30 Materialize row #0 : ()
+>   %10 = Release %30 FrameDrop row #2 : ()
+>   %11 = Release %49 FrameDrop child #2 : ()
+>   %12 = Release %30 FrameDrop child #2 : ()
+>   %13 = Read move [$2] : string
+>   %14 = Intrinsic Empty [] : ()
+>   %15 = Await app/main/fetch[] (%13) : string
 >   %16 = Release %15 Operation child #2 : ()
 >   %17 = Box #5 #1 : ()
 >   %18 = Store [$5] %15 : ()
@@ -216,54 +63,220 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   %21 = LoanEnd [%19] : ()
 >   %22 = Drop [$5] : ()
 >   %23 = Read move [$3] : List[string]
->   %24 = Intrinsic ListLen [%23] : usize
->   %25 = Drop [%23] : ()
->   %26 = Prim Add [%20 %24] : usize
->   %27 = Drop [$2] : ()
->   %28 = Drop [$3] : ()
->   %29 = Block %26 : usize
->   %30 = Closure #1 : fn!(string, List[string]) -> usize
->   %31 = Store [$4] %30 : ()
->   %52 = Drop [$0] : ()
->   %53 = Drop [$1] : ()
->   %54 = Block %51 : usize
->   %74 = Intrinsic ParamOwned [2:i32] : bool
->   %75 = Drop [$2] : ()
->   %76 = Block - : ()
->   %77 = If %74 [%76 -] : ()
->   %78 = Intrinsic ParamOwned [3:i32] : bool
->   %79 = Drop [$3] : ()
+>   %24 = Intrinsic Empty [] : ()
+>   %25 = Intrinsic ListLen [%23] : usize
+>   %26 = Drop [%23] : ()
+>   %27 = Prim Add [%20 %25] : usize
+>   %28 = Drop [$2] : ()
+>   %29 = Drop [$3] : ()
+>   %30 = Block %27 : usize
+>   %31 = Closure #1 : fn!(string, List[string]) -> usize
+>   %32 = Store [$4] %31 : ()
+>   %47 = Drop [$0] : ()
+>   %48 = Drop [$1] : ()
+>   %49 = Block %40 : usize
+>   %71 = Intrinsic ParamOwned [2:i32] : bool
+>   %72 = Drop [$2] : ()
+>   %73 = Block - : ()
+>   %74 = If %71 [%73 -] : ()
+>   %75 = Intrinsic ParamOwned [3:i32] : bool
+>   %76 = Drop [$3] : ()
+>   %77 = Block - : ()
+>   %78 = If %75 [%77 -] : ()
+>   %79 = Block - : ()
+    loader!(key, keys)
+>   %33 = Read move [$4] : fn!(string, List[string]) -> usize
+>   %34 = Intrinsic Empty [] : ()
+>   %35 = Read move [$0] : string
+>   %36 = Intrinsic Empty [] : ()
+>   %37 = Read move [$1] : List[string]
+>   %38 = Intrinsic Empty [] : ()
+>   %39 = CallValue %33 [%35 %37] : Suspend[usize]
+>   %40 = AwaitValue %39 : usize
+>   %41 = Release %40 Operation child #2 : ()
+>   %42 = Retain %40 Operation child #0 : ()
+>   %43 = Drop [%39] : ()
+>   %44 = Drop [%37] : ()
+>   %45 = Drop [%35] : ()
+>   %46 = Drop [%33] : ()
+>   exit sub 0 drops [$0 $1]
+>   exit sub 1 drops [$2 $3]
+>   storage sub 0: $5 cell
+>   storage sub 1: $5 cell
+>   summary none
+>   cancel %15 releases [%2147483650 %2147483651 %4294967295]
+>   cancel %30 releases [%16 %71 %16 %75]
+>   cancel %40 releases [%33 %35 %37 %39 %2147483648 %2147483649 %4294967295]
+>   cancel %49 releases [%16 %62 %16 %66]
+
+fn cancel(key: string, keys: List[string]) -> void:
+    loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+> app/main/cancel
+>   local $0 key: string [param read] value
+>     uses $0: entry -> %30 lend last
+>   local $1 keys: List[string] [param read] value
+>     uses $1: entry -> %31 lend last
+>   local $2 word: string [param read] value
+>     uses $2: entry -> %8 consume last
+>   local $3 words: List[string] [param read] value
+>     uses $3: entry -> %18 lend last
+>   local $4 loader: fn!(string, List[string]) -> usize [:= read assigned] value
+>     uses $4: %27 -> %28 lend last
+>   local $5 $ref: string [read assigned captured captured-assigned] place
+>   %0 = Retain %25 Cold local $2 #0 : ()
+>   %1 = Retain %25 Entry local $2 #0 : ()
+>   %2 = Retain %25 Cold local $3 #0 : ()
+>   %3 = Retain %25 Entry local $3 #0 : ()
+>   %4 = Retain %25 Cold row #0 : ()
+>   %5 = Retain %25 Materialize row #0 : ()
+>   %6 = Release %25 FrameDrop row #2 : ()
+>   %7 = Release %25 FrameDrop child #2 : ()
+>   %8 = Read move [$2] : string
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Await app/main/fetch[] (%8) : string
+>   %11 = Release %10 Operation child #2 : ()
+>   %12 = Box #5 #1 : ()
+>   %13 = Store [$5] %10 : ()
+>   %14 = Ref local [$5] : &string
+>   %15 = Call std/text/impl string.len[] (%14) : usize
+>   %16 = LoanEnd [%14] : ()
+>   %17 = Drop [$5] : ()
+>   %18 = Read move [$3] : List[string]
+>   %19 = Intrinsic Empty [] : ()
+>   %20 = Intrinsic ListLen [%18] : usize
+>   %21 = Drop [%18] : ()
+>   %22 = Prim Add [%15 %20] : usize
+>   %23 = Drop [$2] : ()
+>   %24 = Drop [$3] : ()
+>   %25 = Block %22 : usize
+>   %26 = Closure #1 : fn!(string, List[string]) -> usize
+>   %27 = Store [$4] %26 : ()
+>   %35 = Intrinsic ParamOwned [0:i32] : bool
+>   %36 = Drop [$0] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Release %45 Exit local $0 #2 : ()
+>   %40 = Intrinsic ParamOwned [1:i32] : bool
+>   %41 = Drop [$1] : ()
+>   %42 = Block - : ()
+>   %43 = If %40 [%42 -] : ()
+>   %44 = Release %45 Exit local $1 #2 : ()
+>   %45 = Block - : ()
+>   %50 = Intrinsic ParamOwned [2:i32] : bool
+>   %51 = Drop [$2] : ()
+>   %52 = Block - : ()
+>   %53 = If %50 [%52 -] : ()
+>   %54 = Intrinsic ParamOwned [3:i32] : bool
+>   %55 = Drop [$3] : ()
+>   %56 = Block - : ()
+>   %57 = If %54 [%56 -] : ()
+>   %58 = Block - : ()
+    _ := loader(key, keys)
+>   %28 = Read move [$4] : fn!(string, List[string]) -> usize
+>   %29 = Intrinsic Empty [] : ()
+>   %30 = Read borrow [$0] : string
+>   %31 = Read borrow [$1] : List[string]
+>   %32 = CallValue %28 [%30 %31] : Suspend[usize]
+>   %33 = Drop [%32] : ()
+>   %34 = Drop [%28] : ()
+>   exit sub 1 drops [$2 $3]
+>   storage sub 0: $5 cell
+>   storage sub 1: $5 cell
+>   summary kept [] borrows [$0 $1] writes
+>   cancel %10 releases [%2147483650 %2147483651 %4294967295]
+>   cancel %25 releases [%16 %50 %16 %54]
+
+fn live!(key: string, keys: List[string]) -> usize:
+> app/main/live
+>   local $0 key: string [param read captured] place
+>   local $1 keys: List[string] [param read] value
+>     uses $1: entry -> %37 lend, %51 lend last
+>   local $2 word: string [param read] value
+>     uses $2: entry -> %14 consume last
+>   local $3 words: List[string] [param read] value
+>     uses $3: entry -> %24 lend last
+>   local $4 loader: fn!(string, List[string]) -> usize [:= read assigned] value
+>     uses $4: %33 -> %34 lend last
+>   local $5 $ref: string [read assigned captured captured-assigned] place
+>   local $6 size: usize [:= read assigned] value
+>     uses $6: %44 -> %45 lend last
+>   %0 = Retain %58 Cold local $0 #0 : ()
+>   %1 = Retain %58 Entry local $0 #0 : ()
+>   %2 = Retain %58 Cold local $1 #0 : ()
+>   %3 = Retain %58 Entry local $1 #0 : ()
+    loader := fn!(word: string, words: List[string]) -> usize: fetch!(word).len() + words.len()
+>   %4 = Release %58 FrameDrop child #2 : ()
+>   %5 = Box #0 #1 : ()
+>   %6 = Retain %31 Cold local $2 #0 : ()
+>   %7 = Retain %31 Entry local $2 #0 : ()
+>   %8 = Retain %31 Cold local $3 #0 : ()
+>   %9 = Retain %31 Entry local $3 #0 : ()
+>   %10 = Retain %31 Cold row #0 : ()
+>   %11 = Retain %31 Materialize row #0 : ()
+>   %12 = Release %31 FrameDrop row #2 : ()
+>   %13 = Release %31 FrameDrop child #2 : ()
+>   %14 = Read move [$2] : string
+>   %15 = Intrinsic Empty [] : ()
+>   %16 = Await app/main/fetch[] (%14) : string
+>   %17 = Release %16 Operation child #2 : ()
+>   %18 = Box #5 #1 : ()
+>   %19 = Store [$5] %16 : ()
+>   %20 = Ref local [$5] : &string
+>   %21 = Call std/text/impl string.len[] (%20) : usize
+>   %22 = LoanEnd [%20] : ()
+>   %23 = Drop [$5] : ()
+>   %24 = Read move [$3] : List[string]
+>   %25 = Intrinsic Empty [] : ()
+>   %26 = Intrinsic ListLen [%24] : usize
+>   %27 = Drop [%24] : ()
+>   %28 = Prim Add [%21 %26] : usize
+>   %29 = Drop [$2] : ()
+>   %30 = Drop [$3] : ()
+>   %31 = Block %28 : usize
+>   %32 = Closure #1 : fn!(string, List[string]) -> usize
+>   %33 = Store [$4] %32 : ()
+>   %56 = Drop [$0] : ()
+>   %57 = Drop [$1] : ()
+>   %58 = Block %55 : usize
+>   %78 = Intrinsic ParamOwned [2:i32] : bool
+>   %79 = Drop [$2] : ()
 >   %80 = Block - : ()
 >   %81 = If %78 [%80 -] : ()
->   %82 = Block - : ()
+>   %82 = Intrinsic ParamOwned [3:i32] : bool
+>   %83 = Drop [$3] : ()
+>   %84 = Block - : ()
+>   %85 = If %82 [%84 -] : ()
+>   %86 = Block - : ()
     size := loader!(key, keys)
->   %32 = Read move [$4] : fn!(string, List[string]) -> usize
->   %33 = Read borrow [$0] : string
->   %34 = Read borrow [$1] : List[string]
->   %35 = CallValue %32 [%33 %34] : Suspend[usize]
->   %36 = AwaitValue %35 : usize
->   %37 = Release %36 Operation child #2 : ()
->   %38 = Retain %36 Operation child #0 : ()
->   %39 = Drop [%35] : ()
->   %40 = Drop [%32] : ()
->   %41 = Store [$6] %36 : ()
+>   %34 = Read move [$4] : fn!(string, List[string]) -> usize
+>   %35 = Intrinsic Empty [] : ()
+>   %36 = Read borrow [$0] : string
+>   %37 = Read borrow [$1] : List[string]
+>   %38 = CallValue %34 [%36 %37] : Suspend[usize]
+>   %39 = AwaitValue %38 : usize
+>   %40 = Release %39 Operation child #2 : ()
+>   %41 = Retain %39 Operation child #0 : ()
+>   %42 = Drop [%38] : ()
+>   %43 = Drop [%34] : ()
+>   %44 = Store [$6] %39 : ()
     size + key.len() + keys.len()
->   %42 = Read copy [$6] : usize
->   %43 = Ref local [$0] : &string
->   %44 = Call std/text/impl string.len[] (%43) : usize
->   %45 = LoanEnd [%43] : ()
->   %46 = Drop [$0] : ()
->   %47 = Prim Add [%42 %44] : usize
->   %48 = Read move [$1] : List[string]
->   %49 = Intrinsic ListLen [%48] : usize
->   %50 = Drop [%48] : ()
->   %51 = Prim Add [%47 %49] : usize
+>   %45 = Read copy [$6] : usize
+>   %46 = Ref local [$0] : &string
+>   %47 = Call std/text/impl string.len[] (%46) : usize
+>   %48 = LoanEnd [%46] : ()
+>   %49 = Drop [$0] : ()
+>   %50 = Prim Add [%45 %47] : usize
+>   %51 = Read move [$1] : List[string]
+>   %52 = Intrinsic Empty [] : ()
+>   %53 = Intrinsic ListLen [%51] : usize
+>   %54 = Drop [%51] : ()
+>   %55 = Prim Add [%50 %53] : usize
 >   exit sub 0 drops [$0 $1]
 >   exit sub 1 drops [$2 $3]
 >   storage sub 0: $0 cell, $5 cell
 >   storage sub 1: $0 cell, $5 cell
 >   summary none
->   cancel %15 releases [%2147483650 %2147483651 %4294967295]
->   cancel %29 releases [%16 %74 %16 %78]
->   cancel %36 releases [%32 %35 %2147483648 %2147483649 %4294967295]
->   cancel %54 releases [%16 %65 %16 %69]
+>   cancel %16 releases [%2147483650 %2147483651 %4294967295]
+>   cancel %31 releases [%16 %78 %16 %82]
+>   cancel %39 releases [%34 %38 %2147483648 %2147483649 %4294967295]
+>   cancel %58 releases [%16 %69 %16 %73]

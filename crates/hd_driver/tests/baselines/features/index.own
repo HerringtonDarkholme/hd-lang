@@ -54,20 +54,21 @@ fn list_take(xs: List[string], i: usize) -> string:
 fn list_write(xs: &mut List[string], i: usize, s: string) -> void:
 > app/main/list_write
 >   local $0 xs: &mut List[string] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %5 lend last
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 lend last
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %7 Entry local $2 #0 : ()
+>   %0 = Retain %8 Entry local $2 #0 : ()
     xs[i] = s
 >   %1 = Read copy [$1] : usize
 >   %2 = Read move [$2] : string
->   %3 = IsUnique [*$0] : ()
->   %4 = Store [*$0 [%1]] %2 : ()
->   %5 = Release %4 Operation #3 : ()
->   %6 = Drop [$2] : ()
->   %7 = Block - : ()
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = IsUnique [*$0] : ()
+>   %5 = Store [*$0 [%1]] %2 : ()
+>   %6 = Release %5 Operation #3 : ()
+>   %7 = Drop [$2] : ()
+>   %8 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes
 
@@ -116,26 +117,27 @@ fn map_read(m: Map[string, string], k: string) -> usize:
 fn map_write(m: &mut Map[string, string], k: string, v: string) -> void:
 > app/main/map_write
 >   local $0 m: &mut Map[string, string] [param read] value
->     uses $0: entry -> %4 lend last
+>     uses $0: entry -> %5 lend last
 >   local $1 k: string [param read] value
 >     uses $1: entry -> %1 lend last
 >   local $2 v: string [param read] value
 >     uses $2: entry -> %2 consume last
->   %0 = Retain %13 Entry local $2 #0 : ()
+>   %0 = Retain %14 Entry local $2 #0 : ()
     m[k] = v
 >   %1 = Read borrow [$1] : string
 >   %2 = Read move [$2] : string
->   %3 = IsUnique [*$0] : ()
->   %4 = Read borrow [*$0] : Map[string, string]
->   %5 = Intrinsic MapSet [%4 %1 %2] : ()
->   %6 = Retain %5 Operation operand 1 #0 : ()
->   %7 = Drop [$2] : ()
->   %8 = Intrinsic ParamOwned [1:i32] : bool
->   %9 = Drop [$1] : ()
->   %10 = Block - : ()
->   %11 = If %8 [%10 -] : ()
->   %12 = Release %13 Exit local $1 #2 : ()
->   %13 = Block - : ()
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = IsUnique [*$0] : ()
+>   %5 = Read borrow [*$0] : Map[string, string]
+>   %6 = Intrinsic MapSet [%5 %1 %2] : ()
+>   %7 = Retain %6 Operation operand 1 #0 : ()
+>   %8 = Drop [$2] : ()
+>   %9 = Intrinsic ParamOwned [1:i32] : bool
+>   %10 = Drop [$1] : ()
+>   %11 = Block - : ()
+>   %12 = If %9 [%11 -] : ()
+>   %13 = Release %14 Exit local $1 #2 : ()
+>   %14 = Block - : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$1] writes
 
@@ -208,14 +210,14 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   local $2 s: string [param read] value
 >     uses $2: entry -> %30 consume last
 >   local $3 r: &mut string [read assigned] value
->     uses $3: %37 -> %31 lend last
+>     uses $3: %38 -> %32 lend last
 >   local $4 self: &mut UniqList[string] [read] value
 >     uses $4: %3 -> %6 lend, %10 lend last
 >   local $5 index: usize [read] value
 >     uses $5: %4 -> %5 lend, %12 consume last
 >   local $7 index: usize [read] value
 >     uses $7: %13 -> %16 lend last
->   %0 = Retain %48 Entry local $2 #0 : ()
+>   %0 = Retain %49 Entry local $2 #0 : ()
     match xs.get_mut(i):
 >   %1 = Read borrow [$0] : &mut UniqList[string]
 >   %2 = Read copy [$1] : usize
@@ -246,23 +248,24 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %27 = Break L1 %26 : never
 >   %28 = Block - : &mut string?
 >   %29 = Scope %28 [] : &mut string?
->   %43 = Block - : never
->   %44 = Match %29 [%43 %33 %35] : ()
->   %45 = LoanEnd [%29] : ()
->   %46 = Drop [$2] : ()
+>   %44 = Block - : never
+>   %45 = Match %29 [%44 %34 %36] : ()
+>   %46 = LoanEnd [%29] : ()
 >   %47 = Drop [$2] : ()
->   %48 = Block - : ()
+>   %48 = Drop [$2] : ()
+>   %49 = Block - : ()
         .Some(r) => *r = s
 >   %30 = Read move [$2] : string
->   %31 = Store [*$3] %30 : ()
->   %32 = Release %31 Operation #3 : ()
->   %33 = Block - : ()
->   %36 = Read borrow [%29 as #1 .0] : &mut string
->   %37 = Store [$3] %36 : ()
->   %39 = Block - : never
->   %42 = SwitchTag %29 [#1 %39 %41] : never
+>   %31 = Intrinsic Empty [] : ()
+>   %32 = Store [*$3] %30 : ()
+>   %33 = Release %32 Operation #3 : ()
+>   %34 = Block - : ()
+>   %37 = Read borrow [%29 as #1 .0] : &mut string
+>   %38 = Store [$3] %37 : ()
+>   %40 = Block - : never
+>   %43 = SwitchTag %29 [#1 %40 %42] : never
         .None => panic("index")
->   %34 = Call std/core/panic[] ("index") : never
->   %35 = Block - : never
+>   %35 = Call std/core/panic[] ("index") : never
+>   %36 = Block - : never
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes

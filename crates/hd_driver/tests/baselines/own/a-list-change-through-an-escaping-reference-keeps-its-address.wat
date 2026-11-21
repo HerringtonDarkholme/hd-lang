@@ -61,10 +61,10 @@
     ;; 21 |     xs
     local.get $xs
     i32.load $heap
+    ;; 17 |     let mut xs: List[usize] = [count]
     local.get $xs
     i32.const 0
     i32.store $heap
-    ;; 17 |     let mut xs: List[usize] = [count]
     local.get $t0
     i32.const 16
     i32.add

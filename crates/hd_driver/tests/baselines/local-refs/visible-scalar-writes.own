@@ -101,12 +101,12 @@ fn identity(value: i32) -> bool:
 >   local $2 first: &State [:= read assigned] value
 >     uses $2: %5 -> %8 lend last
 >   local $3 second: &State [:= read assigned] value
->     uses $3: %7 -> %9 lend last
+>     uses $3: %7 -> %10 lend last
 >   %0 = Read copy [$0] : i32
 >   %1 = NewStruct [%0 7:i32] : State
 >   %2 = Box #1 #0 : ()
 >   %3 = Store [$1] %1 : ()
->   %14 = Block %10 : bool
+>   %16 = Block %12 : bool
     first := &state
 >   %4 = Ref local frame [$1] : &State
 >   %5 = Store [$2] %4 : ()
@@ -115,10 +115,12 @@ fn identity(value: i32) -> bool:
 >   %7 = Store [$3] %6 : ()
     first is second
 >   %8 = Read move [$2] : &State
->   %9 = Read move [$3] : &State
->   %10 = Is %8 %9 : bool
->   %11 = LoanEnd [%9] : ()
->   %12 = LoanEnd [%8] : ()
->   %13 = Drop [$1] : ()
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Read move [$3] : &State
+>   %11 = Intrinsic Empty [] : ()
+>   %12 = Is %8 %10 : bool
+>   %13 = LoanEnd [%10] : ()
+>   %14 = LoanEnd [%8] : ()
+>   %15 = Drop [$1] : ()
 >   storage sub 0: $1 slot
 >   summary kept []

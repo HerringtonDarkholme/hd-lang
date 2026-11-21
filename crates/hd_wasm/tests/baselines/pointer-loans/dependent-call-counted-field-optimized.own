@@ -24,14 +24,14 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   local $0 h: *mut H [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 alias: *mut H [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %13 lend last
 >   local $2 next: *P [param read] value
 >     uses $2: entry -> %11 consume last
 >   local $3 d: &string [:= read assigned] value
->     uses $3: %10 -> %14 lend last
+>     uses $3: %10 -> %15 lend last
 >   local $4 p: &P [read] value
 >     uses $4: %3 -> %4 lend last
->   %0 = Retain %30 Entry local $2 #0 : ()
+>   %0 = Retain %31 Entry local $2 #0 : ()
     d := name_of(h.p)
 >   %1 = Ref local [*$0 .p *] : &P
 >   %2 = LoanBegin %1 #0 : ()
@@ -43,28 +43,29 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   %8 = Scope %7 [] : &string
 >   %9 = LoanEnd [$4] : ()
 >   %10 = Store [$3] %8 : ()
->   %19 = Drop [$2] : ()
->   %20 = Intrinsic ParamOwned [0:i32] : bool
->   %21 = Drop [$0] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
->   %24 = Release %30 Exit local $0 #2 : ()
->   %25 = Intrinsic ParamOwned [1:i32] : bool
->   %26 = Drop [$1] : ()
->   %27 = Block - : ()
->   %28 = If %25 [%27 -] : ()
->   %29 = Release %30 Exit local $1 #2 : ()
->   %30 = Block %14 : string
+>   %20 = Drop [$2] : ()
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %31 Exit local $0 #2 : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %15 : string
     alias.p = next
 >   %11 = Read move [$2] : *P
->   %12 = Store [*$1 .p] %11 : ()
->   %13 = Release %12 Operation #3 : ()
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Store [*$1 .p] %11 : ()
+>   %14 = Release %13 Operation #3 : ()
     *d
->   %14 = Read copy [*$3] : string
->   %15 = Retain %14 Value #0 : ()
->   %16 = LoanClose %2 : ()
->   %17 = LoanClose %5 : ()
->   %18 = LoanEnd [$3] : ()
+>   %15 = Read copy [*$3] : string
+>   %16 = Retain %15 Value #0 : ()
+>   %17 = LoanClose %2 : ()
+>   %18 = LoanClose %5 : ()
+>   %19 = LoanEnd [$3] : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$0 $1] writes
 
@@ -87,14 +88,14 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   local $0 h: *mut M [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 alias: *mut M [param read] value
->     uses $1: entry -> %12 lend last
+>     uses $1: entry -> %13 lend last
 >   local $2 next: *mut P [param read] value
 >     uses $2: entry -> %11 consume last
 >   local $3 d: &mut string [:= read assigned] value
->     uses $3: %10 -> %14 lend last
+>     uses $3: %10 -> %15 lend last
 >   local $4 p: &mut P [read] value
 >     uses $4: %3 -> %4 lend last
->   %0 = Retain %30 Entry local $2 #0 : ()
+>   %0 = Retain %31 Entry local $2 #0 : ()
     d := name_mut(h.p)
 >   %1 = Ref mut local [*$0 .p *] : &mut P
 >   %2 = LoanBegin %1 #1 : ()
@@ -106,27 +107,28 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   %8 = Scope %7 [] : &mut string
 >   %9 = LoanEnd [$4] : ()
 >   %10 = Store [$3] %8 : ()
->   %19 = Drop [$2] : ()
->   %20 = Intrinsic ParamOwned [0:i32] : bool
->   %21 = Drop [$0] : ()
->   %22 = Block - : ()
->   %23 = If %20 [%22 -] : ()
->   %24 = Release %30 Exit local $0 #2 : ()
->   %25 = Intrinsic ParamOwned [1:i32] : bool
->   %26 = Drop [$1] : ()
->   %27 = Block - : ()
->   %28 = If %25 [%27 -] : ()
->   %29 = Release %30 Exit local $1 #2 : ()
->   %30 = Block %14 : string
+>   %20 = Drop [$2] : ()
+>   %21 = Intrinsic ParamOwned [0:i32] : bool
+>   %22 = Drop [$0] : ()
+>   %23 = Block - : ()
+>   %24 = If %21 [%23 -] : ()
+>   %25 = Release %31 Exit local $0 #2 : ()
+>   %26 = Intrinsic ParamOwned [1:i32] : bool
+>   %27 = Drop [$1] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Release %31 Exit local $1 #2 : ()
+>   %31 = Block %15 : string
     alias.p = next
 >   %11 = Read move [$2] : *mut P
->   %12 = Store [*$1 .p] %11 : ()
->   %13 = Release %12 Operation #3 : ()
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Store [*$1 .p] %11 : ()
+>   %14 = Release %13 Operation #3 : ()
     *d
->   %14 = Read copy [*$3] : string
->   %15 = Retain %14 Value #0 : ()
->   %16 = LoanClose %2 : ()
->   %17 = LoanClose %5 : ()
->   %18 = LoanEnd [$3] : ()
+>   %15 = Read copy [*$3] : string
+>   %16 = Retain %15 Value #0 : ()
+>   %17 = LoanClose %2 : ()
+>   %18 = LoanClose %5 : ()
+>   %19 = LoanEnd [$3] : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$0 $1] writes

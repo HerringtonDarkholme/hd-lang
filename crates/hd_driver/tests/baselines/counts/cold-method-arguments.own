@@ -20,18 +20,18 @@ impl Measure for Reader:
 >     uses $1: entry -> %20 lend last
 >   local $2 count: i64 [read] value
 >     uses $2: %12 -> %13 lend last
->   %0 = Retain %25 Cold local $0 #0 : ()
->   %1 = Retain %25 Entry local $0 #0 : ()
->   %2 = Retain %25 Cold local $1 #0 : ()
->   %3 = Retain %25 Entry local $1 #0 : ()
->   %7 = Retain %25 Cold referent $0 #8 : ()
->   %8 = Release %25 FrameDrop referent $0 #2 : ()
->   %9 = Release %25 Exit referent $0 #8 : ()
+>   %0 = Retain %26 Cold local $0 #0 : ()
+>   %1 = Retain %26 Entry local $0 #0 : ()
+>   %2 = Retain %26 Cold local $1 #0 : ()
+>   %3 = Retain %26 Entry local $1 #0 : ()
+>   %7 = Retain %26 Cold referent $0 #8 : ()
+>   %8 = Release %26 FrameDrop referent $0 #2 : ()
+>   %9 = Release %26 Exit referent $0 #8 : ()
         sleep!(ms(1))
->   %4 = Retain %25 Cold row #0 : ()
->   %5 = Retain %25 Materialize row #0 : ()
->   %6 = Release %25 FrameDrop row #2 : ()
->   %10 = Release %25 FrameDrop child #2 : ()
+>   %4 = Retain %26 Cold row #0 : ()
+>   %5 = Retain %26 Materialize row #0 : ()
+>   %6 = Release %26 FrameDrop row #2 : ()
+>   %10 = Release %26 FrameDrop child #2 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Store [$2] 1:i64 : ()
 >   %13 = Read copy [$2] : i64
@@ -41,66 +41,69 @@ impl Measure for Reader:
 >   %17 = Scope %16 [] : Duration
 >   %18 = Await std/time/sleep[] (%17) : ()
 >   %19 = Release %18 Operation child #2 : ()
->   %23 = Drop [$0] : ()
->   %24 = Drop [$1] : ()
->   %25 = Block %21 : usize
->   %30 = Intrinsic ParamOwned [0:i32] : bool
->   %31 = Drop [$0] : ()
->   %32 = Block - : ()
->   %33 = If %30 [%32 -] : ()
->   %34 = Intrinsic ParamOwned [1:i32] : bool
->   %35 = Drop [$1] : ()
->   %36 = Block - : ()
->   %37 = If %34 [%36 -] : ()
->   %38 = Block - : ()
+>   %24 = Drop [$0] : ()
+>   %25 = Drop [$1] : ()
+>   %26 = Block %22 : usize
+>   %31 = Intrinsic ParamOwned [0:i32] : bool
+>   %32 = Drop [$0] : ()
+>   %33 = Block - : ()
+>   %34 = If %31 [%33 -] : ()
+>   %35 = Intrinsic ParamOwned [1:i32] : bool
+>   %36 = Drop [$1] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Block - : ()
         values.len()
 >   %20 = Read move [$1] : List[string]
->   %21 = Intrinsic ListLen [%20] : usize
->   %22 = Drop [%20] : ()
+>   %21 = Intrinsic Empty [] : ()
+>   %22 = Intrinsic ListLen [%20] : usize
+>   %23 = Drop [%20] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
 >   cancel %18 releases [%2147483648 %2147483649 %4294967295]
->   cancel %25 releases [%16 %30 %16 %34]
+>   cancel %26 releases [%16 %31 %16 %35]
 
 pub fn known!(reader: &Reader, values: List[string]) -> usize $ Clock:
 > app/main/known
 >   local $0 reader: &Reader [param read] value
 >     uses $0: entry -> %11 lend last
 >   local $1 values: List[string] [param read] value
->     uses $1: entry -> %12 consume last
->   %0 = Retain %18 Cold local $0 #0 : ()
->   %1 = Retain %18 Entry local $0 #0 : ()
->   %2 = Retain %18 Cold local $1 #0 : ()
->   %3 = Retain %18 Entry local $1 #0 : ()
->   %7 = Retain %18 Cold referent $0 #8 : ()
->   %8 = Release %18 FrameDrop referent $0 #2 : ()
->   %9 = Release %18 Exit referent $0 #8 : ()
+>     uses $1: entry -> %13 consume last
+>   %0 = Retain %20 Cold local $0 #0 : ()
+>   %1 = Retain %20 Entry local $0 #0 : ()
+>   %2 = Retain %20 Cold local $1 #0 : ()
+>   %3 = Retain %20 Entry local $1 #0 : ()
+>   %7 = Retain %20 Cold referent $0 #8 : ()
+>   %8 = Release %20 FrameDrop referent $0 #2 : ()
+>   %9 = Release %20 Exit referent $0 #8 : ()
     reader.measure!(values)
->   %4 = Retain %18 Cold row #0 : ()
->   %5 = Retain %18 Materialize row #0 : ()
->   %6 = Release %18 FrameDrop row #2 : ()
->   %10 = Release %18 FrameDrop child #2 : ()
+>   %4 = Retain %20 Cold row #0 : ()
+>   %5 = Retain %20 Materialize row #0 : ()
+>   %6 = Release %20 FrameDrop row #2 : ()
+>   %10 = Release %20 FrameDrop child #2 : ()
 >   %11 = Read move [$0] : &Reader
->   %12 = Read move [$1] : List[string]
->   %13 = Await app/main/Measure.measure for Reader [] via Impl (%11, %12) : usize
->   %14 = Release %13 Operation child #2 : ()
->   %15 = Drop [%11] : ()
->   %16 = Drop [$0] : ()
->   %17 = Drop [$1] : ()
->   %18 = Block %13 : usize
->   %24 = Intrinsic ParamOwned [0:i32] : bool
->   %25 = Drop [$0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Intrinsic ParamOwned [1:i32] : bool
->   %29 = Drop [$1] : ()
->   %30 = Block - : ()
->   %31 = If %28 [%30 -] : ()
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Read move [$1] : List[string]
+>   %14 = Intrinsic Empty [] : ()
+>   %15 = Await app/main/Measure.measure for Reader [] via Impl (%11, %13) : usize
+>   %16 = Release %15 Operation child #2 : ()
+>   %17 = Drop [%11] : ()
+>   %18 = Drop [$0] : ()
+>   %19 = Drop [$1] : ()
+>   %20 = Block %15 : usize
+>   %26 = Intrinsic ParamOwned [0:i32] : bool
+>   %27 = Drop [$0] : ()
+>   %28 = Block - : ()
+>   %29 = If %26 [%28 -] : ()
+>   %30 = Intrinsic ParamOwned [1:i32] : bool
+>   %31 = Drop [$1] : ()
 >   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %13 releases [%11 %2147483648 %2147483649 %4294967295]
->   cancel %18 releases [%16 %24 %16 %28]
+>   cancel %15 releases [%11 %2147483648 %2147483649 %4294967295]
+>   cancel %20 releases [%16 %26 %16 %30]
 
 pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 > app/main/dynamic
@@ -108,40 +111,41 @@ pub fn dynamic!(reader: *dyn Measure, values: List[string]) -> usize $ Clock:
 >     uses $0: entry -> %8 lend last
 >   local $1 values: List[string] [param read] value
 >     uses $1: entry -> %10 consume last
->   %0 = Retain %19 Cold local $0 #0 : ()
->   %1 = Retain %19 Entry local $0 #0 : ()
->   %2 = Retain %19 Cold local $1 #0 : ()
->   %3 = Retain %19 Entry local $1 #0 : ()
+>   %0 = Retain %20 Cold local $0 #0 : ()
+>   %1 = Retain %20 Entry local $0 #0 : ()
+>   %2 = Retain %20 Cold local $1 #0 : ()
+>   %3 = Retain %20 Entry local $1 #0 : ()
     reader.measure!(values)
->   %4 = Retain %19 Cold row #0 : ()
->   %5 = Retain %19 Materialize row #0 : ()
->   %6 = Release %19 FrameDrop row #2 : ()
->   %7 = Release %19 FrameDrop child #2 : ()
+>   %4 = Retain %20 Cold row #0 : ()
+>   %5 = Retain %20 Materialize row #0 : ()
+>   %6 = Release %20 FrameDrop row #2 : ()
+>   %7 = Release %20 FrameDrop child #2 : ()
 >   %8 = Read borrow [*$0] : Measure
 >   %9 = LoanBegin %8 #0 : ()
 >   %10 = Read move [$1] : List[string]
->   %11 = Await app/main/Measure.measure for Measure [] via TraitValue (%8, %10) : usize
->   %12 = Retain %11 Operation row #0 : ()
->   %13 = Release %11 Operation row #2 : ()
->   %14 = Release %11 Operation child #2 : ()
->   %15 = LoanClose %9 : ()
->   %16 = Drop [$0] : ()
+>   %11 = Intrinsic Empty [] : ()
+>   %12 = Await app/main/Measure.measure for Measure [] via TraitValue (%8, %10) : usize
+>   %13 = Retain %12 Operation row #0 : ()
+>   %14 = Release %12 Operation row #2 : ()
+>   %15 = Release %12 Operation child #2 : ()
+>   %16 = LoanClose %9 : ()
 >   %17 = Drop [$0] : ()
->   %18 = Drop [$1] : ()
->   %19 = Block %11 : usize
->   %24 = Intrinsic ParamOwned [0:i32] : bool
->   %25 = Drop [$0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Intrinsic ParamOwned [1:i32] : bool
->   %29 = Drop [$1] : ()
->   %30 = Block - : ()
->   %31 = If %28 [%30 -] : ()
->   %32 = Block - : ()
+>   %18 = Drop [$0] : ()
+>   %19 = Drop [$1] : ()
+>   %20 = Block %12 : usize
+>   %25 = Intrinsic ParamOwned [0:i32] : bool
+>   %26 = Drop [$0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Intrinsic ParamOwned [1:i32] : bool
+>   %30 = Drop [$1] : ()
+>   %31 = Block - : ()
+>   %32 = If %29 [%31 -] : ()
+>   %33 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %11 releases [%2147483648 %2147483649 %4294967295]
->   cancel %19 releases [%16 %24 %16 %28]
+>   cancel %12 releases [%2147483648 %2147483649 %4294967295]
+>   cancel %20 releases [%16 %25 %16 %29]
 
 pub fn main() -> void $ Clock:
     reader := Reader { padding: 0 }
@@ -149,12 +153,12 @@ pub fn main() -> void $ Clock:
 >   local $0 reader: Reader [:= read assigned captured] place
 >   local $1 $ref: Reader [read assigned captured captured-assigned] place
 >   local $2 $ref: *Reader [read assigned captured] value
->     uses $2: %14 -> %15 lend last
+>     uses $2: %15 -> %16 lend last
 >   %0 = NewStruct [0:usize] : Reader
 >   %1 = Box #0 #0 : ()
 >   %2 = Store [$0] %0 : ()
->   %10 = Box #1 #1 : ()
->   %24 = Block - : ()
+>   %11 = Box #1 #1 : ()
+>   %26 = Block - : ()
     _ := block_on(known(&reader, ["known"]))
 >   %3 = Ref local frame [$0] : &Reader
 >   %4 = NewList - ["known"] : List[string]
@@ -164,18 +168,20 @@ pub fn main() -> void $ Clock:
 >   %8 = Drop [%5] : ()
     _ := block_on(dynamic(box(reader), ["dynamic"]))
 >   %9 = Read move [$0] : Reader
->   %11 = Store [$1] %9 : ()
->   %12 = Ref take mut [$1] : *mut Reader
->   %13 = Coerce %12 [Weaken -] : *Reader
->   %14 = Store [$2] %13 : ()
->   %15 = Read move [$2] : *Reader
->   %16 = Coerce %15 [RefToTraitValue -] : Measure
->   %17 = LoanEnd [%15] : ()
->   %18 = Block %16 : Measure
->   %19 = RefDyn %18 : *dyn Measure
->   %20 = NewList - ["dynamic"] : List[string]
->   %21 = Call app/main/dynamic[] (%19, %20) : Suspend[usize]
->   %22 = Call std/task/block_on[usize] (%21) : BlockOn[usize]
->   %23 = Drop [%21] : ()
+>   %10 = Intrinsic Empty [] : ()
+>   %12 = Store [$1] %9 : ()
+>   %13 = Ref take mut [$1] : *mut Reader
+>   %14 = Coerce %13 [Weaken -] : *Reader
+>   %15 = Store [$2] %14 : ()
+>   %16 = Read move [$2] : *Reader
+>   %17 = Intrinsic Empty [] : ()
+>   %18 = Coerce %16 [RefToTraitValue -] : Measure
+>   %19 = LoanEnd [%16] : ()
+>   %20 = Block %18 : Measure
+>   %21 = RefDyn %20 : *dyn Measure
+>   %22 = NewList - ["dynamic"] : List[string]
+>   %23 = Call app/main/dynamic[] (%21, %22) : Suspend[usize]
+>   %24 = Call std/task/block_on[usize] (%23) : BlockOn[usize]
+>   %25 = Drop [%23] : ()
 >   storage sub 0: $0 slot, $1 cell
 >   summary kept [] writes

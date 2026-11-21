@@ -177,12 +177,12 @@ fn keep_each(xs: List[string]) -> List[string]:
 >     uses $6: %21 -> %14 consume last
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %32 = Intrinsic ParamOwned [0:i32] : bool
->   %33 = Drop [$0] : ()
->   %34 = Block - : ()
->   %35 = If %32 [%34 -] : ()
->   %36 = Release %37 Exit local $0 #2 : ()
->   %37 = Block %31 : List[string]
+>   %33 = Intrinsic ParamOwned [0:i32] : bool
+>   %34 = Drop [$0] : ()
+>   %35 = Block - : ()
+>   %36 = If %33 [%35 -] : ()
+>   %37 = Release %38 Exit local $0 #2 : ()
+>   %38 = Block %31 : List[string]
     for x in xs:
 >   %2 = Read borrow [$0] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -215,6 +215,7 @@ fn keep_each(xs: List[string]) -> List[string]:
 >   %18 = Intrinsic ListPush [%17 %14] : ()
     out
 >   %31 = Read move [$1] : List[string]
+>   %32 = Intrinsic Empty [] : ()
 >   summary kept [] borrows [$0]
 >   loop %30 keeps len [$0] (-..-)
 
@@ -272,11 +273,12 @@ fn comprehension(xs: List[string]) -> List[usize]:
 >   %38 = Block - : ()
 >   %39 = Loop %38 - : ()
 >   %40 = Read move [$1] : List[usize]
->   %41 = Intrinsic ParamOwned [0:i32] : bool
->   %42 = Drop [$0] : ()
->   %43 = Block - : ()
->   %44 = If %41 [%43 -] : ()
->   %45 = Release %46 Exit local $0 #2 : ()
->   %46 = Block %40 : List[usize]
+>   %41 = Intrinsic Empty [] : ()
+>   %42 = Intrinsic ParamOwned [0:i32] : bool
+>   %43 = Drop [$0] : ()
+>   %44 = Block - : ()
+>   %45 = If %42 [%44 -] : ()
+>   %46 = Release %47 Exit local $0 #2 : ()
+>   %47 = Block %40 : List[usize]
 >   summary kept [] borrows [$0]
 >   loop %39 keeps len [$0] (-..-)

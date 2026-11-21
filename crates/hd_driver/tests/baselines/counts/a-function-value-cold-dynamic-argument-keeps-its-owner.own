@@ -19,34 +19,35 @@ impl[T] Echo[T] for Echoer:
 >     uses $0: none
 >   local $1 value: T [param read] value
 >     uses $1: entry -> %11 consume last
->   %0 = Retain %14 Cold local $0 #0 : ()
->   %1 = Retain %14 Entry local $0 #0 : ()
->   %2 = Retain %14 Cold local $1 #0 : ()
->   %3 = Retain %14 Entry local $1 #0 : ()
->   %4 = Retain %14 Cold referent $0 #8 : ()
->   %5 = Release %14 FrameDrop referent $0 #2 : ()
->   %6 = Release %14 Exit referent $0 #8 : ()
->   %7 = Retain %14 Cold referent $1 #8 : ()
->   %8 = Release %14 FrameDrop referent $1 #2 : ()
->   %9 = Release %14 Exit referent $1 #8 : ()
+>   %0 = Retain %15 Cold local $0 #0 : ()
+>   %1 = Retain %15 Entry local $0 #0 : ()
+>   %2 = Retain %15 Cold local $1 #0 : ()
+>   %3 = Retain %15 Entry local $1 #0 : ()
+>   %4 = Retain %15 Cold referent $0 #8 : ()
+>   %5 = Release %15 FrameDrop referent $0 #2 : ()
+>   %6 = Release %15 Exit referent $0 #8 : ()
+>   %7 = Retain %15 Cold referent $1 #8 : ()
+>   %8 = Release %15 FrameDrop referent $1 #2 : ()
+>   %9 = Release %15 Exit referent $1 #8 : ()
         value
 >   %10 = Drop [$0] : ()
 >   %11 = Read move [$1] : T
->   %12 = Drop [$0] : ()
->   %13 = Drop [$1] : ()
->   %14 = Block %11 : T
->   %15 = Intrinsic ParamOwned [0:i32] : bool
->   %16 = Drop [$0] : ()
->   %17 = Block - : ()
->   %18 = If %15 [%17 -] : ()
->   %19 = Intrinsic ParamOwned [1:i32] : bool
->   %20 = Drop [$1] : ()
->   %21 = Block - : ()
->   %22 = If %19 [%21 -] : ()
->   %23 = Block - : ()
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Drop [$0] : ()
+>   %14 = Drop [$1] : ()
+>   %15 = Block %11 : T
+>   %16 = Intrinsic ParamOwned [0:i32] : bool
+>   %17 = Drop [$0] : ()
+>   %18 = Block - : ()
+>   %19 = If %16 [%18 -] : ()
+>   %20 = Intrinsic ParamOwned [1:i32] : bool
+>   %21 = Drop [$1] : ()
+>   %22 = Block - : ()
+>   %23 = If %20 [%22 -] : ()
+>   %24 = Block - : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %14 releases [%16 %15 %16 %19]
+>   cancel %15 releases [%16 %16 %16 %20]
 
     fn read(&self, value: List[string]) -> usize:
         value.len()
@@ -66,26 +67,27 @@ impl[T] Echo[T] for Echoer:
 fn cold_adapter(dynamic: *dyn Echo[List[string]]) -> (fn(List[string]) -> Suspend[List[string]]):
 > app/main/cold_adapter
 >   local $0 dynamic: *dyn Echo[List[string]] [param read captured] value
->     uses $0: entry -> %3 lend, %12 consume last
+>     uses $0: entry -> %3 lend, %13 consume last
 >   local $1 value: List[string] [param read] value
 >     uses $1: entry -> %5 consume last
->   %1 = Retain %15 Entry local $0 #0 : ()
+>   %1 = Retain %16 Entry local $0 #0 : ()
     fn(value: List[string]) -> Suspend[List[string]]: dynamic.echo(value)
->   %0 = Retain %11 Entry captures #0 : ()
->   %2 = Retain %11 Entry local $1 #0 : ()
+>   %0 = Retain %12 Entry captures #0 : ()
+>   %2 = Retain %12 Entry local $1 #0 : ()
 >   %3 = Read borrow [*$0] : Echo[List[string]]
 >   %4 = LoanBegin %3 #0 : ()
 >   %5 = Read move [$1] : List[string]
->   %6 = Call app/main/Echo.echo for Echo[List[string]] [List[string]] via TraitValue (%3, %5) : Suspend[List[string]]
->   %7 = LoanClose %4 : ()
->   %8 = Drop [$0] : ()
+>   %6 = Intrinsic Empty [] : ()
+>   %7 = Call app/main/Echo.echo for Echo[List[string]] [List[string]] via TraitValue (%3, %5) : Suspend[List[string]]
+>   %8 = LoanClose %4 : ()
 >   %9 = Drop [$0] : ()
->   %10 = Drop [$1] : ()
->   %11 = Block %6 : Suspend[List[string]]
->   %12 = Closure #1 : fn(List[string]) -> Suspend[List[string]]
->   %13 = Retain %12 Operation captures #0 : ()
->   %14 = Drop [$0] : ()
->   %15 = Block %12 : fn(List[string]) -> Suspend[List[string]]
+>   %10 = Drop [$0] : ()
+>   %11 = Drop [$1] : ()
+>   %12 = Block %7 : Suspend[List[string]]
+>   %13 = Closure #1 : fn(List[string]) -> Suspend[List[string]]
+>   %14 = Retain %13 Operation captures #0 : ()
+>   %15 = Drop [$0] : ()
+>   %16 = Block %13 : fn(List[string]) -> Suspend[List[string]]
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0] writes
@@ -93,27 +95,28 @@ fn cold_adapter(dynamic: *dyn Echo[List[string]]) -> (fn(List[string]) -> Suspen
 fn reader_adapter(dynamic: *dyn Echo[List[string]]) -> (fn(List[string]) -> usize):
 > app/main/reader_adapter
 >   local $0 dynamic: *dyn Echo[List[string]] [param read captured] value
->     uses $0: entry -> %3 lend, %13 consume last
+>     uses $0: entry -> %3 lend, %14 consume last
 >   local $1 value: List[string] [param read] value
 >     uses $1: entry -> %5 lend last
->   %1 = Retain %16 Entry local $0 #0 : ()
+>   %1 = Retain %17 Entry local $0 #0 : ()
     fn(value: List[string]) -> usize: dynamic.read(value)
->   %0 = Retain %12 Entry captures #0 : ()
->   %2 = Retain %12 Entry local $1 #0 : ()
+>   %0 = Retain %13 Entry captures #0 : ()
+>   %2 = Retain %13 Entry local $1 #0 : ()
 >   %3 = Read borrow [*$0] : Echo[List[string]]
 >   %4 = LoanBegin %3 #0 : ()
 >   %5 = Read move [$1] : List[string]
->   %6 = Call app/main/Echo.read for Echo[List[string]] [List[string]] via TraitValue (%3, %5) : usize
->   %7 = LoanClose %4 : ()
->   %8 = Drop [%5] : ()
->   %9 = Drop [$0] : ()
+>   %6 = Intrinsic Empty [] : ()
+>   %7 = Call app/main/Echo.read for Echo[List[string]] [List[string]] via TraitValue (%3, %5) : usize
+>   %8 = LoanClose %4 : ()
+>   %9 = Drop [%5] : ()
 >   %10 = Drop [$0] : ()
->   %11 = Drop [$1] : ()
->   %12 = Block %6 : usize
->   %13 = Closure #1 : fn(List[string]) -> usize
->   %14 = Retain %13 Operation captures #0 : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %13 : fn(List[string]) -> usize
+>   %11 = Drop [$0] : ()
+>   %12 = Drop [$1] : ()
+>   %13 = Block %7 : usize
+>   %14 = Closure #1 : fn(List[string]) -> usize
+>   %15 = Retain %14 Operation captures #0 : ()
+>   %16 = Drop [$0] : ()
+>   %17 = Block %14 : fn(List[string]) -> usize
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0 $1]
 >   summary kept [$0] writes

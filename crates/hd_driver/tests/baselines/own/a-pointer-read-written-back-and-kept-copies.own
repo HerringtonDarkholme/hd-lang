@@ -16,7 +16,7 @@ fn get(p: Ptr[string]) -> string:
 >   %0 = Read copy [$0] : Ptr[string]
 >   %1 = Read move [ptr %0] : string
 >   %2 = Store [$1] %1 : ()
->   %9 = Block %8 : string
+>   %10 = Block %8 : string
     p.write(text)
 >   %3 = Read copy [$0] : Ptr[string]
 >   %4 = Read copy [$1] : string
@@ -25,3 +25,4 @@ fn get(p: Ptr[string]) -> string:
 >   %7 = Release %6 Operation #3 : ()
     text
 >   %8 = Read move [$1] : string
+>   %9 = Intrinsic Empty [] : ()

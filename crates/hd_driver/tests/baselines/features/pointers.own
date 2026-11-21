@@ -14,17 +14,18 @@ fn make(n: string) -> *Node:
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Node [read assigned captured captured-assigned] place
->   %0 = Retain %9 Entry local $0 #0 : ()
+>   %0 = Retain %10 Entry local $0 #0 : ()
     box(Node { name: n, next: .None })
 >   %1 = Read move [$0] : string
->   %2 = NewVariant #0 [] : *Node?
->   %3 = NewStruct [%1 %2] : Node
->   %4 = Box #1 #1 : ()
->   %5 = Store [$1] %3 : ()
->   %6 = Ref take mut [$1] : *mut Node
->   %7 = Coerce %6 [Weaken -] : *Node
->   %8 = Drop [$0] : ()
->   %9 = Block %7 : *Node
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewVariant #0 [] : *Node?
+>   %4 = NewStruct [%1 %3] : Node
+>   %5 = Box #1 #1 : ()
+>   %6 = Store [$1] %4 : ()
+>   %7 = Ref take mut [$1] : *mut Node
+>   %8 = Coerce %7 [Weaken -] : *Node
+>   %9 = Drop [$0] : ()
+>   %10 = Block %8 : *Node
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]
@@ -56,21 +57,22 @@ fn read_ptr(p: *Node) -> usize:
 fn write_ptr(p: *mut Node, n: string) -> void:
 > app/main/write_ptr
 >   local $0 p: *mut Node [param read] value
->     uses $0: entry -> %2 lend last
+>     uses $0: entry -> %3 lend last
 >   local $1 n: string [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %10 Entry local $1 #0 : ()
+>   %0 = Retain %11 Entry local $1 #0 : ()
     p.name = n
 >   %1 = Read move [$1] : string
->   %2 = Store [*$0 .name] %1 : ()
->   %3 = Release %2 Operation #3 : ()
->   %4 = Drop [$1] : ()
->   %5 = Intrinsic ParamOwned [0:i32] : bool
->   %6 = Drop [$0] : ()
->   %7 = Block - : ()
->   %8 = If %5 [%7 -] : ()
->   %9 = Release %10 Exit local $0 #2 : ()
->   %10 = Block - : ()
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Store [*$0 .name] %1 : ()
+>   %4 = Release %3 Operation #3 : ()
+>   %5 = Drop [$1] : ()
+>   %6 = Intrinsic ParamOwned [0:i32] : bool
+>   %7 = Drop [$0] : ()
+>   %8 = Block - : ()
+>   %9 = If %6 [%8 -] : ()
+>   %10 = Release %11 Exit local $0 #2 : ()
+>   %11 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
 
@@ -78,13 +80,14 @@ fn share(p: *Node) -> (*Node, *Node):
 > app/main/share
 >   local $0 p: *Node [param read] value
 >     uses $0: entry -> %1 consume, %3 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
     (p, p)
 >   %1 = Read copy [$0] : *Node
 >   %2 = Retain %1 Value #0 : ()
 >   %3 = Read move [$0] : *Node
->   %4 = NewTuple - [%3 %1] : (*Node, *Node)
->   %5 = Drop [$0] : ()
->   %6 = Block %4 : (*Node, *Node)
+>   %4 = Intrinsic Empty [] : ()
+>   %5 = NewTuple - [%3 %1] : (*Node, *Node)
+>   %6 = Drop [$0] : ()
+>   %7 = Block %5 : (*Node, *Node)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

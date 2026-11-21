@@ -268,7 +268,7 @@ pub(crate) fn read(b: &Body, cx: &dyn OwnCx, key: Key) -> bool {
 
 /// The insertion point just after instruction `i`: past the count
 /// statements that follow it, which stay next to their operation.
-fn after(b: &Body, topo: &Topology, i: usize) -> (u32, u32) {
+pub(crate) fn after(b: &Body, topo: &Topology, i: usize) -> (u32, u32) {
     let (blk, pos) = (topo.blk[i], topo.pos[i] + 1);
     let members = b.record(b.data[blk as usize][0]);
     let counts = members[pos as usize..]

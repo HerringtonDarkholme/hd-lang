@@ -14,28 +14,31 @@ fn widened(dog: *dyn Dog) -> *dyn Animal:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: *dyn Dog [read assigned captured captured-assigned] place
 >   local $2 nested: *mut (*dyn Dog) [:= read assigned] value
->     uses $2: %5 -> %6 consume last
+>     uses $2: %6 -> %7 consume last
 >   local $3 $ref: *(*dyn Dog) [read assigned captured] value
->     uses $3: %8 -> %9 lend last
->   %0 = Retain %16 Entry local $0 #0 : ()
+>     uses $3: %10 -> %11 lend last
+>   %0 = Retain %19 Entry local $0 #0 : ()
     nested := box(dog)
 >   %1 = Read move [$0] : *dyn Dog
->   %2 = Box #1 #1 : ()
->   %3 = Store [$1] %1 : ()
->   %4 = Ref take mut [$1] : *mut (*dyn Dog)
->   %5 = Store [$2] %4 : ()
->   %15 = Drop [$0] : ()
->   %16 = Block %14 : *dyn Animal
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Box #1 #1 : ()
+>   %4 = Store [$1] %1 : ()
+>   %5 = Ref take mut [$1] : *mut (*dyn Dog)
+>   %6 = Store [$2] %5 : ()
+>   %18 = Drop [$0] : ()
+>   %19 = Block %17 : *dyn Animal
     nested
->   %6 = Read move [$2] : *mut (*dyn Dog)
->   %7 = Coerce %6 [Weaken -] : *(*dyn Dog)
->   %8 = Store [$3] %7 : ()
->   %9 = Read move [$3] : *(*dyn Dog)
->   %10 = Coerce %9 [RefToTraitValue -] : Animal
->   %11 = Retain %10 Value #0 : ()
->   %12 = Drop [%9] : ()
->   %13 = Block %10 : Animal
->   %14 = RefDyn %13 : *dyn Animal
+>   %7 = Read move [$2] : *mut (*dyn Dog)
+>   %8 = Intrinsic Empty [] : ()
+>   %9 = Coerce %7 [Weaken -] : *(*dyn Dog)
+>   %10 = Store [$3] %9 : ()
+>   %11 = Read move [$3] : *(*dyn Dog)
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Coerce %11 [RefToTraitValue -] : Animal
+>   %14 = Retain %13 Value #0 : ()
+>   %15 = Drop [%11] : ()
+>   %16 = Block %13 : Animal
+>   %17 = RefDyn %16 : *dyn Animal
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

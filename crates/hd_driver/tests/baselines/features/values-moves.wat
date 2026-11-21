@@ -110,6 +110,7 @@
     i32.load $heap offset=4
     local.get $ys
     i32.load $heap offset=8
+    ;; 31 |     let mut ys = xs
     local.get $ys
     i32.const 0
     i32.store $heap
@@ -119,7 +120,6 @@
     local.get $ys
     i32.const 0
     i32.store $heap offset=8
-    ;; 31 |     let mut ys = xs
     local.get $t0
     i32.const 40
     i32.add

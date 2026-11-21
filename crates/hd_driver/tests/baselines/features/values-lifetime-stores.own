@@ -52,8 +52,8 @@ fn total(a: User, b: User) -> usize:
 >     uses $4: %36 -> %37 lend last
 >   local $5 self: string [read] value
 >     uses $5: %27 -> %28 lend last
->   %0 = Retain %53 Entry local $0 #0 : ()
->   %1 = Retain %53 Entry local $1 #0 : ()
+>   %0 = Retain %54 Entry local $0 #0 : ()
+>   %1 = Retain %54 Entry local $1 #0 : ()
     let mut seen: List[&User] = []
 >   %2 = Box #0 #0 : ()
 >   %3 = Box #1 #0 : ()
@@ -61,9 +61,9 @@ fn total(a: User, b: User) -> usize:
 >   %5 = Box #2 #0 : ()
 >   %6 = Store [$2] %4 : ()
 >   %18 = Box #3 #0 : ()
->   %51 = Drop [$0] : ()
->   %52 = Drop [$1] : ()
->   %53 = Block %50 : usize
+>   %52 = Drop [$0] : ()
+>   %53 = Drop [$1] : ()
+>   %54 = Block %51 : usize
     remember(&mut seen, &a)
 >   %7 = Ref mut local frame [$2] : &mut List[&User]
 >   %8 = Ref local frame [$0] : &User
@@ -108,10 +108,11 @@ fn total(a: User, b: User) -> usize:
 >   %44 = Drop [$1] : ()
 >   %45 = Prim Add [%32 %41] : usize
 >   %46 = Read move [$3] : Map[string, &User]
->   %47 = Intrinsic MapLen [%46] : usize
->   %48 = Drop [%46] : ()
->   %49 = Drop [$0] : ()
->   %50 = Prim Add [%45 %47] : usize
+>   %47 = Intrinsic Empty [] : ()
+>   %48 = Intrinsic MapLen [%46] : usize
+>   %49 = Drop [%46] : ()
+>   %50 = Drop [$0] : ()
+>   %51 = Prim Add [%45 %48] : usize
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 slot, $1 slot, $2 slot, $3 slot
 >   summary kept [$0 $1] writes

@@ -25,11 +25,12 @@ fn ret_field(r: Rec) -> string:
 > app/main/ret_field
 >   local $0 r: Rec [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %3 Entry local $0 #0 : ()
+>   %0 = Retain %4 Entry local $0 #0 : ()
     r.name
 >   %1 = Read move [$0 .name] : string
->   %2 = Drop [$0] : ()
->   %3 = Block %1 : string
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Drop [$0] : ()
+>   %4 = Block %1 : string
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -121,7 +122,8 @@ fn ret_new(n: i64) -> string:
 >   %60 = Block - : ()
 >   %61 = Scope %60 [] : ()
 >   %62 = Read move [%27] : string
->   %63 = Block %62 : string
+>   %63 = Intrinsic Empty [] : ()
+>   %64 = Block %62 : string
 >   summary kept [] writes
 
 fn ret_ref_field(r: &Rec) -> &string:

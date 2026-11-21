@@ -196,29 +196,29 @@
             local.get $provider0
             i32.load $heap offset=8
             local.set $provider1.vtable
+            local.get $t1
+            local.get $provider1.vtable
+            i32.store $heap offset=24
+            local.set $provider1.vtable
+            local.get $t1
+            local.get $provider1.vtable
+            i32.store $heap offset=20
+            local.set $provider1.vtable
+            local.get $t1
+            local.get $provider1.vtable
+            i32.store $heap offset=16
             local.get $provider0
             local.get $t1
-            i32.load $heap offset=16
+            i32.load $heap offset=28
             i32.store $heap
             local.get $provider0
             local.get $t1
-            i32.load $heap offset=20
+            i32.load $heap offset=32
             i32.store $heap offset=4
             local.get $provider0
             local.get $t1
-            i32.load $heap offset=24
+            i32.load $heap offset=36
             i32.store $heap offset=8
-            local.get $t1
-            local.get $provider1.vtable
-            i32.store $heap offset=36
-            local.set $provider1.vtable
-            local.get $t1
-            local.get $provider1.vtable
-            i32.store $heap offset=32
-            local.set $provider1.vtable
-            local.get $t1
-            local.get $provider1.vtable
-            i32.store $heap offset=28
             local.get $provider0
             if
               local.get $provider0
@@ -259,11 +259,11 @@
               end
               local.get $provider0
               local.get $t1
-              i32.load $heap offset=28
+              i32.load $heap offset=16
               local.get $t1
-              i32.load $heap offset=32
+              i32.load $heap offset=20
               local.get $t1
-              i32.load $heap offset=36
+              i32.load $heap offset=24
               local.get $t1
               i32.load $heap offset=8
               local.get $t1
@@ -273,13 +273,13 @@
               local.set $provider1
               local.get $t1
               i32.const 0
-              i32.store $heap offset=28
+              i32.store $heap offset=16
               local.get $t1
               i32.const 0
-              i32.store $heap offset=32
+              i32.store $heap offset=20
               local.get $t1
               i32.const 0
-              i32.store $heap offset=36
+              i32.store $heap offset=24
               local.get $provider0.vtable
               if
                 local.get $provider0.vtable

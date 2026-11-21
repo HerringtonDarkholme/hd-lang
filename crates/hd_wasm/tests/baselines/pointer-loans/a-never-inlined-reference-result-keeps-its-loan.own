@@ -167,9 +167,9 @@ fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
 >   local $0 p: *mut Slots [param read] value
 >     uses $0: entry -> %0 consume last
 >   local $1 alias: *mut Slots [param read] value
->     uses $1: entry -> %36 lend last
+>     uses $1: entry -> %37 lend last
 >   local $2 r: &string [:= read assigned] value
->     uses $2: %35 -> %41 lend last
+>     uses $2: %36 -> %42 lend last
 >   local $3 value: &string [read] value
 >     uses $3: %29 -> %30 consume last
 >   local $4 self: &string? [read] value
@@ -206,36 +206,37 @@ fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
 >   %28 = LoanBegin %25 #4 : ()
 >   %29 = Store [$3] %25 : ()
 >   %30 = Read move [$3] : &string
->   %31 = Break L0 %30 : never
->   %32 = Block - : &string
->   %33 = Scope %32 [] : &string
->   %34 = LoanBegin %33 #4 : ()
->   %35 = Store [$2] %33 : ()
->   %48 = Intrinsic ParamOwned [0:i32] : bool
->   %49 = Drop [$0] : ()
->   %50 = Block - : ()
->   %51 = If %48 [%50 -] : ()
->   %52 = Release %58 Exit local $0 #2 : ()
->   %53 = Intrinsic ParamOwned [1:i32] : bool
->   %54 = Drop [$1] : ()
->   %55 = Block - : ()
->   %56 = If %53 [%55 -] : ()
->   %57 = Release %58 Exit local $1 #2 : ()
->   %58 = Block %41 : string
+>   %31 = Intrinsic Empty [] : ()
+>   %32 = Break L0 %30 : never
+>   %33 = Block - : &string
+>   %34 = Scope %33 [] : &string
+>   %35 = LoanBegin %34 #4 : ()
+>   %36 = Store [$2] %34 : ()
+>   %49 = Intrinsic ParamOwned [0:i32] : bool
+>   %50 = Drop [$0] : ()
+>   %51 = Block - : ()
+>   %52 = If %49 [%51 -] : ()
+>   %53 = Release %59 Exit local $0 #2 : ()
+>   %54 = Intrinsic ParamOwned [1:i32] : bool
+>   %55 = Drop [$1] : ()
+>   %56 = Block - : ()
+>   %57 = If %54 [%56 -] : ()
+>   %58 = Release %59 Exit local $1 #2 : ()
+>   %59 = Block %42 : string
     alias.push()
->   %36 = Read borrow [$1] : *mut Slots
->   %37 = LoanBegin %36 #0 : ()
->   %38 = LoanBegin %36 #2 : ()
->   %39 = Call app/main/impl Slots.push[] (%36) : ()
->   %40 = LoanClose %37 : ()
+>   %37 = Read borrow [$1] : *mut Slots
+>   %38 = LoanBegin %37 #0 : ()
+>   %39 = LoanBegin %37 #2 : ()
+>   %40 = Call app/main/impl Slots.push[] (%37) : ()
+>   %41 = LoanClose %38 : ()
     *r
->   %41 = Read copy [*$2] : string
->   %42 = Retain %41 Value #0 : ()
->   %43 = LoanClose %1 : ()
->   %44 = LoanClose %4 : ()
->   %45 = LoanClose %28 : ()
->   %46 = LoanClose %34 : ()
->   %47 = Drop [$2] : ()
+>   %42 = Read copy [*$2] : string
+>   %43 = Retain %42 Value #0 : ()
+>   %44 = LoanClose %1 : ()
+>   %45 = LoanClose %4 : ()
+>   %46 = LoanClose %28 : ()
+>   %47 = LoanClose %35 : ()
+>   %48 = Drop [$2] : ()
 
 pub fn main() -> void $ Console:
     p := box(Slots { items: ["original-" + "z".repeat(40)] })
@@ -252,11 +253,12 @@ pub fn main() -> void $ Console:
 >   %6 = Store [$0] %4 : ()
 >   %7 = Ref take mut [$0] : *mut Slots
 >   %8 = Store [$1] %7 : ()
->   %14 = Block - : ()
+>   %15 = Block - : ()
     println(through_call(p, p))
 >   %9 = Read copy [$1] : *mut Slots
 >   %10 = Retain %9 Value #0 : ()
 >   %11 = Read move [$1] : *mut Slots
->   %12 = Call app/main/through_call[] (%11, %9) : string
->   %13 = Call std/console/println[string] (%12) : ()
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Call app/main/through_call[] (%11, %9) : string
+>   %14 = Call std/console/println[string] (%13) : ()
 >   storage sub 0: $0 cell

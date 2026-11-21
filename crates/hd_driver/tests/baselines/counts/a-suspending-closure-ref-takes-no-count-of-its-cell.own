@@ -62,14 +62,14 @@ fn local!() -> i64:
 >   %0 = Retain %15 Cold row #0 : ()
 >   %1 = Retain %15 Materialize row #0 : ()
 >   %2 = Release %15 FrameDrop row #2 : ()
->   %3 = Release %25 FrameDrop child #2 : ()
+>   %3 = Release %26 FrameDrop child #2 : ()
 >   %4 = Release %15 FrameDrop child #2 : ()
 >   %6 = Box #1 #1 : ()
 >   %14 = Drop [$1] : ()
 >   %15 = Block %12 : i64
 >   %16 = Closure #1 : fn!() -> i64
 >   %17 = Store [$0] %16 : ()
->   %25 = Block %20 : i64
+>   %26 = Block %21 : i64
         let mut tally = Tally { n: 0 }
 >   %5 = NewStruct [0:i64] : Tally
 >   %7 = Store [$1] %5 : ()
@@ -78,25 +78,26 @@ fn local!() -> i64:
 >   %9 = Await app/main/bump[] (%8) : ()
 >   %10 = Release %9 Operation child #2 : ()
 >   %11 = LoanEnd [%8] : ()
->   %31 = Drop [$1] : ()
->   %32 = Return - #2 : never
+>   %32 = Drop [$1] : ()
+>   %33 = Return - #2 : never
         tally.n
 >   %12 = Read copy [$1 .n] : i64
 >   %13 = Drop [$1] : ()
     run!()
 >   %18 = Read move [$0] : fn!() -> i64
->   %19 = CallValue %18 [] : Suspend[i64]
->   %20 = AwaitValue %19 : i64
->   %21 = Release %20 Operation child #2 : ()
->   %22 = Retain %20 Operation child #0 : ()
->   %23 = Drop [%19] : ()
->   %24 = Drop [%18] : ()
+>   %19 = Intrinsic Empty [] : ()
+>   %20 = CallValue %18 [] : Suspend[i64]
+>   %21 = AwaitValue %20 : i64
+>   %22 = Release %21 Operation child #2 : ()
+>   %23 = Retain %21 Operation child #0 : ()
+>   %24 = Drop [%20] : ()
+>   %25 = Drop [%18] : ()
 >   exit sub 1 drops [$1]
 >   storage sub 0: $1 cell
 >   storage sub 1: $1 cell
 >   summary none
 >   cancel %9 releases [%8 %2147483649 %4294967295]
->   cancel %20 releases [%18 %19 %4294967295]
+>   cancel %21 releases [%18 %20 %4294967295]
 
 fn shared!() -> i64:
     let mut tally = Tally { n: 0 }
@@ -104,12 +105,12 @@ fn shared!() -> i64:
 >   local $0 tally: Tally [read assigned captured captured-assigned] place
 >   local $1 run: fn!() -> () [:= read assigned] value
 >     uses $1: %21 -> %22 lend last
->   %0 = Release %32 FrameDrop child #2 : ()
+>   %0 = Release %33 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i64] : Tally
 >   %2 = Box #0 #1 : ()
 >   %3 = Store [$0] %1 : ()
->   %31 = Drop [$0] : ()
->   %32 = Block %29 : i64
+>   %32 = Drop [$0] : ()
+>   %33 = Block %30 : i64
     run := fn!() -> void: bump!(&mut tally)
 >   %4 = Retain %18 Cold row #0 : ()
 >   %5 = Retain %18 Materialize row #0 : ()
@@ -129,31 +130,32 @@ fn shared!() -> i64:
 >   %19 = Closure #1 : fn!() -> ()
 >   %20 = Retain %19 Operation captures #0 : ()
 >   %21 = Store [$1] %19 : ()
->   %47 = Intrinsic ParamOwned [0:i32] : bool
->   %48 = Drop [$0] : ()
->   %49 = Block - : ()
->   %50 = If %47 [%49 -] : ()
->   %51 = Block - : ()
+>   %48 = Intrinsic ParamOwned [0:i32] : bool
+>   %49 = Drop [$0] : ()
+>   %50 = Block - : ()
+>   %51 = If %48 [%50 -] : ()
+>   %52 = Block - : ()
     run!()
 >   %22 = Read move [$1] : fn!() -> ()
->   %23 = CallValue %22 [] : Suspend[()]
->   %24 = AwaitValue %23 : ()
->   %25 = Release %24 Operation child #2 : ()
->   %26 = Retain %24 Operation child #0 : ()
->   %27 = Drop [%23] : ()
->   %28 = Drop [%22] : ()
+>   %23 = Intrinsic Empty [] : ()
+>   %24 = CallValue %22 [] : Suspend[()]
+>   %25 = AwaitValue %24 : ()
+>   %26 = Release %25 Operation child #2 : ()
+>   %27 = Retain %25 Operation child #0 : ()
+>   %28 = Drop [%24] : ()
+>   %29 = Drop [%22] : ()
     tally.n
->   %29 = Read copy [$0 .n] : i64
->   %30 = Drop [$0] : ()
+>   %30 = Read copy [$0 .n] : i64
+>   %31 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   storage sub 1: $0 cell
 >   summary none
 >   cancel %12 releases [%10 %2147483648 %4294967295]
->   cancel %18 releases [%16 %47]
->   cancel %24 releases [%22 %23 %2147483648 %4294967295]
->   cancel %32 releases [%16 %42]
+>   cancel %18 releases [%16 %48]
+>   cancel %25 releases [%22 %24 %2147483648 %4294967295]
+>   cancel %33 releases [%16 %43]
 
 fn copied!() -> i64:
     tally := Tally { n: 0 }
@@ -161,12 +163,12 @@ fn copied!() -> i64:
 >   local $0 tally: Tally [:= read assigned captured] place
 >   local $1 run: fn!() -> i64 [:= read assigned] value
 >     uses $1: %19 -> %20 lend last
->   %0 = Release %28 FrameDrop child #2 : ()
+>   %0 = Release %29 FrameDrop child #2 : ()
 >   %1 = NewStruct [0:i64] : Tally
 >   %2 = Box #0 #1 : ()
 >   %3 = Store [$0] %1 : ()
->   %27 = Drop [$0] : ()
->   %28 = Block %22 : i64
+>   %28 = Drop [$0] : ()
+>   %29 = Block %23 : i64
     run := fn!() -> i64: read!(&tally)
 >   %4 = Retain %16 Cold row #0 : ()
 >   %5 = Retain %16 Materialize row #0 : ()
@@ -184,24 +186,25 @@ fn copied!() -> i64:
 >   %17 = Closure #1 : fn!() -> i64
 >   %18 = Drop [$0] : ()
 >   %19 = Store [$1] %17 : ()
->   %43 = Intrinsic ParamOwned [0:i32] : bool
->   %44 = Drop [$0] : ()
->   %45 = Block - : ()
->   %46 = If %43 [%45 -] : ()
->   %47 = Block - : ()
+>   %44 = Intrinsic ParamOwned [0:i32] : bool
+>   %45 = Drop [$0] : ()
+>   %46 = Block - : ()
+>   %47 = If %44 [%46 -] : ()
+>   %48 = Block - : ()
     run!()
 >   %20 = Read move [$1] : fn!() -> i64
->   %21 = CallValue %20 [] : Suspend[i64]
->   %22 = AwaitValue %21 : i64
->   %23 = Release %22 Operation child #2 : ()
->   %24 = Retain %22 Operation child #0 : ()
->   %25 = Drop [%21] : ()
->   %26 = Drop [%20] : ()
+>   %21 = Intrinsic Empty [] : ()
+>   %22 = CallValue %20 [] : Suspend[i64]
+>   %23 = AwaitValue %22 : i64
+>   %24 = Release %23 Operation child #2 : ()
+>   %25 = Retain %23 Operation child #0 : ()
+>   %26 = Drop [%22] : ()
+>   %27 = Drop [%20] : ()
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   storage sub 0: $0 cell
 >   summary none
 >   cancel %10 releases [%8 %2147483648 %4294967295]
->   cancel %16 releases [%16 %43]
->   cancel %22 releases [%20 %21 %2147483648 %4294967295]
->   cancel %28 releases [%16 %38]
+>   cancel %16 releases [%16 %44]
+>   cancel %23 releases [%20 %22 %2147483648 %4294967295]
+>   cancel %29 releases [%16 %39]

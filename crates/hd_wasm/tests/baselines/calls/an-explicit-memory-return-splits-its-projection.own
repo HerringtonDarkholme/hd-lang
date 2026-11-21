@@ -36,46 +36,47 @@ fn moved(x: S1) -> S0:
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 
 fn copied(x: &S1) -> S0:
@@ -109,46 +110,47 @@ fn borrowed['a](x: B2['a]) -> B1['a]:
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 == @build: checked
 # @dump: wat counts own
@@ -187,46 +189,47 @@ fn moved(x: S1) -> S0:
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 
 fn copied(x: &S1) -> S0:
@@ -260,46 +263,47 @@ fn borrowed['a](x: B2['a]) -> B1['a]:
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 == @build: release
 # @dump: wat counts own
@@ -340,46 +344,47 @@ fn moved(x: S1) -> S0:
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -415,46 +420,47 @@ fn borrowed['a](x: B2['a]) -> B1['a]:
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 == @build: release checked
@@ -496,46 +502,47 @@ fn moved(x: S1) -> S0:
 >   local $0 x: ((string, string, string, string, string, string, string, string, string), (string, string, string, string, string, string, string, string, string)) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : (string, string, string, string, string, string, string, string, string)
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : (string, string, string, string, string, string, string, string, string)
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : (string, string, string, string, string, string, string, string, string)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -571,45 +578,46 @@ fn borrowed['a](x: B2['a]) -> B1['a]:
 >   local $0 x: (((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string)), ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))) [param read] value
 >     uses $0: entry -> %4 consume last
 >   local $1 $temporary_owner: bool [read assigned] value
->     uses $1: %2 -> %6 lend, %21 lend last
+>     uses $1: %2 -> %7 lend, %22 lend last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: entry -> %8 lend, %9 lend, %23 lend, %24 lend last
->   %3 = Retain %35 Entry local $0 #0 : ()
+>     uses $2: entry -> %9 lend, %10 lend, %24 lend, %25 lend last
+>   %3 = Retain %36 Entry local $0 #0 : ()
     return x._0
 >   %0 = FlagSet [$0 .0] #2 : ()
 >   %1 = Intrinsic ParamOwned [0:i32] : bool
 >   %2 = Store [$1] %1 : ()
 >   %4 = Read move [$0 .0] : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
->   %5 = FlagClear [$0 .0] #2 : ()
->   %6 = Read copy [$1] : bool
->   %7 = Drop [$0] : ()
->   %8 = Read copy [$2] : bool
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = FlagClear [$0 .0] #2 : ()
+>   %7 = Read copy [$1] : bool
+>   %8 = Drop [$0] : ()
 >   %9 = Read copy [$2] : bool
->   %10 = Drop [$0 .0] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Drop [$0 .1] : ()
->   %14 = Block - : ()
+>   %10 = Read copy [$2] : bool
+>   %11 = Drop [$0 .0] : ()
+>   %12 = Block - : ()
+>   %13 = If %10 [%12 -] : ()
+>   %14 = Drop [$0 .1] : ()
 >   %15 = Block - : ()
->   %16 = If %8 [%14 %15] : ()
->   %17 = Block - : ()
->   %18 = If %6 [%17 -] : ()
->   %19 = FlagClear [$0] #1 : ()
->   %20 = FlagClear [$0 .0] #2 : ()
->   %21 = Read copy [$1] : bool
->   %22 = Drop [$0] : ()
->   %23 = Read copy [$2] : bool
+>   %16 = Block - : ()
+>   %17 = If %9 [%15 %16] : ()
+>   %18 = Block - : ()
+>   %19 = If %7 [%18 -] : ()
+>   %20 = FlagClear [$0] #1 : ()
+>   %21 = FlagClear [$0 .0] #2 : ()
+>   %22 = Read copy [$1] : bool
+>   %23 = Drop [$0] : ()
 >   %24 = Read copy [$2] : bool
->   %25 = Drop [$0 .0] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Drop [$0 .1] : ()
->   %29 = Block - : ()
+>   %25 = Read copy [$2] : bool
+>   %26 = Drop [$0 .0] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Drop [$0 .1] : ()
 >   %30 = Block - : ()
->   %31 = If %23 [%29 %30] : ()
->   %32 = Block - : ()
->   %33 = If %21 [%32 -] : ()
->   %34 = Return %4 : never
->   %35 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
+>   %31 = Block - : ()
+>   %32 = If %24 [%30 %31] : ()
+>   %33 = Block - : ()
+>   %34 = If %22 [%33 -] : ()
+>   %35 = Return %4 : never
+>   %36 = Block - : ((&string, &string, &string, &string, &string, &string, &string, &string, &string), (&string, &string, &string, &string, &string, &string, &string, &string, &string))
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

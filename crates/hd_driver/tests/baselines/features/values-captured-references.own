@@ -36,34 +36,36 @@ fn demo(s: string) -> i32:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: Point [read assigned captured captured-assigned] place
 >   local $2 origin: *mut Point [:= read assigned] value
->     uses $2: %6 -> %7 consume, %16 lend last
+>     uses $2: %7 -> %8 consume, %18 lend last
 >   local $3 step: fn() -> () [:= read assigned] value
->     uses $3: %10 -> %11 lend, %13 lend last
->   %0 = Retain %19 Entry local $0 #0 : ()
+>     uses $3: %11 -> %12 lend, %14 lend last
+>   %0 = Retain %21 Entry local $0 #0 : ()
     origin := box(Point { name: s, x: 0 })
 >   %1 = Read move [$0] : string
->   %2 = NewStruct [%1 0:i32] : Point
->   %3 = Box #1 #1 : ()
->   %4 = Store [$1] %2 : ()
->   %5 = Ref take mut [$1] : *mut Point
->   %6 = Store [$2] %5 : ()
->   %18 = Drop [$0] : ()
->   %19 = Block %16 : i32
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewStruct [%1 0:i32] : Point
+>   %4 = Box #1 #1 : ()
+>   %5 = Store [$1] %3 : ()
+>   %6 = Ref take mut [$1] : *mut Point
+>   %7 = Store [$2] %6 : ()
+>   %20 = Drop [$0] : ()
+>   %21 = Block %18 : i32
     step := bump(origin)
->   %7 = Read copy [$2] : *mut Point
->   %8 = Retain %7 Value #0 : ()
->   %9 = Call app/main/bump[] (%7) : fn() -> ()
->   %10 = Store [$3] %9 : ()
+>   %8 = Read copy [$2] : *mut Point
+>   %9 = Retain %8 Value #0 : ()
+>   %10 = Call app/main/bump[] (%8) : fn() -> ()
+>   %11 = Store [$3] %10 : ()
     step()
->   %11 = Read borrow [$3] : fn() -> ()
->   %12 = CallValue %11 [] : ()
+>   %12 = Read borrow [$3] : fn() -> ()
+>   %13 = CallValue %12 [] : ()
     step()
->   %13 = Read move [$3] : fn() -> ()
->   %14 = CallValue %13 [] : ()
->   %15 = Drop [%13] : ()
+>   %14 = Read move [$3] : fn() -> ()
+>   %15 = Intrinsic Empty [] : ()
+>   %16 = CallValue %14 [] : ()
+>   %17 = Drop [%14] : ()
     origin.x
->   %16 = Read copy [*$2 .x] : i32
->   %17 = Drop [$2] : ()
+>   %18 = Read copy [*$2 .x] : i32
+>   %19 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0] writes

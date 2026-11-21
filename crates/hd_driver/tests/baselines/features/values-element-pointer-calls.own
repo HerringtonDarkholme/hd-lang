@@ -98,15 +98,16 @@ fn keep(n: *Node, k: &mut Keeper) -> void:
 >   local $0 n: *Node [param read] value
 >     uses $0: entry -> %1 consume last
 >   local $1 k: &mut Keeper [param read] value
->     uses $1: entry -> %3 lend last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>     uses $1: entry -> %4 lend last
+>   %0 = Retain %7 Entry local $0 #0 : ()
     k.saved.push(n)
 >   %1 = Read move [$0] : *Node
->   %2 = IsUnique [*$1 .saved] : ()
->   %3 = Read borrow [*$1 .saved] : List[*Node]
->   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Drop [$0] : ()
->   %6 = Block - : ()
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = IsUnique [*$1 .saved] : ()
+>   %4 = Read borrow [*$1 .saved] : List[*Node]
+>   %5 = Intrinsic ListPush [%4 %1] : ()
+>   %6 = Drop [$0] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] writes
 
@@ -175,12 +176,12 @@ pub fn run(root: *Node) -> i64:
 >   %1 = Box #1 #0 : ()
 >   %2 = Store [$1] %0 : ()
 >   %20 = Box #3 #0 : ()
->   %36 = Intrinsic ParamOwned [0:i32] : bool
->   %37 = Drop [$0] : ()
->   %38 = Block - : ()
->   %39 = If %36 [%38 -] : ()
->   %40 = Release %41 Exit local $0 #2 : ()
->   %41 = Block %35 : i64
+>   %37 = Intrinsic ParamOwned [0:i32] : bool
+>   %38 = Drop [$0] : ()
+>   %39 = Block - : ()
+>   %40 = If %37 [%39 -] : ()
+>   %41 = Release %42 Exit local $0 #2 : ()
+>   %42 = Block %36 : i64
     walk(root, &mut total)
 >   %3 = Ref local [*$0] : &Node
 >   %4 = LoanBegin %3 #0 : ()
@@ -213,9 +214,10 @@ pub fn run(root: *Node) -> i64:
 >   %29 = Read copy [$1 .sum] : i64
 >   %30 = Drop [$1] : ()
 >   %31 = Read move [$3 .saved] : List[*Node]
->   %32 = Intrinsic ListLen [%31] : usize
->   %33 = Drop [%31] : ()
->   %34 = Prim Conv [%32] : i64
->   %35 = Prim Add [%29 %34] : i64
+>   %32 = Intrinsic Empty [] : ()
+>   %33 = Intrinsic ListLen [%31] : usize
+>   %34 = Drop [%31] : ()
+>   %35 = Prim Conv [%33] : i64
+>   %36 = Prim Add [%29 %35] : i64
 >   storage sub 0: $1 slot, $3 slot
 >   summary kept [] borrows [$0] writes

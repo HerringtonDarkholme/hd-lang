@@ -104,7 +104,8 @@ impl Display for YamlError:
 >   %64 = Block - : ()
 >   %65 = Scope %64 [] : ()
 >   %66 = Read move [%31] : string
->   %67 = Block %66 : string
+>   %67 = Intrinsic Empty [] : ()
+>   %68 = Block %66 : string
 >   summary kept [] writes
 
 impl Error for YamlError
@@ -114,13 +115,13 @@ impl Error for YamlError
 >   local $0 self: &FsError [param] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: FsError [assigned] value
->     uses $1: %1 -> %2 lend last, %61 lend
+>     uses $1: %1 -> %2 lend last, %63 lend
 >   local $3 result: string [read] value
->     uses $3: %39 -> %43 lend last
+>     uses $3: %39 -> %44 lend last
 >   local $4 offset: usize [read] value
->     uses $4: %40 -> %46 lend last
+>     uses $4: %40 -> %47 lend last
 >   local $5 text: string [read] value
->     uses $5: %42 -> %48 lend, %51 lend last
+>     uses $5: %43 -> %49 lend, %52 lend last
 >   local $6 result: string [read] value
 >     uses $6: %20 -> %23 lend last
 >   local $7 offset: usize [read] value
@@ -133,7 +134,7 @@ impl Error for YamlError
 >     uses $10: %5 -> %6 lend last
 >   %0 = Read borrow [*$0] : FsError
 >   %1 = Store [$1] %0 : ()
->   %63 = Block %62 : string
+>   %65 = Block %64 : string
 enum FsError:
     @error("not found: $path")
 >   %4 = Read borrow [%2] : string
@@ -174,27 +175,29 @@ enum FsError:
 >   %39 = Store [$3] %37 : ()
 >   %40 = Store [$4] %11 : ()
 >   %41 = Read move [%2] : string
->   %42 = Store [$5] %41 : ()
->   %43 = Read borrow [$3] : string
->   %44 = Call std/rt.memory/string_bytes[] (%43) : Ptr[u8]
->   %45 = Read copy [%44 .address] : usize
->   %46 = Read copy [$4] : usize
->   %47 = Prim Add [%45 %46] : usize
->   %48 = Read borrow [$5] : string
->   %49 = Call std/rt.memory/string_bytes[] (%48) : Ptr[u8]
->   %50 = Read copy [%49 .address] : usize
->   %51 = Read borrow [$5] : string
->   %52 = Call std/rt.bytes/bytes_len[] (%51) : usize
->   %53 = Call std/rt.memory/copy[] (%47, %50, %52) : ()
->   %54 = Break L0 - : never
->   %55 = Block - : ()
->   %56 = Scope %55 [] : ()
->   %57 = Read move [%18] : string
->   %58 = Drop [$5] : ()
->   %59 = Block %57 : string
->   %60 = Block "Busy" : string
->   %61 = Read borrow [$1] : FsError
->   %62 = SwitchTag %61 [#0 %59 %60] : string
+>   %42 = Intrinsic Empty [] : ()
+>   %43 = Store [$5] %41 : ()
+>   %44 = Read borrow [$3] : string
+>   %45 = Call std/rt.memory/string_bytes[] (%44) : Ptr[u8]
+>   %46 = Read copy [%45 .address] : usize
+>   %47 = Read copy [$4] : usize
+>   %48 = Prim Add [%46 %47] : usize
+>   %49 = Read borrow [$5] : string
+>   %50 = Call std/rt.memory/string_bytes[] (%49) : Ptr[u8]
+>   %51 = Read copy [%50 .address] : usize
+>   %52 = Read borrow [$5] : string
+>   %53 = Call std/rt.bytes/bytes_len[] (%52) : usize
+>   %54 = Call std/rt.memory/copy[] (%48, %51, %53) : ()
+>   %55 = Break L0 - : never
+>   %56 = Block - : ()
+>   %57 = Scope %56 [] : ()
+>   %58 = Read move [%18] : string
+>   %59 = Intrinsic Empty [] : ()
+>   %60 = Drop [$5] : ()
+>   %61 = Block %58 : string
+>   %62 = Block "Busy" : string
+>   %63 = Read borrow [$1] : FsError
+>   %64 = SwitchTag %63 [#0 %61 %62] : string
     NotFound(path: string)
 >   %2 = Read copy [$1 as #0 .0] : string
 >   %3 = Retain %2 Value #0 : ()
@@ -206,15 +209,15 @@ enum FsError:
 >   local $0 self: &LoadError [param] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
->     uses $1: %1 -> %2 lend last, %61 consume last, %85 lend, %88 lend
+>     uses $1: %1 -> %2 lend last, %63 consume last, %88 lend, %91 lend
 >   local $3 $ref: FsError [read assigned captured captured-assigned] value
->     uses $3: %62 -> %63 lend last, %79 lend
+>     uses $3: %64 -> %65 lend last, %82 lend
 >   local $7 result: string [read] value
->     uses $7: %39 -> %43 lend last
+>     uses $7: %39 -> %44 lend last
 >   local $8 offset: usize [read] value
->     uses $8: %40 -> %46 lend last
+>     uses $8: %40 -> %47 lend last
 >   local $9 text: string [read] value
->     uses $9: %42 -> %48 lend, %51 lend last
+>     uses $9: %43 -> %49 lend, %52 lend last
 >   local $10 result: string [read] value
 >     uses $10: %20 -> %23 lend last
 >   local $11 offset: usize [read] value
@@ -227,23 +230,23 @@ enum FsError:
 >     uses $14: %5 -> %6 lend last
 >   %0 = Read borrow [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
->   %90 = Block %89 : string
+>   %93 = Block %92 : string
 > app/main/error Error for LoadError.source
 >   local $0 self: &LoadError [param] value
 >     uses $0: entry -> %0 lend last
 >   local $1 $self: LoadError [assigned] value
->     uses $1: %1 -> %2 consume last, %16 consume last, %29 consume last, %36 lend, %39 lend
+>     uses $1: %1 -> %2 consume last, %17 consume last, %31 consume last, %38 lend, %41 lend
 >   local $2 $ref: FsError [read assigned captured captured-assigned] place
 >   local $3 $ref: *FsError [read assigned captured] value
 >     uses $3: %7 -> %8 lend last
 >   local $4 $ref: YamlError [read assigned captured captured-assigned] place
 >   local $5 $ref: *YamlError [read assigned captured] value
->     uses $5: %20 -> %21 lend last
+>     uses $5: %21 -> %22 lend last
 >   local $6 $ref: FsError [read assigned captured captured-assigned] value
 >     uses $6: none
 >   %0 = Read borrow [*$0] : LoadError
 >   %1 = Store [$1] %0 : ()
->   %41 = Block %40 : *dyn Error?
+>   %43 = Block %42 : *dyn Error?
 > app/main/error From 1.0 for LoadError.from
 >   local $0 value: YamlError [param] value
 >     uses $0: entry -> %0 consume last
@@ -254,11 +257,12 @@ enum FsError:
 > app/main/error From 2.0 for LoadError.from
 >   local $0 value: FsError [param] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %5 Entry local $0 #0 : ()
 >   %1 = Read move [$0] : FsError
->   %2 = NewVariant #2 [%1] : LoadError
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : LoadError
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewVariant #2 [%1] : LoadError
+>   %4 = Drop [$0] : ()
+>   %5 = Block %3 : LoadError
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 enum LoadError:
@@ -301,32 +305,34 @@ enum LoadError:
 >   %39 = Store [$7] %37 : ()
 >   %40 = Store [$8] %11 : ()
 >   %41 = Read move [%2] : string
->   %42 = Store [$9] %41 : ()
->   %43 = Read borrow [$7] : string
->   %44 = Call std/rt.memory/string_bytes[] (%43) : Ptr[u8]
->   %45 = Read copy [%44 .address] : usize
->   %46 = Read copy [$8] : usize
->   %47 = Prim Add [%45 %46] : usize
->   %48 = Read borrow [$9] : string
->   %49 = Call std/rt.memory/string_bytes[] (%48) : Ptr[u8]
->   %50 = Read copy [%49 .address] : usize
->   %51 = Read borrow [$9] : string
->   %52 = Call std/rt.bytes/bytes_len[] (%51) : usize
->   %53 = Call std/rt.memory/copy[] (%47, %50, %52) : ()
->   %54 = Break L1 - : never
->   %55 = Block - : ()
->   %56 = Scope %55 [] : ()
->   %57 = Read move [%18] : string
->   %58 = Drop [$9] : ()
->   %59 = Block %57 : string
->   %87 = Block %86 : string
->   %88 = Read borrow [$1] : LoadError
->   %89 = SwitchTag %88 [#0 %59 %87] : string
+>   %42 = Intrinsic Empty [] : ()
+>   %43 = Store [$9] %41 : ()
+>   %44 = Read borrow [$7] : string
+>   %45 = Call std/rt.memory/string_bytes[] (%44) : Ptr[u8]
+>   %46 = Read copy [%45 .address] : usize
+>   %47 = Read copy [$8] : usize
+>   %48 = Prim Add [%46 %47] : usize
+>   %49 = Read borrow [$9] : string
+>   %50 = Call std/rt.memory/string_bytes[] (%49) : Ptr[u8]
+>   %51 = Read copy [%50 .address] : usize
+>   %52 = Read borrow [$9] : string
+>   %53 = Call std/rt.bytes/bytes_len[] (%52) : usize
+>   %54 = Call std/rt.memory/copy[] (%48, %51, %53) : ()
+>   %55 = Break L1 - : never
+>   %56 = Block - : ()
+>   %57 = Scope %56 [] : ()
+>   %58 = Read move [%18] : string
+>   %59 = Intrinsic Empty [] : ()
+>   %60 = Drop [$9] : ()
+>   %61 = Block %58 : string
+>   %90 = Block %89 : string
+>   %91 = Read borrow [$1] : LoadError
+>   %92 = SwitchTag %91 [#0 %61 %90] : string
 >   %4 = Box #2 #1 : ()
->   %15 = Block %13 : *dyn Error?
->   %38 = Block %37 : *dyn Error?
->   %39 = Read borrow [$1] : LoadError
->   %40 = SwitchTag %39 [#0 %15 %38] : *dyn Error?
+>   %16 = Block %14 : *dyn Error?
+>   %40 = Block %39 : *dyn Error?
+>   %41 = Read borrow [$1] : LoadError
+>   %42 = SwitchTag %41 [#0 %16 %40] : *dyn Error?
     Read(
         path: string,
 >   %2 = Read copy [$1 as #0 .0] : string
@@ -338,72 +344,75 @@ enum LoadError:
 >   %6 = Ref take [$2] : *FsError
 >   %7 = Store [$3] %6 : ()
 >   %8 = Read move [$3] : *FsError
->   %9 = Coerce %8 [RefToTraitValue -] : Error
->   %10 = LoanEnd [%8] : ()
->   %11 = Block %9 : Error
->   %12 = RefDyn %11 : *dyn Error
->   %13 = Coerce %12 [WrapSome -] : *dyn Error?
->   %14 = Drop [%12] : ()
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Coerce %8 [RefToTraitValue -] : Error
+>   %11 = LoanEnd [%8] : ()
+>   %12 = Block %10 : Error
+>   %13 = RefDyn %12 : *dyn Error
+>   %14 = Coerce %13 [WrapSome -] : *dyn Error?
+>   %15 = Drop [%13] : ()
         error: FsError,
     )
     @error("bad config")
->   %60 = Block "bad config" : string
->   %84 = Block %83 : string
->   %85 = Read borrow [$1] : LoadError
->   %86 = SwitchTag %85 [#1 %60 %84] : string
->   %17 = Box #4 #1 : ()
->   %28 = Block %26 : *dyn Error?
->   %35 = Block %34 : *dyn Error?
->   %36 = Read borrow [$1] : LoadError
->   %37 = SwitchTag %36 [#1 %28 %35] : *dyn Error?
+>   %62 = Block "bad config" : string
+>   %87 = Block %86 : string
+>   %88 = Read borrow [$1] : LoadError
+>   %89 = SwitchTag %88 [#1 %62 %87] : string
+>   %18 = Box #4 #1 : ()
+>   %30 = Block %28 : *dyn Error?
+>   %37 = Block %36 : *dyn Error?
+>   %38 = Read borrow [$1] : LoadError
+>   %39 = SwitchTag %38 [#1 %30 %37] : *dyn Error?
     Yaml(
         @from
->   %16 = Read copy [$1 as #1 .0] : YamlError
->   %18 = Store [$4] %16 : ()
->   %19 = Ref take [$4] : *YamlError
->   %20 = Store [$5] %19 : ()
->   %21 = Read move [$5] : *YamlError
->   %22 = Coerce %21 [RefToTraitValue -] : Error
->   %23 = LoanEnd [%21] : ()
->   %24 = Block %22 : Error
->   %25 = RefDyn %24 : *dyn Error
->   %26 = Coerce %25 [WrapSome -] : *dyn Error?
->   %27 = Drop [%25] : ()
+>   %17 = Read copy [$1 as #1 .0] : YamlError
+>   %19 = Store [$4] %17 : ()
+>   %20 = Ref take [$4] : *YamlError
+>   %21 = Store [$5] %20 : ()
+>   %22 = Read move [$5] : *YamlError
+>   %23 = Intrinsic Empty [] : ()
+>   %24 = Coerce %22 [RefToTraitValue -] : Error
+>   %25 = LoanEnd [%22] : ()
+>   %26 = Block %24 : Error
+>   %27 = RefDyn %26 : *dyn Error
+>   %28 = Coerce %27 [WrapSome -] : *dyn Error?
+>   %29 = Drop [%27] : ()
         error: YamlError,
     )
     @error(transparent)
     Fs(
         @from
->   %61 = Read borrow [$1 as #2 .0] : FsError
->   %62 = Store [$3] %61 : ()
->   %63 = Read copy [$3 as #0 .0] : string
->   %64 = Retain %63 Value #0 : ()
->   %65 = Call std/text/impl StringBuilder.text_width[] (%63) : usize
->   %66 = Retain %65 Operation operand 0 #0 : ()
->   %67 = Prim Add [0:usize 11:usize] : usize
->   %68 = Prim Add [%67 %65] : usize
->   %69 = Call std/text/impl StringBuilder.value_new[] (%68) : string
->   %70 = Call std/text/impl StringBuilder.value_text[] (%69, 0:usize, "not found: ") : ()
->   %71 = Retain %70 Operation operand 0 #0 : ()
->   %72 = Call std/text/impl StringBuilder.value_text[] (%69, %67, %63) : ()
+>   %63 = Read borrow [$1 as #2 .0] : FsError
+>   %64 = Store [$3] %63 : ()
+>   %65 = Read copy [$3 as #0 .0] : string
+>   %66 = Retain %65 Value #0 : ()
+>   %67 = Call std/text/impl StringBuilder.text_width[] (%65) : usize
+>   %68 = Retain %67 Operation operand 0 #0 : ()
+>   %69 = Prim Add [0:usize 11:usize] : usize
+>   %70 = Prim Add [%69 %67] : usize
+>   %71 = Call std/text/impl StringBuilder.value_new[] (%70) : string
+>   %72 = Call std/text/impl StringBuilder.value_text[] (%71, 0:usize, "not found: ") : ()
 >   %73 = Retain %72 Operation operand 0 #0 : ()
->   %74 = Retain %72 Operation operand 2 #0 : ()
->   %75 = Read move [%69] : string
->   %76 = Drop [%63] : ()
->   %77 = Block %75 : string
->   %78 = Block "Busy" : string
->   %79 = Read borrow [$3] : FsError
->   %80 = SwitchTag %79 [#0 %77 %78] : string
->   %81 = Break L0 %80 : never
->   %82 = Block - : string
->   %83 = Scope %82 [] : string
+>   %74 = Call std/text/impl StringBuilder.value_text[] (%71, %69, %65) : ()
+>   %75 = Retain %74 Operation operand 0 #0 : ()
+>   %76 = Retain %74 Operation operand 2 #0 : ()
+>   %77 = Read move [%71] : string
+>   %78 = Intrinsic Empty [] : ()
+>   %79 = Drop [%65] : ()
+>   %80 = Block %77 : string
+>   %81 = Block "Busy" : string
+>   %82 = Read borrow [$3] : FsError
+>   %83 = SwitchTag %82 [#0 %80 %81] : string
+>   %84 = Break L0 %83 : never
+>   %85 = Block - : string
+>   %86 = Scope %85 [] : string
 >   summary kept [] writes relies [$0]
->   %29 = Read borrow [$1 as #2 .0] : FsError
->   %30 = Store [$6] %29 : ()
->   %31 = NewVariant #0 [] : *dyn Error?
->   %32 = Break L0 %31 : never
->   %33 = Block - : *dyn Error?
->   %34 = Scope %33 [] : *dyn Error?
+>   %31 = Read borrow [$1 as #2 .0] : FsError
+>   %32 = Store [$6] %31 : ()
+>   %33 = NewVariant #0 [] : *dyn Error?
+>   %34 = Break L0 %33 : never
+>   %35 = Block - : *dyn Error?
+>   %36 = Scope %35 [] : *dyn Error?
 >   storage sub 0: $2 cell, $4 cell
 >   summary kept []
         error: FsError,

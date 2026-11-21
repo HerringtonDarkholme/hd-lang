@@ -37,7 +37,7 @@ fn read_config(path: string) -> Result[string, FsError]:
 > app/main/read_config
 >   local $0 path: string [param read] value
 >     uses $0: entry -> %1 lend, %7 lend last, %12 consume last
->   %0 = Retain %18 Entry local $0 #0 : ()
+>   %0 = Retain %19 Entry local $0 #0 : ()
     if path.len() > 0: .Ok(path + "!") else: .Err(FsError.NotFound(path))
 >   %1 = Read borrow [$0] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -51,12 +51,13 @@ fn read_config(path: string) -> Result[string, FsError]:
 >   %10 = Drop [$0] : ()
 >   %11 = Block %9 : Result[string, FsError]
 >   %12 = Read move [$0] : string
->   %13 = NewVariant #0 [%12] : FsError
->   %14 = NewVariant #1 [%13] : Result[string, FsError]
->   %15 = Block %14 : Result[string, FsError]
->   %16 = If %6 [%11 %15] : Result[string, FsError]
->   %17 = Drop [$0] : ()
->   %18 = Block %16 : Result[string, FsError]
+>   %13 = Intrinsic Empty [] : ()
+>   %14 = NewVariant #0 [%12] : FsError
+>   %15 = NewVariant #1 [%14] : Result[string, FsError]
+>   %16 = Block %15 : Result[string, FsError]
+>   %17 = If %6 [%11 %16] : Result[string, FsError]
+>   %18 = Drop [$0] : ()
+>   %19 = Block %17 : Result[string, FsError]
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -66,51 +67,56 @@ fn load(path: string) -> Result[string, *dyn Error]:
 >     uses $0: entry -> %1 consume last
 >   local $1 $ref: FsError [read assigned captured captured-assigned] place
 >   local $2 $ref: *FsError [read assigned captured] value
->     uses $2: %27 -> %28 lend last
+>     uses $2: %31 -> %32 lend last
 >   local $4 path: string [read captured] place
->   %0 = Retain %40 Entry local $0 #0 : ()
+>   %0 = Retain %45 Entry local $0 #0 : ()
     text := read_config(path)?
 >   %1 = Read move [$0] : string
->   %2 = Box #4 #255 : ()
->   %3 = Store [$4] %1 : ()
->   %4 = Ref local frame promoted [$4] : &string
->   %5 = Call std/text/impl string.len[] (%4) : usize
->   %6 = LoanEnd [%4] : ()
->   %7 = Prim Gt [%5 0:usize] : bool
->   %8 = Read borrow [$4] : string
->   %9 = Intrinsic StrConcat [%8 "!"] : string
->   %10 = NewVariant #0 [%9] : Result[string, FsError]
->   %11 = Block %10 : Result[string, FsError]
->   %12 = Read move [$4] : string
->   %13 = NewVariant #0 [%12] : FsError
->   %14 = NewVariant #1 [%13] : Result[string, FsError]
->   %15 = Block %14 : Result[string, FsError]
->   %16 = If %7 [%11 %15] : Result[string, FsError]
->   %17 = Break L0 %16 : never
->   %18 = Block - : Result[string, FsError]
->   %19 = Scope %18 [] : Result[string, FsError]
->   %20 = Drop [$4] : ()
->   %21 = Read move [%19 as #0 .0] : string
->   %22 = Block %21 : string
->   %23 = Read move [%19 as #1 .0] : FsError
->   %24 = Box #1 #1 : ()
->   %25 = Store [$1] %23 : ()
->   %26 = Ref take [$1] : *FsError
->   %27 = Store [$2] %26 : ()
->   %28 = Read move [$2] : *FsError
->   %29 = Coerce %28 [RefToTraitValue -] : Error
->   %30 = LoanEnd [%28] : ()
->   %31 = Block %29 : Error
->   %32 = RefDyn %31 : *dyn Error
->   %33 = NewVariant #1 [%32] : Result[string, *dyn Error]
->   %34 = Drop [$0] : ()
->   %35 = Return %33 : never
->   %36 = Block - : never
->   %37 = SwitchTag %19 [#0 %22 %36] : string
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = Box #4 #255 : ()
+>   %4 = Store [$4] %1 : ()
+>   %5 = Ref local frame promoted [$4] : &string
+>   %6 = Call std/text/impl string.len[] (%5) : usize
+>   %7 = LoanEnd [%5] : ()
+>   %8 = Prim Gt [%6 0:usize] : bool
+>   %9 = Read borrow [$4] : string
+>   %10 = Intrinsic StrConcat [%9 "!"] : string
+>   %11 = NewVariant #0 [%10] : Result[string, FsError]
+>   %12 = Block %11 : Result[string, FsError]
+>   %13 = Read move [$4] : string
+>   %14 = Intrinsic Empty [] : ()
+>   %15 = NewVariant #0 [%13] : FsError
+>   %16 = NewVariant #1 [%15] : Result[string, FsError]
+>   %17 = Block %16 : Result[string, FsError]
+>   %18 = If %8 [%12 %17] : Result[string, FsError]
+>   %19 = Break L0 %18 : never
+>   %20 = Block - : Result[string, FsError]
+>   %21 = Scope %20 [] : Result[string, FsError]
+>   %22 = Drop [$4] : ()
+>   %23 = Read move [%21 as #0 .0] : string
+>   %24 = Intrinsic Empty [] : ()
+>   %25 = Block %23 : string
+>   %26 = Read move [%21 as #1 .0] : FsError
+>   %27 = Intrinsic Empty [] : ()
+>   %28 = Box #1 #1 : ()
+>   %29 = Store [$1] %26 : ()
+>   %30 = Ref take [$1] : *FsError
+>   %31 = Store [$2] %30 : ()
+>   %32 = Read move [$2] : *FsError
+>   %33 = Intrinsic Empty [] : ()
+>   %34 = Coerce %32 [RefToTraitValue -] : Error
+>   %35 = LoanEnd [%32] : ()
+>   %36 = Block %34 : Error
+>   %37 = RefDyn %36 : *dyn Error
+>   %38 = NewVariant #1 [%37] : Result[string, *dyn Error]
 >   %39 = Drop [$0] : ()
->   %40 = Block %38 : Result[string, *dyn Error]
+>   %40 = Return %38 : never
+>   %41 = Block - : never
+>   %42 = SwitchTag %21 [#0 %25 %41] : string
+>   %44 = Drop [$0] : ()
+>   %45 = Block %43 : Result[string, *dyn Error]
     .Ok(text)
->   %38 = NewVariant #0 [%37] : Result[string, *dyn Error]
+>   %43 = NewVariant #0 [%42] : Result[string, *dyn Error]
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell
 >   summary kept [$0]

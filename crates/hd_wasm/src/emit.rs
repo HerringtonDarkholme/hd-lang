@@ -2480,11 +2480,9 @@ impl Em<'_, '_, '_> {
                 if bw == hd_tir::ir::ReadMode::Move as u32
                     && let Some(r) = self.b.value_read(i as usize) =>
             {
+                // Its `Empty` zeroes the value (`Em::empty_place`).
                 self.push(r)?;
                 self.store(i)?;
-                if self.needs_drop(self.ty_of(r)) {
-                    self.settle_value(r);
-                }
             }
             // A move of a part of a local or a value laid out in its
             // locals; any other part is read as a copy below, and the
@@ -2801,6 +2799,18 @@ impl Em<'_, '_, '_> {
                     // A constant where it is used ([`Em::param_owned`]).
                     // Read where it is used ([`Em::push`]).
                     IntrinsicOp::ParamOwned | IntrinsicOp::CellFlag => {}
+                    IntrinsicOp::Empty => {
+                        // The move it follows, past that move's counts.
+                        let (blk, pos) = (self.topo.blk[i as usize], self.topo.pos[i as usize]);
+                        let list = self.rec(self.b.data[blk as usize][0]);
+                        let read = list[..pos as usize].iter().rev().copied().find(|&m| {
+                            !matches!(
+                                self.b.tags[m as usize],
+                                Tag::Retain | Tag::Release | Tag::MakeUnique
+                            )
+                        });
+                        self.empty_place(self.b.data[read.unwrap_or(i) as usize][0])?;
+                    }
                     IntrinsicOp::Item => {
                         // ruled out: call::emit_call emits Tag::Call
                         // for named intrinsics, collected as call targets.

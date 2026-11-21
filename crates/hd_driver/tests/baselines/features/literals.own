@@ -18,16 +18,18 @@ fn make_struct(n: string, t: List[string]) -> Rec:
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: List[string] [param read] value
->     uses $1: entry -> %3 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
->   %1 = Retain %7 Entry local $1 #0 : ()
+>     uses $1: entry -> %4 consume last
+>   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     Rec { name: n, tags: t }
 >   %2 = Read move [$0] : string
->   %3 = Read move [$1] : List[string]
->   %4 = NewStruct [%2 %3] : Rec
->   %5 = Drop [$0] : ()
->   %6 = Drop [$1] : ()
->   %7 = Block %4 : Rec
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Read move [$1] : List[string]
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = NewStruct [%2 %4] : Rec
+>   %7 = Drop [$0] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : Rec
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -36,16 +38,18 @@ fn make_tuple(n: string, t: List[string]) -> (string, List[string]):
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: List[string] [param read] value
->     uses $1: entry -> %3 consume last
->   %0 = Retain %7 Entry local $0 #0 : ()
->   %1 = Retain %7 Entry local $1 #0 : ()
+>     uses $1: entry -> %4 consume last
+>   %0 = Retain %9 Entry local $0 #0 : ()
+>   %1 = Retain %9 Entry local $1 #0 : ()
     (n, t)
 >   %2 = Read move [$0] : string
->   %3 = Read move [$1] : List[string]
->   %4 = NewTuple - [%2 %3] : (string, List[string])
->   %5 = Drop [$0] : ()
->   %6 = Drop [$1] : ()
->   %7 = Block %4 : (string, List[string])
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Read move [$1] : List[string]
+>   %5 = Intrinsic Empty [] : ()
+>   %6 = NewTuple - [%2 %4] : (string, List[string])
+>   %7 = Drop [$0] : ()
+>   %8 = Drop [$1] : ()
+>   %9 = Block %6 : (string, List[string])
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -53,12 +57,13 @@ fn make_enum(n: string) -> Shape:
 > app/main/make_enum
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %4 Entry local $0 #0 : ()
+>   %0 = Retain %5 Entry local $0 #0 : ()
     Shape.Named(n)
 >   %1 = Read move [$0] : string
->   %2 = NewVariant #0 [%1] : Shape
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : Shape
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewVariant #0 [%1] : Shape
+>   %4 = Drop [$0] : ()
+>   %5 = Block %3 : Shape
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -67,18 +72,20 @@ fn update(r: Rec, n: string) -> Rec:
 >   local $0 r: Rec [param read] value
 >     uses $0: entry -> %2 lend, %3 consume last
 >   local $1 n: string [param read] value
->     uses $1: entry -> %5 consume last
->   %0 = Retain %9 Entry local $0 #0 : ()
->   %1 = Retain %9 Entry local $1 #0 : ()
+>     uses $1: entry -> %6 consume last
+>   %0 = Retain %11 Entry local $0 #0 : ()
+>   %1 = Retain %11 Entry local $1 #0 : ()
     Rec { ...r, name: n }
 >   %2 = Read borrow [$0] : Rec
 >   %3 = Read move [$0 .tags] : List[string]
->   %4 = Drop [$0] : ()
->   %5 = Read move [$1] : string
->   %6 = NewStruct [%5 %3] : Rec
->   %7 = Drop [$0] : ()
->   %8 = Drop [$1] : ()
->   %9 = Block %6 : Rec
+>   %4 = Intrinsic Empty [] : ()
+>   %5 = Drop [$0] : ()
+>   %6 = Read move [$1] : string
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = NewStruct [%6 %3] : Rec
+>   %9 = Drop [$0] : ()
+>   %10 = Drop [$1] : ()
+>   %11 = Block %8 : Rec
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]
 
@@ -86,17 +93,18 @@ fn reuse(n: string) -> (Rec, Rec):
 > app/main/reuse
 >   local $0 n: string [param read] value
 >     uses $0: entry -> %1 consume, %5 consume last
->   %0 = Retain %10 Entry local $0 #0 : ()
+>   %0 = Retain %11 Entry local $0 #0 : ()
     (Rec { name: n, tags: [] }, Rec { name: n, tags: [] })
 >   %1 = Read copy [$0] : string
 >   %2 = Retain %1 Value #0 : ()
 >   %3 = NewList - [] : List[string]
 >   %4 = NewStruct [%1 %3] : Rec
 >   %5 = Read move [$0] : string
->   %6 = NewList - [] : List[string]
->   %7 = NewStruct [%5 %6] : Rec
->   %8 = NewTuple - [%4 %7] : (Rec, Rec)
->   %9 = Drop [$0] : ()
->   %10 = Block %8 : (Rec, Rec)
+>   %6 = Intrinsic Empty [] : ()
+>   %7 = NewList - [] : List[string]
+>   %8 = NewStruct [%5 %7] : Rec
+>   %9 = NewTuple - [%4 %8] : (Rec, Rec)
+>   %10 = Drop [$0] : ()
+>   %11 = Block %9 : (Rec, Rec)
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

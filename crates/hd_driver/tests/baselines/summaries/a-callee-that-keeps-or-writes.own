@@ -14,17 +14,18 @@ struct Tally:
 fn remember(all: &mut List[Member], m: Member) -> void:
 > app/main/remember
 >   local $0 all: &mut List[Member] [param read] value
->     uses $0: entry -> %3 lend last
+>     uses $0: entry -> %4 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %1 consume last
->   %0 = Retain %6 Entry local $1 #0 : ()
+>   %0 = Retain %7 Entry local $1 #0 : ()
     all.push(m)
 >   %1 = Read move [$1] : Member
->   %2 = IsUnique [*$0] : ()
->   %3 = Read borrow [*$0] : List[Member]
->   %4 = Intrinsic ListPush [%3 %1] : ()
->   %5 = Drop [$1] : ()
->   %6 = Block - : ()
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = IsUnique [*$0] : ()
+>   %4 = Read borrow [*$0] : List[Member]
+>   %5 = Intrinsic ListPush [%4 %1] : ()
+>   %6 = Drop [$1] : ()
+>   %7 = Block - : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] writes
 
@@ -32,7 +33,7 @@ fn rename(target: &mut Member, m: Member) -> void:
     target.name = "${m.name}!"
 > app/main/rename
 >   local $0 target: &mut Member [param read] value
->     uses $0: entry -> %55 lend last
+>     uses $0: entry -> %56 lend last
 >   local $1 m: Member [param read] value
 >     uses $1: entry -> %0 lend last
 >   local $2 result: string [read] value
@@ -105,15 +106,16 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %51 = Block - : ()
 >   %52 = Scope %51 [] : ()
 >   %53 = Read move [%15] : string
->   %54 = Drop [$4] : ()
->   %55 = Store [*$0 .name] %53 : ()
->   %56 = Release %55 Operation #3 : ()
->   %57 = Intrinsic ParamOwned [1:i32] : bool
->   %58 = Drop [$1] : ()
->   %59 = Block - : ()
->   %60 = If %57 [%59 -] : ()
->   %61 = Release %62 Exit local $1 #2 : ()
->   %62 = Block - : ()
+>   %54 = Intrinsic Empty [] : ()
+>   %55 = Drop [$4] : ()
+>   %56 = Store [*$0 .name] %53 : ()
+>   %57 = Release %56 Operation #3 : ()
+>   %58 = Intrinsic ParamOwned [1:i32] : bool
+>   %59 = Drop [$1] : ()
+>   %60 = Block - : ()
+>   %61 = If %58 [%60 -] : ()
+>   %62 = Release %63 Exit local $1 #2 : ()
+>   %63 = Block - : ()
 >   summary kept [] borrows [$1] writes
 
 impl Tally:
@@ -121,15 +123,16 @@ impl Tally:
 > app/main/impl Tally.add
 >   local $0 self: *mut Tally [param read] value
 >     uses $0: entry -> %1 lend, %3 lend, %4 consume last
->   %0 = Retain %6 Entry local $0 #0 : ()
+>   %0 = Retain %7 Entry local $0 #0 : ()
         self.count = self.count + 1
 >   %1 = Read copy [*$0 .count] : usize
 >   %2 = Prim Add [%1 1:usize] : usize
 >   %3 = Store [*$0 .count] %2 : ()
->   %5 = Drop [$0] : ()
->   %6 = Block %4 : *mut Tally
+>   %6 = Drop [$0] : ()
+>   %7 = Block %4 : *mut Tally
         self
 >   %4 = Read move [$0] : *mut Tally
+>   %5 = Intrinsic Empty [] : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0] returns $0 writes
 
@@ -138,11 +141,11 @@ fn other(a: string, b: string) -> string:
 >   local $0 a: string [param read] value
 >     uses $0: entry -> %2 lend, %8 consume last
 >   local $1 b: string [param read] value
->     uses $1: entry -> %15 lend last
+>     uses $1: entry -> %16 lend last
 >   local $2 value: string [read] value
->     uses $2: %18 -> %19 lend last
->   %0 = Retain %28 Entry local $0 #0 : ()
->   %1 = Retain %28 Entry local $1 #0 : ()
+>     uses $2: %20 -> %21 lend last
+>   %0 = Retain %31 Entry local $0 #0 : ()
+>   %1 = Retain %31 Entry local $1 #0 : ()
     if a.len() > 3:
 >   %2 = Read borrow [$0] : string
 >   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
@@ -150,28 +153,31 @@ fn other(a: string, b: string) -> string:
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
 >   %7 = Prim Gt [%6 3:usize] : bool
->   %13 = If %7 [%12 -] : ()
->   %14 = Drop [$0] : ()
->   %24 = Read move [%15] : string
->   %26 = Drop [$0] : ()
->   %27 = Drop [$1] : ()
->   %28 = Block %24 : string
+>   %14 = If %7 [%13 -] : ()
+>   %15 = Drop [$0] : ()
+>   %26 = Read move [%16] : string
+>   %27 = Intrinsic Empty [] : ()
+>   %29 = Drop [$0] : ()
+>   %30 = Drop [$1] : ()
+>   %31 = Block %26 : string
         return a
 >   %8 = Read move [$0] : string
->   %9 = Drop [$0] : ()
->   %10 = Drop [$1] : ()
->   %11 = Return %8 : never
->   %12 = Block - : never
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Drop [$0] : ()
+>   %11 = Drop [$1] : ()
+>   %12 = Return %8 : never
+>   %13 = Block - : never
     "${b}"
->   %15 = Read move [$1] : string
->   %16 = Read copy [%15] : string
->   %17 = Retain %16 Value #0 : ()
->   %18 = Store [$2] %16 : ()
->   %19 = Read borrow [$2] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
->   %21 = Break L0 %20 : never
->   %22 = Block - : usize
->   %23 = Scope %22 [] : usize
->   %25 = Drop [$2] : ()
+>   %16 = Read move [$1] : string
+>   %17 = Intrinsic Empty [] : ()
+>   %18 = Read copy [%16] : string
+>   %19 = Retain %18 Value #0 : ()
+>   %20 = Store [$2] %18 : ()
+>   %21 = Read borrow [$2] : string
+>   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %23 = Break L0 %22 : never
+>   %24 = Block - : usize
+>   %25 = Scope %24 [] : usize
+>   %28 = Drop [$2] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary kept [$0 $1]

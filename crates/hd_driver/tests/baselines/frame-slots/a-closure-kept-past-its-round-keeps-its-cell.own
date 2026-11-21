@@ -24,8 +24,8 @@ fn kept(n: i32) -> i32:
 >   %0 = Block 0:i32 : i32
 >   %1 = Closure #1 : fn() -> i32
 >   %2 = Store [$1] %1 : ()
->   %53 = Drop [$6] : ()
->   %54 = Block %51 : i32
+>   %55 = Drop [$6] : ()
+>   %56 = Block %53 : i32
     for i in +0..n:
 >   %3 = Read copy [$0] : i32
 >   %4 = NewStruct [0:i32 %3 0:bool] : Range[i32]
@@ -44,12 +44,12 @@ fn kept(n: i32) -> i32:
 >   %17 = Prim Add [%16 1:i32] : i32
 >   %18 = Store [$2] %17 : ()
 >   %20 = Box #6 #1 : ()
->   %44 = Block - : ()
->   %45 = Break L0 - : never
->   %46 = Block - : ()
->   %47 = If %13 [%44 %46] : ()
->   %48 = Block - : ()
->   %49 = Loop %48 - : ()
+>   %45 = Block - : ()
+>   %46 = Break L0 - : never
+>   %47 = Block - : ()
+>   %48 = If %13 [%45 %47] : ()
+>   %49 = Block - : ()
+>   %50 = Loop %49 - : ()
         let total = i
 >   %19 = Read copy [$5] : i32
 >   %21 = Store [$6] %19 : ()
@@ -73,17 +73,19 @@ fn kept(n: i32) -> i32:
         if i == 0:
 >   %36 = Read copy [$5] : i32
 >   %37 = Prim Eq [%36 0:i32] : bool
->   %42 = If %37 [%41 -] : ()
->   %43 = Drop [$7] : ()
+>   %43 = If %37 [%42 -] : ()
+>   %44 = Drop [$7] : ()
             f = step
 >   %38 = Read move [$7] : fn() -> i32
->   %39 = Store [$1] %38 : ()
->   %40 = Release %39 Operation #3 : ()
->   %41 = Block - : ()
+>   %39 = Intrinsic Empty [] : ()
+>   %40 = Store [$1] %38 : ()
+>   %41 = Release %40 Operation #3 : ()
+>   %42 = Block - : ()
     f()
->   %50 = Read move [$1] : fn() -> i32
->   %51 = CallValue %50 [] : i32
->   %52 = Drop [%50] : ()
+>   %51 = Read move [$1] : fn() -> i32
+>   %52 = Intrinsic Empty [] : ()
+>   %53 = CallValue %51 [] : i32
+>   %54 = Drop [%51] : ()
 >   exit sub 0 drops [$6]
 >   exit sub 2 drops [$6]
 >   storage sub 0: $6 cell

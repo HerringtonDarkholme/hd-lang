@@ -2,18 +2,18 @@
 app/main/sizes
   local $1 parcels: UniqMap[string, i32] [read assigned captured captured-assigned] place
   local $2 total: usize [:= read assigned] value
-    uses $2: %28 -> %33 consume last
-  %17 = Ref local frame [$1] : &UniqMap[string, i32]
-  %18 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].is_empty[string, i32] (%17) : bool
-  %19 = LoanEnd [%17] : ()
-  %20 = Coerce 0:usize [Identity -] : usize
-  %21 = Block %20 : usize
-  %22 = Ref local frame [$1] : &UniqMap[string, i32]
-  %23 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].len[string, i32] (%22) : usize
-  %24 = LoanEnd [%22] : ()
-  %25 = Coerce %23 [Identity -] : usize
-  %26 = Block %25 : usize
-  %27 = If %18 [%21 %26] : usize
-  %28 = Store [$2] %27 : ()
+    uses $2: %29 -> %34 consume last
+  %18 = Ref local frame [$1] : &UniqMap[string, i32]
+  %19 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].is_empty[string, i32] (%18) : bool
+  %20 = LoanEnd [%18] : ()
+  %21 = Coerce 0:usize [Identity -] : usize
+  %22 = Block %21 : usize
+  %23 = Ref local frame [$1] : &UniqMap[string, i32]
+  %24 = Call std/collections/impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].len[string, i32] (%23) : usize
+  %25 = LoanEnd [%23] : ()
+  %26 = Coerce %24 [Identity -] : usize
+  %27 = Block %26 : usize
+  %28 = If %19 [%22 %27] : usize
+  %29 = Store [$2] %28 : ()
   exit sub 0 drops [$0]
   storage sub 0: $1 slot

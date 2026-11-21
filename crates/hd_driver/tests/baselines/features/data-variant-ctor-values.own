@@ -64,12 +64,13 @@ fn wrap_all(errors: List[FsError]) -> List[SyncError]:
 >   %36 = Block - : ()
 >   %37 = Loop %36 - : ()
 >   %38 = Read move [$1] : List[SyncError]
->   %39 = Intrinsic ParamOwned [0:i32] : bool
->   %40 = Drop [$0] : ()
->   %41 = Block - : ()
->   %42 = If %39 [%41 -] : ()
->   %43 = Release %44 Exit local $0 #2 : ()
->   %44 = Block %38 : List[SyncError]
+>   %39 = Intrinsic Empty [] : ()
+>   %40 = Intrinsic ParamOwned [0:i32] : bool
+>   %41 = Drop [$0] : ()
+>   %42 = Block - : ()
+>   %43 = If %40 [%42 -] : ()
+>   %44 = Release %45 Exit local $0 #2 : ()
+>   %45 = Block %38 : List[SyncError]
 >   summary kept [] borrows [$0]
 >   loop %37 keeps len [$0] (-..-)
 
@@ -129,17 +130,18 @@ fn wrap_with(errors: List[FsError], wrap: fn(FsError) -> SyncError) -> List[Sync
 >   %38 = Block - : ()
 >   %39 = Loop %38 - : ()
 >   %40 = Read move [$2] : List[SyncError]
->   %41 = Intrinsic ParamOwned [0:i32] : bool
->   %42 = Drop [$0] : ()
->   %43 = Block - : ()
->   %44 = If %41 [%43 -] : ()
->   %45 = Release %51 Exit local $0 #2 : ()
->   %46 = Intrinsic ParamOwned [1:i32] : bool
->   %47 = Drop [$1] : ()
->   %48 = Block - : ()
->   %49 = If %46 [%48 -] : ()
->   %50 = Release %51 Exit local $1 #2 : ()
->   %51 = Block %40 : List[SyncError]
+>   %41 = Intrinsic Empty [] : ()
+>   %42 = Intrinsic ParamOwned [0:i32] : bool
+>   %43 = Drop [$0] : ()
+>   %44 = Block - : ()
+>   %45 = If %42 [%44 -] : ()
+>   %46 = Release %52 Exit local $0 #2 : ()
+>   %47 = Intrinsic ParamOwned [1:i32] : bool
+>   %48 = Drop [$1] : ()
+>   %49 = Block - : ()
+>   %50 = If %47 [%49 -] : ()
+>   %51 = Release %52 Exit local $1 #2 : ()
+>   %52 = Block %40 : List[SyncError]
 >   summary kept [] borrows [$0 $1] writes
 >   loop %39 keeps len [$0] (-..-)
 
@@ -205,15 +207,16 @@ fn as_value(errors: List[FsError]) -> List[SyncError]:
 >   %44 = Block - : ()
 >   %45 = Loop %44 - : ()
 >   %46 = Read move [$4] : List[SyncError]
->   %47 = Break L1 %46 : never
->   %48 = Block - : List[SyncError]
->   %49 = Scope %48 [] : List[SyncError]
->   %50 = Intrinsic ParamOwned [0:i32] : bool
->   %51 = Drop [$0] : ()
->   %52 = Block - : ()
->   %53 = If %50 [%52 -] : ()
->   %54 = Release %55 Exit local $0 #2 : ()
->   %55 = Block %49 : List[SyncError]
+>   %47 = Intrinsic Empty [] : ()
+>   %48 = Break L1 %46 : never
+>   %49 = Block - : List[SyncError]
+>   %50 = Scope %49 [] : List[SyncError]
+>   %51 = Intrinsic ParamOwned [0:i32] : bool
+>   %52 = Drop [$0] : ()
+>   %53 = Block - : ()
+>   %54 = If %51 [%53 -] : ()
+>   %55 = Release %56 Exit local $0 #2 : ()
+>   %56 = Block %50 : List[SyncError]
 >   exit sub 1 drops [$1]
 >   summary kept [] borrows [$0]
 >   loop %45 keeps len [$0] (-..-)
@@ -222,12 +225,13 @@ fn named(p: string) -> SyncError:
 > app/main/named
 >   local $0 p: string [param read] value
 >     uses $0: entry -> %1 consume last
->   %0 = Retain %5 Entry local $0 #0 : ()
+>   %0 = Retain %6 Entry local $0 #0 : ()
     SyncError.Retry(error=FsError.NotFound(p), attempt=1)
 >   %1 = Read move [$0] : string
->   %2 = NewVariant #0 [%1] : FsError
->   %3 = NewVariant #1 [1:i32 %2] : SyncError
->   %4 = Drop [$0] : ()
->   %5 = Block %3 : SyncError
+>   %2 = Intrinsic Empty [] : ()
+>   %3 = NewVariant #0 [%1] : FsError
+>   %4 = NewVariant #1 [1:i32 %3] : SyncError
+>   %5 = Drop [$0] : ()
+>   %6 = Block %4 : SyncError
 >   exit sub 0 drops [$0]
 >   summary kept [$0]

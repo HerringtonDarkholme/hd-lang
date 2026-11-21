@@ -61,30 +61,31 @@ fn length(text: string) -> usize:
 > app/main/length
 >   local $0 text: string [param read captured] place
 >   local $1 p: Parser[string] [:= read assigned] value
->     uses $1: %8 -> %9 lend, %11 lend last
+>     uses $1: %9 -> %10 lend, %12 lend last
 >   local $2 src: &string [read] value
 >     uses $2: %2 -> %3 consume last
 >   %0 = Box #0 #0 : ()
 >   %1 = Ref local frame [$0] : &string
 >   %2 = Store [$2] %1 : ()
 >   %3 = Read move [$2] : &string
->   %4 = NewStruct [%3 0:usize] : Parser[string]
->   %5 = Break L0 %4 : never
->   %6 = Block - : Parser[string]
->   %7 = Scope %6 [] : Parser[string]
->   %8 = Store [$1] %7 : ()
->   %14 = Intrinsic ParamOwned [0:i32] : bool
->   %15 = Drop [$0] : ()
->   %16 = Block - : ()
->   %17 = If %14 [%16 -] : ()
->   %18 = Release %19 Exit local $0 #2 : ()
->   %19 = Block %13 : usize
+>   %4 = Intrinsic Empty [] : ()
+>   %5 = NewStruct [%3 0:usize] : Parser[string]
+>   %6 = Break L0 %5 : never
+>   %7 = Block - : Parser[string]
+>   %8 = Scope %7 [] : Parser[string]
+>   %9 = Store [$1] %8 : ()
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $0 #2 : ()
+>   %20 = Block %14 : usize
     p.src.len() + p.pos
->   %9 = Read borrow [$1 .src] : &string
->   %10 = Call std/text/impl string.len[] (%9) : usize
->   %11 = Read copy [$1 .pos] : usize
->   %12 = LoanEnd [$1] : ()
->   %13 = Prim Add [%10 %11] : usize
+>   %10 = Read borrow [$1 .src] : &string
+>   %11 = Call std/text/impl string.len[] (%10) : usize
+>   %12 = Read copy [$1 .pos] : usize
+>   %13 = LoanEnd [$1] : ()
+>   %14 = Prim Add [%11 %12] : usize
 >   storage sub 0: $0 slot
 >   summary kept [] borrows [$0]
 
@@ -98,7 +99,7 @@ fn token(text: string, other: string) -> usize:
 >   local $3 fallback: &string [read] value
 >     uses $3: %6 -> %11 consume last
 >   local $4 w: &string [read assigned] value
->     uses $4: %14 -> %8 consume last
+>     uses $4: %15 -> %8 consume last
 >   %0 = Box #0 #0 : ()
 >   %1 = Box #1 #0 : ()
 >   %2 = Ref local frame [$0] : &string
@@ -111,30 +112,31 @@ fn token(text: string, other: string) -> usize:
 >   %9 = Retain %8 Value #0 : ()
 >   %10 = Block %8 : &string
 >   %11 = Read move [$3] : &string
->   %12 = Block %11 : &string
->   %13 = Read borrow [%7 as #0 .0] : &string
->   %14 = Store [$4] %13 : ()
->   %16 = Block - : never
->   %19 = SwitchTag %7 [#0 %16 %18] : never
->   %20 = Block - : never
->   %21 = Match %7 [%20 %10 %12] : &string
->   %22 = Break L0 %21 : never
->   %23 = Block - : &string
->   %24 = Scope %23 [] : &string
->   %25 = LoanEnd [$3] : ()
->   %26 = LoanEnd [$2] : ()
->   %27 = Call std/text/impl string.len[] (%24) : usize
->   %28 = Drop [%24] : ()
->   %29 = Intrinsic ParamOwned [0:i32] : bool
->   %30 = Drop [$0] : ()
->   %31 = Block - : ()
->   %32 = If %29 [%31 -] : ()
->   %33 = Release %39 Exit local $0 #2 : ()
->   %34 = Intrinsic ParamOwned [1:i32] : bool
->   %35 = Drop [$1] : ()
->   %36 = Block - : ()
->   %37 = If %34 [%36 -] : ()
->   %38 = Release %39 Exit local $1 #2 : ()
->   %39 = Block %27 : usize
+>   %12 = Intrinsic Empty [] : ()
+>   %13 = Block %11 : &string
+>   %14 = Read borrow [%7 as #0 .0] : &string
+>   %15 = Store [$4] %14 : ()
+>   %17 = Block - : never
+>   %20 = SwitchTag %7 [#0 %17 %19] : never
+>   %21 = Block - : never
+>   %22 = Match %7 [%21 %10 %13] : &string
+>   %23 = Break L0 %22 : never
+>   %24 = Block - : &string
+>   %25 = Scope %24 [] : &string
+>   %26 = LoanEnd [$3] : ()
+>   %27 = LoanEnd [$2] : ()
+>   %28 = Call std/text/impl string.len[] (%25) : usize
+>   %29 = Drop [%25] : ()
+>   %30 = Intrinsic ParamOwned [0:i32] : bool
+>   %31 = Drop [$0] : ()
+>   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = Release %40 Exit local $0 #2 : ()
+>   %35 = Intrinsic ParamOwned [1:i32] : bool
+>   %36 = Drop [$1] : ()
+>   %37 = Block - : ()
+>   %38 = If %35 [%37 -] : ()
+>   %39 = Release %40 Exit local $1 #2 : ()
+>   %40 = Block %28 : usize
 >   storage sub 0: $0 slot, $1 slot
 >   summary kept [] borrows [$0 $1]

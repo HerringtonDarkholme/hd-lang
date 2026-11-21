@@ -78,12 +78,13 @@ fn first(xs: &List[string]) -> usize:
 >   %0 = Ref local [*$0 [0:usize]] : &string
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Store [$1] %0 : ()
->   %7 = Block %4 : usize
+>   %8 = Block %5 : usize
     a.len()
 >   %3 = Read move [$1] : &string
->   %4 = Call std/text/impl string.len[] (%3) : usize
->   %5 = LoanClose %1 : ()
->   %6 = LoanEnd [%3] : ()
+>   %4 = Intrinsic Empty [] : ()
+>   %5 = Call std/text/impl string.len[] (%3) : usize
+>   %6 = LoanClose %1 : ()
+>   %7 = LoanEnd [%3] : ()
 >   summary kept [] writes
 
 fn slot() -> i32:

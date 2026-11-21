@@ -81,17 +81,18 @@ fn returning(callback: fn(string) -> string, value: string) -> string:
 fn retaining(value: string) -> fn() -> string:
 > app/main/retaining
 >   local $0 value: string [param read captured] value
->     uses $0: entry -> %2 consume, %5 consume last
->   %1 = Retain %8 Entry local $0 #0 : ()
+>     uses $0: entry -> %2 consume, %6 consume last
+>   %1 = Retain %9 Entry local $0 #0 : ()
     fn() -> string: value
->   %0 = Retain %4 Entry captures #0 : ()
+>   %0 = Retain %5 Entry captures #0 : ()
 >   %2 = Read move [$0] : string
->   %3 = Drop [$0] : ()
->   %4 = Block %2 : string
->   %5 = Closure #1 : fn() -> string
->   %6 = Retain %5 Operation captures #0 : ()
->   %7 = Drop [$0] : ()
->   %8 = Block %5 : fn() -> string
+>   %3 = Intrinsic Empty [] : ()
+>   %4 = Drop [$0] : ()
+>   %5 = Block %2 : string
+>   %6 = Closure #1 : fn() -> string
+>   %7 = Retain %6 Operation captures #0 : ()
+>   %8 = Drop [$0] : ()
+>   %9 = Block %6 : fn() -> string
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
 >   summary kept [$0]
@@ -163,22 +164,23 @@ fn moving(
 >   local $1 value: UniqList[usize] [param read] value
 >     uses $1: entry -> %3 consume last
 >   local $2 $temporary_owner: bool [read assigned] value
->     uses $2: %1 -> %6 lend last
+>     uses $2: %1 -> %7 lend last
 >   %0 = Intrinsic ParamOwned [1:i32] : bool
 >   %1 = Store [$2] %0 : ()
 >   %2 = Read borrow [$0] : fn(UniqList[usize]) -> UniqList[usize]
 >   %3 = Read move [$1] : UniqList[usize]
->   %4 = FlagClear [$1] #2 : ()
->   %5 = CallValue %2 [%3] : UniqList[usize]
->   %6 = Read copy [$2] : bool
->   %7 = Drop [$1] : ()
->   %8 = Block - : ()
->   %9 = If %6 [%8 -] : ()
->   %10 = Intrinsic ParamOwned [0:i32] : bool
->   %11 = Drop [$0] : ()
->   %12 = Block - : ()
->   %13 = If %10 [%12 -] : ()
->   %14 = Release %15 Exit local $0 #2 : ()
->   %15 = Block %5 : UniqList[usize]
+>   %4 = Intrinsic Empty [] : ()
+>   %5 = FlagClear [$1] #2 : ()
+>   %6 = CallValue %2 [%3] : UniqList[usize]
+>   %7 = Read copy [$2] : bool
+>   %8 = Drop [$1] : ()
+>   %9 = Block - : ()
+>   %10 = If %7 [%9 -] : ()
+>   %11 = Intrinsic ParamOwned [0:i32] : bool
+>   %12 = Drop [$0] : ()
+>   %13 = Block - : ()
+>   %14 = If %11 [%13 -] : ()
+>   %15 = Release %16 Exit local $0 #2 : ()
+>   %16 = Block %6 : UniqList[usize]
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes

@@ -155,10 +155,10 @@ pub fn run(n: i64) -> i64:
     counters := box(Counters { calls: 0, total: 0 })
 > app/main/run
 >   local $0 n: i64 [param read] value
->     uses $0: entry -> %15 lend last
+>     uses $0: entry -> %16 lend last
 >   local $1 $ref: Counters [read assigned captured captured-assigned] place
 >   local $2 counters: *mut Counters [:= read assigned] value
->     uses $2: %4 -> %5 consume, %20 lend last
+>     uses $2: %4 -> %5 consume, %21 lend last
 >   local $3 $ref: *mut Counters [read assigned captured] value
 >     uses $3: %7 -> %8 lend last
 >   %0 = NewStruct [0:usize 0:i64] : Counters
@@ -166,26 +166,27 @@ pub fn run(n: i64) -> i64:
 >   %2 = Store [$1] %0 : ()
 >   %3 = Ref take mut [$1] : *mut Counters
 >   %4 = Store [$2] %3 : ()
->   %22 = Block %20 : i64
+>   %23 = Block %21 : i64
     $.with(Meter=counters):
 >   %5 = Read copy [$2] : *mut Counters
 >   %6 = Retain %5 Value #0 : ()
 >   %7 = Store [$3] %5 : ()
 >   %8 = Read move [$3] : *mut Counters
->   %9 = Coerce %8 [RefToTraitValue -] : Meter
->   %10 = LoanEnd [%8] : ()
->   %11 = Block %9 : Meter
->   %12 = RefDyn %11 : *mut dyn Meter
->   %13 = Coerce %12 [RefAsProvider -] : Meter
->   %14 = LoanEnd [%12] : ()
->   %18 = With [Meter %13] %17 : ()
->   %19 = Drop [%13] : ()
+>   %9 = Intrinsic Empty [] : ()
+>   %10 = Coerce %8 [RefToTraitValue -] : Meter
+>   %11 = LoanEnd [%8] : ()
+>   %12 = Block %10 : Meter
+>   %13 = RefDyn %12 : *mut dyn Meter
+>   %14 = Coerce %13 [RefAsProvider -] : Meter
+>   %15 = LoanEnd [%13] : ()
+>   %19 = With [Meter %14] %18 : ()
+>   %20 = Drop [%14] : ()
         count(n)
->   %15 = Read copy [$0] : i64
->   %16 = Call app/main/count[] (%15) : ()
->   %17 = Block - : ()
+>   %16 = Read copy [$0] : i64
+>   %17 = Call app/main/count[] (%16) : ()
+>   %18 = Block - : ()
     counters.total
->   %20 = Read copy [*$2 .total] : i64
->   %21 = Drop [$2] : ()
+>   %21 = Read copy [*$2 .total] : i64
+>   %22 = Drop [$2] : ()
 >   storage sub 0: $1 cell
 >   summary kept [] writes

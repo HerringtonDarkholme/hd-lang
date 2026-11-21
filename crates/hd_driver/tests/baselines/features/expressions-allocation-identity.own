@@ -33,7 +33,7 @@ fn same_dyn(user: &mut User) -> bool:
 >   local $3 $ref: &mut User [read assigned captured] value
 >     uses $3: %10 -> %11 lend last
 >   local $4 second: &mut dyn Named [read assigned] value
->     uses $4: %17 -> %19 lend last
+>     uses $4: %17 -> %20 lend last
 >   %0 = Read borrow [$0] : &mut User
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$1] : &mut User
@@ -43,7 +43,7 @@ fn same_dyn(user: &mut User) -> bool:
 >   %6 = Block %4 : Named
 >   %7 = RefDyn %6 : &mut dyn Named
 >   %8 = Store [$2] %7 : ()
->   %23 = Block %20 : bool
+>   %25 = Block %22 : bool
     let second: &mut dyn Named = user
 >   %9 = Read borrow [$0] : &mut User
 >   %10 = Store [$3] %9 : ()
@@ -56,8 +56,10 @@ fn same_dyn(user: &mut User) -> bool:
 >   %17 = Store [$4] %16 : ()
     first is second
 >   %18 = Read move [$2] : &mut dyn Named
->   %19 = Read move [$4] : &mut dyn Named
->   %20 = Is %18 %19 : bool
->   %21 = Drop [%19] : ()
->   %22 = Drop [%18] : ()
+>   %19 = Intrinsic Empty [] : ()
+>   %20 = Read move [$4] : &mut dyn Named
+>   %21 = Intrinsic Empty [] : ()
+>   %22 = Is %18 %20 : bool
+>   %23 = Drop [%20] : ()
+>   %24 = Drop [%18] : ()
 >   summary kept []
