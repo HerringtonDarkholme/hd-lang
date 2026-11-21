@@ -1,0 +1,17 @@
+# @dump: stdout
+# expected: two using! bindings, a reborrow of a reference parameter and then the parameter itself,
+# dispose last in, first out: the reborrow stays live across the owner's dispose! and disposes after it
+use std.net.{ScriptedStream, TcpStream}
+
+fn twice!(stream: &mut dyn TcpStream) -> void:
+    using! first = &mut *stream
+    using! second = stream
+    pass
+
+pub fn main!() -> void $ Console:
+    other := ScriptedStream::new([])
+    twice!(other)
+    println(debug(other.close()))
+    match other.write!([1]):
+        .Err(error) => println(error.to_string())
+        .Ok(_) => println("written")
