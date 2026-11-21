@@ -868,6 +868,7 @@ mod object_glue_tests {
                     release_at: false,
                     retain_at: false,
                     in_place: None,
+                    small: None,
                 })),
             )],
         };

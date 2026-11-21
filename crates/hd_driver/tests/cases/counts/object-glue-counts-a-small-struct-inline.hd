@@ -1,0 +1,24 @@
+# @dump: functions
+# @build: v8 release
+# A box's release glue runs once per object it frees, so a payload whose
+# count is a few addresses states them inline (`ShimSyms::small`): a
+# `Node`'s glue tests and releases its two children itself and calls no
+# release shim. A call of the shim per object made `binary_trees`, which
+# frees millions of nodes, 3% slower.
+struct Node:
+    left: (*Node)?
+    right: (*Node)?
+
+fn make(depth: i32) -> *Node:
+    if depth == 0:
+        box(Node { left: .None, right: .None })
+    else:
+        box(Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) })
+
+fn count(node: &Node) -> i64:
+    match node.left:
+        .None => 1
+        .Some(left) => 1 + count(left)
+
+pub fn main() -> void $ Console:
+    println("${count(make(4))}")

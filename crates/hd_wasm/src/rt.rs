@@ -802,6 +802,10 @@ pub struct ShimSyms {
     pub release_at: bool,
     pub retain_at: bool,
     pub in_place: Option<Box<(u32, Vec<Leaf>)>>,
+    /// A struct or tuple of at most [`GLUE_ADDRESSES`] counted addresses,
+    /// with no hook and no switch: each one's count, which runtime glue
+    /// states inline ([`Counted::emit_glue`]).
+    pub small: Option<Box<[Counted]>>,
 }
 
 impl Counted {
@@ -873,6 +877,25 @@ impl Counted {
                     _ => f.call(Sym::Shim(release_value, false, width, hooked)),
                 }
             }
+        }
+    }
+
+    /// [`Counted::emit`] in runtime glue, which runs once per object or
+    /// element: a small struct's counts inline, with no call of its shim.
+    pub(crate) fn emit_glue(
+        &self,
+        f: &mut Func,
+        m: &Module,
+        get: &dyn Fn(&mut Func, u32),
+        retain: bool,
+    ) {
+        match self {
+            Counted::Shims(s) if let Some(each) = &s.small => {
+                for c in each {
+                    c.emit(f, m, get, retain);
+                }
+            }
+            _ => self.emit(f, m, get, retain),
         }
     }
 
@@ -980,9 +1003,65 @@ pub(crate) fn counted_of_portion(
                 release_at,
                 retain_at,
                 in_place: layout,
+                small: {
+                    let mut each = Vec::new();
+                    addresses(input, t, portion, 0, &mut each)?.then(|| each.into())
+                },
             }))
         }
     })
+}
+
+/// The most counted addresses of a struct or tuple whose counts runtime
+/// glue states inline ([`ShimSyms::small`]), measured on the release
+/// bench: past 5, no module changes.
+pub const GLUE_ADDRESSES: usize = 5;
+
+/// Whether a `t` value counts as at most [`GLUE_ADDRESSES`] addresses,
+/// optionals' among them, with no hook and no switch: pushes each one's
+/// count to `out`, its index `first` on. One question of each part's
+/// count, each memoized; it stops past the bound.
+fn addresses(
+    input: &Input<'_>,
+    t: Ty,
+    portion: hd_layout::shims::Portion,
+    first: u32,
+    out: &mut Vec<Counted>,
+) -> StageResult<bool> {
+    use hd_layout::shims::{Count, Shim};
+    let (pool, env) = (input.pool, input.env);
+    let sum = crate::layout::variants(pool, env, t).is_some();
+    match (input.shim)(t, Shim::Release, portion, false)?.0 {
+        Count::None => return Ok(true),
+        Count::Address { index, known } => {
+            let index = first + index;
+            out.push(if sum {
+                Counted::Optional { index, known }
+            } else if hd_mono::holds_coll(pool, env, t) {
+                Counted::Coll { index }
+            } else {
+                Counted::Address { index, known }
+            });
+            return Ok(out.len() <= GLUE_ADDRESSES);
+        }
+        Count::Parts | Count::Call if sum || crate::layout::holds_drop(pool, env, t) => {
+            return Ok(false);
+        }
+        Count::Parts | Count::Call => {}
+    }
+    let s = crate::layout::strip_newtype(pool, env, t);
+    let parts = match pool.get(s) {
+        hd_types::TyData::Tuple { .. } => crate::layout::tuple_members(pool, s),
+        _ => crate::layout::value_parts(pool, env, s),
+    };
+    let (_, at) = crate::layout::payload_mem(pool, env, &parts)?;
+    for (k, &p) in parts.iter().enumerate() {
+        let start = first + u32::try_from(at[k].first).unwrap_or(u32::MAX);
+        if !addresses(input, p, portion, start, out)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 impl Elem {
@@ -3193,6 +3272,14 @@ fn parts_glue(
         f.set(*at);
     }
     for (first, counted) in parts {
+        let get = |f: &mut Func, k: u32| f.get(ls[(first + k) as usize]);
+        // A small struct's counts are inline, on the loaded values.
+        if let Counted::Shims(s) = counted
+            && s.small.is_some()
+        {
+            counted.emit_glue(&mut f, m, &get, retain);
+            continue;
+        }
         let off = leaves[*first as usize].offset - counted.first_offset();
         counted.emit_at(
             &mut f,
@@ -3204,7 +3291,7 @@ fn parts_glue(
                     f.op(Instruction::I32Add);
                 }
             },
-            &|f, k| f.get(ls[(first + k) as usize]),
+            &get,
             retain,
         );
     }
@@ -3974,7 +4061,7 @@ fn drop_elems(m: &Module, elem: &Elem) -> Func {
     each_elem(&mut f, at, n, elem.size, &|f| {
         fill_elem(f, at, &elem.leaves, &ls);
         elem.counted
-            .emit(f, m, &|f, k| f.get(ls[k as usize]), false);
+            .emit_glue(f, m, &|f, k| f.get(ls[k as usize]), false);
     });
     f
 }
@@ -3999,7 +4086,8 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
     let ls = load_elem_locals(&mut f, &elem.leaves);
     each_elem(&mut f, 0, 1, elem.size, &|f| {
         fill_elem(f, 0, &elem.leaves, &ls);
-        elem.counted.emit(f, m, &|f, k| f.get(ls[k as usize]), true);
+        elem.counted
+            .emit_glue(f, m, &|f, k| f.get(ls[k as usize]), true);
     });
     f
 }
