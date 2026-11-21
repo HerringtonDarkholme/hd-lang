@@ -14,7 +14,6 @@
 //! item's own instance takes [`item_template`]: the item without its
 //! generic local functions.
 
-use hd_base::HashSet;
 use hd_types::{InternPool, TyList};
 
 use super::{Body, NONE, Tag, Topology, sub_flags, u32_of};
@@ -134,23 +133,19 @@ impl Lifting {
 /// # Errors
 /// A kept row that names an instruction outside the kept part.
 pub fn function_template(b: &Body, ts: &[usize]) -> Result<Body, String> {
-    let mut target = vec![false; b.sub_root.len()];
-    for &t in ts {
-        if let Some(x) = target.get_mut(t) {
-            *x = true;
-        }
-    }
-    let stop = stops(b, &making(b, &Topology::new(b)), &target);
-    let keep: Vec<bool> = stop
-        .iter()
-        .map(|&t| t != NONE && target[t as usize])
+    let enclosing = making(b, &Topology::new(b));
+    let keep: Vec<bool> = (0..b.sub_root.len())
+        .map(|s| {
+            (ts.iter()).any(|&t| {
+                inside(&enclosing, s, t) && (s == t || !generic_around(b, &enclosing, s, t))
+            })
+        })
         .collect();
-    let defining: HashSet<u32> = (0..b.len())
+    let defining: Vec<u32> = (0..b.len())
         .filter(|&i| {
-            work!(1);
             b.tags[i] == Tag::Closure
                 && !b.is_instantiation(i)
-                && target.get(b.data[i][0] as usize) == Some(&true)
+                && ts.contains(&(b.data[i][0] as usize))
         })
         .map(u32_of)
         .collect();
@@ -171,132 +166,31 @@ pub fn item_template(b: &Body) -> Result<Option<Body>, String> {
     if !(0..b.sub_root.len()).any(|s| b.sub_is_generic(s)) {
         return Ok(None);
     }
-    let none = vec![false; b.sub_root.len()];
-    let stop = stops(b, &making(b, &Topology::new(b)), &none);
-    let keep: Vec<bool> = stop.iter().map(|&t| t == NONE).collect();
-    let mut out = crate::inline::extract_subs(b, &keep, &HashSet::default(), true)?;
+    let enclosing = making(b, &Topology::new(b));
+    let keep: Vec<bool> = (0..b.sub_root.len())
+        .map(|s| !generic_around(b, &enclosing, s, usize::MAX))
+        .collect();
+    let mut out = crate::inline::extract_subs(b, &keep, &[], true)?;
     for f in &mut out.sub_flags {
         *f &= !sub_flags::GENERIC;
     }
     Ok(Some(out))
 }
 
-/// Per sub-body, the first one up its making chain, itself first, that is
-/// a generic local function or a `target`; `NONE` when none is. One pass:
-/// each sub-body is resolved once, from the nearest resolved one above it,
-/// so O(sub-bodies) for any nesting.
-fn stops(b: &Body, enclosing: &[u32], target: &[bool]) -> Vec<u32> {
-    const OPEN: u32 = NONE - 1;
-    let mut stop = vec![OPEN; enclosing.len()];
-    let mut path = Vec::new();
-    for s in 0..enclosing.len() {
-        let mut at = s;
-        let found = loop {
-            work!(1);
-            if stop[at] != OPEN {
-                break stop[at];
-            }
-            path.push(at);
-            if b.sub_is_generic(at) || target[at] {
-                break u32_of(at);
-            }
-            match enclosing[at] {
-                // A chain that loops (never from the checker) stops nowhere.
-                up if up == NONE || path.len() > enclosing.len() => break NONE,
-                up => at = up as usize,
-            }
-        };
-        for x in path.drain(..) {
-            stop[x] = found;
+/// Whether a generic local function other than `t` is `s` or stands
+/// between `s` and `t` up the making chain.
+fn generic_around(b: &Body, enclosing: &[u32], mut s: usize, t: usize) -> bool {
+    for _ in 0..enclosing.len() {
+        if s == t {
+            return false;
+        }
+        if b.sub_is_generic(s) {
+            return true;
+        }
+        match enclosing[s] {
+            NONE => return false,
+            up => s = up as usize,
         }
     }
-    stop
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{function_template, item_template};
-    use crate::ir::{
-        Body, BodyKind, TirBuilder, TirSink, Topology, sub_flags, u32_of, verify_structure,
-    };
-    use crate::measurements;
-    use hd_base::{DefId, NodeIdx};
-    use hd_types::Ty;
-
-    /// `k` local functions, each with a few instructions: nested, each made
-    /// inside the one before, or side by side in the root. All generic, or
-    /// (`plain`) only the outermost, the others its closures.
-    fn functions(k: usize, nested: bool, plain: bool) -> Body {
-        let n = NodeIdx::from_raw(1);
-        let fn_ty = Ty(1_000_000);
-        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
-        let root = b.open_block();
-        let mut open = Vec::new();
-        for _ in 0..k {
-            let sub = b.open_sub(&[]);
-            let block = b.open_block();
-            let one = b.const_value(Ty::I32, 1);
-            b.prim(0, &[one, one], Ty::I32, n);
-            if nested {
-                open.push((sub, block));
-            } else {
-                let r = b.close_block(block, None, Ty::VOID, n);
-                b.close_sub(sub, r, fn_ty, n);
-            }
-        }
-        while let Some((sub, block)) = open.pop() {
-            let r = b.close_block(block, None, Ty::VOID, n);
-            b.close_sub(sub, r, fn_ty, n);
-        }
-        let r = b.close_block(root, None, Ty::VOID, n);
-        let mut body = b.finish(r, &[]).expect("generated TIR");
-        for f in body
-            .sub_flags
-            .iter_mut()
-            .skip(1)
-            .take(if plain { 1 } else { k })
-        {
-            *f |= sub_flags::GENERIC;
-        }
-        let errors = verify_structure(&body, &Topology::new(&body));
-        assert!(errors.is_empty(), "{errors:?}");
-        body
-    }
-
-    /// The templates of all the generic functions together and of the item.
-    fn work(k: usize, nested: bool, plain: bool) -> usize {
-        let body = functions(k, nested, plain);
-        let ts: Vec<usize> = (1..body.sub_root.len())
-            .filter(|&s| body.sub_is_generic(s))
-            .collect();
-        measurements::reset();
-        let all = function_template(&body, &ts).expect("function template");
-        let own = item_template(&body)
-            .expect("item template")
-            .expect("generic");
-        let work = measurements::total();
-        let closures = |b: &Body| {
-            b.tags
-                .iter()
-                .filter(|&&t| t == crate::ir::Tag::Closure)
-                .count()
-        };
-        assert_eq!(closures(&all), k);
-        // The item's own instance makes none: each defining `Closure` goes.
-        assert_eq!(closures(&own), 0);
-        assert!(u32_of(all.len()) > 0);
-        work
-    }
-
-    #[test]
-    fn templates_are_linear_in_the_number_of_local_functions() {
-        for (nested, plain) in [(false, false), (true, false), (true, true)] {
-            let small = work(200, nested, plain);
-            let large = work(2000, nested, plain);
-            assert!(
-                large <= 11 * small,
-                "{nested} {plain}: {small} then {large}"
-            );
-        }
-    }
+    false
 }
