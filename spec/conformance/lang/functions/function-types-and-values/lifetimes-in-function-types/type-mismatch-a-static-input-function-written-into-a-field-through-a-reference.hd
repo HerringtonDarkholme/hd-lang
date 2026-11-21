@@ -1,0 +1,11 @@
+# test: a field written through a `&mut` reference takes no function needing a longer input lifetime
+# Spec 07 Function Types: fn.type.lifetime.input. `h.f` lets a later caller pass a `&'a i32`, and `inspect` needs
+# `&'static i32`.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+struct Holder['a]:
+    f: fn(&'a i32) -> void
+
+fn put['a](h: &mut Holder['a]) -> void:
+    h.f = inspect # diagnostic: type-mismatch

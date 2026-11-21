@@ -2,7 +2,9 @@
 # Spec 07 Function Types: fn.type.lifetime.input. A static destination
 # takes `inspect`, a function taking any lifetime fits a static input
 # (inputs are contravariant), and a static argument reaches `inspect`
-# through every kind of value.
+# through every kind of value. A value fits where what it needs is
+# written: a field through a reference, a variant, a function value's
+# parameter, and a call's result at the lifetime the call took.
 fn inspect(value: &'static i32) -> void:
     pass
 
@@ -28,6 +30,38 @@ fn reverse() -> fn(&'static i32) -> void:
 
 fn holder() -> Holder['static]:
     Holder { f: inspect }
+
+fn put['a](h: &mut Holder['a]) -> void:
+    h.f = loose
+
+enum Handler['a]:
+    Run(fn(&'a i32) -> void)
+    Idle
+
+fn handler['a]() -> Handler['a]:
+    .Run(loose)
+
+fn static_handler() -> Handler['static]:
+    .Run(inspect)
+
+fn run_with['a](apply: fn(fn(&'a i32) -> void) -> void, g: fn(&'a i32) -> void) -> void:
+    apply(g)
+    apply(loose)
+
+fn make['b](g: fn(&'b i32) -> void) -> fn(&'b i32) -> void:
+    g
+
+fn taking['b](p: &'b i32) -> fn(&'b i32) -> void:
+    loose
+
+fn relay['a](g: fn(&'a i32) -> void) -> fn(&'a i32) -> void:
+    make(g)
+
+fn borrowed['a](p: &'a i32) -> fn(&'a i32) -> void:
+    taking(p)
+
+fn pinned() -> fn(&'static i32) -> void:
+    taking(&shared)
 
 fn main() -> void:
     apply(inspect, &shared)

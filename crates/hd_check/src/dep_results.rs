@@ -3292,6 +3292,17 @@ impl Ck<'_, '_> {
             // A struct or tuple literal's field is the value it was given;
             // a tuple's rest part is traced no further.
             stack.push(Trace::Value(f, rest.to_vec()));
+        } else if tag == Tag::NewVariant
+            && let [
+                Part::Proj(Proj::Variant(k)),
+                Part::Proj(Proj::Field(j)),
+                rest @ ..,
+            ] = path.as_slice()
+            && *k == b.data[i][0]
+            && let Some(&f) = b.record(b.data[i][1]).get(*j as usize)
+        {
+            // A variant's field is the value it was given.
+            stack.push(Trace::Value(f, rest.to_vec()));
         } else if tag == Tag::CallValue {
             // A field of the result is at the call's own lifetimes, which
             // the function value's type gives it, whatever function the

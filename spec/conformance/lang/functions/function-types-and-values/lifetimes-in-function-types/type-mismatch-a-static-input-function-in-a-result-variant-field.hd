@@ -1,0 +1,11 @@
+# test: a result variant's function field takes no function needing a longer input lifetime
+# Spec 07 Function Types: fn.type.lifetime.input. `Handler['a].Run` lets a caller pass a `&'a i32`.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+enum Handler['a]:
+    Run(fn(&'a i32) -> void)
+    Idle
+
+fn make['a]() -> Handler['a]:
+    .Run(inspect) # diagnostic: type-mismatch

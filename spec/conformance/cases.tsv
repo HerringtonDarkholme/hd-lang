@@ -5979,6 +5979,10 @@ lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismat
 lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-written-input-lifetime-relabelled-at-a-result.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
 lang/functions/function-types-and-values/lifetimes-in-function-types/static-reference-source-a-named-static-input-function-called-through-a-binding.hd	type	reject:static-reference-source	lang/07-functions.md#r-fn.type.lifetime.input
 lang/functions/function-types-and-values/lifetimes-in-function-types/static-reference-source-a-named-static-input-function-called-through-a-capture.hd	type	reject:static-reference-source	lang/07-functions.md#r-fn.type.lifetime.input
+lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-written-into-a-field-through-a-reference.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
+lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-in-a-result-variant-field.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
+lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-passed-through-a-function-value.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
+lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-call-result-needing-another-lifetime-at-a-result.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
 lang/references/generic-locality/static-bound-box-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
 lang/references/generic-locality/static-bound-capture-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.capture
 lang/references/generic-locality/static-bound-local-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error

@@ -1,0 +1,7 @@
+# test: a function value a call returns at one lifetime is no result taking another
+# Spec 07 Function Types: fn.type.lifetime.input. `make(g)` needs `'b` at its input, and `'b` does not outlive `'a`.
+fn make['b](g: fn(&'b i32) -> void) -> fn(&'b i32) -> void:
+    g
+
+fn relay['a, 'b](g: fn(&'b i32) -> void) -> fn(&'a i32) -> void:
+    make(g) # diagnostic: type-mismatch
