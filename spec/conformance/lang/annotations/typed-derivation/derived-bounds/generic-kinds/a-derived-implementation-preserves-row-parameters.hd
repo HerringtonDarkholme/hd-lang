@@ -1,0 +1,11 @@
+# test: a derived implementation preserves row parameters
+# expect: accept
+@derive(Eq, Debug)
+struct Marker[$ R]: pass
+@derive(Eq, Debug)
+struct Wrapped[$ R]:
+    value: Marker[$ R]
+fn same[$ R](left: Wrapped[$ R], right: Wrapped[$ R]) -> bool:
+    left == right
+fn describe[$ R](value: Wrapped[$ R]) -> string:
+    debug(value)

@@ -1,0 +1,7 @@
+# @dump: diagnostics
+use pkg.helper
+@derive(helper)
+struct Item:
+    value: i32
+# @file: helper.hd
+pub struct Helper: pass

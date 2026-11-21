@@ -1,0 +1,13 @@
+# test: a derived enum preserves a const member argument
+# expect: accept
+@derive(Eq, Debug)
+struct Fixed[N < const i32]:
+    value: i32
+@derive(Eq, Debug)
+enum Wrapped[N < const i32]:
+    Some(value: Fixed[N])
+    None
+fn same(left: Wrapped[2], right: Wrapped[2]) -> bool:
+    left == right
+fn describe(value: Wrapped[2]) -> string:
+    debug(value)

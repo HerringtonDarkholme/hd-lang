@@ -6643,9 +6643,9 @@ impl Lower<'_, '_, '_> {
                 let mut gs = Vec::new();
                 for (i, (g, &param)) in generics.iter().zip(&params).enumerate() {
                     let mut g2 = Generic::plain(g.name);
-                    if !g.row {
+                    if !g.row && g.const_type.is_none() {
                         // The bounds the type declares on the parameter
-                        // stay (`annot.bound.declared`). Only a parameter
+                        // stay (`annot.bound.declared`). Only a type parameter
                         // used by a member gets `T < X`
                         // (`annot.bound.params`).
                         g2.bounds = g.bounds.iter().map(|b| own(*b)).collect();
@@ -6664,6 +6664,7 @@ impl Lower<'_, '_, '_> {
                         }
                     }
                     g2.row = g.row;
+                    g2.const_type = g.const_type;
                     gs.push(g2);
                 }
                 let self_ty = pool.intern_ty(&TyData::Adt {
@@ -6822,7 +6823,8 @@ impl Lower<'_, '_, '_> {
                 params.push(param);
                 let mut g2 = Generic::plain(decl.name);
                 g2.row = decl.row;
-                if !decl.row {
+                g2.const_type = decl.const_type;
+                if !decl.row && decl.const_type.is_none() {
                     g2.bound = bounds[i].first().copied();
                     g2.bounds = bounds[i]
                         .iter()
