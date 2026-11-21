@@ -304,15 +304,13 @@ pub enum Helper {
         leaves: Vec<Leaf>,
         parts: Vec<(u32, Counted)>,
     },
-    /// `(values)`: a value whose release runs in place, in locals: stores
-    /// it in a frame slot laid out as `leaves`, `size` bytes, in heap form,
-    /// then calls its in-place release shim `release` on that address.
+    /// `(values)`: a value in locals whose release runs a hook in place:
+    /// stores it in a frame slot laid out as `leaves`, `size` bytes, in
+    /// heap form, then calls its in-place release shim `shim` there.
     ReleaseSpilled {
         size: u32,
         leaves: Vec<Leaf>,
         shim: Hash128,
-        retain: bool,
-        hooked: bool,
     },
     /// `(payload)`: the release glue of an object whose payload is laid
     /// out as `leaves`: one count less on each part, by its first leaf
@@ -786,12 +784,16 @@ pub enum Counted {
 pub struct ShimSyms {
     pub retain: Hash128,
     pub release: Hash128,
+    /// The by-value forms of a struct or tuple kept by address, for a
+    /// value in Wasm locals (the in-place forms' own keys otherwise).
+    pub retain_value: Hash128,
+    pub release_value: Hash128,
     pub width: u32,
     pub hooked: bool,
     /// Which shims take the value by address and count it where it lives
     /// (`hd_layout::shims::in_place`): the release, the retain; with the
-    /// value's layout, its leaves and size, so values in locals go to a
-    /// frame slot first.
+    /// value's layout, its leaves and size, for the address of its first
+    /// leaf and for the frame slot a hooked release in locals spills to.
     pub release_at: bool,
     pub retain_at: bool,
     pub in_place: Option<Box<(u32, Vec<Leaf>)>>,
@@ -832,29 +834,30 @@ impl Counted {
             }
             Counted::Shims(ref s) => {
                 let ShimSyms {
-                    retain: r,
+                    retain_value,
                     release,
+                    release_value,
                     width,
                     hooked,
                     release_at,
-                    retain_at,
                     ref in_place,
+                    ..
                 } = **s;
                 for k in 0..width {
                     get(f, k);
                 }
                 match in_place {
-                    Some(layout) if (retain && retain_at) || (!retain && release_at) => {
+                    // Only a release that runs a hook spills: the hook runs
+                    // on the value where it lives.
+                    Some(layout) if !retain && release_at && hooked => {
                         f.helper(Helper::ReleaseSpilled {
                             size: layout.0,
                             leaves: layout.1.clone(),
-                            shim: if retain { r } else { release },
-                            retain,
-                            hooked: !retain && hooked,
+                            shim: release,
                         });
                     }
-                    _ if retain => f.call(Sym::Shim(r, true, width, false)),
-                    _ => f.call(Sym::Shim(release, false, width, hooked)),
+                    _ if retain => f.call(Sym::Shim(retain_value, true, width, false)),
+                    _ => f.call(Sym::Shim(release_value, false, width, hooked)),
                 }
             }
         }
@@ -914,7 +917,7 @@ pub(crate) fn counted_of_portion(
     portion: hd_layout::shims::Portion,
 ) -> StageResult<Counted> {
     use hd_layout::shims::{Count, Shim};
-    let (count, shape, _) = (input.shim)(t, Shim::Release, portion)?;
+    let (count, shape, _) = (input.shim)(t, Shim::Release, portion, false)?;
     Ok(match count {
         Count::None => Counted::None,
         // An optional whose empty variant is its address null
@@ -935,12 +938,29 @@ pub(crate) fn counted_of_portion(
             } else {
                 None
             };
+            let hooked = hd_layout::shims::hooked(input.pool, input.env, t, Shim::Release, portion);
+            let retain = m.shim_key(t, shape, Shim::Retain, portion, false);
+            let release = m.shim_key(t, shape, Shim::Release, portion, false);
+            // A value in locals takes the by-value forms, linked only where
+            // one is used; a release that runs a hook stays in place.
+            let retain_value = if retain_at {
+                m.shim_key(t, shape, Shim::Retain, portion, true)
+            } else {
+                retain
+            };
+            let release_value = if release_at && !hooked {
+                m.shim_key(t, shape, Shim::Release, portion, true)
+            } else {
+                release
+            };
             Counted::Shims(Box::new(ShimSyms {
-                retain: m.shim_key(t, shape, Shim::Retain, portion),
-                release: m.shim_key(t, shape, Shim::Release, portion),
+                retain,
+                release,
+                retain_value,
+                release_value,
                 width: u32::try_from(crate::layout::vals(input.pool, input.env, t)?.len())
                     .unwrap_or(u32::MAX),
-                hooked: hd_layout::shims::hooked(input.pool, input.env, t, Shim::Release, portion),
+                hooked,
                 release_at,
                 retain_at,
                 in_place: layout,
@@ -2606,13 +2626,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             parts_glue(m, "rt:retain_fields", leaves, parts, true)
         }
         Helper::DropParts { leaves, parts } => parts_glue(m, "rt:drop", leaves, parts, false),
-        Helper::ReleaseSpilled {
-            size,
-            leaves,
-            shim,
-            retain,
-            hooked,
-        } => release_spilled(m, *size, leaves, Sym::Shim(*shim, *retain, 1, *hooked)),
+        Helper::ReleaseSpilled { size, leaves, shim } => {
+            release_spilled(m, *size, leaves, Sym::Shim(*shim, false, 1, true))
+        }
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
         Helper::CollCopy => coll_copy(m),

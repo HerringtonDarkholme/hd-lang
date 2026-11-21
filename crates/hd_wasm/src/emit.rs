@@ -152,8 +152,8 @@ struct Own {
 /// statements are its only counts. A shim may ask for its parts' shims.
 pub(crate) fn shims(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     use hd_layout::shims::Shim;
-    while let Some((t, kind, portion, key)) = m.shim_queue.pop() {
-        let (_, _, Some(b)) = (input.shim)(t, kind, portion)? else {
+    while let Some((t, kind, portion, by_value, key)) = m.shim_queue.pop() {
+        let (_, _, Some(b)) = (input.shim)(t, kind, portion, by_value)? else {
             return Err(hd_base::NotImplemented::bug(
                 hd_base::Stage::Emit,
                 "a count shim asked for a type that counts one address or none",

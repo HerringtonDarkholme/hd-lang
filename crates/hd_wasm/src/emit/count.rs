@@ -513,7 +513,7 @@ impl Em<'_, '_, '_> {
         } else {
             hd_layout::shims::Shim::Release
         };
-        let (count, shape, _) = (self.input.shim)(t, kind, hd_layout::shims::Portion::All)?;
+        let (count, shape, _) = (self.input.shim)(t, kind, hd_layout::shims::Portion::All, false)?;
         let (index, known) = match count {
             Count::None => return Ok(()),
             Count::Address { index, known } => (index, known),

@@ -103,7 +103,6 @@ rt:release_ref#0
 rt:release_drain
 rt:retain_known
 rt:release_ref#1
-rt:release_spilled
 rt:list_buf#0
 rt:list_buf#1
 rt:list_buf#2

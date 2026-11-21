@@ -204,7 +204,6 @@ rt:release_ref#0
 rt:release_drain
 rt:retain_known
 rt:release_ref#1
-rt:release_spilled
 rt:drop
 rt:list_buf#0
 rt:list_buf#1

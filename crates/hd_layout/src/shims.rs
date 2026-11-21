@@ -60,7 +60,9 @@ pub const IN_PLACE: u32 = 1 << 2;
 /// and any count of a struct or tuple kept by address
 /// ([`crate::by_address`]), whose parts of their own are counted where they
 /// lie, so each type's shim is O(its own fields) (Swift's value witnesses).
-/// A sum kept by address takes its values: its switch reads them.
+/// A sum kept by address takes its values: its switch reads them. Such a
+/// struct or tuple has a by-value form too, for a value in Wasm locals
+/// ([`shim`]'s `by_value`).
 #[must_use]
 pub fn in_place(
     pool: &InternPool,
@@ -435,7 +437,9 @@ fn reference(fat: bool, whole: bool) -> Count {
 /// The `kind` shim of `t`: a function of one lent parameter of type `t`
 /// whose body states each count. `None` when `t` needs none: it counts
 /// nothing, or one address, which the caller states itself. `item`, the
-/// shim's lang item, names the body. O(own fields of `t`).
+/// shim's lang item, names the body. O(own fields of `t`) in place; with
+/// `by_value`, a struct or tuple kept by address takes its values, and
+/// counts each of their counted leaves, O(its values).
 ///
 /// # Errors
 /// A type whose layout cannot be made.
@@ -447,13 +451,18 @@ pub fn shim(
     item: DefId,
     t: Ty,
     kind: Shim,
+    by_value: bool,
 ) -> StageResult<Option<Body>> {
     if !matches!(counts.of(pool, env, t)?, Count::Parts | Count::Call) {
         return Ok(None);
     }
-    let n = NodeIdx::from_raw(0);
+    let n = NodeIdx::NONE;
     let mut b = TirBuilder::new(item, BodyKind::Fn);
-    let at = in_place(pool, env, t, kind, counts.portion);
+    // A struct or tuple kept by address has two forms: in place, for a
+    // value in memory, and by value, for one in Wasm locals, which have no
+    // address. A release that runs a hook is in place in either case.
+    let at = in_place(pool, env, t, kind, counts.portion)
+        && (!by_value || hooked(pool, env, t, kind, counts.portion));
     let x = if at {
         // The value where it lives: a `&mut` of it, in heap form.
         let to = pool.intern_ty(&TyData::Ref {
@@ -511,7 +520,7 @@ fn hook_calls(
     x: LocalId,
     t: Ty,
 ) -> bool {
-    let n = NodeIdx::from_raw(0);
+    let n = NodeIdx::NONE;
     let mut layers = Vec::new();
     crate::newtype_layers(pool, env, t, &mut |layer| layers.push(layer));
     layers.push(strip_newtype(pool, env, t));
@@ -603,7 +612,10 @@ impl Writer<'_> {
 
     /// One part: a statement, or its own parts when a product in values.
     /// In an in-place shim, a part with a hook is released where it lives:
-    /// the statement's value is a `&mut` of it ([`IN_PLACE`]).
+    /// the statement's value is a `&mut` of it ([`IN_PLACE`]). A shim on
+    /// values opens a struct or tuple kept by address too: its by-value
+    /// shim would take its values again, so a chain of them would cost
+    /// O(its depth) per level.
     fn part(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
         let own = self.counts.of(self.pool, self.env, t)?;
         let tag = match self.kind {
@@ -618,8 +630,15 @@ impl Writer<'_> {
             {
                 self.parts(t, v, path)?;
             }
+            Count::Call
+                if self.at.is_none()
+                    && variants(self.pool, self.env, t).is_none()
+                    && !hooked(self.pool, self.env, t, self.kind, self.counts.portion) =>
+            {
+                self.parts(t, v, path)?;
+            }
             Count::Parts | Count::Address { .. } | Count::Call => {
-                let n = NodeIdx::from_raw(0);
+                let n = NodeIdx::NONE;
                 // The part's own shim counts the same portion.
                 let portion = self.counts.portion as u32;
                 // Only a part with a shim of its own is counted in place;
@@ -655,7 +674,7 @@ impl Writer<'_> {
     /// One test per variant with a counted payload, each the next one's
     /// `else`: as many tests as counted variants, nested once each.
     fn switch(&mut self, v: Ref, variants: &[Vec<Ty>], path: &[Proj]) -> StageResult<()> {
-        let n = NodeIdx::from_raw(0);
+        let n = NodeIdx::NONE;
         let mut open = Vec::new();
         for (k, fields) in (0u32..).zip(variants) {
             let mut counted = false;
@@ -685,7 +704,7 @@ impl Writer<'_> {
     }
 
     fn field(&mut self, v: Ref, k: u32, t: Ty) -> Ref {
-        let f = self.b.field(v, k, t, NodeIdx::from_raw(0));
+        let f = self.b.field(v, k, t, NodeIdx::NONE);
         self.borrow(f);
         f
     }

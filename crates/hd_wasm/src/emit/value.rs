@@ -857,6 +857,8 @@ mod object_glue_tests {
                 Counted::Shims(Box::new(ShimSyms {
                     retain: Hash128(1),
                     release: Hash128(2),
+                    retain_value: Hash128(1),
+                    release_value: Hash128(2),
                     width: 2,
                     hooked: true,
                     release_at: false,

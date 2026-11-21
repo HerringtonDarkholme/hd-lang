@@ -1237,11 +1237,12 @@ pub struct Module {
     /// Each count shim emission asked for (`emit::shims`), by shape and
     /// kind: its key. Types of one shape share it; each is queued once, the
     /// first type of its shape, so the drain ends.
-    pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim), Hash128>,
+    pub shims: hd_base::HashMap<(Hash128, hd_layout::shims::Shim, bool), Hash128>,
     pub shim_queue: Vec<(
         hd_types::Ty,
         hd_layout::shims::Shim,
         hd_layout::shims::Portion,
+        bool,
         Hash128,
     )>,
     /// Whether [`Module::finish`] inlines the count fast paths
@@ -1419,16 +1420,17 @@ impl Module {
         shape: Hash128,
         kind: hd_layout::shims::Shim,
         portion: hd_layout::shims::Portion,
+        by_value: bool,
     ) -> Hash128 {
-        if let Some(&key) = self.shims.get(&(shape, kind)) {
+        if let Some(&key) = self.shims.get(&(shape, kind, by_value)) {
             return key;
         }
         let mut h = hd_base::StableHasher::new("count-shim");
         h.hash(shape);
-        h.u32(u32::from(kind == hd_layout::shims::Shim::Retain));
+        h.u32(u32::from(kind == hd_layout::shims::Shim::Retain) | u32::from(by_value) << 1);
         let key = h.finish();
-        self.shims.insert((shape, kind), key);
-        self.shim_queue.push((t, kind, portion, key));
+        self.shims.insert((shape, kind, by_value), key);
+        self.shim_queue.push((t, kind, portion, by_value, key));
         key
     }
 

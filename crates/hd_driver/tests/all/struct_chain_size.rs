@@ -138,6 +138,50 @@ fn counted_struct_chain_module_grows_linearly() {
     assert!(worker.is_ok_and(|w| w.join().is_ok()));
 }
 
+/// The by-value variant: the counted chain, two of its last struct
+/// returned as a tuple and taken apart into locals of `main`, released
+/// from there, in Wasm locals, which have no address. A by-value shim
+/// takes the value's values, so it counts each part kept by address
+/// itself: that part's own by-value shim would take its values again,
+/// O(K) per level.
+fn by_value_program(k: usize) -> String {
+    let mut text = String::from(
+        "struct T0:\n    v: i32\n    s: string\n\nfn mk0() -> T0: T0 { v: +1, s: \"s\" }\n",
+    );
+    for i in 1..k {
+        let p = i - 1;
+        let _ = write!(
+            text,
+            "\nstruct T{i}:\n    inner: T{p}\n    v: i32\n    s: string\n\n\
+             fn mk{i}() -> T{i}: T{i} {{ inner: mk{p}(), v: +{i}, s: \"s\" }}\n"
+        );
+    }
+    let last = k - 1;
+    let _ = write!(
+        text,
+        "\nfn two() -> (T{last}, T{last}): (mk{last}(), mk{last}())\n\n\
+         pub fn main() -> void $ Console:\n    let (a, b) = two()\n    \
+         println(\"${{a.v + b.v}}\")\n"
+    );
+    text
+}
+
+#[test]
+fn by_value_struct_chain_module_grows_linearly() {
+    let worker = std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            let (small, large) = (
+                build_bytes(&by_value_program(50)),
+                build_bytes(&by_value_program(200)),
+            );
+            eprintln!("by-value struct chain module bytes: K=50 {small}, K=200 {large}");
+            assert!(small > 0);
+            assert!(large * 2 <= small * 9, "K=50 {small}, K=200 {large}");
+        });
+    assert!(worker.is_ok_and(|w| w.join().is_ok()));
+}
+
 /// `take` owns a struct of `f` strings by address and moves each field
 /// but the last on to `keep`, which owns it, so its drop releases the
 /// last and skips each other under the field's TIR flag. With `local`, the struct is a local of `take` kept in a
