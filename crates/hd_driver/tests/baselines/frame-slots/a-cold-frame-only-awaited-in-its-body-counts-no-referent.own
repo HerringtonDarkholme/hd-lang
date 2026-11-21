@@ -36,6 +36,7 @@ fn size!(text: &string) -> usize $ Clock:
 >   %16 = Release %15 Operation child #2 : ()
 >   %24 = Drop [$0] : ()
 >   %25 = Block %22 : usize
+>   %26 = Drop [$0] : ()
 >   %27 = Return - #2 : never
     text.len()
 >   %17 = Read borrow [$0] : &string
@@ -79,6 +80,7 @@ fn later!(n: usize) -> usize $ Clock:
 >   %15 = Retain %13 Operation child #0 : ()
 >   %16 = Drop [%12] : ()
 >   %17 = Drop [$1] : ()
+>   %21 = Drop [$1] : ()
 >   %22 = Return - #2 : never
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 cell
@@ -131,6 +133,8 @@ fn both!(n: usize) -> usize $ Clock:
 >   %27 = Store [$4] %25 : ()
 >   %29 = Block - : never
 >   %30 = Match %15 [%29 %23] : ()
+>   %41 = Drop [$1] : ()
+>   %42 = Drop [$2] : ()
 >   %43 = Return - #2 : never
     x + y
 >   %31 = Read copy [$3] : usize

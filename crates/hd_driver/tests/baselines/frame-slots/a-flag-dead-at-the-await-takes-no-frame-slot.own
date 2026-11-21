@@ -157,6 +157,11 @@ std/rt_tests.stage_case/wait
   %126 = If %123 [%125 -] : ()
   %127 = Drop [$1] : ()
   %128 = Block - : ()
+  %129 = Read copy [$14] : bool
+  %130 = Drop [$0] : ()
+  %131 = Block - : ()
+  %132 = If %129 [%131 -] : ()
+  %133 = Drop [$1] : ()
   %134 = Return - #2 : never
   exit sub 0 drops [$0 $1]
   cancel %70 releases [%2147483662 %129 %2147483649 %4294967295]

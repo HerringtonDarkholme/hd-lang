@@ -223,11 +223,13 @@
         local.get $u
         i32.load $heap offset=8
         local.set $t4
+    ;; 40 |     if c:
         local.get $u
         if
           local.get $u
           call $rt:cell_drop
         end
+    ;; 41 |         return u.len()
         br 1
     ;; 40 |     if c:
       end

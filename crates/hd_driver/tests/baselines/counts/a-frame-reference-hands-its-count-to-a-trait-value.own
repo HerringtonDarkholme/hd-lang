@@ -83,6 +83,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %27 = Await std/time/sleep[] (%26) : ()
 >   %28 = Release %27 Operation child #2 : ()
 >   %37 = Block - : ()
+>   %93 = Drop [$1] : ()
 >   %94 = Return - #2 : never
         $.use(Meter).record()
 >   %29 = ProviderGet #29 : Meter

@@ -43,6 +43,7 @@ fn run!(go: bool) -> void:
 >   %5 = Await app/main/pause[] () : ()
 >   %6 = Release %5 Operation child #2 : ()
 >   %7 = Block - : ()
+>   %15 = Drop [$1] : ()
 >   %16 = Return - #2 : never
     tick(&mut c)
 >   %9 = Ref mut local [$1] : &mut Counter

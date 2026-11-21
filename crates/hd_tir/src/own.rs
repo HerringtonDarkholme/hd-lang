@@ -95,7 +95,6 @@ pub(crate) mod retains;
 pub use retains::{provider_view, took_source};
 pub(crate) mod scopes;
 pub use elaborate::elaborate;
-pub use scopes::exits;
 mod self_store;
 pub mod short;
 pub(crate) mod splice;

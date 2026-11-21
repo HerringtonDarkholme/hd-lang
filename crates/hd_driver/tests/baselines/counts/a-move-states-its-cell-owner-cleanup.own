@@ -51,6 +51,7 @@ fn take![T < 'static](value: T) -> T $ Clock:
 >   %21 = Scope %20 [] : Duration
 >   %22 = Await std/time/sleep[] (%21) : ()
 >   %23 = Release %22 Operation child #2 : ()
+>   %29 = Drop [$0] : ()
 >   %30 = Return - #2 : never
     value
 >   %24 = FlagClear [$0] #2 : ()

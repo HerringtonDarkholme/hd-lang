@@ -48,6 +48,11 @@ std/rt_tests.stage_case/moved_cell
   %38 = Block - : ()
   %39 = If %36 [%38 -] : ()
   %40 = Block %29 : usize
+  %41 = Drop [$1] : ()
+  %42 = Read copy [$4] : bool
+  %43 = Drop [$2] : ()
+  %44 = Block - : ()
+  %45 = If %42 [%44 -] : ()
   %46 = Return - #2 : never
   exit sub 0 drops [$1 $2]
   storage sub 0: $1 cell

@@ -66,6 +66,8 @@ fn stored!(key: string, keys: List[string]) -> usize:
 >   %42 = Drop [$0] : ()
 >   %43 = Drop [$1] : ()
 >   %44 = Block %35 : usize
+>   %53 = Drop [$2] : ()
+>   %54 = Drop [$3] : ()
 >   %55 = Return - #2 : never
     loader!(key, keys)
 >   %31 = Read move [$4] : fn!(string, List[string]) -> usize
@@ -138,6 +140,8 @@ fn cancel(key: string, keys: List[string]) -> void:
 >   %40 = If %37 [%39 -] : ()
 >   %41 = Release %42 Exit local $1 #2 : ()
 >   %42 = Block - : ()
+>   %43 = Drop [$2] : ()
+>   %44 = Drop [$3] : ()
 >   %45 = Return - #2 : never
     _ := loader(key, keys)
 >   %26 = Read move [$4] : fn!(string, List[string]) -> usize
@@ -202,6 +206,8 @@ fn live!(key: string, keys: List[string]) -> usize:
 >   %52 = Drop [$0] : ()
 >   %53 = Drop [$1] : ()
 >   %54 = Block %51 : usize
+>   %61 = Drop [$2] : ()
+>   %62 = Drop [$3] : ()
 >   %63 = Return - #2 : never
     size := loader!(key, keys)
 >   %32 = Read move [$4] : fn!(string, List[string]) -> usize

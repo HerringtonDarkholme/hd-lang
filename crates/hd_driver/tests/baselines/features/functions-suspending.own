@@ -81,6 +81,7 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %28 = Prim Add [%12 %25] : usize
 >   %29 = Drop [$0] : ()
 >   %30 = Block %28 : usize
+>   %37 = Drop [$0] : ()
 >   %38 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell, $2 cell
@@ -114,6 +115,7 @@ fn closure_bang!(key: string) -> usize:
 >   %13 = Block %10 : string
 >   %14 = Closure #1 : fn!() -> string
 >   %15 = Retain %14 Operation captures #0 : ()
+>   %23 = Drop [$0] : ()
 >   %24 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   exit sub 1 drops [$0]
@@ -150,6 +152,7 @@ fn stored!(key: string) -> usize:
 >   %25 = Box #3 #1 : ()
 >   %31 = Drop [$0] : ()
 >   %32 = Block %28 : usize
+>   %39 = Drop [$1] : ()
 >   %40 = Return - #2 : never
     loader!(key).len()
 >   %16 = Read move [$2] : fn!(string) -> string

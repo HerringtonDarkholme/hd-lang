@@ -44,6 +44,7 @@ fn stop!(key: string) -> bool:
 >   %7 = Await std/task/impl[T] Suspend[T].cancel[string] (%6) : CleanupEnd
 >   %8 = Release %7 Operation child #2 : ()
 >   %9 = Store [$2] %7 : ()
+>   %22 = Drop [$0] : ()
 >   %23 = Return - #2 : never
     match end:
 >   %10 = Read copy [$2] : CleanupEnd

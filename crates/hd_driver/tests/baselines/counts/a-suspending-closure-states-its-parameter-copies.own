@@ -31,6 +31,7 @@ fn make() -> (fn!(string) -> usize $ Clock):
 >   %12 = Scope %11 [] : Duration
 >   %13 = Await std/time/sleep[] (%12) : ()
 >   %14 = Release %13 Operation child #2 : ()
+>   %23 = Drop [$0] : ()
 >   %24 = Return - #2 : never
         text.len()
 >   %15 = Ref local [$0] : &string

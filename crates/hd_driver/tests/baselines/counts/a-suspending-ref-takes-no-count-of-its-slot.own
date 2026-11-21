@@ -40,6 +40,7 @@ fn direct!() -> i64:
 >   %5 = Await app/main/bump[] (%4) : ()
 >   %6 = Release %5 Operation child #2 : ()
 >   %7 = LoanEnd [%4] : ()
+>   %13 = Drop [$0] : ()
 >   %14 = Return - #2 : never
     tally.n
 >   %8 = Read copy [$0 .n] : i64

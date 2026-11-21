@@ -141,6 +141,7 @@ fn count_later!(n: i64, wait: Suspend[void]) -> void $ Meter:
 >   %34 = Release %33 Operation child #2 : ()
 >   %35 = Retain %33 Operation child #0 : ()
 >   %36 = Drop [%31] : ()
+>   %47 = Drop [$1] : ()
 >   %48 = Return - #2 : never
 >   exit sub 0 drops [$1]
 >   summary none

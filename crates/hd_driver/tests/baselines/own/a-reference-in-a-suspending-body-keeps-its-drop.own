@@ -53,6 +53,7 @@ fn run!() -> void:
 >   %6 = Release %5 Operation child #2 : ()
 >   %7 = LoanEnd [%4] : ()
 >   %8 = Drop [$0] : ()
+>   %12 = Drop [$0] : ()
 >   %13 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $0 slot

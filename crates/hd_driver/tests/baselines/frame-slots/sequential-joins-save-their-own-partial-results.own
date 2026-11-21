@@ -75,6 +75,9 @@ fn sequential!(left: string, right: string) -> string:
 >   %35 = Store [$5] %33 : ()
 >   %37 = Block - : never
 >   %38 = Match %26 [%37 %31] : ()
+>   %61 = Drop [$0] : ()
+>   %62 = Drop [$1] : ()
+>   %63 = Drop [$2] : ()
 >   %64 = Return - #2 : never
     a + c + d
 >   %39 = Read move [$2] : string

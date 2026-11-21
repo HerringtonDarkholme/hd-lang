@@ -11,6 +11,7 @@ app/main/generic
   %12 = Drop [$0] : ()
   %13 = Drop [$0] : ()
   %14 = Block %9 : T
+  %16 = Drop [$0] : ()
   %17 = Return - #2 : never
   exit sub 0 drops [$0]
   storage sub 0: $0 cell

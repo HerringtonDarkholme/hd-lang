@@ -31,7 +31,7 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >     uses $3: %10 -> %14 lend last
 >   local $4 p: &P [read] value
 >     uses $4: %3 -> %4 lend last
->   %0 = Retain %28 Entry local $2 #0 : ()
+>   %0 = Retain %30 Entry local $2 #0 : ()
     d := name_of(h.p)
 >   %1 = Ref local [*$0 .p *] : &P
 >   %2 = LoanBegin %1 #0 : ()
@@ -48,11 +48,13 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   %21 = Drop [$0] : ()
 >   %22 = Block - : ()
 >   %23 = If %20 [%22 -] : ()
->   %24 = Intrinsic ParamOwned [1:i32] : bool
->   %25 = Drop [$1] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Block %14 : string
+>   %24 = Release %30 Exit local $0 #2 : ()
+>   %25 = Intrinsic ParamOwned [1:i32] : bool
+>   %26 = Drop [$1] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Release %30 Exit local $1 #2 : ()
+>   %30 = Block %14 : string
     alias.p = next
 >   %11 = Read move [$2] : *P
 >   %12 = Store [*$1 .p] %11 : ()
@@ -92,7 +94,7 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >     uses $3: %10 -> %14 lend last
 >   local $4 p: &mut P [read] value
 >     uses $4: %3 -> %4 lend last
->   %0 = Retain %28 Entry local $2 #0 : ()
+>   %0 = Retain %30 Entry local $2 #0 : ()
     d := name_mut(h.p)
 >   %1 = Ref mut local [*$0 .p *] : &mut P
 >   %2 = LoanBegin %1 #1 : ()
@@ -109,11 +111,13 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   %21 = Drop [$0] : ()
 >   %22 = Block - : ()
 >   %23 = If %20 [%22 -] : ()
->   %24 = Intrinsic ParamOwned [1:i32] : bool
->   %25 = Drop [$1] : ()
->   %26 = Block - : ()
->   %27 = If %24 [%26 -] : ()
->   %28 = Block %14 : string
+>   %24 = Release %30 Exit local $0 #2 : ()
+>   %25 = Intrinsic ParamOwned [1:i32] : bool
+>   %26 = Drop [$1] : ()
+>   %27 = Block - : ()
+>   %28 = If %25 [%27 -] : ()
+>   %29 = Release %30 Exit local $1 #2 : ()
+>   %30 = Block %14 : string
     alias.p = next
 >   %11 = Read move [$2] : *mut P
 >   %12 = Store [*$1 .p] %11 : ()

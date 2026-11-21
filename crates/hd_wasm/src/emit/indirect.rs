@@ -899,7 +899,7 @@ impl Em<'_, '_, '_> {
                 (super::value::Src::Ref(r), self.take_from(r, root))
             }
             // A returned value took its count before the exit set
-            // (`hd_tir::own::exits`).
+            // (`hd_tir::own::elaborate`).
             Some(borrowed) => (super::value::Src::Ref(r), !borrowed && self.take(r)),
         };
         self.store_src(HEAP, base, 0, &mem.leaves, &src)?;

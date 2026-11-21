@@ -267,6 +267,7 @@
             i32.store $heap
             call $take
             local.set $t4
+    ;; 37 |     if early:
             local.get $t1
             i32.load $heap offset=4
             local.tee $t5
@@ -282,7 +283,6 @@
                 call $rt:release_ref'2
               end
             end
-    ;; 37 |     if early:
             local.get $t1
             i32.load $heap offset=12
             if

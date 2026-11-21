@@ -51,6 +51,7 @@ fn run!(n: i32) -> void:
 >   %8 = Await app/main/pause[] () : ()
 >   %9 = Release %8 Operation child #2 : ()
 >   %13 = Block - : ()
+>   %25 = Drop [$1] : ()
 >   %26 = Return - #2 : never
         i = i + 1
 >   %10 = Read copy [$2] : i32

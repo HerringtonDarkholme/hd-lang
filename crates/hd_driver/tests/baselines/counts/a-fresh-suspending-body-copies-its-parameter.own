@@ -27,6 +27,7 @@ fn after!(text: string) -> usize $ Clock:
 >   %14 = Release %13 Operation child #2 : ()
 >   %19 = Drop [$0] : ()
 >   %20 = Block %16 : usize
+>   %21 = Drop [$0] : ()
 >   %22 = Return - #2 : never
     text.len()
 >   %15 = Ref local [$0] : &string

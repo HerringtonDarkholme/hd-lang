@@ -113,11 +113,6 @@ fn present(o: string?) -> usize:
 >     uses $1: %10 -> %18 lend last
 >   %0 = Read borrow [$0] : string?
 >   %1 = Block - : ()
->   %2 = Intrinsic ParamOwned [0:i32] : bool
->   %3 = Drop [$0] : ()
->   %4 = Block - : ()
->   %5 = If %2 [%4 -] : ()
->   %6 = Release %28 Exit local $0 #2 : ()
 >   %8 = Block - : never
 >   %9 = Read borrow [%0 as #1 .0] : string
 >   %10 = Store [$1] %9 : ()
@@ -132,6 +127,11 @@ fn present(o: string?) -> usize:
 >   %27 = Release %28 Exit local $0 #2 : ()
 >   %28 = Block %22 : usize
         return 0
+>   %2 = Intrinsic ParamOwned [0:i32] : bool
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
+>   %5 = If %2 [%4 -] : ()
+>   %6 = Release %28 Exit local $0 #2 : ()
 >   %7 = Return 0:usize : never
     s.len()
 >   %18 = Read borrow [$1] : string

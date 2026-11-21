@@ -64,6 +64,7 @@ app/main/scoped
   %64 = LoanEnd [%60] : ()
   %65 = Block - : ()
   %66 = Scope %65 [] : ()
+  %67 = Drop [$2] : ()
   %68 = Return - #2 : never
   exit sub 0 drops [$2]
   storage sub 0: $2 cell

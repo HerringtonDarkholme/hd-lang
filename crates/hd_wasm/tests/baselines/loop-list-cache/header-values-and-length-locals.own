@@ -227,7 +227,8 @@ fn by_value(xs: List[i64]) -> i64:
 >   %33 = Drop [$0] : ()
 >   %34 = Block - : ()
 >   %35 = If %32 [%34 -] : ()
->   %36 = Block %31 : i64
+>   %36 = Release %37 Exit local $0 #2 : ()
+>   %37 = Block %31 : i64
     for v in xs:
 >   %1 = Read borrow [$0] : List[i64]
 >   %2 = Intrinsic ListLen [%1] : usize

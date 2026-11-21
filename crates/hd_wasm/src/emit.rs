@@ -1284,11 +1284,6 @@ struct Em<'i, 'a, 'm> {
     /// reference owns. The direct drop can release the known table without
     /// resolving the interior address through the page table.
     map_probe_refs: HashMap<u32, (u32, bool)>,
-    /// While an open drop runs over leaves loaded from memory: the base
-    /// address local and each leaf local's offset from it, so a whole
-    /// node whose release runs in place gets its address
-    /// (`Em::release_node`).
-    node_base: Option<(u32, std::rc::Rc<HashMap<u32, u32>>)>,
     /// Each direct `string.slice` call consumed by string equality, with
     /// that equality instruction (`count.rs`).
     string_slice_comparisons: HashMap<u32, u32>,
@@ -1581,7 +1576,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             input_transferred: HashMap::default(),
             map_probes: HashMap::default(),
             map_probe_refs: HashMap::default(),
-            node_base: None,
             string_slice_comparisons: HashMap::default(),
             short_origins: hd_base::HashSet::default(),
             short_skips: hd_base::HashSet::default(),
@@ -1819,9 +1813,14 @@ impl Em<'_, '_, '_> {
     /// is an owned one. `None` for any other value.
     pub(super) fn param_owned(&self, r: u32) -> Option<bool> {
         let l = self.b.param_owned(r)? as usize;
-        let k = self.root_params.iter().position(|&p| p == l);
-        let ty = self.b.local_ty[l];
-        Some(k.is_some_and(|k| matches!(self.parameter_pass(k, ty), Pass::Owned)))
+        let (k, t) = (
+            self.root_params.iter().position(|&p| p == l),
+            self.b.local_ty[l],
+        );
+        // A lifted closure's input convention is the function-value one.
+        let lends = (self.sub_id == 0).then_some(self.lends);
+        let pass = k.map(|k| self.argument_pass(lends, k, t));
+        Some(matches!(pass, Some(Pass::Owned)))
     }
 
     #[inline(never)]
@@ -3077,16 +3076,6 @@ impl Em<'_, '_, '_> {
         crate::layout::pass_mode(self.pool(), self.env(), true, t, mode)
     }
 
-    /// The body's own input convention, distinct from a callee's. Lifted
-    /// closure code uses the common function-value input convention.
-    pub(super) fn parameter_pass(&self, k: usize, t: Ty) -> Pass {
-        if self.sub_id != 0 {
-            self.argument_pass(None, k, t)
-        } else {
-            self.pass_at(self.lends, k, t)
-        }
-    }
-
     /// None selects a function-value input; Some selects a declaration
     /// and its release-summary lending mask.
     fn argument_pass(&self, lends: Option<u64>, k: usize, t: Ty) -> Pass {
@@ -3699,7 +3688,7 @@ impl Em<'_, '_, '_> {
         }
         if a != NONE && !self.results.is_empty() {
             // The value moves out at its only use, or took its count for
-            // the caller before the exit set (`hd_tir::own::exits`).
+            // the caller before the exit set (`hd_tir::own::elaborate`).
             let moved = !borrowed && self.take(a);
             self.push(a)?;
             for l in self.ret.clone().iter().rev() {

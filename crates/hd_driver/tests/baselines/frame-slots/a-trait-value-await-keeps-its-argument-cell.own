@@ -47,6 +47,8 @@ impl Sizer for Plain:
 >   %26 = Drop [$0] : ()
 >   %27 = Drop [$1] : ()
 >   %28 = Block %24 : usize
+>   %29 = Drop [$0] : ()
+>   %30 = Drop [$1] : ()
 >   %31 = Return - #2 : never
         text.len()
 >   %23 = Read move [$1] : &string
@@ -81,6 +83,7 @@ fn known!(text: &string) -> usize $ Clock:
 >   %16 = Release %15 Operation child #2 : ()
 >   %20 = Drop [$0] : ()
 >   %21 = Block %18 : usize
+>   %22 = Drop [$0] : ()
 >   %23 = Return - #2 : never
     text.len()
 >   %17 = Read move [$0] : &string
@@ -111,6 +114,7 @@ fn through_known!(n: usize) -> usize $ Clock:
 >   %10 = Release %9 Operation child #2 : ()
 >   %11 = LoanEnd [%8] : ()
 >   %12 = Drop [$1] : ()
+>   %16 = Drop [$1] : ()
 >   %17 = Return - #2 : never
 >   exit sub 0 drops [$1]
 >   storage sub 0: $1 slot
@@ -150,6 +154,8 @@ fn through_value!(sizer: &dyn Sizer, n: usize) -> usize $ Clock:
 >   %19 = LoanEnd [%14] : ()
 >   %20 = Drop [$2] : ()
 >   %21 = Drop [$0] : ()
+>   %26 = Drop [$0] : ()
+>   %27 = Drop [$2] : ()
 >   %28 = Return - #2 : never
 >   exit sub 0 drops [$0 $2]
 >   storage sub 0: $2 cell
@@ -289,6 +295,8 @@ pub fn main!() -> void $ Console + Clock:
 >   %93 = Scope %92 [] : ()
 >   %94 = Read move [%44] : string
 >   %95 = Call std/console/println[string] (%94) : ()
+>   %104 = Drop [$0] : ()
+>   %105 = Drop [$1] : ()
 >   %106 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 cell

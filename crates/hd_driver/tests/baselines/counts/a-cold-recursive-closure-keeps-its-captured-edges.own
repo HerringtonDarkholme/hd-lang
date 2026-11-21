@@ -45,6 +45,8 @@ fn make(value: string) -> fn!(usize) -> string:
 >   %20 = Block %15 : string
 >   %21 = If %8 [%10 %20] : string
 >   %22 = Drop [$2] : ()
+>   %38 = Drop [$0] : ()
+>   %39 = Drop [$2] : ()
 >   %40 = Return - #2 : never
     read
 >   %31 = Read copy [$2] : fn!(usize) -> string
@@ -131,6 +133,7 @@ pub fn main!() -> void $ Console:
 >   %35 = Drop [%31] : ()
 >   %36 = Drop [%30] : ()
 >   %37 = Call std/console/println[i32] (%32) : ()
+>   %52 = Drop [$2] : ()
 >   %53 = Return - #2 : never
 >   exit sub 0 drops [$2]
 >   summary none

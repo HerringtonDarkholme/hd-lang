@@ -229,13 +229,14 @@ impl Em<'_, '_, '_> {
         // Not a cell's: a flag the elaborated drops read, as
         // `hd_tir::own::elaborate` keeps only those.
         let cell = self.cell_slots(root);
-        let read = cell.is_none();
         ledger!(if slot => "flag-stmt/slot-whole" else if cell.is_some() => "flag-stmt/cell-slot"
-            else if read => "flag-stmt/local" else "flag-stmt/ignored-here");
-        if let Some((c, cell)) = cell.filter(|_| set == 1 || !slot) {
-            self.cell_statement(c, &cell, &p.proj, set == 1);
+            else "flag-stmt/local");
+        if let Some((c, cell)) = &cell
+            && (set == 1 || !slot)
+        {
+            self.cell_statement(*c, cell, &p.proj, set == 1);
         }
-        if slot || read {
+        if slot || cell.is_none() {
             let local = self.local(flag)?[0];
             self.f.u32(set);
             self.f.set(local);
@@ -403,13 +404,9 @@ impl Em<'_, '_, '_> {
     /// glue, a release that runs in place gets the node's address in the
     /// cell; else from its values.
     fn release_node(&mut self, ls: &[u32], ty: Ty, g: &Guards) -> StageResult<()> {
-        let base = match g {
-            Guards::Cell {
-                c, at: Some(at), ..
-            } => Some((*c, Rc::clone(at))),
-            _ => self.node_base.clone(),
-        };
-        if let Some((c, at)) = &base
+        if let Guards::Cell {
+            c, at: Some(at), ..
+        } = g
             && let Some(&off) = ls.first().and_then(|l| at.get(l))
         {
             let counted = crate::rt::counted_of(self.input, self.m, ty)?;

@@ -66,6 +66,7 @@ fn local!() -> i64:
 >   %9 = Await app/main/bump[] (%8) : ()
 >   %10 = Release %9 Operation child #2 : ()
 >   %11 = LoanEnd [%8] : ()
+>   %31 = Drop [$1] : ()
 >   %32 = Return - #2 : never
         tally.n
 >   %12 = Read copy [$1 .n] : i64
@@ -114,6 +115,7 @@ fn shared!() -> i64:
 >   %17 = Closure #1 : fn!() -> ()
 >   %18 = Retain %17 Operation captures #0 : ()
 >   %19 = Store [$1] %17 : ()
+>   %37 = Drop [$0] : ()
 >   %38 = Return - #2 : never
     run!()
 >   %20 = Read move [$1] : fn!() -> ()
@@ -161,6 +163,7 @@ fn copied!() -> i64:
 >   %15 = Closure #1 : fn!() -> i64
 >   %16 = Drop [$0] : ()
 >   %17 = Store [$1] %15 : ()
+>   %33 = Drop [$0] : ()
 >   %34 = Return - #2 : never
     run!()
 >   %18 = Read move [$1] : fn!() -> i64

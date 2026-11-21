@@ -55,7 +55,6 @@
     ;; 21 |     match k:
           return
         end
-    ;; 24 |         2 => return "returned"
         local.get $a.0
         if
           local.get $a.0
@@ -66,6 +65,7 @@
           local.get $b.0
           call $rt:release_ref
         end
+    ;; 24 |         2 => return "returned"
         i32.const 65 ;; &"returned"
         i32.const 8
         return

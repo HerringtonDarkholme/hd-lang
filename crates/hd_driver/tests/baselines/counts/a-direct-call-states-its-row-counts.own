@@ -100,6 +100,7 @@ fn awaited!(callback: fn() -> i32 $ Tag) -> i32 $ Tag:
 >   %10 = Release %7 Operation child #2 : ()
 >   %11 = Drop [$0] : ()
 >   %12 = Block %7 : i32
+>   %13 = Drop [$0] : ()
 >   %14 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   summary none

@@ -31,9 +31,9 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >   release counted reference (last use)
     parser.whitespace()
     if parser.at != parser.chars.len():
-        return .Err("trailing input")
 >   release counted reference (last use)
 >   release *i32 (last use)
+        return .Err("trailing input")
     .Ok(root)
 
 fn length_across_write(text: string) -> usize:

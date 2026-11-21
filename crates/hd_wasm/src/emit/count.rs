@@ -764,7 +764,7 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// An exit set's `Drop` of local `l` (`hd_tir::own::exits`): it ends
+    /// An exit set's `Drop` of local `l` (`hd_tir::own::elaborate`): it ends
     /// the body, so its locals stay as they are.
     fn release_exit(&mut self, l: usize) -> StageResult<()> {
         crate::work::exit_rows(1);
@@ -843,7 +843,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// The backend's part of the exit: the frame's saved referents and
-    /// wakers. The exit set runs in the body (`hd_tir::own::exits`).
+    /// wakers. The exit set runs in the body (`hd_tir::own::elaborate`).
     fn release_all_inner(&mut self) {
         // Saved reference-object slots have their own normal-exit contract.
         for saved in self.frame_refs.clone() {

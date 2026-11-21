@@ -174,7 +174,7 @@ mod tests {
     }
 
     /// An exit count runs once on every way out of its sub-body, wherever
-    /// it stands (`own::scopes::exits` copies it to each way out).
+    /// it stands (`own::elaborate` releases it on each way out).
     #[test]
     fn an_exit_release_runs_once_on_each_way_out() {
         assert!(once_on_every_way_out(&two_ways()));

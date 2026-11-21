@@ -139,11 +139,13 @@ fn through_call(p: *mut Slots, alias: *mut Slots) -> string:
 >   %46 = Drop [$0] : ()
 >   %47 = Block - : ()
 >   %48 = If %45 [%47 -] : ()
->   %49 = Intrinsic ParamOwned [1:i32] : bool
->   %50 = Drop [$1] : ()
->   %51 = Block - : ()
->   %52 = If %49 [%51 -] : ()
->   %53 = Block %38 : string
+>   %49 = Release %55 Exit local $0 #2 : ()
+>   %50 = Intrinsic ParamOwned [1:i32] : bool
+>   %51 = Drop [$1] : ()
+>   %52 = Block - : ()
+>   %53 = If %50 [%52 -] : ()
+>   %54 = Release %55 Exit local $1 #2 : ()
+>   %55 = Block %38 : string
     alias.push()
 >   %33 = Read borrow [$1] : *mut Slots
 >   %34 = LoanBegin %33 #0 : ()
@@ -213,11 +215,13 @@ fn through_inline(p: *mut Slots, alias: *mut Slots) -> string:
 >   %49 = Drop [$0] : ()
 >   %50 = Block - : ()
 >   %51 = If %48 [%50 -] : ()
->   %52 = Intrinsic ParamOwned [1:i32] : bool
->   %53 = Drop [$1] : ()
->   %54 = Block - : ()
->   %55 = If %52 [%54 -] : ()
->   %56 = Block %41 : string
+>   %52 = Release %58 Exit local $0 #2 : ()
+>   %53 = Intrinsic ParamOwned [1:i32] : bool
+>   %54 = Drop [$1] : ()
+>   %55 = Block - : ()
+>   %56 = If %53 [%55 -] : ()
+>   %57 = Release %58 Exit local $1 #2 : ()
+>   %58 = Block %41 : string
     alias.push()
 >   %36 = Read borrow [$1] : *mut Slots
 >   %37 = LoanBegin %36 #0 : ()

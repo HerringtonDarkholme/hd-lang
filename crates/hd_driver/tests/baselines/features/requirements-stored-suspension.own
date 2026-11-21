@@ -95,6 +95,7 @@ fn later!(key: string) -> usize:
 >   %14 = Call std/text/impl string.len[] (%13) : usize
 >   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$2] : ()
+>   %20 = Drop [$0] : ()
 >   %21 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $2 cell
@@ -194,6 +195,7 @@ fn bound!(s: string) -> usize:
 >   %28 = Release %27 Operation child #2 : ()
 >   %29 = Retain %27 Operation child #0 : ()
 >   %30 = Drop [%26] : ()
+>   %34 = Drop [$0] : ()
 >   %35 = Return - #2 : never
 >   exit sub 0 drops [$0]
 >   storage sub 0: $3 cell

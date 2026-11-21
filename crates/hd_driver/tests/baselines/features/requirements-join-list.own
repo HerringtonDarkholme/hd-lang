@@ -100,6 +100,7 @@ fn all!(keys: List[string]) -> usize:
 >   %47 = Await std/task/all_list[string] (%46) : List[string]
 >   %48 = Release %47 Operation child #2 : ()
 >   %49 = Store [$8] %47 : ()
+>   %85 = Drop [$0] : ()
 >   %86 = Return - #2 : never
     let mut n = 0
 >   %50 = Store [$9] 0:usize : ()

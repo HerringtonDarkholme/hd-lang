@@ -59,6 +59,7 @@ fn start() -> fn!(bool) -> void:
 >   %15 = Await app/main/pause[] () : ()
 >   %16 = Release %15 Operation child #2 : ()
 >   %17 = Block - : ()
+>   %27 = Drop [$2] : ()
 >   %28 = Return - #2 : never
         tick(&mut c)
 >   %19 = Ref mut local [$2] : &mut Counter

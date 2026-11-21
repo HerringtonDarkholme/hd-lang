@@ -26,6 +26,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %12 = Release %11 Operation child #2 : ()
 >   %17 = Drop [$0] : ()
 >   %18 = Block %14 : usize
+>   %19 = Drop [$0] : ()
 >   %20 = Return - #2 : never
     u.len()
 >   %13 = Ref local [$0] : &UniqList[i32]

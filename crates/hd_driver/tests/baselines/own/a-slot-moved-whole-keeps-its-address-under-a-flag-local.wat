@@ -582,6 +582,7 @@
         call $consume
         local.set $early
         i32.const 0
+    ;; 68 |     if early:
         local.get $held
         i32.const 0
         i32.ne
@@ -590,6 +591,7 @@
           local.get $held
           call $rt:cell_drop
         end
+    ;; 69 |         return consume(held)
         br 1
     ;; 68 |     if early:
       end

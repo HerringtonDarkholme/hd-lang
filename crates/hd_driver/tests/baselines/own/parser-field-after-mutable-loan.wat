@@ -306,7 +306,6 @@
     i32.load $heap offset=4
     i32.ne
     if
-    ;; 30 |         return .Err("trailing input")
       local.get $text.1
       if
         local.get $text.1
@@ -329,6 +328,7 @@
           call $rt:release_ref
         end
       end
+    ;; 30 |         return .Err("trailing input")
       i32.const 104 ;; &"trailing input"
       i32.const 14
       return

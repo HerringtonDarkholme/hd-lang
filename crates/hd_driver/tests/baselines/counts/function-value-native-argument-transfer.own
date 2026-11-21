@@ -1094,6 +1094,7 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   %13 = Scope %12 [] : Duration
 >   %14 = Await std/time/sleep[] (%13) : ()
 >   %15 = Release %14 Operation child #2 : ()
+>   %22 = Drop [$0] : ()
 >   %23 = Return - #2 : never
     value.owned.len()
 >   %16 = Ref local [$0 .owned] : &UniqList[usize]
@@ -1163,6 +1164,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %19 = Scope %18 [] : Duration
 >   %20 = Await std/time/sleep[] (%19) : ()
 >   %21 = Release %20 Operation child #2 : ()
+>   %102 = Drop [$3] : ()
 >   %103 = Return - #2 : never
             value.owned.len()
 >   %22 = Ref local [$3 .owned] : &UniqList[usize]
@@ -1412,6 +1414,8 @@ pub fn main!() -> void $ Clock:
 >   %67 = Release %66 Operation child #2 : ()
 >   %68 = Retain %66 Operation child #0 : ()
 >   %69 = Drop [%65] : ()
+>   %163 = Drop [$1] : ()
+>   %164 = Drop [$2] : ()
 >   %165 = Return - #2 : never
             1,
             reason="the suspended callback reads its unique input after awaiting",
