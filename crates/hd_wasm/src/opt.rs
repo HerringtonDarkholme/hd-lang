@@ -4142,7 +4142,7 @@ pub fn effect_free_calls(funcs: &mut [Option<Func>], symbols: &Symbols) -> Vec<b
                 || !f.results.is_empty()
                 || !matches!(
                     &*symbols.get(SymId(u32::try_from(k).expect("symbols"))),
-                    Sym::Helper(_) | Sym::Shim(..)
+                    Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
                 )
             {
                 continue;

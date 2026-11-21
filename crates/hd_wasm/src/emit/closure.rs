@@ -21,7 +21,6 @@ use super::Em;
 use super::value::{Dst, Src};
 use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip_newtype};
 use crate::module::{Sym, Val};
-use crate::rt::Helper;
 
 /// The defining `Closure` of sub-body `sub`, not an instantiation of a
 /// generic local function, at type arguments `args`: the instruction,
@@ -56,11 +55,6 @@ pub(super) fn captures(
     hd_tir::own::closure_captures(b, ci, recursive).collect()
 }
 
-/// Whether walk `w` runs drop glue anywhere.
-fn has_glue(w: &Walk) -> bool {
-    w.has_glue()
-}
-
 /// Whether each capture [`captures`] lists for closure `ci` moves into
 /// the environment (`CaptureMode::Move`, the move pass's rule 5): the
 /// environment takes the local's count, so the closure retains nothing.
@@ -82,7 +76,7 @@ impl Em<'_, '_, '_> {
 
     /// The layout of the value in local `l`'s cell, and its counted
     /// references.
-    pub(super) fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
+    pub(super) fn cell_mem(&self, l: usize) -> StageResult<Mem> {
         let t = self.b.local_ty[l];
         let mut m = mem_of(self.pool(), self.env(), t)?;
         let flags = self.cell_layout(t).map_or(0, |cell| cell.paths.len());
@@ -91,7 +85,7 @@ impl Em<'_, '_, '_> {
             m.size = (m.size.next_multiple_of(4) + u32::try_from(flags).expect("flags") * 4)
                 .next_multiple_of(m.align);
         }
-        Ok((m, self.counted(t)))
+        Ok(m)
     }
 
     /// The layout of closure `ci`'s environment, whose captures are
@@ -170,7 +164,7 @@ impl Em<'_, '_, '_> {
     /// Pushes the zero of each value of local `l`'s type, for a cell that
     /// a capture reaches before its declaration stores into it.
     fn zero_src(&mut self, l: usize) -> StageResult<Src> {
-        let (m, _) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
         Ok(Src::Locals(ls))
     }
@@ -195,7 +189,7 @@ impl Em<'_, '_, '_> {
         ls.sort_stable();
         let mut size = if framed { crate::task::F_SAVED } else { 0 };
         for l in ls {
-            let (m, _) = self.cell_mem(l)?;
+            let m = self.cell_mem(l)?;
             let at = size + crate::module::HEADER;
             size = (at + m.size).next_multiple_of(8);
             self.slots.insert(l, at);
@@ -233,23 +227,29 @@ impl Em<'_, '_, '_> {
         if !self.needs_drop(t) {
             return Ok(());
         }
-        let (m, _) = self.cell_mem(l)?;
-        let held = self
-            .slot_flag(super::drop_flags::Root::Local(l))?
-            .unwrap_or(c);
-        self.f.get(held);
+        let m = self.cell_mem(l)?;
+        // The slot's flag says it holds a value, and its address says it
+        // is made and not yet released: an exit after the slot's own end
+        // finds the address cleared, though the flag stays set.
+        match self.slot_flag(super::drop_flags::Root::Local(l))? {
+            Some(flag) => {
+                self.f.get(flag);
+                self.f.get(c);
+                self.f.i32(0);
+                self.f.op(I::I32Ne);
+                self.f.op(I::I32And);
+            }
+            None => self.f.get(c),
+        }
         self.f.op(I::If(BlockType::Empty));
-        if !matches!(self.kind(t), crate::layout::Kind::Value) || self.drop_calls(t).is_empty() {
+        if !matches!(self.kind(t), crate::layout::Kind::Value) || self.cell_layout(t).is_none() {
             let ls = self.f.load_locals(c, &m.leaves);
             self.release_locals(&ls, t)?;
-        } else {
+        } else if let Some(glue) = self.cell_glue(t, &m)? {
+            // The slot's value with its drop slots, as a cell's glue
+            // releases it.
             self.f.get(c);
-            self.f.helper(Helper::DropFields {
-                leaves: m.leaves,
-                walk: crate::layout::walk(self.pool(), self.env(), t)
-                    .unwrap_or_else(|| Walk::sequence(Vec::new())),
-                drops: self.cell_drop_calls(t),
-            });
+            self.f.call(glue);
         }
         self.f.op(I::End);
         Ok(())
@@ -296,12 +296,12 @@ impl Em<'_, '_, '_> {
             return Ok(at);
         }
         ledger!("cell-made/heap");
-        let (m, walk) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let ty = self.b.local_ty[l];
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
-        let drops = self.cell_drop_calls(ty);
-        let obj = self.object_drops(&m, walk.as_ref(), cyclic, recursive, drops);
+        let glue = self.cell_glue(ty, &m)?;
+        let obj = self.new_object(m.size, glue, cyclic, recursive);
         #[cfg(feature = "checked-report")]
         if self.input.runtime.checked.is_some() && self.cells.contains_key(&l) {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
@@ -315,7 +315,7 @@ impl Em<'_, '_, '_> {
     /// flag slots start `init`, or are left to the `FlagSet` that follows
     /// a store.
     fn fill_cell(&mut self, l: usize, at: u32, src: &Src, init: Option<bool>) -> StageResult<()> {
-        let (m, _) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let part = Part {
             first: 0,
             count: m.leaves.len(),
@@ -332,7 +332,7 @@ impl Em<'_, '_, '_> {
     /// one address no count reaches (`annot.handle.constants`). A checked
     /// run's teardown releases the value, as the once-cell's.
     fn static_cell(&mut self, l: usize, at: u32) -> StageResult<()> {
-        let (m, _) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let header = crate::module::HEADER;
         let base = self.m.static_slot(header + m.size, 8);
         let addr = base + header;
@@ -352,7 +352,7 @@ impl Em<'_, '_, '_> {
     /// Fresh locals holding local `l`'s value, read from its cell with no
     /// count of its own: a view that lives as long as the cell's value.
     pub(super) fn cell_read(&mut self, l: usize) -> StageResult<Vec<u32>> {
-        let (m, _) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let c = self.cell_of(l)?;
         let ls = self.f.load_locals(c, &m.leaves);
         Ok(ls)
@@ -373,13 +373,14 @@ impl Em<'_, '_, '_> {
     /// reads the value before such a store; shared captures are not
     /// candidates.
     pub(super) fn cell_take(&mut self, i: u32, l: usize) -> StageResult<()> {
-        let (m, walk) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
+        let counted = self.counted(self.b.local_ty[l]).is_some();
         let c = self.cell_of(l)?;
         let held = self.f.load_locals(c, &m.leaves);
         // Only a counted payload needs its old copy cleared: an uncounted
         // one is never released from the cell, and the move's `FlagClear`
         // came before it for a payload with a drop hook.
-        if walk.is_some() {
+        if counted {
             let zero = self.zero_src(l)?;
             let all = Part {
                 first: 0,
@@ -435,7 +436,7 @@ impl Em<'_, '_, '_> {
     /// then releases the old one.
     pub(super) fn cell_put(&mut self, l: usize, src: &Src) -> StageResult<()> {
         let at = self.cell_of(l)?;
-        let (m, _) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let d = Dst::Mem(at, 0, &m.leaves);
         let old = self.old_locals(d);
         self.replace_late(d, self.b.local_ty[l], src, &old)
@@ -481,7 +482,7 @@ impl Em<'_, '_, '_> {
             self.f.i32(0);
             return self.store(i);
         }
-        let (m, parts, walk) = self.env_layout(i as usize, &caps)?;
+        let (m, parts, _) = self.env_layout(i as usize, &caps)?;
         let mut srcs = Vec::new();
         for (l, shared) in &caps {
             let l32 = u32::try_from(*l).expect("locals");
@@ -499,7 +500,13 @@ impl Em<'_, '_, '_> {
         // The literal knows whether it captures a shared cell. Its
         // value type alone cannot describe that mutable reference edge.
         let cyclic = caps.iter().any(|(_, shared)| *shared) || self.cyclic_holding(&tys);
-        let at = self.object(&m, walk.as_ref(), cyclic, false, None);
+        let fields: Vec<Option<Ty>> = caps
+            .iter()
+            .zip(&tys)
+            .map(|((_, shared), t)| (!*shared).then_some(*t))
+            .collect();
+        let counted = self.payload_parts(&fields, &parts)?;
+        let at = self.object_parts(&m, counted.clone(), cyclic, false);
         #[cfg(feature = "checked-report")]
         crate::rt::checked_kind(&mut self.f, self.m, 1);
         for (s, p) in srcs.iter().zip(&parts) {
@@ -507,25 +514,28 @@ impl Em<'_, '_, '_> {
         }
         // A shared capture's slot holds its cell; a moved one, the
         // local's own count.
-        let copied: Vec<Ty> = caps
+        // A moved part takes no count: the move put its count there.
+        let moved_at: Vec<u32> = parts
             .iter()
-            .zip(&tys)
             .zip(&moved)
-            .map(|(((_, shared), t), mv)| if *shared || *mv { Ty::VOID } else { *t })
+            .filter(|(_, mv)| **mv)
+            .map(|(p, _)| u32::try_from(p.first).expect("leaves"))
             .collect();
-        let mut skip = self.part_colls(&copied, &parts);
-        let colls = skip.len();
-        for (p, _) in parts.iter().zip(&moved).filter(|(_, mv)| **mv) {
-            skip.extend((p.first..p.first + p.count).map(|k| u32::try_from(k).expect("leaves")));
-        }
+        let retained: Vec<_> = counted
+            .into_iter()
+            .filter(|(first, _)| !moved_at.contains(first))
+            .collect();
         // Drop glue releases a value whole: a moved part's local then
         // releases its count, as the `Drop` the move took would have.
-        let glue = walk.as_ref().is_some_and(has_glue);
+        let glue = fields
+            .iter()
+            .flatten()
+            .any(|t| crate::layout::holds_drop(self.pool(), self.env(), *t));
         if let Some(reason) =
             self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Captures)
         {
             self.because(reason, |em| {
-                em.retain_fields(at, &m, walk.as_ref(), &skip, colls);
+                em.retain_fields(at, &m, retained.clone());
             });
         }
         // A moved capture leaves its local empty, as a move read does.

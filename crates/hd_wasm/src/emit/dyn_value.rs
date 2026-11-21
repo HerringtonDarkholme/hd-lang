@@ -92,17 +92,16 @@ impl Em<'_, '_, '_> {
         }
         let src = Src::Ref(a);
         let m = mem_of(self.pool(), self.env(), from)?;
-        let w = self.counted(from);
         let cyclic = self.cyclic_holding(&[from]);
-        let at = self.object(&m, w.as_ref(), cyclic, false, Some(from));
+        let counted = self.typed_parts(from)?;
+        let at = self.object_parts(&m, counted.clone(), cyclic, false);
         let part = Part {
             first: 0,
             count: m.leaves.len(),
             offset: 0,
         };
         self.store_part(at, &m, part, &src)?;
-        let colls = self.copied(from);
-        self.retain_fields(at, &m, w.as_ref(), &colls, colls.len());
+        self.retain_fields(at, &m, counted);
         let vt = self.vtable_of(table, Some(&m.leaves), from)?;
         self.f.get(at);
         self.f.push(Ins::VTable(vt));

@@ -46,9 +46,6 @@ fn fresh() -> UniqList[i32]:
 
 fn declared(c: bool) -> usize:
     u := fresh()
-> app/main/declared
->   release counted reference (last use)
->   release counted reference (last use)
     if c:
         return u.len()
     0

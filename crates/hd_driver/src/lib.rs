@@ -11551,17 +11551,17 @@ impl Run<'_> {
             let coinductive_flags =
                 hd_opt::whole::coinductive_flags(env, &instances, &c.collected.calls);
             // Each `Drop` implementation's instance, by its type, for the
-            // release shims: one pass over the instances.
+            // release shims: one pass over the instances. Types may share
+            // one instance (its key), so each type keeps its own entry.
             let table = &c.collected.table;
-            let glue: hd_base::HashMap<Hash128, Ty> = c
+            let at: hd_base::HashMap<Hash128, usize> =
+                (0..table.key.len()).map(|k| (table.key[k], k)).collect();
+            let hook_of: hd_base::HashMap<Ty, (DefId, TyList)> = c
                 .collected
                 .drop_glue
                 .iter()
-                .map(|(&t, &k)| (k, t))
-                .collect();
-            let hook_of: hd_base::HashMap<Ty, (DefId, TyList)> = (0..table.key.len())
-                .filter_map(|k| {
-                    let &t = glue.get(&table.key[k])?;
+                .filter_map(|(&t, key)| {
+                    let &k = at.get(key)?;
                     Some((t, (table.item[k], table.args[k])))
                 })
                 .collect();

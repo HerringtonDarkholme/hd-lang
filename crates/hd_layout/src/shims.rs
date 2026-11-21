@@ -16,10 +16,10 @@
 //!
 //! [`INDIRECT`]: crate::INDIRECT
 
-use hd_base::{DefId, Hash128, HashMap, LocalId, NodeIdx, StableHasher, SubId, Symbol};
+use hd_base::{DefId, Hash128, HashMap, LocalId, NodeIdx, StableHasher, Symbol};
 use hd_tir::ir::count::{At, Info, Part};
 use hd_tir::ir::{
-    Body, BodyKind, Callee, Phase, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, Storage, Tag,
+    Body, BodyKind, Callee, Phase, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, Tag,
     TirBuilder, TirSink, VerifyError, local_flags, ref_word,
 };
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
@@ -49,12 +49,31 @@ pub enum Portion {
     Rest,
 }
 
+/// A shim body's `Release` statement whose value is a `&mut` of the part
+/// in place, not the part: its reason word's bit beside the portion (a
+/// count's reason word stays under 9, `Info::read`).
+pub const IN_PLACE: u32 = 1 << 2;
+
+/// Whether `kind`'s shim of `t` for `portion` takes the value by address
+/// and counts it in place: a release that runs a `Drop` hook, which runs
+/// on the object where it lives (Rust's `drop_in_place`), never on a copy.
+#[must_use]
+pub fn in_place(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    kind: Shim,
+    portion: Portion,
+) -> bool {
+    kind == Shim::Release && portion != Portion::Thin && crate::holds_drop(pool, env, t)
+}
+
 impl Portion {
     /// The portion a count statement of a shim body states in its reason
     /// word (`Info::reason`).
     #[must_use]
     pub fn from_reason(w: u32) -> Self {
-        match w {
+        match w & !IN_PLACE {
             1 => Portion::Thin,
             2 => Portion::Rest,
             _ => Portion::All,
@@ -417,28 +436,41 @@ pub fn shim(
     }
     let n = NodeIdx::from_raw(0);
     let mut b = TirBuilder::new(item, BodyKind::Fn);
-    let x = b.local(t, Symbol::from_raw(0), local_flags::PARAM, n);
+    let at = in_place(pool, env, t, kind, counts.portion);
+    let x = if at {
+        // The value where it lives: a `&mut` of it, in heap form.
+        let to = pool.intern_ty(&TyData::Ref {
+            inner: t,
+            mutable: true,
+            counted: false,
+        });
+        b.local(to, Symbol::from_raw(0), local_flags::PARAM, n)
+    } else {
+        b.local(t, Symbol::from_raw(0), local_flags::PARAM, n)
+    };
     let root = b.open_block();
-    // The hooks take the parameter's address, in heap form: it moves into
-    // a slot of the frame, a value kept in memory copied from where it is.
-    if kind == Shim::Release
-        && counts.portion != Portion::Thin
-        && hook_calls(pool, env, hooks, &mut b, x, t)
-    {
-        b.body_mut()
-            .storage
-            .push((SubId::from_raw(0), x, Storage::Slot));
+    if at {
+        hook_calls(pool, env, hooks, &mut b, x, t);
     }
-    let v = b.get(x, t, n);
+    let v = if at {
+        let word = b.place(&Place {
+            root: PlaceRoot::Local(x),
+            proj: vec![Proj::Deref],
+        });
+        b.emit(Tag::Read, word, ReadMode::Borrow as u32, t, n)
+    } else {
+        b.get(x, t, n)
+    };
     let mut w = Writer {
         pool,
         env,
         counts,
         b,
         kind,
+        at: at.then_some(x),
     };
     w.borrow(v);
-    w.whole(t, v)?;
+    w.whole(t, v, &[])?;
     let root = w.b.close_block(root, None, Ty::VOID, n);
     w.b.body_mut().phase = Phase::Lowered;
     let body = (w.b.finish(root, &[]))
@@ -450,10 +482,10 @@ pub fn shim(
 /// method and its type arguments (`Collected::drop_glue`).
 pub type Hooks<'a> = dyn Fn(Ty) -> Option<(DefId, TyList)> + 'a;
 
-/// Calls the hooks of `t` on local `x`, each newtype layer's outermost
-/// first, then its base's (`module.rt.drop.glue`, as `newtype_layers`
-/// walks them), each on `&mut` of its layer: `x` behind as many `.0`
-/// projections, in its frame slot. Whether it called any.
+/// Calls the hooks of `t` on the value `x` refers to, each newtype
+/// layer's outermost first, then its base's (`module.rt.drop.glue`, as
+/// `newtype_layers` walks them), each on `&mut` of its layer at `*x`,
+/// where it lives.
 fn hook_calls(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -471,14 +503,12 @@ fn hook_calls(
         let Some((def, targs)) = hooks(layer) else {
             continue;
         };
-        if !called {
-            // The parameter moves into its frame slot at entry: the
-            // prologue does it for a parameter its root's `Box` names.
-            b.emit(Tag::Box, x.raw(), Storage::Slot as u32, Ty::VOID, n);
-        }
+        // Every layer lies where the value does: a newtype is its base
+        // in place (`types.newtype.construct-value`).
+        let _ = depth;
         let place = Place {
             root: PlaceRoot::Local(x),
-            proj: vec![Proj::Field(0); depth],
+            proj: vec![Proj::Deref],
         };
         let word = b.place(&place);
         let to = pool.intern_ty(&TyData::Ref {
@@ -486,13 +516,7 @@ fn hook_calls(
             mutable: true,
             counted: false,
         });
-        let r = b.emit(
-            Tag::Ref,
-            word,
-            ref_word::MUT | ref_word::LOCAL | ref_word::FRAME,
-            to,
-            n,
-        );
+        let r = b.emit(Tag::Ref, word, ref_word::MUT | ref_word::LOCAL, to, n);
         b.call(
             &Callee::Item { def, targs },
             &[r],
@@ -511,18 +535,22 @@ struct Writer<'a> {
     counts: &'a mut Counts,
     b: TirBuilder,
     kind: Shim,
+    /// The parameter of an in-place shim: a hooked part is counted where
+    /// it lives, through it.
+    at: Option<LocalId>,
 }
 
 impl Writer<'_> {
     /// The shim's own type: a sum switches on its variants; a newtype
     /// counts its one field; any other type, its parts in place.
-    fn whole(&mut self, t: Ty, v: Ref) -> StageResult<()> {
+    fn whole(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
         let s = strip_newtype(self.pool, self.env, t);
         if s != t {
             // A newtype has one field (`strip_newtype`).
             if let &[inner] = value_parts(self.pool, self.env, t).as_slice() {
+                // A place's type is its base already: no step.
                 let f = self.field(v, 0, inner);
-                return self.whole(inner, f);
+                return self.whole(inner, f, path);
             }
         }
         // A base that is one address (a newtype's string), or that has
@@ -530,16 +558,19 @@ impl Writer<'_> {
         // product, opens.
         let own = self.counts.of(self.pool, self.env, t)?;
         if matches!(own, Count::Address { .. }) {
-            return self.part(t, v);
+            return self.part(t, v, path);
         }
         match variants(self.pool, self.env, t) {
-            Some(vs) => self.switch(v, &vs),
-            None => self.parts(t, v),
+            Some(vs) => self.switch(v, &vs, path),
+            None => self.parts(t, v, path),
         }
     }
 
-    /// A product's counted parts, in place.
-    fn parts(&mut self, t: Ty, v: Ref) -> StageResult<()> {
+    /// A product's counted parts, in place. A place's type is its
+    /// newtype's base already (the emitter's places strip newtypes), so
+    /// `path` takes no step for a layer.
+    fn parts(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
+        let t = strip_newtype(self.pool, self.env, t);
         let parts = match self.pool.get(t) {
             TyData::Tuple { .. } => tuple_members(self.pool, t),
             _ => value_parts(self.pool, self.env, t),
@@ -547,21 +578,43 @@ impl Writer<'_> {
         for (k, &p) in (0u32..).zip(&parts) {
             if self.counts.of(self.pool, self.env, p)? != Count::None {
                 let f = self.field(v, k, p);
-                self.part(p, f)?;
+                self.part(p, f, &step(path, &[Proj::Field(k)]))?;
             }
         }
         Ok(())
     }
 
     /// One part: a statement, or its own parts when a product in values.
-    fn part(&mut self, t: Ty, v: Ref) -> StageResult<()> {
+    /// In an in-place shim, a part with a hook is released where it lives:
+    /// the statement's value is a `&mut` of it ([`IN_PLACE`]).
+    fn part(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
         match self.counts.of(self.pool, self.env, t)? {
             Count::None => {}
-            Count::Parts => self.parts(strip_newtype(self.pool, self.env, t), v)?,
+            Count::Parts => self.parts(t, v, path)?,
             Count::Address { .. } | Count::Call => {
                 let n = NodeIdx::from_raw(0);
                 // The part's own shim counts the same portion.
                 let portion = self.counts.portion as u32;
+                if let Some(x) = self.at
+                    && in_place(self.pool, self.env, t, self.kind, self.counts.portion)
+                {
+                    let word = self.b.place(&Place {
+                        root: PlaceRoot::Local(x),
+                        proj: step(&[Proj::Deref], path),
+                    });
+                    let to = self.pool.intern_ty(&TyData::Ref {
+                        inner: t,
+                        mutable: true,
+                        counted: false,
+                    });
+                    let r = self
+                        .b
+                        .emit(Tag::Ref, word, ref_word::MUT | ref_word::LOCAL, to, n);
+                    let info = Info::new(At::Value, Part::Result, portion | IN_PLACE)
+                        .write(self.b.body_mut());
+                    self.b.emit(Tag::Release, r.0, info, Ty::VOID, n);
+                    return Ok(());
+                }
                 let info = Info::new(At::Value, Part::Result, portion).write(self.b.body_mut());
                 let tag = match self.kind {
                     Shim::Retain => Tag::Retain,
@@ -575,7 +628,7 @@ impl Writer<'_> {
 
     /// One test per variant with a counted payload, each the next one's
     /// `else`: as many tests as counted variants, nested once each.
-    fn switch(&mut self, v: Ref, variants: &[Vec<Ty>]) -> StageResult<()> {
+    fn switch(&mut self, v: Ref, variants: &[Vec<Ty>], path: &[Proj]) -> StageResult<()> {
         let n = NodeIdx::from_raw(0);
         let mut open = Vec::new();
         for (k, fields) in (0u32..).zip(variants) {
@@ -591,7 +644,7 @@ impl Writer<'_> {
                 if self.counts.of(self.pool, self.env, f)? != Count::None {
                     let p = self.b.payload(v, k, j, f, n);
                     self.borrow(p);
-                    self.part(f, p)?;
+                    self.part(f, p, &step(path, &[Proj::Variant(k), Proj::Field(j)]))?;
                 }
             }
             let arm = self.b.close_block(arm, None, Ty::VOID, n);
@@ -617,4 +670,9 @@ impl Writer<'_> {
             self.b.body_mut().data[i.0 as usize][1] = ReadMode::Borrow as u32;
         }
     }
+}
+
+/// `path` followed by `more`.
+fn step(path: &[Proj], more: &[Proj]) -> Vec<Proj> {
+    path.iter().chain(more).copied().collect()
 }

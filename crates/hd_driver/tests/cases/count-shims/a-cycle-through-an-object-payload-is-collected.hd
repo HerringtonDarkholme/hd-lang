@@ -1,0 +1,38 @@
+# @dump: stdout
+# @build: dev | checked
+# A cycle through a box's payload (`Stop`, which holds a string and a
+# `UniqList` with a `Drop` hook) and one through a closure's environment
+# (`sum`, which holds a string) are reclaimed by the cycle collector. It
+# reruns each object's release glue in drain mode, the one path a plain
+# release takes. The checked build's audit finds no leaked block: each
+# list's buffer and each string is freed once.
+use std.collections.UniqList
+
+struct Stop:
+    name: string
+    seen: UniqList[i32]
+    next: *mut Stop?
+
+fn ring(round: i32) -> i32:
+    let mut seen = UniqList::[i32].new()
+    seen.push(round)
+    first := box(Stop { name: "first ${round}", seen: seen, next: .None })
+    second := box(Stop { name: "${"second"}", seen: UniqList::[i32].new(), next: .Some(first) })
+    first.next = .Some(second)
+    match first.next:
+        .Some(stop) => if stop.name == "second": 1 else: 0
+        .None => 0
+
+fn sum_to(limit: i32) -> i32:
+    label := "${limit}"
+    sum := fn(n: i32) -> i32:
+        if n == 0: i32(label.len()) - 1 else: n + sum(n - 1)
+    sum(limit)
+
+pub fn main() -> void $ Console:
+    let total = +0
+    let round = +0
+    while round < 2000:
+        total = total + ring(round) + sum_to(round % 5)
+        round = round + 1
+    println("${total}")

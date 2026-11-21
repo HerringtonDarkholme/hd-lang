@@ -1,0 +1,30 @@
+# @dump: stdout
+# @build: dev | checked
+# A parameter kept in a frame slot (`Pair`, both fields with a `Drop`
+# hook) loses one field to a move and reads the other: the slot's release
+# runs the cell's open drop over its drop slots, which releases the field
+# left and nothing of the one moved out. Releasing a moved field's parts
+# where its slot said moved freed its buffer twice, and its hook read
+# freed memory.
+use std.collections.UniqList
+
+struct Pair:
+    a: UniqList[string]
+    b: UniqList[string]
+
+fn eat(xs: UniqList[string]) -> usize:
+    xs.len()
+
+fn first_then_rest(p: Pair) -> usize:
+    eat(p.a) + p.b.len()
+
+fn pair() -> Pair:
+    let mut a = UniqList::[string].new()
+    a.push("a${1}")
+    let mut b = UniqList::[string].new()
+    b.push("b${1}")
+    b.push("b${2}")
+    Pair { a: a, b: b }
+
+pub fn main() -> void $ Console:
+    println("${first_then_rest(pair())}")

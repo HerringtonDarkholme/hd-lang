@@ -782,10 +782,10 @@ impl Em<'_, '_, '_> {
                 // A local no cell holds, as a closure's copy of what it
                 // captured, which never changes: the reference is to a new
                 // object holding a copy (`ref.expr.allocate`).
-                let w = self.counted(ty);
                 let cyclic = self.cyclic_holding(&[ty]);
                 let recursive = self.recursive_object(ty);
-                let obj = self.object(&m, w.as_ref(), cyclic, recursive, Some(ty));
+                let counted = self.typed_parts(ty)?;
+                let obj = self.object_parts(&m, counted.clone(), cyclic, recursive);
                 let src = Src::Locals(ls[first..first + m.leaves.len()].to_vec());
                 let all = Part {
                     first: 0,
@@ -793,8 +793,7 @@ impl Em<'_, '_, '_> {
                     offset: 0,
                 };
                 self.store_part(obj, &m, all, &src)?;
-                let colls = self.copied(ty);
-                self.retain_fields(obj, &m, w.as_ref(), &colls, colls.len());
+                self.retain_fields(obj, &m, counted);
                 self.f.get(obj);
                 // A local reference owns the copy; a counted reference's
                 // count of it is the reference's own.
@@ -926,7 +925,7 @@ impl Em<'_, '_, '_> {
         {
             return Ok(false);
         }
-        let (m, _) = self.cell_mem(l)?;
+        let m = self.cell_mem(l)?;
         let (pt, part) = self.fold_path(self.b.local_ty[l], &path)?;
         ledger!("partial-move/out-of-cell-zeroed");
         let leaves = m.leaves[part.first..part.first + part.count].to_vec();

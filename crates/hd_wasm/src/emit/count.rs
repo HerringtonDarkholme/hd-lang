@@ -121,14 +121,29 @@ impl Em<'_, '_, '_> {
     /// tests null itself, and a part with its own shim by that shim. Inline
     /// fast paths belong at an ordinary body's count sites, not in glue.
     pub(super) fn lowered_count(&mut self, i: u32, value: u32, retain: bool) -> StageResult<()> {
+        let t = self.ty(value);
+        // The statement's reason word states the portion it counts, and
+        // whether its value is a `&mut` of the part, counted in place:
+        // the reference, which nothing else reads, is computed here.
+        let reason = Info::read(self.b, i as usize).map_or(0, |c| c.reason);
+        let portion = hd_layout::shims::Portion::from_reason(reason);
+        if reason & hd_layout::shims::IN_PLACE != 0 {
+            self.comp(value, 0)?;
+            let at = self.f.local(crate::module::Val::I32);
+            self.f.set(at);
+            let TyData::Ref { inner, .. } = self.input.pool.get(t) else {
+                return Err(hd_base::NotImplemented::bug(
+                    hd_base::Stage::Emit,
+                    "an in-place count of a value that is no reference",
+                ));
+            };
+            let counted = crate::rt::counted_of_portion(self.input, self.m, inner, portion)?;
+            counted.emit_at(&mut self.f, self.m, &|f| f.get(at), &|_, _| {}, retain);
+            return Ok(());
+        }
         let Some(ls) = self.vals.get(&value).cloned() else {
             return Ok(());
         };
-        let t = self.ty(value);
-        // The statement's reason word states the portion it counts.
-        let portion = hd_layout::shims::Portion::from_reason(
-            Info::read(self.b, i as usize).map_or(0, |c| c.reason),
-        );
         self.count_portion(&ls, t, retain, portion)
     }
 
@@ -495,16 +510,8 @@ impl Em<'_, '_, '_> {
             Count::None => return Ok(()),
             Count::Address { index, known } => (index, known),
             Count::Parts | Count::Call => {
-                for l in ls {
-                    self.f.get(*l);
-                }
-                let key = self
-                    .m
-                    .shim_key(t, shape, kind, hd_layout::shims::Portion::All);
-                let width = u32::try_from(ls.len()).unwrap_or(u32::MAX);
-                let hooked = !retain && hd_layout::holds_drop(self.pool(), self.env(), t);
-                self.f.call(crate::Sym::Shim(key, retain, width, hooked));
-                return Ok(());
+                let _ = shape;
+                return self.count_portion(ls, t, retain, hd_layout::shims::Portion::All);
             }
         };
         let colls = if retain { self.copied(t) } else { Vec::new() };

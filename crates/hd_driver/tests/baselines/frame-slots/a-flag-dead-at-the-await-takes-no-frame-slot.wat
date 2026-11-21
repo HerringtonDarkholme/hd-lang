@@ -11,7 +11,7 @@
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[std.rt_tests.stage_case.Item]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[std.rt_tests.stage_case.Item]" (param i32 i32)))
   (import "fixture" "impl[T < ?Copy] Buffer[T].at[std.rt_tests.stage_case.Item]" (func $"impl[T < ?Copy] Buffer[T].at[std.rt_tests.stage_case.Item]" (param i32 i32) (result i32)))
   (import "fixture" "rt:panic'5" (func $rt:panic'5))
-  (import "fixture" "release_value[std.rt_tests.stage_case.Item]" (func $"release_value[std.rt_tests.stage_case.Item]" (param i32 i32)))
+  (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32)))
   (import "fixture" "impl Duration.milliseconds" (func $"impl Duration.milliseconds" (param i64) (result i64)))
   (import "fixture" "sleep" (func $sleep (param i32 i64 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
@@ -460,7 +460,7 @@
           if
             local.get $ready
             local.get $bag
-            call $"release_value[std.rt_tests.stage_case.Item]"
+            call $rt:release_spilled
           end
         end
     ;; 29 |     sleep!(ms(1))
@@ -1113,7 +1113,7 @@
         i32.load $heap
         local.get $t2
         i32.load $heap offset=4
-        call $"release_value[std.rt_tests.stage_case.Item]"
+        call $rt:release_spilled
       end
       i32.const 0
       local.set $kept.name.0
@@ -1154,7 +1154,7 @@
       i32.load $heap
       local.get $t2
       i32.load $heap offset=4
-      call $"release_value[std.rt_tests.stage_case.Item]"
+      call $rt:release_spilled
     end
     local.get $t2
     i32.load $heap offset=8
@@ -1312,7 +1312,7 @@
       if
         local.get $t1
         local.get $t2
-        call $"release_value[std.rt_tests.stage_case.Item]"
+        call $rt:release_spilled
       end
       local.get $t0
       i32.load $heap offset=32

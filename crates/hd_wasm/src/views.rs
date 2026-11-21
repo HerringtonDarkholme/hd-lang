@@ -257,6 +257,8 @@ pub(crate) fn helper_count_action(s: &crate::module::Sym) -> Option<CountAction>
             | Helper::ReleaseKnown
             | Helper::TakeBox
             | Helper::DropFields { .. }
+            | Helper::DropParts { .. }
+            | Helper::ReleaseSpilled { .. }
             | Helper::DropValue { .. }
             | Helper::CycleRelease,
         ) => Some(Release),

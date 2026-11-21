@@ -14,26 +14,8 @@ use crate::layout::{
     Discr, Enc, Flat, Is, IsOps as _, Kind, Leaf, LeafOps as _, Mem, Part, Step, Test, Walk, kind,
     payload_mem, variant_steps, variants, walk,
 };
-use crate::module::{HEAP, Sym, Val, mem};
+use crate::module::{HEAP, Sym, Val};
 use crate::rt::{DropCall, Helper};
-
-/// Release glue for an allocation, including destructor-only payloads whose
-/// representation contains no counted addresses. Move the drop list once.
-fn object_glue(m: &Mem, walk: Option<&Walk>, drops: Vec<DropCall>) -> Option<Helper> {
-    match walk {
-        Some(walk) => Some(Helper::DropFields {
-            leaves: m.leaves.clone(),
-            walk: walk.clone(),
-            drops,
-        }),
-        None if !drops.is_empty() => Some(Helper::DropFields {
-            leaves: Vec::new(),
-            walk: Walk::sequence(Vec::new()),
-            drops,
-        }),
-        None => None,
-    }
-}
 
 /// Where a payload field's values come from: a TIR value, or locals.
 #[derive(Clone)]
@@ -141,11 +123,6 @@ impl Em<'_, '_, '_> {
         true
     }
 
-    /// The counted references of an enum cell, from its inline field layout.
-    fn cell_walk(&self, t: Ty) -> Option<Walk> {
-        crate::layout::switch_walk(self.pool(), self.env(), t)
-    }
-
     /// Pushes a zero of `v`.
     pub(super) fn zero(&mut self, v: Val) {
         self.f.op(match v {
@@ -194,46 +171,187 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// A new counted object whose payload is laid out as `m`, with the
-    /// counted references `walk` (§23.4): a local holding its payload's
-    /// address. Its descriptor names the release glue of its payload, and
-    /// says whether it takes part in cycle collection (`cyclic`, from
-    /// `crate::cycle`).
-    pub(super) fn object(
+    /// A new counted object whose payload is laid out as `m` and holds
+    /// `parts`, each by its first leaf and how its type counts: a local
+    /// holding its payload's address. Its descriptor names the payload's
+    /// release glue, [`Helper::DropParts`], and says whether it takes
+    /// part in cycle collection (`cyclic`, from `crate::cycle`).
+    pub(super) fn object_parts(
         &mut self,
         m: &Mem,
-        walk: Option<&Walk>,
+        parts: Vec<(u32, crate::rt::Counted)>,
         cyclic: bool,
         recursive: bool,
-        target: Option<Ty>,
     ) -> u32 {
-        let drops = target.map_or_else(Vec::new, |ty| self.drop_calls(ty));
-        self.object_drops(m, walk, cyclic, recursive, drops)
+        let glue = (!parts.is_empty()).then(|| {
+            Sym::Helper(Helper::DropParts {
+                leaves: m.leaves.clone(),
+                parts,
+            })
+        });
+        self.new_object(m.size, glue, cyclic, recursive)
     }
 
-    pub(super) fn object_drops(
+    /// A new counted object of `size` payload bytes whose descriptor
+    /// names release glue `glue`: a local holding its payload's address.
+    pub(super) fn new_object(
         &mut self,
-        m: &Mem,
-        walk: Option<&Walk>,
+        size: u32,
+        glue: Option<Sym>,
         cyclic: bool,
         recursive: bool,
-        drops: Vec<DropCall>,
     ) -> u32 {
         let at = self.f.local(Val::I32);
-        self.f.u32(m.size);
-        let glue = object_glue(m, walk, drops).map(Sym::Helper);
+        self.f.u32(size);
         crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
         if self.input.runtime.checked.is_none()
-            && m.size
+            && size
                 .checked_add(crate::module::HEADER)
                 .is_some_and(|n| n <= 2048)
         {
-            self.f.helper(Helper::NewFixed { size: m.size });
+            self.f.helper(Helper::NewFixed { size });
         } else {
             self.f.helper(Helper::New);
         }
         self.f.set(at);
         at
+    }
+
+    /// The release glue of boxed enum `t`'s cell, laid out as `flat`: its
+    /// `Drop` hook on the payload, then, under the test of the variant it
+    /// holds, one count less on each counted field. Made once per key as
+    /// its own function, whose parameter is the payload's address.
+    pub(super) fn boxed_glue(&mut self, t: Ty, flat: &Flat) -> StageResult<Option<Sym>> {
+        let hook = self.input.collected.drop_glue.get(&t).copied();
+        let variants = self.try_variant_tys(t).unwrap_or_default();
+        let mut arms = Vec::new();
+        for (v, (fields, at)) in (0u32..).zip(variants.iter().zip(&flat.positions)) {
+            let test = flat.test(v);
+            if matches!(test, Test::Const(false) | Test::Read(_, Is::Never)) {
+                continue;
+            }
+            let mut counted = Vec::new();
+            for (&field, ks) in fields.iter().zip(at) {
+                let c = crate::rt::counted_of(self.input, self.m, field)?;
+                if c.counts() {
+                    counted.push((c, ks.clone()));
+                }
+            }
+            if !counted.is_empty() {
+                arms.push((test, counted));
+            }
+        }
+        if hook.is_none() && arms.is_empty() {
+            return Ok(None);
+        }
+        let mut h = hd_base::StableHasher::new("boxed-drop");
+        for l in &flat.mem.leaves {
+            h.u32(l.offset);
+            h.str(&format!("{l:?}"));
+        }
+        if let Some(k) = hook {
+            h.hash(k);
+        }
+        for (test, counted) in &arms {
+            match test {
+                Test::Read(d, is) => {
+                    h.u32(d.value);
+                    h.str(&format!("{is:?}"));
+                }
+                Test::Const(_) => h.u32(u32::MAX),
+            }
+            for (c, ks) in counted {
+                match c {
+                    crate::rt::Counted::None => {}
+                    crate::rt::Counted::Address { index, known } => {
+                        h.u32(*index);
+                        h.u32(u32::from(*known));
+                    }
+                    crate::rt::Counted::Shims(s) => h.hash(s.release),
+                }
+                for &k in ks {
+                    h.u32(k);
+                }
+            }
+        }
+        let sym = Sym::CellDrop(h.finish());
+        if !self.m.is_defined(sym.clone()) {
+            let mut f = self.m.func("rt:boxed_drop", vec![Val::I32], vec![]);
+            if let Some(k) = hook {
+                f.get(0);
+                f.call(Sym::Inst(k));
+            }
+            let ls = f.load_locals(0, &flat.mem.leaves);
+            for (test, counted) in &arms {
+                if let Test::Read(d, is) = test {
+                    f.get(ls[d.value as usize]);
+                    for op in crate::layout::IsOps::ops(*is) {
+                        f.op(op);
+                    }
+                    f.op(I::If(wasm_encoder::BlockType::Empty));
+                }
+                for (c, ks) in counted {
+                    // A field whose release runs in place, at its address.
+                    let off = ks
+                        .first()
+                        .map_or(0, |&k| flat.mem.leaves[k as usize].offset)
+                        - c.first_offset();
+                    c.emit_at(
+                        &mut f,
+                        self.m,
+                        &|f| {
+                            f.get(0);
+                            if off != 0 {
+                                f.u32(off);
+                                f.op(I::I32Add);
+                            }
+                        },
+                        &|f, k| f.get(ls[ks[k as usize] as usize]),
+                        false,
+                    );
+                }
+                if matches!(test, Test::Read(..)) {
+                    f.op(I::End);
+                }
+            }
+            self.m.define(sym.clone(), f);
+        }
+        Ok(Some(sym))
+    }
+
+    /// The parts of a payload that is one `t` value: the value whole,
+    /// when its type counts anything.
+    pub(super) fn typed_parts(&mut self, t: Ty) -> StageResult<Vec<(u32, crate::rt::Counted)>> {
+        let counted = crate::rt::counted_of(self.input, self.m, t)?;
+        Ok(if counted.counts() {
+            vec![(0, counted)]
+        } else {
+            Vec::new()
+        })
+    }
+
+    /// The parts of a payload of fields `tys`, laid out as `parts`, that
+    /// count anything. A field of `None` is a shared capture's cell, one
+    /// known address.
+    pub(super) fn payload_parts(
+        &mut self,
+        tys: &[Option<Ty>],
+        parts: &[Part],
+    ) -> StageResult<Vec<(u32, crate::rt::Counted)>> {
+        let mut out = Vec::new();
+        for (t, p) in tys.iter().zip(parts) {
+            let counted = match t {
+                Some(t) => crate::rt::counted_of(self.input, self.m, *t)?,
+                None => crate::rt::Counted::Address {
+                    index: 0,
+                    known: true,
+                },
+            };
+            if counted.counts() {
+                out.push((u32::try_from(p.first).expect("leaves"), counted));
+            }
+        }
+        Ok(out)
     }
 
     /// The `std.rt.Drop` calls in a concrete value's structural release,
@@ -421,42 +539,20 @@ impl Em<'_, '_, '_> {
         Ok(true)
     }
 
-    /// The leaves of a payload of `tys`, laid out as `parts`, that hold a
-    /// collection a count copies ([`Em::copied`]).
-    pub(super) fn part_colls(&self, tys: &[Ty], parts: &[Part]) -> Vec<u32> {
-        let mut out = Vec::new();
-        for (t, p) in tys.iter().zip(parts) {
-            let first = u32::try_from(p.first).expect("leaves");
-            out.extend(self.copied(*t).into_iter().map(|c| first + c));
-        }
-        out
-    }
-
-    /// One more count on each counted reference that a new object's
-    /// construction copied into its payload: each collection, at the
-    /// first `n` leaves of `skip`, the copy glue's result stored back. The
-    /// other leaves of `skip` take no count (a move put them there).
+    /// One more count on each of `parts` (by first leaf and how its type
+    /// counts) that a new object's construction, at payload `at` laid out
+    /// as `m`, copied into its payload.
     pub(super) fn retain_fields(
         &mut self,
         at: u32,
         m: &Mem,
-        walk: Option<&Walk>,
-        skip: &[u32],
-        n: usize,
+        parts: Vec<(u32, crate::rt::Counted)>,
     ) {
-        for &c in &skip[..n] {
-            let l = m.leaves[c as usize];
-            self.f.get(at);
-            self.f.get(at);
-            self.f.op(l.load(0));
-            self.f.helper(Helper::CollCopy);
-            self.f.op(I::I32Store(mem(HEAP, u64::from(l.offset), 2)));
-        }
-        if let Some(w) = walk.and_then(|w| w.without(skip)) {
+        if !parts.is_empty() {
             self.f.get(at);
             self.f.helper(Helper::RetainFields {
                 leaves: m.leaves.clone(),
-                walk: w,
+                parts,
             });
         }
     }
@@ -871,10 +967,10 @@ impl Em<'_, '_, '_> {
         if matches!(self.kind(t), Kind::Boxed) {
             // The cell is memory: the discriminant and the variant's leaves
             // at their offsets.
-            let walk = self.cell_walk(t);
             let cyclic = self.cyclic_object(t);
             let recursive = self.recursive_object(t);
-            let cell = self.object(m, walk.as_ref(), cyclic, recursive, Some(t));
+            let glue = self.boxed_glue(t, &flat)?;
+            let cell = self.new_object(m.size, glue, cyclic, recursive);
             let at = |em: &mut Self| {
                 em.f.get(cell);
                 Ok(())
@@ -909,57 +1005,63 @@ impl Em<'_, '_, '_> {
 mod object_glue_tests {
     use super::*;
     use crate::module::{Ins, Module};
+    use crate::rt::{Counted, ShimSyms};
     use hd_base::Hash128;
 
-    #[test]
-    fn destructor_only_allocations_call_the_destructor_without_loading_scalar_fields() {
-        let m = Mem {
-            size: 16,
-            align: 4,
-            leaves: vec![Leaf {
-                val: Val::I32,
-                offset: 0,
-                bytes: 4,
-                signed: false,
-            }],
-            niche: None,
-            uninhabited: false,
-        };
-        let target = Hash128(7);
-        let glue = object_glue(
-            &m,
-            None,
-            vec![DropCall {
-                offset: 12,
-                target,
-                guards: vec![],
-            }],
-        )
-        .expect("destructor needs glue");
-        let mut module = Module::default();
-        let f = crate::rt::helper(&glue, &mut module);
-        let calls: Vec<_> = f
-            .body
+    fn calls(f: &crate::module::Func) -> Vec<Sym> {
+        f.body
             .iter()
             .filter_map(|ins| match ins {
                 Ins::Call(id, _) => Some(f.symbol(*id).clone()),
                 _ => None,
             })
-            .collect();
-        assert_eq!(calls, [Sym::Inst(target)]);
-        assert!(!f.body.iter().any(|ins| matches!(
-            ins,
-            Ins::Op(I::I32Load(_) | I::I64Load(_) | I::F32Load(_) | I::F64Load(_))
-        )));
+            .collect()
+    }
+
+    /// An object's release glue counts each part through its type: a
+    /// part with a hook calls its release shim, which runs the hook, on
+    /// that part's values; a known address releases with no shim.
+    #[test]
+    fn object_glue_counts_each_part_through_its_type() {
+        let word = |offset| Leaf {
+            val: Val::I32,
+            offset,
+            bytes: 4,
+            signed: false,
+        };
+        let leaves = vec![word(0), word(4), word(8)];
+        let mut module = Module::default();
+        let hooked = Helper::DropParts {
+            leaves: leaves.clone(),
+            parts: vec![(
+                1,
+                Counted::Shims(Box::new(ShimSyms {
+                    retain: Hash128(1),
+                    release: Hash128(2),
+                    width: 2,
+                    hooked: true,
+                    in_place: None,
+                })),
+            )],
+        };
+        let f = crate::rt::helper(&hooked, &mut module);
+        assert_eq!(calls(&f), [Sym::Shim(Hash128(2), false, 2, true)]);
+        let address = Helper::DropParts {
+            leaves,
+            parts: vec![(
+                2,
+                Counted::Address {
+                    index: 0,
+                    known: true,
+                },
+            )],
+        };
+        let f = crate::rt::helper(&address, &mut module);
+        assert!(calls(&f).iter().all(|s| !matches!(s, Sym::Shim(..))));
         assert!(
             f.body
                 .iter()
-                .any(|ins| matches!(ins, Ins::Op(I::I32Const(12))))
+                .any(|ins| matches!(ins, Ins::Op(I::I32Load(a)) if a.offset == 8))
         );
-        assert!(object_glue(&m, None, vec![]).is_none());
-        let counted =
-            object_glue(&m, Some(&Walk::Known(0)), vec![]).expect("counted field needs glue");
-        let f = crate::rt::helper(&counted, &mut module);
-        assert!(f.body.iter().any(|ins| matches!(ins, Ins::Call(id, _) if matches!(*f.symbol(*id), Sym::Helper(Helper::ReleaseKnown)))));
     }
 }

@@ -79,5 +79,4 @@ pub fn main() -> void $ Console:
 >   release *mut app.main.Named (last use)
     items.push(7)
     println(unique(items).len())
->   release counted reference (last use)
     println(original)

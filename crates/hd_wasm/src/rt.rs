@@ -345,11 +345,29 @@ pub enum Helper {
         walk: Walk,
         drops: Vec<DropCall>,
     },
-    /// `(payload)`: one more count on each counted reference in a new
-    /// object's payload, which its construction copied in.
+    /// `(payload)`: one more count on each part of a new object's
+    /// payload, laid out as `leaves`, that its construction copied in:
+    /// each part's first leaf and how its type counts.
     RetainFields {
         leaves: Vec<Leaf>,
-        walk: Walk,
+        parts: Vec<(u32, Counted)>,
+    },
+    /// `(values)`: a value whose release runs in place, in locals: stores
+    /// it in a frame slot laid out as `leaves`, `size` bytes, in heap form,
+    /// then calls its in-place release shim `release` on that address.
+    ReleaseSpilled {
+        size: u32,
+        leaves: Vec<Leaf>,
+        release: Hash128,
+    },
+    /// `(payload)`: the release glue of an object whose payload is laid
+    /// out as `leaves`: one count less on each part, by its first leaf
+    /// and how its type counts. A part whose type holds a `std.rt.Drop`
+    /// hook runs it in its release shim. The cycle collector's drain
+    /// reruns this same glue.
+    DropParts {
+        leaves: Vec<Leaf>,
+        parts: Vec<(u32, Counted)>,
     },
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
@@ -806,6 +824,10 @@ pub struct ShimSyms {
     pub release: Hash128,
     pub width: u32,
     pub hooked: bool,
+    /// The release takes the value by address and runs its hooks where it
+    /// lives (`hd_layout::shims::in_place`); then the value's layout, its
+    /// leaves and size, so values in locals go to a frame slot first.
+    pub in_place: Option<Box<(u32, Vec<Leaf>)>>,
 }
 
 impl Counted {
@@ -841,16 +863,55 @@ impl Counted {
                     release,
                     width,
                     hooked,
+                    ref in_place,
                 } = **s;
                 for k in 0..width {
                     get(f, k);
                 }
-                f.call(if retain {
-                    Sym::Shim(r, true, width, false)
-                } else {
-                    Sym::Shim(release, false, width, hooked)
-                });
+                match in_place {
+                    Some(layout) if !retain => f.helper(Helper::ReleaseSpilled {
+                        size: layout.0,
+                        leaves: layout.1.clone(),
+                        release,
+                    }),
+                    _ if retain => f.call(Sym::Shim(r, true, width, false)),
+                    _ => f.call(Sym::Shim(release, false, width, hooked)),
+                }
             }
+        }
+    }
+
+    /// [`Counted::emit`] of a value kept in memory: a release that runs
+    /// in place gets the address `addr` pushes, the payload address of
+    /// the value's first leaf at `first` bytes; any other count, its
+    /// values, as `emit` does.
+    pub(crate) fn emit_at(
+        &self,
+        f: &mut Func,
+        m: &Module,
+        addr: &dyn Fn(&mut Func),
+        get: &dyn Fn(&mut Func, u32),
+        retain: bool,
+    ) {
+        match self {
+            Counted::Shims(s) if !retain && s.in_place.is_some() => {
+                addr(f);
+                f.call(Sym::Shim(s.release, false, 1, s.hooked));
+            }
+            _ => self.emit(f, m, get, retain),
+        }
+    }
+
+    /// The byte offset of the value's first leaf in its own layout, for
+    /// an address found from where that leaf is stored.
+    pub(crate) fn first_offset(&self) -> u32 {
+        match self {
+            Counted::Shims(s) => s
+                .in_place
+                .as_ref()
+                .and_then(|l| l.1.first())
+                .map_or(0, |l| l.offset),
+            _ => 0,
         }
     }
 }
@@ -880,6 +941,18 @@ pub(crate) fn counted_of_portion(
             width: u32::try_from(crate::layout::vals(input.pool, input.env, t)?.len())
                 .unwrap_or(u32::MAX),
             hooked: portion != Portion::Thin && crate::layout::holds_drop(input.pool, input.env, t),
+            in_place: if hd_layout::shims::in_place(
+                input.pool,
+                input.env,
+                t,
+                hd_layout::shims::Shim::Release,
+                portion,
+            ) {
+                let mem = crate::layout::mem(input.pool, input.env, t)?;
+                Some(Box::new((mem.size, mem.leaves)))
+            } else {
+                None
+            },
         })),
     })
 }
@@ -2221,6 +2294,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::RetainKnown
         | H::ReleaseKnown
         | H::DropFields { .. }
+        | H::DropParts { .. }
         | H::RetainFields { .. }
         | H::DropElems { .. }
         | H::DropEntries { .. }
@@ -2266,7 +2340,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         H::Retain { vals, .. } | H::Release { vals, .. } => (vals.len(), 0),
         H::ReleaseAt(_) | H::RetainAt(_) | H::HooksAt(_) => (1, 0),
         H::HeapFrame => (1, 1),
-        H::DropValue { leaves, .. } => (leaves.len(), 0),
+        H::DropValue { leaves, .. } | H::ReleaseSpilled { leaves, .. } => (leaves.len(), 0),
         H::MapTable { .. } => (2, 1),
         H::MapHash { key, .. } => (key.len() + 1, 1),
         H::MapFind { entry, .. } => (2 + entry.keys, 1),
@@ -2716,9 +2790,15 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             walk,
             drops,
         } => drop_value_glue(m, *size, leaves, walk, drops),
-        Helper::RetainFields { leaves, walk } => {
-            fields_glue(m, "rt:retain_fields", leaves, walk, &[], &retain_call(m))
+        Helper::RetainFields { leaves, parts } => {
+            parts_glue(m, "rt:retain_fields", leaves, parts, true)
         }
+        Helper::DropParts { leaves, parts } => parts_glue(m, "rt:drop", leaves, parts, false),
+        Helper::ReleaseSpilled {
+            size,
+            leaves,
+            release,
+        } => release_spilled(m, *size, leaves, *release),
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),
         Helper::CollCopy => coll_copy(m),
@@ -3389,6 +3469,70 @@ pub(crate) fn walk_code(
             },
         }
     }
+}
+
+/// [`Helper::DropParts`] and [`Helper::RetainFields`]: loads the
+/// payload's leaves, then counts each part through its type's count.
+fn parts_glue(
+    m: &Module,
+    name: &str,
+    leaves: &[Leaf],
+    parts: &[(u32, Counted)],
+    retain: bool,
+) -> Func {
+    let mut f = m.func(name, vec![Val::I32], vec![]);
+    let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
+    for (l, at) in leaves.iter().zip(&ls) {
+        f.get(0);
+        f.op(l.load(0));
+        f.set(*at);
+    }
+    for (first, counted) in parts {
+        let off = leaves[*first as usize].offset - counted.first_offset();
+        counted.emit_at(
+            &mut f,
+            m,
+            &|f| {
+                f.get(0);
+                if off != 0 {
+                    f.u32(off);
+                    f.op(Instruction::I32Add);
+                }
+            },
+            &|f, k| f.get(ls[(first + k) as usize]),
+            retain,
+        );
+    }
+    f
+}
+
+/// [`Helper::ReleaseSpilled`]: the value moves into a frame slot in heap
+/// form, as `drop_value_glue` puts one, and its in-place release runs
+/// there.
+fn release_spilled(m: &Module, size: u32, leaves: &[Leaf], release: Hash128) -> Func {
+    let mut f = m.func(
+        "rt:release_spilled",
+        leaves.iter().map(|l| l.val).collect(),
+        vec![],
+    );
+    let base = f.local(Val::I32);
+    let at = f.local(Val::I32);
+    f.get(base);
+    f.op(Instruction::I64Const(0));
+    f.op(Instruction::I64Store(mem(HEAP, 0, 3)));
+    f.get(base);
+    f.u32(crate::module::HEADER);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    f.store_locals(at, leaves, 0..);
+    f.get(at);
+    f.call(Sym::Shim(release, false, 1, true));
+    crate::wide::locals_frame(
+        &mut f,
+        base,
+        (crate::module::HEADER + size).next_multiple_of(8),
+    );
+    f
 }
 
 /// A `(payload)` glue function: loads every leaf of the payload, then

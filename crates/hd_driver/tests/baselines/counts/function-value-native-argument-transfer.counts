@@ -24,8 +24,6 @@ impl Drop for Resource:
 
 fn size(value: Resource) -> usize:
     value.owned.len()
-> std/rt_tests.stage_case/size
->   release counted reference (last use)
 
 fn ignore(value: Resource) -> usize:
     0
@@ -99,7 +97,6 @@ fn plain_controls() -> void:
 >   retain *mut i32 (stored)
     assert_equal(*seen, +2, reason="returning callback transfers the native Drop hook")
     assert_equal(returned.owned.len(), 0)
->   release counted reference (last use)
     assert_equal(*seen, +3, reason="the returned native owner drops at its last use")
     assert_equal(read(ignore, Resource { seen: seen, owned: UniqList::new() }), 0)
 >   retain *mut i32 (stored)
@@ -162,7 +159,6 @@ fn mixed_size(
 ) -> usize:
     value.owned.len() + label.len()
 > std/rt_tests.stage_case/mixed_size
->   release counted reference (last use)
 >   release std.rt_tests.stage_case.EmptyResource (last use)
 >   release string (last use)
 >   release std.rt_tests.stage_case.EmptyResource (last use)

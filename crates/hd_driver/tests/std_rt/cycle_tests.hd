@@ -187,6 +187,22 @@ tests:
         if released() == 0:
             assert(pages() - start <= BOUND, "the rings' blocks are reused")
 
+    it("fifty thousand dropped unique-list rings free their boxes and buffers as they go"):
+        # Each leaked round would keep two boxes, two buffers and two
+        # names: three hundred thousand blocks.
+        start := reuse_start()
+        held := live()
+        let total: usize = 0
+        let round = +0
+        while round < 50000:
+            total += knot_ring(round)
+            round += 1
+        assert(total == 100000, "each knot holds the other")
+        if released() == 0:
+            assert(pages() - start <= KNOT_BOUND, "the knots' boxes and buffers are reused")
+        else:
+            assert(live() - held < 150000, "checked mode frees the knots: ${live() - held} live")
+
     it("two hundred thousand dropped unique-list rings free their buffers"):
         start := reuse_start()
         let total: usize = 0

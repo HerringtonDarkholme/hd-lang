@@ -8,4 +8,4 @@ use std.iter.MapEntries
 fn cursor(values: Map[u64, (u8, u64)]) -> MapEntries[u64, (u8, u64)]:
     values.iter()
 > app/main/cursor
->   copy counted reference (stored)
+>   retain counted reference (stored)

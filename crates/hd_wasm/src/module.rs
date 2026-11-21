@@ -108,6 +108,10 @@ pub enum Sym {
     /// last, whether it runs a `Drop` hook, so that releasing nothing
     /// counted is not doing nothing.
     Shim(Hash128, bool, u32, bool),
+    /// The release glue of a heap cell whose type holds a `Drop` hook:
+    /// the open drop over the cell's drop slots, made by the emitter once
+    /// per key (`Em::cell_glue`).
+    CellDrop(Hash128),
     /// A part of a suspending instance, beside its cold constructor.
     Part(Hash128, Part),
     Helper(Helper),
@@ -210,6 +214,8 @@ impl Symbols {
                         // A shim takes its value's values and gives nothing,
                         // known before the drain defines it.
                         Sym::Shim(_, _, width, _) => Some((*width as usize, 0)),
+                        // The cell's payload address; defined when named.
+                        Sym::CellDrop(_) => Some((1, 0)),
                         Sym::Inst(_) | Sym::Part(..) => None,
                     })
             })
@@ -1437,7 +1443,10 @@ impl Module {
     }
 
     pub fn define(&mut self, s: Sym, mut f: Func) {
-        let instance = matches!(s, Sym::Inst(_) | Sym::Shim(..) | Sym::Part(..));
+        let instance = matches!(
+            s,
+            Sym::Inst(_) | Sym::Shim(..) | Sym::CellDrop(_) | Sym::Part(..)
+        );
         let id = self.symbols.intern(s);
         assert!(
             Rc::ptr_eq(&self.symbols.0, &f.symbols.0),
@@ -1450,6 +1459,11 @@ impl Module {
         self.funcs
             .resize_with(self.funcs.len().max(id.idx() + 1), || None);
         self.funcs[id.idx()] = Some(f);
+    }
+    /// Whether symbol `s` has a function defined.
+    pub fn is_defined(&mut self, s: Sym) -> bool {
+        let id = self.symbols.intern(s);
+        self.funcs.get(id.idx()).is_some_and(Option::is_some)
     }
     pub fn export(&mut self, name: impl Into<String>, s: Sym) {
         self.exports.push((name.into(), self.symbols.intern(s)));
@@ -2173,12 +2187,17 @@ impl Module {
                 known_inlined: self.inline_counts && r.checked.is_none(),
                 skipped: r.checked.map(|c| c.skipped_test),
             };
-            // Glue, a helper or a count shim, keeps its counts plain calls:
-            // the runtime's count functions test null and static data.
+            // Glue, a helper, a count shim or a cell's release glue, keeps
+            // its counts plain calls: the runtime's count functions test
+            // null and static data, and a collection's trace hands each
+            // release to `visit` there.
             for (k, slot) in self.funcs.iter_mut().enumerate() {
                 let id = SymId(u32::try_from(k).expect("symbols"));
                 if let Some(f) = slot.as_mut()
-                    && !matches!(&*self.symbols.get(id), Sym::Helper(_) | Sym::Shim(..))
+                    && !matches!(
+                        &*self.symbols.get(id),
+                        Sym::Helper(_) | Sym::Shim(..) | Sym::CellDrop(_)
+                    )
                     && crate::count_tests::lower(f, counts)
                 {
                     crate::opt::locals(f, &arity);

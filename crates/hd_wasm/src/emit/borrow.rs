@@ -761,7 +761,7 @@ impl Em<'_, '_, '_> {
             // after its store at the root or its closure's capture load
             // made it: only the word's offset in a cell is known here.
             let at = if self.is_cell(c) {
-                Some(self.cell_mem(c)?.0.leaves[0].offset)
+                Some(self.cell_mem(c)?.leaves[0].offset)
             } else {
                 None
             };

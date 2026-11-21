@@ -9,7 +9,7 @@
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "take" (func $take (param i32) (result i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "release_value[std.rt_tests.stage_case.Token]" (func $"release_value[std.rt_tests.stage_case.Token]" (param i32)))
+  (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:frame" (func $rt:frame (result i32)))
@@ -362,7 +362,7 @@
       if
         local.get $t2
         i32.load $heap offset=12
-        call $"release_value[std.rt_tests.stage_case.Token]"
+        call $rt:release_spilled
       end
       local.get $t2
       local.get $t5
@@ -391,7 +391,7 @@
     if
       local.get $t2
       i32.load $heap offset=12
-      call $"release_value[std.rt_tests.stage_case.Token]"
+      call $rt:release_spilled
     end
     local.get $early
     local.get $frame

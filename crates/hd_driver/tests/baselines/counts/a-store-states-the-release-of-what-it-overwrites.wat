@@ -9,7 +9,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "rt:drop" (func $rt:drop (param i32)))
+  (import "fixture" "rt:cell_drop" (func $rt:cell_drop (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -230,7 +230,7 @@
       local.get $u
       if
         local.get $u
-        call $rt:drop
+        call $rt:cell_drop
       end
       i32.const 0
       local.set $u
@@ -238,7 +238,7 @@
     local.get $u
     if
       local.get $u
-      call $rt:drop
+      call $rt:cell_drop
     end
     local.get $t4
     local.get $t0
