@@ -78,6 +78,21 @@ impl<'a> Texts<'a> {
         }
     }
 
+    /// Per module, its text if it was read.
+    pub(crate) fn read(&self) -> Vec<Option<Arc<str>>> {
+        self.cells.iter().map(|c| c.get().cloned()).collect()
+    }
+
+    /// These texts, with those `read` holds already read.
+    pub(crate) fn with_read(self, read: Vec<Option<Arc<str>>>) -> Self {
+        for (cell, text) in self.cells.iter().zip(read) {
+            if let Some(text) = text {
+                let _ = cell.set(text);
+            }
+        }
+        self
+    }
+
     /// The same cells, readable after the run: each package's set is
     /// detached, or its unread texts are gone.
     pub(crate) fn detach(&self) -> Texts<'static> {

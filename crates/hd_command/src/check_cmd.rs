@@ -208,8 +208,10 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     };
     let (tests, left_out) = scope(&mut t, o);
     // A warm run whose inputs are unchanged replays the report a run over
-    // them stored (#1510), before the doc tests' skims or any build.
-    let stored = stored_report(&t, tests, lint, store);
+    // them stored (#1510), before the doc tests' skims or any build. A
+    // plain check's build takes the table its key discovered.
+    let found = hd_driver::Discovered::default();
+    let stored = stored_report(&t, tests, lint, store, &found);
     if let Some(mut shown) =
         stored.and_then(|(key, client)| hd_driver::diagnostics::decode(&key.read(store, client)?))
     {
@@ -245,7 +247,9 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[], lint);
+    let found = (!tests).then_some(&found);
+    let (mut shown, mut checked) =
+        check_role(&t, store, lib_sources, &Goal::Analyze, &[], lint, found);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
@@ -257,6 +261,7 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
             &Goal::CheckTests,
             &docs,
             lint,
+            None,
         );
         merge_role(&mut shown, more);
         checked.extend(names);
@@ -330,6 +335,7 @@ fn stored_report(
     tests: bool,
     lint: Option<hd_lint::Policy>,
     store: &dyn CacheStore,
+    found: &hd_driver::Discovered,
 ) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -339,12 +345,11 @@ fn stored_report(
         clock: &clock,
         executor: executor(),
     };
-    let key = hd_driver::result_key(
-        &host,
-        &t.program.package,
-        &t.program.packages(),
-        &Goal::Analyze,
-    )?;
+    let packages = hd_driver::Packages {
+        discovered: Some(found),
+        ..t.program.packages()
+    };
+    let key = hd_driver::result_key(&host, &t.program.package, &packages, &Goal::Analyze)?;
     let mut client = hd_base::StableHasher::new("cli-check-report-v3");
     client.u8(u8::from(tests));
     client.str(t.only.as_deref().unwrap_or(""));
@@ -373,6 +378,7 @@ fn check_role(
     goal: &Goal,
     docs: &[crate::test_cmd::Doc],
     lint: Option<hd_lint::Policy>,
+    discovered: Option<&hd_driver::Discovered>,
 ) -> (Vec<Diag>, Vec<String>) {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -386,6 +392,7 @@ fn check_role(
     // they use, deeply (crates/hd_command/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
+    packages.discovered = discovered;
     packages.doc_scopes = matches!(goal, Goal::Analyze)
         && lint.is_some_and(|policy| !policy.allows(Code::BrokenDocLink));
     packages.check_roots = t.only.as_ref().map(|only| {
@@ -614,7 +621,14 @@ fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
     if t.program.as_written.is_some() {
         return (tests, Vec::new());
     }
-    let layout = ModuleTable::discover(&t.program.package, &t.program.sources);
+    // A module path never crosses its root (`src`, the test root, `tasks`),
+    // so the roots that hold a left-out file are all its layout errors
+    // need: one discovery of the whole package is the build's.
+    let root = |path: &str| hd_project::Root::of(path).0;
+    let left = t.program.sources.only(|path| !keep(path));
+    let roots: Vec<_> = left.list().iter().map(|e| root(&e.path)).collect();
+    let listed = t.program.sources.only(|path| roots.contains(&root(path)));
+    let layout = ModuleTable::discover(&t.program.package, &listed);
     let left_out = layout
         .problems
         .iter()

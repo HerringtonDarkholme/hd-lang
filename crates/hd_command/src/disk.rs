@@ -49,6 +49,30 @@ impl DiskSources {
         self.partial |= self.files.len() < before;
     }
 
+    /// The files whose package-relative path `keep` accepts, copying no
+    /// other file's row.
+    pub fn only(&self, keep: impl Fn(&str) -> bool) -> DiskSources {
+        DiskSources {
+            root: self.root.clone(),
+            files: self
+                .files
+                .iter()
+                .filter(|e| keep(&e.path))
+                .cloned()
+                .collect(),
+            src: self.src.clone(),
+            synthetic: self
+                .synthetic
+                .iter()
+                .filter(|s| keep(&s.0))
+                .cloned()
+                .collect(),
+            identity: self.identity,
+            partial: true,
+            read: Arc::clone(&self.read),
+        }
+    }
+
     /// Adds a file no disk holds, listed at `path` (a doc test's program,
     /// `crates/hd_tir/DESIGN.md` §4.13.9).
     pub fn add_synthetic(&mut self, path: &str, text: &str) {
@@ -429,6 +453,7 @@ impl Program {
             check_roots: None,
             session: None,
             reuse: None,
+            discovered: None,
             inputs_from: None,
             failed_inputs: &[],
             body_fuel: None,

@@ -1191,6 +1191,8 @@ impl ModuleTable {
                         && !e.path.ends_with("_test.hd")
                 });
             }
+            let found = u64::try_from(entries.len()).unwrap_or(u64::MAX);
+            hd_base::work::add(hd_base::work::Counter::DiscoveredFiles, found);
             let mut dirs = std::collections::BTreeSet::new();
             for e in &entries {
                 let mut d = e.path.as_str();

@@ -66,6 +66,7 @@ counters! {
     InitOrderSteps = "init_order_steps",
     ItemDecodes = "item_decodes",
     EntryLookups = "entry_lookups",
+    DiscoveredFiles = "discovered_files",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

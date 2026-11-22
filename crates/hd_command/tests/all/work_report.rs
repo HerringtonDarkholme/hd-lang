@@ -297,3 +297,50 @@ fn a_dependency_tests_are_not_listed() {
     let many = allocs();
     assert_eq!(none, many, "allocations with 300 dependency tests");
 }
+
+/// #1801: a plain `hd check` discovered the package's modules three times
+/// on an edit (for the left-out test files' layout errors, for the stored
+/// report's key, for the build) and twice with no change. The layout
+/// errors now discover only the roots that hold a left-out file, and the
+/// build takes the table the key discovered, so a run discovers each
+/// module once: 12 more files at 16 modules than at 4, edited or not.
+#[test]
+fn a_check_discovers_each_module_once() {
+    let discovered = |n: usize| -> [u64; 2] {
+        let dir = package(&format!("work-discover-{n}"));
+        std::fs::create_dir_all(dir.join("tests")).expect("tests");
+        let smoke = "it(\"runs\"):\n    assert(true)\n";
+        std::fs::write(dir.join("tests/smoke.hd"), smoke).expect("write");
+        let module = |k: usize, add: usize| format!("pub fn f{k}(x: i32) -> i32:\n    x + {add}\n");
+        for k in 0..n {
+            std::fs::write(dir.join(format!("src/m{k}.hd")), module(k, 1)).expect("write");
+        }
+        let work = dir.join("work.json");
+        let run = || {
+            let out = check(&dir, &work);
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            counter(
+                &std::fs::read_to_string(&work).expect("report"),
+                "discovered_files",
+            )
+        };
+        run();
+        std::fs::write(dir.join("src/m0.hd"), module(0, 2)).expect("write");
+        [run(), run()]
+    };
+    let (small, large) = (discovered(4), discovered(16));
+    assert_eq!(
+        large[0] - small[0],
+        12,
+        "edited: 4 modules {small:?}, 16 {large:?}"
+    );
+    assert_eq!(
+        large[1] - small[1],
+        12,
+        "unchanged: 4 modules {small:?}, 16 {large:?}"
+    );
+}

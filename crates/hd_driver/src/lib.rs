@@ -2190,6 +2190,10 @@ pub struct Packages<'a> {
     /// The folder interfaces an earlier build of the caller decoded or
     /// built ([`Reuse`]); an empty one is filled by this build.
     pub reuse: Option<&'a Reuse>,
+    /// Where [`result_key`] leaves its table for this build, which takes
+    /// it instead of discovering again: the caller passes one only to a
+    /// result key and a build over the same sources and packages.
+    pub discovered: Option<&'a Discovered>,
     /// For a `Goal::ReplInput { input }` with a session: build every input
     /// from this number to `input` as one module, for a rebuild that holds
     /// many inputs in one instance (`docs/compiler/live-execution.md`
@@ -2255,6 +2259,15 @@ pub struct Session {
 /// lookup for a reused folder.
 #[derive(Default)]
 pub struct Reuse(OnceLock<Reused>);
+
+/// A table [`result_key`] discovered and stamped, with the texts the
+/// stamps were read from, so the build keys each file by the text it
+/// reads ([`Packages::discovered`]).
+#[derive(Default)]
+pub struct Discovered(Mutex<Option<Stamped>>);
+
+/// A stamped table and, per module, its text if the stamping read it.
+type Stamped = (ModuleTable, Vec<Option<Arc<str>>>);
 
 /// What [`Reuse`] holds: the filling build's interners, which the reused
 /// interfaces' items name, and the interfaces by their folder's `reads_key`.
@@ -2490,8 +2503,14 @@ pub fn result_key(
     stamps::resolve(&mut table, &sets, &texts, host.store, toolchain);
     let key = package_result::key(
         true, goal, package, packages, host, None, &ins, &table, toolchain,
-    )?;
-    Some(ResultKey { toolchain, key })
+    );
+    if let Some(d) = packages.discovered {
+        *lock(&d.0) = Some((table, texts.read()));
+    }
+    Some(ResultKey {
+        toolchain,
+        key: key?,
+    })
 }
 
 /// See [`result_key`].
@@ -2553,7 +2572,10 @@ fn build_packages_inner(
         &root_std
     };
     let ins = package_ins(host, package, packages, std);
-    let mut table = ModuleTable::discover_all(&ins);
+    // A table its result key discovered and stamped is taken as it is.
+    let taken = packages.discovered.and_then(|d| lock(&d.0).take());
+    let stamped = taken.is_some();
+    let (mut table, read) = taken.unwrap_or_else(|| (ModuleTable::discover_all(&ins), Vec::new()));
     // Texts are read on first use: a warm run takes an unchanged file's
     // skim from its set's last-run record and reads no text it does not
     // check (`crates/hd_cache/DESIGN.md` §5.5).
@@ -2562,7 +2584,8 @@ fn build_packages_inner(
         &table.sources,
         &sets,
         embedded.map(|e| (ins.len() - 1, &e.texts)),
-    );
+    )
+    .with_read(read);
     let mut text = |m: usize| -> Arc<str> { Arc::clone(&lazy[m]) };
     let std_hash = embedded.map_or_else(|| sources_hash(std, packages.std_leaf), |e| e.hash);
     let toolchain = toolchain_key(
@@ -2570,7 +2593,9 @@ fn build_packages_inner(
         TARGET,
         &format!("a1=bounded;std={:032x}", std_hash.0),
     );
-    stamps::resolve(&mut table, &sets, &lazy, host.store, toolchain);
+    if !stamped {
+        stamps::resolve(&mut table, &sets, &lazy, host.store, toolchain);
+    }
     // A warm `hd check` whose every listed file kept its stamp takes the
     // stored package result: no record decode and no per-module lookup
     // (#1510).
