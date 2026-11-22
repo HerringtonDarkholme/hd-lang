@@ -2039,7 +2039,7 @@ type ProofBindings<V> = Rc<HashMap<ParamRef, ProofSlots<V>>>;
 type StaticProofCache =
     HashMap<(Vec<(usize, ParamRef, usize, TraitRef)>, Vec<(Key, Var)>), HashSet<Var>>;
 
-/// The origins a proof's static requirements reach (`ref.static.proof`),
+/// The origins a proof's static requirements reach (`ref.generic.static.impl`),
 /// from the origins of each root subject's reference slots: a body's call
 /// variables, or a header's written lifetimes. Each static leaf takes its
 /// subject's top slots; each impl step lines its head up with the subject
