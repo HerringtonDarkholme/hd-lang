@@ -4,7 +4,8 @@
 # (inputs are contravariant), and a static argument reaches `inspect`
 # through every kind of value. A value fits where what it needs is
 # written: a field through a reference, a variant, a function value's
-# parameter, and a call's result at the lifetime the call took.
+# parameter, a local copy or closure, a local reborrow, and a call's
+# result at the lifetime the call took.
 fn inspect(value: &'static i32) -> void:
     pass
 
@@ -62,6 +63,27 @@ fn borrowed['a](p: &'a i32) -> fn(&'a i32) -> void:
 
 fn pinned() -> fn(&'static i32) -> void:
     taking(&shared)
+
+fn copied['a](apply: fn(fn(&'a i32) -> void) -> void, g: fn(&'a i32) -> void) -> void:
+    other := apply
+    other(g)
+
+fn closure_local() -> void:
+    apply := fn(f: fn(&i32) -> void) -> void:
+        x := 1
+        f(&x)
+    apply(loose)
+
+fn put_through['a](o: &mut Outer['a]) -> void:
+    r := &mut o.inner
+    r.f = loose
+
+struct Outer['a]:
+    inner: Holder['a]
+
+fn named_value() -> void:
+    r := apply
+    r(inspect, &shared)
 
 fn main() -> void:
     apply(inspect, &shared)

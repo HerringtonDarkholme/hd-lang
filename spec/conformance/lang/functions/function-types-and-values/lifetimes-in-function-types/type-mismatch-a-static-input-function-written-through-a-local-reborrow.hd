@@ -1,0 +1,14 @@
+# test: a field written through a local reborrow of a parameter's field takes no function needing a longer input lifetime
+# Spec 07 Function Types: fn.type.lifetime.input. `r` borrows `o.inner`, a `Holder['a]`.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+struct Holder['a]:
+    f: fn(&'a i32) -> void
+
+struct Outer['a]:
+    inner: Holder['a]
+
+fn put['a](o: &mut Outer['a]) -> void:
+    r := &mut o.inner
+    r.f = inspect # diagnostic: type-mismatch

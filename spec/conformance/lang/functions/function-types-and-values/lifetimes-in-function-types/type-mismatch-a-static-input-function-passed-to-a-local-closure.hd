@@ -1,0 +1,11 @@
+# test: a closure bound to a local takes no function needing a longer input lifetime
+# Spec 07 Function Types: fn.type.lifetime.input. `apply`'s parameter writes no lifetime, so it takes a reference of
+# any lifetime, which `inspect` does not.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn run() -> void:
+    apply := fn(f: fn(&i32) -> void) -> void:
+        x := 1
+        f(&x)
+    apply(inspect) # diagnostic: type-mismatch

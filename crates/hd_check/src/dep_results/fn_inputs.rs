@@ -12,9 +12,9 @@
 //! and a call's lifetime once per check.
 
 use super::{
-    ANON, ANY, Body, BodyKind, Callee, Ck, Code, DepSig, FnValues, HashMap, HashSet, ItemData,
-    Layouts, NodeIdx, NodeRef, Part, PlaceRoot, Proj, STATIC, STATIC_SLOT, Spot, Tag, Ty, TyData,
-    Var, fn_spot, own_inputs, returned, source_arg, w,
+    ANON, ANY, Body, BodyKind, Callee, Ck, Code, DefId, DepSig, FnValues, HashMap, HashSet,
+    ItemData, Layouts, NodeIdx, NodeRef, Part, PlaceRoot, Proj, STATIC, STATIC_SLOT, Spot, Tag, Ty,
+    TyData, Var, fn_spot, own_inputs, returned, source_arg, w,
 };
 use hd_resolve::FnSig;
 
@@ -87,34 +87,56 @@ impl Ck<'_, '_> {
                     }
                 }
             } else if b.tags[i] == Tag::CallValue {
-                // A parameter's declared function type writes its own
-                // inputs' function types' lifetimes, the body's own.
-                let Some((ct, rec)) = param_read(b, own, b.data[i][0]) else {
-                    continue;
-                };
-                let TyData::Fn { params, .. } = pool.get(ct) else {
-                    continue;
-                };
-                let mut at = 0;
-                for (p, &pt) in pool.list_items(params).iter().enumerate() {
-                    let n = pool.fn_written_slots(pt);
-                    let seg = rec.get(at..at + n).unwrap_or(&[]);
-                    at += n;
-                    let Some(a) = source_arg(b, i, p) else {
-                        continue;
+                let mut sources = Vec::new();
+                self.callee_sources(
+                    b,
+                    own,
+                    values,
+                    b.data[i][0],
+                    &mut sources,
+                    &mut HashSet::default(),
+                );
+                for source in sources {
+                    let pts: Vec<Ty> = match source {
+                        Source::Item(sig) => sig.params.iter().map(|&(_, t)| t).collect(),
+                        Source::Param(ct, _) | Source::Closure(ct) => {
+                            let TyData::Fn { params, .. } = pool.get(ct) else {
+                                continue;
+                            };
+                            pool.list_items(params).to_vec()
+                        }
                     };
-                    for path in self.fn_paths(ls, pt) {
-                        let (by, rest) = self.declared_allows(ls, pt, &path, seg, Some(&[]));
-                        check(a, path, &|k| by.get(&k).copied().unwrap_or(rest));
+                    let mut at = 0;
+                    for (p, &pt) in pts.iter().enumerate() {
+                        let n = pool.fn_written_slots(pt);
+                        // What the source's declaration writes in this
+                        // input's type, and whose lifetimes they are.
+                        let (rec, own_lifetimes) = match source {
+                            Source::Param(_, rec) => (rec.get(at..at + n).unwrap_or(&[]), true),
+                            Source::Item(sig) => (
+                                sig.fn_lifetimes.get(p).map_or(&[][..], Vec::as_slice),
+                                false,
+                            ),
+                            Source::Closure(_) => (&[][..], false),
+                        };
+                        at += n;
+                        let Some(a) = source_arg(b, i, p) else {
+                            continue;
+                        };
+                        let outs = own_lifetimes.then_some(&[][..]);
+                        for path in self.fn_paths(ls, pt) {
+                            let (by, rest) = self.declared_allows(ls, pt, &path, rec, outs);
+                            check(a, path, &|k| by.get(&k).copied().unwrap_or(rest));
+                        }
                     }
                 }
             } else if b.tags[i] == Tag::Store {
                 // A place a parameter's reference reaches is the caller's,
-                // typed by the parameter's declared type.
+                // typed by the parameter's declared type, reached directly
+                // or through a local holding that reference or a reborrow.
                 let Some(place) = b.decode_place(b.data[i][0]) else {
                     continue;
                 };
-                // The parameter, or its value read whole.
                 let l = match place.root {
                     PlaceRoot::Local(l) => Some(l.raw() as usize),
                     PlaceRoot::Value(r) => whole_local_read(b, r.0),
@@ -123,32 +145,36 @@ impl Ck<'_, '_> {
                 let (Some(l), Some(Proj::Deref)) = (l, place.proj.first()) else {
                     continue;
                 };
-                if b.local_flags
-                    .get(l)
-                    .is_none_or(|f| f & hd_tir::ir::local_flags::PARAM == 0)
-                {
-                    continue;
-                }
                 let (Some(sig), Some(mine)) = (own.filter(|_| b.kind == BodyKind::Fn), values.mine)
                 else {
                     continue;
                 };
-                let (Some(&(_, pt)), Some((_, ids))) = (sig.params.get(l), mine.params.get(l))
-                else {
-                    continue;
-                };
-                let rec = sig.fn_lifetimes.get(l).map_or(&[][..], Vec::as_slice);
-                let ids: Vec<Option<u32>> = ids.iter().map(|&id| Some(id)).collect();
                 let v = b.data[i][1];
                 let Some(vt) = b.ty.get(v as usize).copied() else {
                     continue;
                 };
-                for sub in self.fn_paths(ls, vt) {
-                    let full: Vec<Part> = (place.proj.iter().map(|&q| Part::Proj(q)))
-                        .chain(sub.iter().copied())
-                        .collect();
-                    let (by, rest) = self.declared_allows(ls, pt, &full, rec, Some(&ids));
-                    check(v, sub, &|k| by.get(&k).copied().unwrap_or(rest));
+                let mut places = Vec::new();
+                param_places(
+                    b,
+                    values,
+                    (l, place.proj.clone()),
+                    &mut places,
+                    &mut HashSet::default(),
+                );
+                for (p, proj) in places {
+                    let (Some(&(_, pt)), Some((_, ids))) = (sig.params.get(p), mine.params.get(p))
+                    else {
+                        continue;
+                    };
+                    let rec = sig.fn_lifetimes.get(p).map_or(&[][..], Vec::as_slice);
+                    let ids: Vec<Option<u32>> = ids.iter().map(|&id| Some(id)).collect();
+                    for sub in self.fn_paths(ls, vt) {
+                        let full: Vec<Part> = (proj.iter().map(|&q| Part::Proj(q)))
+                            .chain(sub.iter().copied())
+                            .collect();
+                        let (by, rest) = self.declared_allows(ls, pt, &full, rec, Some(&ids));
+                        check(v, sub, &|k| by.get(&k).copied().unwrap_or(rest));
+                    }
                 }
             } else if matches!(b.tags[i], Tag::NewStruct | Tag::NewVariant) {
                 let TyData::Adt { def, .. } = pool.get(b.ty[i]) else {
@@ -239,6 +265,59 @@ impl Ck<'_, '_> {
         out
     }
 
+    /// The sources of the declared type of function value `v`, into
+    /// `out`: a parameter read whole, a named function, or a closure
+    /// literal, through copies into locals and coercions. A value of
+    /// another kind adds none.
+    fn callee_sources<'s>(
+        &self,
+        b: &Body,
+        own: Option<&'s FnSig>,
+        values: &FnValues<'_>,
+        v: u32,
+        out: &mut Vec<Source<'s>>,
+        seen: &mut HashSet<usize>,
+    ) where
+        Self: 's,
+    {
+        let Some(&tag) = b.tags.get(v as usize) else {
+            return;
+        };
+        if let Some(l) = whole_local_read(b, v) {
+            let param = b
+                .local_flags
+                .get(l)
+                .is_some_and(|f| f & hd_tir::ir::local_flags::PARAM != 0);
+            match own.filter(|_| param && b.kind == BodyKind::Fn) {
+                Some(sig) => {
+                    if let Some(&(_, t)) = sig.params.get(l) {
+                        let rec = sig.fn_lifetimes.get(l).map_or(&[][..], Vec::as_slice);
+                        out.push(Source::Param(t, rec));
+                    }
+                }
+                None if seen.insert(l) => {
+                    for &s in values.stores(w(l)) {
+                        if b.decode_place(b.data[s as usize][0])
+                            .is_some_and(|p| p.proj.is_empty())
+                        {
+                            self.callee_sources(b, own, values, b.data[s as usize][1], out, seen);
+                        }
+                    }
+                }
+                None => {}
+            }
+        } else if tag == Tag::Coerce {
+            self.callee_sources(b, own, values, b.data[v as usize][0], out, seen);
+        } else if tag == Tag::Closure {
+            out.push(Source::Closure(b.ty[v as usize]));
+        } else if tag == Tag::ItemRef
+            && let Some(sig) = (b.record(b.data[v as usize][0]).first())
+                .and_then(|&d| self.cx.lookup.item(DefId::from_raw(d))?.sig())
+        {
+            out.push(Source::Item(sig));
+        }
+    }
+
     /// The lifetimes a function value's written input `var` needs a
     /// caller's reference to outlive, into `out`; `None` for one that is
     /// no lifetime of the body's. A call's lifetime is what the call passed
@@ -273,15 +352,20 @@ impl Ck<'_, '_> {
             return out.push(None);
         };
         let dep = self.call_dep(ls, sig);
-        let own = self.cx.lookup.item(b.item).and_then(|it| it.sig());
         for (p, (pt, ids)) in dep.params.iter().enumerate() {
             let Some(a) = source_arg(b, c as usize, p) else {
                 continue;
             };
             // A reference passed at `l`: what it lives for.
             if ids.contains(&l) {
-                let lived = param_read(b, own, a).and_then(|_| {
-                    let mine = &values.mine?.params.get(whole_local_read(b, a)?)?.1;
+                let param = whole_local_read(b, a).filter(|&x| {
+                    b.kind == BodyKind::Fn
+                        && b.local_flags
+                            .get(x)
+                            .is_some_and(|f| f & hd_tir::ir::local_flags::PARAM != 0)
+                });
+                let lived = param.and_then(|x| {
+                    let mine = &values.mine?.params.get(x)?.1;
                     let at = ids.iter().position(|&id| id == l)?;
                     mine.get(at).copied().filter(|&id| id < ANON)
                 });
@@ -395,14 +479,61 @@ fn whole_local_read(b: &Body, v: u32) -> Option<usize> {
     }
 }
 
-/// The declared type and its record of written lifetimes of the
-/// parameter value `v` reads whole, if it does.
-fn param_read<'s>(b: &Body, own: Option<&'s FnSig>, v: u32) -> Option<(Ty, &'s [u16])> {
-    let sig = own.filter(|_| b.kind == BodyKind::Fn)?;
-    let l = whole_local_read(b, v)?;
-    if b.local_flags.get(l)? & hd_tir::ir::local_flags::PARAM == 0 {
-        return None;
+/// Where the declared type of a called function value comes from, which
+/// writes the lifetimes of its inputs' function types: a parameter's
+/// declared type and its record ([`FnSig::fn_lifetimes`]), the body's
+/// own lifetimes; a named function's signature, the callee's; or a
+/// closure literal, whose annotations write none
+/// (`ref.lifetime.not-yet.body`).
+#[derive(Clone, Copy)]
+enum Source<'s> {
+    Param(Ty, &'s [u16]),
+    Item(&'s FnSig),
+    Closure(Ty),
+}
+
+/// The parameter places the place rooted at local `l` with projection
+/// `proj`, which starts with a dereference, reaches: `l` itself when it
+/// is a parameter, or through each value stored into `l`, a parameter's
+/// reference copied whole or a reborrow of a place a parameter roots.
+fn param_places(
+    b: &Body,
+    values: &FnValues<'_>,
+    (l, proj): (usize, Vec<Proj>),
+    out: &mut Vec<(usize, Vec<Proj>)>,
+    seen: &mut HashSet<usize>,
+) {
+    if b.local_flags
+        .get(l)
+        .is_some_and(|f| f & hd_tir::ir::local_flags::PARAM != 0)
+    {
+        return out.push((l, proj));
     }
-    let rec = sig.fn_lifetimes.get(l).map_or(&[][..], Vec::as_slice);
-    Some((sig.params.get(l)?.1, rec))
+    if !seen.insert(l) {
+        return;
+    }
+    for &s in values.stores(w(l)) {
+        let whole = b
+            .decode_place(b.data[s as usize][0])
+            .is_some_and(|p| p.proj.is_empty());
+        let v = b.data[s as usize][1];
+        if !whole {
+            continue;
+        }
+        if let Some(m) = whole_local_read(b, v) {
+            param_places(b, values, (m, proj.clone()), out, seen);
+        } else if b.tags.get(v as usize) == Some(&Tag::Ref)
+            && let Some(q) = b.decode_place(b.data[v as usize][0])
+        {
+            let m = match q.root {
+                PlaceRoot::Local(m) => Some(m.raw() as usize),
+                PlaceRoot::Value(r) => whole_local_read(b, r.0),
+                PlaceRoot::Global(..) | PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => None,
+            };
+            let full: Vec<Proj> = q.proj.iter().chain(&proj[1..]).copied().collect();
+            if let Some(m) = m.filter(|_| q.proj.first() == Some(&Proj::Deref)) {
+                param_places(b, values, (m, full), out, seen);
+            }
+        }
+    }
 }
