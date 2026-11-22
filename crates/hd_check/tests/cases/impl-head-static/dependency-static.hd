@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# @main: src/main.hd
+use dep.heads.{Wrapped, require_saved}
+
+fn inspect['a](value: Wrapped[&'static i32]) -> void:
+    require_saved(value)
+
+# @dependency: heads
+# @file: src/lib.hd
+pub trait Saved:
+    pass
+pub struct Wrapped[T]:
+    value: T
+impl Saved for Wrapped[&'static i32]:
+    pass
+pub fn require_saved[T < Saved](value: T) -> void:
+    pass

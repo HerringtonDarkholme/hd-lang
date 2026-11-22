@@ -63,6 +63,7 @@ impl RegionObligations {
     fn new(pool: Types<'_>, row: Option<ImplRef>, args: TyList, steps: Vec<(u16, Self)>) -> Self {
         let flags = u8::from(pool.list_has_infer(args))
             | (u8::from(pool.list_has_canon(args)) << 1)
+            | (u8::from(pool.list_has_param(args)) << 2)
             | steps.iter().fold(0, |f, (_, p)| f | p.flags());
         Self(Some(std::sync::Arc::new(RegionProof {
             row,
@@ -74,6 +75,29 @@ impl RegionObligations {
 
     fn flags(&self) -> u8 {
         self.0.as_ref().map_or(0, |p| p.flags)
+    }
+
+    /// Instantiate a retained candidate proof once it is selected.
+    #[must_use]
+    pub fn subst(&self, pool: Types<'_>, owner: DefId, args: &[Ty]) -> Self {
+        let mapped = self.try_map(pool, 4, |list| {
+            let values: Vec<_> = pool
+                .list_items(list)
+                .iter()
+                .map(|&t| {
+                    pool.subst(t, &|p: ParamRef| {
+                        (p.owner == owner)
+                            .then(|| args.get(usize::from(p.index)).copied())
+                            .flatten()
+                    })
+                })
+                .collect();
+            Ok::<_, std::convert::Infallible>(pool.list(&values))
+        });
+        match mapped {
+            Ok(p) => p,
+            Err(never) => match never {},
+        }
     }
 
     /// Each distinct node is mapped once. Closed memo replay is O(1).
@@ -836,6 +860,9 @@ pub struct ImplTable {
     pub n_params: Vec<u8>,
     pub head_self: Vec<Ty>,
     pub head_args: Vec<TyList>,
+    /// Written head slots require positional outlives checking. Derived
+    /// once from declaration metadata when the table is constructed.
+    pub head_outlives: Vec<bool>,
     pub plan: Vec<Vec<PlanStep>>,
     pub assoc: Vec<Vec<(DefId, Ty)>>,
     pub origin: Vec<ImplOrigin>,
@@ -1037,6 +1064,7 @@ impl Iterator for Rows<'_> {
 /// parameter, and those that stalled on a variable of the target.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Candidate {
+    pub obligations: RegionObligations,
     pub row: ImplRef,
     pub n_fresh: u8,
     pub impl_args: TyList,
@@ -2124,6 +2152,10 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
                 .iter()
                 .map(|c| {
                     Some(Candidate {
+                        obligations: c
+                            .obligations
+                            .try_map(pool, 1, |args| fold_list(pool, args, &mut place))
+                            .ok()?,
                         impl_args: fold_list(pool, c.impl_args, &mut place).ok()?,
                         args: fold_list(pool, c.args, &mut place).ok()?,
                         ..c.clone()
@@ -2199,6 +2231,12 @@ fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer 
             cands
                 .iter()
                 .map(|c| Candidate {
+                    obligations: match c.obligations.try_map(pool, 2, |args| {
+                        Ok::<_, std::convert::Infallible>(list(args, &mut back))
+                    }) {
+                        Ok(p) => p,
+                        Err(never) => match never {},
+                    },
                     impl_args: list(c.impl_args, &mut back),
                     args: list(c.args, &mut back),
                     ..c.clone()
@@ -3487,7 +3525,9 @@ impl<'s, 'a> Search<'s, 'a> {
             .collect();
         Ok(Outcome {
             answer: Answer::Holds {
-                obligations: if requirements.is_empty() {
+                obligations: if requirements.is_empty()
+                    && !t.head_outlives.get(r).copied().unwrap_or(false)
+                {
                     RegionObligations::default()
                 } else {
                     RegionObligations::new(pool, Some(row), pool.list(&step_args), requirements)
@@ -3814,6 +3854,7 @@ impl Search<'_, '_> {
                 }
                 if !dropped {
                     out.push(Candidate {
+                        obligations: RegionObligations::default(),
                         row: at,
                         n_fresh: 0,
                         impl_args: TyList::EMPTY,
@@ -3832,6 +3873,7 @@ impl Search<'_, '_> {
                 .collect();
             let goals = plan_goals(pool, t, r, &impl_args);
             let mut residual = Vec::new();
+            let mut requirements = Vec::new();
             let mut dropped = false;
             for (i, step) in (0u16..).zip(&t.plan[r]) {
                 let PlanStep::Bound {
@@ -3855,7 +3897,11 @@ impl Search<'_, '_> {
                 let o = self.goal(Ask::Implements(sub, false), depth + 1, false, true)?;
                 height = height.max(above(o.height));
                 match o.answer {
-                    Answer::Holds { .. } => {}
+                    Answer::Holds { obligations, .. } => {
+                        if !obligations.is_empty() {
+                            requirements.push((i, obligations));
+                        }
+                    }
                     Answer::Fails(_) => {
                         dropped = true;
                         break;
@@ -3886,6 +3932,13 @@ impl Search<'_, '_> {
                 })
                 .collect();
             out.push(Candidate {
+                obligations: if requirements.is_empty()
+                    && !t.head_outlives.get(r).copied().unwrap_or(false)
+                {
+                    RegionObligations::default()
+                } else {
+                    RegionObligations::new(pool, Some(at), pool.list(&impl_args), requirements)
+                },
                 row: at,
                 n_fresh: u8::try_from(fixed.iter().filter(|a| a.is_none()).count())
                     .unwrap_or(u8::MAX),

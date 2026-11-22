@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+type Mixed[A] = (A, &'static i32)
+
+fn inspect['a](value: Mixed[&'a i32]) -> void:
+    pass

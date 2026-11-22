@@ -742,10 +742,15 @@ enum Defaults {
     All,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum RegionSource {
+    Bound(ParamRef, usize),
+    Value(Ref, Ty),
+}
+
 pub(crate) type RegionUse = (
     NodeRefIdx,
-    ParamRef,
-    usize,
+    RegionSource,
     TraitRef,
     hd_types::solver::RegionObligations,
 );
@@ -753,7 +758,7 @@ pub(crate) type RegionUse = (
 /// A goal that waited for inference, with the node it arose at.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PendingGoal {
-    pub region_source: Option<(ParamRef, usize)>,
+    pub region_source: Option<RegionSource>,
     pub tref: TraitRef,
     pub at: NodeRefIdx,
     pub kind: Waiting,
@@ -3410,12 +3415,27 @@ impl Ck<'_, '_> {
         bound: usize,
     ) -> StageResult<Option<Evidence>> {
         let pending = self.pending.len();
-        let ev =
-            self.require_ref_source(tref, at, Code::UnsatisfiedTraitBound, Some((param, bound)))?;
+        let ev = self.require_ref_source(
+            tref,
+            at,
+            Code::UnsatisfiedTraitBound,
+            Some(RegionSource::Bound(param, bound)),
+        )?;
         if ev.is_some() || self.pending.len() > pending {
             self.note_impl_use(tref.trait_, ev.as_ref());
         }
         Ok(ev)
+    }
+
+    pub(crate) fn require_value_bound(
+        &mut self,
+        tref: TraitRef,
+        at: NodeRef<'_>,
+        code: Code,
+        value: Ref,
+    ) -> StageResult<Option<Evidence>> {
+        let source = RegionSource::Value(value, self.b.ty_of(value));
+        self.require_ref_source(tref, at, code, Some(source))
     }
 
     fn require_ref_source(
@@ -3423,7 +3443,7 @@ impl Ck<'_, '_> {
         tref: TraitRef,
         at: NodeRef<'_>,
         code: Code,
-        source: Option<(ParamRef, usize)>,
+        source: Option<RegionSource>,
     ) -> StageResult<Option<Evidence>> {
         let origin = tref;
         let pool = self.pool();
@@ -3454,10 +3474,10 @@ impl Ck<'_, '_> {
         }
         let answer = self.solve(tref)?;
         if let Answer::Holds { obligations, .. } = &answer
-            && let Some((param, bound)) = source.filter(|_| !obligations.is_empty())
+            && let Some(source) = source.filter(|_| !obligations.is_empty())
         {
             self.region_uses
-                .push((at.index(), param, bound, tref, obligations.clone()));
+                .push((at.index(), source, tref, obligations.clone()));
         }
         match ProofAnswer::try_from(answer)? {
             ProofAnswer::Holds { evidence, learned } => {
@@ -4164,10 +4184,10 @@ impl Ck<'_, '_> {
         }
         let answer = self.solve(tref)?;
         if let Answer::Holds { obligations, .. } = &answer
-            && let Some((param, bound)) = g.region_source.filter(|_| !obligations.is_empty())
+            && let Some(source) = g.region_source.filter(|_| !obligations.is_empty())
         {
             self.region_uses
-                .push((node.index(), param, bound, tref, obligations.clone()));
+                .push((node.index(), source, tref, obligations.clone()));
         }
         match ProofAnswer::try_from(answer)? {
             ProofAnswer::Holds { learned, .. } => {

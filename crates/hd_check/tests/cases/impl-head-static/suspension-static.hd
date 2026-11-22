@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn number(&self) -> i32
+
+struct Wrapped[T]:
+    value: T
+
+impl Saved for Wrapped[Suspend[&'static i32]]:
+    fn number(&self) -> i32:
+        +7
+
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+
+fn inspect['a](value: Wrapped[Suspend[&'static i32]]) -> void:
+    require_saved(value)

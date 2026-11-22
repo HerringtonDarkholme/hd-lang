@@ -749,6 +749,16 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        if let Some(value) = recv.filter(|_| !c.obligations.is_empty()) {
+            let proof = c.obligations.subst(pool, impl_def, &vars);
+            let source = crate::body::RegionSource::Value(value, self.b.ty_of(value));
+            let tref = TraitRef {
+                trait_,
+                self_ty,
+                args: pool.list(&targs),
+            };
+            self.region_uses.push((n.index(), source, tref, proof));
+        }
         let (r, t) = self.trait_method_call(
             TraitTarget {
                 trait_,
@@ -1442,6 +1452,7 @@ mod candidate_metadata_tests {
         crate::body::with_checker(|ck| {
             let node = ck.cx.src.parse.tree.root();
             let candidate = Candidate {
+                obligations: hd_types::solver::RegionObligations::default(),
                 row: ImplRef {
                     module: ModuleId::from_raw(0),
                     row: 0,

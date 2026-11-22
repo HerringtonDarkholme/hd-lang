@@ -1351,19 +1351,19 @@ impl Gen<'_, '_> {
     /// Value `v`'s top slot ⊑ `'static`, checked at `v`
     /// (`ref.static.source.error`).
     fn statics(&mut self, v: u32) {
-        self.statics_at(v, &[0]);
+        self.statics_at(v, &[0], Category::Static);
     }
 
     /// Value `v`'s slots `slots` ⊑ `'static`, each checked at `v`
     /// (`ref.static.source.error`).
-    fn statics_at(&mut self, v: u32, slots: &[u32]) {
+    fn statics_at(&mut self, v: u32, slots: &[u32], category: Category) {
         let Some(view) = self.val(v) else { return };
         let node = self.node(v);
-        let regions = self.split(&view).0;
+        let regions = view.0;
         let stat = self.stat;
         for &k in slots {
             if let Some(&r) = regions.get(k as usize) {
-                self.checked(r, stat, Category::Static, node);
+                self.checked(r, stat, category, node);
             }
         }
     }
@@ -1664,10 +1664,10 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
     }
     // `ref.static.value`: each value a `&'static T` binding takes, one
     // checked edge from its top slot into `'static`.
-    for (v, slots) in s.statics {
+    for (v, slots, category) in s.statics {
         if let Some(i) = v.as_inst() {
             g.at = i.0;
-            g.statics_at(i.0, slots);
+            g.statics_at(i.0, slots, *category);
         }
     }
     g.call_loans();

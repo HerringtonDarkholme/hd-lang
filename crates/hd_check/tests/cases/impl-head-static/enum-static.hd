@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+enum Wrapped[T]:
+    Value(value: T)
+
+impl Saved for Wrapped[&'static i32]:
+    pass
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+fn inspect['a](value: Wrapped[&'static i32]) -> void:
+    require_saved(value)

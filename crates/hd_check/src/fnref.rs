@@ -774,7 +774,7 @@ impl Ck<'_, '_> {
                 self_ty: self.infer.resolve(pool, *self_ty),
                 args: pool.list(args),
             };
-            *choice = Some(self.call_choice(tref, m.def, n)?);
+            *choice = Some(self.call_choice(tref, m.def, n, None)?);
         }
         let m = &*m;
         if let Owner::Impl { def, args } = &m.owner {

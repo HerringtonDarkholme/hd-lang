@@ -131,7 +131,7 @@ impl Ck<'_, '_> {
                     ))
                 }
                 _ => {
-                    self.require_dyn_impl(inner, tv, n);
+                    self.require_dyn_impl(inner, tv, n, r);
                     Some(self.build_dyn_ref_kind(
                         r,
                         g,
@@ -324,7 +324,7 @@ impl Ck<'_, '_> {
         let mutable = self.trait_is_mutable(def);
         if self.ref_of(t).is_none() && !self.has_ref_receiver_member(def) {
             let inner = self.resolved(self.infer.resolve(pool, t));
-            self.require_dyn_impl(inner, key, n);
+            self.require_dyn_impl(inner, key, n, r);
             let r = self.coerce(r, t, inner, n, "provider", ExpectPosition::General);
             let (source, source_ty) = self.shared_provider_object(r, inner, n);
             let r = self.shared_provider_ref(source, source_ty, key, mutable, n);
@@ -380,7 +380,7 @@ impl Ck<'_, '_> {
 
     /// `trait.dyn.ref.convert.impl`: the concrete type `s` implements the
     /// trait of `tv`.
-    fn require_dyn_impl(&mut self, s: Ty, tv: Ty, n: NodeRef<'_>) {
+    fn require_dyn_impl(&mut self, s: Ty, tv: Ty, n: NodeRef<'_>, value: Ref) {
         let pool = self.pool();
         let TyData::TraitValue { def, args, .. } = pool.get(tv) else {
             return;
@@ -391,7 +391,7 @@ impl Ck<'_, '_> {
             args,
         };
         let before = self.diags.len();
-        let _ = self.require_ref_as(tref, n, Code::TypeMismatch);
+        let _ = self.require_value_bound(tref, n, Code::TypeMismatch, value);
         if self.diags.len() != before {
             return;
         }

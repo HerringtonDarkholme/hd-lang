@@ -1113,6 +1113,10 @@ impl<'a> Types<'a> {
         self.list_meta(l) & meta::HAS_CANON != 0
     }
 
+    pub(crate) fn list_has_param(self, l: TyList) -> bool {
+        self.list_meta(l) & meta::HAS_PARAM != 0
+    }
+
     #[must_use]
     pub fn list(self, tys: &[Ty]) -> TyList {
         let meta = tys.iter().fold(0, |m, t| meta::join(m, self.meta_of(*t)));

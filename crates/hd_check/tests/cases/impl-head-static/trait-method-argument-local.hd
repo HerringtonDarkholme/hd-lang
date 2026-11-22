@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved[A]:
+    fn consume(&self, marker: A) -> void
+struct Holder:
+    value: i32
+impl Saved[&'static i32] for Holder:
+    fn consume(&self, marker: &'static i32) -> void:
+        pass
+fn inspect['a](value: Holder, marker: &'a i32) -> void:
+    value.consume(marker)
