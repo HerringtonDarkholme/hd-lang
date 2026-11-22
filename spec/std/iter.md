@@ -196,7 +196,6 @@ fn has_blank(lines: List[string]) -> bool:
 18. r[std-iter.adapter.min-max.bound] `min` and `max` bound the item type with a method `where` clause ([`trait.where.clause`](../lang/09-traits.md#r-trait.where.clause)). An iterator over items that do not implement `Ord` still implements `Iterator[T]`, and calling `min` or `max` on it is an error at the call. Error: `unsatisfied-trait-bound`.
 19. r[std-iter.adapter.min-max.tie] Of several equal items by `Ord`, `min` returns the first and `max` the last, as Rust's `Iterator::min` and `Iterator::max` do, and as [`std-cmp.min-max.tie.v2`](cmp.md#r-std-cmp.min-max.tie.v2) and [`std-collections.helper.min-max.copy-ties`](collections.md#r-std-collections.helper.min-max.copy-ties) do.
 20. r[std-iter.adapter.min-max.drain] `min` and `max` advance `self` until `next` returns `.None`, which exhausts the owned cursor. On an exhausted iterator both are `.None`.
-21. r[std-iter.adapter.min-max.dyn] `dyn Iterator[T]` has `min` and `max` too, with the same bound, as inherent methods that read the trait value through a cursor, since a method with a `where` clause is unavailable on a trait value ([`trait.dyn.member.where`](../lang/09-traits.md#r-trait.dyn.member.where)).
 ```text
 fn joined(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
     first.iter().chain(rest).collect()  # error: unsatisfied-trait-bound

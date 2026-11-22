@@ -1,8 +1,7 @@
-# test: min and max return the smallest and largest remaining item, min the first of equal ones and max the last, .None when empty, and on a dyn iterator too
-# Spec std/iter More Adapters: std-iter.adapter.min.value, std-iter.adapter.max.value, std-iter.adapter.min-max.tie, std-iter.adapter.min-max.drain, std-iter.adapter.min-max.dyn.
+# test: min and max return the smallest and largest remaining item, min the first of equal ones and max the last, and .None when empty
+# Spec std/iter More Adapters: std-iter.adapter.min.value, std-iter.adapter.max.value, std-iter.adapter.min-max.tie, std-iter.adapter.min-max.drain.
 # expect-stdout: (Option.Some(9), Option.Some(1), Option.None, Option.Some("fig"))
 # expect-stdout: (Option.Some("c"), Option.Some("a"))
-# expect-stdout: Option.Some(9)
 use std.cmp.{Ord, Ordering, PartialOrd}
 
 struct Job:
@@ -20,9 +19,6 @@ impl PartialOrd for Job:
 impl Ord for Job:
     fn cmp(&self, other: &Job) -> Ordering:
         self.rank.cmp(&other.rank)
-
-fn biggest(items: *mut dyn Iterator[i32]) -> i32?:
-    items.max()
 
 fn name(job: Job) -> string:
     job.name
@@ -47,4 +43,3 @@ pub fn main() -> void $ Console:
         ),
     )
     println(debug((jobs.iter().max().map(name), jobs.iter().min().map(name))))
-    println(debug(biggest(box(numbers.iter()))))

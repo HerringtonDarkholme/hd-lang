@@ -256,14 +256,6 @@ impl[T < ?Copy] dyn Iterator[T]:
     pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
 
-    # A `where` method is unavailable on the trait value
-    # (`trait.dyn.member.where`), so it is restated here.
-    pub fn min(*mut self) -> T? where T < Ord:
-        DynIterator { source: self }.min()
-
-    pub fn max(*mut self) -> T? where T < Ord:
-        DynIterator { source: self }.max()
-
     pub fn fold[A, $ R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         DynIterator { source: self }.fold::[A](initial, step)
 
