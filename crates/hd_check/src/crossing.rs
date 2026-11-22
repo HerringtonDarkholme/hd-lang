@@ -63,25 +63,25 @@ pub(crate) fn root_facts(b: &Body, topo: &Topology, i: usize) -> InitFacts {
         if !within(topo.sub[x]) {
             continue;
         }
-        match b.tags[x] {
-            Tag::Read | Tag::Ref | Tag::Store => {
-                if let Some(p) = b.decode_place(b.data[x][0])
-                    && let PlaceRoot::Global(def, _) = p.root
-                {
-                    facts.reads.insert(def);
-                }
-            }
-            Tag::Call | Tag::Await => match Callee::from_words(b.record(b.data[x][0])) {
-                Some(Callee::Item { def, .. }) => {
+        let tag = b.tags[x];
+        if matches!(tag, Tag::Read | Tag::Ref | Tag::Store)
+            && let Some(p) = b.decode_place(b.data[x][0])
+            && let PlaceRoot::Global(def, _) = p.root
+        {
+            facts.reads.insert(def);
+        }
+        if matches!(tag, Tag::Call | Tag::Await)
+            && let Some(callee) = Callee::from_words(b.record(b.data[x][0]))
+        {
+            match callee {
+                Callee::Item { def, .. } => {
                     facts.calls.insert(def);
                 }
-                Some(Callee::TraitMethod { method, .. }) => {
+                Callee::TraitMethod { method, .. } => {
                     facts.calls.insert(method);
                     facts.dispatch.insert(method);
                 }
-                None => {}
-            },
-            _ => {}
+            }
         }
     }
     facts
@@ -105,7 +105,12 @@ pub fn check(cx: &BodyCx<'_>, diags: &mut DiagBuf) {
     let bad: HashMap<DefId, u8> = init
         .globals
         .values()
-        .filter(|g| !cx.names.path(g.def).starts_with("std.rt."))
+        .filter(|g| {
+            let path = cx.names.path(g.def);
+            !path
+                .rsplit_once('.')
+                .is_some_and(|(module, _)| hd_resolve::runtime_module(module))
+        })
         .map(|g| {
             let send = send_trait == DefId::NONE || hd_types::may_send(pool, &decls, g.ty);
             (g.def, u8::from(!g.short) | (u8::from(!send) << 1))
