@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: std/iter/Iterator.max std/iter/Iterator.min
+# Each `max` and `min` loop costs, per item, one call of the cursor's
+# `next` (`ListIter.next[i64]`, or `MapIter.next`, which calls the closure)
+# and two i64 compares for `cmp`, with no allocation and no retain or
+# release. Per call: a 16-byte shadow-stack frame for the cursor, and one
+# release of its list (or one `release_value` of the `MapIter`) at the end.
+# expected: `next` inlined into the loop, leaving a bounds check and a load
+# per item.
+fn largest(xs: List[i64]) -> i64?:
+    xs.iter().max()
+
+fn smallest(xs: List[i64]) -> i64?:
+    xs.iter().min()
+
+fn largest_square(xs: List[i64]) -> i64?:
+    xs.iter().map(fn(x: i64) -> i64: x * x).max()
