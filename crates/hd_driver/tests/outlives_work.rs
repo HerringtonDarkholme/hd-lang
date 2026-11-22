@@ -279,3 +279,92 @@ fn repeated_conversions_share_proof_projection() {
         );
     }
 }
+
+fn marker_source(width: usize, depth: usize, static_value: bool) -> String {
+    let mut text = String::from(
+        "use std.ops.{AutoClosing, Disposable}\nstruct Wrapped[T]:\n    value: T\ntrait Seed0:\n    pass\nimpl[T < 'static] Seed0 for Wrapped[T]:\n    pass\n",
+    );
+    for d in 1..=depth {
+        let _ = write!(
+            text,
+            "trait Seed{d}:\n    pass\nimpl[T < Seed{}] Seed{d} for Wrapped[T]:\n    pass\n",
+            d - 1
+        );
+    }
+    let _ = write!(
+        text,
+        "impl[T < Seed{depth}] Disposable for Wrapped[T]:\n    fn dispose(&mut self) -> void: pass\nimpl[T < Seed{depth}] AutoClosing for Wrapped[T]:\n    pass\nfn accepted['a](value: "
+    );
+    for _ in 0..depth + 2 {
+        text.push_str("Wrapped[");
+    }
+    text.push_str(if static_value {
+        "&'static i32"
+    } else {
+        "&'a i32"
+    });
+    for _ in 0..depth + 2 {
+        text.push(']');
+    }
+    text.push_str(") -> void:\n");
+    for i in 0..width {
+        let _ = writeln!(text, "    let copy{i} = value");
+    }
+    text.push_str("    pass\npub fn main() -> void: pass\n");
+    text
+}
+
+fn marker_work(width: usize, depth: usize, static_value: bool) -> (u64, u64, u64) {
+    let store = MemoryStore::default();
+    let bootstrap = analyze(&store, "pub fn main() -> void: pass\n");
+    assert!(!bootstrap.diags.has_errors(), "{}", bootstrap.render());
+    let text = marker_source(width, depth, static_value);
+    let (((out, work), layouts), slots) = hd_check::work::count_slot_counts(|| {
+        hd_check::work::count_layout_steps(|| {
+            hd_check::work::count_scan_work(|| analyze(&store, &text))
+        })
+    });
+    assert_eq!(
+        out.diags.code.len(),
+        if static_value { width } else { 0 },
+        "{}",
+        out.render()
+    );
+    assert!(
+        out.diags
+            .code
+            .iter()
+            .all(|c| *c == hd_diag::Code::UnregisteredAutoClosing),
+        "{}",
+        out.render()
+    );
+    (work, layouts, slots)
+}
+
+#[test]
+fn conditional_markers_share_projection_and_query_solved_regions() {
+    for static_value in [false, true] {
+        let small = marker_work(100, 1, static_value);
+        let wide = marker_work(1000, 1, static_value);
+        let deep_small = marker_work(100, 20, static_value);
+        let deep_wide = marker_work(1000, 20, static_value);
+        eprintln!(
+            "marker work static={static_value}: small={small:?}, wide={wide:?}, deep_small={deep_small:?}, deep_wide={deep_wide:?}"
+        );
+        for (small, wide, deep_small, deep_wide) in [
+            (small.0, wide.0, deep_small.0, deep_wide.0),
+            (small.1, wide.1, deep_small.1, deep_wide.1),
+            (small.2, wide.2, deep_small.2, deep_wide.2),
+        ] {
+            assert!(small > 0);
+            assert!(wide <= 12 * small, "{small} -> {wide}");
+            assert!(deep_wide <= 12 * deep_small, "{deep_small} -> {deep_wide}");
+            let narrow_delta = deep_small.saturating_sub(small);
+            let wide_delta = deep_wide.saturating_sub(wide);
+            assert!(
+                wide_delta <= 2 * narrow_delta + 1,
+                "depth delta {narrow_delta} -> {wide_delta}"
+            );
+        }
+    }
+}

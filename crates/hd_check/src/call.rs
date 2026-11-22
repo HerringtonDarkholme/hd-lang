@@ -2496,7 +2496,7 @@ impl Ck<'_, '_> {
                     if let Some(place) = formals.destination.storage()
                         && self.diags.errors_since(before) == 0
                     {
-                        self.check_stored_value(t, block, place)?;
+                        self.check_stored_value(r, t, block, place)?;
                     }
                     let (r, t) = self.bounded_closure(r, t, last_want.map(|f| f.ty), block);
                     let r = self.coerce(r, t, w, block, "argument", ExpectPosition::General);
@@ -2779,7 +2779,7 @@ impl Ck<'_, '_> {
                     let idx = u32::try_from(k).unwrap_or(0);
                     let g = self.b.field(r, idx, et, e.index());
                     if check_storage && let Some(place) = destination.storage() {
-                        self.check_stored_value(et, e, place)?;
+                        self.check_stored_value(g, et, e, place)?;
                     }
                     let w = self.argument_ty(tys[i])?;
                     slots[i] = Some(self.coerce(g, et, w, e, "argument", ExpectPosition::General));

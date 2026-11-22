@@ -3781,12 +3781,10 @@ impl Ck<'_, '_> {
                 };
                 self.read_local(l, d, *a)
             };
-            if a.children().next().is_none() && self.implements_auto_closing(t)? {
-                self.err(
-                    Code::UnregisteredAutoClosing,
-                    *a,
-                    "an AutoClosing value cannot be stored in this field",
-                );
+            if a.children().next().is_none() {
+                self.check_auto_closing(r, t, *a, || {
+                    "an AutoClosing value cannot be stored in this field".to_owned()
+                })?;
             }
             vals[i] = self.coerce(r, t, ft, *a, "field", ExpectPosition::General);
             // `fn.trait.read-only`: a field of a type parameter bounded by
