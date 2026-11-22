@@ -2,7 +2,8 @@
 
 Status: accepted design (owner, 2026-11-18: "accept all your
 recommendations"); domain: compiler internals. **Built** as of 2026-11-21:
-every step. Step 4 (#2173, closed): 4a's boundary decisions and per-type
+every step, but four of step 1's deletions are still open (Appendix D,
+"Dormant and parallel paths"). Step 4 (#2173, closed): 4a's boundary decisions and per-type
 count shims as lowered TIR, with the walk route and the collection-copy
 route deleted. Step 7 (#2176, closed): cleanup scopes and cancel exits
 (7a, 7b, carrying 2b), the exit set and drop elaboration over flag locals,
@@ -503,14 +504,14 @@ patterns overlap, so the rows do not sum to 154.
 | Path | Where | Step |
 | --- | --- | --- |
 | The 4,096-leaf fallback | deleted in 3c229234e | 1, done |
-| Generic-body ownership that serves it | `Env::owned_generated`, `ProgramEnv::supplied_body` (#2102's second comment) | 1 |
-| Layout memo scopes | `layout::cached`, `cached_for_run`, `Scope`, 257 lines | 1 |
-| A second per-type fact memo | `own.rs` `TypeTable`, `TypeFacts`, 229 lines | 1 |
+| Generic-body ownership that serves it | `Env::owned_generated`, `ProgramEnv::supplied_body` (#2102's second comment) | 1, open: both are still in the code |
+| Layout memo scopes | `layout::cached`, `cached_for_run`, `Scope`, 257 lines | 1, open: `cached`'s copy of `Scope` is deleted (6c8abad84, −38); 142 lines of the thread-local scheme wait for a `Layouts` handle |
+| A second per-type fact memo | `own.rs` `TypeTable`, `TypeFacts`, 229 lines | 1, open: it memoizes facts `hd_layout` does not (`holds_coll`, `RefFacts` over unstripped types) and is shared across threads; it goes with `Layout.facts` |
 | Step 4's second body copy | `ir/local_fns.rs`, deleted in 28fb8575a | 3b (#2180), done |
 | Verifier checks that re-prove a pass | `ir/owned.rs`, deleted (step 0, −365) | 0, done |
 | Storage found twice | `closure.rs` `shared_locals`, `cell_locals`; `borrow.rs` `StorageRoots`; `own/storage.rs` | 3 |
 | The settle pass hosted in the backend | `promote.rs` `settled` | 3 |
-| Two move-path tables | `own/parts.rs`, `own/drop_flags.rs` | 1, 3 |
+| Two move-path tables | `own/parts.rs`, `own/drop_flags.rs` | 1, 3, open: both are still in the code |
 | Owned-or-lent decided twice (#2144) | the passes and `emit/count.rs` | 4 |
 | Count rules in the Wasm peephole | `opt.rs` rules 11 and 16 | 4, then measured |
 | Two origin analyses | `own/frame/origins.rs`; `excl.rs` `Origin*` | 5 |
