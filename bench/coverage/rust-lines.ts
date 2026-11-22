@@ -9,6 +9,8 @@
 // - "invariant": every token is part of a check that fails only when an
 //   internal invariant breaks (#1442). These are counted apart:
 //   - `unreachable!`, `panic!`, `assert!` and `debug_assert!` (`_eq`, `_ne`) invocations;
+//   - `NotImplemented::bug(..)`, the compiler's internal-check error,
+//     including a direct `return Err(..)` wrapper; ordinary errors stay code;
 //   - verifier findings: a `VerifyError { .. }` literal anywhere, and inside
 //     verifier code a call that reports a finding (`err(..)`, `self.err(..)`,
 //     `errs.push(..)`, `self.errs.push(..)`). Verifier code is a function
@@ -355,6 +357,30 @@ class Classifier {
         this.text(i - 1) !== "macro_rules"
       ) {
         this.mark(this.inv, this.pathStart(i), this.partner[i + 2]);
+      } else if (
+        this.text(i) === "NotImplemented" &&
+        this.text(i + 1) === ":" &&
+        this.text(i + 2) === ":" &&
+        this.text(i + 3) === "bug" &&
+        this.text(i + 4) === "("
+      ) {
+        // NotImplemented::bug reports a failed internal check (hd_base),
+        // unlike too_large/out_of_fuel and user diagnostics. Keep its
+        // surrounding guard and any mixed expression in ordinary code.
+        let start = this.pathStart(i);
+        let end = this.partner[i + 4];
+        if (
+          this.text(start - 1) === "(" &&
+          this.text(start - 2) === "Err" &&
+          this.partner[start - 1] === end + 1
+        ) {
+          start = this.pathStart(start - 2);
+          end++;
+          if (this.text(start - 1) === "return") {
+            start--;
+          }
+        }
+        this.mark(this.inv, start, end);
       }
     }
   }
