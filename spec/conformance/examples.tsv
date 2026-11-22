@@ -1147,6 +1147,7 @@ std/iter.md	10	type-fragment	-
 std/iter.md	11	mixed	std/iter/what-collect-builds/collect-target-not-fromiterator.hd
 std/iter.md	12	complete	std/iter/list-and-optional-map/list-and-optional-map.hd
 std/iter.md	13	complete	std/iter/value-consuming-methods/iterator-consumers.hd
+std/iter.md	14	complete	std/iter/text-collection-and-list-enumeration/collection-and-enumeration.hd
 std/json.md	1	type-fragment	-
 std/json.md	2	type-fragment	-
 std/json.md	3	type-fragment	-

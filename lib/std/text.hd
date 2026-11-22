@@ -12,6 +12,7 @@ use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
 use std.num.Integer
 use std.collections.UniqList
+use std.iter.FromIterator
 use std.rt.memory.{new_string, string_bytes, copy, load_u64, store_u8}
 use std.annotation.inline
 use std.rt.bytes.{
@@ -756,6 +757,16 @@ impl StringBuilder:
     ## See [std-text.builder.build-local](../../spec/std/text.md#r-std-text.builder.build-local).
     pub fn build(&mut self) -> string:
         self.bytes.take_text()
+
+# Rust's String::from_iter<char>: encode scalars into one growing UTF-8 buffer.
+impl FromIterator[char] for string:
+    fn from_iter[I < ?Copy & Iterator[char]](items: I) -> string:
+        let mut cursor = items
+        let mut output = StringBuilder { bytes: UniqList::[u8].new() }
+        while true:
+            match cursor.next():
+                .Some(value) => output.push_char(value)
+                .None => return output.build()
 
 # The Display.write port uses this private protocol for allocation-free numbers.
 impl TextSink for StringBuilder:
