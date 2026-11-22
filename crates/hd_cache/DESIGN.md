@@ -29,7 +29,7 @@ says.
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the module's content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
 | `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
-| `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file); per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that missed its result | every later run (§5.5) |
+| `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file) and, per check run kind, its module rows; per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that changed a row or missed its result | every later run (§5.5) |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
 | `owned` | one body after the ownership passes, in the wire form's owned section, and its hash. A std body is keyed by the toolchain (std's hash), pipeline, build profile, the checked and verify settings and the checked body's TIR hash (#1423). A dev build's package body (#2028) and generic instance (#2106) add the root package's key and settings and the program's declarations, each non-std module's checked items hash and each folder's impl heads, so a body edit that infers the same signature keeps them; an instance adds its instance key. Their entry lists the bodies the passes read, each by path and TIR hash, checked on load | `Collect`, after the passes on a miss | `Collect`, before running them |
 | `clpack` | the Cranelift machine code of every function of one module, by Cranelift's key, keyed by the module's bytes and the engine's compilation settings; a private entry (mode 0600, read only when the reader owns it alone) | `hd_run_wasmtime::code_cache`, after a compile that compiled a function | the next compile of the same module on wasmtime |
@@ -974,6 +974,28 @@ A warm run reads no source file it does not check, and hashes none
   not list. Dependencies' sets are disk sets of their own, so a fetched
   dependency has a record the same way; the embedded std keeps its
   toolchain-keyed `depfiles` entry.
+- **Module rows** (#1801 option 2, `hd_driver::rows`). Per source set
+  with an identity and per check run kind (`hd check`, `hd check
+  --tests`, each under the root package's key), one `depfiles` entry
+  holds per module: its last check key, the hash of the text it checked,
+  and the `check` entry's diagnostics, meta, test registrations, init
+  summary, `dbg` references and generic edges, sorted by path. A module
+  whose key and text hash match its row takes the row: no `check` entry
+  is read, and no `parse` entry, since a row is made only from a stored
+  entry, whose text parsed. A module that a step after the checks reads
+  whole gets no row (`Run::record_row`): one with an `@inline(.Always)`
+  item or a hidden result, an entry module, a module with test bodies.
+  These facts are functions of the check key, so a row never stands for
+  a module whose entry the run needs; and an evicted entry is an ordinary
+  miss. As rustc keeps a fingerprint per node of the previous dep graph
+  (`SerializedDepGraph`) and loads a node's result from the on-disk cache
+  only when asked (`OnDiskCache::try_load_query_value`), but without
+  rustc's end-of-session promotion of every green result
+  (`exec_cache_promotions`): the entries stay in the store, named by key.
+  A build takes no rows; it reads every entry it collects. The record is
+  written again only when a row was made that it lacked, or a file it
+  holds is gone; a module not checked keeps its row; a partial listing
+  keeps the rows of the files it does not list.
 - **Texts on demand.** Module texts are read on first use
   (`hd_driver::Texts`): by a check that misses its entry, a parse whose
   `parse` entry misses, a module that may opt in to a user derivation
@@ -1025,9 +1047,13 @@ Per-run cost, n files of which k changed: one listing per source
 directory and one `stat` per file (metadata only; git's status does the
 same, and nothing short of a file-system watcher sees an edit with
 less); one read of the record, O(n) skim bytes; O(n) key hashing over
-skims; the reads, skims and record rewrite of the k changed files (the
-rewrite is O(n) bytes, on a run that changed something); plus whatever
-those k changes make the checker redo. A no-change run reads no source
+skims; in a check run, one read of the module rows, O(n) row bytes, and
+a binary search per module, with no `check` or `parse` entry read for a
+module whose row matches; the reads, skims and record rewrite of the k
+changed files (the rewrites are O(n) bytes, on a run that changed
+something); plus whatever those k changes make the checker redo. Still
+O(n) beyond the record reads: the folder interfaces each key's deep
+hashes come from. A no-change run reads no source
 file and writes nothing; an `hd check` run also makes one cache lookup
 per disk set (its stamp table) and one more (the package result), hashes
 each listed path and content stamp once, and

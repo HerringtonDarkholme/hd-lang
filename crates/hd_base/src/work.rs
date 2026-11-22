@@ -65,6 +65,7 @@ counters! {
     RootLookups = "root_lookups",
     InitOrderSteps = "init_order_steps",
     ItemDecodes = "item_decodes",
+    EntryLookups = "entry_lookups",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

@@ -1,8 +1,12 @@
 //! Incremental soundness by edit script (#1801 draft 79,
 //! `docs/compiler/testing-the-compiler.md` §8.2): a package goes through
 //! one edit of each kind the cache must see, and after each one a warm
-//! `hd check` over the cache every earlier step filled reports exactly
-//! what a clean check reports, from a cache that holds std alone.
+//! `hd check` and `hd check --tests` over the cache every earlier step
+//! filled report exactly what a clean one reports, from a cache that holds
+//! std alone. Each fact a module's row in the last-run record holds is
+//! read by some step after an edit elsewhere: diagnostics, test
+//! registrations, init summaries, generic edges, and the meta flags that
+//! make a run read the whole entry.
 //!
 //! Not scripted here: edits to a user derivation template and to a
 //! dependency's version, which need a second package, and to a top-level
@@ -26,17 +30,26 @@ fn copy_tree(from: &Path, to: &Path) {
     }
 }
 
-/// `hd check` in `dir` over the cache `cache`: its status and output.
-fn check(dir: &Path, cache: &Path) -> (Option<i32>, String, String) {
+type Outcome = (Option<i32>, String, String);
+
+/// `hd check` with `args` in `dir` over the cache `cache`: its status and
+/// output.
+fn check_with(dir: &Path, cache: &Path, args: &[&str]) -> Outcome {
     let out = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
         .env("HD_CACHE", cache)
         .env_remove("HD_JOBS")
         .current_dir(dir)
         .arg("check")
+        .args(args)
         .output()
         .expect("run hd");
     let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
     (out.status.code(), text(&out.stdout), text(&out.stderr))
+}
+
+/// `hd check`, then `hd check --tests`, in `dir` over the cache `cache`.
+fn check(dir: &Path, cache: &Path) -> [Outcome; 2] {
+    [&[][..], &["--tests"]].map(|args| check_with(dir, cache, args))
 }
 
 const MAIN: &str = "use pkg.api.{total}\nuse pkg.shop.items.{Item}\nuse pkg.shop.labels.{label}\n\n\
@@ -74,6 +87,10 @@ fn package(root: &Path) {
         ("src/shop/items.hd", ITEMS),
         ("src/shop/labels.hd", LABELS),
         ("src/report/summary.hd", SUMMARY),
+        (
+            "tests/smoke.hd",
+            "use pkg.shop.labels.{label}\n\nit(\"labels\"):\n    println(label(1))\n",
+        ),
     ];
     for (path, text) in files {
         let at = root.join(path);
@@ -101,6 +118,36 @@ type Edit = (&'static str, fn(&Path));
 const HIDDEN: &str = "\nuse pkg.shop.items.{Costed}\n\nstruct Hidden:\n    n: i64\n\n\
 impl Costed for Hidden:\n    fn cost(self) -> i64:\n        self.n\n";
 const BROKEN: &str = "\npub fn broken(x: Missing) -> i32:\n    1\n";
+
+/// Files whose findings the run makes across modules, after the module
+/// checks: a growing generic call cycle, an `@inline(.Always)` cycle,
+/// recursive hidden results and an initialization cycle; and a body error.
+const WHOLE: &[(&str, &str)] = &[
+    ("src/more/bad.hd", "pub fn bad() -> i32:\n    true\n"),
+    (
+        "src/more/grow.hd",
+        "fn even[T](value: T, n: i32) -> i32:\n    if n == 0: 0 else: odd(value, n - 1)\n\n\
+         fn odd[T](value: T, n: i32) -> i32:\n    if n == 0: 1 else: even(.Some(value), n - 1)\n\n\
+         pub fn grow() -> i32:\n    even(+1, +3)\n",
+    ),
+    (
+        "src/more/inline.hd",
+        "use std.annotation.inline\n\n@inline(.Always)\nfn depth(n: i32) -> i32:\n    \
+         if n == 0:\n        return +0\n    depth(n - 1) + 1\n\npub fn deep() -> i32:\n    depth(2)\n",
+    ),
+    (
+        "src/more/hidden.hd",
+        "fn first() -> impl Display:\n    second()\n\nfn second() -> impl Display:\n    first()\n",
+    ),
+    (
+        "src/cycle/a.hd",
+        "use pkg.cycle.b.{read_b}\n\nlet a = read_b()\n\npub fn read_a() -> i32:\n    a\n",
+    ),
+    (
+        "src/cycle/b.hd",
+        "use pkg.cycle.a.{read_a}\n\nlet b = read_a()\n\npub fn read_b() -> i32:\n    b\n",
+    ),
+];
 
 /// Each edit kind, in order; each step edits the package as the step
 /// before it left it.
@@ -225,6 +272,25 @@ const EDITS: &[Edit] = &[
             "",
         );
     }),
+    ("files with findings across modules added", |r| {
+        for (path, text) in WHOLE {
+            let at = r.join(path);
+            std::fs::create_dir_all(at.parent().expect("parent")).expect("dir");
+            std::fs::write(at, text).expect("write");
+        }
+    }),
+    ("a private body edit beside them", |r| {
+        replace(
+            r,
+            "src/shop/items.hd",
+            "fn bump(n: i64) -> i64:\n    n",
+            "fn bump(n: i64) -> i64:\n    n * 1",
+        );
+    }),
+    ("the files with findings across modules removed", |r| {
+        std::fs::remove_dir_all(r.join("src/more")).expect("rm");
+        std::fs::remove_dir_all(r.join("src/cycle")).expect("rm");
+    }),
     ("a file deleted", |r| {
         std::fs::remove_file(r.join("src/report/summary.hd")).expect("rm");
     }),
@@ -258,6 +324,9 @@ const EDITS: &[Edit] = &[
     ("a capability dropped from the manifest", |r| {
         replace(r, "hd.toml", "\n[capabilities]\nConsole = true\n", "");
     }),
+    ("a body edit while the capability is dropped", |r| {
+        replace(r, "src/shop/items.hd", "    n * 1", "    n * 2");
+    }),
     ("the capability restored", |r| {
         append(r, "hd.toml", "\n[capabilities]\nConsole = true\n");
     }),
@@ -277,27 +346,29 @@ fn every_edit_kind_checks_warm_as_it_checks_clean() {
     std::fs::create_dir_all(empty.join("src")).expect("src");
     std::fs::write(empty.join("hd.toml"), "[package]\nname = \"empty\"\n").expect("write");
     std::fs::write(empty.join("src/lib.hd"), "pub fn one() -> i32: 1\n").expect("write");
-    assert_eq!(check(&empty, &empty.cache()).0, Some(0));
+    assert_eq!(check_with(&empty, &empty.cache(), &[]).0, Some(0));
     let dir = Scratch::new(base, "edit-script");
     let root = dir.join("shop");
     package(&root);
     let warm = dir.cache();
-    let clean = |at: &Path, step: usize| -> (Option<i32>, String, String) {
-        let cache: PathBuf = dir.join(format!("clean-{step}"));
-        copy_tree(&empty.cache(), &cache);
-        let out = check(at, &cache);
-        std::fs::remove_dir_all(&cache).expect("rm clean cache");
-        out
+    let clean = |at: &Path, step: usize| -> [Outcome; 2] {
+        [&[][..], &["--tests"]].map(|args| {
+            let cache: PathBuf = dir.join(format!("clean-{step}"));
+            copy_tree(&empty.cache(), &cache);
+            let out = check_with(at, &cache, args);
+            std::fs::remove_dir_all(&cache).expect("rm clean cache");
+            out
+        })
     };
     let first = check(&root, &warm);
     assert_eq!(first, clean(&root, 0), "the unedited package");
-    assert_eq!(first.0, Some(0), "{first:?}");
+    assert!(first.iter().all(|o| o.0 == Some(0)), "{first:?}");
     let mut failed = 0;
     for (step, (name, edit)) in EDITS.iter().enumerate() {
         edit(&root);
         let (incremental, fresh) = (check(&root, &warm), clean(&root, step + 1));
         assert_eq!(incremental, fresh, "after {name}");
-        failed += usize::from(fresh.0 != Some(0));
+        failed += usize::from(fresh[1].0 != Some(0));
     }
     // The script reaches both outcomes, so a check that always passes or
     // always fails would not match it.

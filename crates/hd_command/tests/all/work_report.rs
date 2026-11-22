@@ -117,10 +117,10 @@ fn a_report_that_cannot_be_written_keeps_the_status() {
     );
 }
 
-/// `item_decodes` of a warm `hd check` after a body edit in the first of
-/// `modules` library modules.
-fn items_decoded_after_an_edit(modules: usize) -> u64 {
-    let dir = package(&format!("work-item-decodes-{modules}"));
+/// The counter `name` of a warm `hd check` after a body edit in the first
+/// of `modules` library modules.
+fn after_an_edit(modules: usize, name: &str) -> u64 {
+    let dir = package(&format!("work-{name}-{modules}"));
     let module = |k: usize, add: i32| {
         format!("pub fn f{k}(x: i32) -> i32:\n    x + {add}\n\npub fn g{k}() -> i32:\n    2\n")
     };
@@ -136,13 +136,7 @@ fn items_decoded_after_an_edit(modules: usize) -> u64 {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let report = std::fs::read_to_string(&work).expect("report");
-    let count = report
-        .split("\"item_decodes\":")
-        .nth(1)
-        .and_then(|rest| rest.split([',', '}']).next())
-        .and_then(|n| n.trim().parse().ok());
-    count.unwrap_or_else(|| panic!("no item_decodes: {report}"))
+    counter(&std::fs::read_to_string(&work).expect("report"), name)
 }
 
 /// #1801 draft 64: the whole-program checks after the module checks
@@ -153,8 +147,21 @@ fn items_decoded_after_an_edit(modules: usize) -> u64 {
 #[test]
 fn a_warm_edit_decodes_no_more_items_in_a_larger_package() {
     let (small, large) = (
-        items_decoded_after_an_edit(4),
-        items_decoded_after_an_edit(16),
+        after_an_edit(4, "item_decodes"),
+        after_an_edit(16, "item_decodes"),
+    );
+    assert_eq!(small, large, "4 modules: {small}; 16 modules: {large}");
+}
+
+/// #1801 option 2: a warm edit looked up every module's `check` entry, read
+/// it whole, and looked up its `parse` entry, though one module changed. A
+/// module whose key and text match its row in the last-run record now takes
+/// the row, so a warm edit looks up as many entries at 16 modules as at 4.
+#[test]
+fn a_warm_edit_looks_up_no_more_entries_in_a_larger_package() {
+    let (small, large) = (
+        after_an_edit(4, "entry_lookups"),
+        after_an_edit(16, "entry_lookups"),
     );
     assert_eq!(small, large, "4 modules: {small}; 16 modules: {large}");
 }

@@ -67,6 +67,7 @@ pub use own::copy_report_label;
 mod pipeline;
 mod positions;
 mod report;
+mod rows;
 mod skims;
 mod stamps;
 mod texts;
@@ -818,7 +819,11 @@ type OptInEntry = (usize, hd_check::derive::OptIn, Option<FactBodies>);
 
 /// A module's `check` entry, as far as `prog_key` needs it.
 struct CheckOut {
-    entry: Arc<[u8]>,
+    /// The whole entry; `None` for a module taken from its row (`rows`),
+    /// which no later step of the run reads whole ([`Run::record_row`]).
+    entry: Option<Arc<[u8]>>,
+    /// The init summary (the entry's section 5), which `InitOrder` reads.
+    summary: Box<[u8]>,
     content: Hash128,
     has_errors: bool,
     generic_edges: Vec<hd_check::inst_cycles::Edge>,
@@ -1736,6 +1741,8 @@ struct Run<'a> {
     fetched: Vec<bool>,
     /// Each module's text skim, std's from the toolchain's `depfiles` entry.
     files: skims::FileSkims<'a>,
+    /// Each module's row of the last check run of its kind (`rows`).
+    rows: rows::ModuleRows<'a>,
     skim: Vec<OnceLock<SkimOut>>,
     parse: Vec<OnceLock<Parse>>,
     graph: OnceLock<GraphOut>,
@@ -2705,6 +2712,14 @@ fn build_packages_inner(
         key.hash(hosts);
         package_key = key.finish();
     }
+    // A check run keeps rows, one record per run kind and root package.
+    let kind = matches!(goal, Goal::Analyze | Goal::CheckTests).then(|| {
+        let mut k = hd_base::StableHasher::new("rows-kind");
+        k.u8(u8::from(matches!(goal, Goal::CheckTests)));
+        k.hash(package_key);
+        k.finish()
+    });
+    let rows = rows::ModuleRows::new(host.store, toolchain, &identities, kind, n);
     let run = Run {
         lint: analysis::Lint::new(analysis, n),
         host,
@@ -2783,6 +2798,7 @@ fn build_packages_inner(
             .chain(std::iter::once(false))
             .collect(),
         files,
+        rows,
         skim: skims
             .into_iter()
             .map(|s| s.map_or_else(OnceLock::new, OnceLock::from))
@@ -2940,6 +2956,7 @@ fn build_packages_inner(
     } else {
         Vec::new()
     };
+    run.rows.finish(&run.table);
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
         let kind = EntryKind::Depfiles.as_str();
@@ -3068,7 +3085,8 @@ fn build_packages_inner(
                 || !run.check[*m]
                     .get()
                     .and_then(Option::as_ref)
-                    .is_some_and(|c| Arc::ptr_eq(&c.entry, entry))
+                    .and_then(|c| c.entry.as_ref())
+                    .is_some_and(|e| Arc::ptr_eq(e, entry))
             {
                 continue;
             }
@@ -3109,7 +3127,7 @@ fn build_packages_inner(
             .map(|c| {
                 c.get()
                     .and_then(Option::as_ref)
-                    .map(|c| Arc::clone(&c.entry))
+                    .and_then(|c| c.entry.clone())
             })
             .collect(),
         position_inputs: Vec::new(),
@@ -4022,6 +4040,7 @@ impl Run<'_> {
     }
 
     fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<CacheSection>> {
+        hd_base::work::add(hd_base::work::Counter::EntryLookups, 1);
         let sections = self
             .host
             .store
@@ -5120,7 +5139,7 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::InitOrder);
         let m = self.table.folders[fi].modules[0].idx();
         lock(&self.report).ok(Stage::ModulePrep);
-        self.read_check(m, check, Arc::from(join_sections(check)));
+        self.read_check(m, check, Some(Arc::from(join_sections(check))));
         let _ = self.prep[m].set(None);
         true
     }
@@ -5708,8 +5727,7 @@ impl Run<'_> {
                     sums.clear();
                     break;
                 }
-                let sections = split_sections(&c.entry)?;
-                sums.push((m, sections.get(5).copied().unwrap_or(&[])));
+                sums.push((m, &*c.summary));
             }
             if !sums.is_empty() {
                 cycles.push(sums);
@@ -5857,9 +5875,7 @@ impl Run<'_> {
         let starts: Vec<usize> = mods.iter().map(|m| m.idx()).collect();
         let (groups, _) = strongly_connected(&edges, &starts);
         let initializes = |m: usize| match self.check[m].get() {
-            Some(Some(c)) => split_sections(&c.entry)
-                .and_then(|s| s.get(5).map(|b| summary_statements(b) > 0))
-                .unwrap_or(false),
+            Some(Some(c)) => summary_statements(&c.summary) > 0,
             _ => false,
         };
         groups
@@ -6533,6 +6549,10 @@ impl Run<'_> {
         lock(&self.counters)
             .check_keys
             .insert(self.table.modules[mi].path.clone(), key);
+        // A module whose key and text match its row takes the row and reads
+        // no entry ([`Self::record_row`]).
+        let source = self.skim_of(mi).file.source_hash;
+        let row = self.rows.get(&self.table, mi, key, source);
         // A module that does not parse is checked every run, its broken
         // declarations left out (`grammar.recovery.item`), and never
         // stored: the key ignores comments and blank lines, which can
@@ -6551,18 +6571,27 @@ impl Run<'_> {
         // Only a fresh check makes a rendered body's text.
         let (cached, _owed) = if !parses || analysis_missing || self.renders_module(mi) {
             (None, None)
+        } else if let Some(sections) = row {
+            (Some((sections, None)), None)
         } else {
             match self.lookup_owed(EntryKind::Check, key) {
-                Ok(sections) => (Some(sections), None),
+                Ok(sections) => {
+                    let entry = Arc::from(join_sections(&sections));
+                    (Some((sections, Some(entry))), None)
+                }
                 Err(owed) => (None, Some(owed)),
             }
         };
-        if let Some(sections) = cached {
+        if let Some((sections, entry)) = cached {
             if let Some(findings) = cached_analysis {
                 self.lint_keep(mi, findings);
             }
             lock(&self.report).ok(Stage::ModulePrep);
-            self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
+            let fetched = entry.is_some();
+            self.read_check(mi, &sections, entry);
+            if fetched {
+                self.record_row(mi, key, &sections);
+            }
             let _ = self.prep[mi].set(None);
             return 0;
         }
@@ -6623,15 +6652,20 @@ impl Run<'_> {
             .all(|m| self.parses(m.idx()))
     }
 
-    /// Whether the module's bytes parse without a diagnostic: a `parse`
-    /// entry says so, else the parse runs and a clean one is recorded.
+    /// Whether the module's bytes parse without a diagnostic: its row or a
+    /// `parse` entry says so, else the parse runs and a clean one is
+    /// recorded.
     fn parses(&self, m: usize) -> bool {
         // A rejected parse has no disk marker. Reuse its existing AST
         // result rather than reclaiming and cancelling the same key.
         if self.parse[m].get().is_some_and(|parsed| !parsed.is_ok()) {
             return false;
         }
-        let key = parse_key(self.toolchain, self.skim_of(m).file.source_hash);
+        let source = self.skim_of(m).file.source_hash;
+        if self.rows.parsed(&self.table, m, source) {
+            return true;
+        }
+        let key = parse_key(self.toolchain, source);
         if self.lookup(EntryKind::Parse, key).is_some() {
             return true;
         }
@@ -8794,7 +8828,8 @@ impl Run<'_> {
             let _ = self.check[m].set(None);
             return;
         }
-        if self.parses(m) {
+        let parses = self.parses(m);
+        if parses {
             self.put(EntryKind::Check, key, &sections);
             self.lint_store(m, key, &lines);
         }
@@ -8803,7 +8838,10 @@ impl Run<'_> {
             .push(self.table.modules[m].path.clone());
         lock(&self.report).ok(Stage::ModuleFinish);
         let owned: Vec<Vec<u8>> = sections.iter().map(|s| s.to_vec()).collect();
-        self.read_check(m, &owned, Arc::from(join_sections(&owned)));
+        self.read_check(m, &owned, Some(Arc::from(join_sections(&owned))));
+        if parses {
+            self.record_row(m, key, &owned);
+        }
     }
 
     /// `module.dbg.release`: a release build rejects each reference to
@@ -8880,7 +8918,8 @@ impl Run<'_> {
     }
 
     /// Reads diagnostics and the meta section; the rest waits for `Collect`.
-    fn read_check(&self, m: usize, sections: &[impl AsRef<[u8]>], entry: Arc<[u8]>) {
+    /// `entry` is the whole entry, `None` for a row.
+    fn read_check(&self, m: usize, sections: &[impl AsRef<[u8]>], entry: Option<Arc<[u8]>>) {
         self.keep_input(
             m,
             |e| &mut e.check,
@@ -8982,6 +9021,7 @@ impl Run<'_> {
         let has_inline_always = !meta_reader.at_end() && meta_reader.u8() != 0;
         let _ = self.check[m].set(Some(CheckOut {
             entry,
+            summary: sections.get(5).map_or(&[][..], AsRef::as_ref).into(),
             content,
             has_errors,
             generic_edges,
@@ -8990,6 +9030,33 @@ impl Run<'_> {
             has_inline_always,
             items,
         }));
+    }
+
+    /// Records module `m`'s row from its stored entry's `sections`, unless
+    /// a step after the module checks reads the whole entry: the
+    /// `@inline(.Always)` and hidden-result checks read their modules'
+    /// items and bodies, the entry capabilities an entry or test module's
+    /// items. These facts are functions of the check key, so a module
+    /// whose key matches a row needs no entry; a check run collects no
+    /// program.
+    fn record_row(&self, m: usize, key: Hash128, sections: &[impl AsRef<[u8]>]) {
+        let regs = self.regs[m].get().map_or(&[][..], Vec::as_slice);
+        let checked = self.check[m].get().and_then(Option::as_ref);
+        if checked.is_some_and(|c| {
+            !c.has_opaque && !c.has_inline_always && !self.capabilities_read(m, regs)
+        }) {
+            let source = self.skim_of(m).file.source_hash;
+            self.rows.record(&self.table, m, key, source, sections);
+        }
+    }
+
+    /// Whether the entry capabilities read module `m`'s items: an entry
+    /// module's or one with test bodies, of the root package.
+    fn capabilities_read(&self, m: usize, regs: &[hd_check::tests::TestReg]) -> bool {
+        let module = &self.table.modules[m];
+        module.package == 0
+            && (self.entry_module(m) && module.role != Role::Test
+                || regs.iter().any(|r| r.body.is_some()))
     }
 
     /// The written `@inline(.Always)` on `def`, including private items
@@ -9040,7 +9107,7 @@ impl Run<'_> {
             if checked.has_errors || !checked.has_inline_always {
                 continue;
             }
-            let Some(sections) = split_sections(&checked.entry) else {
+            let Some((entry, sections)) = checked.entry.as_deref().and_then(entry_sections) else {
                 continue;
             };
             let mut wanted: HashSet<Hash128> = HashSet::default();
@@ -9076,7 +9143,7 @@ impl Run<'_> {
             if wanted.is_empty() {
                 continue;
             }
-            let Some(index) = body_index(&checked.entry) else {
+            let Some(index) = body_index(entry) else {
                 continue;
             };
             for (key, at) in index {
@@ -9090,7 +9157,7 @@ impl Run<'_> {
                     None => None,
                 };
                 if let Some(body) =
-                    hd_tir::wire::read_body(&checked.entry[at], &self.pool, &self.paths, &self.syms)
+                    hd_tir::wire::read_body(&entry[at], &self.pool, &self.paths, &self.syms)
                 {
                     bodies.insert(selected.unwrap_or(body.item), body);
                 }
@@ -9207,7 +9274,7 @@ impl Run<'_> {
             if checked.has_errors || !checked.has_opaque {
                 continue;
             }
-            let Some(sections) = split_sections(&checked.entry) else {
+            let Some((entry, sections)) = checked.entry.as_deref().and_then(entry_sections) else {
                 continue;
             };
             let Some(items) = sections
@@ -9221,16 +9288,13 @@ impl Run<'_> {
                 .iter()
                 .filter_map(|i| i.sig().map(|s| (i.def, s.ret)))
                 .collect();
-            let Some(index) = body_index(&checked.entry) else {
+            let Some(index) = body_index(entry) else {
                 continue;
             };
             for (_, at) in index {
-                let Some(body) = hd_tir::wire::read_body(
-                    &checked.entry[at],
-                    &self.pool,
-                    &self.paths,
-                    &self.syms,
-                ) else {
+                let Some(body) =
+                    hd_tir::wire::read_body(&entry[at], &self.pool, &self.paths, &self.syms)
+                else {
                     continue;
                 };
                 for f in
@@ -9374,19 +9438,21 @@ impl Run<'_> {
             if c.has_errors {
                 return None;
             }
+            // A build takes no rows, so each checked module has its entry.
+            let entry = c.entry.as_ref()?;
             if self.reads_on_first_use(m) {
                 let at = u32_of(items.std.modules.len());
                 items.std.by_node.insert(self.module_node(m), at);
                 items.std.modules.push(StdModule {
                     m,
-                    entry: c.entry.clone(),
+                    entry: Arc::clone(entry),
                     read: OnceLock::new(),
                 });
                 continue;
             }
-            let range = item_section(&c.entry)?;
+            let range = item_section(entry)?;
             let test_role = self.role(m) == "test";
-            let decoded = hd_resolve::decode_lazy_in(&names, c.entry.clone(), range)?.0;
+            let decoded = hd_resolve::decode_lazy_in(&names, Arc::clone(entry), range)?.0;
             let configured = configured_bodies(&names, &decoded, self.build_profile);
             if test_role {
                 for (i, def) in decoded.defs().iter().enumerate() {
@@ -9398,13 +9464,13 @@ impl Run<'_> {
             items.add_checked(decoded);
             // An earlier REPL input's bodies yield to this build's.
             let kept = self.is_kept(m);
-            for (mut item, at) in body_index(&c.entry)? {
+            for (mut item, at) in body_index(entry)? {
                 if let Some(selected) = configured.get(&item) {
                     let Some(canonical) = selected else { continue };
                     item = *canonical;
                 }
                 let lazy = LazyBody {
-                    wire: Some((m, c.entry.clone(), at)),
+                    wire: Some((m, Arc::clone(entry), at)),
                     forms: OnceLock::new(),
                 };
                 if kept {
@@ -11046,28 +11112,18 @@ impl Run<'_> {
         let names = self.names();
         let mut out = Vec::new();
         for (m, module) in self.table.modules.iter().enumerate() {
-            if module.package != 0 {
-                continue;
-            }
             let Some(Some(checked)) = self.check[m].get() else {
                 continue;
             };
-            if checked.has_errors {
-                continue;
-            }
             // Only an entry module or one with test bodies is parsed: a
             // warm run reads no other module's text (`crates/hd_cache/DESIGN.md` §5.5),
             // and decodes no other module's items.
-            let entry = self.entry_module(m) && module.role != Role::Test;
-            let tests = self.regs[m]
-                .get()
-                .into_iter()
-                .flatten()
-                .any(|r| r.body.is_some());
-            if !entry && !tests {
+            let regs = self.regs[m].get().map_or(&[][..], Vec::as_slice);
+            if checked.has_errors || !self.capabilities_read(m, regs) {
                 continue;
             }
-            let Some(sections) = split_sections(&checked.entry) else {
+            let entry = self.entry_module(m) && module.role != Role::Test;
+            let Some(sections) = checked.entry.as_deref().and_then(split_sections) else {
                 continue;
             };
             let Some(items) = sections
@@ -12765,6 +12821,11 @@ fn item_section(entry: &[u8]) -> Option<std::ops::Range<usize>> {
     let bytes = *split_sections(entry)?.get(2)?;
     let start = bytes.as_ptr() as usize - entry.as_ptr() as usize;
     Some(start..start + bytes.len())
+}
+
+/// A joined entry with its sections ([`split_sections`]).
+fn entry_sections(bytes: &[u8]) -> Option<(&[u8], Vec<&[u8]>)> {
+    Some((bytes, split_sections(bytes)?))
 }
 
 fn split_sections(bytes: &[u8]) -> Option<Vec<&[u8]>> {
