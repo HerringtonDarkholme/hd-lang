@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: a function or suspension slot of a default writes no lifetime; its static reference satisfies the bound
+fn accepted[T < 'static = (fn() -> void, Suspend[i32], &'static i32)](value: T) -> void:
+    pass

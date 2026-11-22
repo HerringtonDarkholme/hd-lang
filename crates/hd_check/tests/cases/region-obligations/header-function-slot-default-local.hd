@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: beside a function and a suspension slot, the default's `'a` reference cannot satisfy a static bound
+fn rejected['a, T < 'static = (fn() -> void, Suspend[i32], &'a i32)](value: T) -> void:
+    pass

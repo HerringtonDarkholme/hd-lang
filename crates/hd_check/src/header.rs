@@ -659,15 +659,38 @@ impl<'a> ItemCheck<'_, 'a> {
                 continue;
             };
             for b in &g.bounds {
-                if self.fails(d, *b, 0)? {
-                    let message = format!(
-                        "the default {} does not implement {}",
-                        self.show(d),
-                        self.show(*b)
-                    );
-                    self.report(0, Code::UnsatisfiedTraitBound, message);
-                    break;
-                }
+                let TyData::TraitValue { def, args, .. } = self.pool().get(*b) else {
+                    continue;
+                };
+                let tref = TraitRef {
+                    trait_: def,
+                    self_ty: d,
+                    args,
+                };
+                let (code, message) = match self.answer_ref(tref, 0)? {
+                    Answer::Fails(_) => (Code::UnsatisfiedTraitBound, "does not implement"),
+                    // A proof's outlives requirements hold of the lifetimes
+                    // the default writes (`ref.generic.static.impl`).
+                    Answer::Holds { obligations, .. }
+                        if self.default_escapes(d, &g.default_lifetimes, &obligations)? =>
+                    {
+                        let message = "does not outlive the lifetime required by";
+                        (Code::LocalReferenceEscapes, message)
+                    }
+                    Answer::Holds { .. }
+                    | Answer::Candidates(_)
+                    | Answer::Stalled { .. }
+                    | Answer::Overflow
+                    | Answer::OutOfFuel => continue,
+                };
+                let bound = if code == Code::LocalReferenceEscapes {
+                    "its bound".to_owned()
+                } else {
+                    self.show(*b)
+                };
+                let message = format!("the default {} {message} {bound}", self.show(d));
+                self.report(0, code, message);
+                break;
             }
         }
         match &it.data {
@@ -1468,6 +1491,32 @@ impl<'a> ItemCheck<'_, 'a> {
             },
             slot,
         )
+    }
+
+    /// Whether the static requirements a proof of default `d`'s bound
+    /// carries reach a lifetime `written` gives it other than `'static`:
+    /// the shared walk with the default's written lifetimes as origins.
+    fn default_escapes(
+        &self,
+        d: Ty,
+        written: &[u16],
+        obligations: &hd_types::solver::RegionObligations,
+    ) -> StageResult<bool> {
+        if obligations.is_empty() {
+            return Ok(false);
+        }
+        let pool = self.pool();
+        let lifetimed = crate::dep_results::lifetimed(self.cx.lookup);
+        let ls = crate::dep_results::Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
+        let origins = crate::dep_results::written_origins(&ls, d, written);
+        let reached = crate::dep_results::proof_statics(
+            &ls,
+            (self.cx.lookup, Impls::Owned(self.cx.impls)),
+            &|t| t,
+            [(obligations, d, origins)],
+        )?;
+        let fixed = u32::from(hd_resolve::STATIC_LIFETIME);
+        Ok(reached.iter().any(|&l| l != fixed))
     }
 
     /// Whether a written bound goal provably fails under the item's

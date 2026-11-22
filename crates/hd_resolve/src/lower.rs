@@ -4825,7 +4825,12 @@ impl Lower<'_, '_, '_> {
                     .children()
                     .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow)
                 {
-                    g.default = Some(self.ty(Some(c), gn));
+                    let (default, written) = self.with_slots(|low| low.ty(Some(c), gn));
+                    g.default_lifetimes = self
+                        .slot_lists(&[default], vec![written])
+                        .pop()
+                        .unwrap_or_default();
+                    g.default = Some(default);
                 }
             }
             g.row = row;

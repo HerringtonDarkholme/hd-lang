@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: an elided lifetime in a default is not `'static`, so it cannot satisfy a static bound
+fn rejected[T < 'static = &i32](value: T) -> void:
+    pass

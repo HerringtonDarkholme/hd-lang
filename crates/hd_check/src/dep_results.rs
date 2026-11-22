@@ -2034,6 +2034,25 @@ struct CallSig {
 
 /// Per slot of a subject, the origins it holds.
 pub(crate) type ProofSlots<V> = Rc<Vec<Vec<V>>>;
+
+/// The written lifetime of each slot of type `t` whose local reference
+/// slots write `written` ([`hd_resolve::Generic::default_lifetimes`]), as
+/// [`proof_statics`] origins: 0 for one written with none, which is not
+/// `'static`. A function's or suspension's slot holds no written
+/// reference, so it has none.
+pub(crate) fn written_origins(ls: &Layouts<'_>, t: Ty, written: &[u16]) -> ProofSlots<u32> {
+    let mut refs = 0;
+    let slots = (ls.of(t).slots.iter())
+        .map(|s| {
+            if s.fun || s.hold {
+                return Vec::new();
+            }
+            refs += 1;
+            vec![written.get(refs - 1).map_or(0, |&l| u32::from(l))]
+        })
+        .collect();
+    Rc::new(slots)
+}
 type ProofBindings<V> = Rc<HashMap<ParamRef, ProofSlots<V>>>;
 
 type StaticProofCache =

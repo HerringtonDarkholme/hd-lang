@@ -230,6 +230,11 @@ pub struct Generic {
     /// place in scope, 0 for none (`ref.lifetime.trait.bound-argument`).
     /// Empty when no bound writes one.
     pub bound_lifetimes: Vec<Vec<u16>>,
+    /// The lifetime each local reference slot of `default` writes, as
+    /// [`Self::bound_lifetimes`]: checked against the bounds' outlives
+    /// requirements (`types.generic.default.bound`). Empty when none
+    /// writes one.
+    pub default_lifetimes: Vec<u16>,
     /// A const parameter's declared scalar type
     /// (`types.generic.const.parameter`). Its argument is a
     /// [`TyData::Const`] value or a bare const parameter.
@@ -258,6 +263,7 @@ impl Generic {
             lifetime: false,
             outlives: 0,
             bound_lifetimes: Vec::new(),
+            default_lifetimes: Vec::new(),
             const_type: None,
             anonymous: false,
             outer: false,
@@ -1638,6 +1644,7 @@ fn put_generics(w: &mut Writer, t: &mut TableWriter<'_>, gs: &[Generic]) -> Stag
         w.u8(u8::from(g.row) | variance | (u8::from(g.lifetime) << 4) | konst | anonymous | outer);
         w.u32(u32::from(g.outlives));
         put_lifetime_lists(w, &g.bound_lifetimes);
+        put_lifetime_lists(w, std::slice::from_ref(&g.default_lifetimes));
         if let Some(p) = g.const_type {
             w.u8(p as u8);
         }
@@ -1660,6 +1667,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
         let flags = r.u8();
         let outlives = u16::try_from(r.u32()).ok()?;
         let bound_lifetimes = get_lifetime_lists(r)?;
+        let default_lifetimes = get_lifetime_lists(r)?.pop()?;
         let const_type = if flags & 0b10_0000 == 0 {
             None
         } else {
@@ -1679,6 +1687,7 @@ fn get_generics(r: &mut Reader<'_>, t: &Tables) -> Option<Vec<Generic>> {
             lifetime: flags & 0b1_0000 != 0,
             outlives,
             bound_lifetimes,
+            default_lifetimes,
             const_type,
             anonymous: flags & 0b100_0000 != 0,
             outer: flags & 0b1000_0000 != 0,

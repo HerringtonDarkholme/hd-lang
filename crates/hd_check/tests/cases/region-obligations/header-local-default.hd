@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: an arbitrary lifetime cannot satisfy a generic default's static bound
+fn rejected['a, T < 'static = &'a i32](value: T) -> void:
+    pass
