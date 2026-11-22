@@ -55,14 +55,14 @@ fn analyze_std(render: &[&str]) -> Output {
 }
 
 /// Every module of `lib/std`, plus the compiler-supplied `std.rt.entry`, and the
-/// trait default bodies among the bodies: 51 modules.
+/// trait default bodies among the bodies: 52 modules.
 #[test]
 fn every_std_body_checks_with_no_diagnostic() {
     let out = analyze_std(&[]);
     let body = out.report.tally(Stage::Body);
     assert_eq!(
         (body.ok, body.not_implemented, body.blocked),
-        (51, 0, 0),
+        (52, 0, 0),
         "{}\n{:?}",
         out.report.render(),
         out.report.body_failures
