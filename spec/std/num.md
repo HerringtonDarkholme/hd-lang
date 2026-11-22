@@ -11,6 +11,7 @@ This chapter defines the numeric APIs of `std.num`:
 - the bit counts `count_ones`, `leading_zeros`, and `trailing_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
 - `is_nan` and `is_finite` on `f32` and `f64`;
+- `min` and `max`, which ignore a single NaN;
 - `total_cmp`, the total order of floats;
 - `to_bits` and `from_bits`, the bit patterns of `f32` and `f64`;
 - `abs` on the signed integers and the floats, and `pow` on the integers;
@@ -697,3 +698,29 @@ In this section, `F` is `f32` or `f64`.
 > instruction, `f64.sqrt` or `f32.sqrt`, computes the correctly rounded
 > root, while an hd body built from `+`, `*`, and `/` would be slower and
 > could round the last bit wrong.
+
+## Floating-Point Minimum And Maximum
+
+The float methods `min` and `max` select an input, ignoring one NaN as Rust's float methods do.
+
+```text
+fn bounded_score(score: f64) -> f64:
+    score.max(0.0).min(1.0)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-num.float-min.value] `min` | `fn min(self, other: F) -> F` | The smaller numeric input |
+| r[std-num.float-max.value] `max` | `fn max(self, other: F) -> F` | The larger numeric input |
+
+In this section, `F` is `f32` or `f64`.
+
+1. r[std-num.float-minmax.width] Both methods are inherent on each float type, need no import, and return the receiver's type.
+2. r[std-num.float-minmax.nan] If exactly one input is NaN, the result is the other input, unchanged.
+3. r[std-num.float-minmax.both-nan] If both inputs are NaN, the result is NaN.
+4. r[std-num.float-minmax.equal] If the inputs compare equal, either input may be returned, including when their zero signs differ.
+5. r[std-num.float-minmax.infinite] Infinities participate in the ordinary numeric order.
+6. r[std-num.float-minmax.cost] Each call takes constant time, allocates nothing, and never panics.
+
+> **Why.** Rust's `f32::min`, `f64::min`, `f32::max`, and `f64::max` ignore a single NaN and permit either equal input.
+> They do not require the total-order `Ord` trait; `std.cmp.min` and `std.cmp.max` retain their total-order contracts.
