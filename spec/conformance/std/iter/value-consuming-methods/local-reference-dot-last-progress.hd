@@ -1,0 +1,11 @@
+# test: dot lookup selects the mutable reference's iterator implementation before the referent's value implementation
+# Known compiler gap: https://github.com/HerringtonDarkholme/hd-lang/issues/2286
+
+tests:
+    use std.testing.assert_equal
+
+    it("a mutable reference consumer advances its source"):
+        let mut cursor = [+1, 2, 3].iter()
+        _ := cursor.next()
+        assert_equal((&mut cursor).last(), .Some(3))
+        assert_equal(cursor.next(), .None)
