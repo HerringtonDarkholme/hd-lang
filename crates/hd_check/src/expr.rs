@@ -2009,7 +2009,6 @@ impl Ck<'_, '_> {
             | TyData::Never
             | TyData::Poison
             | TyData::Adt { .. }
-            | TyData::Union(_)
             | TyData::Fn { .. }
             | TyData::TraitValue { .. }
             | TyData::Opaque { .. }
@@ -2656,15 +2655,13 @@ impl Ck<'_, '_> {
     pub(crate) fn field_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
+        let (def, types) = pool.adt(t)?;
         let ItemData::Struct(fields, _) = &self.cx.lookup.item(def)?.data else {
             return None;
         };
         let sym = self.cx.names.syms.intern(name);
         let i = *self.field_index(def, fields).get(&sym)? as usize;
-        let argv = pool.list_items(args);
+        let argv = pool.list_items(types);
         let ft = pool.subst(fields[i].ty, &|p: ParamRef| {
             (p.owner == def)
                 .then(|| argv.get(p.index as usize).copied())
@@ -2830,10 +2827,8 @@ impl Ck<'_, '_> {
         if t == Ty::STRING {
             return Some((Indexed::Str, Ty::prim(Prim::Usize), Ty::prim(Prim::U8)));
         }
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
-        let argv = pool.list_items(args);
+        let (def, types) = pool.adt(t)?;
+        let argv = pool.list_items(types);
         let known = self.cx.names.known;
         match def {
             d if d == known.list => Some((Indexed::List, Ty::prim(Prim::Usize), *argv.first()?)),

@@ -5,6 +5,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::ANON_SUM;
 
 use hd_base::{DefId, InferVar, StageResult, Symbol};
 use hd_diag::Code;
@@ -1391,9 +1392,7 @@ impl Ck<'_, '_> {
     fn newtype_base(&self, t: Ty) -> Option<Ty> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
+        let (def, args) = pool.adt(t)?;
         let Some(ItemData::Newtype(inner, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return None;
         };
@@ -3879,7 +3878,7 @@ impl Ck<'_, '_> {
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
         let w = want.map(|w| self.infer.shallow(pool, w));
         let enum_ty = match w.map(|w| pool.get(w)) {
-            Some(TyData::Adt { .. } | TyData::Union(_)) => w.unwrap_or(Ty::POISON),
+            Some(TyData::Adt { .. }) => w.unwrap_or(Ty::POISON),
             // A poisoned expectation already reported its error.
             Some(TyData::Poison) => return Ok((Ref(NONE), Ty::POISON)),
             // An open expectation may still resolve to an optional or a
@@ -3930,6 +3929,14 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let t = self.infer.shallow(pool, enum_ty);
         match pool.get(t) {
+            TyData::Adt { def, args } if def == ANON_SUM => {
+                let index = name.strip_prefix('_')?.parse::<usize>().ok()?;
+                if name != format!("_{index}") {
+                    return None;
+                }
+                let member = pool.list_items(args).get(index).copied()?;
+                Some((u32::try_from(index).ok()?, vec![member]))
+            }
             TyData::Adt { def, args } => {
                 let ItemData::Enum { variants, .. } = &self.cx.lookup.item(def)?.data else {
                     return None;
@@ -3944,14 +3951,6 @@ impl Ck<'_, '_> {
                     .collect();
                 Some((u32::try_from(i).ok()?, fs))
             }
-            TyData::Union(members) => {
-                let index = name.strip_prefix('_')?.parse::<usize>().ok()?;
-                if name != format!("_{index}") {
-                    return None;
-                }
-                let member = pool.list_items(members).get(index).copied()?;
-                Some((u32::try_from(index).ok()?, vec![member]))
-            }
             _ => None,
         }
     }
@@ -3960,12 +3959,12 @@ impl Ck<'_, '_> {
     fn has_variants(&self, t: Ty) -> bool {
         let pool = self.pool();
         match pool.get(self.infer.shallow(pool, t)) {
+            TyData::Adt { def: ANON_SUM, .. } => true,
             TyData::Adt { def, .. } => self
                 .cx
                 .lookup
                 .item(def)
                 .is_some_and(|i| matches!(i.data, ItemData::Enum { .. })),
-            TyData::Union(_) => true,
             _ => false,
         }
     }
@@ -3987,7 +3986,7 @@ impl Ck<'_, '_> {
         }
         t = self.resolved(t);
         match pool.get(t) {
-            TyData::Union(_) => Some(t),
+            TyData::Adt { def: ANON_SUM, .. } => Some(t),
             TyData::Poison => Some(Ty::POISON),
             _ => {
                 self.err(
@@ -4163,7 +4162,7 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         }
         let pool = self.pool();
-        if let TyData::Adt { def, args } = pool.get(self.infer.shallow(pool, t)) {
+        if let Some((def, args)) = pool.adt(self.infer.shallow(pool, t)) {
             self.check_construct_bounds(def, pool.list_items(args), n)?;
         }
         let rec = self.b.refs_record(&refs);
@@ -4174,7 +4173,7 @@ impl Ck<'_, '_> {
     pub(crate) fn variant_field_names(&self, t: Ty, name: &str) -> Vec<String> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, .. } = pool.get(t) else {
+        let Some((def, _)) = pool.adt(t) else {
             return vec!["0".into()];
         };
         let Some(ItemData::Enum { variants, .. }) = self.cx.lookup.item(def).map(|i| &i.data)
@@ -5078,9 +5077,7 @@ impl Ck<'_, '_> {
     fn builtin_method(&mut self, t: Ty, name: &str) -> Option<(IntrinsicOp, Vec<Ty>, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
+        let (def, args) = pool.adt(t)?;
         let a = pool.list_items(args);
         let usize_t = Ty::prim(Prim::Usize);
         let known = self.cx.names.known;
@@ -6783,7 +6780,8 @@ impl Ck<'_, '_> {
                             children.extend_from_slice(pool.list_items(args));
                             Constructor::Assoc(assoc, trait_)
                         }
-                        TyData::Adt { args, def } => {
+                        // Structural sums retain their projection-identity boundary.
+                        TyData::Adt { args, def } if def.get().is_some() => {
                             children.extend_from_slice(pool.list_items(args));
                             Constructor::Adt(def)
                         }
@@ -7194,7 +7192,7 @@ mod projection_walk_tests {
                     }
                     assert_eq!(ck.normalize_deep(root).unwrap(), wanted);
                     for data in [
-                        TyData::Union(p.list(&[leaf])),
+                        TyData::sum(p.list(&[leaf])),
                         TyData::Opaque {
                             owner,
                             site: 0,

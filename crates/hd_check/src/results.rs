@@ -693,10 +693,11 @@ pub(crate) fn depth(pool: Types<'_>, t: Ty, at: u32) -> u32 {
                 parts.extend_from_slice(pool.list_items(params));
                 parts.push(result);
             }
-            TyData::Adt { .. }
-            | TyData::Tuple { .. }
-            | TyData::Ref { .. }
-            | TyData::TraitValue { .. } => pool.children(t, &mut parts),
+            // The row limit counts declaration arguments, not structural sum members.
+            TyData::Adt { def, .. } if def.get().is_some() => pool.children(t, &mut parts),
+            TyData::Tuple { .. } | TyData::Ref { .. } | TyData::TraitValue { .. } => {
+                pool.children(t, &mut parts);
+            }
             _ => return true,
         }
         stack.extend(parts.iter().rev().map(|&t| (t, at + 1)));
@@ -1640,7 +1641,7 @@ mod tests {
                     self_ty: shared,
                     args: pool.list(&[shared]),
                 });
-                let union = pool.intern_ty(&TyData::Union(pool.list(&[shared, Ty::BOOL])));
+                let union = pool.intern_ty(&TyData::sum(pool.list(&[shared, Ty::BOOL])));
                 for t in [opaque, projection, union] {
                     assert_eq!(
                         depth(types, t, 0),

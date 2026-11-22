@@ -1260,7 +1260,7 @@ impl Gen<'_, '_> {
         while let TyData::Ref { inner: x, .. } = pool.get(t) {
             t = x;
         }
-        let TyData::Adt { def, .. } = pool.get(t) else {
+        let Some((def, _)) = pool.adt(t) else {
             return false;
         };
         let Some(item) = self.s.cx.lookup.item(def) else {

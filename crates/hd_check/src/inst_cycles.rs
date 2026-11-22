@@ -372,7 +372,7 @@ fn params_in(pool: Types<'_>, t: Ty, memo: &mut ParamsMemo) -> Vec<ParamRef> {
                 stack.extend_from_slice(pool.list_items(elems));
                 stack.extend(rest);
             }
-            TyData::Union(members) => stack.extend_from_slice(pool.list_items(members)),
+
             TyData::Ref { inner, .. } => stack.push(inner),
             TyData::Fn {
                 params,

@@ -449,7 +449,7 @@ impl Folder<'_, '_> {
         let pool = self.names.pool;
         let known = self.names.known;
         let is_part = |ty| match pool.get(ty) {
-            TyData::Adt { def, .. } => {
+            TyData::Adt { def, .. } if def.get().is_some() => {
                 def != known.list
                     && def != known.map
                     && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Struct))

@@ -2294,7 +2294,7 @@ as ordinary rows with special head keys:
   [`annot.walker.obligation`](../../spec/lang/14-annotations.md#r-annot.walker.obligation):
   one subgoal per element, and for a rest element `List[T]...` either on
   `T` or on `List[T]`, by whether the walker implements `rest`
-  (`MemberStep`, `tuple_goals`). The interface does not carry template
+  (`MemberStep`, `positional_goals`). The interface does not carry template
   bodies ([`annot.limit.interfaces`](../../spec/lang/14-annotations.md#r-annot.limit.interfaces)),
   so the driver computes the plan from the template body at first use: it
   checks the template's methods in their own module

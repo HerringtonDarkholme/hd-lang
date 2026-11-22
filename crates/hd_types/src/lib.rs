@@ -41,8 +41,8 @@ pub(crate) fn low16(w: u32) -> u16 {
 }
 
 pub use pool::{
-    ConstValue, FnDeps, Inputs, InternPool, LocalPool, ParamRef, Prim, RowData, RowId, RowParamRef,
-    Ty, TyData, TyList, TyMap, Types, with_assoc_args,
+    ANON_SUM, ConstValue, FnDeps, Inputs, InternPool, LocalPool, ParamRef, Prim, RowData, RowId,
+    RowParamRef, Ty, TyData, TyList, TyMap, Types, with_assoc_args,
 };
 pub use sealed::{CopyDecl, may_send};
 pub use unify::{InferTable, UnifyError, VarKind, holds};

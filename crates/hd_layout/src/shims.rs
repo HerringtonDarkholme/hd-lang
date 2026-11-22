@@ -22,6 +22,7 @@ use hd_tir::ir::{
     Body, BodyKind, Callee, Phase, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, Tag,
     TirBuilder, TirSink, VerifyError, local_flags, ref_word,
 };
+use hd_types::ANON_SUM;
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 use crate::{
@@ -181,13 +182,14 @@ impl Counts {
             TyData::Context(_) => at(0, true),
             TyData::Canon(_) if hd_mono::is_class_ref(pool, s) => at(0, false),
             TyData::Tuple { .. } => self.product(pool, env, s, &tuple_members(pool, s))?,
-            TyData::Union(_) => self.sum(pool, env, s)?,
             TyData::Ref { inner, counted, .. } => {
                 let fat = fat(pool, env, inner);
                 self.leaf(reference(fat, counted), !fat && counted)
             }
             TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => at(0, true),
-            TyData::Adt { def, args } if env.enum_variants(def, args).is_some() => {
+            TyData::Adt { def, args }
+                if hd_mono::layout::enum_variants(pool, env, def, args).is_some() =>
+            {
                 self.sum(pool, env, s)?
             }
             TyData::Adt { .. } => self.product(pool, env, s, &value_parts(pool, env, s))?,
@@ -411,7 +413,7 @@ fn null_niche(
 /// or enum that is not boxed.
 fn value_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     match pool.get(t) {
-        TyData::Tuple { .. } | TyData::Union(_) => true,
+        TyData::Tuple { .. } | TyData::Adt { def: ANON_SUM, .. } => true,
         TyData::Adt { def, .. } => {
             env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value)
         }

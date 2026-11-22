@@ -172,7 +172,10 @@ fn public_parts(cx: &Cx<'_, '_>, ret: Ty) -> (Ty, Ty) {
         return (Ty::POISON, Ty::POISON);
     };
     let error = match pool.get(union) {
-        TyData::Union(members) => pool.list_items(members)[0],
+        TyData::Adt {
+            def: hd_types::ANON_SUM,
+            args: members,
+        } => pool.list_items(members)[0],
         _ => Ty::POISON,
     };
     (value, error)

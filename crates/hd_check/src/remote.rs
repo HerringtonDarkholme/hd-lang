@@ -44,7 +44,11 @@ pub(crate) fn raw_result(pool: Types<'_>, known: &KnownItems, ret: Ty) -> Option
     let [v, u] = *pool.list_items(args) else {
         return None;
     };
-    let TyData::Union(members) = pool.get(u) else {
+    let TyData::Adt {
+        def: hd_types::ANON_SUM,
+        args: members,
+    } = pool.get(u)
+    else {
         return None;
     };
     let [e, cross] = *pool.list_items(members) else {
@@ -87,7 +91,7 @@ pub(crate) fn public_result(cx: &BodyCx<'_>, pool: Types<'_>, def: DefId, raw: T
         def: known.cross_error,
         args: TyList::EMPTY,
     });
-    let union = pool.intern_ty(&TyData::Union(pool.list(&[e, cross])));
+    let union = pool.intern_ty(&TyData::sum(pool.list(&[e, cross])));
     Some(pool.intern_ty(&TyData::Adt {
         def: result,
         args: pool.list(&[v, union]),

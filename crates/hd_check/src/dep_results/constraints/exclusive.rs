@@ -251,7 +251,7 @@ fn counted_after_element(s: &Inputs<'_>, root: u32, path: &[Proj], element: usiz
     for (at, step) in path.iter().enumerate() {
         ty = match *step {
             Proj::Elem(_) => {
-                let TyData::Adt { def, args } = s.pool.get(ty) else {
+                let Some((def, args)) = s.pool.adt(ty) else {
                     return false;
                 };
                 let known = &s.cx.names.known;

@@ -5343,7 +5343,7 @@ impl Ck<'_, '_> {
         };
         let self_ty = *self_ty;
         let generics = impl_item.generics.clone();
-        let TyData::Adt { def: target, args } = pool.get(self_ty) else {
+        let Some((target, args)) = pool.adt(self_ty) else {
             return;
         };
         // The built-in collections' variance is the language's, as in

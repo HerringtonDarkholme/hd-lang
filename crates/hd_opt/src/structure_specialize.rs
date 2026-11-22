@@ -368,11 +368,12 @@ pub fn generated_accessor_proof(
 }
 
 /// Both named data and compiler-supplied tuples have one proved variant.
-/// User enums retain their dynamic check until the active arm is known.
+/// Declared and anonymous sums retain their dynamic check until the active arm is known.
 fn single_variant(env: &dyn StructureEnv, target: Ty) -> bool {
     match env.pool().get(target) {
         TyData::Tuple { .. } => true,
-        TyData::Adt { def, args } => env.enum_variants(def, args).is_none(),
+        // ruled out: anonymous sums have cases, never product fields.
+        TyData::Adt { def, .. } => def.get().is_some() && !env.is_enum(def),
         _ => false,
     }
 }

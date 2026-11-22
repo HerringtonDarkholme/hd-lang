@@ -10,6 +10,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::ANON_SUM;
 use std::cell::{Cell, OnceCell, RefCell};
 use std::sync::Arc;
 
@@ -144,7 +145,7 @@ pub fn ty_form<'t, E>(
                 .filter(|c| c.kind().is_type())
                 .map(|c| lower(c, NameRole::Type, Ok(None)))
                 .collect();
-            TyData::Union(pool.list(&members?))
+            TyData::sum(pool.list(&members?))
         }
         TypeForm::Paren => return first(n, role, &mut lower),
         TypeForm::Rest => {
@@ -2324,9 +2325,12 @@ fn fold_slot_paths<V: Clone + Default>(
             TyData::Tuple { elems, rest } => {
                 pool.list_items(elems).iter().copied().chain(rest).collect()
             }
-            TyData::Union(args) | TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
-                pool.list_items(args).to_vec()
+            TyData::Adt {
+                def: ANON_SUM,
+                args,
             }
+            | TyData::Adt { args, .. }
+            | TyData::TraitValue { args, .. } => pool.list_items(args).to_vec(),
             // No path to a reference slot goes through these.
             TyData::Prim(_)
             | TyData::Never
@@ -5783,7 +5787,7 @@ impl Lower<'_, '_, '_> {
         block: NodeRef<'_>,
     ) {
         let pool = self.names.pool;
-        let TyData::Adt { def: target, args } = pool.get(self_ty) else {
+        let Some((target, args)) = pool.adt(self_ty) else {
             return;
         };
         // The built-in collections' variance is the language's, not their
@@ -6099,7 +6103,7 @@ impl Lower<'_, '_, '_> {
         let n = h.node;
         let pool = self.names.pool;
         let target = match pool.get(self_ty) {
-            TyData::Adt { def, .. } => self
+            TyData::Adt { def, .. } if def.get().is_some() => self
                 .kinds
                 .get(&def)
                 .copied()
@@ -6227,7 +6231,7 @@ impl Lower<'_, '_, '_> {
         gn.self_slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
         // `ref.lifetime.struct.impl.elided`: a lifetime struct's
         // lifetimes are its last slots.
-        if let TyData::Adt { def, .. } = pool.get(self_ty)
+        if let Some((def, _)) = pool.adt(self_ty)
             && let k = self.r.lifetime_count(def)
             && k > 0
             && gn.self_slots.iter().rev().take(k).all(|l| *l == 0)
@@ -8131,7 +8135,7 @@ pub fn impl_placement(
     let package = names.package_node(DefId::from_raw(module.raw()));
     let ctor_module = |t: Ty| -> Option<PathId> {
         match pool.get(t) {
-            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => {
+            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } if def.get().is_some() => {
                 Some(names.module_node(def))
             }
             TyData::Prim(_) | TyData::Tuple { .. } | TyData::Fn { .. } | TyData::Ref { .. } => {
@@ -8216,7 +8220,7 @@ impl ItemIndex {
         for (i, it) in items.iter().enumerate() {
             by_def.entry(it.def).or_insert(i);
             if let ItemData::Impl { self_ty, .. } = &it.data
-                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                && let Some((def, _)) = names.pool.adt(*self_ty)
             {
                 by_target.entry(def).or_default().push(i);
             }
@@ -8290,7 +8294,7 @@ fn misplaced_block_in<'a>(
     if !derivation_block(names, it) {
         return None;
     }
-    let TyData::Adt { def, args } = pool.get(*self_ty) else {
+    let Some((def, args)) = pool.adt(*self_ty) else {
         return traitless.then_some("a derivation block with no trait targets a data type or enum");
     };
     if !same_module(names, session, it.def, def) {
@@ -8728,7 +8732,7 @@ fn related_derives(
         else {
             return true;
         };
-        let TyData::Adt { def, .. } = names.pool.get(*self_ty) else {
+        let Some((def, _)) = names.pool.adt(*self_ty) else {
             return true;
         };
         !broken
@@ -8894,7 +8898,7 @@ fn placement(
         // is already one error and counts for nothing.
         if traitless
             && msg.is_none()
-            && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+            && let Some((def, _)) = names.pool.adt(*self_ty)
             && !blocked.insert(def)
         {
             diags.error(
@@ -8966,7 +8970,7 @@ fn session_targets(
         let ItemData::Impl { self_ty, .. } = &it.data else {
             continue;
         };
-        let TyData::Adt { def, .. } = names.pool.get(*self_ty) else {
+        let Some((def, _)) = names.pool.adt(*self_ty) else {
             continue;
         };
         if index.get(items, def).is_some()
@@ -9015,7 +9019,7 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
                 && *trait_ == DefId::NONE
                 && names.text(*by) == "Structure"
                 && names.module_node(it.def) == node
-                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                && let Some((def, _)) = names.pool.adt(*self_ty)
             {
                 out.insert(def);
             }
