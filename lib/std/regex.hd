@@ -6,6 +6,7 @@
 # backtracking (r-std-regex.time.linear). A prefilter taken from the tree
 # lets a search start threads only where a match could start and jump over
 # the text between.
+use std.collections.UniqList
 use std.format.DebugWriter
 use std.serde.{Deserialize, Deserializer, ValueKind, member_name}
 use std.structure.{Facts, Member, VariantInfo}
@@ -17,7 +18,7 @@ use std.rt.bytes.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
 ## See [std-regex.regex.decl-struct](../../spec/std/regex.md#r-std-regex.regex.decl-struct).
 pub struct Regex:
     text: string
-    program: Program
+    program: *Program
     filter: Prefilter
     forward: *mut Dfa
     reverse: *mut Dfa
@@ -99,9 +100,10 @@ impl Regex:
         let mut program: List[Inst] = []
         compile(parsed.node, &mut program)
         program.push(Inst.Done)
-        lowered := lower(program)
+        # Boxed because every copy of the regex and every search share it.
+        lowered := box(lower(program))
         filter := prefilter(parsed.node)
-        built := automaton(&lowered)
+        built := automaton(lowered)
         done := lowered.ops.len() - 1
         .Ok(
             Regex {
@@ -888,19 +890,22 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
 # | 9 | `End` | - | - |
 #
 # Ops 0 to 4 are the ones a thread waits at for the next character.
+#
+# The lists are uniquely owned, so a search reads them with no reference
+# count or copy-on-write check.
 struct Program:
-    ops: List[i32]
-    left: List[usize]
-    right: List[usize]
-    points: List[i32]
-    ranges: List[i32]
+    ops: UniqList[i32]
+    left: UniqList[usize]
+    right: UniqList[usize]
+    points: UniqList[i32]
+    ranges: UniqList[i32]
 
 fn lower(program: List[Inst]) -> Program:
-    let mut ops: List[i32] = []
-    let mut left: List[usize] = []
-    let mut right: List[usize] = []
-    let mut points: List[i32] = []
-    let mut ranges: List[i32] = []
+    let mut ops = UniqList::[i32].new()
+    let mut left = UniqList::[usize].new()
+    let mut right = UniqList::[usize].new()
+    let mut points = UniqList::[i32].new()
+    let mut ranges = UniqList::[i32].new()
     for inst in program:
         let op = +0
         let first: usize = 0
@@ -1627,7 +1632,13 @@ fn continuation(byte: u8) -> bool:
 # two numbers. A list's length is a local of the search. `slots` holds
 # `slot_count` slots for each instruction, as byte offsets with -1 for an
 # unset slot.
-fn has(dense: &List[usize], sparse: &List[usize], side: usize, count: usize, pc: usize) -> bool:
+fn has(
+    dense: &UniqList[usize],
+    sparse: &UniqList[usize],
+    side: usize,
+    count: usize,
+    pc: usize,
+) -> bool:
     place := sparse[side + pc]
     place < count && dense[side + place] == pc
 
@@ -1635,6 +1646,18 @@ fn filled(count: usize) -> List[i64]:
     let mut values: List[i64] = []
     while values.len() < count:
         values.push(-1)
+    values
+
+fn uniq_filled(count: usize) -> UniqList[i64]:
+    let mut values = UniqList::[i64].with_capacity(count)
+    while values.len() < count:
+        values.push(-1)
+    values
+
+fn uniq_zeros(count: usize) -> UniqList[usize]:
+    let mut values = UniqList::[usize].with_capacity(count)
+    while values.len() < count:
+        values.push(0)
     values
 
 fn zeros(count: usize) -> List[usize]:
@@ -1645,26 +1668,25 @@ fn zeros(count: usize) -> List[usize]:
 
 # The state of the searches of one call: the thread lists, the stack of
 # the epsilon walk, and the slots, allocated once and reused by every
-# search that call makes. The lists a search writes are new objects that
-# the VM holds by reference, so a search reads them into locals once and
-# writes their elements in place. The text is read in place, one UTF-8
+# search that call makes. The lists are uniquely owned, so a search reads
+# and writes their elements with no reference count. The text is read in place, one UTF-8
 # scalar at a time, and every position is a byte offset
 # (r-std-regex.find.chars).
 struct Vm:
-    program: Program
+    program: *Program
     text: string
     size: usize
     slot_count: usize
-    dense: *mut List[usize]
-    sparse: *mut List[usize]
-    slots: *mut List[i64]
+    dense: UniqList[usize]
+    sparse: UniqList[usize]
+    slots: UniqList[i64]
     # The epsilon walk's stack: an entry of at least 0 is an instruction to
     # visit; an entry -1 - s puts `values` at the same place back into slot s.
-    stack: *mut List[i64]
-    values: *mut List[i64]
-    scratch: *mut List[i64]
+    stack: UniqList[i64]
+    values: UniqList[i64]
+    scratch: UniqList[i64]
     # The slots of the match the last search found.
-    found: *mut List[i64]
+    found: UniqList[i64]
     # Where the next search of `advance` starts, where the last match
     # ended (-1 before the first), and whether the series is over.
     from: usize
@@ -1695,14 +1717,13 @@ fn new_vm(regex: &Regex, text: string, slot_count: usize) -> Vm:
         text: text,
         size: bytes_len(text),
         slot_count: slot_count,
-        # Boxed because the returned VM stores seven aliased mutable buffers used by search helpers.
-        dense: box(zeros(2 * width)),
-        sparse: box(zeros(2 * width)),
-        slots: box(filled(2 * width * slot_count)),
-        stack: box(filled(width + 1)),
-        values: box(filled(width + 1)),
-        scratch: box(filled(slot_count)),
-        found: box(filled(slot_count)),
+        dense: uniq_zeros(2 * width),
+        sparse: uniq_zeros(2 * width),
+        slots: uniq_filled(2 * width * slot_count),
+        stack: uniq_filled(width + 1),
+        values: uniq_filled(width + 1),
+        scratch: uniq_filled(slot_count),
+        found: uniq_filled(slot_count),
         from: 0,
         last_end: -1,
         finished: false,
@@ -1732,11 +1753,14 @@ impl Vm:
     # The groups of the match found.
     fn groups(&self, names: List[string]) -> Captures:
         let mut slots: List[usize?] = []
-        for value in self.found:
+        let slot: usize = 0
+        while slot < self.found.len():
+            value := self.found[slot]
             if value < 0:
                 slots.push(.None)
             else:
                 slots.push(.Some(usize(value)))
+            slot += 1
         Captures { text: self.text, slots: slots, names: names }
 
 # Runs the next search of a `find_all` series (r-std-regex.find-all.next)
@@ -1774,20 +1798,15 @@ fn advance(vm: &mut Vm) -> bool:
 fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     # A copy: the calls below change `vm` (r-ref.excl.write).
     program := vm.program
-    ops := program.ops
-    points := program.points
-    ranges := program.ranges
-    left := program.left
-    right := program.right
+    ops := &program.ops
+    points := &program.points
+    ranges := &program.ranges
+    left := &program.left
+    right := &program.right
     text := vm.text
     size := vm.size
     slot_count := vm.slot_count
     done := ops.len() - 1
-    dense := vm.dense
-    sparse := vm.sparse
-    slots := vm.slots
-    scratch := vm.scratch
-    found := vm.found
     filtered := vm.filtered
     # The sides of the current and the next thread list, and the length of
     # the current one.
@@ -1800,9 +1819,9 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
         if start < 0:
             return false
         at = usize(start)
-    restart(scratch, slot_count, at)
-    count = add_thread(vm, &program, current, 0, 0, at)
-    if earliest && has(dense, sparse, current, count, done):
+    restart(&mut vm.scratch, slot_count, at)
+    count = add_thread(vm, program, current, 0, 0, at)
+    if earliest && has(&vm.dense, &vm.sparse, current, count, done):
         return true
     let matched = false
     while true:
@@ -1819,7 +1838,7 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 point = scalar_point(text, at, after, lead)
         let index: usize = 0
         while index < count:
-            pc := dense[current + index]
+            pc := vm.dense[current + index]
             index = index + 1
             op := ops[pc]
             let step = false
@@ -1832,10 +1851,10 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 let slot: usize = 0
                 base := (current + pc) * slot_count
                 while slot < slot_count:
-                    found[slot] = slots[base + slot]
+                    vm.found[slot] = vm.slots[base + slot]
                     slot = slot + 1
                 if slot_count > 1:
-                    found[1] = i64(at)
+                    vm.found[1] = i64(at)
                 matched = true
                 break
             else if op <= 3 && point >= 0:
@@ -1852,10 +1871,10 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 let slot: usize = 0
                 base := (current + pc) * slot_count
                 while slot < slot_count:
-                    scratch[slot] = slots[base + slot]
+                    vm.scratch[slot] = vm.slots[base + slot]
                     slot = slot + 1
-                next_count = add_thread(vm, &program, next, next_count, pc + 1, after)
-                if earliest && has(dense, sparse, next, next_count, done):
+                next_count = add_thread(vm, program, next, next_count, pc + 1, after)
+                if earliest && has(&vm.dense, &vm.sparse, next, next_count, done):
                     return true
         if at >= size:
             break
@@ -1866,9 +1885,9 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 seed = start_from(vm, at, next_count > 0)
             if seed >= 0:
                 at = usize(seed)
-                restart(scratch, slot_count, at)
-                next_count = add_thread(vm, &program, next, next_count, 0, at)
-                if earliest && has(dense, sparse, next, next_count, done):
+                restart(&mut vm.scratch, slot_count, at)
+                next_count = add_thread(vm, program, next, next_count, 0, at)
+                if earliest && has(&vm.dense, &vm.sparse, next, next_count, done):
                     return true
             else if next_count == 0:
                 break
@@ -1986,7 +2005,7 @@ fn find_literal(text: string, literal: string, from: usize) -> i64:
         .None => -1
 
 # Sets the scratch slots for a thread that starts at byte `at`.
-fn restart(scratch: &mut List[i64], slot_count: usize, at: usize) -> void:
+fn restart(scratch: &mut UniqList[i64], slot_count: usize, at: usize) -> void:
     if slot_count == 0:
         return
     scratch[0] = i64(at)
@@ -2037,57 +2056,51 @@ fn add_thread(
     # it on every call, a fifth of a search's time.
     ops := &program.ops
     slot_count := vm.slot_count
-    dense := vm.dense
-    sparse := vm.sparse
-    slots := vm.slots
-    scratch := vm.scratch
     if ops[start] <= 4:
         # A thread that waits for a character, the common case, needs no
         # walk.
-        if has(dense, sparse, side, count, start):
+        if has(&vm.dense, &vm.sparse, side, count, start):
             return count
-        sparse[side + start] = count
-        dense[side + count] = start
+        vm.sparse[side + start] = count
+        vm.dense[side + count] = start
         base := (side + start) * slot_count
         let slot: usize = 0
         while slot < slot_count:
-            slots[base + slot] = scratch[slot]
+            vm.slots[base + slot] = vm.scratch[slot]
             slot = slot + 1
         return count + 1
     left := &program.left
     right := &program.right
     size := vm.size
-    stack := vm.stack
-    values := vm.values
     let length = count
-    stack[0] = i64(start)
+    vm.stack[0] = i64(start)
     let top: usize = 1
     while top > 0:
         top = top - 1
-        entry := stack[top]
+        entry := vm.stack[top]
         if entry < 0:
-            scratch[usize(-1 - entry)] = values[top]
+            vm.scratch[usize(-1 - entry)] = vm.values[top]
             continue
         # Follow the first choice at each step in place; the stack holds
         # only the second choices and the slots to put back.
         let pc = usize(entry)
         while true:
-            place := sparse[side + pc]
-            if place < length && dense[side + place] == pc:
+            place := vm.sparse[side + pc]
+            if place < length && vm.dense[side + place] == pc:
                 break
-            sparse[side + pc] = length
-            dense[side + length] = pc
+            vm.sparse[side + pc] = length
+            vm.dense[side + length] = pc
             length = length + 1
             op := ops[pc]
             if op <= 4:
                 base := (side + pc) * slot_count
                 let slot: usize = 0
                 while slot < slot_count:
-                    slots[base + slot] = scratch[slot]
+                    vm.slots[base + slot] = vm.scratch[slot]
                     slot = slot + 1
                 break
             if op == 5:
-                stack[top] = i64(right[pc])
+                vm.stack[top] = i64(right[pc])
                 top = top + 1
                 pc = left[pc]
             else if op == 6:
@@ -2095,10 +2108,10 @@ fn add_thread(
             else if op == 7:
                 slot := left[pc]
                 if slot < slot_count:
-                    stack[top] = -1 - i64(slot)
-                    values[top] = scratch[slot]
+                    vm.stack[top] = -1 - i64(slot)
+                    vm.values[top] = vm.scratch[slot]
                     top = top + 1
-                    scratch[slot] = i64(at)
+                    vm.scratch[slot] = i64(at)
                 pc = pc + 1
             else if op == 8:
                 if at != 0:
@@ -2536,9 +2549,8 @@ fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
         start = reverse_start(vm, from, usize(end))
         if start < 0:
             return run(vm, from, earliest)
-    found := vm.found
-    found[0] = start
-    found[1] = end
+    vm.found[0] = start
+    vm.found[1] = end
     true
 
 # A reference in a replacement (r-std-regex.replace.expand).
