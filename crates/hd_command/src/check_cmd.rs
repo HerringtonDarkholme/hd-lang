@@ -475,6 +475,18 @@ fn relocate_docs(shown: &mut [Diag], docs: &[crate::test_cmd::Doc]) {
 /// Whole-package diagnostics including tests and tasks, as `hd check --all`
 /// reports them. The fixing pass uses this so every package entry is
 /// considered, as the former standalone command did.
+/// The report of `hd check` in `program`'s package, as that command
+/// makes it: a warm run replays the report a run stored (`hd doc std.NAME`).
+pub(crate) fn package_report(program: disk::Program) -> Vec<Diag> {
+    let t = Target {
+        program,
+        only: None,
+        member: None,
+    };
+    let store = DeferredStore::new(crate::disk_store());
+    check_one(t, &Options::default(), &store).0
+}
+
 pub(crate) fn fix_package(program: disk::Program, lint: Option<hd_lint::Policy>) -> Vec<Diag> {
     let t = Target {
         program,

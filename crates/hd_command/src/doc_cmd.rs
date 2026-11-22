@@ -111,6 +111,13 @@ fn document(
     opener: impl FnOnce(&Path) -> std::io::Result<bool>,
 ) -> Result<(), ExitCode> {
     let mut program = disk::load_package(root, "main").map_err(|e| rep.fail(&e))?;
+    if let Some(name) = o
+        .name
+        .as_deref()
+        .filter(|n| *n == "std" || n.starts_with("std."))
+    {
+        return std_name(program, name, o.private, rep);
+    }
     program.only_program("");
     let out = build_goal_with(&program, &Goal::Analyze, BuildProfile::Checked, true, rep)?;
     if let Some(name) = &o.name {
@@ -142,6 +149,45 @@ fn document(
         open_with(&page, opener).map_err(|message| rep.fail(&message))?;
     }
     Ok(())
+}
+
+/// `hd doc std.NAME`: the package checked as `hd check` checks it
+/// (`cli.doc.check`), so a warm package replays the report `hd check`
+/// stored instead of building, then the page from std's text alone
+/// (`cli.doc.name.std`). Cost: one `hd check` run, then std's text.
+fn std_name(
+    program: disk::Program,
+    name: &str,
+    private: bool,
+    rep: &mut Reporter,
+) -> Result<(), ExitCode> {
+    let package = program.package.clone();
+    if rep.diags(&crate::check_cmd::package_report(program)) {
+        return Err(rep.finish(crate::HD_FAILURE));
+    }
+    let root = hd_project::package_ident(&package);
+    let std_names = std_names();
+    let std: Vec<hd_doc::Module<'_>> = std_names
+        .iter()
+        .map(|(path, text)| hd_doc::Module { path, text })
+        .collect();
+    let p = hd_doc::Package {
+        name: &package,
+        root: &root,
+        modules: &[],
+        ifaces: &[],
+        private,
+        scopes: &[],
+        deps: &[],
+        std: &std,
+    };
+    match hd_doc::lookup(&p, name) {
+        Ok(text) => {
+            print!("{text}");
+            Ok(())
+        }
+        Err(candidates) => Err(missing(name, &candidates, rep)),
+    }
 }
 
 /// Builds the documentation package view around one checked output. The

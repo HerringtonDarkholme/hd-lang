@@ -206,3 +206,47 @@ fn a_resave_within_the_settle_window_costs_one_file_over_a_settled_run() {
         );
     }
 }
+
+/// `hd doc NAME` in `dir`, writing its work counters to `work`.
+fn doc(dir: &Scratch, work: &std::path::Path, name: &str) -> std::process::Output {
+    hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", dir.cache())
+        .env("HD_JOBS", "1")
+        .env("HD_WORK", work)
+        .current_dir(dir)
+        .args(["doc", name])
+        .output()
+        .expect("run hd")
+}
+
+/// #1801 draft 13: `hd doc std.NAME` built the whole package before it
+/// answered from std's text. It now checks the package as `hd check`
+/// does (`cli.doc.check`), so in a warm package it replays the stored
+/// report: its map lookups exceed a warm `hd check`'s by std's page
+/// alone, at 4 modules as at 16.
+#[test]
+fn a_std_name_in_a_warm_package_costs_a_warm_check_and_the_page() {
+    for n in [4, 16] {
+        let dir = package(&format!("work-doc-std-{n}"));
+        for k in 0..n {
+            let text = format!("pub fn f{k}(x: i32) -> i32:\n    x + 1\n");
+            std::fs::write(dir.join(format!("src/m{k}.hd")), text).expect("write");
+        }
+        let work = dir.join("work.json");
+        assert!(check(&dir, &work).status.success());
+        assert!(check(&dir, &work).status.success());
+        let checked = counter(&std::fs::read_to_string(&work).expect("report"), "hashes");
+        let out = doc(&dir, &work, "std.collections.List");
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert!(String::from_utf8_lossy(&out.stdout).contains("List"));
+        let documented = counter(&std::fs::read_to_string(&work).expect("report"), "hashes");
+        assert!(
+            documented < checked + 1000,
+            "{n} modules: check {checked}, doc {documented}"
+        );
+    }
+}
