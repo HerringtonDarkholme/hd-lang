@@ -91,7 +91,7 @@ impl Context for Facts<'_, '_> {
                 fat,
                 mutable: layout::ref_mutable(self.input.pool, self.input.env, ty),
             }),
-            _ => None,
+            Kind::Value => None,
         }
     }
 

@@ -464,7 +464,7 @@ impl hd_opt::prove::Cx for Env<'_> {
     fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
         match hd_layout::kind(&self.run.pool, self, t) {
             hd_layout::Kind::Ref { target, fat, .. } => Some((target, fat)),
-            _ => None,
+            hd_layout::Kind::Value => None,
         }
     }
     fn field(&self, t: Ty, k: u32) -> Option<Ty> {

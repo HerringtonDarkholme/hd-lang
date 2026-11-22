@@ -716,12 +716,6 @@ impl Em<'_, '_, '_> {
             match step {
                 Proj::Variant(v) => {
                     let f = place_field(steps.next());
-                    // ruled out: data.enum.no-recursion/no-boxing; hd_check
-                    // rejects cycles after associated payload substitution (#1554).
-                    assert!(
-                        !matches!(self.kind(ty), Kind::Boxed),
-                        "checked enum payloads have a value layout"
-                    );
                     // A checked place's payload step names a field of
                     // its variant.
                     // A `Proj::Variant` step, into an enum or an optional.
@@ -1388,9 +1382,6 @@ impl Em<'_, '_, '_> {
         let (v, f) = (v as usize, f as usize);
         let ft = self.variant_tys(ty)[v][f];
         let field = flat.offsets[v][f];
-        // ruled out: data.enum.no-recursion/no-boxing; hd_check rejects
-        // by-value enum cycles after associated payload substitution (#1554).
-        assert!(!matches!(self.kind(ty), Kind::Boxed));
         let at = match at.value() {
             ValueAt::Mem(a, off) => At::Mem(a, off + field),
             ValueAt::Vals(ls) => At::Vals(flat.selection(v, f).iter().map(|&p| ls[p]).collect()),
