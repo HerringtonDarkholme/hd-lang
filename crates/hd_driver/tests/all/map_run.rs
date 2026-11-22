@@ -345,7 +345,7 @@ fn pairs_of(pairs: &[(&str, &str)], bits: u32) -> (String, String, String) {
 /// blocks of a pair lead from the same FNV state to the same state, so all
 /// `2^bits` keys had one bucket hash and every insertion probed all the
 /// earlier ones: about 4 * 10^9 key comparisons for 2^16 keys. With each
-/// map's seed (`std.hash.hash_string`), they spread, and the map's work
+/// map's seed (`std.rt.hash.hash_string`), they spread, and the map's work
 /// grows linearly with the keys.
 #[test]
 fn keys_chosen_to_collide_under_a_fixed_hash_take_linear_map_work() {
@@ -386,7 +386,7 @@ pub fn main() -> void $ Console:
 /// key sits in the high half, which the old mix folded onto the low one.
 /// Each insertion and lookup then probed half the earlier keys: about
 /// 4 * 10^9 probes over the two maps for 2^16 keys. With each map's seed
-/// (`std.hash.hash_integer`), they spread.
+/// (`std.rt.hash.hash_integer`), they spread.
 #[test]
 fn integer_keys_chosen_to_collide_under_a_fixed_mix_take_linear_map_work() {
     assert_linear("integer keys", &|bits| {
@@ -427,7 +427,7 @@ pub fn main() -> void $ Console:
 /// derived `Entry` values that write the same bytes, had one hash. Every
 /// insertion then compared the key with all the earlier ones: about 10^9
 /// `eq` calls over the two maps for 2^15 keys. With each map's seed
-/// (`std.hash.hash_key`), they spread.
+/// (`std.rt.hash.hash_key`), they spread.
 #[test]
 fn composite_keys_chosen_to_collide_under_hash_of_take_linear_map_work() {
     assert_linear("composite keys", &|bits| {

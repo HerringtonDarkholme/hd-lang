@@ -1,5 +1,5 @@
 # @dump: diagnostics
-# annot.inline.declared: named hint is accepted; wrong names and arities are rejected.
+# annot.inline.declared.v2: named hint is accepted; wrong names and arities are rejected.
 use std.annotation.inline
 
 @inline(hint=.Never)

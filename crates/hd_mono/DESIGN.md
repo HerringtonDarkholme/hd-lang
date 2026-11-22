@@ -1221,14 +1221,14 @@ when the table fills and adds one to `grown`, since the entries move.
 **Other key types.** The key bound is already checked
 (`Map[K < Eq & Hash, V]`, `types.map-key.declared-bound`): at Emit,
 `MapGet`/`MapSet`/`MapRemove` hash with a monomorphized call of
-`std.hash.hash_key` at the substituted key type, which feeds the
+`std.rt.hash.hash_key` at the substituted key type, which feeds the
 key type's `Hash` implementation a foldhash 0.2 fast hasher with the
 map's seed, and compare with `std.hash.key_equal`, which takes the two
 keys by value and passes them to the key type's `Eq` implementation by
 reference, on a hash match (`types.map.eq-hash`). Collection pushes
 those instances as it does `Bound` choices (§13.2 step 4), as
 `Target::MapKey`. An inline key (integer, `bool`, `char`, `string`)
-compares inline and hashes through `std.hash.hash_integer` or
+compares inline and hashes through `std.rt.hash.hash_integer` or
 `hash_string`, pushed as `Target::MapInline`. Both use the same per-map
 seed and low 32-bit bucket hash (`std-hash.map.foldhash-fast`). The
 `map_hash_seed` primitive mixes the recorded run seed with the next
