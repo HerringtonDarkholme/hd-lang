@@ -2,8 +2,8 @@
 # Spec 07 Function Types: fn.type.lifetime.input. A static destination
 # takes `inspect`, a function taking any lifetime fits a static input
 # (inputs are contravariant), and a static argument reaches `inspect`
-# through every kind of value. A value fits where what it needs is
-# written: a field through a reference, a variant, a function value's
+# through every kind of value. A value fits wherever what it needs is
+# written, as in a field through a reference, a variant, a function value's
 # parameter, a local copy or closure, a local reborrow, and a call's
 # result at the lifetime the call took.
 fn inspect(value: &'static i32) -> void:
