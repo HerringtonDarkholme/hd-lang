@@ -37,7 +37,12 @@ mod jobs_tests {
         assert_eq!(free(14, Some(10.5)), 3);
         assert_eq!(free(14, Some(40.0)), 1);
         assert_eq!(free(4, None), 4);
-        assert!(super::load_average().is_some_and(|l| l >= 0.0));
+        let load = super::load_average();
+        if cfg!(unix) {
+            assert!(load.is_some_and(|l| l >= 0.0));
+        } else {
+            assert_eq!(load, None);
+        }
     }
 }
 #[cfg(windows)]
