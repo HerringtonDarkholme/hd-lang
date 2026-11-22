@@ -797,7 +797,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 args: *trait_args,
                 bindings: vec![],
             });
-            self.delegation(*self_ty, (*trait_, tv), *by)?;
+            self.delegation(it, (*trait_, tv), *by)?;
         }
         Ok(())
     }
@@ -2167,7 +2167,11 @@ impl<'a> ItemCheck<'_, 'a> {
     /// A delegation target: the embedded field `by` implements the trait,
     /// and no method of the trait takes a counted receiver, which no
     /// written expansion forwards (`trait.by.counted-receiver`).
-    fn delegation(&mut self, self_ty: Ty, (tr, tv): (DefId, Ty), by: Symbol) -> StageResult<()> {
+    fn delegation(&mut self, it: &Item, (tr, tv): (DefId, Ty), by: Symbol) -> StageResult<()> {
+        let ItemData::Impl { self_ty, .. } = &it.data else {
+            return Ok(());
+        };
+        let self_ty = *self_ty;
         let pool = self.pool();
         let lookup = self.cx.lookup;
         let counted = match lookup.item(tr).map(|i| &i.data) {
@@ -2219,8 +2223,87 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.show(tv)
             );
             self.report(0, Code::InvalidDelegation, message);
+        } else if self.field_escapes(it, (def, args, f, ft), tv)? {
+            let message = format!(
+                "the delegated field `{}` does not satisfy the lifetime required by {}",
+                self.cx.names.text(by),
+                self.show(tv)
+            );
+            self.report(0, Code::LocalReferenceEscapes, message);
         }
         Ok(())
+    }
+
+    /// Whether the delegated field `f` of struct `def`, `ft` in the impl's
+    /// target `def[args]`, implements `tv` only by a `'static` requirement
+    /// a written lifetime of the impl does not meet (`trait.by.part-impl`,
+    /// `ref.generic.static.impl`): a struct parameter's slot writes the
+    /// target's lifetime there, a struct lifetime the target's argument for
+    /// it (its last slots, `ref.lifetime.struct.impl.elided`), and a trait
+    /// argument's the impl's.
+    ///
+    /// Cost: one goal, answered from the memo, and one walk of its proof.
+    fn field_escapes(
+        &mut self,
+        it: &Item,
+        (def, args, f, ft): (DefId, &[Ty], &hd_resolve::Field, Ty),
+        tv: Ty,
+    ) -> StageResult<bool> {
+        let pool = self.pool();
+        let (
+            ItemData::Impl {
+                self_lifetimes,
+                trait_slots,
+                ..
+            },
+            Some((trait_, targs)),
+        ) = (&it.data, pool.trait_value(tv))
+        else {
+            return Ok(false);
+        };
+        let tref = TraitRef {
+            trait_,
+            self_ty: ft,
+            args: targs,
+        };
+        let Answer::Holds { obligations, .. } = self.answer_ref(tref, 0)? else {
+            return Ok(false);
+        };
+        if obligations.is_empty() {
+            return Ok(false);
+        }
+        let starts: Vec<usize> = (args.iter())
+            .scan(0, |at, &t| {
+                Some(std::mem::replace(at, *at + pool.ref_slots(t)))
+            })
+            .collect();
+        let at = |list: &[u16], k: usize| list.get(k).map_or(0, |&l| u32::from(l));
+        let written = |w: Written| match w {
+            Written::Param(p, s) if p.owner == def => starts
+                .get(usize::from(p.index))
+                .map_or(0, |&from| at(self_lifetimes, from + s)),
+            Written::Declared(k) => at(trait_slots, k),
+            Written::Param(..) => 0,
+        };
+        let lifetimes = (self.cx.lookup.item(def).map(|i| &i.generics))
+            .map_or(0, |gs| gs.iter().filter(|g| g.lifetime).count());
+        let first = self_lifetimes.len().saturating_sub(lifetimes);
+        let subject: Vec<u16> = (f.lifetimes.iter())
+            .map(|&j| match j {
+                0 => 0,
+                j => self_lifetimes
+                    .get(first + usize::from(j) - 1)
+                    .copied()
+                    .unwrap_or(0),
+            })
+            .collect();
+        let goal = (goal_tuple(pool, f.ty, targs), goal_tuple(pool, ft, targs));
+        let tables = (
+            self.cx.lookup,
+            Impls::Owned(self.cx.impls),
+            self.cx.names.known.suspend,
+        );
+        written_escapes(tables, pool, &obligations, goal, (&subject, &written))
     }
 }
 

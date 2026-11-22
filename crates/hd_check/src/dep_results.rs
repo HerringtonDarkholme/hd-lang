@@ -2269,10 +2269,17 @@ pub(crate) fn written_escapes(
             })
             .collect()
     });
-    let n = own.len();
+    // The declared subject's slots, which its written lifetimes key
+    // before the trait arguments'.
+    let n = match pool.get(declared) {
+        TyData::Tuple { elems, .. } => {
+            (pool.list_items(elems).first()).map_or(0, |&t| ls.of(t).slots.len())
+        }
+        _ => 0,
+    };
     let origins = (keys.into_iter().enumerate()).map(|(k, key)| {
         let id = match key {
-            Key::Decl(_) if k < n => own[k],
+            Key::Decl(d) if d < n => own.get(k).copied().unwrap_or(0),
             Key::Decl(d) => written(Written::Declared(d - n)),
             Key::Param(p, s) => written(Written::Param(p, s)),
             _ => 0,

@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# known (#2264, part 2): the generated forwarding method's static requirement is not checked yet, so only the field's error reports
+trait Saved[A]:
+    fn get(&self) -> A
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved[T] for Wrapped[T]:
+    fn get(&self) -> T:
+        self.value
+
+struct Holder[T]:
+    Wrapped[T]
+
+impl['a] Saved[&'a i32] for Holder[&'a i32] by Wrapped
