@@ -69,8 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 423,
-      "explanation": "New program regex-scan (#1805 draft 94, owner 2026-11-22): its first sites, std.regex and the program."
+      "sites": 424,
+      "explanation": "Regex-scan contributes the 35 sites already recorded on main (#1805). Iterator.last (#2283) adds one receiver retain in the read-through dynamic iterator vtable adapter in bench/study/dyn_iter.hd: the value-consuming default method owns a snapshot of the borrowed receiver. Main std measures 423 sites; the accepted iterator API measures 424. No other conservative site changes; helper indices shift when the last slot is added."
     },
     {
       "reason": "conservative: unique",
