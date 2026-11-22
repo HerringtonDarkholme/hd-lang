@@ -152,6 +152,19 @@ one ABI. Reading: no separate wrapper body, so the dispatcher encodes
 the public result as is; R2 keeps case `_1` out of an implementation, so
 a stub decodes it without rewrapping.
 
+The built-ins' checks. `remote::[T]` lowers its one argument as `$.use(K)`
+lowers a key, to the trait value `dyn T`; a trait that is not remote is
+`unsatisfied-trait-bound`. Readings: std declares the result `*mut T`,
+which is `*mut dyn T` at that argument, since a type parameter cannot
+follow `dyn`. `handle_call!` asks whether its root `S` implements a
+remote trait, one goal per remote trait with a row for `S`'s head; a root
+that is a type parameter, as in std's generic `http_handler`, is not
+asked, and its generated body serves what the instance implements, so a
+root with no remote trait refuses every frame with `WrongHome`. `Home`
+holds only its request factory until returned objects (R3) need the
+served table. A build that calls either built-in is refused (`gap: #2288`)
+until the generated bodies land.
+
 **What.** R1 and R2 are checked at the trait and at each implementation.
 Each implementation method gets a public entry that wraps its error as
 `._0`. Post-mono, the compiler generates a stub per remote trait a target

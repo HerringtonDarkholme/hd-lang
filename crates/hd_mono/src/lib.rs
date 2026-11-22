@@ -2056,6 +2056,19 @@ impl Cx<'_> {
         {
             return self.dbg_target(def, &key, args, parent);
         }
+        // gap: #2288 — stage 3 generates the stub of `remote[T]` and the
+        // dispatcher of `handle_call[S, C]`; until then a build that calls
+        // either is refused, never lowered.
+        if let Some(key) = self
+            .env
+            .intrinsic(def)
+            .filter(|k| matches!(k.as_str(), "remote" | "handle_call"))
+        {
+            return Err(NotImplemented::new(
+                Stage::Collect,
+                format!("`{key}` has no generated body yet (#2288)"),
+            ));
+        }
         // Every other intrinsic goes through the backend's lowering table,
         // even when its std declaration has a source body. That body is only
         // a placeholder: compiling it would turn an unlowered intrinsic into

@@ -137,6 +137,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
             s(1, &[Any, PTR], Tuple(2)),
         ],
     ),
+    ("handle_call", &[s(2, &[REF_MUT, REF_MUT, LIST], LIST)]),
     ("int_count_ones", &[s(0, &[Any], U32)]),
     ("int_leading_zeros", &[s(0, &[Any], U32)]),
     ("int_max", &[s(1, &[], Any)]),
@@ -178,6 +179,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("ptr_size_of", &[s(1, &[], USIZE)]),
     ("ptr_write", &[s(0, &[PTR, Any], VOID)]),
     ("ref_identity", &[s(1, &[REF], Named("RefIdentity"))]),
+    ("remote", &[s(1, &[COUNTED_MUT], COUNTED_MUT)]),
     ("repl_write", &[s(0, &[STR], VOID)]),
     ("snapshot_update", &[s(0, &[STR], BOOL)]),
     (

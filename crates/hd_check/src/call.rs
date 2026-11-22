@@ -861,6 +861,9 @@ impl Ck<'_, '_> {
         callee: NodeRef<'_>,
         tl: NodeRef<'_>,
     ) -> StageResult<Vec<Ty>> {
+        if let Some(t) = self.remote_targ(callee, tl)? {
+            return Ok(vec![t]);
+        }
         let member = matches!(callee.kind(), SyntaxKind::FieldExpr | SyntaxKind::PathExpr);
         let gens = match self.path_generics(callee) {
             Some(gens) => gens,
@@ -3108,6 +3111,9 @@ impl Ck<'_, '_> {
                         .is_some_and(|i| self.b.body_mut().tags[i.0 as usize] == Tag::Poison)
                 }) {
                     return Ok(self.poison_value(n));
+                }
+                if def == self.cx.names.known.handle_call {
+                    self.served_root(vars[0], n)?;
                 }
                 // Parameters named only in bounds, then defaults (§2.4
                 // steps 7 and 8); a bound naming one still open waits.

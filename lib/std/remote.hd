@@ -51,3 +51,23 @@ pub enum Reply:
     Ran(payload: List[u8])
     ## It did not run.
     Refused(error: CrossError)
+
+## The objects one domain serves, and the request factory that gives each
+## incoming call record `C` a root and a session.
+## See [module.remote.items](../../spec/lang/10-modules.md#r-module.remote.items).
+pub struct Home[S, C]:
+    make: fn!(&C) -> Result[Rooted[S], Refused]
+
+## Returns the root object at the far end of `transport`, as a stub of the
+## remote trait `T`.
+## See [module.remote.builtin.remote](../../spec/lang/10-modules.md#r-module.remote.builtin.remote).
+@intrinsic("remote")
+pub fn remote[T < Remote](transport: *mut dyn Transport) -> *mut T:
+    panic("intrinsic")
+
+## Answers one call frame for a home whose root type is `S`, and returns
+## an encoded `Reply`.
+## See [module.remote.handle-call](../../spec/lang/10-modules.md#r-module.remote.handle-call).
+@intrinsic("handle_call")
+pub fn handle_call![S, C](home: &mut Home[S, C], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]:
+    panic("intrinsic")

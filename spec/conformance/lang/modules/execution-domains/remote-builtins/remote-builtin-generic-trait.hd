@@ -1,0 +1,13 @@
+# test: remote::[T] takes a generic remote trait with its type arguments written
+# Spec 10 Remote Built-Ins: module.remote.builtin.remote.trait.
+use std.marker.Wire
+use std.remote.{CrossError, Remote, Transport, remote}
+
+enum StoreError:
+    Missing
+
+trait TypedStore[T < Wire] < Remote:
+    fn get!(&mut self, key: string) -> Result[T, StoreError | CrossError]
+
+fn connect(transport: *mut dyn Transport) -> *mut dyn TypedStore[string]:
+    remote::[TypedStore[string]](transport)

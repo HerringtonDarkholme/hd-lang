@@ -112,6 +112,85 @@ pub fn public_results(cx: &BodyCx<'_>) -> Vec<crate::results::Inferred> {
 }
 
 impl Ck<'_, '_> {
+    /// The written argument of `remote::[T]`, which names a trait as
+    /// `$.use(K)` names a key (`module.remote.builtin.remote.trait`): its
+    /// trait value, or poison after a trait that is not remote
+    /// (`unsatisfied-trait-bound`). `None` for another callee.
+    pub(crate) fn remote_targ(
+        &mut self,
+        callee: NodeRef<'_>,
+        tl: NodeRef<'_>,
+    ) -> StageResult<Option<Ty>> {
+        let remote_fn = self.cx.names.known.remote_fn;
+        let args: Vec<_> = tl.children().filter(|c| c.kind().is_type()).collect();
+        let [arg] = args[..] else {
+            return Ok(None);
+        };
+        if remote_fn == DefId::NONE
+            || self.resolve_path(&self.segments_expr(callee)) != Some(remote_fn)
+        {
+            return Ok(None);
+        }
+        let t = self.ty_node_as(arg, crate::ty::NameRole::Trait)?;
+        let (pool, known) = (self.pool(), self.cx.names.known);
+        match pool.get(t) {
+            TyData::TraitValue { def, .. } if is_remote_trait(self.cx.lookup, pool, known, def) => {
+                Ok(Some(t))
+            }
+            TyData::TraitValue { def, .. } => {
+                let msg = format!(
+                    "`{}` is not a remote trait: `remote::[T]` takes a trait that extends `Remote`",
+                    self.cx.names.display_name(def)
+                );
+                self.err(Code::UnsatisfiedTraitBound, arg, &msg);
+                Ok(Some(Ty::POISON))
+            }
+            _ => Ok(Some(Ty::POISON)),
+        }
+    }
+
+    /// `module.remote.handle-call.root`: the root type `S` of a
+    /// `handle_call!` call implements a remote trait, or the call is
+    /// `unsatisfied-trait-bound`. A root that is a parameter is not
+    /// asked: its generated body serves what its instance implements.
+    /// Cost: one goal per remote trait with a row for `S`'s head.
+    pub(crate) fn served_root(&mut self, s: Ty, n: NodeRef<'_>) -> StageResult<()> {
+        let (pool, known) = (self.pool(), self.cx.names.known);
+        let s = self.infer.resolve(pool, s);
+        let Some((_, codes, tables)) = self.cx.head_tables(pool, s) else {
+            return Ok(());
+        };
+        let mut traits = Vec::new();
+        let impls = hd_types::solver::Impls::Owned(self.cx.impls);
+        for &at in tables.iter() {
+            impls.traits_at(at, codes, &mut traits);
+        }
+        traits.retain(|&t| is_remote_trait(self.cx.lookup, pool, known, t));
+        for trait_ in traits {
+            let arity = self.cx.lookup.item(trait_).map_or(0, |t| t.generics.len());
+            let args: Vec<Ty> = (0..arity)
+                .map(|_| self.infer.fresh(pool, hd_types::VarKind::General))
+                .collect();
+            let tref = TraitRef {
+                trait_,
+                self_ty: s,
+                args: pool.list(&args),
+            };
+            let at = self.checkpoint();
+            let fails = matches!(self.solve(tref)?, hd_types::solver::Answer::Fails(_));
+            self.rollback(at);
+            if !fails {
+                return Ok(());
+            }
+        }
+        let msg = format!(
+            "`handle_call!` serves a root that implements a remote trait, and `{}` implements none",
+            self.show(s)
+        );
+        self.err(Code::UnsatisfiedTraitBound, n, &msg);
+        Ok(())
+    }
+
     /// `r`, which the function frame returns as `target`, widened to the
     /// public result (`module.remote.r2.wrap`): `.Ok(v)` is rebuilt and
     /// `.Err(e)` is `.Err(._0(e))`. A closure's exit is `r`. Cost: one
