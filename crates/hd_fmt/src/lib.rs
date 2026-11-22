@@ -39,6 +39,13 @@ mod tests {
     }
 
     #[test]
+    fn a_word_after_an_optional_type_keeps_its_space() {
+        // `trait.where.clause` after an optional result.
+        let src = "trait Seq[T]:\n    fn top(self) -> T? where T < Ord\n";
+        assert_eq!(format(src).expect("parses"), src);
+    }
+
+    #[test]
     fn round_trip_is_lossless() {
         let src = "fn main():\n    println(1)\n";
         assert_eq!(round_trip(src), src);

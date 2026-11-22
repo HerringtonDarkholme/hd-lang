@@ -1455,12 +1455,24 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
         || previous == T::Dollar
         || next == T::Dollar
         || previous.is_close_delimiter() && word(next)
+        || postfix_question(tokens, boundary) && word(next)
         || word(previous) && next == T::LBrace
     {
         Gap::Space
     } else {
         Gap::None
     }
+}
+
+/// The `?` before `boundary` closes an optional type or a propagation, as
+/// in `-> T? where T < Ord` (`trait.where.clause`), so a word after it
+/// takes a space; a relaxed bound's `?` opens `?Copy` and takes none.
+fn postfix_question(tokens: &TokenBuf, boundary: usize) -> bool {
+    tokens.kind[boundary - 1] == T::Question
+        && boundary >= 2
+        && (word(tokens.kind[boundary - 2])
+            || tokens.kind[boundary - 2].is_close_delimiter()
+            || tokens.kind[boundary - 2] == T::Question)
 }
 
 /// The `$` of the empty row `$()` before its `(`: the row is written as
