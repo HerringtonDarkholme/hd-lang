@@ -13,4 +13,4 @@ fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
 
 fn demo(photo: Image) -> u32:
     small := run(fn() -> u32: photo.width)
-    small + photo.width  # diagnostic: use-of-moved-value
+    small + photo.width # diagnostic: use-of-moved-value

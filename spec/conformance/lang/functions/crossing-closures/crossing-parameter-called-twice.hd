@@ -4,4 +4,4 @@ use std.marker.Wire
 
 fn twice(code: fn() -> i32 + Wire) -> i32:
     first := code()
-    first + code()  # diagnostic: use-of-moved-value
+    first + code() # diagnostic: use-of-moved-value

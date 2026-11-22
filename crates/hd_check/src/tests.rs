@@ -441,6 +441,7 @@ fn too_complex_case(
         fn_lifetimes: Vec::new(),
         paths: Vec::new(),
         wheres: Vec::new(),
+        crossing: Vec::new(),
     };
     let item = Item::new(
         def,
@@ -555,6 +556,7 @@ fn check_case(
         fn_lifetimes: Vec::new(),
         paths: Vec::new(),
         wheres: Vec::new(),
+        crossing: Vec::new(),
     };
     let item = Item::new(
         def,
@@ -761,6 +763,7 @@ fn check_registration(
         fn_lifetimes: Vec::new(),
         paths: Vec::new(),
         wheres: Vec::new(),
+        crossing: Vec::new(),
     };
     let item = Item::new(
         def,

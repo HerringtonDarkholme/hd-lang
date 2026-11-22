@@ -137,6 +137,8 @@ pub enum SyntaxKind {
     RestType,
     InferType,
     RequirementRow,
+    /// A crossing parameter's `+ M & 's` (`grammar.fn.crossing-parameter`).
+    MarkerBound,
     Error,
 }
 

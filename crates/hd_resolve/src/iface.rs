@@ -526,6 +526,18 @@ pub struct FnSig {
     /// and one bound, a trait value. A call requires each
     /// (`trait.where.call`) and the body assumes each (`trait.where.body`).
     pub wheres: Vec<(Ty, Ty)>,
+    /// The crossing parameters (`fn.crossing.parameter`), by index.
+    pub crossing: Vec<Crossing>,
+}
+
+/// A crossing parameter's marker bound (`fn.crossing.parameter`): the
+/// parameter, its marker, and the lifetime its captured references are
+/// lent for (`ref.frozen.lifetime`), 0 for none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Crossing {
+    pub param: u16,
+    pub marker: DefId,
+    pub lifetime: u16,
 }
 
 /// The slot lifetime of a reference written `&'static T` (`ref.static.form`),
@@ -578,6 +590,7 @@ impl FnSig {
             fn_lifetimes: Vec::new(),
             paths: Vec::new(),
             wheres: Vec::new(),
+            crossing: Vec::new(),
         }
     }
 }
@@ -1766,6 +1779,12 @@ fn put_sig(w: &mut Writer, t: &mut TableWriter<'_>, s: &FnSig) -> StageResult<()
         w.u32(t.ty(*p)?);
         w.u32(t.ty(*b)?);
     }
+    w.len_of(&s.crossing);
+    for c in &s.crossing {
+        w.u32(u32::from(c.param));
+        w.u32(t.def(c.marker));
+        w.u32(u32::from(c.lifetime));
+    }
     Ok(())
 }
 
@@ -1803,6 +1822,17 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
     for _ in 0..r.count() {
         wheres.push((t.ty(r.u32())?, t.ty(r.u32())?));
     }
+    let mut crossing = Vec::new();
+    for _ in 0..r.count() {
+        let param = u16::try_from(r.u32()).ok()?;
+        let marker = t.def(r.u32())?;
+        let lifetime = u16::try_from(r.u32()).ok()?;
+        crossing.push(Crossing {
+            param,
+            marker,
+            lifetime,
+        });
+    }
     Some(FnSig {
         generics,
         params,
@@ -1816,6 +1846,7 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
         fn_lifetimes,
         paths,
         wheres,
+        crossing,
     })
 }
 

@@ -8,4 +8,4 @@ fn spawn[T < ?Copy & Send](code: fn() -> T + Send) -> T:
 shared := box(+0)
 
 fn demo() -> i32:
-    spawn(fn() -> i32: *shared)  # diagnostic: crossing-top-level-binding
+    spawn(fn() -> i32: *shared) # diagnostic: crossing-top-level-binding

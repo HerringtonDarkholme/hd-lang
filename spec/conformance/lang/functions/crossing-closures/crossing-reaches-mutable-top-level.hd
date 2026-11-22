@@ -8,4 +8,4 @@ fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
 let counter = +0
 
 fn demo() -> i32:
-    run(fn() -> i32: counter)  # diagnostic: crossing-top-level-binding
+    run(fn() -> i32: counter) # diagnostic: crossing-top-level-binding

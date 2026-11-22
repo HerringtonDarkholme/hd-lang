@@ -10,4 +10,4 @@ fn keep(code: fn() -> i32 + Send) -> i32:
 
 fn demo(players: List[Player]) -> i32:
     first := &players[0]
-    keep(fn() -> i32: first.score)  # diagnostic: local-reference-escapes
+    keep(fn() -> i32: first.score) # diagnostic: local-reference-escapes

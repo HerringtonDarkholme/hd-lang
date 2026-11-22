@@ -12,4 +12,4 @@ fn next() -> i32:
     counter
 
 fn demo() -> i32:
-    run(fn() -> i32: next())  # diagnostic: crossing-top-level-binding
+    run(fn() -> i32: next()) # diagnostic: crossing-top-level-binding

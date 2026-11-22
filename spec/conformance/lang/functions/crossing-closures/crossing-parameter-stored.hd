@@ -3,5 +3,5 @@
 use std.marker.Wire
 
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
-    kept := code  # diagnostic: crossing-closure-not-literal
+    kept := code # diagnostic: crossing-closure-not-literal
     kept()

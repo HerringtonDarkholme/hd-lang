@@ -16,4 +16,4 @@ fn demo(players: List[Player], s: &mut Scope) -> void:
     let mut all = players
     first := &all[0]
     s.spawn(fn() -> i32: first.score)
-    all[0].score = 9  # diagnostic: conflicting-access
+    all[0].score = 9 # diagnostic: conflicting-access

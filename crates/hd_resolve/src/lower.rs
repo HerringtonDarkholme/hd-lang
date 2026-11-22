@@ -5154,6 +5154,7 @@ impl Lower<'_, '_, '_> {
         let mut variadic = false;
         let mut mut_self = false;
         let mut fn_lifetimes: Vec<Vec<u16>> = Vec::new();
+        let mut crossing = Vec::new();
         let saved = self.slots.replace(Vec::new());
         let saved_held = self.held.replace(Vec::new());
         if let Some(pl) = Src::child(f, SyntaxKind::ParameterList) {
@@ -5244,6 +5245,13 @@ impl Lower<'_, '_, '_> {
                 } else {
                     self.ty_in_slot(param_slot(params.len()), type_node, gn)
                 };
+                if let Some(bound) = type_node
+                    .filter(|t| t.kind() == SyntaxKind::FunctionType)
+                    .and_then(|t| Src::child(t, SyntaxKind::MarkerBound))
+                {
+                    let param = u16::try_from(params.len()).unwrap_or(u16::MAX);
+                    crossing.push(self.marker_bound(bound, param, gn));
+                }
                 // `fn.type.lifetime.call.written`: the lifetimes the inputs
                 // and results of its function types write, which no type
                 // keeps.
@@ -5335,6 +5343,30 @@ impl Lower<'_, '_, '_> {
             fn_lifetimes,
             paths,
             wheres,
+            crossing,
+        }
+    }
+
+    /// A crossing parameter's `+ M & 's` (`fn.crossing.parameter`): its
+    /// marker, checked to extend `Marker` with the signature
+    /// (`fn.crossing.parameter.marker`), and the lifetime its captured
+    /// references are lent for (`fn.crossing.parameter.lifetime`).
+    fn marker_bound(&mut self, n: NodeRef<'_>, param: u16, gn: &Gen) -> crate::iface::Crossing {
+        let marker = match Src::child(n, SyntaxKind::NamedType)
+            .and_then(|t| self.trait_value(t, gn, None))
+            .map(|t| self.names.pool.get(t))
+        {
+            Some(TyData::TraitValue { def, .. }) => def,
+            _ => DefId::NONE,
+        };
+        let toks = &self.src.parse.tokens;
+        let lifetime = n
+            .direct_token(toks, TokenKind::Lifetime)
+            .map_or(0, |t| self.lifetime_of(t, gn));
+        crate::iface::Crossing {
+            param,
+            marker,
+            lifetime,
         }
     }
 
@@ -9856,6 +9888,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems
                     fn_lifetimes: sig.fn_lifetimes.clone(),
                     paths: sig.paths.clone(),
                     wheres: sig.wheres.iter().map(|&(p, b)| (ty(p), ty(b))).collect(),
+                    crossing: sig.crossing.clone(),
                 };
                 fwd.push(Item::new(
                     def,

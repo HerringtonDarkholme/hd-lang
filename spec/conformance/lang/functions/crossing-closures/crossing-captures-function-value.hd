@@ -7,4 +7,4 @@ fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
 
 fn demo(n: i32) -> i32:
     read := fn() -> i32: n
-    run(fn() -> i32: read())  # diagnostic: unsatisfied-trait-bound
+    run(fn() -> i32: read()) # diagnostic: unsatisfied-trait-bound

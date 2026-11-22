@@ -344,6 +344,9 @@ pub(crate) struct Parser<'t> {
     opaque_result: bool,
     /// An opaque bound cannot itself declare another opaque occurrence.
     opaque_bound: bool,
+    /// A named function's parameter type that starts with `fn` may end
+    /// its result with a marker bound (`grammar.fn.crossing-parameter`).
+    crossing_bound: bool,
     /// `_` stands for an inferred type inside a `let` annotation and an
     /// expression's type-argument list (`types.generic.placeholder.local`).
     infer_types: bool,
@@ -391,6 +394,7 @@ impl<'t> Parser<'t> {
             links: 0,
             opaque_result: false,
             opaque_bound: false,
+            crossing_bound: false,
             infer_types: false,
             attached: vec![false; toks.com_kind.len()],
             bound_keywords: Vec::new(),

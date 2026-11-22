@@ -6,4 +6,4 @@ fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
     code()
 
 fn demo(xs: *mut List[i32]) -> usize:
-    run(fn() -> usize: xs.len())  # diagnostic: unsatisfied-trait-bound
+    run(fn() -> usize: xs.len()) # diagnostic: unsatisfied-trait-bound

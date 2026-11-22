@@ -7,5 +7,5 @@ fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
 
 fn demo() -> usize:
     let mut items: List[i32] = []
-    run(fn() -> void: items.push(1))  # diagnostic: crossing-capture-written
+    run(fn() -> void: items.push(1)) # diagnostic: crossing-capture-written
     items.len()

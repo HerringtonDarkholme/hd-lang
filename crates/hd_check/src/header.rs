@@ -631,6 +631,21 @@ impl<'a> ItemCheck<'_, 'a> {
                 message,
             );
         }
+        // `fn.crossing.parameter.marker`: a marker bound names a marker.
+        if let ItemData::Fn(sig, _) | ItemData::Method { sig, .. } = &it.data {
+            let marker = self.cx.names.known.marker;
+            for c in &sig.crossing {
+                let is_marker = self.cx.lookup.item(c.marker).is_some_and(|t| {
+                    t.supertraits().iter().any(|&s| {
+                        matches!(self.pool().get(s), TyData::TraitValue { def, .. } if def == marker)
+                    })
+                });
+                if c.marker != DefId::NONE && !is_marker {
+                    let message = "a crossing parameter's bound names a marker, a trait that extends `Marker`, such as `Send` or `Wire`".to_owned();
+                    self.report(u32::from(c.param) + 1, Code::InvalidMarkerTrait, message);
+                }
+            }
+        }
         self.value_item(it);
         // The bounds the item writes are written types too
         // (`trait.bound.no-implied.positions`); they report at the header.

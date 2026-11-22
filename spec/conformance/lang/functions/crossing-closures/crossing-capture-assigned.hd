@@ -7,5 +7,5 @@ fn spawn[T < ?Copy & Send](code: fn() -> T + Send) -> T:
 
 fn demo() -> i32:
     let total = +0
-    spawn(fn() -> void: total += 1)  # diagnostic: crossing-capture-written
+    spawn(fn() -> void: total += 1) # diagnostic: crossing-capture-written
     total

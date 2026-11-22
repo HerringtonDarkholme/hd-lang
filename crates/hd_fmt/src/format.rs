@@ -277,7 +277,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
             // as a value-level named argument, `left=l`.
             S::NamedArgument | S::ContextEntry | S::NamedPattern => self.mark_named_argument(node),
             S::UsingStmt => self.mark_using(node),
-            S::BoundList | S::ConstParameter | S::RequirementRow | S::ImplDecl => {
+            S::BoundList | S::ConstParameter | S::RequirementRow | S::ImplDecl | S::MarkerBound => {
                 self.mark_type_spacing(node);
             }
             S::VariantExpr | S::VariantPattern => self.mark_variant(node),
@@ -826,7 +826,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
         };
         // A bound list's own `<` and `&` join its bounds; a `&` inside a
         // bound's type arguments is a reference type's.
-        let direct: Vec<usize> = if node.kind() == S::BoundList {
+        let direct: Vec<usize> = if matches!(node.kind(), S::BoundList | S::MarkerBound) {
             node.direct_tokens().map(hd_base::TokenIdx::idx).collect()
         } else {
             Vec::new()
@@ -838,6 +838,8 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 // `N < const usize`: its `<` is the parameter's own token.
                 S::ConstParameter => kind == T::Lt,
                 S::RequirementRow => kind == T::Plus,
+                // `fn() -> T + Send & 's` (`grammar.fn.crossing-parameter`).
+                S::MarkerBound => matches!(kind, T::Plus | T::Amp) && direct.contains(&index),
                 S::ImplDecl => kind == T::KwFor,
                 _ => false,
             };
