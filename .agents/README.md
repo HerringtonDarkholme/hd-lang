@@ -14,7 +14,7 @@ and `description` frontmatter.
 | [`design-doc`](skills/design-doc/SKILL.md) | write a design document an owner can approve and an implementer can build from: semantics, architecture with pseudo-code, extension points, bottom-up cost, stress test |
 | [`spec-update`](skills/spec-update/SKILL.md) | apply a decided owner decision end to end: spec, fixtures, compiler, docs, checks, and push |
 | [`write-issue`](skills/write-issue/SKILL.md) | write a GitHub issue a fresh agent can act on: one item, rule, today, where, done check, no history |
-| [`write-hd`](skills/write-hd/SKILL.md) | write hd code: syntax by example, the prelude and std imports, and the common mistakes with their fixes |
+| [`hd-lang`](skills/hd-lang/SKILL.md) | write, check, test and run hd code: the edit-check loop, the rules that differ from Python and Rust, and references by scenario, syntax, std, testing and diagnostics. Vendored from the [hd-skill](https://github.com/HerringtonDarkholme/hd-skill) repo (`skills/hd-lang`, at deb33c7): change it there, then copy it here |
 | [`hd-cli`](skills/hd-cli/SKILL.md) | drive the `hd` command: the edit-check loop, JSON diagnostics and fix-its, tests, packages, exit statuses |
 | [`compiler-tests`](skills/compiler-tests/SKILL.md) | write focused stage fixtures, pick the view that shows one topic, bless baselines, and measure perf changes |
 | [`cleanup`](skills/cleanup/SKILL.md) | run the routine cleanup: builds, worktrees and branches, a text and folder sweep of the docs, measurements, KNOWN_FAILURES, an issue sweep, one commit |
@@ -22,7 +22,7 @@ and `description` frontmatter.
 The five design skills follow [skills/shared-rules.md](skills/shared-rules.md):
 the owner decides design, agents only ask (only `spec-update` edits the
 spec, and only to apply a decision), and the git, safety, and writing
-rules. `write-hd` and `hd-cli` are working references for writing and
+rules. `hd-lang` and `hd-cli` are working references for writing and
 running hd code, and need no other file.
 
 ## Layout
@@ -39,7 +39,7 @@ AGENTS.md                      repo instructions; points here
     design-doc/SKILL.md
     spec-update/SKILL.md
     write-issue/SKILL.md
-    write-hd/SKILL.md
+    hd-lang/SKILL.md           vendored from the hd-skill repo, with references/
     hd-cli/SKILL.md
 .claude/skills -> ../.agents/skills   committed symlink, for Claude Code
 ```

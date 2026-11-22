@@ -1,6 +1,6 @@
 ---
 name: hd-cli
-description: Drive the hd command as a coding agent - run a file, check it with JSON diagnostics, apply fix-its, run tests, build, format, create packages and add dependencies, and look up std signatures - with the edit-check loop to follow, where diagnostics and panics print, and the exit statuses. Use whenever you run hd on hd code; pair it with the write-hd skill for the syntax.
+description: Drive the hd command as a coding agent - run a file, check it with JSON diagnostics, apply fix-its, run tests, build, format, create packages and add dependencies, and look up std signatures - with the edit-check loop to follow, where diagnostics and panics print, and the exit statuses. Use whenever you run hd on hd code; pair it with the hd-lang skill for the syntax.
 ---
 
 # Use The hd CLI
@@ -14,7 +14,7 @@ In this repo, build the compiler with `cargo build -p hd_command` and run
 
 ## The Edit-Check Loop
 
-1. Write or edit the code (see the write-hd skill).
+1. Write or edit the code (see the hd-lang skill).
 2. `hd check --format json FILE`, or `hd check --format json --tests` in a
    package. Read each diagnostic's `code`, `line`, `column`, `message`, and
    `fixes`. Fix the first error first; later ones are often follow-ons.

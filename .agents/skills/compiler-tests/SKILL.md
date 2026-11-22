@@ -91,7 +91,7 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
   or a `# subject` line before a statement (it covers the lines indented
   deeper after it). Without a marker the whole file is dumped, each source
   line followed by the output it produced.
-- **The file must pass `hd check` and `hd fmt --check`** (use the write-hd
+- **The file must pass `hd check` and `hd fmt --check`** (use the hd-lang
   and hd-cli skills). No `main` is needed: fixture builds emit every
   function the case defines.
 - **`# expected:`** states what good output would be when today's output is
