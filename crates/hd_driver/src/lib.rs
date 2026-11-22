@@ -2501,7 +2501,13 @@ pub fn result_key(
     );
     let sets: Vec<&dyn SourceSet> = ins.iter().map(|p| p.sources).collect();
     let texts = Texts::lazy(&table.sources, &sets, None);
-    stamps::resolve(&mut table, &sets, &texts, host.store, toolchain);
+    stamps::resolve(
+        &mut table,
+        &sets,
+        &texts,
+        host.store,
+        (toolchain, host.executor),
+    );
     let key = package_result::key(
         true, goal, package, packages, host, None, &ins, &table, toolchain,
     );
@@ -2512,6 +2518,34 @@ pub fn result_key(
         toolchain,
         key: key?,
     })
+}
+
+/// `f` of each of `items`, in their order, on the run's threads (#1802):
+/// a cold run reads, hashes and skims every file before the task graph
+/// starts, and each file's result is its own, so the results are the same
+/// at any thread count.
+fn par_files<R: Send>(
+    executor: Executor,
+    items: &[usize],
+    f: impl Fn(usize) -> R + Sync + Send,
+) -> Vec<R> {
+    #[cfg(feature = "threads")]
+    if let Executor::Pool(threads) = executor
+        && items.len() > 1
+    {
+        let out = Mutex::new(Vec::new());
+        let mut g = TaskGraph::default();
+        g.add(TaskKind::FolderGraph, &[]);
+        // One task maps the items: `par_map` is parallel inside a pool task.
+        hd_sched::pool::run_pool(g, threads, &|_, _, _| {
+            *lock(&out) = hd_sched::par_map(items, |&m| f(m));
+        });
+        return out
+            .into_inner()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    }
+    let _ = executor;
+    items.iter().map(|&m| f(m)).collect()
 }
 
 /// A named serial phase of the run in the timing trace (`hd_base::trace`).
@@ -2604,7 +2638,13 @@ fn build_packages_inner(
     );
     if !stamped {
         let _span = phase("stamps");
-        stamps::resolve(&mut table, &sets, &lazy, host.store, toolchain);
+        stamps::resolve(
+            &mut table,
+            &sets,
+            &lazy,
+            host.store,
+            (toolchain, host.executor),
+        );
     }
     // A warm `hd check` whose every listed file kept its stamp takes the
     // stored package result: no record decode and no per-module lookup
@@ -2668,7 +2708,15 @@ fn build_packages_inner(
             reached: None,
         }
     });
-    let folder_cycles = recover_folder_cycles(&mut table, &texts, &files, reached.as_deref());
+    let cycles = phase("folder cycles");
+    let folder_cycles = recover_folder_cycles(
+        &mut table,
+        &texts,
+        &files,
+        reached.as_deref(),
+        host.executor,
+    );
+    drop(cycles);
     let n = table.modules.len();
     let nf = table.folders.len();
     let pipeline = pipeline::key(packages.target, packages.level);
@@ -3353,16 +3401,17 @@ fn recover_folder_cycles(
     texts: &Texts<'_>,
     files: &skims::FileSkims<'_>,
     reached: Option<&[bool]>,
+    executor: Executor,
 ) -> Vec<FolderCycle> {
-    let module_uses: Vec<Vec<(String, u32, u32)>> = (0..table.modules.len())
-        .map(|m| {
-            if table.modules[m].package != 0 || reached.is_some_and(|r| !r[m]) {
-                return Vec::new();
-            }
-            let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-            written_use_lines(&files.get(table, m, || Arc::clone(&texts[m])), &roots)
-        })
-        .collect();
+    // Each module's skim, read and made on the run's threads.
+    let modules: Vec<usize> = (0..table.modules.len()).collect();
+    let module_uses: Vec<Vec<(String, u32, u32)>> = par_files(executor, &modules, |m| {
+        if table.modules[m].package != 0 || reached.is_some_and(|r| !r[m]) {
+            return Vec::new();
+        }
+        let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
+        written_use_lines(&files.get(table, m, || Arc::clone(&texts[m])), &roots)
+    });
     let uses: Vec<Vec<String>> = module_uses
         .iter()
         .map(|v| v.iter().map(|(p, _, _)| p.clone()).collect())

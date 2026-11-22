@@ -57,7 +57,7 @@ pub(crate) fn resolve(
     sets: &[&dyn SourceSet],
     texts: &Texts<'_>,
     store: &dyn CacheStore,
-    toolchain: Hash128,
+    (toolchain, executor): (Hash128, crate::Executor),
 ) {
     struct Set {
         at: ResultKey,
@@ -83,22 +83,43 @@ pub(crate) fn resolve(
             })
         })
         .collect();
-    for m in 0..table.stamps.len() {
+    // Per module with a table: the content it holds under the listed
+    // stamp, if any. The others are read and hashed on the run's threads,
+    // then taken in file order.
+    let held: Vec<Option<Option<Hash128>>> = (0..table.stamps.len())
+        .map(|m| {
+            let (package, path) = &table.sources[m];
+            let set = state.get(usize::from(*package))?.as_ref()?;
+            let row = set.old.as_ref().and_then(|rows| rows.get(path));
+            Some(
+                row.filter(|(at, _)| table.stamps[m] == Some(*at))
+                    .map(|r| r.1),
+            )
+        })
+        .collect();
+    let unread: Vec<usize> = (0..held.len()).filter(|&m| held[m] == Some(None)).collect();
+    let mut read = crate::par_files(executor, &unread, |m| {
+        texts
+            .get(m)
+            .map(|text| hd_project::content_stamp(text.as_bytes()))
+    })
+    .into_iter();
+    for (m, held) in held.into_iter().enumerate() {
         let (package, path) = &table.sources[m];
-        let Some(Some(set)) = state.get_mut(usize::from(*package)) else {
+        let (Some(held), Some(Some(set))) = (held, state.get_mut(usize::from(*package))) else {
             continue;
         };
         let listed = table.stamps[m];
-        let held = set.old.as_ref().and_then(|rows| rows.get(path));
-        let content = match (listed, held) {
-            (Some(meta), Some(&(at, content))) if at == meta => content,
-            _ => {
-                let Some(text) = texts.get(m) else { continue };
-                // A racy file gets no row: it is read again until it
-                // settles, as git's racily clean entries are.
-                set.changed |= listed.is_some();
-                hd_project::content_stamp(text.as_bytes())
-            }
+        let content = if let Some(content) = held {
+            content
+        } else {
+            let Some(content) = read.next().flatten() else {
+                continue;
+            };
+            // A racy file gets no row: it is read again until it settles,
+            // as git's racily clean entries are.
+            set.changed |= listed.is_some();
+            content
         };
         if let Some(meta) = listed {
             set.new.insert(path.clone(), (meta, content));

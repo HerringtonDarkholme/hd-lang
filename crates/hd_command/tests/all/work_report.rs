@@ -393,3 +393,36 @@ fn a_trace_names_each_task_and_the_serial_phases() {
         assert!(named("phase", phase), "{phase}: {json}");
     }
 }
+
+/// #1802: a cold run reads, hashes and skims its files on the pool before
+/// the task graph starts. Each file's result is its own and taken in file
+/// order, so a cold check prints the same at `--jobs 1` as at `--jobs 8`:
+/// here 24 modules, some with errors, and a folder cycle.
+#[test]
+fn a_cold_check_prints_the_same_at_one_job_and_at_eight() {
+    let dir = package("work-cold-jobs");
+    for k in 0..24 {
+        let body = if k % 5 == 0 { "true" } else { "x + 1" };
+        let text = format!("pub fn f{k}(x: i32) -> i32:\n    {body}\n");
+        std::fs::write(dir.join(format!("src/m{k}.hd")), text).expect("write");
+    }
+    for (folder, other) in [("a", "b"), ("b", "a")] {
+        std::fs::create_dir_all(dir.join(format!("src/{folder}"))).expect("dir");
+        let text = format!("use pkg.{other}.x.{{g}}\n\npub fn g() -> i32:\n    1\n");
+        std::fs::write(dir.join(format!("src/{folder}/x.hd")), text).expect("write");
+    }
+    let run = |jobs: &str| {
+        let cache = dir.join(format!("cache-{jobs}"));
+        let out = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
+            .env("HD_CACHE", &cache)
+            .current_dir(&dir)
+            .args(["check", "--jobs", jobs])
+            .output()
+            .expect("run hd");
+        let text = |b: &[u8]| String::from_utf8_lossy(b).into_owned();
+        (out.status.code(), text(&out.stdout), text(&out.stderr))
+    };
+    let one = run("1");
+    assert_ne!(one.0, Some(0), "{one:?}");
+    assert_eq!(run("8"), one);
+}
