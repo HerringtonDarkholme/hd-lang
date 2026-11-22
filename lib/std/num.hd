@@ -1233,3 +1233,26 @@ fn nonneg_u64(n: i64) -> u64:
 # `i64` literals take their type from context, so the bound is a function.
 fn i64_max() -> i64:
     9223372036854775807
+
+# Rust minNum/maxNum behavior at each primitive float width.
+impl f32:
+    ## The smaller input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-min.value](../../spec/std/num.md#r-std-num.float-min.value).
+    pub fn min(self, other: f32) -> f32:
+        if other != other || self < other: self else: other
+
+    ## The larger input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-max.value](../../spec/std/num.md#r-std-num.float-max.value).
+    pub fn max(self, other: f32) -> f32:
+        if other != other || self > other: self else: other
+
+impl f64:
+    ## The smaller input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-min.value](../../spec/std/num.md#r-std-num.float-min.value).
+    pub fn min(self, other: f64) -> f64:
+        if other != other || self < other: self else: other
+
+    ## The larger input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-max.value](../../spec/std/num.md#r-std-num.float-max.value).
+    pub fn max(self, other: f64) -> f64:
+        if other != other || self > other: self else: other
