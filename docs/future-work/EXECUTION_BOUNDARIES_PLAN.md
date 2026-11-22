@@ -162,8 +162,38 @@ that is a type parameter, as in std's generic `http_handler`, is not
 asked, and its generated body serves what the instance implements, so a
 root with no remote trait refuses every frame with `WrongHome`. `Home`
 holds only its request factory until returned objects (R3) need the
-served table. A build that calls either built-in is refused (`gap: #2288`)
-until the generated bodies land.
+served table. Both built-ins now lower for real (below).
+
+Stubs and dispatchers (steps 2 and 3 below) are built. `remote[T]`'s
+generated body boxes std's private `Stub { transport, interface, object }`
+for object 0 and converts it to `*mut dyn T`; collection's selection
+answers `Stub: T` for every remote trait `T`, and each method of it is one
+generated `stub_call!` of the method's number and its arguments as one
+tuple. `handle_call!` is plain std that calls the private intrinsic
+`serve![S]`, whose generated body reads the head with `serve_open`, tests
+the interface of each remote trait `S` implements, switches on the method
+number, and runs one arm: `serve_args`, the root's implementation,
+`serve_ran`. Framing, the `Reply` envelope and every refusal are std's hd.
+Readings:
+
+- The frame is the build ID, the interface, the object and the method
+  number as LEB128 numbers, then the arguments as one tuple, all through
+  the `Wire` codec; a reply is an encoded `Reply`, whose `Ran` payload is
+  the method's public result, so a stub returns it as decoded.
+- The build ID is the toolchain key folded with the path and source hash
+  of each library and executable module, which every executable of a
+  build holds (`Env::build_id`). Std reads it through an out-of-line
+  `build_id()`, so no stub or dispatcher body holds the constant and stage
+  baselines do not move with the compiler.
+- An interface number is the low 64 bits of the `canon` digest of
+  `dyn T[args]`; a method's number is its declaration index, which a
+  dispatcher switches on as a `u32`.
+- `Stub: T` is answered in collection's selection only: `Stub` is private
+  to std, so no checked goal asks it.
+- A root serves the remote traits it implements through a written impl
+  whose head matches it; a delegated impl (`by E`) is not served yet.
+- A frame for an object other than the root is `WrongHome` until returned
+  objects (R3) give it a served table.
 
 The codec (step 1 below) is std code in `std.remote`: `wire_encode[T]`
 and `wire_decode[T]` over two intrinsics, `wire_put[T]` and `wire_take[T]`,

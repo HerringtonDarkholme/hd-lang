@@ -93,6 +93,7 @@ const fn s(generics: u8, params: &'static [Kind], ret: Kind) -> Shape {
 /// A static table: nothing builds it at run time.
 pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("block_on", &[s(1, &[SUSPEND], Named("BlockOn"))]),
+    ("build_id", &[s(0, &[], U64)]),
     ("bytes_at", &[s(0, &[STR, USIZE], U8)]),
     ("bytes_index", &[s(0, &[STR, USIZE, U8], USIZE)]),
     (
@@ -137,7 +138,6 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
             s(1, &[Any, PTR], Tuple(2)),
         ],
     ),
-    ("handle_call", &[s(2, &[REF_MUT, REF_MUT, LIST], LIST)]),
     ("int_count_ones", &[s(0, &[Any], U32)]),
     ("int_leading_zeros", &[s(0, &[Any], U32)]),
     ("int_max", &[s(1, &[], Any)]),
@@ -181,6 +181,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("ref_identity", &[s(1, &[REF], Named("RefIdentity"))]),
     ("remote", &[s(1, &[COUNTED_MUT], COUNTED_MUT)]),
     ("repl_write", &[s(0, &[STR], VOID)]),
+    ("serve", &[s(1, &[REF_MUT, LIST], LIST)]),
     ("snapshot_update", &[s(0, &[STR], BOOL)]),
     (
         "string_from_bytes",

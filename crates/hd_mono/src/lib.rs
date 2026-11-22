@@ -266,7 +266,8 @@ pub trait ProgramEnv: LayoutEnv {
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>>;
     /// The body of one of the selection functions the compiler supplies per
     /// concrete argument (`dbg_printer[ty]`, `debug_texts[args]`; spec/lang/10-modules.md
-    /// "Debug Printing"; `wire_put[ty]`, `wire_take[ty]`, `module.remote.codec`).
+    /// "Debug Printing"; `wire_put[ty]`, `wire_take[ty]`, `module.remote.codec`;
+    /// `remote[ty]`, `serve[ty]`, `build_id[]`, `module.remote.stub`).
     /// `debug`: `ty` implements `Debug`.
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
     /// `body`, which collection built (a function reference's call body,
@@ -286,6 +287,9 @@ pub trait ProgramEnv: LayoutEnv {
     /// count-bearing Copy data with no Drop and a materialized body.
     /// This fact alone does not change a call's result convention.
     fn return_loan_parameter(&self, item: DefId, args: TyList) -> Option<u8>;
+    /// Whether `self_ty` is std's `Stub` and `trait_` a remote trait, which
+    /// the stub answers with generated methods (`module.remote.stub`).
+    fn stub_answers(&self, trait_: DefId, self_ty: Ty) -> bool;
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
     /// The private `by Structure` templates (`DbgStructural`,
@@ -567,8 +571,10 @@ impl Collected {
     /// The TIR of an instance whose item has no body of its own: the
     /// compiler-supplied method's, at the instance's self type.
     #[must_use]
+    /// `build_id`'s, which has no type argument, is keyed at `void`.
     pub fn supplied_body(&self, pool: &InternPool, item: DefId, args: TyList) -> Option<&Body> {
-        let self_ty = pool.list_items(args).first().copied()?;
+        let self_ty = (pool.list_items(args).first().copied())
+            .or_else(|| (args == TyList::EMPTY).then_some(Ty::VOID))?;
         self.supplied.get(&(item, self_ty)).map(AsRef::as_ref)
     }
 
@@ -2056,23 +2062,16 @@ impl Cx<'_> {
         if let Some(key) = self.env.intrinsic(def).filter(|k| {
             matches!(
                 k.as_str(),
-                "debug_texts" | "dbg_printer" | "wire_put" | "wire_take"
+                "debug_texts"
+                    | "dbg_printer"
+                    | "wire_put"
+                    | "wire_take"
+                    | "remote"
+                    | "serve"
+                    | "build_id"
             )
         }) {
             return self.dbg_target(def, &key, args, parent);
-        }
-        // gap: #2288 — stage 3 generates the stub of `remote[T]` and the
-        // dispatcher of `handle_call[S, C]`; until then a build that calls
-        // either is refused, never lowered.
-        if let Some(key) = self
-            .env
-            .intrinsic(def)
-            .filter(|k| matches!(k.as_str(), "remote" | "handle_call"))
-        {
-            return Err(NotImplemented::new(
-                Stage::Collect,
-                format!("`{key}` has no generated body yet (#2288)"),
-            ));
         }
         // Every other intrinsic goes through the backend's lowering table,
         // even when its std declaration has a source body. That body is only
@@ -2184,7 +2183,9 @@ impl Cx<'_> {
         // exempts, a typed fact's read through a handle and its place in a
         // `Facts`, needs a runtime identity whatever its type arguments
         // are (`annot.handle.fact.key`, `annot.handle.fact.exact`).
-        if choice.is_none() && trait_ == env.decls().sealed().inspectable {
+        if choice.is_none()
+            && (trait_ == env.decls().sealed().inspectable || env.stub_answers(trait_, self_ty))
+        {
             self.selected.insert(key, Picked::Builtin);
             return Ok(Picked::Builtin);
         }
@@ -2464,10 +2465,11 @@ impl Cx<'_> {
         }))
     }
 
-    /// A call of `dbg_printer`, `debug_texts`, `wire_put` or `wire_take`,
-    /// whose body the compiler writes at the exact argument
-    /// (`ProgramEnv::dbg_body`): an instance keyed like any other, with no
-    /// A1 class, since the body reads the type's declaration.
+    /// A call of `dbg_printer`, `debug_texts`, `wire_put`, `wire_take`,
+    /// `remote`, `serve` or `build_id`, whose body the compiler writes at
+    /// the exact argument (`ProgramEnv::dbg_body`): an instance keyed like
+    /// any other, with no A1 class, since the body reads the type's
+    /// declaration.
     fn dbg_target(
         &mut self,
         def: DefId,
@@ -2475,9 +2477,8 @@ impl Cx<'_> {
         args: TyList,
         parent: InstId,
     ) -> StageResult<CallTarget> {
-        let Some(&ty) = self.pool.list_items(args).first() else {
-            return err("a `dbg` function without its type argument");
-        };
+        // `build_id` alone has no type argument: one body per build.
+        let ty = (self.pool.list_items(args).first().copied()).unwrap_or(Ty::VOID);
         if !self.out.supplied.contains_key(&(def, ty)) {
             // A class placeholder or a type parameter has no declaration to
             // print: its text is implementation-defined (`module.dbg.value.generic`).
@@ -3128,10 +3129,10 @@ impl Cx<'_> {
         let env = self.env;
         // A compiler-supplied method's instance has no item body: its
         // TIR was generated at its self type (`supplied_target`).
-        let supplied = pool
-            .list_items(args)
-            .first()
-            .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
+        // `build_id`'s, which has no type argument, is keyed at `void`.
+        let supplied = (pool.list_items(args).first().copied())
+            .or_else(|| (args == TyList::EMPTY).then_some(Ty::VOID))
+            .and_then(|t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
         // An item's root instance asks for its body; each closure's code
         // instance shares its parent's, which made its environment. A
         // supplied method's or factory's instance body is its generated

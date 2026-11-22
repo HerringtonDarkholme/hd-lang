@@ -6915,6 +6915,7 @@ lang/modules/execution-domains/remote-traits/remote-call-forms-wrap-every-exit.h
 lang/modules/execution-domains/remote-traits/remote-concrete-call-has-trait-result.hd	type	accept	lang/10-modules.md#r-module.remote.r2.public
 lang/modules/execution-domains/remote-builtins/remote-builtin-returns-stub.hd	type	accept	lang/10-modules.md#r-module.remote.builtin.remote
 lang/modules/execution-domains/remote-builtins/remote-builtin-generic-trait.hd	type	accept	lang/10-modules.md#r-module.remote.builtin.remote.trait
+lang/modules/execution-domains/remote-builtins/remote-stub-failure-is-case-one.hd	runtime	accept	lang/10-modules.md#r-module.remote.stub.reply
 lang/modules/execution-domains/remote-builtins/remote-builtin-non-remote-trait.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.remote.builtin.remote.not-remote
 lang/modules/execution-domains/remote-builtins/handle-call-root-not-remote.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.remote.handle-call.root
 lang/modules/execution-domains/remote-builtins/handle-call-root-forms.hd	type	accept	lang/10-modules.md#r-module.remote.handle-call.root

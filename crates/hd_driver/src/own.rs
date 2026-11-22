@@ -2180,6 +2180,9 @@ impl Env<'_> {
             items: self.p,
             stage: Stage::Collect,
         };
+        if let Some(family) = self.stub_family(&cx, method, self_ty)? {
+            return Ok(Some(family));
+        }
         let Some(root) = hd_structure::supplied_root(&cx, method) else {
             return Ok(None);
         };

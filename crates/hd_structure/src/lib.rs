@@ -48,6 +48,7 @@
 //! docs, outside semantic hashes.
 
 mod dbg;
+pub mod remote;
 
 pub use dbg::{
     codec_body as wire_codec_body, printer_body as dbg_printer_body, target as dbg_target,

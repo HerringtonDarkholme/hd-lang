@@ -2,6 +2,7 @@
 # generated stubs and dispatchers name (spec/lang/10-modules.md#remote-built-ins).
 # `per_request`, `home`, `action` and the HTTP adapters are plain std over
 # these, in the stdlib tier.
+use std.annotation.inline
 use std.hash.Hash
 use std.num.Integer
 use std.rt.bytes.char_from_scalar
@@ -72,9 +73,104 @@ pub fn remote[T < Remote](transport: *mut dyn Transport) -> *mut T:
 ## Answers one call frame for a home whose root type is `S`, and returns
 ## an encoded `Reply`.
 ## See [module.remote.handle-call](../../spec/lang/10-modules.md#r-module.remote.handle-call).
-@intrinsic("handle_call")
 pub fn handle_call![S, C](home: &mut Home[S, C], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]:
+    serve!(&mut rooted.root, frame)
+
+# Stubs and dispatchers (spec/lang/10-modules.md#remote-references): the
+# compiler generates `remote[T]`'s body, which boxes a `Stub` as `*mut dyn
+# T`, each method of `Stub: T` as one `stub_call!`, and `serve[S]`'s body,
+# which picks a method of a remote trait `S` implements by the frame's
+# interface and number. Everything else is the plain hd below. A frame is
+# the build ID, the interface, the object and the method number, then the
+# arguments as one tuple; a reply is an encoded `Reply`.
+
+# The object at the far end of a transport, as every remote trait's stub.
+struct Stub:
+    transport: *mut dyn Transport
+    interface: u64
+    object: u64
+
+fn stub_new(transport: *mut dyn Transport, interface: u64) -> *mut Stub:
+    box(Stub { transport, interface, object: 0 })
+
+# The build ID every frame carries (module.remote.handle-call.build), which
+# collection writes per build. Read out of line, so no other body holds it.
+@inline(.Never)
+fn build_id() -> u64:
+    build_number()
+
+@intrinsic("build_id")
+fn build_number() -> u64:
     panic("intrinsic")
+
+# One remote call: a reply that ran is the method's public result as the
+# home encoded it; a refusal, a transport failure or a reply that does not
+# decode is case `_1` (module.remote.stub.reply, module.remote.stub.decode).
+fn stub_call![A < ?Copy, V, E](stub: &mut Stub, method: u64, args: A) -> Result[V, E | CrossError]:
+    let mut out = WireOut { bytes: [] }
+    out.leb(build_id())
+    out.leb(stub.interface)
+    out.leb(stub.object)
+    out.leb(method)
+    wire_put::[A]()(&args, &mut out)
+    let reply = match stub.transport.call!(out.bytes):
+        .Ok(bytes) => bytes
+        .Err(cross) => return .Err(._1(cross))
+    match wire_decode::[Reply](reply):
+        .Some(.Ran(payload)) =>
+            match wire_decode::[Result[V, E | CrossError]](payload):
+                .Some(result) => result
+                .None => .Err(._1(CrossError.Unknown))
+        .Some(.Refused(cross)) => .Err(._1(cross))
+        .None => .Err(._1(CrossError.Unknown))
+
+# The generated dispatcher of a root type `S`.
+@intrinsic("serve")
+fn serve![S](root: &mut S, frame: List[u8]) -> List[u8]:
+    panic("intrinsic")
+
+# A frame whose head decoded, for its build, at its root object: the rest
+# of the frame, its interface and its method number, which a dispatcher
+# switches on as a `u32`.
+struct Served:
+    pub input: WireIn
+    pub interface: u64
+    pub method: u32
+
+# A frame's head (module.remote.handle-call.build, .object, .untrusted):
+# another build is `OtherBuild`; a head that does not decode, or an object
+# other than the root, which only returned objects (R3) will be, is
+# `WrongHome`. The `.Err` holds the encoded refusal.
+fn serve_open(frame: List[u8]) -> Result[Served, List[u8]]:
+    let mut input = WireIn { bytes: frame, at: 0 }
+    let head = match (input.leb(), input.leb(), input.leb(), input.leb()):
+        (.Some(b), .Some(interface), .Some(object), .Some(method)) => (b, interface, object, method)
+        _ => return .Err(serve_refused(CrossError.WrongHome))
+    if head._0 != build_id():
+        return .Err(serve_refused(CrossError.OtherBuild))
+    if head._2 != 0 || head._3 > 4294967295:
+        return .Err(serve_refused(CrossError.WrongHome))
+    .Ok(Served { input, interface: head._1, method: u32(head._3) })
+
+# The arguments, which must fill the rest of the frame.
+fn serve_args[A](served: Served) -> A?:
+    let mut input = served.input
+    args := wire_take::[A]()(&mut input)?
+    if input.at != input.bytes.len():
+        return .None
+    .Some(args)
+
+# A method's public result, as the reply that it ran
+# (module.remote.handle-call.run).
+fn serve_ran[R < ?Copy](result: R) -> List[u8]:
+    wire_encode(&Reply.Ran(wire_encode(&result)))
+
+fn serve_refused(error: CrossError) -> List[u8]:
+    wire_encode(&Reply.Refused(error))
+
+# A frame for no method the root serves, or whose arguments do not decode.
+fn serve_wrong_home() -> List[u8]:
+    serve_refused(CrossError.WrongHome)
 
 # The Wire codec (spec/lang/10-modules.md#r-module.remote.codec): the tree
 # encoding of the host boundary (crates/hd_wasm/src/boundary.rs `enc_body`),
@@ -389,6 +485,7 @@ impl['a, S < ?Copy] Source[S] for WireTake[S, 'a]:
 # The codec's round trips over every `Wire` type form, its bytes against
 # the host's tree format, and malformed frames, which decode to `.None`.
 tests:
+    use std.marker.Wire
     use std.testing.{assert, assert_equal}
 
     @derive(Debug, Eq)
@@ -491,3 +588,127 @@ tests:
         assert_equal(wire_decode::[Point]([2, 0, 0, 0, 0, 0, 0, 0, 0, 7]), .None)
         assert_equal(wire_decode::[Map[string, u8]]([1, 1, 97]), .None)
         assert_equal(wire_decode::[Option[u8]]([2]), .None)
+
+    @derive(Debug, Eq)
+    enum CountError:
+        Negative(by: i64)
+
+    trait Counter < Remote:
+        fn add!(&mut self, by: i64) -> Result[i64, CountError | CrossError]
+        fn label!(&mut self, prefix: string, times: u8) -> Result[string, CountError | CrossError]
+
+    struct Tally:
+        total: i64
+
+    impl Counter for Tally:
+        fn add!(&mut self, by: i64) -> Result[i64, CountError]:
+            if by < 0:
+                return .Err(.Negative(by))
+            self.total += by
+            .Ok(self.total)
+
+        fn label!(&mut self, prefix: string, times: u8) -> Result[string, CountError]:
+            .Ok("$prefix ${self.total} x$times")
+
+    # Serves each frame at once from its own root. A broken peer replaces
+    # the reply: with a refusal (`peer` 1) or with bytes no reply decodes
+    # from (`peer` 2).
+    struct Loopback:
+        root: Tally
+        peer: u8
+
+    impl Transport for Loopback:
+        fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+            reply := serve!(&mut self.root, frame)
+            match self.peer:
+                1 => .Ok(wire_encode(&Reply.Refused(CrossError.OtherBuild)))
+                2 => .Ok([0, 9, 9])
+                _ => .Ok(reply)
+
+    fn loopback(peer: u8) -> *mut dyn Transport:
+        box(Loopback { root: Tally { total: 0 }, peer })
+
+    fn cross_of(result: Result[i64, CountError | CrossError]) -> CrossError?:
+        match result:
+            .Err(._1(cross)) => .Some(cross)
+            _ => .None
+
+    it("a stub's calls run the root's methods and keep its errors as case _0"):
+        counter := remote::[Counter](loopback(0))
+        assert_equal(counter.add!(2).ok(), .Some(2))
+        assert_equal(counter.add!(5).ok(), .Some(7))
+        match counter.add!(-1):
+            .Err(._0(error)) => assert_equal(error, CountError.Negative(-1))
+            _ => assert(false, "the implementation's error is case _0")
+        assert_equal(counter.label!("at", 3).ok(), .Some("at 7 x3"))
+
+    it("a refusal, a reply that does not decode and a transport failure are case _1"):
+        assert_equal(cross_of(remote::[Counter](loopback(1)).add!(1)), .Some(CrossError.OtherBuild))
+        assert_equal(cross_of(remote::[Counter](loopback(2)).add!(1)), .Some(CrossError.Unknown))
+
+    # Keeps the last frame and answers nothing a stub decodes.
+    struct Recorder:
+        frame: List[u8]
+
+    impl Transport for Recorder:
+        fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+            self.frame = frame
+            .Ok([])
+
+    fn refused!(root: &mut Tally, frame: List[u8]) -> CrossError?:
+        match wire_decode::[Reply](serve!(root, frame)):
+            .Some(.Refused(cross)) => .Some(cross)
+            _ => .None
+
+    it("serve refuses a bad head, another build, another object, another interface and bad arguments"):
+        recorder := box(Recorder { frame: [] })
+        let transport: *mut dyn Transport = recorder
+        _ := remote::[Counter](transport).add!(4)
+        let mut input = WireIn { bytes: recorder.frame, at: 0 }
+        build := input.leb().unwrap_or(0)
+        interface := input.leb().unwrap_or(0)
+        _ := input.leb()
+        _ := input.leb()
+        head := fn(b: u64, i: u64, object: u64, method: u64, args: List[u8]) -> List[u8]:
+            let mut out = WireOut { bytes: [] }
+            out.leb(b)
+            out.leb(i)
+            out.leb(object)
+            out.leb(method)
+            out.bytes.extend(args)
+            out.bytes
+        let mut root = Tally { total: 1 }
+        assert_equal(refused!(&mut root, [1, 2]), .Some(CrossError.WrongHome))
+        assert_equal(refused!(&mut root, head(build + 1, interface, 0, 0, [8])), .Some(CrossError.OtherBuild))
+        assert_equal(refused!(&mut root, head(build, interface, 1, 0, [8])), .Some(CrossError.WrongHome))
+        assert_equal(refused!(&mut root, head(build, interface + 1, 0, 0, [8])), .Some(CrossError.WrongHome))
+        assert_equal(refused!(&mut root, head(build, interface, 0, 2, [8])), .Some(CrossError.WrongHome))
+        assert_equal(refused!(&mut root, head(build, interface, 0, 0, [8, 0])), .Some(CrossError.WrongHome))
+        assert_equal(refused!(&mut root, head(build, interface, 0, 0, [8])), .None)
+        assert_equal(root.total, 5)
+
+    trait Shelf[T < Wire] < Remote:
+        fn take!(&mut self, at: usize) -> Result[T, CountError | CrossError]
+
+    struct Words:
+        items: List[string]
+
+    impl Shelf[string] for Words:
+        fn take!(&mut self, at: usize) -> Result[string, CountError]:
+            match self.items.get(at):
+                .Some(word) => .Ok(word)
+                .None => .Err(.Negative(-1))
+
+    struct WordLink:
+        root: Words
+
+    impl Transport for WordLink:
+        fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+            .Ok(serve!(&mut self.root, frame))
+
+    it("a generic remote trait's stub and dispatcher serve its instance"):
+        shelf := remote::[Shelf[string]](box(WordLink { root: Words { items: ["a", "b"] } }))
+        assert_equal(shelf.take!(1).ok(), .Some("b"))
+        match shelf.take!(5):
+            .Err(._0(error)) => assert_equal(error, CountError.Negative(-1))
+            _ => assert(false, "the implementation's error is case _0")

@@ -231,6 +231,9 @@ pub struct KnownItems {
     /// The built-ins `std.remote.remote` and `std.remote.handle_call`
     /// (`module.remote.builtin.remote`, `module.remote.handle-call`).
     pub remote_fn: DefId,
+    /// `std.remote.Stub`, the type whose generated methods are every
+    /// remote trait's stub (`module.remote.stub`).
+    pub stub: DefId,
     pub handle_call: DefId,
     // std.task
     pub suspend: DefId,
@@ -564,6 +567,7 @@ impl KnownItems {
             remote,
             cross_error: item(REMOTE_MODULE, "CrossError"),
             remote_fn: item(REMOTE_MODULE, "remote"),
+            stub: item(REMOTE_MODULE, "Stub"),
             handle_call: item(REMOTE_MODULE, "handle_call"),
         }
     }

@@ -66,6 +66,7 @@ mod package_result;
 pub use own::copy_report_label;
 mod pipeline;
 mod positions;
+mod remote;
 mod report;
 mod rows;
 mod skims;
@@ -863,6 +864,8 @@ struct ProgramTables {
     supplied_rets: Mutex<HashMap<DefId, Ty>>,
     supplied_families: Mutex<HashMap<(DefId, Ty), SuppliedFamilyCell>>,
     private_templates: OnceLock<Vec<(DefId, DefId, DefId)>>,
+    /// The build ID (`Env::build_id`), made once per build.
+    build_id: OnceLock<u64>,
     bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
     impl_rows: HashMap<DefId, ImplRef>,
@@ -9682,6 +9685,7 @@ impl Run<'_> {
             supplied_rets: Mutex::new(HashMap::default()),
             supplied_families: Mutex::new(HashMap::default()),
             private_templates: OnceLock::new(),
+            build_id: OnceLock::new(),
             bodies: Bodies {
                 all: bodies,
                 bad: std::sync::atomic::AtomicBool::new(false),
@@ -13844,11 +13848,27 @@ impl ProgramEnv for Env<'_> {
             "wire_put" | "wire_take" => {
                 hd_structure::wire_codec_body(&cx, item, ty, key == "wire_take")
             }
+            "remote" => {
+                // ruled out: checking lowers `remote::[T]`'s one argument
+                // to the trait value `dyn T` (`Ck::remote_targ`).
+                let TyData::TraitValue { def, args, .. } = self.run.pool.get(ty) else {
+                    return Err(NotImplemented::bug(
+                        Stage::Collect,
+                        "`remote[T]` at no trait",
+                    ));
+                };
+                hd_structure::remote::remote_body(&cx, item, ty, self.interface(def, args))
+            }
+            "serve" => hd_structure::remote::serve_body(&cx, item, ty, &self.served(ty)),
+            "build_id" => hd_structure::remote::build_id_body(&cx, item, self.build_id()),
             _ => hd_structure::debug_texts_body(&cx, item, ty),
         }?;
-        // Written at the exact argument, it is its instance's body.
+        // Written at the exact argument, it is its instance's body;
+        // `build_id` has none.
         let mut body = body;
-        self.mark_instance(&mut body, self.run.pool.list(&[ty]));
+        if key != "build_id" {
+            self.mark_instance(&mut body, self.run.pool.list(&[ty]));
+        }
         self.owned_generated(body)
     }
     fn own_generated(&self, body: Body) -> StageResult<Body> {
@@ -13862,6 +13882,9 @@ impl ProgramEnv for Env<'_> {
     }
     fn return_loan_parameter(&self, item: DefId, args: TyList) -> Option<u8> {
         self.return_loan_layout(item, args)
+    }
+    fn stub_answers(&self, trait_: DefId, self_ty: Ty) -> bool {
+        Env::stub_answers(self, trait_, self_ty)
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug

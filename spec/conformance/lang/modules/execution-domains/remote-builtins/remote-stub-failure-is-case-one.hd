@@ -1,0 +1,38 @@
+# test: a stub's call returns its transport's failure, and a reply that does not decode, as case _1
+# Spec 10 Remote References: module.remote.stub.reply, module.remote.stub.decode.
+use std.remote.{CrossError, Remote, Transport, remote}
+
+trait Users < Remote:
+    fn count!(&mut self, since: i64) -> Result[i64, string | CrossError]
+
+# Answers every frame the same way, without running anything.
+struct Canned:
+    reply: Result[List[u8], CrossError]
+    sent: usize
+
+impl Transport for Canned:
+    fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+        self.sent += 1
+        self.reply
+
+fn outcome!(reply: Result[List[u8], CrossError]) -> string:
+    users := remote::[Users](box(Canned { reply, sent: 0 }))
+    match users.count!(3):
+        .Ok(n) => "ran $n"
+        .Err(._0(error)) => "failed $error"
+        .Err(._1(.Unreachable)) => "unreachable"
+        .Err(._1(.Unknown)) => "unknown"
+        .Err(._1(.OtherBuild)) => "other build"
+        .Err(._1(.WrongHome)) => "wrong home"
+
+tests:
+    use std.testing.assert_equal
+
+    it("a transport's failure is the call's case _1"):
+        assert_equal(outcome!(.Err(CrossError.Unreachable)), "unreachable")
+        assert_equal(outcome!(.Err(CrossError.WrongHome)), "wrong home")
+
+    it("a reply that does not decode is Unknown, never a panic"):
+        assert_equal(outcome!(.Ok([])), "unknown")
+        assert_equal(outcome!(.Ok([0, 200])), "unknown")
+        assert_equal(outcome!(.Ok([9])), "unknown")
