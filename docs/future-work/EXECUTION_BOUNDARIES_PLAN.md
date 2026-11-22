@@ -165,6 +165,39 @@ holds only its request factory until returned objects (R3) need the
 served table. A build that calls either built-in is refused (`gap: #2288`)
 until the generated bodies land.
 
+**Next, in this order.** Reading: the codec comes before stubs and
+dispatchers, since each stub method and each dispatcher arm is an encode,
+one call and a decode, and a stub with no codec is dormant code. The
+price also forces it: stage 3 stands at +401 against +750, and the codec,
+stubs and dispatchers add about +700 before any deletion, so the host
+boundary move (about −900) lands with the codec or the stage passes its
++975 stop line.
+
+1. Codec. `wire_codec::[T]()` is an intrinsic whose body collection
+   generates per concrete `T`, as `dbg_printer` is (`hd_mono`
+   `dbg_target`, `hd_structure::dbg`): a scalar, `string`, `List`, `Map`
+   or `Option` selects a std function; a struct, enum, tuple or union
+   selects a private `by Structure` template in std, as `DbgStructural`
+   is, whose members select their own codec. The format is the host's
+   tree encoding (zigzag LEB128 integers, length-prefixed strings and
+   lists, a variant index then its payload), so the host boundary can
+   move onto it with one `memory.copy` into `hd.x`. A decoder returns a
+   `Result` and never traps on its input.
+2. Stubs. One std struct `Stub { transport, interface, object }`. The
+   solver supplies `Stub: T` for each remote trait `T`, as it supplies a
+   tuple's `Structure`; `supplied_body(method, Stub)` generates each
+   method as one call of a std generic `stub_call![A, V, E]` with the
+   method's number and its arguments as a tuple. `remote[T]`'s body boxes
+   a `Stub` for object 0 and converts it to `*mut dyn T`.
+3. Dispatchers. Per remote trait `U` a generated `serve[U]`: a
+   `SwitchInt` on the method number, each arm one call of a std generic
+   `serve_call![A, V, E]` over the method through `&mut dyn U`. Per root
+   `S`, `handle_call[S, C]` checks the build ID, picks among the remote
+   traits `S` implements by interface hash, converts `&mut S` and calls
+   that trait's `serve`. A returned object (R3) is served the same way
+   through its `*mut dyn U`, so the served table holds trait values and
+   needs no per-type code.
+
 **What.** R1 and R2 are checked at the trait and at each implementation.
 Each implementation method gets a public entry that wraps its error as
 `._0`. Post-mono, the compiler generates a stub per remote trait a target
