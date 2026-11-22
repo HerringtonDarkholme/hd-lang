@@ -108,6 +108,15 @@
       "reason": "Owner #1763: one combined text-plus-LF buffer per println, released after the synchronous write. This saves a host crossing; measured full println cost is 2.1 -> 1.5 us."
     },
     {
+      "program": "bench/runtime/progs/regex-scan.hd",
+      "retained": "28264905",
+      "released": "29797894",
+      "uniques": "41293895",
+      "total": "99356694",
+      "noOpsAndSkipped": "541630",
+      "reason": "New program regex-scan (#1805 draft 94, owner 2026-11-22): its first counts."
+    },
+    {
       "program": "bench/runtime/progs/resources.hd",
       "retained": "20000",
       "released": "20003",

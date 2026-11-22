@@ -1,0 +1,39 @@
+# Regex over a generated request log: addresses by a class pattern
+# (`find_all`), slow requests line by line (`is_match`), ids replaced
+# (`replace_all`), and one capture-group search per error line.
+use std.regex.Regex
+use std.text.StringBuilder
+
+fn compiled(pattern: string) -> Regex:
+    match Regex.new(pattern):
+        .Ok(re) => re
+        .Err(e) => panic("pattern: $e")
+
+pub fn main() -> void $ Console:
+    log := StringBuilder::new()
+    for row in 0..30000:
+        level := if row % 23 == 0: "ERROR" else if row % 7 == 0: "WARN" else: "INFO"
+        log.push(
+            "2026-11-22T${10 + row % 12}:${10 + row % 50}:${10 + row % 49} $level user${row % 977}@mail${row % 13}.example.com GET /api/v${row % 3}/items/${row * 31 % 100000} took ${row * 7 % 1500}ms\n",
+        )
+    text := log.build()
+    addresses := compiled("[a-z0-9.]+@[a-z0-9]+\\.example\\.com")
+    slow := compiled("took [0-9][0-9][0-9][0-9]ms")
+    ids := compiled("/items/[0-9]+")
+    who := compiled("ERROR user([0-9]+)@mail([0-9]+)")
+    let sum: usize = 0
+    for found in addresses.find_all(text):
+        sum += found.end - found.start
+    let slow_lines: usize = 0
+    let error_users: usize = 0
+    for line in text.lines():
+        if slow.is_match(line):
+            slow_lines += 1
+        match who.captures(line):
+            .Some(groups) =>
+                user := groups.get(1).expect("user").text.parse::[usize]().expect("number")
+                mail := groups.get(2).expect("mail").text.parse::[usize]().expect("number")
+                error_users += user * 13 + mail
+            .None => ()
+    masked := ids.replace_all(text, "/items/:id")
+    println("${sum} ${slow_lines} ${error_users} ${masked.len()}")
