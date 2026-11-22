@@ -22,6 +22,14 @@ pub trait Iterator[T < ?Copy] < ?Copy:
     fn filter[F < FnMut(&T) -> bool](self, keep: F) -> Filter[Self, T, F]:
         Filter { source: self, keep: keep }
 
+    ## Lazily yields each present result of `transform`, in source order.
+    ## See [std-iter.filter-map.value](../../spec/std/iter.md#r-std-iter.filter-map.value).
+    fn filter_map[U < ?Copy, F < ?Copy & FnMut(T) -> U?](
+        self,
+        transform: F,
+    ) -> FilterMap[Self, T, U, F]:
+        FilterMap { source: self, transform: transform }
+
     fn take(self, count: usize) -> Take[Self, T]:
         Take { source: self, left: count }
 
@@ -84,6 +92,37 @@ pub trait Iterator[T < ?Copy] < ?Copy:
                         return .Some(item)
                 .None => break
         .None
+
+    ## The final remaining item, or `.None` when there is none.
+    ## See [std-iter.last.value](../../spec/std/iter.md#r-std-iter.last.value).
+    fn last(self) -> T?:
+        let mut cursor = self
+        let found: T? = .None
+        while true:
+            match cursor.next():
+                .Some(item) => found = .Some(item)
+                .None => return found
+
+    ## The first matching item's remaining index; keeps this cursor after that item.
+    ## See [std-iter.position.value](../../spec/std/iter.md#r-std-iter.position.value).
+    fn position[F < ?Copy & FnMut(T) -> bool $ R, $ R](&mut self, mut test: F) -> usize? $ R:
+        let index: usize = 0
+        while true:
+            match self.next():
+                .Some(item) =>
+                    if test(item):
+                        return .Some(index)
+                    index += 1
+                .None => return .None
+
+    ## Calls `visit` once for each remaining item, in order.
+    ## See [std-iter.for-each.value](../../spec/std/iter.md#r-std-iter.for-each.value).
+    fn for_each[F < ?Copy & FnMut(T) -> void $ R, $ R](self, mut visit: F) -> void $ R:
+        let mut cursor = self
+        while true:
+            match cursor.next():
+                .Some(item) => visit(item)
+                .None => return
 
     # The number of remaining items; it drains `self`.
     ## The number of remaining items; it drains the iterator.
@@ -186,6 +225,10 @@ impl[T < Num] Product[T] for T:
                 .None => break
         total
 
+impl[T < ?Copy, I < ?Copy & Iterator[T]] Iterator[T] for &mut I:
+    fn next(&mut self) -> T?:
+        Iterator::[T]::next(*self)
+
 impl[T < ?Copy, I < ?Copy & Iterator[T]] Iterator[T] for *mut I:
     fn next(&mut self) -> T?:
         (*self).next()
@@ -216,6 +259,12 @@ impl[T < ?Copy] dyn Iterator[T]:
 
     pub fn filter[F < FnMut(&T) -> bool](*mut self, keep: F) -> Filter[DynIterator[T], T, F]:
         DynIterator { source: self }.filter::[F](keep)
+
+    pub fn filter_map[U < ?Copy, F < ?Copy & FnMut(T) -> U?](
+        *mut self,
+        transform: F,
+    ) -> FilterMap[DynIterator[T], T, U, F]:
+        DynIterator { source: self }.filter_map::[U, F](transform)
 
     pub fn take(*mut self, count: usize) -> Take[DynIterator[T], T]:
         DynIterator { source: self }.take(count)
@@ -252,6 +301,16 @@ impl[T < ?Copy] dyn Iterator[T]:
 
     pub fn find(*mut self, test: fn(&T) -> bool) -> T?:
         DynIterator { source: self }.find(test)
+
+    pub fn last(*mut self) -> T?:
+        DynIterator { source: self }.last()
+
+    pub fn position[F < ?Copy & FnMut(T) -> bool $ R, $ R](*mut self, test: F) -> usize? $ R:
+        let mut cursor = DynIterator { source: self }
+        cursor.position(test)
+
+    pub fn for_each[F < ?Copy & FnMut(T) -> void $ R, $ R](*mut self, visit: F) -> void $ R:
+        DynIterator { source: self }.for_each(visit)
 
     pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
@@ -294,6 +353,28 @@ impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < FnMut(T) -> U] Iterator[
         match self.source.next():
             .Some(item) => .Some((self.transform)(item))
             .None => .None
+
+## A lazy cursor yielding the present results of a value-consuming callback.
+pub struct FilterMap[
+    I < ?Copy & Iterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    F < ?Copy & FnMut(T) -> U? = fn(T) -> U?,
+]:
+    source: I
+    transform: F
+
+impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[
+    U,
+] for FilterMap[I, T, U, F]:
+    fn next(&mut self) -> U?:
+        while true:
+            item := match self.source.next():
+                .Some(value) => value
+                .None => return .None
+            match (self.transform)(item):
+                .Some(value) => return .Some(value)
+                .None => pass
 
 pub struct Filter[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(&T) -> bool = fn(&T) -> bool]:
     source: I

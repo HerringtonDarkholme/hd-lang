@@ -2689,7 +2689,7 @@ lang/traits/sealed-traits/num-sealed-user-number.hd	type	reject:sealed-trait-imp
 std/iter/iterator-adapters/iterator-adapters.hd	type	accept	std/iter.md#iterator-adapters
 std/iter/iterator-adapters/iterator-adapters-run.hd	runtime	accept	std/iter.md#r-std-iter.adapter.lazy
 std/iter/iterator-adapters/iterator-filter-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row
-std/iter/iterator-adapters/iterator-owned-drain.hd	type	accept	std/iter.md#r-std-iter.adapter.draining-value
+std/iter/iterator-adapters/iterator-owned-drain.hd	type	accept	std/iter.md#r-std-iter.adapter.owned-draining-value
 lang/expressions/expression-categories/compound-assignment-value-kind.hd	runtime	accept	lang/05-expressions.md#r-expr.assign.compound.meaning
 lang/expressions/expression-categories/compound-assign-value-no-operator.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.assign.compound.operator
 lang/expressions/expression-categories/compound-assign-value-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/05-expressions.md#r-expr.assign.compound.store-rules
@@ -7179,6 +7179,10 @@ std/result/unwrapping-without-a-message/result-unwrap-requires-debug.hd	type	rej
 std/num/floating-point-minimum-and-maximum/float-minmax.hd	runtime	accept	std/num.md#floating-point-minimum-and-maximum
 std/num/floating-point-minimum-and-maximum/float-minmax-keeps-width.hd	type	reject:implicit-narrowing	std/num.md#r-std-num.float-minmax.width
 std/collections/map-insertion-and-clearing/map-insert-clear.hd	runtime	accept	std/collections.md#map-insertion-and-clearing
+std/iter/value-consuming-methods/iterator-consumers.hd	runtime	accept	std/iter.md#value-consuming-methods
+std/iter/value-consuming-methods/iterator-noncopy.hd	runtime	accept	std/iter.md#value-consuming-methods
+std/iter/value-consuming-methods/iterator-callback-rows.hd	type	accept	std/iter.md#value-consuming-methods
+std/iter/value-consuming-methods/filter-map-callback-row.hd	type	reject:type-mismatch	std/iter.md#value-consuming-methods
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

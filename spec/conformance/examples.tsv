@@ -1327,3 +1327,4 @@ std/result.md	5	complete	std/result/lazy-error-fallbacks/result-lazy-methods.hd
 std/result.md	6	complete	std/result/unwrapping-without-a-message/result-unwrap-err.hd
 std/num.md	22	complete	std/num/floating-point-minimum-and-maximum/float-minmax.hd
 std/collections.md	20	complete	std/collections/map-insertion-and-clearing/map-insert-clear.hd
+std/iter.md	13	complete	std/iter/value-consuming-methods/iterator-consumers.hd
