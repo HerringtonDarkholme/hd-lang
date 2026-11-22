@@ -1326,3 +1326,4 @@ std/result.md	6	complete	std/result/unwrapping-without-a-message/result-unwrap-e
 std/num.md	22	complete	std/num/floating-point-minimum-and-maximum/float-minmax.hd
 std/collections.md	20	complete	std/collections/map-insertion-and-clearing/map-insert-clear.hd
 std/iter.md	13	complete	std/iter/value-consuming-methods/iterator-consumers.hd
+std/iter.md	14	complete	std/iter/text-collection-and-list-enumeration/collection-and-enumeration.hd

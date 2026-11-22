@@ -1,0 +1,56 @@
+# test: text collection encodes scalar values and List.enumerate wraps the lazy snapshot cursor
+use std.iter.from_fn
+
+fn rebuilt(text: string) -> string:
+    text.chars().collect()
+
+fn indexed(items: List[i32]) -> List[(usize, i32)]:
+    items.enumerate().collect()
+
+tests:
+    use std.testing.assert_equal
+
+    it("string collection preserves every UTF-8 width and embedded zero"):
+        assert_equal(rebuilt(""), "")
+        assert_equal(rebuilt("aéλ中🚀\0z"), "aéλ中🚀\0z")
+        let text: string = ['a', 'é', '中', '🚀'].iter().collect()
+        assert_equal(text, "aé中🚀")
+        let empty: List[char] = []
+        assert_equal(empty.iter().collect::[string](), "")
+
+    it("collect stops on the first None and retains borrowed cursor progress"):
+        let calls: usize = 0
+        let mut cursor = from_fn(fn() -> char?:
+            calls += 1
+            if calls == 2: .None else: .Some('λ')
+        )
+        text := Iterator::[char]::collect::[string](&mut cursor)
+        assert_equal(text, "λ")
+        assert_equal(calls, 2)
+        assert_equal(cursor.next(), .Some('λ'))
+
+    it("generic Result and optional collectors build strings"):
+        let good: List[Result[char, string]] = [.Ok('a'), .Ok('é')]
+        let joined: Result[string, string] = good.iter().collect()
+        assert_equal(joined, .Ok("aé"))
+        let some: List[char?] = [.Some('λ'), .Some('中')]
+        let optional: string? = some.iter().collect()
+        assert_equal(optional, .Some("λ中"))
+        let bad: List[Result[char, string]] = [.Ok('é'), .Err("bad")]
+        let rejected: Result[string, string] = bad.iter().collect()
+        assert_equal(rejected, .Err("bad"))
+        let absent: List[char?] = [.Some('λ'), .None]
+        let missing: string? = absent.iter().collect()
+        assert_equal(missing, .None)
+
+    it("list enumeration is lazy and retains its snapshot"):
+        let mut items = ["a", "b"]
+        let mut cursor = items.enumerate()
+        items.push("c")
+        items[0] = "changed"
+        assert_equal(cursor.next(), .Some((0, "a")))
+        let tail: List[(usize, string)] = cursor.collect()
+        assert_equal(tail, [(1, "b")])
+        assert_equal(indexed([+7, 8]), [(0, +7), (1, +8)])
+        let empty: List[i32] = []
+        assert_equal(indexed(empty), [])
