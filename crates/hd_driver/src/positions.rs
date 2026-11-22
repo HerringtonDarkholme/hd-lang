@@ -22,6 +22,7 @@ use hd_base::{DefId, FileId, Hash128, NodeIdx, PathId};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 use hd_resolve::{Generic, Names, Src, show_ty_full};
 use hd_syntax::{Parse, parse};
+use hd_types::AdtId;
 use hd_types::{InternPool, Ty, TyData};
 
 /// What resolves anchors for one built program: each of its modules, by
@@ -469,12 +470,12 @@ fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, (String, bool)>> {
 pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) -> String {
     let pool = names.pool.types();
     match pool.get(ty) {
-        TyData::Adt { def, .. } if def.get().is_some() => names.display_name(def).to_owned(),
+        TyData::Adt(AdtId::Declared(def), _) => names.display_name(def).to_owned(),
         TyData::Param(p) => generics.get(usize::from(p.index)).map_or_else(
             || show_ty_full(names, ty),
             |g| names.text(g.name).to_owned(),
         ),
-        TyData::Tuple { elems, rest: None } => {
+        TyData::Adt(AdtId::Product { rest: false }, elems) => {
             let items = pool.list_items(elems);
             if items.is_empty() {
                 return "void".to_owned();

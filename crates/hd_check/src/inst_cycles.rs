@@ -363,14 +363,10 @@ fn params_in(pool: Types<'_>, t: Ty, memo: &mut ParamsMemo) -> Vec<ParamRef> {
         hd_types::work::type_node();
         match pool.get(t) {
             TyData::Param(p) => out.push(p),
-            TyData::Adt { args, .. } => stack.extend_from_slice(pool.list_items(args)),
+            TyData::Adt(_, args) => stack.extend_from_slice(pool.list_items(args)),
             TyData::Opaque { args, bound, .. } => {
                 stack.extend_from_slice(pool.list_items(args));
                 stack.push(bound);
-            }
-            TyData::Tuple { elems, rest } => {
-                stack.extend_from_slice(pool.list_items(elems));
-                stack.extend(rest);
             }
 
             TyData::Ref { inner, .. } => stack.push(inner),

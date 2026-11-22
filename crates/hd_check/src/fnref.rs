@@ -19,6 +19,7 @@ use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, Providers, Ref, Tag, TirSink, local_flags,
 };
+use hd_types::AdtId;
 use hd_types::solver::TraitRef;
 use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind, with_assoc_args};
 
@@ -301,8 +302,8 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(self.pool(), self.b.local_ty(l));
         let known = self.cx.names.known;
         let changes = match self.pool().get(self.resolved(t)) {
-            TyData::Adt { def, .. } if def == known.list => name == "push",
-            TyData::Adt { def, .. } if def == known.map => name == "remove",
+            TyData::Adt(AdtId::Declared(def), _) if def == known.list => name == "push",
+            TyData::Adt(AdtId::Declared(def), _) if def == known.map => name == "remove",
             _ => false,
         };
         if !changes || !self.mut_locals.contains(&l) || self.local_generics.contains_key(&l) {
@@ -685,9 +686,9 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         let rest = m.sig.variadic
             && params.len() + skip == m.sig.params.len()
-            && params
-                .last()
-                .is_some_and(|t| matches!(pool.get(*t), TyData::Adt { def, .. } if def == list));
+            && params.last().is_some_and(
+                |t| matches!(pool.get(*t), TyData::Adt(AdtId::Declared(def), _) if def == list),
+            );
         let params = pool.list(&params);
         let row = inst_row(pool, m, row);
         let suspends = m.sig.suspends;
@@ -1125,7 +1126,7 @@ impl Ck<'_, '_> {
             captured = Some((rl, lt, by_ref));
         } else {
             ptys.push(first_ty);
-            if let TyData::Adt { args, .. } = pool.get(self_ty) {
+            if let TyData::Adt(_, args) = pool.get(self_ty) {
                 for a in pool.list_items(args) {
                     self.ref_params.push((*a, None, syn));
                 }

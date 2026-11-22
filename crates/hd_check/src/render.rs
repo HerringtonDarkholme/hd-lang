@@ -161,9 +161,7 @@ fn place(names: &Names<'_>, b: &Body, word: u32, fields: &FieldNames<'_>) -> Str
             Proj::Elem(r) => {
                 let _ = write!(out, " [{}]", value(names, b, r.0));
                 at = at.and_then(|t| match names.pool.get(t) {
-                    hd_types::TyData::Adt { args, .. } => {
-                        names.pool.list_items(args).first().copied()
-                    }
+                    hd_types::TyData::Adt(_, args) => names.pool.list_items(args).first().copied(),
                     _ => None,
                 });
             }

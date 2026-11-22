@@ -9,6 +9,7 @@ use hd_diag::{Code, DiagMark};
 use hd_resolve::FnSig;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, TirCheckpoint, TirSink};
+use hd_types::AdtId;
 use hd_types::solver::{
     Answer, Candidate, Goal, ImplOrigin, ImplTable, Impls, Instantiations, TraitRef, plan_goals,
     positional_goals,
@@ -630,7 +631,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         match pool.get(self.resolved(self.infer.resolve(pool, t))) {
             TyData::Prim(p) => Some(RigidHead::Prim(p)),
-            TyData::Adt { def, .. } if def != self.cx.names.known.option => {
+            TyData::Adt(AdtId::Declared(def), _) if def != self.cx.names.known.option => {
                 Some(RigidHead::Adt(def))
             }
             _ => None,
@@ -1174,8 +1175,7 @@ impl Ck<'_, '_> {
             TyData::Poison | TyData::Never => return Ok(None),
             // The solver answers the rest below.
             TyData::Prim(_)
-            | TyData::Adt { .. }
-            | TyData::Tuple { .. }
+            | TyData::Adt(..)
             | TyData::Ref { .. }
             | TyData::Fn { .. }
             | TyData::Assoc { .. }

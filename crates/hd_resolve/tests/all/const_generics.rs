@@ -94,7 +94,7 @@ fn const_declarations_and_arguments_resolve_with_kind_errors() {
     let shown = hd_resolve::ShowAlias::enter(four.def);
     assert_eq!(show_ty(&names, body), "Buffer[T, 4]");
     drop(shown);
-    let TyData::Adt { args, .. } = pool.get(body) else {
+    let TyData::Adt(_, args) = pool.get(body) else {
         panic!("not a struct type");
     };
     assert_eq!(
@@ -301,7 +301,7 @@ fn const_parameters_and_parameter_arguments_survive_an_interface() {
         panic!("`keep` is not a function");
     };
     assert_eq!(kinds(&sig.generics), [None, Some(Prim::Usize)]);
-    let TyData::Adt { args, .. } = pool.get(sig.params[0].1) else {
+    let TyData::Adt(_, args) = pool.get(sig.params[0].1) else {
         panic!("not a struct type");
     };
     assert_eq!(

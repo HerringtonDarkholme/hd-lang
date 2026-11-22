@@ -7,6 +7,7 @@
 use hd_diag::Code;
 use hd_syntax::NodeRef;
 use hd_tir::ir::{Ref, Step};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::Ck;
@@ -34,7 +35,7 @@ impl Ck<'_, '_> {
     pub(crate) fn is_struct_ty(&self, t: Ty) -> bool {
         let pool = self.pool();
         match pool.get(self.resolved(t)) {
-            TyData::Adt { def, .. } => self.is_struct_def(def),
+            TyData::Adt(AdtId::Declared(def), _) => self.is_struct_def(def),
             _ => false,
         }
     }
@@ -45,7 +46,7 @@ impl Ck<'_, '_> {
     pub(crate) fn is_value_record_ty(&self, t: Ty) -> bool {
         let pool = self.pool();
         let t = self.resolved(self.infer.resolve(pool, t));
-        self.is_struct_ty(t) || matches!(pool.get(t), TyData::Tuple { .. })
+        self.is_struct_ty(t) || matches!(pool.get(t), TyData::Adt(AdtId::Product { .. }, _))
     }
 
     /// What the projection read `r` reads, and from which value: a field
@@ -119,9 +120,10 @@ impl Ck<'_, '_> {
                         stack.extend(a.iter().zip(b).map(|(&x, &y)| (x, y, weaken, d)));
                     };
                 match (pool.get(g), pool.get(w)) {
-                    (TyData::Adt { def, args: ga }, TyData::Adt { def: d2, args: wa })
-                        if def == d2 =>
-                    {
+                    (
+                        TyData::Adt(AdtId::Declared(def), ga),
+                        TyData::Adt(AdtId::Declared(d2), wa),
+                    ) if def == d2 => {
                         let vs = self.declared_variances(def);
                         let (ga, wa) = (pool.list_items(ga), pool.list_items(wa));
                         stack.extend(ga.iter().zip(wa).enumerate().map(|(j, (&a, &b))| {
@@ -151,8 +153,13 @@ impl Ck<'_, '_> {
                         }
                         stack.push((a, b, false, d));
                     }
-                    (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
-                        pairs(stack, a, b, weaken);
+                    (
+                        TyData::Adt(AdtId::Product { .. }, _),
+                        TyData::Adt(AdtId::Product { .. }, _),
+                    ) if let (Some((a, _)), Some((b, _))) =
+                        (pool.product_parts(g), pool.product_parts(w)) =>
+                    {
+                        stack.extend(a.iter().zip(b).map(|(&x, &y)| (x, y, weaken, d)));
                     }
                     (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
                         pairs(stack, a, b, false);
@@ -226,8 +233,7 @@ impl Ck<'_, '_> {
             // Not a primitive: `let mut` is the binding's own mode.
             TyData::Never
             | TyData::Poison
-            | TyData::Adt { .. }
-            | TyData::Tuple { .. }
+            | TyData::Adt(..)
             | TyData::Fn { .. }
             | TyData::TraitValue { .. }
             | TyData::Opaque { .. }

@@ -235,8 +235,8 @@ impl Ck<'_, '_> {
         let mut out = Vec::new();
         if takes(t) {
             out.push(Vec::new());
-        } else if let TyData::Tuple { elems, .. } = pool.get(t) {
-            for (j, &e) in pool.list_items(elems).iter().enumerate() {
+        } else if let Some((elems, _)) = pool.product_parts(t) {
+            for (j, &e) in elems.iter().enumerate() {
                 let at = Part::Proj(Proj::Field(w(j)));
                 if takes(e) {
                     out.push(vec![at]);

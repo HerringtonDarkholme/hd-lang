@@ -6,6 +6,7 @@
 
 use std::sync::{Arc, OnceLock};
 
+use crate::AdtId;
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
@@ -53,7 +54,9 @@ impl OwnerMap {
     #[must_use]
     pub fn owner_of_ty(&self, paths: &PathTable, pool: Types<'_>, t: Ty) -> Option<FolderId> {
         match pool.get(t) {
-            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => self.owner(paths, def),
+            TyData::Adt(AdtId::Declared(def), _) | TyData::TraitValue { def, .. } => {
+                self.owner(paths, def)
+            }
             _ => None,
         }
     }

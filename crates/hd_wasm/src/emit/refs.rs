@@ -15,6 +15,7 @@
 use crate::op::Op as I;
 use hd_base::{DefId, StageResult};
 use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Ref, Tag};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use super::Em;
@@ -186,7 +187,7 @@ impl Em<'_, '_, '_> {
     /// part of `t`'s values and memory. A newtype's one field is the
     /// value itself.
     pub(super) fn path_step(&self, t: Ty, f: u32) -> StageResult<(Ty, Part)> {
-        if let TyData::Adt { def, args } = self.pool().get(t)
+        if let TyData::Adt(AdtId::Declared(def), args) = self.pool().get(t)
             && let Some(base) = self.env().newtype_base(def)
         {
             let ft = hd_mono::subst(self.pool(), self.env(), def, args, base);

@@ -1528,10 +1528,7 @@ mod tests {
     #[test]
     fn literal_aggregates_keep_their_ir_and_are_not_scalar_facts() -> Result<(), String> {
         let pool = hd_types::InternPool::default();
-        let ty = pool.intern_ty(&hd_types::TyData::Tuple {
-            elems: pool.list(&[Ty::I32, Ty::STRING]),
-            rest: None,
-        });
+        let ty = pool.product(pool.list(&[Ty::I32, Ty::STRING]), None);
         for effect in [false, true] {
             for unknown in [false, true] {
                 let n = NodeIdx::NONE;

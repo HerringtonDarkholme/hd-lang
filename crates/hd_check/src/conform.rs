@@ -70,7 +70,7 @@ fn same_but_projections(
                 stack.push((inner, gi));
                 mutable == gm && counted == gc
             }
-            (TyData::Adt { def, args }, TyData::Adt { def: gd, args: ga }) => {
+            (TyData::Adt(def, args), TyData::Adt(gd, ga)) => {
                 def == gd && lists(args, ga, &mut stack)
             }
             (
@@ -79,20 +79,6 @@ fn same_but_projections(
                     def: gd, args: ga, ..
                 },
             ) => def == gd && lists(args, ga, &mut stack),
-            (
-                TyData::Tuple { elems, rest },
-                TyData::Tuple {
-                    elems: ge,
-                    rest: gr,
-                },
-            ) => {
-                match (rest, gr) {
-                    (Some(r), Some(q)) => stack.push((r, q)),
-                    (None, None) => {}
-                    _ => return false,
-                }
-                lists(elems, ge, &mut stack)
-            }
             (
                 TyData::Fn { params, result, .. },
                 TyData::Fn {
@@ -541,12 +527,7 @@ mod comparison_tests {
             self_ty: Ty::I32,
             args: TyList::EMPTY,
         });
-        let pair = |values: &[Ty]| {
-            pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(values),
-                rest: None,
-            })
-        };
+        let pair = |values: &[Ty]| pool.product(pool.list(values), None);
         let bound = |ty| (ty == projection).then_some(Ty::I32);
         let mut work = Vec::new();
         for width in [100, 1_000] {

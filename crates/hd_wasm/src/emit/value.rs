@@ -6,6 +6,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 use std::rc::Rc;
 
@@ -49,7 +50,7 @@ impl Em<'_, '_, '_> {
 
     /// Whether `t` is a nominal newtype, which erases to its base.
     pub(super) fn newtype(&self, t: Ty) -> bool {
-        matches!(self.pool().get(t), TyData::Adt { def, .. }
+        matches!(self.pool().get(t), TyData::Adt(AdtId::Declared(def), _)
             if self.env().newtype_base(def).is_some())
     }
 

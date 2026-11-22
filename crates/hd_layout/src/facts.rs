@@ -6,6 +6,7 @@
 use hd_base::StageResult;
 use hd_mono::ProgramEnv;
 use hd_tir::ir::Proj;
+use hd_types::AdtId;
 use hd_types::{InternPool, Ty, TyData};
 
 use crate::{Kind, kind};
@@ -121,7 +122,7 @@ pub fn in_place_parts(
 ) -> bool {
     out.clear();
     let t = ty;
-    if let TyData::Adt { def, args } = pool.get(t)
+    if let TyData::Adt(AdtId::Declared(def), args) = pool.get(t)
         && let Some(base) = env.newtype_base(def)
     {
         if variant.is_some() {
@@ -134,7 +135,7 @@ pub fn in_place_parts(
         return false;
     }
     let s = crate::strip_newtype(pool, env, t);
-    if let TyData::Tuple { .. } = pool.get(s) {
+    if matches!(pool.get(s), TyData::Adt(AdtId::Product { .. }, _)) {
         out.extend(crate::tuple_members(pool, s));
         return variant.is_none();
     }
@@ -146,7 +147,7 @@ pub fn in_place_parts(
         return true;
     }
     match pool.get(s) {
-        TyData::Adt { def, args }
+        TyData::Adt(AdtId::Declared(def), args)
             if variant.is_none()
                 && env.std_kind(def) == hd_mono::layout::StdKind::Other
                 && env.is_struct(def) =>
@@ -176,7 +177,7 @@ pub fn in_place_empty_variants(
     mut counted: impl FnMut(Ty) -> bool,
 ) {
     out.clear();
-    if matches!(pool.get(ty), TyData::Adt { def, .. } if env.newtype_base(def).is_some())
+    if matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if env.newtype_base(def).is_some())
         || !matches!(kind(pool, env, ty), Kind::Value)
     {
         return;

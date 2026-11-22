@@ -5,6 +5,7 @@
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
 use hd_types::ANON_SUM;
+use hd_types::AdtId;
 
 use hd_base::{DefId, Hash128, StableHasher, StageResult};
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
@@ -191,7 +192,7 @@ impl<'a> Universe<'a> {
                 for imp in &list {
                     if let ItemData::Impl { self_ty, kind, .. } = &imp.data
                         && *kind != ImplKind::TupleTemplate
-                        && matches!(pool.get(*self_ty), TyData::Tuple { .. })
+                        && matches!(pool.get(*self_ty), TyData::Adt(AdtId::Product { .. }, _))
                     {
                         out.push((template.def, imp.def, self.show(*self_ty)));
                         reported.insert(imp.def);
@@ -202,7 +203,7 @@ impl<'a> Universe<'a> {
                 for imp in &list {
                     if let ItemData::Impl { self_ty, kind, .. } = &imp.data
                         && *kind != ImplKind::UnionTemplate
-                        && matches!(pool.get(*self_ty), TyData::Adt { def: ANON_SUM, .. })
+                        && matches!(pool.get(*self_ty), TyData::Adt(ANON_SUM, _))
                     {
                         out.push((template.def, imp.def, self.show(*self_ty)));
                         reported.insert(imp.def);
@@ -310,7 +311,7 @@ impl<'a> Universe<'a> {
         // `unify` matches outer constructors, so a key is the constructor
         // alone; a primitive is its own constructor.
         match pool.get(t) {
-            TyData::Adt { def, .. } => Some(HeadKey::Def(def)),
+            TyData::Adt(AdtId::Declared(def), _) => Some(HeadKey::Def(def)),
             TyData::TraitValue { def, .. } => Some(HeadKey::Trait(def)),
             TyData::Ref {
                 mutable, counted, ..
@@ -319,11 +320,11 @@ impl<'a> Universe<'a> {
                 u32::from(mutable) | u32::from(counted) << 1,
             )),
             TyData::Fn { .. } => Some(HeadKey::Ctor(2, 0)),
-            TyData::Tuple { elems, rest: None } => Some(HeadKey::Ctor(
+            TyData::Adt(AdtId::Product { rest: false }, elems) => Some(HeadKey::Ctor(
                 3,
                 u32::try_from(pool.list_items(elems).len()).unwrap_or(u32::MAX),
             )),
-            TyData::Param(_) | TyData::Tuple { .. } => None,
+            TyData::Param(_) | TyData::Adt(AdtId::Product { .. }, _) => None,
             _ if !pool.has_param(t) => Some(HeadKey::Ground(t)),
             _ => None,
         }
@@ -441,9 +442,7 @@ impl<'a> Universe<'a> {
                     sub.insert((p.owner, p.index), a);
                     true
                 }
-                (TyData::Adt { def: x, args: xa }, TyData::Adt { def: y, args: ya }) => {
-                    x == y && list(stack, xa, ya)
-                }
+                (TyData::Adt(x, xa), TyData::Adt(y, ya)) => x == y && list(stack, xa, ya),
                 // A row-valued data argument may be one bare parameter in an
                 // implementation head (`req.row.param.data-substitute`). Bind it
                 // to the other head's whole row so a generic and a concrete row
@@ -491,14 +490,7 @@ impl<'a> Universe<'a> {
                     stack.push((x, y));
                     mx == my && cx == cy
                 }
-                (TyData::Tuple { elems: x, rest: rx }, TyData::Tuple { elems: y, rest: ry }) => {
-                    match (rx, ry) {
-                        (Some(x), Some(y)) => stack.push((x, y)),
-                        (None, None) => {}
-                        _ => return false,
-                    }
-                    list(stack, x, y)
-                }
+
                 (
                     TyData::TraitValue {
                         def: x, args: xa, ..
@@ -537,7 +529,7 @@ impl<'a> Universe<'a> {
         ob: DefId,
         sub: &mut HashMap<(DefId, u16), Ty>,
     ) -> bool {
-        let tuple = |elems| self.pool().intern_ty(&TyData::Tuple { elems, rest: None });
+        let tuple = |elems| self.pool().product(elems, None);
         self.unify(tuple(x), tuple(y), oa, ob, sub)
     }
 }
@@ -595,10 +587,7 @@ mod tests {
                     let mut types = [param(0), Ty::I32, Ty::BOOL];
                     for _ in 0..depth {
                         for t in &mut types {
-                            *t = pool.intern_ty(&TyData::Tuple {
-                                elems: pool.list(&[*t, *t]),
-                                rest: None,
-                            });
+                            *t = pool.product(pool.list(&[*t, *t]), None);
                         }
                     }
                     let mut sub = HashMap::default();
@@ -641,13 +630,13 @@ mod tests {
                     let mut types = [param(0), Ty::I32];
                     for _ in 0..depth {
                         for t in &mut types {
-                            *t = pool.intern_ty(&TyData::Tuple {
-                                elems: TyList::EMPTY,
-                                rest: Some(pool.intern_ty(&TyData::Adt {
-                                    def: known.list,
-                                    args: pool.list(&[*t]),
-                                })),
-                            });
+                            *t = pool.product(
+                                TyList::EMPTY,
+                                Some(pool.intern_ty(&TyData::Adt(
+                                    AdtId::Declared(known.list),
+                                    pool.list(&[*t]),
+                                ))),
+                            );
                         }
                     }
                     let mut sub = HashMap::default();
@@ -663,20 +652,13 @@ mod tests {
                     let others: Vec<_> = (0..width)
                         .map(|index| pool.intern_ty(&TyData::Param(ParamRef { owner: ob, index })))
                         .collect();
-                    let pair = |t| {
-                        pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&[t, t]),
-                            rest: None,
-                        })
-                    };
-                    let a = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&vec![pair(param(0)); usize::from(width)]),
-                        rest: None,
-                    });
-                    let b = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&others.iter().map(|&t| pair(t)).collect::<Vec<_>>()),
-                        rest: None,
-                    });
+                    let pair = |t| pool.product(pool.list(&[t, t]), None);
+                    let a =
+                        pool.product(pool.list(&vec![pair(param(0)); usize::from(width)]), None);
+                    let b = pool.product(
+                        pool.list(&others.iter().map(|&t| pair(t)).collect::<Vec<_>>()),
+                        None,
+                    );
                     let mut sub = HashMap::default();
                     let (matches, work) = crate::work::count_declaration_type_visits(|| {
                         universe.unify(a, b, oa, ob, &mut sub)

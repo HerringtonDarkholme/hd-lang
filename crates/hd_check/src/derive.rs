@@ -25,6 +25,7 @@
 //! template's own mistakes.
 
 use hd_base::SliceSort as _;
+use hd_types::AdtId;
 use std::cell::{Cell, RefCell};
 
 use hd_base::{DefId, NotImplemented, Stage, StageResult, Symbol};
@@ -473,7 +474,7 @@ pub fn check_opt_in<'i>(
                 && member.facts.iter().any(|&fact| {
                     matches!(
                         names.pool.get(fact),
-                        TyData::Adt { def, .. } if def == skip_none
+                        TyData::Adt(AdtId::Declared(def), _) if def == skip_none
                     )
                 });
             if carries_skip_none {

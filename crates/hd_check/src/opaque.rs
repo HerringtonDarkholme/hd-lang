@@ -107,7 +107,7 @@ impl Ck<'_, '_> {
             }
             let start = stack.len();
             match pool.get(ty) {
-                TyData::Opaque { .. } | TyData::Adt { def: ANON_SUM, .. } => return true,
+                TyData::Opaque { .. } | TyData::Adt(ANON_SUM, _) => return true,
                 _ => pool.children(ty, stack),
             }
             stack[start..].reverse();
@@ -161,15 +161,10 @@ impl Ck<'_, '_> {
                 (TyData::Ref { inner: g, .. }, TyData::Ref { inner: w, .. }) => {
                     stack.push((g, w));
                 }
-                (TyData::Adt { def: a, args: g }, TyData::Adt { def: b, args: w }) if a == b => {
+                (TyData::Adt(a, g), TyData::Adt(b, w)) if a == b => {
                     list(stack, g, w);
                 }
-                (TyData::Tuple { elems: g, rest: a }, TyData::Tuple { elems: w, rest: b }) => {
-                    if let (Some(g), Some(w)) = (a, b) {
-                        stack.push((g, w));
-                    }
-                    list(stack, g, w);
-                }
+
                 (
                     TyData::TraitValue {
                         def: a,
@@ -315,10 +310,7 @@ mod tests {
                         let mut chain = [strict, other];
                         for _ in 0..depth {
                             for t in &mut chain {
-                                *t = pool.intern_ty(&TyData::Tuple {
-                                    elems: pool.list(&[*t, *t]),
-                                    rest: None,
-                                });
+                                *t = pool.product(pool.list(&[*t, *t]), None);
                             }
                         }
                         for (t, expected) in [(chain[0], true), (chain[1], false)] {
@@ -343,14 +335,11 @@ mod tests {
                         params: vec![],
                     });
                     for t in [
-                        pool.intern_ty(&TyData::Adt {
-                            def: owner,
-                            args: pool.list(&[strict]),
-                        }),
-                        pool.intern_ty(&TyData::Tuple {
-                            elems: hd_types::TyList::EMPTY,
-                            rest: Some(strict),
-                        }),
+                        pool.intern_ty(&TyData::Adt(
+                            hd_types::AdtId::Declared(owner),
+                            pool.list(&[strict]),
+                        )),
+                        pool.product(hd_types::TyList::EMPTY, Some(strict)),
                         pool.intern_ty(&TyData::Ref {
                             inner: strict,
                             mutable: false,
@@ -397,10 +386,7 @@ mod tests {
                             "the original opaque/union boundaries stay leaves"
                         );
                     }
-                    let root = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&[other]),
-                        rest: None,
-                    });
+                    let root = pool.product(pool.list(&[other]), None);
                     assert!(!ck.strict_opaque_return(root));
                     let mark = ck.infer.snapshot();
                     ck.infer.unify(pool, strict, other).unwrap();
@@ -436,18 +422,12 @@ mod tests {
                 let others: Vec<_> = (0..width)
                     .map(|_| ck.infer.fresh(pool, VarKind::General))
                     .collect();
-                let root = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&others),
-                    rest: None,
-                });
+                let root = pool.product(pool.list(&others), None);
                 let (answer, work) =
                     hd_types::work::count_type_nodes(|| ck.strict_opaque_return(root));
                 assert!(!answer);
                 assert_eq!(work, 2 * width + 1);
-                let first = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[ck.strict_rets[0]]),
-                    rest: None,
-                });
+                let first = pool.product(pool.list(&[ck.strict_rets[0]]), None);
                 let (answer, work) =
                     hd_types::work::count_type_nodes(|| ck.strict_opaque_return(first));
                 assert!(answer);

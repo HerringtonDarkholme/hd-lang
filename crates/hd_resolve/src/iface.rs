@@ -5,7 +5,7 @@
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
-use hd_types::ANON_SUM;
+use hd_types::{ANON_SUM, AdtId};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -2704,7 +2704,7 @@ pub fn private_impl_items(pool: &InternPool, all: &[Item]) -> hd_base::HashSet<D
         } = &i.data
         {
             let head = match pool.get(*self_ty) {
-                TyData::Adt { def, .. } => Some(def),
+                TyData::Adt(AdtId::Declared(def), _) => Some(def),
                 _ => None,
             };
             if private.contains(trait_) || head.is_some_and(|d| private.contains(&d)) {
@@ -2813,7 +2813,7 @@ pub fn header_parts(pool: &InternPool, it: &Item, defs: &mut Vec<DefId>, tys: &m
 /// [`mentioned_defs`]'s walk.
 pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt { def, args } => {
+        TyData::Adt(def, args) => {
             defs.extend(def.get());
             tys.extend(pool.list_items(args));
         }
@@ -2830,10 +2830,7 @@ pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<T
             tys.extend(pool.list_items(args));
             tys.push(bound);
         }
-        TyData::Tuple { elems, rest } => {
-            tys.extend(pool.list_items(elems));
-            tys.extend(rest);
-        }
+
         TyData::Ref { inner: i, .. } => tys.push(i),
         TyData::Fn {
             params,
@@ -3295,7 +3292,8 @@ impl<'s, 'n> Shower<'s, 'n> {
     /// Whether `t` is written as one name, with no part below it.
     fn is_atom(&self, t: Ty) -> bool {
         match self.pool.get(t) {
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => args == TyList::EMPTY,
+            TyData::Adt(AdtId::Declared(_) | AdtId::Sum, args)
+            | TyData::TraitValue { args, .. } => args == TyList::EMPTY,
             TyData::Prim(_)
             | TyData::Never
             | TyData::Poison
@@ -3326,20 +3324,20 @@ impl<'s, 'n> Shower<'s, 'n> {
             // `Option[T]` is spelled `T?` (`types.option.sugar`).
             // `?` follows a reference access type, so a function or union
             // inside is grouped (`grammar.type.optional.function`).
-            TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, self.names.known.option) => {
-                let group = matches!(pool.get(inner), TyData::Adt { def: ANON_SUM, .. })
-                    || self.is_fn_sugar(inner);
+            TyData::Adt(..) if let Some(inner) = pool.sole_arg(t, self.names.known.option) => {
+                let group =
+                    matches!(pool.get(inner), TyData::Adt(ANON_SUM, _)) || self.is_fn_sugar(inner);
                 self.grouped(group, inner, d, marks);
                 self.put("?");
             }
-            TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
+            TyData::Adt(AdtId::Declared(def), args) | TyData::TraitValue { def, args, .. }
                 if args == TyList::EMPTY =>
             {
                 self.seg(def);
             }
             // Lifetime arguments are not shown (`ref.lifetime.struct`,
             // `ref.lifetime.enum`, `ref.lifetime.trait`).
-            TyData::Adt { def, args } if def == ANON_SUM => {
+            TyData::Adt(ANON_SUM, args) => {
                 for (i, &member) in pool.list_items(args).iter().enumerate() {
                     if self.cut {
                         break;
@@ -3349,12 +3347,12 @@ impl<'s, 'n> Shower<'s, 'n> {
                     }
                     // A function member would take the args after it
                     // into its result type.
-                    let group = matches!(pool.get(member), TyData::Adt { def: ANON_SUM, .. })
+                    let group = matches!(pool.get(member), TyData::Adt(ANON_SUM, _))
                         || self.is_fn_sugar(member);
                     self.grouped(group, member, d, marks);
                 }
             }
-            TyData::Adt { def, args } | TyData::TraitValue { def, args, .. } => {
+            TyData::Adt(AdtId::Declared(def), args) | TyData::TraitValue { def, args, .. } => {
                 let items = pool.list_items(args);
                 let shown: Vec<Ty> = if items.iter().any(|&x| is_lifetime_arg(pool, x)) {
                     items
@@ -3375,8 +3373,8 @@ impl<'s, 'n> Shower<'s, 'n> {
             // A one-element tuple keeps its trailing comma, a rest element
             // alone included (`types.tuple.one-element`, `grammar.type.rest`):
             // `(T)` is a grouped `T`.
-            TyData::Tuple { elems, rest } => {
-                let elems = pool.list_items(elems);
+            TyData::Adt(AdtId::Product { .. }, _) => {
+                let (elems, rest) = pool.product_parts(t).unwrap_or_default();
                 self.put("(");
                 self.list(elems, ", ", d, marks);
                 if let Some(r) = rest {
@@ -3391,6 +3389,7 @@ impl<'s, 'n> Shower<'s, 'n> {
                 }
                 self.close(")");
             }
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -3414,9 +3413,9 @@ impl<'s, 'n> Shower<'s, 'n> {
                 // function type is grouped, and so is a reference, except a
                 // counted one under a local one (`&*T`).
                 let group = match pool.get(inner) {
-                    TyData::Adt { def: ANON_SUM, .. } => true,
+                    TyData::Adt(ANON_SUM, _) => true,
                     TyData::Ref { counted: c, .. } => counted || !c,
-                    TyData::Adt { .. } => pool.sole_arg(inner, self.names.known.option).is_some(),
+                    TyData::Adt(..) => pool.sole_arg(inner, self.names.known.option).is_some(),
                     _ => self.is_fn_sugar(inner),
                 };
                 self.grouped(group, inner, d, marks);

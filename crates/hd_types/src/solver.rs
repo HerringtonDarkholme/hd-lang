@@ -8,6 +8,7 @@
 //! implemented (the checker normalizes).
 
 use crate::ANON_SUM;
+use crate::AdtId;
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::BTreeMap;
@@ -550,7 +551,7 @@ impl ImplUniverses {
 pub enum HeadKey {
     Ctor(DefId),
     Prim(Prim),
-    Tuple(u16),
+    Tuple(u32),
     TupleAny,
     UnionAny,
     Fn,
@@ -564,13 +565,17 @@ impl HeadKey {
     #[must_use]
     pub fn of(pool: Types<'_>, t: Ty) -> HeadKey {
         match pool.get(t) {
-            TyData::Adt { def: ANON_SUM, .. } => HeadKey::UnionAny,
-            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => HeadKey::Ctor(def),
-            TyData::Prim(p) => HeadKey::Prim(p),
-            TyData::Tuple { elems, rest: None } => {
-                HeadKey::Tuple(u16::try_from(pool.list_items(elems).len()).expect("arity"))
+            TyData::Adt(ANON_SUM, _) => HeadKey::UnionAny,
+            TyData::Adt(AdtId::Product { rest: true }, _) => HeadKey::TupleAny,
+            TyData::Adt(AdtId::Product { rest: false }, args) => {
+                // ruled out: the interned list stores its member count as u32.
+                HeadKey::Tuple(u32::try_from(pool.list_items(args).len()).expect("list length"))
             }
-            TyData::Tuple { rest: Some(_), .. } => HeadKey::TupleAny,
+            TyData::Adt(AdtId::Declared(def), _) | TyData::TraitValue { def, .. } => {
+                HeadKey::Ctor(def)
+            }
+            TyData::Prim(p) => HeadKey::Prim(p),
+
             TyData::Fn { suspends: true, .. } => HeadKey::SuspendFn,
             TyData::Fn { .. } => HeadKey::Fn,
             TyData::Param(_) | TyData::Opaque { .. } => HeadKey::Param,
@@ -586,7 +591,7 @@ impl HeadKey {
         let (tag, payload) = match self {
             HeadKey::Ctor(d) => (1, d.raw()),
             HeadKey::Prim(p) => (2, u32::from(p as u8)),
-            HeadKey::Tuple(n) => (3, u32::from(n)),
+            HeadKey::Tuple(n) => (3, n),
             HeadKey::TupleAny => (4, 0),
             HeadKey::UnionAny => (5, 0),
             HeadKey::Fn => (6, 0),
@@ -713,12 +718,13 @@ pub fn positional_goals(
     target: Ty,
     first: u16,
 ) -> Vec<(u16, TraitRef)> {
-    let (elems, rest) = match pool.get(target) {
-        TyData::Tuple { elems, rest } => (elems, rest),
-        TyData::Adt { def, args } if def == ANON_SUM => (args, None),
-        _ => return Vec::new(),
+    let parts = match pool.get(target) {
+        TyData::Adt(ANON_SUM, args) => Some((pool.list_items(args), None)),
+        _ => pool.product_parts(target),
     };
-    let elems = pool.list_items(elems);
+    let Some((elems, rest)) = parts else {
+        return Vec::new();
+    };
     // The item type of a rest element `List[I]`.
     let item = rest
         .and_then(|r| pool.adt(r))
@@ -2016,10 +2022,7 @@ fn fold_node<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
         (d, _) => d,
     };
     let d = match d {
-        TyData::Adt { def, args } => TyData::Adt {
-            def,
-            args: fold_list(pool, args, leaves)?,
-        },
+        TyData::Adt(def, args) => TyData::Adt(def, fold_list(pool, args, leaves)?),
         TyData::Opaque {
             owner,
             site,
@@ -2033,13 +2036,7 @@ fn fold_node<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
             args: fold_list(pool, args, leaves)?,
             bound: fold_vars(pool, bound, leaves)?,
         },
-        TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: fold_list(pool, elems, leaves)?,
-            rest: match rest {
-                Some(r) => Some(fold_vars(pool, r, leaves)?),
-                None => None,
-            },
-        },
+
         TyData::Ref {
             inner,
             mutable,
@@ -2421,7 +2418,7 @@ fn match_head(
     match (pool.get(pat), pool.get(t)) {
         (_, TyData::Poison) => M::Yes,
         (_, TyData::Infer(_)) => M::Maybe,
-        (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
+        (TyData::Adt(d1, a1), TyData::Adt(d2, a2)) if d1 == d2 => {
             match_parts([MatchNode::List(a1, a2)], true, stack)
         }
         // An impl for a reference covers only its own kind
@@ -2438,30 +2435,7 @@ fn match_head(
                 counted: c2,
             },
         ) if m1 == m2 && c1 == c2 => match_parts([MatchNode::Ty(p, x)], true, stack),
-        (
-            TyData::Tuple {
-                elems: e1,
-                rest: None,
-            },
-            TyData::Tuple {
-                elems: e2,
-                rest: None,
-            },
-        ) => match_parts([MatchNode::List(e1, e2)], true, stack),
-        (
-            TyData::Tuple {
-                elems: e1,
-                rest: Some(r1),
-            },
-            TyData::Tuple {
-                elems: e2,
-                rest: Some(r2),
-            },
-        ) => match_parts(
-            [MatchNode::List(e1, e2), MatchNode::Ty(r1, r2)],
-            true,
-            stack,
-        ),
+
         (
             TyData::Fn {
                 params: p1,
@@ -3203,8 +3177,10 @@ impl<'s, 'a> Search<'s, 'a> {
             ) {
                 let fits = matches!(
                     (t.origin[r], pool.get(self_ty)),
-                    (ImplOrigin::TupleTemplate, TyData::Tuple { .. })
-                        | (ImplOrigin::UnionTemplate, TyData::Adt { def: ANON_SUM, .. })
+                    (
+                        ImplOrigin::TupleTemplate,
+                        TyData::Adt(AdtId::Product { .. }, _)
+                    ) | (ImplOrigin::UnionTemplate, TyData::Adt(ANON_SUM, _))
                 );
                 if fits {
                     yes.push((at, vec![self_ty], t));
@@ -3613,12 +3589,8 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>, seen: &mut Hash
         let start = stack.len();
         match pool.get(t) {
             TyData::Infer(v) => out.push(v),
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
                 stack.extend_from_slice(pool.list_items(args));
-            }
-            TyData::Tuple { elems, rest } => {
-                stack.extend_from_slice(pool.list_items(elems));
-                stack.extend(rest);
             }
 
             TyData::Ref { inner, .. } => stack.push(inner),
@@ -3802,8 +3774,7 @@ impl Search<'_, '_> {
             // Impl heads match the rest below.
             TyData::Prim(_)
             | TyData::Never
-            | TyData::Adt { .. }
-            | TyData::Tuple { .. }
+            | TyData::Adt(..)
             | TyData::Fn { .. }
             | TyData::Const(_)
             | TyData::Assoc { .. }
@@ -3828,8 +3799,10 @@ impl Search<'_, '_> {
             ) {
                 let fits = matches!(
                     (t.origin[r], pool.get(self_ty)),
-                    (ImplOrigin::TupleTemplate, TyData::Tuple { .. })
-                        | (ImplOrigin::UnionTemplate, TyData::Adt { def: ANON_SUM, .. })
+                    (
+                        ImplOrigin::TupleTemplate,
+                        TyData::Adt(AdtId::Product { .. }, _)
+                    ) | (ImplOrigin::UnionTemplate, TyData::Adt(ANON_SUM, _))
                 );
                 if fits {
                     matched.push((at, t, None));
@@ -4367,6 +4340,19 @@ pub(crate) fn has_rows_at(rows: &HashMap<u64, Vec<DefId>>, codes: [Option<u64>; 
 
 #[cfg(test)]
 mod tests {
+    use crate::AdtId;
+    #[test]
+    fn tuple_head_keys_keep_arities_above_u16_distinct() {
+        let pool = InternPool::new();
+        for count in [65_535u32, 65_536, 65_537] {
+            let ty = pool.product(pool.list(&vec![Ty::I32; count as usize]), None);
+            assert_eq!(
+                super::HeadKey::of(pool.types(), ty),
+                super::HeadKey::Tuple(count)
+            );
+        }
+    }
+
     #[test]
     fn whole_key_indexes_are_shared_and_unrelated_state_does_not_rebuild_them() {
         let memo = super::GlobalMemo::default();
@@ -4493,15 +4479,9 @@ mod tests {
                     })
                     .collect();
                 for depth in [100, 1_000] {
-                    let mut t = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&[vars[1], vars[0], vars[1]]),
-                        rest: None,
-                    });
+                    let mut t = pool.product(pool.list(&[vars[1], vars[0], vars[1]]), None);
                     for _ in 0..depth {
-                        t = pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&[t, t]),
-                            rest: None,
-                        });
+                        t = pool.product(pool.list(&[t, t]), None);
                     }
                     let root = pool.intern_ty(&TyData::Fn {
                         params: pool.list(&[t]),
@@ -4695,12 +4675,7 @@ mod tests {
                 let owner = DefId::from_raw(1);
                 let param = p.intern_ty(&TyData::Param(crate::ParamRef { owner, index: 0 }));
                 let var = InferTable::default().fresh(p, VarKind::General);
-                let tuple = |x, n| {
-                    p.intern_ty(&TyData::Tuple {
-                        elems: p.list(&vec![x; n]),
-                        rest: None,
-                    })
-                };
+                let tuple = |x, n| p.product(p.list(&vec![x; n]), None);
                 for depth in [100, 1000] {
                     for (leaf, goal, answer) in [
                         (param, Ty::BOOL, M::Yes),
@@ -4767,15 +4742,18 @@ mod tests {
                             mutable: false,
                             counted: true,
                         },
-                        1 => TyData::Adt {
-                            def: DefId::from_raw(2),
-                            args: p.list(&[t]),
-                        },
+                        1 => TyData::Adt(AdtId::Declared(DefId::from_raw(2)), p.list(&[t])),
                         2 => TyData::sum(p.list(&[t, Ty::BOOL])),
-                        3 => TyData::Tuple {
-                            elems: p.list(&[Ty::BOOL]),
-                            rest: Some(t),
-                        },
+                        3 => TyData::Adt(
+                            AdtId::Product { rest: true },
+                            p.list(
+                                &p.list_items(p.list(&[Ty::BOOL]))
+                                    .iter()
+                                    .copied()
+                                    .chain([t])
+                                    .collect::<Vec<_>>(),
+                            ),
+                        ),
                         4 => TyData::Fn {
                             params: p.list(&[t]),
                             result: Ty::BOOL,
@@ -4857,12 +4835,7 @@ mod tests {
         let p = Types::with_local(&gp, &lp);
         let owner = DefId::from_raw(1);
         let param = |index| p.intern_ty(&TyData::Param(crate::ParamRef { owner, index }));
-        let tuple = |xs: &[Ty], rest| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(xs),
-                rest,
-            })
-        };
+        let tuple = |xs: &[Ty], rest| p.product(p.list(xs), rest);
         let row = |params| {
             p.row(&RowData {
                 keys: Vec::new(),
@@ -4952,12 +4925,7 @@ mod tests {
         let mut binds = Vec::new();
         bind_head(p, owner, &[union], &[goal], &mut binds);
         assert_eq!(binds, [Some(Ty::STRING), Some(Ty::I32)], "member positions");
-        let tuple = |rest| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[Ty::I32]),
-                rest: Some(rest),
-            })
-        };
+        let tuple = |rest| p.product(p.list(&[Ty::I32]), Some(rest));
         binds.clear();
         bind_head(p, owner, &[tuple(param(0))], &[tuple(Ty::BOOL)], &mut binds);
         assert_eq!(binds, [Some(Ty::BOOL)], "a rest with no fixed occurrence");
@@ -4965,14 +4933,8 @@ mod tests {
         // walk visits each distinct pair once.
         let (mut a, mut b) = (param(0), Ty::I32);
         for _ in 0..1000 {
-            a = p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[a, a]),
-                rest: None,
-            });
-            b = p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[b, b]),
-                rest: None,
-            });
+            a = p.product(p.list(&[a, a]), None);
+            b = p.product(p.list(&[b, b]), None);
         }
         binds.clear();
         let ((), work) =
@@ -5049,10 +5011,7 @@ mod tests {
         let v0 = t2.fresh(p2, VarKind::General);
         let g = |p: Types<'_>, v| TraitRef {
             trait_: eq,
-            self_ty: p.intern_ty(&TyData::Adt {
-                def: list,
-                args: p.list(&[v]),
-            }),
+            self_ty: p.intern_ty(&TyData::Adt(AdtId::Declared(list), p.list(&[v]))),
             args: TyList::EMPTY,
         };
         let (a, _) = canonicalize(p1, GoalKind::Implements, g(p1, v3), false, None);
@@ -5075,12 +5034,7 @@ mod tests {
         let mut table = InferTable::default();
         let (w, show) = (DefId::from_raw(1), DefId::from_raw(2));
         let vars: Vec<Ty> = (0..9).map(|_| table.fresh(p, VarKind::General)).collect();
-        let adt = |args: &[Ty]| {
-            p.intern_ty(&TyData::Adt {
-                def: w,
-                args: p.list(args),
-            })
-        };
+        let adt = |args: &[Ty]| p.intern_ty(&TyData::Adt(AdtId::Declared(w), p.list(args)));
         let goal = |self_ty: Ty, args: &[Ty]| TraitRef {
             trait_: show,
             self_ty,
@@ -5239,12 +5193,7 @@ mod tests {
         for (i, m) in (0u32..).zip(mods) {
             owners.insert(m, f(i));
         }
-        let adt = |def| {
-            g.intern_ty(&TyData::Adt {
-                def,
-                args: TyList::EMPTY,
-            })
-        };
+        let adt = |def| g.intern_ty(&TyData::Adt(AdtId::Declared(def), TyList::EMPTY));
         let (recv_ty, prod_ty) = (adt(receiver), adt(product));
         let mut t = ImplTable::default();
         let def = DefId::from_raw(paths.intern(mods[1], PathKind::Impl, "Pick").raw());
@@ -5392,10 +5341,7 @@ mod tests {
         for (i, m) in (0u32..).zip(mods) {
             owners.insert(m, f(i));
         }
-        let thing_ty = g.intern_ty(&TyData::Adt {
-            def: thing,
-            args: TyList::EMPTY,
-        });
+        let thing_ty = g.intern_ty(&TyData::Adt(AdtId::Declared(thing), TyList::EMPTY));
         let row = |m: PathId, self_ty: Ty| {
             let mut t = ImplTable::default();
             let def = DefId::from_raw(paths.intern(m, PathKind::Impl, "Tag").raw());
@@ -5555,12 +5501,7 @@ mod tests {
         );
         let mut owners = OwnerMap::default();
         owners.insert(base, FolderId::from_raw(0));
-        let adt = |def, args: &[Ty]| {
-            g.intern_ty(&TyData::Adt {
-                def,
-                args: g.list(args),
-            })
-        };
+        let adt = |def, args: &[Ty]| g.intern_ty(&TyData::Adt(AdtId::Declared(def), g.list(args)));
         let param = g.intern_ty(&TyData::Param(ParamRef {
             owner: imp,
             index: 0,
@@ -5666,10 +5607,7 @@ mod tests {
     }
 
     fn adt(p: Types<'_>, def: DefId, args: &[Ty]) -> Ty {
-        p.intern_ty(&TyData::Adt {
-            def,
-            args: p.list(args),
-        })
+        p.intern_ty(&TyData::Adt(AdtId::Declared(def), p.list(args)))
     }
 
     fn param(p: Types<'_>, owner: DefId, index: u16) -> Ty {
@@ -6952,10 +6890,7 @@ mod tests {
         let global = GlobalMemo::default();
         let id = DefId::from_raw;
         let ask = |tr, t| builtin_of(&ask_row(p, &decls, &env, &global, on(tr, t)));
-        let pair = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::I32, Ty::STRING]),
-            rest: None,
-        });
+        let pair = p.product(p.list(&[Ty::I32, Ty::STRING]), None);
         let point = adt(p, id(20), &[]);
         let color = adt(p, id(21), &[]);
         let mile = adt(p, id(22), &[]);
@@ -7066,10 +7001,7 @@ mod tests {
         let decls = sealed_decls(p);
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
-        let unit = p.intern_ty(&TyData::Tuple {
-            elems: TyList::EMPTY,
-            rest: None,
-        });
+        let unit = p.product(TyList::EMPTY, None);
         let a = ask_row(p, &decls, &env, &global, on(5, unit));
         assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Tuple));
         let a = ask_row(p, &decls, &env, &global, on(6, unit));
@@ -7109,12 +7041,7 @@ mod tests {
             inputs: crate::pool::Inputs::Fixed,
             deps: crate::pool::FnDeps::NONE,
         });
-        let tuple = |elems: &[Ty]| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(elems),
-                rest: None,
-            })
-        };
+        let tuple = |elems: &[Ty]| p.product(p.list(elems), None);
         let reference = |inner, counted| {
             p.intern_ty(&TyData::Ref {
                 inner,
@@ -7448,10 +7375,7 @@ mod tests {
     }
 
     fn tuple(p: Types<'_>, elems: &[Ty], rest: Option<Ty>) -> Ty {
-        p.intern_ty(&TyData::Tuple {
-            elems: p.list(elems),
-            rest,
-        })
+        p.product(p.list(elems), rest)
     }
 
     /// §3.9, `annot.template.tuple.implements` and `.unmet`: a tuple
