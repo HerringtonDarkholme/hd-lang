@@ -1,10 +1,10 @@
 rule	crate	ceiling
 ban-unsupported	hd_diag	2
 ban-unsupported	hd_driver	3
-sloppy-catchall-empty	hd_check	10
+sloppy-catchall-empty	hd_check	9
 sloppy-catchall-empty	hd_driver	1
 sloppy-catchall-empty	hd_layout	1
-sloppy-catchall-empty	hd_mono	7
+sloppy-catchall-empty	hd_mono	6
 sloppy-catchall-empty	hd_opt	3
 sloppy-catchall-empty	hd_resolve	8
 sloppy-catchall-empty	hd_syntax	5
