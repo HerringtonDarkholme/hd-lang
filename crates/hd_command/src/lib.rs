@@ -643,8 +643,9 @@ fn compile_standalone_in(
     store: &dyn hd_cache::CacheStore,
 ) -> Result<(Vec<u8>, Option<String>), ExitCode> {
     // A warm build with nothing changed writes the artifact a build of the
-    // same inputs stored (#1510): one lookup, no per-module entry. A build
-    // that writes its text (`HD_WAT`) builds, for the functions' names.
+    // same inputs stored (#1510): one lookup beside the stamp table, no
+    // per-module entry. A build that writes its text (`HD_WAT`) builds,
+    // for the functions' names.
     let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v1")
         .filter(|_| !wat::requested());
     if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
@@ -771,8 +772,9 @@ impl Compiled<'_> {
 
 /// [`compile`], keeping what `hd FILE` and `hd run` need to report a
 /// panic's source location. A warm run with nothing changed takes the
-/// module a run of the same inputs stored (#1510): one lookup, no
-/// per-module entry, and the positions only when a panic asks.
+/// module a run of the same inputs stored (#1510): one lookup beside the
+/// stamp table, no per-module entry, and the positions only when a panic
+/// asks.
 fn compile_traced<'a>(
     program: &'a disk::Program,
     settings: (BuildProfile, Pipeline),
@@ -1760,7 +1762,8 @@ mod stored_artifact_tests {
         let (wasm, _) =
             compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
                 .expect("built");
-        (wasm, store.gets.load(Ordering::Relaxed) == 1)
+        // A hit: the set's stamp table and the stored artifact.
+        (wasm, store.gets.load(Ordering::Relaxed) == 2)
     }
 
     /// Waits until every file written so far has a stamp.
@@ -1831,7 +1834,8 @@ mod stored_artifact_tests {
     }
 
     /// Cost Model (#1510): a warm `hd run` with nothing changed takes the
-    /// stored module with one lookup, at 2 modules as at 40, and builds
+    /// stored module with one lookup beside the set's stamp table, at 2
+    /// modules as at 40, and builds
     /// nothing until a panic asks for its frames, which then print the
     /// lines the cold run's do. A settled edit builds again.
     #[test]
@@ -1847,7 +1851,7 @@ mod stored_artifact_tests {
                 "{n}: cold, {gets} lookups"
             );
             let (warm, gets) = compiled(&program, &store);
-            assert_eq!(gets, 1, "{n}: warm");
+            assert_eq!(gets, 2, "{n}: warm");
             assert!(warm.frames.is_none() && warm.stored.is_some());
             assert_eq!(warm.wasm, cold.wasm);
             let trap = trap_of(&warm.wasm);
@@ -1876,7 +1880,7 @@ mod stored_artifact_tests {
                 "{n}: an edit builds again"
             );
             let (warm, gets) = compiled(&program, &store);
-            assert_eq!(gets, 1, "{n}: warm after the edit");
+            assert_eq!(gets, 2, "{n}: warm after the edit");
             assert_eq!(
                 warm.frame_lines(&trap_of(&warm.wasm), &store),
                 [
@@ -1889,7 +1893,8 @@ mod stored_artifact_tests {
     }
 
     /// Cost Model (#1510): a warm `hd FILE` with nothing changed takes the
-    /// stored module with one lookup, as a package's run does, though the
+    /// stored module with one lookup beside its stamp table, as a
+    /// package's run does, though the
     /// file reaches std modules; its panic names the cold run's lines,
     /// under the file's stem. A settled edit builds again.
     #[test]
@@ -1912,7 +1917,7 @@ mod stored_artifact_tests {
         let (cold, gets) = compiled(&program, &store);
         assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
         let (warm, gets) = compiled(&program, &store);
-        assert_eq!(gets, 1, "warm");
+        assert_eq!(gets, 2, "warm");
         assert!(warm.frames.is_none() && warm.stored.is_some());
         assert_eq!(warm.wasm, cold.wasm);
         let trap = trap_of(&warm.wasm);
@@ -1925,7 +1930,7 @@ mod stored_artifact_tests {
         let (edited, gets) = compiled(&program, &store);
         assert!(edited.stored.is_none() && gets > 1, "an edit builds again");
         let (warm, gets) = compiled(&program, &store);
-        assert_eq!(gets, 1, "warm after the edit");
+        assert_eq!(gets, 2, "warm after the edit");
         assert_eq!(
             warm.frame_lines(&trap_of(&warm.wasm), &store),
             ["pick.hd:3 pick.pick", "pick.hd:6 pick.main"]

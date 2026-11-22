@@ -865,9 +865,10 @@ mod stored_report_tests {
                     o.tests,
                     o.lint.is_some()
                 );
+                // The set's stamp table and the stored report.
                 assert_eq!(
                     gets,
-                    1,
+                    2,
                     "tests {}, lint {}, {only:?}",
                     o.tests,
                     o.lint.is_some()
@@ -915,7 +916,7 @@ mod stored_report_tests {
             assert!(gets > 1, "{change} misses");
             assert_ne!(report, last, "{change}");
             let (again, gets) = run(&root, &store, lint, None);
-            assert_eq!((&again, gets), (&report, 1), "after {change}");
+            assert_eq!((&again, gets), (&report, 2), "after {change}");
             last = report;
         }
         assert!(
@@ -925,7 +926,8 @@ mod stored_report_tests {
     }
 
     /// Cost Model (#1510): a warm `hd check FILE` or `hd lint FILE` of a
-    /// single-file program replays its report with one lookup, though the
+    /// single-file program replays its report with one lookup beside its
+    /// stamp table's (`hd_driver::stamps`), though the
     /// file reaches std modules. The report names the file as the command
     /// line wrote it, so another spelling of it stores its own; a settled
     /// edit misses.
@@ -958,7 +960,7 @@ mod stored_report_tests {
             let (cold, gets) = run(&file, o);
             assert!(gets > 3, "cold, {gets} lookups");
             let (warm, gets) = run(&file, o);
-            assert_eq!((&warm, gets), (&cold, 1), "lint {}", o.lint.is_some());
+            assert_eq!((&warm, gets), (&cold, 2), "lint {}", o.lint.is_some());
         }
         let (named, _) = run(&file, &lint);
         assert!(
@@ -971,11 +973,11 @@ mod stored_report_tests {
         let (other, gets) = run(&spelled, &lint);
         assert!(gets > 1, "another spelling stores its own report");
         let (again, gets) = run(&spelled, &lint);
-        assert_eq!((&again, gets), (&other, 1));
+        assert_eq!((&again, gets), (&other, 2));
         std::fs::write(&file, text(2)).expect("edit");
         settle();
         let (_, gets) = run(&file, &lint);
         assert!(gets > 1, "an edit misses");
-        assert_eq!(run(&file, &lint).1, 1, "warm after the edit");
+        assert_eq!(run(&file, &lint).1, 2, "warm after the edit");
     }
 }

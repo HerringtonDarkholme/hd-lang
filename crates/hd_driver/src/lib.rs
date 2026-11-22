@@ -68,6 +68,7 @@ mod pipeline;
 mod positions;
 mod report;
 mod skims;
+mod stamps;
 mod texts;
 pub mod work;
 pub use hd_base::lines::count_indexed_bytes;
@@ -2457,7 +2458,8 @@ fn package_ins<'a>(
 /// the CLI's whole `hd check` report or `hd build`'s artifact (#1510): the
 /// run's inputs as its package-result key ([`package_result`]) holds them,
 /// or `None` when the run could not take one. It lists the packages and
-/// hashes each path and stamp; it reads no source and makes no lookup.
+/// hashes each path and content stamp; it reads only the files its sets'
+/// stamp tables do not vouch for ([`stamps::resolve`]).
 #[must_use]
 pub fn result_key(
     host: &Host<'_>,
@@ -2470,12 +2472,15 @@ pub fn result_key(
     }
     let e = embedded_std();
     let ins = package_ins(host, package, packages, &e.sources);
-    let table = ModuleTable::discover_all(&ins);
+    let mut table = ModuleTable::discover_all(&ins);
     let toolchain = toolchain_key(
         COMPILER,
         TARGET,
         &format!("a1=bounded;std={:032x}", e.hash.0),
     );
+    let sets: Vec<&dyn SourceSet> = ins.iter().map(|p| p.sources).collect();
+    let texts = Texts::lazy(&table.sources, &sets, None);
+    stamps::resolve(&mut table, &sets, &texts, host.store, toolchain);
     let key = package_result::key(
         true, goal, package, packages, host, None, &ins, &table, toolchain,
     )?;
@@ -2558,6 +2563,7 @@ fn build_packages_inner(
         TARGET,
         &format!("a1=bounded;std={:032x}", std_hash.0),
     );
+    stamps::resolve(&mut table, &sets, &lazy, host.store, toolchain);
     // A warm `hd check` whose every listed file kept its stamp takes the
     // stored package result: no record decode and no per-module lookup
     // (#1510).

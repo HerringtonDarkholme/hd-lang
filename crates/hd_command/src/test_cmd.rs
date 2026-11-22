@@ -2163,7 +2163,8 @@ mod stored_build_tests {
     }
 
     /// Cost Model (#1510): a warm `hd test` with nothing changed takes its
-    /// build half with one lookup, at 1 module as at 40: the programs, the
+    /// build half with one lookup beside the set's stamp table, at 1
+    /// module as at 40: the programs, the
     /// cases and the fingerprints' source parts, as the build made them.
     #[test]
     fn a_warm_test_build_is_one_lookup_at_any_size() {
@@ -2194,14 +2195,15 @@ mod stored_build_tests {
                 stored_build(&load(), (None, None, false), &o, &store).expect("a key");
             let warm =
                 decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
-            assert_eq!(store.gets.load(Ordering::Relaxed), 1, "{n}: warm");
+            assert_eq!(store.gets.load(Ordering::Relaxed), 2, "{n}: warm");
             assert_eq!(encode_prepared(&warm), Some(bytes), "{n}");
             assert!(warm.built.iter().all(|b| b.frames.is_none()));
         }
     }
 
     /// Cost Model (#1510): a warm `hd test FILE` of a single-file program
-    /// takes its build half with one lookup too, though the file reaches
+    /// takes its build half with one lookup beside its stamp table too,
+    /// though the file reaches
     /// std modules.
     #[test]
     fn a_warm_single_file_test_build_is_one_lookup() {
@@ -2231,7 +2233,7 @@ mod stored_build_tests {
         let (key, client) = stored_build(&load(), at, &o, &store).expect("a key");
         let warm =
             decode_prepared(&key.read(&store, client).expect("stored"), &dir).expect("decodes");
-        assert_eq!(store.gets.load(Ordering::Relaxed), 1, "warm");
+        assert_eq!(store.gets.load(Ordering::Relaxed), 2, "warm");
         assert_eq!(encode_prepared(&warm), Some(bytes));
     }
 }

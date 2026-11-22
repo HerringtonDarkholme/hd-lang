@@ -5,7 +5,7 @@ use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use hd_base::Hash128;
+use hd_base::{Hash128, HashMap};
 use hd_diag::{Code, Severity};
 use hd_driver::{BuildProfile, Dependency, Packages};
 use hd_project::{
@@ -36,6 +36,9 @@ pub struct DiskSources {
     identity: Option<Hash128>,
     /// Whether `retain` left files out (`SourceSet::partial`).
     partial: bool,
+    /// The bytes read so far, by path: the driver's stamp step and its
+    /// texts read a file once per listing (`hd_driver::stamps`).
+    read: Arc<std::sync::Mutex<HashMap<String, Arc<[u8]>>>>,
 }
 
 impl DiskSources {
@@ -112,13 +115,25 @@ impl SourceSet for DiskSources {
         if let Some((_, text)) = self.synthetic.iter().find(|(p, _)| p == path) {
             return Some(text.clone());
         }
-        read_regular(&self.disk_path(path)).map(Arc::from)
+        if let Some(bytes) = self.read.lock().ok().and_then(|m| m.get(path).cloned()) {
+            return Some(bytes);
+        }
+        let bytes: Arc<[u8]> = Arc::from(read_regular(&self.disk_path(path))?);
+        if let Ok(mut m) = self.read.lock() {
+            m.insert(path.to_owned(), Arc::clone(&bytes));
+        }
+        Some(bytes)
     }
     fn identity(&self) -> Option<Hash128> {
         self.identity
     }
     fn partial(&self) -> bool {
         self.partial
+    }
+    /// A listed file's stamp is its metadata; an added text's is its
+    /// hash, so a set of added texts alone, as standard input's, has none.
+    fn metadata_stamps(&self) -> bool {
+        self.synthetic.len() < self.files.len()
     }
     fn detach(&self) -> Option<Arc<dyn SourceSet + Send>> {
         Some(Arc::new(self.clone()))
@@ -886,6 +901,7 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
         synthetic: Vec::new(),
         identity,
         partial: false,
+        read: Arc::default(),
     };
     sources.files = files
         .into_iter()
@@ -964,6 +980,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             synthetic: Vec::new(),
             identity,
             partial: false,
+            read: Arc::default(),
         },
         package,
         entry: module_below(&name),
@@ -1002,6 +1019,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         synthetic: Vec::new(),
         identity: Some(hd_base::StableHasher::new("disk-stdin").finish()),
         partial: false,
+        read: Arc::default(),
     };
     sources.add_synthetic("main.hd", text);
     Ok(Program {
@@ -1041,6 +1059,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
             synthetic: Vec::new(),
             identity: None,
             partial: false,
+            read: Arc::default(),
         },
         package: SESSION_PACKAGE.to_owned(),
         entry: String::new(),
@@ -1077,6 +1096,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
                 synthetic: Vec::new(),
                 identity: None,
                 partial: false,
+                read: Arc::default(),
             },
             package: default_name(root),
             entry: module_below(entry),

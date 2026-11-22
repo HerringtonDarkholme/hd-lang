@@ -936,7 +936,18 @@ A warm run reads no source file it does not check, and hashes none
   kernel stamps files from that clock. A network file system whose
   server clock lags the client's by more than `SETTLE` on a coarse
   timestamp could trust a racy file; no stamp is trusted off Unix, where
-  the standard library gives no change time. An in-memory set
+  the standard library gives no change time.
+- **Content stamps** (#1801 draft 44, `hd_driver::stamps`). A set whose
+  stamps are file metadata (`SourceSet::metadata_stamps`) keeps a stamp
+  table: one `depfiles` entry, keyed by the toolchain and the set's
+  identity, that holds per settled file its metadata stamp and the hash
+  of the text read under it. Every key and record of the run uses that
+  content stamp. A file the table holds under its listed stamp is not
+  read; a racy, new or changed file is read and hashed once, and a racy
+  one gets no row, as git's racily clean entries are compared again. So
+  a file saved with the same bytes, or written within `SETTLE`, keeps
+  the package result below. Cost: one table read per set and one lookup
+  per file; a read per racy or changed file. An in-memory set
   (`MemorySources`) stamps a file with its content hash when it is
   added, once per edit, not per run.
 - **The last-run record.** Per source set with an identity
@@ -1018,7 +1029,8 @@ skims; the reads, skims and record rewrite of the k changed files (the
 rewrite is O(n) bytes, on a run that changed something); plus whatever
 those k changes make the checker redo. A no-change run reads no source
 file and writes nothing; an `hd check` run also makes one cache lookup
-in all (the package result), hashes each listed path and stamp once, and
+per disk set (its stamp table) and one more (the package result), hashes
+each listed path and content stamp once, and
 reads the files its replayed diagnostics are located in.
 
 ### 5.6 Verify Mode

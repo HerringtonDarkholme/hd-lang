@@ -33,7 +33,11 @@ fn check(dir: &Scratch, work: &std::path::Path) -> std::process::Output {
 fn a_serial_run_reports_every_counter_and_repeats_its_counts() {
     let dir = package("work-report");
     let work = dir.join("work.json");
-    // The first run fills the cache; the next two start from the same one.
+    // The first run fills the cache. Past the settle window (`disk::SETTLE`,
+    // 2 s) the second records every file's stamp, so the next two start
+    // from the same cache and the same stamps, however slow the machine.
+    assert!(check(&dir, &work).status.success());
+    std::thread::sleep(std::time::Duration::from_millis(2200));
     assert!(check(&dir, &work).status.success());
     let first = check(&dir, &work);
     assert!(
@@ -150,4 +154,52 @@ fn a_warm_edit_decodes_no_more_items_in_a_larger_package() {
         items_decoded_after_an_edit(16),
     );
     assert_eq!(small, large, "4 modules: {small}; 16 modules: {large}");
+}
+
+/// A counter of a `hd check` run's work report.
+fn counter(report: &str, name: &str) -> u64 {
+    report
+        .split(&format!("\"{name}\":"))
+        .nth(1)
+        .and_then(|rest| rest.split([',', '}']).next())
+        .and_then(|n| n.trim().parse().ok())
+        .unwrap_or_else(|| panic!("no {name}: {report}"))
+}
+
+/// #1801 draft 44: a file saved with the same bytes less than 2 s before
+/// a check had no stamp, so the run lost the whole-package fast path and
+/// looked up every module's entry: about 75,000 map lookups more than a
+/// settled run, at 4 modules as at 16. Its content stamp now keeps the
+/// fast path: the run does a settled run's lookups plus the one file's
+/// read and the stamp table's write.
+#[test]
+fn a_resave_within_the_settle_window_costs_one_file_over_a_settled_run() {
+    let module = |k: usize| format!("pub fn f{k}(x: i32) -> i32:\n    x + 1\n");
+    let dirs: Vec<Scratch> = [4, 16]
+        .iter()
+        .map(|&n| {
+            let dir = package(&format!("work-resave-{n}"));
+            for k in 0..n {
+                std::fs::write(dir.join(format!("src/m{k}.hd")), module(k)).expect("write");
+            }
+            assert!(check(&dir, &dir.join("work.json")).status.success());
+            dir
+        })
+        .collect();
+    // Past the settle window (`disk::SETTLE`, 2 s), every file has a stamp.
+    std::thread::sleep(std::time::Duration::from_millis(2200));
+    for dir in &dirs {
+        let work = dir.join("work.json");
+        let hashes = || counter(&std::fs::read_to_string(&work).expect("report"), "hashes");
+        assert!(check(dir, &work).status.success());
+        assert!(check(dir, &work).status.success());
+        let settled = hashes();
+        std::fs::write(dir.join("src/m0.hd"), module(0)).expect("write");
+        assert!(check(dir, &work).status.success());
+        let resaved = hashes();
+        assert!(
+            resaved <= settled + 100,
+            "settled {settled}, resaved {resaved}"
+        );
+    }
 }
