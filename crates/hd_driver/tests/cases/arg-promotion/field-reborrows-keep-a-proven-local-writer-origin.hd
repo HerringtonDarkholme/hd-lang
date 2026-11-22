@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: release | release checked
+# expected: through_local writes the scalar fields directly; through_counted
+# keeps the counted-source call and its loan boundary.
+struct Pair:
+    value: i64
+    scale: i64
+
+struct Holder:
+    pair: Pair
+
+fn advance(slot: &mut Pair, amount: i64) -> void:
+    first := slot.value * slot.scale + amount
+    second := first * 3 + 1
+    slot.value = second
+    slot.scale = slot.scale + 1
+
+fn through_local(slot: &mut Holder, amount: i64) -> void:
+    advance(&mut slot.pair, amount)
+
+fn through_counted(slot: *mut Holder, amount: i64) -> void:
+    advance(&mut slot.pair, amount)

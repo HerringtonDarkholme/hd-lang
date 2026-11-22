@@ -1,0 +1,20 @@
+# @dump: wat stdout
+# @build: v8 release
+# expected: evaluate has arithmetic and a branch, with no helper calls.
+# The intermediate scalar bindings have no exposed address or count.
+fn polynomial(x: i64) -> i64:
+    a := x * 3i64 + 2i64
+    b := a * x + 5i64
+    c := b * x + 7i64
+    d := c * x + 11i64
+    e := d * x + 13i64
+    f := e * x + 17i64
+    f * x + 19i64
+
+# subject
+fn evaluate(x: i64, enabled: bool) -> i64:
+    if enabled: polynomial(x) else: 0
+
+pub fn main() -> void $ Console:
+    println(evaluate(2, true))
+    println(evaluate(2, false))

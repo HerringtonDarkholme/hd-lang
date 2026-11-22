@@ -551,7 +551,9 @@ impl dyn InlineEnv + '_ {
                 )
                 .unwrap_or(false);
             let defaults = body.tags.contains(&Tag::DefaultCall);
-            let (h, copied, writer) = self.inline_round(body, hash, stack, loops_only).await;
+            let (h, copied, writer) = self
+                .inline_round(body, hash, stack, loops_only, false)
+                .await;
             let copied = copied || literals;
             if copied {
                 let pool = self.pool();
@@ -637,6 +639,7 @@ impl dyn InlineEnv + '_ {
         hash: Hash128,
         stack: &Stack,
         loops_only: bool,
+        constants_only: bool,
     ) -> (Hash128, bool, bool) {
         let mut k = StableHasher::new("inline");
         k.hash(hash);
@@ -648,7 +651,7 @@ impl dyn InlineEnv + '_ {
             Vec::new()
         };
         let writer_origins = if self.memo().is_some() {
-            writer_origins(body)
+            writer_origins(body, &|t| self.local_reference_type(t))
         } else {
             Vec::new()
         };
@@ -722,6 +725,9 @@ impl dyn InlineEnv + '_ {
             }) else {
                 continue;
             };
+            if constants_only && hd_mono::defaults::collapse(&copy).is_none() {
+                continue;
+            }
             // A copy made for another caller may call one on the way down.
             if let Some(at) = self.calls_active(&copy, stack) {
                 self.found_stack_cycle(stack, at);
@@ -970,7 +976,7 @@ impl dyn InlineEnv + '_ {
             }
             return Some(c);
         }
-        let instance = self.instance(key);
+        let mut instance = self.instance(key);
         let nested = if let Some((copy, hash, _)) =
             instance.as_ref().filter(|c| !hd_tir::inline::leaf(&c.0))
         {
@@ -988,6 +994,30 @@ impl dyn InlineEnv + '_ {
         } else {
             None
         };
+        // Preserve a small wrapper without undoing constant-call folds. This
+        // reuses the existing indexed round over its bounded metadata; callees
+        // are already prepared by the bottom-up walk above.
+        let keep_small = hint == InlineHint::Default
+            && instance.as_ref().zip(nested.as_ref()).is_some_and(
+                |((copy, _, fits), (nested, _))| {
+                    *fits
+                        && self.fits_size(copy, INLINE_LIMIT)
+                        && !self.fits_size(nested, INLINE_LIMIT)
+                        && self.plain_memory(nested)
+                        && self.scalar_writer_refs(nested).is_none()
+                },
+            );
+        if keep_small
+            && self.const_fold()
+            && let Some((copy, hash, _)) = &mut instance
+        {
+            stack.push((def, Some(targs)), hint);
+            (*hash, _, _) = self.inline_round(copy, *hash, stack, false, true).await;
+            stack.pop();
+            if let Some(folded) = hd_mono::defaults::specialize(copy, &[]) {
+                *copy = folded;
+            }
+        }
         let made = instance.and_then(|(copy, hash, fits)| {
             if memo.is_some_and(|memo| lock(&memo.recursive).contains(&(def, targs))) {
                 return None;
@@ -1003,6 +1033,7 @@ impl dyn InlineEnv + '_ {
             }
             match nested {
                 Some((nested, h)) if fits && hint != InlineHint::Default => Some((nested, h)),
+                Some(_) if keep_small => Some((copy, hash)),
                 Some((nested, h)) if self.fits(key, &nested) => Some((nested, h)),
                 // Charge a tiny one-call forwarding body as well as its
                 // scalar writer, rather than losing the known target at
@@ -1258,6 +1289,13 @@ impl dyn InlineEnv + '_ {
     /// their established eligibility.
     fn fits_size(&self, copy: &Body, limit: usize) -> bool {
         if copy.len() > limit && result_holds_local(self.pool(), copy) {
+            return false;
+        }
+        // Only a lowered body proves that its scalar bindings disappear.
+        // Partially expanded wrappers with continuing calls or opaque memory
+        // keep the structural budget until those costs have been exposed.
+        if copy.len() > limit && !hd_tir::inline::inlinable(copy, limit) && !self.plain_memory(copy)
+        {
             return false;
         }
         // Price the chosen instance as well as the raw declaration:
@@ -1665,7 +1703,13 @@ impl dyn InlineEnv + '_ {
             .enumerate()
         {
             if self.local_reference_type(ty) {
-                if param >= 64 || flags & (local_flags::ASSIGNED | local_flags::CAPTURED) != 0 {
+                if param >= 64
+                    || flags
+                        & (local_flags::ASSIGNED
+                            | local_flags::CAPTURED
+                            | local_flags::CAPTURED_ASSIGNED)
+                        != 0
+                {
                     return None;
                 }
                 mask |= 1 << param;
@@ -1867,11 +1911,21 @@ fn root_type(copy: &Body) -> Option<Ty> {
 /// Reject an oversized candidate before querying its call costs. Failed
 /// automatic candidates must not scan an arbitrary root per call site.
 fn priced_inline(body: &Body, limit: usize, cost: impl FnMut(&Callee) -> usize) -> bool {
-    if !hd_tir::inline::inlinable(body, limit) {
+    // SSA savings never bypass the existing metadata copy budget. Keep the
+    // original estimate for unbounded explicit hints and local-closure users.
+    let scalar_bindings = body.len() > limit && copy_metadata_fits(body);
+    let fits = |limit| {
+        if scalar_bindings {
+            hd_tir::inline::inlinable_scalar_bindings(body, limit)
+        } else {
+            hd_tir::inline::inlinable(body, limit)
+        }
+    };
+    if !fits(limit) {
         return false;
     }
     let retained = entry_work(body, cost);
-    retained <= limit && (retained == 0 || hd_tir::inline::inlinable(body, limit - retained))
+    retained <= limit && (retained == 0 || fits(limit - retained))
 }
 
 /// Non-removable work on the root's straight-line entry prefix. Nested
@@ -1964,16 +2018,21 @@ enum WriterOrigin {
     Parameter(u32),
 }
 
-/// Plain local storage has no dynamic alias loan. An unchanged reference
-/// parameter already has the enclosing call's loan. Keep other arguments'
-/// call boundaries, including counted-pointer paths and shared variables.
-fn writer_origins(body: &Body) -> Vec<Option<WriterOrigin>> {
-    writer_origins_counted(body, || {})
+/// Plain local storage has no dynamic alias loan. An unchanged local-reference
+/// parameter already has the enclosing call's loan, including field reborrows.
+/// One leading dereference must name that proven local reference; subsequent
+/// steps stay in place. Counted-pointer paths and shared variables keep calls.
+fn writer_origins(body: &Body, local_reference: &impl Fn(Ty) -> bool) -> Vec<Option<WriterOrigin>> {
+    writer_origins_counted(body, local_reference, || {})
 }
 
 /// Count each row and each distinct place's projection once. The call-site
 /// walk never follows a projection chain anew for each reference to it.
-fn writer_origins_counted(body: &Body, mut visit: impl FnMut()) -> Vec<Option<WriterOrigin>> {
+fn writer_origins_counted(
+    body: &Body,
+    local_reference: &impl Fn(Ty) -> bool,
+    mut visit: impl FnMut(),
+) -> Vec<Option<WriterOrigin>> {
     let mut shared = vec![false; body.local_ty.len()];
     for (&local, &mode) in body.cap_local.iter().zip(&body.cap_mode) {
         visit();
@@ -1986,23 +2045,54 @@ fn writer_origins_counted(body: &Body, mut visit: impl FnMut()) -> Vec<Option<Wr
         origin[i] = match body.tags[i] {
             Tag::Ref => *places.entry(body.data[i][0]).or_insert_with(|| {
                 let place = body.view(body.data[i][0]);
-                place
-                    .local()
-                    .filter(|&local| {
-                        !shared[local as usize]
-                            && place.steps(body).all(|step| {
-                                visit();
-                                matches!(step, Proj::Field(_) | Proj::Variant(_))
-                            })
+                let mut steps = place.steps(body);
+                let first = steps.next();
+                if first.is_some() {
+                    visit();
+                }
+                let deref = first == Some(Proj::Deref);
+                if first
+                    .is_some_and(|s| !matches!(s, Proj::Deref | Proj::Field(_) | Proj::Variant(_)))
+                    || !steps.all(|s| {
+                        visit();
+                        matches!(s, Proj::Field(_) | Proj::Variant(_))
                     })
-                    .map(WriterOrigin::Local)
+                {
+                    return None;
+                }
+                match place.root {
+                    hd_tir::ir::Root::Local(local) if !shared[local as usize] => {
+                        if deref {
+                            let flags = body.local_flags[local as usize];
+                            (local_reference(body.local_ty[local as usize])
+                                && flags & local_flags::PARAM != 0
+                                && flags
+                                    & (local_flags::ASSIGNED
+                                        | local_flags::CAPTURED
+                                        | local_flags::CAPTURED_ASSIGNED)
+                                    == 0)
+                                .then_some(WriterOrigin::Parameter(local))
+                        } else {
+                            Some(WriterOrigin::Local(local))
+                        }
+                    }
+                    hd_tir::ir::Root::Value(value) if deref => Ref(value)
+                        .as_inst()
+                        .filter(|v| local_reference(body.ty[v.0 as usize]))
+                        .and_then(|v| origin[v.0 as usize]),
+                    _ => None,
+                }
             }),
             Tag::Read => body
                 .local_read(i)
                 .filter(|local| {
                     let flags = body.local_flags[local.idx()];
                     flags & local_flags::PARAM != 0
-                        && flags & (local_flags::ASSIGNED | local_flags::CAPTURED) == 0
+                        && flags
+                            & (local_flags::ASSIGNED
+                                | local_flags::CAPTURED
+                                | local_flags::CAPTURED_ASSIGNED)
+                            == 0
                 })
                 .map(|local| WriterOrigin::Parameter(local.raw())),
             Tag::Coerce
@@ -2976,7 +3066,11 @@ mod tests {
             }
             let mut visits = 0;
             for _ in 0..super::MAX_ROUNDS {
-                let origins = super::writer_origins_counted(&body, || visits += 1);
+                let origins = super::writer_origins_counted(
+                    &body,
+                    &|t| matches!(pool.get(t), TyData::Ref { counted: false, .. }),
+                    || visits += 1,
+                );
                 let uses = super::writer_uses_counted(&body, || visits += 1);
                 assert_eq!(uses.iter().sum::<u32>(), super::index_word(width));
                 assert!(
@@ -2986,6 +3080,113 @@ mod tests {
                 );
             }
             assert_eq!(visits, super::MAX_ROUNDS * (width * 5 + depth));
+        }
+    }
+
+    /// Reborrowing an unchanged local-reference parameter preserves its
+    /// origin through fields. Counted pointers and changed/captured bindings
+    /// retain their call boundary. Shared place records are classified once.
+    #[test]
+    fn scalar_writer_reborrows_share_origins_and_bound_width_and_depth_work() {
+        use hd_base::{NodeIdx, Symbol};
+        use hd_tir::ir::{Place, PlaceRoot, TirBuilder, ref_word};
+        for (width, depth) in [(1000usize, 20usize), (10000, 20), (1000, 200)] {
+            for root_value in [false, true] {
+                for (counted, flags, accepted) in [
+                    (false, local_flags::PARAM, true),
+                    (true, local_flags::PARAM, false),
+                    (false, local_flags::PARAM | local_flags::ASSIGNED, false),
+                    (false, local_flags::PARAM | local_flags::CAPTURED, false),
+                    (
+                        false,
+                        local_flags::PARAM | local_flags::CAPTURED_ASSIGNED,
+                        false,
+                    ),
+                ] {
+                    let pool = InternPool::new();
+                    let mut targets = vec![Ty::I32];
+                    for _ in 0..depth {
+                        targets.push(pool.intern_ty(&TyData::Tuple {
+                            elems: pool.list(&[targets[targets.len() - 1]]),
+                            rest: None,
+                        }));
+                    }
+                    let pointer = |inner, counted| {
+                        pool.intern_ty(&TyData::Ref {
+                            inner,
+                            counted,
+                            mutable: true,
+                        })
+                    };
+                    let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+                    let block = b.open_block();
+                    let parameter = b.local(
+                        pointer(targets[depth], counted),
+                        Symbol::NONE,
+                        flags,
+                        NodeIdx::NONE,
+                    );
+                    let mut root = if root_value {
+                        PlaceRoot::Value(b.get(
+                            parameter,
+                            pointer(targets[depth], counted),
+                            NodeIdx::NONE,
+                        ))
+                    } else {
+                        PlaceRoot::Local(parameter)
+                    };
+                    let mut last_place = 0;
+                    for level in (0..depth).rev() {
+                        last_place = b.place(&Place {
+                            root,
+                            proj: vec![super::Proj::Deref, super::Proj::Field(0)],
+                        });
+                        let reference = b.emit(
+                            Tag::Ref,
+                            last_place,
+                            ref_word::MUT,
+                            pointer(targets[level], false),
+                            NodeIdx::NONE,
+                        );
+                        root = PlaceRoot::Value(reference);
+                    }
+                    for _ in 0..width {
+                        b.emit(
+                            Tag::Ref,
+                            last_place,
+                            ref_word::MUT,
+                            pointer(Ty::I32, false),
+                            NodeIdx::NONE,
+                        );
+                    }
+                    let root = b.close_block(block, None, Ty::VOID, NodeIdx::NONE);
+                    let body = b.finish(root, &[]).expect("generated reborrow chain");
+                    let lookups = std::cell::Cell::new(0);
+                    let local_reference = |t| {
+                        lookups.set(lookups.get() + 1);
+                        matches!(pool.get(t), TyData::Ref { counted: false, .. })
+                    };
+                    let mut visits = 0;
+                    for _ in 0..super::MAX_ROUNDS {
+                        let origins =
+                            super::writer_origins_counted(&body, &local_reference, || visits += 1);
+                        for (i, &tag) in body.tags.iter().enumerate() {
+                            if tag == Tag::Ref {
+                                assert_eq!(
+                                    origins[i],
+                                    accepted
+                                        .then_some(super::WriterOrigin::Parameter(parameter.raw()))
+                                );
+                            }
+                        }
+                    }
+                    assert_eq!(lookups.get(), super::MAX_ROUNDS * depth);
+                    assert_eq!(
+                        visits,
+                        super::MAX_ROUNDS * (width + 3 * depth + 1 + usize::from(root_value))
+                    );
+                }
+            }
         }
     }
 

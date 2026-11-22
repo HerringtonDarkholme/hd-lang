@@ -181,11 +181,39 @@ pub fn copyable(c: &Body) -> bool {
 /// lowering estimate can additionally admit structurally larger bodies.
 #[must_use]
 pub fn inlinable(c: &Body, limit: usize) -> bool {
+    inlinable_with(c, limit, false)
+}
+
+/// The same lowering estimate, discounting unaddressed scalar SSA bindings.
+/// The caller separately bounds copied metadata before using this estimate;
+/// a small number of operations does not bound the number of source locals.
+#[must_use]
+pub fn inlinable_scalar_bindings(c: &Body, limit: usize) -> bool {
+    inlinable_with(c, limit, true)
+}
+
+fn inlinable_with(c: &Body, limit: usize, scalar_bindings: bool) -> bool {
     if c.len() <= limit {
         return copyable(c);
     }
     let mut size = 0;
+    // LLVM InlineCost discounts SROA and SSA plumbing. Here only closed
+    // immediate scalars qualify, with no exposed address or captured binding;
+    // counted, aggregate and unknown bindings retain the original cost.
+    let scalar_bindings = scalar_bindings && !c.tags.contains(&Tag::Ref);
     for (i, &tag) in c.tags.iter().enumerate() {
+        if scalar_bindings
+            && matches!(tag, Tag::Read | Tag::Store)
+            && c.data[i][0] & place::BARE_LOCAL != 0
+        {
+            let local = (c.data[i][0] & !place::BARE_LOCAL) as usize;
+            if c.local_ty[local].0 < Ty::STRING.0
+                && c.local_flags[local] & (local_flags::CAPTURED | local_flags::CAPTURED_ASSIGNED)
+                    == 0
+            {
+                continue;
+            }
+        }
         if tag != Tag::Block || i + 1 == c.len() || c.label_inst.contains(&u32_of(i)) {
             size += 1;
         }
