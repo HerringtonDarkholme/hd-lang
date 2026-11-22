@@ -19,7 +19,8 @@ pub struct Regex:
     text: string
     program: Program
     filter: Prefilter
-    bytes: Automaton
+    forward: *mut Dfa
+    reverse: *mut Dfa
     names: List[string]
 
 # Where a match is: byte offsets into the searched text, and its text
@@ -99,12 +100,23 @@ impl Regex:
         compile(parsed.node, &mut program)
         program.push(Inst.Done)
         lowered := lower(program)
+        filter := prefilter(parsed.node)
+        built := automaton(&lowered)
+        done := lowered.ops.len() - 1
         .Ok(
             Regex {
                 text: pattern,
                 program: lowered,
-                filter: prefilter(parsed.node),
-                bytes: automaton(&lowered),
+                filter: filter,
+                forward: new_dfa(
+                    built.forward,
+                    &built,
+                    built.nodes,
+                    done,
+                    true,
+                    filter.literal != "",
+                ),
+                reverse: new_dfa(built.reverse, &built, done, 0, false, false),
                 names: names,
             },
         )
@@ -1664,6 +1676,9 @@ struct Vm:
     # match start at the bytes from `near_from` to `near_until`.
     filter: Prefilter
     filtered: bool
+    # The lazy DFA of each direction.
+    forward: *mut Dfa
+    reverse: *mut Dfa
     hit_from: usize
     hit: i64
     near_from: i64
@@ -1693,6 +1708,8 @@ fn new_vm(regex: &Regex, text: string, slot_count: usize) -> Vm:
         finished: false,
         filter: filter,
         filtered: bytes_len(filter.literal) > 0 || filter.firsts.len() > 0,
+        forward: regex.forward,
+        reverse: regex.reverse,
         hit_from: bytes_len(text) + 1,
         hit: -1,
         near_from: 0,
@@ -2093,6 +2110,437 @@ fn add_thread(
                 pc = pc + 1
     length
 
+# One direction of the lazy DFA, as regex-automata's hybrid DFA builds one
+# (src/hybrid/dfa.rs, Lazy::cache_next_state): a state is the list of
+# nodes the search's threads wait at, and its transitions are computed the
+# first time a search takes them. The forward DFA keeps a state's nodes in
+# priority order and drops those after `accept` (determinize::next drops
+# them for leftmost-first), so the last match it sees is the one the Pike
+# VM picks; the reverse DFA keeps every thread (MatchKind::All) and sorts
+# its nodes. A guard that fails becomes a marker, node `nodes + n`, when it
+# may still hold where the search ends: `$` going forward, `^` going back.
+#
+# The cache: state s's transition on byte class c is
+# `trans[s * stride + c]`, holding the next state's code: its row,
+# `s * stride`, plus `special()` when the state is dead, a match, or the
+# start the prefilter skips from, and `unknown()` before it is computed.
+# Its nodes are `sets[set_at[s]]` up to `sets[set_at[s + 1]]`, and `table`
+# finds a state from its nodes by their hash, with linear probing. A step
+# reads one table entry; computing a transition costs time linear in the
+# graph's edges out of the state's nodes and in the nodes it reaches. When
+# a new state would take the entries in use past `limit`, the cache is
+# cleared, once in a search; when it fills again the search gives up and
+# the Pike VM runs it (Lazy::try_clear_cache gives up after a set count of
+# clears too).
+struct Dfa:
+    graph: Graph
+    nodes: usize
+    classes: List[usize]
+    reps: List[i32]
+    stride: usize
+    accept: usize
+    forward: bool
+    late: i32
+    # The nodes of the start states: 0 where the edge guard holds (`^` at
+    # byte 0 going forward, `$` at the end going back), 1 elsewhere.
+    starts: List[List[usize]]
+    tagged: bool
+    limit: usize
+    cleared: bool
+    gave_up: usize
+    trans: *mut List[usize]
+    flags: *mut List[usize]
+    hashes: *mut List[u32]
+    sets: *mut List[usize]
+    set_at: *mut List[usize]
+    table: *mut List[usize]
+    start_codes: *mut List[usize]
+    # The closure's scratch: a sparse set of the nodes it has visited, and
+    # its stack, which never holds more than the graph's edges plus one.
+    dense: *mut List[usize]
+    sparse: *mut List[usize]
+    stack: *mut List[usize]
+
+# A transition not computed yet, and the mark of a state that stops the
+# scan loop.
+fn unknown() -> usize:
+    536870912
+
+fn special() -> usize:
+    268435456
+
+# The cache entries a DFA may use: 2^18, a mebibyte of 4-byte entries
+# for each direction, half of regex-automata's default two mebibytes.
+fn cache_limit() -> usize:
+    262144
+
+fn new_dfa(
+    graph: Graph,
+    built: &Automaton,
+    start: usize,
+    accept: usize,
+    forward: bool,
+    tagged: bool,
+) -> *mut Dfa:
+    count := graph.at.len() - 1
+    edges := graph.to.len()
+    # Boxed because each regex shares its cache across its searches.
+    dfa := box(
+        Dfa {
+            graph: graph,
+            nodes: count,
+            classes: built.classes,
+            reps: built.reps,
+            stride: built.reps.len(),
+            accept: accept,
+            forward: forward,
+            late: if forward: +2 else: +1,
+            starts: [],
+            tagged: tagged,
+            limit: cache_limit(),
+            cleared: false,
+            gave_up: 0,
+            trans: box::[List[usize]]([]),
+            flags: box::[List[usize]]([]),
+            hashes: box::[List[u32]]([]),
+            sets: box::[List[usize]]([]),
+            set_at: box::[List[usize]]([]),
+            table: box(zeros(64)),
+            start_codes: box::[List[usize]]([]),
+            dense: box(zeros(count)),
+            sparse: box(zeros(count)),
+            stack: box(zeros(edges + 1)),
+        }
+    )
+    for variant in [true, false]:
+        let mut set: List[usize] = []
+        _ := close(dfa, &mut set, 0, start, forward && variant, !forward && variant)
+        if !forward:
+            set.sort()
+        dfa.starts.push(set)
+    reset(dfa)
+    dfa
+
+# Empties the cache but for the dead state, state 0, whose list is empty.
+fn reset(dfa: *mut Dfa) -> void:
+    dfa.trans.clear()
+    dfa.flags.clear()
+    dfa.hashes.clear()
+    dfa.sets.clear()
+    dfa.set_at.clear()
+    dfa.set_at.push(0)
+    dfa.table.fill(0)
+    dfa.start_codes.clear()
+    dfa.start_codes.push(unknown())
+    dfa.start_codes.push(unknown())
+    let empty: List[usize] = []
+    _ := intern(dfa, &empty)
+
+# Adds to `set` the nodes the threads reach from `node` without reading a
+# byte, in priority order, with `seen` nodes visited so far in this step,
+# and returns the count visited after. A node is kept when it reads a
+# byte, is `accept`, or is a guard's marker. Reaching `accept` going
+# forward ends the walk: the threads still on the stack rank below it.
+fn close(
+    dfa: *mut Dfa,
+    set: &mut List[usize],
+    seen: usize,
+    node: usize,
+    begin: bool,
+    end: bool,
+) -> usize:
+    graph := &dfa.graph
+    dense := dfa.dense
+    sparse := dfa.sparse
+    stack := dfa.stack
+    accept := dfa.accept
+    let count = seen
+    stack[0] = node
+    let top: usize = 1
+    while top > 0:
+        top -= 1
+        here := stack[top]
+        place := sparse[here]
+        if place < count && dense[place] == here:
+            continue
+        sparse[here] = count
+        dense[count] = here
+        count += 1
+        guard := graph.guards[here]
+        if (guard == 1 && !begin) || (guard == 2 && !end):
+            if guard == dfa.late:
+                set.push(dfa.nodes + here)
+            continue
+        if here == accept:
+            set.push(here)
+            if dfa.forward:
+                return count
+        let reads = false
+        let edge = graph.at[here + 1]
+        while edge > graph.at[here]:
+            edge -= 1
+            if graph.lows[edge] < 0:
+                stack[top] = graph.to[edge]
+                top += 1
+            else:
+                reads = true
+        if reads && here != accept:
+            set.push(here)
+    count
+
+# The code of the state whose nodes are `set`, added when it is new, or
+# `unknown()` when it does not fit in the cache.
+fn intern(dfa: *mut Dfa, set: &List[usize]) -> usize:
+    let hash: u32 = 2166136261
+    for node in set:
+        hash = (hash ^ u32(node)).wrapping_mul(16777619)
+    table := dfa.table
+    sets := dfa.sets
+    set_at := dfa.set_at
+    hashes := dfa.hashes
+    let slot = usize(hash) & (table.len() - 1)
+    while table[slot] != 0:
+        id := table[slot] - 1
+        if hashes[id] == hash && same(sets, set_at[id], set_at[id + 1], set):
+            return code_of(dfa, id)
+        slot = (slot + 1) & (table.len() - 1)
+    trans := dfa.trans
+    stride := dfa.stride
+    if trans.len() + sets.len() + table.len() + set.len() + stride > dfa.limit:
+        return unknown()
+    id := hashes.len()
+    for node in set:
+        sets.push(node)
+    set_at.push(sets.len())
+    hashes.push(hash)
+    trans.resize(trans.len() + stride, unknown())
+    let flag: usize = if set.len() == 0: 4 else: 0
+    if set.contains(dfa.accept):
+        flag = flag | 1
+    if dfa.tagged && same(&dfa.starts[1], 0, dfa.starts[1].len(), set):
+        flag = flag | 2
+    dfa.flags.push(flag)
+    table[slot] = id + 1
+    if 2 * (id + 1) > table.len():
+        # Twice the size, and every state put back in its new place.
+        size := 2 * table.len()
+        table.clear()
+        table.resize(size, 0)
+        let state: usize = 0
+        while state <= id:
+            let place = usize(hashes[state]) & (size - 1)
+            while table[place] != 0:
+                place = (place + 1) & (size - 1)
+            table[place] = state + 1
+            state += 1
+    code_of(dfa, id)
+
+fn code_of(dfa: *mut Dfa, id: usize) -> usize:
+    row := id * dfa.stride
+    if dfa.flags[id] != 0: row + special() else: row
+
+# Whether `list` from `start` up to `end` holds the nodes of `set`.
+fn same(list: &List[usize], start: usize, end: usize, set: &List[usize]) -> bool:
+    if end - start != set.len():
+        return false
+    let index: usize = 0
+    while index < set.len():
+        if list[start + index] != set[index]:
+            return false
+        index += 1
+    true
+
+# The code of start state `variant`.
+fn start_code(dfa: *mut Dfa, variant: usize) -> usize:
+    known := dfa.start_codes[variant]
+    if known != unknown():
+        return known
+    set := dfa.starts[variant]
+    let found = intern(dfa, &set)
+    if found == unknown() && !dfa.cleared:
+        reset(dfa)
+        dfa.cleared = true
+        found = intern(dfa, &set)
+    if found != unknown():
+        dfa.start_codes[variant] = found
+    found
+
+# The code of the state that state `id` goes to on byte class `class`,
+# computed and kept, or `unknown()` when the cache gave out.
+fn transition(dfa: *mut Dfa, id: usize, class: usize) -> usize:
+    # Copies, which share the lists: `close` below changes `dfa`.
+    at := dfa.graph.at
+    to := dfa.graph.to
+    lows := dfa.graph.lows
+    highs := dfa.graph.highs
+    byte := dfa.reps[class]
+    sets := dfa.sets
+    let mut set: List[usize] = []
+    let seen: usize = 0
+    let index = dfa.set_at[id]
+    end := dfa.set_at[id + 1]
+    while index < end:
+        node := sets[index]
+        index += 1
+        if node >= dfa.nodes:
+            continue
+        let edge = at[node]
+        while edge < at[node + 1]:
+            low := lows[edge]
+            if low >= 0 && byte >= low && byte <= highs[edge]:
+                seen = close(dfa, &mut set, seen, to[edge], false, false)
+                if dfa.forward && set.len() > 0 && set[set.len() - 1] == dfa.accept:
+                    index = end
+                    break
+            edge += 1
+    if !dfa.forward:
+        set.sort()
+    found := intern(dfa, &set)
+    if found == unknown() && !dfa.cleared:
+        # The state left is gone with the cache, so the transition is not
+        # kept.
+        reset(dfa)
+        dfa.cleared = true
+        return intern(dfa, &set)
+    if found != unknown():
+        dfa.trans[id * dfa.stride + class] = found
+    found
+
+# Whether state `id` reaches `accept` where the search ends, there being
+# its markers' guards may hold.
+fn ends_matching(dfa: *mut Dfa, id: usize, begin: bool, end: bool) -> bool:
+    sets := dfa.sets
+    let mut set: List[usize] = []
+    let seen: usize = 0
+    let index = dfa.set_at[id]
+    while index < dfa.set_at[id + 1]:
+        if sets[index] >= dfa.nodes:
+            seen = close(dfa, &mut set, seen, sets[index] - dfa.nodes, begin, end)
+        index += 1
+    set.contains(dfa.accept)
+
+# The end of the leftmost-first match that starts at byte `from` or later,
+# -1 when there is none, or -2 when the cache gave out; with `earliest`,
+# the end of the first match seen (hybrid/search.rs, find_fwd). Each byte
+# costs one table read until a special state, and the prefilter's literal
+# moves the search over the text a match cannot start in.
+fn forward_end(vm: &mut Vm, from: usize, earliest: bool) -> i64:
+    dfa := vm.forward
+    dfa.cleared = false
+    text := vm.text
+    size := vm.size
+    let at = from
+    if vm.filtered:
+        first := next_start(vm, from)
+        if first < 0:
+            return -1
+        at = usize(first)
+    let code = start_code(dfa, if at == 0: 0 else: 1)
+    trans := dfa.trans
+    classes := dfa.classes
+    stride := dfa.stride
+    stop := special()
+    let found: i64 = -1
+    while code != unknown():
+        let row = code
+        if code >= stop:
+            row = code - stop
+            flag := dfa.flags[row / stride]
+            if flag & 4 != 0:
+                return found
+            if flag & 1 != 0:
+                found = i64(at)
+                if earliest:
+                    return found
+            else if flag & 2 != 0:
+                # A start state with no thread older than itself: nothing
+                # is lost by moving on to where the literal allows a match.
+                skip := next_start(vm, at)
+                if skip < 0:
+                    return found
+                if usize(skip) > at:
+                    at = usize(skip)
+        while at < size:
+            next := trans[row + classes[usize(bytes_at(text, at))]]
+            if next >= stop:
+                break
+            row = next
+            at += 1
+        if at >= size:
+            if found != i64(size) && ends_matching(dfa, row / stride, size == 0, true):
+                found = i64(size)
+            return found
+        class := classes[usize(bytes_at(text, at))]
+        code = trans[row + class]
+        if code == unknown():
+            code = transition(dfa, row / stride, class)
+        at += 1
+    dfa.gave_up += 1
+    -2
+
+# The start of the match that ends at byte `end`, scanning back to `from`:
+# the reverse DFA keeps every thread, so the last match it sees is the
+# leftmost start (hybrid/regex.rs, try_search). -1 when the cache gave out.
+fn reverse_start(vm: &mut Vm, from: usize, end: usize) -> i64:
+    dfa := vm.reverse
+    dfa.cleared = false
+    text := vm.text
+    let code = start_code(dfa, if end == vm.size: 0 else: 1)
+    trans := dfa.trans
+    classes := dfa.classes
+    stride := dfa.stride
+    stop := special()
+    let found: i64 = -1
+    let at = end
+    while code != unknown():
+        let row = code
+        if code >= stop:
+            row = code - stop
+            flag := dfa.flags[row / stride]
+            if flag & 4 != 0:
+                return found
+            if flag & 1 != 0:
+                found = i64(at)
+        while at > from:
+            next := trans[row + classes[usize(bytes_at(text, at - 1))]]
+            if next >= stop:
+                break
+            row = next
+            at -= 1
+        if at <= from:
+            if found != i64(from) && ends_matching(dfa, row / stride, from == 0, from == vm.size):
+                found = i64(from)
+            return found
+        class := classes[usize(bytes_at(text, at - 1))]
+        code = trans[row + class]
+        if code == unknown():
+            code = transition(dfa, row / stride, class)
+        at -= 1
+    dfa.gave_up += 1
+    -1
+
+# One search from byte `from`: with `earliest`, whether any match is there,
+# as `is_match` asks; otherwise the leftmost-first match's bounds, put in
+# `vm.found`. The forward DFA finds the end and the reverse DFA the start,
+# and the Pike VM runs the search when either one's cache gives out.
+fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
+    end := forward_end(vm, from, earliest)
+    if end == -2:
+        return run(vm, from, earliest)
+    if end < 0:
+        return false
+    if earliest:
+        return true
+    let start = i64(from)
+    if usize(end) > from:
+        start = reverse_start(vm, from, usize(end))
+        if start < 0:
+            return run(vm, from, earliest)
+    found := vm.found
+    found[0] = start
+    found[1] = end
+    true
+
 # A reference in a replacement (r-std-regex.replace.expand).
 enum Reference:
     Dollar
@@ -2242,7 +2690,7 @@ tests:
 
     it("byte classes split at each range's ends and nowhere else"):
         classes := match Regex::new("[a-c]x"):
-            .Ok(regex) => regex.bytes.classes
+            .Ok(regex) => regex.forward.classes
             .Err(_) => []
         assert_equal(classes[usize(char_scalar('a'))], classes[usize(char_scalar('c'))])
         assert(classes[usize(char_scalar('`'))] != classes[usize(char_scalar('a'))])
@@ -2256,7 +2704,7 @@ tests:
 
     it("a multi-byte character's bytes are classes of their own"):
         classes := match Regex::new("é"):
-            .Ok(regex) => regex.bytes.classes
+            .Ok(regex) => regex.forward.classes
             .Err(_) => []
         assert(classes[0xC3] != classes[0xC2])
         assert(classes[0xC3] != classes[0xC4])
@@ -2275,7 +2723,7 @@ tests:
             regex := match Regex::new(pattern):
                 .Ok(regex) => regex
                 .Err(_) => return false
-            graph := regex.bytes.forward
+            graph := regex.forward.graph
             done := regex.program.ops.len() - 1
             let mut current: List[usize] = [0]
             let at: usize = 0
@@ -2359,3 +2807,78 @@ tests:
         assert(!reads(".", "ab"))
         assert(!reads("[^a]", "a"))
         assert(reads("[ab][é€]", "a€"))
+
+    it("the lazy DFA finds what the Pike VM finds from every start"):
+        cases := [
+            ("a+", "baab"),
+            ("a+?", "baab"),
+            ("(a|ab)(c|bcd)", "xabcd"),
+            ("x*", "axxb"),
+            ("^a", "aba"),
+            ("a$", "aba"),
+            ("^$", ""),
+            ("\$", "ab"),
+            ("^", "ab"),
+            ("b|^a", "ab"),
+            ("a|\$", "bab"),
+            ("\$a", "a"),
+            ("a^b", "ab"),
+            ("", "é"),
+            ("é+", "aéé😀"),
+            ("[^a]+", "aé€b"),
+            ("(?:ab)*b", "abab"),
+            ("a{2,3}", "aaaaa"),
+            ("a{2,}?", "aaaa"),
+            ("\\w+@\\w+", "x ab@cd e"),
+            ("(é|😀)+€", "é😀€"),
+            (".\$|^.", "é\n😀"),
+            ("b\$|a+", "aab"),
+            ("\\s*\$", "a \n"),
+        ]
+        for case in cases:
+            regex := match Regex::new(case._0):
+                .Ok(regex) => regex
+                .Err(_) => panic("pattern ${case._0}")
+            text := case._1
+            for (from, _) in (text + "!").char_indices():
+                let mut fast = new_vm(&regex, text, 2)
+                let mut slow = new_vm(&regex, text, 2)
+                matched := run(&mut slow, from, false)
+                assert_equal(search(&mut fast, from, false), matched, reason="${case._0} at $from")
+                if matched:
+                    assert_equal(fast.found[0], slow.found[0], reason="${case._0} start at $from")
+                    assert_equal(fast.found[1], slow.found[1], reason="${case._0} end at $from")
+                let mut any = new_vm(&regex, text, 0)
+                assert_equal(
+                    search(&mut any, from, true),
+                    matched,
+                    reason="${case._0} any at $from",
+                )
+
+    it("a full cache clears once in a search, then the Pike VM runs it"):
+        text := "abaababbbaabababbbaaabbabababbaabbbab"
+        # The first pattern's forward DFA grows a state for each set of
+        # places an `a` was seen at, and the second's reverse DFA does.
+        for (pattern, ahead) in [("[ab]*a[ab]{4}", true), ("[ab]{4}a[ab]*", false)]:
+            regex := match Regex::new(pattern):
+                .Ok(regex) => regex
+                .Err(_) => panic("pattern $pattern")
+            for limit in [140, 240, 1000]:
+                regex.forward.limit = limit
+                regex.reverse.limit = limit
+                let from: usize = 0
+                while from < bytes_len(text):
+                    let mut fast = new_vm(&regex, text, 2)
+                    let mut slow = new_vm(&regex, text, 2)
+                    matched := run(&mut slow, from, false)
+                    assert_equal(
+                        search(&mut fast, from, false),
+                        matched,
+                        reason="$pattern at $from",
+                    )
+                    if matched:
+                        assert_equal(fast.found[0], slow.found[0], reason="$pattern at $from")
+                        assert_equal(fast.found[1], slow.found[1], reason="$pattern at $from")
+                    from += 3
+            gave_up := if ahead: regex.forward.gave_up else: regex.reverse.gave_up
+            assert(gave_up > 0, reason="$pattern gave up")
