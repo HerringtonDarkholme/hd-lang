@@ -67,6 +67,7 @@ mod deps;
 mod doc_links;
 mod doc_name;
 mod doc_tests;
+mod edit_script;
 #[cfg(unix)]
 mod fifo;
 mod fixing;

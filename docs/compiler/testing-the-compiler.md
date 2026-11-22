@@ -52,9 +52,12 @@ B none, with the same diagnostics.
 
 ### 8.2 Incremental Soundness
 
-The driver's scripted-edit test went with the Wasm GC backend in
-dc358a56e and has no replacement yet; `hd_command`'s `same_size_edit.rs`
-covers one edit through the CLI.
+`crates/hd_command/tests/all/edit_script.rs` puts a package through one
+edit of most kinds the table below lists (33 steps, and a second checkout
+path), and after each one compares a warm `hd check` with a clean one over
+a cache that holds std alone (#1801 draft 79). It does not yet script a
+user derivation template, a dependency's version, or the init order;
+`same_size_edit.rs` covers one edit through `hd build`.
 
 Planned, not built: the edit-script fuzzer applies random edits to a
 generated or fixture package.
