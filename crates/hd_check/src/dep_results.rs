@@ -4990,6 +4990,9 @@ impl Ck<'_, '_> {
         // Own the shared handles: hashbrown's destructor keeps borrowed
         // entries live past the mutable diagnostic calls below.
         let mut proofs = HashMap::<hd_base::NodeIdx, Vec<crate::body::RegionUse>>::default();
+        // Region uses retain proof handles for this entire pass. Equal
+        // proof/type/offset queries share projection, not value edges.
+        let mut value_projections = HashMap::<(usize, Ty, usize), Box<[u32]>>::default();
         let mut statics: Vec<_> = self
             .static_values
             .iter()
@@ -5003,21 +5006,31 @@ impl Ck<'_, '_> {
                     TyData::Ref { inner, counted, .. } if inner == actual => usize::from(!counted),
                     _ => 0,
                 };
-                let slots = Rc::new(
-                    (0..ls.of(actual).slots.len())
-                        .map(|k| vec![w(k + offset)])
-                        .collect(),
-                );
-                let goal = goal_tuple(pool, proof.2.self_ty, proof.2.args);
-                let roots = [(&proof.3, self.infer.resolve(pool, goal), slots)];
-                let tables = (self.cx.lookup, Impls::Owned(self.cx.impls));
-                let positions = proof_statics(ls, tables, &|t| self.infer.resolve(pool, t), roots)?;
-                if !positions.is_empty() {
-                    let slots: Vec<_> = (0..ls.of(actual).slots.len())
+                let goal = self
+                    .infer
+                    .resolve(pool, goal_tuple(pool, actual, proof.2.args));
+                let key = (proof.3.key(), goal, offset);
+                let slots = if let Some(slots) = value_projections.get(&key) {
+                    slots.clone()
+                } else {
+                    let slots = Rc::new(
+                        (0..ls.of(actual).slots.len())
+                            .map(|k| vec![w(k + offset)])
+                            .collect(),
+                    );
+                    let roots = [(&proof.3, goal, slots)];
+                    let tables = (self.cx.lookup, Impls::Owned(self.cx.impls));
+                    let positions =
+                        proof_statics(ls, tables, &|t| self.infer.resolve(pool, t), roots)?;
+                    let slots: Box<[_]> = (0..ls.of(actual).slots.len())
                         .map(|k| w(k + offset))
                         .filter(|k| positions.contains(k))
                         .collect();
-                    statics.push((value, slots.into(), Category::StaticProof));
+                    value_projections.insert(key, slots.clone());
+                    slots
+                };
+                if !slots.is_empty() {
+                    statics.push((value, slots, Category::StaticProof));
                 }
             } else {
                 proofs.entry(proof.0).or_default().push(proof.clone());

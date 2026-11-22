@@ -223,3 +223,59 @@ fn written_argument_heads_reuse_correspondence_across_bounds() {
         );
     }
 }
+
+fn conversion_source(width: usize, depth: usize) -> String {
+    let mut text = String::from(
+        "struct Wrapped[T]:\n    value: T\ntrait Seed0:\n    pass\nimpl[T < 'static] Seed0 for Wrapped[T]:\n    pass\n",
+    );
+    for d in 1..=depth {
+        let _ = write!(
+            text,
+            "trait Seed{d}:\n    pass\nimpl[T < Seed{}] Seed{d} for Wrapped[T]:\n    pass\n",
+            d - 1
+        );
+    }
+    let _ = write!(
+        text,
+        "trait Saved:\n    fn number(&self) -> i32\nimpl[T < Seed{depth}] Saved for Wrapped[T]:\n    fn number(&self) -> i32: +7\nfn accepted(value: &"
+    );
+    for _ in 0..depth + 2 {
+        text.push_str("Wrapped[");
+    }
+    text.push_str("&'static i32");
+    for _ in 0..depth + 2 {
+        text.push(']');
+    }
+    text.push_str(") -> void:\n");
+    for i in 0..width {
+        let _ = writeln!(text, "    let view{i}: &dyn Saved = value");
+    }
+    text.push_str("    pass\npub fn main() -> void: pass\n");
+    text
+}
+
+#[test]
+fn repeated_conversions_share_proof_projection() {
+    let small = measured(&conversion_source(100, 1));
+    let wide = measured(&conversion_source(1000, 1));
+    let deep_small = measured(&conversion_source(100, 20));
+    let deep_wide = measured(&conversion_source(1000, 20));
+    eprintln!(
+        "conversion work: small={small:?}, wide={wide:?}, deep_small={deep_small:?}, deep_wide={deep_wide:?}"
+    );
+    for (small, wide, deep_small, deep_wide) in [
+        (small.0, wide.0, deep_small.0, deep_wide.0),
+        (small.1, wide.1, deep_small.1, deep_wide.1),
+        (small.2, wide.2, deep_small.2, deep_wide.2),
+    ] {
+        assert!(small > 0);
+        assert!(wide <= 12 * small, "{small} -> {wide}");
+        assert!(deep_wide <= 12 * deep_small, "{deep_small} -> {deep_wide}");
+        let narrow_delta = deep_small.saturating_sub(small);
+        let wide_delta = deep_wide.saturating_sub(wide);
+        assert!(
+            wide_delta <= 2 * narrow_delta + 1,
+            "depth delta {narrow_delta} -> {wide_delta}"
+        );
+    }
+}
