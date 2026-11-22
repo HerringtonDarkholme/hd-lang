@@ -192,27 +192,46 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    /// Whether `t` implements the compiler-known `AutoClosing` marker.
-    pub(crate) fn implements_auto_closing(&mut self, t: Ty) -> StageResult<bool> {
+    /// An ordinary value use is forbidden only when its marker proof holds
+    /// in that value's region context (`flow.auto-closing.binding`).
+    pub(crate) fn check_auto_closing(
+        &mut self,
+        value: hd_tir::ir::Ref,
+        t: Ty,
+        at: NodeRef<'_>,
+        message: impl FnOnce() -> String,
+    ) -> StageResult<()> {
         let auto_closing = self.cx.names.known.auto_closing;
         // A head no row of the trait can take answers without resolving
         // the whole type or asking the solver (#1891).
         if !self.may_have_rows(auto_closing, self.infer.shallow(self.pool(), t)) {
-            return Ok(false);
+            return Ok(());
         }
         let self_ty = self.resolved(t);
         if self.pool().has_poison(self_ty) {
-            return Ok(false);
+            return Ok(());
         }
         let goal = TraitRef {
             trait_: auto_closing,
             self_ty,
             args: hd_types::TyList::EMPTY,
         };
-        Ok(matches!(
-            self.solve(goal)?,
-            Answer::Holds { evidence, obligations, .. } if obligations.is_empty() && !matches!(evidence, Evidence::Poison)
-        ))
+        if let Answer::Holds {
+            evidence,
+            obligations,
+            ..
+        } = self.solve(goal)?
+            && !matches!(evidence, Evidence::Poison)
+        {
+            if obligations.is_empty() {
+                self.err(Code::UnregisteredAutoClosing, at, &message());
+            } else {
+                let source = crate::body::RegionSource::Value(value, self.b.ty_of(value));
+                self.marker_uses
+                    .push(((at.index(), source, goal, obligations), message()));
+            }
+        }
+        Ok(())
     }
 
     /// Checks an expression whose value is about to be stored in an
@@ -226,24 +245,23 @@ impl Ck<'_, '_> {
         let before = self.diags.mark();
         let (value, ty) = self.expr(expression, want)?;
         if self.diags.errors_since(before) == 0 {
-            self.check_stored_value(ty, expression, place)?;
+            self.check_stored_value(value, ty, expression, place)?;
         }
         Ok((value, ty))
     }
 
     pub(crate) fn check_stored_value(
         &mut self,
+        value: hd_tir::ir::Ref,
         ty: Ty,
         expression: NodeRef<'_>,
         place: &str,
     ) -> StageResult<()> {
-        if self.implements_auto_closing(ty)? {
-            let message = format!(
+        self.check_auto_closing(value, ty, expression, || {
+            format!(
                 "an AutoClosing value cannot be stored {place}; call its `@auto_closing` constructor as a statement"
-            );
-            self.err(Code::UnregisteredAutoClosing, expression, &message);
-        }
-        Ok(())
+            )
+        })
     }
 
     /// Which disposal protocol an auto-closing value uses. A synchronous

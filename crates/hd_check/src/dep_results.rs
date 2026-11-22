@@ -2714,6 +2714,8 @@ struct Inputs<'a> {
     /// The values bound to a binding written `&'static T`
     /// ([`Ck::static_values`]).
     statics: &'a [(hd_tir::ir::Ref, Box<[u32]>, Category)],
+    /// Conditional marker queries against the solution, never constraints.
+    markers: &'a [(hd_tir::ir::Ref, Box<[u32]>, NodeIdx, String)],
     /// Each argument a call lends to a local-reference parameter, whether
     /// as `&mut`, and the call when it is a `&mut self` receiver, shared
     /// until the call starts ([`Ck::lent_args`]).
@@ -4993,12 +4995,18 @@ impl Ck<'_, '_> {
         // Region uses retain proof handles for this entire pass. Equal
         // proof/type/offset queries share projection, not value edges.
         let mut value_projections = HashMap::<(usize, Ty, usize), Box<[u32]>>::default();
+        let mut markers = Vec::new();
         let mut statics: Vec<_> = self
             .static_values
             .iter()
             .map(|(r, slots)| (*r, slots.clone(), Category::Static))
             .collect();
-        for proof in &self.region_uses {
+        for (proof, message) in self
+            .region_uses
+            .iter()
+            .map(|p| (p, None))
+            .chain(self.marker_uses.iter().map(|(p, m)| (p, Some(m))))
+        {
             if let RegionSource::Value(value, ty) = proof.1 {
                 let ty = self.infer.resolve(pool, ty);
                 let actual = self.infer.resolve(pool, proof.2.self_ty);
@@ -5029,7 +5037,9 @@ impl Ck<'_, '_> {
                     value_projections.insert(key, slots.clone());
                     slots
                 };
-                if !slots.is_empty() {
+                if let Some(message) = message {
+                    markers.push((value, slots, proof.0, message.clone()));
+                } else if !slots.is_empty() {
                     statics.push((value, slots, Category::StaticProof));
                 }
             } else {
@@ -5040,6 +5050,7 @@ impl Ck<'_, '_> {
         let mut calls: HashMap<u32, CallSig> = HashMap::default();
         let mut closures: Vec<(usize, DepSig)> = Vec::new();
         let mut through = !statics.is_empty()
+            || !markers.is_empty()
             || body.local_ty.iter().enumerate().any(|(l, &t)| {
                 body.local_flags[l] & hd_tir::ir::local_flags::PARAM != 0 && capture_slot(pool, t)
             });
@@ -5318,6 +5329,7 @@ impl Ck<'_, '_> {
             paths: &paths,
             annotated: self.annotated_params(ls),
             statics: &statics,
+            markers: &markers,
             lent,
             runtime,
         };
@@ -5615,6 +5627,11 @@ impl Ck<'_, '_> {
         out.extend(scope.map(|(at, msg)| (at, Code::LocalReferenceOutlivesLocal, msg)));
         let conflicts = v.conflicts.into_iter();
         out.extend(conflicts.map(|(at, msg)| (at, Code::ConflictingAccess, msg)));
+        out.extend(
+            v.markers
+                .into_iter()
+                .map(|(at, msg)| (at, Code::UnregisteredAutoClosing, msg)),
+        );
         out
     }
 
@@ -5931,6 +5948,8 @@ fn closure_message(b: &Body, cx: &BodyCx<'_>, o: Origin) -> String {
 /// The diagnostics one solver gives a body, before their messages.
 #[derive(Default)]
 struct Verdicts {
+    /// Conditional `AutoClosing` proofs established in the value context.
+    markers: Vec<(NodeIdx, String)>,
     /// The run-time loan sites and their holders (`ref.excl.alias.loan`).
     run_loans: RunLoans,
     /// Stores into a place the caller owns (`ref.dep.store`).

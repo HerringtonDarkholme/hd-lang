@@ -2180,6 +2180,36 @@ impl Gen<'_, '_> {
         };
         let has = |v: u32, o: Origin| self.has(sol, v, o);
         let mut v = Verdicts::default();
+        // A marker is queried after solving; a false condition must not
+        // add a constraint or a lifetime error to an ordinary local value.
+        let mut static_components = HashMap::default();
+        for (value, slots, at, message) in self.s.markers {
+            let view = value.as_inst().and_then(|i| self.val(i.0));
+            let holds = slots.iter().all(|&k| {
+                crate::work::scan_work(1);
+                view.as_ref()
+                    .and_then(|v| v.0.get(k as usize))
+                    .is_some_and(|&r| {
+                        *static_components
+                            .entry(sol.component(r))
+                            .or_insert_with(|| {
+                                let edge = Edge {
+                                    from: r,
+                                    to: self.stat,
+                                    inst: 0,
+                                    cat: Category::StaticProof,
+                                };
+                                sol.loans(r).all(|l| {
+                                    crate::work::scan_work(1);
+                                    allowed(&edge, l)
+                                })
+                            })
+                    })
+            });
+            if holds {
+                v.markers.push((*at, message.clone()));
+            }
+        }
         let mut returns = HashSet::default();
         let violations = sol.violations(&self.c, allowed);
         let mut passed: HashSet<Origin> = HashSet::default();

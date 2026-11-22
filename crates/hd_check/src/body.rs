@@ -416,6 +416,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// their statement.
     pub pending: Vec<PendingGoal>,
     pub region_uses: Vec<RegionUse>,
+    /// Conditional marker queries, diagnosed only when their regions satisfy
+    /// the retained proof; querying a marker adds no static requirement.
+    pub marker_uses: Vec<(RegionUse, String)>,
     /// Type parameters an argument of type `never` was passed for, with no
     /// earlier error to have left that `never`: one that nothing else
     /// solves is `never` at the end of the body.
@@ -857,6 +860,7 @@ pub(crate) fn new_ck<'a, 'c>(
         subs: Vec::new(),
         pending: Vec::new(),
         region_uses: Vec::new(),
+        marker_uses: Vec::new(),
         never_args: Vec::new(),
         fell_back: HashSet::default(),
         method_targs: Vec::new(),
@@ -3748,13 +3752,11 @@ impl Ck<'_, '_> {
                 if self.fn_body == Some(block.index())
                     && !self.auto_closing_function
                     && self.diags.errors_since(value_diags) == 0
-                    && self.implements_auto_closing(t)?
                 {
-                    self.err(
-                        Code::UnregisteredAutoClosing,
-                        e,
-                        "an AutoClosing value can be returned only from an `@auto_closing` function",
-                    );
+                    self.check_auto_closing(r, t, e, || {
+                        "an AutoClosing value can be returned only from an `@auto_closing` function"
+                            .to_owned()
+                    })?;
                 }
                 // A last expression that cannot complete is a statement.
                 if self.infer.shallow(self.pool(), t) == Ty::NEVER {
@@ -4498,13 +4500,10 @@ impl Ck<'_, '_> {
                     let (r, t) = self.expr(*e, Some(ret))?;
                     if !(self.auto_closing_function && self.rets.len() == 1)
                         && self.diags.errors_since(value_diags) == 0
-                        && self.implements_auto_closing(t)?
                     {
-                        self.err(
-                            Code::UnregisteredAutoClosing,
-                            *e,
-                            "an AutoClosing value can be returned only from an `@auto_closing` function",
-                        );
+                        self.check_auto_closing(r, t, *e, ||
+                            "an AutoClosing value can be returned only from an `@auto_closing` function".to_owned(),
+                        )?;
                     }
                     self.coerce(r, t, ret, *e, "return", ExpectPosition::General)
                 } else {

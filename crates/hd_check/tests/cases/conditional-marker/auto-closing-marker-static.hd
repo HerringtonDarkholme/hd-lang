@@ -1,0 +1,18 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+use std.ops.{AutoClosing, Disposable}
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Disposable for Wrapped[T]:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl[T < 'static] AutoClosing for Wrapped[T]:
+    pass
+
+# expected: the ordinary binding reports unregistered-auto-closing
+fn inspect(value: Wrapped[&'static i32]) -> void:
+    copy := value
+    pass
