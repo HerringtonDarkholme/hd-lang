@@ -2035,34 +2035,18 @@ struct CallSig {
 /// Per slot of a subject, the origins it holds.
 pub(crate) type ProofSlots<V> = Rc<Vec<Vec<V>>>;
 
-/// The written lifetime of each slot of type `t` whose local reference
-/// slots write `written` ([`hd_resolve::Generic::default_lifetimes`]), as
-/// [`proof_statics`] origins: 0 for one written with none, which is not
-/// `'static`. A function's or suspension's slot holds no written
-/// reference, so it has none.
-pub(crate) fn written_origins(ls: &Layouts<'_>, t: Ty, written: &[u16]) -> ProofSlots<u32> {
-    let mut refs = 0;
-    let slots = (ls.of(t).slots.iter())
-        .map(|s| {
-            if s.fun || s.hold {
-                return Vec::new();
-            }
-            refs += 1;
-            vec![written.get(refs - 1).map_or(0, |&l| u32::from(l))]
-        })
-        .collect();
-    Rc::new(slots)
-}
 type ProofBindings<V> = Rc<HashMap<ParamRef, ProofSlots<V>>>;
 
 type StaticProofCache =
     HashMap<(Vec<(usize, ParamRef, usize, TraitRef)>, Vec<(Key, Var)>), HashSet<Var>>;
 
 /// The origins a proof's static requirements reach (`ref.generic.static.impl`),
-/// from the origins of each root subject's reference slots: a body's call
+/// from the origins of the reference slots of each root goal, its subject
+/// then its trait arguments as one tuple ([`goal_tuple`]): a body's call
 /// variables, or a header's written lifetimes. Each static leaf takes its
-/// subject's top slots; each impl step lines its head up with the subject
-/// and passes on the slots of the bound parameter. Nothing is emitted.
+/// subject's top slots; each impl step lines its head, self then trait
+/// arguments, up with the goal and passes on the slots of the bound's
+/// parameter and of its trait arguments. Nothing is emitted.
 ///
 /// Cost: per distinct (proof node, subject, origins) one head line-up,
 /// memoized per head; O(proof nodes + slots) in all.
@@ -2122,8 +2106,8 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                     .get(usize::from(index))
                     .is_some_and(|g| !g.row && !g.lifetime && g.const_type.is_none())
             };
-            let pattern = *canonical.entry(table.head_self[r]).or_insert_with(|| {
-                pool.subst(table.head_self[r], &|p: ParamRef| {
+            let canon = |t: Ty| {
+                pool.subst(t, &|p: ParamRef| {
                     (p.owner == owner).then(|| {
                         if declaration
                             .generics
@@ -2146,7 +2130,9 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                         }
                     })
                 })
-            });
+            };
+            let head = goal_tuple(pool, table.head_self[r], table.head_args[r]);
+            let pattern = *canonical.entry(head).or_insert_with(|| canon(head));
             let key = (pattern, actual, Rc::as_ptr(&origins) as usize);
             let bindings = if let Some(bindings) = heads.get(&key) {
                 Rc::clone(bindings)
@@ -2192,28 +2178,125 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                 bindings
             };
             for (step, child) in steps {
-                let Some(PlanStep::Bound { param, .. }) = table.plan[r].get(usize::from(*step))
+                let Some(PlanStep::Bound {
+                    param,
+                    args: bound_args,
+                    ..
+                }) = table.plan[r].get(usize::from(*step))
                 else {
                     return Err(bug("an outlives proof lost its bound plan step"));
                 };
-                let actual = *pool
-                    .list_items(args)
-                    .get(usize::from(*param))
-                    .ok_or_else(|| bug("an outlives bound lost its type argument"))?;
-                // Trait-argument origins have their own deferred source
-                // (#2267); this adapter translates the bound's subject.
-                let origins = bindings
-                    .get(&ParamRef {
-                        owner: DefId::NONE,
-                        index: u16::from(*param),
-                    })
-                    .cloned()
-                    .unwrap_or_default();
-                work.push((child, resolve(actual), origins));
+                let param = ParamRef {
+                    owner: DefId::NONE,
+                    index: u16::from(*param),
+                };
+                // The bound's goal in the impl's parameters, then as this
+                // proof instantiates them.
+                let declared = goal_tuple(pool, pool.intern_ty(&TyData::Param(param)), *bound_args);
+                let declared = canon(declared);
+                let actual = resolve(pool.subst(declared, &|p: ParamRef| {
+                    (p.owner == DefId::NONE)
+                        .then(|| pool.list_items(args).get(usize::from(p.index)).copied())?
+                }));
+                let origins = if pool.list_items(*bound_args).is_empty() {
+                    bindings.get(&param).cloned().unwrap_or_default()
+                } else {
+                    let keys = line_up(ls, declared, actual)
+                        .ok_or_else(|| bug("an outlives bound lost its positional goal"))?;
+                    crate::work::scan_work(keys.len());
+                    let of = |key| match key {
+                        Key::Param(p, slot) => bindings.get(&p).and_then(|b| b.get(slot)).cloned(),
+                        _ => None,
+                    };
+                    Rc::new(
+                        keys.into_iter()
+                            .map(|k| of(k).unwrap_or_default())
+                            .collect(),
+                    )
+                };
+                work.push((child, actual, origins));
             }
         }
     }
     Ok(statics)
+}
+
+/// Where a header's goal slot writes its lifetime: slot `k` its declared
+/// goal writes after the subject's, or slot `s` of the trait parameter
+/// `p` stands for.
+pub(crate) enum Written {
+    Declared(usize),
+    Param(ParamRef, usize),
+}
+
+/// Whether the static requirements of a header's proof reach a written
+/// lifetime that is not `'static` (`ref.generic.static.impl`): the goal's
+/// subject's local reference slots write `subject`, in
+/// [`Types::ref_slots`] order, then each suspension slot the lifetime its
+/// `Suspend` names (a function's slot writes none), and `written` names
+/// each other slot's lifetime (0: none written, which nothing requires). One line-up of `declared` with
+/// `goal`, then [`proof_statics`].
+pub(crate) fn written_escapes(
+    (lookup, impls, suspend): (&hd_resolve::Lookup<'_>, Impls<'_>, DefId),
+    pool: Types<'_>,
+    proof: &RegionObligations,
+    (declared, goal): (Ty, Ty),
+    (subject, written): (&[u16], &dyn Fn(Written) -> u32),
+) -> hd_base::StageResult<bool> {
+    let lifetimed = lifetimed(lookup);
+    let ls = Layouts::new(pool, suspend, &lifetimed);
+    let Some(keys) = line_up(&ls, declared, goal) else {
+        return Ok(false);
+    };
+    // The subject's lifetime at each of its layout slots.
+    let first = match pool.get(goal) {
+        TyData::Tuple { elems, .. } => pool.list_items(elems).first().copied(),
+        _ => None,
+    };
+    let own: Vec<u32> = first.map_or_else(Vec::new, |t| {
+        let (refs, held) = subject.split_at(pool.ref_slots(t).min(subject.len()));
+        let (mut refs, mut held) = (refs.iter(), held.iter());
+        (ls.of(t).slots.iter())
+            .map(|s| {
+                let next = if s.hold {
+                    held.next()
+                } else if s.fun {
+                    None
+                } else {
+                    refs.next()
+                };
+                next.map_or(0, |&l| u32::from(l))
+            })
+            .collect()
+    });
+    let n = own.len();
+    let origins = (keys.into_iter().enumerate()).map(|(k, key)| {
+        let id = match key {
+            Key::Decl(_) if k < n => own[k],
+            Key::Decl(d) => written(Written::Declared(d - n)),
+            Key::Param(p, s) => written(Written::Param(p, s)),
+            _ => 0,
+        };
+        if id == 0 || id == STATIC {
+            Vec::new()
+        } else {
+            vec![id]
+        }
+    });
+    let roots = [(proof, goal, Rc::new(origins.collect()))];
+    Ok(!proof_statics(&ls, (lookup, impls), &|t| t, roots)?.is_empty())
+}
+
+/// A goal as one type, its subject then its trait arguments, so that one
+/// line-up pairs a head's or a bound's slots with a goal's in [`Layout`]
+/// order.
+pub(crate) fn goal_tuple(pool: Types<'_>, subject: Ty, args: hd_types::TyList) -> Ty {
+    let mut elems = vec![subject];
+    elems.extend_from_slice(pool.list_items(args));
+    pool.intern_ty(&TyData::Tuple {
+        elems: pool.list(&elems),
+        rest: None,
+    })
 }
 
 impl CallSig {
@@ -2723,7 +2806,8 @@ impl Ck<'_, '_> {
             .collect();
         let roots = uses.iter().map(|(_, param, _, tref, proof)| {
             let origins = parameters.get(param).cloned().unwrap_or_default();
-            (proof, self.infer.resolve(pool, tref.self_ty), origins)
+            let goal = goal_tuple(pool, tref.self_ty, tref.args);
+            (proof, self.infer.resolve(pool, goal), origins)
         });
         let tables = (self.cx.lookup, Impls::Owned(self.cx.impls));
         let statics = proof_statics(ls, tables, &|t| self.infer.resolve(pool, t), roots)?;

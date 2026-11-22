@@ -24,6 +24,7 @@ use hd_types::solver::{
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList, Types};
 
 use crate::body::{TOO_COMPLEX, add_bound};
+use crate::dep_results::{Written, goal_tuple, written_escapes};
 
 /// `types.limit.type-size.error` on a written type.
 const TYPE_TOO_LARGE: &str =
@@ -658,7 +659,7 @@ impl<'a> ItemCheck<'_, 'a> {
             let Some(d) = g.default else {
                 continue;
             };
-            for b in &g.bounds {
+            for (i, b) in g.bounds.iter().enumerate() {
                 let TyData::TraitValue { def, args, .. } = self.pool().get(*b) else {
                     continue;
                 };
@@ -667,12 +668,17 @@ impl<'a> ItemCheck<'_, 'a> {
                     self_ty: d,
                     args,
                 };
+                let own = g.bound_lifetimes.get(i).map_or(&[][..], Vec::as_slice);
                 let (code, message) = match self.answer_ref(tref, 0)? {
                     Answer::Fails(_) => (Code::UnsatisfiedTraitBound, "does not implement"),
                     // A proof's outlives requirements hold of the lifetimes
                     // the default writes (`ref.generic.static.impl`).
                     Answer::Holds { obligations, .. }
-                        if self.default_escapes(d, &g.default_lifetimes, &obligations)? =>
+                        if self.default_escapes(
+                            (d, &g.default_lifetimes),
+                            (args, own),
+                            &obligations,
+                        )? =>
                     {
                         let message = "does not outlive the lifetime required by";
                         (Code::LocalReferenceEscapes, message)
@@ -1093,6 +1099,7 @@ impl<'a> ItemCheck<'_, 'a> {
             trait_args,
             self_ty,
             assoc,
+            assoc_lifetimes,
             kind: ImplKind::Written,
             ..
         } = &it.data
@@ -1101,14 +1108,14 @@ impl<'a> ItemCheck<'_, 'a> {
         };
         let pool = self.pool();
         let args = pool.list_items(*trait_args);
-        for (a, bound_to) in assoc {
+        for (k, (a, bound_to)) in assoc.iter().enumerate() {
             self.check_ty(*bound_to, 0)?;
             let Some(ItemData::AssocType { bounds, .. }) = self.cx.lookup.item(*a).map(|i| &i.data)
             else {
                 continue;
             };
-            for b in bounds.clone() {
-                let b = pool.subst(b, &|p: ParamRef| {
+            for (index, &pattern) in bounds.clone().iter().enumerate() {
+                let b = pool.subst(pattern, &|p: ParamRef| {
                     (p.owner == *trait_).then(|| {
                         if p.index == 0 {
                             Some(*self_ty)
@@ -1118,6 +1125,16 @@ impl<'a> ItemCheck<'_, 'a> {
                     })?
                 });
                 if pool.has_poison(*bound_to) {
+                    continue;
+                }
+                let subject = assoc_lifetimes.get(k).map_or(&[][..], Vec::as_slice);
+                if self.escapes(it, (*bound_to, subject), (pattern, b), (*a, index))? {
+                    let message = format!(
+                        "the assigned type {} does not satisfy the lifetime required by {}",
+                        self.show(*bound_to),
+                        self.show(b)
+                    );
+                    self.report(0, Code::LocalReferenceEscapes, message);
                     continue;
                 }
                 if !self.fails(*bound_to, b, 0)? {
@@ -1135,6 +1152,96 @@ impl<'a> ItemCheck<'_, 'a> {
             }
         }
         Ok(())
+    }
+
+    /// Whether `subject` (with the lifetime its slots write) implements
+    /// bound `b` (declared as `pattern`, bound `index` of associated type
+    /// `a`) only by a `'static` requirement a written lifetime of the impl
+    /// does not meet (`trait.assoc.bound-impl`, `ref.generic.static.impl`).
+    /// A bound's own slot writes a trait lifetime, the impl's by
+    /// `trait_lifetimes`; `Self` and a trait parameter write the impl's
+    /// target and trait argument lifetimes.
+    ///
+    /// Cost: one goal, answered from the memo, and one walk of its proof.
+    fn escapes(
+        &mut self,
+        it: &Item,
+        (bound_to, subject): (Ty, &[u16]),
+        (pattern, b): (Ty, Ty),
+        (a, index): (DefId, usize),
+    ) -> StageResult<bool> {
+        let pool = self.pool();
+        let (
+            ItemData::Impl {
+                trait_,
+                trait_args,
+                trait_lifetimes,
+                self_lifetimes,
+                trait_slots,
+                ..
+            },
+            Some(ItemData::AssocType {
+                bound_lifetimes, ..
+            }),
+            Some((bound_trait, args)),
+            Some((_, declared_args)),
+        ) = (
+            &it.data,
+            self.cx.lookup.item(a).map(|i| &i.data),
+            pool.trait_value(b),
+            pool.trait_value(pattern),
+        )
+        else {
+            return Ok(false);
+        };
+        let tref = TraitRef {
+            trait_: bound_trait,
+            self_ty: bound_to,
+            args,
+        };
+        let Answer::Holds { obligations, .. } = self.answer_ref(tref, 0)? else {
+            return Ok(false);
+        };
+        if obligations.is_empty() {
+            return Ok(false);
+        }
+        let own = bound_lifetimes.get(index).map_or(&[][..], Vec::as_slice);
+        let trait_arg_slots: Vec<usize> = (pool.list_items(*trait_args).iter())
+            .scan(0, |at, &t| {
+                Some(std::mem::replace(at, *at + pool.ref_slots(t)))
+            })
+            .collect();
+        let written = |w: Written| match w {
+            Written::Declared(d) => match own.get(d).copied().unwrap_or(0) {
+                0 => 0,
+                hd_resolve::STATIC_LIFETIME => u32::from(hd_resolve::STATIC_LIFETIME),
+                l => trait_lifetimes
+                    .get(usize::from(l) - 1)
+                    .map_or(0, |&l| u32::from(l)),
+            },
+            Written::Param(p, s) if p.owner == *trait_ && p.index == 0 => {
+                self_lifetimes.get(s).map_or(0, |&l| u32::from(l))
+            }
+            Written::Param(p, s) if p.owner == *trait_ => (trait_arg_slots
+                .get(usize::from(p.index) - 1))
+            .and_then(|&at| trait_slots.get(at + s))
+            .map_or(0, |&l| u32::from(l)),
+            Written::Param(..) => 0,
+        };
+        let declared = goal_tuple(pool, bound_to, declared_args);
+        let goal = goal_tuple(pool, bound_to, args);
+        let tables = (
+            self.cx.lookup,
+            Impls::Owned(self.cx.impls),
+            self.cx.names.known.suspend,
+        );
+        written_escapes(
+            tables,
+            pool,
+            &obligations,
+            (declared, goal),
+            (subject, &written),
+        )
     }
 
     /// Each binding of an associated type's bound holds for the type an
@@ -1498,25 +1605,45 @@ impl<'a> ItemCheck<'_, 'a> {
     /// the shared walk with the default's written lifetimes as origins.
     fn default_escapes(
         &self,
-        d: Ty,
-        written: &[u16],
+        (d, written): (Ty, &[u16]),
+        (args, own): (TyList, &[u16]),
         obligations: &hd_types::solver::RegionObligations,
     ) -> StageResult<bool> {
         if obligations.is_empty() {
             return Ok(false);
         }
         let pool = self.pool();
-        let lifetimed = crate::dep_results::lifetimed(self.cx.lookup);
-        let ls = crate::dep_results::Layouts::new(pool, self.cx.names.known.suspend, &lifetimed);
-        let origins = crate::dep_results::written_origins(&ls, d, written);
-        let reached = crate::dep_results::proof_statics(
-            &ls,
-            (self.cx.lookup, Impls::Owned(self.cx.impls)),
-            &|t| t,
-            [(obligations, d, origins)],
-        )?;
-        let fixed = u32::from(hd_resolve::STATIC_LIFETIME);
-        Ok(reached.iter().any(|&l| l != fixed))
+        // An elided lifetime is the default's own, never `'static`: an id
+        // past every place in scope, and short of `'static`'s.
+        let elided = hd_resolve::STATIC_LIFETIME - 1;
+        let refs = pool.ref_slots(d);
+        let subject: Vec<u16> = (0..refs)
+            .map(|k| {
+                written
+                    .get(k)
+                    .copied()
+                    .filter(|&l| l != 0)
+                    .unwrap_or(elided)
+            })
+            .chain(written.iter().skip(refs).copied())
+            .collect();
+        let goal = goal_tuple(pool, d, args);
+        let written = |w: Written| match w {
+            Written::Declared(k) => own.get(k).map_or(0, |&l| u32::from(l)),
+            Written::Param(..) => 0,
+        };
+        let tables = (
+            self.cx.lookup,
+            Impls::Owned(self.cx.impls),
+            self.cx.names.known.suspend,
+        );
+        written_escapes(
+            tables,
+            pool,
+            obligations,
+            (goal, goal),
+            (&subject, &written),
+        )
     }
 
     /// Whether a written bound goal provably fails under the item's

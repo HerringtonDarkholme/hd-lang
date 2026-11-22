@@ -2281,7 +2281,10 @@ fn prelude(
 /// implementation, and its bounds in a trait (`trait.assoc.bound-decl`).
 /// An associated type's name, definition, value and bounds, with each
 /// bound's written lifetimes as [`Lower::with_slots`] records them.
-type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<Ty>, Vec<Vec<u16>>);
+/// An associated type member: its name, definition, assigned type (an
+/// implementation's) and the lifetime of each reference slot that type
+/// writes, and its bounds (a trait's) with the lifetimes each writes.
+type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<u16>, Vec<Ty>, Vec<Vec<u16>>);
 
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
@@ -4825,11 +4828,10 @@ impl Lower<'_, '_, '_> {
                     .children()
                     .find(|c| c.kind().is_type() && c.kind() != SyntaxKind::RequirementRow)
                 {
-                    let (default, written) = self.with_slots(|low| low.ty(Some(c), gn));
-                    g.default_lifetimes = self
-                        .slot_lists(&[default], vec![written])
-                        .pop()
-                        .unwrap_or_default();
+                    let (default, written) = self.written_type(c, gn);
+                    if written.iter().any(|&l| l != 0) {
+                        g.default_lifetimes = written;
+                    }
                     g.default = Some(default);
                 }
             }
@@ -5832,7 +5834,10 @@ impl Lower<'_, '_, '_> {
                     };
                     let text = self.src.text(t).to_owned();
                     let def = self.names.member(owner, PathKind::Member, &text);
-                    let ty = Src::type_child(f).map(|c| self.ty(Some(c), gn));
+                    let (ty, slots) = Src::type_child(f).map_or((None, Vec::new()), |c| {
+                        let (t, slots) = self.written_type(c, gn);
+                        (Some(t), slots)
+                    });
                     let (mut bounds, mut written) = (Vec::new(), Vec::new());
                     if let Some(bl) = Src::child(f, SyntaxKind::BoundList) {
                         for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
@@ -5843,7 +5848,7 @@ impl Lower<'_, '_, '_> {
                             }
                         }
                     }
-                    assoc.push((self.sym_token(t), def, ty, bounds, written));
+                    assoc.push((self.sym_token(t), def, ty, slots, bounds, written));
                 }
                 // ruled out: a match on a syntax kind; the trait's other members are not methods or associated types.
                 _ => {}
@@ -6046,6 +6051,7 @@ impl Lower<'_, '_, '_> {
                 self_ty,
                 methods: vec![],
                 assoc: vec![],
+                assoc_lifetimes: vec![],
                 by: None,
                 kind: ImplKind::Poison,
                 fills_defaults: false,
@@ -6389,14 +6395,17 @@ impl Lower<'_, '_, '_> {
         {
             self.impl_variance(h.def, &generics, (self_ty, &mut gn), b);
         }
+        let mut assoc_lifetimes = vec![Vec::new(); header_bindings.len()];
         let mut assoc: Vec<(DefId, Ty)> = header_bindings;
-        for (name, _, ty, ..) in assoc_decls {
+        for (name, _, ty, slots, ..) in assoc_decls {
             if trait_ != DefId::NONE {
                 assoc.push((
                     self.names
                         .member(trait_, PathKind::Member, self.names.text(name)),
                     ty.unwrap_or(Ty::POISON),
                 ));
+                let written = slots.iter().any(|&l| l != 0);
+                assoc_lifetimes.push(if written { slots } else { Vec::new() });
             }
         }
         let mut it = Item::new(
@@ -6412,6 +6421,7 @@ impl Lower<'_, '_, '_> {
                 self_ty,
                 methods,
                 assoc,
+                assoc_lifetimes,
                 by: by.map(|b| self.sym(&b)),
                 kind,
                 fills_defaults: self.fills_defaults(h.node),
@@ -6689,6 +6699,7 @@ impl Lower<'_, '_, '_> {
                         self_ty,
                         methods: vec![],
                         assoc: vec![],
+                        assoc_lifetimes: vec![],
                         by: None,
                         kind: ImplKind::Derived,
                         fills_defaults: false,
@@ -6916,6 +6927,7 @@ impl Lower<'_, '_, '_> {
                     self_ty,
                     methods,
                     assoc: vec![],
+                    assoc_lifetimes: vec![],
                     by: None,
                     kind: ImplKind::Error,
                     fills_defaults: false,
@@ -7008,6 +7020,18 @@ impl Lower<'_, '_, '_> {
             r,
             std::mem::replace(&mut self.slots, saved).unwrap_or_default(),
         )
+    }
+
+    /// Type `c` and the lifetime each of its local reference slots writes,
+    /// then each `Suspend` in it names (`ref.dep.suspension.lifetime`), as
+    /// a signature's: [`Generic::default_lifetimes`] and an
+    /// implementation's assigned types.
+    fn written_type(&mut self, c: NodeRef<'_>, gn: &mut Gen) -> (Ty, Vec<u16>) {
+        let saved_held = self.held.replace(Vec::new());
+        let (t, mut slots) = self.with_slots(|low| low.ty(Some(c), gn));
+        let held = std::mem::replace(&mut self.held, saved_held).unwrap_or_default();
+        with_held(&mut slots, [t], &held, self.names.pool.types());
+        (t, slots)
     }
 
     /// The slot-lifetime lists of `tys` (`Generic::bound_lifetimes`): each
@@ -7314,7 +7338,7 @@ impl Lower<'_, '_, '_> {
                 // A trait's associated type takes no value
                 // (`grammar.trait.associated-type.bound`); the parser
                 // rejects one, so its type is not lowered.
-                for (name, def, _, bounds, written) in assoc_decls {
+                for (name, def, _, _, bounds, written) in assoc_decls {
                     let bound_lifetimes = self.slot_lists(&bounds, written);
                     out.push(Item::new(
                         def,

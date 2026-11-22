@@ -289,6 +289,7 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
                 self_ty: target,
                 methods: Vec::new(),
                 assoc: Vec::new(),
+                assoc_lifetimes: Vec::new(),
                 by: None,
                 kind,
                 fills_defaults: false,

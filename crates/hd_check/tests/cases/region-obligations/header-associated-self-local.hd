@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved[A]:
+    pass
+
+impl[U < 'static] Saved[U] for i32:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+trait Shelf:
+    type Item < Saved[Self]
+
+impl['a] Shelf for Wrapped[&'a i32]:
+    type Item = i32

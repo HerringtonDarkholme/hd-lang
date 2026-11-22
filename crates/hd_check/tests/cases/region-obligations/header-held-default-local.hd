@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# expected: a default's suspension named `'a` cannot satisfy a static bound
+fn rejected['a, T < 'static = Suspend[i32, 'a]](value: T) -> void:
+    pass

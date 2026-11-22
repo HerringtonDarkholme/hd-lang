@@ -752,6 +752,9 @@ pub enum ItemData {
         self_ty: Ty,
         methods: Vec<(Symbol, DefId)>,
         assoc: Vec<(DefId, Ty)>,
+        /// The implementation lifetime of each reference slot of each of
+        /// `assoc`'s types, as `self_lifetimes`; empty where none writes one.
+        assoc_lifetimes: Vec<Vec<u16>>,
         by: Option<Symbol>,
         kind: ImplKind,
         /// Carries `std.structure`'s `fills_defaults()`
@@ -1919,6 +1922,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
             self_ty,
             methods,
             assoc,
+            assoc_lifetimes,
             by,
             kind,
             fills_defaults,
@@ -1950,6 +1954,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
                 w.u32(t.def(*d));
                 w.u32(t.ty(*x)?);
             }
+            put_lifetime_lists(w, assoc_lifetimes);
             w.u32(by.map_or(u32::MAX, |s| t.sym(s)));
             w.u8(*kind as u8 | if *fills_defaults { FILLS_DEFAULTS } else { 0 });
             put_tys(w, t, skips)?;
@@ -2075,6 +2080,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 let d = t.def(r.u32())?;
                 assoc.push((d, t.ty(r.u32())?));
             }
+            let assoc_lifetimes = get_lifetime_lists(r)?;
             let b = r.u32();
             let by = if b == u32::MAX { None } else { Some(t.sym(b)?) };
             let k = r.u8();
@@ -2088,6 +2094,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
                 self_ty,
                 methods,
                 assoc,
+                assoc_lifetimes,
                 by,
                 kind,
                 fills_defaults: k & FILLS_DEFAULTS != 0,
