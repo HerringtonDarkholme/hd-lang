@@ -7152,6 +7152,12 @@ lang/control-flow/auto-closing-calls/conditional-marker-static-binding.hd	type	r
 lang/control-flow/auto-closing-calls/conditional-marker-local-binding.hd	type	accept	lang/06-control-flow.md#r-flow.auto-closing.binding
 lang/control-flow/auto-closing-calls/conditional-marker-static-field.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.storage
 lang/control-flow/auto-closing-calls/conditional-marker-static-registration.hd	type	accept	lang/06-control-flow.md#r-flow.auto-closing.binding
+std/option/lazy-fallbacks-and-filtering/option-lazy-methods.hd	runtime	accept	std/option.md#lazy-fallbacks-and-filtering
+std/result/lazy-error-fallbacks/result-lazy-methods.hd	runtime	accept	std/result.md#lazy-error-fallbacks
+std/option/unwrapping-without-a-message/option-unwrap-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.unwrap.panic
+std/result/unwrapping-without-a-message/result-unwrap-err.hd	runtime	panic:explicit-panic	std/result.md#r-std-result.unwrap.panic
+std/option/lazy-fallbacks-and-filtering/lazy-methods-forward-callback-rows.hd	type	accept	std/option.md#r-std-option.lazy.row
+std/result/unwrapping-without-a-message/result-unwrap-requires-debug.hd	type	reject:unsatisfied-trait-bound	std/result.md#r-std-result.unwrap.bound
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

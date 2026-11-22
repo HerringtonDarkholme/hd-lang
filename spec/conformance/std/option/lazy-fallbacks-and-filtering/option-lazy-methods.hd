@@ -1,0 +1,61 @@
+# test: optional lazy methods preserve payloads and call callbacks only when needed
+use std.collections.UniqList
+
+fn port(value: i32?) -> i32:
+    value.filter(fn(port: &i32) -> bool: *port > 0).unwrap_or_else(fn() -> i32: 8080)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("unwrap and lazy fallbacks keep present values"):
+        let present: i32? = .Some(3)
+        assert_equal(present.unwrap(), 3)
+        assert_equal(present.unwrap_or_else(fn() -> i32: panic("unused fallback")), 3)
+        assert_equal(present.or_else(fn() -> i32?: panic("unused fallback")), .Some(3))
+
+    it("absent fallbacks are called once"):
+        let absent: i32? = .None
+        let mut calls = 0
+        assert_equal(
+            absent.unwrap_or_else(fn() -> i32:
+                calls = calls + 1
+                7
+            ),
+            7,
+        )
+        assert_equal(calls, 1)
+        assert_equal(
+            absent.or_else(fn() -> i32?:
+                calls = calls + 1
+                .Some(9)
+            ),
+            .Some(9),
+        )
+        assert_equal(calls, 2)
+        assert(absent.or_else(fn() -> i32?: .None).is_none())
+
+    it("filter borrows a payload once and skips an absent value"):
+        let present: i32? = .Some(3)
+        let absent: i32? = .None
+        let mut calls = 0
+        assert_equal(
+            present.filter(fn(value: &i32) -> bool:
+                calls = calls + 1
+                *value == 3
+            ),
+            .Some(3),
+        )
+        assert_equal(calls, 1)
+        assert(present.filter(fn(value: &i32) -> bool: *value > 9).is_none())
+        assert(absent.filter(fn(value: &i32) -> bool: panic("unused predicate")).is_none())
+        assert_equal(calls, 1)
+
+    it("filter and unwrap move a payload that is not copied"):
+        let mut payload = UniqList::[i32].new()
+        payload.push(9)
+        let present: UniqList[i32]? = .Some(payload)
+        kept := present.filter(fn(value: &UniqList[i32]) -> bool: value.len() == 1).unwrap()
+        assert_equal(kept[0], 9)
+        let absent: UniqList[i32]? = .None
+        empty := absent.unwrap_or_else(fn() -> UniqList[i32]: UniqList::[i32].new())
+        assert_equal(empty.len(), 0)
