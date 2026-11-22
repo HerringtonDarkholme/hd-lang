@@ -1702,7 +1702,9 @@ fn add_thread(
     start: usize,
     at: usize,
 ) -> usize:
-    ops := program.ops
+    # Borrowed, not copied: a copy of each list would retain and release
+    # it on every call, a fifth of a search's time.
+    ops := &program.ops
     slot_count := vm.slot_count
     dense := vm.dense
     sparse := vm.sparse
@@ -1721,8 +1723,8 @@ fn add_thread(
             slots[base + slot] = scratch[slot]
             slot = slot + 1
         return count + 1
-    left := program.left
-    right := program.right
+    left := &program.left
+    right := &program.right
     size := vm.size
     stack := vm.stack
     values := vm.values
