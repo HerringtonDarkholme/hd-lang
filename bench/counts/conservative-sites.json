@@ -69,8 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 423,
-      "explanation": "New program regex-scan (#1805 draft 94, owner 2026-11-22): its first sites, std.regex and the program."
+      "sites": 447,
+      "explanation": "#1805 regex lazy DFA (65ae495c4): the DFA's search, compile and cache helpers in std.regex add 24 source-call sites to regex-scan; owner-requested regex perf (296 -> 84 ms)"
     },
     {
       "reason": "conservative: unique",
