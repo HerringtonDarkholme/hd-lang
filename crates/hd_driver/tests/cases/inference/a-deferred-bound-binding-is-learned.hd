@@ -1,0 +1,13 @@
+# @dump: stdout
+# @build: dev | checked | release
+# #2270: a binding of a bound whose self type a later expected type fixes
+# (`T < Parse[Error = E]`, `T` from `let top: usize`) is learned then, so
+# `E` is solved and the call runs (`types.generic.default.unsolved`).
+use std.cli.{Arg, ArgParser, CliError}
+
+fn top() -> Result[usize, CliError]:
+    parsed := ArgParser::new("t").arg(Arg { name: "top" }).parse(["--top", "4"])?
+    let top: usize = parsed.value_as("top")?.unwrap_or(3)
+    .Ok(top)
+
+println(debug(top().ok()))

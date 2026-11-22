@@ -1,0 +1,27 @@
+# @dump: stdout
+# @build: dev | checked | release
+# #2270: the same shape in user code, a method whose bound binds `E`.
+trait Read:
+    type Error
+    fn read(text: string) -> Result[Self, Self::Error]
+
+impl Read for usize:
+    type Error = string
+    fn read(text: string) -> Result[usize, string]:
+        .Ok(4)
+
+struct Parsed:
+    n: i32
+
+impl Parsed:
+    fn value_as[T < Read[Error = E], E < Display](self, name: string) -> Result[T?, string]:
+        match T::read(name):
+            .Ok(value) => .Ok(.Some(value))
+            .Err(error) => .Err(error.to_string())
+
+fn top() -> Result[usize, string]:
+    parsed := Parsed { n: 1 }
+    let top: usize = parsed.value_as("top")?.unwrap_or(3)
+    .Ok(top)
+
+println(debug(top().ok()))

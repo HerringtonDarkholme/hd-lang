@@ -6207,7 +6207,29 @@ impl Ck<'_, '_> {
                 args,
             });
             let got = self.normalize_deep(proj)?;
-            // Waiting on inference, or no impl (the bound itself reported it).
+            // A self type inference has not reached yet: the binding is
+            // learned once it is, as an opened projection is
+            // (`trait.binding.meaning`), so `T < Read[Error = E]` fixes `E`
+            // from the `T` a later expected type gives
+            // (`types.generic.default.unsolved`).
+            if matches!(pool.get(st), TyData::Infer(_)) {
+                self.pending.push(crate::body::PendingGoal {
+                    region_source: None,
+                    tref: TraitRef {
+                        trait_: def,
+                        self_ty: st,
+                        args,
+                    },
+                    at: n.index(),
+                    kind: crate::body::Waiting::Project {
+                        assoc: key,
+                        var: want,
+                        site: crate::body::ProjectSite::Argument,
+                    },
+                });
+                continue;
+            }
+            // No impl: the bound itself reported it.
             if matches!(pool.get(got), TyData::Assoc { self_ty, .. }
                 if !matches!(pool.get(self.resolved(self_ty)), TyData::Param(_)))
                 || pool.has_poison(got)
