@@ -635,3 +635,9 @@ impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     type IntoIter = MapEntries[K, V]
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }
+
+impl[T] List[T]:
+    ## A lazy snapshot of `(index, item)` pairs, starting at zero.
+    ## See [std-iter.list.enumerate.value](../../spec/std/iter.md#r-std-iter.list.enumerate.value).
+    pub fn enumerate(self) -> Enumerate[ListIter[T], T]:
+        self.iter().enumerate()
