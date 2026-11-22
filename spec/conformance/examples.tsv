@@ -1251,6 +1251,7 @@ std/regex.md	14	type-fragment	-
 std/regex.md	15	complete	std/regex/pattern-errors/regex-errors.hd
 std/remote.md	1	complete	-
 std/remote.md	2	complete	-
+std/remote.md	3	complete	-
 std/result.md	1	complete	std/result/result-methods/result-and-then.hd
 std/result.md	2	mixed	std/result/result-methods/result-and-then-error-type.hd
 std/result.md	3	complete	std/result/mapping-the-value/result-map.hd
