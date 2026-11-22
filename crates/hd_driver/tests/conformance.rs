@@ -1992,6 +1992,7 @@ fn checked_runtime() -> bool {
 /// modules and the runtime folder is a leaf (`module.rt.leaf`).
 const STD_RT_TESTS: &[(&str, &str)] = &[
     ("cmp.hd", include_str!("../../../lib/std/cmp.hd")),
+    ("regex.hd", include_str!("../../../lib/std/regex.hd")),
     (
         "rt_tests/memory_tests.hd",
         include_str!("std_rt/memory_tests.hd"),
@@ -2125,6 +2126,8 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             expectation: "accept".to_owned(),
             specification: if *path == "cmp.hd" {
                 "lang/03-names-and-scopes.md#r-names.category.value"
+            } else if *path == "regex.hd" {
+                "std/regex.md#r-std-regex.time.linear"
             } else {
                 "lang/10-modules.md#memory-intrinsics"
             }

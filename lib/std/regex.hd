@@ -19,6 +19,7 @@ pub struct Regex:
     text: string
     program: Program
     filter: Prefilter
+    bytes: Automaton
     names: List[string]
 
 # Where a match is: byte offsets into the searched text, and its text
@@ -97,11 +98,13 @@ impl Regex:
         let mut program: List[Inst] = []
         compile(parsed.node, &mut program)
         program.push(Inst.Done)
+        lowered := lower(program)
         .Ok(
             Regex {
                 text: pattern,
-                program: lower(program),
+                program: lowered,
                 filter: prefilter(parsed.node),
+                bytes: automaton(&lowered),
                 names: names,
             },
         )
@@ -922,6 +925,317 @@ fn lower(program: List[Inst]) -> Program:
 # A split that prefers `body` when greedy and `out` when lazy.
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
     if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
+
+# The program as a byte automaton for the lazy DFA, a Thompson NFA over
+# bytes as regex-automata's lazy DFA runs (src/hybrid/dfa.rs). Node `pc`
+# below the program's length is instruction `pc`. An instruction that reads
+# a character becomes a trie of byte ranges over the UTF-8 forms of its
+# scalars: its first ranges leave node `pc`, its later ones nodes added
+# after the instructions, and its last ones lead to `pc + 1`. Node n's
+# edges are those from `at[n]` up to `at[n + 1]`, in priority order: an
+# epsilon edge has `lows` -1, and a byte edge reads one byte from `lows`
+# to `highs`. `guards[n]` is 1 for `^` and 2 for `$`, which a search
+# passes only where they hold. `Save` is an epsilon edge: the DFA finds no
+# groups.
+struct Graph:
+    at: List[usize]
+    to: List[usize]
+    lows: List[i32]
+    highs: List[i32]
+    guards: List[i32]
+
+# Both directions of the byte automaton and its byte classes. The reverse
+# graph has every edge of the program's nodes turned around, and runs from
+# `Done` back to node 0. The forward graph adds the unanchored prefix,
+# regex-automata's `(?s-u:.)*?`: node `nodes` tries node 0 first and node
+# `nodes + 1` last, which reads any byte and comes back. `classes` maps
+# each byte to its class: two bytes share one when no edge tells them
+# apart (alphabet.rs, ByteClassSet), and `reps` holds a byte of each class.
+struct Automaton:
+    forward: Graph
+    reverse: Graph
+    nodes: usize
+    classes: List[usize]
+    reps: List[i32]
+
+# Edges in the order they were made, before `graph` groups them by node.
+struct Edges:
+    from: List[usize]
+    to: List[usize]
+    lows: List[i32]
+    highs: List[i32]
+
+impl Edges:
+    fn add(&mut self, from: usize, low: i32, high: i32, to: usize) -> void:
+        self.from.push(from)
+        self.to.push(to)
+        self.lows.push(low)
+        self.highs.push(high)
+
+# The program's byte automaton. It costs time and space linear in the
+# program's size times the UTF-8 pieces of its classes, a few per range.
+fn automaton(program: &Program) -> Automaton:
+    ops := &program.ops
+    size := ops.len()
+    let mut edges = Edges { from: [], to: [], lows: [], highs: [] }
+    let mut guards: List[i32] = []
+    let count = size
+    let pc: usize = 0
+    while pc < size:
+        op := ops[pc]
+        let guard = +0
+        if op <= 3:
+            count = add_scalars(&mut edges, count, pc, scalar_ranges(program, pc))
+        else if op == 5:
+            edges.add(pc, -1, -1, program.left[pc])
+            edges.add(pc, -1, -1, program.right[pc])
+        else if op == 6:
+            edges.add(pc, -1, -1, program.left[pc])
+        else if op >= 7:
+            edges.add(pc, -1, -1, pc + 1)
+            if op == 8:
+                guard = +1
+            else if op == 9:
+                guard = +2
+        guards.push(guard)
+        pc += 1
+    guards.resize(count, +0)
+    reverse := graph(count, &edges, true, guards)
+    # Past byte 0 a pattern that starts with `^` can start no match, and
+    # the prefix would only read the rest of the text.
+    edges.add(count, -1, -1, 0)
+    if restarts(program):
+        edges.add(count, -1, -1, count + 1)
+    edges.add(count + 1, 0, 255, count)
+    guards.push(+0)
+    guards.push(+0)
+    forward := graph(count + 2, &edges, false, guards)
+    # A byte that ends a range ends its class, and so does the one before a
+    # range's start.
+    let mut ends: List[bool] = []
+    ends.resize(256, false)
+    let edge: usize = 0
+    while edge < edges.lows.len():
+        low := edges.lows[edge]
+        if low > 0:
+            ends[usize(low - 1)] = true
+        if low >= 0:
+            ends[usize(edges.highs[edge])] = true
+        edge += 1
+    let mut classes: List[usize] = []
+    let mut reps: List[i32] = [+0]
+    let byte: usize = 0
+    while byte < 256:
+        classes.push(reps.len() - 1)
+        if ends[byte] && byte < 255:
+            reps.push(i32(byte) + 1)
+        byte += 1
+    Automaton { forward: forward, reverse: reverse, nodes: count, classes: classes, reps: reps }
+
+# The edges grouped by the node they leave, or, `reversed`, by the node
+# they enter and turned around, each group in the order the edges were
+# made: a stable counting sort.
+fn graph(count: usize, edges: &Edges, reversed: bool, guards: List[i32]) -> Graph:
+    total := edges.from.len()
+    let mut at = zeros(count + 1)
+    let edge: usize = 0
+    while edge < total:
+        owner := if reversed: edges.to[edge] else: edges.from[edge]
+        at[owner + 1] += 1
+        edge += 1
+    let node: usize = 0
+    while node < count:
+        at[node + 1] += at[node]
+        node += 1
+    let mut fill = at.slice(0, count)
+    let mut to = zeros(total)
+    let mut lows: List[i32] = []
+    lows.resize(total, +0)
+    let mut highs: List[i32] = []
+    highs.resize(total, +0)
+    edge = 0
+    while edge < total:
+        let owner = edges.from[edge]
+        let target = edges.to[edge]
+        if reversed:
+            owner = edges.to[edge]
+            target = edges.from[edge]
+        slot := fill[owner]
+        fill[owner] = slot + 1
+        to[slot] = target
+        lows[slot] = edges.lows[edge]
+        highs[slot] = edges.highs[edge]
+        edge += 1
+    Graph { at: at, to: to, lows: lows, highs: highs, guards: guards }
+
+# Whether a match can start past byte 0: whether instruction 0 reaches,
+# without passing a `^`, one that reads a character, ends the match, or
+# waits for the end.
+fn restarts(program: &Program) -> bool:
+    ops := &program.ops
+    let mut seen: List[bool] = []
+    seen.resize(ops.len(), false)
+    let mut stack: List[usize] = [0]
+    while stack.len() > 0:
+        pc := stack[stack.len() - 1]
+        stack.truncate(stack.len() - 1)
+        if seen[pc]:
+            continue
+        seen[pc] = true
+        op := ops[pc]
+        if op <= 4 || op == 9:
+            return true
+        if op == 5:
+            stack.push(program.right[pc])
+        if op == 5 || op == 6:
+            stack.push(program.left[pc])
+        else if op == 7:
+            stack.push(pc + 1)
+    false
+
+# The scalars instruction `pc` reads, as sorted, disjoint, inclusive
+# ranges, low then high for each, without the surrogates, which no UTF-8
+# text holds. A class's ranges are sorted by key, low * 2^21 + high.
+fn scalar_ranges(program: &Program, pc: usize) -> List[i32]:
+    op := program.ops[pc]
+    if op == 0:
+        point := program.points[pc]
+        return [point, point]
+    if op == 1:
+        return [+0, +9, +11, +55295, +57344, +1114111]
+    let mut keys: List[i64] = []
+    let bound = program.left[pc]
+    while bound < program.right[pc]:
+        keys.push(i64(program.ranges[bound]) * 2097152 + i64(program.ranges[bound + 1]))
+        bound += 2
+    keys.sort()
+    let mut merged: List[i32] = []
+    for key in keys:
+        low := i32(key / 2097152)
+        high := i32(key % 2097152)
+        last := merged.len()
+        if last > 0 && low <= merged[last - 1] + 1:
+            if high > merged[last - 1]:
+                merged[last - 1] = high
+        else:
+            merged.push(low)
+            merged.push(high)
+    if op == 3:
+        let mut outside: List[i32] = []
+        let next = +0
+        let index: usize = 0
+        while index < merged.len():
+            if merged[index] > next:
+                outside.push(next)
+                outside.push(merged[index] - 1)
+            next = merged[index + 1] + 1
+            index += 2
+        if next <= 1114111:
+            outside.push(next)
+            outside.push(+1114111)
+        merged = outside
+    let mut scalars: List[i32] = []
+    let index: usize = 0
+    while index < merged.len():
+        low := merged[index]
+        high := merged[index + 1]
+        if high < 55296 || low > 57343:
+            scalars.push(low)
+            scalars.push(high)
+        else:
+            if low < 55296:
+                scalars.push(low)
+                scalars.push(+55295)
+            if high > 57343:
+                scalars.push(+57344)
+                scalars.push(high)
+        index += 2
+    scalars
+
+# Adds below node `root` a trie that reads the UTF-8 form of each scalar in
+# `ranges` and leads to `root + 1`, numbering its new nodes from `count`,
+# and returns the count after them. Each range splits into sequences of
+# byte ranges, as regex-syntax's Utf8Sequences splits it: in ascending
+# order, so a sequence shares with the one before it a prefix of equal
+# ranges or none, and the trie needs only the previous sequence's path
+# (regex-automata's Utf8Compiler relies on the same order).
+fn add_scalars(edges: &mut Edges, count: usize, root: usize, ranges: List[i32]) -> usize:
+    let nodes = count
+    let mut last: List[i32] = []
+    let mut path: List[usize] = [root]
+    let mut pending: List[i32] = []
+    let index: usize = 0
+    while index < ranges.len():
+        pending.push(ranges[index])
+        pending.push(ranges[index + 1])
+        while pending.len() > 0:
+            top := pending.len()
+            low := pending[top - 2]
+            high := pending[top - 1]
+            pending.truncate(top - 2)
+            cut := utf8_cut(low, high)
+            if cut < high:
+                pending.push(cut + 1)
+                pending.push(high)
+                pending.push(low)
+                pending.push(cut)
+                continue
+            width := usize(scalar_bytes(low))
+            let common: usize = 0
+            while (
+                common + 1 < width
+                && 2 * common < last.len()
+                && last[2 * common] == utf8_byte(low, width, common)
+                && last[2 * common + 1] == utf8_byte(high, width, common)
+            ):
+                common += 1
+            last.truncate(2 * common)
+            path.truncate(common + 1)
+            let depth = common
+            while depth < width:
+                lo := utf8_byte(low, width, depth)
+                hi := utf8_byte(high, width, depth)
+                let target = root + 1
+                if depth + 1 < width:
+                    target = nodes
+                    nodes += 1
+                edges.add(path[depth], lo, hi, target)
+                last.push(lo)
+                last.push(hi)
+                path.push(target)
+                depth += 1
+        index += 2
+    nodes
+
+# Where `low..=high` must split for its UTF-8 forms to be one sequence of
+# byte ranges: the end of its first part, or `high` when it need not. A
+# range splits where the length of the UTF-8 form changes, and where a
+# continuation byte's range would not be full (Utf8Sequences::next).
+fn utf8_cut(low: i32, high: i32) -> i32:
+    for max in [+127, +2047, +65535]:
+        if low <= max && max < high:
+            return max
+    if high <= 127:
+        return high
+    let shift: u32 = 6
+    while shift <= 18:
+        mask := (+1 << shift) - 1
+        if (low >> shift) != (high >> shift):
+            if low & mask != 0:
+                return low | mask
+            if high & mask != mask:
+                return (high >> shift << shift) - 1
+        shift += 6
+    high
+
+# Byte `index` of the `width`-byte UTF-8 form of scalar `point`.
+fn utf8_byte(point: i32, width: usize, index: usize) -> i32:
+    if width == 1:
+        return point
+    if index == 0:
+        lead := if width == 2: +192 else if width == 3: +224 else: +240
+        return lead | (point >> u32(6 * (width - 1)))
+    128 | ((point >> u32(6 * (width - 1 - index))) & 63)
 
 # The prefilter, as RE2 and Rust's `regex` use literal prefilters. Every
 # match that starts at byte s holds `literal` at a byte from s + `lo` up
@@ -1921,3 +2235,127 @@ fn word_char(c: char) -> bool:
 impl Debug for Regex:
     fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("Regex").field("pattern", self.text).finish()
+
+tests:
+    use std.rt.bytes.char_from_scalar
+    use std.testing.{assert, assert_equal}
+
+    it("byte classes split at each range's ends and nowhere else"):
+        classes := match Regex::new("[a-c]x"):
+            .Ok(regex) => regex.bytes.classes
+            .Err(_) => []
+        assert_equal(classes[usize(char_scalar('a'))], classes[usize(char_scalar('c'))])
+        assert(classes[usize(char_scalar('`'))] != classes[usize(char_scalar('a'))])
+        assert(classes[usize(char_scalar('c'))] != classes[usize(char_scalar('d'))])
+        assert(classes[usize(char_scalar('w'))] != classes[usize(char_scalar('x'))])
+        assert(classes[usize(char_scalar('x'))] != classes[usize(char_scalar('y'))])
+        assert_equal(classes[0], classes[usize(char_scalar('`'))])
+        assert_equal(classes[usize(char_scalar('d'))], classes[usize(char_scalar('w'))])
+        assert_equal(classes[255], classes[usize(char_scalar('y'))])
+        assert_equal(classes[255], 4)
+
+    it("a multi-byte character's bytes are classes of their own"):
+        classes := match Regex::new("é"):
+            .Ok(regex) => regex.bytes.classes
+            .Err(_) => []
+        assert(classes[0xC3] != classes[0xC2])
+        assert(classes[0xC3] != classes[0xC4])
+        assert(classes[0xA9] != classes[0xA8])
+        assert(classes[0xA9] != classes[0xAA])
+        assert_equal(classes[0xC4], classes[0xFF])
+
+    it("a class reads exactly the UTF-8 forms of its scalars"):
+        scalar := fn(point: i32) -> string:
+            match char_from_scalar(u32(point)):
+                .Some(c) => "$c"
+                .None => ""
+        # Whether the forward graph, from node 0 and with no prefix, reads
+        # all of `text` and ends at `Done`: a plain NFA run over its bytes.
+        reads := fn(pattern: string, text: string) -> bool:
+            regex := match Regex::new(pattern):
+                .Ok(regex) => regex
+                .Err(_) => return false
+            graph := regex.bytes.forward
+            done := regex.program.ops.len() - 1
+            let mut current: List[usize] = [0]
+            let at: usize = 0
+            while true:
+                let mut seen: List[usize] = []
+                while current.len() > 0:
+                    node := current[current.len() - 1]
+                    current.truncate(current.len() - 1)
+                    if !seen.contains(node):
+                        seen.push(node)
+                        let edge = graph.at[node]
+                        while edge < graph.at[node + 1]:
+                            if graph.lows[edge] < 0:
+                                current.push(graph.to[edge])
+                            edge += 1
+                if at == bytes_len(text):
+                    return seen.contains(done)
+                byte := i32(bytes_at(text, at))
+                for node in seen:
+                    let edge = graph.at[node]
+                    while edge < graph.at[node + 1]:
+                        if (
+                            graph.lows[edge] >= 0
+                            && byte >= graph.lows[edge]
+                            && byte <= graph.highs[edge]
+                        ):
+                            current.push(graph.to[edge])
+                        edge += 1
+                at += 1
+            false
+        probes := [
+            +0,
+            +9,
+            +10,
+            +11,
+            +126,
+            +127,
+            +128,
+            +129,
+            +2046,
+            +2047,
+            +2048,
+            +2049,
+            +4095,
+            +4096,
+            +55295,
+            +57344,
+            +65534,
+            +65535,
+            +65536,
+            +65537,
+            +262143,
+            +262144,
+            +1114110,
+            +1114111,
+        ]
+        bounds := [
+            (+128, +1114111),
+            (+2049, +65534),
+            (+127, +65536),
+            (+4097, +262142),
+            (+129, +2048),
+            (+65537, +1114110),
+            (+10, +10),
+        ]
+        for bound in bounds:
+            low := scalar(bound._0)
+            high := scalar(bound._1)
+            for point in probes:
+                inside := point >= bound._0 && point <= bound._1
+                text := scalar(point)
+                assert_equal(reads("[$low-$high]", text), inside, reason="[$low-$high] on $point")
+                assert_equal(
+                    reads("[^$low-$high]", text),
+                    !inside,
+                    reason="[^$low-$high] on $point",
+                )
+        for point in probes:
+            assert_equal(reads(".", scalar(point)), point != 10, reason=". on $point")
+        assert(!reads(".", ""))
+        assert(!reads(".", "ab"))
+        assert(!reads("[^a]", "a"))
+        assert(reads("[ab][é€]", "a€"))
