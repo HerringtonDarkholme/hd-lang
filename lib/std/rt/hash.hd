@@ -63,13 +63,11 @@ fn rotate_right(value: u64, count: usize) -> u64:
         return value
     (value >> shift) | (value << (64 - shift))
 
-# The only wrapping additions in the algorithm initialize parallel lanes.
-# Two 32-bit halves avoid checked u64 overflow without another intrinsic.
+# The existing wrapping-add kernel is also used by std.num. Keep its
+# declaration in this runtime leaf: importing std.num would form a folder cycle.
+@intrinsic("int_wrapping_add")
 fn add_wrapping(left: u64, right: u64) -> u64:
-    mask := 4294967295u64
-    lo := (left & mask) + (right & mask)
-    hi := ((left >> 32) + (right >> 32) + (lo >> 32)) & mask
-    (hi << 32) | (lo & mask)
+    panic("intrinsic")
 
 # Both concrete inputs are read in place. The generic stream writer has
 # two static instances: strings use unaligned word loads; byte lists index

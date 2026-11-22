@@ -342,9 +342,35 @@ fn evaluate(op: I, out: &[Ins]) -> Option<(usize, I)> {
             }
         };
     }
+    // Binaryen Literal::{add,sub,mul,div} similarly evaluates each IEEE
+    // operation at its own width, without reassociation. Keep NaN-producing
+    // operations at runtime so their observable payload choice is unchanged.
+    macro_rules! floats {
+        ($a:ident, $b:ident, $float:ident, $const:ident, $add:ident, $sub:ident, $mul:ident, $div:ident) => {{
+            let a = $float::from_bits($a.bits());
+            let b = $float::from_bits($b.bits());
+            let value = match op {
+                I::$add => a + b,
+                I::$sub => a - b,
+                I::$mul => a * b,
+                I::$div => a / b,
+                _ => return None,
+            };
+            if value.is_nan() {
+                return None;
+            }
+            I::$const(value.into())
+        }};
+    }
     let value = match (first, last) {
         (I::I32Const(a), I::I32Const(b)) => integers!(a, b, I32Const, 32),
         (I::I64Const(a), I::I64Const(b)) => integers!(a, b, I64Const, 64),
+        (I::F32Const(a), I::F32Const(b)) => {
+            floats!(a, b, f32, F32Const, F32Add, F32Sub, F32Mul, F32Div)
+        }
+        (I::F64Const(a), I::F64Const(b)) => {
+            floats!(a, b, f64, F64Const, F64Add, F64Sub, F64Mul, F64Div)
+        }
         _ => return None,
     };
     Some((2, value))
@@ -567,6 +593,109 @@ mod tests {
             assert!(matches!(f.body[1], Ins::Op(I::LocalSet(1))));
             assert_eq!(f.body.len(), 4);
         }
+    }
+
+    #[test]
+    fn float_arithmetic_folds_each_width_without_reassociation() {
+        use wasm_encoder::{Ieee32, Ieee64};
+        for (op, expected) in [
+            (I::F32Add, 2.0f32),
+            (I::F32Sub, 1.0),
+            (I::F32Mul, 0.75),
+            (I::F32Div, 3.0),
+        ] {
+            let operands = [
+                Ins::Op(I::F32Const(1.5f32.into())),
+                Ins::Op(I::F32Const(0.5f32.into())),
+            ];
+            assert!(
+                matches!(evaluate(op, &operands), Some((2, I::F32Const(v))) if v.bits() == expected.to_bits())
+            );
+        }
+        for (op, expected) in [
+            (I::F64Add, 2.0f64),
+            (I::F64Sub, 1.0),
+            (I::F64Mul, 0.75),
+            (I::F64Div, 3.0),
+        ] {
+            let operands = [
+                Ins::Op(I::F64Const(1.5f64.into())),
+                Ins::Op(I::F64Const(0.5f64.into())),
+            ];
+            assert!(
+                matches!(evaluate(op, &operands), Some((2, I::F64Const(v))) if v.bits() == expected.to_bits())
+            );
+        }
+        let mut f = function(vec![
+            I::F32Const(16_777_216.0f32.into()),
+            I::F32Const(1.0f32.into()),
+            I::F32Add,
+            I::F32Const(16_777_216.0f32.into()),
+            I::F32Sub,
+        ]);
+        assert!(run(&mut f));
+        assert!(matches!(f.body.as_slice(), [Ins::Op(I::F32Const(v))] if v.bits() == 0));
+        for (a, b, expected) in [
+            (-0.0f32, 2.0, 1u32 << 31),
+            (f32::from_bits(1), 0.5, 0),
+            (f32::MAX, 2.0, f32::INFINITY.to_bits()),
+        ] {
+            assert!(
+                matches!(evaluate(I::F32Mul, &[Ins::Op(I::F32Const(a.into())), Ins::Op(I::F32Const(b.into()))]), Some((2, I::F32Const(v))) if v.bits() == expected)
+            );
+        }
+        for (a, b, expected) in [
+            (-0.0, 2.0, 1u64 << 63),
+            (f64::from_bits(1), 0.5, 0),
+            (f64::MAX, 2.0, f64::INFINITY.to_bits()),
+        ] {
+            assert!(
+                matches!(evaluate(I::F64Mul, &[Ins::Op(I::F64Const(a.into())), Ins::Op(I::F64Const(b.into()))]), Some((2, I::F64Const(v))) if v.bits() == expected)
+            );
+        }
+        // Leave NaN payload/sign selection to the executing engine.
+        for op in [I::F32Add, I::F32Sub, I::F32Mul, I::F32Div] {
+            assert!(
+                evaluate(
+                    op,
+                    &[
+                        Ins::Op(I::F32Const(Ieee32::new(0x7fc0_0001))),
+                        Ins::Op(I::F32Const(1.0f32.into()))
+                    ]
+                )
+                .is_none()
+            );
+        }
+        for op in [I::F64Add, I::F64Sub, I::F64Mul, I::F64Div] {
+            assert!(
+                evaluate(
+                    op,
+                    &[
+                        Ins::Op(I::F64Const(Ieee64::new(0x7ff8_0000_0000_0001))),
+                        Ins::Op(I::F64Const(1.0f64.into()))
+                    ]
+                )
+                .is_none()
+            );
+        }
+        assert!(evaluate(I::F64Div, &[Ins::Op(I::F64Const(0.0f64.into())); 2]).is_none());
+        assert!(
+            evaluate(
+                I::F64Mul,
+                &[
+                    Ins::Op(I::F64Const(f64::INFINITY.into())),
+                    Ins::Op(I::F64Const(0.0f64.into()))
+                ]
+            )
+            .is_none()
+        );
+        assert!(
+            evaluate(
+                I::F32Mul,
+                &[Ins::Op(I::LocalGet(0)), Ins::Op(I::F32Const(2.0f32.into()))]
+            )
+            .is_none()
+        );
     }
 
     #[test]

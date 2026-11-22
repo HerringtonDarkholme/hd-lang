@@ -1,0 +1,20 @@
+# @dump: wat
+# @build: release | release checked
+# expected: each finite arithmetic operation folds at its own width; NaN-producing arithmetic stays at runtime.
+fn rounded() -> f32:
+    (16777216.0f32 + 1.0f32) - 16777216.0f32
+
+fn arithmetic() -> f64:
+    (1.5 * 2.0 + 0.25) / 0.5 - 1.0
+
+fn negative_zero() -> f64:
+    -0.0 * 2.0
+
+fn infinity() -> f64:
+    1.0 / 0.0
+
+fn nan() -> f64:
+    0.0 / 0.0
+
+fn dynamic(value: f32) -> f32:
+    value * 2.0f32
