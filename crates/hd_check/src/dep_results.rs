@@ -2159,8 +2159,7 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                 if let Some(p) = direct {
                     bindings.insert(p, Rc::clone(&origins));
                 } else {
-                    let keys = line_up(ls, pattern, actual)
-                        .ok_or_else(|| bug("an outlives impl lost its positional bindings"))?;
+                    let keys = line_up_goal(ls, pattern, actual);
                     crate::work::scan_work(keys.len());
                     // The lifetime the impl writes at each written slot of
                     // its head: its target's, then its trait arguments'.
@@ -2231,8 +2230,7 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                 let origins = if pool.list_items(*bound_args).is_empty() {
                     bindings.get(&param).cloned().unwrap_or_default()
                 } else {
-                    let keys = line_up(ls, declared, actual)
-                        .ok_or_else(|| bug("an outlives bound lost its positional goal"))?;
+                    let keys = line_up_goal(ls, declared, actual);
                     crate::work::scan_work(keys.len());
                     // The impl lifetime the bound writes at each of its
                     // own slots (`Generic::bound_lifetimes`).
@@ -2333,6 +2331,47 @@ fn member_origins<V: Clone>(
     let goal = goal_tuple(pool, sub.self_ty, sub.args);
     origins.resize_with(ls.of(goal).slots.len(), Vec::new);
     Some((goal, Rc::new(origins)))
+}
+
+/// [`line_up`] of a declared goal with an actual one ([`goal_tuple`]),
+/// part by part: the subject, then each trait argument. A part the
+/// declared side does not place keys each of its slots [`Key::None`]: an
+/// argument the solver normalized to prove the goal, as a projection
+/// where an impl's head writes a function type, holds no origin the walk
+/// can follow there, and the rest of the goal lines up as written.
+fn line_up_goal(ls: &Layouts<'_>, declared: Ty, actual: Ty) -> Vec<Key> {
+    let pool = ls.pool;
+    let none = |t: Ty| std::iter::repeat_n(Key::None, ls.of(t).slots.len());
+    let (
+        TyData::Tuple {
+            elems: d,
+            rest: None,
+        },
+        TyData::Tuple {
+            elems: a,
+            rest: None,
+        },
+    ) = (pool.get(declared), pool.get(actual))
+    else {
+        return line_up(ls, declared, actual).unwrap_or_else(|| none(actual).collect());
+    };
+    let (d, a) = (pool.list_items(d), pool.list_items(a));
+    if d.len() != a.len() {
+        return none(actual).collect();
+    }
+    let mut out = Vec::new();
+    let mut from = 0;
+    for (&dp, &ap) in d.iter().zip(a) {
+        match line_up(ls, dp, ap) {
+            Some(keys) => out.extend(keys.into_iter().map(|k| match k {
+                Key::Decl(x) => Key::Decl(x + from),
+                k => k,
+            })),
+            None => out.extend(none(ap)),
+        }
+        from += ls.of(dp).slots.len();
+    }
+    out
 }
 
 /// The written lifetime at each layout slot of goal tuple `t`: its
