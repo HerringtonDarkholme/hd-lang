@@ -1,0 +1,3 @@
+# test: float min/max accept the receiver's width only
+fn wrong(value: f32) -> f32:
+    value.min(f64(1)) # diagnostic: implicit-narrowing
