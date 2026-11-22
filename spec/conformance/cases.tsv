@@ -7143,6 +7143,10 @@ lang/references/static-references/an-impl-head-rejects-a-local-reference.hd	type
 lang/references/static-references/an-impl-head-keeps-other-local-reference-positions.hd	type	accept	lang/13-values-and-references.md#r-ref.static.distinct
 lang/references/static-references/an-impl-trait-argument-rejects-a-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.static.distinct
 lang/references/static-references/an-aliased-static-impl-head-rejects-a-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.static.distinct
+lang/traits/dynamic-trait-values/conditional-shared-conversion-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.no-local
+lang/traits/dynamic-trait-values/conditional-shared-conversion-static.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.static.no-local
+lang/traits/dynamic-trait-values/conditional-counted-mutable-conversion-local.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.no-local
+lang/traits/dynamic-trait-values/conditional-counted-mutable-conversion-static.hd	type	accept	lang/13-values-and-references.md#r-ref.generic.static.no-local
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
