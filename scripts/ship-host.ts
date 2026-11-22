@@ -88,7 +88,7 @@ for (const helper of [
   "package.json",
   "scripts/ship-host.ts",
   "scripts/host-emission.ts",
-  "packages/server-sdk/packaging/typescript-emission.ts",
+  "scripts/typescript-emission.ts",
 ]) {
   lines.push(`src ${helper}`);
 }

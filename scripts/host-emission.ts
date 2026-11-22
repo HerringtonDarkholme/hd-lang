@@ -1,6 +1,6 @@
 import { readFile, mkdir, writeFile, rm } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import { emitTypeScriptJavaScript } from "../packages/server-sdk/packaging/typescript-emission.ts";
+import { emitTypeScriptJavaScript } from "./typescript-emission.ts";
 
 const fail = (message: string): Error => new Error(`host emission: ${message}`);
 

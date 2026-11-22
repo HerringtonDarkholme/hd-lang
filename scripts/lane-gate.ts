@@ -33,7 +33,6 @@
 //                     HD_CONFORMANCE_ONLY.
 //   golden std TIR    hd_check, hd_tir or lib/std touched.
 //   std fmt           lib/std changed: hd_fmt's std test, std is `hd fmt` clean.
-//   server SDK schema lib/std/{console,http,http_wire,time}.hd or packages/server-sdk.
 //   metrics fixtures  bench/metrics fixtures changed (CI runs them for every
 //                     diagnostic change).
 //   conformance       the named CASES plus runtime/typing fixtures the diff adds or
@@ -82,7 +81,6 @@ type Rule = (ctx: Context) => Step[];
 const STAGE_CRATES = new Set(["hd_driver", "hd_check", "hd_wasm"]);
 const OBSERVERS = new Set(["hd_lint"]);
 const COMPILER_CRATES = ["hd_check", "hd_tir", "hd_mono", "hd_opt", "hd_wasm"];
-const SDK_STD = new Set(["console", "http", "http_wire", "time"]);
 const CONFORMANCE = "specification_conformance_passes_except_known_failures";
 
 function git(root: string, args: string[]): string {
@@ -375,28 +373,6 @@ const goldenRule: Rule = (ctx) => {
   ];
 };
 
-const sdkRule: Rule = (ctx) => {
-  const stdFiles = captures(ctx, /^lib\/std\/([^/]+)\.hd$/);
-  if (!has(ctx, /^packages\/server-sdk\//) && !stdFiles.some((name) => SDK_STD.has(name))) {
-    return [];
-  }
-  return [
-    step("hd_build", "the schema test runs target/debug/hd", [
-      "cargo",
-      "build",
-      "-q",
-      "-p",
-      "hd_command",
-    ]),
-    step("sdk_schema", "lib/std server modules or packages/server-sdk changed", [
-      "node",
-      "--test",
-      "--experimental-strip-types",
-      "packages/server-sdk/test/server-schema.test.ts",
-    ]),
-  ];
-};
-
 const cliRule: Rule = (ctx) => {
   // hd_command's test binaries are debug links of the whole compiler. When hd_command
   // is only a dependent, clippy type-checks it and CI runs its tests; the gate
@@ -505,7 +481,6 @@ const RULES: Rule[] = [
   stageRule,
   driverRule,
   goldenRule,
-  sdkRule,
   cliRule,
   cliCaseRule,
   stdFmtRule,

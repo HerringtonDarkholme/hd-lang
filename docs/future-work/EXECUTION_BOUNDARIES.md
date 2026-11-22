@@ -857,7 +857,7 @@ One package with a browser executable and a server executable, from
 `hd.toml` to one call at run time. The lines marked ◀ change what the
 program means. Everything else is ordinary hd and existing std: the
 server runs on the server SDK's `serve!`
-([`std-server-sdk.serve-decl`](../../spec/std/server-sdk.md#r-std-server-sdk.serve-decl)),
+([`std-server-sdk.serve-decl`](https://github.com/HerringtonDarkholme/hd-server-sdk/blob/main/spec/server-sdk.md#r-std-server-sdk.serve-decl)),
 and the browser calls through `std.http`'s `Http`. The only new names are
 those of `std.remote` (section 3, What Std Adds). `pg` is an illustrative
 Postgres driver package.
@@ -885,7 +885,7 @@ module = "server"           # src/server.hd; its main! row: $ Net + HttpServer
 
 [dependencies]
 pg = "github.com/acme/pg@1.2.0"                   # illustrative
-server_sdk = "github.com/acme/server_sdk@0.1.0"   # the SDK of spec/std/server-sdk.md; path illustrative
+server_sdk = "github.com/acme/server_sdk@0.1.0"   # the SDK of hd-server-sdk; path illustrative
 
 [host]
 "ui.Page" = "providers/page.ts"                   # the provider of src/ui.hd's @host trait Page
@@ -1186,7 +1186,7 @@ the outcome is `._1(.Unknown)`. A page without a valid session gets
 
 Requests run concurrently. The SDK's workers share the one state, here
 the `Home[PgUsers, Request]`
-([`std-server-sdk.serve-state`](../../spec/std/server-sdk.md#r-std-server-sdk.serve-state)),
+([`std-server-sdk.serve-state`](https://github.com/HerringtonDarkholme/hd-server-sdk/blob/main/spec/server-sdk.md#r-std-server-sdk.serve-state)),
 and requests interleave at suspension points such as `query_one!`. Each
 has its own `PgUsers`, so one request's `caller` never leaks into
 another; only what sits behind `pool` is shared.

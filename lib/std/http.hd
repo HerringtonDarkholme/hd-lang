@@ -2748,7 +2748,7 @@ fn response_from_wire(response: WireResponse) -> Result[Response, HttpError]:
     )
 
 ## Host adapter: builds a public incoming message from its byte DTO.
-## See [std-server-sdk.request-from-wire](../../spec/std/server-sdk.md#r-std-server-sdk.request-from-wire).
+## See [std-http.wire.request-from](../../spec/std/http.md#r-std-http.wire.request-from).
 pub fn request_from_wire(request: WireRequest) -> Result[Request, HttpError]:
     url := Url::parse(request.url)?
     .Ok(
@@ -2761,7 +2761,7 @@ pub fn request_from_wire(request: WireRequest) -> Result[Request, HttpError]:
     )
 
 ## Host adapter: validates fields, then claims the outgoing body once.
-## See [std-server-sdk.response-to-wire](../../spec/std/server-sdk.md#r-std-server-sdk.response-to-wire).
+## See [std-http.wire.response-to](../../spec/std/http.md#r-std-http.wire.response-to).
 pub fn response_to_wire(response: &Response) -> Result[WireResponse, HttpError]:
     validate_headers(&response.headers)?
     headers := [for (name, value) in response.headers.entries() => (name.wire_name(), value)]

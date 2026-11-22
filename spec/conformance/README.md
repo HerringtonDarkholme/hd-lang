@@ -535,8 +535,8 @@ with `cancellation-cleanup`.
 `# fixture-package-role: root-application` select the synthetic
 multi-package environment. The primary file is compiled as the root module
 of a package in the named role. That package depends on every package under
-its tier's `packages/` ([`lang/packages/`](lang/packages) or
-[`std/packages/`](std/packages)), each in the library role:
+its tier's `packages/` ([`lang/packages/`](lang/packages); the std tier has
+none since the server SDK moved to its own repository), each in the library role:
 
 - Each directory `TIER/packages/NAME/` is the source root of one package, used as
   `dep.NAME` ([Use Roots](../lang/10-modules.md#use-roots)). Its `lib.hd` is the

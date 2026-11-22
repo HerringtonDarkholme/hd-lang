@@ -4,8 +4,7 @@ const files = execFileSync("git", ["ls-files", "-z", "--", "*.mjs", "*.mts", "*.
   encoding: "utf8",
 })
   .split("\0")
-  .filter(Boolean)
-  .filter((file) => !file.startsWith("packages/server-sdk/packaging/vendor/"));
+  .filter(Boolean);
 
 if (files.length) {
   process.stderr.write(`module sources must be plain .ts:\n${files.join("\n")}\n`);

@@ -75,7 +75,6 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/validate.md": "std-validate",
   "std/process.md": "std-process",
   "std/http.md": "std-http",
-  "std/server-sdk.md": "std-server-sdk",
   "std/net.md": "std-net",
   "cli/command-line.md": "cli",
 };

@@ -4,7 +4,7 @@ use std.http.{Method, BodyError}
 use std.time.Duration
 
 ## A wire request's PEM certificate chain and PEM private key.
-## See [std-server-sdk.wire-identity](../../spec/std/server-sdk.md#r-std-server-sdk.wire-identity).
+## See [std-http.wire.identity](../../spec/std/http.md#r-std-http.wire.identity).
 pub struct WireIdentity:
     pub certificate_chain: string
     pub private_key: string
@@ -12,7 +12,7 @@ pub struct WireIdentity:
 # The transport settings of a derived provider travel with each request,
 # never in the public Request. `.None` and `[]` are the host defaults.
 ## The request bytes and transport settings exchanged with a host.
-## See [std-server-sdk.wire-request](../../spec/std/server-sdk.md#r-std-server-sdk.wire-request).
+## See [std-http.wire.request](../../spec/std/http.md#r-std-http.wire.request).
 pub struct WireRequest:
     pub method: Method
     pub url: string
@@ -28,7 +28,7 @@ pub struct WireRequest:
     pub body_read_timeout: Duration? = .None
 
 ## The response bytes exchanged with a host.
-## See [std-server-sdk.wire-response](../../spec/std/server-sdk.md#r-std-server-sdk.wire-response).
+## See [std-http.wire.response](../../spec/std/http.md#r-std-http.wire.response).
 pub struct WireResponse:
     pub status: u16
     pub headers: List[(string, string)] = []

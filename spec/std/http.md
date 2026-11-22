@@ -1040,5 +1040,66 @@ impl WireHttp for ExampleHost:
 > **Why.** A host declaration must be public, and the ordinary HTTP adapter
 > imports its transport trait and error from another std module.
 
-See also: [Wire Messages And Conversion](server-sdk.md#wire-messages-and-conversion),
+See also: [Wire Messages And Conversion](#wire-messages-and-conversion),
 [Package Host Declarations](../cli/command-line.md#package-host-declarations).
+
+## Wire Messages And Conversion
+
+`std.http` exchanges these byte messages with its host in both directions:
+the client sends a `WireRequest` and receives a `WireResponse`, and a server
+source receives an incoming `WireRequest` and replies with a `WireResponse`.
+Conversions use the public `std.http` message types.
+
+```hd
+use std.http.{Response, request_from_wire, response_to_wire}
+use std.http_wire.WireRequest
+
+pub fn main() -> void:
+    wire := WireRequest { method: .Get, url: "https://example.test/" }
+    request := request_from_wire(wire).expect("valid request URL")
+    response := Response::status(.Ok).set_bytes(request.url.path.to_utf8())
+    _ := response_to_wire(&response).expect("valid response with an unread body")
+```
+
+1. r[std-http.wire.identity] `std.http_wire.WireIdentity` has public `certificate_chain: string` and `private_key: string` fields.
+2. r[std-http.wire.request] `std.http_wire.WireRequest` has the public fields in the following table, with the listed defaults.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `method` | `std.http.Method` | required |
+| `url` | `string` | required |
+| `headers` | `List[(string, string)]` | `[]` |
+| `body` | `List[u8]` | `[]` |
+| `redirects` | `usize` | `0` |
+| `dns_servers` | `List[string]?` | `.None` |
+| `tls_roots` | `List[string]` | `[]` |
+| `tls_identity` | `WireIdentity?` | `.None` |
+| `connect_timeout` | `std.time.Duration?` | `.None` |
+| `tls_handshake_timeout` | `std.time.Duration?` | `.None` |
+| `response_header_timeout` | `std.time.Duration?` | `.None` |
+| `body_read_timeout` | `std.time.Duration?` | `.None` |
+
+3. r[std-http.wire.response] `std.http_wire.WireResponse` has the public fields in the following table, with the listed defaults.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `status` | `u16` | required |
+| `headers` | `List[(string, string)]` | `[]` |
+| `body` | `List[u8]` | `[]` |
+| `url` | `string` | `""` |
+
+The conversion functions are in `std.http`, with these signatures.
+
+| Function | Parameter | Result |
+| --- | --- | --- |
+| `request_from_wire` | `request: std.http_wire.WireRequest` | `Result[Request, HttpError]` |
+| `response_to_wire` | `response: &Response` | `Result[std.http_wire.WireResponse, HttpError]` |
+
+4. r[std-http.wire.request-from] `request_from_wire` parses the wire URL with `Url::parse` and preserves the method, header pairs, and body bytes.
+5. r[std-http.wire.response-to] `response_to_wire` validates headers before reading the shared body once, returning any header or body error.
+6. r[std-http.wire.response-to.values] A successful conversion preserves the status code, header pairs, and body bytes, with the response URL's text or `""` when absent.
+
+> **Why.** A server package outside std, such as
+> [hd-server-sdk](https://github.com/HerringtonDarkholme/hd-server-sdk), uses the
+> same module visibility rules as an application, so these values and
+> conversions are public APIs.

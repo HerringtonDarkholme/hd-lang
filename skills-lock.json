@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "skills": {
+    "hd-lang": {
+      "source": "HerringtonDarkholme/hd-skill",
+      "commit": "deb33c708d1c146765413d75396709ccf6b111b2",
+      "sourceType": "github",
+      "skillPath": "skills/hd-lang/SKILL.md",
+      "computedHash": "674385caa86b870eddc602e85e76c4368096726bed1fbd4393eab6d6ae680502"
+    }
+  }
+}

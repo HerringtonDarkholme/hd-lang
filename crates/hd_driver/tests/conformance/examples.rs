@@ -531,7 +531,7 @@ fn spec_and_doc_examples_check_as_printed() {
 /// parser must accept each.
 fn package_source_failures() -> Vec<String> {
     let mut failures = Vec::new();
-    for directory in ["lang/packages", "lang/trees", "std/packages", "std/trees"] {
+    for directory in ["lang/packages", "lang/trees", "std/trees"] {
         let mut sources = hd_project::MemorySources::default();
         let base = suite_root().join(directory);
         load_tree(&base, &base, &mut sources);

@@ -131,7 +131,7 @@ For this example, copy the platform-neutral runtime from the checkout into `embe
 ```sh
 node --input-type=module <<'JS'
 import { emitHostSources } from "./scripts/host-emission.ts";
-import { runtimeSources } from "./packages/server-sdk/packaging/runtime-model.ts";
+import { runtimeSources } from "hd-server-sdk/packaging/runtime-model.ts";
 
 await emitHostSources("../embedding-demo/runtime", ".", runtimeSources);
 JS
@@ -256,7 +256,7 @@ export function bindServer(provider, sink) {
 
 This is the workerd binding module, not a complete fetch driver.
 Do not retain the Node bridge's global `host.run` Promise across workerd requests: the earlier real workerd control rejects cross-request I/O lifetimes.
-#266's [request-scoped dispatcher](../future-work/SERVER_APPLICATIONS.md#architecture) drives poll turns and owns outgoing I/O in each platform request's coroutine.
+#266's [request-scoped dispatcher](https://github.com/HerringtonDarkholme/hd-server-sdk/blob/main/docs/SERVER_APPLICATIONS.md#architecture) drives poll turns and owns outgoing I/O in each platform request's coroutine.
 That dispatcher consumes `bindServer(provider, sink)` and preserves one ordinary HD main and instance.
 
 The handwritten capability constant mirrors the complete app table above; production packaging must derive it from that manifest.

@@ -38,6 +38,5 @@
     "no-nested-ternary": "error",
     "max-nested-callbacks": ["error", 3]
   },
-  "plugins": ["eslint", "typescript", "unicorn", "oxc", "promise"],
-  "ignorePatterns": ["packages/server-sdk/packaging/vendor/**"]
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "promise"]
 }

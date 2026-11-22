@@ -46,7 +46,7 @@ The host implements that trait as a *provider*:
   call. Aborting a call or closing the instance runs its abort hook at most
   once, and a late answer is ignored.
 
-The [server SDK](../../packages/server-sdk/README.md) is a complete example:
+The [server SDK](https://github.com/HerringtonDarkholme/hd-server-sdk) is a complete example:
 the host owns the HTTP listener and hands each request to the hd
 application, which answers through `std.http` values.
 
