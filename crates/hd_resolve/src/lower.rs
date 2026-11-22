@@ -3838,13 +3838,20 @@ impl Lower<'_, '_, '_> {
         if let (Some((o, s, _)), Some(b)) = (self.opaque_result, borrows) {
             self.opaque_result = Some((o, s, b));
         }
-        let alias_arg_slots = (kind == HeadKind::Alias && self.r.lifetime_count(def) != 0)
-            .then(|| {
-                self.slots
-                    .as_ref()
-                    .and_then(|slots| before.map(|from| slots[from..].to_vec()))
-            })
-            .flatten();
+        let alias_arg_slots = (kind == HeadKind::Alias
+            && (self.r.lifetime_count(def) != 0
+                || self
+                    .alias_body(def)
+                    .is_some_and(|(_, _, lts)| lts.contains(&crate::iface::STATIC_LIFETIME))
+                    && self.slots.as_ref().is_some_and(|slots| {
+                        before.is_some_and(|at| slots[at..].iter().all(|&l| l == 0))
+                    })))
+        .then(|| {
+            self.slots
+                .as_ref()
+                .and_then(|slots| before.map(|from| slots[from..].to_vec()))
+        })
+        .flatten();
         // Only a trait has associated types (trait.binding.non-trait).
         if matches!(kind, HeadKind::Struct | HeadKind::Enum | HeadKind::Newtype)
             && let Some((name, _)) = bindings.first()
@@ -3978,12 +3985,14 @@ impl Lower<'_, '_, '_> {
                 SlotItem::Ref => {
                     let lifetime = body_lifetimes.get(declared_at).copied().unwrap_or(0);
                     declared_at += 1;
-                    out.push(
+                    out.push(if lifetime == crate::iface::STATIC_LIFETIME {
+                        lifetime
+                    } else {
                         lifetime
                             .checked_sub(1)
                             .and_then(|l| lifetime_args.get(usize::from(l)).copied())
-                            .unwrap_or(0),
-                    );
+                            .unwrap_or(0)
+                    });
                 }
             }
         }
@@ -7437,10 +7446,7 @@ impl Lower<'_, '_, '_> {
         let _shown = crate::ShowAlias::enter(h.def);
         let generics = self.own_generics_as(gl, (h.def, owner), &mut gn);
         let body = n.children().find(|c| c.kind().is_type());
-        let saved = std::mem::replace(
-            &mut self.slots,
-            generics.iter().any(|g| g.lifetime).then(Vec::new),
-        );
+        let saved = self.slots.replace(Vec::new());
         let t = match body {
             _ if cyclic => Ty::POISON,
             Some(b) if b.kind() == SyntaxKind::RequirementRow => {

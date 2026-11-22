@@ -3021,7 +3021,10 @@ impl Ck<'_, '_> {
                             if waiting {
                                 self.note_impl_use(tr, None);
                                 self.pending.push(crate::body::PendingGoal {
-                                    region_source: Some((ParamRef { owner: def, index }, bound)),
+                                    region_source: Some(crate::body::RegionSource::Bound(
+                                        ParamRef { owner: def, index },
+                                        bound,
+                                    )),
                                     tref,
                                     at: n.index(),
                                     kind: crate::body::Waiting::Bound {
@@ -6038,7 +6041,7 @@ impl Ck<'_, '_> {
                     self_ty: st,
                     args: pool.list(&targs),
                 };
-                self.call_choice(tref, method, n)?
+                self.call_choice(tref, method, n, refs.first().copied().filter(|_| has_self))?
             }
         };
         self.note_method_call(method, choice);
@@ -6765,9 +6768,13 @@ impl Ck<'_, '_> {
         tref: TraitRef,
         method: DefId,
         n: NodeRef<'_>,
+        value: Option<Ref>,
     ) -> StageResult<(ChoiceKind, u32)> {
         let before = self.pending.len();
-        let ev = self.require_ref(tref, n)?;
+        let ev = match value {
+            Some(value) => self.require_value_bound(tref, n, Code::UnsatisfiedTraitBound, value)?,
+            None => self.require_ref(tref, n)?,
+        };
         if let Some(p) = self.pending.get_mut(before) {
             p.kind = crate::body::Waiting::Call { method };
             return Ok(PENDING_CHOICE);

@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+struct Wrapped[T]:
+    value: T
+type Pair[A, 's] = (A, &'s i32, &'static i32)
+impl[A, 's] Saved for Wrapped[Pair[A, 's]]:
+    pass
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+fn inspect['a](value: Wrapped[(&'a i32, &'a i32, &'static i32)]) -> void:
+    require_saved(value)

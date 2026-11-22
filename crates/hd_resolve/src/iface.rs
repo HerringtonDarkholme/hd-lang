@@ -2900,6 +2900,19 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
         t.head_self.push(self_ty);
         t.head_args.push(args);
         let item = by_def.get(&def);
+        t.head_outlives.push(item.is_some_and(|i| {
+            match &i.data {
+                ItemData::Impl {
+                    self_lifetimes,
+                    trait_slots,
+                    ..
+                } => self_lifetimes
+                    .iter()
+                    .chain(trait_slots)
+                    .any(|&l| l == STATIC_LIFETIME),
+                _ => false,
+            }
+        }));
         let mut plan = Vec::new();
         for (gi, g) in item
             .map_or(&[][..], |i| i.generics.as_slice())

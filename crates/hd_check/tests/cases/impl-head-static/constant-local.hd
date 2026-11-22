@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    pass
+struct Wrapped[T, N < const usize]:
+    value: T
+
+impl Saved for Wrapped[&'static i32, 4]:
+    pass
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+fn inspect['a](value: Wrapped[&'a i32, 4]) -> void:
+    require_saved(value)

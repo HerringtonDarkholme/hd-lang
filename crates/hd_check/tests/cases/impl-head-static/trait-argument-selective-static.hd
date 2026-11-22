@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved[A]:
+    pass
+struct Holder:
+    value: i32
+impl['s] Saved[(&'s i32, &'static i32)] for Holder:
+    pass
+fn require_saved['a, 'b, T < Saved[(&'a i32, &'b i32)]](
+    value: T,
+    left: &'a i32,
+    right: &'b i32,
+) -> void:
+    pass
+fn inspect['a](value: Holder, left: &'a i32, right: &'static i32) -> void:
+    require_saved(value, left, right)
