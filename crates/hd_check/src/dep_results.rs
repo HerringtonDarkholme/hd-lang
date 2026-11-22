@@ -2198,6 +2198,15 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                 bindings
             };
             for (step, child) in steps {
+                // A template's member step (`annot.walker.obligation`):
+                // the member's slots of the target's.
+                if usize::from(*step) >= table.plan[r].len() {
+                    let member = member_origins(ls, impls, (table, r), args, *step, &bindings);
+                    let (actual, origins) =
+                        member.ok_or_else(|| bug("an outlives proof lost its member step"))?;
+                    work.push((child, resolve(actual), origins));
+                    continue;
+                }
                 let Some(&PlanStep::Bound {
                     param,
                     trait_: bound_trait,
@@ -2258,6 +2267,72 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
         }
     }
     Ok(statics)
+}
+
+/// The goal of a template impl's member step `step` (row `r` at `args`),
+/// subject then trait arguments ([`goal_tuple`]), and its origins: the
+/// member's slots of what the target `T` holds, in the order
+/// [`hd_types::solver::row_goals`] asks the members (a tuple's elements,
+/// its rest item or rest list; a union's members), each part's slots
+/// consecutive in the target's layout. The trait arguments carry none.
+fn member_origins<V: Clone>(
+    ls: &Layouts<'_>,
+    impls: Impls<'_>,
+    (table, r): (&hd_types::solver::ImplTable, usize),
+    args: hd_types::TyList,
+    step: u16,
+    bindings: &ProofBindings<V>,
+) -> Option<(Ty, ProofSlots<V>)> {
+    let pool = ls.pool;
+    let args = pool.list_items(args);
+    let goals = hd_types::solver::row_goals(pool, impls, table, r, args);
+    let sub = goals.iter().find(|g| g.0 == step)?.1;
+    let target = *args.first()?;
+    // Each part of the target, with its first slot.
+    let mut at = 0;
+    let mut parts: Vec<(Ty, usize)> = Vec::new();
+    let mut part = |t: Ty, parts: &mut Vec<(Ty, usize)>| {
+        parts.push((t, at));
+        at += ls.of(t).slots.len();
+    };
+    let (members, rest) = match pool.get(target) {
+        TyData::Tuple { elems, rest } => (elems, rest),
+        TyData::Union(members) => (members, None),
+        _ => return None,
+    };
+    for &e in pool.list_items(members) {
+        part(e, &mut parts);
+    }
+    if let Some(r) = rest {
+        part(r, &mut parts);
+    }
+    // The goals ask parts in order; a rest item stands at its list.
+    let first = table.plan[r].len();
+    let k = usize::from(step).checked_sub(first)?;
+    let plan = impls.tuple_plan(table.def[r])?;
+    let mut asked: Vec<usize> = Vec::new();
+    for s in plan.iter() {
+        match s.on {
+            hd_types::solver::MemberOn::Elements => {
+                asked.extend(0..pool.list_items(members).len());
+            }
+            hd_types::solver::MemberOn::RestItem | hd_types::solver::MemberOn::RestList => {
+                asked.extend(rest.map(|_| parts.len() - 1));
+            }
+        }
+    }
+    let (_, from) = *parts.get(*asked.get(k)?)?;
+    let n = ls.of(sub.self_ty).slots.len();
+    let holds = bindings.get(&ParamRef {
+        owner: DefId::NONE,
+        index: 0,
+    });
+    let mut origins: Vec<Vec<V>> = (from..from + n)
+        .map(|s| holds.and_then(|h| h.get(s)).cloned().unwrap_or_default())
+        .collect();
+    let goal = goal_tuple(pool, sub.self_ty, sub.args);
+    origins.resize_with(ls.of(goal).slots.len(), Vec::new);
+    Some((goal, Rc::new(origins)))
 }
 
 /// The written lifetime at each layout slot of goal tuple `t`: its

@@ -1,0 +1,43 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+use std.structure.{Structure, Field, Variant, Walker, UnionType}
+
+trait Encode:
+    fn encode(self) -> string
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+struct Encoder:
+    out: string
+
+impl[S] Walker[S] for Encoder:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Encode](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        self.out = self.out + value.encode() + ";"
+        .Ok(())
+
+impl[T < UnionType] Encode for T by Structure:
+    fn encode(self) -> string:
+        let mut w = Encoder { out: "" }
+        _ := Structure::walk(&self, &mut w)
+        w.out
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Encode for Wrapped[T]:
+    fn encode(self) -> string:
+        "wrapped"
+
+fn require_encode[T < Encode](value: T) -> void:
+    pass
+
+# expected: a union template accepts the static member
+fn inspect(value: Wrapped[&'static i32] | i64) -> void:
+    require_encode(value)
