@@ -99,7 +99,8 @@ pub struct Reach {
     /// its type is not `Send`.
     pub bad: Vec<(Hash128, u8)>,
     /// Each body that reads a binding or calls a body of the package: its
-    /// path hash, those bindings and those callees.
+    /// path hash, those bindings and those callees; and each dispatch key
+    /// its bodies call, once, with the module's methods it reaches.
     pub bodies: Vec<(Hash128, Vec<Hash128>, Vec<Hash128>)>,
     pub roots: Vec<ReachRoot>,
 }
@@ -160,11 +161,13 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
             .filter(|d| ours(d))
             .map(|d| hash(*d))
             .collect();
+        // A dispatch key is a node of its own, listed once below with its
+        // methods, so a body's facts do not grow with the module's impls.
         let mut calls: Vec<Hash128> = (f.calls.iter().filter(|d| ours(d)).copied())
             .chain(
-                f.dispatch
-                    .iter()
-                    .flat_map(|k| reached.get(k).into_iter().flatten().copied()),
+                (f.dispatch.iter())
+                    .filter(|k| reached.get(k).is_some_and(|m| !m.is_empty()))
+                    .copied(),
             )
             .map(hash)
             .collect();
@@ -180,6 +183,17 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
         })
         .filter(|(_, r, c)| !r.is_empty() || !c.is_empty())
         .collect();
+    // Each dispatch key once, with the module's methods it reaches.
+    bodies.extend(
+        reached
+            .iter()
+            .filter(|(_, ms)| !ms.is_empty())
+            .map(|(k, ms)| {
+                let mut calls: Vec<Hash128> = ms.iter().map(|m| hash(*m)).collect();
+                calls.sort_stable();
+                (hash(*k), Vec::new(), calls)
+            }),
+    );
     bodies.sort_stable();
     let roots = (init.crossing_roots.iter())
         .map(|r| {
