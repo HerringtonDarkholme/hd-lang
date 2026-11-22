@@ -69,9 +69,12 @@ tests:
         )
         assert_equal(
             files.copy!(Path("source"), Path("new/deep/file")),
-            .Ok(()),
-            reason="MemoryFs keeps its implicit directory behavior",
+            .Err(FsError.NotFound(path=Path("new/deep/file"))),
+            reason="copy needs an existing destination parent",
         )
+        assert_equal(files.stat!(Path("new")), .Ok(.None), reason="no directory is created")
+        files.create_dir_all!(Path("new/deep")).expect("destination directories")
+        files.copy!(Path("source"), Path("new/deep/file")).expect("copy after creation")
         assert_equal(
             files.read_text!(Path("new/deep/file")),
             .Ok("value"),

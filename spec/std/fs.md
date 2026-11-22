@@ -93,7 +93,8 @@ pub trait FsWrite:
 5. r[std-fs.write.remove] `remove!` removes the file or the empty directory at `path`.
 6. r[std-fs.write.rename] `rename!` moves the entry at `from` to `to`.
 7. r[std-fs.write.mut-ref.reference-values] Each `FsWrite` method takes `&mut self`, so `FsWrite` is a mutable requirement trait and `$.use(FsWrite)` is a `&mut dyn FsWrite`, by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values). Each `FsRead` method takes `self`, so `FsRead` is a readonly one, and a reference installed as its provider reads the place it refers to, by [`req.ref.share.counted-values`](../lang/11-requirements-and-suspension.md#r-req.ref.share.counted-values).
-8. r[std-fs.cancel.write] Cancelling the suspension of `write_bytes!`, `write_text!`, or `append_text!` may leave a partial file at `path`.
+8. r[std-fs.write.destination-parent] For `write_bytes!`, `write_text!`, `append_text!`, `copy!`, and `rename!`, a missing destination parent returns `NotFound` containing the supplied destination path.
+9. r[std-fs.cancel.write] Cancelling the suspension of `write_bytes!`, `write_text!`, or `append_text!` may leave a partial file at `path`.
 
 ## Copying Files
 
@@ -274,7 +275,7 @@ tests:
 5. r[std-fs.memory.literal-parent] Normalization leaves `..` components unchanged, without resolving parent directories.
 6. r[std-fs.memory.normalized-root] A relative path with no remaining components names `.`, and an absolute one names `/`.
 7. r[std-fs.memory.supplied-errors] Errors retain the caller's supplied path, including its original spelling.
-8. r[std-fs.memory.dirs] A directory exists when `create_dir_all!` made it, or when its path is the text before a `/` in the path of a file. So writing a file makes the directories above it.
+8. r[std-fs.memory.explicit-directories] A directory exists only when `create_dir_all!` made it, or when it is a normalized root, `.` or `/`.
 9. r[std-fs.memory.create-dir-all] `create_dir_all!` records `path` and every directory above it, so each stays after the entries inside it are removed.
 10. r[std-fs.memory.entry] A file's `Entry` has the kind `File` and its length in bytes. A directory's has the kind `Directory` and the size 0. No entry is a `Symlink`.
 11. r[std-fs.memory.normalized-list-order] `list_dir!` returns the entries directly inside the directory, in the byte order of their path text. The returned entry paths use normalized keys.
@@ -288,6 +289,7 @@ path that fails, which for a rename is `to` unless `from` is missing:
 
 | Rule | Operation | Error |
 | --- | --- | --- |
+| r[std-fs.memory.destination-parent] Missing destination parent | `write_bytes!`, `write_text!`, `append_text!`, `copy!`, or `rename!` below a nonexistent directory | `NotFound(path)`, with the supplied destination path |
 | r[std-fs.memory.error.not-found] Nothing there | reading, listing, removing, or renaming a path where no entry is | `NotFound(path)`, with the missing path |
 | r[std-fs.memory.error.is-directory] A directory as a file | reading a directory, or writing, appending, or renaming a file to a directory's path | `IsADirectory(path)` |
 | r[std-fs.memory.error.not-directory] A file as a directory | listing a file, creating a directory at a file's path, renaming a directory onto a file, or writing, appending, creating, or renaming to a path below a file | `NotADirectory(path)` |

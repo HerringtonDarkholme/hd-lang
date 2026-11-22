@@ -89,6 +89,7 @@ tests:
 
     it("repeated appends keep normalized paths and empty writes"):
         files := MemoryFs::new()
+        files.create_dir_all!(Path("dir")).expect("append directory")
         let index: usize = 0
         while index < 128:
             _ := files.append_text!(Path("dir//./file"), "λ")

@@ -11,10 +11,11 @@ fn stamp!(files: &mut MemoryFs, path: string) -> Timestamp?:
 tests:
     it("defaults to None, scripts normalized paths, and needs no clock"):
         files := MemoryFs::new()
+        files.create_dir_all!(Path("d")).expect("seed directory")
         _ := files.write_text!(Path("d/file"), "value")
         time := Timestamp::from_unix_milliseconds(-123)
         assert_equal(stamp!(files, "d/file"), .None, reason="no invented clock time")
-        assert_equal(stamp!(files, "d"), .None, reason="implicit directories also start unknown")
+        assert_equal(stamp!(files, "d"), .None, reason="directories also start unknown")
         assert_equal(
             files.set_modified(Path("./d//file"), time),
             .Ok(()),
@@ -115,19 +116,21 @@ tests:
             reason="a new entry does not inherit removed metadata",
         )
 
-    it("an implicit directory loses its script when its last child disappears"):
+    it("an explicit directory keeps its script after its last child disappears"):
         files := MemoryFs::new()
-        _ := files.write_text!(Path("implicit/f"), "f")
-        _ := files.set_modified(Path("implicit"), Timestamp::from_unix_milliseconds(10))
-        _ := files.remove!(Path("implicit/f"))
+        files.create_dir_all!(Path("parent")).expect("seed directory")
+        _ := files.write_text!(Path("parent/f"), "f")
+        time := Timestamp::from_unix_milliseconds(10)
+        _ := files.set_modified(Path("parent"), time)
+        _ := files.remove!(Path("parent/f"))
         assert_equal(
-            files.stat!(Path("implicit")),
-            .Ok(.None),
-            reason="no child or explicit directory remains",
+            stamp!(files, "parent"),
+            .Some(time),
+            reason="parent remains with its metadata",
         )
-        _ := files.write_text!(Path("implicit/g"), "g")
+        _ := files.write_text!(Path("parent/g"), "g")
         assert_equal(
-            stamp!(files, "implicit"),
-            .None,
-            reason="recreating a directory does not resurrect a script",
+            stamp!(files, "parent"),
+            .Some(time),
+            reason="a new child preserves the parent",
         )

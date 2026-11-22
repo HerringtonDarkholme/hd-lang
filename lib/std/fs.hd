@@ -344,9 +344,8 @@ fn glob_component_matches(pieces: List[GlobPiece], name: string) -> bool:
 
 # The deterministic file system (spec/std/fs.md#memory-file-system). A
 # file's key omits empty and dot components, preserving a leading slash.
-# A directory is a key that
-# `create_dir_all!` made, or the text before a `/` in another key
-# (r-std-fs.memory.dirs); `.` is the root (r-std-fs.memory.normalized-root-directory).
+# A directory is a key that `create_dir_all!` made, or a normalized root
+# (r-std-fs.memory.explicit-directories); `.` is the root (r-std-fs.memory.normalized-root-directory).
 ## The deterministic `FsRead` and `FsWrite` provider: a file system in memory for unit tests.
 ## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
 @derive(Debug)
@@ -385,18 +384,6 @@ impl MemoryFs:
         self.modified[key] = time
         .Ok(())
 
-    # Implicit directories disappear with their last child. Forget their
-    # script too, so a later recreated directory cannot inherit it.
-    fn forget_missing_parents(&mut self, key: string) -> void:
-        parts := key.split("/")
-        let parent = ""
-        let index = 0
-        while index + 1 < parts.len():
-            parent = if index == 0: parts[0] else: "${parent}/${parts[index]}"
-            if parent != "" && !self.dir_at(parent):
-                _ := self.modified.remove(parent)
-            index += 1
-
     fn move_modified(&mut self, source: string, target: string) -> void:
         time := self.modified.remove(source)
         _ := self.modified.remove(target)
@@ -407,16 +394,12 @@ impl MemoryFs:
     fn file_at(&self, key: string) -> List[u8]?:
         self.files.get(key)
 
-    # A made directory, or a prefix of a file or a made directory.
+    # Only explicitly made directories and normalized roots exist.
     fn dir_at(&self, key: string) -> bool:
         if key == "." || key == "/":
             return true
-        under := if key == "/": "/" else: "${key}/"
         for made in self.dirs:
-            if made == key || made.starts_with(under):
-                return true
-        for (stored, _) in self.files:
-            if stored.starts_with(under):
+            if made == key:
                 return true
         false
 
@@ -433,6 +416,14 @@ impl MemoryFs:
             index = index + 1
         false
 
+    fn missing_parent(&self, key: string, path: Path) -> FsError?:
+        match Path(key).parent():
+            .Some(parent) =>
+                if !self.dir_at(memory_key(parent)):
+                    return .Some(FsError.NotFound(path=path))
+            .None => pass
+        .None
+
     # The error, if any, of writing a file at `path`.
     fn write_error(&self, path: Path) -> FsError?:
         key := memory_key(path)
@@ -440,7 +431,7 @@ impl MemoryFs:
             return .Some(FsError.IsADirectory(path=path))
         if self.file_above(key):
             return .Some(FsError.NotADirectory(path=path))
-        .None
+        self.missing_parent(key, path)
 
 impl FsRead for MemoryFs:
     fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]:
@@ -584,7 +575,6 @@ impl FsWrite for MemoryFs:
             .Some(_) =>
                 _ := self.files.remove(key)
                 _ := self.modified.remove(key)
-                self.forget_missing_parents(key)
                 return .Ok(())
             .None => pass
         if !self.dir_at(key):
@@ -597,7 +587,6 @@ impl FsWrite for MemoryFs:
                 kept.push(made)
         self.dirs = kept
         _ := self.modified.remove(key)
-        self.forget_missing_parents(key)
         .Ok(())
 
     # Moves the file or directory at `from`, with every key under it
@@ -614,7 +603,6 @@ impl FsWrite for MemoryFs:
                     _ := self.files.remove(source)
                     self.files[target] = bytes
                     self.move_modified(source, target)
-                    self.forget_missing_parents(source)
                     return .Ok(())
                 .None => return .Err(FsError.NotFound(path=from))
         match self.file_at(target):
@@ -622,6 +610,9 @@ impl FsWrite for MemoryFs:
             .None => pass
         if self.file_above(target):
             return .Err(FsError.NotADirectory(path=to))
+        match self.missing_parent(target, to):
+            .Some(error) => return .Err(error)
+            .None => pass
         under := "${source}/"
         let mut times: List[(string, Timestamp)] = []
         for (stored, time) in self.modified:
@@ -650,5 +641,4 @@ impl FsWrite for MemoryFs:
         self.dirs = renamed
         for (stored, time) in times:
             self.modified["${target}${stored.slice(source.len(), stored.len())}"] = time
-        self.forget_missing_parents(source)
         .Ok(())

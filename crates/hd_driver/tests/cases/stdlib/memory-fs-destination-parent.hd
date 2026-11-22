@@ -1,0 +1,10 @@
+# @dump: wat stdout
+# @build: dev
+# @helper: std/fs/impl MemoryFs.missing_parent
+# The file write uses the same destination-parent check as directory rename.
+use std.fs.{FsWrite, MemoryFs}
+use std.path.Path
+
+pub fn main!() -> void $ Console:
+    files := MemoryFs::new()
+    println(files.write_text!(Path("missing/f"), "value").is_err())

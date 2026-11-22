@@ -357,10 +357,11 @@ unit test binds `MemoryFs` for both. The exact rules are in
 [Fs](../../spec/std/fs.md):
 
 ```hd
-use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
+use std.fs.{FsError, FsRead, FsWrite, MemoryFs, create_dir_all, read_text, write_text}
 use std.path.Path
-fn save_report!(name: string, total: i32) -> void $ FsWrite:
-    _ := write_text!(Path("reports/$name.txt"), "total: $total")
+fn save_report!(name: string, total: i32) -> Result[void, FsError] $ FsWrite:
+    create_dir_all!(Path("reports"))?
+    write_text!(Path("reports/$name.txt"), "total: $total")
 
 fn read_report!(name: string) -> string $ FsRead:
     read_text!(Path("reports/$name.txt")).expect("the report exists")
@@ -369,7 +370,7 @@ tests:
     it("writes and reads back a report"):
         fs := MemoryFs::new()
         $.with(FsWrite=fs, FsRead=fs):
-            save_report!("q4", 4500)
+            save_report!("q4", 4500).expect("save report")
             assert_equal(read_report!("q4"), "total: 4500", reason="round trip")
 ```
 

@@ -1,0 +1,52 @@
+# fixture-test-layout: integration
+# test: host and MemoryFs agree on all five missing-parent destinations
+# Spec std/fs: std-fs.write.destination-parent, std-fs.memory.destination-parent.
+use std.fs.{
+    FsError,
+    FsWrite,
+    MemoryFs,
+    append_text,
+    copy,
+    create_dir_all,
+    rename,
+    write_bytes,
+    write_text,
+}
+use std.path.Path
+use std.testing.{assert_equal, temp_dir}
+
+fn attempts!(root: Path) -> List[Result[void, FsError]] $ FsWrite:
+    [
+        write_bytes!(root.join("bytes/f"), [1]),
+        write_text!(root.join("text/f"), "text"),
+        append_text!(root.join("append/f"), "append"),
+        copy!(root.join("source"), root.join("copy/f")),
+        rename!(root.join("source"), root.join("rename/f")),
+    ]
+
+fn exercise!(root: Path) -> void $ FsWrite:
+    write_text!(root.join("source"), "source").expect("seed source")
+    assert_equal(
+        attempts!(root),
+        [
+            .Err(FsError.NotFound(path=root.join("bytes/f"))),
+            .Err(FsError.NotFound(path=root.join("text/f"))),
+            .Err(FsError.NotFound(path=root.join("append/f"))),
+            .Err(FsError.NotFound(path=root.join("copy/f"))),
+            .Err(FsError.NotFound(path=root.join("rename/f"))),
+        ],
+        reason="each missing parent reports the supplied destination",
+    )
+    for name in ["bytes", "text", "append", "copy", "rename"]:
+        create_dir_all!(root.join(name)).expect("create destination directory")
+    assert_equal(
+        attempts!(root),
+        [.Ok(()), .Ok(()), .Ok(()), .Ok(()), .Ok(())],
+        reason="all five succeed after create_dir_all!",
+    )
+
+it("host and MemoryFs both require explicit destination directories"):
+    exercise!(temp_dir())
+    files := MemoryFs::new()
+    $.with(FsWrite=files):
+        exercise!(Path("/"))

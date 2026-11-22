@@ -3472,7 +3472,9 @@ std/host/map-providers/map-args-env.hd	runtime	accept	std/host.md#map-providers
 std/fs/memory-file-system/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
 std/fs/copying-files/memory-fs-copy.hd	runtime	accept	std/fs.md#r-std-fs.copy.bytes
 std/fs/memory-file-system/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memory.new-ref
-std/fs/memory-file-system/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
+std/fs/memory-file-system/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.explicit-directories
+std/fs/memory-file-system/memory-fs-missing-parent.hd	runtime	accept	std/fs.md#r-std-fs.memory.destination-parent
+std/fs/memory-file-system/host-fs-missing-parent.hd	runtime	accept	std/fs.md#r-std-fs.write.destination-parent
 std/fs/scripted-modification-times/memory-fs-modified.hd	runtime	accept	std/fs.md#r-std-fs.memory.set-modified
 std/error/cause-chain/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.source-order
 std/error/standard-error-types/error-message-values.hd	runtime	accept	std/error.md#r-std-error.std-types.string-message

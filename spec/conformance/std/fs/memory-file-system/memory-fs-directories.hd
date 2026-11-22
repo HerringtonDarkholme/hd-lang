@@ -1,5 +1,5 @@
-# test: MemoryFs directories follow from file paths and create_dir_all!, list in byte order, and move and fail as the chapter's table says
-# Spec std/fs Memory File System: std-fs.memory.dirs, std-fs.memory.create-dir-all, std-fs.memory.entry, std-fs.memory.normalized-list-order, std-fs.memory.rename, and the std-fs.memory.error rows (PROVIDER-SHAPES; task #220).
+# test: MemoryFs directories require create_dir_all!, list in byte order, and move and fail as the chapter's table says
+# Spec std/fs Memory File System: std-fs.memory.explicit-directories, std-fs.memory.create-dir-all, std-fs.memory.entry, std-fs.memory.normalized-list-order, std-fs.memory.rename, and the std-fs.memory.error rows (PROVIDER-SHAPES; task #220).
 # Rules exercised include std-fs.entry.size, std-fs.memory.decl,
 # std-fs.memory.no-host, std-fs.memory.error.is-directory,
 # std-fs.memory.error.not-directory, and std-fs.memory.error.not-empty.
@@ -39,8 +39,9 @@ fn is_other(found: FsError?) -> bool:
 tests:
     use std.testing.{assert, assert_equal}
 
-    it("a file makes the directories above it"):
+    it("explicit directories contain files in byte order"):
         let mut files = MemoryFs::new()
+        files.create_dir_all!(Path("notes/deep")).expect("seed directories")
         assert(files.write_text!(Path("notes/b.txt"), "bb").is_ok(), reason="b")
         assert(files.write_text!(Path("notes/a.txt"), "a").is_ok(), reason="a")
         assert(files.write_text!(Path("notes/deep/c.txt"), "c").is_ok(), reason="c")
@@ -67,6 +68,7 @@ tests:
 
     it("rename! moves a directory with its entries"):
         let mut files = MemoryFs::new()
+        files.create_dir_all!(Path("notes")).expect("seed directory")
         assert(files.write_text!(Path("notes/a.txt"), "a").is_ok(), reason="seeded")
         assert(files.rename!(Path("notes"), Path("docs")).is_ok(), reason="moved")
         assert(

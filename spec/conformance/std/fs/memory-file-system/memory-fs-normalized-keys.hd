@@ -11,6 +11,7 @@ tests:
 
     it("read write append stat and remove share one key"):
         files := MemoryFs::new()
+        files.create_dir_all!(Path("a")).expect("seed directory")
         assert(files.write_text!(Path("./a//./x"), "first").is_ok(), reason="seed through an alias")
         assert_equal(
             files.read_text!(Path("a/x")).expect("file"),
@@ -122,6 +123,7 @@ tests:
 
     it("parent components remain literal"):
         files := MemoryFs::new()
+        files.create_dir_all!(Path("a/..")).expect("literal parent directory")
         assert(
             files.write_text!(Path("a/../x"), "literal").is_ok(),
             reason="parent is not resolved",

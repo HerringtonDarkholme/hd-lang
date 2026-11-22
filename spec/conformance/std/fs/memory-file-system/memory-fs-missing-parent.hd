@@ -1,0 +1,68 @@
+# test: all five entry creators require an existing destination parent
+# Spec std/fs: std-fs.memory.destination-parent, std-fs.memory.explicit-directories.
+use std.fs.{
+    FsError,
+    FsRead,
+    FsWrite,
+    MemoryFs,
+    append_text,
+    copy,
+    create_dir_all,
+    rename,
+    write_bytes,
+    write_text,
+}
+use std.path.Path
+use std.testing.assert_equal
+
+fn attempts!(root: Path) -> List[Result[void, FsError]] $ FsWrite:
+    [
+        write_bytes!(root.join("bytes/f"), [1]),
+        write_text!(root.join("text/f"), "text"),
+        append_text!(root.join("append/f"), "append"),
+        copy!(root.join("source"), root.join("copy/f")),
+        rename!(root.join("source"), root.join("rename/f")),
+    ]
+
+fn exercise!(root: Path) -> void $ FsWrite:
+    write_text!(root.join("source"), "source").expect("seed source")
+    assert_equal(
+        attempts!(root),
+        [
+            .Err(FsError.NotFound(path=root.join("bytes/f"))),
+            .Err(FsError.NotFound(path=root.join("text/f"))),
+            .Err(FsError.NotFound(path=root.join("append/f"))),
+            .Err(FsError.NotFound(path=root.join("copy/f"))),
+            .Err(FsError.NotFound(path=root.join("rename/f"))),
+        ],
+        reason="each missing parent reports the supplied destination",
+    )
+    for name in ["bytes", "text", "append", "copy", "rename"]:
+        create_dir_all!(root.join(name)).expect("create destination directory")
+    assert_equal(
+        attempts!(root),
+        [.Ok(()), .Ok(()), .Ok(()), .Ok(()), .Ok(())],
+        reason="all five succeed after create_dir_all!",
+    )
+
+tests:
+    it("MemoryFs keeps the supplied relative path in missing-parent errors"):
+        files := MemoryFs::new()
+        $.with(FsWrite=files):
+            exercise!(Path("."))
+
+    it("directory rename also requires its destination parent"):
+        files := MemoryFs::new()
+        files.create_dir_all!(Path("source/child")).expect("source directory")
+        assert_equal(
+            files.rename!(Path("source"), Path("./missing/moved")),
+            .Err(FsError.NotFound(path=Path("./missing/moved"))),
+            reason="the directory move reports its destination",
+        )
+        files.create_dir_all!(Path("missing")).expect("destination parent")
+        assert_equal(files.rename!(Path("source"), Path("./missing/moved")), .Ok(()), reason="move")
+        assert_equal(
+            files.list_dir!(Path("missing/moved")).expect("moved").len(),
+            1,
+            reason="child moved",
+        )

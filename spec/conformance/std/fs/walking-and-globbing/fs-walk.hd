@@ -41,6 +41,7 @@ tests:
 
     it("a nested tree comes depth first, a directory before its contents"):
         let mut files = MemoryFs::new()
+        files.create_dir_all!(Path("tree/a/deep")).expect("seed directories")
         assert_equal(files.write_text!(Path("tree/b.txt"), "b"), .Ok(()), reason="seeded")
         assert_equal(files.write_text!(Path("tree/a/z.txt"), "z"), .Ok(()), reason="seeded")
         assert_equal(files.write_text!(Path("tree/a/deep/y.txt"), "yy"), .Ok(()), reason="seeded")
@@ -123,6 +124,7 @@ tests:
     it("walk! and list_dir! of . start at the root of a MemoryFs"):
         let mut files = MemoryFs::new()
         assert_equal(files.write_text!(Path("a.md"), "x"), .Ok(()), reason="seeded")
+        files.create_dir_all!(Path("d")).expect("seed directory")
         assert_equal(files.write_text!(Path("d/b.md"), "xy"), .Ok(()), reason="seeded")
         $.with(FsRead=files):
             assert_equal(

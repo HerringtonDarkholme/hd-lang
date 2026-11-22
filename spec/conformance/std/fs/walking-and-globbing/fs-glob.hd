@@ -40,6 +40,8 @@ impl FsRead for LinkFs:
 
 fn tree!() -> *mut MemoryFs:
     let mut files = MemoryFs::new()
+    files.create_dir_all!(Path("tree/docs/deep")).expect("docs directories")
+    files.create_dir_all!(Path("tree/src")).expect("source directory")
     for name in [
         "tree/a.md",
         "tree/b.txt",
@@ -221,6 +223,7 @@ tests:
 
     it("a pattern that starts with / is absolute and keeps the /"):
         let mut files = MemoryFs::new()
+        files.create_dir_all!(Path("/srv/app")).expect("seed directories")
         assert_equal(files.write_text!(Path("/srv/app/a.log"), "x"), .Ok(()), reason="seeded")
         assert_equal(files.write_text!(Path("/srv/b.log"), "x"), .Ok(()), reason="seeded")
         $.with(FsRead=files):
@@ -283,6 +286,7 @@ tests:
         let mut files = MemoryFs::new()
         assert_equal(files.write_text!(Path("a.md"), "x"), .Ok(()), reason="seeded")
         assert_equal(files.write_text!(Path("b.txt"), "x"), .Ok(()), reason="seeded")
+        files.create_dir_all!(Path("d")).expect("seed directory")
         assert_equal(files.write_text!(Path("d/c.md"), "x"), .Ok(()), reason="seeded")
         $.with(FsRead=files):
             assert_equal(texts(glob!("*.md")), ["a.md"], reason="the root's files")
