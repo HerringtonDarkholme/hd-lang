@@ -43,6 +43,13 @@ impl Seq{{i}} for Ints{{i}}:
     type Item = i32
     fn first(&self) -> i32: self.xs[0]
 
+struct Shelf{{i}}[T]:
+    item: T
+
+impl[T] Shelf{{i}}[T]:
+    fn first_of(self) -> i32 where T < Seq{{i}}[Item = i32]:
+        self.item.first()
+
 struct View{{i}}:
     field_name: i32
 
@@ -109,6 +116,7 @@ fn run{{i}}(x: i32) -> i32:
     let q = Wrap{{i}} { ...p, who: "v" }
     let pw = y ** 2
     let ints = Ints{{i}} { xs: [1] }
+    _ := Shelf{{i}} { item: Ints{{i}} { xs: [1] } }.first_of()
     let k = takes{{i}}(&ints)
     let id = TypeId::of::[Pair{{i}}]()
     let h = y |> opt{{i}}(_, "b")
