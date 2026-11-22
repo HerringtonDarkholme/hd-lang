@@ -800,6 +800,7 @@ type BodyOut = (
     Vec<hd_check::DbgRef>,
     Vec<InputBinding>,
     Vec<hd_check::inst_cycles::Edge>,
+    hd_check::crossing::Reach,
 );
 
 /// What a module's derivations add to its `check` entry: the derived
@@ -827,6 +828,9 @@ struct CheckOut {
     content: Hash128,
     has_errors: bool,
     generic_edges: Vec<hd_check::inst_cycles::Edge>,
+    /// The module's part of the package's crossing reach graph
+    /// (`fn.crossing.global`), which the package join reads.
+    reach: hd_check::crossing::Reach,
     has_opaque: bool,
     /// The module has an init body, known without reading the entry's bodies.
     has_init: bool,
@@ -7578,7 +7582,7 @@ impl Run<'_> {
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
-        hd_check::crossing::check(&cx, &mut diags);
+        let reach = hd_check::crossing::summary(&cx);
         // A template needs a body in which a method calls `walk`,
         // `describe` or `build` of `Structure` (`annot.template.body`). A
         // body that did not finish says nothing about its calls.
@@ -7663,6 +7667,7 @@ impl Run<'_> {
             dbg,
             bindings,
             generic_edges,
+            reach,
         )));
     }
 
@@ -8686,6 +8691,7 @@ impl Run<'_> {
                 dbg,
                 bindings,
                 generic_edges,
+                reach,
             ))),
         ) = (self.prep[m].get(), self.body[m].get())
         else {
@@ -8894,7 +8900,7 @@ impl Run<'_> {
             },
             &|d| tracked.contains(&d),
         );
-        let generic_edges = encode_generic_edges(generic_edges, &lines);
+        let generic_edges = encode_generic_edges(generic_edges, reach, &lines);
         let mut sections: Vec<&[u8]> = vec![
             &dw.bytes,
             &meta.bytes,
@@ -9113,7 +9119,7 @@ impl Run<'_> {
             let bindings = decode_bindings(b.as_ref(), &self.names()).unwrap_or_default();
             let _ = self.input_bindings[m].set(bindings);
         }
-        let Some(generic_edges) = sections
+        let Some((generic_edges, reach)) = sections
             .get(8)
             .and_then(|b| decode_generic_edges(b.as_ref(), &lines, FileId::from_raw(u32_of(m))))
         else {
@@ -9132,6 +9138,7 @@ impl Run<'_> {
             content,
             has_errors,
             generic_edges,
+            reach,
             has_opaque,
             has_init,
             has_inline_always,
@@ -9475,6 +9482,14 @@ impl Run<'_> {
         for edges in folder_edges.values() {
             hd_check::inst_cycles::growing_cycles(edges, &mut lock(&self.diags));
         }
+        // The package's crossing closures against its whole call graph
+        // (`fn.crossing.global`), cache hits included.
+        let reach: Vec<&hd_check::crossing::Reach> = (0..self.table.modules.len())
+            .filter(|&m| self.table.modules[m].package == 0 && self.builds_module(m))
+            .filter_map(|m| self.check[m].get().and_then(Option::as_ref))
+            .map(|c| &c.reach)
+            .collect();
+        hd_check::crossing::join(&reach, &mut lock(&self.diags));
         // `InitOrder(F)` reads the init summaries of the folder's modules,
         // so it runs once they are checked.
         let kept = self.kept.get();
@@ -11918,7 +11933,11 @@ impl Lines<'_> {
 }
 
 /// Stable call-edge identities and anchored source positions, without TIR.
-fn encode_generic_edges(edges: &[hd_check::inst_cycles::Edge], lines: &Lines<'_>) -> Vec<u8> {
+fn encode_generic_edges(
+    edges: &[hd_check::inst_cycles::Edge],
+    reach: &hd_check::crossing::Reach,
+    lines: &Lines<'_>,
+) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(edges);
     for edge in edges {
@@ -11934,6 +11953,32 @@ fn encode_generic_edges(edges: &[hd_check::inst_cycles::Edge], lines: &Lines<'_>
         lines.write(&mut w, edge.span.lo);
         lines.write(&mut w, edge.span.hi);
     }
+    // The module's crossing reach part (`fn.crossing.global`).
+    let hashes = |w: &mut Writer, hs: &[Hash128]| {
+        w.len_of(hs);
+        for h in hs {
+            w.hash(*h);
+        }
+    };
+    w.len_of(&reach.bad);
+    for (h, v) in &reach.bad {
+        w.hash(*h);
+        w.u8(*v);
+    }
+    w.len_of(&reach.bodies);
+    for (h, reads, calls) in &reach.bodies {
+        w.hash(*h);
+        hashes(&mut w, reads);
+        hashes(&mut w, calls);
+    }
+    w.len_of(&reach.roots);
+    for r in &reach.roots {
+        hashes(&mut w, &r.reads);
+        hashes(&mut w, &r.callees);
+        w.u8(u8::from(r.send));
+        lines.write(&mut w, r.span.lo);
+        lines.write(&mut w, r.span.hi);
+    }
     w.bytes
 }
 
@@ -11941,7 +11986,7 @@ fn decode_generic_edges(
     bytes: &[u8],
     lines: &Lines<'_>,
     file: FileId,
-) -> Option<Vec<hd_check::inst_cycles::Edge>> {
+) -> Option<(Vec<hd_check::inst_cycles::Edge>, hd_check::crossing::Reach)> {
     let mut r = Reader::new(bytes);
     let mut edges = Vec::new();
     for _ in 0..r.count() {
@@ -11963,7 +12008,31 @@ fn decode_generic_edges(
             span: Span { file, lo, hi },
         });
     }
-    r.ok().then_some(edges)
+    let hashes = |r: &mut Reader<'_>| (0..r.count()).map(|_| r.hash()).collect::<Vec<_>>();
+    let mut reach = hd_check::crossing::Reach::default();
+    for _ in 0..r.count() {
+        let h = r.hash();
+        reach.bad.push((h, r.u8()));
+    }
+    for _ in 0..r.count() {
+        let h = r.hash();
+        let reads = hashes(&mut r);
+        reach.bodies.push((h, reads, hashes(&mut r)));
+    }
+    for _ in 0..r.count() {
+        let reads = hashes(&mut r);
+        let callees = hashes(&mut r);
+        let send = r.u8() != 0;
+        let lo = lines.read(&mut r);
+        let hi = lines.read(&mut r);
+        reach.roots.push(hd_check::crossing::ReachRoot {
+            reads,
+            callees,
+            send,
+            span: Span { file, lo, hi },
+        });
+    }
+    r.ok().then_some((edges, reach))
 }
 
 /// A module's init summary in its `check` entry: the statement count

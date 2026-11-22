@@ -7069,6 +7069,7 @@ lang/functions/crossing-closures/crossing-capture-changed-in-place.hd	type	rejec
 lang/functions/crossing-closures/crossing-captures-function-value.hd	type	reject:unsatisfied-trait-bound	lang/07-functions.md#r-fn.crossing.fn-value
 lang/functions/crossing-closures/crossing-reaches-mutable-top-level.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global
 lang/functions/crossing-closures/crossing-reaches-mutable-top-level-through-callee.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global
+lang/functions/crossing-closures/crossing-reaches-mutable-top-level-in-another-module.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global
 lang/functions/crossing-closures/crossing-reaches-immutable-top-level.hd	type	accept	lang/07-functions.md#r-fn.crossing.global
 lang/functions/crossing-closures/crossing-send-reaches-box-top-level.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global.send
 lang/references/dependent-results/conflicts-through-aliases/known-closure-consumer-keeps-captured-root-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
