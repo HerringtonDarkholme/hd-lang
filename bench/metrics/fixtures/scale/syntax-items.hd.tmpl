@@ -1,5 +1,6 @@
 {{! One copy per `items` entry of the item, type, statement, expression and pattern forms no other shape holds, each used from main. }}
 use std.inspect.{Inspectable, TypeId}
+use std.marker.Send
 use std.ops.Disposable
 use std.serde.{Serialize, rename_all}
 use std.structure.Structure
@@ -49,6 +50,9 @@ struct Shelf{{i}}[T]:
 impl[T] Shelf{{i}}[T]:
     fn first_of(self) -> i32 where T < Seq{{i}}[Item = i32]:
         self.item.first()
+
+fn cross{{i}}(code: fn() -> i32 + Send) -> i32:
+    code()
 
 struct View{{i}}:
     field_name: i32
@@ -117,6 +121,7 @@ fn run{{i}}(x: i32) -> i32:
     let pw = y ** 2
     let ints = Ints{{i}} { xs: [1] }
     _ := Shelf{{i}} { item: Ints{{i}} { xs: [1] } }.first_of()
+    _ := cross{{i}}(fn() -> i32: y)
     let k = takes{{i}}(&ints)
     let id = TypeId::of::[Pair{{i}}]()
     let h = y |> opt{{i}}(_, "b")
