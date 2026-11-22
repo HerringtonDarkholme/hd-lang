@@ -185,7 +185,7 @@ module = "tools.migrate"
 12. r[cli.exe.entry-no-use] A use of an executable's entry module from another module is an error. Error: `unknown-module`.
 13. r[cli.exe.default-name] The default executable is named after the package, the `name` of its `[package]` table, as Cargo names `src/main.rs`.
 14. r[cli.exe.default-name.clash] A task with the package's name therefore clashes with the default executable, by [`cli.task.name-clash`](#r-cli.task.name-clash).
-15. r[cli.exe.reach] A program, an executable's or a task's, parses and checks only the modules of the package that its entry reaches through `use`s, and the modules of other packages that those use. A module that only another program reaches is never parsed for it, and its errors do not stop it.
+15. r[cli.exe.reach] A program, an executable's or a task's, checks the bodies of only the modules of the package that its entry reaches through `use`s. A module that only another program reaches is not checked for it, and errors in its bodies do not stop it.
 
 ```toml
 [package]

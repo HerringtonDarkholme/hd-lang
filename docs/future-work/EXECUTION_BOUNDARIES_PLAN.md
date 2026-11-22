@@ -454,12 +454,21 @@ driver already skims every module's `use` paths for its folder graph, and
 the build ID was already one per build. Readings:
 
 - The walk follows the root package's modules through their own `use`s,
-  not their folders' closures, so a module that shares `src/` with the
-  entry but is not used by it, and the dependency only it uses, are never
-  parsed. Another package's modules, std included, are built by folder as
-  before: the closures of what the reached modules use, plus the
-  runtime's. A program's walk skips `tests:` blocks, which `hd check FILE`
-  follows.
+  from the entry and from the runtime the compiler roots (`rt_roots`,
+  the root package's own when it is std). A module that shares `src/`
+  with the entry but is not used by it is never checked. It is still
+  read for its folder's interface, which reads every module of the
+  folder. So the program builds the folder closures of its reached
+  modules' folders, and a dependency that only such a sibling uses is
+  built too. The B1 wording "never parsed" holds for a module in a folder
+  the entry does not reach. A program's walk skips `tests:` blocks, which
+  `hd check FILE` follows.
+- Fixed after merge (CI run 45074092282). The first scope built only the
+  reached modules' own folders. That broke a folder whose unreached
+  module uses a std folder the entry does not reach: `hd run` printed "no
+  Wasm produced" (hd_command `panic_frames`). It also missed the runtime
+  roots when std is the root package (the hd_driver lib test
+  `emitted_pairs_*`, `--features checked-report`).
 - Every program is scoped: an executable, a task and `hd run FILE`. A
   missing capability in an executable's `main` row is then reported by
   `hd check` and by building that executable, not by running a task

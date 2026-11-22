@@ -1,0 +1,17 @@
+# @dump: stdout
+# @main: src/main.hd
+# `src/lib.hd` shares the entry's folder and the entry never uses it, so
+# it is not checked for this program (`cli.exe.reach`). Its folder's
+# interface still reads it, so the std folder it uses (`std.testing`) is
+# built too, and the program runs.
+use std.console.Console
+
+pub fn main() -> void $ Console:
+    println("ran")
+
+# @file: src/lib.hd
+use std.testing.assert
+
+fn total(prices: List[i32]) -> i32:
+    assert(prices.len() > 0, "some prices")
+    1

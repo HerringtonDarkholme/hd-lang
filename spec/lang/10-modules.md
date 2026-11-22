@@ -2694,7 +2694,7 @@ fn demo(photo: Photo) -> u32:
 4. r[module.domain.same-build] Every domain runs code of one build. A crossing sends the identity of code the destination already has, and data; it never sends code.
 5. r[module.domain.crossing] A **crossing** is a call that runs code in another domain. It passes a closure for a [crossing parameter](07-functions.md#crossing-closures), or calls a remote trait's method on a stub.
 6. r[module.domain.other-build] A peer of another build refuses every crossing before any code runs, with `CrossError.OtherBuild`.
-7. r[module.domain.build-id] Every target of a build has the same build ID, though each parses only what it reaches, by [`cli.exe.reach`](../cli/command-line.md#r-cli.exe.reach). The ID hashes the toolchain and each library and executable module of the package.
+7. r[module.domain.build-id] Every target of a build has the same build ID, though each checks only what it reaches, by [`cli.exe.reach`](../cli/command-line.md#r-cli.exe.reach). The ID hashes the toolchain and each library and executable module of the package.
 
 > **Why.** A crossing that names code the peer already has needs no code
 > transport, no content hash and no sandbox. A deploy is then one refusal
