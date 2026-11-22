@@ -617,7 +617,7 @@ candidate. Every trial charges fuel through the expressions it checks.
 **The per-site trial memo.** Nested calls multiply trials, so each call
 site would keep its trial outcomes keyed by the call's node, the
 candidate's index and the canonical expected and argument types. Not
-built yet; see #49. Until then nested instantiation choices whose outer
+built yet, and parked with perf work (owner, 2026-11-21). Until then nested instantiation choices whose outer
 candidates repeat the inner context cost sites × candidates per level,
 and fuel ends the worst cases.
 

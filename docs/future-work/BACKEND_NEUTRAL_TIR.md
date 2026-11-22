@@ -1,13 +1,18 @@
 # Backend-Neutral TIR: Lowered TIR Is All A Backend Reads
 
 Status: accepted design (owner, 2026-11-18: "accept all your
-recommendations"); domain: compiler internals. Built as of 2026-11-21:
-steps 0, 1, 2a, 3, 3b, 5 and 6; step 4a's boundary decisions and 4b's
-per-type count shims (62ae1844a, #2173); 7a and 7b (cleanup scopes and cancel
-exits in TIR, which carry 2b), and step 8's dev and release split
-(dev builds follow release's stage order, #2177). The rest of 7 (the
-coroutine lowering) and of 8 (`verify_lowered`, read modes in the
-backend) remain. It replaces
+recommendations"); domain: compiler internals. **Built** as of 2026-11-21:
+every step. Step 4 (#2173, closed): 4a's boundary decisions and per-type
+count shims as lowered TIR, with the walk route and the collection-copy
+route deleted. Step 7 (#2176, closed): cleanup scopes and cancel exits
+(7a, 7b, carrying 2b), the exit set and drop elaboration over flag locals,
+the frame drop and cell drops in TIR (7c, 7d, dc40fb16d). Step 8 (#2177,
+closed): one stage order for dev and release, `Phase::Elaborated`,
+`verify_lowered` (invariant 25), and every move's emptying as a TIR
+statement. Decided to stay in the backend: the frame prefix, entry points
+and materialization (owner, 2026-11-19), and the `ReadMode` facts the
+backend lowers. Parked with perf (owner, 2026-11-21): shared exit chains
+and 7e. It replaces
 `INSTANCE_TIR.md` (git history at 421bcec83; accepted 2026-11-17, built through
 step 7a) and folds in that design's open steps: #2102, #2107 with #1420,
 #2127, #2165 and #2166.
@@ -220,8 +225,8 @@ Each step deletes the path it replaces. Rows are in landing order.
 | 3 | storage lowering and drop elaboration, a `Box` tag; the emitter's cells, `promote.rs`, both `drop_flags.rs` passes, the flag tags. Done (#2172): storage kinds and a `Box` at scope entry in TIR (c4f7976dd, fixed by #2195), the emitter's memory-local flags as TIR flags. Drop elaboration moved into step 4's done check, since it needs the exit set as statements first | −1,150 | +267 | 0 | −883 |
 | 3b | generic local functions lifted as Swift does (Appendix B, "Verified"); `ir/local_fns.rs` deleted. Done (28fb8575a, `ir/lift.rs`) | 0 | −601, plus the lifting | 0 | priced when step 3 lands |
 | 2b | scope lowering (`Scope`/`Defer` to flag locals and blocks); `emit/scope.rs`. Done with 7a and 7b (7fc4cc6b5): `own::scopes` lowers scopes to blocks with no flag locals, and `emit/scope.rs` is deleted | −228 | +245 | 0 | +17 |
-| 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs`, `susp_spill.rs`, `frame_referents.rs`, the suspension count readers left in `count.rs`, and the adapters steps 2b, 4 and 5 leave. 7a and 7b done (7fc4cc6b5): cleanup scopes and cancel exits in TIR (`own::scopes`) | −2,505 | +1,600 | 0 | −905 |
-| 8 | `verify_lowered`; read modes in the backend, the dev and release split. The split is done (da2feb0ec, c12e519ec): dev instances run release's stage order, and `Env::generic_inlined` is deleted | −72 | +250 | `own.rs` −66 | +112 |
+| 7 | coroutine lowering, keys for poll and destroy bodies; `susp.rs`, `susp_spill.rs`, `frame_referents.rs`, the suspension count readers left in `count.rs`, and the adapters steps 2b, 4 and 5 leave. Done (#2176): 7a and 7b (cleanup scopes and cancel exits in TIR, `own::scopes`); 7c and 7d (exit set, drop elaboration in `own::elaborate`, frame and cell drops in TIR; the emitter's open drop deleted, dc40fb16d). The frame ABI stays in `susp.rs` | −2,505 | +1,600 | 0 | −905 |
+| 8 | `verify_lowered`; read modes in the backend, the dev and release split. Done (#2177): the split (da2feb0ec, c12e519ec; `Env::generic_inlined` deleted), `Phase::Elaborated` and `verify_lowered` (90101b1a1), and explicit TIR emptying after every move (6a18710f7); the `ReadMode` facts stay as TIR decisions the backend lowers | −72 | +250 | `own.rs` −66 | +112 |
 | | **Total**, before 3b's lifting | **−14,622** | **+7,127** | **+2,310** | **−5,185** |
 
 **Where it grows, and why.** Step 8 grows by about 112 lines and step
@@ -527,7 +532,7 @@ fallback, exact keys first, recorded reads, client-side instances.
 | 4, generic local functions | built at +955 (96a648c7c) as in-body copies, citing Swift, which does the opposite | step 3b lifts them as Swift does and deletes `local_fns.rs` |
 | 2, layout memo | built as `hd_layout`'s `Layouts`; the fallback deleted in 3c229234e | step 1, done |
 | 7, flags and counts (#1420, #2107) | part built (2a5236de0, 69fa9f72b) | steps 3 and 4 |
-| 6b, recorded reads and a code cache | no open ticket; after #49 point 4 | unchanged; the unit is the lowered body |
+| 6b, recorded reads and a code cache | no open ticket; perf work is parked (owner, 2026-11-21) | unchanged; the unit is the lowered body |
 
 ## Appendix E. Details
 
