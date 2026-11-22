@@ -1,0 +1,38 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+# Equal type arguments collapse the checked recipe to one provider entry.
+# The converted callable still reads the provider selected at invocation.
+use std.annotation.inline
+
+trait Store[T]:
+    fn get(&self) -> T
+
+trait NamedStore[T] < Store[T]:
+    fn name(&self) -> string
+
+struct Source[T]:
+    value: T
+
+impl[T] Store[T] for Source[T]:
+    fn get(&self) -> T:
+        self.value
+
+impl[T] NamedStore[T] for Source[T]:
+    fn name(&self) -> string:
+        "source"
+
+fn both[A, B]() -> (A, B) $ Store[A] + Store[B]:
+    ($.use(Store[A]).get(), $.use(Store[B]).get())
+
+@inline(.Never)
+fn adapt[A, B](
+    callback: fn() -> (A, B) $ Store[A] + Store[B],
+) -> (fn() -> (A, B) $ NamedStore[A] + NamedStore[B]):
+    # subject
+    callback
+
+pub fn main() -> void $ Console:
+    callback := adapt::[i32, i32](both::[i32, i32])
+    $.with(NamedStore[i32]=box(Source { value: +21 })):
+        values := callback()
+        println(values._0 + values._1)

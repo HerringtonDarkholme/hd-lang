@@ -1345,3 +1345,4 @@ says that the check covered syntax only.
 | 2026-11-21 | #2272 host fixture | API | `Path(temp_dir())` | `type-mismatch: in argument: expected string, found Path` | yes | pass `temp_dir()` directly | GPT-6 (Codex) |
 | 2026-11-21 | #2272 WAT fixture | type | `println(files.write_text!(Path("missing/f"), "value"))` | `error: main.hd:10:5: unsatisfied-trait-bound: Result[(), FsError] does not implement Display` | yes | print `.is_err()` | GPT-6 (Codex) |
 | 2026-11-21 | #2272 WAT fixture | semantic | `pub fn main()` calls `write_text!` | `error: main.hd:10:13: bang-call-outside-suspension: a bang call needs a suspending function or closure` | yes | declare `pub fn main!()` | GPT-6 (Codex) |
+| 2026-11-21 | #1442 row-adapter fixture | stage API | `# subject` before a decorator or multiline function header | `;; no code from the subject` | yes | put the marker before the callback expression in the body | GPT-6 (Codex) |
