@@ -1,2 +1,2 @@
-fn run(value: string?) -> void:
-    value.unwrap()
+fn run(value: string?) -> string:
+    value.unwarp()
