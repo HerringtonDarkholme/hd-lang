@@ -1075,7 +1075,33 @@ impl<'a> ItemCheck<'_, 'a> {
         {
             return Ok(());
         }
-        for s in self.supers(*trait_, *trait_args, *self_ty) {
+        let declared = match self.cx.lookup.item(*trait_).map(|i| &i.data) {
+            Some(ItemData::Trait(t)) => Some((t.supers.clone(), t.super_lifetimes.clone())),
+            _ => None,
+        };
+        let (patterns, lifetimes) = declared.unwrap_or_default();
+        let ItemData::Impl { self_lifetimes, .. } = &it.data else {
+            return Ok(());
+        };
+        for (i, s) in self
+            .supers(*trait_, *trait_args, *self_ty)
+            .into_iter()
+            .enumerate()
+        {
+            // A written supertrait's outlives requirements hold of the
+            // impl's written lifetimes; the implied `Copy` has none.
+            if let Some(&pattern) = patterns.get(i) {
+                let own = lifetimes.get(i).map_or(&[][..], Vec::as_slice);
+                if self.escapes(it, (*self_ty, self_lifetimes), (pattern, s), own)? {
+                    let message = format!(
+                        "the implementation for {} does not satisfy the lifetime required by its supertrait {}",
+                        self.show(*self_ty),
+                        self.show(s)
+                    );
+                    self.report(0, Code::LocalReferenceEscapes, message);
+                    continue;
+                }
+            }
             if self.fails(*self_ty, s, 0)? {
                 let message = format!(
                     "{} implements {} but not {}",
@@ -1110,7 +1136,11 @@ impl<'a> ItemCheck<'_, 'a> {
         let args = pool.list_items(*trait_args);
         for (k, (a, bound_to)) in assoc.iter().enumerate() {
             self.check_ty(*bound_to, 0)?;
-            let Some(ItemData::AssocType { bounds, .. }) = self.cx.lookup.item(*a).map(|i| &i.data)
+            let Some(ItemData::AssocType {
+                bounds,
+                bound_lifetimes,
+                ..
+            }) = self.cx.lookup.item(*a).map(|i| &i.data)
             else {
                 continue;
             };
@@ -1128,7 +1158,8 @@ impl<'a> ItemCheck<'_, 'a> {
                     continue;
                 }
                 let subject = assoc_lifetimes.get(k).map_or(&[][..], Vec::as_slice);
-                if self.escapes(it, (*bound_to, subject), (pattern, b), (*a, index))? {
+                let own = bound_lifetimes.get(index).map_or(&[][..], Vec::as_slice);
+                if self.escapes(it, (*bound_to, subject), (pattern, b), own)? {
                     let message = format!(
                         "the assigned type {} does not satisfy the lifetime required by {}",
                         self.show(*bound_to),
@@ -1155,12 +1186,13 @@ impl<'a> ItemCheck<'_, 'a> {
     }
 
     /// Whether `subject` (with the lifetime its slots write) implements
-    /// bound `b` (declared as `pattern`, bound `index` of associated type
-    /// `a`) only by a `'static` requirement a written lifetime of the impl
-    /// does not meet (`trait.assoc.bound-impl`, `ref.generic.static.impl`).
-    /// A bound's own slot writes a trait lifetime, the impl's by
-    /// `trait_lifetimes`; `Self` and a trait parameter write the impl's
-    /// target and trait argument lifetimes.
+    /// bound `b`, declared in the trait as `pattern` whose own slots write
+    /// `own`, only by a `'static` requirement a written lifetime of the
+    /// impl does not meet (`ref.generic.static.impl`): an associated
+    /// type's bound (`trait.assoc.bound-impl`) or a supertrait
+    /// (`trait.super.impl-bounds`). A bound's own slot writes a trait
+    /// lifetime, the impl's by `trait_lifetimes`; `Self` and a trait
+    /// parameter write the impl's target and trait argument lifetimes.
     ///
     /// Cost: one goal, answered from the memo, and one walk of its proof.
     fn escapes(
@@ -1168,7 +1200,7 @@ impl<'a> ItemCheck<'_, 'a> {
         it: &Item,
         (bound_to, subject): (Ty, &[u16]),
         (pattern, b): (Ty, Ty),
-        (a, index): (DefId, usize),
+        own: &[u16],
     ) -> StageResult<bool> {
         let pool = self.pool();
         let (
@@ -1180,17 +1212,9 @@ impl<'a> ItemCheck<'_, 'a> {
                 trait_slots,
                 ..
             },
-            Some(ItemData::AssocType {
-                bound_lifetimes, ..
-            }),
             Some((bound_trait, args)),
             Some((_, declared_args)),
-        ) = (
-            &it.data,
-            self.cx.lookup.item(a).map(|i| &i.data),
-            pool.trait_value(b),
-            pool.trait_value(pattern),
-        )
+        ) = (&it.data, pool.trait_value(b), pool.trait_value(pattern))
         else {
             return Ok(false);
         };
@@ -1205,7 +1229,6 @@ impl<'a> ItemCheck<'_, 'a> {
         if obligations.is_empty() {
             return Ok(false);
         }
-        let own = bound_lifetimes.get(index).map_or(&[][..], Vec::as_slice);
         let trait_arg_slots: Vec<usize> = (pool.list_items(*trait_args).iter())
             .scan(0, |at, &t| {
                 Some(std::mem::replace(at, *at + pool.ref_slots(t)))

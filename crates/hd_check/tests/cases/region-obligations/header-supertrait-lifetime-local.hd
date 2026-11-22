@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved[A]:
+    pass
+
+impl[U < 'static] Saved[U] for i32:
+    pass
+
+trait Child['a] < Saved[&'a i32]:
+    pass
+
+impl['a] Child['a] for i32:
+    pass
