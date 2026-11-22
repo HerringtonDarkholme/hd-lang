@@ -1,0 +1,3 @@
+# test: a new string collection target does not make an unannotated character collect choose a target
+fn ambiguous(values: List[char]) -> void:
+    _ := values.iter().collect() # diagnostic: cannot-infer-type
