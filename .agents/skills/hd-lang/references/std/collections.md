@@ -131,13 +131,13 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 | --- | --- |
 | `map(f)`, `filter(f)`, `flat_map(f)` | changed or kept items |
 | `filter_map(f)` | the present results of `f(item)` |
-| `enumerate()` | `(index, item)` pairs |
+| `enumerate()` | `(index, item)` pairs; lists also offer `xs.enumerate()` |
 | `zip(other)`, `chain(other)` | paired or appended items |
 | `take(n)`, `skip(n)`, `take_while(f)` | part of the items |
 
 | Draining call | Gives |
 | --- | --- |
-| `collect()` | a `List` or a `Map`, chosen by the expected type |
+| `collect()` | a collection chosen by the expected type; `char` items also build a `string` |
 | `count()` | how many items |
 | `last()` | the final remaining item, or `.None` |
 | `position(f)` | the first matching remaining index; borrows and advances the cursor |

@@ -2,6 +2,7 @@
 
 A `string` is immutable UTF-8 text. Its methods need no import. Every
 position a method takes or returns is a **byte** offset.
+`let text: string = chars.collect()` joins an iterator of `char` values as UTF-8.
 
 ## Methods
 
