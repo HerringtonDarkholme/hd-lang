@@ -228,7 +228,6 @@ impl Ck<'_, '_> {
             | TyData::Poison
             | TyData::Adt { .. }
             | TyData::Tuple { .. }
-            | TyData::Union(_)
             | TyData::Fn { .. }
             | TyData::TraitValue { .. }
             | TyData::Opaque { .. }

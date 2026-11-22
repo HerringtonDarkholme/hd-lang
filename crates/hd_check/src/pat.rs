@@ -6,6 +6,7 @@
 //! outcome keeps the rows, in order, that may still match. Exhaustiveness
 //! is Maranget's usefulness test over the arm patterns.
 
+use hd_types::ANON_SUM;
 use std::collections::BTreeMap;
 
 use hd_base::SliceSort as _;
@@ -710,7 +711,7 @@ impl Ck<'_, '_> {
                     // variants to name.
                     let enum_like = matches!(
                         pool.get(self.infer.resolve(pool, inner)),
-                        TyData::Adt { .. } | TyData::Union(_)
+                        TyData::Adt { .. }
                     );
                     if !enum_like {
                         let msg = format!("`.{name}` needs an enum subject, not {}", self.show(t));
@@ -2648,7 +2649,7 @@ impl Ck<'_, '_> {
                 };
                 let pool = self.pool();
                 let st = self.strip(t);
-                let TyData::Adt { def, .. } = pool.get(st) else {
+                let Some((def, _)) = pool.adt(st) else {
                     return P::Lit;
                 };
                 let Some(ItemData::Struct(fs, _)) = self.cx.lookup.item(def).map(|i| &i.data)
@@ -2747,8 +2748,8 @@ impl Ck<'_, '_> {
             }
             // The rest element is the tuple's last member.
             TyData::Tuple { .. } => Some(vec![("()".into(), self.tuple_members(st))]),
-            TyData::Union(members) => Some(
-                pool.list_items(members)
+            TyData::Adt { def, args } if def == ANON_SUM => Some(
+                pool.list_items(args)
                     .iter()
                     .enumerate()
                     .map(|(i, member)| (format!("_{i}"), vec![*member]))
@@ -3167,13 +3168,15 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let st = self.strip(t);
         let variants = match pool.get(st) {
-            TyData::Adt { def, .. } => match self.cx.lookup.item(def).map(|i| &i.data) {
-                Some(ItemData::Enum { variants, .. }) => variants
-                    .iter()
-                    .map(|v| self.cx.names.text(v.name))
-                    .collect::<Vec<_>>(),
-                _ => Vec::new(),
-            },
+            TyData::Adt { def, .. } if def.get().is_some() => {
+                match self.cx.lookup.item(def).map(|i| &i.data) {
+                    Some(ItemData::Enum { variants, .. }) => variants
+                        .iter()
+                        .map(|v| self.cx.names.text(v.name))
+                        .collect::<Vec<_>>(),
+                    _ => Vec::new(),
+                }
+            }
             _ => Vec::new(),
         };
         if variants.is_empty() {

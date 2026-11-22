@@ -103,3 +103,32 @@ pub fn main() -> void $ Console:
     assert_eq!(reused.render(), fresh.render());
     assert!(reused.diags.has_errors());
 }
+
+/// A new run decodes the anonymous sum from its stored interface and bodies,
+/// preserving nested positional identities through checking and collection.
+#[test]
+fn anonymous_sums_survive_warm_interface_and_body_reads() {
+    let text = r#"type Choice = (i32 | string) | bool
+
+pub fn make() -> Choice:
+    ._0(._1("kept"))
+
+pub fn describe(value: Choice) -> string:
+    match value:
+        ._0(inner) => inner.to_string()
+        ._1(flag) => flag.to_string()
+
+pub fn main() -> void $ Console:
+    println(describe(make()))
+"#;
+    let store = MemoryStore::default();
+    let cold = build(text, &store, &program(), None);
+    assert!(cold.wasm.is_some(), "{}", cold.render());
+    let warm = build(text, &store, &program(), None);
+    assert!(!warm.diags.has_errors(), "{}", warm.render());
+    assert_eq!(warm.wasm, cold.wasm);
+    assert_eq!(warm.render(), cold.render());
+    assert!(warm.counters.hit("iface") > 0);
+    assert_eq!(warm.counters.miss("iface"), 0);
+    assert!(warm.counters.bodies_owned.is_empty());
+}

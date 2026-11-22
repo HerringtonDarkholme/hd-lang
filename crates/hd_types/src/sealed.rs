@@ -8,6 +8,7 @@
 //! impl per primitive (`lib/std/num.hd`), with the bodies of `zero`, `one`
 //! and `from_i64`, so the impl tables answer them like any trait.
 
+use crate::ANON_SUM;
 use hd_base::{DefId, HashMap, InferVar};
 
 use crate::pool::{ParamRef, Ty, TyData, TyList, Types};
@@ -200,7 +201,10 @@ enum Category {
 
 fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
     match pool.get(t) {
-        TyData::Prim(_) | TyData::Tuple { .. } | TyData::Fn { .. } => Category::Val,
+        TyData::Prim(_)
+        | TyData::Tuple { .. }
+        | TyData::Fn { .. }
+        | TyData::Adt { def: ANON_SUM, .. } => Category::Val,
         // A reference has identity: what it refers to (ref.type.any-ref).
         TyData::TraitValue { .. } | TyData::Ref { .. } => Category::Ref,
         // A collection is a value (`types.coll.value`).
@@ -212,7 +216,7 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
         TyData::Adt { def, .. } if def != DefId::NONE && def == decls.sealed().suspend => {
             Category::Ref
         }
-        TyData::Adt { def, args } => match decls.type_decl(def) {
+        TyData::Adt { def, args } if def.get().is_some() => match decls.type_decl(def) {
             TypeDecl::Enum | TypeDecl::Struct => Category::Val,
             TypeDecl::Builtin => Category::Ref,
             TypeDecl::Newtype(base) => {
@@ -333,7 +337,7 @@ pub(crate) fn row(
         });
     }
     if trait_ == s.union_type {
-        return Some(if matches!(t, TyData::Union(_)) {
+        return Some(if matches!(t, TyData::Adt { def: ANON_SUM, .. }) {
             Row::Holds(BuiltinImpl::Union, Vec::new())
         } else {
             Row::Fails(FailReason::NoImpl)
@@ -364,20 +368,20 @@ pub(crate) fn row(
                 }
                 true
             }
-            TyData::Union(members) => {
-                subs.extend(pool.list_items(members).iter().copied());
-                true
-            }
             // A declaration applied to inspectable arguments, `Option`
             // included (`trait.inspectable.declared`, `.option`), unless it
             // is local to a block suite (`trait.inspectable.not.local`).
-            TyData::Adt { def, .. } if decls.is_local(def) => false,
+            TyData::Adt { def, .. } if def != ANON_SUM && decls.is_local(def) => false,
             // Only type arguments count: a const argument is part of the
             // type's identity, and a row argument (`req.row.param.data-owner`)
             // is a requirement row, not a value type.
             TyData::Adt { def, args } => {
                 for (i, a) in pool.list_items(args).iter().enumerate() {
-                    if !decls.is_const_slot(def, i) && !matches!(pool.get(*a), TyData::Row(_)) {
+                    if def == ANON_SUM {
+                        subs.push(*a);
+                    } else if !decls.is_const_slot(def, i)
+                        && !matches!(pool.get(*a), TyData::Row(_))
+                    {
                         argument(pool, *a, &mut subs);
                     }
                 }
@@ -401,10 +405,11 @@ pub(crate) fn row(
     // template's `T` is a parameter that the environment answers; codegen
     // asks it once a tuple template's instance is collected, and lowers
     // its methods per tuple type (`crates/hd_mono/DESIGN.md` §13.6).
-    Some(if matches!(t, TyData::Tuple { .. } | TyData::Union(_)) {
-        Row::Holds(BuiltinImpl::Structure, Vec::new())
-    } else {
-        Row::Fails(FailReason::NoImpl)
+    Some(match t {
+        TyData::Tuple { .. } | TyData::Adt { def: ANON_SUM, .. } => {
+            Row::Holds(BuiltinImpl::Structure, Vec::new())
+        }
+        _ => Row::Fails(FailReason::NoImpl),
     })
 }
 
@@ -631,7 +636,7 @@ fn copy_parts(
                 take(&mut open, left);
                 continue;
             }
-            TyData::Tuple { .. } | TyData::Union(_) | TyData::Adt { .. } => {
+            TyData::Tuple { .. } | TyData::Adt { .. } => {
                 if let Some(&left) = marks.get(&t) {
                     take(&mut open, left);
                     continue;
@@ -685,8 +690,8 @@ fn copy_parts(
                 stack.extend(rest.map(Step::Enter));
                 stack.extend(pool.list_items(elems).iter().rev().map(|&e| Step::Enter(e)));
             }
-            TyData::Union(ms) => {
-                stack.extend(pool.list_items(ms).iter().rev().map(|&m| Step::Enter(m)));
+            TyData::Adt { def, args } if def == ANON_SUM => {
+                stack.extend(pool.list_items(args).iter().rev().map(|&m| Step::Enter(m)));
             }
             TyData::Adt { def, args } => match decls.copy_decl(def) {
                 CopyDecl::NotCopy(_) if walk == Walk::Copy => return fails(memo, walk, root),
@@ -812,7 +817,7 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
             subs.extend_from_slice(pool.list_items(elems));
             subs.extend(rest);
         }
-        TyData::Adt { args, .. } | TyData::Union(args) => {
+        TyData::Adt { args, .. } => {
             subs.extend_from_slice(pool.list_items(args));
         }
         // A projection meets it when its parts do, as Rust's projection
@@ -856,7 +861,8 @@ mod coverage_contracts {
         fn sealed(&self) -> &SealedTraits {
             &self.sealed
         }
-        fn type_decl(&self, _: DefId) -> TypeDecl {
+        fn type_decl(&self, def: DefId) -> TypeDecl {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
             TypeDecl::Builtin
         }
         fn supertraits(&self, _: DefId) -> &[Ty] {
@@ -865,15 +871,66 @@ mod coverage_contracts {
         fn has_unavailable_member(&self, _: DefId) -> bool {
             self.unavailable
         }
-        fn is_local(&self, _: DefId) -> bool {
+        fn is_local(&self, def: DefId) -> bool {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
             false
         }
-        fn copy_decl(&self, _: DefId) -> CopyDecl {
+        fn is_const_slot(&self, def: DefId, _: usize) -> bool {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
+            false
+        }
+        fn copy_decl(&self, def: DefId) -> CopyDecl {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
             CopyDecl::Copies
         }
         fn trait_requires_copy(&self, _: DefId) -> bool {
             false
         }
+    }
+
+    #[test]
+    fn anonymous_sum_rows_never_query_a_nominal_declaration() {
+        let global = crate::InternPool::new();
+        let p = global.types();
+        let id = DefId::from_raw;
+        let decls = Decl {
+            sealed: SealedTraits {
+                any_val: id(1),
+                any_ref: id(2),
+                inspectable: id(3),
+                union_type: id(4),
+                structure: id(5),
+                copy: id(6),
+                send: id(7),
+                wire: id(8),
+                ..SealedTraits::default()
+            },
+            unavailable: false,
+        };
+        let members = [Ty::I32, Ty::STRING];
+        let sum = p.intern_ty(&TyData::sum(p.list(&members)));
+        let mut memo = CopyMemo::default();
+        for (trait_, builtin) in [
+            (1, BuiltinImpl::AnyVal),
+            (4, BuiltinImpl::Union),
+            (5, BuiltinImpl::Structure),
+            (6, BuiltinImpl::Copy),
+            (7, BuiltinImpl::Marker),
+            (8, BuiltinImpl::Marker),
+        ] {
+            assert_eq!(
+                row(p, &decls, id(trait_), sum, &mut memo),
+                Some(Row::Holds(builtin, Vec::new())),
+            );
+        }
+        assert_eq!(
+            row(p, &decls, id(2), sum, &mut memo),
+            Some(Row::Fails(FailReason::WrongCategory)),
+        );
+        assert_eq!(
+            row(p, &decls, id(3), sum, &mut memo),
+            Some(Row::Holds(BuiltinImpl::Inspectable, members.to_vec())),
+        );
     }
 
     #[test]

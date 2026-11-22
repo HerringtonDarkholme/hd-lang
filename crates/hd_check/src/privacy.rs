@@ -7,7 +7,7 @@ use hd_base::DefId;
 use hd_diag::Code;
 use hd_resolve::{Field, ItemData};
 use hd_syntax::NodeRef;
-use hd_types::{Ty, TyData};
+use hd_types::Ty;
 
 use crate::body::Ck;
 
@@ -15,9 +15,7 @@ impl<'a> Ck<'a, '_> {
     /// The struct declaration of `t` and its fields.
     pub(crate) fn data_decl(&self, t: Ty) -> Option<(DefId, &'a [Field])> {
         let pool = self.pool();
-        let TyData::Adt { def, .. } = pool.get(self.resolved(t)) else {
-            return None;
-        };
+        let (def, _) = pool.adt(self.resolved(t))?;
         match &self.cx.lookup.item(def)?.data {
             ItemData::Struct(fields, _) => Some((def, fields)),
             _ => None,

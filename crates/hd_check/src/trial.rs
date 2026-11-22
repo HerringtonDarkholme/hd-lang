@@ -11,7 +11,7 @@ use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, TirCheckpoint, TirSink};
 use hd_types::solver::{
     Answer, Candidate, Goal, ImplOrigin, ImplTable, Impls, Instantiations, TraitRef, plan_goals,
-    tuple_goals, union_goals,
+    positional_goals,
 };
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
@@ -721,11 +721,7 @@ impl Ck<'_, '_> {
         {
             let first = u16::try_from(table.plan[row].len()).unwrap_or(u16::MAX);
             let target = self.resolved(self_ty);
-            goals.extend(match table.origin[row] {
-                ImplOrigin::TupleTemplate => tuple_goals(pool, impl_def, &steps, target, first),
-                ImplOrigin::UnionTemplate => union_goals(pool, impl_def, &steps, target, first),
-                _ => Vec::new(),
-            });
+            goals.extend(positional_goals(pool, impl_def, &steps, target, first));
         }
         let residual: Vec<TraitRef> = goals
             .into_iter()
@@ -1206,7 +1202,6 @@ impl Ck<'_, '_> {
             TyData::Prim(_)
             | TyData::Adt { .. }
             | TyData::Tuple { .. }
-            | TyData::Union(_)
             | TyData::Ref { .. }
             | TyData::Fn { .. }
             | TyData::Assoc { .. }

@@ -116,7 +116,7 @@ pub fn inspect_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> StageR
         prefix: &str,
         base: u32,
     ) -> StageResult<Vec<(Ty, String, u32)>> {
-        let TyData::Adt { def, args } = pool.get(layout::strip_newtype(pool, env, ty)) else {
+        let Some((def, args)) = pool.adt(layout::strip_newtype(pool, env, ty)) else {
             return Ok(Vec::new());
         };
         if !env.is_struct(def) || env.std_kind(def) != hd_mono::layout::StdKind::Other {
@@ -284,7 +284,7 @@ pub(crate) fn count_subject(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> 
     let name = printed_type_name(pool, env, ty);
     let aggregate = match pool.get(layout::strip_newtype(pool, env, ty)) {
         TyData::Tuple { .. } => true,
-        TyData::Adt { def, .. } => {
+        TyData::Adt { def, .. } if def.get().is_some() => {
             env.is_struct(def) && env.std_kind(def) == hd_mono::layout::StdKind::Other
         }
         _ => false,

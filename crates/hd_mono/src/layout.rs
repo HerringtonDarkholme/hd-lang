@@ -5,6 +5,7 @@
 use hd_base::SliceSort as _;
 use hd_base::{DefId, Hash128, InstId, StableHasher};
 use hd_base::{HashMap, HashSet};
+use hd_types::ANON_SUM;
 
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
@@ -71,6 +72,21 @@ pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
         def = next_def;
         args = next_args;
         base = next_base;
+    }
+}
+
+/// Declared or anonymous enum payloads (`types.union.representation`).
+#[must_use]
+pub fn enum_variants(
+    pool: &InternPool,
+    env: &dyn LayoutEnv,
+    def: DefId,
+    args: TyList,
+) -> Option<Vec<Vec<Ty>>> {
+    if def == ANON_SUM {
+        Some(pool.list_items(args).iter().map(|&t| vec![t]).collect())
+    } else {
+        env.enum_variants(def, args)
     }
 }
 
@@ -176,7 +192,9 @@ pub fn recursive_instance(
                 todo.extend_from_slice(pool.list_items(elems));
                 todo.extend(rest);
             }
-            TyData::Union(members) => todo.extend_from_slice(pool.list_items(members)),
+            TyData::Adt { def, args } if def == ANON_SUM => {
+                todo.extend_from_slice(pool.list_items(args));
+            }
             TyData::Adt { def: d, args: a } => {
                 // This enum-instance walk stops at non-enum ADTs.
                 if !env.is_enum(d) {
@@ -257,8 +275,10 @@ pub fn canon(
         }
         TyData::Never => h.u8(1),
         TyData::Adt { def, args } => {
-            h.u8(2);
-            h.hash(path_hash(def));
+            h.u8(if def.get().is_some() { 2 } else { 20 });
+            if let Some(def) = def.get() {
+                h.hash(path_hash(def));
+            }
             canon_list(pool, path_hash, memo, args, &mut h);
         }
         TyData::Tuple { elems, rest } => {
@@ -267,10 +287,6 @@ pub fn canon(
             if let Some(r) = rest {
                 h.hash(canon(pool, path_hash, memo, r));
             }
-        }
-        TyData::Union(members) => {
-            h.u8(20);
-            canon_list(pool, path_hash, memo, members, &mut h);
         }
         TyData::Fn {
             params,
@@ -1500,7 +1516,7 @@ mod tests {
     #[test]
     fn canon_preserves_union_order_duplicates_and_nesting() {
         let p = InternPool::new();
-        let union = |members: &[Ty]| p.intern_ty(&TyData::Union(p.list(members)));
+        let union = |members: &[Ty]| p.intern_ty(&TyData::sum(p.list(members)));
         let encode = |t| super::canon(&p, &|_| Hash128(0), &mut CanonMemo::default(), t);
         let ab = union(&[Ty::I32, Ty::STRING]);
         let ba = union(&[Ty::STRING, Ty::I32]);
@@ -1561,7 +1577,7 @@ mod tests {
         let p = InternPool::new();
         let shared = doubled(&p, 2);
         let q = InternPool::new();
-        let _noise = q.intern_ty(&TyData::Union(q.list(&[Ty::STRING])));
+        let _noise = q.intern_ty(&TyData::sum(q.list(&[Ty::STRING])));
         let pair = |q: &InternPool| {
             q.intern_ty(&TyData::Tuple {
                 elems: q.list(&[Ty::I32, Ty::I32]),

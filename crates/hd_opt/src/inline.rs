@@ -2357,9 +2357,7 @@ fn holds_local_with(
                 return true;
             }
             TyData::Ref { inner, .. } => (TyList::EMPTY, Some(inner)),
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } | TyData::Union(args) => {
-                (args, None)
-            }
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => (args, None),
             TyData::Tuple { elems, rest } => (elems, rest),
             _ => continue,
         };
@@ -3270,7 +3268,7 @@ mod tests {
             mutable: false,
             counted: false,
         });
-        let sum = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, local])));
+        let sum = pool.intern_ty(&TyData::sum(pool.list(&[Ty::I32, local])));
         let opaque = pool.intern_ty(&TyData::Opaque {
             owner: DefId::from_raw(1),
             site: 0,

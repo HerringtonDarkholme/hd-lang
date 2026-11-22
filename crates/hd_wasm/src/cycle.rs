@@ -34,6 +34,7 @@ use crate::cycle_graph::{Facts, Graph, Ranks, Shape};
 use hd_base::HashSet;
 use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
+use hd_types::ANON_SUM;
 use hd_types::{InternPool, Ty, TyData};
 
 use crate::layout::{Kind, kind, strip_newtype, tuple_members, value_parts};
@@ -152,7 +153,9 @@ fn holds(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Holds {
     match pool.get(t) {
         TyData::Prim(_) | TyData::Never => Holds::Parts(Vec::new()),
         TyData::Tuple { .. } => Holds::Parts(tuple_members(pool, t)),
-        TyData::Union(members) => Holds::Parts(pool.list_items(members).to_vec()),
+        TyData::Adt { def, args } if def == ANON_SUM => {
+            Holds::Parts(pool.list_items(args).to_vec())
+        }
         TyData::Ref { inner, .. } => Holds::Ref(inner),
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::List | StdKind::Map => Holds::Parts(pool.list_items(args).to_vec()),

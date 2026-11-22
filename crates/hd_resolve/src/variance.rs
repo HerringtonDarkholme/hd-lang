@@ -79,9 +79,10 @@ pub fn walk(
             // A reference's operand is invariant too (ref.type.distinct).
             TyData::Ref { inner: i, .. } => go(i, 0),
             TyData::Adt { def, args } => {
-                let vs = var_of(def);
+                let vs = def.get().map(&var_of);
                 for (j, a) in pool.list_items(args).iter().copied().enumerate() {
-                    go(a, polarity * vs.get(j).copied().unwrap_or(0));
+                    let variance = vs.as_ref().map_or(1, |vs| vs.get(j).copied().unwrap_or(0));
+                    go(a, polarity * variance);
                 }
             }
             TyData::Opaque { args, bound, .. } => {
@@ -96,11 +97,6 @@ pub fn walk(
                 }
                 if let Some(r) = rest {
                     go(r, polarity);
-                }
-            }
-            TyData::Union(members) => {
-                for &member in pool.list_items(members) {
-                    go(member, polarity);
                 }
             }
             TyData::Fn {

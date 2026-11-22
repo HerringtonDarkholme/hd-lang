@@ -3,6 +3,7 @@
 //! symbols one blob mentions and gives each a row; the reader re-interns
 //! the rows into this run's tables. Rows refer only to earlier rows.
 
+use crate::ANON_SUM;
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
@@ -66,7 +67,7 @@ mod tag {
     pub const CREF: u8 = 24;
     pub const CREF_MUT: u8 = 25;
     pub const CONST: u8 = 26;
-    pub const UNION: u8 = 27;
+    // 27 was a union; anonymous sums now use ADT with no declaration.
 }
 
 impl<'a> TableWriter<'a> {
@@ -218,7 +219,7 @@ impl<'a> TableWriter<'a> {
     fn nested_parts(&self, t: Ty, out: &mut Vec<Ty>) {
         let items = |l: TyList| self.pool.list_items(l);
         match self.pool.get(t) {
-            TyData::Adt { args, .. } | TyData::Union(args) | TyData::TraitValue { args, .. } => {
+            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
                 out.extend_from_slice(items(args));
             }
             TyData::Tuple { elems, rest } => {
@@ -302,10 +303,6 @@ impl<'a> TableWriter<'a> {
             } => {
                 let words = [self.list(elems)?, self.ty(r)?];
                 self.row(tag::TUPLE_REST, &words)
-            }
-            TyData::Union(members) => {
-                let members = self.list(members)?;
-                self.row(tag::UNION, &[members])
             }
             TyData::Opaque {
                 owner,
@@ -505,7 +502,11 @@ impl Tables {
                 tag::POISON => Ty::POISON.0,
                 tag::ADT => {
                     pool.intern_ty(&TyData::Adt {
-                        def: def(0)?,
+                        def: if *words.first()? == NONE {
+                            ANON_SUM
+                        } else {
+                            def(0)?
+                        },
                         args: TyList(row(1)?),
                     })
                     .0
@@ -585,7 +586,6 @@ impl Tables {
                     })
                     .0
                 }
-                tag::UNION => pool.intern_ty(&TyData::Union(TyList(row(0)?))).0,
                 tag::TRAIT_VALUE => {
                     let mut bindings = Vec::new();
                     let mut i = 2;
@@ -748,7 +748,7 @@ mod tests {
                     elems: pool.list(&[Ty::BOOL, t]),
                     rest: None,
                 },
-                2 => TyData::Union(pool.list(&[Ty::STRING, t])),
+                2 => TyData::sum(pool.list(&[Ty::STRING, t])),
                 3 => TyData::Ref {
                     inner: t,
                     mutable: level % 16 == 3,
@@ -988,8 +988,8 @@ mod tests {
             PathTable::new(),
             ShardedInterner::default(),
         );
-        let inner = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, Ty::STRING])));
-        let outer = pool.intern_ty(&TyData::Union(pool.list(&[inner, Ty::BOOL, Ty::BOOL])));
+        let inner = pool.intern_ty(&TyData::sum(pool.list(&[Ty::I32, Ty::STRING])));
+        let outer = pool.intern_ty(&TyData::sum(pool.list(&[inner, Ty::BOOL, Ty::BOOL])));
         let mut tables = TableWriter::new(&pool, &paths, &syms);
         let row = tables.ty(outer).expect("union");
         let mut bytes = Writer::default();
@@ -1000,8 +1000,8 @@ mod tests {
         let decoded = Tables::read(&mut reader, &other, &paths, &syms).expect("tables");
         let union = decoded.ty(row).expect("union row");
         assert!(reader.ok() && reader.at_end());
-        let inner = other.intern_ty(&TyData::Union(other.list(&[Ty::I32, Ty::STRING])));
-        let expected = other.intern_ty(&TyData::Union(other.list(&[inner, Ty::BOOL, Ty::BOOL])));
+        let inner = other.intern_ty(&TyData::sum(other.list(&[Ty::I32, Ty::STRING])));
+        let expected = other.intern_ty(&TyData::sum(other.list(&[inner, Ty::BOOL, Ty::BOOL])));
         assert_eq!(union, expected, "{:?}", other.get(union));
     }
 

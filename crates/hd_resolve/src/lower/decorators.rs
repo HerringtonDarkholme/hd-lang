@@ -254,7 +254,7 @@ impl Lower<'_, '_, '_> {
         };
         let fact = match item.data {
             ItemData::Fn(sig, _) => match self.names.pool.get(sig.ret) {
-                TyData::Adt { def, .. } => Some(def),
+                TyData::Adt { def, .. } => def.get(),
                 _ => None,
             },
             ItemData::Struct(_, _) | ItemData::Enum { .. } => Some(def),

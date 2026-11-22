@@ -5,6 +5,7 @@ use crate::body::Ck;
 use hd_base::StageResult;
 use hd_resolve::view::Src;
 use hd_syntax::{NodeRef, SyntaxKind};
+use hd_types::ANON_SUM;
 use hd_types::{Ty, TyData, VarKind};
 
 #[derive(Clone, Copy)]
@@ -106,7 +107,7 @@ impl Ck<'_, '_> {
             }
             let start = stack.len();
             match pool.get(ty) {
-                TyData::Opaque { .. } | TyData::Union(_) => return true,
+                TyData::Opaque { .. } | TyData::Adt { def: ANON_SUM, .. } => return true,
                 _ => pool.children(ty, stack),
             }
             stack[start..].reverse();
@@ -389,7 +390,7 @@ mod tests {
                         bound: strict,
                         borrows: false,
                     });
-                    let union = pool.intern_ty(&TyData::Union(pool.list(&[strict, Ty::BOOL])));
+                    let union = pool.intern_ty(&TyData::sum(pool.list(&[strict, Ty::BOOL])));
                     for t in [opaque, union] {
                         assert!(
                             !ck.strict_opaque_return(t),

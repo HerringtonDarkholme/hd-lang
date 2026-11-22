@@ -8,7 +8,7 @@ use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
 use hd_tir::ir::{NONE, Ref};
-use hd_types::{Ty, TyData};
+use hd_types::Ty;
 
 use crate::body::Ck;
 
@@ -44,7 +44,7 @@ impl Ck<'_, '_> {
     ) {
         let pool = self.pool();
         let (sr, st) = src;
-        let TyData::Adt { def, .. } = pool.get(self.resolved(self.infer.resolve(pool, st))) else {
+        let Some((def, _)) = pool.adt(self.resolved(self.infer.resolve(pool, st))) else {
             return;
         };
         let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {

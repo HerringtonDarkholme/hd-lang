@@ -467,7 +467,7 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, memo: &mut EscapeMemo) -> Opt
                         parts.extend(rest.map(|r| part(r, top_ok)));
                         list(&mut parts, elems, top_ok);
                     }
-                    TyData::Adt { args, .. } | TyData::Union(args) => {
+                    TyData::Adt { args, .. } => {
                         list(&mut parts, args, top_ok);
                     }
                     // An opaque type that borrows holds a local reference of
