@@ -91,11 +91,42 @@ impl Env<'_> {
     }
 
     /// The remote traits the root `s` implements through a written impl,
-    /// at its arguments (`module.remote.handle-call.interface`). Cost: one
-    /// head match per impl of a remote trait, once per root type.
+    /// at its arguments (`module.remote.handle-call.interface`); for the
+    /// trait value of a returned object (`module.remote.r3.returned`), its
+    /// trait and each remote supertrait. Cost: one head match per impl of a
+    /// remote trait, once per root type; a trait value's supertraits once.
     pub(super) fn served(&self, s: Ty) -> Vec<Served> {
         let pool = &self.run.pool;
         let mut out = Vec::new();
+        if let TyData::TraitValue { def, args, .. } = pool.get(s) {
+            let mut stack = vec![(def, args)];
+            while let Some((trait_, args)) = stack.pop() {
+                if !self.is_remote_trait(trait_) || out.iter().any(|o: &Served| o.trait_ == trait_)
+                {
+                    continue;
+                }
+                let targs = pool.list_items(args).to_vec();
+                let at = |p: ParamRef| {
+                    (p.owner == trait_).then(|| match p.index {
+                        0 => s,
+                        i => targs[usize::from(i) - 1],
+                    })
+                };
+                for &sup in Declarations::supertraits(self, trait_) {
+                    if let TyData::TraitValue { def, args, .. } = pool.get(pool.subst(sup, &at)) {
+                        stack.push((def, args));
+                    }
+                }
+                let interface = self.interface(trait_, args);
+                out.push(Served {
+                    trait_,
+                    args,
+                    impl_: None,
+                    interface,
+                });
+            }
+            return out;
+        }
         // gap: #2288 — a delegated impl (`by E`) of a remote trait is not
         // served yet; its frames are `WrongHome`.
         for item in self
@@ -132,7 +163,7 @@ impl Env<'_> {
             out.push(Served {
                 trait_: *trait_,
                 args,
-                impl_: item.def,
+                impl_: Some(item.def),
                 interface: self.interface(*trait_, args),
             });
         }

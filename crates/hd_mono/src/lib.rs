@@ -2066,7 +2066,8 @@ impl Cx<'_> {
                     | "dbg_printer"
                     | "wire_put"
                     | "wire_take"
-                    | "remote"
+                    | "stub_as"
+                    | "interface_of"
                     | "serve"
                     | "build_id"
             )

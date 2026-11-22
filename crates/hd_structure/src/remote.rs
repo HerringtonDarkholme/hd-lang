@@ -1,6 +1,7 @@
 //! The generated parts of remote traits (`module.remote.stub`,
-//! `module.remote.handle-call`): `remote[T]`'s body, each method of the
-//! std `Stub` at a remote trait, and a root's dispatcher `serve[S]`. Each
+//! `module.remote.handle-call`): a `Stub` as `*mut dyn T`, each method of
+//! the std `Stub` at a remote trait, and the dispatcher `serve[S]` of a
+//! root or of a returned object's trait value. Each
 //! is a few calls of `std.remote`'s plain hd, which frames, encodes,
 //! decodes and refuses; only what names a trait's methods is generated.
 
@@ -13,36 +14,28 @@ use hd_tir::ir::{
 };
 use hd_types::{ParamRef, Prim, Ty, TyData, TyList};
 
-use super::{Cx, Gen, Handles, SYN, subst_sig};
+use super::{Cx, Gen, Handles, SYN, param, subst_sig};
 
 /// A remote trait a root implements, at the root's trait arguments, with
-/// the impl that answers it and its interface number
-/// (`module.remote.interface`).
+/// the impl that answers it, none for a trait value's own dispatch, and
+/// its interface number (`module.remote.interface`).
 pub struct Served {
     pub trait_: DefId,
     pub args: TyList,
-    pub impl_: DefId,
+    pub impl_: Option<DefId>,
     pub interface: u64,
 }
 
-/// `remote[T]`'s body at the trait value `tv`: the transport boxed in a
-/// `Stub` for the root object, as `*mut dyn T`.
-pub fn remote_body(cx: &Cx<'_, '_>, item: DefId, tv: Ty, interface: u64) -> StageResult<Body> {
+/// `stub_as[T]`'s body at the trait value `tv`: its `*mut Stub` argument
+/// as `*mut dyn T`, which `Stub: T` answers (`module.remote.stub`).
+pub fn stub_as_body(cx: &Cx<'_, '_>, item: DefId, tv: Ty) -> StageResult<Body> {
     let names = cx.names;
     let mut g = Gen::new(cx, tv, item, Handles::Supplied);
     let sig = subst_sig(names, cx.method_sig(item), &|p: ParamRef| {
         (p.owner == item).then_some(tv)
     });
-    let (name, transport_ty) = sig.params[0];
-    let transport = g.b.local(transport_ty, name, local_flags::PARAM, SYN);
-    let stub = g.adt(names.item(REMOTE, "Stub"), &[]);
-    let boxed = g.counted(stub);
+    let [(held, boxed)] = g.params(&sig);
     let blk = g.b.open_block();
-    let t = g.b.get(transport, transport_ty, SYN);
-    let interface = g.b.const_value(Ty::prim(Prim::U64), interface);
-    let made = g.std_call("stub_new", &[], &[t, interface], boxed);
-    let held = g.b.local(boxed, names.syms.intern("$stub"), 0, SYN);
-    g.b.set(held, made, SYN);
     let addr = g.b.open_block();
     let source = g.b.get(held, boxed, SYN);
     let value = g.b.coerce(Coercion::RefToTraitValue, NONE, source, tv, SYN);
@@ -53,9 +46,11 @@ pub fn remote_body(cx: &Cx<'_, '_>, item: DefId, tv: Ty, interface: u64) -> Stag
 }
 
 /// Method `method` of the remote trait `trait_` at the std `Stub` type
-/// `stub`: one `stub_call!` with the method's number, its declaration
-/// index, and its arguments as one tuple (`module.remote.stub.send`). The
-/// trait's own parameters stay, so the body serves every instance.
+/// `stub`: one `stub_call!` with the interface of `trait_` itself, so a
+/// supertrait's method names its own interface whatever trait the stub was
+/// made for, the method's number, its declaration index, and its arguments
+/// as one tuple (`module.remote.stub.send`). The trait's own parameters
+/// stay, so the body serves every instance.
 pub fn stub_method_body(
     cx: &Cx<'_, '_>,
     trait_: DefId,
@@ -89,10 +84,21 @@ pub fn stub_method_body(
     let args = g.b.emit(Tag::NewTuple, NONE, rec, args_ty, SYN);
     let k =
         g.b.const_value(Ty::prim(Prim::U64), u64::try_from(number).unwrap_or(0));
+    let generics = cx.items.item(trait_).map_or(0, |i| i.generics.len());
+    // ruled out: a trait declares fewer than 2^16 type parameters.
+    let own: Vec<Ty> = (1..=u16::try_from(generics).unwrap_or(u16::MAX))
+        .map(|i| param(names, trait_, i))
+        .collect();
+    let tv = pool.intern_ty(&TyData::TraitValue {
+        def: trait_,
+        args: pool.list(&own),
+        bindings: vec![],
+    });
+    let interface = g.std_call("interface_of", &[tv], &[], Ty::prim(Prim::U64));
     let call = g.std_call(
         "stub_call",
         &[args_ty, value, error],
-        &[receiver, k, args],
+        &[receiver, interface, k, args],
         sig.ret,
     );
     g.b.body_mut().tags[call.0 as usize] = Tag::Await;
@@ -100,35 +106,21 @@ pub fn stub_method_body(
     g.finish(root).map(|(body, _)| body)
 }
 
-/// `serve[S]`'s body at the root type `root`: the frame's head through
-/// `serve_open`, then for each remote trait in `served` a test of its
-/// interface, and for each of its methods an arm that decodes the
-/// arguments, calls the root's implementation and encodes its public
-/// result. Any other frame is `WrongHome`. Cost: one comparison per
-/// served trait and one per method of the trait the frame names.
+/// `serve[S]`'s body at `root`, a root type or a returned object's trait
+/// value, for a frame whose head `serve_open!` accepted: for each remote
+/// trait in `served` a test of its interface, and for each of its methods
+/// an arm that decodes the arguments, calls the implementation and encodes
+/// its public result. Any other frame is `WrongHome`. Cost: one comparison
+/// per served trait and one per method of the trait the frame names.
 pub fn serve_body(cx: &Cx<'_, '_>, item: DefId, root: Ty, served: &[Served]) -> StageResult<Body> {
     let names = cx.names;
     let sig = subst_sig(names, cx.method_sig(item), &|p: ParamRef| {
         (p.owner == item).then_some(root)
     });
     let mut g = Gen::new(cx, root, item, Handles::Supplied);
-    let [(s, s_ty), (frame, frame_ty)] = g.params(&sig);
+    let [(s, s_ty), (head, head_ty)] = g.params(&sig);
     let bytes = sig.ret;
-    let head_ty = g.adt(names.item(REMOTE, "Served"), &[]);
-    let opened = g.adt(names.known.result, &[head_ty, bytes]);
-    let head = g.b.local(head_ty, names.syms.intern("$head"), 0, SYN);
     let blk = g.b.open_block();
-    let f = g.b.get(frame, frame_ty, SYN);
-    let o = g.std_call("serve_open", &[], &[f], opened);
-    let ok = g.b.open_block();
-    let v = g.b.payload(o, 0, 0, head_ty, SYN);
-    let ok = g.b.close_block(ok, Some(v), head_ty, SYN);
-    let refused = g.b.open_block();
-    let e = g.b.payload(o, 1, 0, bytes, SYN);
-    g.b.emit(Tag::Return, e.0, NONE, Ty::NEVER, SYN);
-    let refused = g.b.close_block(refused, None, Ty::NEVER, SYN);
-    let h = g.switch_tag(o, 0, ok, refused, head_ty);
-    g.b.set(head, h, SYN);
     let interface = g.read_field(head, 1, Ty::prim(Prim::U64));
     // Each test's `else` holds the next test, so the blocks open forward
     // and close inward-out.
@@ -158,13 +150,14 @@ fn tuple(pool: &hd_types::InternPool, elems: &[Ty]) -> Ty {
     })
 }
 
-/// `build_id()`'s body: the build ID, which std's framing reads
-/// (`module.remote.handle-call.build`).
-pub fn build_id_body(cx: &Cx<'_, '_>, item: DefId, build: u64) -> StageResult<Body> {
+/// The body that returns `value`: `build_id()`'s, the build ID which
+/// std's framing reads (`module.remote.handle-call.build`), and
+/// `interface_of[T]()`'s, `T`'s interface number (`module.remote.interface`).
+pub fn u64_body(cx: &Cx<'_, '_>, item: DefId, value: u64) -> StageResult<Body> {
     let u64_ = Ty::prim(Prim::U64);
     let mut g = Gen::new(cx, u64_, item, Handles::Supplied);
     let blk = g.b.open_block();
-    let id = g.b.const_value(u64_, build);
+    let id = g.b.const_value(u64_, value);
     let root = g.b.close_block(blk, Some(id), u64_, SYN);
     g.finish(root).map(|(body, _)| body)
 }
@@ -195,14 +188,6 @@ impl Gen<'_, '_> {
         self.b.call(&callee, args, Providers::None, ret, SYN)
     }
 
-    fn counted(&self, inner: Ty) -> Ty {
-        self.names.pool.intern_ty(&TyData::Ref {
-            inner,
-            mutable: true,
-            counted: true,
-        })
-    }
-
     /// `Read [$l .k]`.
     fn read_field(&mut self, l: hd_base::LocalId, k: u32, ty: Ty) -> Ref {
         let word = self.b.place(&Place {
@@ -213,7 +198,8 @@ impl Gen<'_, '_> {
     }
 
     /// The block that switches on the frame's method number over `one`'s
-    /// methods, each arm one call of the root's implementation.
+    /// methods, each arm one call of the root's implementation, or through
+    /// the trait value `root` when `one` names no impl.
     fn serve_methods(
         &mut self,
         one: &Served,
@@ -247,7 +233,17 @@ impl Gen<'_, '_> {
             let tuple = self.b.payload(a, 1, 0, args_ty, SYN);
             let decoded_args = self.b.local(args_ty, names.syms.intern("$args"), 0, SYN);
             self.b.set(decoded_args, tuple, SYN);
-            let mut refs = vec![self.b.get(s, s_ty, SYN)];
+            let receiver = if one.impl_.is_some() {
+                self.b.get(s, s_ty, SYN)
+            } else {
+                let place = self.b.place(&Place {
+                    root: PlaceRoot::Local(s),
+                    proj: vec![Proj::Deref],
+                });
+                self.b
+                    .emit(Tag::Read, place, ReadMode::Use as u32, root, SYN)
+            };
+            let mut refs = vec![receiver];
             for (i, &t) in (0u32..).zip(&arg_tys) {
                 refs.push(self.read_field(decoded_args, i, t));
             }
@@ -256,11 +252,16 @@ impl Gen<'_, '_> {
                 method,
                 self_ty: root,
                 targs: one.args,
-                choice: (ChoiceKind::Impl, one.impl_.raw()),
+                choice: one
+                    .impl_
+                    .map_or((ChoiceKind::TraitValue, trait_.raw()), |i| {
+                        (ChoiceKind::Impl, i.raw())
+                    }),
             };
             let result = self.b.call(&callee, &refs, Providers::None, sig.ret, SYN);
             self.b.body_mut().tags[result.0 as usize] = Tag::Await;
-            let ran = self.std_call("serve_ran", &[sig.ret], &[result], bytes);
+            let h = self.b.get(head, head_ty, SYN);
+            let ran = self.std_call("serve_ran", &[sig.ret], &[h, result], bytes);
             let some = self.b.close_block(some, Some(ran), bytes, SYN);
             let none = self.b.open_block();
             let wrong = self.std_call("serve_wrong_home", &[], &[], bytes);

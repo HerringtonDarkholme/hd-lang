@@ -1,15 +1,17 @@
 # @dump: wat
 # @build: v8 release
 # @helpers: app/main/Users.count std/remote/serve
-# A remote trait's stub method is one `stub_call` with the method's number
-# and its arguments as one tuple; `serve[S]` reads the frame's head with
-# `serve_open`, compares its interface, switches on the method number and
-# runs one arm: `serve_args`, the root's implementation, `serve_ran`.
-# Framing, encoding and refusals are std's plain hd. Both are bang
-# functions, so most of each is its suspension frame: stack check, frame
-# setup, the poll, cancel and drop functions.
+# A remote trait's stub method is one `stub_call` with its trait's
+# interface (`interface_of`), the method's number and its arguments as one
+# tuple; `serve[S]` takes the head `handle_call!` read, compares its
+# interface, switches on the method number and runs one arm: `serve_args`,
+# the root's implementation, `serve_ran`. Framing, encoding and refusals
+# are std's plain hd. Both are bang functions, so most of each is its
+# suspension frame: stack check, frame setup, the poll, cancel and drop
+# functions.
 # expected: a stub method whose body only awaits one call forwards to
-# the callee's frame and has none of its own.
+# the callee's frame and has none of its own; `serve[S]` lends the head to
+# `serve_args` and `serve_ran` instead of retaining a copy for each.
 use std.remote.{CrossError, Home, Remote, Rooted, Transport, handle_call, remote}
 
 trait Users < Remote:

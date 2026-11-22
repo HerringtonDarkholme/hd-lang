@@ -14,7 +14,9 @@ builds a root and a session for each incoming call record:
 
 ```text
 use std.http.Request
+use std.random.Random
 use std.remote.{CrossError, Home, Refused, Remote, Rooted, Session, per_request}
+use std.time.Clock
 
 trait Greeter < Remote:
     fn greet!(&mut self, name: string) -> Result[string, string | CrossError]
@@ -26,7 +28,7 @@ impl Greeter for Polite:
     fn greet!(&mut self, name: string) -> Result[string, string]:
         .Ok("hello $name, from ${self.caller}")
 
-fn serving() -> *mut Home[Polite, Request]:
+fn serving() -> *mut Home[Polite, Request] $ Random + Clock:
     per_request(fn!(request: &Request) -> Result[Rooted[Polite], Refused]:
         match request.cookie("session"):
             .Some(id) => .Ok(Rooted { root: Polite { caller: id }, session: Session { id } })
@@ -38,10 +40,14 @@ fn serving() -> *mut Home[Polite, Request]:
 2. r[std-remote.home.per-request.static] The home outlives the call that made it, so `make` captures no local reference. `per_request` takes it for a type parameter bounded by `Fn(&C) -> Suspend[Result[Rooted[S], Refused]] & 'static`. Error: `local-reference-escapes`.
 3. r[std-remote.home.fixed] `home(root, session)` returns a new `*mut Home[S, C]` whose factory accepts every call record with a copy of `root` and `session`.
 4. r[std-remote.home.fixed.copy] Each call runs on its own copy of `root`. State that must outlive one call sits behind a box that `root` holds.
+5. r[std-remote.home.providers] `per_request` and `home` have the row `$ Random + Clock`, and the home keeps both providers.
+6. r[std-remote.home.token] Each object that a method returns gets a 64-bit token drawn from the kept `Random`, by [`module.remote.session`](../lang/10-modules.md#r-module.remote.session).
+7. r[std-remote.home.lease] An object's lease ends 10 minutes after its last call ends, by the kept `Clock`'s monotonic time, as [`module.remote.lease`](../lang/10-modules.md#r-module.remote.lease) requires.
 
 > **Why.** A server builds a root per request, so the root can hold the
 > caller its session proves, and two interleaved requests never share one.
-> A worker has one peer, so one root and session serve every call.
+> A worker has one peer, so one root and session serve every call. Java
+> RMI's default lease is also 10 minutes.
 
 ## Served Functions
 

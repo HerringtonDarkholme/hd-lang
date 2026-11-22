@@ -13848,19 +13848,20 @@ impl ProgramEnv for Env<'_> {
             "wire_put" | "wire_take" => {
                 hd_structure::wire_codec_body(&cx, item, ty, key == "wire_take")
             }
-            "remote" => {
-                // ruled out: checking lowers `remote::[T]`'s one argument
-                // to the trait value `dyn T` (`Ck::remote_targ`).
+            "stub_as" => hd_structure::remote::stub_as_body(&cx, item, ty),
+            "interface_of" => {
+                // ruled out: std instantiates `interface_of` only at the
+                // trait value of `remote::[T]` or of a remote reference.
                 let TyData::TraitValue { def, args, .. } = self.run.pool.get(ty) else {
                     return Err(NotImplemented::bug(
                         Stage::Collect,
-                        "`remote[T]` at no trait",
+                        "an interface of no trait",
                     ));
                 };
-                hd_structure::remote::remote_body(&cx, item, ty, self.interface(def, args))
+                hd_structure::remote::u64_body(&cx, item, self.interface(def, args))
             }
             "serve" => hd_structure::remote::serve_body(&cx, item, ty, &self.served(ty)),
-            "build_id" => hd_structure::remote::build_id_body(&cx, item, self.build_id()),
+            "build_id" => hd_structure::remote::u64_body(&cx, item, self.build_id()),
             _ => hd_structure::debug_texts_body(&cx, item, ty),
         }?;
         // Written at the exact argument, it is its instance's body;

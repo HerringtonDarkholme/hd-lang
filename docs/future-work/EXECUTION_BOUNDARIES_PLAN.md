@@ -30,7 +30,7 @@ in the same commits.
 | --- | --- | ---: | ---: | ---: | --- |
 | 1 | `Marker`, `Send`, `Wire` (built: 424dcdfb7) | 390 | 63 | +327 | 2, 3 |
 | 2 | crossing parameters, capture mode, reached top-level bindings, frozen loans (built: 1dd4c2a5c to 127293f15) | 880 | 88 | +792 | 6 |
-| 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers, the `Wire` codec (built: 5c9646dac to 00e3b32b8); the host boundary move and host handles as stubs wait on the codec's size | 1,170 | 150 | +1,018 | 4, 5 |
+| 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers, the `Wire` codec (built: 5c9646dac to 00e3b32b8); the host boundary move and host handles as stubs wait on the codec's size; R3, returned objects, built after stage 4 (net +192, not in this row) | 1,170 | 150 | +1,018 | 4, 5 |
 | 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter (built: std code net +86, tests +63) | 500 | 0 | +500 | none |
 | 5 | one use-graph walk per executable | 280 | 20 | +260 | none |
 | 6 | worker instances, Wasm threads for `Scope` and `Background`, a jobs store | 2,200 | 0 | +2,200 | none |
@@ -161,8 +161,8 @@ remote trait, one goal per remote trait with a row for `S`'s head; a root
 that is a type parameter, as in std's generic `http_handler`, is not
 asked, and its generated body serves what the instance implements, so a
 root with no remote trait refuses every frame with `WrongHome`. `Home`
-holds only its request factory until returned objects (R3) need the
-served table. Both built-ins now lower for real (below).
+holds its request factory and, since R3 (below), its served table. Both
+built-ins now lower for real (below).
 
 Stubs and dispatchers (steps 2 and 3 below) are built. `remote[T]`'s
 generated body boxes std's private `Stub { transport, interface, object }`
@@ -192,8 +192,52 @@ Readings:
   to std, so no checked goal asks it.
 - A root serves the remote traits it implements through a written impl
   whose head matches it; a delegated impl (`by E`) is not served yet.
-- A frame for an object other than the root is `WrongHome` until returned
-  objects (R3) give it a served table.
+
+**R3, returned objects (built after stage 4).** Priced at about +140
+before building; built at compiler +115 / −74 and std +192 / −41 (net
++192), with 104 net test lines. A method may return a `*mut dyn U`; the
+home serves it from then on:
+
+- The codec selects `wire_put_remote[U]` and `wire_take_remote[U]` for a
+  trait value reference, which `Wire` gives only to remote references. An
+  encoder that carries a home (a dispatcher's answer) boxes a closure
+  `serve![U](object, head)` into the home's table and writes the
+  interface, the object number and its token. `serve[S]` at a trait value
+  `dyn U` serves `U` and each remote supertrait through the trait value's
+  table (`Served.impl_` is `None`), so the table holds closures and needs
+  no per-type code.
+- `remote[T]` is plain std over two generated intrinsics, `stub_as[T]`
+  (a `*mut Stub` as `*mut dyn T`) and `interface_of[T]`; its generated
+  body is gone. A decoded reference is a `Stub` on the transport of the
+  reply it came in (`module.remote.decoded`).
+- `handle_call!` opens the head itself (`serve_open!`): the root's frames
+  go to `serve![S]`, another object's to its table entry, which checks
+  its token, the caller's session and its lease.
+- Found and fixed with it: a stub framed every method with the interface
+  of the trait it was made for, so a remote supertrait's method ran the
+  subtrait's method of the same number (84380cd9f). A generated stub
+  method now passes `interface_of` of its own trait, and `Stub` has no
+  interface field.
+
+Readings:
+
+- The frame head is the build ID, the interface, the object, its token and
+  the method number. The root's token is 0 and is not checked.
+- Tokens and leases need entropy and time, and `handle_call!` has no row.
+  So `per_request` and `home` take `$ Random + Clock` and the home keeps
+  both providers, as `HttpTransport` keeps `Http`. A token is 64 bits from
+  `Random`. A lease ends 10 minutes after the object's last call ends, as
+  Java RMI's default `java.rmi.dgc.leaseValue`; a call in progress holds it.
+- The table is a slot list; a freed slot is reused, and a stale reference
+  to it fails on its token. Each added object frees what has expired in
+  the next two slots, so the table stays bounded by its live objects at a
+  constant cost per call, with no full sweep.
+- A stub's frame carries no remote reference: encoding one with no home
+  sets `refused`, and the stub returns `._1(.WrongHome)` before sending
+  (`module.remote.send-own`). A dispatcher decodes none in arguments,
+  since its input has no transport, so such a frame is `WrongHome`.
+- A home that returns a stub it holds serves that stub as its own object,
+  so calls forward through it; the caller never learns the third home.
 
 The codec (step 1 below) is std code in `std.remote`: `wire_encode[T]`
 and `wire_decode[T]` over two intrinsics, `wire_put[T]` and `wire_take[T]`,
@@ -220,10 +264,10 @@ sites that read `dbg_structure`'s one triple. Readings:
 - `List[u8]` exactly is bytes. A list of a newtype over `u8` is one LEB128
   number per element, where the host strips the newtype; the boundary
   move settles it.
-- A counted reference and a remote reference have no codec yet (`gap:
-  #2288`): the first crosses only the host boundary until the move, the
-  second is R3. An enum with shared constructor data has no structure
-  target, so it has none either.
+- A counted reference has no codec (`gap: #2288`): it crosses only the
+  host boundary until the move. A remote reference's codec is R3's
+  (below). An enum with shared constructor data has no structure target,
+  so it has none either.
 - `int_min` and `int_max` are private to `std.num`; `std.remote`
   declares its own, by the same intrinsic keys.
 

@@ -250,10 +250,16 @@ pub fn codec_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, take: bool) -> StageResu
         TyData::Adt { def, args } if def == names.known.map => {
             ("map", pool.list_items(args).to_vec())
         }
+        // A `Wire` trait value reference is a remote reference
+        // (`module.marker.table.remote`).
+        TyData::Ref {
+            inner,
+            mutable: true,
+            counted: true,
+        } if matches!(pool.get(inner), TyData::TraitValue { .. }) => ("remote", vec![inner]),
         _ if target(cx, ty).is_some() => ("structural", vec![ty]),
-        // gap: #2288 — a remote reference crosses as its home, interface,
-        // object and token (R3), and a counted reference only at the host
-        // boundary, which keeps its own codecs until the boundary move;
+        // gap: #2288 — a counted reference crosses only the host boundary,
+        // which keeps its own codecs until the boundary move;
         // module.marker.table rules out every other type for `Wire`.
         _ => {
             return Err(NotImplemented::new(

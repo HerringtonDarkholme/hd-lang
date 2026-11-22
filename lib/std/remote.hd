@@ -8,8 +8,10 @@ use std.hash.Hash
 use std.http.{Http, HttpError, Request, Response, Url}
 use std.marker.Wire
 use std.num.Integer
+use std.random.Random
 use std.rt.bytes.char_from_scalar
 use std.structure.{Field, Key, Members, Source, Structure, Variant, Walker}
+use std.time.Clock
 
 ## A marker for interface traits whose methods another target may run.
 ## Every type has it; a trait that extends it is a remote trait.
@@ -65,20 +67,24 @@ pub enum Reply:
 ## See [module.remote.items](../../spec/lang/10-modules.md#r-module.remote.items).
 pub struct Home[S, C]:
     make: fn!(&C) -> Result[Rooted[S], Refused]
+    objects: *mut Objects
 
 ## A home that builds a root and a session for each incoming call record,
 ## as a server does, so a root can hold its verified caller. The home
-## outlives the call, so `make` captures no local reference.
+## outlives the call, so `make` captures no local reference. It draws the
+## tokens of the objects it serves from `Random`, and times their leases
+## by `Clock`.
 ## See [std-remote.home.per-request](../../spec/std/remote.md#r-std-remote.home.per-request).
 pub fn per_request[S < 'static, C < 'static, F < Fn(&C) -> Suspend[Result[Rooted[S], Refused]] & 'static](
     make: F,
-) -> *mut Home[S, C]:
-    box(Home { make: fn!(call: &C) -> Result[Rooted[S], Refused]: make(call)!() })
+) -> *mut Home[S, C] $ Random + Clock:
+    objects := box(Objects { slots: [], free: [], sweep: 0, random: $.use(Random), clock: $.use(Clock) })
+    box(Home { make: fn!(call: &C) -> Result[Rooted[S], Refused]: make(call)!(), objects })
 
 ## A home with one root and one peer, as a worker has. Each call gets a
 ## copy of `root`, so state that outlives a call sits behind a box.
 ## See [std-remote.home.fixed](../../spec/std/remote.md#r-std-remote.home.fixed).
-pub fn home[S < 'static, C < 'static](root: S, session: Session) -> *mut Home[S, C]:
+pub fn home[S < 'static, C < 'static](root: S, session: Session) -> *mut Home[S, C] $ Random + Clock:
     per_request(fn!(call: &C) -> Result[Rooted[S], Refused]: .Ok(Rooted { root, session }))
 
 ## One served function, such as a server action.
@@ -155,32 +161,40 @@ pub fn http_handler![S](request: Request, home: &mut Home[S, Request]) -> Respon
 ## Returns the root object at the far end of `transport`, as a stub of the
 ## remote trait `T`.
 ## See [module.remote.builtin.remote](../../spec/lang/10-modules.md#r-module.remote.builtin.remote).
-@intrinsic("remote")
 pub fn remote[T < Remote](transport: *mut dyn Transport) -> *mut T:
-    panic("intrinsic")
+    stub_as::[T](box(Stub { transport, object: 0, token: 0 }))
 
 ## Answers one call frame for a home whose root type is `S`, and returns
 ## an encoded `Reply`.
 ## See [module.remote.handle-call](../../spec/lang/10-modules.md#r-module.remote.handle-call).
 pub fn handle_call![S, C](home: &mut Home[S, C], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]:
-    serve!(&mut rooted.root, frame)
+    match serve_open!(home.objects, rooted.session.id, frame):
+        .Ok(head) => serve!(&mut rooted.root, head)
+        .Err(reply) => reply
 
 # Stubs and dispatchers (spec/lang/10-modules.md#remote-references): the
-# compiler generates `remote[T]`'s body, which boxes a `Stub` as `*mut dyn
-# T`, each method of `Stub: T` as one `stub_call!`, and `serve[S]`'s body,
-# which picks a method of a remote trait `S` implements by the frame's
-# interface and number. Everything else is the plain hd below. A frame is
-# the build ID, the interface, the object and the method number, then the
+# compiler generates `stub_as[T]`'s body, which converts a `Stub` to `*mut
+# dyn T`, each method of `Stub: T` as one `stub_call!`, and `serve[S]`'s
+# body, which picks a method of a remote trait that `S` implements, or that
+# the trait value `S` names, by the frame's interface and number.
+# Everything else is the plain hd below. A frame is the build ID, the
+# interface, the object, its token and the method number, then the
 # arguments as one tuple; a reply is an encoded `Reply`.
 
 # The object at the far end of a transport, as every remote trait's stub.
 struct Stub:
     transport: *mut dyn Transport
-    interface: u64
     object: u64
+    token: u64
 
-fn stub_new(transport: *mut dyn Transport, interface: u64) -> *mut Stub:
-    box(Stub { transport, interface, object: 0 })
+@intrinsic("stub_as")
+fn stub_as[T](stub: *mut Stub) -> *mut T:
+    panic("intrinsic")
+
+# The interface number of the remote trait `T` (module.remote.interface).
+@intrinsic("interface_of")
+fn interface_of[T]() -> u64:
+    panic("intrinsic")
 
 # The build ID every frame carries (module.remote.handle-call.build), which
 # collection writes per build. Read out of line, so no other body holds it.
@@ -195,64 +209,75 @@ fn build_number() -> u64:
 # One remote call: a reply that ran is the method's public result as the
 # home encoded it; a refusal, a transport failure or a reply that does not
 # decode is case `_1` (module.remote.stub.reply, module.remote.stub.decode).
-fn stub_call![A < ?Copy, V, E](stub: &mut Stub, method: u64, args: A) -> Result[V, E | CrossError]:
+fn stub_call![A < ?Copy, V, E](stub: &mut Stub, interface: u64, method: u64, args: A) -> Result[V, E | CrossError]:
     let mut out = WireOut { bytes: [] }
     out.leb(build_id())
-    out.leb(stub.interface)
+    out.leb(interface)
     out.leb(stub.object)
+    out.leb(stub.token)
     out.leb(method)
     wire_put::[A]()(&args, &mut out)
+    if out.refused:
+        return .Err(._1(CrossError.WrongHome))
     let reply = match stub.transport.call!(out.bytes):
         .Ok(bytes) => bytes
         .Err(cross) => return .Err(._1(cross))
     match wire_decode::[Reply](reply):
         .Some(.Ran(payload)) =>
-            match wire_decode::[Result[V, E | CrossError]](payload):
+            match wire_read::[Result[V, E | CrossError]](WireIn { bytes: payload, at: 0, transport: .Some(stub.transport) }):
                 .Some(result) => result
                 .None => .Err(._1(CrossError.Unknown))
         .Some(.Refused(cross)) => .Err(._1(cross))
         .None => .Err(._1(CrossError.Unknown))
 
-# The generated dispatcher of a root type `S`.
+# The generated dispatcher of a root type `S`, or of a returned object's
+# trait value `S`.
 @intrinsic("serve")
-fn serve![S](root: &mut S, frame: List[u8]) -> List[u8]:
+fn serve![S](root: &mut S, head: Served) -> List[u8]:
     panic("intrinsic")
 
-# A frame whose head decoded, for its build, at its root object: the rest
-# of the frame, its interface and its method number, which a dispatcher
-# switches on as a `u32`.
+# A frame whose head decoded, for its build: the rest of the frame, its
+# interface and its method number, which a dispatcher switches on as a
+# `u32`, and the home's objects and the caller's session, which an answer
+# that returns an object needs.
 struct Served:
     pub input: WireIn
     pub interface: u64
     pub method: u32
+    pub objects: *mut Objects
+    pub session: string
 
 # A frame's head (module.remote.handle-call.build, .object, .untrusted):
-# another build is `OtherBuild`; a head that does not decode, or an object
-# other than the root, which only returned objects (R3) will be, is
-# `WrongHome`. The `.Err` holds the encoded refusal.
-fn serve_open(frame: List[u8]) -> Result[Served, List[u8]]:
+# another build is `OtherBuild`, and a head that does not decode is
+# `WrongHome`. A frame for the root is `.Ok`; a frame for another object
+# is answered here, so its `.Err` holds the reply, as for a refusal.
+fn serve_open!(objects: *mut Objects, session: string, frame: List[u8]) -> Result[Served, List[u8]]:
     let mut input = WireIn { bytes: frame, at: 0 }
-    let head = match (input.leb(), input.leb(), input.leb(), input.leb()):
-        (.Some(b), .Some(interface), .Some(object), .Some(method)) => (b, interface, object, method)
-        _ => return .Err(serve_refused(CrossError.WrongHome))
+    let head = match (input.leb(), input.leb(), input.leb(), input.leb(), input.leb()):
+        (.Some(b), .Some(interface), .Some(object), .Some(token), .Some(method)) =>
+            (b, interface, object, token, method)
+        _ => return .Err(serve_wrong_home())
     if head._0 != build_id():
         return .Err(serve_refused(CrossError.OtherBuild))
-    if head._2 != 0 || head._3 > 4294967295:
-        return .Err(serve_refused(CrossError.WrongHome))
-    .Ok(Served { input, interface: head._1, method: u32(head._3) })
+    if head._4 > 4294967295:
+        return .Err(serve_wrong_home())
+    served := Served { input, interface: head._1, method: u32(head._4), objects, session }
+    if head._2 == 0:
+        return .Ok(served)
+    .Err(objects.call!(head._2, head._3, served))
 
-# The arguments, which must fill the rest of the frame.
+# The arguments, which must fill the rest of the frame. A frame a home
+# decodes has no transport, so it holds no remote reference.
 fn serve_args[A](served: Served) -> A?:
-    let mut input = served.input
-    args := wire_take::[A]()(&mut input)?
-    if input.at != input.bytes.len():
-        return .None
-    .Some(args)
+    wire_read(served.input)
 
 # A method's public result, as the reply that it ran
-# (module.remote.handle-call.run).
-fn serve_ran[R < ?Copy](result: R) -> List[u8]:
-    wire_encode(&Reply.Ran(wire_encode(&result)))
+# (module.remote.handle-call.run). An object it returns is served from
+# then on, for the caller's session.
+fn serve_ran[R < ?Copy](head: Served, result: R) -> List[u8]:
+    let mut out = WireOut { bytes: [], home: .Some(head.objects), session: head.session }
+    wire_put::[R]()(&result, &mut out)
+    wire_encode(&Reply.Ran(out.bytes))
 
 fn serve_refused(error: CrossError) -> List[u8]:
     wire_encode(&Reply.Refused(error))
@@ -260,6 +285,84 @@ fn serve_refused(error: CrossError) -> List[u8]:
 # A frame for no method the root serves, or whose arguments do not decode.
 fn serve_wrong_home() -> List[u8]:
     serve_refused(CrossError.WrongHome)
+
+# The objects a home serves besides its root (module.remote.r3.returned):
+# object `k + 1` in slot `k`, with the session it was returned to, an
+# unguessable token and a lease (module.remote.session, .lease). A freed
+# slot is reused; a stale reference to it fails on its token.
+struct Objects:
+    slots: List[(*mut Object)?]
+    free: List[usize]
+    sweep: usize
+    random: *mut dyn Random
+    clock: *mut dyn Clock
+
+struct Object:
+    serve: fn!(Served) -> List[u8]
+    session: string
+    token: u64
+    used: i64
+    calls: u32
+
+impl Objects:
+    fn now(&self) -> i64:
+        self.clock.monotonic().as_milliseconds()
+
+    # A lease ends 10 minutes after the object's last call ends, as Java
+    # RMI's default lease (`java.rmi.dgc.leaseValue`); a call in progress
+    # holds it.
+    fn expired(&self, object: *mut Object, now: i64) -> bool:
+        object.calls == 0 && now - object.used > 600000
+
+    fn drop_slot(&mut self, k: usize) -> void:
+        self.slots[k] = .None
+        self.free.push(k)
+
+    # Serves `object` and returns its number. Each add frees what has
+    # expired in the next two slots, so the table stays bounded by its live
+    # objects at a constant cost per add.
+    fn add(&mut self, object: *mut Object) -> u64:
+        now := self.now()
+        let k = 0
+        while k < 2 && self.slots.len() > 0:
+            if self.sweep >= self.slots.len():
+                self.sweep = 0
+            match self.slots[self.sweep]:
+                .Some(old) if self.expired(old, now) => self.drop_slot(self.sweep)
+                _ => pass
+            self.sweep += 1
+            k += 1
+        object.token = self.random.next_u64()
+        object.used = now
+        match self.free.pop():
+            .Some(slot) =>
+                self.slots[slot] = .Some(object)
+                u64(slot) + 1
+            .None =>
+                self.slots.push(.Some(object))
+                u64(self.slots.len())
+
+    # A call to object `number`, which its token, the caller's session and
+    # its lease must allow (module.remote.handle-call.object).
+    fn call!(&mut self, number: u64, token: u64, head: Served) -> List[u8]:
+        now := self.now()
+        if number > u64(self.slots.len()):
+            return serve_wrong_home()
+        slot := usize(number - 1)
+        let object = match self.slots[slot]:
+            .Some(object) => object
+            .None => return serve_wrong_home()
+        if object.token != token || object.session != head.session:
+            return serve_wrong_home()
+        if self.expired(object, now):
+            self.drop_slot(slot)
+            return serve_wrong_home()
+        object.calls += 1
+        serve := object.serve
+        reply := serve!(head)
+        object.calls -= 1
+        object.used = self.now()
+        reply
 
 # The Wire codec (spec/lang/10-modules.md#r-module.remote.codec): the tree
 # encoding of the host boundary (crates/hd_wasm/src/boundary.rs `enc_body`),
@@ -278,8 +381,13 @@ fn serve_wrong_home() -> List[u8]:
 # selection never renders, traverses or decodes a value itself.
 
 # The bytes one encoding writes.
+# A home's answer carries its objects and the caller's session, so a
+# remote reference in it is served; any other encoding of one refuses.
 struct WireOut:
     pub bytes: List[u8]
+    pub home: (*mut Objects)? = .None
+    pub session: string = ""
+    pub refused: bool = false
 
 impl WireOut:
     fn leb(&mut self, value: u64) -> void:
@@ -291,9 +399,12 @@ impl WireOut:
 
 # The bytes one decoding reads, untrusted: every read checks the input's
 # end and returns `.None` past it, so a malformed frame never panics.
+# A stub's reply carries its transport, the home of a remote reference
+# in it.
 struct WireIn:
     pub bytes: List[u8]
     pub at: usize
+    pub transport: (*mut dyn Transport)? = .None
 
 impl WireIn:
     fn byte(&mut self) -> u8?:
@@ -349,7 +460,11 @@ fn wire_encode[T < ?Copy](value: &T) -> List[u8]:
 
 # Decodes a `T` that `bytes` holds exactly, or `.None`.
 fn wire_decode[T](bytes: List[u8]) -> T?:
-    let mut input = WireIn { bytes: bytes, at: 0 }
+    wire_read(WireIn { bytes: bytes, at: 0 })
+
+# Decodes a `T` that the rest of `input` holds exactly, or `.None`.
+fn wire_read[T](input: WireIn) -> T?:
+    let mut input = input
     value := wire_take::[T]()(&mut input)?
     if input.at != input.bytes.len():
         return .None
@@ -498,6 +613,40 @@ fn wire_put_never(value: &never, out: &mut WireOut) -> void:
 fn wire_take_never(input: &mut WireIn) -> never?:
     .None
 
+# A remote reference crosses as its interface, object number and token
+# (module.remote.ref.wire). Only a home's answer sends one, and the home
+# serves its object from then on; any other encoding refuses
+# (module.remote.send-own).
+fn wire_put_remote[T < 'static](value: &*mut T, out: &mut WireOut) -> void:
+    let objects = match out.home:
+        .Some(objects) => objects
+        .None =>
+            out.refused = true
+            return
+    reference := *value
+    object := box(Object {
+        serve: fn!(head: Served) -> List[u8]: serve!::[T](reference, head),
+        session: out.session,
+        token: 0,
+        used: 0,
+        calls: 0,
+    })
+    number := objects.add(object)
+    out.leb(interface_of::[T]())
+    out.leb(number)
+    out.leb(object.token)
+
+# A decoded remote reference is a stub on the transport its reply came on
+# (module.remote.decoded); a frame a home decodes has none.
+fn wire_take_remote[T < 'static](input: &mut WireIn) -> (*mut T)?:
+    transport := input.transport?
+    interface := input.leb()?
+    if interface != interface_of::[T]():
+        return .None
+    object := input.leb()?
+    token := input.leb()?
+    .Some(stub_as::[T](box(Stub { transport, object, token })))
+
 fn wire_put_structural[T < WireStructural](value: &T, out: &mut WireOut) -> void:
     value.put(out)
 
@@ -576,7 +725,9 @@ impl['a, S < ?Copy] Source[S] for WireTake[S, 'a]:
 tests:
     use std.http.{Method, ScriptedHttp}
     use std.marker.Wire
+    use std.random.SeededRandom
     use std.testing.{assert, assert_equal}
+    use std.time.{Duration, ManualClock, Timestamp, sleep}
 
     @derive(Debug, Eq)
     struct Point:
@@ -700,6 +851,16 @@ tests:
         fn label!(&mut self, prefix: string, times: u8) -> Result[string, CountError]:
             .Ok("$prefix ${self.total} x$times")
 
+    fn objects() -> *mut Objects:
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        box(Objects { slots: [], free: [], sweep: 0, random: SeededRandom::new(7), clock })
+
+    # Answers `frame` from `root`, for the session "t" of a home.
+    fn answer![S](root: &mut S, frame: List[u8]) -> List[u8]:
+        match serve_open!(objects(), "t", frame):
+            .Ok(head) => serve!(root, head)
+            .Err(reply) => reply
+
     # Serves each frame at once from its own root. A broken peer replaces
     # the reply: with a refusal (`peer` 1) or with bytes no reply decodes
     # from (`peer` 2).
@@ -709,7 +870,7 @@ tests:
 
     impl Transport for Loopback:
         fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
-            reply := serve!(&mut self.root, frame)
+            reply := answer!(&mut self.root, frame)
             match self.peer:
                 1 => .Ok(wire_encode(&Reply.Refused(CrossError.OtherBuild)))
                 2 => .Ok([0, 9, 9])
@@ -746,7 +907,7 @@ tests:
             .Ok([])
 
     fn refused!(root: &mut Tally, frame: List[u8]) -> CrossError?:
-        match wire_decode::[Reply](serve!(root, frame)):
+        match wire_decode::[Reply](answer!(root, frame)):
             .Some(.Refused(cross)) => .Some(cross)
             _ => .None
 
@@ -757,13 +918,12 @@ tests:
         let mut input = WireIn { bytes: recorder.frame, at: 0 }
         build := input.leb().unwrap_or(0)
         interface := input.leb().unwrap_or(0)
-        _ := input.leb()
-        _ := input.leb()
         head := fn(b: u64, i: u64, object: u64, method: u64, args: List[u8]) -> List[u8]:
             let mut out = WireOut { bytes: [] }
             out.leb(b)
             out.leb(i)
             out.leb(object)
+            out.leb(0)
             out.leb(method)
             out.bytes.extend(args)
             out.bytes
@@ -794,7 +954,7 @@ tests:
 
     impl Transport for WordLink:
         fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
-            .Ok(serve!(&mut self.root, frame))
+            .Ok(answer!(&mut self.root, frame))
 
     it("a generic remote trait's stub and dispatcher serve its instance"):
         shelf := remote::[Shelf[string]](box(WordLink { root: Words { items: ["a", "b"] } }))
@@ -815,11 +975,16 @@ tests:
                 .Err(_) => return .Err(.WrongHome)
             .Ok(handle_call!(self.home, &mut rooted, frame))
 
+    fn clock() -> *mut ManualClock:
+        ManualClock::new(Timestamp::from_unix_milliseconds(0))
+
     it("a fixed home answers every frame from a copy of its root"):
-        counter := remote::[Counter](box(HomeLink { home: home(Tally { total: 10 }, Session { id: "w" }) }))
-        assert_equal(counter.add!(2).ok(), .Some(12))
-        assert_equal(counter.add!(5).ok(), .Some(15))
-        assert_equal(counter.label!("n", 1).ok(), .Some("n 10 x1"))
+        time := clock()
+        $.with(Random=SeededRandom::new(1), Clock=time):
+            counter := remote::[Counter](box(HomeLink { home: home(Tally { total: 10 }, Session { id: "w" }) }))
+            assert_equal(counter.add!(2).ok(), .Some(12))
+            assert_equal(counter.add!(5).ok(), .Some(15))
+            assert_equal(counter.label!("n", 1).ok(), .Some("n 10 x1"))
 
     # The server's side in memory: each request goes to `http_handler`.
     struct Server:
@@ -835,11 +1000,13 @@ tests:
             .Err(_) => panic("bad test URL")
 
     it("an HTTP transport and handler carry frames, and a refused caller is WrongHome"):
-        served := per_request(fn!(request: &Request) -> Result[Rooted[Tally], Refused]:
-            match request.url.param("user"):
-                .Some(id) => .Ok(Rooted { root: Tally { total: 100 }, session: Session { id } })
-                .None => .Err(Refused { reason: "no user" })
-        )
+        time := clock()
+        let served: *mut Home[Tally, Request] = $.with(Random=SeededRandom::new(1), Clock=time):
+            per_request(fn!(request: &Request) -> Result[Rooted[Tally], Refused]:
+                match request.url.param("user"):
+                    .Some(id) => .Ok(Rooted { root: Tally { total: 100 }, session: Session { id } })
+                    .None => .Err(Refused { reason: "no user" })
+            )
         $.with(Http=box(Server { home: served })):
             counter := remote::[Counter](http_transport(url("http://api.test/rpc?user=ada")))
             assert_equal(counter.add!(1).ok(), .Some(101))
@@ -861,3 +1028,91 @@ tests:
         assert_equal(sent.len(), 3)
         assert_equal(sent[0].method, Method.Post)
         assert(!sent[0].bytes().unwrap_or([]).is_empty(), "the frame is the body")
+
+    trait Bank < Remote:
+        fn open!(&mut self, cents: i64) -> Result[*mut dyn Counter, CountError | CrossError]
+        fn merge!(&mut self, other: *mut dyn Counter) -> Result[i64, CountError | CrossError]
+        fn doubler!(&mut self) -> Result[*mut dyn Call[i64, i64, CountError], CountError | CrossError]
+
+    struct Teller: pass
+
+    impl Bank for Teller:
+        fn open!(&mut self, cents: i64) -> Result[*mut dyn Counter, CountError]:
+            .Ok(box(Tally { total: cents }))
+
+        fn merge!(&mut self, other: *mut dyn Counter) -> Result[i64, CountError]:
+            .Ok(0)
+
+        fn doubler!(&mut self) -> Result[*mut dyn Call[i64, i64, CountError], CountError]:
+            .Ok(action(fn!(n: i64) -> Result[i64, CountError]: .Ok(n * 2)))
+
+    struct Peer:
+        name: string
+
+    # Answers each frame from a home whose session is the peer's name.
+    struct PeerLink:
+        home: *mut Home[Teller, string]
+        peer: *mut Peer
+
+    impl Transport for PeerLink:
+        fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+            make := self.home.make
+            let mut rooted = match make!(&self.peer.name):
+                .Ok(rooted) => rooted
+                .Err(_) => return .Err(.WrongHome)
+            .Ok(handle_call!(self.home, &mut rooted, frame))
+
+    it("a returned object is served to its session until its lease ends"):
+        time := clock()
+        peer := box(Peer { name: "ada" })
+        let served: *mut Home[Teller, string] = $.with(Random=SeededRandom::new(5), Clock=time):
+            per_request(fn!(name: &string) -> Result[Rooted[Teller], Refused]:
+                .Ok(Rooted { root: Teller {}, session: Session { id: *name } })
+            )
+        bank := remote::[Bank](box(PeerLink { home: served, peer }))
+        account := match bank.open!(10):
+            .Ok(account) => account
+            _ => panic("open! returns an account")
+        assert_equal(account.add!(5).ok(), .Some(15))
+        assert_equal(account.add!(1).ok(), .Some(16))
+        peer.name = "bob"
+        assert_equal(cross_of(account.add!(1)), .Some(CrossError.WrongHome))
+        peer.name = "ada"
+        assert_equal(account.add!(1).ok(), .Some(17))
+        match bank.merge!(account):
+            .Err(._1(cross)) => assert_equal(cross, CrossError.WrongHome)
+            _ => assert(false, "a stub's frame sends no remote reference")
+        match bank.doubler!():
+            .Ok(double) => assert_equal(double.call!(21).ok(), .Some(42))
+            _ => assert(false, "doubler! returns a served function")
+        $.with(Clock=time):
+            sleep!(Duration::seconds(601))
+        assert_equal(cross_of(account.add!(1)), .Some(CrossError.WrongHome))
+
+    trait First < Remote:
+        fn first!(&mut self, n: i64) -> Result[i64, CountError | CrossError]
+
+    trait Second < First:
+        fn second!(&mut self, n: i64) -> Result[i64, CountError | CrossError]
+
+    struct Both: pass
+
+    impl First for Both:
+        fn first!(&mut self, n: i64) -> Result[i64, CountError]:
+            .Ok(1000 + n)
+
+    impl Second for Both:
+        fn second!(&mut self, n: i64) -> Result[i64, CountError]:
+            .Ok(2000 + n)
+
+    struct BothLink:
+        root: Both
+
+    impl Transport for BothLink:
+        fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+            .Ok(answer!(&mut self.root, frame))
+
+    it("a stub names a supertrait's method by that trait's interface"):
+        both := remote::[Second](box(BothLink { root: Both {} }))
+        assert_equal(both.first!(1).ok(), .Some(1001))
+        assert_equal(both.second!(1).ok(), .Some(2001))
