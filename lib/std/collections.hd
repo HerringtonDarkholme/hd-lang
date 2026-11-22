@@ -2131,7 +2131,7 @@ impl[T < Ord] List[T]:
 
     # The first of the smallest elements.
     ## Returns a copy of the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.min-max.copy-first](../../spec/std/collections.md#r-std-collections.helper.min-max.copy-first).
+    ## See [std-collections.helper.min-max.copy-ties](../../spec/std/collections.md#r-std-collections.helper.min-max.copy-ties).
     pub fn min(&self) -> T?:
         if self.len() == 0:
             return .None
@@ -2143,16 +2143,16 @@ impl[T < Ord] List[T]:
             index = index + 1
         .Some(self[best])
 
-    # The first of the largest elements, as Python's `max` gives.
-    ## Returns a copy of the first largest element by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.min-max.copy-first](../../spec/std/collections.md#r-std-collections.helper.min-max.copy-first).
+    # The last of the largest elements, as Rust's `Iterator::max` gives.
+    ## Returns a copy of the last largest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.min-max.copy-ties](../../spec/std/collections.md#r-std-collections.helper.min-max.copy-ties).
     pub fn max(&self) -> T?:
         if self.len() == 0:
             return .None
         let best: usize = 0
         let index: usize = 1
         while index < self.len():
-            if before(self[best], self[index]):
+            if !before(self[index], self[best]):
                 best = index
             index = index + 1
         .Some(self[best])
@@ -2168,11 +2168,11 @@ impl[T < Eq & Hash] List[T]:
                 kept.push(item)
         kept
 
-# The by-key extremes keep the first of equal keys, as `min` and `max` do
-# (r-std-collections.helper.by-key.copy-first).
+# Of equal keys, `min_by_key` keeps the first and `max_by_key` the last,
+# as `min` and `max` do (r-std-collections.helper.by-key.copy-ties).
 impl[T] List[T]:
     ## Returns a copy of the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.by-key.copy-first](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-first).
+    ## See [std-collections.helper.by-key.copy-ties](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-ties).
     pub fn min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
         if self.len() == 0:
             return .None
@@ -2187,8 +2187,8 @@ impl[T] List[T]:
             index = index + 1
         .Some(self[best])
 
-    ## Returns a copy of the first element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
-    ## See [std-collections.helper.by-key.copy-first](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-first).
+    ## Returns a copy of the last element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.by-key.copy-ties](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-ties).
     pub fn max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
         if self.len() == 0:
             return .None
@@ -2197,7 +2197,7 @@ impl[T] List[T]:
         let index: usize = 1
         while index < self.len():
             item_key := key(&self[index])
-            if before(best_key, item_key):
+            if !before(item_key, best_key):
                 best = index
                 best_key = item_key
             index = index + 1

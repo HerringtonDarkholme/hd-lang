@@ -1,5 +1,5 @@
-# test: min_by_key and max_by_key keep the first of equal keys, dedup cuts runs of equal neighbours, and unique keeps first occurrences
-# Spec std/collections List Helpers: std-collections.helper.by-key.copy-first, .dedup, and .unique.
+# test: min_by_key keeps the first of equal keys and max_by_key the last, dedup cuts runs of equal neighbours, and unique keeps first occurrences
+# Spec std/collections List Helpers: std-collections.helper.by-key.copy-ties, .dedup, and .unique.
 struct Order:
     customer: string
     cents: i64
@@ -12,7 +12,7 @@ fn customer(order: Order?) -> string:
 tests:
     use std.testing.assert_equal
 
-    it("by key picks the first of equal keys"):
+    it("by key picks the first smallest and the last largest of equal keys"):
         orders := [
             Order { customer: "bo", cents: 300 },
             Order { customer: "al", cents: 50 },
@@ -21,8 +21,8 @@ tests:
         ]
         assert_equal(
             customer(orders.max_by_key(fn(o: &Order) -> i64: o.cents)),
-            "bo",
-            reason="the first largest",
+            "cy",
+            reason="the last largest",
         )
         assert_equal(
             customer(orders.min_by_key(fn(o: &Order) -> i64: o.cents)),

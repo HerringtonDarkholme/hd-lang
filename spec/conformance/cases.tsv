@@ -3314,7 +3314,7 @@ std/collections/list-methods/list-chunks-zero.hd	runtime	panic:explicit-panic	st
 std/collections/map-methods/map-keys-values.hd	runtime	accept	std/collections.md#map-methods
 std/cmp/clamp/cmp-clamp.hd	runtime	accept	std/cmp.md#r-std-cmp.clamp.result
 std/cmp/clamp/cmp-clamp-reversed.hd	runtime	panic:explicit-panic	std/cmp.md#r-std-cmp.clamp.order
-std/cmp/min-and-max/cmp-min-max.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.tie
+std/cmp/min-and-max/cmp-min-max.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.tie.v2
 std/cmp/ordering-values/cmp-ordering-eq.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.eq
 std/error/standard-error-types/std-errors-erased.hd	runtime	accept	std/error.md#r-std-error.std-types.impl.reference-values
 std/error/standard-error-types/std-errors-erased-codecs.hd	runtime	accept	std/error.md#r-std-error.std-types.impl.reference-values
@@ -3636,7 +3636,7 @@ std/collections/list-helpers/list-group-by.hd	runtime	accept	std/collections.md#
 std/collections/list-helpers/list-partition-search.hd	runtime	accept	std/collections.md#list-helpers
 std/collections/list-helpers/list-flat-map-windows.hd	runtime	accept	std/collections.md#r-std-collections.helper.windows.views
 std/collections/list-helpers/list-windows-size.hd	runtime	panic:explicit-panic	std/collections.md#r-std-collections.helper.windows.size
-std/collections/list-helpers/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.copy-first
+std/collections/list-helpers/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.copy-ties
 std/collections/list-helpers/list-helper-callback-row.hd	type	reject:type-mismatch	std/collections.md#r-std-collections.helper.callback-row
 std/collections/list-helpers/list-counts.hd	runtime	accept	std/collections.md#r-std-collections.counts.decl
 std/option/optional-methods/map-get-unwrap-or.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
@@ -3979,7 +3979,7 @@ lang/lexical/comments/module-documentation.hd	parse	accept	lang/01-lexical-struc
 lang/lexical/comments/module-documentation-second-block.hd	parse	reject:doc-comment-without-target	lang/01-lexical-structure.md#r-lex.doc.module.once
 std/cmp/derived-ordering/derived-ordering-run.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.ord.data
 std/cmp/derived-ordering/readonly-comparison-parameter-lifetimes.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.ord.data
-std/cmp/min-and-max/cmp-min-max-distinguishable-tie.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.tie
+std/cmp/min-and-max/cmp-min-max-distinguishable-tie.hd	runtime	accept	std/cmp.md#r-std-cmp.min-max.tie.v2
 lang/annotations/two-annotate-forms/facts-of-literal-generic-none.hd	runtime	accept	lang/14-annotations.md#r-annot.facts-of.result.compiler-decorators.v2
 lang/types/numeric-conversions/sized-integer-arithmetic.hd	runtime	accept	lang/04-type-system.md#r-types.arith.checked
 lang/types/numeric-conversions/numeric-casts-in-range.hd	runtime	accept	lang/04-type-system.md#r-types.cast.float-int-saturate
@@ -4778,7 +4778,7 @@ std/error/one-off-errors/error-message.hd	runtime	accept	std/error.md#r-std-erro
 std/fs/walking-and-globbing/fs-walk.hd	runtime	accept	std/fs.md#r-std-fs.walk.order
 std/fs/walking-and-globbing/fs-glob.hd	runtime	accept	std/fs.md#r-std-fs.glob.deep
 std/fs/walking-and-globbing/fs-glob-errors.hd	runtime	accept	std/fs.md#r-std-fs.glob.error
-std/collections/list-helpers/list-by-key-dedup.hd	runtime	accept	std/collections.md#r-std-collections.helper.by-key.copy-first
+std/collections/list-helpers/list-by-key-dedup.hd	runtime	accept	std/collections.md#r-std-collections.helper.by-key.copy-ties
 std/collections/map-methods/map-entries-most-common.hd	runtime	accept	std/collections.md#r-std-collections.map.most-common.tie-order
 std/collections/set/set-collect.hd	runtime	accept	std/collections.md#r-std-collections.set.collect-distinct
 std/collections/set/set-properties.hd	runtime	accept	std/collections.md#set

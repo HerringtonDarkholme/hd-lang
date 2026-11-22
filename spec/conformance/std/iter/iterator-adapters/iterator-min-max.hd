@@ -1,7 +1,7 @@
-# test: min and max return the smallest and largest remaining item, the first of equal ones, .None when empty, and on a dyn iterator too
+# test: min and max return the smallest and largest remaining item, min the first of equal ones and max the last, .None when empty, and on a dyn iterator too
 # Spec std/iter More Adapters: std-iter.adapter.min.value, std-iter.adapter.max.value, std-iter.adapter.min-max.tie, std-iter.adapter.min-max.drain, std-iter.adapter.min-max.dyn.
 # expect-stdout: (Option.Some(9), Option.Some(1), Option.None, Option.Some("fig"))
-# expect-stdout: (Option.Some("b"), Option.Some("a"))
+# expect-stdout: (Option.Some("c"), Option.Some("a"))
 # expect-stdout: Option.Some(9)
 use std.cmp.{Ord, Ordering, PartialOrd}
 

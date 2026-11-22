@@ -506,11 +506,11 @@ fn owners(tasks: List[Task]) -> List[string]:
 14. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
 15. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
 16. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
-17. r[std-collections.helper.min-max.copy-first] `min` returns a copy of the first smallest element and `max` one to the first largest by `Ord`, each in `.Some`. An empty list gives `.None`.
+17. r[std-collections.helper.min-max.copy-ties] `min` returns a copy of the first smallest element and `max` one of the last largest by `Ord`, each in `.Some`, as Rust's `Iterator::min` and `Iterator::max` do. An empty list gives `.None`.
 18. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
 19. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
 20. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
-21. r[std-collections.helper.by-key.copy-first] `min_by_key(key)` returns a copy of the first element whose `key` is smallest by `Ord`. `max_by_key(key)` returns a copy of the first whose `key` is largest. Each returns `.Some`, so equal keys give the earlier element, as `min` and `max` do. An empty list gives `.None`.
+21. r[std-collections.helper.by-key.copy-ties] `min_by_key(key)` returns a copy of the first element whose `key` is smallest by `Ord`. `max_by_key(key)` returns a copy of the last whose `key` is largest. Each returns `.Some`, so equal keys give the earlier element for `min_by_key` and the later one for `max_by_key`, as `min` and `max` do and as Rust's `Iterator::min_by_key` and `Iterator::max_by_key` do. An empty list gives `.None`.
 22. r[std-collections.helper.dedup] `dedup` returns the list without each element that equals the element just before it in the receiver, as Rust's `Vec::dedup` does, so only adjacent duplicates go and `[1, 2, 1]` is unchanged.
 23. r[std-collections.helper.unique] `unique` returns the list without each element that equals an earlier element, so every distinct element stays once, at its first position.
 24. r[std-collections.helper.callback-ref] Each callback looks at an element by reference: `fn(&T)`, and `fn(&T, &T)` for `sorted_by` and `sort_by`. Each receiver is `&self`, or `&mut self` for a method that changes the list.
@@ -529,7 +529,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 | `[1, 2].windows(3)` | `[]` |
 | `[5, 7, 5].index_of(5)` | `.Some(0)` |
 | `[2, 9, 4].max()` | `.Some(9)` |
-| `["bb", "a", "cc"].max_by_key(fn(w: &string) -> usize: w.len())` | `.Some("bb")` |
+| `["bb", "a", "cc"].max_by_key(fn(w: &string) -> usize: w.len())` | `.Some("cc")` |
 | `[1, 1, 2, 1].dedup()` | `[1, 2, 1]` |
 | `[1, 1, 2, 1].unique()` | `[1, 2]` |
 | `[1, 2, 3].sum()` | `6` |
@@ -544,9 +544,9 @@ fn paged(items: List[i32]) -> List[List[i32]]:
 > **Why.** The names are Rust's (`sort_by_key`, `partition`, `windows`,
 > `any`, `all`, `find`, `flat_map`, `contains`, `min`, `max`), Kotlin's
 > `groupBy`, and Python's `list.index`. A sort copies, as `sorted_by`
-> does, since hd has no consuming methods. `min` and `max` both pick the
-> first of equal elements, as Python's `min` and `max` do, so one rule
-> covers both. `sum` is Python's `sum` and Rust's `Iterator::sum`; a list
+> does, since hd has no consuming methods. `min` picks the first of equal
+> elements and `max` the last, as Rust's `Iterator::min` and
+> `Iterator::max` do, and as `std.cmp` and `Iterator` do here. `sum` is Python's `sum` and Rust's `Iterator::sum`; a list
 > has it as a method beside `min` and `max`, since a list is not an
 > iterator.
 >

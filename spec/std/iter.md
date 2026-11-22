@@ -194,7 +194,7 @@ fn has_blank(lines: List[string]) -> bool:
 16. r[std-iter.adapter.flat-map.open-once] `flat_map` calls `iter()` once on each transformed result, only when that result is reached.
 17. r[std-iter.adapter.flat-map.drain-inner] It drains that cursor before transforming the next source item, skipping empty results.
 18. r[std-iter.adapter.min-max.bound] `min` and `max` bound the item type with a method `where` clause ([`trait.where.clause`](../lang/09-traits.md#r-trait.where.clause)). An iterator over items that do not implement `Ord` still implements `Iterator[T]`, and calling `min` or `max` on it is an error at the call. Error: `unsatisfied-trait-bound`.
-19. r[std-iter.adapter.min-max.tie] Of several equal items by `Ord`, `min` and `max` each return the first, as [`std-cmp.min-max.tie`](cmp.md#r-std-cmp.min-max.tie) and [`std-collections.helper.min-max.copy-first`](collections.md#r-std-collections.helper.min-max.copy-first) do.
+19. r[std-iter.adapter.min-max.tie] Of several equal items by `Ord`, `min` returns the first and `max` the last, as Rust's `Iterator::min` and `Iterator::max` do, and as [`std-cmp.min-max.tie.v2`](cmp.md#r-std-cmp.min-max.tie.v2) and [`std-collections.helper.min-max.copy-ties`](collections.md#r-std-collections.helper.min-max.copy-ties) do.
 20. r[std-iter.adapter.min-max.drain] `min` and `max` advance `self` until `next` returns `.None`, which exhausts the owned cursor. On an exhausted iterator both are `.None`.
 21. r[std-iter.adapter.min-max.dyn] `dyn Iterator[T]` has `min` and `max` too, with the same bound, as inherent methods that read the trait value through a cursor, since a method with a `where` clause is unavailable on a trait value ([`trait.dyn.member.where`](../lang/09-traits.md#r-trait.dyn.member.where)).
 ```text
@@ -216,10 +216,8 @@ fn joined_eagerly(first: List[i32], rest: *mut dyn Iterator[i32]) -> List[i32]:
 > [`std-collections.helper.sum`](collections.md#r-std-collections.helper.sum).
 
 > **Why.** The names and the pulling order are Rust's, so `zip` and
-> `take_while` drop the same items there and here. On a tie, Rust's
-> `Iterator::max` returns the last item; hd's returns the first, so the
-> iterator agrees with `std.cmp.max` and `List.max`, which keep Python's
-> first-of-equals rule. `zip` and `chain` take
+> `take_while` drop the same items there and here. `min` and `max` break
+> ties as Rust's do, so code moved from Rust picks the same item. `zip` and `chain` take
 > any `Iterable`, as Rust's two take any `IntoIterator`, so a list, set,
 > or range passes directly. `I` is a bounded type parameter, so `other.iter()`
 > is dispatched statically, with no trait value.

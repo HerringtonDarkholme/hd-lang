@@ -115,7 +115,7 @@ pub trait Iterator[T < ?Copy] < ?Copy:
                 .None => break
         .Some(best)
 
-    ## The largest remaining item, the first of equal ones, or `.None`; it drains the iterator.
+    ## The largest remaining item, the last of equal ones, or `.None`; it drains the iterator.
     ## See [std-iter.adapter.max.value](../../spec/std/iter.md#r-std-iter.adapter.max.value).
     fn max(self) -> T? where T < Ord:
         let mut cursor = self
@@ -126,8 +126,8 @@ pub trait Iterator[T < ?Copy] < ?Copy:
             match cursor.next():
                 .Some(item) =>
                     match item.cmp(&best):
-                        .Greater => best = item
-                        _ => pass
+                        .Less => pass
+                        _ => best = item
                 .None => break
         .Some(best)
 
