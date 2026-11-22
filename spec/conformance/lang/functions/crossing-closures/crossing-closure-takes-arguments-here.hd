@@ -1,0 +1,20 @@
+# test: a Wire crossing closure that takes arguments, run here or awaited, gets them alongside its captures
+# Spec 07 Crossing Closures: fn.crossing.lift, fn.crossing.parameter.row.
+# expect-stdout: 47 thumb-2
+use std.marker.Wire
+
+fn twice[T < ?Copy & Wire](code: fn(i32, string) -> T + Wire) -> T:
+    code(2, "-")
+
+fn later![T < ?Copy & Wire](code: fn!(i32) -> T + Wire) -> T:
+    code!(40)
+
+fn bump!(n: i32) -> i32:
+    n + 1
+
+pub fn main!() -> void $ Console:
+    base := 6
+    name := "thumb"
+    sum := later!(fn!(n: i32) -> i32: bump!(n) + base)
+    label := twice(fn(k: i32, sep: string) -> string: "$name$sep$k")
+    println("$sum $label")

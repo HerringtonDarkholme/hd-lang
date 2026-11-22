@@ -2,20 +2,16 @@
 (module
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
   (import "fixture" "println[u32]" (func $"println[u32]" (param i32 i32 i32)))
-  (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "wire_encode[(u32, Image)]" (func $"wire_encode[(u32, Image)]" (param i32) (result i32)))
   (import "fixture" "crossing_number[fn((u32, Image)) -> Image]" (func $"crossing_number[fn((u32, Image)) -> Image]" (param i64 i32 i32) (result i64)))
-  (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "release_value[std.remote.Crossing[fn() -> Image]]" (func $"release_value[std.remote.Crossing[fn() -> Image]]" (param i32 i32 i64 i32)))
+  (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "stack" (global $stack (mut i32)))
-  (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
+  (import "fixture" "crossing_frame[(u32, Image)]" (func $"crossing_frame[(u32, Image)]" (param i64 i32 i32 i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 27 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
-    ;; 28 |     println(demo(Image { width: 4, pixels: [1, 2, 3] }, 64))
+    ;; 26 |     println(demo(Image { width: 4, pixels: [1, 2, 3] }, 64))
     i32.const 3
     call $rt:list_buf
     local.tee $t0
@@ -42,120 +38,77 @@
     call $"println[u32]"
   )
   (func $demo#1 (param $env i32) (param $t0 i32) (param $t2 i32) (param $t1 i32) (param $ctx i32) (result i32 i32)
-    ;; 24 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
+    ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     local.get $t0
     local.get $t1
   )
-  (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $captures i32) (local $t0 i32) (local $t1 i64) (local $code.code.1 i32)
-    ;; 24 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 24
-    i32.lt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    global.get $stack
-    i32.const 24
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $captures
-    local.get $side
-    i32.store $heap offset=8
-    local.get $captures
-    local.get $photo.width
-    i32.store $heap offset=4
-    local.get $captures
-    local.get $photo.pixels
-    i32.store $heap
-    local.get $captures
-    call $"wire_encode[(u32, Image)]"
-    local.get $captures
-    i32.load $heap offset=8
-    local.get $captures
-    i32.load $heap offset=4
-    local.get $captures
-    i32.load $heap
-    local.get $captures
-    i32.const 0
-    i32.store $heap offset=8
-    local.get $captures
-    i32.const 0
-    i32.store $heap offset=4
-    local.get $captures
-    i32.const 0
-    i32.store $heap
-    local.set $photo.width
-    local.set $photo.pixels
-    local.set $side
+  (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $t0 i32) (local $t1 i64) (local $code.1 i32)
+    ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     i64.const -1162861209082736682
     i32.const 10
-    local.tee $captures
+    local.tee $t0
     i32.const 0
     call $"crossing_number[fn((u32, Image)) -> Image]"
     local.set $t1
     i32.const 11
-    i32.const 20
+    i32.const 32
     i32.const -2147483647
-    call $rt:new/class-2
-    local.tee $code.code.1
-    local.get $captures
+    call $rt:new/class-3
+    local.tee $code.1
+    local.get $t0
     i32.store $heap
-    local.get $code.code.1
+    local.get $code.1
     i32.const 0
     i32.store $heap offset=4
-    local.get $code.code.1
+    local.get $code.1
     local.get $side
     i32.store $heap offset=16
-    local.get $code.code.1
-    local.get $photo.pixels
-    i32.store $heap offset=12
-    local.get $code.code.1
+    local.get $code.1
     local.get $photo.width
+    i32.store $heap offset=12
+    local.get $code.1
+    local.get $photo.pixels
     i32.store $heap offset=8
+    local.get $code.1
+    local.get $t1
+    i64.store $heap offset=24
+    drop
+    local.get $code.1
+    i32.const 0
+    i32.const 0
+    call $demo#2
     local.set $photo.width
     local.set $photo.pixels
-    local.get $code.code.1
-    i32.const 0
-    local.get $photo.width
-    call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $side
-    local.set $captures
-    local.get $photo.width
-    local.get $code.code.1
-    local.get $t1
-    local.get $photo.pixels
-    call $"release_value[std.remote.Crossing[fn() -> Image]]"
-    local.get $side
+    local.get $code.1
     if
-      local.get $side
+      local.get $code.1
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $side
+        local.get $code.1
         call $rt:release_ref
       end
     end
-    local.get $captures
-    local.get $t0
-    i32.const 24
-    i32.add
-    global.set $stack
+    local.get $photo.pixels
+    if
+      local.get $photo.pixels
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $photo.pixels
+        call $rt:release_ref
+      end
+    end
+    local.get $photo.width
   )
-  (func $demo#2 (param $env i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
-    ;; 24 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
+  (func $demo#2 (param $env i32) (param $t5 i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i64)
+    ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     local.get $env
     i32.load $heap
     local.set $ctx
@@ -170,6 +123,10 @@
     local.set $t2
     local.get $env
     i32.load $heap offset=8
+    local.tee $t3
+    local.get $env
+    i64.load $heap offset=24
+    local.set $t4
     local.tee $env
     if
       local.get $env
@@ -181,12 +138,27 @@
         call $rt:retain_known
       end
     end
-    local.get $t0
-    local.get $t1
-    local.get $t2
+    local.get $t5
+    if (result i32)
+      i32.const 0
+      local.get $t4
+      local.get $t1
+      local.get $t2
+      local.get $t3
+      call $"crossing_frame[(u32, Image)]"
+      local.set $env
+    else
+      local.get $t0
+      local.get $t1
+      local.get $t2
+      local.get $t3
+      i32.const 0
+      local.get $ctx
+      call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32 i32)
+      local.set $t5
+      local.set $env
+      local.get $t5
+    end
     local.get $env
-    i32.const 0
-    local.get $ctx
-    call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32 i32)
   )
 )

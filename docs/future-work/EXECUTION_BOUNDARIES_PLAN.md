@@ -545,19 +545,28 @@ second form always, with sharing left to `Arc`.)
 - A `Wire` crossing literal is lifted to a function of its captures
   (`fn.crossing.lift`): the closure's captures become its leading
   parameters, and it captures nothing. The caller moves the captures into
-  one tuple, encodes it once (`std.remote.crossing_frame`), and passes
-  `std.remote.Crossing { code, number, captures }`: `code` is a closure of
-  the moved captures that calls the lifted function, so a call here runs
-  the literal as written, its row included. Inside the callee the
-  parameter is that struct (`ProgramEnv::params` and the body's local
-  agree), so a call reads `code` and a domain reads the rest. Only `Wire`
-  changes: a `Send` crossing shares memory and passes its closure.
+  one tuple and passes the literal's code
+  (`KnownItems::crossing_code`), `fn(send: bool, ..) -> Result[C,
+  List[u8]]`, a closure of the moved captures and the number. For `false`
+  it calls the lifted function and returns `Ok` of the call's value `C`
+  (`T`, or a cold `Suspend[T]` the callee awaits), so a call here runs the
+  literal as written, its row included. For `true` it returns `Err` of the
+  frame (`std.remote.crossing_frame`, out of line): the number, then the
+  encoded captures. Inside the callee the parameter is that code
+  (`ProgramEnv::params` and the body's local agree): a call passes `false`
+  and reads the `Ok`, and a domain calls `crossing_sent`, which passes
+  `true`. Only `Wire` changes: a `Send` crossing shares memory and passes
+  its closure.
+  Reading (trim, 2026-11-22): the first build encoded the captures at
+  every call, even one that ran here; the code's flag keeps the encode on
+  the path that sends, at the price of one `Result` per local call.
 - The number is the literal's own (its item's path digest XOR its node) XOR the canonical
   digest of the lifted function's type (`type_number`, as interface
   numbers are taken), so each instance of a generic literal has its own,
   and every instance of the module computes the same one.
-- Cost: lifting is one pass over the literal's instructions; a call pays
-  one encode of the captures, even one that runs here.
+- Cost: lifting is one pass over the literal's instructions; a call
+  that runs here pays one number and one `Result`, and only a send
+  encodes the captures.
 - The lifted function takes its captures as one tuple parameter, so every
   lifted function has one input and the worker's dispatcher
   `std.remote.crossing_run` is uniform: per literal, a test of its number,

@@ -1,38 +1,33 @@
 //! A `Wire` crossing closure as it is passed (`fn.crossing.lift`, stage 6
 //! of #2288): the closure literal is lifted to a function of its captures,
 //! whose number a worker of the same build finds again, and the caller
-//! passes `std.remote.Crossing { code, number, captures }`: a closure that
-//! calls the lifted function on the captures here, and the captures encoded
-//! for another instance. Inside the callee the parameter is that struct, so
-//! a call reads its `code` and a domain reads the rest. Swift lifts a
-//! closure's captures to parameters the same way; Rust's closure is a
-//! struct of its captures that `serde` would walk.
+//! passes its code (`KnownItems::crossing_code`), a closure of the moved
+//! captures that runs the lifted function here for `false` and gives the
+//! literal's frame, its number and encoded captures, for `true`. So a call
+//! here never encodes, and only a domain that sends pays for the frame.
+//! Swift lifts a closure's captures to parameters the same way; Rust's
+//! closure is a struct of its captures that `serde` would walk.
 
 use hd_base::{LocalId, NodeIdx};
 use hd_resolve::known::REMOTE_MODULE;
 use hd_syntax::NodeRef;
-use hd_tir::ir::{
-    Callee, NONE, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, SubMark, Tag, TirSink as _,
-    local_flags, place,
-};
-use hd_types::{Ty, TyData};
+use hd_tir::ir::{Callee, NONE, Providers, Ref, SubMark, Tag, TirSink as _, local_flags, place};
+use hd_types::{Prim, Ty, TyData};
 
 use crate::body::Ck;
 
 /// A literal whose captures [`Ck::wire_lift`] lifted: the tuple local that
-/// now holds them, their types, and the local holding their encoding.
+/// now holds them, and their types.
 pub(crate) struct WireLift {
     held: LocalId,
     tys: Vec<Ty>,
-    frame: LocalId,
 }
 
 impl Ck<'_, '_> {
     /// Before the literal `n`'s sub-body `m` closes, when it is written for
-    /// a `Wire` crossing parameter: moves its captures into one tuple,
-    /// encodes it (`crossing_frame`), and makes that tuple `m`'s leading
-    /// parameter, so `m` captures nothing. Returns the lifted type.
-    /// Cost: the closure's instructions once, and one encode per call.
+    /// a `Wire` crossing parameter: moves its captures into one tuple and
+    /// makes that tuple `m`'s leading parameter, so `m` captures nothing.
+    /// Returns the lifted type. Cost: the closure's instructions once.
     pub(crate) fn wire_lift(
         &mut self,
         m: SubMark,
@@ -52,59 +47,25 @@ impl Ck<'_, '_> {
             elems: pool.list(&tys),
             rest: None,
         });
-        let p = self.wire_local(tuple_ty, "$captures", syn);
-        self.b.body_mut().local_flags[p.idx()] |= local_flags::PARAM;
+        let p = self.wire_local(tuple_ty, "$captures", local_flags::PARAM, syn);
         self.b.lift_captures(m, from, &caps, p);
         let reads: Vec<Ref> = (caps.iter().zip(&tys))
             .map(|(&l, &t)| self.b.get(l, t, syn))
             .collect();
         let rec = self.b.refs_record(&reads);
         let tuple = self.b.emit(Tag::NewTuple, NONE, rec, tuple_ty, syn);
-        let bytes = self.bytes_ty();
-        let pair_ty = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[tuple_ty, bytes]),
-            rest: None,
-        });
-        let pair = self.remote_call("crossing_frame", &[tuple_ty], &[tuple], pair_ty, syn);
-        let pair_local = self.wire_local(pair_ty, "$crossing", syn);
-        self.b.set(pair_local, pair, syn);
-        let held = self.wire_local(tuple_ty, "$held", syn);
-        let v = self.held_field(pair_local, 0, tuple_ty, syn);
-        self.b.set(held, v, syn);
-        self.add_flags(held, local_flags::CAPTURED);
-        let frame = self.wire_local(bytes, "$frame", syn);
-        let v = self.held_field(pair_local, 1, bytes, syn);
-        self.b.set(frame, v, syn);
-        self.wire_lifted = Some(WireLift { held, tys, frame });
-        let TyData::Fn {
-            params: own,
-            result,
-            row,
-            suspends,
-            inputs,
-            deps,
-        } = pool.get(ft)
-        else {
-            return None;
-        };
-        let all: Vec<Ty> = std::iter::once(tuple_ty)
-            .chain(pool.list_items(own).iter().copied())
-            .collect();
-        Some(pool.intern_ty(&TyData::Fn {
-            params: pool.list(&all),
-            result,
-            row,
-            suspends,
-            inputs,
-            deps,
-        }))
+        let held = self.wire_local(tuple_ty, "$held", local_flags::CAPTURED, syn);
+        self.b.set(held, tuple, syn);
+        self.wire_lifted = Some(WireLift { held, tys });
+        pool.fn_led(ft, tuple_ty, None)
     }
 
-    /// After the lifted literal `lifted` closed, at the call: the
-    /// `Crossing` the callee takes. Its `code` calls `lifted` on the held
-    /// captures; its number is `crossing_number` of the literal and its
-    /// function. Returns the held captures for the marker check, and the
-    /// value to pass.
+    /// After the lifted literal `lifted` closed, at the call: the code the
+    /// callee takes, `fn(send: bool, ..)`. For `false` it calls `lifted` on
+    /// the held captures and returns `Ok` of its result, so a call here
+    /// runs the literal as written; for `true` it returns `Err` of the
+    /// frame (`crossing_frame`). Returns the captures' types for the
+    /// marker check, and the code to pass. Cost: one number per call.
     pub(crate) fn wire_pass(
         &mut self,
         lifted: Ref,
@@ -114,139 +75,129 @@ impl Ck<'_, '_> {
         let w = self.wire_lifted.take()?;
         let pool = self.pool();
         let syn = e.index();
-        let i = lifted.as_inst()?;
-        let kfn_ty = self.b.body().ty[i.0 as usize];
-        let code = self.wire_local(kfn_ty, "$lifted", syn);
+        let kfn_ty = self.b.body().ty[lifted.as_inst()?.0 as usize];
+        let code = self.wire_local(kfn_ty, "$lifted", local_flags::CAPTURED, syn);
         self.b.set(code, lifted, syn);
-        self.add_flags(code, local_flags::CAPTURED);
         // The literal: its item's path digest and its node
         // (`fn.crossing.lift`), which every build of the same source keeps.
         let item = self.cx.names.path_hash(self.b.body().item).0;
         let item = u64::try_from(item & u128::from(u64::MAX)).unwrap_or(0);
-        let literal = item ^ u64::from(syn.raw());
-        let literal = self
-            .b
-            .const_value(hd_types::Ty::prim(hd_types::Prim::U64), literal);
+        let u64_ = Ty::prim(Prim::U64);
+        let literal = self.b.const_value(u64_, item ^ u64::from(syn.raw()));
         let f = self.b.get(code, kfn_ty, syn);
-        let u64_ = hd_types::Ty::prim(hd_types::Prim::U64);
         let number = self.remote_call("crossing_number", &[kfn_ty], &[literal, f], u64_, syn);
-        // `code`: a closure of the held captures that calls the lifted
-        // function on them, so a call here runs the literal as written.
+        let num = self.wire_local(u64_, "$number", local_flags::CAPTURED, syn);
+        self.b.set(num, number, syn);
+        let g = self.cx.names.known.crossing_code(pool, ft);
         let TyData::Fn {
-            suspends, result, ..
-        } = pool.get(ft)
+            params, result: r, ..
+        } = pool.get(g)
         else {
             return None;
         };
-        let m = self.b.open_sub(&[]);
+        let (_, parts) = pool.adt_parts(r);
+        let value_ty = pool.list_items(parts)[0];
+        let args: Vec<LocalId> = (pool.list_items(params).iter())
+            .map(|&t| self.wire_local(t, "$arg", local_flags::PARAM, syn))
+            .collect();
+        let m = self.b.open_sub(&args);
         let blk = self.b.open_block();
-        self.b.capture(m, code);
-        let callee = self.b.get(code, kfn_ty, syn);
-        self.b.capture(m, w.held);
+        for l in [code, w.held, num] {
+            self.b.capture(m, l);
+        }
         let tuple = self.b.local_ty(w.held);
-        let args = [self.b.get(w.held, tuple, syn)];
-        let rec = self.b.call_args_record(&args, Providers::None);
-        let value = if suspends {
-            let st = self.suspend_ty(result);
-            let cold = self.b.emit(Tag::CallValue, callee.0, rec, st, syn);
-            let empty = self.b.call_args_record(&[], Providers::None);
-            self.b.emit(Tag::AwaitValue, cold.0, empty, result, syn)
-        } else {
-            self.b.emit(Tag::CallValue, callee.0, rec, result, syn)
-        };
-        let root = self.b.close_block(blk, Some(value), result, syn);
-        let call = self.b.close_sub(m, root, ft, syn);
-        let frame = self.b.get(w.frame, self.bytes_ty(), syn);
-        let rec = self.b.refs_record(&[call, number, frame]);
-        let crossing = self.crossing_ty(ft);
-        let value = self.b.emit(Tag::NewStruct, NONE, rec, crossing, syn);
-        if let Some(c) = call.as_inst() {
+        let flag = self.b.get(args[0], Ty::BOOL, syn);
+        let sent = self.b.open_block();
+        let frame = [self.b.get(num, u64_, syn), self.b.get(w.held, tuple, syn)];
+        let bytes = pool.applied(self.cx.names.known.list, Ty::prim(Prim::U8));
+        let frame = self.remote_call("crossing_frame", &[tuple], &frame, bytes, syn);
+        let rec = self.b.refs_record(&[frame]);
+        let err = self.b.emit(Tag::NewVariant, 1, rec, r, syn);
+        let sent = self.b.close_block(sent, Some(err), r, syn);
+        let here = self.b.open_block();
+        let callee = self.b.get(code, kfn_ty, syn);
+        let mut inputs = vec![self.b.get(w.held, tuple, syn)];
+        for &l in &args[1..] {
+            inputs.push(self.b.get(l, self.b.local_ty(l), syn));
+        }
+        let rec = self.b.call_args_record(&inputs, Providers::None);
+        // A literal that suspends is called cold; the callee awaits it.
+        let value = self.b.emit(Tag::CallValue, callee.0, rec, value_ty, syn);
+        let rec = self.b.refs_record(&[value]);
+        let ok = self.b.emit(Tag::NewVariant, 0, rec, r, syn);
+        let here = self.b.close_block(here, Some(ok), r, syn);
+        let rec = self.b.refs_record(&[sent, here]);
+        let chosen = self.b.emit(Tag::If, flag.0, rec, r, syn);
+        let root = self.b.close_block(blk, Some(chosen), r, syn);
+        let passed = self.b.close_sub(m, root, g, syn);
+        if let Some(c) = passed.as_inst() {
             self.crossing_closures.push((c.0, self.cx.names.known.wire));
         }
-        Some((w.tys, value))
+        Some((w.tys, passed))
     }
 
-    /// At the body's end: each `Wire` crossing parameter is a `Crossing`
-    /// (`fn.crossing.lift`). A call of it reads its `code`; passing it on
-    /// passes the struct.
+    /// A call through `f` of `args`, of type `ty`. When `f` reads a `Wire`
+    /// crossing parameter, its code is called with `false` first, and the
+    /// call is the `Ok` that returns (`fn.crossing.lift`).
+    pub(crate) fn value_call(&mut self, f: Ref, args: &[Ref], ty: Ty, syn: NodeIdx) -> Ref {
+        let wire = self.cx.names.known.wire;
+        let read = f.as_inst().map_or(NONE, |i| {
+            let b = self.b.body();
+            let i = i.0 as usize;
+            if b.tags[i] == Tag::Read {
+                b.data[i][0]
+            } else {
+                NONE
+            }
+        });
+        let param = (self.crossing_params.iter())
+            .find(|&&(l, m)| m == wire && read == l.raw() | place::BARE_LOCAL);
+        let Some(&(l, _)) = param else {
+            let rec = self.b.call_args_record(args, Providers::None);
+            return self.b.emit(Tag::CallValue, f.0, rec, ty, syn);
+        };
+        let code = self
+            .cx
+            .names
+            .known
+            .crossing_code(self.pool(), self.b.local_ty(l));
+        let TyData::Fn { result, .. } = self.pool().get(code) else {
+            return Ref(NONE);
+        };
+        let args: Vec<Ref> = std::iter::once(self.b.const_value(Ty::BOOL, 0))
+            .chain(args.iter().copied())
+            .collect();
+        let rec = self.b.call_args_record(&args, Providers::None);
+        let ran = self.b.emit(Tag::CallValue, f.0, rec, result, syn);
+        self.b.payload(ran, 0, 0, ty, syn)
+    }
+
+    /// At the body's end: each `Wire` crossing parameter holds its
+    /// literal's code (`fn.crossing.lift`), and so does each read of it.
     pub(crate) fn wire_params_finish(&mut self) {
         let wire = self.cx.names.known.wire;
-        let params: Vec<LocalId> = (self.crossing_params.iter())
-            .filter(|&&(_, m)| m == wire)
-            .map(|&(l, _)| l)
-            .collect();
-        if params.is_empty() {
-            return;
-        }
-        let callees: hd_base::HashSet<u32> = {
-            let b = self.b.body();
-            (0..b.len())
-                .filter(|&i| b.tags[i] == Tag::CallValue)
-                .map(|i| b.data[i][0])
-                .collect()
-        };
-        for l in params {
+        for (l, _) in self
+            .crossing_params
+            .clone()
+            .into_iter()
+            .filter(|&(_, m)| m == wire)
+        {
             let f = self.zonk(self.b.local_ty(l));
-            let crossing = self.crossing_ty(f);
-            self.b.body_mut().local_ty[l.idx()] = crossing;
-            let code = self.b.place(&Place {
-                root: PlaceRoot::Local(l),
-                proj: vec![Proj::Field(0)],
-            });
+            let code = self.cx.names.known.crossing_code(self.pool(), f);
             let b = self.b.body_mut();
+            b.local_ty[l.idx()] = code;
             for i in 0..b.len() {
-                if b.tags[i] != Tag::Read || b.data[i][0] != l.raw() | place::BARE_LOCAL {
-                    continue;
-                }
-                if callees.contains(&hd_tir::ir::u32_of(i)) {
-                    b.data[i][0] = code;
-                } else {
-                    b.ty[i] = crossing;
+                if b.tags[i] == Tag::Read && b.data[i][0] == l.raw() | place::BARE_LOCAL {
+                    b.ty[i] = code;
                 }
             }
         }
     }
 
-    /// `std.remote.Crossing[F]`.
-    fn crossing_ty(&self, f: Ty) -> Ty {
-        let pool = self.pool();
-        pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.item(REMOTE_MODULE, "Crossing"),
-            args: pool.list(&[f]),
-        })
-    }
-
-    /// `List[u8]`.
-    fn bytes_ty(&self) -> Ty {
-        let pool = self.pool();
-        pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.list,
-            args: pool.list(&[Ty::prim(hd_types::Prim::U8)]),
-        })
-    }
-
-    /// `Suspend[T]`.
-    fn suspend_ty(&self, t: Ty) -> Ty {
-        let pool = self.pool();
-        pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[t]),
-        })
-    }
-
     /// A hidden local of the literal's.
-    fn wire_local(&mut self, ty: Ty, name: &str, syn: NodeIdx) -> LocalId {
+    fn wire_local(&mut self, ty: Ty, name: &str, flags: u8, syn: NodeIdx) -> LocalId {
         let name = self.cx.names.syms.intern(name);
-        self.b.local(ty, name, 0, syn)
-    }
-
-    /// `Read [$l .k]`, moving what it reads.
-    fn held_field(&mut self, l: LocalId, k: u32, ty: Ty, syn: NodeIdx) -> Ref {
-        let word = self.b.place(&Place {
-            root: PlaceRoot::Local(l),
-            proj: vec![Proj::Field(k)],
-        });
-        self.b.emit(Tag::Read, word, ReadMode::Use as u32, ty, syn)
+        self.b.local(ty, name, flags, syn)
     }
 
     /// A call of `std.remote`'s `name` at `targs`.

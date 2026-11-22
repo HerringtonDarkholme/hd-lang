@@ -1955,15 +1955,11 @@ impl Ck<'_, '_> {
             self.local_call_defaults(call.local, vars);
         }
         self.check_row(row, n);
-        let rec = self.b.call_args_record(&refs, Providers::None);
         if !suspends {
             if bang {
                 self.check_bang(false, n);
             }
-            return Ok((
-                self.b.emit(Tag::CallValue, f.0, rec, result, n.index()),
-                result,
-            ));
+            return Ok((self.value_call(f, &refs, result, n.index()), result));
         }
         // A suspending function value: a plain call is cold, a bang call
         // awaits it.
@@ -1974,7 +1970,7 @@ impl Ck<'_, '_> {
             def: suspend,
             args: pool.list(&[result]),
         });
-        let cold = self.b.emit(Tag::CallValue, f.0, rec, st, n.index());
+        let cold = self.value_call(f, &refs, st, n.index());
         if bang {
             self.check_bang(true, n);
             let empty = self.b.call_args_record(&[], hd_tir::ir::Providers::None);

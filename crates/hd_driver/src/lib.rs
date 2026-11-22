@@ -13906,16 +13906,16 @@ impl ProgramEnv for Env<'_> {
                 hd_structure::remote::u64_body(&cx, item, self.interface(def, args))
             }
             "type_number" => hd_structure::remote::u64_body(&cx, item, self.type_number(ty)),
-            "crossing_parts" => {
-                // The parameter's `Crossing` (`fn.crossing.lift`).
+            "crossing_sent" => {
+                // The parameter's code (`fn.crossing.lift`).
                 let sig = self.sig(item).ok_or_else(|| {
-                    NotImplemented::bug(Stage::Collect, "crossing parts without a signature")
+                    NotImplemented::bug(Stage::Collect, "crossing code without a signature")
                 })?;
                 let crossing = self.crossing_param(sig, 0, sig.params[0].1);
                 let crossing = self.run.pool.subst(crossing, &|p: hd_types::ParamRef| {
                     (p.owner == item).then_some(ty)
                 });
-                hd_structure::remote::crossing_parts_body(&cx, item, crossing)
+                hd_structure::remote::crossing_sent_body(&cx, item, crossing)
             }
             "serve" => hd_structure::remote::serve_body(&cx, item, ty, &self.served(ty)),
             "build_id" => hd_structure::remote::u64_body(&cx, item, self.build_id()),

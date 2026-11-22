@@ -3,12 +3,10 @@
 # @helpers: app/main/demo app/main/run
 # A closure literal for a `Wire` crossing parameter is lifted to a
 # function of its captures (`fn.crossing.lift`): the caller moves the
-# captures into one tuple, encodes it once (`crossing_frame`), and passes
-# `Crossing { code, number, captures }`, whose `code` calls the lifted
-# function on the captures it holds. The callee's call reads `code`.
-# expected: a call that runs here encodes the captures it never sends;
-# the encoding belongs where a domain sends it, which needs the encoder at
-# the callee.
+# captures into one tuple and passes the literal's code, a closure of the
+# tuple that calls the lifted function for `false` and gives the frame
+# (`crossing_frame`, out of line) for `true`. The callee's call passes
+# `false` and reads the `Ok`, so a call that runs here encodes nothing.
 use std.marker.Wire
 
 struct Image:

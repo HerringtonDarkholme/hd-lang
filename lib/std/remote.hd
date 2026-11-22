@@ -183,11 +183,9 @@ impl dyn Workers:
     ## `CrossError`.
     ## See [std-remote.workers.run](../../spec/std/remote.md#r-std-remote.workers.run).
     pub fn run![T < ?Copy & Wire](&mut self, code: fn() -> T + Wire) -> Result[T, CrossError]:
-        let (number, captures) = crossing_parts(code)
         let mut out = WireOut { bytes: [] }
         out.leb(build_id())
-        out.leb(number)
-        out.bytes.extend(captures)
+        out.bytes.extend(crossing_sent(code))
         reply := self.send!(out.bytes)?
         match wire_decode::[Reply](reply):
             .Some(.Ran(result)) =>
@@ -224,9 +222,10 @@ impl Workers for LoopbackWorkers:
     fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
         .Ok(worker_answer(frame))
 
-# A `Wire` crossing parameter's number and encoded captures (fn.crossing.lift).
-@intrinsic("crossing_parts")
-fn crossing_parts[T < ?Copy](code: fn() -> T + Wire) -> (u64, List[u8]):
+# A `Wire` crossing parameter's frame (fn.crossing.lift): the number of the
+# function its literal was lifted to, then its encoded captures.
+@intrinsic("crossing_sent")
+fn crossing_sent[T < ?Copy](code: fn() -> T + Wire) -> List[u8]:
     panic("intrinsic")
 
 ## Returns the root object at the far end of `transport`, as a stub of the
@@ -534,20 +533,15 @@ impl WireIn:
         self.at += n
         .Some(value)
 
-# A `Wire` crossing closure as its callee holds it (fn.crossing.lift): a
-# closure that runs the literal here, the number of the function the
-# literal was lifted to, and the captures that function takes, encoded for
-# another instance of the same build. Only the compiler builds one.
-struct Crossing[F]:
-    code: F
-    number: u64
-    captures: List[u8]
-
-# A `Wire` crossing literal's captures, encoded before its closure takes
-# them back.
-fn crossing_frame[C < ?Copy](captures: C) -> (C, List[u8]):
-    bytes := wire_encode(&captures)
-    (captures, bytes)
+# A `Wire` crossing literal's frame, which its code gives only a domain
+# that sends it: its number, then its captures. Out of line, so each
+# literal's code holds one call for the path that sends.
+@inline(.Never)
+fn crossing_frame[C < ?Copy](number: u64, captures: C) -> List[u8]:
+    let mut out = WireOut { bytes: [] }
+    out.leb(number)
+    wire_put::[C]()(&captures, &mut out)
+    out.bytes
 
 # The number of the function a `Wire` crossing literal was lifted to: the
 # literal's own number and the function's type, so each instance of a

@@ -178,20 +178,13 @@ impl Env<'_> {
     }
 
     /// Parameter `k` of `sig`, of type `ty`, as its body holds it: a `Wire`
-    /// crossing parameter is a `std.remote.Crossing` (`fn.crossing.lift`).
+    /// crossing parameter is its literal's code (`fn.crossing.lift`).
     pub(super) fn crossing_param(&self, sig: &hd_resolve::FnSig, k: usize, ty: Ty) -> Ty {
         let wire = self.run.known.wire;
         if !(sig.crossing.iter()).any(|c| usize::from(c.param) == k && c.marker == wire) {
             return ty;
         }
-        let pool = &self.run.pool;
-        pool.intern_ty(&TyData::Adt {
-            def: self
-                .run
-                .names()
-                .item(hd_resolve::known::REMOTE_MODULE, "Crossing"),
-            args: pool.list(&[ty]),
-        })
+        self.run.known.crossing_code(self.run.pool.types(), ty)
     }
 
     /// The family of one generated method of the std `Stub` at a remote

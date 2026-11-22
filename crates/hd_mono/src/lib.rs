@@ -2094,7 +2094,7 @@ impl Cx<'_> {
                     | "stub_as"
                     | "interface_of"
                     | "type_number"
-                    | "crossing_parts"
+                    | "crossing_sent"
                     | "serve"
                     | "build_id"
             )

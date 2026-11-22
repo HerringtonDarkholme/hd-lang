@@ -308,6 +308,32 @@ pub struct KnownItems {
 }
 
 impl KnownItems {
+    /// A `Wire` crossing parameter of type `fn(..) -> T` as its callee holds
+    /// it (`fn.crossing.lift`): `fn(bool, ..) -> Result[C, List[u8]]`, where
+    /// `C` is the call's value, `T` or its cold `Suspend[T]`. For `false` it
+    /// runs the literal here; for `true` it gives the literal's frame.
+    #[must_use]
+    pub fn crossing_code(&self, pool: hd_types::Types<'_>, f: hd_types::Ty) -> hd_types::Ty {
+        use hd_types::{Ty, TyData};
+        let TyData::Fn {
+            result, suspends, ..
+        } = pool.get(f)
+        else {
+            return f;
+        };
+        let value = if suspends {
+            pool.applied(self.suspend, result)
+        } else {
+            result
+        };
+        let bytes = pool.applied(self.list, Ty::prim(hd_types::Prim::U8));
+        let result = pool.intern_ty(&TyData::Adt {
+            def: self.result,
+            args: pool.list(&[value, bytes]),
+        });
+        pool.fn_led(f, Ty::BOOL, Some((result, false))).unwrap_or(f)
+    }
+
     /// A struct declaration.
     #[must_use]
     pub fn is_struct(&self, item: &crate::Item) -> bool {

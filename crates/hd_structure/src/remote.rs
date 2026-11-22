@@ -198,27 +198,25 @@ pub fn crossing_run_body(cx: &Cx<'_, '_>, item: DefId, arms: &[(u64, Ty)]) -> St
     g.finish(root).map(|(body, _)| body)
 }
 
-/// `crossing_parts[T](code)`'s body at `ty`, the crossing parameter's
-/// `std.remote.Crossing` (`fn.crossing.lift`): its number and its encoded
-/// captures, which a domain sends.
-pub fn crossing_parts_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty) -> StageResult<Body> {
+/// `crossing_sent[T](code)`'s body at `ty`, the crossing parameter's code
+/// (`fn.crossing.lift`): the frame it gives for `true`, its literal's
+/// number and encoded captures, which a domain sends.
+pub fn crossing_sent_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty) -> StageResult<Body> {
     let pool = cx.names.pool;
     let sig = cx.method_sig(item);
     let mut g = Gen::new(cx, ty, item, Handles::Supplied);
     let code =
         g.b.local(ty, cx.names.syms.intern("code"), local_flags::PARAM, SYN);
     let blk = g.b.open_block();
-    let TyData::Tuple { elems, .. } = pool.get(sig.ret) else {
-        return Err(hd_base::NotImplemented::bug(cx.stage, "crossing parts"));
+    let TyData::Fn { result, .. } = pool.get(ty) else {
+        return Err(hd_base::NotImplemented::bug(cx.stage, "crossing code"));
     };
-    let [number, captures] = *pool.list_items(elems) else {
-        return Err(hd_base::NotImplemented::bug(cx.stage, "crossing parts"));
-    };
-    let number = g.read_field(code, 1, number);
-    let captures = g.read_field(code, 2, captures);
-    let rec = g.b.refs_record(&[number, captures]);
-    let parts = g.b.emit(Tag::NewTuple, NONE, rec, sig.ret, SYN);
-    let root = g.b.close_block(blk, Some(parts), sig.ret, SYN);
+    let f = g.b.get(code, ty, SYN);
+    let yes = g.b.const_value(Ty::BOOL, 1);
+    let rec = g.b.call_args_record(&[yes], Providers::None);
+    let given = g.b.emit(Tag::CallValue, f.0, rec, result, SYN);
+    let frame = g.b.payload(given, 1, 0, sig.ret, SYN);
+    let root = g.b.close_block(blk, Some(frame), sig.ret, SYN);
     g.finish(root).map(|(body, _)| body)
 }
 

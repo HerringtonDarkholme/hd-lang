@@ -1803,6 +1803,36 @@ impl<'a> Types<'a> {
         })
     }
 
+    /// The function type `f` with `lead` before its parameters and, with
+    /// `to`, another result and suspension; `None` when `f` is no function.
+    #[must_use]
+    pub fn fn_led(self, f: Ty, lead: Ty, to: Option<(Ty, bool)>) -> Option<Ty> {
+        let TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+            inputs,
+            deps,
+        } = self.get(f)
+        else {
+            return None;
+        };
+        let (result, suspends) = to.unwrap_or((result, suspends));
+        let params: Vec<Ty> = std::iter::once(lead)
+            .chain(self.list_items(params).iter().copied())
+            .collect();
+        let params = self.list(&params);
+        Some(self.intern_ty(&TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+            inputs,
+            deps,
+        }))
+    }
+
     /// A trait value's trait and argument-list identity, without allocating
     /// associated bindings. `trait_value_bindings` borrows the bindings.
     #[must_use]
