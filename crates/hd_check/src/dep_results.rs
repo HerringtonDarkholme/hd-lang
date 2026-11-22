@@ -39,7 +39,7 @@ use hd_syntax::{GreenTree, NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Body, BodyKind, Callee, ChoiceKind, NONE, PlaceRoot, Proj, Role, Tag, Word, slots,
 };
-use hd_types::solver::{PlanStep, TraitRef};
+use hd_types::solver::{Impls, PlanStep, RegionObligations, TraitRef};
 use hd_types::{ParamRef, Ty, TyData, Types};
 
 use crate::body::{BodyCx, Ck};
@@ -1250,7 +1250,7 @@ struct FieldMap {
 
 /// The slot layouts of the types one check meets, and the slot maps of
 /// the fields it projects, each made once.
-struct Layouts<'a> {
+pub(crate) struct Layouts<'a> {
     pool: Types<'a>,
     /// `Suspend`'s definition.
     suspend: DefId,
@@ -1266,7 +1266,7 @@ struct Layouts<'a> {
 }
 
 impl<'a> Layouts<'a> {
-    fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
+    pub(crate) fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
         Layouts {
             pool,
             suspend,
@@ -1507,7 +1507,7 @@ fn own_proj(pool: Types<'_>, lifetimed: Lifetimed<'_>, t: Ty) -> bool {
 }
 
 /// [`Lifetimed`] by `lookup`.
-fn lifetimed<'l>(lookup: &'l hd_resolve::Lookup<'_>) -> impl Fn(DefId) -> bool + 'l {
+pub(crate) fn lifetimed<'l>(lookup: &'l hd_resolve::Lookup<'_>) -> impl Fn(DefId) -> bool + 'l {
     move |d| {
         lookup
             .item(d)
@@ -2032,11 +2032,170 @@ struct CallSig {
     by_value: bool,
 }
 
-type ProofSlots = Rc<Vec<Vec<Var>>>;
-type ProofBindings = Rc<HashMap<ParamRef, ProofSlots>>;
+/// Per slot of a subject, the origins it holds.
+pub(crate) type ProofSlots<V> = Rc<Vec<Vec<V>>>;
+type ProofBindings<V> = Rc<HashMap<ParamRef, ProofSlots<V>>>;
 
 type StaticProofCache =
     HashMap<(Vec<(usize, ParamRef, usize, TraitRef)>, Vec<(Key, Var)>), HashSet<Var>>;
+
+/// The origins a proof's static requirements reach (`ref.static.proof`),
+/// from the origins of each root subject's reference slots: a body's call
+/// variables, or a header's written lifetimes. Each static leaf takes its
+/// subject's top slots; each impl step lines its head up with the subject
+/// and passes on the slots of the bound parameter. Nothing is emitted.
+///
+/// Cost: per distinct (proof node, subject, origins) one head line-up,
+/// memoized per head; O(proof nodes + slots) in all.
+pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
+    ls: &Layouts<'_>,
+    (lookup, impls): (&hd_resolve::Lookup<'_>, Impls<'_>),
+    resolve: &dyn Fn(Ty) -> Ty,
+    roots: impl IntoIterator<Item = (&'o RegionObligations, Ty, ProofSlots<V>)>,
+) -> hd_base::StageResult<HashSet<V>> {
+    let bug = |message| hd_base::NotImplemented::bug(hd_base::Stage::Body, message);
+    let pool = ls.pool;
+    let mut heads = HashMap::<(Ty, Ty, usize), ProofBindings<V>>::default();
+    let mut identity = HashMap::<Ty, Option<ParamRef>>::default();
+    let mut counts = SlotCounts::new(ls.suspend);
+    let slot_type = pool.intern_ty(&TyData::Ref {
+        inner: Ty::VOID,
+        mutable: false,
+        counted: false,
+    });
+    let mut canonical = HashMap::default();
+    let mut statics = HashSet::default();
+    // Retain origin vectors while their pointer identities key queries.
+    let mut seen = HashMap::default();
+    for (proof, actual, origins) in roots {
+        let mut work = vec![(proof, actual, origins)];
+        while let Some((proof, actual, origins)) = work.pop() {
+            crate::work::scan_work(1);
+            if seen
+                .insert(
+                    (proof.key(), actual, Rc::as_ptr(&origins) as usize),
+                    Rc::clone(&origins),
+                )
+                .is_some()
+            {
+                continue;
+            }
+            let Some((row, args, steps)) = proof.parts() else {
+                continue;
+            };
+            let Some(row) = row else {
+                for &slot in &ls.of(actual).tops {
+                    statics.extend(origins.get(slot).into_iter().flatten().copied());
+                }
+                continue;
+            };
+            let table = impls
+                .table(row.module)
+                .ok_or_else(|| bug("an outlives proof lost its selected impl table"))?;
+            let r = row.row as usize;
+            let owner = table.def[r];
+            let declaration = lookup
+                .item(owner)
+                .ok_or_else(|| bug("an outlives proof lost its impl declaration"))?;
+            let is_type = |index: u16| {
+                declaration
+                    .generics
+                    .get(usize::from(index))
+                    .is_some_and(|g| !g.row && !g.lifetime && g.const_type.is_none())
+            };
+            let pattern = *canonical.entry(table.head_self[r]).or_insert_with(|| {
+                pool.subst(table.head_self[r], &|p: ParamRef| {
+                    (p.owner == owner).then(|| {
+                        if declaration
+                            .generics
+                            .get(usize::from(p.index))
+                            .is_some_and(|g| g.row)
+                        {
+                            let row = pool.row(&hd_types::RowData {
+                                keys: Vec::new(),
+                                params: vec![hd_types::RowParamRef {
+                                    owner: DefId::NONE,
+                                    index: p.index,
+                                }],
+                            });
+                            pool.intern_ty(&TyData::Row(row))
+                        } else {
+                            pool.intern_ty(&TyData::Param(ParamRef {
+                                owner: DefId::NONE,
+                                ..p
+                            }))
+                        }
+                    })
+                })
+            });
+            let key = (pattern, actual, Rc::as_ptr(&origins) as usize);
+            let bindings = if let Some(bindings) = heads.get(&key) {
+                Rc::clone(bindings)
+            } else {
+                let mut bindings = HashMap::<ParamRef, ProofSlots<V>>::default();
+                // A sole parameter occurrence with no own slots maps
+                // its input vector identically, even under many wrappers.
+                let direct = *identity.entry(pattern).or_insert_with(|| {
+                    if counts.count(pool, pattern) != 0 {
+                        return None;
+                    }
+                    let marked = pool.subst(pattern, &|p: ParamRef| {
+                        (p.owner == DefId::NONE && is_type(p.index)).then_some(slot_type)
+                    });
+                    if counts.count(pool, marked) != 1 {
+                        return None;
+                    }
+                    match line_up(ls, pattern, marked)?.as_slice() {
+                        [Key::Param(p, 0)] => Some(*p),
+                        _ => None,
+                    }
+                });
+                if let Some(p) = direct {
+                    bindings.insert(p, Rc::clone(&origins));
+                } else {
+                    let keys = line_up(ls, pattern, actual)
+                        .ok_or_else(|| bug("an outlives impl lost its positional bindings"))?;
+                    crate::work::scan_work(keys.len());
+                    for (key, from) in keys.into_iter().zip(origins.iter()) {
+                        if let Key::Param(p, slot) = key {
+                            let into = Rc::make_mut(bindings.entry(p).or_default());
+                            into.resize_with(into.len().max(slot + 1), Vec::new);
+                            for &v in from {
+                                if !into[slot].contains(&v) {
+                                    into[slot].push(v);
+                                }
+                            }
+                        }
+                    }
+                }
+                let bindings = Rc::new(bindings);
+                heads.insert(key, Rc::clone(&bindings));
+                bindings
+            };
+            for (step, child) in steps {
+                let Some(PlanStep::Bound { param, .. }) = table.plan[r].get(usize::from(*step))
+                else {
+                    return Err(bug("an outlives proof lost its bound plan step"));
+                };
+                let actual = *pool
+                    .list_items(args)
+                    .get(usize::from(*param))
+                    .ok_or_else(|| bug("an outlives bound lost its type argument"))?;
+                // Trait-argument origins have their own deferred source
+                // (#2267); this adapter translates the bound's subject.
+                let origins = bindings
+                    .get(&ParamRef {
+                        owner: DefId::NONE,
+                        index: u16::from(*param),
+                    })
+                    .cloned()
+                    .unwrap_or_default();
+                work.push((child, resolve(actual), origins));
+            }
+        }
+    }
+    Ok(statics)
+}
 
 impl CallSig {
     /// Whether the call passes an argument at a parameter slot written
@@ -2443,9 +2602,10 @@ impl Ck<'_, '_> {
         .to_fn(ls, 0)
     }
 
-    /// Lower proof requirements to existing call variables. This emits no
-    /// graph: call's ordinary `StaticParam` edges go to `regions.rs` unchanged.
-    fn proof_statics(
+    /// Lower proof requirements to existing call variables
+    /// ([`proof_statics`]). This emits no graph: call's ordinary
+    /// `StaticParam` edges go to `regions.rs` unchanged.
+    fn call_proof_statics(
         &self,
         ls: &Layouts<'_>,
         uses: &[crate::body::RegionUse],
@@ -2455,7 +2615,6 @@ impl Ck<'_, '_> {
         if uses.is_empty() {
             return Ok(HashSet::default());
         }
-        let bug = |message| hd_base::NotImplemented::bug(hd_base::Stage::Body, message);
         let pool = ls.pool;
         // Inference stays fixed during this pass; original goal IDs and
         // the call variables determine the resolved correspondence.
@@ -2476,153 +2635,16 @@ impl Ck<'_, '_> {
                 }
             }
         }
-        let parameters: HashMap<_, ProofSlots> = parameters
+        let parameters: HashMap<_, ProofSlots<Var>> = parameters
             .into_iter()
             .map(|(p, s)| (p, Rc::new(s)))
             .collect();
-        let mut heads = HashMap::<(Ty, Ty, usize), ProofBindings>::default();
-        let mut identity = HashMap::<Ty, Option<ParamRef>>::default();
-        let mut counts = SlotCounts::new(ls.suspend);
-        let slot_type = pool.intern_ty(&TyData::Ref {
-            inner: Ty::VOID,
-            mutable: false,
-            counted: false,
+        let roots = uses.iter().map(|(_, param, _, tref, proof)| {
+            let origins = parameters.get(param).cloned().unwrap_or_default();
+            (proof, self.infer.resolve(pool, tref.self_ty), origins)
         });
-        let mut canonical = HashMap::default();
-        let mut statics = HashSet::default();
-        // Retain origin vectors while their pointer identities key queries.
-        let mut seen = HashMap::default();
-        for &(_, param, _, tref, ref proof) in uses {
-            let origins = parameters.get(&param).cloned().unwrap_or_default();
-            let mut work = vec![(proof, self.infer.resolve(pool, tref.self_ty), origins)];
-            while let Some((proof, actual, origins)) = work.pop() {
-                crate::work::scan_work(1);
-                if seen
-                    .insert(
-                        (proof.key(), actual, Rc::as_ptr(&origins) as usize),
-                        Rc::clone(&origins),
-                    )
-                    .is_some()
-                {
-                    continue;
-                }
-                let Some((row, args, steps)) = proof.parts() else {
-                    continue;
-                };
-                let Some(row) = row else {
-                    for &slot in &ls.of(actual).tops {
-                        statics.extend(origins.get(slot).into_iter().flatten().copied());
-                    }
-                    continue;
-                };
-                let table = self
-                    .cx
-                    .impl_table(row.module)
-                    .ok_or_else(|| bug("an outlives proof lost its selected impl table"))?;
-                let r = row.row as usize;
-                let owner = table.def[r];
-                let declaration = self
-                    .cx
-                    .lookup
-                    .item(owner)
-                    .ok_or_else(|| bug("an outlives proof lost its impl declaration"))?;
-                let is_type = |index: u16| {
-                    declaration
-                        .generics
-                        .get(usize::from(index))
-                        .is_some_and(|g| !g.row && !g.lifetime && g.const_type.is_none())
-                };
-                let pattern = *canonical.entry(table.head_self[r]).or_insert_with(|| {
-                    pool.subst(table.head_self[r], &|p: ParamRef| {
-                        (p.owner == owner).then(|| {
-                            if declaration
-                                .generics
-                                .get(usize::from(p.index))
-                                .is_some_and(|g| g.row)
-                            {
-                                let row = pool.row(&hd_types::RowData {
-                                    keys: Vec::new(),
-                                    params: vec![hd_types::RowParamRef {
-                                        owner: DefId::NONE,
-                                        index: p.index,
-                                    }],
-                                });
-                                pool.intern_ty(&TyData::Row(row))
-                            } else {
-                                pool.intern_ty(&TyData::Param(ParamRef {
-                                    owner: DefId::NONE,
-                                    ..p
-                                }))
-                            }
-                        })
-                    })
-                });
-                let key = (pattern, actual, Rc::as_ptr(&origins) as usize);
-                let bindings = if let Some(bindings) = heads.get(&key) {
-                    Rc::clone(bindings)
-                } else {
-                    let mut bindings = HashMap::<ParamRef, ProofSlots>::default();
-                    // A sole parameter occurrence with no own slots maps
-                    // its input vector identically, even under many wrappers.
-                    let direct = *identity.entry(pattern).or_insert_with(|| {
-                        if counts.count(pool, pattern) != 0 {
-                            return None;
-                        }
-                        let marked = pool.subst(pattern, &|p: ParamRef| {
-                            (p.owner == DefId::NONE && is_type(p.index)).then_some(slot_type)
-                        });
-                        if counts.count(pool, marked) != 1 {
-                            return None;
-                        }
-                        match line_up(ls, pattern, marked)?.as_slice() {
-                            [Key::Param(p, 0)] => Some(*p),
-                            _ => None,
-                        }
-                    });
-                    if let Some(p) = direct {
-                        bindings.insert(p, Rc::clone(&origins));
-                    } else {
-                        let keys = line_up(ls, pattern, actual)
-                            .ok_or_else(|| bug("an outlives impl lost its positional bindings"))?;
-                        crate::work::scan_work(keys.len());
-                        for (key, from) in keys.into_iter().zip(origins.iter()) {
-                            if let Key::Param(p, slot) = key {
-                                let into = Rc::make_mut(bindings.entry(p).or_default());
-                                into.resize_with(into.len().max(slot + 1), Vec::new);
-                                for &v in from {
-                                    if !into[slot].contains(&v) {
-                                        into[slot].push(v);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    let bindings = Rc::new(bindings);
-                    heads.insert(key, Rc::clone(&bindings));
-                    bindings
-                };
-                for (step, child) in steps {
-                    let Some(PlanStep::Bound { param, .. }) = table.plan[r].get(usize::from(*step))
-                    else {
-                        return Err(bug("an outlives proof lost its bound plan step"));
-                    };
-                    let actual = *pool
-                        .list_items(args)
-                        .get(usize::from(*param))
-                        .ok_or_else(|| bug("an outlives bound lost its type argument"))?;
-                    // Trait-argument origins have their own deferred source
-                    // (#2267); this adapter translates the bound's subject.
-                    let origins = bindings
-                        .get(&ParamRef {
-                            owner: DefId::NONE,
-                            index: u16::from(*param),
-                        })
-                        .cloned()
-                        .unwrap_or_default();
-                    work.push((child, self.infer.resolve(pool, actual), origins));
-                }
-            }
-        }
+        let tables = (self.cx.lookup, Impls::Owned(self.cx.impls));
+        let statics = proof_statics(ls, tables, &|t| self.infer.resolve(pool, t), roots)?;
         cache.insert(key, statics.clone());
         Ok(statics)
     }
@@ -4400,7 +4422,7 @@ impl Ck<'_, '_> {
                 Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
             ) && let Some((mut sig, took)) = self.call_sig(ls, body, i, &values)
             {
-                let statics = self.proof_statics(
+                let statics = self.call_proof_statics(
                     ls,
                     proofs.get(&body.syn[i]).map_or(&[], Vec::as_slice),
                     &took,
