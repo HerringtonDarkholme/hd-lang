@@ -30,6 +30,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 
 ### Tooling
 
+- [Warm Check Cost](WARM_CHECK_COST.md): design exploration for #1801 draft 89 (owner decision): measurements of a warm `hd check` at 500 and 2,000 files, a survey of change detection in git, Go, Zig, TypeScript, Swift, rustc, Salsa, Bazel, Buck2, Ninja and Watchman, and five options from a content-checked racy rule to a resident checker.
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
 
 ### Memory model and performance
