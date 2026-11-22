@@ -30,7 +30,7 @@ in the same commits.
 | --- | --- | ---: | ---: | ---: | --- |
 | 1 | `Marker`, `Send`, `Wire` (built: 424dcdfb7) | 390 | 63 | +327 | 2, 3 |
 | 2 | crossing parameters, capture mode, reached top-level bindings, frozen loans (built: 1dd4c2a5c to 127293f15) | 880 | 88 | +792 | 6 |
-| 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers; the `Wire` codec template, the host boundary moved onto it, host handles as stubs | 2,500 | 1,750 | +750 | 4, 5 |
+| 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers, the `Wire` codec (built: 5c9646dac to 00e3b32b8); the host boundary move and host handles as stubs wait on the codec's size | 1,170 | 150 | +1,018 | 4, 5 |
 | 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter | 500 | 0 | +500 | none |
 | 5 | one use-graph walk per executable | 280 | 20 | +260 | none |
 | 6 | worker instances, Wasm threads for `Scope` and `Background`, a jobs store | 2,200 | 0 | +2,200 | none |
@@ -331,6 +331,21 @@ with the codec above); the size gate kept it (see the ceiling run under
 "Built so far"). A host handle is a stub whose transport is the host:
 `BodyKind::Handle` and `handle_vtable` fold into stubs (about −600; Q21,
 owner yes).
+
+**Q21 waits on the same size gate (2026-11-22).** A stub's method is a
+frame: `stub_call!` encodes the arguments and decodes a `Reply` and the
+result with the std `Wire` codec. Folding a host handle into a stub so
+puts that codec on every handle call, where today a vtable slot passes
+the values to one typed host call (`handle_slot`, `rt:enc`/`rt:dec`).
+The ceiling run above bounds the cost from below: +1,713 bytes for a
+string's encoder, +3,680 for a `List[string]`'s decoder, against a
+0.5% gate of about 30 to 50 bytes, on every program that holds a handle
+(`std.fs`, `std.net`, `std.http`). The host runtimes (`host/`,
+`hd_run_wasmtime`) would also need a frame decoder for every handle
+trait. Reading: the fold is not built; handles keep their typed slots,
+and the −600 is not counted in the stage's price. It becomes worth
+building when the std codec is close to the host's in size, the same
+condition as the boundary move.
 
 **Per-run cost.**
 
