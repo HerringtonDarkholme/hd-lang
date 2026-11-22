@@ -88,7 +88,9 @@ pub struct PathTable {
     /// The names declared type and row parameters are written with, by
     /// owner and position, for messages (the trie holds no parameter nodes).
     param_names: Mutex<HashMap<(u32, u16), Box<str>>>,
-    index: [PathIndex; SHARDS],
+    /// On the heap: 64 shards of 128 bytes inline made a table 8 KiB, and
+    /// building one on a small thread stack overflowed it.
+    index: Box<[PathIndex]>,
 }
 
 impl Default for PathTable {
@@ -102,7 +104,7 @@ impl Default for PathTable {
             def_module: AppendVec::new(),
             append: Mutex::new(()),
             param_names: Mutex::new(HashMap::default()),
-            index: std::array::from_fn(|_| Shard::default()),
+            index: (0..SHARDS).map(|_| Shard::default()).collect(),
         }
     }
 }
@@ -268,7 +270,8 @@ impl core::fmt::Display for StablePath<'_> {
 pub struct ShardedInterner {
     text: AppendVec<Box<str>>,
     append: Mutex<()>,
-    index: [Shard<Box<str>, u32>; SHARDS],
+    /// On the heap, as the path table's shards.
+    index: Box<[Shard<Box<str>, u32>]>,
 }
 
 impl Default for ShardedInterner {
@@ -276,7 +279,7 @@ impl Default for ShardedInterner {
         Self {
             text: AppendVec::new(),
             append: Mutex::new(()),
-            index: std::array::from_fn(|_| Shard::default()),
+            index: (0..SHARDS).map(|_| Shard::default()).collect(),
         }
     }
 }
