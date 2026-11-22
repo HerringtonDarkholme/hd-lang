@@ -7061,6 +7061,8 @@ lang/functions/crossing-closures/crossing-parameter-unknown-marker.hd	type	rejec
 lang/functions/crossing-closures/crossing-argument-not-literal.hd	type	reject:crossing-closure-not-literal	lang/07-functions.md#r-fn.crossing.literal
 lang/functions/crossing-closures/crossing-parameter-passed-on.hd	type	accept	lang/07-functions.md#r-fn.crossing.literal
 lang/functions/crossing-closures/crossing-parameter-stored.hd	type	reject:crossing-closure-not-literal	lang/07-functions.md#r-fn.crossing.parameter.uses
+lang/functions/crossing-closures/crossing-function-as-value.hd	type	reject:crossing-closure-not-literal	lang/07-functions.md#r-fn.crossing.no-value
+lang/functions/crossing-closures/crossing-method-as-value.hd	type	reject:crossing-closure-not-literal	lang/07-functions.md#r-fn.crossing.no-value
 lang/functions/crossing-closures/crossing-parameter-called-twice.hd	type	reject:use-of-moved-value	lang/07-functions.md#r-fn.crossing.once
 lang/functions/crossing-closures/crossing-capture-not-wire.hd	type	reject:unsatisfied-trait-bound	lang/07-functions.md#r-fn.crossing.captures
 lang/functions/crossing-closures/crossing-capture-moves.hd	type	reject:use-of-moved-value	lang/07-functions.md#r-fn.crossing.mode.move

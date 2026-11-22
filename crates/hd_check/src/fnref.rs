@@ -925,6 +925,20 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `fn.crossing.no-value`: a function with a crossing parameter is only
+    /// called, so every closure it gets is checked at a call. Reported here.
+    fn crossing_value(&mut self, m: &Member, n: NodeRef<'_>) -> bool {
+        if m.sig.crossing.is_empty() {
+            return false;
+        }
+        self.err(
+            Code::CrossingClosureNotLiteral,
+            n,
+            "a function with a crossing parameter is only called, never a value: a value's caller could pass any closure",
+        );
+        true
+    }
+
     /// The rest of an unbound reference: fit, bounds, `ItemRef`.
     fn unbound(
         &mut self,
@@ -932,6 +946,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
+        if self.crossing_value(&m, n) {
+            return Ok(self.poison_value(n));
+        }
         let pool = self.pool();
         self.note_call(m.def);
         let function = self.member_fn_ty(&m, 0)?;
@@ -1179,6 +1196,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
+        if self.crossing_value(&m, n) {
+            return Ok(self.poison_value(n));
+        }
         let pool = self.pool();
         let (trait_, _, _) = m.owner.trait_parts()?;
         if pool.has_opaque(m.sig.ret) {
@@ -1332,6 +1352,9 @@ impl Ck<'_, '_> {
             );
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::POISON));
+        }
+        if self.crossing_value(&m, n) {
+            return Ok(self.poison_value(n));
         }
         if let Some((tv, writable)) = dynamic
             && matches!(

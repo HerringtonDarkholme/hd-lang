@@ -1100,6 +1100,7 @@ fn demo(photo: Image) -> u32:
 7. r[fn.crossing.parameter.uses] Inside the callee, a crossing parameter may be called or passed on whole. Any other use, such as a binding, a field, a capture or a return, is an error. Error: `crossing-closure-not-literal`.
 8. r[fn.crossing.once] A crossing parameter is called at most once on each path: a call moves it. Error: `use-of-moved-value`.
 9. r[fn.crossing.captures] Each capture of a crossing closure must have the parameter's marker. Error: `unsatisfied-trait-bound`.
+10. r[fn.crossing.no-value] A function or method with a crossing parameter is only called. Naming it as a function value, unbound or bound, is an error, since a call through the value would pass a closure no call checked. Error: `crossing-closure-not-literal`.
 
 See also: [`grammar.fn.crossing-parameter`](02-grammar.md#r-grammar.fn.crossing-parameter),
 [Markers](10-modules.md#markers).
