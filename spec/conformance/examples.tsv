@@ -1201,6 +1201,7 @@ std/num.md	18	complete	std/num/absolute-value/num-abs.hd
 std/num.md	19	complete	std/num/powers/num-pow.hd
 std/num.md	20	complete	std/num/float-rounding/num-float-round.hd|std/num/float-rounding/num-float-intrinsics.hd
 std/num.md	21	complete	std/num/square-root/num-float-sqrt.hd
+std/num.md	22	complete	std/num/floating-point-minimum-and-maximum/float-minmax.hd
 std/ops.md	1	complete	std/ops/default-trait/default-trait.hd
 std/ops.md	2	mixed	std/ops/default-trait/default-tuple-element-without-default.hd
 std/ops.md	3	complete	std/ops/derived-default/derived-default-declared.hd|std/ops/derived-default/derived-default-data.hd|std/ops/derived-default/derived-default-enum.hd
