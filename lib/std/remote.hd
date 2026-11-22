@@ -75,16 +75,23 @@ pub struct Home[S, C]:
 ## tokens of the objects it serves from `Random`, and times their leases
 ## by `Clock`.
 ## See [std-remote.home.per-request](../../spec/std/remote.md#r-std-remote.home.per-request).
-pub fn per_request[S < 'static, C < 'static, F < Fn(&C) -> Suspend[Result[Rooted[S], Refused]] & 'static](
-    make: F,
-) -> *mut Home[S, C] $ Random + Clock:
-    objects := box(Objects { slots: [], free: [], sweep: 0, random: $.use(Random), clock: $.use(Clock) })
+pub fn per_request[
+    S < 'static,
+    C < 'static,
+    F < Fn(&C) -> Suspend[Result[Rooted[S], Refused]] & 'static,
+](make: F) -> *mut Home[S, C] $ Random + Clock:
+    objects := box(
+        Objects { slots: [], free: [], sweep: 0, random: $.use(Random), clock: $.use(Clock) },
+    )
     box(Home { make: fn!(call: &C) -> Result[Rooted[S], Refused]: make(call)!(), objects })
 
 ## A home with one root and one peer, as a worker has. Each call gets a
 ## copy of `root`, so state that outlives a call sits behind a box.
 ## See [std-remote.home.fixed](../../spec/std/remote.md#r-std-remote.home.fixed).
-pub fn home[S < 'static, C < 'static](root: S, session: Session) -> *mut Home[S, C] $ Random + Clock:
+pub fn home[S < 'static, C < 'static](
+    root: S,
+    session: Session,
+) -> *mut Home[S, C] $ Random + Clock:
     per_request(fn!(call: &C) -> Result[Rooted[S], Refused]: .Ok(Rooted { root, session }))
 
 ## One served function, such as a server action.
@@ -104,9 +111,12 @@ impl[A < Wire, T < Wire, E < Wire] Call[A, T, E] for Action[A, T, E]:
 ## reference to it leaves, so its captures need not be `Wire`; they hold
 ## no local reference, since the object outlives the call.
 ## See [std-remote.action.closure](../../spec/std/remote.md#r-std-remote.action.closure).
-pub fn action[A < Wire & 'static, T < Wire & 'static, E < Wire & 'static, F < Fn(A) -> Suspend[Result[T, E]] & 'static](
-    code: F,
-) -> *mut dyn Call[A, T, E]:
+pub fn action[
+    A < Wire & 'static,
+    T < Wire & 'static,
+    E < Wire & 'static,
+    F < Fn(A) -> Suspend[Result[T, E]] & 'static,
+](code: F) -> *mut dyn Call[A, T, E]:
     box(Action { code: fn!(arg: A) -> Result[T, E]: code(arg)!() })
 
 # HTTP: a frame is the body of a POST, a reply the body of its response.
@@ -167,7 +177,11 @@ pub fn remote[T < Remote](transport: *mut dyn Transport) -> *mut T:
 ## Answers one call frame for a home whose root type is `S`, and returns
 ## an encoded `Reply`.
 ## See [module.remote.handle-call](../../spec/lang/10-modules.md#r-module.remote.handle-call).
-pub fn handle_call![S, C](home: &mut Home[S, C], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]:
+pub fn handle_call![S, C](
+    home: &mut Home[S, C],
+    rooted: &mut Rooted[S],
+    frame: List[u8],
+) -> List[u8]:
     match serve_open!(home.objects, rooted.session.id, frame):
         .Ok(head) => serve!(&mut rooted.root, head)
         .Err(reply) => reply
@@ -209,7 +223,12 @@ fn build_number() -> u64:
 # One remote call: a reply that ran is the method's public result as the
 # home encoded it; a refusal, a transport failure or a reply that does not
 # decode is case `_1` (module.remote.stub.reply, module.remote.stub.decode).
-fn stub_call![A < ?Copy, V, E](stub: &mut Stub, interface: u64, method: u64, args: A) -> Result[V, E | CrossError]:
+fn stub_call![A < ?Copy, V, E](
+    stub: &mut Stub,
+    interface: u64,
+    method: u64,
+    args: A,
+) -> Result[V, E | CrossError]:
     let mut out = WireOut { bytes: [] }
     out.leb(build_id())
     out.leb(interface)
@@ -224,7 +243,9 @@ fn stub_call![A < ?Copy, V, E](stub: &mut Stub, interface: u64, method: u64, arg
         .Err(cross) => return .Err(._1(cross))
     match wire_decode::[Reply](reply):
         .Some(.Ran(payload)) =>
-            match wire_read::[Result[V, E | CrossError]](WireIn { bytes: payload, at: 0, transport: .Some(stub.transport) }):
+            match wire_read::[Result[V, E | CrossError]](
+                WireIn { bytes: payload, at: 0, transport: .Some(stub.transport) },
+            ):
                 .Some(result) => result
                 .None => .Err(._1(CrossError.Unknown))
         .Some(.Refused(cross)) => .Err(._1(cross))
@@ -624,13 +645,15 @@ fn wire_put_remote[T < 'static](value: &*mut T, out: &mut WireOut) -> void:
             out.refused = true
             return
     reference := *value
-    object := box(Object {
-        serve: fn!(head: Served) -> List[u8]: serve!::[T](reference, head),
-        session: out.session,
-        token: 0,
-        used: 0,
-        calls: 0,
-    })
+    object := box(
+        Object {
+            serve: fn!(head: Served) -> List[u8]: serve!::[T](reference, head),
+            session: out.session,
+            token: 0,
+            used: 0,
+            calls: 0,
+        }
+    )
     number := objects.add(object)
     out.leb(interface_of::[T]())
     out.leb(number)
@@ -761,13 +784,22 @@ tests:
         assert_equal(round(i8(127)), [254, 1])
         assert_equal(round(i16(-1)), [1])
         assert_equal(round(i32(-2147483648)), [255, 255, 255, 255, 15])
-        assert_equal(round(i64(-9223372036854775807) - 1), [255, 255, 255, 255, 255, 255, 255, 255, 255, 1])
-        assert_equal(round(i64(9223372036854775807)), [254, 255, 255, 255, 255, 255, 255, 255, 255, 1])
+        assert_equal(
+            round(i64(-9223372036854775807) - 1),
+            [255, 255, 255, 255, 255, 255, 255, 255, 255, 1],
+        )
+        assert_equal(
+            round(i64(9223372036854775807)),
+            [254, 255, 255, 255, 255, 255, 255, 255, 255, 1],
+        )
         assert_equal(round(u8(255)), [255, 1])
         assert_equal(round(u16(300)), [172, 2])
         assert_equal(round(u32(4294967295)), [255, 255, 255, 255, 15])
         assert_equal(round(usize(0)), [0])
-        assert_equal(round(u64(18446744073709551615)), [255, 255, 255, 255, 255, 255, 255, 255, 255, 1])
+        assert_equal(
+            round(u64(18446744073709551615)),
+            [255, 255, 255, 255, 255, 255, 255, 255, 255, 1],
+        )
 
     it("bool, char and floats keep the host's forms"):
         assert_equal(round(true), [1])
@@ -785,7 +817,7 @@ tests:
     it("lists, maps, optionals and results nest"):
         assert_equal(round([i16(-1), 2]), [2, 1, 4])
         assert_equal(round([[u8(1)], []]), [2, 1, 1, 0])
-        assert_equal(round({"a": u8(1), "b": u8(2)}), [2, 1, 97, 1, 1, 98, 2])
+        assert_equal(round({ "a": u8(1), "b": u8(2) }), [2, 1, 97, 1, 1, 98, 2])
         let none: u8? = .None
         assert_equal(round(none), [0])
         let some: u8? = .Some(7)
@@ -799,7 +831,10 @@ tests:
         assert_equal(round(Point { x: -1, y: 0.0 }), [1, 0, 0, 0, 0, 0, 0, 0, 0])
         assert_equal(round(Empty {}), [])
         assert_equal(round(Shape.Dot), [0])
-        assert_equal(round(Shape.Circle(Point { x: 1, y: 1.0 }, 9)), [1, 2, 0, 0, 0, 0, 0, 0, 240, 63, 9])
+        assert_equal(
+            round(Shape.Circle(Point { x: 1, y: 1.0 }, 9)),
+            [1, 2, 0, 0, 0, 0, 0, 0, 240, 63, 9],
+        )
         _ := round(Shape.Path([Point { x: 3, y: 4.0 }], true))
         assert_equal(round((u8(1), "a", false)), [1, 1, 97, 0])
         let either: i32 | string = ._1("z")
@@ -816,7 +851,10 @@ tests:
         assert_equal(wire_decode::[u8]([128, 2]), .None)
         assert_equal(wire_decode::[i8]([128, 2]), .None)
         assert_equal(wire_decode::[u64]([255, 255, 255, 255, 255, 255, 255, 255, 255, 2]), .None)
-        assert_equal(wire_decode::[u64]([128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 0]), .None)
+        assert_equal(
+            wire_decode::[u64]([128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 0]),
+            .None,
+        )
         assert_equal(wire_decode::[bool]([2]), .None)
         assert_equal(wire_decode::[char]([128, 176, 3]), .None)
         assert_equal(wire_decode::[f64]([0, 0, 0]), .None)
@@ -911,7 +949,9 @@ tests:
             .Some(.Refused(cross)) => .Some(cross)
             _ => .None
 
-    it("serve refuses a bad head, another build, another object, another interface and bad arguments"):
+    it(
+        "serve refuses a bad head, another build, another object, another interface and bad arguments",
+    ):
         recorder := box(Recorder { frame: [] })
         let transport: *mut dyn Transport = recorder
         _ := remote::[Counter](transport).add!(4)
@@ -929,11 +969,26 @@ tests:
             out.bytes
         let mut root = Tally { total: 1 }
         assert_equal(refused!(&mut root, [1, 2]), .Some(CrossError.WrongHome))
-        assert_equal(refused!(&mut root, head(build + 1, interface, 0, 0, [8])), .Some(CrossError.OtherBuild))
-        assert_equal(refused!(&mut root, head(build, interface, 1, 0, [8])), .Some(CrossError.WrongHome))
-        assert_equal(refused!(&mut root, head(build, interface + 1, 0, 0, [8])), .Some(CrossError.WrongHome))
-        assert_equal(refused!(&mut root, head(build, interface, 0, 2, [8])), .Some(CrossError.WrongHome))
-        assert_equal(refused!(&mut root, head(build, interface, 0, 0, [8, 0])), .Some(CrossError.WrongHome))
+        assert_equal(
+            refused!(&mut root, head(build + 1, interface, 0, 0, [8])),
+            .Some(CrossError.OtherBuild),
+        )
+        assert_equal(
+            refused!(&mut root, head(build, interface, 1, 0, [8])),
+            .Some(CrossError.WrongHome),
+        )
+        assert_equal(
+            refused!(&mut root, head(build, interface + 1, 0, 0, [8])),
+            .Some(CrossError.WrongHome),
+        )
+        assert_equal(
+            refused!(&mut root, head(build, interface, 0, 2, [8])),
+            .Some(CrossError.WrongHome),
+        )
+        assert_equal(
+            refused!(&mut root, head(build, interface, 0, 0, [8, 0])),
+            .Some(CrossError.WrongHome),
+        )
         assert_equal(refused!(&mut root, head(build, interface, 0, 0, [8])), .None)
         assert_equal(root.total, 5)
 
@@ -981,7 +1036,9 @@ tests:
     it("a fixed home answers every frame from a copy of its root"):
         time := clock()
         $.with(Random=SeededRandom::new(1), Clock=time):
-            counter := remote::[Counter](box(HomeLink { home: home(Tally { total: 10 }, Session { id: "w" }) }))
+            counter := remote::[Counter](
+                box(HomeLink { home: home(Tally { total: 10 }, Session { id: "w" }) }),
+            )
             assert_equal(counter.add!(2).ok(), .Some(12))
             assert_equal(counter.add!(5).ok(), .Some(15))
             assert_equal(counter.label!("n", 1).ok(), .Some("n 10 x1"))
@@ -1021,9 +1078,18 @@ tests:
         http.reply("http://api.test/late", .Err(.Timeout))
         http.reply("http://api.test/crash", .Ok(Response::status(.InternalServerError)))
         $.with(Http=http):
-            assert_equal(cross_of(remote::[Counter](http_transport(url("http://api.test/down"))).add!(1)), .Some(CrossError.Unreachable))
-            assert_equal(cross_of(remote::[Counter](http_transport(url("http://api.test/late"))).add!(1)), .Some(CrossError.Unknown))
-            assert_equal(cross_of(remote::[Counter](http_transport(url("http://api.test/crash"))).add!(1)), .Some(CrossError.Unknown))
+            assert_equal(
+                cross_of(remote::[Counter](http_transport(url("http://api.test/down"))).add!(1)),
+                .Some(CrossError.Unreachable),
+            )
+            assert_equal(
+                cross_of(remote::[Counter](http_transport(url("http://api.test/late"))).add!(1)),
+                .Some(CrossError.Unknown),
+            )
+            assert_equal(
+                cross_of(remote::[Counter](http_transport(url("http://api.test/crash"))).add!(1)),
+                .Some(CrossError.Unknown),
+            )
         sent := http.received()
         assert_equal(sent.len(), 3)
         assert_equal(sent[0].method, Method.Post)
@@ -1032,7 +1098,9 @@ tests:
     trait Bank < Remote:
         fn open!(&mut self, cents: i64) -> Result[*mut dyn Counter, CountError | CrossError]
         fn merge!(&mut self, other: *mut dyn Counter) -> Result[i64, CountError | CrossError]
-        fn doubler!(&mut self) -> Result[*mut dyn Call[i64, i64, CountError], CountError | CrossError]
+        fn doubler!(
+            &mut self,
+        ) -> Result[*mut dyn Call[i64, i64, CountError], CountError | CrossError]
 
     struct Teller: pass
 
@@ -1066,8 +1134,9 @@ tests:
         time := clock()
         peer := box(Peer { name: "ada" })
         let served: *mut Home[Teller, string] = $.with(Random=SeededRandom::new(5), Clock=time):
-            per_request(fn!(name: &string) -> Result[Rooted[Teller], Refused]:
-                .Ok(Rooted { root: Teller {}, session: Session { id: *name } })
+            per_request(
+                fn!(name: &string) -> Result[Rooted[Teller], Refused]:
+                    .Ok(Rooted { root: Teller {}, session: Session { id: *name } })
             )
         bank := remote::[Bank](box(PeerLink { home: served, peer }))
         account := match bank.open!(10):
