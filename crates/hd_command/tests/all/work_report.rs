@@ -33,12 +33,14 @@ fn check(dir: &Scratch, work: &std::path::Path) -> std::process::Output {
 fn a_serial_run_reports_every_counter_and_repeats_its_counts() {
     let dir = package("work-report");
     let work = dir.join("work.json");
-    // The first run fills the cache. Past the settle window (`disk::SETTLE`,
-    // 2 s) the second records every file's stamp, so the next two start
-    // from the same cache and the same stamps, however slow the machine.
+    // The first run fills the cache. Each compared run follows a save of
+    // the same text, so both read it as a just-saved file (within
+    // `disk::SETTLE`) and start from the same cache, however slow the
+    // machine. A settled file cannot be made by setting its times back:
+    // that moves its change time to now.
+    let save = || std::fs::write(dir.join("src/main.hd"), MAIN).expect("write");
     assert!(check(&dir, &work).status.success());
-    std::thread::sleep(std::time::Duration::from_millis(2200));
-    assert!(check(&dir, &work).status.success());
+    save();
     let first = check(&dir, &work);
     assert!(
         first.status.success(),
@@ -50,6 +52,7 @@ fn a_serial_run_reports_every_counter_and_repeats_its_counts() {
         assert!(report.contains(&format!("\"{name}\":")), "{name}: {report}");
     }
     assert!(!report.contains("\"allocs\":0,"), "{report}");
+    save();
     assert!(check(&dir, &work).status.success());
     let again = std::fs::read_to_string(&work).expect("report");
     assert_eq!(again, report);
