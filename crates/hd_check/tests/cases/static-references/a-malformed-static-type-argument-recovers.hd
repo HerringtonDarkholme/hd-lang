@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# #2260: an explicit type argument written `&'static T` with an unknown
+# `T` reports only the unknown type, and the call checks on.
+fn require[T < 'static]() -> void:
+    pass
+
+pub fn main() -> void:
+    require::[&'static Missing]()
+    require::[&'static i32]()

@@ -1214,10 +1214,30 @@ impl Ck<'_, '_> {
     /// type, or a counted reference; the caller checks the count after
     /// lowering. One pass over the annotation's nodes.
     pub(crate) fn static_slots(&self, n: NodeRef<'_>) -> Option<Vec<Option<hd_base::NodeIdx>>> {
+        self.static_slots_in(n, false)
+    }
+
+    /// [`Self::static_slots`], where with `functions` a function type is a
+    /// slot of its own that holds no reference slot of `n`'s: its inputs'
+    /// and result's references are its own (`fn.type.lifetime.position`).
+    fn static_slots_in(
+        &self,
+        n: NodeRef<'_>,
+        functions: bool,
+    ) -> Option<Vec<Option<hd_base::NodeIdx>>> {
         let toks = &self.cx.src.parse.tokens;
+        let tree = &self.cx.src.parse.tree;
+        let in_function = |c: NodeRef<'_>| {
+            std::iter::successors(tree.parent(c.index()), |&x| tree.parent(x))
+                .take_while(|&x| x != tree.parent(n.index()).unwrap_or(hd_base::NodeIdx::NONE))
+                .any(|x| tree.node(x).kind() == SyntaxKind::FunctionType)
+        };
         let mut out = Vec::new();
         for c in std::iter::once(n).chain(n.descendants()) {
             let kind = c.kind();
+            if functions && (kind == SyntaxKind::FunctionType || in_function(c)) {
+                continue;
+            }
             let unplaced = matches!(
                 kind,
                 SyntaxKind::UnionType
@@ -1316,7 +1336,23 @@ impl Ck<'_, '_> {
             self.err(Code::GenericKindMismatch, t, &msg);
             return Ok(Ty::POISON);
         }
-        self.explicit_targ(t, g.is_some_and(|g| g.row))
+        // `ref.static.form`: `'static` is written wherever `&T` may be, and
+        // is checked at the call's arguments (`Self::static_targs`).
+        let slots = self.static_slots_in(t, true).unwrap_or_default();
+        let nodes = slots.iter().flatten().copied().collect();
+        let outer = std::mem::replace(&mut self.static_annotation, nodes);
+        let ty = self.explicit_targ(t, g.is_some_and(|g| g.row));
+        self.static_annotation = outer;
+        let ty = ty?;
+        if slots.iter().any(Option::is_some) && self.pool().ref_slots(ty) == slots.len() {
+            let statics = (0..slots.len()).filter(|&k| slots[k].is_some());
+            let position = u16::try_from(position).unwrap_or(u16::MAX);
+            self.static_targs.insert(
+                (owner.index(), position),
+                statics.map(hd_tir::ir::u32_of).collect(),
+            );
+        }
+        Ok(ty)
     }
 
     /// A type written in an explicit type-argument list of an expression:

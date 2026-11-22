@@ -7087,6 +7087,9 @@ lang/references/static-references/static-reference-top-level-binding.hd	runtime	
 lang/references/static-references/static-reference-top-level-mutable-source.hd	type	reject:static-reference-source	lang/13-values-and-references.md#r-ref.static.source.error
 lang/references/static-references/static-reference-read-owned-counted-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.no-count
 lang/references/static-references/static-reference-bound-with-sub-obligations.hd	runtime	accept	lang/13-values-and-references.md#r-ref.static.not-local
+lang/references/static-references/static-reference-in-an-explicit-type-argument.hd	type	accept	lang/13-values-and-references.md#r-ref.static.form
+lang/references/static-references/static-reference-in-an-explicit-type-argument-from-a-local.hd	type	reject:static-reference-source	lang/13-values-and-references.md#r-ref.static.source.error
+lang/references/static-references/static-reference-in-a-method-type-argument-from-a-local.hd	type	reject:static-reference-source	lang/13-values-and-references.md#r-ref.static.source.error
 std/server-sdk/wire-messages-and-conversion/wire-identity.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.wire-identity
 std/server-sdk/wire-messages-and-conversion/wire-request.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.wire-request
 std/server-sdk/wire-messages-and-conversion/wire-response.hd	runtime	accept	std/server-sdk.md#r-std-server-sdk.wire-response

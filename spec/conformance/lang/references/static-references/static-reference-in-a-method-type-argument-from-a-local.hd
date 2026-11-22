@@ -1,0 +1,16 @@
+# test: an argument at a method's explicit `&'static` type argument is a static source
+# Spec 13 Static References: ref.static.source.error. The second element
+# of `pick`'s argument is written `&'static i32`.
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn pick[T](&self, value: T) -> i32:
+        self.n
+
+let shared: i32 = 3
+
+pub fn main() -> void:
+    x := 1
+    counter := Counter { n: 1 }
+    _ := counter.pick::[(&i32, &'static i32)]((&shared, &x)) # diagnostic: static-reference-source

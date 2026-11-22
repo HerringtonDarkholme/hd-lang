@@ -2206,7 +2206,7 @@ impl CallSig {
                 x.0 == Var::Life(STATIC)
                     || matches!(x.1, Some(Category::StaticParam | Category::StaticProof))
             })
-        })
+        }) || (self.links.iter()).any(|&(_, y)| y == Var::Life(STATIC))
     }
 
     /// Whether the call passes an argument at one of the body's own
@@ -2600,6 +2600,69 @@ impl Ck<'_, '_> {
             impl_lifetime_count,
         )
         .to_fn(ls, 0)
+    }
+
+    /// The variables of call `i`'s type-parameter slots that an explicit
+    /// type argument writes `'static` ([`Ck::static_targs`]): what the call
+    /// passes there takes only a static source (`ref.static.form`). The
+    /// written slots are reference slots; the call's are its layout's,
+    /// which also hold function and suspension slots.
+    fn written_static_targs(
+        &self,
+        ls: &Layouts<'_>,
+        b: &Body,
+        i: usize,
+        took: &[(Key, Var)],
+    ) -> HashSet<Var> {
+        let mut out = HashSet::default();
+        if self.static_targs.is_empty() || !matches!(b.tags[i], Tag::Call | Tag::Await) {
+            return out;
+        }
+        let Some((def, targs)) = Callee::from_words(b.record(b.data[i][0])).map(|c| match c {
+            Callee::Item { def, targs } => (def, targs),
+            Callee::TraitMethod { method, targs, .. } => (method, targs),
+        }) else {
+            return out;
+        };
+        let Some(sig) = self.cx.lookup.item(def).and_then(|it| it.sig()) else {
+            return out;
+        };
+        let tree = &self.cx.src.parse.tree;
+        // The written positions name the generics an annotation may
+        // write, in order: not an `impl Trait` parameter's.
+        let written: Vec<usize> = (sig.generics.iter().enumerate())
+            .filter(|(_, g)| !g.anonymous)
+            .map(|(k, _)| k)
+            .collect();
+        let targs = ls.pool.list_items(targs);
+        for (&(owner, position), statics) in &self.static_targs {
+            // The call the callee's node is written in.
+            let call = std::iter::successors(tree.parent(owner), |&n| tree.parent(n))
+                .find(|&n| tree.node(n).kind() == SyntaxKind::CallExpr);
+            if call != Some(b.syn[i]) {
+                continue;
+            }
+            let Some(&index) = written.get(usize::from(position)) else {
+                continue;
+            };
+            let Some(&t) = targs.get(targs.len().saturating_sub(sig.generics.len()) + index) else {
+                continue;
+            };
+            let refs: Vec<usize> = (ls.of(self.infer.resolve(ls.pool, t)).slots.iter())
+                .enumerate()
+                .filter(|(_, s)| !s.fun && !s.hold)
+                .map(|(k, _)| k)
+                .collect();
+            for &(key, var) in took {
+                if let Key::Param(p, slot) = key
+                    && usize::from(p.index) == index
+                    && statics.iter().any(|&k| refs.get(k as usize) == Some(&slot))
+                {
+                    out.insert(var);
+                }
+            }
+        }
+        out
     }
 
     /// Lower proof requirements to existing call variables
@@ -4428,6 +4491,11 @@ impl Ck<'_, '_> {
                     &took,
                     &mut static_proofs,
                 )?;
+                // A slot an explicit type argument writes `'static` is one
+                // with `'static`, as a parameter written `&'static T` is.
+                let written = self.written_static_targs(ls, body, i, &took);
+                sig.links
+                    .extend(written.into_iter().map(|v| (v, Var::Life(STATIC))));
                 for (_, slots) in &mut sig.params {
                     for (var, category) in slots {
                         if statics.contains(var) && *category != Some(Category::StaticParam) {

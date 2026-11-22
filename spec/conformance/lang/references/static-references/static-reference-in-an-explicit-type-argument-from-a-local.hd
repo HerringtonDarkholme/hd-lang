@@ -1,0 +1,9 @@
+# test: an argument at an explicit `&'static` type argument is a static source
+# Spec 13 Static References: ref.static.source.error. `take::[&'static i32]`
+# takes a `&'static i32`, and `x` is a local.
+fn take[T](value: T) -> void:
+    pass
+
+pub fn main() -> void:
+    x := 1
+    take::[&'static i32](&x) # diagnostic: static-reference-source

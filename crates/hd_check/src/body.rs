@@ -554,6 +554,11 @@ pub(crate) struct Ck<'a, 'c> {
     /// Elsewhere in a body a lifetime is not yet
     /// (`ref.lifetime.not-yet.body`).
     pub static_annotation: Vec<hd_base::NodeIdx>,
+    /// The reference slots an explicit type argument writes `'static`,
+    /// by the node naming the callee and the argument's written position
+    /// (`ref.static.form`): each argument there takes only a static
+    /// source, as a `let` annotation's does.
+    pub static_targs: HashMap<(hd_base::NodeIdx, u16), Box<[u32]>>,
     /// The lifetimes in scope while a closure parameter annotation that
     /// may write them is lowered (`fn.type.lifetime.call.written.closure`):
     /// elsewhere a body's written lifetime is not checked yet
@@ -890,6 +895,7 @@ pub(crate) fn new_ck<'a, 'c>(
         closure_lifetimes: HashMap::default(),
         static_values: Vec::new(),
         static_annotation: Vec::new(),
+        static_targs: HashMap::default(),
         written_lifetimes: None,
         local_inits: HashMap::default(),
         declared_tys: HashSet::default(),

@@ -1,0 +1,41 @@
+# test: an explicit type argument writes `'static` wherever `&T` may be
+# Spec 13 Static References: ref.static.form. `'static` is a fixed
+# qualifier, so a call's explicit type argument may write it: with no
+# value operand, nested in a tuple or an alias, beside function and
+# suspension slots, and for a generic method. Each argument there is a
+# static source.
+fn require[T < 'static]() -> void:
+    pass
+
+fn take[T](value: T) -> void:
+    pass
+
+fn hold[T < 'static](value: T) -> void:
+    pass
+
+fn work!(value: &i32) -> i32:
+    *value
+
+type Fixed = &'static i32
+
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn pick[T](&self, value: T) -> i32:
+        self.n
+
+let shared: i32 = 3
+
+pub fn main() -> void:
+    require::[&'static i32]()
+    require::[(&'static i32, i32)]()
+    require::[Fixed]()
+    take::[&'static i32](&shared)
+    hold::[&'static i32](&shared)
+    take::[(fn() -> void, &'static i32)]((fn() -> void: pass, &shared))
+    take::[(Suspend[i32], &'static i32)]((work(&shared), &shared))
+    x := 1
+    take::[(&'static i32, &i32)]((&shared, &x))
+    counter := Counter { n: 1 }
+    _ := counter.pick::[&'static i32](&shared)
