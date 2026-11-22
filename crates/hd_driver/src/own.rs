@@ -19,6 +19,7 @@
 //! body, and a default body's result type is its checked body's root.
 
 use hd_base::SliceSort as _;
+use hd_types::ANON_SUM;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt::Write as _;
@@ -62,10 +63,16 @@ impl Env<'_> {
             (TyData::Tuple { elems, rest }, Some(field)) => {
                 pool.list_items(elems).get(field as usize).copied().or(rest)
             }
-            (TyData::Union(members), Some(0)) => key
+            (
+                TyData::Adt {
+                    def: ANON_SUM,
+                    args: members,
+                },
+                Some(0),
+            ) => key
                 .variant
                 .and_then(|v| pool.list_items(members).get(v as usize).copied()),
-            (TyData::Adt { def, args }, field) => {
+            (TyData::Adt { def, args }, field) if def.get().is_some() => {
                 if let Some(field) = field {
                     let raw = self.p.items.get(def).and_then(|item| match &item.data {
                         hd_resolve::ItemData::Struct(fields, _) => {
@@ -542,7 +549,7 @@ impl OwnCx for Env<'_> {
         let base = hd_layout::strip_newtype(pool, self, ty);
         let mut layer = ty;
         loop {
-            let TyData::Adt { def, args } = pool.get(layer) else {
+            let Some((def, args)) = pool.adt(layer) else {
                 return if self.is_open(layer) {
                     Tri::Maybe
                 } else {
@@ -1120,7 +1127,7 @@ impl OwnCx for Env<'_> {
             return false;
         }
         let pool = &self.run.pool;
-        let TyData::Adt { def, args } = pool.get(ty) else {
+        let Some((def, args)) = pool.adt(ty) else {
             return false;
         };
         let Some(fields) = self.data_fields(def) else {
@@ -1496,7 +1503,7 @@ impl RefFacts {
 /// is not one: the reference alone decides.
 fn ref_parts(pool: &hd_types::InternPool, t: Ty, out: &mut Vec<Ty>) {
     let (list, rest) = match pool.get(t) {
-        TyData::Adt { args: l, .. } | TyData::Union(l) => (l, None),
+        TyData::Adt { args: l, .. } => (l, None),
         TyData::Tuple { elems, rest } => (elems, rest),
         _ => (TyList::EMPTY, None),
     };
@@ -1529,7 +1536,7 @@ fn ref_facts_of(
             only_counted: false,
             ..all(pool.list_items(args))
         },
-        TyData::Adt { args: l, .. } | TyData::Union(l) => all(pool.list_items(l)),
+        TyData::Adt { args: l, .. } => all(pool.list_items(l)),
         TyData::Tuple { elems, rest } => {
             let mut ts = pool.list_items(elems).to_vec();
             ts.extend(rest);

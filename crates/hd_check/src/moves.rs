@@ -20,6 +20,7 @@ use hd_syntax::SyntaxKind;
 use hd_tir::Callee;
 use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology};
 use hd_tir::own::flow::{BitArena, Flow, Forward, Suites, forward};
+use hd_types::ANON_SUM;
 use hd_types::{CopyDecl, ParamRef, Ty, TyData, Types};
 
 use crate::body::Ck;
@@ -108,7 +109,7 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
         TyData::Tuple { elems, rest } => {
             Err(pool.list_items(elems).iter().copied().chain(rest).collect())
         }
-        TyData::Union(ms) => Err(pool.list_items(ms).to_vec()),
+        TyData::Adt { def, args } if def == ANON_SUM => Err(pool.list_items(args).to_vec()),
         TyData::Param(_) if relaxed.contains(&t) => Ok(Some(t)),
         TyData::Param(p) => Ok((!param_copies((pool, find), p)).then_some(t)),
         TyData::Assoc { assoc, .. } => {
@@ -1090,9 +1091,7 @@ impl Ck<'_, '_> {
     /// The declared type of field `j` of `t`, of variant `variant` for an
     /// enum: a struct's or an enum's, not a tuple's or an optional's.
     fn field_decl(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<Ty> {
-        let TyData::Adt { def, .. } = self.pool().get(t) else {
-            return None;
-        };
+        let (def, _) = self.pool().adt(t)?;
         let fields = match (&self.cx.lookup.item(def)?.data, variant) {
             (ItemData::Struct(fs, _), None) => fs,
             (

@@ -369,8 +369,7 @@ fn head_match(
             }
             (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
             | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
-            | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
-            | (TyData::Union(a), TyData::Union(b)) => {
+            | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => {
                 stack.extend(pairs(a, b));
             }
             (
@@ -440,7 +439,7 @@ fn params_in(pool: Types<'_>, t: Ty, memo: &mut ParamsMemo) -> Vec<ParamRef> {
                 stack.extend_from_slice(pool.list_items(elems));
                 stack.extend(rest);
             }
-            TyData::Union(members) => stack.extend_from_slice(pool.list_items(members)),
+
             TyData::Ref { inner, .. } => stack.push(inner),
             TyData::Fn {
                 params,

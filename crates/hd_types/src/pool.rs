@@ -16,6 +16,11 @@ use hd_base::{AppendVec, DefId, HashMap, HashSet, InferVar, PathId};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Ty(pub u32);
 
+/// An anonymous sum has no declaration; its ordered argument list is its
+/// shape, including its arity (`types.union.identity`, `types.union.nesting`).
+/// `DefId::NONE` encodes this absence, never a fabricated declaration ID.
+pub const ANON_SUM: DefId = DefId::NONE;
+
 /// An interned list of types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TyList(pub u32);
@@ -300,19 +305,15 @@ pub enum TyData {
     /// already reported. It unifies with anything, so one error isn't
     /// reported twice.
     Poison,
-    /// A named type applied to its arguments (`types.forms.with-impl-types`):
-    /// a struct, enum, newtype (`types.newtype.decl`) or std type such as
-    /// `List[T]`.
+    /// A declared type applied to its arguments (`types.forms.with-impl-types`),
+    /// or an anonymous sum with no declaration (`ANON_SUM`); its argument
+    /// list preserves the sum's arity, order, duplicates and nesting.
     Adt { def: DefId, args: TyList },
     /// A tuple `(A, B)` (`types.tuple.structural`). `rest` is the `List[T]`
     /// of a rest element, as in `(A, List[T]...)` (`types.tuple.rest.form`,
     /// `types.tuple.rest.list`); it takes part in identity
     /// (`types.tuple.rest.same`).
     Tuple { elems: TyList, rest: Option<Ty> },
-    /// An ordered anonymous sum (`types.union.identity`). Members keep their
-    /// arity, order, duplicates, and nested union identities
-    /// (`types.union.nesting`).
-    Union(TyList),
     /// A function type `fn(A) -> R $ Row` (`types.fn.constructor`);
     /// `suspends` marks a bang function, `SuspendFn`.
     Fn {
@@ -396,6 +397,17 @@ pub enum TyData {
     Context(RowId),
 }
 
+impl TyData {
+    /// An ordered anonymous sum, represented by the same ADT as an enum.
+    #[must_use]
+    pub fn sum(args: TyList) -> Self {
+        Self::Adt {
+            def: ANON_SUM,
+            args,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
 enum PoolTag {
@@ -421,7 +433,6 @@ enum PoolTag {
     RowTy,
     Context,
     Const,
-    Union,
     /// A function type's dependency map: `[inputs, results, lifetimes...]`.
     Deps,
 }
@@ -1440,7 +1451,7 @@ impl<'a> Types<'a> {
                     TyData::TraitValue {
                         def: y, args: b, ..
                     },
-                ) if x == y => pairs(stack, a, b),
+                ) if x == y && x.get().is_some() => pairs(stack, a, b),
                 _ => false,
             }
         })
@@ -1581,7 +1592,6 @@ impl<'a> Types<'a> {
                 0,
                 meta::level(j(self.list_meta(*elems), self.meta_of(*r))),
             ),
-            TyData::Union(members) => (T::Union, members.0, meta::level(self.list_meta(*members))),
             TyData::Fn {
                 params,
                 result,
@@ -1734,7 +1744,8 @@ impl<'a> Types<'a> {
         }
     }
 
-    /// An ADT's definition and argument-list identity.
+    /// A declared ADT's definition and argument-list identity.
+    /// ruled out: anonymous sums have no declaration to query.
     #[must_use]
     pub fn adt(self, t: Ty) -> Option<(DefId, TyList)> {
         let (c, i) = self.at(t.0);
@@ -1742,7 +1753,8 @@ impl<'a> Types<'a> {
             return None;
         }
         let off = c.data[i];
-        Some((DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1])))
+        let def = DefId::from_raw(c.extra[off]);
+        def.get().map(|def| (def, TyList(c.extra[off + 1])))
     }
 
     /// The definition and arguments of a type already checked as an ADT.
@@ -1888,7 +1900,6 @@ impl<'a> Types<'a> {
                 elems: TyList(x[0]),
                 rest: Some(Ty(x[1])),
             },
-            PoolTag::Union => TyData::Union(TyList(d)),
             PoolTag::Fn => TyData::Fn {
                 params: TyList(x[0]),
                 result: Ty(x[1]),
@@ -1976,7 +1987,7 @@ impl<'a> Types<'a> {
     /// place. A leaf appends nothing. Cost: one pass over the children.
     pub fn children(self, t: Ty, out: &mut Vec<Ty>) {
         match self.get(t) {
-            TyData::Adt { args, .. } | TyData::Union(args) => {
+            TyData::Adt { args, .. } => {
                 out.extend_from_slice(self.list_items(args));
             }
             TyData::Opaque { args, bound, .. } => {
@@ -2057,7 +2068,6 @@ impl<'a> Types<'a> {
                     rest: rest.map(|r| m.ty(r)),
                 }
             }
-            TyData::Union(members) => TyData::Union(list(m, members)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -2214,9 +2224,8 @@ impl<'a> Types<'a> {
     /// (`fn.type.lifetime.call.written`, `FnSig::fn_lifetimes`): each
     /// function type, after the function types in its own inputs and
     /// result, adds the [`Self::ref_slots`] of its inputs and then of its
-    /// result. A union's members are not entered: its member order is the
-    /// pool's, not the source's, so no record reaches a function type
-    /// inside one.
+    /// result. Anonymous sums keep their existing conservative signature
+    /// maps; no record reaches a function type inside one.
     #[must_use]
     pub fn fn_written_slots(self, t: Ty) -> usize {
         self.slots_word(t.0).written() as usize
@@ -2241,9 +2250,8 @@ impl<'a> Types<'a> {
             TyData::Tuple { elems, rest } => {
                 rest.map_or(list(*elems), |r| list(*elems).plus(of(r)))
             }
-            // A union's member order is the pool's, so no record reaches a
-            // function type inside one: its written slots are none.
-            TyData::Union(members) => Slots::new(list(*members).refs(), 0),
+            // Anonymous sums retain their conservative signature maps.
+            TyData::Adt { def, args } if *def == ANON_SUM => Slots::new(list(*args).refs(), 0),
             TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(*args),
             // A function type's own slots are outside every enclosing
             // type's reference slots; its written slots are those of the
@@ -2347,7 +2355,6 @@ impl<'a> Types<'a> {
                 elems: l(elems, memo),
                 rest: rest.map(|r| self.subst_in(r, f, memo)),
             },
-            TyData::Union(members) => TyData::Union(l(members, memo)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -2552,7 +2559,6 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
                 elems: list(elems),
                 rest,
             },
-            TyData::Union(members) => TyData::Union(list(members)),
             TyData::Ref {
                 inner,
                 mutable,
@@ -2702,7 +2708,6 @@ impl Erase {
                     elems: list(elems),
                     rest: rest.map(mapped),
                 },
-                TyData::Union(members) => TyData::Union(list(members)),
                 TyData::Fn {
                     params,
                     result,
@@ -2758,6 +2763,7 @@ impl Erase {
 
 #[cfg(test)]
 mod tests {
+    use super::ANON_SUM;
     /// #2024: `type R0 = &T`, `type R{i} = (R{i-1}, R{i-1})`, and a
     /// function type over each level. Each count is read from the item's
     /// own word, set once when the item is interned from its parts' words,
@@ -2857,7 +2863,7 @@ mod tests {
             deps: FnDeps::NONE,
         });
         assert_eq!((t.ref_slots(f), t.fn_written_slots(f)), (0, 3));
-        let union = pool.intern_ty(&TyData::Union(pool.list(&[local, f])));
+        let union = pool.intern_ty(&TyData::sum(pool.list(&[local, f])));
         assert_eq!((t.ref_slots(union), t.fn_written_slots(union)), (1, 0));
         let held = pool.intern_ty(&TyData::Tuple {
             elems: pool.list(&[f, local]),
@@ -3207,7 +3213,7 @@ mod tests {
                 elems: list,
                 rest: Some(Ty::BOOL),
             },
-            TyData::Union(list),
+            TyData::sum(list),
             TyData::Fn {
                 params: list,
                 result: Ty::VOID,
@@ -3262,8 +3268,10 @@ mod tests {
     #[test]
     fn union_identity_keeps_order_duplicates_nesting_and_substitution() {
         let p = InternPool::new();
-        let union = |members: &[Ty]| p.intern_ty(&TyData::Union(p.list(members)));
+        let union = |members: &[Ty]| p.intern_ty(&TyData::sum(p.list(members)));
         let ab = union(&[Ty::I32, Ty::STRING]);
+        assert!(matches!(p.get(ab), TyData::Adt { def: ANON_SUM, .. }));
+        assert!(p.adt(ab).is_none());
         let ba = union(&[Ty::STRING, Ty::I32]);
         let duplicate = union(&[Ty::I32, Ty::I32]);
         let flat = union(&[Ty::I32, Ty::STRING, Ty::BOOL]);
@@ -3520,8 +3528,7 @@ mod tests {
     /// in: under a local and a counted reference, in a tuple with a rest,
     /// in a generic instance, next to a part that changes but holds no
     /// reference, and with an open map; and the shapes it leaves the map
-    /// of: a union, which substitution rebuilds in the pool's order, and a
-    /// type deeper than `TYPE_DEPTH`.
+    /// of: an anonymous sum and a type deeper than `TYPE_DEPTH`.
     #[test]
     fn an_instance_map_follows_each_shape_a_type_parameter_fills() {
         let pool = InternPool::new();
@@ -3600,7 +3607,7 @@ mod tests {
             types.instance_deps((&[r, t], pair_out, open2), (&[r, r], tuple(&[r, r], None)));
         assert_eq!(unjoined, open2);
         // A union in the inputs, or in the result, keeps the map.
-        let union = pool.intern_ty(&TyData::Union(pool.list(&[t, rf(Ty::BOOL, false)])));
+        let union = pool.intern_ty(&TyData::sum(pool.list(&[t, rf(Ty::BOOL, false)])));
         let in_union = types.subst(plain(&[union], t), &at(r, r));
         assert_eq!(deps(in_union), None);
         let out_union = types.subst(plain(&[t], union), &at(r, r));
@@ -3991,7 +3998,7 @@ mod tests {
                 elems: pool.list(&[Ty::I32]),
                 rest: Some(t),
             }),
-            Box::new(|t| TyData::Union(pool.list(&[Ty::I32, t]))),
+            Box::new(|t| TyData::sum(pool.list(&[Ty::I32, t]))),
             Box::new(|t| TyData::Row(row(t))),
             Box::new(|t| TyData::Context(row(t))),
             Box::new(|t| TyData::TraitValue {

@@ -61,6 +61,7 @@ use hd_tir::ir::{
     BodyKind, Callee, ChoiceKind, Coercion, NONE, Place, PlaceRoot, Proj, Providers, ReadMode, Ref,
     Tag, TirBuilder, TirSink, VerifyError, local_flags,
 };
+use hd_types::ANON_SUM;
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 /// Where the generator reads declarations: `std.structure`'s structs
@@ -260,7 +261,11 @@ pub fn tuple_target(pool: &InternPool, ty: Ty) -> Option<Target> {
 /// single-payload enum variant `_k` per member, in member order.
 #[must_use]
 pub fn union_target(pool: &InternPool, ty: Ty) -> Option<Target> {
-    let TyData::Union(members) = pool.get(ty) else {
+    let TyData::Adt {
+        def: ANON_SUM,
+        args: members,
+    } = pool.get(ty)
+    else {
         return None;
     };
     let vars = pool
@@ -2058,7 +2063,7 @@ mod tests {
     #[test]
     fn a_union_target_is_an_enum_with_one_positional_payload_per_case() {
         let pool = InternPool::new();
-        let t = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, Ty::STRING])));
+        let t = pool.intern_ty(&TyData::sum(pool.list(&[Ty::I32, Ty::STRING])));
         let target = union_target(&pool, t).expect("a union");
         assert_eq!(target.name, "Union");
         let shown: Vec<_> = target

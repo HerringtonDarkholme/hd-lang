@@ -8,7 +8,7 @@
 use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
 use hd_tir::ir::Ref;
-use hd_types::{Ty, TyData};
+use hd_types::Ty;
 
 use crate::body::Ck;
 
@@ -20,7 +20,7 @@ impl Ck<'_, '_> {
     fn embedded_parts(&self, t: Ty) -> Vec<(String, Ty)> {
         let pool = self.pool();
         let t = self.resolved(t);
-        let TyData::Adt { def, .. } = pool.get(t) else {
+        let Some((def, _)) = pool.adt(t) else {
             return Vec::new();
         };
         let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
@@ -72,7 +72,7 @@ impl Ck<'_, '_> {
         let sym = self.cx.names.syms.intern(name);
         self.promoted_path(t, |ck, part| {
             let pool = ck.pool();
-            let TyData::Adt { def, .. } = pool.get(ck.resolved(part)) else {
+            let Some((def, _)) = pool.adt(ck.resolved(part)) else {
                 return false;
             };
             let Some(ItemData::Struct(fields, _)) = ck.cx.lookup.item(def).map(|i| &i.data) else {

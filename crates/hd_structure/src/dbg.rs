@@ -24,9 +24,7 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
     }
     let names = cx.names;
     let pool = names.pool;
-    let TyData::Adt { def, args } = pool.get(ty) else {
-        return None;
-    };
+    let (def, args) = pool.adt(ty)?;
     let args = pool.list_items(args);
     let item = cx.items.item(def)?;
     let shown = names.text(item.name).to_owned();

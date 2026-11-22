@@ -19,7 +19,7 @@ use hd_base::{DefId, Fuel, HashMap, HashSet, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags};
-use hd_types::{ParamRef, Ty, TyData};
+use hd_types::{ANON_SUM, ParamRef, Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition};
 use crate::refs::{Place, Root};
@@ -138,6 +138,9 @@ impl<'a> ProjectionCycles<'a> {
             &mut |t| {
                 let mut children = Vec::new();
                 match pool.get(t) {
+                    TyData::Adt { def, args } if def == ANON_SUM => {
+                        children.extend(pool.list_items(args));
+                    }
                     TyData::Adt { def, .. }
                         if holds_itself(global, &mut self.inline, pool, lookup, def) => {}
                     TyData::Adt { def, args } => {
@@ -176,7 +179,6 @@ impl<'a> ProjectionCycles<'a> {
                         }
                     }
                     TyData::Tuple { elems, .. } => children.extend(pool.list_items(elems)),
-                    TyData::Union(members) => children.extend(pool.list_items(members)),
                     // References, functions and trait values end containment;
                     // unresolved projections and parameters have no known fields.
                     TyData::Prim(_)
@@ -312,7 +314,6 @@ impl<'a> ProjectionCycles<'a> {
             bad = bad.or(found);
             match pool.get(t) {
                 TyData::Adt { args, .. } => todo.extend(pool.list_items(args)),
-                TyData::Union(members) => todo.extend(pool.list_items(members)),
                 TyData::Ref { inner, .. } => todo.push(inner),
                 TyData::Tuple { elems, rest } => {
                     todo.extend(pool.list_items(elems));
@@ -704,6 +705,13 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
 /// instance decides, and a goal in error or still open.
 fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mut Vec<Ty>) {
     match pool.get(t) {
+        TyData::Adt {
+            def: ANON_SUM,
+            args,
+        }
+        | TyData::Tuple { elems: args, .. } => {
+            out.extend_from_slice(pool.list_items(args));
+        }
         TyData::Adt { args, .. } => {
             let args = pool.list_items(args);
             match repr {
@@ -715,9 +723,6 @@ fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mu
                 ),
                 None => out.extend_from_slice(args),
             }
-        }
-        TyData::Tuple { elems: parts, .. } | TyData::Union(parts) => {
-            out.extend_from_slice(pool.list_items(parts));
         }
         TyData::Ref { .. }
         | TyData::TraitValue { .. }
@@ -761,7 +766,7 @@ impl<'m> Decided<'m> {
             }
             crate::work::held_type();
             let repr = match pool.get(t) {
-                TyData::Adt { def, .. } => {
+                TyData::Adt { def, .. } if def.get().is_some() => {
                     let Some(d) = self.get(def) else { continue };
                     if d.group.first() == Some(&head) {
                         return true;
@@ -947,7 +952,7 @@ fn decide(
             }
             crate::work::held_type();
             let mut repr = None;
-            if let TyData::Adt { def: e, .. } = pool.get(t) {
+            if let Some((e, _)) = pool.adt(t) {
                 if let Some(known) = run.get(&e) {
                     repr = Some(&*known.repr);
                 } else if let Some(known) = local.get(&e) {
@@ -1040,7 +1045,7 @@ fn decide_component(
         }
         crate::work::held_type();
         match pool.get(t) {
-            TyData::Adt { def: e, args } => {
+            TyData::Adt { def: e, args } if e.get().is_some() => {
                 if let Some(j) = member(e) {
                     holds[i].push(j);
                     for (k, &a) in pool.list_items(args).iter().enumerate() {

@@ -1,0 +1,13 @@
+# @dump: stdout wat
+# @build: release | release checked
+# Anonymous sums keep the variant proof used by structure accessors.
+# They are sums even though they have no nominal enum declaration.
+type Choice = i32 | string
+
+fn show(value: Choice) -> string:
+    # subject
+    value.to_string()
+
+pub fn main() -> void $ Console:
+    println(show(._0(7)))
+    println(show(._1("kept")))

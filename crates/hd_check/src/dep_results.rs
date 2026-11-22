@@ -28,6 +28,7 @@
 //! a construction cannot be lined up with the slots, each slot takes the
 //! union of all of them through one region, which only adds origins.
 
+use hd_types::ANON_SUM;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -937,7 +938,6 @@ fn line_up_with(
                 stack.push(Step::Pair(a, b, d1));
                 true
             }
-            (TyData::Union(a), TyData::Union(b)) => list(stack, a, b),
             // A rest that does not line up fails the whole walk, so it
             // fails before the elements are entered.
             (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
@@ -1122,9 +1122,7 @@ impl Layout {
                     let parts = pool.list_items(elems).iter().chain(rest.iter());
                     stack.extend(parts.map(|&e| (e, top, d, None)));
                 }
-                TyData::Adt { args, .. }
-                | TyData::TraitValue { args, .. }
-                | TyData::Union(args) => {
+                TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
                     stack.extend(pool.list_items(args).iter().map(|&a| (a, top, d, None)));
                 }
                 TyData::Prim(_)
@@ -1191,13 +1189,13 @@ impl SlotCounts {
                 out.extend(rest);
                 0
             }
-            TyData::Adt { def, args } => {
-                out.extend(pool.list_items(args));
-                u32::from(def == self.suspend)
-            }
-            TyData::TraitValue { args, .. } | TyData::Union(args) => {
+            TyData::TraitValue { args, .. } => {
                 out.extend(pool.list_items(args));
                 0
+            }
+            TyData::Adt { def, args } => {
+                out.extend(pool.list_items(args));
+                u32::from(def.get().is_some_and(|def| def == self.suspend))
             }
             _ => 0,
         }
@@ -1392,7 +1390,7 @@ impl<'a> Layouts<'a> {
                     statik: false,
                 })
             }
-            (TyData::Adt { def, args }, _) => {
+            (TyData::Adt { def, args }, _) if def.get().is_some() => {
                 let item = cx.lookup.item(def)?;
                 let fields = match (&item.data, variant) {
                     (ItemData::Struct(fs, _), None) => fs,
@@ -2330,7 +2328,7 @@ fn member_origins<V: Clone>(
     };
     let (members, rest) = match pool.get(target) {
         TyData::Tuple { elems, rest } => (elems, rest),
-        TyData::Union(members) => (members, None),
+        TyData::Adt { def, args } if def == ANON_SUM => (args, None),
         _ => return None,
     };
     for &e in pool.list_items(members) {
@@ -3998,7 +3996,7 @@ impl Ck<'_, '_> {
         // lies in, which a struct held by value never repeats.
         let mut stack: Vec<(Ty, Vec<Part>, Vec<DefId>)> = vec![(top.0, top.1, Vec::new())];
         while let Some((t, path, mut outer)) = stack.pop() {
-            let TyData::Adt { def, .. } = pool.get(t) else {
+            let Some((def, _)) = pool.adt(t) else {
                 continue;
             };
             if !(ls.lifetimed)(def) || outer.contains(&def) {
@@ -4099,9 +4097,7 @@ impl Ck<'_, '_> {
         rest: &[Part],
     ) -> Option<Vec<(usize, usize)>> {
         let pool = ls.pool;
-        let TyData::Adt { def, args } = pool.get(ty) else {
-            return None;
-        };
+        let (def, types) = pool.adt(ty)?;
         let item = self.cx.lookup.item(def)?;
         let fields = match (&item.data, variant) {
             (ItemData::Struct(fs, _), None) => fs,
@@ -4109,7 +4105,7 @@ impl Ck<'_, '_> {
             _ => return None,
         };
         let field = fields.get(j as usize)?;
-        let argv = pool.list_items(args);
+        let argv = pool.list_items(types);
         let (lo, n) = match fn_spot(self.cx, pool, field.ty, rest)? {
             Spot::Fn(lo, n) => (lo, n),
             // A field of the field's function type's result, as
@@ -6204,7 +6200,7 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
                 base += slots(items.get(..j)?);
                 ty = *items.get(j)?;
             }
-            (Part::Proj(Proj::Field(j)), TyData::Adt { def, args }) => {
+            (Part::Proj(Proj::Field(j)), TyData::Adt { def, args }) if def.get().is_some() => {
                 let fields = match (&cx.lookup.item(def)?.data, variant.take()) {
                     (ItemData::Struct(fs, _), None) => fs,
                     (ItemData::Enum { variants, .. }, Some(k)) => &variants.get(k as usize)?.fields,

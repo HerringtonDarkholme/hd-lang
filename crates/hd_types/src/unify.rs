@@ -545,7 +545,6 @@ impl InferTable {
                     kids.extend_from_slice(pool.list_items(elems));
                     kids.extend(rest);
                 }
-                TyData::Union(members) => kids.extend_from_slice(pool.list_items(members)),
                 TyData::Ref { inner: i, .. } => kids.push(i),
                 TyData::Fn { params, result, .. } => {
                     kids.push(result);
@@ -906,7 +905,6 @@ impl InferTable {
                 stack.push(UnifyWork::Pair(r1, r2, Some((a, b, false))));
                 Self::queue_unify_list(pool, e1, e2, a, b, stack)
             }
-            (TyData::Union(x), TyData::Union(y)) => Self::queue_unify_list(pool, x, y, a, b, stack),
             (
                 TyData::TraitValue {
                     def: d1, args: a1, ..
@@ -1583,7 +1581,7 @@ mod tests {
                             elems: p.list(&[Ty::BOOL]),
                             rest: Some(t),
                         },
-                        3 => TyData::Union(p.list(&[t, Ty::BOOL])),
+                        3 => TyData::sum(p.list(&[t, Ty::BOOL])),
                         4 => TyData::TraitValue {
                             def,
                             args: p.list(&[t]),
@@ -1876,7 +1874,7 @@ mod tests {
                     elems: args,
                     rest: Some(x),
                 },
-                TyData::Union(args),
+                TyData::sum(args),
                 TyData::Fn {
                     params: args,
                     result: x,
@@ -2111,7 +2109,7 @@ mod tests {
         assert_eq!(table.shallow(p, root), root);
         assert_eq!(lp.len(), before);
         let snap = table.snapshot();
-        let global = p.intern_ty(&TyData::Union(p.list(&[Ty::I32])));
+        let global = p.intern_ty(&TyData::sum(p.list(&[Ty::I32])));
         table.unify(p, b, global).expect("bind class");
         assert!(!global.is_local());
         for ty in [a, b, alias] {
@@ -2257,8 +2255,8 @@ mod tests {
         let p = Types::with_local(&gp, &lp);
         let mut t = InferTable::default();
         let a = t.fresh(p, VarKind::General);
-        let opt_a = p.intern_ty(&TyData::Union(p.list(&[a])));
-        let opt_i32 = p.intern_ty(&TyData::Union(p.list(&[Ty::I32])));
+        let opt_a = p.intern_ty(&TyData::sum(p.list(&[a])));
+        let opt_i32 = p.intern_ty(&TyData::sum(p.list(&[Ty::I32])));
         let snap = t.snapshot();
         t.unify(p, opt_a, opt_i32).expect("unify");
         assert_eq!(t.resolve(p, opt_a), opt_i32);
@@ -2289,7 +2287,7 @@ mod tests {
         let mut t = InferTable::default();
         let a = t.fresh(p, VarKind::General);
         let b = t.fresh(p, VarKind::General);
-        let opt = |x: Ty| p.intern_ty(&TyData::Union(p.list(&[x])));
+        let opt = |x: Ty| p.intern_ty(&TyData::sum(p.list(&[x])));
         let pair = p.intern_ty(&TyData::Tuple {
             elems: p.list(&[a, b]),
             rest: None,
@@ -2383,7 +2381,7 @@ mod tests {
         t.unify(p, old[2], new)
             .expect("an old variable joins a new one");
         t.unify(p, new, lit).expect("the class becomes a literal");
-        t.unify(p, old[0], p.intern_ty(&TyData::Union(p.list(&[new]))))
+        t.unify(p, old[0], p.intern_ty(&TyData::sum(p.list(&[new]))))
             .expect("an old class binds through a new variable");
         t.mark_signed(p, lit);
         assert_eq!(t.kind_of(p, old[2]), Some(VarKind::SignedIntLit));
@@ -2524,7 +2522,7 @@ mod tests {
                 elems: p.list(&[Ty::I32]),
                 rest: Some(deep_b),
             }),
-            p.intern_ty(&TyData::Union(p.list(&[deep_b]))),
+            p.intern_ty(&TyData::sum(p.list(&[deep_b]))),
             p.intern_ty(&TyData::Ref {
                 inner: deep_b,
                 mutable: false,

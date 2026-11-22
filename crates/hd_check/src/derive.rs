@@ -197,9 +197,7 @@ impl OptIn {
             return None;
         };
         let pool = names.pool.types();
-        let TyData::Adt { def, args } = pool.get(*self_ty) else {
-            return None;
-        };
+        let (def, args) = pool.adt(*self_ty)?;
         let args = pool.list_items(args);
         let ty = |t: Ty| {
             pool.subst(t, &|p: ParamRef| {
@@ -334,7 +332,7 @@ pub fn check_omitted_defaults(
     let ItemData::Impl { self_ty, .. } = &it.data else {
         return;
     };
-    let TyData::Adt { def, .. } = pool.get(*self_ty) else {
+    let Some((def, _)) = pool.adt(*self_ty) else {
         return;
     };
     let Some(ItemData::Struct(fields, _)) = lookup.item(def).map(|i| &i.data) else {

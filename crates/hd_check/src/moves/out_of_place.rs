@@ -319,7 +319,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         match pool.get(t) {
             TyData::Tuple { elems, .. } => pool.list_items(elems).get(j as usize).copied(),
-            TyData::Adt { def, args } => {
+            TyData::Adt { def, args } if def.get().is_some() => {
                 let fields = match (&self.cx.lookup.item(def)?.data, variant) {
                     (ItemData::Struct(fs, _), None) => fs,
                     (

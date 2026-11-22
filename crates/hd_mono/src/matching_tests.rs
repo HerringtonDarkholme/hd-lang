@@ -10,8 +10,8 @@ fn impl_arguments_follow_union_member_positions() {
     let owner = DefId::from_raw(1);
     let a = param(&pool, owner, 0);
     let b = param(&pool, owner, 1);
-    let pattern = pool.intern_ty(&TyData::Union(pool.list(&[a, b])));
-    let actual = pool.intern_ty(&TyData::Union(pool.list(&[Ty::STRING, Ty::I32])));
+    let pattern = pool.intern_ty(&TyData::sum(pool.list(&[a, b])));
+    let actual = pool.intern_ty(&TyData::sum(pool.list(&[Ty::STRING, Ty::I32])));
     let mut out = Vec::new();
     unify(&pool, owner, pattern, actual, &mut out);
     assert_eq!(out, vec![Some(Ty::STRING), Some(Ty::I32)]);
