@@ -235,7 +235,7 @@ gate, which is about 30 to 50 bytes on these modules:
 | Program | Added | Before | After | Growth |
 | --- | --- | ---: | ---: | ---: |
 | hello, printing a string | `wire_encode::[string]` | 5,593 | 7,306 | +30.6% |
-| `bench/study/nbody` | `wire_decode::[List[string]]` | 9,172 | 12,852 | +40.1% |
+| `bench/study/nbody.hd` | `wire_decode::[List[string]]` | 9,172 | 12,852 | +40.1% |
 
 The host's codec of the same type is 30 to 150 bytes, and every bench
 program links only four small host decoders (about 270 bytes with
