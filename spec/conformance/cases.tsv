@@ -7176,6 +7176,8 @@ std/option/unwrapping-without-a-message/option-unwrap-none.hd	runtime	panic:expl
 std/result/unwrapping-without-a-message/result-unwrap-err.hd	runtime	panic:explicit-panic	std/result.md#r-std-result.unwrap.panic
 std/option/lazy-fallbacks-and-filtering/lazy-methods-forward-callback-rows.hd	type	accept	std/option.md#r-std-option.lazy.row
 std/result/unwrapping-without-a-message/result-unwrap-requires-debug.hd	type	reject:unsatisfied-trait-bound	std/result.md#r-std-result.unwrap.bound
+std/num/floating-point-minimum-and-maximum/float-minmax.hd	runtime	accept	std/num.md#floating-point-minimum-and-maximum
+std/num/floating-point-minimum-and-maximum/float-minmax-keeps-width.hd	type	reject:implicit-narrowing	std/num.md#r-std-num.float-minmax.width
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

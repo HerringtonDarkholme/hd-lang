@@ -1,0 +1,53 @@
+# test: float min/max select numeric inputs, ignore one NaN, and preserve the float width
+fn bounded_score(score: f64) -> f64:
+    score.max(0.0).min(1.0)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("finite values and infinities use numeric order at both widths"):
+        assert_equal((1.0.min(2.0), 1.0.max(2.0)), (1.0, 2.0))
+        assert_equal((f32(2).min(f32(1)), f32(2).max(f32(1))), (f32(1), f32(2)))
+        inf := 1.0 / 0.0
+        assert_equal(inf.min(1.0), 1.0)
+        assert_equal((-inf).max(1.0), 1.0)
+        assert_equal((-inf).min(inf), -inf)
+        inf32 := f32(1) / f32(0)
+        assert_equal(inf32.min(f32(1)), f32(1))
+        assert_equal((-inf32).max(f32(1)), f32(1))
+        assert_equal(bounded_score(2.0), 1.0)
+
+    it("one NaN returns the other input in both orders"):
+        nan := f64::from_bits(9221120237041090561u64)
+        nan32 := f32::from_bits(2143289345u32)
+        assert_equal(nan.min(3.0), 3.0)
+        assert_equal(3.0.min(nan), 3.0)
+        assert_equal(nan.max(3.0), 3.0)
+        assert_equal(3.0.max(nan), 3.0)
+        assert_equal(nan32.min(f32(3)), f32(3))
+        assert_equal(f32(3).min(nan32), f32(3))
+        assert_equal(nan32.max(f32(3)), f32(3))
+        assert_equal(f32(3).max(nan32), f32(3))
+        assert(nan.min(nan).is_nan() && nan.max(nan).is_nan())
+        assert(nan32.min(nan32).is_nan() && nan32.max(nan32).is_nan())
+
+    it("signed zero stays an input, including beside a NaN"):
+        negative := f64::from_bits(9223372036854775808u64)
+        negative32 := f32::from_bits(2147483648u32)
+        nan := 0.0 / 0.0
+        nan32 := f32(0) / f32(0)
+        assert_equal(negative.min(nan).to_bits(), negative.to_bits())
+        assert_equal(nan.max(negative).to_bits(), negative.to_bits())
+        assert_equal(negative32.min(nan32).to_bits(), negative32.to_bits())
+        assert_equal(nan32.max(negative32).to_bits(), negative32.to_bits())
+        lo := negative.min(0.0).to_bits()
+        hi := 0.0.max(negative).to_bits()
+        assert((lo == 0 || lo == negative.to_bits()) && (hi == 0 || hi == negative.to_bits()))
+        lo32 := negative32.min(f32(0)).to_bits()
+        hi32 := f32(0).max(negative32).to_bits()
+        assert(
+            (
+                (lo32 == 0 || lo32 == negative32.to_bits())
+                && (hi32 == 0 || hi32 == negative32.to_bits())
+            ),
+        )
