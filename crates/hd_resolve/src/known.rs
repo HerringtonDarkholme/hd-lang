@@ -21,6 +21,7 @@ pub const CHECKED_MODULE: &str = "std.rt.checked";
 pub const RUNTIME_MODULE: &str = "std.rt";
 pub const FORMAT_MODULE: &str = "std.format";
 pub const BYTES_MODULE: &str = "std.rt.bytes";
+pub const HASH_RUNTIME_MODULE: &str = "std.rt.hash";
 
 /// The modules with compiler-supplied declarations, in seed order.
 pub const SEEDED_MODULES: &[&str] = &[
@@ -142,7 +143,7 @@ pub struct KnownItems {
     pub ordering: DefId,
     pub hash: DefId,
     /// The keyed hashes a map buckets its keys by
-    /// (spec/std/hash.md#r-std-hash.map.foldhash-fast): `std.hash`'s seeded
+    /// (spec/std/hash.md#r-std-hash.map.foldhash-fast): `std.rt.hash`'s seeded
     /// `hash_key` for a key that is not inline, `hash_string` for a string
     /// and `hash_integer` for any other inline key.
     pub map_key_hash: DefId,
@@ -452,10 +453,10 @@ impl KnownItems {
             ord: item("std.cmp", "Ord"),
             ordering: item("std.cmp", "Ordering"),
             hash: item(CORE_MODULE, "Hash"),
-            map_key_hash: item("std.hash", "hash_key"),
+            map_key_hash: item(HASH_RUNTIME_MODULE, "hash_key"),
             key_equal: item("std.hash", "key_equal"),
-            map_string_hash: item("std.hash", "hash_string"),
-            map_integer_hash: item("std.hash", "hash_integer"),
+            map_string_hash: item(HASH_RUNTIME_MODULE, "hash_string"),
+            map_integer_hash: item(HASH_RUNTIME_MODULE, "hash_integer"),
             display: item(FORMAT_MODULE, "Display"),
             debug: item(FORMAT_MODULE, "Debug"),
             site_location: item("std.debug", "site_location"),

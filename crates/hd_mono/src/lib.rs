@@ -288,12 +288,12 @@ pub trait ProgramEnv: LayoutEnv {
 
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): `std.hash.key_equal`, which compares two keys by value
-    /// through `Eq`, and `std.hash.hash_key`, the keyed hash a map
+    /// through `Eq`, and `std.rt.hash.hash_key`, the keyed hash a map
     /// buckets a key that is not inline by.
     fn map_key_items(&self) -> Option<(DefId, DefId)>;
     /// The keyed hash a map buckets an inline key by (`crates/hd_mono/DESIGN.md`
-    /// §13.12): `std.hash.hash_string` for a `string`, else
-    /// `std.hash.hash_integer`, which takes the key's bits as a `u64`.
+    /// §13.12): `std.rt.hash.hash_string` for a `string`, else
+    /// `std.rt.hash.hash_integer`, which takes the key's bits as a `u64`.
     fn inline_bucket_hash(&self, string: bool) -> DefId;
     /// The build's profile (`cli.profile.*`), which decides whether
     /// emitted integer arithmetic checks overflow and shift counts.
@@ -405,7 +405,7 @@ pub enum Target {
         eq: CallTarget,
     },
     /// A map operation on an inline key: its keyed bucket hash,
-    /// `std.hash.hash_string` or `std.hash.hash_integer`
+    /// `std.rt.hash.hash_string` or `std.rt.hash.hash_integer`
     /// (`crates/hd_mono/DESIGN.md` §13.12); equality stays inline.
     MapInline(CallTarget),
 }

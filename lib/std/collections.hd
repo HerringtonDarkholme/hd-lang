@@ -14,7 +14,8 @@ use std.ops.IndexMut
 use std.ops.IndexSet
 use std.ops.Range
 use std.format.DebugWriter
-use std.hash.{Hasher, hash_key}
+use std.hash.Hasher
+use std.rt.hash.hash_key
 use std.rt.map_hash_seed
 use std.rt.bytes.{
     ByteBuffer,

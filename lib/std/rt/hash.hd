@@ -1,0 +1,347 @@
+# Shared foldhash implementation and compiler-selected bucket entry points.
+# Only std may import this runtime module (module.rt.std-only).
+use std.core.{Hash, Hasher}
+use std.rt.bytes.{bytes_len, bytes_at}
+use std.rt.memory.{load_u32, load_u64, string_bytes}
+
+# foldhash 0.2.0 fast, with its non-wide-arithmetic Wasm multiply.
+# Port of Orson Peters' foldhash (2024), distributed under Zlib/Apache-2.0/MIT.
+# Source: https://github.com/orlp/foldhash/tree/8f878c636fda9c9e93384824ea45e06d03f009f5/src
+# Map bucket hashes use the low 32 bits (std-hash.map.foldhash-fast), and
+# FoldHasher and hash_of use all 64 with one fixed seed.
+# Copyright (c) 2024 Orson Peters
+#
+# This software is provided 'as-is', without any express or implied warranty. In
+# no event will the authors be held liable for any damages arising from the use of
+# this software.
+#
+# Permission is granted to anyone to use this software for any purpose, including
+# commercial applications, and to alter it and redistribute it freely, subject to
+# the following restrictions:
+#
+# 1. The origin of this software must not be misrepresented; you must not claim
+#     that you wrote the original software. If you use this software in a product,
+#     an acknowledgment in the product documentation would be appreciated but is
+#     not required.
+#
+# 2. Altered source versions must be plainly marked as such, and must not be
+#     misrepresented as being the original software.
+#
+# 3. This notice may not be removed or altered from any source distribution.
+
+fn fold_seed0() -> u64:
+    13883517620612518109u64
+fn fold_seed1() -> u64:
+    4577018097722394903u64
+fn fold_seed2() -> u64:
+    10526836309316205339u64
+fn fold_seed3() -> u64:
+    15073842237943035308u64
+fn fold_seed4() -> u64:
+    3458046377305235383u64
+fn fold_seed5() -> u64:
+    13322122606961655446u64
+
+# Four 32 x 32 products, so none overflows even in checked arithmetic.
+# This deliberately matches foldhash's Wasm approximation, not u128 mul.
+fn folded_multiply(x: u64, y: u64) -> u64:
+    mask := 4294967295u64
+    lx := x & mask
+    ly := y & mask
+    hx := x >> 32
+    hy := y >> 32
+    ll := lx * ly
+    lh := lx * hy
+    hl := hx * ly
+    hh := hx * hy
+    cross := hl ^ lh
+    (hh ^ ll) ^ ((cross >> 32) | (cross << 32))
+
+fn rotate_right(value: u64, count: usize) -> u64:
+    shift := count & 63
+    if shift == 0:
+        return value
+    (value >> shift) | (value << (64 - shift))
+
+# The only wrapping additions in the algorithm initialize parallel lanes.
+# Two 32-bit halves avoid checked u64 overflow without another intrinsic.
+fn add_wrapping(left: u64, right: u64) -> u64:
+    mask := 4294967295u64
+    lo := (left & mask) + (right & mask)
+    hi := ((left >> 32) + (right >> 32) + (lo >> 32)) & mask
+    (hi << 32) | (lo & mask)
+
+# Both concrete inputs are read in place. The generic stream writer has
+# two static instances: strings use unaligned word loads; byte lists index
+# their existing buffer. No conversion or copied input buffer is needed.
+trait HashBytes:
+    fn size(&self) -> usize
+    fn byte(&self, at: usize) -> u64
+    fn word4(&self, at: usize) -> u64
+    fn word8(&self, at: usize) -> u64
+
+impl HashBytes for string:
+    fn size(&self) -> usize:
+        bytes_len(*self)
+    fn byte(&self, at: usize) -> u64:
+        u64(bytes_at(*self, at))
+    fn word4(&self, at: usize) -> u64:
+        u64(load_u32(string_bytes(*self).address + at))
+    fn word8(&self, at: usize) -> u64:
+        load_u64(string_bytes(*self).address + at)
+
+impl HashBytes for List[u8]:
+    fn size(&self) -> usize:
+        self.len()
+    fn byte(&self, at: usize) -> u64:
+        u64(self[at])
+    fn word4(&self, at: usize) -> u64:
+        (
+            u64(self[at])
+            | (u64(self[at + 1]) << 8)
+            | (u64(self[at + 2]) << 16)
+            | (u64(self[at + 3]) << 24)
+        )
+    fn word8(&self, at: usize) -> u64:
+        self.word4(at) | (self.word4(at + 4) << 32)
+
+# Whole-string helpers pass the value through without taking a local
+# reference snapshot. HashBytes receivers still borrow each read in place.
+fn hash_bytes_short(bytes: string, accumulator: u64) -> u64:
+    size := bytes.size()
+    let s0 = accumulator
+    let s1 = fold_seed1()
+    if size >= 8:
+        s0 = s0 ^ bytes.word8(0)
+        s1 = s1 ^ bytes.word8(size - 8)
+    else if size >= 4:
+        s0 = s0 ^ bytes.word4(0)
+        s1 = s1 ^ bytes.word4(size - 4)
+    else if size > 0:
+        s0 = s0 ^ bytes.byte(0)
+        s1 = s1 ^ ((bytes.byte(size - 1) << 8) | bytes.byte(size / 2))
+    folded_multiply(s0, s1)
+
+# Each loop consumes at least 64 bytes; the overlapping final reads stay
+# within the remaining span. This is O(n) time and O(1) auxiliary space.
+fn hash_bytes_long(bytes: string, accumulator: u64) -> u64:
+    let start: usize = 0
+    let size = bytes.size()
+    let s0 = accumulator
+    let s1 = add_wrapping(s0, fold_seed1())
+    if size > 128:
+        let s2 = add_wrapping(s0, fold_seed2())
+        let s3 = add_wrapping(s0, fold_seed3())
+        if size > 256:
+            let s4 = add_wrapping(s0, fold_seed4())
+            let s5 = add_wrapping(s0, fold_seed5())
+            while true:
+                s0 = folded_multiply(
+                    bytes.word8(start) ^ s0,
+                    bytes.word8(start + 48) ^ fold_seed0(),
+                )
+                s1 = folded_multiply(
+                    bytes.word8(start + 8) ^ s1,
+                    bytes.word8(start + 56) ^ fold_seed0(),
+                )
+                s2 = folded_multiply(
+                    bytes.word8(start + 16) ^ s2,
+                    bytes.word8(start + 64) ^ fold_seed0(),
+                )
+                s3 = folded_multiply(
+                    bytes.word8(start + 24) ^ s3,
+                    bytes.word8(start + 72) ^ fold_seed0(),
+                )
+                s4 = folded_multiply(
+                    bytes.word8(start + 32) ^ s4,
+                    bytes.word8(start + 80) ^ fold_seed0(),
+                )
+                s5 = folded_multiply(
+                    bytes.word8(start + 40) ^ s5,
+                    bytes.word8(start + 88) ^ fold_seed0(),
+                )
+                start += 96
+                size -= 96
+                if size <= 256:
+                    break
+            s0 = s0 ^ s4
+            s1 = s1 ^ s5
+        while true:
+            s0 = folded_multiply(bytes.word8(start) ^ s0, bytes.word8(start + 32) ^ fold_seed0())
+            s1 = folded_multiply(
+                bytes.word8(start + 8) ^ s1,
+                bytes.word8(start + 40) ^ fold_seed0(),
+            )
+            s2 = folded_multiply(
+                bytes.word8(start + 16) ^ s2,
+                bytes.word8(start + 48) ^ fold_seed0(),
+            )
+            s3 = folded_multiply(
+                bytes.word8(start + 24) ^ s3,
+                bytes.word8(start + 56) ^ fold_seed0(),
+            )
+            start += 64
+            size -= 64
+            if size <= 128:
+                break
+        s0 = s0 ^ s2
+        s1 = s1 ^ s3
+    s0 = folded_multiply(bytes.word8(start) ^ s0, bytes.word8(start + size - 16) ^ fold_seed0())
+    s1 = folded_multiply(bytes.word8(start + 8) ^ s1, bytes.word8(start + size - 8) ^ fold_seed0())
+    if size >= 32:
+        s0 = folded_multiply(
+            bytes.word8(start + 16) ^ s0,
+            bytes.word8(start + size - 32) ^ fold_seed0(),
+        )
+        s1 = folded_multiply(
+            bytes.word8(start + 24) ^ s1,
+            bytes.word8(start + size - 24) ^ fold_seed0(),
+        )
+        if size >= 64:
+            s0 = folded_multiply(
+                bytes.word8(start + 32) ^ s0,
+                bytes.word8(start + size - 48) ^ fold_seed0(),
+            )
+            s1 = folded_multiply(
+                bytes.word8(start + 40) ^ s1,
+                bytes.word8(start + size - 40) ^ fold_seed0(),
+            )
+            if size >= 96:
+                s0 = folded_multiply(
+                    bytes.word8(start + 48) ^ s0,
+                    bytes.word8(start + size - 64) ^ fold_seed0(),
+                )
+                s1 = folded_multiply(
+                    bytes.word8(start + 56) ^ s1,
+                    bytes.word8(start + size - 56) ^ fold_seed0(),
+                )
+    s0 ^ s1
+
+fn hash_bytes(bytes: string, accumulator: u64) -> u64:
+    size := bytes.size()
+    rotated := rotate_right(accumulator, size)
+    if size <= 16: hash_bytes_short(bytes, rotated) else: hash_bytes_long(bytes, rotated)
+
+# The standard `Hasher` is foldhash's `fast` hasher over a 16-byte sponge,
+# the one maps use with their own seeds. `new` fixes the per-hasher seed to
+# foldhash's `FixedState::default()` constant, so a digest depends only on
+# the bytes and the toolchain (std-hash.default.per-toolchain). The algorithm
+# is not specified (std-hash.default.unspecified): `Fnv1a` is the stable one.
+pub struct FoldHasher:
+    pub accumulator: u64
+    pub low: u64
+    pub high: u64
+    pub bits: usize
+
+impl FoldHasher:
+    ## Returns a fresh hasher value, with no bytes written.
+    ## See [std-hash.default.new-empty](../../../spec/std/hash.md#r-std-hash.default.new-empty).
+    pub fn new() -> FoldHasher:
+        # foldhash 0.2's ARBITRARY3, the seed of `FixedState::default()`.
+        FoldHasher { accumulator: 589684135938649225u64, low: 0, high: 0, bits: 0 }
+
+    fn with_seed(seed: u64) -> FoldHasher:
+        FoldHasher { accumulator: seed, low: 0, high: 0, bits: 0 }
+
+    # hd Hash names one byte stream, independent of write boundaries.
+    # Pack that stream into fixed 16-byte blocks before foldhash mixing.
+    # A word that fills the block folds it at once and carries its suffix
+    # into the next block. Folding a full block on the next write, as
+    # upstream foldhash's FoldHasher.write_u8 does for every byte, gives
+    # the same accumulator, and `finish` the same digest, so this is
+    # equivalent; it keeps one fold site, so an instance stays small.
+    fn write_num(&mut self, value: u64, width: usize) -> void:
+        let h = *self
+        let low = h.low
+        let high = h.high
+        let accumulator = h.accumulator
+        bits := h.bits
+        total := bits + width
+        let next = total
+        if total < 128:
+            if bits < 64:
+                low = low | (value << bits)
+                if total > 64:
+                    high = high | (value >> (64 - bits))
+            else:
+                high = high | (value << (bits - 64))
+        else:
+            # The block fills, so `bits >= 64`; at most 63 bits carry over.
+            high = high | (value << (bits - 64))
+            accumulator = folded_multiply(low ^ accumulator, high ^ fold_seed0())
+            next = total - 128
+            low = if next == 0: 0 else: value >> (128 - bits)
+            high = 0
+        *self = FoldHasher { accumulator: accumulator, low: low, high: high, bits: next }
+
+    # Word reads preserve the input's little-endian byte order. The last
+    # one to seven bytes pack into one word of their width, which is the
+    # same byte stream, so a write takes at most one short write.
+    # Zero-byte writes do nothing. This is O(n) time, O(1) state, and
+    # never buffers or replays Hash.
+    fn write_bytes[B < HashBytes](&mut self, bytes: &B) -> void:
+        size := bytes.size()
+        let index: usize = 0
+        while size - index >= 8:
+            self.write_num(bytes.word8(index), 64)
+            index += 8
+        if index < size:
+            let tail: u64 = 0
+            let width: usize = 0
+            if size - index >= 4:
+                tail = bytes.word4(index)
+                width = 32
+                index += 4
+            while index < size:
+                tail = tail | (bytes.byte(index) << width)
+                width += 8
+                index += 1
+            self.write_num(tail, width)
+
+    # The pending block folds into a copy, so `finish` leaves the hasher
+    # unchanged (std-hash.default.finish-digest).
+    ## The digest of the bytes written so far.
+    ## See [std-hash.default.finish-digest](../../../spec/std/hash.md#r-std-hash.default.finish-digest).
+    pub fn finish(self) -> u64:
+        if self.bits == 0:
+            self.accumulator
+        else:
+            folded_multiply(self.low ^ self.accumulator, self.high ^ fold_seed0())
+
+impl Hasher for FoldHasher:
+    fn write(&mut self, bytes: List[u8]) -> void:
+        self.write_bytes(&bytes)
+    fn write_str(&mut self, text: string) -> void:
+        self.write_bytes(&text)
+    fn write_u8(&mut self, value: u8) -> void:
+        self.write_num(u64(value), 8)
+    fn write_u16(&mut self, value: u16) -> void:
+        self.write_num(u64(value), 16)
+    fn write_u32(&mut self, value: u32) -> void:
+        self.write_num(u64(value), 32)
+    fn write_u64(&mut self, value: u64) -> void:
+        self.write_num(value, 64)
+    fn write_usize(&mut self, value: usize) -> void:
+        self.write_num(u64(value), 32)
+    fn write_i8(&mut self, value: i8) -> void:
+        self.write_num(u64(u8(value)), 8)
+    fn write_i16(&mut self, value: i16) -> void:
+        self.write_num(u64(u16(value)), 16)
+    fn write_i32(&mut self, value: i32) -> void:
+        self.write_num(u64(u32(value)), 32)
+    fn write_i64(&mut self, value: i64) -> void:
+        self.write_num(u64(value), 64)
+
+# A single numeric key has one typed word in an otherwise empty sponge.
+pub fn hash_integer(value: u64, seed: u64) -> u32:
+    u32(folded_multiply(value ^ seed, fold_seed0()))
+
+# Strings use the fast byte path, without allocating an intermediate list.
+pub fn hash_string(value: string, seed: u64) -> u32:
+    u32(hash_bytes(value, seed))
+
+# General hd Hash byte streams use canonical 16-byte foldhash sponge blocks.
+pub fn hash_key[T < Hash](value: T, seed: u64) -> u32:
+    let mut hasher = FoldHasher::with_seed(seed)
+    value.hash(&mut hasher)
+    u32(hasher.finish())

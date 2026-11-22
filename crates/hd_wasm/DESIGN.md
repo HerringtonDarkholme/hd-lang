@@ -1018,7 +1018,7 @@ Each operation implements collection value semantics (§15.2;
   linear-probing slots it replaced; iteration still walks the dense
   entries, so the order is unchanged.
 - **Keys.** A key hashes and compares through the operations collection
-  chose: an integer, `bool` or `char` through `std.hash.hash_integer`
+  chose: an integer, `bool` or `char` through `std.rt.hash.hash_integer`
   over its bits zero-extended and `i32.eq` or `i64.eq`, a string through
   `hash_string` and a byte comparison, any other key through its
   `hash_key` and `std.hash.key_equal` instances, which take the key by

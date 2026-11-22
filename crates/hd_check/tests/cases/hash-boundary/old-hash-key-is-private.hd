@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+use std.hash.hash_key
+
+fn probe() -> void:
+    pass

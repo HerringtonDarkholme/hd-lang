@@ -1,0 +1,6 @@
+# @dump: stdout
+# @build: dev | checked | release
+use std.hash.DefaultHasher
+
+pub fn main() -> void $ Console:
+    println(debug(DefaultHasher::new()))
