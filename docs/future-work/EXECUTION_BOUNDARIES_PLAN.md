@@ -29,7 +29,7 @@ in the same commits.
 | Stage | Delivers | Added | Deleted | Net | Unblocks |
 | --- | --- | ---: | ---: | ---: | --- |
 | 1 | `Marker`, `Send`, `Wire` (built: 424dcdfb7) | 390 | 63 | +327 | 2, 3 |
-| 2 | crossing parameters, capture mode, reached top-level bindings, frozen loans | 1,390 | 20 | +1,370 | 6 |
+| 2 | crossing parameters, capture mode, reached top-level bindings, frozen loans (built: 1dd4c2a5c to 127293f15) | 880 | 88 | +792 | 6 |
 | 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers; the `Wire` codec template, the host boundary moved onto it, host handles as stubs | 2,500 | 1,750 | +750 | 4, 5 |
 | 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter | 500 | 0 | +500 | none |
 | 5 | one use-graph walk per executable | 280 | 20 | +260 | none |
@@ -99,6 +99,13 @@ them.
 | codec at run time | one encode, one copy, one decode, linear in the value | none beyond the stage fixtures |
 
 ## 4. Stage 2: Crossing Calls And Frozen Loans
+
+**Built** in eight commits, net +792 against +1,370: the parse and the
+signature record, the literal rule and capture markers, the capture
+mode on TIR's existing `Copy` and `Move`, the reached-binding check with
+a package join like `inst_cycles`' (a dependency's callees stay a gap),
+and frozen loans as a capture slot that takes the bound's lifetime plus
+one flag on element loans; no new loan checker.
 
 **What.** The parser takes `fn!() -> T + M & 's $ R` as a parameter's
 whole type. A call that passes a closure for it checks the closure's
