@@ -115,11 +115,12 @@ impl Ck<'_, '_> {
         false
     }
 
-    /// The type of the read-only reference a place `r` is reached through,
-    /// when it starts at a read through `&T`.
-    fn readonly_ref_root(&mut self, r: Ref) -> Option<Ty> {
+    /// The read a place `r` starts at, through field and element steps,
+    /// plain coercions and an intrinsic's first operand. Each step goes to
+    /// an operand, which comes before its user, so the walk ends.
+    fn place_root(&mut self, r: Ref) -> Option<Ref> {
         let mut cur = r;
-        for _ in 0..64 {
+        loop {
             let i = cur.as_inst()?;
             let (tag, data) = {
                 let body = self.b.body_mut();
@@ -138,44 +139,25 @@ impl Ck<'_, '_> {
                     cur = Ref(data[0]);
                 }
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
-                Tag::Read => {
-                    let (src, m, _) = self.read_through(cur)?;
-                    return (!m).then(|| self.b.ty_of(src));
-                }
+                Tag::Read => return Some(cur),
                 _ => return None,
             }
         }
-        None
+    }
+
+    /// The type of the read-only reference a place `r` is reached through,
+    /// when it starts at a read through `&T`.
+    fn readonly_ref_root(&mut self, r: Ref) -> Option<Ty> {
+        let root = self.place_root(r)?;
+        let (src, m, _) = self.read_through(root)?;
+        (!m).then(|| self.b.ty_of(src))
     }
 
     /// The local a place `r` starts at, when it starts at one: the binding
     /// a fix-it makes writable.
     pub(crate) fn place_root_local(&mut self, r: Ref) -> Option<LocalId> {
-        let mut cur = r;
-        for _ in 0..64 {
-            let i = cur.as_inst()?;
-            let (tag, data) = {
-                let body = self.b.body_mut();
-                (body.tags[i.0 as usize], body.data[i.0 as usize])
-            };
-            if let Some(Projection::Field(base)) = self.projection(cur) {
-                cur = base;
-                continue;
-            }
-            if let Some((list, _)) = self.element_of(cur) {
-                cur = list;
-                continue;
-            }
-            match tag {
-                Tag::Coerce if self.b.body().row_adaptation(i.0 as usize).is_none() => {
-                    cur = Ref(data[0]);
-                }
-                Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
-                Tag::Read => return self.b.body_mut().local_read(i.0 as usize),
-                _ => return None,
-            }
-        }
-        None
+        let root = self.place_root(r)?.as_inst()?;
+        self.b.body_mut().local_read(root.0 as usize)
     }
 
     /// A change to the collection `recv` of type `rt` (a `mut self`
