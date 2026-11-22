@@ -118,7 +118,7 @@ crossing closure reaches.
 
 **Deletes or replaces.** The comment and branch that say `Move` "is not
 chosen yet" go (−20). Nothing else is replaced: crossing closures are a
-new form. The `fn.capture.serializable-deferred` rule had no code.
+new form. The retired rule fn.capture.serializable-deferred had no code.
 
 **Per-run cost.**
 
@@ -263,7 +263,7 @@ or overturn; overturning one changes its rule and its cases.
 | Q12 | moving a capture out of a closure is an error today | a crossing closure runs once, so it may | `fn.crossing.move-out` |
 | Q13 | does "no capture is written" cover `push`? | yes, any in-place change | `fn.crossing.no-write` |
 | Q14 | `lib/std/rt` keeps collector state in `let` bindings, so every allocating closure would reach one | the runtime modules' storage does not count; `std.time`'s `let mut idle_clocks` still does | `fn.crossing.global.runtime` |
-| Q15 | the record implies threads; `module.instance.thread` forbade them | retired for `module.instance.one-thread` | `module.instance.one-thread` |
+| Q15 | the record implies threads; the retired rule module.instance.thread forbade them | retired for `module.instance.one-thread` | `module.instance.one-thread` |
 | Q16 | `trait.unsupported.features` bars implicit structural conformance | unchanged: marker impls are compiler-supplied, as `Copy`'s | `module.marker.supplied` |
 | Q17 | a struct with private fields needs `Serialize` at the host boundary | it is `Wire` by structure; a remote method validates its input | `module.marker.structural` |
 | Q18 | interfaces "numbered once per build" need a table shared by every executable | a hash of path and type arguments | plan, stage 3 |
