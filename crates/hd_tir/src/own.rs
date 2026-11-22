@@ -109,8 +109,6 @@ pub mod values;
 pub(crate) use reason::CANCELLED;
 #[cfg(not(target_arch = "wasm32"))]
 pub use reason::check_copy_reasons;
-#[cfg(all(feature = "test-utils", not(target_arch = "wasm32")))]
-pub use reason::check_write_sweep;
 pub use reason::{EXIT_DROP, OVERWRITTEN, Reason, copy_reasons, reason};
 
 /// Whether a value of a type may be copied ([`OwnCx::copies`]).

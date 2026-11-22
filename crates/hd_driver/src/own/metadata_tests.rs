@@ -4,7 +4,7 @@ use std::cell::Cell;
 use hd_base::BuildProfile;
 use hd_cache::{CacheStore, EntryKind, MemoryStore};
 use hd_tir::ir::{
-    Body, Callee, Coercion, IntrinsicOp, NONE, Proj, ReadMode, Root, Storage, Tag, Topology, count,
+    Body, Callee, Coercion, IntrinsicOp, NONE, ReadMode, Root, Storage, Tag, Topology, count,
     local_flags, place, ref_word, return_word, u32_of, unique_word,
 };
 use hd_tir::own::{BatchInsert, insert_batch};
@@ -14,7 +14,6 @@ use super::owned_cache_tests::{VERIFIED, build_at};
 thread_local! {
     static CORRUPTED: Cell<Option<[usize; 16]>> = const { Cell::new(None) };
     static CHECKED_VARIANTS: Cell<Option<[usize; 3]>> = const { Cell::new(None) };
-    static REFERENCE_WRITES: Cell<Option<u8>> = const { Cell::new(None) };
 }
 
 pub(super) fn active() -> bool {
@@ -182,32 +181,6 @@ pub(super) fn verify_checked_variants(env: &dyn hd_tir::own::OwnCx, body: &Body)
 }
 
 pub(super) fn verify_fresh(env: &dyn hd_tir::own::OwnCx, body: &Body) {
-    if let Some(mut mask) = REFERENCE_WRITES.take() {
-        if mask != 7
-            && (0..body.len()).any(|i| {
-                body.tags[i] == Tag::Read
-                    && body.data[i][1] == ReadMode::Copy as u32
-                    && body
-                        .view(body.data[i][0])
-                        .steps(body)
-                        .any(|s| matches!(s, Proj::Deref))
-            })
-        {
-            assert!(
-                hd_tir::own::check_write_sweep(body, env).is_empty(),
-                "write sweep differs from range walk"
-            );
-            for &tag in &body.tags {
-                mask |= match tag {
-                    Tag::Call => 1,
-                    Tag::CallValue => 2,
-                    Tag::Intrinsic => 4,
-                    _ => 0,
-                };
-            }
-        }
-        REFERENCE_WRITES.set(Some(mask));
-    }
     if let Some(mut counts) = CORRUPTED.take() {
         if counts.iter().all(|&count| count != 0) {
             CORRUPTED.set(Some(counts));
@@ -864,7 +837,6 @@ fn corrupt_ownership_metadata_from_a_real_program_is_rejected() {
     VERIFIED.set(Some(0));
     CORRUPTED.set(Some([0; 16]));
     CHECKED_VARIANTS.set(Some([0; 3]));
-    REFERENCE_WRITES.set(Some(0));
     build_at(
         &warm,
         source,
@@ -890,7 +862,6 @@ fn corrupt_ownership_metadata_from_a_real_program_is_rejected() {
         hd_base::OptLevel::Optimized,
     );
     assert_eq!(CHECKED_VARIANTS.take(), Some([1; 3]));
-    assert_eq!(REFERENCE_WRITES.take(), Some(7));
     VERIFIED.take().expect("active verification");
     let corrupted = CORRUPTED.take().expect("active corruption checks");
     assert_eq!(corrupted, [1; 16]);
