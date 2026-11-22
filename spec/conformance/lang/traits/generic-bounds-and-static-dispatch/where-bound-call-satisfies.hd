@@ -1,0 +1,40 @@
+# test: a method's where bound on the trait's parameter holds at a call on a type that satisfies it, and through a generic bound; a type that fails it still implements the trait
+# Spec 09 Method Bounds On Enclosing Parameters: trait.where.clause, trait.where.subject, trait.where.call, trait.where.implements.
+# expect-stdout: 7 14 hi
+trait Rank:
+    fn rank(self) -> i32
+
+trait Pile[T]:
+    fn top(self) -> T
+
+    fn top_rank(self) -> i32 where T < Rank:
+        self.top().rank()
+
+struct Card:
+    value: i32
+
+impl Rank for Card:
+    fn rank(self) -> i32:
+        self.value
+
+struct Cards:
+    first: Card
+
+impl Pile[Card] for Cards:
+    fn top(self) -> Card:
+        self.first
+
+struct Words:
+    first: string
+
+impl Pile[string] for Words:
+    fn top(self) -> string:
+        self.first
+
+fn doubled[T < Rank, P < Pile[T]](pile: P) -> i32:
+    pile.top_rank() * 2
+
+pub fn main() -> void $ Console:
+    cards := Cards { first: Card { value: 7 } }
+    words := Words { first: "hi" }
+    println("${cards.top_rank()} ${doubled(cards)} ${words.top()}")

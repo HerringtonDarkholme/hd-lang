@@ -1054,6 +1054,10 @@ pub(crate) fn new_ck<'a, 'c>(
     };
     ck.add_generics(env, 0, &gs);
     ck.next_gen = u16::try_from(gs.len()).unwrap_or(u16::MAX);
+    // The body relies on the method's `where` bounds (`trait.where.body`).
+    for &(p, b) in it.sig().map_or(&[][..], |sig| &sig.wheres) {
+        ck.add_bound(p, b);
+    }
     ck
 }
 

@@ -5318,6 +5318,7 @@ impl Lower<'_, '_, '_> {
             fn_lifetimes = Vec::new();
         }
         let row = self.row(Src::child(f, SyntaxKind::RequirementRow), gn);
+        let wheres = self.wheres(f, gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
             .is_some();
@@ -5333,7 +5334,41 @@ impl Lower<'_, '_, '_> {
             lifetimes,
             fn_lifetimes,
             paths,
+            wheres,
         }
+    }
+
+    /// A method's `where` bounds (`trait.where.clause`): each subject is
+    /// an enclosing parameter in scope, which the parser checked
+    /// (`trait.where.subject`), so a name that finds none is already
+    /// reported. Bounds lower as a generic parameter's do.
+    fn wheres(&mut self, f: NodeRef<'_>, gn: &mut Gen) -> Vec<(Ty, Ty)> {
+        let mut out = Vec::new();
+        let Some(clause) = Src::child(f, SyntaxKind::WhereClause) else {
+            return out;
+        };
+        for wb in clause
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::WhereBound)
+        {
+            let Some(name) = wb.name(&self.src.parse.tokens) else {
+                continue;
+            };
+            let sym = self.sym_token(name);
+            let Some(subject) = gn.tys.last(sym).map(|p| p.ty) else {
+                continue;
+            };
+            let Some(bl) = Src::child(wb, SyntaxKind::BoundList) else {
+                continue;
+            };
+            for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
+                let (bound, _) = self.with_slots(|low| low.trait_value(b, gn, Some(subject)));
+                if let Some(bound) = bound {
+                    out.push((subject, bound));
+                }
+            }
+        }
+        out
     }
 
     /// `ref.dep.elide`, `ref.lifetime.elide`: a result slot of `ret`,
@@ -9788,6 +9823,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems
                     lifetimes: sig.lifetimes.clone(),
                     fn_lifetimes: sig.fn_lifetimes.clone(),
                     paths: sig.paths.clone(),
+                    wheres: sig.wheres.iter().map(|&(p, b)| (ty(p), ty(b))).collect(),
                 };
                 fwd.push(Item::new(
                     def,

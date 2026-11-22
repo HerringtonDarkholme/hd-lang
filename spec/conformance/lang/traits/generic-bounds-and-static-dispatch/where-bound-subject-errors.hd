@@ -1,0 +1,8 @@
+# test: a where bound may not name the method's own type parameter
+# Spec 09 Method Bounds On Enclosing Parameters: trait.where.subject, trait.where.subject.error.
+trait Rank:
+    fn rank(self) -> i32
+
+trait Pile[T]:
+    fn top(self) -> T
+    fn pick[U](self, other: U) -> T where U < Rank  # diagnostic: syntax-error

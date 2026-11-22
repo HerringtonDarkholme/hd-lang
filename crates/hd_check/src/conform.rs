@@ -478,6 +478,24 @@ impl Ck<'_, '_> {
                 return Some("a type parameter's default");
             }
         }
+        // `trait.where.impl.repeat`: the trait's `where` bounds whose
+        // subject is still a type parameter, in order; one whose subject
+        // became another type is not written (`trait.where.impl.concrete`).
+        let wheres = want
+            .wheres
+            .iter()
+            .map(|&(p, b)| (inst(p), inst(b)))
+            .filter(|&(p, _)| matches!(pool.get(p), TyData::Param(_)));
+        let mut written = got.wheres.iter();
+        for w in wheres {
+            match written.next() {
+                Some(g) if w == *g || pool.has_poison(g.1) || pool.has_poison(w.1) => {}
+                _ => return Some("the `where` bounds"),
+            }
+        }
+        if written.next().is_some() {
+            return Some("the `where` bounds");
+        }
         // The trait declaration gives the parameter defaults
         // (`trait.impl.param-default.no-restate`).
         if got.defaults.iter().any(|&d| d) {

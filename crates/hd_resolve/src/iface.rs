@@ -521,6 +521,11 @@ pub struct FnSig {
     /// The result reference slots that name a parameter's field path
     /// (`ref.result.path.form`), in source order. Such a slot's lifetime is 0.
     pub paths: Vec<ResultPath>,
+    /// The `where` bounds on the enclosing trait's or implementation's
+    /// parameters (`trait.where.clause`), in order: the parameter's type
+    /// and one bound, a trait value. A call requires each
+    /// (`trait.where.call`) and the body assumes each (`trait.where.body`).
+    pub wheres: Vec<(Ty, Ty)>,
 }
 
 /// The slot lifetime of a reference written `&'static T` (`ref.static.form`),
@@ -549,6 +554,14 @@ impl FnSig {
         self.generics.iter().any(|g| !g.lifetime)
     }
 
+    /// Whether the method is unavailable on a `dyn` value for what its
+    /// signature declares: a type or row parameter of its own, or a
+    /// `where` bound (`trait.dyn.member.where`).
+    #[must_use]
+    pub fn needs_static_call(&self) -> bool {
+        self.has_own_params() || !self.wheres.is_empty()
+    }
+
     #[must_use]
     pub fn simple(generics: Vec<Generic>, params: Vec<(Symbol, Ty)>, ret: Ty) -> Self {
         let n = params.len();
@@ -564,6 +577,7 @@ impl FnSig {
             lifetimes: Vec::new(),
             fn_lifetimes: Vec::new(),
             paths: Vec::new(),
+            wheres: Vec::new(),
         }
     }
 }
@@ -1418,7 +1432,7 @@ impl Declarations for LookupDecls<'_> {
                 let required = self.lookup.item(*method).is_some_and(|i| {
                     matches!(i.data, ItemData::Method { has_body: false, .. })
                 });
-                self.pool.has_opaque(sig.ret) || (required && sig.has_own_params()) || sig.params.first().is_none_or(|&(name, ty)| {
+                self.pool.has_opaque(sig.ret) || (required && sig.needs_static_call()) || sig.params.first().is_none_or(|&(name, ty)| {
                     self.syms.resolve(name) != "self"
                         || matches!(self.pool.get(ty), TyData::Ref { mutable: true, .. } if !mutable)
                 })
@@ -1747,6 +1761,11 @@ fn put_sig(w: &mut Writer, t: &mut TableWriter<'_>, s: &FnSig) -> StageResult<()
             w.u32(t.sym(*f));
         }
     }
+    w.len_of(&s.wheres);
+    for (p, b) in &s.wheres {
+        w.u32(t.ty(*p)?);
+        w.u32(t.ty(*b)?);
+    }
     Ok(())
 }
 
@@ -1780,6 +1799,10 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
             fields,
         });
     }
+    let mut wheres = Vec::new();
+    for _ in 0..r.count() {
+        wheres.push((t.ty(r.u32())?, t.ty(r.u32())?));
+    }
     Some(FnSig {
         generics,
         params,
@@ -1792,6 +1815,7 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
         lifetimes,
         fn_lifetimes,
         paths,
+        wheres,
     })
 }
 

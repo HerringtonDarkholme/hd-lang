@@ -633,6 +633,10 @@ pub fn subst_sig(names: &Names<'_>, sig: &FnSig, f: &dyn Fn(ParamRef) -> Option<
             ..g.clone()
         })
         .collect();
+    for (p, b) in &mut s.wheres {
+        *p = pool.subst(*p, f);
+        *b = pool.subst(*b, f);
+    }
     s
 }
 

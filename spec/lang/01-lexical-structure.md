@@ -597,6 +597,7 @@ only in fixed positions:
 | --- | --- | --- |
 | r[lex.contextual.use-root] Use roots | `pkg`, `std`, `dep`; `super` | `pkg`, `std`, and `dep` in a use root position, and `super` as a use root, alone or repeated, as in `use super.shared.{Email}` |
 | r[lex.contextual.as] Alias | `as` | directly after a use path or use item, before its alias |
+| r[lex.contextual.where] Method bound clause | `where` | in a method header, directly after the parameter clause or the result type, where it begins a `method_where_clause` |
 | r[lex.contextual.use] Use | `use` | at the start of a module-level item, alone or after `pub`, when a use root (`pkg`, `std`, `dep`, `self`, or `super`) follows it; and as the operation name in the dedicated `$.use(...)` provider expression |
 | r[lex.contextual.context] Context | `context`, `with`, `Context` | after `$.` |
 | r[lex.contextual.derive] Derive | `derive` | immediately after `@` |

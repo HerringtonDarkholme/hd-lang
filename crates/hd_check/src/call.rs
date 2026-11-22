@@ -4495,6 +4495,20 @@ impl Ck<'_, '_> {
                 self.check_bindings(vars[i], inst(*b), n)?;
             }
         }
+        // `trait.where.call`: the method's bounds on its owner's parameters.
+        for &(p, b) in &sig.wheres {
+            if let Some((trait_, args)) = pool.trait_value(inst(b)) {
+                let self_ty = inst(p);
+                self.require_ref(
+                    TraitRef {
+                        trait_,
+                        self_ty,
+                        args,
+                    },
+                    n,
+                )?;
+            }
+        }
         Ok(())
     }
 
@@ -5676,11 +5690,12 @@ impl Ck<'_, '_> {
                     ));
                     return Ok((Ref(NONE), Ty::POISON));
                 }
-                if choice.0 == ChoiceKind::TraitValue && sig.has_own_params() {
+                if choice.0 == ChoiceKind::TraitValue && sig.needs_static_call() {
+                    let message = dyn_type_param_message(name, sig);
                     for e in &args.positional {
                         self.expr(*e, Some(Ty::POISON))?;
                     }
-                    self.err(Code::DynMemberUnavailable, n, &dyn_type_param_message(name));
+                    self.err(Code::DynMemberUnavailable, n, &message);
                     return Ok((Ref(NONE), Ty::POISON));
                 }
                 if let Some(&(s, _)) = sig.params.first()
@@ -5994,14 +6009,14 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::POISON));
             }
         }
-        if sig.has_own_params() {
+        if sig.needs_static_call() {
             let self_ty = self.resolved(self.infer.resolve(pool, self_ty));
             let inner = self.ref_of(self_ty).map_or(self_ty, |(t, _)| t);
             if matches!(pool.get(inner), TyData::TraitValue { .. }) {
                 self.err(
                     Code::DynMemberUnavailable,
                     n,
-                    &dyn_type_param_message(&method_name),
+                    &dyn_type_param_message(&method_name, &sig),
                 );
                 self.note_call(method);
                 return Ok((Ref(NONE), Ty::POISON));
@@ -6941,7 +6956,13 @@ pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], 
 
 /// The error at a call of a method with its own type parameter through a
 /// trait value (`trait.dyn.type-param.hint`).
-pub(crate) fn dyn_type_param_message(name: &str) -> String {
+pub(crate) fn dyn_type_param_message(name: &str, sig: &FnSig) -> String {
+    if !sig.has_own_params() {
+        // `trait.dyn.member.where`
+        return format!(
+            "`{name}` has a `where` bound on the trait's parameters, which a trait value cannot check, so it is unavailable on a trait value; call it on a type that implements the trait, or through a generic bound"
+        );
+    }
     format!(
         "`{name}` has a type or row parameter of its own, which is unavailable on a trait value; use a generic bound on the caller, or give the method a parameter typed `&dyn Trait` or `*dyn Trait`"
     )

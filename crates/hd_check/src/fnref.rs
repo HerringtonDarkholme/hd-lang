@@ -84,7 +84,8 @@ struct Member {
 /// language-tier built-in method of `List` or `Map`, which has no
 /// declaration (spec/lang/10-modules.md#built-in-methods).
 enum Found {
-    Member(Member),
+    // Boxed: a member's signature is far larger than a built-in's.
+    Member(Box<Member>),
     Builtin {
         op: IntrinsicOp,
         params: Vec<Ty>,
@@ -381,7 +382,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         match self.member_of(t, name, explicit, n)? {
-            Some(Found::Member(m)) => self.unbound(m, want, n),
+            Some(Found::Member(m)) => self.unbound(*m, want, n),
             Some(Found::Builtin {
                 op,
                 params,
@@ -634,7 +635,7 @@ impl Ck<'_, '_> {
                 return Ok(None);
             }
         };
-        Ok(Some(Found::Member(m)))
+        Ok(Some(Found::Member(Box::new(m))))
     }
 
     /// Whether `t` has a member `name` that `T::name` reaches, by the
@@ -1191,13 +1192,13 @@ impl Ck<'_, '_> {
             ));
             return Ok(self.poison_value(n));
         }
-        if m.sig.has_own_params() {
+        if m.sig.needs_static_call() {
             let name = self
                 .cx
                 .lookup
                 .item(m.def)
                 .map_or("method", |item| self.cx.names.text(item.name));
-            let message = super::call::dyn_type_param_message(name);
+            let message = super::call::dyn_type_param_message(name, &m.sig);
             self.err(Code::DynMemberUnavailable, n, &message);
             return Ok(self.poison_value(n));
         }
@@ -1317,7 +1318,7 @@ impl Ck<'_, '_> {
         let dynamic = self.dyn_ref_of(rt);
         let lookup = dynamic.map_or(rt, |(tv, _)| tv);
         let mut m = match self.member_of(lookup, name, explicit, n)? {
-            Some(Found::Member(m)) => m,
+            Some(Found::Member(m)) => *m,
             Some(Found::Builtin {
                 op, params, ret, ..
             }) => return Ok(self.builtin_ref(Some((recv, rt)), rt, op, &params, ret, want, n)),

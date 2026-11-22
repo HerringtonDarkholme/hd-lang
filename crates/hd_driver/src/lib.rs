@@ -13389,6 +13389,9 @@ impl ProgramEnv for Env<'_> {
         self.sig(def)
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
     }
+    fn where_bounded(&self, def: DefId) -> bool {
+        self.sig(def).is_some_and(|s| !s.wheres.is_empty())
+    }
     fn generic_rows(&self, def: DefId) -> Vec<bool> {
         let own = self
             .sig(def)

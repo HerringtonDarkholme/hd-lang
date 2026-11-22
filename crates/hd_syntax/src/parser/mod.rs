@@ -351,6 +351,12 @@ pub(crate) struct Parser<'t> {
     /// Reserved words the current top-level item tried to bind with `:=`:
     /// after that one error, the word reads as the name it was meant as.
     bound_keywords: Vec<TokenKind>,
+    /// The type parameter names the last generic parameter list declared,
+    /// and those of the trait or implementation whose members are being
+    /// parsed: a method's `where` clause names only the latter
+    /// (`trait.where.subject`).
+    declared_generics: Vec<String>,
+    enclosing_generics: Vec<String>,
 }
 
 impl<'t> Parser<'t> {
@@ -388,6 +394,8 @@ impl<'t> Parser<'t> {
             infer_types: false,
             attached: vec![false; toks.com_kind.len()],
             bound_keywords: Vec::new(),
+            declared_generics: Vec::new(),
+            enclosing_generics: Vec::new(),
         }
     }
 

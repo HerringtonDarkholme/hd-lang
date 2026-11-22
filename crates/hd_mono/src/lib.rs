@@ -108,6 +108,11 @@ pub trait ProgramEnv: LayoutEnv {
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
+    /// Whether a method has a `where` bound on its owner's parameters,
+    /// which keeps it off a vtable (`trait.dyn.member.where`).
+    fn where_bounded(&self, _def: DefId) -> bool {
+        false
+    }
     /// Per instance argument: is a row parameter (`$R`), including owner
     /// arguments. A trait owner's implicit `Self` is not a row parameter.
     fn generic_rows(&self, def: DefId) -> Vec<bool>;

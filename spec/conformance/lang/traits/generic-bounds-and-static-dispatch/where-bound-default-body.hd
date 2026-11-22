@@ -1,0 +1,32 @@
+# test: a default body relies on its where bound, and calls another method with the same bound; without the bound the body could not call the bound's method
+# Spec 09 Method Bounds On Enclosing Parameters: trait.where.body. Spec 09 Default Method Bodies: trait.default.checked-once.
+# expect-stdout: 5 10
+trait Rank:
+    fn rank(self) -> i32
+
+trait Pile[T]:
+    fn top(self) -> T
+
+    fn top_rank(self) -> i32 where T < Rank:
+        self.top().rank()
+
+    fn double_rank(self) -> i32 where T < Rank:
+        self.top_rank() + self.top().rank()
+
+struct Card:
+    value: i32
+
+impl Rank for Card:
+    fn rank(self) -> i32:
+        self.value
+
+struct Cards:
+    first: Card
+
+impl Pile[Card] for Cards:
+    fn top(self) -> Card:
+        self.first
+
+pub fn main() -> void $ Console:
+    cards := Cards { first: Card { value: 5 } }
+    println("${cards.top_rank()} ${cards.double_rank()}")

@@ -606,7 +606,8 @@ supertrait_bound = bound_trait_type | relaxed_bound ;
 trait_member = associated_type_decl
              | { decorator_line }, "fn", callable_name, [ function_generic_params ],
                parameter_clause,
-               "->", function_result_type, [ requirement_clause ],
+               "->", function_result_type, [ method_where_clause ],
+               [ requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
 
@@ -637,7 +638,10 @@ derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
 
 method_decl = [ "pub" ], "fn", callable_name, [ function_generic_params ],
               parameter_clause, [ "->", function_result_type ],
-              [ requirement_clause ], ":", suite_body ;
+              [ method_where_clause ], [ requirement_clause ], ":", suite_body ;
+
+method_where_clause = "where", where_bound, { ",", where_bound } ;
+where_bound = identifier, "<", supertrait_bounds ;
 
 associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
                        [ "=", type ], NEWLINE ;
@@ -656,7 +660,7 @@ associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
 11. r[grammar.trait.method-receiver] A function member whose first parameter is a receiver (`self`, `mut self`, `&self`, or `&mut self`) is a method; a receiverless member is an associated function.
 12. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
 13. r[grammar.trait.associated-type.bound] Only a trait's associated type declaration may name bounds after `<`. Bounds in an implementation's declaration are an error. Error: `syntax-error`.
-14. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
+14. r[grammar.impl.inline-bounds.v2] Generic implementations state every bound of their own parameters inline in their generic parameter list. The one separate bound clause is a method's `method_where_clause`, which bounds the parameters of the trait or implementation around the method ([Method Bounds On Enclosing Parameters](09-traits.md#method-bounds-on-enclosing-parameters)).
 15. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 16. r[grammar.impl.by-no-trait] `impl T by Structure`, without a trait, declares a derivation block with no trait, as [Derivation Blocks With No Trait](14-annotations.md#derivation-blocks-with-no-trait) defines.
 17. r[grammar.impl.by-no-trait.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.no-trait`](09-traits.md#r-trait.by.no-trait) defines.
