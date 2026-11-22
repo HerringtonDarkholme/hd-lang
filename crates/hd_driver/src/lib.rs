@@ -13576,8 +13576,11 @@ impl ProgramEnv for Env<'_> {
                     .collect(),
             );
         }
-        self.sig(def)
-            .map(|s| s.params.iter().map(|p| self.low(p.1)).collect())
+        self.sig(def).map(|s| {
+            (0..s.params.len())
+                .map(|k| self.crossing_param(s, k, self.low(s.params[k].1)))
+                .collect()
+        })
     }
     fn cold_transfers(&self, def: DefId, ty: Ty) -> bool {
         self.cold_transfers_declared(def, ty)
@@ -13902,6 +13905,7 @@ impl ProgramEnv for Env<'_> {
                 };
                 hd_structure::remote::u64_body(&cx, item, self.interface(def, args))
             }
+            "type_number" => hd_structure::remote::u64_body(&cx, item, self.type_number(ty)),
             "serve" => hd_structure::remote::serve_body(&cx, item, ty, &self.served(ty)),
             "build_id" => hd_structure::remote::u64_body(&cx, item, self.build_id()),
             _ => hd_structure::debug_texts_body(&cx, item, ty),

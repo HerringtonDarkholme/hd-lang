@@ -2280,6 +2280,55 @@ impl TirBuilder {
             .collect()
     }
 
+    /// Lifts the open sub-body `m`'s captures `caps` to its leading
+    /// parameters `params`, as Swift's closure lifting makes captures
+    /// parameters: each place and nested capture list emitted since
+    /// instruction `from`, all `m`'s, that names `caps[i]` names `params[i]`,
+    /// and `m` captures nothing. Cost: the instructions since `from`, once.
+    pub fn lift_captures(&mut self, m: SubMark, from: usize, caps: &[LocalId], params: &[LocalId]) {
+        let map: hd_base::HashMap<u32, u32> = (caps.iter().zip(params))
+            .map(|(c, p)| (c.raw(), p.raw()))
+            .collect();
+        let b = &mut self.body;
+        for i in from..b.tags.len() {
+            let (oa, ob) = b.tags[i].operands();
+            for (k, op) in [(0, oa), (1, ob)] {
+                let w = b.data[i][k];
+                if op != Op::Place || w == NONE {
+                    continue;
+                }
+                if w & place::BARE_LOCAL != 0 {
+                    if let Some(&p) = map.get(&(w & !place::BARE_LOCAL)) {
+                        b.data[i][k] = p | place::BARE_LOCAL;
+                    }
+                } else if b.extra.get(w as usize + 1) == Some(&place::ROOT_LOCAL)
+                    && let Some(&p) = map.get(&b.extra[w as usize + 2])
+                {
+                    b.extra[w as usize + 2] = p;
+                }
+            }
+            if b.tags[i] == Tag::Closure {
+                let r = b.data[i][1] as usize;
+                let (start, n) = (b.extra[r + 1] as usize, b.extra[r + 2] as usize);
+                for c in &mut b.cap_local[start..start + n] {
+                    if let Some(&p) = map.get(&c.raw()) {
+                        *c = LocalId::from_raw(p);
+                    }
+                }
+            }
+        }
+        let words: Vec<u32> = (params.iter().map(|l| l.raw()))
+            .chain(b.sub_param_locals(m.0.idx()).iter().copied())
+            .collect();
+        let at = self.record(&words);
+        self.body.sub_params[m.0.idx()] = Range32::new(at, u32_of(words.len()));
+        let mut at = 0;
+        self.open_caps.retain(|c| {
+            at += 1;
+            at <= m.1 as usize || c.0 != m.0
+        });
+    }
+
     /// A constant of the body's own column.
     pub fn const_value(&mut self, ty: Ty, bits: u64) -> Ref {
         let i = u32::try_from(self.body.consts.len()).expect("consts");

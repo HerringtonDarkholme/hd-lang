@@ -1,0 +1,28 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: app/main/demo app/main/run
+# A closure literal for a `Wire` crossing parameter is lifted to a
+# function of its captures (`fn.crossing.lift`): the caller moves the
+# captures into one tuple, encodes it once (`crossing_frame`), and passes
+# `Crossing { code, number, captures }`, whose `code` calls the lifted
+# function on the captures it holds. The callee's call reads `code`.
+# expected: a call that runs here encodes the captures it never sends;
+# the encoding belongs where a domain sends it, which needs the encoder at
+# the callee.
+use std.marker.Wire
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn demo(photo: Image, side: u32) -> u32:
+    small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
+    small.width
+
+pub fn main() -> void $ Console:
+    println(demo(Image { width: 4, pixels: [1, 2, 3] }, 64))

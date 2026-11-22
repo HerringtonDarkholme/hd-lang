@@ -2068,6 +2068,7 @@ impl Cx<'_> {
                     | "wire_take"
                     | "stub_as"
                     | "interface_of"
+                    | "type_number"
                     | "serve"
                     | "build_id"
             )

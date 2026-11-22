@@ -2228,6 +2228,9 @@ impl Ck<'_, '_> {
                     .iter()
                     .any(|&(p, m)| p == l && m == c.marker)
             });
+        if c.marker == self.cx.names.known.wire && e.kind() == SyntaxKind::ClosureExpr {
+            self.wire_literal = Some(e.index());
+        }
         if forwarded {
             self.crossing_uses.insert(e.index());
         } else if !trailing && e.kind() != SyntaxKind::ClosureExpr {
@@ -2245,16 +2248,21 @@ impl Ck<'_, '_> {
     /// `fn.crossing.captures`: each capture of the closure `r`, written
     /// for a crossing parameter, has its marker. Each is a bound goal on
     /// the capture's type, which waits for inference as a call's bounds do.
-    fn crossing_captures(&mut self, marker: Option<DefId>, r: Ref, e: NodeRef<'_>) {
+    fn crossing_captures(
+        &mut self,
+        marker: Option<DefId>,
+        (r, t): (Ref, Ty),
+        e: NodeRef<'_>,
+    ) -> Ref {
         // A bound that names no trait was reported where it is written.
         let Some(marker) = marker.filter(|&m| m != DefId::NONE) else {
-            return;
+            return r;
         };
         let closure = r
             .as_inst()
             .is_some_and(|i| self.b.body().tags[i.0 as usize] == hd_tir::ir::Tag::Closure);
         if !closure {
-            return;
+            return r;
         }
         if let Some(i) = r.as_inst() {
             self.crossing_closures.push((i.0, marker));
@@ -2272,7 +2280,13 @@ impl Ck<'_, '_> {
                 &format!("this crossing closure changes its capture `{name}`, which changes only its own copy; return the new value instead"),
             );
         }
-        for l in self.closure_caps(r) {
+        // A `Wire` literal is passed lifted (`fn.crossing.lift`): its
+        // captures are the locals that hold them for its `code`.
+        let (caps, passed) = match self.wire_pass(r, t, e) {
+            Some((held, passed)) => (held, passed),
+            None => (self.closure_caps(r), r),
+        };
+        for l in caps {
             let tref = TraitRef {
                 trait_: marker,
                 self_ty: self.b.local_ty(l),
@@ -2288,6 +2302,7 @@ impl Ck<'_, '_> {
                 },
             });
         }
+        passed
     }
 
     /// Checks arguments against parameters (positional, then named by
@@ -2398,7 +2413,7 @@ impl Ck<'_, '_> {
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
             let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
-            self.crossing_captures(crossing, r, *e);
+            let r = self.crossing_captures(crossing, (r, t), *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
@@ -2533,7 +2548,7 @@ impl Ck<'_, '_> {
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
             let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
-            self.crossing_captures(crossing, r, *e);
+            let r = self.crossing_captures(crossing, (r, t), *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
@@ -2607,7 +2622,7 @@ impl Ck<'_, '_> {
                             && formals.destination.storage().is_none()
                             && lends(formals, skip + last),
                     )?;
-                    self.crossing_captures(crossing, r, block);
+                    let r = self.crossing_captures(crossing, (r, t), block);
                     if let Some(place) = formals.destination.storage()
                         && self.diags.errors_since(before) == 0
                     {

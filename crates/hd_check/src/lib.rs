@@ -69,6 +69,7 @@ mod ty;
 mod update;
 mod using;
 mod value;
+mod wire_crossing;
 pub mod work;
 mod written_bounds;
 

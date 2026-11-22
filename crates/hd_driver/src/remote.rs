@@ -74,12 +74,19 @@ impl Env<'_> {
     /// (`module.remote.interface`): the digest of its path and type
     /// arguments, so every target of a build numbers it alike.
     pub(super) fn interface(&self, def: DefId, args: TyList) -> u64 {
-        let pool = &self.run.pool;
-        let tv = pool.intern_ty(&TyData::TraitValue {
+        let tv = self.run.pool.intern_ty(&TyData::TraitValue {
             def,
             args,
             bindings: vec![],
         });
+        self.type_number(tv)
+    }
+
+    /// The low bits of `ty`'s canonical digest, the same in every target
+    /// of a build: an interface's number, and a lifted crossing literal's
+    /// part of its number (`fn.crossing.lift`).
+    pub(super) fn type_number(&self, tv: Ty) -> u64 {
+        let pool = &self.run.pool;
         let names = self.run.names();
         let digest = hd_mono::layout::canon(
             pool,
@@ -168,6 +175,23 @@ impl Env<'_> {
             });
         }
         out
+    }
+
+    /// Parameter `k` of `sig`, of type `ty`, as its body holds it: a `Wire`
+    /// crossing parameter is a `std.remote.Crossing` (`fn.crossing.lift`).
+    pub(super) fn crossing_param(&self, sig: &hd_resolve::FnSig, k: usize, ty: Ty) -> Ty {
+        let wire = self.run.known.wire;
+        if !(sig.crossing.iter()).any(|c| usize::from(c.param) == k && c.marker == wire) {
+            return ty;
+        }
+        let pool = &self.run.pool;
+        pool.intern_ty(&TyData::Adt {
+            def: self
+                .run
+                .names()
+                .item(hd_resolve::known::REMOTE_MODULE, "Crossing"),
+            args: pool.list(&[ty]),
+        })
     }
 
     /// The family of one generated method of the std `Stub` at a remote

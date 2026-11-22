@@ -5410,6 +5410,7 @@ impl Ck<'_, '_> {
                 ))
             .then(|| self.checkpoint());
             crate::work::local_body(self, n.index());
+            let first = self.b.body().len();
             let mark = self.b.open_sub(&params);
             self.local_capture_open(mark.sub().raw(), n.index(), local_base, own);
             // A generic local function's name: what its uses instantiate, over
@@ -5506,7 +5507,8 @@ impl Ck<'_, '_> {
             }
             let scoped = self.local_capture_argument == Some(n.index());
             self.local_ref_captures(mark, n, scoped);
-            let r = self.b.close_sub(mark, root, ft, n.index());
+            let lifted = self.wire_lift(mark, first, ft, n).unwrap_or(ft);
+            let r = self.b.close_sub(mark, root, lifted, n.index());
             if matches!(
                 self.local_rows,
                 Some(crate::local_rows::LocalRows::Discover(_))

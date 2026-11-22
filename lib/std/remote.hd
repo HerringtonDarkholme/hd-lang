@@ -473,6 +473,33 @@ impl WireIn:
         self.at += n
         .Some(value)
 
+# A `Wire` crossing closure as its callee holds it (fn.crossing.lift): a
+# closure that runs the literal here, the number of the function the
+# literal was lifted to, and the captures that function takes, encoded for
+# another instance of the same build. Only the compiler builds one.
+struct Crossing[F]:
+    code: F
+    number: u64
+    captures: List[u8]
+
+# A `Wire` crossing literal's captures, encoded before its closure takes
+# them back.
+fn crossing_frame[C < ?Copy](captures: C) -> (C, List[u8]):
+    bytes := wire_encode(&captures)
+    (captures, bytes)
+
+# The number of the function a `Wire` crossing literal was lifted to: the
+# literal's own number and the function's type, so each instance of a
+# generic literal has its own. Collection keeps the same numbers for the
+# worker's dispatcher.
+fn crossing_number[F](literal: u64, _code: F) -> u64:
+    literal ^ type_number::[F]()
+
+# The canonical digest of `T`, as interface numbers are taken.
+@intrinsic("type_number")
+fn type_number[T]() -> u64:
+    panic("intrinsic")
+
 # Encodes `value` as its `Wire` tree.
 fn wire_encode[T < ?Copy](value: &T) -> List[u8]:
     let mut out = WireOut { bytes: [] }

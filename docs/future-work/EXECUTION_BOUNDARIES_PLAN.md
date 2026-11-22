@@ -537,6 +537,28 @@ retain emits `swift_retain` and `swift_release`, which are atomic, and
 `swift_nonatomic_retain` and `swift_nonatomic_release`. hd takes the
 second form always, with sharing left to `Arc`.)
 
+**Workers, as built.** Readings, each also in its commit:
+
+- A function or method with a crossing parameter is only called
+  (`fn.crossing.no-value`, new): a function value of one took any
+  closure, so the literal rule and the capture markers did not hold.
+- A `Wire` crossing literal is lifted to a function of its captures
+  (`fn.crossing.lift`): the closure's captures become its leading
+  parameters, and it captures nothing. The caller moves the captures into
+  one tuple, encodes it once (`std.remote.crossing_frame`), and passes
+  `std.remote.Crossing { code, number, captures }`: `code` is a closure of
+  the moved captures that calls the lifted function, so a call here runs
+  the literal as written, its row included. Inside the callee the
+  parameter is that struct (`ProgramEnv::params` and the body's local
+  agree), so a call reads `code` and a domain reads the rest. Only `Wire`
+  changes: a `Send` crossing shares memory and passes its closure.
+- The number is the literal's own (its item and node) XOR the canonical
+  digest of the lifted function's type (`type_number`, as interface
+  numbers are taken), so each instance of a generic literal has its own,
+  and every instance of the module computes the same one.
+- Cost: lifting is one pass over the literal's instructions; a call pays
+  one encode of the captures, even one that runs here.
+
 **Workers first, then threads.**
 
 | Slice | Where | What | Price |

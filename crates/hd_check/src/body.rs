@@ -617,6 +617,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The `Closure` instructions written for a crossing parameter: their
     /// captures are copied or moved, never shared (`fn.crossing.mode`).
     pub crossing_closures: Vec<(u32, DefId)>,
+    /// The closure literal being written for a `Wire` crossing parameter,
+    /// and what lifting it left for the call (`fn.crossing.lift`).
+    pub wire_literal: Option<hd_base::NodeIdx>,
+    pub wire_lifted: Option<crate::wire_crossing::WireLift>,
     /// The tail expression of the function body block, when it is an `if`
     /// without `else`: that `if` is `missing-return-value`, not a value
     /// `if` (`flow.if.value.else` reports every other value position).
@@ -938,6 +942,8 @@ pub(crate) fn new_ck<'a, 'c>(
         crossing_params: Vec::new(),
         crossing_uses: HashSet::default(),
         crossing_closures: Vec::new(),
+        wire_literal: None,
+        wire_lifted: None,
         fn_body_tail: None,
         written_row: None,
         let_view: None,
@@ -5793,6 +5799,7 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        self.wire_params_finish();
         let errors = self.diags.has_errors() || self.read_poison_name;
         let tolerated: &[u8] = if errors { &[4] } else { &[] };
         // The backend reads each reference's kind as written (`refs.rs`).
