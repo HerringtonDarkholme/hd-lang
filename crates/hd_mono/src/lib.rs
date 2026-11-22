@@ -264,9 +264,10 @@ pub trait ProgramEnv: LayoutEnv {
     /// emission lowers the method itself (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     /// The requested body first, followed by the cached helper bodies it calls.
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>>;
-    /// The body of one of the `dbg` functions the compiler supplies per
+    /// The body of one of the selection functions the compiler supplies per
     /// concrete argument (`dbg_printer[ty]`, `debug_texts[args]`; spec/lang/10-modules.md
-    /// "Debug Printing"). `debug`: `ty` implements `Debug`.
+    /// "Debug Printing"; `wire_put[ty]`, `wire_take[ty]`, `module.remote.codec`).
+    /// `debug`: `ty` implements `Debug`.
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
     /// `body`, which collection built (a function reference's call body,
     /// [`adapter_call_body`]), after the ownership passes, as the driver
@@ -287,9 +288,12 @@ pub trait ProgramEnv: LayoutEnv {
     fn return_loan_parameter(&self, item: DefId, args: TyList) -> Option<u8>;
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
-    /// The private `DbgStructural` template's method, the `Structure` trait,
-    /// and the `DbgStructural` trait; no public conformance is added.
-    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)>;
+    /// The private `by Structure` templates (`DbgStructural`,
+    /// `WireStructural`), one row per method: the template's method, the
+    /// trait's method and the trait; then the `Structure` trait, whose
+    /// calls in those methods are the compiler's walk. No public
+    /// conformance is added.
+    fn private_templates(&self) -> (&[(DefId, DefId, DefId)], DefId);
 
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): `std.hash.key_equal`, which compares two keys by value
@@ -2049,11 +2053,12 @@ impl Cx<'_> {
     /// The target of a call of `def` at full arguments `args`.
     fn target(&mut self, def: DefId, args: TyList, parent: InstId) -> StageResult<CallTarget> {
         let ret = self.env.ret(def).unwrap_or(Ty::VOID);
-        if let Some(key) = self
-            .env
-            .intrinsic(def)
-            .filter(|k| matches!(k.as_str(), "debug_texts" | "dbg_printer"))
-        {
+        if let Some(key) = self.env.intrinsic(def).filter(|k| {
+            matches!(
+                k.as_str(),
+                "debug_texts" | "dbg_printer" | "wire_put" | "wire_take"
+            )
+        }) {
             return self.dbg_target(def, &key, args, parent);
         }
         // gap: #2288 — stage 3 generates the stub of `remote[T]` and the
@@ -2459,9 +2464,10 @@ impl Cx<'_> {
         }))
     }
 
-    /// A call of `dbg_printer` or `debug_texts`, whose body the compiler writes at the
-    /// exact argument (`ProgramEnv::dbg_body`): an instance keyed like any
-    /// other, with no A1 class, since the body reads the type's declaration.
+    /// A call of `dbg_printer`, `debug_texts`, `wire_put` or `wire_take`,
+    /// whose body the compiler writes at the exact argument
+    /// (`ProgramEnv::dbg_body`): an instance keyed like any other, with no
+    /// A1 class, since the body reads the type's declaration.
     fn dbg_target(
         &mut self,
         def: DefId,
@@ -3300,17 +3306,19 @@ impl Cx<'_> {
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }
-                            let private = env.dbg_structure();
-                            let private_structure = private
-                                .is_some_and(|(caller, tr, _)| caller == item && tr == trait_);
-                            // `dbg_structural`'s call of `DbgStructural.show`:
+                            let (private, structure) = env.private_templates();
+                            let private_structure =
+                                trait_ == structure && private.iter().any(|&(own, ..)| own == item);
+                            // `dbg_structural`'s call of `DbgStructural.show`,
+                            // and the codec's of `WireStructural`'s methods:
                             // the private template's method at the receiver.
                             let structural = private
-                                .filter(|&(.., dbg)| dbg == trait_)
-                                .map(|(show, ..)| show);
+                                .iter()
+                                .find(|&&(_, of, _)| of == method)
+                                .map(|&(own, ..)| own);
                             let supplied = match (choice.0, structural) {
-                                (_, Some(show)) => {
-                                    Some(self.target(show, pool.list(&[self_ty]), id)?)
+                                (_, Some(own)) => {
+                                    Some(self.target(own, pool.list(&[self_ty]), id)?)
                                 }
                                 _ if private_structure => {
                                     self.supplied_target(method, self_ty, &targs, id)?

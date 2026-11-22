@@ -165,6 +165,38 @@ holds only its request factory until returned objects (R3) need the
 served table. A build that calls either built-in is refused (`gap: #2288`)
 until the generated bodies land.
 
+The codec (step 1 below) is std code in `std.remote`: `wire_encode[T]`
+and `wire_decode[T]` over two intrinsics, `wire_put[T]` and `wire_take[T]`,
+whose bodies `hd_structure::wire_codec_body` selects per concrete type as
+`dbg_printer`'s are (`hd_mono` `dbg_target` caches them). A `bool`, an
+integer (generic, zigzag through `Integer.to_u64`), `char`, the floats,
+`string`, `List[u8]`, `List`, `Map` and `never` select a std function; any
+type with a structure (struct, enum, tuple, union, newtype, and so
+`Option` and `Result`, plain enums) selects the private `WireStructural`
+template. The private templates are one list of rows (template method,
+trait method, trait) in `ProgramEnv::private_templates`, read by the four
+sites that read `dbg_structure`'s one triple. Readings:
+
+- Two intrinsics, not one `wire_codec`: an encoder is
+  `fn(&T, &mut WireOut) -> void`, a decoder `fn(&mut WireIn) -> T?`; a
+  decoder's `.None` is the caller's `Unknown` (stub) or `WrongHome`
+  (dispatcher). `wire_decode` also refuses trailing bytes.
+- Decoding is strict where the host's decoder trusts its peer: a LEB128
+  number past 64 bits, an integer past its type's range, a `bool` other
+  than 0 or 1, a `char` that is no scalar, malformed UTF-8, a variant
+  index past the last and a length past the input are `.None`. A list's
+  count reserves at most the bytes left. A map's repeated key keeps the
+  later value, as the host's decoder inserts.
+- `List[u8]` exactly is bytes. A list of a newtype over `u8` is one LEB128
+  number per element, where the host strips the newtype; the boundary
+  move settles it.
+- A counted reference and a remote reference have no codec yet (`gap:
+  #2288`): the first crosses only the host boundary until the move, the
+  second is R3. An enum with shared constructor data has no structure
+  target, so it has none either.
+- `int_min` and `int_max` are private to `std.num`; `std.remote`
+  declares its own, by the same intrinsic keys.
+
 **Next, in this order.** Reading: the codec comes before stubs and
 dispatchers, since each stub method and each dispatcher arm is an encode,
 one call and a decode, and a stub with no codec is dormant code. The

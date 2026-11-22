@@ -13,6 +13,8 @@ use hd_intern::{PathKind, PathTable};
 pub const CORE_MODULE: &str = "std.core";
 /// `Marker`, `Send` and `Wire` (`module.marker.std`).
 pub const MARKER_MODULE: &str = "std.marker";
+/// `std.remote`, whose language items stubs and dispatchers name.
+pub const REMOTE_MODULE: &str = "std.remote";
 pub const TASK_MODULE: &str = "std.task";
 pub const FUNCTION_MODULE: &str = "std.function";
 pub const INSPECT_MODULE: &str = "std.inspect";
@@ -173,8 +175,10 @@ pub struct KnownItems {
     /// `std.format.debug`, the prelude function whose bare call of a
     /// statement value the checker leaves unwarned.
     pub debug_fn: DefId,
-    /// `std.format.DbgStructural`, the structural `dbg` rendering trait.
+    /// `std.format.DbgStructural`, the structural `dbg` rendering trait,
+    /// and `std.remote.WireStructural`, the structural `Wire` codec's.
     pub dbg_structural: DefId,
+    pub wire_structural: DefId,
     /// `std.format`'s REPL support functions, which render and record a
     /// REPL line's value.
     pub repl_text: DefId,
@@ -377,7 +381,7 @@ impl KnownItems {
         let marker = item(MARKER_MODULE, "Marker");
         let send = item(MARKER_MODULE, "Send");
         let wire = item(MARKER_MODULE, "Wire");
-        let remote = item("std.remote", "Remote");
+        let remote = item(REMOTE_MODULE, "Remote");
         let drop_trait = item(RUNTIME_MODULE, "Drop");
         Self {
             any,
@@ -488,6 +492,7 @@ impl KnownItems {
             default_marker: item("std.ops", "default"),
             debug_fn: item(FORMAT_MODULE, "debug"),
             dbg_structural: item(FORMAT_MODULE, "DbgStructural"),
+            wire_structural: item(REMOTE_MODULE, "WireStructural"),
             repl_text: item(FORMAT_MODULE, "repl_text"),
             repl_value: item(FORMAT_MODULE, "repl_value"),
             string_builder: item("std.text", "StringBuilder"),
@@ -557,9 +562,9 @@ impl KnownItems {
             send,
             wire,
             remote,
-            cross_error: item("std.remote", "CrossError"),
-            remote_fn: item("std.remote", "remote"),
-            handle_call: item("std.remote", "handle_call"),
+            cross_error: item(REMOTE_MODULE, "CrossError"),
+            remote_fn: item(REMOTE_MODULE, "remote"),
+            handle_call: item(REMOTE_MODULE, "handle_call"),
         }
     }
 

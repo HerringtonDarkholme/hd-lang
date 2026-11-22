@@ -2553,16 +2553,21 @@ impl InlineEnv for Env<'_> {
 
     /// As `hd_mono`'s collection chooses a bound's call (`Cx::scan`): a
     /// trait value dispatches through its table, whatever was chosen, so
-    /// it is left to that; the private `DbgStructural` trait, which no
-    /// impl answers, is the compiler's template at every receiver
-    /// (`ProgramEnv::dbg_structure`; collection reads no choice for it);
+    /// it is left to that; a private template's trait (`DbgStructural`,
+    /// `WireStructural`), which no impl answers, is the compiler's template
+    /// at every receiver (`ProgramEnv::private_templates`; collection reads
+    /// no choice for it);
     /// any other closed receiver runs the impl or builtin the solver
     /// selects.
     fn select_choice(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<Chosen> {
         if hd_mono::is_trait_value(&self.run.pool, self.ref_target_or(self_ty)) {
             return None;
         }
-        if ProgramEnv::dbg_structure(self).is_some_and(|(.., dbg)| dbg == trait_) {
+        if ProgramEnv::private_templates(self)
+            .0
+            .iter()
+            .any(|&(.., template)| template == trait_)
+        {
             return Some(Chosen::Builtin(0));
         }
         self.solve(trait_, self_ty, targs)
@@ -3072,12 +3077,14 @@ impl Env<'_> {
             generic.clone()
         } else {
             lock(&self.run.counters).instances_built += 1;
-            // The private `DbgStructural` template's own `Structure` calls
-            // are the compiler's walk at its receiver, as collection
-            // chooses them for that item alone (`private_structure`).
-            let walk = ProgramEnv::dbg_structure(self)
-                .filter(|&(show, ..)| show == def)
-                .map(|(_, structure, _)| structure);
+            // A private template's own `Structure` calls are the
+            // compiler's walk at its receiver, as collection chooses them
+            // for its methods alone (`private_structure`).
+            let (private, structure) = ProgramEnv::private_templates(self);
+            let walk = private
+                .iter()
+                .any(|&(own, ..)| own == def)
+                .then_some(structure);
             let generic = Cow::Borrowed(generic);
             hd_mono::instantiate(&self.run.pool, self, def, args, generic, &|t, s, a| {
                 if walk == Some(t) {

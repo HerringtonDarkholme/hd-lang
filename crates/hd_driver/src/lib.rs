@@ -862,7 +862,7 @@ struct ProgramTables {
     /// return templates serve collection and emission; bodies live in Collected.
     supplied_rets: Mutex<HashMap<DefId, Ty>>,
     supplied_families: Mutex<HashMap<(DefId, Ty), SuppliedFamilyCell>>,
-    dbg_structure: OnceLock<Option<(DefId, DefId, DefId)>>,
+    private_templates: OnceLock<Vec<(DefId, DefId, DefId)>>,
     bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
     impl_rows: HashMap<DefId, ImplRef>,
@@ -9681,7 +9681,7 @@ impl Run<'_> {
             items,
             supplied_rets: Mutex::new(HashMap::default()),
             supplied_families: Mutex::new(HashMap::default()),
-            dbg_structure: OnceLock::new(),
+            private_templates: OnceLock::new(),
             bodies: Bodies {
                 all: bodies,
                 bad: std::sync::atomic::AtomicBool::new(false),
@@ -13841,6 +13841,9 @@ impl ProgramEnv for Env<'_> {
         };
         let body = match key {
             "dbg_printer" => hd_structure::dbg_printer_body(&cx, item, ty, debug),
+            "wire_put" | "wire_take" => {
+                hd_structure::wire_codec_body(&cx, item, ty, key == "wire_take")
+            }
             _ => hd_structure::debug_texts_body(&cx, item, ty),
         }?;
         // Written at the exact argument, it is its instance's body.
@@ -13863,26 +13866,36 @@ impl ProgramEnv for Env<'_> {
     fn debug_trait(&self) -> DefId {
         self.run.known.debug
     }
-    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)> {
-        *self.p.dbg_structure.get_or_init(|| {
-            let trait_def = self.run.names().known.dbg_structural;
+    fn private_templates(&self) -> (&[(DefId, DefId, DefId)], DefId) {
+        let rows = self.p.private_templates.get_or_init(|| {
+            let known = &self.run.names().known;
+            let traits = [known.dbg_structural, known.wire_structural];
             let template = |kind, _| kind == hd_resolve::ImplKind::Template;
-            self.p.items.impls(template).find_map(|item| {
+            let mut rows = Vec::new();
+            for item in self.p.items.impls(template) {
                 let ItemData::Impl {
                     trait_, methods, ..
                 } = &item.data
                 else {
-                    return None;
+                    continue;
                 };
-                (*trait_ == trait_def)
-                    .then(|| {
-                        methods
-                            .first()
-                            .map(|m| (m.1, self.run.known.structure, trait_def))
-                    })
+                let Some(ItemData::Trait(declared)) = traits
+                    .contains(trait_)
+                    .then(|| self.p.items.get(*trait_))
                     .flatten()
-            })
-        })
+                    .map(|t| &t.data)
+                else {
+                    continue;
+                };
+                for &(name, own) in methods {
+                    if let Some(&(_, of)) = declared.methods.iter().find(|m| m.0 == name) {
+                        rows.push((own, of, *trait_));
+                    }
+                }
+            }
+            rows
+        });
+        (rows, self.run.known.structure)
     }
 }
 

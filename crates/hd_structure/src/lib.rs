@@ -50,7 +50,8 @@
 mod dbg;
 
 pub use dbg::{
-    printer_body as dbg_printer_body, target as dbg_target, texts_body as debug_texts_body,
+    codec_body as wire_codec_body, printer_body as dbg_printer_body, target as dbg_target,
+    texts_body as debug_texts_body,
 };
 
 use hd_base::{DefId, HashSet, LocalId, NodeIdx, Stage, StageResult};

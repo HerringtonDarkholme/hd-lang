@@ -204,6 +204,8 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("task_wait_signal", &[s(0, &[COUNTED_MUT], VOID)]),
     ("type_id_of", &[s(1, &[], Named("TypeId"))]),
     ("utf8_valid_len", &[s(0, &[LIST], USIZE)]),
+    ("wire_put", &[s(1, &[], Fn)]),
+    ("wire_take", &[s(1, &[], Fn)]),
 ];
 
 /// The shapes of `key`, or `None` when no intrinsic has that key.

@@ -2,6 +2,10 @@
 # generated stubs and dispatchers name (spec/lang/10-modules.md#remote-built-ins).
 # `per_request`, `home`, `action` and the HTTP adapters are plain std over
 # these, in the stdlib tier.
+use std.hash.Hash
+use std.num.Integer
+use std.rt.bytes.char_from_scalar
+use std.structure.{Field, Key, Members, Source, Structure, Variant, Walker}
 
 ## A marker for interface traits whose methods another target may run.
 ## Every type has it; a trait that extends it is a remote trait.
@@ -71,3 +75,419 @@ pub fn remote[T < Remote](transport: *mut dyn Transport) -> *mut T:
 @intrinsic("handle_call")
 pub fn handle_call![S, C](home: &mut Home[S, C], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]:
     panic("intrinsic")
+
+# The Wire codec (spec/lang/10-modules.md#r-module.remote.codec): the tree
+# encoding of the host boundary (crates/hd_wasm/src/boundary.rs `enc_body`),
+# so a frame and a host exchange share one format. An integer is LEB128,
+# zigzag when signed, `bool` one bit of it; a `char` its scalar; a float
+# its IEEE 754 bytes, little-endian; a string or `List[u8]` its length,
+# then its bytes; a list its count, then its elements; a map its live
+# count, then each key and value in insertion order; an enum, union,
+# optional or `Result` its variant index, then the payload; a struct,
+# tuple or newtype its members in order.
+#
+# `wire_put` and `wire_take` are compiler-selected per type, as
+# `dbg_printer` is: a scalar, `string`, `List` or `Map` selects one of the
+# functions below, and a struct, enum, tuple, union or newtype the private
+# `WireStructural` template, whose members select their own codec. The
+# selection never renders, traverses or decodes a value itself.
+
+# The bytes one encoding writes.
+struct WireOut:
+    pub bytes: List[u8]
+
+impl WireOut:
+    fn leb(&mut self, value: u64) -> void:
+        let rest = value
+        while rest >= 128:
+            self.bytes.push(u8(rest & 127) | 128)
+            rest = rest >> 7
+        self.bytes.push(u8(rest))
+
+# The bytes one decoding reads, untrusted: every read checks the input's
+# end and returns `.None` past it, so a malformed frame never panics.
+struct WireIn:
+    pub bytes: List[u8]
+    pub at: usize
+
+impl WireIn:
+    fn byte(&mut self) -> u8?:
+        if self.at >= self.bytes.len():
+            return .None
+        self.at += 1
+        .Some(self.bytes[self.at - 1])
+
+    # An unsigned LEB128 number of at most 64 bits.
+    fn leb(&mut self) -> u64?:
+        let value: u64 = 0
+        let shift: u64 = 0
+        while true:
+            byte := u64(self.byte()?)
+            if shift == 63 && byte > 1:
+                return .None
+            value = value | ((byte & 127) << shift)
+            if byte < 128:
+                return .Some(value)
+            shift += 7
+            if shift > 63:
+                return .None
+        .None
+
+    # A length, which the remaining input must hold at `size` bytes each.
+    fn count(&mut self, size: usize) -> usize?:
+        n := self.leb()?
+        if n > u64(self.bytes.len() - self.at) / u64(size):
+            return .None
+        .Some(usize(n))
+
+    fn take_bytes(&mut self, n: usize) -> List[u8]:
+        part := self.bytes.slice(self.at, self.at + n)
+        self.at += n
+        part
+
+    fn fixed(&mut self, n: usize) -> u64?:
+        if n > self.bytes.len() - self.at:
+            return .None
+        let value: u64 = 0
+        let k: usize = 0
+        while k < n:
+            value = value | (u64(self.bytes[self.at + k]) << u64(8 * k))
+            k += 1
+        self.at += n
+        .Some(value)
+
+# Encodes `value` as its `Wire` tree.
+fn wire_encode[T < ?Copy](value: &T) -> List[u8]:
+    let mut out = WireOut { bytes: [] }
+    wire_put::[T]()(value, &mut out)
+    out.bytes
+
+# Decodes a `T` that `bytes` holds exactly, or `.None`.
+fn wire_decode[T](bytes: List[u8]) -> T?:
+    let mut input = WireIn { bytes: bytes, at: 0 }
+    value := wire_take::[T]()(&mut input)?
+    if input.at != input.bytes.len():
+        return .None
+    .Some(value)
+
+# Select the encoder and the decoder of `T`. Only this private body's
+# type-directed selection is compiler supplied.
+@intrinsic("wire_put")
+fn wire_put[T < ?Copy]() -> fn(&T, &mut WireOut) -> void:
+    panic("intrinsic")
+
+@intrinsic("wire_take")
+fn wire_take[T]() -> fn(&mut WireIn) -> T?:
+    panic("intrinsic")
+
+@intrinsic("int_min")
+fn int_min[N < Integer]() -> N:
+    panic("intrinsic")
+
+@intrinsic("int_max")
+fn int_max[N < Integer]() -> N:
+    panic("intrinsic")
+
+fn wire_put_bool(value: &bool, out: &mut WireOut) -> void:
+    out.bytes.push(if *value: 1 else: 0)
+
+fn wire_take_bool(input: &mut WireIn) -> bool?:
+    match input.leb()?:
+        0 => .Some(false)
+        1 => .Some(true)
+        _ => .None
+
+# A signed integer is zigzag: `n` as `2n`, a negative `n` as `-2n - 1`,
+# computed as `-(n + 1)` so the type's minimum does not overflow.
+fn wire_put_int[N < Integer](value: &N, out: &mut WireOut) -> void:
+    n := *value
+    zero := N::zero()
+    if int_min::[N]() < zero:
+        if n < zero:
+            out.leb(((zero - N::one() - n).to_u64() << 1) | 1)
+        else:
+            out.leb(n.to_u64() << 1)
+    else:
+        out.leb(n.to_u64())
+
+# The magnitude is checked against the type's range before `from_u64`,
+# which would panic past it.
+fn wire_take_int[N < Integer](input: &mut WireIn) -> N?:
+    z := input.leb()?
+    max := int_max::[N]().to_u64()
+    zero := N::zero()
+    if int_min::[N]() < zero:
+        m := z >> 1
+        if m > max:
+            return .None
+        if z & 1 == 0:
+            return .Some(N::from_u64(m))
+        return .Some(zero - N::one() - N::from_u64(m))
+    if z > max:
+        return .None
+    .Some(N::from_u64(z))
+
+fn wire_put_char(value: &char, out: &mut WireOut) -> void:
+    out.leb(u64(value.to_u32()))
+
+fn wire_take_char(input: &mut WireIn) -> char?:
+    n := input.leb()?
+    if n > 0x10ffff:
+        return .None
+    char_from_scalar(u32(n))
+
+fn wire_put_f32(value: &f32, out: &mut WireOut) -> void:
+    bits := value.to_bits()
+    for k in 0..4:
+        out.bytes.push(u8((bits >> u32(8 * k)) & 255))
+
+fn wire_take_f32(input: &mut WireIn) -> f32?:
+    .Some(f32::from_bits(u32(input.fixed(4)?)))
+
+fn wire_put_f64(value: &f64, out: &mut WireOut) -> void:
+    bits := value.to_bits()
+    for k in 0..8:
+        out.bytes.push(u8((bits >> u64(8 * k)) & 255))
+
+fn wire_take_f64(input: &mut WireIn) -> f64?:
+    .Some(f64::from_bits(input.fixed(8)?))
+
+fn wire_put_string(value: &string, out: &mut WireOut) -> void:
+    wire_put_bytes(&value.to_utf8(), out)
+
+fn wire_take_string(input: &mut WireIn) -> string?:
+    string::from_utf8(wire_take_bytes(input)?).ok()
+
+fn wire_put_bytes(value: &List[u8], out: &mut WireOut) -> void:
+    out.leb(u64(value.len()))
+    out.bytes.extend(*value)
+
+fn wire_take_bytes(input: &mut WireIn) -> List[u8]?:
+    n := input.count(1)?
+    .Some(input.take_bytes(n))
+
+fn wire_put_list[T](value: &List[T], out: &mut WireOut) -> void:
+    out.leb(u64(value.len()))
+    put := wire_put::[T]()
+    for item in value:
+        put(&item, out)
+
+# An element takes at least no bytes, so the count bounds only the
+# reservation, by the bytes left.
+fn wire_take_list[T](input: &mut WireIn) -> List[T]?:
+    n := input.leb()?
+    left := input.bytes.len() - input.at
+    let mut items: List[T] = []
+    items.reserve(if n < u64(left): usize(n) else: left)
+    take := wire_take::[T]()
+    let k: u64 = 0
+    while k < n:
+        items.push(take(input)?)
+        k += 1
+    .Some(items)
+
+fn wire_put_map[K < Eq & Hash, V](value: &Map[K, V], out: &mut WireOut) -> void:
+    out.leb(u64(value.len()))
+    put_key := wire_put::[K]()
+    put_value := wire_put::[V]()
+    for (key, item) in value:
+        put_key(key, out)
+        put_value(item, out)
+
+fn wire_take_map[K < Eq & Hash, V](input: &mut WireIn) -> Map[K, V]?:
+    n := input.leb()?
+    let mut entries: Map[K, V] = {}
+    take_key := wire_take::[K]()
+    take_value := wire_take::[V]()
+    let k: u64 = 0
+    while k < n:
+        key := take_key(input)?
+        entries[key] = take_value(input)?
+        k += 1
+    .Some(entries)
+
+fn wire_put_never(value: &never, out: &mut WireOut) -> void:
+    pass
+
+# No frame holds a value of `never`.
+fn wire_take_never(input: &mut WireIn) -> never?:
+    .None
+
+fn wire_put_structural[T < WireStructural](value: &T, out: &mut WireOut) -> void:
+    value.put(out)
+
+fn wire_take_structural[T < WireStructural](input: &mut WireIn) -> T?:
+    T::take(input)
+
+# This private template is instantiated only by `wire_put` and `wire_take`.
+# Its members select their codec without a bound, as `DbgStructural`'s do.
+trait WireStructural:
+    fn put(&self, out: &mut WireOut) -> void
+    fn take(input: &mut WireIn) -> Self?
+
+impl[T] WireStructural for T by Structure:
+    fn put(&self, out: &mut WireOut) -> void:
+        let mut walker = WirePut::[T] { out: out }
+        _ := Structure::walk(self, &mut walker)
+
+    fn take(input: &mut WireIn) -> T?:
+        let mut source = WireTake::[T] { input: input, at: 0 }
+        T::build(&mut source).ok()
+
+# An enum's or union's variant writes its index; a struct's, tuple's or
+# newtype's one variant (`of_data`) writes nothing.
+struct WirePut[S < ?Copy, 'a]:
+    pub out: &'a mut WireOut
+
+impl['a, S < ?Copy] Walker[S] for WirePut[S, 'a]:
+    type Error = never
+
+    fn data_variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        if !v.info.of_data:
+            self.out.leb(u64(v.info.index))
+        .Ok(())
+
+    fn member[F < ?Copy](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        wire_put::[F]()(value, &mut *self.out)
+        .Ok(())
+
+# Reads the variant index of an enum or union, then each member in order.
+struct WireTake[S < ?Copy, 'a]:
+    pub input: &'a mut WireIn
+    pub at: usize
+
+impl['a, S < ?Copy] Source[S] for WireTake[S, 'a]:
+    type Error = void
+
+    fn data_variant(&mut self, choice: Variant[S]) -> Result[Variant[S], void]:
+        .Ok(choice)
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], void]:
+        if choices.len() == 1 && choices[0].info.of_data:
+            return .Ok(choices[0])
+        match self.input.leb():
+            .Some(index) if index < u64(choices.len()) => .Ok(choices[usize(index)])
+            _ => .Err(())
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, void]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        self.at += 1
+        .Ok(members.at(members.infos[self.at - 1].position))
+
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, void]:
+        match wire_take::[F]()(&mut *self.input):
+            .Some(value) => .Ok(value)
+            .None => .Err(())
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, void]:
+        .Err(())
+
+# The codec's round trips over every `Wire` type form, its bytes against
+# the host's tree format, and malformed frames, which decode to `.None`.
+tests:
+    use std.testing.{assert, assert_equal}
+
+    @derive(Debug, Eq)
+    struct Point:
+        x: i32
+        y: f64
+
+    @derive(Debug, Eq)
+    struct Empty: pass
+
+    @derive(Debug, Eq)
+    enum Shape:
+        Dot
+        Circle(at: Point, radius: u16)
+        Path(points: List[Point], closed: bool)
+
+    @derive(Debug, Eq)
+    enum Tree:
+        Leaf(value: i64)
+        Node(children: List[Tree])
+
+    @derive(Debug, Eq)
+    type Meters(u32)
+
+    fn round[T < Eq & Debug](value: T) -> List[u8]:
+        bytes := wire_encode(&value)
+        assert_equal(wire_decode::[T](bytes), .Some(value))
+        bytes
+
+    it("integers are LEB128, zigzag when signed, at every width and bound"):
+        assert_equal(round(i8(-128)), [255, 1])
+        assert_equal(round(i8(127)), [254, 1])
+        assert_equal(round(i16(-1)), [1])
+        assert_equal(round(i32(-2147483648)), [255, 255, 255, 255, 15])
+        assert_equal(round(i64(-9223372036854775807) - 1), [255, 255, 255, 255, 255, 255, 255, 255, 255, 1])
+        assert_equal(round(i64(9223372036854775807)), [254, 255, 255, 255, 255, 255, 255, 255, 255, 1])
+        assert_equal(round(u8(255)), [255, 1])
+        assert_equal(round(u16(300)), [172, 2])
+        assert_equal(round(u32(4294967295)), [255, 255, 255, 255, 15])
+        assert_equal(round(usize(0)), [0])
+        assert_equal(round(u64(18446744073709551615)), [255, 255, 255, 255, 255, 255, 255, 255, 255, 1])
+
+    it("bool, char and floats keep the host's forms"):
+        assert_equal(round(true), [1])
+        assert_equal(round(false), [0])
+        assert_equal(round('é'), [233, 1])
+        assert_equal(round(f32(1.5)), [0, 0, 192, 63])
+        assert_equal(round(f64(-2.0)), [0, 0, 0, 0, 0, 0, 0, 192])
+
+    it("strings and byte lists are a length, then the bytes"):
+        assert_equal(round("hé"), [3, 104, 195, 169])
+        assert_equal(round(""), [0])
+        let bytes: List[u8] = [0, 200, 255]
+        assert_equal(round(bytes), [3, 0, 200, 255])
+
+    it("lists, maps, optionals and results nest"):
+        assert_equal(round([i16(-1), 2]), [2, 1, 4])
+        assert_equal(round([[u8(1)], []]), [2, 1, 1, 0])
+        assert_equal(round({"a": u8(1), "b": u8(2)}), [2, 1, 97, 1, 1, 98, 2])
+        let none: u8? = .None
+        assert_equal(round(none), [0])
+        let some: u8? = .Some(7)
+        assert_equal(round(some), [1, 7])
+        let ok: Result[string, i32] = .Ok("x")
+        assert_equal(round(ok), [0, 1, 120])
+        let err: Result[string, i32] = .Err(-3)
+        assert_equal(round(err), [1, 5])
+
+    it("structs, enums, tuples, unions and newtypes walk their members"):
+        assert_equal(round(Point { x: -1, y: 0.0 }), [1, 0, 0, 0, 0, 0, 0, 0, 0])
+        assert_equal(round(Empty {}), [])
+        assert_equal(round(Shape.Dot), [0])
+        assert_equal(round(Shape.Circle(Point { x: 1, y: 1.0 }, 9)), [1, 2, 0, 0, 0, 0, 0, 0, 240, 63, 9])
+        _ := round(Shape.Path([Point { x: 3, y: 4.0 }], true))
+        assert_equal(round((u8(1), "a", false)), [1, 1, 97, 0])
+        let either: i32 | string = ._1("z")
+        assert_equal(round(either), [1, 1, 122])
+        assert_equal(round(Meters(5)), [5])
+        assert_equal(round(()), [])
+
+    it("a recursive enum round-trips"):
+        _ := round(Tree.Node([Tree.Leaf(-5), Tree.Node([]), Tree.Leaf(6)]))
+
+    it("a malformed frame decodes to .None, never a panic"):
+        assert_equal(wire_decode::[u8]([]), .None)
+        assert_equal(wire_decode::[u8]([128]), .None)
+        assert_equal(wire_decode::[u8]([128, 2]), .None)
+        assert_equal(wire_decode::[i8]([128, 2]), .None)
+        assert_equal(wire_decode::[u64]([255, 255, 255, 255, 255, 255, 255, 255, 255, 2]), .None)
+        assert_equal(wire_decode::[u64]([128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 0]), .None)
+        assert_equal(wire_decode::[bool]([2]), .None)
+        assert_equal(wire_decode::[char]([128, 176, 3]), .None)
+        assert_equal(wire_decode::[f64]([0, 0, 0]), .None)
+        assert_equal(wire_decode::[string]([2, 195]), .None)
+        assert_equal(wire_decode::[string]([1, 255]), .None)
+        assert_equal(wire_decode::[List[u8]]([5, 1]), .None)
+        assert_equal(wire_decode::[List[i32]]([255, 255, 255, 255, 15]), .None)
+        assert_equal(wire_decode::[Shape]([3]), .None)
+        assert_equal(wire_decode::[Shape]([1, 2]), .None)
+        assert_equal(wire_decode::[Point]([2, 0, 0, 0, 0, 0, 0, 0, 0, 7]), .None)
+        assert_equal(wire_decode::[Map[string, u8]]([1, 1, 97]), .None)
+        assert_equal(wire_decode::[Option[u8]]([2]), .None)

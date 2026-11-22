@@ -1993,6 +1993,7 @@ fn checked_runtime() -> bool {
 const STD_RT_TESTS: &[(&str, &str)] = &[
     ("cmp.hd", include_str!("../../../lib/std/cmp.hd")),
     ("regex.hd", include_str!("../../../lib/std/regex.hd")),
+    ("remote.hd", include_str!("../../../lib/std/remote.hd")),
     (
         "rt_tests/memory_tests.hd",
         include_str!("std_rt/memory_tests.hd"),
@@ -2128,6 +2129,8 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
                 "lang/03-names-and-scopes.md#r-names.category.value"
             } else if *path == "regex.hd" {
                 "std/regex.md#r-std-regex.time.linear"
+            } else if *path == "remote.hd" {
+                "lang/10-modules.md#r-module.remote.codec"
             } else {
                 "lang/10-modules.md#memory-intrinsics"
             }
