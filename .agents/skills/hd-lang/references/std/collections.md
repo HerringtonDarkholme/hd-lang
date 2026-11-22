@@ -158,7 +158,11 @@ println("${debug(squares)} ${index["bb"]} $total")
 
 | Call | On | Gives |
 | --- | --- | --- |
+| `unwrap()` | both | the value, or a panic; `Result` errors require `Debug` |
 | `unwrap_or(fallback)` | both | the value, or the fallback |
+| `unwrap_or_else(f)` | both | the value, or a fallback computed only on failure |
+| `or_else(f)` | both | this success, or an optional/result computed on failure |
+| `filter(f)` | `T?` | keeps a present value when `f(&value)` returns true |
 | `expect(message)` | both | the value, or a panic |
 | `map(f)` | both | the same wrapper around `f(value)` |
 | `and_then(f)` | both | chains a step that returns the same kind of wrapper |
@@ -168,4 +172,5 @@ println("${debug(squares)} ${index["bb"]} $total")
 | `ok()`, `err()` | `Result` | the value or the error, as an optional |
 | `map_err(f)` | `Result` | the same result with a changed error |
 
-There is no `unwrap()`. See [language/errors.md](../language/errors.md).
+`unwrap()` uses the standard panic message; `expect(message)` supplies your message.
+See [language/errors.md](../language/errors.md).
