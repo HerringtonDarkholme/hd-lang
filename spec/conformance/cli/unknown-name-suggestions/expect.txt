@@ -44,7 +44,7 @@ exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `roate` on Knob; did you mean `rotate`?","line":12,"column":5,"fixes":[],"file":"nearest-receiver.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json optional.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `unwrap` on string?; use `expect(message)` or `unwrap_or(fallback)`","line":2,"column":5,"fixes":[{"message":"expect a successful value","guess":true,"edits":[{"file":"optional.hd","start":42,"end":48,"text":"expect"},{"file":"optional.hd","start":49,"end":49,"text":"\"missing value\""},{"file":"optional.hd","start":36,"end":36,"text":"_ := "}]},{"message":"use the value type's default on failure","guess":true,"edits":[{"file":"optional.hd","start":0,"end":0,"text":"use std.ops.Default\n\n"},{"file":"optional.hd","start":42,"end":48,"text":"unwrap_or"},{"file":"optional.hd","start":49,"end":49,"text":"Default::default()"},{"file":"optional.hd","start":36,"end":36,"text":"_ := "}]}],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `unwarp` on string?; did you mean `unwrap`?","line":2,"column":5,"fixes":[],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json print.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`print` is not defined; did you mean `println`?","line":2,"column":5,"fixes":[],"file":"print.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
