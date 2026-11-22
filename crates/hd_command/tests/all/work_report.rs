@@ -269,18 +269,27 @@ fn a_dependency_tests_are_not_listed() {
     std::fs::create_dir_all(dep.join("src")).expect("dep src");
     std::fs::create_dir_all(dep.join("tests")).expect("dep tests");
     std::fs::write(dep.join("hd.toml"), "[package]\nname = \"dep\"\n").expect("write");
-    std::fs::write(dep.join("src/lib.hd"), "pub fn one() -> i32: 1\n").expect("write");
+    let lib = "pub fn one() -> i32: 1\n";
     let manifest = "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n\
                     [dependencies]\ndep = { path = \"dep\" }\n";
     std::fs::write(dir.join("hd.toml"), manifest).expect("write");
     let work = dir.join("work.json");
+    // Each run follows a save of every listed file with the same text, so
+    // both phases see them just saved (within `disk::SETTLE`), whatever the
+    // load: a phase that found them settled made 6 fewer allocations.
+    let save = || {
+        std::fs::write(dir.join("src/main.hd"), MAIN).expect("write");
+        std::fs::write(dep.join("src/lib.hd"), lib).expect("write");
+    };
     let allocs = || {
+        save();
         let out = check(&dir, &work);
         assert!(
             out.status.success(),
             "{}",
             String::from_utf8_lossy(&out.stderr)
         );
+        save();
         let out = check(&dir, &work);
         assert!(
             out.status.success(),
