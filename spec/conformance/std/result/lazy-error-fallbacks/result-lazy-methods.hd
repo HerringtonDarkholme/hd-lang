@@ -1,0 +1,61 @@
+# test: result lazy methods preserve success and transform errors once
+use std.collections.UniqList
+use std.format.DebugWriter
+
+fn value_or_default(value: Result[i32, string]) -> i32:
+    value.unwrap_or_else(fn(error: string) -> i32: 0)
+
+struct DebugOnly:
+    number: i32
+
+impl Debug for DebugOnly:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        out.write("debug-only")
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("unwrap needs Debug, not Display, on the error"):
+        let good: Result[i32, DebugOnly] = .Ok(3)
+        assert_equal(good.unwrap(), 3)
+
+    it("success skips lazy error callbacks"):
+        let good: Result[i32, string] = .Ok(3)
+        assert_equal(good.unwrap_or_else(fn(error: string) -> i32: panic("unused fallback")), 3)
+        let kept: Result[i32, bool] = good.or_else(
+            fn(error: string) -> Result[i32, bool]: panic("unused fallback")
+        )
+        assert_equal(kept, .Ok(3))
+
+    it("an error is supplied to each fallback exactly once"):
+        let bad: Result[i32, string] = .Err("bad")
+        let mut calls = 0
+        assert_equal(
+            bad.unwrap_or_else(fn(error: string) -> i32:
+                calls = calls + 1
+                i32(error.len())
+            ),
+            3,
+        )
+        assert_equal(calls, 1)
+        let replaced: Result[i32, bool] = bad.or_else(fn(error: string) -> Result[i32, bool]:
+            calls = calls + 1
+            .Err(error.len() == 3)
+        )
+        assert_equal(replaced, .Err(true))
+        assert_equal(calls, 2)
+        let recovered: Result[i32, bool] = bad.or_else(
+            fn(error: string) -> Result[i32, bool]: .Ok(9)
+        )
+        assert_equal(recovered, .Ok(9))
+
+    it("success and error payloads need not be copied"):
+        let mut payload = UniqList::[i32].new()
+        payload.push(9)
+        let good: Result[UniqList[i32], string] = .Ok(payload)
+        assert_equal(good.unwrap()[0], 9)
+        let bad: Result[i32, UniqList[i32]] = .Err(UniqList::[i32].new())
+        let recovered: Result[i32, bool] = bad.or_else(
+            fn(error: UniqList[i32]) -> Result[i32, bool]: .Ok(i32(error.len()))
+        )
+        assert_equal(recovered, .Ok(0))
