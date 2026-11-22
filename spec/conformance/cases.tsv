@@ -1902,6 +1902,7 @@ lang/lexical/physical-and-logical-lines/closure-body-ends-at-comma-line.hd	parse
 lang/lexical/physical-and-logical-lines/closure-body-absorbs-next-argument.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#physical-and-logical-lines
 lang/lexical/physical-and-logical-lines/closure-body-followed-by-argument-line.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#physical-and-logical-lines
 lang/lexical/physical-and-logical-lines/closure-body-line-ends-in-closer.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#physical-and-logical-lines
+lang/lexical/physical-and-logical-lines/closure-body-line-ends-in-comma.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#physical-and-logical-lines
 lang/lexical/physical-and-logical-lines/leading-dot-continuation.hd	parse	accept	lang/01-lexical-structure.md#physical-and-logical-lines
 lang/lexical/physical-and-logical-lines/leading-dot-chain.hd	runtime	accept	lang/01-lexical-structure.md#physical-and-logical-lines
 lang/lexical/physical-and-logical-lines/leading-operator-does-not-continue.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#physical-and-logical-lines

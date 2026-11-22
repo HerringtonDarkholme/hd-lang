@@ -1,0 +1,10 @@
+# test: a comma at the end of a closure's last body line inside brackets does not end the closure; the comma must start the next line
+# Spec 01 Closures Inside Delimiters: lex.closure.end-line, lex.closure.end-token, lex.closure.body-line.
+
+fn apply(f: fn(i32) -> i32) -> i32: f(1)
+
+fn run() -> i32:
+    apply(
+        fn(x: i32) -> i32:
+            x * 2,  # diagnostic: syntax-error
+    )
