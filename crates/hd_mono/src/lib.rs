@@ -30,7 +30,7 @@ use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
     Selection, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 mod type_depth;
 /// Per sub-body, the generic local functions' parameter ranges
@@ -688,7 +688,10 @@ fn opaque_result(
         body_memo: &mut memo,
         global,
     };
-    let Selection::Impl { impl_row, .. } = hd_types::solver::TableSolver
+    let Selection::Impl {
+        impl_row,
+        args: impl_args,
+    } = hd_types::solver::TableSolver
         .select(
             &mut cx,
             ConcreteTraitRef(TraitRef {
@@ -708,20 +711,12 @@ fn opaque_result(
         // The trait's default body shares its Self/trait/method arguments.
         return env.opaque_result(pool, method, site);
     };
-    let (head, formals, count) = env.impl_head(imp)?;
-    let mut values = vec![None; count];
-    unify(pool, imp, head, self_ty, &mut values);
-    for (&formal, &actual) in pool
-        .list_items(formals)
-        .iter()
-        .zip(pool.list_items(trait_args))
-    {
-        unify(pool, imp, formal, actual, &mut values);
+    // Selection's arguments, every impl parameter's; a parameter neither
+    // the head nor a `Bind` step fixes is poison.
+    let mut selected_args = pool.list_items(impl_args).to_vec();
+    if selected_args.contains(&Ty::POISON) {
+        return None;
     }
-    if values.iter().any(Option::is_none) {
-        hd_types::solver::apply_binds(types, env.impls(), table, row, &mut values);
-    }
-    let mut selected_args: Vec<Ty> = values.into_iter().collect::<Option<_>>()?;
     selected_args.extend_from_slice(&rest[n..]);
     let selected_result = substitute(
         pool,
@@ -1025,134 +1020,6 @@ fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
             }
         })
         .collect()
-}
-
-/// Matches an impl head's `pattern` (over the parameters of `owner`)
-/// against a concrete type, filling `out`. Selection has already checked
-/// that the head matches and repeated parameters agree; this extracts them.
-pub fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
-    unify_walk(pool, owner, pattern, t, out);
-}
-
-// Returns distinct formal types and all popped steps so the generated
-// width/depth test counts work, including memo hits, without another pass.
-fn unify_walk(
-    pool: &InternPool,
-    owner: DefId,
-    pattern: Ty,
-    t: Ty,
-    out: &mut Vec<Option<Ty>>,
-) -> (usize, usize) {
-    enum Step {
-        Types(Ty, Ty),
-        Rows(RowId, RowId),
-    }
-    let mut work = vec![Step::Types(pattern, t)];
-    let mut seen = HashSet::default();
-    let mut popped = 0;
-    let list = |a, b, work: &mut Vec<Step>| {
-        work.extend(
-            pool.list_items(a)
-                .iter()
-                .zip(pool.list_items(b))
-                .rev()
-                .map(|(&x, &y)| Step::Types(x, y)),
-        );
-    };
-    while let Some(step) = work.pop() {
-        popped += 1;
-        let (pattern, t) = match step {
-            Step::Types(pattern, t) => (pattern, t),
-            Step::Rows(a, b) => {
-                unify_row(pool, owner, a, b, out);
-                continue;
-            }
-        };
-        // Selection already proved that repeated occurrences bind the same
-        // arguments. Once this formal subtree has supplied its parameters,
-        // revisiting it cannot add one. Bound work by the formal head graph,
-        // even when the actual type graph shares it in different contexts.
-        if !seen.insert(pattern) {
-            continue;
-        }
-        match (pool.get(pattern), pool.get(t)) {
-            (TyData::Param(p), _) if p.owner == owner => {
-                let i = p.index as usize;
-                if out.len() <= i {
-                    out.resize(i + 1, None);
-                }
-                out[i].get_or_insert(t);
-            }
-            (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
-            | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
-            | (TyData::Union(a), TyData::Union(b)) => list(a, b, &mut work),
-            (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
-                if let (Some(x), Some(y)) = (ar, br) {
-                    work.push(Step::Types(x, y));
-                }
-                list(a, b, &mut work);
-            }
-            (
-                TyData::Fn {
-                    params: a,
-                    result: r,
-                    row: ar,
-                    inputs: ai,
-                    ..
-                },
-                TyData::Fn {
-                    params: b,
-                    result: s,
-                    row: br,
-                    inputs: bi,
-                    ..
-                },
-            ) => {
-                work.push(Step::Rows(ar, br));
-                work.push(Step::Types(r, s));
-                if ai == bi {
-                    list(a, b, &mut work);
-                } else {
-                    // `Fn[Args, O, $ R]` against a concrete function type:
-                    // `Args` is its whole inputs tuple (`fn.type.ctor.inputs`).
-                    let p = pool.types();
-                    work.push(Step::Types(p.inputs_tuple(a, ai), p.inputs_tuple(b, bi)));
-                }
-            }
-            (TyData::Row(a), TyData::Row(b)) => unify_row(pool, owner, a, b, out),
-            (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
-                work.push(Step::Types(a, b));
-            }
-            _ => {}
-        }
-    }
-    (seen.len(), popped)
-}
-
-#[cfg(test)]
-mod matching_tests;
-
-/// Matches an impl head's row parameters, filling their instance arguments
-/// with the concrete row as a `TyData::Row`, just as `unify` does for type
-/// parameters. `Types::subst_row` consumes that same representation.
-fn unify_row(
-    pool: &InternPool,
-    owner: DefId,
-    pattern: RowId,
-    actual: RowId,
-    out: &mut Vec<Option<Ty>>,
-) {
-    for p in pool.row_data(pattern).params {
-        if p.owner != owner {
-            continue;
-        }
-        let i = p.index as usize;
-        if out.len() <= i {
-            out.resize(i + 1, None);
-        }
-        let row = pool.intern_ty(&TyData::Row(actual));
-        out[i].get_or_insert(row);
-    }
 }
 
 /// The items a type names: data types, enums and traits (a projection's
@@ -2304,14 +2171,15 @@ impl Cx<'_> {
             return Ok(Picked::Builtin);
         }
         let view = env.impls();
-        let at = if let Some(d) = choice {
+        // The impl and its arguments: selection's, or for an impl the
+        // checker recorded, its head bound from the goal as selection binds it.
+        let (at, args) = if let Some(d) = choice {
             let Some(at) = env.impl_row(d) else {
                 return err("a chosen impl outside the impl tables");
             };
-            at
+            (at, None)
         } else {
-            // Impl heads name `&T`, as bodies and declarations do. The
-            // arguments below unify the head with `self_ty`.
+            // Impl heads name `&T`, as bodies and declarations do.
             let tref = ConcreteTraitRef(TraitRef {
                 trait_,
                 self_ty,
@@ -2339,7 +2207,7 @@ impl Cx<'_> {
                 e
             })?;
             match picked {
-                Selection::Impl { impl_row, .. } => impl_row,
+                Selection::Impl { impl_row, args } => (impl_row, Some(args)),
                 Selection::Builtin(_) => {
                     self.selected.insert(key, Picked::Builtin);
                     return Ok(Picked::Builtin);
@@ -2351,32 +2219,17 @@ impl Cx<'_> {
         };
         let row = at.row as usize;
         let impl_ = t.def[row];
-        let Some((head, targs, n)) = env.impl_head(impl_) else {
-            return err("a selected impl without a head");
+        let types = self.pool.types();
+        // Selection leaves a parameter nothing fixes as poison.
+        let args = if let Some(args) = args {
+            Some(types.list_items(args).to_vec()).filter(|a| !a.contains(&Ty::POISON))
+        } else {
+            let goal = types.list_items(trait_args);
+            hd_types::solver::impl_args(types, view, t, row, self_ty, goal)
         };
-        let mut out = vec![None; n];
-        unify(self.pool, impl_, head, self_ty, &mut out);
-        for (x, y) in self
-            .pool
-            .list_items(targs)
-            .iter()
-            .copied()
-            .zip(self.pool.list_items(trait_args).iter().copied())
-        {
-            unify(self.pool, impl_, x, y, &mut out);
-        }
-        // Parameters that a bound's binding fixes (`Bind` steps).
-        if out.iter().any(Option::is_none) {
-            out.resize(out.len().max(n), None);
-            hd_types::solver::apply_binds(self.pool.types(), view, t, row, &mut out);
-        }
-        let mut args = Vec::new();
-        for a in out.into_iter().take(n) {
-            let Some(a) = a else {
-                return err("an impl parameter that its head does not fix (a `Bind` step)");
-            };
-            args.push(a);
-        }
+        let Some(args) = args else {
+            return err("an impl parameter that its head does not fix (a `Bind` step)");
+        };
         let picked = Picked::Impl(impl_, args);
         self.selected.insert(key, picked.clone());
         Ok(picked)

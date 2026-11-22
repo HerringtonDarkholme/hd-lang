@@ -2498,9 +2498,10 @@ impl InlineEnv for Env<'_> {
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:
-    /// the impl's method at the impl's arguments, matched from the receiver
-    /// and the trait's arguments as collection selects, then the method's
-    /// own; or the trait's default body at the receiver and the call's.
+    /// the impl's method at the impl's arguments, bound from the receiver
+    /// and the trait's arguments as selection binds them (`Bind` steps
+    /// included), then the method's own; or the trait's default body at the
+    /// receiver and the call's.
     fn impl_target(&self, callee: &Callee) -> Option<(DefId, TyList)> {
         let &Callee::TraitMethod {
             trait_,
@@ -2530,13 +2531,12 @@ impl InlineEnv for Env<'_> {
             return Some((method, pool.list(&[&[self_ty], items].concat())));
         };
         let (trait_args, own) = items.split_at(self.trait_arity(trait_).min(items.len()));
-        let (head, heads, n) = self.impl_head(impl_)?;
-        let mut out = vec![None; n];
-        hd_mono::unify(pool, impl_, head, self_ty, &mut out);
-        for (&x, &y) in pool.list_items(heads).iter().zip(trait_args) {
-            hd_mono::unify(pool, impl_, x, y, &mut out);
-        }
-        let mut all = out.into_iter().collect::<Option<Vec<_>>>()?;
+        let at = self.impl_row(impl_)?;
+        let table = self.impls.table(at.module)?;
+        let types = pool.types();
+        let row = at.row as usize;
+        let mut all =
+            hd_types::solver::impl_args(types, self.impls, table, row, self_ty, trait_args)?;
         all.extend_from_slice(own);
         Some((m, pool.list(&all)))
     }

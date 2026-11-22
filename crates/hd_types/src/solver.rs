@@ -793,6 +793,52 @@ pub fn apply_binds(
     apply_binds_in(pool, impls, t, row, args, &mut Reads::default());
 }
 
+/// Binds the parameters of impl `owner` in head patterns `pats` to the
+/// parts of `goals` they stand for, with selection's own head match
+/// (§3.4); a part that does not match binds nothing more. For callers
+/// that already know the impl: the checker's instantiation graph, and a
+/// choice the checker recorded. Cost: one visit per distinct pair of
+/// pattern and goal nodes, shared by all of `pats`.
+pub fn bind_head(
+    pool: Types<'_>,
+    owner: DefId,
+    pats: &[Ty],
+    goals: &[Ty],
+    binds: &mut Vec<Option<Ty>>,
+) {
+    let node = MatchNode::List(pool.list(pats), pool.list(goals));
+    match_nodes(pool, owner, node, binds);
+}
+
+/// The arguments of impl `row` of `t` at a goal it answers, as
+/// [`Solver::select`] returns them in [`Selection::Impl`]: the head
+/// bound from `self_ty` and the trait arguments, then the parameters its
+/// `Bind` steps fix. `None` while one stays unfixed. The goal's function
+/// types carry no dependencies (erased before monomorphization), so the
+/// head is erased to match them.
+#[must_use]
+pub fn impl_args(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: &ImplTable,
+    row: usize,
+    self_ty: Ty,
+    trait_args: &[Ty],
+) -> Option<Vec<Ty>> {
+    let head = pool.erase_fn_deps_list(t.head_args[row]);
+    let pats = [
+        &[pool.erase_fn_deps(t.head_self[row])],
+        pool.list_items(head),
+    ]
+    .concat();
+    let goals = [&[self_ty], trait_args].concat();
+    let mut binds = Vec::new();
+    bind_head(pool, t.def[row], &pats, &goals, &mut binds);
+    binds.resize(usize::from(t.n_params[row]).max(binds.len()), None);
+    apply_binds(pool, impls, t, row, &mut binds);
+    binds.into_iter().collect()
+}
+
 fn apply_binds_in(
     pool: Types<'_>,
     impls: Impls<'_>,
@@ -4454,12 +4500,12 @@ mod tests {
         }
     }
 
-    use super::RegionObligations;
     use super::{
         BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
         ImplUniverses, M, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
         TraitRef, canonicalize, match_ty,
     };
+    use super::{RegionObligations, bind_head};
     use crate::pool::{
         InternPool, LocalPool, Prim, RowData, RowParamRef, Ty, TyData, TyList, Types,
     };
@@ -4933,6 +4979,50 @@ mod tests {
         binds.clear();
         assert_eq!(match_ty(p, owner, shared, shared, &mut binds), M::Yes);
         assert_eq!(binds, [Some(param(0))]);
+    }
+
+    #[test]
+    fn bind_head_binds_members_and_rests_and_walks_shared_roots_once() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let owner = DefId::from_raw(1);
+        let param = |index| p.intern_ty(&TyData::Param(crate::ParamRef { owner, index }));
+        let union = p.intern_ty(&TyData::Union(p.list(&[param(0), param(1)])));
+        let goal = p.intern_ty(&TyData::Union(p.list(&[Ty::STRING, Ty::I32])));
+        let mut binds = Vec::new();
+        bind_head(p, owner, &[union], &[goal], &mut binds);
+        assert_eq!(binds, [Some(Ty::STRING), Some(Ty::I32)], "member positions");
+        let tuple = |rest| {
+            p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[Ty::I32]),
+                rest: Some(rest),
+            })
+        };
+        binds.clear();
+        bind_head(p, owner, &[tuple(param(0))], &[tuple(Ty::BOOL)], &mut binds);
+        assert_eq!(binds, [Some(Ty::BOOL)], "a rest with no fixed occurrence");
+        // A receiver and a trait argument that share a deep head: the one
+        // walk visits each distinct pair once.
+        let (mut a, mut b) = (param(0), Ty::I32);
+        for _ in 0..1000 {
+            a = p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[a, a]),
+                rest: None,
+            });
+            b = p.intern_ty(&TyData::Tuple {
+                elems: p.list(&[b, b]),
+                rest: None,
+            });
+        }
+        binds.clear();
+        let ((), work) =
+            crate::work::count_type_nodes(|| bind_head(p, owner, &[a, a], &[b, b], &mut binds));
+        assert_eq!(binds, [Some(Ty::I32)]);
+        assert_eq!(
+            work,
+            2 * 1000 + 2,
+            "the root list, then one depth-1000 walk"
+        );
     }
 
     #[test]
