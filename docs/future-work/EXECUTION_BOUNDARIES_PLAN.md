@@ -33,7 +33,7 @@ in the same commits.
 | 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers, the `Wire` codec (built: 5c9646dac to 00e3b32b8); the host boundary move and host handles as stubs wait on the codec's size; R3, returned objects, built after stage 4 (net +192, not in this row) | 1,170 | 150 | +1,018 | 4, 5 |
 | 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter (built: std code net +86, tests +63) | 500 | 0 | +500 | none |
 | 5 | one use-graph walk per executable (built: compiler net +46) | 280 | 20 | +260 | none |
-| 6 | worker instances, Wasm threads for `Scope` and `Background`, a jobs store | 2,200 | 0 | +2,200 | none |
+| 6 | worker instances, then Wasm threads for `Scope` and `Background` with std `Arc` over atomic intrinsics; counts never atomic (re-priced, section 8) | 2,300 | 0 | +2,300 | none |
 
 Every stage grows the code, since each adds a language feature;
 merge-batch needs Growth-OK for them. Stage 3 pays most of itself back:
@@ -491,31 +491,99 @@ changed, the walk is cached by the file hashes it read.
 
 ## 8. Stage 6: Runtime
 
-**What.** Three runtime slices, each separately testable:
+Not built. Re-priced on 2026-11-22 after the owner's decision on counts,
+which this section follows: "ARC should be something a stdlib to ship,
+no builtin language support. that is, *T is not Send, Arc is another
+stdlib stuff". This is Rust's model:
 
-| Slice | Where | What |
-| --- | --- | --- |
-| workers | `host/` (Node `worker_threads`, browser `Worker`), `hd_run_wasmtime` | a second instance of the same module; a crossing sends the lifted function's index and the encoded captures |
-| threads | `hd_wasm` (shared memory, `memory.atomic.*`), `lib/std/rt` | `Scope` and `Background` run a `Send` closure on another thread of one shared memory |
-| jobs | `lib/std`, `host/` | a store of the index, the captures and the build ID; a run after a deploy is `OtherBuild` |
+- The compiler's counts are never atomic, in any program. No program,
+  type or reach pass switches them, so the earlier per-type plan (atomic
+  counts for the types a `Send` crossing reaches) and Q19's reading are
+  withdrawn.
+- `*T` and `*mut T` are not `Send`. Stage 1 already answers so:
+  `module.marker.table.counted`, the marker walk's leaf rule
+  (`hd_types` `sealed.rs`), and the fixture
+  `spec/conformance/lang/modules/execution-domains/markers/box-field-is-not-send.hd`. No
+  fix is needed.
+- Shared ownership across threads is a std type, `Arc[T]` with `Weak[T]`,
+  written in hd over four atomic intrinsics in `std.rt` on shared memory
+  (load, store, add, compare-exchange), plus wait and notify for joins.
+  Its shape follows Rust's `alloc/src/sync.rs`: one strong and one weak
+  count; a clone adds with `Relaxed`; a drop subtracts with `Release`,
+  and only the last drop fences with `Acquire` and frees; a count past
+  `isize::MAX` aborts; and `make_mut` and `get_mut` test uniqueness by
+  locking the weak count. Rust makes `Arc<T>` `Send` only for `T: Send +
+  Sync`. hd's `Arc[T]` is `Send` for `T < Send` through an explicit std
+  impl (`module.marker.explicit`), subject to the open point on shared
+  reads below.
 
-**Counts and the allocator with threads.** No box is `Send`, so no
-cycle-capable object reaches another thread; each thread keeps its own
-cycle collector. Only `string`, `List` and `Map` buffers are shared, so
-their counts become atomic. A whole-program pass beside
-`hd_opt/src/whole.rs` marks the types a `Send` crossing reaches, and only
-those get atomic counts. A program with no `Send` crossing keeps plain
-counts and an unshared memory. The allocator needs per-thread
-heaps with a cross-thread free path; its design reads the prior art
-first.
+(Swift was checked for comparison: `swiftc -O -emit-ir` of a class
+retain emits `swift_retain` and `swift_release`, which are atomic, and
+`-Xfrontend -assume-single-threaded` turns them into
+`swift_nonatomic_retain` and `swift_nonatomic_release`. hd takes the
+second form always, with sharing left to `Arc`.)
 
-**Deletes or replaces.** Nothing. `module.instance.one-thread` replaced
-the old single-thread rule at stage 0.
+**Workers first, then threads.**
 
-**Per-run cost.** The reach pass is linear in the types and instances it
-walks, once per release link. At run time, a program without `Send`
-crossings pays nothing; one with them pays an atomic operation per count
-change of a reached type.
+| Slice | Where | What | Price |
+| --- | --- | --- | ---: |
+| workers | compiler (`hd_structure`, `hd_driver`, `hd_mono`) | lift each crossing closure literal to a numbered function of its captures; a generated `run_closure` dispatcher switches on the number, as `serve[S]` switches on a method | +180 |
+| workers | `lib/std` | the `Workers` provider and `run!`: frames carry the build ID, the closure number and the captures through the stage 3 `Wire` codec; a crash or a bad frame is `Unknown` | +120 |
+| workers | `host/`, `hd_run_wasmtime` | a second instance of the same module on a Node `worker_threads` worker, a browser `Worker` or a wasmtime thread, with a message channel and abort on cancel | +500 |
+| threads | `hd_wasm`, `std.rt` | shared memory; the atomic intrinsics as `memory.atomic.*`; a thread-spawn import; each thread's stack and globals set up at its start | +470 |
+| threads | `std.rt` | the allocator: a heap per thread and a cross-thread free list, since a value that crossed is freed on the receiving thread | +400 |
+| threads | `lib/std`, `host/` | `Scope` joins its threads; `Background` wakes the caller on its own event loop | +250 |
+| threads | `lib/std` | `Arc[T]` and `Weak[T]` over the intrinsics, with `impl Send for Arc[T]` | +180 |
+| threads | compiler and `lib/std` | the crossing rule for counted buffers, option A below | +200 |
+| | | **total** | **+2,300** |
+
+Workers alone come to +800, of which +180 is compiler code. They need
+no atomics and no shared memory, since a crossing copies its captures
+into the other instance's memory. Threads add +1,500. The jobs store,
+the old third slice, reuses the workers' numbered closures and their
+frames. It is unpriced here and comes after threads.
+
+**Open point 1: a counted buffer that crosses into another thread.** A
+`string`, `List` or `Map` buffer carries a count and copy-on-write. If
+one crosses a `Send` crossing while its count is above 1, two threads
+change one count without atomics.
+
+| Option | Rule | Price | Run time |
+| --- | --- | ---: | --- |
+| A (recommended) | the crossing makes each captured buffer unique: a buffer with a count above 1 is copied, and its elements are made unique in turn, so the receiving thread owns all it got | +200: a private `by Structure` template that walks a value, as `WireStructural` does, selected per captured type, and one call per capture in a crossing's lowering | free for a unique buffer; a copy of each shared part |
+| B | such a value is `Send` only when the crossing moves it | +40, plus a run-time check | a move does not prove the buffer is unique, since an earlier copy may share it. So B needs a run-time count check at the crossing that copies, which is A, or panics, which fails at run time on correct-looking code |
+
+Reading: A. A move of a unique buffer costs nothing extra, and B either
+collapses into A or panics.
+
+**Open point 2, for the owner: shared reads across threads.** Option A
+covers values that cross by copy or move. A value that two threads read
+at once has the same race through any copy out of it. Rust rules this out
+with `Sync`: `&T` is `Send` only when `T: Sync`, and `Rc` is not
+`Sync`. hd's counted buffers behave like `Rc`. Two places hit it:
+
+- A frozen loan: `module.marker.table.shared` makes `&T` `Send` when `T`
+  is. A closure on another thread that copies a `string` out of a lent
+  `List[string]` retains its buffer, while the lending thread may retain
+  or release the same buffer.
+- `Arc[T]`: every thread that reads a `T` holding a buffer and copies it
+  out retains that buffer.
+
+| Option | Rule | Price |
+| --- | --- | ---: |
+| S1 (recommended) | a sealed structural marker, Rust's `Sync`, true for a type that holds no counted buffer. `&T` is `Send` only for such a `T`, and `Arc[T]` is `Send` only for such a `T`. A `Mutex[T]` gives one thread at a time, so a copy out of its guard is made unique by option A's walk | +150: one more kind in the stage 1 parts walk, the table row changed, `Mutex` in std |
+| S2 | reads through a frozen loan or an `Arc` copy deep, never retain | a new reference flavour the type system tracks; over +600 |
+| S3 | a buffer reachable from two threads gets a sticky count that retains and releases skip; it is then never freed | +100, but every share leaks for the rest of the run |
+
+Reading: S1. It is the rule that holds when counts are never atomic, and
+it changes the Why of Markers in chapter 10 ("hd needs no `Sync`"). This
+needs the owner, since it narrows a stage 0 rule. With it, stage 6 is
++2,450.
+
+**Per-run cost.** No compiler pass scales with the program for counts.
+The crossing walk of option A is linear in the shared part of each
+captured value. A count change stays one plain add, on every thread.
+`Arc` pays an atomic operation per clone and drop.
 
 ## 9. Prior Art Read For This Plan
 
@@ -554,6 +622,6 @@ or overturn; overturning one changes its rule and its cases.
 | Q16 | `trait.unsupported.features` bars implicit structural conformance | unchanged: marker impls are compiler-supplied, as `Copy`'s | `module.marker.supplied` |
 | Q17 | a struct with private fields needs `Serialize` at the host boundary | it is `Wire` by structure; a remote method validates its input | `module.marker.structural` |
 | Q18 | interfaces "numbered once per build" need a table shared by every executable | a hash of path and type arguments | plan, stage 3 |
-| Q19 | which counts become atomic with threads | only those of types a `Send` crossing reaches | plan, stage 6 |
+| Q19 | which counts become atomic with threads | none: the owner chose std `Arc` (2026-11-22); section 8 | plan, stage 6 |
 | Q20 | `docs/compiler/ownership.md` moves a run-time loan with its reference | a frozen loan's run-time loan stays with the lending thread | `ref.frozen.alias.lender` |
 | Q21 | host handles and stubs are both trait objects over a transport | keep them apart until the owner decides | plan, stage 3 |
