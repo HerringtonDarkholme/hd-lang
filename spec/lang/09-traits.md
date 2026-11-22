@@ -2418,6 +2418,11 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 7. r[trait.num.from-i64-cast] A [numeric cast](04-type-system.md#numeric-casts) `T(n)` stays the way to wrap.
 8. r[trait.num.division] `/` and `%` keep each type's own meaning under `Num`. Integer division truncates and panics on a zero divisor, and floating-point division follows IEEE 754.
 9. r[trait.num.std-operators] The standard library's operator implementations behave as the built-in operators do.
+10. r[trait.num.integer.max-value] `Integer` declares `fn max_value() -> Self`, which returns the greatest value its integer type can hold.
+11. r[trait.num.integer.min-value] `Integer` declares `fn min_value() -> Self`, which returns the least value its integer type can hold.
+
+The limit methods are callable as `i32::max_value()` or, through an
+`Integer` bound, as `N::max_value()`; `min_value` follows the same form.
 
 ```text
 use std.num.Num

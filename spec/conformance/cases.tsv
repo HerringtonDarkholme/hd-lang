@@ -7253,6 +7253,8 @@ std/iter/value-consuming-methods/local-reference-dot-last-progress.hd	runtime	ac
 std/iter/text-collection-and-list-enumeration/collection-and-enumeration.hd	runtime	accept	std/iter.md#text-collection-and-list-enumeration
 std/iter/text-collection-and-list-enumeration/noncopy-char-cursor.hd	runtime	accept	std/iter.md#text-collection-and-list-enumeration
 std/iter/text-collection-and-list-enumeration/collection-target-required.hd	type	reject:cannot-infer-type	std/iter.md#r-std-iter.collect.no-default
+lang/traits/numeric-traits/integer-limit-methods.hd	runtime	accept	lang/09-traits.md#r-trait.num.integer.max-value
+lang/traits/numeric-traits/integer-limit-function-values.hd	runtime	accept	lang/09-traits.md#r-trait.num.integer.min-value
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
