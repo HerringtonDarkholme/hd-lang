@@ -7232,6 +7232,12 @@ lang/traits/generic-bounds-and-static-dispatch/where-bound-impl-misses.hd	type	r
 lang/traits/generic-bounds-and-static-dispatch/where-bound-subject-self.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.where.subject.error
 lang/traits/generic-bounds-and-static-dispatch/where-bound-subject-unknown.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.where.subject.error
 lang/traits/generic-bounds-and-static-dispatch/where-bound-subject-free-function.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.where.subject.error
+std/option/lazy-fallbacks-and-filtering/option-lazy-methods.hd	runtime	accept	std/option.md#lazy-fallbacks-and-filtering
+std/result/lazy-error-fallbacks/result-lazy-methods.hd	runtime	accept	std/result.md#lazy-error-fallbacks
+std/option/unwrapping-without-a-message/option-unwrap-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.unwrap.panic
+std/result/unwrapping-without-a-message/result-unwrap-err.hd	runtime	panic:explicit-panic	std/result.md#r-std-result.unwrap.panic
+std/option/lazy-fallbacks-and-filtering/lazy-methods-forward-callback-rows.hd	type	accept	std/option.md#r-std-option.lazy.row
+std/result/unwrapping-without-a-message/result-unwrap-requires-debug.hd	type	reject:unsatisfied-trait-bound	std/result.md#r-std-result.unwrap.bound
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
