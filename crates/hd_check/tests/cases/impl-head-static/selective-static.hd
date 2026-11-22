@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn number(&self) -> i32
+
+struct Wrapped[T]:
+    value: T
+
+struct Pair[A, B]:
+    left: A
+    right: B
+
+impl[A] Saved for Pair[A, &'static i32]:
+    fn number(&self) -> i32:
+        +7
+
+fn require_saved[T < Saved](value: T) -> void:
+    pass
+
+fn inspect['a](value: Pair[&'a i32, &'static i32]) -> void:
+    require_saved(value)

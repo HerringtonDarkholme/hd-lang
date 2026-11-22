@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn number(&self) -> i32
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    fn number(&self) -> i32:
+        +7
+
+# expected: trait-object conversion rejects local-reference-escapes for the deferred impl bound
+fn inspect['a](value: &Wrapped[&'a i32]) -> void:
+    let view: &dyn Saved = value
+    pass
