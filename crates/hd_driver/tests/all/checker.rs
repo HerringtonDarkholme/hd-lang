@@ -67,7 +67,7 @@ fn every_std_body_checks_with_no_diagnostic() {
         out.report.render(),
         out.report.body_failures
     );
-    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 51);
+    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 52);
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
     assert!(out.report.body_ok > 1000, "{}", out.report.body_ok);
     assert_eq!(out.diags.len(), 0, "{}", out.render());
