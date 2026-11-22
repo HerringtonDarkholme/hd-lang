@@ -1,4 +1,5 @@
-# @dump: diagnostics fixed
+# @dump: diagnostics
+# expected: unwrap is an ordinary value; a string result cannot be the tail of a void function.
 
 fn parenthesized(value: string?) -> void:
     (value.unwrap())
