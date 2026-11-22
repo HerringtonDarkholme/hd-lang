@@ -7,6 +7,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
@@ -640,10 +641,10 @@ fn init_steps(
             mutable: false,
             counted: true,
         });
-        pool.intern_ty(&hd_types::TyData::Adt {
-            def: known.result,
-            args: pool.list(&[Ty::VOID, dyn_error]),
-        })
+        pool.intern_ty(&hd_types::TyData::Adt(
+            AdtId::Declared(known.result),
+            pool.list(&[Ty::VOID, dyn_error]),
+        ))
     } else {
         Ty::VOID
     };
@@ -1184,10 +1185,7 @@ impl Ck<'_, '_> {
             let from = args.positional.len().min(params.len());
             let tys: Vec<Ty> = params[from..].iter().map(|p| p.1).collect();
             let pool = self.pool();
-            let want = pool.intern_ty(&hd_types::TyData::Tuple {
-                elems: pool.list(&tys),
-                rest: None,
-            });
+            let want = pool.product(pool.list(&tys), None);
             let (r, t) = self.expr(sp, Some(want))?;
             let r = self.coerce(r, t, want, sp, "argument", ExpectPosition::General);
             for (k, &ty) in (0u32..).zip(&tys) {
@@ -1269,7 +1267,7 @@ impl Ck<'_, '_> {
     pub(crate) fn shared_param(&self, t: Ty, name: &str) -> Option<(Symbol, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
+        let hd_types::TyData::Adt(AdtId::Declared(def), _) = pool.get(t) else {
             return None;
         };
         let ItemData::Enum { shared, .. } = &self.cx.lookup.item(def)?.data else {
@@ -1298,7 +1296,7 @@ impl Ck<'_, '_> {
     ) -> Option<(Ref, Ty)> {
         let (field, ft) = self.shared_param(t, name)?;
         let pool = self.pool();
-        let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
+        let hd_types::TyData::Adt(AdtId::Declared(def), _) = pool.get(t) else {
             return None;
         };
         let item = self.cx.lookup.item(def)?;

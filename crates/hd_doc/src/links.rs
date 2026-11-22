@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use hd_base::{DefId, Symbol};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_resolve::{ItemData, KnownItems, Named, Names, decode_items};
+use hd_types::AdtId;
 use hd_types::{InternPool, TyData};
 
 use crate::items::{self, Declared};
@@ -187,7 +188,7 @@ impl<'a> Links<'a> {
                     ..
                 } = &it.data
                     && *trait_ == DefId::NONE
-                    && let TyData::Adt { def, .. } = pool.get(*self_ty)
+                    && let TyData::Adt(AdtId::Declared(def), _) = pool.get(*self_ty)
                 {
                     let owner = format!("{}.{}", names.module_of(def), names.display_name(def));
                     for (m, _) in methods.iter().filter(|(_, d)| public.contains(d)) {

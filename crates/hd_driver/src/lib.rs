@@ -17,6 +17,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -8300,7 +8301,7 @@ impl Run<'_> {
         }
         let pool = cx.names.pool;
         let item = cx.lookup.item(data)?;
-        let TyData::Adt { args, .. } = pool.get(opt.target) else {
+        let TyData::Adt(_, args) = pool.get(opt.target) else {
             return None;
         };
         let (mut view, edited) = hd_check::structure::layered_facts(cx, item, (&base, args), lines);
@@ -10580,10 +10581,9 @@ impl Run<'_> {
                     if !matches!(item.data, ItemData::Struct(_, _)) || !item.generics.is_empty() {
                         continue;
                     }
-                    let ty = self.pool.intern_ty(&TyData::Adt {
-                        def: head.def,
-                        args: TyList::EMPTY,
-                    });
+                    let ty = self
+                        .pool
+                        .intern_ty(&TyData::Adt(AdtId::Declared(head.def), TyList::EMPTY));
                     let Some(layout) = self.stage(
                         Stage::Collect,
                         hd_wasm::views::inspect_layout(&self.pool, env, ty),
@@ -13117,7 +13117,7 @@ impl LayoutEnv for Env<'_> {
                         ItemData::Impl {
                             trait_, self_ty, ..
                         } if *trait_ == drop_trait => match self.run.pool.get(*self_ty) {
-                            TyData::Adt { def, .. } => def.get(),
+                            TyData::Adt(def, _) => def.get(),
                             _ => None,
                         },
                         _ => None,
@@ -13701,7 +13701,7 @@ impl ProgramEnv for Env<'_> {
         if *kind != hd_resolve::ImplKind::Derived {
             return false;
         }
-        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if def.get().is_some() && self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(..))))
+        matches!(self.run.pool.get(*self_ty), TyData::Adt(AdtId::Declared(def), _) if self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(..))))
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
         let item = self.p.items.get(method)?;
@@ -14098,7 +14098,7 @@ fn derivation_facts<'t>(
     let edited = hd_check::structure::edit_facts(cx, item, &mut view, lines);
     // The derivation's bodies are in its own scope, where the target is
     // the struct or enum at the derivation's arguments.
-    if let TyData::Adt { args, .. } = pool.get(opt.target) {
+    if let TyData::Adt(_, args) = pool.get(opt.target) {
         view.retarget(cx, data, pool.list_items(args));
     }
     let (own, bodies) = hd_check::structure::fact_bodies(
@@ -14224,7 +14224,7 @@ fn traitless_target(pool: &InternPool, it: &Item) -> Option<DefId> {
             self_ty,
             ..
         } if *trait_ == DefId::NONE => match pool.get(*self_ty) {
-            TyData::Adt { def, .. } => Some(def),
+            TyData::Adt(AdtId::Declared(def), _) => Some(def),
             _ => None,
         },
         _ => None,

@@ -8,6 +8,7 @@ use hd_intern::PathKind;
 use hd_resolve::{BindingKind, Generic, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
+use hd_types::AdtId;
 use hd_types::{Inputs, ParamRef, Prim, RowData, RowId, Ty, TyData, VarKind};
 
 use crate::body::Ck;
@@ -371,10 +372,9 @@ impl Ck<'_, '_> {
             ItemData::Struct(_, _)
             | ItemData::Enum { .. }
             | ItemData::Newtype(..)
-            | ItemData::Builtin => pool.intern_ty(&TyData::Adt {
-                def,
-                args: pool.list(&args),
-            }),
+            | ItemData::Builtin => {
+                pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&args)))
+            }
             _ => Ty::POISON,
         }
     }
@@ -918,7 +918,7 @@ impl Ck<'_, '_> {
         let filled;
         // A trait value type is its own `Self` (`trait.bound.unsatisfied`).
         let (owner, self_ty, args) = match pool.get(t) {
-            TyData::Adt { def: d, args } if d == def => (def, None, pool.list_items(args)),
+            TyData::Adt(AdtId::Declared(d), args) if d == def => (def, None, pool.list_items(args)),
             TyData::TraitValue { def: d, args, .. } if d == def => {
                 (def, Some(t), pool.list_items(args))
             }

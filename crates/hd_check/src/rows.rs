@@ -697,11 +697,10 @@ impl Ck<'_, '_> {
                 stack.extend(a.iter().zip(b).rev().map(|(&x, &y)| (x, y, d)));
             };
             match (pool.get(g), pool.get(w)) {
-                (TyData::Adt { def, args: a }, TyData::Adt { def: e, args: b }) if def == e => {
+                (TyData::Adt(def, a), TyData::Adt(e, b)) if def == e => {
                     pairs(stack, a, b);
                 }
-                (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
-                | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
+                (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. }) => {
                     pairs(stack, a, b);
                 }
                 (

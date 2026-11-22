@@ -145,31 +145,10 @@ fn result_facts_walk(
             continue;
         }
         match (pool.get(declared), pool.get(hidden)) {
-            (
-                TyData::Adt {
-                    def: a,
-                    args: declared,
-                },
-                TyData::Adt {
-                    def: b,
-                    args: hidden,
-                },
-            ) if a == b => list(declared, hidden, &mut work),
-            (
-                TyData::Tuple {
-                    elems: declared,
-                    rest: a,
-                },
-                TyData::Tuple {
-                    elems: hidden,
-                    rest: b,
-                },
-            ) => {
-                if let (Some(declared), Some(hidden)) = (a, b) {
-                    work.push((declared, hidden));
-                }
+            (TyData::Adt(a, declared), TyData::Adt(b, hidden)) if a == b => {
                 list(declared, hidden, &mut work);
             }
+
             (
                 TyData::Ref {
                     inner: declared, ..
@@ -330,14 +309,8 @@ impl Reveal<'_> {
                 self.stack.pop();
                 return result;
             }
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: self.list(args)?,
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: self.list(elems)?,
-                rest: rest.map(|t| self.ty(t)).transpose()?,
-            },
+            TyData::Adt(def, args) => TyData::Adt(def, self.list(args)?),
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -510,10 +483,7 @@ mod tests {
                 Ty::I32
             } else {
                 let child = make(owner.raw() - 1);
-                pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[child, child]),
-                    rest: None,
-                })
+                pool.product(pool.list(&[child, child]), None)
             };
             Some((TyList::EMPTY, result))
         });

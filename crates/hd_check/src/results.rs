@@ -24,6 +24,7 @@
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_types::AdtId;
 use std::collections::VecDeque;
 
 use hd_base::{DefId, NodeIdx, StageResult};
@@ -694,8 +695,12 @@ pub(crate) fn depth(pool: Types<'_>, t: Ty, at: u32) -> u32 {
                 parts.push(result);
             }
             // The row limit counts declaration arguments, not structural sum members.
-            TyData::Adt { def, .. } if def.get().is_some() => pool.children(t, &mut parts),
-            TyData::Tuple { .. } | TyData::Ref { .. } | TyData::TraitValue { .. } => {
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
+                pool.children(t, &mut parts);
+            }
+            TyData::Adt(AdtId::Product { .. }, _)
+            | TyData::Ref { .. }
+            | TyData::TraitValue { .. } => {
                 pool.children(t, &mut parts);
             }
             _ => return true,
@@ -1535,10 +1540,7 @@ mod tests {
                 for nesting in [10, 20, 100, 1_000] {
                     let mut t = Ty::I32;
                     for _ in 0..nesting {
-                        t = pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&[t, t]),
-                            rest: None,
-                        });
+                        t = pool.product(pool.list(&[t, t]), None);
                     }
                     let (answer, work) = hd_types::work::count_type_nodes(|| depth(types, t, 0));
                     let expected = (nesting + 1).min(MAX_KEY_DEPTH + 1);
@@ -1547,24 +1549,18 @@ mod tests {
                 }
                 let mut shared = Ty::I32;
                 for _ in 1..20 {
-                    shared = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&[shared, shared]),
-                        rest: None,
-                    });
+                    shared = pool.product(pool.list(&[shared, shared]), None);
                 }
                 for width in [100, 1_000] {
                     let branches: Vec<_> = (0..width)
                         .map(|i| {
-                            pool.intern_ty(&TyData::Adt {
-                                def: DefId::from_raw(i),
-                                args: pool.list(&[shared]),
-                            })
+                            pool.intern_ty(&TyData::Adt(
+                                AdtId::Declared(DefId::from_raw(i)),
+                                pool.list(&[shared]),
+                            ))
                         })
                         .collect();
-                    let root = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&branches),
-                        rest: None,
-                    });
+                    let root = pool.product(pool.list(&branches), None);
                     let (answer, work) = hd_types::work::count_type_nodes(|| depth(types, root, 0));
                     assert_eq!(answer, 22);
                     assert_eq!(
@@ -1573,12 +1569,7 @@ mod tests {
                         "shared depth-20 parts are walked once"
                     );
                 }
-                let tuple = |ts: &[Ty]| {
-                    pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(ts),
-                        rest: None,
-                    })
-                };
+                let tuple = |ts: &[Ty]| pool.product(pool.list(ts), None);
                 let reference = |inner| {
                     pool.intern_ty(&TyData::Ref {
                         inner,
@@ -1605,10 +1596,8 @@ mod tests {
                     );
                 }
                 let owner = DefId::from_raw(1);
-                let adt = pool.intern_ty(&TyData::Adt {
-                    def: owner,
-                    args: pool.list(&[shared]),
-                });
+                let adt =
+                    pool.intern_ty(&TyData::Adt(AdtId::Declared(owner), pool.list(&[shared])));
                 let value = pool.intern_ty(&TyData::TraitValue {
                     def: owner,
                     args: pool.list(&[Ty::I32]),

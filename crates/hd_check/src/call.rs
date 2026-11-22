@@ -6,6 +6,7 @@
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use hd_types::ANON_SUM;
+use hd_types::AdtId;
 
 use hd_base::{DefId, InferVar, StageResult, Symbol};
 use hd_diag::Code;
@@ -119,7 +120,7 @@ impl MethodIndex {
                 } => {
                     if *trait_ == DefId::NONE {
                         let head = match pool.get(*self_ty) {
-                            TyData::Adt { def, .. } => Some(def),
+                            TyData::Adt(AdtId::Declared(def), _) => Some(def),
                             _ => None,
                         };
                         for (n, m) in methods {
@@ -189,7 +190,7 @@ impl MethodIndex {
     /// merged by position; otherwise every one. Cost: the impls of that
     /// name and head, not every impl of the name.
     fn inherent_for(&self, sym: Symbol, t: &TyData) -> Option<Vec<(DefId, DefId)>> {
-        let TyData::Adt { def, .. } = *t else {
+        let TyData::Adt(AdtId::Declared(def), _) = *t else {
             let all = self.candidates(sym, true);
             crate::work::trait_lookup(all.as_ref().map_or(0, Vec::len) as u64);
             return all;
@@ -264,7 +265,7 @@ impl MethodIndex {
     /// takes no other receiver. Cost: those names.
     fn inherent_names_for(&self, t: &TyData, out: &mut Vec<Symbol>) {
         for ix in std::iter::once(self).chain(self.shared.as_deref()) {
-            if let TyData::Adt { def, .. } = *t {
+            if let TyData::Adt(AdtId::Declared(def), _) = *t {
                 out.extend(ix.inherent_names.get(&def).into_iter().flatten());
             }
             out.extend(&ix.open_names);
@@ -1805,7 +1806,7 @@ impl Ck<'_, '_> {
         let mut ft = self.infer.resolve(pool, ft);
         // `s!()` on a stored suspension: a suspension point.
         let suspend = self.cx.names.known.suspend;
-        if let TyData::Adt { def, args: sa } = pool.get(ft)
+        if let TyData::Adt(AdtId::Declared(def), sa) = pool.get(ft)
             && def == suspend
             && bang
             && args.positional.is_empty()
@@ -1969,10 +1970,7 @@ impl Ck<'_, '_> {
         if !bang && self.bare_step {
             return Ok(self.suspending_pipe_step(n));
         }
-        let st = pool.intern_ty(&TyData::Adt {
-            def: suspend,
-            args: pool.list(&[result]),
-        });
+        let st = pool.intern_ty(&TyData::Adt(AdtId::Declared(suspend), pool.list(&[result])));
         let cold = self.b.emit(Tag::CallValue, f.0, rec, st, n.index());
         if bang {
             self.check_bang(true, n);
@@ -2040,15 +2038,9 @@ impl Ck<'_, '_> {
         let r = self.coerce(r, t, input, spread, "argument", ExpectPosition::General);
         let solved = self.infer.resolve(pool, input);
         match pool.get(solved) {
-            TyData::Tuple { elems, rest } => {
+            TyData::Adt(AdtId::Product { .. }, args) => {
                 let mut refs = Vec::new();
-                for (k, et) in pool
-                    .list_items(elems)
-                    .iter()
-                    .copied()
-                    .chain(rest)
-                    .enumerate()
-                {
+                for (k, et) in pool.list_items(args).iter().copied().enumerate() {
                     let idx = u32::try_from(k).unwrap_or(0);
                     refs.push(self.b.field(r, idx, et, spread.index()));
                 }
@@ -2133,7 +2125,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Vec<Ref>> {
         let pool = self.pool();
         let mut closure_wants = vec![None; params.len()];
-        if let TyData::Adt { def, args: targs } = pool.get(self.infer.shallow(pool, target))
+        if let TyData::Adt(AdtId::Declared(def), targs) = pool.get(self.infer.shallow(pool, target))
             && let Some(item) = self.cx.lookup.item(def)
         {
             // Reuse the already selected variant index; no second variant search.
@@ -2697,10 +2689,9 @@ impl Ck<'_, '_> {
     fn rest_of(&mut self, lt: Ty) -> StageResult<Option<Ty>> {
         let pool = self.pool();
         let lt = self.normalize_deep(lt)?;
-        Ok(match pool.get(self.resolved(lt)) {
-            TyData::Tuple { rest, .. } => rest,
-            _ => None,
-        })
+        Ok(pool
+            .product_parts(self.resolved(lt))
+            .and_then(|(_, rest)| rest))
     }
 
     /// The expected type of each of `count` separate arguments a vararg of
@@ -2711,21 +2702,22 @@ impl Ck<'_, '_> {
         let lt = self.normalize_deep(lt)?;
         let list = self.cx.names.known.list;
         Ok(match pool.get(self.resolved(lt)) {
-            TyData::Adt { def, args } if def == list => {
+            TyData::Adt(AdtId::Declared(def), args) if def == list => {
                 let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
                 vec![Some(et); count]
             }
-            TyData::Tuple { elems, rest: None } if pool.list_items(elems).len() == count => {
+            TyData::Adt(AdtId::Product { rest: false }, elems)
+                if pool.list_items(elems).len() == count =>
+            {
                 pool.list_items(elems).iter().copied().map(Some).collect()
             }
             // The fixed elements one each, then the rest's item type
             // (`expr.tuple.rest.collect`).
-            TyData::Tuple {
-                elems,
-                rest: Some(rest),
-            } => {
+            TyData::Adt(AdtId::Product { rest: true }, _)
+                if let Some((elems, Some(rest))) = pool.product_parts(self.resolved(lt)) =>
+            {
                 let item = self.list_item(rest);
-                let fixed = pool.list_items(elems).iter().copied().map(Some);
+                let fixed = elems.iter().copied().map(Some);
                 fixed.chain(std::iter::repeat(item)).take(count).collect()
             }
             _ => vec![None; count],
@@ -2742,20 +2734,17 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
         let shape = pool.get(self.resolved(lt));
-        if matches!(shape, TyData::Adt { def, .. } if def == list) {
+        if matches!(shape, TyData::Adt(AdtId::Declared(def), _) if def == list) {
             let rec = self.b.refs_record(&refs);
             return Ok(self.b.emit(Tag::NewList, NONE, rec, lt, n.index()));
         }
-        if matches!(shape, TyData::Tuple { rest: Some(_), .. }) {
+        if matches!(shape, TyData::Adt(AdtId::Product { rest: true }, _)) {
             let stripped = self.resolved(lt);
             let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
             return Ok(self.rest_tuple_value(stripped, &refs, None, n));
         }
         let tys: Vec<Ty> = items.iter().map(|i| i.1).collect();
-        let tt = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&tys),
-            rest: None,
-        });
+        let tt = pool.product(pool.list(&tys), None);
         self.expect_ty(tt, lt, n, "argument", ExpectPosition::General);
         let rec = self.b.refs_record(&refs);
         Ok(self.b.emit(Tag::NewTuple, NONE, rec, tt, n.index()))
@@ -2848,7 +2837,8 @@ impl Ck<'_, '_> {
             if slots[nfixed].is_some() {
                 // Separate arguments already supplied it.
                 let list = self.cx.names.known.list;
-                if matches!(pool.get(self.resolved(lt)), TyData::Adt { def, .. } if def == list) {
+                if matches!(pool.get(self.resolved(lt)), TyData::Adt(AdtId::Declared(def), _) if def == list)
+                {
                     self.err(
                         Code::DuplicateArgument,
                         e,
@@ -2870,8 +2860,9 @@ impl Ck<'_, '_> {
         // (`expr.call.spread.inputs`).
         let list = self.cx.names.known.list;
         match pool.get(self.resolved(t)) {
-            TyData::Tuple { elems, rest } => {
-                let elems = pool.list_items(elems);
+            TyData::Adt(AdtId::Product { .. }, _)
+                if let Some((elems, rest)) = pool.product_parts(t) =>
+            {
                 // A rest element fills the vararg; a tuple without one
                 // fills the remaining inputs exactly (`expr.call.spread.inputs`).
                 let fits = if rest.is_some() {
@@ -2906,7 +2897,7 @@ impl Ck<'_, '_> {
                         Some(self.coerce(g, rest, w, e, "argument", ExpectPosition::General));
                 }
             }
-            TyData::Adt { def, .. } if def == list => {
+            TyData::Adt(AdtId::Declared(def), _) if def == list => {
                 self.err(
                     Code::PositionalSpreadNeedsVararg,
                     e,
@@ -3054,16 +3045,8 @@ impl Ck<'_, '_> {
                         // different error type that `From` converts while
                         // its success type solves a callee parameter
                         // (`expr.try.expected.result`).
-                        if let (
-                            TyData::Adt {
-                                def: ret_def,
-                                args: ret_args,
-                            },
-                            TyData::Adt {
-                                def: want_def,
-                                args: want_args,
-                            },
-                        ) = (pool.get(ret), pool.get(w))
+                        if let (TyData::Adt(ret_def, ret_args), TyData::Adt(want_def, want_args)) =
+                            (pool.get(ret), pool.get(w))
                             && ret_def == want_def
                         {
                             let ret_args = pool.list_items(ret_args).to_vec();
@@ -3213,10 +3196,7 @@ impl Ck<'_, '_> {
                 let inner = *inner;
                 let name = self.cx.names.text(item.name).to_owned();
                 let targs = self.ctor_args(item, explicit, n);
-                let t = pool.intern_ty(&TyData::Adt {
-                    def,
-                    args: pool.list(&targs),
-                });
+                let t = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&targs)));
                 let it = subst_owner(pool, def, &targs, inner);
                 let param = self.cx.names.syms.intern("$0");
                 let refs = self.constructor_args(
@@ -3241,7 +3221,7 @@ impl Ck<'_, '_> {
                 let to = self.ctor(def, explicit, n);
                 match pool.get(to) {
                     // An alias calls the type it expands to.
-                    TyData::Adt { def: base, args: a } if base != def => {
+                    TyData::Adt(AdtId::Declared(base), a) if base != def => {
                         self.call_item(base, pool.list_items(a), args, n, bang, want)
                     }
                     TyData::Prim(_) => self.conversion(to, args, n),
@@ -3287,7 +3267,7 @@ impl Ck<'_, '_> {
     /// is a `Suspend` and `not-suspending` has not already reported `n`.
     fn cold_call(&self, want: Ty, n: NodeRef<'_>) -> Option<String> {
         let suspend = self.cx.names.known.suspend;
-        if !matches!(self.pool().get(self.resolved(want)), TyData::Adt { def, .. } if def == suspend)
+        if !matches!(self.pool().get(self.resolved(want)), TyData::Adt(AdtId::Declared(def), _) if def == suspend)
             || n.kind() != SyntaxKind::CallExpr
         {
             return None;
@@ -3393,7 +3373,7 @@ impl Ck<'_, '_> {
             let (r, t) = self.expr(*e, None)?;
             let st = self.resolved(t);
             let x = match pool.get(st) {
-                TyData::Adt { def, args } if def == suspend => {
+                TyData::Adt(AdtId::Declared(def), args) if def == suspend => {
                     pool.list_items(args).first().copied().unwrap_or(Ty::POISON)
                 }
                 _ => {
@@ -3409,10 +3389,7 @@ impl Ck<'_, '_> {
             tys.push(x);
             inputs.push(st);
         }
-        let t = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&tys),
-            rest: None,
-        });
+        let t = pool.product(pool.list(&tys), None);
         if !bang {
             if self.bare_step {
                 return Ok(self.suspending_pipe_step(n));
@@ -3454,10 +3431,10 @@ impl Ck<'_, '_> {
         let root = self.b.close_block(block, Some(joined), result, syn);
         let callable = self.join_fn_ty(inputs, result);
         let function = self.b.close_sub(sub, root, callable, syn);
-        let suspension = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[result]),
-        });
+        let suspension = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.cx.names.known.suspend),
+            pool.list(&[result]),
+        ));
         let args = self.b.call_args_record(children, Providers::None);
         (
             self.b
@@ -3508,7 +3485,7 @@ impl Ck<'_, '_> {
             .list_item(self.infer.resolve(pool, t))
             .map(|i| self.resolved(i))
             .and_then(|i| match pool.get(i) {
-                TyData::Adt { def, args } if def == suspend => {
+                TyData::Adt(AdtId::Declared(def), args) if def == suspend => {
                     pool.list_items(args).first().copied()
                 }
                 _ => None,
@@ -3522,10 +3499,7 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         };
         let list = self.cx.names.known.list;
-        let ret = pool.intern_ty(&TyData::Adt {
-            def: list,
-            args: pool.list(&[x]),
-        });
+        let ret = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[x])));
         let c = Callee::Item {
             def: self.cx.names.known.all_list,
             targs: pool.list(&[x]),
@@ -3544,10 +3518,10 @@ impl Ck<'_, '_> {
         let item = self.b.words_record(&[self.cx.names.known.all_list.raw()]);
         let targs = self.b.words_record(&[pool.list(&[x]).0]);
         let function = self.b.emit(Tag::ItemRef, item, targs, callable, n.index());
-        let suspension = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[ret]),
-        });
+        let suspension = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.cx.names.known.suspend),
+            pool.list(&[ret]),
+        ));
         let args = self.b.call_args_record(&[r], Providers::None);
         Ok((
             self.b
@@ -3719,10 +3693,7 @@ impl Ck<'_, '_> {
         }
         if suspends && !bang {
             let suspend = self.cx.names.known.suspend;
-            let st = pool.intern_ty(&TyData::Adt {
-                def: suspend,
-                args: pool.list(&[ret]),
-            });
+            let st = pool.intern_ty(&TyData::Adt(AdtId::Declared(suspend), pool.list(&[ret])));
             return (self.b.call(c, refs, Providers::None, st, n.index()), st);
         }
         let r = self.b.call(c, refs, Providers::None, ret, n.index());
@@ -3738,8 +3709,7 @@ impl Ck<'_, '_> {
     /// and an argument can fix the self type and the projection together.
     fn open_projections(&mut self, t: Ty, site: ProjectSite, n: NodeRef<'_>) -> Ty {
         enum Build {
-            Adt(DefId),
-            Tuple(Option<Ty>),
+            Adt(AdtId, Option<Ty>),
             Ref(bool, bool),
             Fn(hd_types::RowId, bool, hd_types::Inputs, hd_types::FnDeps),
         }
@@ -3753,14 +3723,11 @@ impl Ck<'_, '_> {
             match work {
                 Work::Done(build, start, out) => {
                     let data = match build {
-                        Build::Adt(def) => TyData::Adt {
-                            def,
-                            args: pool.list(&values[start..]),
-                        },
-                        Build::Tuple(rest) => TyData::Tuple {
-                            elems: pool.list(&values[start..]),
-                            rest,
-                        },
+                        Build::Adt(id, rest) => {
+                            values.extend(rest);
+                            TyData::Adt(id, pool.list(&values[start..]))
+                        }
+
                         Build::Ref(mutable, counted) => TyData::Ref {
                             inner: values[start],
                             mutable,
@@ -3819,13 +3786,16 @@ impl Ck<'_, '_> {
                             values[out] = var;
                             return true;
                         }
-                        TyData::Adt { def, args } => {
-                            values.extend_from_slice(pool.list_items(args));
-                            Build::Adt(def)
-                        }
-                        TyData::Tuple { elems, rest } => {
-                            values.extend_from_slice(pool.list_items(elems));
-                            Build::Tuple(rest)
+                        TyData::Adt(id, args) => {
+                            // Tuple-rest projections retain their written identity.
+                            let rest = if let Some((fixed, Some(rest))) = pool.product_parts(t) {
+                                values.extend_from_slice(fixed);
+                                Some(rest)
+                            } else {
+                                values.extend_from_slice(pool.list_items(args));
+                                None
+                            };
+                            Build::Adt(id, rest)
                         }
                         TyData::Ref {
                             inner,
@@ -3878,7 +3848,7 @@ impl Ck<'_, '_> {
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
         let w = want.map(|w| self.infer.shallow(pool, w));
         let enum_ty = match w.map(|w| pool.get(w)) {
-            Some(TyData::Adt { .. }) => w.unwrap_or(Ty::POISON),
+            Some(TyData::Adt(..)) => w.unwrap_or(Ty::POISON),
             // A poisoned expectation already reported its error.
             Some(TyData::Poison) => return Ok((Ref(NONE), Ty::POISON)),
             // An open expectation may still resolve to an optional or a
@@ -3898,10 +3868,10 @@ impl Ck<'_, '_> {
                         let a = self.infer.fresh(pool, VarKind::General);
                         let b = self.infer.fresh(pool, VarKind::General);
                         self.row_argument_vars(self.cx.names.known.result, &[a, b], v);
-                        pool.intern_ty(&TyData::Adt {
-                            def: self.cx.names.known.result,
-                            args: pool.list(&[a, b]),
-                        })
+                        pool.intern_ty(&TyData::Adt(
+                            AdtId::Declared(self.cx.names.known.result),
+                            pool.list(&[a, b]),
+                        ))
                     }
                 }
             }
@@ -3929,7 +3899,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let t = self.infer.shallow(pool, enum_ty);
         match pool.get(t) {
-            TyData::Adt { def, args } if def == ANON_SUM => {
+            TyData::Adt(ANON_SUM, args) => {
                 let index = name.strip_prefix('_')?.parse::<usize>().ok()?;
                 if name != format!("_{index}") {
                     return None;
@@ -3937,17 +3907,17 @@ impl Ck<'_, '_> {
                 let member = pool.list_items(args).get(index).copied()?;
                 Some((u32::try_from(index).ok()?, vec![member]))
             }
-            TyData::Adt { def, args } => {
+            TyData::Adt(AdtId::Declared(def), args) => {
                 let ItemData::Enum { variants, .. } = &self.cx.lookup.item(def)?.data else {
                     return None;
                 };
                 let sym = self.cx.names.syms.intern(name);
                 let i = variants.iter().position(|v| v.name == sym)?;
-                let argv = pool.list_items(args);
+                let type_items = pool.list_items(args);
                 let fs = variants[i]
                     .fields
                     .iter()
-                    .map(|f| subst_owner(pool, def, argv, f.ty))
+                    .map(|f| subst_owner(pool, def, type_items, f.ty))
                     .collect();
                 Some((u32::try_from(i).ok()?, fs))
             }
@@ -3959,8 +3929,8 @@ impl Ck<'_, '_> {
     fn has_variants(&self, t: Ty) -> bool {
         let pool = self.pool();
         match pool.get(self.infer.shallow(pool, t)) {
-            TyData::Adt { def: ANON_SUM, .. } => true,
-            TyData::Adt { def, .. } => self
+            TyData::Adt(ANON_SUM, _) => true,
+            TyData::Adt(AdtId::Declared(def), _) => self
                 .cx
                 .lookup
                 .item(def)
@@ -3986,7 +3956,7 @@ impl Ck<'_, '_> {
         }
         t = self.resolved(t);
         match pool.get(t) {
-            TyData::Adt { def: ANON_SUM, .. } => Some(t),
+            TyData::Adt(ANON_SUM, _) => Some(t),
             TyData::Poison => Some(Ty::POISON),
             _ => {
                 self.err(
@@ -4103,7 +4073,7 @@ impl Ck<'_, '_> {
         self.fit_expected(ft, want);
         // The enum's own type arguments are decided like a reference's.
         let targs = match pool.get(self.infer.resolve(pool, t)) {
-            TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
+            TyData::Adt(_, args) => pool.list_items(args).to_vec(),
             _ => vec![],
         };
         for a in targs {
@@ -4757,7 +4727,7 @@ impl Ck<'_, '_> {
             || !self
                 .available_traits(self.cx.names.syms.intern("new"))
                 .is_empty()
-            || !matches!(pool.get(self.resolved(ty)), TyData::Adt { def, .. }
+            || !matches!(pool.get(self.resolved(ty)), TyData::Adt(AdtId::Declared(def), _)
                 if def == self.cx.names.known.map)
         {
             return;
@@ -4766,7 +4736,7 @@ impl Ck<'_, '_> {
             return;
         };
         let want = self.infer.resolve(pool, want);
-        if !matches!(pool.get(want), TyData::Adt { def, .. } if def == self.cx.names.known.map)
+        if !matches!(pool.get(want), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.map)
             || pool.has_infer(want)
             || pool.has_poison(want)
             || !self.can_unify(ty, want)
@@ -4789,7 +4759,7 @@ impl Ck<'_, '_> {
         let bare = self.resolved(self.infer.resolve(self.pool(), t));
         let data = self.pool().get(bare);
         if name == "new"
-            && matches!(data, TyData::Adt { def, .. } if def == self.cx.names.known.map)
+            && matches!(data, TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.map)
         {
             return "; write `{}` for an empty map".to_owned();
         }
@@ -5709,7 +5679,7 @@ impl Ck<'_, '_> {
                 let handle_fact = name == "fact"
                     && matches!(
                         pool.get(self.resolved(rt)),
-                        TyData::Adt { def, .. } if def == self.cx.names.known.field
+                        TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.field
                     );
                 if handle_fact {
                     if let Some(&m) = vars.first() {
@@ -5910,7 +5880,7 @@ impl Ck<'_, '_> {
         let rt = self
             .ref_of(self.resolved(rt))
             .map_or(self.resolved(rt), |(inner, _)| inner);
-        let TyData::Adt { def, args: types } = pool.get(rt) else {
+        let TyData::Adt(AdtId::Declared(def), types) = pool.get(rt) else {
             return;
         };
         let types = pool.list_items(types);
@@ -6735,8 +6705,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Ty> {
         enum Constructor {
             Assoc(DefId, DefId),
-            Adt(DefId),
-            Tuple(Option<Ty>),
+            Adt(AdtId, Option<Ty>),
             Ref(bool, bool),
             Function(hd_types::RowId, bool, Inputs, hd_types::FnDeps),
         }
@@ -6781,13 +6750,15 @@ impl Ck<'_, '_> {
                             Constructor::Assoc(assoc, trait_)
                         }
                         // Structural sums retain their projection-identity boundary.
-                        TyData::Adt { args, def } if def.get().is_some() => {
-                            children.extend_from_slice(pool.list_items(args));
-                            Constructor::Adt(def)
-                        }
-                        TyData::Tuple { elems, rest } => {
-                            children.extend_from_slice(pool.list_items(elems));
-                            Constructor::Tuple(rest)
+                        TyData::Adt(id, args) if id != AdtId::Sum => {
+                            let rest = if let Some((fixed, Some(rest))) = pool.product_parts(t) {
+                                children.extend_from_slice(fixed);
+                                Some(rest)
+                            } else {
+                                children.extend_from_slice(pool.list_items(args));
+                                None
+                            };
+                            Constructor::Adt(id, rest)
                         }
                         TyData::Ref {
                             inner,
@@ -6836,14 +6807,15 @@ impl Ck<'_, '_> {
                             self_ty: parts[0],
                             args: pool.list(&parts[1..]),
                         },
-                        Constructor::Adt(def) => TyData::Adt {
-                            def,
-                            args: pool.list(parts),
-                        },
-                        Constructor::Tuple(rest) => TyData::Tuple {
-                            elems: pool.list(parts),
-                            rest,
-                        },
+                        Constructor::Adt(id, rest) => TyData::Adt(
+                            id,
+                            if let Some(rest) = rest {
+                                pool.list(&parts.iter().copied().chain([rest]).collect::<Vec<_>>())
+                            } else {
+                                pool.list(parts)
+                            },
+                        ),
+
                         Constructor::Ref(mutable, counted) => TyData::Ref {
                             inner: parts[0],
                             mutable,
@@ -7129,12 +7101,7 @@ mod projection_walk_tests {
                     for depth in [100, 1000] {
                         let (mut root, mut wanted) = (leaf, Ty::I32);
                         for _ in 0..depth {
-                            let tuple = |t| {
-                                p.intern_ty(&TyData::Tuple {
-                                    elems: p.list(&[t, t]),
-                                    rest: None,
-                                })
-                            };
+                            let tuple = |t| p.product(p.list(&[t, t]), None);
                             root = tuple(root);
                             wanted = tuple(wanted);
                         }
@@ -7162,19 +7129,13 @@ mod projection_walk_tests {
                     });
                     let wrap = |t, i| {
                         p.intern_ty(&match i % 4 {
-                            0 => TyData::Adt {
-                                def: owner,
-                                args: p.list(&[t, t]),
-                            },
+                            0 => TyData::Adt(AdtId::Declared(owner), p.list(&[t, t])),
                             1 => TyData::Ref {
                                 inner: t,
                                 mutable: true,
                                 counted: true,
                             },
-                            2 => TyData::Tuple {
-                                elems: p.list(&[t, t]),
-                                rest: Some(leaf),
-                            },
+                            2 => TyData::Adt(AdtId::Product { rest: true }, p.list(&[t, t, leaf])),
                             _ => TyData::Fn {
                                 params: p.list(&[t, t]),
                                 result: t,
@@ -7225,15 +7186,10 @@ mod projection_walk_tests {
                     let opened = ck.open_projections(deep, ProjectSite::Result, node);
                     assert!(!p.has_assoc(opened));
                     assert_eq!(ck.pending.len(), 1);
-                    let pair = p.intern_ty(&TyData::Tuple {
-                        elems: p.list(&[projected, projected]),
-                        rest: Some(projected),
-                    });
+                    let pair = p.product(p.list(&[projected, projected]), Some(projected));
                     let opened = ck.open_projections(pair, ProjectSite::Result, node);
-                    let TyData::Tuple { elems, rest } = p.get(opened) else {
-                        panic!("tuple");
-                    };
-                    assert_ne!(p.list_items(elems)[0], p.list_items(elems)[1]);
+                    let (elems, rest) = p.product_parts(opened).expect("product");
+                    assert_ne!(elems[0], elems[1]);
                     assert_eq!(rest, Some(projected));
                     assert_eq!(ck.pending.len(), 3);
                 });
@@ -7292,10 +7248,7 @@ mod projection_walk_tests {
                         let (proj, trait_, _) = projection(ck, base, None);
                         let mut root = proj;
                         for _ in 0..depth {
-                            root = p.intern_ty(&TyData::Tuple {
-                                elems: p.list(&[root, root]),
-                                rest: None,
-                            });
+                            root = p.product(p.list(&[root, root]), None);
                         }
                         let query = |env: &mut hd_types::solver::ParamEnv| {
                             hd_types::work::count_type_nodes(|| {

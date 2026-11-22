@@ -1100,8 +1100,8 @@ There are no variadic generics
   arguments as one tuple. `Args` unifies with the tuple of their types.
 - A spread `f(args...)` unifies the spread tuple with the remaining
   parameters.
-- A tuple with a rest element, `(A, B, List[T]...)`, uses the `rest`
-  field of `TyData::Tuple`. A spread pattern binds the rest as `List[T]`.
+- A tuple with a rest element, `(A, B, List[T]...)`, uses `AdtId::Product { rest: true }`
+  with its `List[T]` as the last ADT argument. A spread pattern binds the rest as `List[T]`.
 - `Tuple` is compiler-supplied at every arity: `Evidence::Builtin`.
 - Tuple `Eq`, `Ord`, `Hash` and `Debug` come from std's tuple templates,
   so the solver answers them with `Evidence::Impl` of the template at the

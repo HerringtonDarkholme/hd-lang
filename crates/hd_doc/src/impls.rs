@@ -9,6 +9,7 @@ use std::sync::Arc;
 use hd_base::DefId;
 use hd_intern::{PathTable, ShardedInterner};
 use hd_resolve::{ImplKind, ItemData, KnownItems, Names, decode_items, show_ty_full};
+use hd_types::AdtId;
 use hd_types::{InternPool, TyData};
 
 /// The implementation lines of each type, by (module path, type name).
@@ -57,7 +58,7 @@ pub(crate) fn impl_lines(root: &str, ifaces: &[(String, Arc<[u8]>)]) -> ImplLine
             {
                 continue;
             }
-            let TyData::Adt { def, .. } = pool.get(self_ty) else {
+            let TyData::Adt(AdtId::Declared(def), _) = pool.get(self_ty) else {
                 continue;
             };
             let args: Vec<String> = pool

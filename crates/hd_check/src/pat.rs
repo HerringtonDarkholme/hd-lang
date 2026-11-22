@@ -7,6 +7,7 @@
 //! is Maranget's usefulness test over the arm patterns.
 
 use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use std::collections::BTreeMap;
 
 use hd_base::SliceSort as _;
@@ -583,7 +584,11 @@ impl Ck<'_, '_> {
                     .filter(|s| s.kind() == SyntaxKind::SpreadPattern);
                 let fixed = &subs[..subs.len() - usize::from(spread.is_some())];
                 let (elems, rest) = match pool.get(inner) {
-                    TyData::Tuple { elems, rest } => (pool.list_items(elems).to_vec(), rest),
+                    TyData::Adt(AdtId::Product { .. }, _)
+                        if let Some((elems, rest)) = pool.product_parts(inner) =>
+                    {
+                        (elems.to_vec(), rest)
+                    }
                     TyData::Poison => return self.declare_poisoned(&subs, binds),
                     TyData::Infer(_) => {
                         // The pattern fixes only the tuple shape. Its element
@@ -595,16 +600,13 @@ impl Ck<'_, '_> {
                             .collect();
                         let rest = spread.map(|_| {
                             let elem = self.infer.fresh(pool, VarKind::General);
-                            pool.intern_ty(&TyData::Adt {
-                                def: self.cx.names.known.list,
-                                args: pool.list(&[elem]),
-                            })
+                            pool.intern_ty(&TyData::Adt(
+                                AdtId::Declared(self.cx.names.known.list),
+                                pool.list(&[elem]),
+                            ))
                         });
                         self.row_argument_vars(hd_base::DefId::NONE, &vs, p);
-                        let tt = pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&vs),
-                            rest,
-                        });
+                        let tt = pool.product(pool.list(&vs), rest);
                         self.expect_ty(tt, t, p, "pattern", ExpectPosition::General);
                         (vs, rest)
                     }
@@ -709,10 +711,8 @@ impl Ck<'_, '_> {
                     }
                     // `flow.match.contextual`: a non-enum subject has no
                     // variants to name.
-                    let enum_like = matches!(
-                        pool.get(self.infer.resolve(pool, inner)),
-                        TyData::Adt { .. }
-                    );
+                    let enum_like =
+                        matches!(pool.get(self.infer.resolve(pool, inner)), TyData::Adt(..));
                     if !enum_like {
                         let msg = format!("`.{name}` needs an enum subject, not {}", self.show(t));
                         self.err(Code::MissingContextualEnumType, p, &msg);
@@ -2718,9 +2718,7 @@ impl Ck<'_, '_> {
     fn tuple_members(&self, t: Ty) -> Vec<Ty> {
         let pool = self.pool();
         match pool.get(self.strip(t)) {
-            TyData::Tuple { elems, rest } => {
-                pool.list_items(elems).iter().copied().chain(rest).collect()
-            }
+            TyData::Adt(AdtId::Product { .. }, args) => pool.list_items(args).to_vec(),
             _ => Vec::new(),
         }
     }
@@ -2747,17 +2745,19 @@ impl Ck<'_, '_> {
                 Some(vec![("true".into(), vec![]), ("false".into(), vec![])])
             }
             // The rest element is the tuple's last member.
-            TyData::Tuple { .. } => Some(vec![("()".into(), self.tuple_members(st))]),
-            TyData::Adt { def, args } if def == ANON_SUM => Some(
+            TyData::Adt(AdtId::Product { .. }, _) => {
+                Some(vec![("()".into(), self.tuple_members(st))])
+            }
+            TyData::Adt(ANON_SUM, args) => Some(
                 pool.list_items(args)
                     .iter()
                     .enumerate()
                     .map(|(i, member)| (format!("_{i}"), vec![*member]))
                     .collect(),
             ),
-            TyData::Adt { def, args } => match &self.cx.lookup.item(def)?.data {
+            TyData::Adt(AdtId::Declared(def), args) => match &self.cx.lookup.item(def)?.data {
                 ItemData::Enum { variants, .. } => {
-                    let argv = pool.list_items(args);
+                    let type_items = pool.list_items(args);
                     Some(
                         variants
                             .iter()
@@ -2766,7 +2766,7 @@ impl Ck<'_, '_> {
                                     self.cx.names.text(v.name).to_owned(),
                                     v.fields
                                         .iter()
-                                        .map(|f| subst_owner(pool, def, argv, f.ty))
+                                        .map(|f| subst_owner(pool, def, type_items, f.ty))
                                         .collect(),
                                 )
                             })
@@ -2774,11 +2774,11 @@ impl Ck<'_, '_> {
                     )
                 }
                 ItemData::Struct(fs, _) => {
-                    let argv = pool.list_items(args);
+                    let type_items = pool.list_items(args);
                     Some(vec![(
                         "{}".into(),
                         fs.iter()
-                            .map(|f| subst_owner(pool, def, argv, f.ty))
+                            .map(|f| subst_owner(pool, def, type_items, f.ty))
                             .collect(),
                     )])
                 }
@@ -3168,7 +3168,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let st = self.strip(t);
         let variants = match pool.get(st) {
-            TyData::Adt { def, .. } if def.get().is_some() => {
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
                 match self.cx.lookup.item(def).map(|i| &i.data) {
                     Some(ItemData::Enum { variants, .. }) => variants
                         .iter()

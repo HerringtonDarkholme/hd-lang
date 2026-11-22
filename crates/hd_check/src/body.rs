@@ -10,6 +10,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 use std::fmt::Write as _;
 
 use crate::dep_results::RunLoans;
@@ -2412,26 +2413,13 @@ impl Ck<'_, '_> {
         // origins need the counted producer and borrowed destination
         // separately, including operands of aggregate constructions.
         if self.lends_by_kind(g, w) {
-            if let (
-                TyData::Tuple {
-                    elems: from,
-                    rest: from_rest,
-                },
-                TyData::Tuple {
-                    elems: to,
-                    rest: to_rest,
-                },
-            ) = (pool.get(g), pool.get(w))
+            if let (Some((from, from_rest)), Some((to, to_rest))) =
+                (pool.product_parts(g), pool.product_parts(w))
             {
                 // Each field has its own ownership: a borrowed reference
                 // must not consume the neighboring owned fields. Project
                 // without rewriting the shared aggregate producer.
-                let fields: Vec<_> = pool
-                    .list_items(from)
-                    .iter()
-                    .copied()
-                    .zip(pool.list_items(to).iter().copied())
-                    .collect();
+                let fields: Vec<_> = from.iter().copied().zip(to.iter().copied()).collect();
                 // Interned type lists have a u32 length, so every field
                 // index and the optional tail index fit that word.
                 let mut values = Vec::with_capacity(fields.len());
@@ -2597,9 +2585,7 @@ impl Ck<'_, '_> {
         let snapshot = self.infer.snapshot();
         let variance_view = matches!(
             (pool.get(g), pool.get(w)),
-            (TyData::Fn { .. }, TyData::Fn { .. })
-                | (TyData::Adt { .. }, TyData::Adt { .. })
-                | (TyData::Tuple { .. }, TyData::Tuple { .. })
+            (TyData::Fn { .. }, TyData::Fn { .. }) | (TyData::Adt(..), TyData::Adt(..))
         ) && self.variance_fits(g, w);
         if !variance_view {
             self.infer.rollback(snapshot);
@@ -2683,10 +2669,10 @@ impl Ck<'_, '_> {
         else {
             return None;
         };
-        let suspend = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[result]),
-        });
+        let suspend = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.cx.names.known.suspend),
+            pool.list(&[result]),
+        ));
         Some(pool.intern_ty(&TyData::Fn {
             params,
             result: suspend,
@@ -2716,10 +2702,10 @@ impl Ck<'_, '_> {
         };
         let input = pool.inputs_tuple(params, inputs);
         let output = if suspends {
-            pool.intern_ty(&TyData::Adt {
-                def: self.cx.names.known.suspend,
-                args: pool.list(&[result]),
-            })
+            pool.intern_ty(&TyData::Adt(
+                AdtId::Declared(self.cx.names.known.suspend),
+                pool.list(&[result]),
+            ))
         } else {
             result
         };
@@ -2955,9 +2941,10 @@ impl Ck<'_, '_> {
                     let want = self.resolved(self.infer.resolve(pool, want));
                     let mut pairs = Vec::new();
                     match (pool.get(got), pool.get(want)) {
-                        (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys })
-                            if def == d2 =>
-                        {
+                        (
+                            TyData::Adt(AdtId::Declared(def), xs),
+                            TyData::Adt(AdtId::Declared(d2), ys),
+                        ) if def == d2 => {
                             let vs = self.declared_variances(def);
                             for (j, (&x, &y)) in pool
                                 .list_items(xs)
@@ -3156,14 +3143,8 @@ impl Ck<'_, '_> {
             )
         };
         let data = match pool.get(t) {
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(args),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(elems),
-                rest: rest.map(|t| self.integer_variant(t, replacement, changed)),
-            },
+            TyData::Adt(def, args) => TyData::Adt(def, list(args)),
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -3319,8 +3300,8 @@ impl Ck<'_, '_> {
             msg.push_str("; integer literals defaulted to `usize`");
         }
         let optional = self.option_arg(ty).is_some();
-        let collection = matches!(pool.get(ty), TyData::Adt { def, .. } if def == self.cx.names.known.list || def == self.cx.names.known.map)
-            || matches!(pool.get(ty), TyData::Tuple { .. });
+        let collection = matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.list || def == self.cx.names.known.map)
+            || matches!(pool.get(ty), TyData::Adt(AdtId::Product { .. }, _));
         if tref.trait_ == self.cx.names.known.display && (optional || collection) {
             let value = if at.kind() == SyntaxKind::NameExpr || self.interpolated(at) {
                 Some(at)
@@ -3367,7 +3348,7 @@ impl Ck<'_, '_> {
         }
         let pool = self.pool();
         let ty = self.resolved(self.infer.resolve(pool, ty));
-        if !matches!(pool.get(ty), TyData::Adt { def, .. }
+        if !matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _)
             if def == self.cx.names.known.list || def == self.cx.names.known.map)
             || pool.has_infer(ty)
             || pool.has_poison(ty)
@@ -3946,8 +3927,12 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let known = self.cx.names.known;
         match pool.get(self.infer.resolve(pool, t)) {
-            TyData::Adt { def, .. } if def == known.option || def == known.result => Some(false),
-            TyData::Adt { def, .. } if def == self.cx.names.known.suspend => Some(true),
+            TyData::Adt(AdtId::Declared(def), _) if def == known.option || def == known.result => {
+                Some(false)
+            }
+            TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.suspend => {
+                Some(true)
+            }
             _ => None,
         }
     }
@@ -5229,10 +5214,7 @@ impl Ck<'_, '_> {
         let waited = choice == crate::call::PENDING_CHOICE;
         if !waited
             && (choice.0 != hd_tir::ir::ChoiceKind::Builtin
-                || !matches!(
-                    pool.get(self_ty),
-                    TyData::Adt { .. } | TyData::Tuple { .. } | TyData::Prim(_)
-                ))
+                || !matches!(pool.get(self_ty), TyData::Adt(..) | TyData::Prim(_)))
         {
             return Ok(choice);
         }

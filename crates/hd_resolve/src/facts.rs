@@ -3,6 +3,7 @@
 
 use hd_base::{DefId, FolderId, NodeIdx, PathId, Symbol};
 use hd_syntax::{NodeRef, SyntaxKind};
+use hd_types::AdtId;
 
 use crate::view::Src;
 use crate::{Binding, BindingKind, ImplKind, Item, ItemData, Lookup, ModuleScope, Names};
@@ -285,7 +286,7 @@ impl<'v> DeclView<'v> {
                     kind: ImplKind::Derived,
                     ..
                 } => match self.names.pool.get(*self_ty) {
-                    TyData::Adt { def, .. } => Some((def, *trait_)),
+                    TyData::Adt(AdtId::Declared(def), _) => Some((def, *trait_)),
                     _ => None,
                 },
                 _ => None,

@@ -5,6 +5,7 @@
 
 use crate::op::Op as Instruction;
 use hd_base::{DefId, Hash128, HashSet, StageResult};
+use hd_types::AdtId;
 use hd_types::{Ty, TyList};
 use wasm_encoder::BlockType;
 
@@ -1054,7 +1055,7 @@ fn addresses(
     }
     let s = crate::layout::strip_newtype(pool, env, t);
     let parts = match pool.get(s) {
-        hd_types::TyData::Tuple { .. } => crate::layout::tuple_members(pool, s),
+        hd_types::TyData::Adt(AdtId::Product { .. }, _) => crate::layout::tuple_members(pool, s),
         _ => crate::layout::value_parts(pool, env, s),
     };
     let (_, at) = crate::layout::payload_mem(pool, env, &parts)?;

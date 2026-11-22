@@ -38,28 +38,24 @@ pub(crate) fn is_remote_trait(
 /// `Result[V, E]` of a remote method's declared `Result[V, E | CrossError]`
 /// (`module.remote.r2.result`): `None` for any other result.
 pub(crate) fn raw_result(pool: Types<'_>, known: &KnownItems, ret: Ty) -> Option<Ty> {
-    let TyData::Adt { def, args } = pool.get(ret) else {
+    let TyData::Adt(hd_types::AdtId::Declared(def), args) = pool.get(ret) else {
         return None;
     };
     let [v, u] = *pool.list_items(args) else {
         return None;
     };
-    let TyData::Adt {
-        def: hd_types::ANON_SUM,
-        args: members,
-    } = pool.get(u)
-    else {
+    let TyData::Adt(hd_types::ANON_SUM, members) = pool.get(u) else {
         return None;
     };
     let [e, cross] = *pool.list_items(members) else {
         return None;
     };
-    let is_cross = matches!(pool.get(cross), TyData::Adt { def, .. } if def == known.cross_error);
+    let is_cross = matches!(pool.get(cross), TyData::Adt(hd_types::AdtId::Declared(def), _) if def == known.cross_error);
     (def == known.result && is_cross).then(|| {
-        pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&[v, e]),
-        })
+        pool.intern_ty(&TyData::Adt(
+            hd_types::AdtId::Declared(def),
+            pool.list(&[v, e]),
+        ))
     })
 }
 
@@ -75,7 +71,7 @@ pub(crate) fn public_result(cx: &BodyCx<'_>, pool: Types<'_>, def: DefId, raw: T
     let ItemData::Impl { trait_, .. } = lookup.item(owner)?.data else {
         return None;
     };
-    let TyData::Adt { def: result, args } = pool.get(raw) else {
+    let TyData::Adt(hd_types::AdtId::Declared(result), args) = pool.get(raw) else {
         return None;
     };
     let [v, e] = *pool.list_items(args) else {
@@ -87,15 +83,15 @@ pub(crate) fn public_result(cx: &BodyCx<'_>, pool: Types<'_>, def: DefId, raw: T
     {
         return None;
     }
-    let cross = pool.intern_ty(&TyData::Adt {
-        def: known.cross_error,
-        args: TyList::EMPTY,
-    });
+    let cross = pool.intern_ty(&TyData::Adt(
+        hd_types::AdtId::Declared(known.cross_error),
+        TyList::EMPTY,
+    ));
     let union = pool.intern_ty(&TyData::sum(pool.list(&[e, cross])));
-    Some(pool.intern_ty(&TyData::Adt {
-        def: result,
-        args: pool.list(&[v, union]),
-    }))
+    Some(pool.intern_ty(&TyData::Adt(
+        hd_types::AdtId::Declared(result),
+        pool.list(&[v, union]),
+    )))
 }
 
 /// Each remote implementation method of the module with its public
@@ -207,8 +203,7 @@ impl Ck<'_, '_> {
             return r;
         }
         let pool = self.pool();
-        let (TyData::Adt { args: raw, .. }, TyData::Adt { args: wide, .. }) =
-            (pool.get(target), pool.get(public))
+        let (TyData::Adt(_, raw), TyData::Adt(_, wide)) = (pool.get(target), pool.get(public))
         else {
             return r;
         };
@@ -252,7 +247,7 @@ impl ItemCheck<'_, '_> {
         {
             Some("has a requirement row".to_owned())
         } else if let Some(raw) = raw_result(pool, known, sig.ret) {
-            let TyData::Adt { args, .. } = pool.get(raw) else {
+            let TyData::Adt(_, args) = pool.get(raw) else {
                 return Ok(());
             };
             let parts = (sig.params.iter())

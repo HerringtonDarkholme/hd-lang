@@ -21,6 +21,7 @@ use hd_tir::Callee;
 use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology};
 use hd_tir::own::flow::{BitArena, Flow, Forward, Suites, forward};
 use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use hd_types::{CopyDecl, ParamRef, Ty, TyData, Types};
 
 use crate::body::Ck;
@@ -106,10 +107,8 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
         TyData::Ref {
             mutable, counted, ..
         } => Ok((mutable && !counted && !reborrow).then_some(t)),
-        TyData::Tuple { elems, rest } => {
-            Err(pool.list_items(elems).iter().copied().chain(rest).collect())
-        }
-        TyData::Adt { def, args } if def == ANON_SUM => Err(pool.list_items(args).to_vec()),
+
+        TyData::Adt(ANON_SUM | AdtId::Product { .. }, args) => Err(pool.list_items(args).to_vec()),
         TyData::Param(_) if relaxed.contains(&t) => Ok(Some(t)),
         TyData::Param(p) => Ok((!param_copies((pool, find), p)).then_some(t)),
         TyData::Assoc { assoc, .. } => {
@@ -123,7 +122,7 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
             });
             Ok((!copies).then_some(t))
         }
-        TyData::Adt { def, args } => {
+        TyData::Adt(AdtId::Declared(def), args) => {
             let Some(item) = find(def) else {
                 return Ok(None);
             };
@@ -131,13 +130,13 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
                 CopyDecl::Copies => Ok(None),
                 CopyDecl::NotCopy(_) => Ok(Some(t)),
                 CopyDecl::Members(ms) => {
-                    let argv = pool.list_items(args);
+                    let type_items = pool.list_items(args);
                     Err(ms
                         .iter()
                         .map(|&m| {
                             pool.subst(m, &|p| {
                                 (p.owner == def)
-                                    .then(|| argv.get(p.index as usize).copied())
+                                    .then(|| type_items.get(p.index as usize).copied())
                                     .flatten()
                             })
                         })
@@ -692,7 +691,7 @@ impl Ck<'_, '_> {
                     // is not walked: its members may grow without end
                     // (`crate::value::holds_itself`), and it is reported.
                     .or_else(|| {
-                        matches!(pool.get(u), TyData::Adt { def, .. }
+                        matches!(pool.get(u), TyData::Adt(AdtId::Declared(def), _)
                             if crate::value::holds_itself(global, inline, pool, lookup, def))
                         .then_some(CopyAnswer {
                             blocker: None,
@@ -740,10 +739,10 @@ impl Ck<'_, '_> {
         };
         let shown = hd_resolve::show_ty(&self.cx.names, part);
         match pool.get(part) {
-            TyData::Adt { .. } if part == t => {
+            TyData::Adt(..) if part == t => {
                 format!("its type `{shown}` is declared `impl !Copy`, so it is not copied")
             }
-            TyData::Adt { .. } => {
+            TyData::Adt(..) => {
                 format!("its type holds `{shown}`, declared `impl !Copy`, so it is not copied")
             }
             TyData::Param(p)

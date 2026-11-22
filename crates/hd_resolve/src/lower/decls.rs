@@ -8,6 +8,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 use std::borrow::Cow;
 
 use hd_base::{DefId, Span, Symbol};
@@ -449,7 +450,7 @@ impl Folder<'_, '_> {
         let pool = self.names.pool;
         let known = self.names.known;
         let is_part = |ty| match pool.get(ty) {
-            TyData::Adt { def, .. } if def.get().is_some() => {
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
                 def != known.list
                     && def != known.map
                     && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Struct))
@@ -499,7 +500,7 @@ impl Folder<'_, '_> {
                 .iter()
                 .filter(|f| f.embedded)
                 .map(|f| match pool.get(f.ty) {
-                    TyData::Adt { def, .. }
+                    TyData::Adt(AdtId::Declared(def), _)
                         if matches!(item(def).map(|i| i.kind()), Some(Some(HeadKind::Struct))) =>
                     {
                         Some(def)

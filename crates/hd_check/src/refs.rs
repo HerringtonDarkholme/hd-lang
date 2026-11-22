@@ -29,6 +29,7 @@ use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Coercion, NONE, Place as TirPlace, PlaceRoot, Proj, ReadMode, Ref, Tag, TirSink, local_flags,
 };
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition, LetMutKind};
@@ -234,13 +235,9 @@ impl Ck<'_, '_> {
                     counted: kb,
                 },
             ) if ka || !kb => stack.push(Fit::Readonly(a, b, d)),
-            (
-                TyData::Adt { def, args: a },
-                TyData::Adt {
-                    def: other,
-                    args: b,
-                },
-            ) if def == other => {
+            (TyData::Adt(AdtId::Declared(def), a), TyData::Adt(AdtId::Declared(other), b))
+                if def == other =>
+            {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
                 if a.len() != b.len() {
                     return false;
@@ -260,12 +257,14 @@ impl Ck<'_, '_> {
                     }
                 }));
             }
-            (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
+            (
+                TyData::Adt(AdtId::Product { rest: ar }, a),
+                TyData::Adt(AdtId::Product { rest: br }, b),
+            ) => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
-                if a.len() != b.len() || ar.is_some() != br.is_some() {
+                if a.len() != b.len() || ar != br {
                     return false;
                 }
-                stack.extend(ar.zip(br).map(|(a, b)| part(a, b)));
                 stack.extend(a.iter().zip(b).rev().map(|(&a, &b)| part(a, b)));
             }
             // Function inputs reverse the conversion; results preserve it.
@@ -835,7 +834,9 @@ impl Ck<'_, '_> {
                 let pool = self.pool();
                 let inner = self.resolved(self.infer.resolve(pool, t));
                 // A write to a field of a value reads it as an expression does.
-                if use_ == PlaceUse::Write || matches!(pool.get(inner), TyData::Tuple { .. }) {
+                if use_ == PlaceUse::Write
+                    || matches!(pool.get(inner), TyData::Adt(AdtId::Product { .. }, _))
+                {
                     let (v, vt) = self.field_of_value((r, t), name, (base, e))?;
                     return Ok(Some(Operand::Value(v, vt)));
                 }

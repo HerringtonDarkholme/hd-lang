@@ -39,7 +39,7 @@ impl Env<'_> {
     /// stub answers every remote trait, each method generated
     /// (`module.remote.stub`).
     pub(super) fn stub_answers(&self, trait_: DefId, self_ty: Ty) -> bool {
-        matches!(self.run.pool.get(self_ty), TyData::Adt { def, .. } if def == self.run.known.stub)
+        matches!(self.run.pool.get(self_ty), TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.run.known.stub)
             && self.is_remote_trait(trait_)
     }
 

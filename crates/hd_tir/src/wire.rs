@@ -926,10 +926,10 @@ mod tests {
         );
         let f = paths.item("app", "main", "f");
         let g = paths.item("app", "main", "g");
-        let point = pool.intern_ty(&TyData::Adt {
-            def: paths.item("app", "geo", "Point"),
-            args: pool.list(&[]),
-        });
+        let point = pool.intern_ty(&TyData::Adt(
+            hd_types::AdtId::Declared(paths.item("app", "geo", "Point")),
+            pool.list(&[]),
+        ));
         let mut b = TirBuilder::new(f, BodyKind::Fn);
         let n = NodeIdx::from_raw(0);
         let blk = b.open_block();
@@ -1197,10 +1197,10 @@ mod tests {
             ShardedInterner::default(),
         );
         let counter_ty = |pool: &InternPool, paths: &PathTable| {
-            pool.intern_ty(&TyData::Adt {
-                def: paths.item("app", "main", "Counter"),
-                args: pool.list(&[]),
-            })
+            pool.intern_ty(&TyData::Adt(
+                hd_types::AdtId::Declared(paths.item("app", "main", "Counter")),
+                pool.list(&[]),
+            ))
         };
         let f = paths.item("app", "main", "f");
         let counter = paths.item("app", "main", "counter");
@@ -1225,10 +1225,7 @@ mod tests {
             ShardedInterner::default(),
         );
         paths2.item("zzz", "a", "b");
-        pool2.intern_ty(&TyData::Tuple {
-            elems: pool2.list(&[Ty::I32, Ty::BOOL]),
-            rest: None,
-        });
+        pool2.product(pool2.list(&[Ty::I32, Ty::BOOL]), None);
         let back = read_body(&bytes, &pool2, &paths2, &syms2).expect("read");
         let want = Place {
             root: PlaceRoot::Global(
