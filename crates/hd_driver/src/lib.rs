@@ -5354,18 +5354,21 @@ impl Run<'_> {
     /// `hd check FILE` ([`Packages::check_roots`]) reaches through `use`s
     /// from FILE's modules, `tests:` blocks included, as it filters its
     /// output, and builds the reached modules' folder closures. A program
-    /// reaches the root package's modules through its entry's `use`s and
-    /// the runtime the compiler roots (`rt_roots`), so a module only
-    /// another program uses is never checked for it (`cli.exe.reach`). It
-    /// builds the closures of the reached modules' folders, since a
-    /// folder's interface reads all its modules; other packages' modules
-    /// are built by folder alone. Cost: one walk over the reached modules'
-    /// uses.
+    /// checks only the root package's modules its entry reaches through
+    /// `use`s (`cli.exe.reach`), and builds every folder's interface as an
+    /// unscoped run does; another package's bodies follow the reached
+    /// modules' closures as before. A program whose root package is std
+    /// is unscoped, since the compiler reaches std's items through its
+    /// known items, not only through `use`. Cost: one walk over the
+    /// reached modules' uses.
     fn check_scope(&self, g: &FolderGraph) -> Option<(Vec<bool>, hd_project::FolderSet)> {
         let n = self.table.modules.len();
         let file_of = |m: usize| &self.table.files[self.table.modules[m].file.idx()];
         let program = match &self.goal {
             Goal::Program { entry } | Goal::Scenario { entry, .. } => {
+                if self.table.identities[0] == "std" {
+                    return None;
+                }
                 let path = format!("{}.{entry}", hd_project::package_ident(&self.package));
                 Some(
                     self.table
@@ -5376,32 +5379,18 @@ impl Run<'_> {
             }
             _ => None,
         };
-        // A program's walk also starts at the runtime the compiler roots
-        // after an entry (`rt_roots`), which is the root package's own when
-        // that package is std.
         let mut stack: Vec<usize> = if let Some(entry) = program {
-            std::iter::once(entry)
-                .chain(rt_roots(&self.table, self.checked()).map(ModuleId::idx))
-                .collect()
+            vec![entry]
         } else {
             let roots = self.check_roots.as_ref().filter(|_| self.analyze())?;
             (0..n).filter(|&m| roots.contains(file_of(m))).collect()
         };
         let mut reach = vec![false; n];
-        let mut folders = hd_project::FolderSet::with_capacity(self.table.folders.len());
         while let Some(m) = stack.pop() {
-            if std::mem::replace(&mut reach[m], true) {
+            if std::mem::replace(&mut reach[m], true)
+                || (program.is_some() && self.table.modules[m].package != 0)
+            {
                 continue;
-            }
-            // A folder's interface reads every module of the folder, so a
-            // program builds the closures of its reached modules' folders;
-            // an unreached module of such a folder is still never checked.
-            let module = &self.table.modules[m];
-            if program.is_some() {
-                folders.union(&g.closure[module.folder.idx()]);
-                if module.package != 0 {
-                    continue;
-                }
             }
             let s = self.skim_of(m);
             let tests = if program.is_some() {
@@ -5417,9 +5406,13 @@ impl Run<'_> {
                     .map(ModuleId::idx),
             );
         }
+        let mut folders = hd_project::FolderSet::with_capacity(self.table.folders.len());
         if program.is_some() {
             for (m, module) in self.table.modules.iter().enumerate() {
                 reach[m] |= module.package != 0;
+            }
+            for f in 0..self.table.folders.len() {
+                folders.insert(FolderId::from_raw(u32_of(f)));
             }
         } else {
             for m in (0..n).filter(|&m| reach[m]) {
