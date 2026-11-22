@@ -1,0 +1,7 @@
+# test: unwrap on Err panics with explicit-panic and debug text
+fn required(value: Result[i32, string]) -> i32:
+    value.unwrap() # panic: explicit-panic
+
+tests:
+    it("panics on Err"):
+        _ := required(.Err("bad"))

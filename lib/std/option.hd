@@ -1,6 +1,7 @@
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 use std.annotation.inline
+use std.function.FnMut
 
 ## A cursor yielding an optional's payload once, if present.
 ## See [std-iter.option.iterable-cursor](../../spec/std/iter.md#r-std-iter.option.iterable-cursor).
@@ -97,4 +98,35 @@ impl['a, T] (&'a T)?:
     pub fn copied(self) -> T?:
         match self:
             .Some(value) => .Some(*value)
+            .None => .None
+
+# Established lazy fallbacks and filtering (#2283).
+impl[T < ?Copy] T?:
+    ## The payload of `.Some`; panics with `explicit-panic` for `.None`.
+    ## See [std-option.unwrap.value](../../spec/std/option.md#r-std-option.unwrap.value).
+    pub fn unwrap(self) -> T:
+        match self:
+            .Some(value) => value
+            .None => panic("called `Option::unwrap()` on a `None` value")
+
+    ## The payload, or one call of `fallback` for `.None`.
+    ## See [std-option.unwrap-or-else.value](../../spec/std/option.md#r-std-option.unwrap-or-else.value).
+    pub fn unwrap_or_else[F < ?Copy & FnMut() -> T $ R, $ R](self, mut fallback: F) -> T $ R:
+        match self:
+            .Some(value) => value
+            .None => fallback()
+
+    ## The optional itself, or one call of `fallback` for `.None`.
+    ## See [std-option.or-else.value](../../spec/std/option.md#r-std-option.or-else.value).
+    pub fn or_else[F < ?Copy & FnMut() -> T? $ R, $ R](self, mut fallback: F) -> T? $ R:
+        match self:
+            .Some(_) => self
+            .None => fallback()
+
+    ## Keeps a present payload only when `predicate` accepts its reference.
+    ## See [std-option.filter.value](../../spec/std/option.md#r-std-option.filter.value).
+    pub fn filter[F < ?Copy & FnMut(&T) -> bool $ R, $ R](self, mut predicate: F) -> T? $ R:
+        match self:
+            .Some(value) =>
+                if predicate(&value): .Some(value) else: .None
             .None => .None

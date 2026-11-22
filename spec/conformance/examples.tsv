@@ -1321,3 +1321,7 @@ cli/command-line.md	2	fragment	-
 cli/command-line.md	3	fragment	-
 std/http.md	20	complete	-
 std/http.md	21	complete	-
+std/option.md	5	complete	std/option/lazy-fallbacks-and-filtering/option-lazy-methods.hd
+std/option.md	6	complete	std/option/unwrapping-without-a-message/option-unwrap-none.hd
+std/result.md	5	complete	std/result/lazy-error-fallbacks/result-lazy-methods.hd
+std/result.md	6	complete	std/result/unwrapping-without-a-message/result-unwrap-err.hd
