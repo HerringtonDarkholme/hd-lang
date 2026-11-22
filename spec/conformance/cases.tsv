@@ -6896,6 +6896,7 @@ lang/modules/execution-domains/markers/writable-reference-is-not-send.hd	type	re
 lang/modules/execution-domains/markers/type-parameter-needs-marker-bound.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.parameter
 lang/modules/execution-domains/markers/library-marker-explicit-implementation.hd	type	accept	lang/10-modules.md#r-module.marker.explicit
 lang/modules/execution-domains/markers/library-marker-structural.hd	type	accept	lang/10-modules.md#r-module.marker.supplied
+lang/modules/execution-domains/markers/library-marker-part-without-marker.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.explicit
 lang/modules/execution-domains/markers/remote-reference-is-wire.hd	type	accept	lang/10-modules.md#r-module.marker.table.remote
 lang/modules/execution-domains/markers/remote-reference-is-not-send.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.remote.ref.not-send
 lang/modules/execution-domains/markers/other-trait-value-is-not-wire.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.table.counted

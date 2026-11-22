@@ -927,28 +927,28 @@ impl Item {
         matches!(&self.data, ItemData::Trait(t) if !t.relaxed_copy)
     }
     /// What the `Copy` row reads of a type declaration
-    /// (`ref.copy.structure`): its fields, payloads or base, unless it is
-    /// declared `!Copy`.
+    /// (`ref.copy.structure`): its fields, payloads or base, marked when
+    /// it is declared `!Copy`.
     #[must_use]
     pub fn copy_decl(&self) -> CopyDecl {
-        match &self.data {
-            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } | ItemData::Newtype(_, a)
-                if a.not_copy =>
-            {
-                CopyDecl::NotCopy
-            }
-            ItemData::Struct(fs, _) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
+        let members = match &self.data {
+            ItemData::Struct(fs, _) => fs.iter().map(|f| f.ty).collect(),
             ItemData::Enum {
                 shared, variants, ..
-            } => CopyDecl::Members(
-                (shared.iter())
-                    .chain(variants.iter().flat_map(|v| &v.fields))
-                    .map(|f| f.ty)
-                    .collect(),
-            ),
+            } => (shared.iter())
+                .chain(variants.iter().flat_map(|v| &v.fields))
+                .map(|f| f.ty)
+                .collect(),
             // A newtype holds its base by value (`types.newtype.holds`).
-            ItemData::Newtype(base, _) => CopyDecl::Members(vec![*base]),
-            _ => CopyDecl::Copies,
+            ItemData::Newtype(base, _) => vec![*base],
+            _ => return CopyDecl::Copies,
+        };
+        match self.type_attrs().or(match &self.data {
+            ItemData::Newtype(_, a) => Some(a),
+            _ => None,
+        }) {
+            Some(a) if a.not_copy => CopyDecl::NotCopy(members),
+            _ => CopyDecl::Members(members),
         }
     }
     /// What the solver's compiler-supplied rows read of a type

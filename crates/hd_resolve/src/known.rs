@@ -11,6 +11,8 @@ use hd_intern::{PathKind, PathTable};
 
 /// Shared module spellings for source seeding, runtime roots and textual import hints.
 pub const CORE_MODULE: &str = "std.core";
+/// `Marker`, `Send` and `Wire` (`module.marker.std`).
+pub const MARKER_MODULE: &str = "std.marker";
 pub const TASK_MODULE: &str = "std.task";
 pub const FUNCTION_MODULE: &str = "std.function";
 pub const INSPECT_MODULE: &str = "std.inspect";
@@ -213,6 +215,12 @@ pub struct KnownItems {
     /// The `Copy` marker (`ref.copy.marker`), a sealed trait the compiler
     /// answers from a type's structure.
     pub copy: DefId,
+    /// `Marker`, `Send`, `Wire` (`module.marker.std`) and `Remote`
+    /// (`module.remote.std`).
+    pub marker: DefId,
+    pub send: DefId,
+    pub wire: DefId,
+    pub remote: DefId,
     // std.task
     pub suspend: DefId,
     /// `std.rt.memory.Buffer`, raw memory whose room holds values of its
@@ -282,7 +290,7 @@ pub struct KnownItems {
     pub property_runner: DefId,
     /// The sealed traits, in the order of the table in spec/lang/09-traits.md
     /// "Sealed Traits" (`trait.sealed.list`).
-    sealed: [DefId; 15],
+    sealed: [DefId; 19],
 }
 
 impl KnownItems {
@@ -311,6 +319,10 @@ impl KnownItems {
             list: self.list,
             map: self.map,
             suspend: self.suspend,
+            marker: self.marker,
+            send: self.send,
+            wire: self.wire,
+            remote: self.remote,
         }
     }
 
@@ -355,6 +367,10 @@ impl KnownItems {
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
         let copy = item(CORE_MODULE, "Copy");
+        let marker = item(MARKER_MODULE, "Marker");
+        let send = item(MARKER_MODULE, "Send");
+        let wire = item(MARKER_MODULE, "Wire");
+        let remote = item("std.remote", "Remote");
         let drop_trait = item(RUNTIME_MODULE, "Drop");
         Self {
             any,
@@ -525,7 +541,15 @@ impl KnownItems {
                 fn_mut_trait,
                 static_bound,
                 copy,
+                marker,
+                send,
+                wire,
+                remote,
             ],
+            marker,
+            send,
+            wire,
+            remote,
         }
     }
 

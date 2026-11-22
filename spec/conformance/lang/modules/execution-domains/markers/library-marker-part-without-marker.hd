@@ -1,0 +1,17 @@
+# test: a struct with a part that has no library marker, by structure or by an explicit implementation, lacks it
+# Spec 10 Markers: module.marker.structural, module.marker.explicit.
+use std.marker.Marker
+
+pub trait GpuData < Marker
+
+impl GpuData for f32
+
+struct Pixel:
+    r: f32
+    label: string
+
+fn launch[T < GpuData](value: T) -> void:
+    pass
+
+fn demo(p: Pixel) -> void:
+    launch(p) # diagnostic: unsatisfied-trait-bound

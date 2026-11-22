@@ -2927,6 +2927,44 @@ fn copy_goals_down_a_generic_chain_walk_each_level_once() {
     });
 }
 
+/// A value of `Two` doubled `n` levels deep, passed to a `Wire` bound or
+/// to a library marker's (`module.marker.structural`).
+fn marker_doubled(library: bool, n: usize) -> String {
+    let mut s = String::from(
+        "use std.marker.{Marker, Wire}\n\npub trait Gpu < Marker\n\nimpl Gpu for string\n\nstruct Two[T]:\n    a: T\n    b: T\n\nfn post[T < Wire](v: T) -> void: pass\n\nfn launch[T < Gpu](v: T) -> void: pass\n\npub fn main() -> void:\n    x0 := \"a\"\n",
+    );
+    for i in 1..=n {
+        let _ = writeln!(s, "    x{i} := Two {{ a: x{}, b: x{} }}", i - 1, i - 1);
+    }
+    let _ = writeln!(s, "    {}(x{n})", if library { "launch" } else { "post" });
+    s
+}
+
+// Types: a marker goal walks each distinct node of the asked type once, as
+// the `Copy` row does (#1886): `Two` doubled n levels is 2^n leaves.
+#[test]
+fn marker_goals_walk_each_distinct_node_once() {
+    on_test_stack(|| {
+        let _ = compile(&marker_doubled(false, 2), &Goal::Analyze);
+        for library in [false, true] {
+            let mut base = 0;
+            for n in [10, 100] {
+                let (out, nodes) = hd_types::work::count_type_nodes(|| {
+                    compile(&marker_doubled(library, n), &Goal::Analyze)
+                });
+                assert!(out.diags.is_empty(), "{library} {n}: {}", out.render());
+                if n == 10 {
+                    base = nodes;
+                }
+                assert!(
+                    base > 0 && nodes <= 10 * base * 5 / 4,
+                    "type nodes walked for 10 and {n} levels (library {library}): {base}, {nodes}"
+                );
+            }
+        }
+    });
+}
+
 /// `n` enums, each with a `Serialize` derivation block of its own.
 fn enum_views(n: usize) -> String {
     let mut s = String::from(

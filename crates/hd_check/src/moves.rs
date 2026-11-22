@@ -128,7 +128,7 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
             };
             match item.copy_decl() {
                 CopyDecl::Copies => Ok(None),
-                CopyDecl::NotCopy => Ok(Some(t)),
+                CopyDecl::NotCopy(_) => Ok(Some(t)),
                 CopyDecl::Members(ms) => {
                     let argv = pool.list_items(args);
                     Err(ms

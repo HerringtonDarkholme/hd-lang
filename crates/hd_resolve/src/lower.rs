@@ -5903,6 +5903,37 @@ impl Lower<'_, '_, '_> {
 
     /// A trait or trait implementation declares each member once
     /// (trait.member.unique). Error: `duplicate-trait-member`.
+    /// A marker declares no member (`module.marker.members`), and its
+    /// `Self` is not bound by `Copy` (`module.marker.not-copy`).
+    fn marker_members(&mut self, self_ty: Ty, supers: &[Ty], block: Option<NodeRef<'_>>) {
+        let marker = self.names.known.marker;
+        let is_marker = marker != DefId::NONE
+            && supers.iter().any(
+                |&t| matches!(self.names.pool.get(t), TyData::TraitValue { def, .. } if def == marker),
+            );
+        if !is_marker {
+            return;
+        }
+        if let TyData::Param(p) = self.names.pool.get(self_ty) {
+            self.r.not_copy.borrow_mut().insert(p.owner);
+        }
+        if self.r.frozen.is_some() {
+            return;
+        }
+        for f in block.iter().flat_map(|b| b.children()).filter(|f| {
+            matches!(
+                f.kind(),
+                SyntaxKind::FnDecl | SyntaxKind::AssociatedTypeDecl
+            )
+        }) {
+            self.diags.error(
+                Code::InvalidMarkerTrait,
+                self.src.span(f),
+                "a marker trait declares no members",
+            );
+        }
+    }
+
     fn duplicate_members(&mut self, block: Option<NodeRef<'_>>) {
         if self.r.frozen.is_some() {
             return;
@@ -7375,6 +7406,7 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 let (supers, super_lifetimes) = self.supers(n, &gn, self_ty);
+                self.marker_members(self_ty, &supers, block);
                 self.duplicate_members(block);
                 let (methods, assoc_decls) =
                     self.members(block, h.def, h.public, true, &mut gn, out);

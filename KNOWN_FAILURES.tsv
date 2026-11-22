@@ -1,21 +1,7 @@
 path	issue	engine	reason
 lang/grammar/crossing-parameters/marker-bound-parameter.hd	#2288		the parser rejects a marker bound `+ M` after a parameter type's result (stage 2 of #2288)
-lang/modules/execution-domains/markers/struct-of-wire-fields-is-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/not-copy-type-may-be-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/marker-trait-with-member.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/wire-implementation-is-sealed.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/send-implementation-is-sealed.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/box-field-is-not-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/box-field-is-not-send.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/shared-reference-is-send.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/shared-reference-is-not-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/writable-reference-is-not-send.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/type-parameter-needs-marker-bound.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/library-marker-explicit-implementation.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
-lang/modules/execution-domains/markers/library-marker-structural.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
 lang/modules/execution-domains/markers/remote-reference-is-wire.hd	#2288		no `std.marker` or `std.remote` yet: remote references as `Wire` are stages 1 and 3 of #2288
 lang/modules/execution-domains/markers/remote-reference-is-not-send.hd	#2288		no `std.marker` or `std.remote` yet: remote references as `Wire` are stages 1 and 3 of #2288
-lang/modules/execution-domains/markers/other-trait-value-is-not-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
 lang/modules/execution-domains/remote-traits/remote-trait-declaration.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
 lang/modules/execution-domains/remote-traits/remote-method-not-bang.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
 lang/modules/execution-domains/remote-traits/remote-method-closure-parameter.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288

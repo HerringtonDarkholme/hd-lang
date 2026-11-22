@@ -782,9 +782,9 @@ lang/10-modules.md	99	complete	-
 lang/10-modules.md	100	fragment	lang/modules/wasm-boundary/host-declaration-marker.hd
 lang/10-modules.md	101	mixed	lang/modules/wasm-boundary/host-declaration-call.hd
 lang/10-modules.md	102	complete	lang/modules/wasm-boundary/closable-handle-closed.hd
-lang/10-modules.md	103	known-failure	-
-lang/10-modules.md	104	known-failure	-
-lang/10-modules.md	105	known-failure	-
+lang/10-modules.md	103	complete	-
+lang/10-modules.md	104	complete	-
+lang/10-modules.md	105	mixed	lang/modules/execution-domains/markers/marker-trait-with-member.hd|lang/modules/execution-domains/markers/wire-implementation-is-sealed.hd|lang/modules/execution-domains/markers/box-field-is-not-wire.hd
 lang/10-modules.md	106	known-failure	-
 lang/10-modules.md	107	known-failure	-
 lang/10-modules.md	108	known-failure	-

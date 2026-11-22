@@ -1756,6 +1756,8 @@ pub enum BuiltinImpl {
     FnMut,
     /// `Copy` (`ref.copy.structure`), from the type's parts.
     Copy,
+    /// A marker (`module.marker.structural`), from the type's parts.
+    Marker,
 }
 
 /// What a `Holds` answer carries (§8.1).
@@ -3258,6 +3260,49 @@ impl<'s, 'a> Search<'s, 'a> {
         // match a goal with no open variable exist only beside an overlap
         // error (§5.4): the first in content order is taken.
         let open_goal = pool.has_infer(self_ty) || goal_args.iter().any(|a| pool.has_infer(*a));
+        // A library marker with no explicit impl for this head answers from
+        // the type's parts (`module.marker.structural`); a part with an
+        // explicit impl is left to it (`module.marker.explicit`).
+        if yes.is_empty()
+            && maybes == 0
+            && goal_args.is_empty()
+            && self
+                .cx
+                .decls
+                .sealed()
+                .is_marker(self.cx.decls, pool, tref.trait_)
+            && !matches!(
+                pool.get(self_ty),
+                TyData::Param(_) | TyData::Infer(_) | TyData::Opaque { .. } | TyData::Assoc { .. }
+            )
+        {
+            let reads = std::cell::RefCell::new(Reads::default());
+            let explicit = |t: Ty| {
+                !reads
+                    .borrow_mut()
+                    .candidates(impls, pool, tref.trait_, t, &[], false)
+                    .is_empty()
+            };
+            let cx = &mut *self.cx;
+            let row = crate::sealed::marker_row(
+                pool,
+                cx.decls,
+                crate::sealed::Walk::Library(tref.trait_),
+                self_ty,
+                &mut cx.body_memo.copies,
+                &explicit,
+            );
+            let reads = reads.into_inner();
+            if reads.seen.dir && key.universe.is_none() {
+                return Err(NotImplemented::bug(
+                    Stage::Body,
+                    "a marker walk read the candidate directory, but its memo key has no impl universe",
+                ));
+            }
+            self.read(&reads);
+            let (o, h) = self.supplied(key, cg, tref.trait_, row, depth, root)?;
+            return Ok((o, h.saturating_add(heads)));
+        }
         if yes.is_empty() && maybes == 0 && !pool.has_infer(self_ty) {
             let fails = Answer::Fails(Box::new(FailInfo {
                 leaf: cg,
@@ -6787,6 +6832,7 @@ mod tests {
                 list: DefId::NONE,
                 map: DefId::NONE,
                 suspend: id(24),
+                ..Default::default()
             },
             kinds: vec![
                 (id(21), super::TypeDecl::Enum),
