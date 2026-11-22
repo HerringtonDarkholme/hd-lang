@@ -10,13 +10,11 @@ use hd_types::{InternPool, Ty, TyData};
 
 use crate::{Kind, kind};
 
-/// A1's shared owned-address class on this backend. Boxed values have
-/// the class's owned parameter convention. References keep concrete keys,
-/// including when their layout is one address: local references borrow,
-/// while counted references carry an owner.
+/// Concrete values have no implicit owned-address class: recursive links
+/// are explicit references, whose loan convention keeps their concrete keys.
 #[must_use]
-pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    matches!(kind(pool, env, ty), Kind::Boxed)
+pub fn shared_reference_layout(_pool: &InternPool, _env: &dyn ProgramEnv, _ty: Ty) -> bool {
+    false
 }
 
 /// The types a value of `ty` holds by value, `ty` stripped of newtypes
@@ -60,7 +58,7 @@ pub fn thin_counted_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: 
 pub fn reference_target_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Option<Ty> {
     match kind(pool, env, ty) {
         Kind::Ref { target, .. } => Some(target),
-        _ => None,
+        Kind::Value => None,
     }
 }
 
@@ -86,7 +84,7 @@ pub fn copies_collection_type(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) ->
 pub fn reference_ownership(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Option<bool> {
     match kind(pool, env, ty) {
         Kind::Ref { whole, .. } => Some(whole),
-        _ => None,
+        Kind::Value => None,
     }
 }
 

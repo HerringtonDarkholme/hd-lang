@@ -471,7 +471,7 @@ fn walk_crossings(
                     }
                     Some(target)
                 }
-                _ => None,
+                Kind::Value => None,
             },
         };
         let Some(next) = next else {

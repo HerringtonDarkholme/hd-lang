@@ -187,12 +187,10 @@ impl Counts {
                 self.leaf(reference(fat, counted), !fat && counted)
             }
             TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => at(0, true),
-            TyData::Adt { def, args } => match kind(pool, env, s) {
-                Kind::Boxed => at(0, true),
-                Kind::Ref { fat, whole, .. } => self.leaf(reference(fat, whole), !fat && whole),
-                Kind::Value if env.enum_variants(def, args).is_some() => self.sum(pool, env, s)?,
-                Kind::Value => self.product(pool, env, s, &value_parts(pool, env, s))?,
-            },
+            TyData::Adt { def, args } if env.enum_variants(def, args).is_some() => {
+                self.sum(pool, env, s)?
+            }
+            TyData::Adt { .. } => self.product(pool, env, s, &value_parts(pool, env, s))?,
             _ => Count::None,
         };
         // A value that holds a `Drop` hook has its own release shim, which

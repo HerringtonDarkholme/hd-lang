@@ -229,8 +229,6 @@ pub enum Kind {
     /// Its values are in locals: a scalar, a string, an enum, a struct or
     /// tuple, a trait value.
     Value,
-    /// The address of a counted cell containing an enum value.
-    Boxed,
     /// A reference to a place of type `T` (`&T` or `&mut T`, or `*T` or
     /// `*mut T` when `whole`): the place's address, or, when
     /// `T` is a trait value (`fat`), that trait value. A `whole` one is
@@ -242,29 +240,15 @@ pub enum Kind {
 /// Which kind `t` is.
 pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     let t = strip_newtype(pool, env, t);
-    let (def, args) = match pool.get(t) {
-        TyData::Ref { inner, counted, .. } => {
-            return Kind::Ref {
-                target: strip_newtype(pool, env, inner),
-                fat: fat(pool, env, inner),
-                whole: counted,
-            };
-        }
-        TyData::Adt { def, args } => (def, args),
-        _ => return Kind::Value,
-    };
-    if env.std_kind(def) != StdKind::Other {
-        return Kind::Value;
+    match pool.get(t) {
+        TyData::Ref { inner, counted, .. } => Kind::Ref {
+            target: strip_newtype(pool, env, inner),
+            fat: fat(pool, env, inner),
+            whole: counted,
+        },
+        // data.enum.no-recursion/no-boxing: recursion uses explicit references.
+        _ => Kind::Value,
     }
-    // The instance decides, as its resolved payloads do (`enum_boxing`).
-    if env.is_enum(def) {
-        return if env.recursive_enum(def, args) {
-            Kind::Boxed
-        } else {
-            Kind::Value
-        };
-    }
-    Kind::Value
 }
 
 /// Whether a reference to `target` is fat: a reference to a trait value
@@ -730,13 +714,9 @@ fn mem_one(
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::nonnull(),
-            StdKind::Other => match kind(pool, env, t) {
-                Kind::Boxed => Mem::nonnull(),
-                Kind::Ref { fat, .. } => ref_mem(fat),
-                Kind::Value => match env.enum_variants(def, args) {
-                    Some(variants) => enum_flat_by(t, &variants, part, &named, full)?,
-                    None => payload_mem_by(&value_parts(pool, env, t), part, &named)?.0,
-                },
+            StdKind::Other => match env.enum_variants(def, args) {
+                Some(variants) => enum_flat_by(t, &variants, part, &named, full)?,
+                None => payload_mem_by(&value_parts(pool, env, t), part, &named)?.0,
             },
         },
         // A function value's code is a table slot, which may be 0, and its
@@ -870,7 +850,6 @@ pub fn ref_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<RefLeaf
             TyData::Ref { counted, .. } => leaf(0, counted),
             TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => leaf(0, true),
             TyData::Union(_) | TyData::Adt { .. } => match kind(pool, env, t) {
-                Kind::Boxed => leaf(0, true),
                 Kind::Ref { whole, .. } => leaf(0, whole),
                 Kind::Value => {
                     if let Some(vs) = variants(pool, env, t) {
@@ -958,18 +937,15 @@ fn holds_one(
             variants(pool, env, t).is_some_and(|vs| vs.iter().flatten().any(|&f| part(f)))
         }
         TyData::Ref { counted, .. } => held(counted),
-        TyData::Adt { def, args } => match kind(pool, env, t) {
-            Kind::Boxed => true,
-            Kind::Ref { whole, .. } => held(whole),
-            Kind::Value => {
-                let any = match env.enum_variants(def, args) {
-                    Some(_) => variants(pool, env, t)
-                        .is_some_and(|vs| vs.iter().flatten().any(|&f| part(f))),
-                    None => value_parts(pool, env, t).into_iter().any(part),
-                };
-                any || env.has_drop(def)
-            }
-        },
+        TyData::Adt { def, args } => {
+            let any = match env.enum_variants(def, args) {
+                Some(_) => {
+                    variants(pool, env, t).is_some_and(|vs| vs.iter().flatten().any(|&f| part(f)))
+                }
+                None => value_parts(pool, env, t).into_iter().any(part),
+            };
+            any || env.has_drop(def)
+        }
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => true,
         _ => false,
     }
@@ -986,7 +962,6 @@ pub fn holds_local_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
         &|t, part| match kind(pool, env, t) {
             Kind::Ref { whole, .. } => !whole,
             Kind::Value => value_parts(pool, env, t).into_iter().any(part),
-            Kind::Boxed => false,
         },
     )
 }
@@ -2389,6 +2364,54 @@ mod tests {
         // No variant present: `never`.
         let none = flat_of(&[vec![Mem::NEVER]]).expect("fits");
         assert!(none.mem.uninhabited && none.mem.size == 0);
+    }
+
+    #[test]
+    fn scalar_class_indices_keep_float_classes_distinct() {
+        assert_eq!(
+            [Val::I32, Val::I64, Val::F32, Val::F64].map(Val::index),
+            [0, 1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn discriminant_width_grows_at_the_byte_boundaries() {
+        for (variants, bytes) in [(257, 2), (65_537, 4)] {
+            let flat = flat_of(&vec![Vec::new(); variants]).expect("fits");
+            let cell = flat.cell().expect("multiple variants");
+            assert_eq!((cell.leaf.bytes, cell.enc), (bytes, Enc::Direct));
+            let last = u32::try_from(variants - 1).expect("variant");
+            assert_eq!(cell.enc.raw(last), Some(last));
+            assert_eq!(cell.enc.reads(last), last);
+            assert_eq!(flat.test(last), Test::Read(cell, Is::Eq(last)));
+        }
+    }
+
+    #[test]
+    fn niche_encoding_round_trips_and_excludes_uninhabited_variants() {
+        let enc = Enc::Niche {
+            untagged: 0,
+            first: 1,
+            last: 2,
+            start: 254,
+            bytes: 1,
+        };
+        assert_eq!(enc.raw(0), None);
+        for variant in [1, 2] {
+            let raw = enc.raw(variant).expect("tagged variant");
+            assert_eq!(enc.reads(raw), variant);
+            assert_eq!(enc.is(variant), Is::Eq(raw));
+        }
+        assert_eq!(enc.reads(0), 0);
+        assert_eq!(enc.is(3), Is::Never);
+        assert_eq!(
+            enc.is(0),
+            Is::Outside {
+                start: 254,
+                count: 2,
+                bytes: 1
+            }
+        );
     }
 
     #[test]

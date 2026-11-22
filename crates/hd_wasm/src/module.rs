@@ -1457,11 +1457,6 @@ impl Module {
             .resize_with(self.funcs.len().max(id.idx() + 1), || None);
         self.funcs[id.idx()] = Some(f);
     }
-    /// Whether symbol `s` has a function defined.
-    pub fn is_defined(&mut self, s: Sym) -> bool {
-        let id = self.symbols.intern(s);
-        self.funcs.get(id.idx()).is_some_and(Option::is_some)
-    }
     pub fn export(&mut self, name: impl Into<String>, s: Sym) {
         self.exports.push((name.into(), self.symbols.intern(s)));
     }

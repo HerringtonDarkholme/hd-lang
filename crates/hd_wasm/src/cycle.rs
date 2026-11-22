@@ -36,7 +36,7 @@ use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
 use hd_types::{InternPool, Ty, TyData};
 
-use crate::layout::{Kind, kind, strip_newtype, tuple_members, value_parts, variants};
+use crate::layout::{Kind, kind, strip_newtype, tuple_members, value_parts};
 
 thread_local! {
     /// The link's closed-world set of types whose existing objects may be
@@ -160,11 +160,6 @@ fn holds(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Holds {
             StdKind::Other if env.raw_buffer(def) => Holds::Parts(pool.list_items(args).to_vec()),
             StdKind::Other => match kind(pool, env, t) {
                 Kind::Ref { target, .. } => Holds::Ref(target),
-                Kind::Boxed => Holds::Parts(
-                    variants(pool, env, t)
-                        .map(|vs| vs.iter().flatten().copied().collect())
-                        .unwrap_or_default(),
-                ),
                 Kind::Value => Holds::Parts(value_parts(pool, env, t)),
             },
         },
