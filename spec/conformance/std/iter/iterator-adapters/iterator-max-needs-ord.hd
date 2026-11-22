@@ -1,0 +1,10 @@
+# test: an iterator over items without Ord is still an iterator, and calling max on it is an error at the call
+# Spec std/iter More Adapters: std-iter.adapter.min-max.bound.
+struct Point:
+    x: i32
+
+fn count_points(points: List[Point]) -> usize:
+    points.iter().count()
+
+fn largest(points: List[Point]) -> Point?:
+    points.iter().max() # diagnostic: unsatisfied-trait-bound

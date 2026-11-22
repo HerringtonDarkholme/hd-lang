@@ -1,6 +1,7 @@
 # std.iter: user-defined cursors and lazy, named adapter values.
 use std.function.FnMut
 use std.num.Num
+use std.cmp.{Ord, Ordering}
 
 ## A cursor that yields its next item, or None when exhausted.
 pub trait Iterator[T < ?Copy] < ?Copy:
@@ -95,6 +96,40 @@ pub trait Iterator[T < ?Copy] < ?Copy:
                 .Some(_) => found = found + 1
                 .None => break
         found
+
+    # The trait's `T` is bounded for these two only (`trait.where.clause`),
+    # so an iterator of unordered items stays an `Iterator`.
+    ## The smallest remaining item, the first of equal ones, or `.None`; it drains the iterator.
+    ## See [std-iter.adapter.min.value](../../spec/std/iter.md#r-std-iter.adapter.min.value).
+    fn min(self) -> T? where T < Ord:
+        let mut cursor = self
+        let best = match cursor.next():
+            .Some(item) => item
+            .None => return .None
+        while true:
+            match cursor.next():
+                .Some(item) =>
+                    match item.cmp(&best):
+                        .Less => best = item
+                        _ => pass
+                .None => break
+        .Some(best)
+
+    ## The largest remaining item, the first of equal ones, or `.None`; it drains the iterator.
+    ## See [std-iter.adapter.max.value](../../spec/std/iter.md#r-std-iter.adapter.max.value).
+    fn max(self) -> T? where T < Ord:
+        let mut cursor = self
+        let best = match cursor.next():
+            .Some(item) => item
+            .None => return .None
+        while true:
+            match cursor.next():
+                .Some(item) =>
+                    match item.cmp(&best):
+                        .Greater => best = item
+                        _ => pass
+                .None => break
+        .Some(best)
 
     ## Folds the remaining items into `initial`: `step(accumulator, item)` per item, in order.
     ## See [std-iter.adapter.fold.value](../../spec/std/iter.md#r-std-iter.adapter.fold.value).
@@ -220,6 +255,14 @@ impl[T < ?Copy] dyn Iterator[T]:
 
     pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
+
+    # A `where` method is unavailable on the trait value
+    # (`trait.dyn.member.where`), so it is restated here.
+    pub fn min(*mut self) -> T? where T < Ord:
+        DynIterator { source: self }.min()
+
+    pub fn max(*mut self) -> T? where T < Ord:
+        DynIterator { source: self }.max()
 
     pub fn fold[A, $ R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
         DynIterator { source: self }.fold::[A](initial, step)

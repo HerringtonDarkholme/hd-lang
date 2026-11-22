@@ -1,0 +1,50 @@
+# test: min and max return the smallest and largest remaining item, the first of equal ones, .None when empty, and on a dyn iterator too
+# Spec std/iter More Adapters: std-iter.adapter.min.value, std-iter.adapter.max.value, std-iter.adapter.min-max.tie, std-iter.adapter.min-max.drain, std-iter.adapter.min-max.dyn.
+# expect-stdout: (Option.Some(9), Option.Some(1), Option.None, Option.Some("fig"))
+# expect-stdout: (Option.Some("b"), Option.Some("a"))
+# expect-stdout: Option.Some(9)
+use std.cmp.{Ord, Ordering, PartialOrd}
+
+struct Job:
+    rank: i32
+    name: string
+
+impl Eq for Job:
+    fn eq(&self, other: &Job) -> bool:
+        self.rank == other.rank
+
+impl PartialOrd for Job:
+    fn partial_cmp(&self, other: &Job) -> Ordering?:
+        .Some(self.rank.cmp(&other.rank))
+
+impl Ord for Job:
+    fn cmp(&self, other: &Job) -> Ordering:
+        self.rank.cmp(&other.rank)
+
+fn biggest(items: *mut dyn Iterator[i32]) -> i32?:
+    items.max()
+
+fn name(job: Job) -> string:
+    job.name
+
+pub fn main() -> void $ Console:
+    let numbers: List[i32] = [3, 9, 1, 9]
+    let empty: List[i32] = []
+    jobs := [
+        Job { rank: 2, name: "a" },
+        Job { rank: 5, name: "b" },
+        Job { rank: 5, name: "c" },
+        Job { rank: 2, name: "d" },
+    ]
+    println(
+        debug(
+            (
+                numbers.iter().max(),
+                numbers.iter().min(),
+                empty.iter().max(),
+                ["pear", "fig"].iter().min(),
+            ),
+        ),
+    )
+    println(debug((jobs.iter().max().map(name), jobs.iter().min().map(name))))
+    println(debug(biggest(box(numbers.iter()))))

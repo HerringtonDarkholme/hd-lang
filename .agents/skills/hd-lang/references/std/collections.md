@@ -141,6 +141,7 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 | `sum()`, `product()` | a total, of the expected type |
 | `fold(initial, f)` | an accumulated value |
 | `any(f)`, `all(f)`, `find(f)` | search |
+| `min()`, `max()` | the smallest or largest item as `T?`, the first of equal ones; items must be `Ord` |
 
 ```hd
 let squares: List[i32] = (1..=5).iter().map(fn(n): n * n).filter(fn(n): n % 2 == 1).collect()

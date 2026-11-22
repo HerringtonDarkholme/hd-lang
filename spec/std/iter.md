@@ -8,7 +8,7 @@ ordinary hd over the language tier:
 - the iterator adapters `filter`, `take`, `enumerate`, `map`, `fold`, and
   `collect`, with their laziness and ordering;
 - the adapters `skip`, `take_while`, `zip`, `chain`, and `flat_map`, and
-  the draining `any`, `all`, `find`, and `count`;
+  the draining `any`, `all`, `find`, `count`, `min`, and `max`;
 - the `FromIterator` trait and the collections `collect` builds:
   `List`, `Map`, `Result`, and `T?`;
 - `map` on `List[T]` and on `T?`.
@@ -171,6 +171,8 @@ fn has_blank(lines: List[string]) -> bool:
 | r[std-iter.adapter.all.value] `all` | `fn all(self, test: fn(&T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
 | r[std-iter.adapter.find.value] `find` | `fn find(self, test: fn(&T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
 | r[std-iter.adapter.count.value] `count` | `fn count(self) -> usize` | the number of remaining items of `self` |
+| r[std-iter.adapter.min.value] `min` | `fn min(self) -> T? where T < Ord` | the smallest remaining item of `self` by `Ord`, or `.None` |
+| r[std-iter.adapter.max.value] `max` | `fn max(self) -> T? where T < Ord` | the largest remaining item of `self` by `Ord`, or `.None` |
 | r[std-iter.adapter.sum.numeric-target] `sum` | `fn sum[S < Sum[T]](self) -> S` | the target built from the remaining items |
 
 1. r[std-iter.adapter.lazy.more] Calling `skip`, `take_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
@@ -191,6 +193,10 @@ fn has_blank(lines: List[string]) -> bool:
 
 16. r[std-iter.adapter.flat-map.open-once] `flat_map` calls `iter()` once on each transformed result, only when that result is reached.
 17. r[std-iter.adapter.flat-map.drain-inner] It drains that cursor before transforming the next source item, skipping empty results.
+18. r[std-iter.adapter.min-max.bound] `min` and `max` bound the item type with a method `where` clause ([`trait.where.clause`](../lang/09-traits.md#r-trait.where.clause)). An iterator over items that do not implement `Ord` still implements `Iterator[T]`, and calling `min` or `max` on it is an error at the call. Error: `unsatisfied-trait-bound`.
+19. r[std-iter.adapter.min-max.tie] Of several equal items by `Ord`, `min` and `max` each return the first, as [`std-cmp.min-max.tie`](cmp.md#r-std-cmp.min-max.tie) and [`std-collections.helper.min-max.copy-first`](collections.md#r-std-collections.helper.min-max.copy-first) do.
+20. r[std-iter.adapter.min-max.drain] `min` and `max` advance `self` until `next` returns `.None`, which exhausts the owned cursor. On an exhausted iterator both are `.None`.
+21. r[std-iter.adapter.min-max.dyn] `dyn Iterator[T]` has `min` and `max` too, with the same bound, as inherent methods that read the trait value through a cursor, since a method with a `where` clause is unavailable on a trait value ([`trait.dyn.member.where`](../lang/09-traits.md#r-trait.dyn.member.where)).
 ```text
 fn joined(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
     first.iter().chain(rest).collect()  # error: unsatisfied-trait-bound
@@ -210,7 +216,10 @@ fn joined_eagerly(first: List[i32], rest: *mut dyn Iterator[i32]) -> List[i32]:
 > [`std-collections.helper.sum`](collections.md#r-std-collections.helper.sum).
 
 > **Why.** The names and the pulling order are Rust's, so `zip` and
-> `take_while` drop the same items there and here. `zip` and `chain` take
+> `take_while` drop the same items there and here. On a tie, Rust's
+> `Iterator::max` returns the last item; hd's returns the first, so the
+> iterator agrees with `std.cmp.max` and `List.max`, which keep Python's
+> first-of-equals rule. `zip` and `chain` take
 > any `Iterable`, as Rust's two take any `IntoIterator`, so a list, set,
 > or range passes directly. `I` is a bounded type parameter, so `other.iter()`
 > is dispatched statically, with no trait value.
