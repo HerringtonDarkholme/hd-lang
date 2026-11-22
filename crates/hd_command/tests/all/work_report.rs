@@ -109,3 +109,45 @@ fn a_report_that_cannot_be_written_keeps_the_status() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// `item_decodes` of a warm `hd check` after a body edit in the first of
+/// `modules` library modules.
+fn items_decoded_after_an_edit(modules: usize) -> u64 {
+    let dir = package(&format!("work-item-decodes-{modules}"));
+    let module = |k: usize, add: i32| {
+        format!("pub fn f{k}(x: i32) -> i32:\n    x + {add}\n\npub fn g{k}() -> i32:\n    2\n")
+    };
+    for k in 0..modules {
+        std::fs::write(dir.join(format!("src/m{k}.hd")), module(k, 1)).expect("write");
+    }
+    let work = dir.join("work.json");
+    assert!(check(&dir, &work).status.success());
+    std::fs::write(dir.join("src/m0.hd"), module(0, 2)).expect("write");
+    let out = check(&dir, &work);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let report = std::fs::read_to_string(&work).expect("report");
+    let count = report
+        .split("\"item_decodes\":")
+        .nth(1)
+        .and_then(|rest| rest.split([',', '}']).next())
+        .and_then(|n| n.trim().parse().ok());
+    count.unwrap_or_else(|| panic!("no item_decodes: {report}"))
+}
+
+/// #1801 draft 64: the whole-program checks after the module checks
+/// decoded every module's items on every warm run, twice. Now the
+/// `@inline(.Always)` check reads only a module whose entry says it
+/// declares one, and the entry capabilities only an entry module or one
+/// with tests, so a warm edit decodes as many items at 16 modules as at 4.
+#[test]
+fn a_warm_edit_decodes_no_more_items_in_a_larger_package() {
+    let (small, large) = (
+        items_decoded_after_an_edit(4),
+        items_decoded_after_an_edit(16),
+    );
+    assert_eq!(small, large, "4 modules: {small}; 16 modules: {large}");
+}

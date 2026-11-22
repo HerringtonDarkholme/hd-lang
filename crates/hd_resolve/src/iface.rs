@@ -2318,6 +2318,8 @@ fn param_names(item: &Item) -> (bool, &[Generic]) {
 #[must_use]
 pub fn decode_items(names: &Names<'_>, bytes: &[u8]) -> Option<(Vec<Item>, Vec<Export>)> {
     let (items, exports) = decode_lazy(names, Arc::from(bytes))?;
+    let n = u64::try_from(items.len()).unwrap_or(u64::MAX);
+    hd_base::work::add(hd_base::work::Counter::ItemDecodes, n);
     let all = (0..items.len())
         .map(|i| items.get(i).cloned())
         .collect::<Option<Vec<Item>>>()?;

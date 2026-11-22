@@ -824,6 +824,9 @@ struct CheckOut {
     has_opaque: bool,
     /// The module has an init body, known without reading the entry's bodies.
     has_init: bool,
+    /// The module declares an `@inline(.Always)` item, known without
+    /// decoding the entry's items: `check_inline_always` decodes no other.
+    has_inline_always: bool,
     /// The hash of the module's checked items (the entry's items section,
     /// inferred results and rows written in), hashed once when the module
     /// is checked and read back from the entry's meta on a hit: what
@@ -8700,6 +8703,11 @@ impl Run<'_> {
         );
         meta.u8(u8::from(keep.iter().any(|b| b.item == init)));
         meta.hash(items_hash);
+        meta.u8(u8::from(
+            all_items
+                .iter()
+                .any(|i| i.inline() == hd_resolve::iface::INLINE_ALWAYS),
+        ));
         let Some(key) = self.check_key(m) else { return };
         // The references to `dbg`, whichever the profile: a release build
         // reads them (`module.dbg.release`), so they stay out of the TIR
@@ -8965,6 +8973,7 @@ impl Run<'_> {
         let has_opaque = !meta_reader.at_end() && meta_reader.u8() != 0;
         let has_init = !meta_reader.at_end() && meta_reader.u8() != 0;
         let items = (!meta_reader.at_end()).then(|| meta_reader.hash());
+        let has_inline_always = !meta_reader.at_end() && meta_reader.u8() != 0;
         let _ = self.check[m].set(Some(CheckOut {
             entry,
             content,
@@ -8972,6 +8981,7 @@ impl Run<'_> {
             generic_edges,
             has_opaque,
             has_init,
+            has_inline_always,
             items,
         }));
     }
@@ -9021,7 +9031,7 @@ impl Run<'_> {
             let Some(Some(checked)) = checked.get() else {
                 continue;
             };
-            if checked.has_errors {
+            if checked.has_errors || !checked.has_inline_always {
                 continue;
             }
             let Some(sections) = split_sections(&checked.entry) else {
@@ -11039,17 +11049,9 @@ impl Run<'_> {
             if checked.has_errors {
                 continue;
             }
-            let Some(sections) = split_sections(&checked.entry) else {
-                continue;
-            };
-            let Some(items) = sections
-                .get(2)
-                .and_then(|b| hd_resolve::decode_items(&names, b))
-            else {
-                continue;
-            };
             // Only an entry module or one with test bodies is parsed: a
-            // warm run reads no other module's text (`crates/hd_cache/DESIGN.md` §5.5).
+            // warm run reads no other module's text (`crates/hd_cache/DESIGN.md` §5.5),
+            // and decodes no other module's items.
             let entry = self.entry_module(m) && module.role != Role::Test;
             let tests = self.regs[m]
                 .get()
@@ -11059,6 +11061,15 @@ impl Run<'_> {
             if !entry && !tests {
                 continue;
             }
+            let Some(sections) = split_sections(&checked.entry) else {
+                continue;
+            };
+            let Some(items) = sections
+                .get(2)
+                .and_then(|b| hd_resolve::decode_items(&names, b))
+            else {
+                continue;
+            };
             let at = |(lo, hi): (u32, u32)| Span {
                 file: module.file,
                 lo,
