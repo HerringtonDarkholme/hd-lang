@@ -1338,6 +1338,58 @@ fn captures(n: usize) -> String {
     s
 }
 
+/// A generated scale program: its name, its generator, and its small size.
+type ScaleProgram<'a> = (&'a str, &'a dyn Fn(usize) -> String, usize);
+
+/// The emitted module of `source`, built for its `main`: its size in
+/// bytes and its function count, one per instance the build kept.
+fn built_size(source: &str) -> (usize, usize) {
+    let out = compile(
+        source,
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    let wasm = out.wasm.unwrap_or_default();
+    let mut functions = 0;
+    for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+        if let Ok(wasmparser::Payload::CodeSectionEntry(_)) = payload {
+            functions += 1;
+        }
+    }
+    (wasm.len(), functions)
+}
+
+/// #1800 draft 56: the scale programs the checker guards also build, and
+/// their emitted bytes and instances grow at most linearly with their size
+/// (a quarter's slack over the size ratio; std's runtime is a constant).
+#[test]
+fn scale_programs_build_linearly() {
+    let programs: [ScaleProgram; 4] = [
+        ("nested", &nested, 10),
+        ("wide", &wide, 50),
+        ("ring", &ring, 50),
+        (
+            "omitted-result chain",
+            &|n| omitted_result_chain(n, true, false),
+            50,
+        ),
+    ];
+    for (name, generate, small) in programs {
+        let large = 2 * small;
+        let ((b0, f0), (b1, f1)) = (built_size(&generate(small)), built_size(&generate(large)));
+        assert!(
+            b1 > b0 && b1 * small <= 5 * b0 * large / 4,
+            "{name}: {b0} and {b1} bytes at {small} and {large}",
+        );
+        assert!(
+            f1 * small <= 5 * f0 * large / 4,
+            "{name}: {f0} and {f1} functions at {small} and {large}",
+        );
+    }
+}
+
 /// Backend: count Wasm operators and, separately, the width of switch tables.
 fn operator_counts(source: &str) -> Result<(usize, u32), wasmparser::BinaryReaderError> {
     let out = compile(
