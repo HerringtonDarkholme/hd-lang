@@ -28,17 +28,18 @@ in the same commits.
 
 | Stage | Delivers | Added | Deleted | Net | Unblocks |
 | --- | --- | ---: | ---: | ---: | --- |
-| 1 | `Marker`, `Send`, `Wire`; one TIR codec generator for `Wire` and the host boundary | 1,370 | 1,210 | +160 | 2, 3 |
+| 1 | `Marker`, `Send`, `Wire` (built: 424dcdfb7) | 390 | 63 | +327 | 2, 3 |
 | 2 | crossing parameters, capture mode, reached top-level bindings, frozen loans | 1,390 | 20 | +1,370 | 6 |
-| 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers | 1,820 | 0 | +1,820 | 4, 5 |
+| 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers; the `Wire` codec template, the host boundary moved onto it, host handles as stubs | 2,500 | 1,750 | +750 | 4, 5 |
 | 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter | 500 | 0 | +500 | none |
 | 5 | one use-graph walk per executable | 280 | 20 | +260 | none |
 | 6 | worker instances, Wasm threads for `Scope` and `Background`, a jobs store | 2,200 | 0 | +2,200 | none |
 
-Every stage but 1 grows the code, since each adds a language feature;
-merge-batch needs Growth-OK for them. Stage 1 nearly pays for itself by
-moving the host codecs onto the new generator. A further deletion, host
-handles as stubs, is an owner question (section 10, Q21).
+Every stage grows the code, since each adds a language feature;
+merge-batch needs Growth-OK for them. Stage 3 pays most of itself back:
+its codec replaces the host codecs, and host handles become stubs (Q21,
+owner yes). The codec moved there from stage 1 (decision 2026-11-22),
+since stubs are its first user.
 
 ## 2. Order
 
@@ -60,6 +61,9 @@ Stage 3 fixes the build ID per compile and numbers interfaces by hash
 the per-target walk, a compile-time saving.
 
 ## 3. Stage 1: Markers And Codecs
+
+**Built** in 424dcdfb7, net +327: the markers only. The codec moved to
+stage 3 (section 5).
 
 **What.** `std.marker` declares `Marker`, `Send` and `Wire`. The solver
 answers them from the type's form, as it answers `Copy`
@@ -154,10 +158,17 @@ hashes and the toolchain ID, computed once per build. An interface is a
 declaration index. So every executable agrees with no shared table,
 unlike a number assigned once per build (section 10, Q18).
 
-**Deletes or replaces.** Nothing in this stage. A candidate: a host
-handle is a stub whose transport is the host. Folding `BodyKind::Handle`
-and `handle_vtable` (`hd_wasm/src/boundary.rs`, about 300 lines) into
-stubs would delete about 600 lines, and is an owner question.
+**Codec (moved from stage 1).** B5's codec is a std derive template
+over `Structure`, as serde's `Serialize` derive is, encoding to and
+decoding from `List[u8]` and returning a `Result`. The host boundary
+moves onto it, one `memory.copy` into the exchange buffer, and
+`rt:enc`/`rt:dec` in `hd_wasm/src/boundary.rs` are deleted, if the perf
+gates pass; otherwise the host codecs stay and the numbers are reported.
+
+**Deletes or replaces.** The host codec emission (about −1,150 with the
+codec above). A host handle is a stub whose transport is the host:
+`BodyKind::Handle` and `handle_vtable` fold into stubs (about −600; Q21,
+owner yes).
 
 **Per-run cost.**
 
