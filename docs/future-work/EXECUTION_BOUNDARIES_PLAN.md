@@ -172,12 +172,12 @@ stubs would delete about 600 lines, and is an owner question.
 ## 6. Stage 4: std.remote In hd
 
 **What.** The plain parts the record writes out in hd go into
-`lib/std/remote.hd`: `per_request`, `home`, `Call`, `Action`, `action`,
+lib/std/remote.hd (new): `per_request`, `home`, `Call`, `Action`, `action`,
 `HttpTransport`, `http_transport` and `http_handler`. A stdlib chapter
-`spec/std/remote.md` specifies them, with its prefix row,
+spec/std/remote.md (new) specifies them, with its prefix row,
 `STD_CHAPTERS` and `CHAPTER_PREFIXES` entries.
 
-**Sites.** `lib/std/remote.hd`; `lib/std/http.hd` is read, not changed:
+**Sites.** lib/std/remote.hd (new); `lib/std/http.hd` is read, not changed:
 `Http.send!` and `Request` already exist. The SDK's `serve!` takes
 `http_handler::[S]` as written in record section 5.
 
