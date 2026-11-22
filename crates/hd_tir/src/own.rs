@@ -45,12 +45,10 @@ pub mod boundary;
 pub(crate) mod cache;
 pub(crate) mod call_args;
 pub(crate) mod call_row;
-pub(crate) mod capture_entry;
 pub(crate) mod capture_env;
 pub(crate) mod captures;
 pub(crate) mod child;
 pub(crate) mod cold;
-pub(crate) mod cold_captures;
 pub(crate) mod cold_row;
 pub(crate) mod context;
 pub(crate) mod copy_struct;
@@ -64,7 +62,6 @@ pub(crate) mod join_results;
 mod local_refs;
 #[cfg(test)]
 pub(crate) mod test_cx;
-pub(crate) mod waker;
 pub use frame::store_finds_empty;
 mod effect_places;
 mod element_checks;
@@ -2046,6 +2043,16 @@ pub(crate) mod tests {
     use hd_base::SliceSort as _;
     use hd_base::{DefId, LocalId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
+
+    /// States `b`'s count packets under `cx`, then checks the owned body:
+    /// the fixture every count-packet module's tests share.
+    pub(crate) fn state(b: &mut Body, cx: &dyn super::OwnCx) {
+        let topo = crate::ir::Topology::new(b);
+        let edits = &mut super::splice::Tables::default();
+        super::counts::run(b, cx, &topo, edits).unwrap();
+        let errors = verify_owned(b, cx);
+        assert!(errors.is_empty(), "{errors:?}");
+    }
 
     /// A list type: counted, and changed in place by a push.
     const LIST: Ty = Ty(1_000_000);

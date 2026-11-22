@@ -60,7 +60,7 @@ mod tests {
         BodyKind, Providers, ReadMode, TirBuilder, TirSink, Topology, count, local_flags,
         verify_owned,
     };
-    use crate::own::{Pass, counts as statements, splice};
+    use crate::own::{Pass, splice};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
@@ -124,9 +124,7 @@ mod tests {
     }
 
     fn state(b: &mut Body) {
-        statements::run(b, &Facts, &Topology::new(b), &mut splice::Tables::default()).unwrap();
-        let errors = verify_owned(b, &Facts);
-        assert!(errors.is_empty(), "{errors:?}");
+        crate::own::tests::state(b, &Facts);
     }
 
     #[test]

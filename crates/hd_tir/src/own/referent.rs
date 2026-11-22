@@ -36,7 +36,7 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
 mod tests {
     use super::*;
     use crate::ir::{BodyKind, TirBuilder, TirSink, Topology, local_flags, verify_owned};
-    use crate::own::{counts, splice, tests::Cx};
+    use crate::own::{splice, tests::Cx};
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::Ty;
 
@@ -80,13 +80,6 @@ mod tests {
         b.finish(root, &[]).unwrap()
     }
 
-    fn stated(b: &mut Body, facts: &Facts) {
-        let topo = Topology::new(b);
-        counts::run(b, facts, &topo, &mut splice::Tables::default()).unwrap();
-        let errors = verify_owned(b, facts);
-        assert!(errors.is_empty(), "{errors:?}");
-    }
-
     fn declarations(b: &Body) -> Vec<(Tag, u32, Info)> {
         (0..b.len())
             .filter_map(|i| {
@@ -100,7 +93,7 @@ mod tests {
     fn each_possible_referent_has_separate_cold_and_teardown_contracts() {
         let mut b = body();
         for _ in 0..2 {
-            stated(&mut b, &Facts(true));
+            crate::own::tests::state(&mut b, &Facts(true));
             let ds = declarations(&b);
             assert_eq!(ds.len(), 6);
             for l in [0, 1] {
@@ -130,14 +123,14 @@ mod tests {
         let text = crate::ir::print(&b);
         assert_eq!(crate::ir::print(&crate::ir::parse(&text).unwrap()), text);
         let mut ordinary = body();
-        stated(&mut ordinary, &Facts(false));
+        crate::own::tests::state(&mut ordinary, &Facts(false));
         assert!(declarations(&ordinary).is_empty());
     }
 
     #[test]
     fn the_parameter_object_contract_requires_its_own_action_phase_local_and_reason() {
         let mut b = body();
-        stated(&mut b, &Facts(true));
+        crate::own::tests::state(&mut b, &Facts(true));
         for (tag, at, reason) in [
             (Tag::Retain, At::Cold, 8),
             (Tag::Release, At::FrameDrop, 2),
@@ -225,7 +218,7 @@ mod tests {
         let root = b.close_block(outer, None, Ty::VOID, NodeIdx::NONE);
         let mut b = b.finish(root, &[]).unwrap();
         for _ in 0..2 {
-            stated(&mut b, &Facts(false));
+            crate::own::tests::state(&mut b, &Facts(false));
             let ds = declarations(&b);
             assert_eq!(ds.len(), 6);
             for sub in [1, 2] {

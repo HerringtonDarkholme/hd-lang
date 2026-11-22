@@ -1,9 +1,9 @@
 //! Shared writing and verification of operation and function-boundary count statements.
 
 use super::{
-    OwnCx, abi, append_copy, arguments, cache, call_args, call_row, capture_entry, captures, child,
-    cold, cold_captures, cold_row, context, copy_struct, join_results, map_key, map_probe_unique,
-    map_value, parameter_copy, referent, splice, waker,
+    OwnCx, abi, append_copy, arguments, cache, call_args, call_row, captures, child, cold,
+    cold_row, context, copy_struct, join_results, map_key, map_probe_unique, map_value,
+    parameter_copy, referent, splice,
 };
 use crate::ir::{
     Body, Tag, Topology,
@@ -43,8 +43,6 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     }
     out.extend(referent::counts(b, cx));
     out.extend(captures::counts(b, cx));
-    out.extend(cold_captures::counts(b, cx));
-    out.extend(capture_entry::counts(b, cx));
     out.extend(context::counts(b, cx));
     out.extend(call_row::counts(b, cx, topo));
     out.extend(call_args::counts(b, cx, topo));
@@ -56,7 +54,6 @@ fn expected(b: &Body, cx: &dyn OwnCx, topo: &Topology) -> Vec<(Tag, u32, Info)> 
     out.extend(map_value::counts(b, cx));
     out.extend(map_probe_unique::counts(b, cx));
     out.extend(child::counts(b, cx, topo));
-    out.extend(waker::counts(b));
     for i in 0..b.len() {
         if matches!(b.tags[i], Tag::Call | Tag::Await)
             && let Some(callee) = crate::ir::Callee::from_words(b.record(b.data[i][0]))
