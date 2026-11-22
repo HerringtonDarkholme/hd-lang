@@ -1,7 +1,7 @@
 # Execution Domains: Moving Code And Data
 
-Status: proposal, 2026-11-02; domain: language (execution domains and
-crossings) and std; not accepted. Nothing here is in the specification.
+Status: accepted by the owner 2026-11-21 (proposed 2026-11-02); domain: language (execution domains and
+crossings) and std. Not yet in the specification; implementation is staged in #2288.
 
 - [1. Context And Goal](#1-context-and-goal)
 - [2. Eight Programs That Cross](#2-eight-programs-that-cross)
