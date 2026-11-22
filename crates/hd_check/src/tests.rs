@@ -10,6 +10,7 @@
 //! runner (`case_runner`).
 
 use hd_base::HashSet;
+use hd_types::AdtId;
 
 use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
@@ -616,10 +617,10 @@ pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
         mutable: false,
         counted: true,
     });
-    pool.intern_ty(&TyData::Adt {
-        def: cx.names.item("std.core", "Result"),
-        args: pool.list(&[Ty::VOID, error]),
-    })
+    pool.intern_ty(&TyData::Adt(
+        AdtId::Declared(cx.names.item("std.core", "Result")),
+        pool.list(&[Ty::VOID, error]),
+    ))
 }
 
 /// The std body that a test case of registration function `def` runs. Its
@@ -661,10 +662,10 @@ struct RegCall<'t> {
 /// (`std-testing.option.timeout-any-duration`).
 pub(crate) fn timeout_ty(cx: &BodyCx<'_>) -> Ty {
     let pool = cx.names.pool;
-    let duration = pool.intern_ty(&TyData::Adt {
-        def: cx.names.item("std.time", "Duration"),
-        args: TyList::EMPTY,
-    });
+    let duration = pool.intern_ty(&TyData::Adt(
+        AdtId::Declared(cx.names.item("std.time", "Duration")),
+        TyList::EMPTY,
+    ));
     pool.applied(cx.names.known.option, duration)
 }
 

@@ -17,6 +17,7 @@ use hd_diag::Code;
 use hd_resolve::{Generic, HeadKind, ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink, local_flags, sub_flags};
+use hd_types::AdtId;
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
 
@@ -126,7 +127,7 @@ impl Ck<'_, '_> {
         };
         let pool = self.pool();
         let target = match pool.get(self.resolved(*self_ty)) {
-            TyData::Adt { def, .. } => self.cx.names.is_local(def),
+            TyData::Adt(AdtId::Declared(def), _) => self.cx.names.is_local(def),
             _ => false,
         };
         let names = self.cx.names;

@@ -231,16 +231,12 @@ mod tests {
     }
     #[test]
     fn structural_rank_work_is_linear_and_cached_across_overlapping_roots() {
-        use hd_types::TyData;
         for (width, depth) in [(1000, 20), (1, 1000), (1, 10000)] {
             let pool = InternPool::default();
             let mut root = Ty::I32;
             let mut roots = Vec::new();
             for _ in 0..depth {
-                root = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&vec![root; width]),
-                    rest: None,
-                });
+                root = pool.product(pool.list(&vec![root; width]), None);
                 roots.push(root);
             }
             let mut ranks = Ranks::default();

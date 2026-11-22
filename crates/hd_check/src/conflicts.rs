@@ -11,6 +11,7 @@
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_types::AdtId;
 
 use hd_base::{DefId, Symbol};
 use hd_resolve::{ImplKind, Item, ItemData, Lookup, Names};
@@ -72,7 +73,7 @@ pub fn inherent_methods(names: &Names<'_>, lookup: &Lookup<'_>) -> Inherent {
             ..
         } = &it.data
             && *trait_ == DefId::NONE
-            && let TyData::Adt { def, .. } = pool.get(*self_ty)
+            && let TyData::Adt(AdtId::Declared(def), _) = pool.get(*self_ty)
         {
             out.entry(def).or_default().extend(methods.iter().copied());
         }
@@ -123,7 +124,7 @@ pub fn promotion_conflicts(
                     });
                 }
                 if f.embedded
-                    && let TyData::Adt { def: part, .. } = pool.get(f.ty)
+                    && let TyData::Adt(AdtId::Declared(part), _) = pool.get(f.ty)
                 {
                     let mut p = path.clone();
                     p.push(i);

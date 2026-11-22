@@ -16,6 +16,7 @@
 use hd_base::LocalId;
 use hd_syntax::NodeRef;
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag, local_flags};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use crate::access::Projection;
@@ -27,7 +28,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let known = self.cx.names.known;
-        matches!(pool.get(t), TyData::Adt { def, .. } if def == known.list || def == known.map)
+        matches!(pool.get(t), TyData::Adt(AdtId::Declared(def), _) if def == known.list || def == known.map)
     }
 
     /// Whether `t` is a `List` or `Map` type.

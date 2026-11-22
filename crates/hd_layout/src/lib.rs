@@ -40,8 +40,7 @@ use hd_base::{NotImplemented, SliceSort as _, Stage, StageResult};
 use hd_mono::layout::StdKind;
 pub use hd_mono::layout::strip_newtype;
 use hd_mono::{ProgramEnv, subst};
-use hd_types::ANON_SUM;
-use hd_types::{InternPool, Prim, Ty, TyData};
+use hd_types::{AdtId, InternPool, Prim, Ty, TyData};
 
 /// A scalar value class (rustc's `Primitive`): every reference is an
 /// `i32` address.
@@ -272,7 +271,7 @@ pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
 /// The kind of `t`, once stripped, when it is a list or a map.
 pub fn coll_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<StdKind> {
     match pool.get(strip_newtype(pool, env, t)) {
-        TyData::Adt { def, .. } => {
+        TyData::Adt(AdtId::Declared(def), _) => {
             Some(env.std_kind(def)).filter(|k| matches!(k, StdKind::List | StdKind::Map))
         }
         _ => None,
@@ -283,11 +282,11 @@ pub fn coll_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<StdKi
 pub fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty> {
     match pool.get(t) {
         // ruled out: sums have variant payloads, not declared product fields.
-        TyData::Adt { def, args } if def.get().is_some() => {
+        TyData::Adt(AdtId::Declared(def), args) => {
             let fs = env.data_fields(def)?;
             Some(hd_mono::subst(pool, env, def, args, *fs.get(f as usize)?))
         }
-        TyData::Tuple { .. } => tuple_members(pool, t).get(f as usize).copied(),
+        TyData::Adt(AdtId::Product { .. }, args) => pool.list_items(args).get(f as usize).copied(),
         _ => None,
     }
 }
@@ -296,9 +295,7 @@ pub fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Optio
 /// when it has one, laid out as one more member.
 pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
-        TyData::Tuple { elems, rest } => {
-            pool.list_items(elems).iter().copied().chain(rest).collect()
-        }
+        TyData::Adt(AdtId::Product { .. }, args) => pool.list_items(args).to_vec(),
         _ => Vec::new(),
     }
 }
@@ -326,8 +323,8 @@ pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult
 /// struct or enum kept by value.
 fn inline(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     match pool.get(t) {
-        TyData::Tuple { .. } | TyData::Adt { def: ANON_SUM, .. } => true,
-        TyData::Adt { def, .. } => {
+        TyData::Adt(AdtId::Sum | AdtId::Product { .. }, _) => true,
+        TyData::Adt(AdtId::Declared(def), _) => {
             env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value)
         }
         _ => false,
@@ -355,13 +352,13 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
     }
     let t = strip_newtype(pool, env, t);
     let fields: Option<(Vec<String>, Vec<Ty>)> = match pool.get(t) {
-        TyData::Tuple { .. } => {
+        TyData::Adt(AdtId::Product { .. }, _) => {
             let members = tuple_members(pool, t);
             Some(((0..members.len()).map(|k| k.to_string()).collect(), members))
         }
-        TyData::Adt { def, args }
-            // ruled out: anonymous sums use numbered positions, not declared field names.
-            if def.get().is_some() && env.std_kind(def) == StdKind::Other
+        TyData::Adt(AdtId::Declared(def), args)
+            // Anonymous shapes have no declared field names.
+            if env.std_kind(def) == StdKind::Other
                 && matches!(kind(pool, env, t), Kind::Value)
                 && !env.is_enum(def) =>
         {
@@ -401,18 +398,14 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
 /// fields, a struct's fields. Every other type is one leaf or address.
 pub fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
-        TyData::Tuple { .. } => tuple_members(pool, t),
-        TyData::Adt { def, args }
-            if env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value) =>
+        TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, t),
+        TyData::Adt(def, args)
+            if def.get().is_none_or(|d| env.std_kind(d) == StdKind::Other)
+                && matches!(kind(pool, env, t), Kind::Value) =>
         {
             match hd_mono::layout::enum_variants(pool, env, def, args) {
                 Some(variants) => variants.into_iter().flatten().collect(),
-                None => env
-                    .data_fields(def)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|f| subst(pool, env, def, args, f))
-                    .collect(),
+                None => hd_mono::layout::product_fields(pool, env, def, args),
             }
         }
         _ => Vec::new(),
@@ -663,8 +656,10 @@ fn mem_one(
             Prim::String => Mem::string(),
         },
         TyData::Never => Mem::NEVER,
-        TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part, &named)?.0,
-        TyData::Adt { def, args } => match env.std_kind(def) {
+        TyData::Adt(AdtId::Product { .. }, _) => {
+            payload_mem_by(&tuple_members(pool, t), part, &named)?.0
+        }
+        TyData::Adt(def, args) => match def.get().map_or(StdKind::Other, |d| env.std_kind(d)) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::nonnull(),
             StdKind::Other => match hd_mono::layout::enum_variants(pool, env, def, args) {
@@ -798,11 +793,13 @@ pub fn ref_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<RefLeaf
             TyData::Prim(Prim::String) | TyData::TraitValue { .. } => leaf(0, true),
             TyData::Fn { .. } => leaf(1, true),
             TyData::Context(_) => leaf(0, true),
-            TyData::Tuple { .. } => fields(&tuple_members(pool, t), &mut work),
-            TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => leaf(0, true),
+            TyData::Adt(AdtId::Product { .. }, _) => fields(&tuple_members(pool, t), &mut work),
+            TyData::Adt(AdtId::Declared(def), _) if env.std_kind(def) != StdKind::Other => {
+                leaf(0, true);
+            }
             TyData::Ref { counted, .. } => leaf(0, counted),
             TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => leaf(0, true),
-            TyData::Adt { .. } => match kind(pool, env, t) {
+            TyData::Adt(..) => match kind(pool, env, t) {
                 Kind::Ref { whole, .. } => leaf(0, whole),
                 Kind::Value => {
                     if let Some(vs) = variants(pool, env, t) {
@@ -884,10 +881,10 @@ fn holds_one(
         | TyData::Fn { .. }
         | TyData::TraitValue { .. }
         | TyData::Context(_) => true,
-        TyData::Tuple { .. } => tuple_members(pool, t).into_iter().any(part),
-        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
+        TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, t).into_iter().any(part),
+        TyData::Adt(AdtId::Declared(def), _) if env.std_kind(def) != StdKind::Other => true,
         TyData::Ref { counted, .. } => held(counted),
-        TyData::Adt { def, args } => {
+        TyData::Adt(def, args) => {
             let any = match hd_mono::layout::enum_variants(pool, env, def, args) {
                 Some(_) => {
                     variants(pool, env, t).is_some_and(|vs| vs.iter().flatten().any(|&f| part(f)))
@@ -895,7 +892,7 @@ fn holds_one(
                 None => value_parts(pool, env, t).into_iter().any(part),
             };
             // module.rt.drop.not-copy requires a declaration; payload hooks are in `any`.
-            any || (def.get().is_some() && env.has_drop(def))
+            any || def.get().is_some_and(|d| env.has_drop(d))
         }
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => true,
         _ => false,
@@ -1192,14 +1189,8 @@ pub fn members(
         return got;
     }
     let tys: Vec<Ty> = match pool.get(t) {
-        TyData::Tuple { .. } => tuple_members(pool, t),
-        // ruled out: sums use variant layouts; only declared products have members.
-        TyData::Adt { def, args } if def.get().is_some() => env
-            .data_fields(def)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|f| subst(pool, env, def, args, f))
-            .collect(),
+        TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, t),
+        TyData::Adt(id, args) => hd_mono::layout::product_fields(pool, env, id, args),
         _ => Vec::new(),
     };
     crate::work::member_layouts(tys.len());
@@ -1844,7 +1835,7 @@ fn drops_by_parts(
         }
         crate::work::member_layouts(1);
         // ruled out: anonymous sums have no declaration-level Drop hook.
-        let own = matches!(pool.get(u), TyData::Adt { def, .. } if def.get().is_some() && env.has_drop(def));
+        let own = matches!(pool.get(u), TyData::Adt(AdtId::Declared(def), _) if env.has_drop(def));
         let got = own || parts.iter().any(|p| done.get(p).copied().unwrap_or(false));
         open.remove(&u);
         done.insert(u, got);
@@ -1883,7 +1874,7 @@ pub fn newtype_layers(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, visit: &mu
 pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<VariantTypes> {
     let t = strip_newtype(pool, env, t);
     cached_variants(t, || match pool.get(t) {
-        TyData::Adt { def, args } => hd_mono::layout::enum_variants(pool, env, def, args),
+        TyData::Adt(def, args) => hd_mono::layout::enum_variants(pool, env, def, args),
         _ => None,
     })
 }
@@ -2093,10 +2084,8 @@ mod tests {
         if let Some(saved) = MEMS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&ty)).cloned()) {
             return saved;
         }
-        let TyData::Tuple { elems, .. } = pool.get(ty) else {
-            panic!("test tuple");
-        };
-        let item = pool.list_items(elems)[0];
+        let (elems, _) = pool.product_parts(ty).expect("test product");
+        let item = elems[0];
         let computed = match pool.get(item) {
             TyData::Prim(Prim::I64) => Mem::one(Val::I64, 8, false),
             TyData::Prim(Prim::String) => Mem::string(),
@@ -2114,15 +2103,9 @@ mod tests {
     #[test]
     fn a_later_layout_from_a_different_pool_matches_a_clean_cache() {
         let earlier = InternPool::default();
-        let earlier_ty = earlier.intern_ty(&TyData::Tuple {
-            elems: earlier.list(&[Ty::prim(Prim::I64)]),
-            rest: None,
-        });
+        let earlier_ty = earlier.product(earlier.list(&[Ty::prim(Prim::I64)]), None);
         let later = InternPool::default();
-        let later_ty = later.intern_ty(&TyData::Tuple {
-            elems: later.list(&[Ty::STRING]),
-            rest: None,
-        });
+        let later_ty = later.product(later.list(&[Ty::STRING]), None);
         assert_eq!(earlier_ty, later_ty, "the pools reuse the same type index");
         let clean = cached(|| tuple_mem(&later, later_ty)).expect("clean layout");
 

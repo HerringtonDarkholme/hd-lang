@@ -148,10 +148,7 @@ fn a_shared_read_with_another_owner_does_not_use_the_returned_loan_abi() {
     // CSE may share the return's immutable read with an otherwise discarded
     // tuple. That extra owner requires the ordinary result convention.
     let args = record(&mut body, &[value]);
-    let tuple = pool.intern_ty(&TyData::Tuple {
-        elems: pool.list(&[Ty::STRING]),
-        rest: None,
-    });
+    let tuple = pool.product(pool.list(&[Ty::STRING]), None);
     let at = BatchInsert {
         block: u32::try_from(root).expect("root"),
         pos: u32::try_from(body.record(body.data[root][0]).len()).expect("members"),

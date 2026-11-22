@@ -1,6 +1,6 @@
 //! The `InternPool` (`docs/compiler/data-structures.md` §3.4, §3.9.2): every type, row and
 //! type list is one hash-consed item, so global type equality is one
-//! integer compare. Storage is a one-byte tag, a `u32` data word, a `u32`
+//! integer compare. Storage is a two-byte shape tag, a `u32` data word, a `u32`
 //! meta word (flags and node count) and variable parts in `extra`.
 //! Types that hold inference variables live in the checked body's
 //! `LocalPool` instead; [`Types`] reads and builds through both.
@@ -18,8 +18,27 @@ pub struct Ty(pub u32);
 
 /// An anonymous sum has no declaration; its ordered argument list is its
 /// shape, including its arity (`types.union.identity`, `types.union.nesting`).
-/// `DefId::NONE` encodes this absence, never a fabricated declaration ID.
-pub const ANON_SUM: DefId = DefId::NONE;
+/// Its typed identity carries no declaration ID or allocated declaration.
+pub const ANON_SUM: AdtId = AdtId::Sum;
+
+/// A declared type, or an anonymous shape with no declaration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AdtId {
+    Declared(DefId),
+    Sum,
+    Product { rest: bool },
+}
+
+impl AdtId {
+    /// Anonymous shapes have no declaration to query.
+    #[must_use]
+    pub const fn get(self) -> Option<DefId> {
+        match self {
+            Self::Declared(def) => def.get(),
+            Self::Sum | Self::Product { .. } => None,
+        }
+    }
+}
 
 /// An interned list of types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -305,15 +324,10 @@ pub enum TyData {
     /// already reported. It unifies with anything, so one error isn't
     /// reported twice.
     Poison,
-    /// A declared type applied to its arguments (`types.forms.with-impl-types`),
-    /// or an anonymous sum with no declaration (`ANON_SUM`); its argument
-    /// list preserves the sum's arity, order, duplicates and nesting.
-    Adt { def: DefId, args: TyList },
-    /// A tuple `(A, B)` (`types.tuple.structural`). `rest` is the `List[T]`
-    /// of a rest element, as in `(A, List[T]...)` (`types.tuple.rest.form`,
-    /// `types.tuple.rest.list`); it takes part in identity
-    /// (`types.tuple.rest.same`).
-    Tuple { elems: TyList, rest: Option<Ty> },
+    /// A declared type or anonymous product/sum, with members in written order.
+    /// A product's rest flag and final List member retain rest identity
+    /// (`types.tuple.rest.same`); sums retain arity, duplicates and nesting.
+    Adt(AdtId, TyList),
     /// A function type `fn(A) -> R $ Row` (`types.fn.constructor`);
     /// `suspends` marks a bang function, `SuspendFn`.
     Fn {
@@ -401,11 +415,17 @@ impl TyData {
     /// An ordered anonymous sum, represented by the same ADT as an enum.
     #[must_use]
     pub fn sum(args: TyList) -> Self {
-        Self::Adt {
-            def: ANON_SUM,
-            args,
-        }
+        Self::Adt(ANON_SUM, args)
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u8)]
+enum AdtTag {
+    Declared,
+    Sum,
+    Product,
+    RestProduct,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -414,9 +434,7 @@ enum PoolTag {
     Prim,
     Never,
     Poison,
-    Adt,
-    Tuple,
-    TupleRest,
+    Adt(AdtTag),
     Fn,
     TraitValue,
     Opaque,
@@ -506,13 +524,40 @@ impl Slots {
 }
 
 impl PoolTag {
+    /// Content-hash tag: its constructor in the low byte, ADT shape above it.
+    /// Hash discrimination only; no index space or program limit is consumed.
+    const fn word(self) -> u32 {
+        match self {
+            Self::Prim => 0,
+            Self::Never => 1,
+            Self::Poison => 2,
+            Self::Fn => 6,
+            Self::TraitValue => 7,
+            Self::Opaque => 8,
+            Self::Param => 9,
+            Self::Assoc => 10,
+            Self::Ref => 11,
+            Self::RefMut => 12,
+            Self::CRef => 13,
+            Self::CRefMut => 14,
+            Self::Infer => 15,
+            Self::Canon => 16,
+            Self::List => 17,
+            Self::Row => 18,
+            Self::RowTy => 19,
+            Self::Context => 20,
+            Self::Const => 21,
+            Self::Deps => 22,
+            Self::Adt(kind) => 3 | (kind as u32) << 8,
+        }
+    }
+
     /// Whether `data` is an offset into `extra` (§3.9.2's table); the other
     /// tags keep their whole payload inline in `data`.
     const fn has_record(self) -> bool {
         matches!(
             self,
-            PoolTag::Adt
-                | PoolTag::TupleRest
+            PoolTag::Adt(AdtTag::Declared)
                 | PoolTag::Fn
                 | PoolTag::TraitValue
                 | PoolTag::Opaque
@@ -577,7 +622,7 @@ impl Cols {
         }
         let x = |k: u32| self.extra[off + k];
         let len = match tag {
-            PoolTag::Adt | PoolTag::TupleRest | PoolTag::Param | PoolTag::List => 2,
+            PoolTag::Adt(AdtTag::Declared) | PoolTag::Param | PoolTag::List => 2,
             PoolTag::Assoc => 4,
             PoolTag::Const => 3,
             PoolTag::Opaque => 5,
@@ -618,7 +663,7 @@ impl Content<'_> {
     fn hash(&self) -> u64 {
         const K: u64 = 0x517c_c1b7_2722_0a95;
         let mix = |h: u64, w: u32| (h.rotate_left(5) ^ u64::from(w)).wrapping_mul(K);
-        let mut h = mix(0, self.tag as u32);
+        let mut h = mix(0, self.tag.word());
         if self.tag.has_record() {
             h = self.head.iter().copied().fold(h, mix);
             h = self.tys.iter().map(|t| t.0).fold(h, mix);
@@ -751,10 +796,7 @@ impl Default for InternPool {
         p.list(&[]);
         p.row(&RowData::default());
         // `void` is the empty tuple (`types.void`).
-        p.intern_ty(&TyData::Tuple {
-            elems: TyList::EMPTY,
-            rest: None,
-        });
+        p.product(TyList::EMPTY, None);
         p
     }
 }
@@ -1023,6 +1065,13 @@ impl InternPool {
     pub fn row_data(&self, r: RowId) -> RowData {
         self.types().row_data(r)
     }
+    pub fn product(&self, elems: TyList, rest: Option<Ty>) -> Ty {
+        self.types().product(elems, rest)
+    }
+    #[must_use]
+    pub fn product_parts(&self, t: Ty) -> Option<(&[Ty], Option<Ty>)> {
+        self.types().product_parts(t)
+    }
     pub fn intern_ty(&self, t: &TyData) -> Ty {
         self.types().intern_ty(t)
     }
@@ -1039,11 +1088,6 @@ impl InternPool {
     #[must_use]
     pub fn adt_parts(&self, t: Ty) -> (DefId, TyList) {
         self.types().adt_parts(t)
-    }
-    /// [`Types::tuple_parts`].
-    #[must_use]
-    pub fn tuple_parts(&self, t: Ty) -> (TyList, Option<Ty>) {
-        self.types().tuple_parts(t)
     }
     /// [`Types::ref_inner`].
     #[must_use]
@@ -1433,25 +1477,21 @@ impl<'a> Types<'a> {
                     stack.push((a, b, d));
                     true
                 }
-                // A rest that does not line up fails the whole walk, so it
-                // fails before the elements' slots are appended.
-                (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
-                    if let (Some(x), Some(y)) = (ra, rb) {
-                        stack.push((x, y, d));
-                    }
-                    ra.is_some() == rb.is_some() && pairs(stack, a, b)
-                }
                 // A function type inside has no slot of the outer one.
                 (TyData::Fn { .. }, TyData::Fn { .. }) => true,
-                (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
-                | (
+                // Product identity includes the rest flag; the final member is
+                // visited after fixed members, as the source's slots require.
+                (TyData::Adt(x, a), TyData::Adt(y, b)) if x == y && x != AdtId::Sum => {
+                    pairs(stack, a, b)
+                }
+                (
                     TyData::TraitValue {
                         def: x, args: a, ..
                     },
                     TyData::TraitValue {
                         def: y, args: b, ..
                     },
-                ) if x == y && x.get().is_some() => pairs(stack, a, b),
+                ) if x == y => pairs(stack, a, b),
                 _ => false,
             }
         })
@@ -1528,16 +1568,9 @@ impl<'a> Types<'a> {
             deps,
         } = t
             && let [one] = self.list_items(*params)
-            && let TyData::Tuple { elems, rest } = self.get(*one)
+            && let TyData::Adt(AdtId::Product { rest }, params) = self.get(*one)
         {
-            let (params, inputs) = match rest {
-                None => (elems, Inputs::Fixed),
-                Some(r) => {
-                    let mut all = self.list_items(elems).to_vec();
-                    all.push(r);
-                    (self.list(&all), Inputs::Rest)
-                }
-            };
+            let inputs = if rest { Inputs::Rest } else { Inputs::Fixed };
             return self.intern_ty(&TyData::Fn {
                 params,
                 result: *result,
@@ -1580,18 +1613,16 @@ impl<'a> Types<'a> {
             TyData::Prim(p) => (T::Prim, *p as u32, 0),
             TyData::Never => (T::Never, 0, 0),
             TyData::Poison => (T::Poison, 0, meta::HAS_POISON),
-            TyData::Adt { args, .. } => (T::Adt, 0, meta::level(self.list_meta(*args))),
-            TyData::Tuple { elems, rest: None } => {
-                (T::Tuple, elems.0, meta::level(self.list_meta(*elems)))
+            TyData::Adt(id, args) => {
+                let (kind, data) = match id {
+                    AdtId::Declared(_) => (AdtTag::Declared, 0),
+                    AdtId::Sum => (AdtTag::Sum, args.0),
+                    AdtId::Product { rest: false } => (AdtTag::Product, args.0),
+                    AdtId::Product { rest: true } => (AdtTag::RestProduct, args.0),
+                };
+                (T::Adt(kind), data, meta::level(self.list_meta(*args)))
             }
-            TyData::Tuple {
-                elems,
-                rest: Some(r),
-            } => (
-                T::TupleRest,
-                0,
-                meta::level(j(self.list_meta(*elems), self.meta_of(*r))),
-            ),
+
             TyData::Fn {
                 params,
                 result,
@@ -1656,17 +1687,11 @@ impl<'a> Types<'a> {
         let slots = self.slots_of_data(t);
         let mut buf = [0u32; 5];
         let rec: &[u32] = match t {
-            TyData::Adt { def, args } => {
+            TyData::Adt(AdtId::Declared(def), args) => {
                 buf[..2].copy_from_slice(&[def.raw(), args.0]);
                 &buf[..2]
             }
-            TyData::Tuple {
-                elems,
-                rest: Some(r),
-            } => {
-                buf[..2].copy_from_slice(&[elems.0, r.0]);
-                &buf[..2]
-            }
+
             TyData::Fn {
                 params,
                 result,
@@ -1733,14 +1758,44 @@ impl<'a> Types<'a> {
         let ps = self.list_items(params);
         match (inputs, ps) {
             (Inputs::Tuple, [one]) => *one,
-            (Inputs::Rest, [init @ .., last]) => self.intern_ty(&TyData::Tuple {
-                elems: self.list(init),
-                rest: Some(*last),
-            }),
-            _ => self.intern_ty(&TyData::Tuple {
-                elems: params,
-                rest: None,
-            }),
+            (Inputs::Rest, [.., _]) => {
+                self.intern_ty(&TyData::Adt(AdtId::Product { rest: true }, params))
+            }
+            _ => self.product(params, None),
+        }
+    }
+
+    /// Constructs an anonymous product. Only the source's rest form needs
+    /// a new combined member list; ordinary products reuse `elems` directly.
+    #[must_use]
+    pub fn product(self, elems: TyList, rest: Option<Ty>) -> Ty {
+        let args = if let Some(rest) = rest {
+            let mut parts = self.list_items(elems).to_vec();
+            parts.push(rest);
+            self.list(&parts)
+        } else {
+            elems
+        };
+        self.intern_ty(&TyData::Adt(
+            AdtId::Product {
+                rest: rest.is_some(),
+            },
+            args,
+        ))
+    }
+
+    /// Product members borrowed in O(1); splitting the rest never interns
+    /// or allocates a prefix. Malformed rest shapes have no parts.
+    #[must_use]
+    pub fn product_parts(self, t: Ty) -> Option<(&'a [Ty], Option<Ty>)> {
+        let (c, i) = self.at(t.0);
+        match c.tag[i] {
+            PoolTag::Adt(AdtTag::Product) => Some((self.list_items(TyList(c.data[i])), None)),
+            PoolTag::Adt(AdtTag::RestProduct) => {
+                let (last, fixed) = self.list_items(TyList(c.data[i])).split_last()?;
+                Some((fixed, Some(*last)))
+            }
+            _ => None,
         }
     }
 
@@ -1749,7 +1804,7 @@ impl<'a> Types<'a> {
     #[must_use]
     pub fn adt(self, t: Ty) -> Option<(DefId, TyList)> {
         let (c, i) = self.at(t.0);
-        if c.tag[i] != PoolTag::Adt {
+        if c.tag[i] != PoolTag::Adt(AdtTag::Declared) {
             return None;
         }
         let off = c.data[i];
@@ -1762,23 +1817,9 @@ impl<'a> Types<'a> {
     pub fn adt_parts(self, t: Ty) -> (DefId, TyList) {
         let (c, i) = self.at(t.0);
         // ruled out: callers have established the ADT constructor.
-        debug_assert_eq!(c.tag[i], PoolTag::Adt);
+        debug_assert_eq!(c.tag[i], PoolTag::Adt(AdtTag::Declared));
         let off = c.data[i];
         (DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1]))
-    }
-
-    /// Fixed elements and optional List rest of an already checked tuple.
-    #[must_use]
-    pub fn tuple_parts(self, t: Ty) -> (TyList, Option<Ty>) {
-        let (c, i) = self.at(t.0);
-        // ruled out: callers have established a tuple, including a List rest.
-        debug_assert!(matches!(c.tag[i], PoolTag::Tuple | PoolTag::TupleRest));
-        if c.tag[i] == PoolTag::Tuple {
-            (TyList(c.data[i]), None)
-        } else {
-            let off = c.data[i];
-            (TyList(c.extra[off]), Some(Ty(c.extra[off + 1])))
-        }
     }
 
     /// The declared referent of an already checked reference constructor.
@@ -1809,10 +1850,7 @@ impl<'a> Types<'a> {
     /// `def[arg]`: `Option[T]` for `T?` (`types.option.sugar`).
     #[must_use]
     pub fn applied(self, def: DefId, arg: Ty) -> Ty {
-        self.intern_ty(&TyData::Adt {
-            def,
-            args: self.list(&[arg]),
-        })
+        self.intern_ty(&TyData::Adt(AdtId::Declared(def), self.list(&[arg])))
     }
 
     /// The function type `f` with `lead` before its parameters and, with
@@ -1918,18 +1956,16 @@ impl<'a> Types<'a> {
             PoolTag::Prim => TyData::Prim(Prim::ALL[d as usize]),
             PoolTag::Never => TyData::Never,
             PoolTag::Poison => TyData::Poison,
-            PoolTag::Adt => TyData::Adt {
-                def: DefId::from_raw(x[0]),
-                args: TyList(x[1]),
-            },
-            PoolTag::Tuple => TyData::Tuple {
-                elems: TyList(d),
-                rest: None,
-            },
-            PoolTag::TupleRest => TyData::Tuple {
-                elems: TyList(x[0]),
-                rest: Some(Ty(x[1])),
-            },
+            PoolTag::Adt(kind) => {
+                let (id, args) = match kind {
+                    AdtTag::Declared => (AdtId::Declared(DefId::from_raw(x[0])), TyList(x[1])),
+                    AdtTag::Sum => (AdtId::Sum, TyList(d)),
+                    AdtTag::Product => (AdtId::Product { rest: false }, TyList(d)),
+                    AdtTag::RestProduct => (AdtId::Product { rest: true }, TyList(d)),
+                };
+                TyData::Adt(id, args)
+            }
+
             PoolTag::Fn => TyData::Fn {
                 params: TyList(x[0]),
                 result: Ty(x[1]),
@@ -2017,17 +2053,14 @@ impl<'a> Types<'a> {
     /// place. A leaf appends nothing. Cost: one pass over the children.
     pub fn children(self, t: Ty, out: &mut Vec<Ty>) {
         match self.get(t) {
-            TyData::Adt { args, .. } => {
+            TyData::Adt(_, args) => {
                 out.extend_from_slice(self.list_items(args));
             }
             TyData::Opaque { args, bound, .. } => {
                 out.extend_from_slice(self.list_items(args));
                 out.push(bound);
             }
-            TyData::Tuple { elems, rest } => {
-                out.extend_from_slice(self.list_items(elems));
-                out.extend(rest);
-            }
+
             TyData::Ref { inner, .. } => out.push(inner),
             TyData::Fn {
                 params,
@@ -2071,10 +2104,7 @@ impl<'a> Types<'a> {
             self.list(&items)
         };
         let data = match self.get(t) {
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(m, args),
-            },
+            TyData::Adt(def, args) => TyData::Adt(def, list(m, args)),
             TyData::Opaque {
                 owner,
                 site,
@@ -2091,13 +2121,7 @@ impl<'a> Types<'a> {
                     bound: m.ty(bound),
                 }
             }
-            TyData::Tuple { elems, rest } => {
-                let elems = list(m, elems);
-                TyData::Tuple {
-                    elems,
-                    rest: rest.map(|r| m.ty(r)),
-                }
-            }
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -2277,12 +2301,10 @@ impl<'a> Types<'a> {
                 )
             }
             TyData::Opaque { borrows, .. } => Slots::new(u32::from(*borrows), 0),
-            TyData::Tuple { elems, rest } => {
-                rest.map_or(list(*elems), |r| list(*elems).plus(of(r)))
-            }
+
             // Anonymous sums retain their conservative signature maps.
-            TyData::Adt { def, args } if *def == ANON_SUM => Slots::new(list(*args).refs(), 0),
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(*args),
+            TyData::Adt(def, args) if *def == ANON_SUM => Slots::new(list(*args).refs(), 0),
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => list(*args),
             // A function type's own slots are outside every enclosing
             // type's reference slots; its written slots are those of the
             // function types in its inputs and result, then the reference
@@ -2377,14 +2399,8 @@ impl<'a> Types<'a> {
                 args: l(args, memo),
                 bound: self.subst_in(bound, f, memo),
             },
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: l(args, memo),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: l(elems, memo),
-                rest: rest.map(|r| self.subst_in(r, f, memo)),
-            },
+            TyData::Adt(def, args) => TyData::Adt(def, l(args, memo)),
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -2542,7 +2558,6 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
             // Preserve this substitution's boundaries: tuple rests and
             // function rows stay as written, as do opaque/trait-value types.
             match pool.get(t) {
-                TyData::Tuple { elems, .. } => children.extend_from_slice(pool.list_items(elems)),
                 TyData::Fn { params, result, .. } => {
                     children.extend_from_slice(pool.list_items(params));
                     children.push(result);
@@ -2584,11 +2599,8 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
                     list(a)
                 },
             },
-            TyData::Adt { def, args: a } => TyData::Adt { def, args: list(a) },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(elems),
-                rest,
-            },
+            TyData::Adt(def, a) => TyData::Adt(def, list(a)),
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -2717,10 +2729,7 @@ impl Erase {
                     mutable,
                     counted: counted && matches!(self, Erase::Deps),
                 },
-                TyData::Adt { def, args } => TyData::Adt {
-                    def,
-                    args: list(args),
-                },
+                TyData::Adt(def, args) => TyData::Adt(def, list(args)),
                 TyData::Opaque {
                     owner,
                     site,
@@ -2734,10 +2743,7 @@ impl Erase {
                     args: list(args),
                     bound: mapped(bound),
                 },
-                TyData::Tuple { elems, rest } => TyData::Tuple {
-                    elems: list(elems),
-                    rest: rest.map(mapped),
-                },
+
                 TyData::Fn {
                     params,
                     result,
@@ -2793,7 +2799,7 @@ impl Erase {
 
 #[cfg(test)]
 mod tests {
-    use super::ANON_SUM;
+    use super::{ANON_SUM, AdtId, PoolTag};
     /// #2024: `type R0 = &T`, `type R{i} = (R{i-1}, R{i-1})`, and a
     /// function type over each level. Each count is read from the item's
     /// own word, set once when the item is interned from its parts' words,
@@ -2812,10 +2818,7 @@ mod tests {
             });
             let mut f = Ty::I32;
             for _ in 0..n {
-                r = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[r, r]),
-                    rest: None,
-                });
+                r = pool.product(pool.list(&[r, r]), None);
                 let g = pool.intern_ty(&TyData::Fn {
                     params: pool.list(&[r]),
                     result: Ty::I32,
@@ -2824,10 +2827,7 @@ mod tests {
                     inputs: Inputs::Fixed,
                     deps: FnDeps::NONE,
                 });
-                f = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[f, g]),
-                    rest: None,
-                });
+                f = pool.product(pool.list(&[f, g]), None);
             }
             let t = pool.types();
             (
@@ -2895,15 +2895,12 @@ mod tests {
         assert_eq!((t.ref_slots(f), t.fn_written_slots(f)), (0, 3));
         let union = pool.intern_ty(&TyData::sum(pool.list(&[local, f])));
         assert_eq!((t.ref_slots(union), t.fn_written_slots(union)), (1, 0));
-        let held = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[f, local]),
-            rest: Some(r(f, false)),
-        });
+        let held = pool.product(pool.list(&[f, local]), Some(r(f, false)));
         assert_eq!((t.ref_slots(held), t.fn_written_slots(held)), (2, 6));
-        let adt = pool.intern_ty(&TyData::Adt {
-            def: hd_base::DefId::from_raw(9),
-            args: pool.list(&[held, union]),
-        });
+        let adt = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(hd_base::DefId::from_raw(9)),
+            pool.list(&[held, union]),
+        ));
         assert_eq!((t.ref_slots(adt), t.fn_written_slots(adt)), (3, 6));
     }
 
@@ -2987,7 +2984,7 @@ mod tests {
         let assoc = DefId::from_raw(9);
         for inner in [Ty::I32, var] {
             let args = p.list(&[inner]);
-            let adt_form = TyData::Adt { def, args };
+            let adt_form = TyData::Adt(AdtId::Declared(def), args);
             let trait_form = TyData::TraitValue {
                 def,
                 args,
@@ -3045,13 +3042,13 @@ mod tests {
                 }
             }
             let args = p.list(&[item]);
-            let list = p.intern_ty(&TyData::Adt { def, args });
+            let list = p.intern_ty(&TyData::Adt(AdtId::Declared(def), args));
             assert_eq!(p.adt_parts(list), (def, args));
             for rest in [None, Some(list)] {
-                let tuple = p.intern_ty(&TyData::Tuple { elems: args, rest });
-                assert_eq!(p.tuple_parts(tuple), (args, rest));
+                let tuple = p.product(args, rest);
+                assert_eq!(p.product_parts(tuple), Some((p.list_items(args), rest)));
                 if !tuple.is_local() {
-                    assert_eq!(g.tuple_parts(tuple), (args, rest));
+                    assert_eq!(g.product_parts(tuple), Some((g.list_items(args), rest)));
                     assert_eq!(g.adt_parts(list), (def, args));
                 }
             }
@@ -3066,10 +3063,7 @@ mod tests {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.adt_parts(Ty::I32)))
                 .is_err()
         );
-        assert!(
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.tuple_parts(Ty::I32)))
-                .is_err()
-        );
+        assert_eq!(g.product_parts(Ty::I32), None);
         assert!(
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.ref_inner(Ty::I32)))
                 .is_err()
@@ -3082,7 +3076,7 @@ mod tests {
         let p = g.types();
         let def = DefId::from_raw(7);
         let args = p.list(&[Ty::I32]);
-        let adt = p.intern_ty(&TyData::Adt { def, args });
+        let adt = p.intern_ty(&TyData::Adt(AdtId::Declared(def), args));
         let value = p.intern_ty(&TyData::TraitValue {
             def,
             args,
@@ -3100,14 +3094,17 @@ mod tests {
                     mutable: true,
                     counted: false,
                 },
-                TyData::Tuple {
-                    elems: args,
-                    rest: None,
-                },
-                TyData::Tuple {
-                    elems: args,
-                    rest: Some(inner),
-                },
+                TyData::Adt(AdtId::Product { rest: false }, args),
+                TyData::Adt(
+                    AdtId::Product { rest: true },
+                    p.list(
+                        &p.list_items(args)
+                            .iter()
+                            .copied()
+                            .chain([inner])
+                            .collect::<Vec<_>>(),
+                    ),
+                ),
             ] {
                 let t = p.intern_ty(&form);
                 assert_eq!(p.adt(t), None);
@@ -3183,13 +3180,7 @@ mod tests {
         assert_eq!(p.get(Ty::POISON), TyData::Poison);
         assert_eq!(p.list(&[]), TyList::EMPTY);
         assert_eq!(p.row(&RowData::default()), RowId::EMPTY);
-        assert_eq!(
-            p.intern_ty(&TyData::Tuple {
-                elems: TyList::EMPTY,
-                rest: None,
-            }),
-            Ty::VOID
-        );
+        assert_eq!(p.product(TyList::EMPTY, None), Ty::VOID);
     }
 
     /// Threads racing on the same content get one item, through the
@@ -3234,15 +3225,18 @@ mod tests {
             params: vec![],
         });
         let forms = [
-            TyData::Adt { def, args: list },
-            TyData::Tuple {
-                elems: list,
-                rest: None,
-            },
-            TyData::Tuple {
-                elems: list,
-                rest: Some(Ty::BOOL),
-            },
+            TyData::Adt(AdtId::Declared(def), list),
+            TyData::Adt(AdtId::Product { rest: false }, list),
+            TyData::Adt(
+                AdtId::Product { rest: true },
+                p.list(
+                    &p.list_items(list)
+                        .iter()
+                        .copied()
+                        .chain([Ty::BOOL])
+                        .collect::<Vec<_>>(),
+                ),
+            ),
             TyData::sum(list),
             TyData::Fn {
                 params: list,
@@ -3296,11 +3290,44 @@ mod tests {
     }
 
     #[test]
+    fn products_share_adt_identity_and_borrow_the_rest_without_a_prefix() {
+        let p = InternPool::new();
+        let fixed = p.list(&[Ty::I32, Ty::STRING]);
+        let product = p.product(fixed, None);
+        let sum = p.intern_ty(&TyData::sum(fixed));
+        let rest = p.intern_ty(&TyData::Adt(AdtId::Product { rest: true }, fixed));
+        assert_ne!(product, sum);
+        assert_ne!(product, rest);
+        assert_eq!(p.product(fixed, None), product);
+        assert_eq!(
+            p.product_parts(product),
+            Some((&[Ty::I32, Ty::STRING][..], None))
+        );
+        assert_eq!(
+            p.product_parts(rest),
+            Some((&[Ty::I32][..], Some(Ty::STRING)))
+        );
+        assert_eq!(p.adt(product), None);
+        assert_eq!(p.adt(sum), None);
+        assert_eq!(p.product_parts(sum), None);
+        let before = p.cols.tag.len();
+        for _ in 0..1000 {
+            assert_eq!(
+                p.product_parts(rest),
+                Some((&[Ty::I32][..], Some(Ty::STRING)))
+            );
+        }
+        assert_eq!(p.cols.tag.len(), before);
+        assert_eq!(p.product(p.list(&[Ty::I32]), Some(Ty::STRING)), rest);
+        assert_eq!(std::mem::size_of::<PoolTag>(), 2);
+    }
+
+    #[test]
     fn union_identity_keeps_order_duplicates_nesting_and_substitution() {
         let p = InternPool::new();
         let union = |members: &[Ty]| p.intern_ty(&TyData::sum(p.list(members)));
         let ab = union(&[Ty::I32, Ty::STRING]);
-        assert!(matches!(p.get(ab), TyData::Adt { def: ANON_SUM, .. }));
+        assert!(matches!(p.get(ab), TyData::Adt(ANON_SUM, _)));
         assert!(p.adt(ab).is_none());
         let ba = union(&[Ty::STRING, Ty::I32]);
         let duplicate = union(&[Ty::I32, Ty::I32]);
@@ -3388,26 +3415,17 @@ mod tests {
             inputs: Inputs::Fixed,
             deps: crate::pool::FnDeps::NONE,
         });
-        let tuple = p.intern_ty(&TyData::Tuple {
-            elems: pair,
-            rest: None,
-        });
+        let tuple = p.product(pair, None);
         assert_eq!(of(tuple), plain);
         assert_eq!(p.subst(generic, &|_| Some(tuple)), plain);
         assert_eq!(p.types().inputs_tuple(pair, Inputs::Fixed), tuple);
-        let rest = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::I32]),
-            rest: Some(Ty::STRING),
-        });
+        let rest = p.product(p.list(&[Ty::I32]), Some(Ty::STRING));
         let TyData::Fn { params, inputs, .. } = p.get(of(rest)) else {
             panic!("a function type");
         };
         assert_eq!((params, inputs), (pair, Inputs::Rest));
         assert_eq!(p.types().inputs_tuple(params, inputs), rest);
-        let unit = p.intern_ty(&TyData::Tuple {
-            elems: TyList::EMPTY,
-            rest: None,
-        });
+        let unit = p.product(TyList::EMPTY, None);
         assert!(matches!(
             p.get(of(unit)),
             TyData::Fn {
@@ -3543,10 +3561,7 @@ mod tests {
         let first = types.subst(f(&[t, u], t), &at(r, r));
         assert_eq!(deps(first), Some((vec![1, 2], vec![1])));
         // A pair: each result position shares its own input position.
-        let pair = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[r, r]),
-            rest: None,
-        });
+        let pair = pool.product(pool.list(&[r, r]), None);
         let both = types.subst(f(&[t], t), &at(pair, pair));
         assert_eq!(deps(both), Some((vec![1, 2], vec![1, 2])));
         // `U` only in the result has no source.
@@ -3591,12 +3606,7 @@ mod tests {
         let plain = |params: &[Ty], result: Ty| f(params, result, FnDeps::NONE);
         let at = |x: Ty, y: Ty| move |p: ParamRef| Some(if p.index == 0 { x } else { y });
         let deps = |t| types.fn_ty_deps(t).map(|(i, o)| (i.to_vec(), o.to_vec()));
-        let tuple = |elems: &[Ty], rest| {
-            pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(elems),
-                rest,
-            })
-        };
+        let tuple = |elems: &[Ty], rest| pool.product(pool.list(elems), rest);
         // `fn(&T) -> &T` at `&i32`: the outer reference is the type's own
         // slot, whose map (none here) the instance keeps; the inner is
         // `T`'s, shared. `fn(*T) -> T` passes the counted reference by.
@@ -3606,10 +3616,10 @@ mod tests {
         assert_eq!(deps(counted), Some((vec![1], vec![1])));
         // A tuple with a rest, and a generic instance.
         let list = |a| {
-            pool.intern_ty(&TyData::Adt {
-                def: DefId::from_raw(5),
-                args: pool.list(&[a]),
-            })
+            pool.intern_ty(&TyData::Adt(
+                AdtId::Declared(DefId::from_raw(5)),
+                pool.list(&[a]),
+            ))
         };
         let rest = types.subst(plain(&[tuple(&[t], Some(list(u)))], t), &at(r, r));
         assert_eq!(deps(rest), Some((vec![1, 2], vec![1])));
@@ -3676,12 +3686,7 @@ mod tests {
                 }));
                 let mut deep = (t, r);
                 for _ in 1..hd_base::limits::TYPE_DEPTH {
-                    let pair = |x| {
-                        pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&[r, x]),
-                            rest: None,
-                        })
-                    };
+                    let pair = |x| pool.product(pool.list(&[r, x]), None);
                     deep = (pair(deep.0), pair(deep.1));
                 }
                 let n = hd_base::limits::TYPE_DEPTH as usize;
@@ -3725,10 +3730,7 @@ mod tests {
                         for _ in 0..depth {
                             // Doubling the same child checks graph sharing too:
                             // the recursive search took 2^depth false paths.
-                            t = pool.intern_ty(&TyData::Tuple {
-                                elems: pool.list(&[t, t]),
-                                rest: None,
-                            });
+                            t = pool.product(pool.list(&[t, t]), None);
                         }
                         let (found, work) =
                             crate::work::count_type_nodes(|| types.names_trait_self(t, owner));
@@ -3767,10 +3769,7 @@ mod tests {
                     let mut chain = [original, filled];
                     for _ in 0..depth {
                         for t in &mut chain {
-                            *t = pool.intern_ty(&TyData::Tuple {
-                                elems: pool.list(&[*t, *t]),
-                                rest: None,
-                            });
+                            *t = pool.product(pool.list(&[*t, *t]), None);
                         }
                     }
                     let (out, work) = crate::work::count_type_nodes(|| {
@@ -3813,10 +3812,7 @@ mod tests {
                     }),
                     pool.intern_ty(&TyData::Row(row)),
                     pool.intern_ty(&TyData::Context(row)),
-                    pool.intern_ty(&TyData::Tuple {
-                        elems: TyList::EMPTY,
-                        rest: Some(original),
-                    }),
+                    pool.product(TyList::EMPTY, Some(original)),
                     pool.intern_ty(&TyData::Fn {
                         params: TyList::EMPTY,
                         result: Ty::I32,
@@ -3872,10 +3868,7 @@ mod tests {
                     let mut chain = [leaf, plain, local];
                     for _ in 0..depth {
                         for t in &mut chain {
-                            *t = pool.intern_ty(&TyData::Tuple {
-                                elems: pool.list(&[*t, *t]),
-                                rest: None,
-                            });
+                            *t = pool.product(pool.list(&[*t, *t]), None);
                         }
                     }
                     let (out, work) =
@@ -3930,31 +3923,19 @@ mod tests {
         assert_ne!(with, without, "the map is part of the type");
         for (k, &reference) in kinds.iter().enumerate() {
             assert_eq!(pool.erase_fn_deps(reference), reference, "kind {k} stays");
-            let held = pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&[reference, with]),
-                rest: None,
-            });
-            let erased = pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&[reference, without]),
-                rest: None,
-            });
+            let held = pool.product(pool.list(&[reference, with]), None);
+            let erased = pool.product(pool.list(&[reference, without]), None);
             assert_eq!(pool.erase_fn_deps(held), erased);
         }
         // A type built by doubling: 64 levels, each part walked once.
         let mut t = with;
         for _ in 0..64 {
-            t = pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&[t, t]),
-                rest: None,
-            });
+            t = pool.product(pool.list(&[t, t]), None);
         }
         let erased = pool.erase_fn_deps(t);
         let mut u = without;
         for _ in 0..64 {
-            u = pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&[u, u]),
-                rest: None,
-            });
+            u = pool.product(pool.list(&[u, u]), None);
         }
         assert_eq!(erased, u);
         let no_ref = pool.list(&[Ty::I32, without]);
@@ -4013,10 +3994,7 @@ mod tests {
             })
         };
         let holders: Vec<Box<dyn Fn(Ty) -> TyData + '_>> = vec![
-            Box::new(|t| TyData::Adt {
-                def,
-                args: pool.list(&[t]),
-            }),
+            Box::new(|t| TyData::Adt(AdtId::Declared(def), pool.list(&[t]))),
             Box::new(|t| TyData::Opaque {
                 owner: def,
                 site: 1,
@@ -4024,10 +4002,7 @@ mod tests {
                 args: pool.list(&[t]),
                 bound: t,
             }),
-            Box::new(|t| TyData::Tuple {
-                elems: pool.list(&[Ty::I32]),
-                rest: Some(t),
-            }),
+            Box::new(|t| TyData::Adt(AdtId::Product { rest: true }, pool.list(&[Ty::I32, t]))),
             Box::new(|t| TyData::sum(pool.list(&[Ty::I32, t]))),
             Box::new(|t| TyData::Row(row(t))),
             Box::new(|t| TyData::Context(row(t))),
@@ -4050,14 +4025,11 @@ mod tests {
             assert_eq!(pool.erase_fn_deps(erased), erased, "holder {i} unchanged");
         }
         // `sole_arg` answers only for one argument of the named definition.
-        let one = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&[Ty::I32]),
-        });
-        let two = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&[Ty::I32, Ty::I32]),
-        });
+        let one = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&[Ty::I32])));
+        let two = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(def),
+            pool.list(&[Ty::I32, Ty::I32]),
+        ));
         assert_eq!(types.sole_arg(one, def), Some(Ty::I32));
         assert_eq!(types.sole_arg(two, def), None);
         assert_eq!(types.sole_arg(one, other), None);

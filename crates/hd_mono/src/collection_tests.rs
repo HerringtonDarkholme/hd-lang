@@ -1,14 +1,15 @@
 use super::{DefId, HashMap, InternPool, Ty, TyData, TyList, holds_coll_walk};
+use hd_types::AdtId;
 
 #[test]
 fn collection_query_reaches_past_the_old_cap() {
     let pool = InternPool::new();
     let types: Vec<Ty> = (0..65)
         .map(|n| {
-            pool.intern_ty(&TyData::Adt {
-                def: DefId::from_raw(n),
-                args: TyList::EMPTY,
-            })
+            pool.intern_ty(&TyData::Adt(
+                AdtId::Declared(DefId::from_raw(n)),
+                TyList::EMPTY,
+            ))
         })
         .collect();
     let positions: HashMap<Ty, usize> = types
@@ -33,11 +34,11 @@ fn collection_query_shares_width_1000_and_depth_20() {
             let pool = InternPool::new();
             let types: Vec<Ty> = (0..=depth)
                 .map(|n| {
-                    pool.intern_ty(&TyData::Adt {
-                        // ruled out: this generated depth is 1 or 20.
-                        def: DefId::from_raw(u32::try_from(n).expect("small depth")),
-                        args: TyList::EMPTY,
-                    })
+                    // ruled out: the generated depth above is at most 20.
+                    pool.intern_ty(&TyData::Adt(
+                        AdtId::Declared(DefId::from_raw(u32::try_from(n).expect("small depth"))),
+                        TyList::EMPTY,
+                    ))
                 })
                 .collect();
             let positions: HashMap<Ty, usize> = types
@@ -72,14 +73,14 @@ fn collection_query_shares_width_1000_and_depth_20() {
 fn collection_query_uses_full_instantiated_identity_and_handles_cycles() {
     let pool = InternPool::new();
     let wrapper = DefId::from_raw(1);
-    let outer = pool.intern_ty(&TyData::Adt {
-        def: wrapper,
-        args: pool.list(&[Ty::STRING]),
-    });
-    let inner = pool.intern_ty(&TyData::Adt {
-        def: wrapper,
-        args: pool.list(&[Ty::I32]),
-    });
+    let outer = pool.intern_ty(&TyData::Adt(
+        AdtId::Declared(wrapper),
+        pool.list(&[Ty::STRING]),
+    ));
+    let inner = pool.intern_ty(&TyData::Adt(
+        AdtId::Declared(wrapper),
+        pool.list(&[Ty::I32]),
+    ));
     let mut queries = Vec::new();
     assert!(holds_coll_walk(outer, |t| {
         queries.push(t);

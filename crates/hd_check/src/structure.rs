@@ -34,6 +34,7 @@ use hd_resolve::{Item, ItemData};
 use hd_structure::{Mem, Shape, Shared, Target, Var, hidden_method};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
+use hd_types::AdtId;
 use hd_types::{ParamRef, Ty, TyData, TyList};
 
 use crate::body::BodyCx;
@@ -556,7 +557,7 @@ struct AdtArgs(TyList);
 impl AdtArgs {
     fn new(ty: &TyData) -> StageResult<Self> {
         match ty {
-            TyData::Adt { args, .. } => Ok(Self(*args)),
+            TyData::Adt(_, args) => Ok(Self(*args)),
             _ => Err(invalid_structure_input()),
         }
     }
@@ -587,10 +588,7 @@ pub fn structure_bodies(
         let own: Vec<Ty> = (0..item.generics.len())
             .map(|i| param(cx, opt.data, i))
             .collect();
-        pool.intern_ty(&TyData::Adt {
-            def: opt.data,
-            args: pool.list(&own),
-        })
+        pool.intern_ty(&TyData::Adt(AdtId::Declared(opt.data), pool.list(&own)))
     } else {
         opt.target
     };
@@ -646,7 +644,7 @@ pub fn owner_args(cx: &BodyCx<'_>, opt: &OptIn) -> TyList {
         return own_args(cx, opt.impl_);
     }
     match pool.get(opt.target) {
-        TyData::Adt { args, .. } => args,
+        TyData::Adt(_, args) => args,
         _ => TyList::EMPTY,
     }
 }
@@ -853,19 +851,16 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
             match node {
                 RefNode::Type(t) => match pool.get(t) {
                     TyData::Ref { inner, .. } => stack.push((RefNode::Type(inner), Some(node))),
-                    TyData::Tuple { elems, rest } => {
-                        if let Some(rest) = rest {
-                            stack.push((RefNode::Type(rest), Some(node)));
-                        }
+                    TyData::Adt(AdtId::Product { .. }, args) => {
                         stack.extend(
-                            pool.list_items(elems)
+                            pool.list_items(args)
                                 .iter()
                                 .rev()
                                 .map(|&t| (RefNode::Type(t), Some(node))),
                         );
                     }
                     // Only declaration arguments and declared members refer by these rules.
-                    TyData::Adt { def, args } if def.get().is_some() => {
+                    TyData::Adt(AdtId::Declared(def), args) if def.get().is_some() => {
                         if def == self.data {
                             found.push(node);
                         } else {
@@ -878,7 +873,7 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
                             );
                         }
                     }
-                    TyData::Adt { .. }
+                    TyData::Adt(..)
                     | TyData::Prim(_)
                     | TyData::Never
                     | TyData::Poison
@@ -972,17 +967,12 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
                     seen.push(t);
                     match pool.get(t) {
                         TyData::Ref { inner, .. } => stack.push(Work::Visit(inner)),
-                        TyData::Tuple { elems, rest } => {
-                            let fields = pool
-                                .list_items(elems)
-                                .iter()
-                                .copied()
-                                .chain(rest)
-                                .collect::<Vec<_>>();
-                            stack.push(Work::Any(fields.into_iter(), false));
+                        TyData::Adt(AdtId::Product { .. }, args) => {
+                            stack
+                                .push(Work::Any(pool.list_items(args).to_vec().into_iter(), false));
                         }
                         // ruled out: structural sums have no declaring member owner.
-                        TyData::Adt { def, args } if def.get().is_some() => {
+                        TyData::Adt(AdtId::Declared(def), args) if def.get().is_some() => {
                             if def == self.data {
                                 answer = true;
                             } else if def == k.list || def == k.map {
@@ -1097,10 +1087,10 @@ mod structure_input_tests {
         crate::body::with_checker(|ck| {
             let pool = ck.pool();
             let args = pool.list(&[Ty::I32, Ty::VOID]);
-            let ty = pool.intern_ty(&TyData::Adt {
-                def: DefId::from_raw(1),
+            let ty = pool.intern_ty(&TyData::Adt(
+                hd_types::AdtId::Declared(DefId::from_raw(1)),
                 args,
-            });
+            ));
             assert_eq!(AdtArgs::new(&pool.get(ty)).expect("ADT arguments").0, args);
             for other in [Ty::I32, Ty::VOID, Ty::POISON] {
                 internal_error(&AdtArgs::new(&pool.get(other)).err().expect("non-ADT"));
@@ -1123,10 +1113,10 @@ mod self_reference_walk_tests {
                 crate::body::with_checker_items(
                     |names| {
                         let p = names.pool.types();
-                        let target = p.intern_ty(&TyData::Adt {
-                            def: names.item("app.main", "Target"),
-                            args: TyList::EMPTY,
-                        });
+                        let target = p.intern_ty(&TyData::Adt(
+                            hd_types::AdtId::Declared(names.item("app.main", "Target")),
+                            TyList::EMPTY,
+                        ));
                         let field = |ty| Field {
                             name: names.syms.intern("field"),
                             ty,
@@ -1142,14 +1132,14 @@ mod self_reference_walk_tests {
                                 owner: def,
                                 index: 0,
                             }));
-                            let list = p.intern_ty(&TyData::Adt {
-                                def: names.known.list,
-                                args: p.list(&[param]),
-                            });
-                            let again = p.intern_ty(&TyData::Adt {
-                                def,
-                                args: p.list(&[list]),
-                            });
+                            let list = p.intern_ty(&TyData::Adt(
+                                hd_types::AdtId::Declared(names.known.list),
+                                p.list(&[param]),
+                            ));
+                            let again = p.intern_ty(&TyData::Adt(
+                                hd_types::AdtId::Declared(def),
+                                p.list(&[list]),
+                            ));
                             let again = p.intern_ty(&TyData::Ref {
                                 inner: again,
                                 mutable: false,
@@ -1167,10 +1157,10 @@ mod self_reference_walk_tests {
                             item
                         };
                         let a = growing("Grow", &[]);
-                        let a_ty = p.intern_ty(&TyData::Adt {
-                            def: a.def,
-                            args: p.list(&[Ty::I32]),
-                        });
+                        let a_ty = p.intern_ty(&TyData::Adt(
+                            hd_types::AdtId::Declared(a.def),
+                            p.list(&[Ty::I32]),
+                        ));
                         let b = Item::new(
                             names.item("app.main", "Hidden"),
                             names.syms.intern("Hidden"),
@@ -1180,28 +1170,25 @@ mod self_reference_walk_tests {
                                 TypeAttrs::default(),
                             ),
                         );
-                        let b_ty = p.intern_ty(&TyData::Adt {
-                            def: b.def,
-                            args: TyList::EMPTY,
-                        });
+                        let b_ty = p.intern_ty(&TyData::Adt(
+                            hd_types::AdtId::Declared(b.def),
+                            TyList::EMPTY,
+                        ));
                         vec![a, b, growing("Positive", &[b_ty])]
                     },
                     |ck| {
                         let p = ck.cx.names.pool.types();
                         let data = ck.cx.names.item("app.main", "Target");
-                        let target = p.intern_ty(&TyData::Adt {
-                            def: data,
-                            args: TyList::EMPTY,
-                        });
+                        let target = p.intern_ty(&TyData::Adt(
+                            hd_types::AdtId::Declared(data),
+                            TyList::EMPTY,
+                        ));
                         for depth in [100, 1000] {
                             let refs = SelfRefs::new(ck.cx, data);
                             for leaf in [target, Ty::I32] {
                                 let mut root = leaf;
                                 for _ in 0..depth {
-                                    root = p.intern_ty(&TyData::Tuple {
-                                        elems: p.list(&[root, root]),
-                                        rest: None,
-                                    });
+                                    root = p.product(p.list(&[root, root]), None);
                                 }
                                 let positive = leaf == target;
                                 assert_eq!(refs.needs(root, &mut Vec::new()), positive);
@@ -1218,10 +1205,10 @@ mod self_reference_walk_tests {
                         }
                         let refs = SelfRefs::new(ck.cx, data);
                         let adt = |name: &str, args: &[Ty]| {
-                            p.intern_ty(&TyData::Adt {
-                                def: ck.cx.names.item("app.main", name),
-                                args: p.list(args),
-                            })
+                            p.intern_ty(&TyData::Adt(
+                                hd_types::AdtId::Declared(ck.cx.names.item("app.main", name)),
+                                p.list(args),
+                            ))
                         };
                         let negative = adt("Grow", &[Ty::I32]);
                         let (answer, work) =
@@ -1273,10 +1260,7 @@ mod self_reference_walk_tests {
                             let refs = SelfRefs::new(ck.cx, data);
                             let mut root = Ty::I32;
                             for _ in 0..20 {
-                                root = p.intern_ty(&TyData::Tuple {
-                                    elems: p.list(&[root, root]),
-                                    rest: None,
-                                });
+                                root = p.product(p.list(&[root, root]), None);
                             }
                             assert!(!refs.refers(root));
                             for i in 0..width {

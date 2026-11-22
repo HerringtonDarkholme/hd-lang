@@ -5,6 +5,7 @@
 use hd_base::InferVar;
 use hd_base::{HashMap, HashSet};
 
+use crate::AdtId;
 use crate::pool::{Inputs, Ty, TyData, Types};
 
 /// A variable's kind: general, integer literal or float literal (§3.1).
@@ -209,7 +210,6 @@ pub struct TrialMark {
 enum UnifyWork {
     Pair(Ty, Ty, Option<(Ty, Ty, bool)>),
     Join(Ty, Ty, Option<(Ty, Ty, bool)>),
-    JoinRest(Option<Ty>, Option<Ty>, (Ty, Ty, bool)),
     Done((Ty, Ty, bool)),
     List(crate::TyList, crate::TyList, Ty, Ty),
     FunctionRows(crate::RowId, crate::RowId, Ty, Ty),
@@ -536,15 +536,12 @@ impl InferTable {
                         return true;
                     }
                 }
-                TyData::Adt { args: l, .. } => kids.extend_from_slice(pool.list_items(l)),
+                TyData::Adt(_, l) => kids.extend_from_slice(pool.list_items(l)),
                 TyData::Opaque { args, bound, .. } => {
                     kids.push(bound);
                     kids.extend_from_slice(pool.list_items(args));
                 }
-                TyData::Tuple { elems, rest } => {
-                    kids.extend_from_slice(pool.list_items(elems));
-                    kids.extend(rest);
-                }
+
                 TyData::Ref { inner: i, .. } => kids.push(i),
                 TyData::Fn { params, result, .. } => {
                     kids.push(result);
@@ -645,7 +642,7 @@ impl InferTable {
     fn unify_in(&mut self, pool: Types<'_>, a: Ty, b: Ty, join: bool) -> Result<(), UnifyError> {
         enum Shape {
             Reference(Ty, Ty),
-            Tuple(crate::TyList, crate::TyList, Option<Ty>, Option<Ty>),
+            Product(crate::TyList, crate::TyList),
         }
         let (a, b) = (self.shallow(pool, a), self.shallow(pool, b));
         if a == b {
@@ -683,9 +680,9 @@ impl InferTable {
                                     Some(Shape::Reference(x, y))
                                 }
                                 (
-                                    TyData::Tuple { elems: x, rest: xr },
-                                    TyData::Tuple { elems: y, rest: yr },
-                                ) => Some(Shape::Tuple(x, y, xr, yr)),
+                                    TyData::Adt(AdtId::Product { rest: xr }, x),
+                                    TyData::Adt(AdtId::Product { rest: yr }, y),
+                                ) if xr == yr => Some(Shape::Product(x, y)),
                                 _ => None,
                             }
                         } else {
@@ -705,10 +702,9 @@ impl InferTable {
                                 stack.push(UnifyWork::Pair(x, y, Some(pair)));
                                 Ok(())
                             }
-                            Some(Shape::Tuple(x, y, xr, yr)) => {
+                            Some(Shape::Product(x, y)) => {
                                 let (x, y) = (pool.list_items(x), pool.list_items(y));
                                 if x.len() == y.len() {
-                                    stack.push(UnifyWork::JoinRest(xr, yr, pair));
                                     stack.extend(
                                         x.iter()
                                             .zip(y)
@@ -727,17 +723,6 @@ impl InferTable {
                         }
                     }
                 }
-                UnifyWork::JoinRest(x, y, parent) => match (x, y) {
-                    (Some(x), Some(y)) => {
-                        stack.push(UnifyWork::Join(x, y, Some(parent)));
-                        Ok(())
-                    }
-                    (None, None) => Ok(()),
-                    _ => Err(UnifyError::Mismatch {
-                        expected: parent.0,
-                        found: parent.1,
-                    }),
-                },
                 UnifyWork::Done(pair) => {
                     // A row read earlier in this match may have changed
                     // under a later child. Do not cache that stale success.
@@ -876,35 +861,13 @@ impl InferTable {
                 stack.push(UnifyWork::Pair(b1, b2, Some((a, b, false))));
                 Self::queue_unify_list(pool, a1, a2, a, b, stack)
             }
-            (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
-                Self::queue_unify_list(pool, a1, a2, a, b, stack)
-            }
-            (
-                TyData::Tuple {
-                    elems: e1,
-                    rest: None,
-                },
-                TyData::Tuple {
-                    elems: e2,
-                    rest: None,
-                },
-            ) => Self::queue_unify_list(pool, e1, e2, a, b, stack),
             // `types.tuple.rest.same`: with rest elements, the fixed
             // elements and the rest elements are each pairwise equal; a
             // tuple with one never meets a tuple without.
-            (
-                TyData::Tuple {
-                    elems: e1,
-                    rest: Some(r1),
-                },
-                TyData::Tuple {
-                    elems: e2,
-                    rest: Some(r2),
-                },
-            ) => {
-                stack.push(UnifyWork::Pair(r1, r2, Some((a, b, false))));
-                Self::queue_unify_list(pool, e1, e2, a, b, stack)
+            (TyData::Adt(d1, a1), TyData::Adt(d2, a2)) if d1 == d2 => {
+                Self::queue_unify_list(pool, a1, a2, a, b, stack)
             }
+
             (
                 TyData::TraitValue {
                     def: d1, args: a1, ..
@@ -1374,6 +1337,7 @@ impl crate::TyMap for Resolve<'_, '_> {
 #[cfg(test)]
 mod tests {
     use super::{InferTable, UnifyError, VarKind};
+    use crate::AdtId;
     use crate::pool::{Inputs, InternPool, LocalPool, RowData, RowId, Ty, TyData, Types};
 
     /// The variable of a fresh variable's type.
@@ -1392,12 +1356,7 @@ mod tests {
             .spawn(|| {
                 let (gp, lp) = (InternPool::new(), LocalPool::new());
                 let p = Types::with_local(&gp, &lp);
-                let pair = |t| {
-                    p.intern_ty(&TyData::Tuple {
-                        elems: p.list(&[t, t]),
-                        rest: None,
-                    })
-                };
+                let pair = |t| p.product(p.list(&[t, t]), None);
                 for depth in [100, 1000] {
                     let mut table = InferTable::default();
                     let x = table.fresh(p, VarKind::General);
@@ -1473,12 +1432,7 @@ mod tests {
             .spawn(|| {
                 let (gp, lp) = (InternPool::new(), LocalPool::new());
                 let p = Types::with_local(&gp, &lp);
-                let tuple = |ts: &[Ty]| {
-                    p.intern_ty(&TyData::Tuple {
-                        elems: p.list(ts),
-                        rest: None,
-                    })
-                };
+                let tuple = |ts: &[Ty]| p.product(p.list(ts), None);
                 for unify in [InferTable::unify, InferTable::unify_join] {
                     for depth in [100, 1000] {
                         let mut table = InferTable::default();
@@ -1573,14 +1527,17 @@ mod tests {
                             mutable: true,
                             counted: true,
                         },
-                        1 => TyData::Adt {
-                            def,
-                            args: p.list(&[t]),
-                        },
-                        2 => TyData::Tuple {
-                            elems: p.list(&[Ty::BOOL]),
-                            rest: Some(t),
-                        },
+                        1 => TyData::Adt(AdtId::Declared(def), p.list(&[t])),
+                        2 => TyData::Adt(
+                            AdtId::Product { rest: true },
+                            p.list(
+                                &p.list_items(p.list(&[Ty::BOOL]))
+                                    .iter()
+                                    .copied()
+                                    .chain([t])
+                                    .collect::<Vec<_>>(),
+                            ),
+                        ),
                         3 => TyData::sum(p.list(&[t, Ty::BOOL])),
                         4 => TyData::TraitValue {
                             def,
@@ -1690,12 +1647,7 @@ mod tests {
             "opaque arguments precede its bound"
         );
         table.rollback(snapshot);
-        let tuple = |ts: &[Ty]| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(ts),
-                rest: None,
-            })
-        };
+        let tuple = |ts: &[Ty]| p.product(p.list(ts), None);
         assert_eq!(
             table.unify(
                 p,
@@ -1752,12 +1704,7 @@ mod tests {
                 for depth in [100, 1000] {
                     let mut table = InferTable::default();
                     let x = table.fresh(p, VarKind::General);
-                    let tuple = |t, n| {
-                        p.intern_ty(&TyData::Tuple {
-                            elems: p.list(&vec![t; n]),
-                            rest: None,
-                        })
-                    };
+                    let tuple = |t, n| p.product(p.list(&vec![t; n]), None);
                     let (mut open, mut closed) = (x, Ty::I32);
                     for _ in 0..depth {
                         open = tuple(open, 2);
@@ -1812,10 +1759,7 @@ mod tests {
                     let x = table.fresh(p, VarKind::General);
                     let mut root = x;
                     for _ in 0..depth {
-                        root = p.intern_ty(&TyData::Tuple {
-                            elems: p.list(&[root, root]),
-                            rest: None,
-                        });
+                        root = p.product(p.list(&[root, root]), None);
                     }
                     let snapshot = table.snapshot();
                     let (answer, work) =
@@ -1869,11 +1813,17 @@ mod tests {
             });
             let def = DefId::from_raw(1);
             [
-                TyData::Adt { def, args },
-                TyData::Tuple {
-                    elems: args,
-                    rest: Some(x),
-                },
+                TyData::Adt(AdtId::Declared(def), args),
+                TyData::Adt(
+                    AdtId::Product { rest: true },
+                    p.list(
+                        &p.list_items(args)
+                            .iter()
+                            .copied()
+                            .chain([x])
+                            .collect::<Vec<_>>(),
+                    ),
+                ),
                 TyData::sum(args),
                 TyData::Fn {
                     params: args,
@@ -1956,10 +1906,10 @@ mod tests {
                 .map(|i| {
                     p.intern_ty(&TyData::Fn {
                         params: crate::TyList::EMPTY,
-                        result: p.intern_ty(&TyData::Adt {
-                            def: DefId::from_raw(i + 2000),
-                            args: crate::TyList::EMPTY,
-                        }),
+                        result: p.intern_ty(&TyData::Adt(
+                            AdtId::Declared(DefId::from_raw(i + 2000)),
+                            crate::TyList::EMPTY,
+                        )),
                         row,
                         suspends: false,
                         inputs: Inputs::Fixed,
@@ -1967,10 +1917,7 @@ mod tests {
                     })
                 })
                 .collect();
-            let root = p.intern_ty(&TyData::Tuple {
-                elems: p.list(&functions),
-                rest: None,
-            });
+            let root = p.product(p.list(&functions), None);
             let (found, work) = crate::work::count_type_nodes(|| table.resolve(p, root));
             assert_eq!(found, root);
             assert_eq!(work, 3 * u64::from(width) + 2);
@@ -2176,10 +2123,7 @@ mod tests {
         assert_eq!(t.resolve(p, lit), Ty::POISON);
         t.rollback(snap);
         assert_eq!(t.resolve(p, a), a);
-        let pair = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::I32, a]),
-            rest: None,
-        });
+        let pair = p.product(p.list(&[Ty::I32, a]), None);
         t.unify(p, pair, Ty::POISON).expect("poison unifies");
         assert_eq!(t.resolve(p, a), Ty::POISON);
         // A type without variables is left as it is.
@@ -2203,12 +2147,7 @@ mod tests {
                 deps: crate::pool::FnDeps::NONE,
             })
         };
-        let tuple = |elems: &[Ty], rest: Option<Ty>| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(elems),
-                rest,
-            })
-        };
+        let tuple = |elems: &[Ty], rest: Option<Ty>| p.product(p.list(elems), rest);
         let cases = [
             (vec![], Inputs::Fixed, tuple(&[], None)),
             (vec![Ty::I32], Inputs::Fixed, tuple(&[Ty::I32], None)),
@@ -2288,20 +2227,14 @@ mod tests {
         let a = t.fresh(p, VarKind::General);
         let b = t.fresh(p, VarKind::General);
         let opt = |x: Ty| p.intern_ty(&TyData::sum(p.list(&[x])));
-        let pair = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[a, b]),
-            rest: None,
-        });
+        let pair = p.product(p.list(&[a, b]), None);
         t.unify(p, a, Ty::I32).expect("a");
         assert_eq!(t.resolve(p, opt(a)), opt(Ty::I32));
         assert_eq!(t.shallow_or_closed(p, opt(a)), opt(Ty::I32));
         assert!(!t.may_hold(p, pair, holds::POISON));
         let outer = t.snapshot();
         t.unify(p, b, Ty::STRING).expect("b");
-        let closed = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::I32, Ty::STRING]),
-            rest: None,
-        });
+        let closed = p.product(p.list(&[Ty::I32, Ty::STRING]), None);
         assert_eq!(t.resolve(p, pair), closed);
         assert_eq!(t.shallow_or_closed(p, pair), closed);
         // A trial that binds a variable to poison and is dropped.
@@ -2316,13 +2249,7 @@ mod tests {
         t.rollback(outer);
         assert_eq!(t.shallow_or_closed(p, pair), pair);
         assert_eq!(t.shallow_or_closed(p, opt(a)), opt(Ty::I32));
-        assert_eq!(
-            t.resolve(p, pair),
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[Ty::I32, b]),
-                rest: None
-            })
-        );
+        assert_eq!(t.resolve(p, pair), p.product(p.list(&[Ty::I32, b]), None));
         // A rebind replaces `a`'s solution: every kept result goes, and
         // its undo restores the flags the old binding held.
         let snap = t.snapshot();
@@ -2401,26 +2328,18 @@ mod tests {
         let p = Types::with_local(&gp, &lp);
         let mut t = InferTable::default();
         let list_of = |x: Ty| {
-            p.intern_ty(&TyData::Adt {
-                def: hd_base::DefId::from_raw(7),
-                args: p.list(&[x]),
-            })
+            p.intern_ty(&TyData::Adt(
+                AdtId::Declared(hd_base::DefId::from_raw(7)),
+                p.list(&[x]),
+            ))
         };
-        let rest_tuple = |fixed: Ty, item: Ty| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[fixed]),
-                rest: Some(list_of(item)),
-            })
-        };
+        let rest_tuple = |fixed: Ty, item: Ty| p.product(p.list(&[fixed]), Some(list_of(item)));
         let (a, b) = (t.fresh(p, VarKind::General), t.fresh(p, VarKind::General));
         t.unify(p, rest_tuple(a, b), rest_tuple(Ty::I32, Ty::BOOL))
             .expect("fixed and rest elements unify");
         assert_eq!(t.resolve(p, a), Ty::I32);
         assert_eq!(t.resolve(p, b), Ty::BOOL);
-        let plain = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::I32]),
-            rest: None,
-        });
+        let plain = p.product(p.list(&[Ty::I32]), None);
         assert!(matches!(
             t.unify(p, rest_tuple(Ty::I32, Ty::BOOL), plain),
             Err(UnifyError::Mismatch { .. })
@@ -2489,12 +2408,7 @@ mod tests {
         let mut t = InferTable::default();
         let a = t.fresh(p, VarKind::General);
         let b = t.fresh(p, VarKind::General);
-        let pair = |x: Ty| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[x, x]),
-                rest: None,
-            })
-        };
+        let pair = |x: Ty| p.product(p.list(&[x, x]), None);
         let mut deep = a;
         for _ in 0..40 {
             deep = pair(deep);
@@ -2514,14 +2428,11 @@ mod tests {
         }
         let forms = [
             deep_b,
-            p.intern_ty(&TyData::Adt {
-                def: hd_base::DefId::from_raw(7),
-                args: p.list(&[deep_b]),
-            }),
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[Ty::I32]),
-                rest: Some(deep_b),
-            }),
+            p.intern_ty(&TyData::Adt(
+                AdtId::Declared(hd_base::DefId::from_raw(7)),
+                p.list(&[deep_b]),
+            )),
+            p.product(p.list(&[Ty::I32]), Some(deep_b)),
             p.intern_ty(&TyData::sum(p.list(&[deep_b]))),
             p.intern_ty(&TyData::Ref {
                 inner: deep_b,
@@ -2582,12 +2493,7 @@ mod tests {
         let (gp, lp) = (InternPool::new(), LocalPool::new());
         let p = Types::with_local(&gp, &lp);
         let mut t = InferTable::default();
-        let tuple = |xs: &[Ty]| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(xs),
-                rest: None,
-            })
-        };
+        let tuple = |xs: &[Ty]| p.product(p.list(xs), None);
         let (a, b) = (t.fresh(p, VarKind::General), t.fresh(p, VarKind::General));
         let x = t.fresh(p, VarKind::General);
         t.unify(p, x, tuple(&[a, a])).expect("bind");
@@ -2660,10 +2566,7 @@ mod tests {
             let mut levels = Vec::new();
             for _ in 0..n {
                 let v = t.fresh(p, VarKind::General);
-                level = p.intern_ty(&TyData::Tuple {
-                    elems: p.list(&[v, level]),
-                    rest: None,
-                });
+                level = p.product(p.list(&[v, level]), None);
                 levels.push(level);
             }
             let ((), count) = crate::work::count_type_nodes(|| {

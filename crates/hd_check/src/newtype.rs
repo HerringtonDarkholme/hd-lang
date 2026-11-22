@@ -13,6 +13,7 @@ use hd_intern::PathKind;
 use hd_resolve::{ImplKind, Item, ItemData};
 use hd_syntax::NodeRef;
 use hd_tir::ir::{BlockMark, IntrinsicOp, LoopMark, NONE, PrimOp, Ref, Tag, TirSink, local_flags};
+use hd_types::AdtId;
 use hd_types::{ParamRef, Prim, Ty, TyData};
 
 use crate::body::{BodyCx, Ck, ExpectPosition};
@@ -205,7 +206,9 @@ impl Conversion {
                 return true;
             }
             match (pool.get(f), pool.get(t)) {
-                (TyData::Adt { def: d, args: a }, TyData::Adt { def: e, args: b }) if d == e => {
+                (TyData::Adt(AdtId::Declared(d), a), TyData::Adt(AdtId::Declared(e), b))
+                    if d == e =>
+                {
                     let (a, b) = (pool.list_items(a), pool.list_items(b));
                     if d == known.option || (d == known.result && a[1] == b[1]) {
                         layers.push(ConversionLayer::Variant {
@@ -500,10 +503,10 @@ mod tests {
     fn conversion(ck: &Ck<'_, '_>) -> Conversion {
         Conversion {
             base: Ty::I32,
-            newtype: ck.pool().intern_ty(&TyData::Adt {
-                def: ck.cx.names.item("app.main", "Wrapped"),
-                args: TyList::EMPTY,
-            }),
+            newtype: ck.pool().intern_ty(&TyData::Adt(
+                AdtId::Declared(ck.cx.names.item("app.main", "Wrapped")),
+                TyList::EMPTY,
+            )),
         }
     }
 
@@ -516,7 +519,7 @@ mod tests {
                 1 => (k.result, p.list(&[t, Ty::BOOL])),
                 _ => (k.list, p.list(&[t])),
             };
-            t = p.intern_ty(&TyData::Adt { def, args });
+            t = p.intern_ty(&TyData::Adt(AdtId::Declared(def), args));
         }
         t
     }
@@ -547,10 +550,7 @@ mod tests {
                     let p = ck.pool();
                     let k = ck.cx.names.known;
                     let result = |x, e| {
-                        p.intern_ty(&TyData::Adt {
-                            def: k.result,
-                            args: p.list(&[x, e]),
-                        })
+                        p.intern_ty(&TyData::Adt(AdtId::Declared(k.result), p.list(&[x, e])))
                     };
                     assert!(
                         conv.can(
@@ -561,10 +561,7 @@ mod tests {
                         .is_none()
                     );
                     for data in [
-                        TyData::Tuple {
-                            elems: p.list(&[conv.newtype]),
-                            rest: None,
-                        },
+                        TyData::Adt(AdtId::Product { rest: false }, p.list(&[conv.newtype])),
                         TyData::sum(p.list(&[conv.newtype])),
                         TyData::Ref {
                             inner: conv.newtype,

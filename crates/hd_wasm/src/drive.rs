@@ -8,6 +8,7 @@
 use hd_base::{DefId, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind};
 use hd_tir::ir::{Body, Callee, NONE, PlaceRoot, ReadMode, Ref, Tag, Topology};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use crate::Input;
@@ -184,8 +185,8 @@ fn raw_cold_call(input: &Input<'_>, id: InstId, body: &Body, i: usize) -> bool {
         .pool
         .get(crate::layout::strip_newtype(input.pool, input.env, ret))
     {
-        TyData::Prim(_) | TyData::Tuple { .. } => false,
-        TyData::Adt { def, .. } => def == input.env.suspend_def(),
+        TyData::Prim(_) | TyData::Adt(AdtId::Product { .. }, _) => false,
+        TyData::Adt(def, _) => def == AdtId::Declared(input.env.suspend_def()),
         _ => true,
     }
 }

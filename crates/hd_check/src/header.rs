@@ -17,7 +17,7 @@
 use hd_base::{DefId, Fuel, InferVar, StageResult, Symbol};
 use hd_diag::Code;
 use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, Names};
-use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use hd_types::solver::{
     Answer, BodyMemo, EnvKey, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver,
     TraitRef,
@@ -861,10 +861,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
             })
             .collect();
-        let identity = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&args),
-        });
+        let identity = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&args)));
         let decls = self.cx.decls(&mut self.values.local);
         if hd_types::sealed::may_copy(pool, &decls, identity) {
             let name = self.cx.names.display_name(def);
@@ -891,7 +888,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 }) if *trait_ == DefId::NONE => {
                     it.public
                         && !matches!(self.pool().get(*self_ty),
-                            TyData::Adt { def, .. } if self.is_private(def))
+                            TyData::Adt(AdtId::Declared(def), _) if self.is_private(def))
                 }
                 _ => false,
             },
@@ -1012,7 +1009,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 // An impl's publicness belongs to its trait and target
                 // (`module.vis.signature.coverage`), not an impl modifier.
                 let target = match self.pool().get(*self_ty) {
-                    TyData::Adt { def, .. } => def,
+                    TyData::Adt(AdtId::Declared(def), _) => def,
                     _ => DefId::NONE,
                 };
                 [target, *trait_]
@@ -1093,7 +1090,7 @@ impl<'a> ItemCheck<'_, 'a> {
         // A newtype derives through its base type instead, with no
         // template (`trait.derive.newtype.*`).
         let newtype = match self.pool().get(*self_ty) {
-            TyData::Adt { def, .. } if def.get().is_some() => self
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => self
                 .cx
                 .lookup
                 .item(def)
@@ -2022,9 +2019,11 @@ impl<'a> ItemCheck<'_, 'a> {
             );
         };
         match pool.get(t) {
-            TyData::Adt { def, args } => {
+            TyData::Adt(def, args) => {
                 let args_v = pool.list_items(args);
-                if let Some(target) = def.get().and_then(|def| self.cx.lookup.item(def)) {
+                if let Some(def) = def.get()
+                    && let Some(target) = self.cx.lookup.item(def)
+                {
                     let goals =
                         crate::written_bounds::goals(pool, def, &target.generics, None, args_v);
                     self.arg_bounds(goals, slot)?;
@@ -2051,15 +2050,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
             }
             TyData::Ref { inner: i, .. } => kids.push(Work::Ty(i, slot)),
-            TyData::Tuple { elems, rest } => {
-                kids.extend(
-                    pool.list_items(elems)
-                        .iter()
-                        .copied()
-                        .chain(rest)
-                        .map(|e| Work::Ty(e, slot)),
-                );
-            }
+
             TyData::Fn {
                 params,
                 result,
@@ -2629,12 +2620,10 @@ impl ItemCheck<'_, '_> {
                     }
                     Vec::new()
                 }
-                TyData::Tuple { elems, rest } => {
-                    pool.list_items(elems).iter().copied().chain(rest).collect()
+                // Anonymous products and sums cross through their ordered members.
+                TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
+                    pool.list_items(args).to_vec()
                 }
-                // A union crosses as the enum of its cases
-                // (`types.union.representation`), each case its payload.
-                TyData::Adt { def, args } if def == ANON_SUM => pool.list_items(args).to_vec(),
                 // `module.boundary.rows`: a context bundles requirement
                 // bindings, which are no data.
                 TyData::Context(_) => {
@@ -2642,11 +2631,12 @@ impl ItemCheck<'_, '_> {
                         "a provider context bundles requirement bindings, not data, so it is not boundary-safe",
                     );
                 }
-                TyData::Adt { def, args } => {
-                    let argv = pool.list_items(args);
+                TyData::Adt(AdtId::Declared(def), args) => {
+                    let type_items = pool.list_items(args);
                     let sub = |x: Ty| {
                         pool.subst(x, &|p: ParamRef| {
-                            (p.owner == def).then(|| argv.get(usize::from(p.index)).copied())?
+                            (p.owner == def)
+                                .then(|| type_items.get(usize::from(p.index)).copied())?
                         })
                     };
                     if def == known.suspend {
@@ -2655,7 +2645,7 @@ impl ItemCheck<'_, '_> {
                         );
                     }
                     match self.cx.lookup.item(def).map(|i| &i.data) {
-                        _ if def == known.list || def == known.map => argv.to_vec(),
+                        _ if def == known.list || def == known.map => type_items.to_vec(),
                         Some(ItemData::Struct(fields, _)) => {
                             if fields.iter().any(|f| !f.public && !f.embedded) {
                                 let bound = pool.intern_ty(&TyData::TraitValue {

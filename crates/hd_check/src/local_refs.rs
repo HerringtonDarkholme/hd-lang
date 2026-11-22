@@ -24,6 +24,7 @@ use hd_diag::{Code, DiagBuf};
 use hd_resolve::view::Src;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::Ref;
+use hd_types::AdtId;
 use hd_types::{Ty, TyData, Types};
 
 use crate::body::{Ck, ExpectPosition};
@@ -463,11 +464,8 @@ fn escape_in(pool: Types<'_>, t: Ty, top_ok: bool, memo: &mut EscapeMemo) -> Opt
                     // A counted reference holds what its referent holds
                     // (`ref.local.holding.counted`), as a generic instance does.
                     TyData::Ref { inner, .. } => parts.push(part(inner, top_ok)),
-                    TyData::Tuple { elems, rest } => {
-                        parts.extend(rest.map(|r| part(r, top_ok)));
-                        list(&mut parts, elems, top_ok);
-                    }
-                    TyData::Adt { args, .. } => {
+
+                    TyData::Adt(_, args) => {
                         list(&mut parts, args, top_ok);
                     }
                     // An opaque type that borrows holds a local reference of
@@ -648,11 +646,8 @@ fn hidden(pool: Types<'_>, t: Ty, p: hd_types::ParamRef) -> bool {
         match pool.get(t) {
             TyData::Param(q) => return !(under && q == p),
             TyData::Ref { inner: i, .. } => stack.push((i, under, d)),
-            TyData::Tuple { elems, rest } => {
-                list(stack, elems, under);
-                stack.extend(rest.map(|r| (r, under, d)));
-            }
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => list(stack, args, under),
+
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => list(stack, args, under),
             TyData::Fn { params, result, .. } => {
                 list(stack, params, true);
                 stack.push((result, true, d));
@@ -729,19 +724,13 @@ pub(crate) fn lends(pool: Types<'_>, from: Ty, to: Ty, polarity: i8) -> bool {
                         _ => ka == kb,
                     }
                 }
-                (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b }) if x == y => {
-                    list(stack, a, b, 0)
-                }
-                (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
-                    list(stack, a, b, polarity)
-                        && match (ra, rb) {
-                            (Some(x), Some(y)) => {
-                                stack.push((x, y, polarity, d));
-                                true
-                            }
-                            (None, None) => true,
-                            _ => false,
-                        }
+                (TyData::Adt(x, a), TyData::Adt(y, b)) if x == y => {
+                    let p = if matches!(x, AdtId::Product { .. }) {
+                        polarity
+                    } else {
+                        0
+                    };
+                    list(stack, a, b, p)
                 }
                 (
                     TyData::Fn {
@@ -1107,12 +1096,7 @@ mod tests {
                         counted,
                     })
                 };
-                let pair = |a, b| {
-                    pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&[a, b]),
-                        rest: None,
-                    })
-                };
+                let pair = |a, b| pool.product(pool.list(&[a, b]), None);
                 let (mut counted, mut local, mut wrong) = (Ty::I32, Ty::I32, rf(Ty::I32, false));
                 for _ in 1..hd_base::limits::TYPE_DEPTH {
                     counted = pair(rf(Ty::I32, true), counted);

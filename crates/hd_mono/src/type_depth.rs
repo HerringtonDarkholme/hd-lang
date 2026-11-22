@@ -6,15 +6,12 @@ fn parts(pool: &InternPool, t: Ty) -> Vec<Ty> {
     let mut parts = Vec::new();
     let row_keys = |row, parts: &mut Vec<Ty>| parts.extend(pool.row_data(row).keys);
     match pool.get(t) {
-        TyData::Adt { args, .. } => parts.extend(pool.list_items(args)),
+        TyData::Adt(_, args) => parts.extend(pool.list_items(args)),
         TyData::Opaque { args, bound, .. } => {
             parts.extend(pool.list_items(args));
             parts.push(bound);
         }
-        TyData::Tuple { elems, rest } => {
-            parts.extend(pool.list_items(elems));
-            parts.extend(rest);
-        }
+
         TyData::Ref { inner: i, .. } => parts.push(i),
         TyData::Fn {
             params,
@@ -94,10 +91,7 @@ mod tests {
     fn opaque_bounds_arguments_and_associated_self_contribute_depth() {
         use hd_base::DefId;
         let pool = InternPool::default();
-        let tuple = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[Ty::I32]),
-            rest: None,
-        });
+        let tuple = pool.product(pool.list(&[Ty::I32]), None);
         for (args, bound) in [(&[tuple][..], Ty::I32), (&[Ty::I32][..], tuple)] {
             let opaque = pool.intern_ty(&TyData::Opaque {
                 owner: DefId::from_raw(1),
@@ -130,10 +124,7 @@ mod tests {
             let pool = InternPool::default();
             let mut ty = Ty::STRING;
             for _ in 0..depth {
-                ty = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&vec![ty; width]),
-                    rest: None,
-                });
+                ty = pool.product(pool.list(&vec![ty; width]), None);
             }
             let mut memo = HashMap::default();
             let mut work = 0;

@@ -23,10 +23,7 @@ fn with_names(test: impl FnOnce(&Names<'_>, &InternPool, &PathTable)) {
 }
 
 fn tuple(pool: &InternPool, elems: &[Ty], rest: Option<Ty>) -> Ty {
-    pool.intern_ty(&TyData::Tuple {
-        elems: pool.list(elems),
-        rest,
-    })
+    pool.product(pool.list(elems), rest)
 }
 
 /// A cut type is at most the limit, one separator, the elision mark and
@@ -59,6 +56,12 @@ fn a_deep_type_shows_its_outer_levels() {
         let open = "(".repeat(SHOWN_TYPE_DEPTH as usize);
         let close = ",)".repeat(SHOWN_TYPE_DEPTH as usize);
         assert_eq!(show_ty(names, t), format!("{open}...{close}"));
+        // Unit remains tuple syntax, rather than a declaration with no args.
+        let mut unit = Ty::VOID;
+        for _ in 0..SHOWN_TYPE_DEPTH {
+            unit = tuple(pool, &[unit], None);
+        }
+        assert_eq!(show_ty(names, unit), format!("{open}...{close}"));
         // A name at the depth limit is still shown: it has no part below.
         let mut t = Ty::I32;
         for _ in 0..SHOWN_TYPE_DEPTH {

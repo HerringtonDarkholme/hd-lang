@@ -7,6 +7,7 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
+use hd_types::AdtId;
 use hd_types::{Prim, Ty, TyData};
 
 use super::Em;
@@ -21,21 +22,16 @@ impl Em<'_, '_, '_> {
     pub(super) fn map_iter(&mut self, i: u32, map: u32) -> StageResult<()> {
         let (key, value, entry) = self.entry(self.ty_of(map))?;
         let pool = self.pool();
-        let tuple = |fields: &[Ty]| {
-            pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(fields),
-                rest: None,
-            })
-        };
+        let tuple = |fields: &[Ty]| pool.product(pool.list(fields), None);
         // ruled out: std's sole map_steps signature returns the step
         // function fn(usize) -> (usize, (K, V))?. Its payload leaves are
         // exactly the index followed by the map entry's leaves.
         let index = pool.intern_ty(&TyData::Prim(Prim::Usize));
         let item = tuple(&[index, tuple(&[key, value])]);
-        let result = pool.intern_ty(&TyData::Adt {
-            def: self.env().option(),
-            args: pool.list(&[item]),
-        });
+        let result = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.env().option()),
+            pool.list(&[item]),
+        ));
         let opt = self.enum_flat(result)?;
         let code = Helper::MapStep {
             entry,

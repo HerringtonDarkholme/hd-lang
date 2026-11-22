@@ -20,6 +20,7 @@
 
 use hd_base::SliceSort as _;
 use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt::Write as _;
@@ -60,19 +61,13 @@ impl Env<'_> {
         }
         let pool = &self.run.pool;
         let found = match (pool.get(key.ty), key.field) {
-            (TyData::Tuple { elems, rest }, Some(field)) => {
-                pool.list_items(elems).get(field as usize).copied().or(rest)
+            (TyData::Adt(AdtId::Product { .. }, args), Some(field)) => {
+                pool.list_items(args).get(field as usize).copied()
             }
-            (
-                TyData::Adt {
-                    def: ANON_SUM,
-                    args: members,
-                },
-                Some(0),
-            ) => key
+            (TyData::Adt(ANON_SUM, members), Some(0)) => key
                 .variant
                 .and_then(|v| pool.list_items(members).get(v as usize).copied()),
-            (TyData::Adt { def, args }, field) if def.get().is_some() => {
+            (TyData::Adt(AdtId::Declared(def), args), field) => {
                 if let Some(field) = field {
                     let raw = self.p.items.get(def).and_then(|item| match &item.data {
                         hd_resolve::ItemData::Struct(fields, _) => {
@@ -466,7 +461,7 @@ impl hd_opt::prove::Cx for Env<'_> {
     }
     fn tuple(&self, t: Ty) -> bool {
         let t = hd_mono::layout::strip_newtype(&self.run.pool, self, t);
-        matches!(self.run.pool.get(t), TyData::Tuple { .. })
+        matches!(self.run.pool.get(t), TyData::Adt(AdtId::Product { .. }, _))
     }
     fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
         match hd_layout::kind(&self.run.pool, self, t) {
@@ -1117,7 +1112,7 @@ impl OwnCx for Env<'_> {
     fn in_place_struct(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
         let t = ty;
-        matches!(pool.get(t), TyData::Adt { def, .. }
+        matches!(pool.get(t), TyData::Adt(AdtId::Declared(def), _)
             if self.std_kind(def) == hd_mono::layout::StdKind::Other && self.is_struct(def))
     }
 
@@ -1160,10 +1155,10 @@ impl OwnCx for Env<'_> {
         // An enum's own runtime Drop hook still runs for an empty
         // variant; its fields alone do not describe its ownership.
         if variant.is_some()
-            && let TyData::Adt { def, .. } =
-                self.run
-                    .pool
-                    .get(hd_layout::strip_newtype(&self.run.pool, self, ty))
+            && let TyData::Adt(AdtId::Declared(def), _) = self
+                .run
+                .pool
+                .get(hd_layout::strip_newtype(&self.run.pool, self, ty))
             && self.has_drop(def)
         {
             out.clear();
@@ -1177,7 +1172,7 @@ impl OwnCx for Env<'_> {
         if self.is_open(ty)
             || matches!(
                 self.run.pool.get(hd_layout::strip_newtype(&self.run.pool, self, ty)),
-                TyData::Adt { def, .. } if self.has_drop(def)
+                TyData::Adt(AdtId::Declared(def), _) if self.has_drop(def)
             )
         {
             return true;
@@ -1502,13 +1497,9 @@ impl RefFacts {
 /// a tuple's members and rest, a union's members. A reference's referent
 /// is not one: the reference alone decides.
 fn ref_parts(pool: &hd_types::InternPool, t: Ty, out: &mut Vec<Ty>) {
-    let (list, rest) = match pool.get(t) {
-        TyData::Adt { args: l, .. } => (l, None),
-        TyData::Tuple { elems, rest } => (elems, rest),
-        _ => (TyList::EMPTY, None),
-    };
-    out.extend(pool.list_items(list));
-    out.extend(rest);
+    if let TyData::Adt(_, args) = pool.get(t) {
+        out.extend(pool.list_items(args));
+    }
 }
 
 /// `t`'s reference facts from its kind and its parts' facts, which `part`
@@ -1531,17 +1522,13 @@ fn ref_facts_of(
             only_counted: false,
             counted: false,
         },
-        TyData::Adt { def, args } if def == ptr => RefFacts {
+        TyData::Adt(AdtId::Declared(def), args) if def == ptr => RefFacts {
             holds: true,
             only_counted: false,
             ..all(pool.list_items(args))
         },
-        TyData::Adt { args: l, .. } => all(pool.list_items(l)),
-        TyData::Tuple { elems, rest } => {
-            let mut ts = pool.list_items(elems).to_vec();
-            ts.extend(rest);
-            all(&ts)
-        }
+        TyData::Adt(_, l) => all(pool.list_items(l)),
+
         TyData::Param(..) => RefFacts {
             only_counted: false,
             ..RefFacts::NONE
@@ -1617,12 +1604,7 @@ fn a_function_beside_a_counted_reference_may_hold_a_local_reference() {
         inputs: hd_types::Inputs::Fixed,
         deps: hd_types::FnDeps::NONE,
     });
-    let pair = |right| {
-        pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[boxed, right]),
-            rest: None,
-        })
-    };
+    let pair = |right| pool.product(pool.list(&[boxed, right]), None);
     let mut memo = TypeTable::default();
     let mut only = |t| {
         let f = ref_facts(&pool, ptr, t, &mut memo);
@@ -2697,7 +2679,7 @@ impl FactEnv for Env<'_> {
     }
 
     fn is_facts(&self, ty: Ty) -> bool {
-        matches!(self.run.pool.get(ty), TyData::Adt { def, .. } if def == self.run.known.facts)
+        matches!(self.run.pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if def == self.run.known.facts)
     }
 
     fn known_facts(
