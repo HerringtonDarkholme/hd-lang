@@ -121,6 +121,27 @@ pub fn describe(value: Choice) -> string:
 pub fn main() -> void $ Console:
     println(describe(make()))
 "#;
+    assert_anonymous_warm_reads(text);
+}
+
+/// Fixed, nested and rest products keep their shape through both cache layers.
+#[test]
+fn anonymous_products_survive_warm_interface_and_body_reads() {
+    let text = r#"type Pair = ((i32, string), List[string]...)
+
+pub fn make() -> Pair:
+    ((7, "fixed"), ["kept"]...)
+
+pub fn describe(value: Pair) -> string:
+    value._0._1 + value._1[0]
+
+pub fn main() -> void $ Console:
+    println(describe(make()))
+"#;
+    assert_anonymous_warm_reads(text);
+}
+
+fn assert_anonymous_warm_reads(text: &str) {
     let store = MemoryStore::default();
     let cold = build(text, &store, &program(), None);
     assert!(cold.wasm.is_some(), "{}", cold.render());

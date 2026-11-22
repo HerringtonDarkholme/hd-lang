@@ -23,6 +23,7 @@ use hd_mono::{BoundaryMap, ProgramEnv, Target, subst};
 use hd_tir::ir::{
     Body, Callee, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, local_flags, slot_words,
 };
+use hd_types::AdtId;
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
@@ -372,7 +373,7 @@ fn of_at(
     let s = layout::strip_newtype(pool, env, t);
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as the string of its std host codec.
-    if let (TyData::Adt { def, .. }, Some(at)) = (pool.get(s), at)
+    if let (TyData::Adt(AdtId::Declared(def), _), Some(at)) = (pool.get(s), at)
         && env.has_private_field(def)
     {
         return codec(input, t, s, at);
@@ -396,7 +397,7 @@ fn of_at(
         },
         // A rest element is one more member, its `List[T]`
         // (`types.tuple.rest.list`).
-        TyData::Tuple { .. } => {
+        TyData::Adt(AdtId::Product { .. }, _) => {
             let mut fields = Vec::new();
             for e in layout::tuple_members(pool, s) {
                 fields.push(of_at(input, m, e, path, at)?);
@@ -437,7 +438,11 @@ fn of_at(
                 ..handle_of(input, m, def, at)?
             }))
         }
-        TyData::Adt { def, args } => match env.std_kind(def) {
+        TyData::Adt(AdtId::Sum, args) => {
+            let variants: Vec<Vec<Ty>> = pool.list_items(args).iter().map(|&t| vec![t]).collect();
+            return enum_of(input, m, &variants, path, at);
+        }
+        TyData::Adt(AdtId::Declared(def), args) => match env.std_kind(def) {
             hd_mono::layout::StdKind::List => {
                 let items = pool.list_items(args);
                 debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
@@ -641,12 +646,6 @@ fn data_of(
     at: Option<AtProfile<'_>>,
 ) -> StageResult<LTy> {
     let (pool, env) = (input.pool, input.env);
-    // Anonymous identities have no nominal recursive binder.
-    if def.get().is_none()
-        && let Some(variants) = hd_mono::layout::enum_variants(pool, env, def, args)
-    {
-        return enum_of(input, m, &variants, path, at);
-    }
     let key = (s, at.map(|a| (a.out, a.package)));
     let named = |id: usize| -> StageResult<LTy> {
         Ok(LTy::Named(Box::new(LNamed {
@@ -665,7 +664,7 @@ fn data_of(
         return named(id);
     }
     path.push((s, None));
-    let built = if let Some(variants) = hd_mono::layout::enum_variants(pool, env, def, args) {
+    let built = if let Some(variants) = env.enum_variants(def, args) {
         enum_of(input, m, &variants, path, at)
     } else {
         // A struct with no fields crosses as an empty record: no bytes
@@ -2815,7 +2814,7 @@ fn package_value(
             Prim::F64 => Value::F64,
             Prim::String => Value::String,
         },
-        TyData::Tuple { .. } => {
+        TyData::Adt(AdtId::Product { .. }, _) => {
             let ts = layout::tuple_members(pool, s)
                 .into_iter()
                 .map(|t| package_value(input, t, path))
@@ -2826,10 +2825,12 @@ fn package_value(
                 Value::Tuple(ts)
             }
         }
-        TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.option()) => {
+        TyData::Adt(..) if let Some(inner) = pool.sole_arg(t, env.option()) => {
             Value::Option(Box::new(package_value(input, inner, path)?))
         }
-        TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::List => {
+        TyData::Adt(AdtId::Declared(def), args)
+            if env.std_kind(def) == hd_mono::layout::StdKind::List =>
+        {
             let items = pool.list_items(args);
             debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
             let elem = items[0];
@@ -2839,7 +2840,9 @@ fn package_value(
                 Value::List(Box::new(package_value(input, elem, path)?))
             }
         }
-        TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::Map => {
+        TyData::Adt(AdtId::Declared(def), args)
+            if env.std_kind(def) == hd_mono::layout::StdKind::Map =>
+        {
             let items = pool.list_items(args);
             debug_assert_eq!(
                 items.len(),
@@ -2851,7 +2854,7 @@ fn package_value(
                 Box::new(package_value(input, items[1], path)?),
             )
         }
-        TyData::Adt { def, args } => {
+        TyData::Adt(def, args) => {
             if def.get().is_none() {
                 return package_data(input, def, args, path);
             }
@@ -2922,7 +2925,7 @@ fn package_value(
 /// fields but no field names, is its base here (`layout::strip_newtype`).
 fn package_data(
     input: &Input<'_>,
-    def: DefId,
+    def: AdtId,
     args: TyList,
     path: &mut Binders,
 ) -> StageResult<hd_host_abi::schema::Value> {
@@ -2930,8 +2933,9 @@ fn package_data(
     let (pool, env) = (input.pool, input.env);
     Ok(
         if let Some(variants) = hd_mono::layout::enum_variants(pool, env, def, args) {
-            if def.get().is_some()
-                && (input.path)(def).replace('/', ".") == "std.core.Result"
+            if def
+                .get()
+                .is_some_and(|d| (input.path)(d).replace('/', ".") == "std.core.Result")
                 && variants.len() == 2
                 && variants.iter().all(|v| v.len() == 1)
             {
@@ -2971,7 +2975,7 @@ fn package_data(
                     .map_or_else(String::new, |def| env.source_type_name(def));
                 Value::Enum(name, out)
             }
-        } else {
+        } else if let AdtId::Declared(def) = def {
             let types = env.data_fields(def).unwrap_or_default();
             let names = env.data_field_names(def).unwrap_or_default();
             debug_assert_eq!(names.len(), types.len(), "a struct's field names");
@@ -2988,6 +2992,17 @@ fn package_data(
                     })
                     .collect::<StageResult<_>>()?,
             )
+        } else {
+            let fields = pool
+                .list_items(args)
+                .iter()
+                .map(|&t| package_value(input, t, path))
+                .collect::<StageResult<Vec<_>>>()?;
+            if fields.is_empty() {
+                Value::Void
+            } else {
+                Value::Tuple(fields)
+            }
         },
     )
 }

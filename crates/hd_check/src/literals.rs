@@ -10,6 +10,7 @@ use hd_resolve::iface::{LITERAL_PREFIX, LITERAL_SUFFIX};
 use hd_resolve::{BindingKind, Item};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{NONE, Ref, Tag, TirSink};
+use hd_types::AdtId;
 use hd_types::{Prim, Ty, TyData, VarKind};
 
 use crate::body::{Ck, ExpectPosition};
@@ -221,7 +222,9 @@ impl Ck<'_, '_> {
         let template = self.cx.names.known.template;
         let want = want.map(|w| self.infer.resolve(pool, w));
         let Some(elem) = want.and_then(|w| match pool.get(self.resolved(w)) {
-            TyData::Adt { def, args } if def == template => pool.list_items(args).first().copied(),
+            TyData::Adt(AdtId::Declared(def), args) if def == template => {
+                pool.list_items(args).first().copied()
+            }
             _ => None,
         }) else {
             let found = want.map_or_else(|| "a value".into(), |w| self.show(w));
@@ -282,19 +285,13 @@ impl Ck<'_, '_> {
         pieces.push(self.b.const_str(&cur));
         let list = self.cx.names.known.list;
         let list_of = |me: &mut Self, items: &[Ref], el: Ty| {
-            let lt = pool.intern_ty(&TyData::Adt {
-                def: list,
-                args: pool.list(&[el]),
-            });
+            let lt = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[el])));
             let rec = me.b.refs_record(items);
             me.b.emit(Tag::NewList, NONE, rec, lt, n.index())
         };
         let raw_parts = list_of(self, &pieces, Ty::STRING);
         let vals = list_of(self, &values, elem);
-        let tt = pool.intern_ty(&TyData::Adt {
-            def: template,
-            args: pool.list(&[elem]),
-        });
+        let tt = pool.intern_ty(&TyData::Adt(AdtId::Declared(template), pool.list(&[elem])));
         let rec = self.b.refs_record(&[raw_parts, vals]);
         Ok((self.b.emit(Tag::NewStruct, NONE, rec, tt, n.index()), tt))
     }
@@ -364,7 +361,7 @@ impl Ck<'_, '_> {
             return;
         }
         let template = self.cx.names.known.template;
-        if !matches!(pool.get(ty), TyData::Adt { def: d, .. } if d == template) {
+        if !matches!(pool.get(ty), TyData::Adt(AdtId::Declared(d), _) if d == template) {
             mismatch(self, "needs a `Template` parameter");
         }
     }

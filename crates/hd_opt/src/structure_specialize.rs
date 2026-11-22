@@ -6,7 +6,7 @@
 use hd_base::{DefId, Hash128, StableHasher};
 use hd_tir::inline::Site;
 use hd_tir::ir::{Body, BodyKind, Callee, Coercion, NONE, Place, PlaceRoot, Proj, Ref, Tag};
-use hd_types::{Ty, TyData, TyList};
+use hd_types::{AdtId, Ty, TyData, TyList};
 
 use crate::inline::{InlineEnv, InlineHint};
 
@@ -371,9 +371,9 @@ pub fn generated_accessor_proof(
 /// Declared and anonymous sums retain their dynamic check until the active arm is known.
 fn single_variant(env: &dyn StructureEnv, target: Ty) -> bool {
     match env.pool().get(target) {
-        TyData::Tuple { .. } => true,
         // ruled out: anonymous sums have cases, never product fields.
-        TyData::Adt { def, .. } => def.get().is_some() && !env.is_enum(def),
+        TyData::Adt(AdtId::Declared(def), _) => !env.is_enum(def),
+        TyData::Adt(AdtId::Product { .. }, _) => true,
         _ => false,
     }
 }

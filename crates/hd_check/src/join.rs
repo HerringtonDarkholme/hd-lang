@@ -15,6 +15,7 @@
 //! `no-common-type`.
 
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 
 use hd_base::{DefId, NodeIdx, StageResult};
 use hd_diag::Code;
@@ -217,12 +218,14 @@ impl Ck<'_, '_> {
             let e = self.cx.src.parse.tree.node(d.at.1);
             let known = self.cx.names.known;
             let hint = match pool.get(ret) {
-                TyData::Adt { def, .. } if def == known.option => Some(self.optional(d.payload)),
-                TyData::Adt { def, args } if def == known.result => {
-                    Some(pool.intern_ty(&TyData::Adt {
-                        def,
-                        args: pool.list(&[d.payload, pool.list_items(args)[1]]),
-                    }))
+                TyData::Adt(AdtId::Declared(def), _) if def == known.option => {
+                    Some(self.optional(d.payload))
+                }
+                TyData::Adt(AdtId::Declared(def), args) if def == known.result => {
+                    Some(pool.intern_ty(&TyData::Adt(
+                        AdtId::Declared(def),
+                        pool.list(&[d.payload, pool.list_items(args)[1]]),
+                    )))
                 }
                 _ => None,
             };
@@ -328,8 +331,12 @@ impl Ck<'_, '_> {
         for (optional, at) in propagation {
             let valid = match pool.get(site) {
                 TyData::Poison => true,
-                TyData::Adt { def, .. } if def == self.cx.names.known.option => optional,
-                TyData::Adt { def, .. } if def == self.cx.names.known.result => !optional,
+                TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.option => {
+                    optional
+                }
+                TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.result => {
+                    !optional
+                }
                 _ => false,
             };
             if !valid {
@@ -575,7 +582,7 @@ impl Ck<'_, '_> {
     fn lct_meet(&self, a: Ty, b: Ty, top: bool) -> Option<Ty> {
         enum Work {
             Enter(Ty, Ty, bool, usize),
-            Tuple((Ty, Ty, bool), std::ops::Range<usize>, bool, usize),
+            Product((Ty, Ty, bool), std::ops::Range<usize>, bool, usize),
         }
         let pool = self.pool();
         let (a, b) = (self.resolved(a), self.resolved(b));
@@ -587,13 +594,10 @@ impl Ck<'_, '_> {
         let done = hd_base::stack::all(Work::Enter(a, b, top, 0), |work, stack| {
             let (a, b, top, out) = match work {
                 Work::Enter(a, b, top, out) => (a, b, top, out),
-                Work::Tuple(key, slots, rest, out) => {
+                Work::Product(key, slots, rest, out) => {
                     let parts = &values[slots];
-                    let n = parts.len() - usize::from(rest);
-                    let ty = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&parts[..n]),
-                        rest: rest.then(|| parts[n]),
-                    });
+                    let ty =
+                        pool.intern_ty(&TyData::Adt(AdtId::Product { rest }, pool.list(parts)));
                     memo.insert(key, ty);
                     values[out] = ty;
                     return true;
@@ -633,35 +637,19 @@ impl Ck<'_, '_> {
                 // A tuple element keeps its permission and converts as the
                 // whole tuple does, as assignment allows (`perm_fits`).
                 (
-                    TyData::Tuple {
-                        elems: xs,
-                        rest: xr,
-                    },
-                    TyData::Tuple {
-                        elems: ys,
-                        rest: yr,
-                    },
+                    TyData::Adt(AdtId::Product { rest: xr }, xs),
+                    TyData::Adt(AdtId::Product { rest: yr }, ys),
                 ) => {
                     let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
                     if xs.len() != ys.len() {
                         return false;
                     }
-                    let rest = match (xr, yr) {
-                        (Some(x), Some(y)) => Some((x, y)),
-                        (None, None) => None,
-                        _ => return false,
-                    };
-                    let first = values.len();
-                    values.resize(first + xs.len() + usize::from(rest.is_some()), Ty::POISON);
-                    stack.push(Work::Tuple(
-                        (a, b, top),
-                        first..values.len(),
-                        rest.is_some(),
-                        out,
-                    ));
-                    if let Some((x, y)) = rest {
-                        stack.push(Work::Enter(x, y, false, first + xs.len()));
+                    if xr != yr {
+                        return false;
                     }
+                    let first = values.len();
+                    values.resize(first + xs.len(), Ty::POISON);
+                    stack.push(Work::Product((a, b, top), first..values.len(), xr, out));
                     stack.extend(
                         xs.iter()
                             .zip(ys)
@@ -780,23 +768,15 @@ impl Ck<'_, '_> {
                     },
                 ) => self.resolved(x) == self.resolved(y) && (xm || !ym) && (xc || !yc),
                 (
-                    TyData::Tuple {
-                        elems: xs,
-                        rest: xr,
-                    },
-                    TyData::Tuple {
-                        elems: ys,
-                        rest: yr,
-                    },
+                    TyData::Adt(AdtId::Product { rest: xr }, xs),
+                    TyData::Adt(AdtId::Product { rest: yr }, ys),
                 ) => {
                     let (xs, ys) = (pool.list_items(xs), pool.list_items(ys));
                     if xs.len() != ys.len() {
                         return false;
                     }
-                    match (xr, yr) {
-                        (Some(x), Some(y)) => stack.push((x, y, false)),
-                        (None, None) => {}
-                        _ => return false,
+                    if xr != yr {
+                        return false;
                     }
                     stack.extend(xs.iter().zip(ys).rev().map(|(&x, &y)| (x, y, false)));
                     true
@@ -1034,12 +1014,7 @@ mod tests {
                             counted: mutable,
                         })
                     };
-                    let tuple = |elems: &[Ty], rest| {
-                        p.intern_ty(&TyData::Tuple {
-                            elems: p.list(elems),
-                            rest,
-                        })
-                    };
+                    let tuple = |elems: &[Ty], rest| p.product(p.list(elems), rest);
                     for depth in [100, 1000] {
                         let x = ck.infer.fresh(p, VarKind::General);
                         let (mut a, mut b) = (reference(x, true), reference(Ty::I32, false));
@@ -1058,10 +1033,10 @@ mod tests {
                     }
                     let (a, b) = (reference(Ty::I32, true), reference(Ty::I32, false));
                     let list = |t| {
-                        p.intern_ty(&TyData::Adt {
-                            def: ck.cx.names.known.list,
-                            args: p.list(&[t]),
-                        })
+                        p.intern_ty(&TyData::Adt(
+                            AdtId::Declared(ck.cx.names.known.list),
+                            p.list(&[t]),
+                        ))
                     };
                     // A successful permission-ignoring pair cannot satisfy
                     // the same pair's invariant query beneath List.
@@ -1112,10 +1087,10 @@ mod tests {
                                         );
                                         for i in 0..depth {
                                             let tuple = |t| {
-                                                p.intern_ty(&TyData::Tuple {
-                                                    elems: p.list(&[t, t]),
-                                                    rest: (i % 2 == 0).then_some(t),
-                                                })
+                                                p.product(
+                                                    p.list(&[t, t]),
+                                                    (i % 2 == 0).then_some(t),
+                                                )
                                             };
                                             a = tuple(a);
                                             b = tuple(b);
@@ -1181,17 +1156,12 @@ mod tests {
             assert!(ck.lct_converts(a, b, true));
             assert_eq!(ck.lct_meet(a, b, false), None);
             assert!(!ck.lct_converts(a, b, false));
-            let tuple = |t, rest| {
-                p.intern_ty(&TyData::Tuple {
-                    elems: p.list(&[t]),
-                    rest,
-                })
-            };
+            let tuple = |t, rest| p.product(p.list(&[t]), rest);
             let adt = |t| {
-                p.intern_ty(&TyData::Adt {
-                    def: ck.cx.names.known.list,
-                    args: p.list(&[t]),
-                })
+                p.intern_ty(&TyData::Adt(
+                    AdtId::Declared(ck.cx.names.known.list),
+                    p.list(&[t]),
+                ))
             };
             for (a, b) in [
                 (tuple(a, None), tuple(b, None)),
@@ -1199,10 +1169,7 @@ mod tests {
                 (tuple(Ty::I32, Some(Ty::I32)), tuple(Ty::I32, None)),
                 (
                     tuple(Ty::I32, None),
-                    p.intern_ty(&TyData::Tuple {
-                        elems: hd_types::TyList::EMPTY,
-                        rest: None,
-                    }),
+                    p.product(hd_types::TyList::EMPTY, None),
                 ),
             ] {
                 assert_eq!(ck.lct_meet(a, b, true), None);

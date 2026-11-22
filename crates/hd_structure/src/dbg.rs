@@ -6,7 +6,7 @@ use hd_base::{DefId, NotImplemented, StageResult};
 use hd_resolve::ItemData;
 use hd_tir::Body;
 use hd_tir::ir::{BlockMark, BodyKind, Callee, Providers, Ref, Tag, TirBuilder, TirSink};
-use hd_types::{ParamRef, Prim, Ty, TyData};
+use hd_types::{AdtId, ParamRef, Prim, Ty, TyData};
 
 use super::{Cx, Gen, Handles, Mem, SYN, Shape, Target, Var};
 
@@ -143,19 +143,21 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
         match pool.get(ty) {
             TyData::Never => ("dbg_never", vec![ty]),
             TyData::Ref { inner, .. } => ("dbg_ref_printer", vec![inner]),
-            TyData::Adt { def, args } if def == names.known.option => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.option => {
                 ("dbg_option_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, args } if def == names.known.list => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.list => {
                 ("dbg_list_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, args } if def == names.known.map => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.map => {
                 ("dbg_map_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, args } if def == names.known.result => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.result => {
                 ("dbg_result_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, .. } if def == names.known.suspend => ("dbg_handle", vec![ty]),
+            TyData::Adt(AdtId::Declared(def), _) if def == names.known.suspend => {
+                ("dbg_handle", vec![ty])
+            }
             _ if target(cx, ty).is_some() => ("dbg_structural", vec![ty]),
             _ => ("dbg_opaque_printer", vec![ty]),
         }
@@ -237,7 +239,7 @@ pub fn codec_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, take: bool) -> StageResu
         TyData::Prim(Prim::String) => ("string", vec![]),
         TyData::Prim(_) => ("int", vec![ty]),
         TyData::Never => ("never", vec![]),
-        TyData::Adt { def, args } if def == names.known.list => {
+        TyData::Adt(AdtId::Declared(def), args) if def == names.known.list => {
             let items = pool.list_items(args);
             if items == [Ty::prim(Prim::U8)] {
                 ("bytes", vec![])
@@ -245,7 +247,7 @@ pub fn codec_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, take: bool) -> StageResu
                 ("list", items.to_vec())
             }
         }
-        TyData::Adt { def, args } if def == names.known.map => {
+        TyData::Adt(AdtId::Declared(def), args) if def == names.known.map => {
             ("map", pool.list_items(args).to_vec())
         }
         // A `Wire` trait value reference is a remote reference
@@ -286,8 +288,8 @@ pub fn texts_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> {
     let names = cx.names;
     let pool = names.pool;
     // ruled out: debug_texts's sealed Args < Tuple bound excludes non-tuples.
-    let (elems, rest) = pool.tuple_parts(args);
-    let elems = pool.list_items(elems).to_vec();
+    let (elems, rest) = pool.product_parts(args).unwrap_or_default();
+    let elems = elems.to_vec();
     let mut g = Gen::new(cx, args, item, Handles::Supplied);
     g.b = TirBuilder::new(item, BodyKind::Fn);
     let usize = Ty::prim(hd_types::Prim::Usize);

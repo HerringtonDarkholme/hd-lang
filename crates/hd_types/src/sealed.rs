@@ -8,7 +8,7 @@
 //! impl per primitive (`lib/std/num.hd`), with the bodies of `zero`, `one`
 //! and `from_i64`, so the impl tables answer them like any trait.
 
-use crate::ANON_SUM;
+use crate::{ANON_SUM, AdtId};
 use hd_base::{DefId, HashMap, InferVar};
 
 use crate::pool::{ParamRef, Ty, TyData, TyList, Types};
@@ -201,29 +201,30 @@ enum Category {
 
 fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
     match pool.get(t) {
-        TyData::Prim(_)
-        | TyData::Tuple { .. }
-        | TyData::Fn { .. }
-        | TyData::Adt { def: ANON_SUM, .. } => Category::Val,
+        TyData::Prim(_) | TyData::Fn { .. } | TyData::Adt(ANON_SUM | AdtId::Product { .. }, _) => {
+            Category::Val
+        }
         // A reference has identity: what it refers to (ref.type.any-ref).
         TyData::TraitValue { .. } | TyData::Ref { .. } => Category::Ref,
         // A collection is a value (`types.coll.value`).
-        TyData::Adt { def, .. }
+        TyData::Adt(AdtId::Declared(def), _)
             if def != DefId::NONE && (def == decls.sealed().list || def == decls.sealed().map) =>
         {
             Category::Val
         }
-        TyData::Adt { def, .. } if def != DefId::NONE && def == decls.sealed().suspend => {
+        TyData::Adt(AdtId::Declared(def), _)
+            if def != DefId::NONE && def == decls.sealed().suspend =>
+        {
             Category::Ref
         }
-        TyData::Adt { def, args } if def.get().is_some() => match decls.type_decl(def) {
+        TyData::Adt(AdtId::Declared(def), args) => match decls.type_decl(def) {
             TypeDecl::Enum | TypeDecl::Struct => Category::Val,
             TypeDecl::Builtin => Category::Ref,
             TypeDecl::Newtype(base) => {
-                let argv = pool.list_items(args);
+                let items = pool.list_items(args);
                 Category::Base(pool.subst(base, &|p: ParamRef| {
                     (p.owner == def)
-                        .then(|| argv.get(usize::from(p.index)).copied())
+                        .then(|| items.get(usize::from(p.index)).copied())
                         .flatten()
                 }))
             }
@@ -330,14 +331,14 @@ pub(crate) fn row(
         });
     }
     if trait_ == s.tuple {
-        return Some(if matches!(t, TyData::Tuple { .. }) {
+        return Some(if matches!(t, TyData::Adt(AdtId::Product { .. }, _)) {
             Row::Holds(BuiltinImpl::Tuple, Vec::new())
         } else {
             Row::Fails(FailReason::NoImpl)
         });
     }
     if trait_ == s.union_type {
-        return Some(if matches!(t, TyData::Adt { def: ANON_SUM, .. }) {
+        return Some(if matches!(t, TyData::Adt(ANON_SUM, _)) {
             Row::Holds(BuiltinImpl::Union, Vec::new())
         } else {
             Row::Fails(FailReason::NoImpl)
@@ -361,28 +362,32 @@ pub(crate) fn row(
             }
             // Elements are values, not arguments (`trait.inspectable.collections`);
             // a rest element is its list's argument (`annot.tuple.rest`).
-            TyData::Tuple { elems, rest } => {
-                subs.extend(pool.list_items(elems).iter().copied());
-                if let Some(r) = rest {
-                    argument(pool, r, &mut subs);
-                }
-                true
-            }
+
             // A declaration applied to inspectable arguments, `Option`
             // included (`trait.inspectable.declared`, `.option`), unless it
             // is local to a block suite (`trait.inspectable.not.local`).
-            TyData::Adt { def, .. } if def != ANON_SUM && decls.is_local(def) => false,
+            TyData::Adt(AdtId::Declared(def), _) if decls.is_local(def) => false,
             // Only type arguments count: a const argument is part of the
             // type's identity, and a row argument (`req.row.param.data-owner`)
             // is a requirement row, not a value type.
-            TyData::Adt { def, args } => {
+            TyData::Adt(def, args) => {
                 for (i, a) in pool.list_items(args).iter().enumerate() {
-                    if def == ANON_SUM {
-                        subs.push(*a);
-                    } else if !decls.is_const_slot(def, i)
-                        && !matches!(pool.get(*a), TyData::Row(_))
-                    {
-                        argument(pool, *a, &mut subs);
+                    match def {
+                        AdtId::Sum => subs.push(*a),
+                        AdtId::Product { rest } => {
+                            if rest && i + 1 == pool.list_items(args).len() {
+                                argument(pool, *a, &mut subs);
+                            } else {
+                                subs.push(*a);
+                            }
+                        }
+                        AdtId::Declared(def) => {
+                            if !decls.is_const_slot(def, i)
+                                && !matches!(pool.get(*a), TyData::Row(_))
+                            {
+                                argument(pool, *a, &mut subs);
+                            }
+                        }
                     }
                 }
                 true
@@ -406,7 +411,7 @@ pub(crate) fn row(
     // asks it once a tuple template's instance is collected, and lowers
     // its methods per tuple type (`crates/hd_mono/DESIGN.md` §13.6).
     Some(match t {
-        TyData::Tuple { .. } | TyData::Adt { def: ANON_SUM, .. } => {
+        TyData::Adt(AdtId::Product { .. } | ANON_SUM, _) => {
             Row::Holds(BuiltinImpl::Structure, Vec::new())
         }
         _ => Row::Fails(FailReason::NoImpl),
@@ -635,7 +640,7 @@ fn copy_parts(
                 take(&mut open, left);
                 continue;
             }
-            TyData::Tuple { .. } | TyData::Adt { .. } => {
+            TyData::Adt(AdtId::Product { .. }, _) | TyData::Adt(..) => {
                 if let Some(&left) = marks.get(&t) {
                     take(&mut open, left);
                     continue;
@@ -685,14 +690,10 @@ fn copy_parts(
         }
         crate::work::type_node();
         match data {
-            TyData::Tuple { elems, rest } => {
-                stack.extend(rest.map(Step::Enter));
-                stack.extend(pool.list_items(elems).iter().rev().map(|&e| Step::Enter(e)));
-            }
-            TyData::Adt { def, args } if def == ANON_SUM => {
+            TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
                 stack.extend(pool.list_items(args).iter().rev().map(|&m| Step::Enter(m)));
             }
-            TyData::Adt { def, args } => match decls.copy_decl(def) {
+            TyData::Adt(AdtId::Declared(def), args) => match decls.copy_decl(def) {
                 CopyDecl::NotCopy(_) if walk == Walk::Copy => return fails(memo, walk, root),
                 // A collection holds its type arguments by value for a
                 // marker (`module.marker.structural`); a suspension and
@@ -700,19 +701,19 @@ fn copy_parts(
                 CopyDecl::Copies if walk != Walk::Copy => {
                     let s = decls.sealed();
                     if def == s.list || def == s.map {
-                        let argv = pool.list_items(args);
-                        stack.extend(argv.iter().rev().map(|&a| Step::Enter(a)));
+                        let items = pool.list_items(args);
+                        stack.extend(items.iter().rev().map(|&a| Step::Enter(a)));
                     } else if decls.type_decl(def) == TypeDecl::Builtin {
                         return fails(memo, walk, root);
                     }
                 }
                 CopyDecl::Copies => {}
                 CopyDecl::Members(ms) | CopyDecl::NotCopy(ms) => {
-                    let argv = pool.list_items(args);
+                    let items = pool.list_items(args);
                     stack.extend(ms.iter().rev().map(|&m| {
                         Step::Enter(pool.subst(m, &|p: ParamRef| {
                             (p.owner == def)
-                                .then(|| argv.get(usize::from(p.index)).copied())
+                                .then(|| items.get(usize::from(p.index)).copied())
                                 .flatten()
                         }))
                     }));
@@ -812,11 +813,8 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
     match pool.get(self_ty) {
         TyData::Ref { inner, .. } => subs.push(inner),
-        TyData::Tuple { elems, rest } => {
-            subs.extend_from_slice(pool.list_items(elems));
-            subs.extend(rest);
-        }
-        TyData::Adt { args, .. } => {
+
+        TyData::Adt(_, args) => {
             subs.extend_from_slice(pool.list_items(args));
         }
         // A projection meets it when its parts do, as Rust's projection

@@ -6,6 +6,7 @@
 use hd_base::{HashMap, HashSet, NodeIdx, SliceSort as _};
 use hd_resolve::ItemData;
 use hd_tir::ir::{IntrinsicOp, NONE, PlaceRoot, Proj, Role, Tag, Word, slots};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use super::{
@@ -1107,7 +1108,7 @@ impl Gen<'_, '_> {
                 // A field of a type parameter keeps what it captures in the
                 // struct's slot (`ref.generic.outlives.field`), and one that
                 // writes a suspension's lifetime what it holds.
-                if let (Tag::NewStruct, TyData::Adt { def, .. }) =
+                if let (Tag::NewStruct, TyData::Adt(AdtId::Declared(def), _)) =
                     (b.tags[iu], s.pool.get(b.ty[iu]))
                     && let Some(item) = s.cx.lookup.item(def)
                     && let ItemData::Struct(fields, _) = &item.data
@@ -1329,13 +1330,13 @@ impl Gen<'_, '_> {
                 }
                 // A list's element or a map's value.
                 Proj::Elem(_) => match pool.get(t) {
-                    TyData::Adt { def, args } if def == cx.names.known.list => {
+                    TyData::Adt(AdtId::Declared(def), args) if def == cx.names.known.list => {
                         match pool.list_items(args).first() {
                             Some(&e) => e,
                             None => return false,
                         }
                     }
-                    TyData::Adt { def, args } if def == cx.names.known.map => {
+                    TyData::Adt(AdtId::Declared(def), args) if def == cx.names.known.map => {
                         match pool.list_items(args).get(1) {
                             Some(&e) => e,
                             None => return false,
@@ -1897,7 +1898,7 @@ impl Gen<'_, '_> {
         // a suspending call's argument loans end with the call that makes
         // it, before anything polls it. This test is the one place.
         let suspend = self.s.cx.names.known.suspend;
-        let task = |t: Ty| matches!(self.s.pool.get(t), TyData::Adt { def, .. } if def == suspend);
+        let task = |t: Ty| matches!(self.s.pool.get(t), TyData::Adt(AdtId::Declared(def), _) if def == suspend);
         for v in 0..w(b.len()) {
             if task(b.ty[v as usize]) {
                 continue;

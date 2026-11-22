@@ -17,6 +17,7 @@
 //! `task_all` and `test_case`. Seeding builds their signatures, so they
 //! have no row here.
 
+use hd_types::AdtId;
 use hd_types::{Prim, Ty, TyData};
 
 use crate::iface::{FnSig, Names};
@@ -230,7 +231,7 @@ fn has_kind(names: &Names<'_>, t: Ty, k: Kind) -> bool {
     match (k, names.pool.get(t)) {
         (Any, _) => true,
         (Is(want), _) => t == want,
-        (Named(name), TyData::Adt { def, .. }) => is_named(def, name),
+        (Named(name), TyData::Adt(AdtId::Declared(def), _)) => is_named(def, name),
         (
             Kind::Ref { mutable, counted },
             TyData::Ref {
@@ -239,8 +240,8 @@ fn has_kind(names: &Names<'_>, t: Ty, k: Kind) -> bool {
                 ..
             },
         ) => mutable == m && counted == c,
-        (Opt, TyData::Adt { def, .. }) => def == names.known.option,
-        (Tuple(n), TyData::Tuple { elems, rest: None }) => {
+        (Opt, TyData::Adt(AdtId::Declared(def), _)) => def == names.known.option,
+        (Tuple(n), TyData::Adt(AdtId::Product { rest: false }, elems)) => {
             names.pool.list_items(elems).len() == usize::from(n)
         }
         (Fn, TyData::Fn { .. }) => true,

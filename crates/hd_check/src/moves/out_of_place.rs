@@ -11,6 +11,7 @@ use hd_base::{HashMap, LocalId, SliceSort as _};
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_tir::ir::{Body, NONE, Place, PlaceRoot, Proj, Role, Tag, Word, slots};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use super::{Uses, local_of, w};
@@ -340,8 +341,10 @@ impl Ck<'_, '_> {
     fn field_ty(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<Ty> {
         let pool = self.pool();
         match pool.get(t) {
-            TyData::Tuple { elems, .. } => pool.list_items(elems).get(j as usize).copied(),
-            TyData::Adt { def, args } if def.get().is_some() => {
+            TyData::Adt(AdtId::Product { .. }, elems) => {
+                pool.list_items(elems).get(j as usize).copied()
+            }
+            TyData::Adt(AdtId::Declared(def), args) if def.get().is_some() => {
                 let fields = match (&self.cx.lookup.item(def)?.data, variant) {
                     (ItemData::Struct(fs, _), None) => fs,
                     (
@@ -353,10 +356,10 @@ impl Ck<'_, '_> {
                     _ => return None,
                 };
                 let ft = fields.get(j as usize)?.ty;
-                let argv = pool.list_items(args);
+                let type_items = pool.list_items(args);
                 Some(pool.subst(ft, &|q| {
                     (q.owner == def)
-                        .then(|| argv.get(q.index as usize).copied())
+                        .then(|| type_items.get(q.index as usize).copied())
                         .flatten()
                 }))
             }

@@ -21,6 +21,7 @@ use hd_base::{HashMap, NodeIdx, SliceSort as _};
 use hd_tir::ir::{
     Body, IntrinsicOp, NONE, PlaceRoot, Proj, Ref, Tag, Topology, Word, local_flags, slots,
 };
+use hd_types::AdtId;
 use hd_types::{Ty, TyData, Types};
 
 use hd_syntax::SyntaxKind;
@@ -1546,7 +1547,7 @@ impl Order<'_, '_, '_> {
         let TyData::Ref { inner, .. } = pool.get(b.ty[i as usize]) else {
             return None;
         };
-        if !matches!(pool.get(inner), TyData::Adt { def, .. } if def == self.cx.s.cx.names.known.map)
+        if !matches!(pool.get(inner), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.s.cx.names.known.map)
         {
             return None;
         }

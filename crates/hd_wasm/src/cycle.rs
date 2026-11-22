@@ -34,10 +34,10 @@ use crate::cycle_graph::{Facts, Graph, Ranks, Shape};
 use hd_base::HashSet;
 use hd_mono::ProgramEnv;
 use hd_mono::layout::StdKind;
-use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use hd_types::{InternPool, Ty, TyData};
 
-use crate::layout::{Kind, kind, strip_newtype, tuple_members, value_parts};
+use crate::layout::{Kind, kind, strip_newtype, value_parts};
 
 thread_local! {
     /// The link's closed-world set of types whose existing objects may be
@@ -73,7 +73,7 @@ fn facts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Facts {
             object_open,
             rank: ranks.get(pool, ty),
             declaration: match pool.get(ty) {
-                TyData::Adt { def, .. } => Some(def),
+                TyData::Adt(AdtId::Declared(def), _) => Some(def),
                 _ => None,
             },
         }
@@ -152,12 +152,11 @@ enum Holds {
 fn holds(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Holds {
     match pool.get(t) {
         TyData::Prim(_) | TyData::Never => Holds::Parts(Vec::new()),
-        TyData::Tuple { .. } => Holds::Parts(tuple_members(pool, t)),
-        TyData::Adt { def, args } if def == ANON_SUM => {
+        TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
             Holds::Parts(pool.list_items(args).to_vec())
         }
         TyData::Ref { inner, .. } => Holds::Ref(inner),
-        TyData::Adt { def, args } => match env.std_kind(def) {
+        TyData::Adt(AdtId::Declared(def), args) => match env.std_kind(def) {
             StdKind::List | StdKind::Map => Holds::Parts(pool.list_items(args).to_vec()),
             StdKind::Suspend => Holds::Open,
             StdKind::Other if env.raw_buffer(def) => Holds::Parts(pool.list_items(args).to_vec()),

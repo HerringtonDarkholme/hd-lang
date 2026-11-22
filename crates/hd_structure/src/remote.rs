@@ -224,10 +224,7 @@ pub fn crossing_parts_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty) -> StageResult<
 
 /// The tuple type of `elems`.
 fn tuple(pool: &hd_types::InternPool, elems: &[Ty]) -> Ty {
-    pool.intern_ty(&TyData::Tuple {
-        elems: pool.list(elems),
-        rest: None,
-    })
+    pool.product(pool.list(elems), None)
 }
 
 /// The body that returns `value`: `build_id()`'s, the build ID which
@@ -252,10 +249,7 @@ fn public_parts(cx: &Cx<'_, '_>, ret: Ty) -> (Ty, Ty) {
         return (Ty::POISON, Ty::POISON);
     };
     let error = match pool.get(union) {
-        TyData::Adt {
-            def: hd_types::ANON_SUM,
-            args: members,
-        } => pool.list_items(members)[0],
+        TyData::Adt(hd_types::ANON_SUM, members) => pool.list_items(members)[0],
         _ => Ty::POISON,
     };
     (value, error)

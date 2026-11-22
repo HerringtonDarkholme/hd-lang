@@ -1,6 +1,7 @@
 use hd_base::{DefId, HashMap, Symbol};
 use hd_check::{CopyAnswer, copy_answer};
 use hd_resolve::{Generic, Item, ItemData, TypeAttrs};
+use hd_types::AdtId;
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
 
 #[test]
@@ -34,14 +35,8 @@ fn an_ownership_reborrow_does_not_hide_a_later_resource_after_an_open_parameter(
         mutable: true,
         counted: false,
     });
-    let resource_ty = pool.intern_ty(&TyData::Adt {
-        def: resource.def,
-        args: TyList::EMPTY,
-    });
-    let tuple = pool.intern_ty(&TyData::Tuple {
-        elems: pool.list(&[reference, parameter, resource_ty]),
-        rest: None,
-    });
+    let resource_ty = pool.intern_ty(&TyData::Adt(AdtId::Declared(resource.def), TyList::EMPTY));
+    let tuple = pool.product(pool.list(&[reference, parameter, resource_ty]), None);
     let answer = copy_answer(
         pool.types(),
         &|d| {
@@ -72,10 +67,7 @@ fn repeated_reborrow_members_cache_each_type_at_width_thousand_depth_twenty() {
     for width in [100, 1_000] {
         let mut ty = reference;
         for _ in 0..20 {
-            ty = pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&vec![ty; width]),
-                rest: None,
-            });
+            ty = pool.product(pool.list(&vec![ty; width]), None);
         }
         let mut memo = HashMap::<Ty, CopyAnswer>::default();
         let mut done = Vec::new();
@@ -111,10 +103,7 @@ fn an_associated_member_uses_the_instances_normal_form() {
         self_ty: Ty::I32,
         args: TyList::EMPTY,
     });
-    let tuple = pool.intern_ty(&TyData::Tuple {
-        elems: pool.list(&[projection]),
-        rest: None,
-    });
+    let tuple = pool.product(pool.list(&[projection]), None);
     let mut normalized = Vec::new();
     let answer = copy_answer(
         pool.types(),

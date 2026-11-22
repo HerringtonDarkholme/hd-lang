@@ -1352,3 +1352,5 @@ says that the check covered syntax only.
 | 2026-11-22 | #2283 option-or-else API probe | API | discard an Option/Result-returning call as an expression statement | ``discarded-must-use-value: a i32? value is discarded; handle it or write `_ := ...``` | yes | Explicitly discard with `_ := call(...)` when checking API availability | GPT-6 (Codex) |
 | 2026-11-22 | #2283 result-or-else API probe | API | discard an Option/Result-returning call as an expression statement | ``discarded-must-use-value: a Result[i32, bool] value is discarded; handle it or write `_ := ...``` | yes | Explicitly discard with `_ := call(...)` when checking API availability | GPT-6 (Codex) |
 | 2026-11-22 | #2289 integer limits | CLI API | `hd fmt FILE1 FILE2` | ``error: `hd fmt` takes at most one FILE`` | yes | run `hd fmt FILE` separately for each picked file | GPT-6 (Codex) |
+
+| 2026-11-22 | #1306 warm product cache test | syntax | `((7, "fixed"), ...["kept"])` | `error: main.hd:88..91: syntax-error: a spread is written after its value: write 'value...'` | Yes | `((7, "fixed"), ["kept"]...)` | GPT-6 |

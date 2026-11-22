@@ -19,6 +19,7 @@ use hd_base::{DefId, Fuel, HashMap, HashSet, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags};
+use hd_types::AdtId;
 use hd_types::{ANON_SUM, ParamRef, Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition};
@@ -138,17 +139,17 @@ impl<'a> ProjectionCycles<'a> {
             &mut |t| {
                 let mut children = Vec::new();
                 match pool.get(t) {
-                    TyData::Adt { def, args } if def == ANON_SUM => {
+                    TyData::Adt(ANON_SUM | AdtId::Product { .. }, args) => {
                         children.extend(pool.list_items(args));
                     }
-                    TyData::Adt { def, .. }
+                    TyData::Adt(AdtId::Declared(def), _)
                         if holds_itself(global, &mut self.inline, pool, lookup, def) => {}
-                    TyData::Adt { def, args } => {
-                        let argv = pool.list_items(args);
+                    TyData::Adt(AdtId::Declared(def), args) => {
+                        let type_items = pool.list_items(args);
                         let sub = |f| {
                             pool.subst(f, &|p: ParamRef| {
                                 (p.owner == def)
-                                    .then(|| argv.get(usize::from(p.index)).copied())
+                                    .then(|| type_items.get(usize::from(p.index)).copied())
                                     .flatten()
                             })
                         };
@@ -178,7 +179,7 @@ impl<'a> ProjectionCycles<'a> {
                             }
                         }
                     }
-                    TyData::Tuple { elems, .. } => children.extend(pool.list_items(elems)),
+
                     // References, functions and trait values end containment;
                     // unresolved projections and parameters have no known fields.
                     TyData::Prim(_)
@@ -313,12 +314,9 @@ impl<'a> ProjectionCycles<'a> {
             let found = self.check(pool, lookup, impls, global, t, fuel)?;
             bad = bad.or(found);
             match pool.get(t) {
-                TyData::Adt { args, .. } => todo.extend(pool.list_items(args)),
+                TyData::Adt(_, args) => todo.extend(pool.list_items(args)),
                 TyData::Ref { inner, .. } => todo.push(inner),
-                TyData::Tuple { elems, rest } => {
-                    todo.extend(pool.list_items(elems));
-                    todo.extend(rest);
-                }
+
                 TyData::Fn { params, result, .. } => {
                     todo.extend(pool.list_items(params));
                     todo.push(result);
@@ -705,14 +703,10 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
 /// instance decides, and a goal in error or still open.
 fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mut Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt {
-            def: ANON_SUM,
-            args,
-        }
-        | TyData::Tuple { elems: args, .. } => {
+        TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
             out.extend_from_slice(pool.list_items(args));
         }
-        TyData::Adt { args, .. } => {
+        TyData::Adt(_, args) => {
             let args = pool.list_items(args);
             match repr {
                 Some(repr) => out.extend(
@@ -766,7 +760,7 @@ impl<'m> Decided<'m> {
             }
             crate::work::held_type();
             let repr = match pool.get(t) {
-                TyData::Adt { def, .. } if def.get().is_some() => {
+                TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
                     let Some(d) = self.get(def) else { continue };
                     if d.group.first() == Some(&head) {
                         return true;
@@ -1045,7 +1039,7 @@ fn decide_component(
         }
         crate::work::held_type();
         match pool.get(t) {
-            TyData::Adt { def: e, args } if e.get().is_some() => {
+            TyData::Adt(AdtId::Declared(e), args) if e.get().is_some() => {
                 if let Some(j) = member(e) {
                     holds[i].push(j);
                     for (k, &a) in pool.list_items(args).iter().enumerate() {

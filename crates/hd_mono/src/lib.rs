@@ -7,6 +7,7 @@
 //! emission never selects again. Reads TIR and interfaces only, never
 //! syntax. Bodies of every package (std included) are collected alike.
 
+use hd_types::AdtId;
 pub mod defaults;
 pub mod dyn_graph;
 pub mod instance;
@@ -909,18 +910,18 @@ fn name_into(
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
         // `Option[T]` is spelled `T?` (`types.option.sugar`).
-        TyData::Adt { def, args } if def == env.option() => {
+        TyData::Adt(AdtId::Declared(def), args) if def == env.option() => {
             for &inner in pool.list_items(args) {
                 name_into(pool, env, printed, inner, out, limit);
             }
             out.push('?');
         }
-        TyData::Adt { def, args } if def == ANON_SUM => {
+        TyData::Adt(ANON_SUM, args) => {
             for (index, &member) in pool.list_items(args).iter().enumerate() {
                 if index > 0 {
                     out.push_str(" | ");
                 }
-                let nested = matches!(pool.get(member), TyData::Adt { def: ANON_SUM, .. });
+                let nested = matches!(pool.get(member), TyData::Adt(ANON_SUM, _));
                 if nested {
                     out.push('(');
                 }
@@ -930,7 +931,21 @@ fn name_into(
                 }
             }
         }
-        TyData::Adt { def, args } => {
+        TyData::Adt(AdtId::Product { rest }, args) => {
+            let elems = pool.list_items(args);
+            out.push('(');
+            for (i, &t) in elems.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                name_into(pool, env, printed, t, out, limit);
+                if rest && i + 1 == elems.len() {
+                    out.push_str("...");
+                }
+            }
+            out.push(')');
+        }
+        TyData::Adt(AdtId::Declared(def), args) => {
             out.push_str(&def_name(env, printed, def));
             if !pool.list_items(args).is_empty() {
                 out.push('[');
@@ -962,19 +977,7 @@ fn name_into(
                 out.push(']');
             }
         }
-        TyData::Tuple { elems, rest } => {
-            out.push('(');
-            let elems = pool.list_items(elems);
-            list(elems, ", ", out);
-            if let Some(r) = rest {
-                if !elems.is_empty() {
-                    out.push_str(", ");
-                }
-                name_into(pool, env, printed, r, out, limit);
-                out.push_str("...");
-            }
-            out.push(')');
-        }
+
         TyData::Ref {
             inner,
             mutable,
@@ -1065,7 +1068,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
         }
     };
     match pool.get(t) {
-        TyData::Adt { def, args } => {
+        TyData::Adt(def, args) => {
             out.extend(def.get());
             list(args, out, seen);
         }
@@ -1090,12 +1093,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
             items_in(pool, self_ty, out, seen);
             list(args, out, seen);
         }
-        TyData::Tuple { elems, rest } => {
-            list(elems, out, seen);
-            if let Some(r) = rest {
-                items_in(pool, r, out, seen);
-            }
-        }
+
         TyData::Fn { params, result, .. } => {
             list(params, out, seen);
             items_in(pool, result, out, seen);
@@ -1151,7 +1149,7 @@ fn layout_hash(
 /// layout also reads: one level of [`items_in`]'s walk.
 fn type_parts(pool: &InternPool, t: Ty) -> (Option<DefId>, Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt { def, args } => (def.get(), pool.list_items(args).to_vec()),
+        TyData::Adt(def, args) => (def.get(), pool.list_items(args).to_vec()),
         TyData::TraitValue {
             def,
             args,
@@ -1171,11 +1169,7 @@ fn type_parts(pool: &InternPool, t: Ty) -> (Option<DefId>, Vec<Ty>) {
             parts.extend_from_slice(pool.list_items(args));
             (Some(trait_), parts)
         }
-        TyData::Tuple { elems, rest } => {
-            let mut parts = pool.list_items(elems).to_vec();
-            parts.extend(rest);
-            (None, parts)
-        }
+
         TyData::Fn { params, result, .. } => {
             let mut parts = pool.list_items(params).to_vec();
             parts.push(result);
@@ -1494,10 +1488,10 @@ pub fn adapter_call_body(
     };
     let ret = s(env.ret(item).unwrap_or(Ty::VOID));
     let call_ty = if env.suspends(item) {
-        pool.intern_ty(&TyData::Adt {
-            def: env.suspend_def(),
-            args: pool.list(&[ret]),
-        })
+        pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(env.suspend_def()),
+            pool.list(&[ret]),
+        ))
     } else {
         ret
     };
@@ -2031,14 +2025,8 @@ impl Cx<'_> {
                 mutable: false,
                 counted,
             },
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(args),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(elems),
-                rest: rest.map(|t| self.shared_permission_type(t)),
-            },
+            TyData::Adt(def, args) => TyData::Adt(def, list(args)),
+
             // A function, trait value or projection carries a signature or
             // dictionary whose selection can distinguish the permissions.
             _ => return ty,
@@ -2391,8 +2379,8 @@ impl Cx<'_> {
                     }
                     todo.push(inner);
                 }
-                TyData::Adt { def, args } => {
-                    if def.get().is_some() && self.env.has_private_field(def) {
+                TyData::Adt(def, args) => {
+                    if def.get().is_some_and(|def| self.env.has_private_field(def)) {
                         self.note_private_boundary(ty, out, package)?;
                         // The opaque codec defines the entire wire value. Its
                         // representation fields need neither codecs nor handles.
@@ -2417,10 +2405,7 @@ impl Cx<'_> {
                         }
                     }
                 }
-                TyData::Tuple { elems, rest } => {
-                    todo.extend(self.pool.list_items(elems).iter().copied());
-                    todo.extend(rest);
-                }
+
                 TyData::TraitValue { .. } => handles.push((ty, package)),
                 _ => {}
             }
@@ -2547,14 +2532,8 @@ impl Cx<'_> {
         }
         // A tuple's `Debug` is a template that checks its elements only when
         // it is instantiated, so the elements decide here.
-        if let TyData::Tuple { elems, rest } = self.pool.get(ty) {
-            let parts: Vec<Ty> = self
-                .pool
-                .list_items(elems)
-                .iter()
-                .copied()
-                .chain(rest)
-                .collect();
+        if let TyData::Adt(AdtId::Product { .. }, args) = self.pool.get(ty) {
+            let parts = self.pool.list_items(args).to_vec();
             return parts.into_iter().all(|t| self.implements_debug(t));
         }
         let debug = self.env.debug_trait();
@@ -2580,25 +2559,9 @@ impl Cx<'_> {
             self.out.drop_glue.insert(ty, target.key);
         }
         let children = match self.pool.get(ty) {
-            TyData::Adt { def, args } => layout::enum_variants(self.pool, self.env, def, args)
-                .unwrap_or_else(|| {
-                    vec![
-                        self.env
-                            .data_fields(def)
-                            .unwrap_or_default()
-                            .into_iter()
-                            .map(|field| subst(self.pool, self.env, def, args, field))
-                            .collect(),
-                    ]
-                }),
-            TyData::Tuple { elems, rest } => vec![
-                self.pool
-                    .list_items(elems)
-                    .iter()
-                    .copied()
-                    .chain(rest)
-                    .collect(),
-            ],
+            TyData::Adt(def, args) => layout::enum_variants(self.pool, self.env, def, args)
+                .unwrap_or_else(|| vec![layout::product_fields(self.pool, self.env, def, args)]),
+
             _ => Vec::new(),
         };
         for child in children.into_iter().flatten() {
@@ -3107,7 +3070,7 @@ impl Cx<'_> {
         while let TyData::Ref { inner, .. } = pool.get(map) {
             map = inner;
         }
-        let TyData::Adt { args, .. } = pool.get(map) else {
+        let TyData::Adt(_, args) = pool.get(map) else {
             return err("a map operation on a non-map type");
         };
         let Some(&key) = pool.list_items(args).first() else {
@@ -3825,25 +3788,25 @@ fn pinned(
                 *x = true;
             }
         }
-        TyData::Adt { def: d, args } => {
+        TyData::Adt(d, args) => {
             // `List`, `Map`, a buffer's room and enum payloads store
             // references erased.
-            let erased = d == ANON_SUM
-                || matches!(
-                    env.std_kind(d),
-                    layout::StdKind::List | layout::StdKind::Map
-                )
-                || env.raw_buffer(d)
-                || env.enum_variants(d, args).is_some();
+            let erased = match d {
+                AdtId::Sum => true,
+                AdtId::Product { .. } => false,
+                AdtId::Declared(d) => {
+                    matches!(
+                        env.std_kind(d),
+                        layout::StdKind::List | layout::StdKind::Map
+                    ) || env.raw_buffer(d)
+                        || env.enum_variants(d, args).is_some()
+                }
+            };
             for a in pool.list_items(args).iter().copied() {
                 pinned(pool, env, def, a, inside || !erased, out);
             }
         }
-        TyData::Tuple { elems, rest } => {
-            for e in pool.list_items(elems).iter().copied().chain(rest) {
-                pinned(pool, env, def, e, true, out);
-            }
-        }
+
         TyData::Fn {
             params,
             result,

@@ -78,7 +78,7 @@ pub fn walk(
             // Beneath `mut` is invariant (types.polarity.mut).
             // A reference's operand is invariant too (ref.type.distinct).
             TyData::Ref { inner: i, .. } => go(i, 0),
-            TyData::Adt { def, args } => {
+            TyData::Adt(def, args) => {
                 let vs = def.get().map(&var_of);
                 for (j, a) in pool.list_items(args).iter().copied().enumerate() {
                     let variance = vs.as_ref().map_or(1, |vs| vs.get(j).copied().unwrap_or(0));
@@ -91,14 +91,7 @@ pub fn walk(
                 }
                 go(bound, 0);
             }
-            TyData::Tuple { elems, rest } => {
-                for e in pool.list_items(elems).iter().copied() {
-                    go(e, polarity);
-                }
-                if let Some(r) = rest {
-                    go(r, polarity);
-                }
-            }
+
             TyData::Fn {
                 params,
                 result,
@@ -165,10 +158,7 @@ mod tests {
                 for depth in [100, 1_000] {
                     let mut t = param;
                     for _ in 0..depth {
-                        t = pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&[t, t]),
-                            rest: None,
-                        });
+                        t = pool.product(pool.list(&[t, t]), None);
                     }
                     for polarity in [-1, 0, 1] {
                         let mut seen = [Seen::default()];

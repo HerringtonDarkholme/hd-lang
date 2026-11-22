@@ -11,6 +11,7 @@
 //! `crates/hd_mono/DESIGN.md`, including its panic checks.
 
 use hd_base::SliceSort as _;
+use hd_types::AdtId;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::op::Op as Instruction;
@@ -985,10 +986,10 @@ fn call_func(
     // A suspending item's call is its cold constructor, whose frame the
     // function returns (`fn.ref.suspending`).
     let cold = env.suspends(item).then(|| {
-        pool.intern_ty(&TyData::Adt {
-            def: env.suspend_def(),
-            args: pool.list(&[ret]),
-        })
+        pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(env.suspend_def()),
+            pool.list(&[ret]),
+        ))
     });
     // Collection built this body, one `Call` of `target`.
     let b = (input.body)(id).expect("collection built the adapter's call body");
@@ -1703,7 +1704,7 @@ impl Em<'_, '_, '_> {
         matches!(
             self.pool()
                 .get(crate::layout::strip_newtype(self.pool(), self.env(), t)),
-            TyData::Tuple { .. }
+            TyData::Adt(AdtId::Product { .. }, _)
         )
     }
 
@@ -4215,7 +4216,7 @@ impl Em<'_, '_, '_> {
     /// cold call's, `block_on`'s operand's, or a task intrinsic's, which
     /// checking types `Suspend[T]`.
     pub(super) fn susp_inner(&self, t: Ty) -> Ty {
-        let TyData::Adt { args, .. } = self.pool().get(t) else {
+        let TyData::Adt(_, args) = self.pool().get(t) else {
             unreachable!("a suspension is a `Suspend[T]`");
         };
         self.pool().list_items(args)[0]

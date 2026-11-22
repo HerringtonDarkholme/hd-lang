@@ -5,7 +5,7 @@
 use hd_base::SliceSort as _;
 use hd_base::{DefId, Hash128, InstId, StableHasher};
 use hd_base::{HashMap, HashSet};
-use hd_types::ANON_SUM;
+use hd_types::AdtId;
 
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
@@ -80,13 +80,34 @@ pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
 pub fn enum_variants(
     pool: &InternPool,
     env: &dyn LayoutEnv,
-    def: DefId,
+    id: AdtId,
     args: TyList,
 ) -> Option<Vec<Vec<Ty>>> {
-    if def == ANON_SUM {
-        Some(pool.list_items(args).iter().map(|&t| vec![t]).collect())
-    } else {
-        env.enum_variants(def, args)
+    match id {
+        AdtId::Sum => Some(pool.list_items(args).iter().map(|&t| vec![t]).collect()),
+        AdtId::Declared(def) => env.enum_variants(def, args),
+        AdtId::Product { .. } => None,
+    }
+}
+
+/// Product fields, substituted for a declaration and already concrete for
+/// an anonymous product. Sums have variants rather than product fields.
+#[must_use]
+pub fn product_fields(
+    pool: &InternPool,
+    env: &dyn crate::ProgramEnv,
+    id: AdtId,
+    args: TyList,
+) -> Vec<Ty> {
+    match id {
+        AdtId::Product { .. } => pool.list_items(args).to_vec(),
+        AdtId::Declared(def) => env
+            .data_fields(def)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|f| crate::subst(pool, env, def, args, f))
+            .collect(),
+        AdtId::Sum => Vec::new(),
     }
 }
 
@@ -188,14 +209,10 @@ pub fn recursive_instance(
         };
         let t = strip_newtype(pool, env, t);
         match pool.get(t) {
-            TyData::Tuple { elems, rest } => {
-                todo.extend_from_slice(pool.list_items(elems));
-                todo.extend(rest);
-            }
-            TyData::Adt { def, args } if def == ANON_SUM => {
+            TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
                 todo.extend_from_slice(pool.list_items(args));
             }
-            TyData::Adt { def: d, args: a } => {
+            TyData::Adt(AdtId::Declared(d), a) => {
                 // This enum-instance walk stops at non-enum ADTs.
                 if !env.is_enum(d) {
                     continue;
@@ -274,20 +291,29 @@ pub fn canon(
             h.u8(p as u8);
         }
         TyData::Never => h.u8(1),
-        TyData::Adt { def, args } => {
+        TyData::Adt(AdtId::Product { rest }, args) => {
+            h.u8(3);
+            let items = pool.list_items(args);
+            let (fixed, tail) = if rest {
+                items
+                    .split_last()
+                    .map_or((items, None), |(&last, fixed)| (fixed, Some(last)))
+            } else {
+                (items, None)
+            };
+            canon_slice(pool, path_hash, memo, fixed, &mut h);
+            if let Some(tail) = tail {
+                h.hash(canon(pool, path_hash, memo, tail));
+            }
+        }
+        TyData::Adt(def, args) => {
             h.u8(if def.get().is_some() { 2 } else { 20 });
             if let Some(def) = def.get() {
                 h.hash(path_hash(def));
             }
             canon_list(pool, path_hash, memo, args, &mut h);
         }
-        TyData::Tuple { elems, rest } => {
-            h.u8(3);
-            canon_list(pool, path_hash, memo, elems, &mut h);
-            if let Some(r) = rest {
-                h.hash(canon(pool, path_hash, memo, r));
-            }
-        }
+
         TyData::Fn {
             params,
             result,
@@ -441,7 +467,16 @@ fn canon_list(
     l: TyList,
     h: &mut StableHasher,
 ) {
-    let items = pool.list_items(l);
+    canon_slice(pool, path_hash, memo, pool.list_items(l), h);
+}
+
+fn canon_slice(
+    pool: &InternPool,
+    path_hash: &dyn Fn(DefId) -> Hash128,
+    memo: &mut CanonMemo,
+    items: &[Ty],
+    h: &mut StableHasher,
+) {
     h.len(items.len());
     for &t in items {
         h.hash(canon(pool, path_hash, memo, t));
@@ -736,7 +771,7 @@ mod tests {
     };
     use hd_base::SliceSort as _;
     use hd_base::{DefId, Hash128, HashMap, HashSet, InstId};
-    use hd_types::{InternPool, Ty, TyData, TyList};
+    use hd_types::{AdtId, InternPool, Ty, TyData, TyList};
 
     struct Env;
     impl LayoutEnv for Env {
@@ -807,10 +842,10 @@ mod tests {
     #[test]
     fn strip_newtype_preserves_non_newtypes() {
         let p = InternPool::new();
-        let ordinary = p.intern_ty(&TyData::Adt {
-            def: DefId::from_raw(1),
-            args: TyList::EMPTY,
-        });
+        let ordinary = p.intern_ty(&TyData::Adt(
+            AdtId::Declared(DefId::from_raw(1)),
+            TyList::EMPTY,
+        ));
         for t in [Ty::I32, Ty::STRING, ordinary] {
             assert_eq!(strip_newtype(&p, &Env, t), t);
         }
@@ -828,10 +863,7 @@ mod tests {
         for scalar in [Ty::I32, Ty::STRING] {
             let mut wrapped = scalar;
             for _ in 0..32 {
-                wrapped = p.intern_ty(&TyData::Adt {
-                    def,
-                    args: p.list(&[wrapped]),
-                });
+                wrapped = p.intern_ty(&TyData::Adt(AdtId::Declared(def), p.list(&[wrapped])));
             }
             assert_eq!(strip_newtype(&p, &env, wrapped), scalar);
             assert!(inline_map_key(&p, &env, wrapped));
@@ -923,7 +955,7 @@ mod tests {
                             todo.extend(self.waiting.remove(&(f, p.index)).unwrap_or_default());
                         }
                     }
-                    TyData::Adt { def, args } if self.enums.contains(&def) => {
+                    TyData::Adt(AdtId::Declared(def), args) if self.enums.contains(&def) => {
                         self.edges.entry(f).or_default().push(def);
                         for (j, &a) in pool.list_items(args).iter().enumerate() {
                             let j = u16::try_from(j).expect("parameters");
@@ -934,9 +966,9 @@ mod tests {
                             }
                         }
                     }
-                    TyData::Tuple { elems, rest } => {
-                        todo.extend(pool.list_items(elems).iter().map(|e| (f, *e)));
-                        todo.extend(rest.map(|r| (f, r)));
+
+                    TyData::Adt(AdtId::Product { .. }, args) => {
+                        todo.extend(pool.list_items(args).iter().map(|&t| (f, t)));
                     }
                     TyData::Assoc { .. } => {
                         self.opaque.insert(f);
@@ -1002,10 +1034,7 @@ mod tests {
             }))
         };
         let adt = |def: u32, args: &[Ty]| {
-            p.intern_ty(&TyData::Adt {
-                def: d(def),
-                args: p.list(args),
-            })
+            p.intern_ty(&TyData::Adt(AdtId::Declared(d(def)), p.list(args)))
         };
         let opt = |t: Ty| adt(7, &[t]);
         // 1: `Tree[T] = Leaf(T) | Node(Tree[T], Tree[T])`.
@@ -1057,10 +1086,10 @@ mod tests {
                     let child = if level == 1 {
                         Ty::I32
                     } else {
-                        p.intern_ty(&TyData::Adt {
-                            def: DefId::from_raw(raw - 1),
-                            args: TyList::EMPTY,
-                        })
+                        p.intern_ty(&TyData::Adt(
+                            AdtId::Declared(DefId::from_raw(raw - 1)),
+                            TyList::EMPTY,
+                        ))
                     };
                     (raw, vec![vec![], vec![child]])
                 })
@@ -1099,10 +1128,7 @@ mod tests {
         let p = InternPool::new();
         let mut ty = Ty::I32;
         for _ in 0..20 {
-            ty = p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[ty, ty]),
-                rest: None,
-            });
+            ty = p.product(p.list(&[ty, ty]), None);
         }
         for size in [1000u32, 10_000] {
             let declarations = Decls::new((1..=size).map(|raw| (raw, vec![vec![ty]])));
@@ -1141,26 +1167,15 @@ mod tests {
         use super::{EnumBoxing, EnumBoxingCache};
         let p = InternPool::new();
         let d = DefId::from_raw;
-        let adt = |raw| {
-            p.intern_ty(&TyData::Adt {
-                def: d(raw),
-                args: TyList::EMPTY,
-            })
-        };
+        let adt = |raw| p.intern_ty(&TyData::Adt(AdtId::Declared(d(raw)), TyList::EMPTY));
         let projection = p.intern_ty(&TyData::Assoc {
             assoc: d(100),
             trait_: d(101),
             self_ty: Ty::I32,
             args: TyList::EMPTY,
         });
-        let tuple = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::I32, projection]),
-            rest: None,
-        });
-        let wrapped = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[tuple, Ty::BOOL]),
-            rest: None,
-        });
+        let tuple = p.product(p.list(&[Ty::I32, projection]), None);
+        let wrapped = p.product(p.list(&[tuple, Ty::BOOL]), None);
         let reference = p.intern_ty(&TyData::Ref {
             inner: adt(6),
             mutable: false,
@@ -1203,12 +1218,8 @@ mod tests {
                     index,
                 }))
             };
-            let adt = |raw, args: &[Ty]| {
-                p.intern_ty(&TyData::Adt {
-                    def: d(raw),
-                    args: p.list(args),
-                })
-            };
+            let adt =
+                |raw, args: &[Ty]| p.intern_ty(&TyData::Adt(AdtId::Declared(d(raw)), p.list(args)));
             let mut state = seed + 1;
             let mut next = || {
                 state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
@@ -1222,10 +1233,7 @@ mod tests {
                 let field = match next() % 6 {
                     0 => first,
                     1 => child,
-                    2 => p.intern_ty(&TyData::Tuple {
-                        elems: p.list(&[second, child]),
-                        rest: Some(first),
-                    }),
+                    2 => p.product(p.list(&[second, child]), Some(first)),
                     3 => p.intern_ty(&TyData::Ref {
                         inner: child,
                         mutable: false,
@@ -1317,10 +1325,7 @@ mod tests {
         let p = InternPool::new();
         let d = DefId::from_raw;
         let adt = |def: u32, args: &[Ty]| {
-            p.intern_ty(&TyData::Adt {
-                def: d(def),
-                args: p.list(args),
-            })
+            p.intern_ty(&TyData::Adt(AdtId::Declared(d(def)), p.list(args)))
         };
         let data = |raw: u32| adt(raw, &[]);
         let (number, provider, looping) = (data(20), data(21), data(22));
@@ -1369,10 +1374,7 @@ mod tests {
         let in_tuple = vec![
             (
                 (1, p.list(&[provider])),
-                vec![p.intern_ty(&TyData::Tuple {
-                    elems: p.list(&[Ty::I32, adt(3, &[])]),
-                    rest: None,
-                })],
+                vec![p.product(p.list(&[Ty::I32, adt(3, &[])]), None)],
             ),
             ((3, TyList::EMPTY), vec![adt(1, &[provider])]),
         ];
@@ -1484,10 +1486,7 @@ mod tests {
                 (DefId::from_raw(other), Ty::I32),
             ],
         });
-        let tup = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[proj, tv]),
-            rest: None,
-        });
+        let tup = p.product(p.list(&[proj, tv]), None);
         super::canon(&p, &path, &mut CanonMemo::default(), tup)
     }
 
@@ -1537,12 +1536,7 @@ mod tests {
     /// `T` paired with itself `levels` times over: a tree of 2^levels
     /// leaves, but `levels + 1` distinct types in the pool.
     fn doubled(p: &InternPool, levels: u32) -> Ty {
-        (0..levels).fold(Ty::I32, |t, _| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(&[t, t]),
-                rest: None,
-            })
-        })
+        (0..levels).fold(Ty::I32, |t, _| p.product(p.list(&[t, t]), None))
     }
 
     #[test]
@@ -1578,17 +1572,9 @@ mod tests {
         let shared = doubled(&p, 2);
         let q = InternPool::new();
         let _noise = q.intern_ty(&TyData::sum(q.list(&[Ty::STRING])));
-        let pair = |q: &InternPool| {
-            q.intern_ty(&TyData::Tuple {
-                elems: q.list(&[Ty::I32, Ty::I32]),
-                rest: None,
-            })
-        };
+        let pair = |q: &InternPool| q.product(q.list(&[Ty::I32, Ty::I32]), None);
         let (left, right) = (pair(&q), pair(&q));
-        let built = q.intern_ty(&TyData::Tuple {
-            elems: q.list(&[left, right]),
-            rest: None,
-        });
+        let built = q.product(q.list(&[left, right]), None);
         let a = super::canon(&p, &ph, &mut CanonMemo::default(), shared);
         let b = super::canon(&q, &ph, &mut CanonMemo::default(), built);
         assert_eq!(a, b);
