@@ -13,7 +13,10 @@
 //! parameters' exit counts) before each `return`, each cancel exit and at
 //! a root's end; a value a `return` does not consume takes the caller's
 //! count first, a stated `Retain`. Each way out takes its own copy:
-//! [`super::scopes::lower`]'s chains wrap a body in blocks (bench +1.8%).
+//! [`super::scopes::lower`]'s chains wrap a body in blocks (bench +1.8%),
+//! but a cancel block's `return`s share one, the sub-body's cancel exit
+//! ([`Body::cancel_exit`]), which its one cancelled exit runs, as rustc's
+//! drop tree shares one chain per exit target.
 //! A cell keeps its flags in its layout.
 //!
 //! Cost: one walk and a consumer census, O(N), then per release O(the
@@ -250,6 +253,19 @@ impl Elab<'_> {
         matches!(key_of(self.b, word), Some(Key::Local(l)) if self.cells[l as usize])
     }
 
+    /// The exit set `members`: exit `Drop`s and parameters' exit counts.
+    fn exit(&mut self, members: &[(u32, u32)]) -> Result<(), String> {
+        for &(word, count) in members {
+            self.release(word, EXIT_DROP, count != NONE)?;
+            if count != NONE {
+                let data = self.b.data[count as usize];
+                let count = self.row(Tag::Release, data, Ty::VOID);
+                self.out.push(count);
+            }
+        }
+        Ok(())
+    }
+
     /// Whether a flag stands at or under place `word`.
     fn flagged(&self, word: u32) -> bool {
         let paths = key_of(self.b, word).and_then(|k| self.flags.get(&k));
@@ -366,6 +382,13 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
         sub: 0,
     };
     let old = Some(Info::new(At::Operation, Part::Result, OVERWRITTEN));
+    // The sub-bodies with two or more cancelled `return`s share one cancel
+    // exit; one keeps its copy in place, which costs no guard.
+    let mut ways = vec![0u32; exit.len()];
+    for x in (0..n).filter(|&x| e.b.tags[x] == Tag::Return && topo.blk[x] != NONE) {
+        ways[sub[x]] += u32::from(e.b.data[x][1] == return_word::CANCELLED);
+    }
+    let mut shared = vec![false; exit.len()];
     for x in 0..n {
         let ([a, w], blk, b) = (e.b.data[x], topo.blk[x], &*e.b);
         let list = |at: u32| b.record(b.data[at as usize][0]);
@@ -407,13 +430,13 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
                 let retain = e.row(Tag::Retain, data, Ty::VOID);
                 e.out.push(retain);
             }
-            for &(word, count) in &exit[sub[x]] {
-                e.release(word, EXIT_DROP, count != NONE)?;
-                if count != NONE {
-                    let data = e.b.data[count as usize];
-                    let count = e.row(Tag::Release, data, Ty::VOID);
-                    e.out.push(count);
-                }
+            // A cancelled `return` leaves by its sub-body's one cancelled
+            // exit (the backend's `leave_cancelled`), which runs the
+            // shared copy.
+            if !end && w == return_word::CANCELLED && ways[sub[x]] > 1 && !exit[sub[x]].is_empty() {
+                shared[sub[x]] = true;
+            } else {
+                e.exit(&exit[sub[x]])?;
             }
         } else {
             // A store stays; the count it released what it overwrote by goes.
@@ -454,6 +477,17 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
             spans.push((NONE, first, u32_of(e.b.len())));
         }
     }
+    for s in (0..shared.len()).filter(|&s| shared[s]) {
+        let root = e.b.sub_root[s];
+        (e.syn, e.sub) = (e.b.syn[root as usize], u32_of(s));
+        let first = spans.last().map_or(u32_of(n), |s: &(u32, u32, u32)| s.2);
+        e.exit(&exit[s])?;
+        let list = std::mem::take(&mut e.out);
+        let list = e.b.push_record(&list);
+        let blk = e.row(Tag::Block, [list, NONE], Ty::VOID);
+        e.b.cancel_exit.push((root, blk));
+        spans.push((NONE, first, u32_of(e.b.len())));
+    }
     let b = e.b;
     b.cancel.extend(cold);
     blocks.sort_stable();
@@ -469,6 +503,7 @@ pub fn elaborate(b: &mut Body, cx: &dyn OwnCx) -> Result<(), String> {
     }
     super::scopes::place(b, n, spans, &gone)?;
     b.cancel.sort_stable();
+    b.cancel_exit.sort_stable();
     // The last lowering: what is left is the backend's (`owned::lowered`).
     b.phase = crate::ir::Phase::Elaborated;
     Ok(())

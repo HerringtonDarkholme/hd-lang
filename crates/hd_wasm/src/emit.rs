@@ -652,6 +652,7 @@ fn body_func<'i>(
     }
     if em.counting {
         em.close();
+        em.cancel_exit(root)?;
         em.release_all();
         for l in em.ret.clone() {
             em.f.get(l);
@@ -2668,7 +2669,7 @@ impl Em<'_, '_, '_> {
                     self.f.op(Instruction::Br(d));
                 }
             }
-            Tag::Return if bw == hd_tir::ir::return_word::CANCELLED => self.leave_cancelled(),
+            Tag::Return if bw == hd_tir::ir::return_word::CANCELLED => self.leave_cancelled()?,
             Tag::Return => {
                 if a != NONE && self.diverges(a) {
                     self.f.op(Instruction::Unreachable);

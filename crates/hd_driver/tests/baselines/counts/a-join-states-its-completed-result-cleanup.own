@@ -155,15 +155,9 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %27 = Drop [$0] : ()
 >   %28 = Drop [$1] : ()
 >   %29 = Block %22 : (string, string)
->   %42 = Intrinsic ParamOwned [0:i32] : bool
->   %43 = Drop [$0] : ()
->   %44 = Block - : ()
->   %45 = If %42 [%44 -] : ()
->   %46 = Intrinsic ParamOwned [1:i32] : bool
->   %47 = Drop [$1] : ()
->   %48 = Block - : ()
->   %49 = If %46 [%48 -] : ()
->   %50 = Block - : ()
+>   %47 = Drop [$0] : ()
+>   %48 = Drop [$1] : ()
+>   %49 = Block - : ()
     join!(ready(pair._0), ready(pair._1))
 >   %16 = Read move [$2 .0] : string
 >   %17 = Intrinsic Empty [] : ()
@@ -178,6 +172,6 @@ fn sequential!(a: string, b: string) -> (string, string):
 >   %26 = Drop [%18] : ()
 >   exit sub 0 drops [$0 $1]
 >   summary none
->   cancel %10 releases [%6 %9 %2147483648 %2147483649 %4294967295]
->   cancel %22 releases [%18 %21 %2147483648 %2147483649 %4294967295]
->   cancel %29 releases [%16 %42 %16 %46]
+>   cancel %10 releases [%6 %9 %4294967295]
+>   cancel %22 releases [%18 %21 %4294967295]
+>   cancel %29 releases [%16 %38 %16 %42]

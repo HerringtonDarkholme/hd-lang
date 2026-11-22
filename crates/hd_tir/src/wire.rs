@@ -555,6 +555,7 @@ fn owned(b: &Body) -> bool {
         && b.exit_drops.is_empty()
         && b.storage.is_empty()
         && b.cancel.is_empty()
+        && b.cancel_exit.is_empty()
         && b.suites.is_empty()
         && b.stable_lists.is_empty()
         && b.forwarded_reads.is_empty()
@@ -605,6 +606,7 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
             .into_iter(),
     );
     pairs(w, &b.cancel);
+    pairs(w, &b.cancel_exit);
     u32s(w, b.suites.iter().copied());
     u32s(
         w,
@@ -681,6 +683,7 @@ fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
         })
         .collect::<Option<_>>()?;
     b.cancel = pairs(col(r));
+    b.cancel_exit = pairs(col(r));
     b.suites = col(r);
     b.stable_lists = col(r)
         .chunks_exact(5)

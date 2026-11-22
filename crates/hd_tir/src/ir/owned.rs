@@ -705,6 +705,17 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
             err(errs, at, format!("cancel row {k} is out of order"));
         }
     }
+    for (k, &(root, blk)) in b.cancel_exit.iter().enumerate() {
+        if !b.sub_root.contains(&root) || b.tags.get(blk as usize) != Some(&Tag::Block) {
+            err(
+                errs,
+                root,
+                format!("cancel exit row {k} names %{blk} at %{root}, which is no root's block"),
+            );
+        } else if k > 0 && b.cancel_exit[k - 1].0 >= root {
+            err(errs, root, format!("cancel exit row {k} is out of order"));
+        }
+    }
     for (k, &(s, l, _)) in b.storage.iter().enumerate() {
         if s.idx() >= b.sub_root.len() || l.idx() >= b.local_ty.len() {
             err(

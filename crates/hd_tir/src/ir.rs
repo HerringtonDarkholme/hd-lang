@@ -1162,6 +1162,13 @@ pub struct Body {
     /// one row per point. A pass output: empty in the checker's TIR
     /// (invariant 22); the wire's owned section.
     pub cancel: Vec<(u32, u32)>,
+    /// Each suspending sub-body's cancel exit, as rustc's drop tree shares
+    /// one chain per exit target: per row, a root and a `Block` no list
+    /// holds, the sub-body's exit set, which each `return` of a cancel
+    /// block (`return_word::CANCELLED`) runs at the sub-body's one
+    /// cancelled exit instead of its own copy (`own::elaborate`). Sorted,
+    /// one row per root; the wire's owned section.
+    pub cancel_exit: Vec<(u32, u32)>,
     /// The cleanup suites' copies (`own::scopes`): each a wrapper `Scope`
     /// that runs one suite on one way out of its cleanup scope. A pass
     /// output, like [`Body::cancel`].
@@ -1251,6 +1258,7 @@ impl Body {
             exit_drops: vec![],
             storage: vec![],
             cancel: vec![],
+            cancel_exit: vec![],
             suites: vec![],
             stable_lists: vec![],
             forwarded_reads: vec![],
@@ -1765,6 +1773,13 @@ impl Body {
     #[must_use]
     pub fn is_suite(&self, i: u32) -> bool {
         self.suites.binary_search(&i).is_ok()
+    }
+
+    /// Root `root`'s cancel exit ([`Body::cancel_exit`]): one probe.
+    #[must_use]
+    pub fn cancel_exit_block(&self, root: u32) -> Option<u32> {
+        let k = self.cancel_exit.binary_search_by_key(&root, |r| r.0).ok()?;
+        Some(self.cancel_exit[k].1)
     }
 
     /// Suspension point `at`'s cancel block ([`Body::cancel`]): one probe.
@@ -2844,6 +2859,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
     if !b.exit_drops.is_empty()
         || !b.storage.is_empty()
         || !b.cancel.is_empty()
+        || !b.cancel_exit.is_empty()
         || !b.suites.is_empty()
         || !b.stable_lists.is_empty()
         || !b.anchors.is_empty()
@@ -3444,6 +3460,9 @@ pub fn print(b: &Body) -> String {
     for (inst, block) in &b.cancel {
         let _ = writeln!(o, "cancel {inst} {block}");
     }
+    for (root, block) in &b.cancel_exit {
+        let _ = writeln!(o, "cancelexit {root} {block}");
+    }
     for [inst, word, before, after, buffer] in &b.stable_lists {
         let _ = writeln!(o, "stablelist {inst} {word} {before} {after} {buffer}");
     }
@@ -3654,6 +3673,13 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     return Err(e("cancel needs 2 fields".into()));
                 }
                 b.cancel.push((v[0], v[1]));
+            }
+            "cancelexit" => {
+                let v = nums(1)?;
+                if v.len() != 2 {
+                    return Err(e("cancelexit needs 2 fields".into()));
+                }
+                b.cancel_exit.push((v[0], v[1]));
             }
             "stablelist" => {
                 let v = nums(1)?;

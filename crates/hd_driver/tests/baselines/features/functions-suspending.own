@@ -89,17 +89,14 @@ fn run_twice!(body: fn!() -> string) -> usize:
 >   %29 = Prim Add [%12 %26] : usize
 >   %30 = Drop [$0] : ()
 >   %31 = Block %29 : usize
->   %41 = Intrinsic ParamOwned [0:i32] : bool
->   %42 = Drop [$0] : ()
->   %43 = Block - : ()
->   %44 = If %41 [%43 -] : ()
+>   %44 = Drop [$0] : ()
 >   %45 = Block - : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell, $2 cell
 >   summary none
->   cancel %5 releases [%4 %2147483648 %4294967295]
->   cancel %18 releases [%15 %17 %2147483648 %4294967295]
->   cancel %31 releases [%16 %41]
+>   cancel %5 releases [%4 %4294967295]
+>   cancel %18 releases [%15 %17 %4294967295]
+>   cancel %31 releases [%16 %39]
 
 fn closure_bang!(key: string) -> usize:
 > app/main/closure_bang

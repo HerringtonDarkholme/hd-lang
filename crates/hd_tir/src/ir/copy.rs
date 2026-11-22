@@ -391,7 +391,7 @@ pub(crate) fn renumber(b: &mut Body, map: &mut Through<'_>) -> Result<(), String
         .retain(|&(value, read)| value != NONE && read != NONE);
     // Both words name instructions no edit deletes (a suspension point and
     // its cancel block), and the splice keeps their order.
-    for row in &mut b.cancel {
+    for row in b.cancel.iter_mut().chain(&mut b.cancel_exit) {
         *row = (word(row.0), word(row.1));
     }
     for x in &mut b.suites {

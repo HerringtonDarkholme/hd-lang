@@ -223,6 +223,9 @@ pub fn main!() -> void $ Console + Clock:
 >   %97 = Drop [$0] : ()
 >   %98 = Drop [$1] : ()
 >   %99 = Block - : ()
+>   %105 = Drop [$0] : ()
+>   %106 = Drop [$1] : ()
+>   %107 = Block - : ()
     println("${through_known!(2)} ${through_value!(&plain, 3)}")
 >   %7 = Await app/main/through_known[] (2:usize) : usize
 >   %8 = Release %7 Operation child #2 : ()
@@ -314,10 +317,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %94 = Read move [%44] : string
 >   %95 = Intrinsic Empty [] : ()
 >   %96 = Call std/console/println[string] (%94) : ()
->   %105 = Drop [$0] : ()
->   %106 = Drop [$1] : ()
->   %107 = Return - #2 : never
 >   exit sub 0 drops [$0 $1]
 >   storage sub 0: $0 cell
->   cancel %7 releases [%2147483648 %2147483649 %4294967295]
->   cancel %24 releases [%23 %2147483648 %2147483649 %4294967295]
+>   cancel %7 releases [%4294967295]
+>   cancel %24 releases [%23 %4294967295]

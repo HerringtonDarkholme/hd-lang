@@ -58,18 +58,11 @@ app/main/scoped
   %46 = Scope %45 [] : usize
   %47 = Drop [$2] : ()
   %48 = Block %46 : usize
-  %61 = Ref mut local [$2] : &mut DeferGuard[fn() -> (), $ Console]
-  %62 = Call std/ops/Disposable.dispose for DeferGuard[fn() -> (), $ Console] [$ Console] via Impl (%61) : ()
-  %63 = Retain %62 Operation row #0 : ()
-  %64 = Release %62 Operation row #2 : ()
-  %65 = LoanEnd [%61] : ()
-  %66 = Block - : ()
-  %67 = Scope %66 [] : ()
-  %68 = Drop [$2] : ()
-  %69 = Return - #2 : never
+  %69 = Drop [$2] : ()
+  %70 = Block - : ()
   exit sub 0 drops [$2]
   storage sub 0: $2 cell
   storage sub 1: $2 cell
   summary none
-  cancel %18 releases [%16 %463 %55 %2147483650 %4294967295]
-  cancel %29 releases [%27 %469 %66 %2147483650 %4294967295]
+  cancel %18 releases [%16 %463 %55 %4294967295]
+  cancel %29 releases [%27 %469 %65 %4294967295]

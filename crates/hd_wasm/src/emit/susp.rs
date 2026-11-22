@@ -744,7 +744,7 @@ impl Em<'_, '_, '_> {
         }
         match blk {
             Some(blk) => self.block_into(blk, None)?,
-            None => self.leave_cancelled(),
+            None => self.leave_cancelled()?,
         }
         self.close();
         Ok(())
@@ -1413,6 +1413,24 @@ impl Em<'_, '_, '_> {
         self.f.op(I::End);
     }
 
+    /// At the body's one exit, past its counting label: when it left
+    /// cancelled, its cancel exit ([`hd_tir::ir::Body::cancel_exit`]), the
+    /// exit set its cancel blocks' `return`s share.
+    pub(super) fn cancel_exit(&mut self, root: u32) -> StageResult<()> {
+        let (Some(blk), Some(cancelled)) = (
+            self.b.cancel_exit_block(root),
+            self.susp.as_ref().map(|s| s.cancelled),
+        ) else {
+            return Ok(());
+        };
+        self.f.get(cancelled);
+        self.f.op(I::If(BlockType::Empty));
+        self.ctl.push(Ctl::Plain);
+        self.block_into(blk, None)?;
+        self.close();
+        Ok(())
+    }
+
     /// Clears the frame's `UNWINDING`: its cancellation ended.
     pub(super) fn unwound(&mut self) {
         self.f.get(FRAME);
@@ -1445,7 +1463,7 @@ impl Em<'_, '_, '_> {
     /// A cancellation's final step: with the function's one exit,
     /// noted for [`Self::exit_frame`] and taken; without, the zero
     /// results and the frame returned.
-    pub(super) fn leave_cancelled(&mut self) {
+    pub(super) fn leave_cancelled(&mut self) -> StageResult<()> {
         // ruled out: only a point's cancellation leaves this way;
         // emit::instance installs Susp for its ABI.
         let cancelled = self.susp.as_ref().map(|s| s.cancelled);
@@ -1466,15 +1484,21 @@ impl Em<'_, '_, '_> {
             self.f.set(cancelled);
             let d = self.depth(Ctl::Exit);
             self.f.op(I::Br(d));
-            return;
+            return Ok(());
+        }
+        // Without the counting exit, the cancel exit runs here.
+        let root = self.b.sub_root[usize::from(self.sub_id)];
+        if let Some(blk) = self.b.cancel_exit_block(root) {
+            self.block_into(blk, None)?;
         }
         // One exit per body, as for Pending (`close_park`).
         if self.susp.as_ref().is_some_and(|s| s.park.is_some()) {
             let d = self.depth(Ctl::Gone);
             self.f.op(I::Br(d));
-            return;
+            return Ok(());
         }
         self.gone();
+        Ok(())
     }
 }
 

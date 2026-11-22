@@ -223,6 +223,7 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
         counts.sort_stable();
         let mut walk = Exits {
             counts,
+            shared: b.cancel_exit_block(root),
             errs: Vec::new(),
         };
         let mut s = super::flow::Flow::default();
@@ -241,11 +242,13 @@ pub(crate) fn verify(b: &Body, cx: &dyn OwnCx, topo: &Topology, mut err: impl Fn
 }
 
 /// A sub-body's exit counts run exactly once on every way out of it: its
-/// end, each `return` and each cancel exit. Per count, the state holds
-/// which of 0, 1 or more runs a path may have made (bits `3k`, `3k + 1`,
-/// `3k + 2`), joined over paths.
+/// end, each `return` and each cancel exit, which runs the sub-body's
+/// shared cancel exit (`shared`, [`Body::cancel_exit`]). Per count, the
+/// state holds which of 0, 1 or more runs a path may have made (bits
+/// `3k`, `3k + 1`, `3k + 2`), joined over paths.
 struct Exits {
     counts: Vec<(u32, u32, Info)>,
+    shared: Option<u32>,
     errs: Vec<(u32, String)>,
 }
 
@@ -283,7 +286,16 @@ impl super::flow::Forward for Exits {
 
     fn enter(&mut self, _: &Body, _: u32, _: &mut super::flow::BitArena, _: usize) {}
 
-    fn exit(&mut self, _: &Body, x: u32, s: &mut super::flow::BitArena, st: usize) {
+    fn exit(&mut self, b: &Body, x: u32, s: &mut super::flow::BitArena, st: usize) {
+        let i = x as usize;
+        if let Some(blk) = self.shared
+            && b.tags[i] == Tag::Return
+            && b.data[i][1] == crate::ir::return_word::CANCELLED
+        {
+            for &m in b.record(b.data[blk as usize][0]) {
+                self.stmt(b, m, s, st);
+            }
+        }
         self.out(x, s, st);
     }
 }

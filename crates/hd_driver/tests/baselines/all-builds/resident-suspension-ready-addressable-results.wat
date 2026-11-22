@@ -1016,28 +1016,6 @@
                 call $rt:release_ref'1
               end
             end
-            local.get $t1
-            i32.load $heap offset=8
-            local.tee $second.1
-            if
-              local.get $second.1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $second.1
-                call $rt:release_ref'2
-              end
-            end
-            local.get $t1
-            i32.load $heap offset=12
-            local.tee $second.0
-            if
-              local.get $second.0
-              call $rt:release_ref'1
-            end
             i32.const 1
             local.set $t4
             br 1
@@ -1419,6 +1397,31 @@
           i32.load $heap offset=4
           call $"println[string]"
     ;; 21 |     let (a, first) = ready!(true)
+          local.get $t1
+          i32.load $heap offset=8
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $provider0.vtable
+              call $rt:release_ref'2
+            end
+          end
+          local.get $t1
+          i32.load $heap offset=12
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            call $rt:release_ref'1
+          end
+        end
+        local.get $t4
+        if
           local.get $t1
           i32.load $heap offset=8
           local.tee $provider0.vtable
@@ -3009,34 +3012,6 @@
                 call $skipped_test
               end
             end
-            local.get $t1
-            i32.load $heap offset=8
-            local.tee $second.1
-            if
-              local.get $second.1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $second.1
-                call $rt:release_ref'2
-              else
-                call $skipped_test
-              end
-            else
-              call $skipped_test
-            end
-            local.get $t1
-            i32.load $heap offset=12
-            local.tee $second.0
-            if
-              local.get $second.0
-              call $rt:release_ref'1
-            else
-              call $skipped_test
-            end
             i32.const 1
             local.set $t4
             br 1
@@ -3444,6 +3419,37 @@
           i32.load $heap offset=4
           call $"println[string]"
     ;; 21 |     let (a, first) = ready!(true)
+          local.get $t1
+          i32.load $heap offset=8
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $provider0.vtable
+              call $rt:release_ref'2
+            else
+              call $skipped_test
+            end
+          else
+            call $skipped_test
+          end
+          local.get $t1
+          i32.load $heap offset=12
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            call $rt:release_ref'1
+          else
+            call $skipped_test
+          end
+        end
+        local.get $t4
+        if
           local.get $t1
           i32.load $heap offset=8
           local.tee $provider0.vtable
@@ -5000,28 +5006,6 @@
                 call $rt:release_ref'1
               end
             end
-            local.get $t1
-            i32.load $heap offset=8
-            local.tee $second.1
-            if
-              local.get $second.1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $second.1
-                call $rt:release_ref'2
-              end
-            end
-            local.get $t1
-            i32.load $heap offset=12
-            local.tee $second.0
-            if
-              local.get $second.0
-              call $rt:release_ref'1
-            end
             i32.const 1
             local.set $t4
             br 1
@@ -5257,6 +5241,31 @@
             local.get $result.0
             call $rt:release_ref'1
           end
+          local.get $t1
+          i32.load $heap offset=8
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $provider0.vtable
+              call $rt:release_ref'2
+            end
+          end
+          local.get $t1
+          i32.load $heap offset=12
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            call $rt:release_ref'1
+          end
+        end
+        local.get $t4
+        if
           local.get $t1
           i32.load $heap offset=8
           local.tee $provider0.vtable
@@ -6808,34 +6817,6 @@
                 call $skipped_test
               end
             end
-            local.get $t1
-            i32.load $heap offset=8
-            local.tee $second.1
-            if
-              local.get $second.1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $second.1
-                call $rt:release_ref'2
-              else
-                call $skipped_test
-              end
-            else
-              call $skipped_test
-            end
-            local.get $t1
-            i32.load $heap offset=12
-            local.tee $second.0
-            if
-              local.get $second.0
-              call $rt:release_ref'1
-            else
-              call $skipped_test
-            end
             i32.const 1
             local.set $t4
             br 1
@@ -7093,6 +7074,37 @@
           else
             call $skipped_test
           end
+          local.get $t1
+          i32.load $heap offset=8
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $provider0.vtable
+              call $rt:release_ref'2
+            else
+              call $skipped_test
+            end
+          else
+            call $skipped_test
+          end
+          local.get $t1
+          i32.load $heap offset=12
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            call $rt:release_ref'1
+          else
+            call $skipped_test
+          end
+        end
+        local.get $t4
+        if
           local.get $t1
           i32.load $heap offset=8
           local.tee $provider0.vtable

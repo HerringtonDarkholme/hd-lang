@@ -12,8 +12,8 @@
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
+  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
@@ -745,21 +745,6 @@
                   call $rt:release_ref'1
                 end
               end
-              local.get $t1
-              i32.load $heap offset=16
-              local.tee $result.0
-              if
-                local.get $result.0
-                i32.const 8
-                i32.sub
-                i32.load $heap
-                global.get $tracing
-                i32.or
-                if
-                  local.get $result.0
-                  call $rt:release_ref'2
-                end
-              end
               i32.const 1
               local.set $t3
               br 2
@@ -898,21 +883,6 @@
             local.get $t1
             i32.const 0
             i32.store $heap offset=40
-            local.get $t1
-            i32.load $heap offset=16
-            local.tee $t1
-            if
-              local.get $t1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $t1
-                call $rt:release_ref'2
-              end
-            end
             i32.const 1
             local.set $t3
             br 1
@@ -1034,6 +1004,24 @@
           i32.load $heap offset=4
           call $"println[string]"
     ;; 31 |     let plain = Plain {}
+          local.get $t1
+          i32.load $heap offset=16
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $provider0.vtable
+              call $rt:release_ref'2
+            end
+          end
+        end
+        local.get $t3
+        if
           local.get $t1
           i32.load $heap offset=16
           local.tee $t1

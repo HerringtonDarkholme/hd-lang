@@ -510,37 +510,22 @@
               i32.store $heap offset=24
               local.get $t1
               i32.load $heap offset=28
-              local.tee $read.0
+              local.tee $t4
               if
-                local.get $read.0
+                local.get $t4
                 i32.const 8
                 i32.sub
                 i32.load $heap
                 global.get $tracing
                 i32.or
                 if
-                  local.get $read.0
+                  local.get $t4
                   call $rt:release_ref'2
                 end
               end
               local.get $t1
               local.get $read.1
               i32.store $heap offset=28
-              local.get $t1
-              i32.load $heap offset=20
-              local.tee $t3
-              if
-                local.get $t3
-                i32.const 8
-                i32.sub
-                i32.load $heap
-                global.get $tracing
-                i32.or
-                if
-                  local.get $t3
-                  call $rt:release_ref'2
-                end
-              end
               i32.const 1
               local.set $t4
               br 2
@@ -772,21 +757,6 @@
             local.get $t1
             local.get $read.1
             i32.store $heap offset=36
-            local.get $t1
-            i32.load $heap offset=20
-            local.tee $t1
-            if
-              local.get $t1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $t1
-                call $rt:release_ref'2
-              end
-            end
             i32.const 1
             local.set $t4
             br 1
@@ -836,6 +806,24 @@
           i32.load $heap offset=4
           call $"println[i32]"
     ;; 13 |     read := make("kept")
+          local.get $t1
+          i32.load $heap offset=20
+          local.tee $provider0.vtable
+          if
+            local.get $provider0.vtable
+            i32.const 8
+            i32.sub
+            i32.load $heap
+            global.get $tracing
+            i32.or
+            if
+              local.get $provider0.vtable
+              call $rt:release_ref'2
+            end
+          end
+        end
+        local.get $t4
+        if
           local.get $t1
           i32.load $heap offset=20
           local.tee $t1

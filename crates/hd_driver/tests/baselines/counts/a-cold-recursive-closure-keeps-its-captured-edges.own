@@ -111,6 +111,8 @@ pub fn main!() -> void $ Console:
 >   %5 = Store [$0] %4 : ()
 >   %41 = Drop [$2] : ()
 >   %42 = Block - : ()
+>   %55 = Drop [$2] : ()
+>   %56 = Block - : ()
     println(read!(3))
 >   %6 = Read move [$0] : fn!(usize) -> string
 >   %7 = Intrinsic Empty [] : ()
@@ -151,10 +153,8 @@ pub fn main!() -> void $ Console:
 >   %38 = Drop [%34] : ()
 >   %39 = Drop [%32] : ()
 >   %40 = Call std/console/println[i32] (%35) : ()
->   %55 = Drop [$2] : ()
->   %56 = Return - #2 : never
 >   exit sub 0 drops [$2]
 >   summary none
->   cancel %9 releases [%6 %8 %2147483650 %4294967295]
->   cancel %24 releases [%21 %23 %2147483650 %4294967295]
->   cancel %35 releases [%32 %34 %2147483650 %4294967295]
+>   cancel %9 releases [%6 %8 %4294967295]
+>   cancel %24 releases [%21 %23 %4294967295]
+>   cancel %35 releases [%32 %34 %4294967295]
