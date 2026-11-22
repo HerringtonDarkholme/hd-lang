@@ -1,0 +1,14 @@
+# test: string collection accepts a noncopy cursor
+use std.collections.UniqList
+
+fn collected[I < ?Copy & Iterator[char]](source: I) -> string:
+    source.collect()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a noncopy source moves into the UTF-8 collector"):
+        let mut items = UniqList::[char].new()
+        items.push('é')
+        items.push('🚀')
+        assert_equal(collected(Iterable::[char]::iter(items)), "é🚀")

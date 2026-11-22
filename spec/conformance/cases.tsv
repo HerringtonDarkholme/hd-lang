@@ -7250,6 +7250,9 @@ std/iter/value-consuming-methods/iterator-noncopy.hd	runtime	accept	std/iter.md#
 std/iter/value-consuming-methods/iterator-callback-rows.hd	type	accept	std/iter.md#value-consuming-methods
 std/iter/value-consuming-methods/filter-map-callback-row.hd	type	reject:type-mismatch	std/iter.md#value-consuming-methods
 std/iter/value-consuming-methods/local-reference-dot-last-progress.hd	runtime	accept	std/iter.md#r-std-iter.adapter.mutable-reference-forwarding-noncopy
+std/iter/text-collection-and-list-enumeration/collection-and-enumeration.hd	runtime	accept	std/iter.md#text-collection-and-list-enumeration
+std/iter/text-collection-and-list-enumeration/noncopy-char-cursor.hd	runtime	accept	std/iter.md#text-collection-and-list-enumeration
+std/iter/text-collection-and-list-enumeration/collection-target-required.hd	type	reject:cannot-infer-type	std/iter.md#r-std-iter.collect.no-default
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

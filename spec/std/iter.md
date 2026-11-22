@@ -10,7 +10,7 @@ ordinary hd over the language tier:
 - the adapters `skip`, `take_while`, `zip`, `chain`, and `flat_map`, and
   the draining `any`, `all`, `find`, `count`, `min`, and `max`;
 - the `FromIterator` trait and the collections `collect` builds:
-  `List`, `Map`, `Result`, and `T?`;
+  `List`, `Map`, `string`, `Result`, and `T?`;
 - `map` on `List[T]` and on `T?`.
 
 The language tier keeps what the compiler knows by name
@@ -302,6 +302,7 @@ The standard library implements `FromIterator` for these prelude types:
 | Rule | Collection | Items | Result |
 | --- | --- | --- | --- |
 | r[std-iter.collect.list] List | `List[T]` | `T` | every remaining item, in order |
+| [String collection](#r-std-iter.collect.string) | `string` | `char` | UTF-8 text, as specified below |
 | r[std-iter.collect.map-last] Map | `Map[K, V]` | `(K, V)` | one entry per pair; for an equal key the later value wins |
 | r[std-iter.collect.result] All results | `Result[C, E]`, where `C < ?Copy & FromIterator[T]` | `Result[T, E]` | `.Ok` of the `C` collected from the `.Ok` payloads, or the first `.Err` |
 | r[std-iter.collect.option] All values | `C?`, where `C < ?Copy & FromIterator[T]` | `T?` | `.Some` of the `C` collected from the `.Some` payloads, or `.None` at the first `.None` |
@@ -388,3 +389,28 @@ fn selected(values: List[i32]) -> List[i32]:
 > A lazy callback must fit the existing empty-row `next`; eager consumers can forward its row.
 
 > **Note.** `Iterator::[i32]::last(&mut cursor)` explicitly selects the local-reference implementation.
+
+## Text Collection And List Enumeration
+
+Text collection writes Unicode scalars into one UTF-8 result.
+List enumeration exposes the existing lazy indexed cursor directly.
+
+```text
+fn rebuilt(text: string) -> string:
+    text.chars().collect()
+
+fn indexed(items: List[i32]) -> List[(usize, i32)]:
+    items.enumerate().collect()
+```
+
+1. r[std-iter.collect.string] `string` implements `FromIterator[char]`, encoding every yielded Unicode scalar in UTF-8, in source order.
+2. r[std-iter.collect.string.empty] An empty character cursor collects to the empty string.
+3. r[std-iter.collect.string.stop] String collection stops at the first `.None` and accepts any `I < ?Copy & Iterator[char]`.
+4. r[std-iter.collect.string.cost] Collection takes amortized linear time in the emitted bytes and uses one growing output buffer, excluding source advancement costs.
+5. r[std-iter.list.enumerate.value] The inherent `List[T].enumerate(self) -> Enumerate[ListIter[T], T]` is equivalent to `self.iter().enumerate()`.
+6. r[std-iter.list.enumerate.snapshot] It holds the list's snapshot at creation and yields `(index, item)` pairs in order, starting with the `usize` index zero.
+7. r[std-iter.list.enumerate.lazy] Construction takes constant time and advances no cursor; subsequent calls use the existing `Enumerate` state.
+
+> **Why.** String collection follows Rust's `FromIterator<char>` and writes through the existing UTF-8 builder without per-character strings.
+> The protocol has no size hint; its output buffer therefore grows amortized.
+> `List.enumerate` is the owner's requested convenience spelling for the existing iterator adapter, with identical laziness and snapshot costs.
