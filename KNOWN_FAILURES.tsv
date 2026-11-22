@@ -38,3 +38,4 @@ lang/functions/crossing-closures/crossing-send-reaches-box-top-level.hd	#2288		n
 lang/references/dependent-results/frozen-loans/frozen-loan-for-scope.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)
 lang/references/dependent-results/frozen-loans/frozen-loan-blocks-element-store.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)
 lang/references/dependent-results/frozen-loans/frozen-loan-needs-a-lifetime.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)
+std/iter/value-consuming-methods/local-reference-dot-last-progress.hd	#2286		Dot lookup selects the referent value iterator instead of the local mutable reference iterator, so the source cursor does not advance.
