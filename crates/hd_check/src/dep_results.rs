@@ -65,6 +65,7 @@ const NO_SOURCE: u32 = u32::MAX - 1;
 /// The static lifetime of a slot written `&'static T` (`ref.static.form`):
 /// what flows into it must be a static source (`ref.static.source.error`).
 const STATIC: u32 = hd_resolve::STATIC_LIFETIME as u32;
+const STATIC_U16: u16 = hd_resolve::STATIC_LIFETIME;
 
 /// The mark of a returned slot that names result path `k`: `PATH + k`
 /// beside its lifetime (`ref.result.path.callee`).
@@ -2161,7 +2162,26 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                     let keys = line_up(ls, pattern, actual)
                         .ok_or_else(|| bug("an outlives impl lost its positional bindings"))?;
                     crate::work::scan_work(keys.len());
+                    // The lifetime the impl writes at each written slot of
+                    // its head: its target's, then its trait arguments'.
+                    let written = match &declaration.data {
+                        ItemData::Impl {
+                            self_lifetimes,
+                            trait_slots,
+                            ..
+                        } => written_slots(ls, pattern, &[self_lifetimes, trait_slots]),
+                        _ => Vec::new(),
+                    };
                     for (key, from) in keys.into_iter().zip(origins.iter()) {
+                        // An impl lifetime is bound like a parameter: by
+                        // what the goal holds where the head writes it.
+                        let key = match key {
+                            Key::Decl(d) => match written.get(d).copied().unwrap_or(0) {
+                                0 | STATIC_U16 => continue,
+                                l => Key::Param(ParamRef { owner, index: l }, 0),
+                            },
+                            key => key,
+                        };
                         if let Key::Param(p, slot) = key {
                             let into = Rc::make_mut(bindings.entry(p).or_default());
                             into.resize_with(into.len().max(slot + 1), Vec::new);
@@ -2178,9 +2198,10 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                 bindings
             };
             for (step, child) in steps {
-                let Some(PlanStep::Bound {
+                let Some(&PlanStep::Bound {
                     param,
-                    args: bound_args,
+                    trait_: bound_trait,
+                    args: ref bound_args,
                     ..
                 }) = table.plan[r].get(usize::from(*step))
                 else {
@@ -2188,7 +2209,7 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                 };
                 let param = ParamRef {
                     owner: DefId::NONE,
-                    index: u16::from(*param),
+                    index: u16::from(param),
                 };
                 // The bound's goal in the impl's parameters, then as this
                 // proof instantiates them.
@@ -2204,8 +2225,26 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
                     let keys = line_up(ls, declared, actual)
                         .ok_or_else(|| bug("an outlives bound lost its positional goal"))?;
                     crate::work::scan_work(keys.len());
+                    // The impl lifetime the bound writes at each of its
+                    // own slots (`Generic::bound_lifetimes`).
+                    let g = declaration.generics.get(usize::from(param.index));
+                    let own = g
+                        .and_then(|g| {
+                            let at = g.bounds.iter().position(|&b| {
+                                pool.trait_value(b) == Some((bound_trait, *bound_args))
+                            })?;
+                            g.bound_lifetimes.get(at)
+                        })
+                        .map_or(&[][..], Vec::as_slice);
+                    let written = written_slots(ls, declared, &[&[], own]);
                     let of = |key| match key {
                         Key::Param(p, slot) => bindings.get(&p).and_then(|b| b.get(slot)).cloned(),
+                        Key::Decl(d) => match written.get(d).copied().unwrap_or(0) {
+                            0 | STATIC_U16 => None,
+                            l => (bindings.get(&ParamRef { owner, index: l }))
+                                .and_then(|b| b.first())
+                                .cloned(),
+                        },
                         _ => None,
                     };
                     Rc::new(
@@ -2219,6 +2258,31 @@ pub(crate) fn proof_statics<'o, V: Copy + Eq + std::hash::Hash>(
         }
     }
     Ok(statics)
+}
+
+/// The written lifetime at each layout slot of goal tuple `t`: its
+/// elements' local reference slots take `lists` in turn, the first list
+/// the subject's and the last the rest's, each in [`Types::ref_slots`]
+/// order; a function's or suspension's slot writes none.
+fn written_slots(ls: &Layouts<'_>, t: Ty, lists: &[&[u16]]) -> Vec<u16> {
+    let pool = ls.pool;
+    let TyData::Tuple { elems, .. } = pool.get(t) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let mut list = lists.iter().map(|l| l.iter());
+    let (mut first, mut rest) = (list.next(), list.next());
+    for (k, &e) in pool.list_items(elems).iter().enumerate() {
+        let ids = if k == 0 { &mut first } else { &mut rest };
+        for slot in &ls.of(e).slots {
+            let id = match ids {
+                Some(ids) if !slot.fun && !slot.hold => ids.next().copied(),
+                _ => None,
+            };
+            out.push(id.unwrap_or(0));
+        }
+    }
+    out
 }
 
 /// Where a header's goal slot writes its lifetime: slot `k` its declared
@@ -2811,15 +2875,66 @@ impl Ck<'_, '_> {
             .into_iter()
             .map(|(p, s)| (p, Rc::new(s)))
             .collect();
-        let roots = uses.iter().map(|(_, param, _, tref, proof)| {
-            let origins = parameters.get(param).cloned().unwrap_or_default();
-            let goal = goal_tuple(pool, tref.self_ty, tref.args);
-            (proof, self.infer.resolve(pool, goal), origins)
+        let roots = uses.iter().map(|&(_, param, bound, tref, ref proof)| {
+            let goal = self
+                .infer
+                .resolve(pool, goal_tuple(pool, tref.self_ty, tref.args));
+            let origins = self.bound_origins(ls, (param, bound), goal, parameters.get(&param));
+            (proof, goal, origins)
         });
         let tables = (self.cx.lookup, Impls::Owned(self.cx.impls));
         let statics = proof_statics(ls, tables, &|t| self.infer.resolve(pool, t), roots)?;
         cache.insert(key, statics.clone());
         Ok(statics)
+    }
+
+    /// The origins of each slot of a bound's goal, subject then trait
+    /// arguments ([`goal_tuple`]): the call variables of the type
+    /// parameter's slots, then the callee lifetime each of the bound's own
+    /// reference slots writes (`ref.lifetime.trait.impl-argument`,
+    /// `Generic::bound_lifetimes`), whose call variable the call made.
+    /// `'static` and an unwritten slot have none; a function's or
+    /// suspension's slot holds no written reference.
+    fn bound_origins(
+        &self,
+        ls: &Layouts<'_>,
+        (param, bound): (ParamRef, usize),
+        goal: Ty,
+        subject: Option<&ProofSlots<Var>>,
+    ) -> ProofSlots<Var> {
+        let pool = ls.pool;
+        let TyData::Tuple { elems, .. } = pool.get(goal) else {
+            return subject.cloned().unwrap_or_default();
+        };
+        let elems = pool.list_items(elems);
+        let generics = self.cx.lookup.item(param.owner).map(|it| match &it.data {
+            ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => &sig.generics,
+            _ => &it.generics,
+        });
+        let written = (generics.and_then(|g| g.get(usize::from(param.index))))
+            .and_then(|g| g.bound_lifetimes.get(bound))
+            .map_or(&[][..], Vec::as_slice);
+        if written.is_empty() {
+            return subject.cloned().unwrap_or_default();
+        }
+        let n = elems.first().map_or(0, |&t| ls.of(t).slots.len());
+        let mut out: Vec<Vec<Var>> = subject.map_or_else(Vec::new, |s| s.to_vec());
+        out.resize_with(n, Vec::new);
+        let mut refs = written.iter();
+        for &arg in &elems[1..] {
+            for slot in &ls.of(arg).slots {
+                let id = if slot.fun || slot.hold {
+                    None
+                } else {
+                    refs.next()
+                };
+                out.push(match id.map(|&l| u32::from(l)) {
+                    Some(l) if l != 0 && l != STATIC => vec![Var::Life(l)],
+                    _ => Vec::new(),
+                });
+            }
+        }
+        Rc::new(out)
     }
 
     /// The map of call `i` of `b` when it passes or returns a value that
