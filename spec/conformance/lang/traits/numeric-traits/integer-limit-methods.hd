@@ -1,0 +1,52 @@
+# test: integer limit methods work at every width and through an Integer bound
+# Spec 09 Numeric Traits: trait.num.integer.max-value, trait.num.integer.min-value.
+# expect: test
+
+use std.num.Integer
+
+fn high[N < Integer]() -> N:
+    N::max_value()
+
+fn low[N < Integer]() -> N:
+    N::min_value()
+
+tests:
+    use std.testing.assert_equal
+
+    it("every integer width has its exact bounds"):
+        assert_equal(i8::min_value(), -128, reason="i8 min_value")
+        assert_equal(low::[i8](), -128, reason="generic i8 min_value")
+        assert_equal(i8::max_value(), 127, reason="i8 max_value")
+        assert_equal(high::[i8](), 127, reason="generic i8 max_value")
+        assert_equal(i16::min_value(), -32768, reason="i16 min_value")
+        assert_equal(low::[i16](), -32768, reason="generic i16 min_value")
+        assert_equal(i16::max_value(), 32767, reason="i16 max_value")
+        assert_equal(high::[i16](), 32767, reason="generic i16 max_value")
+        assert_equal(i32::min_value(), -2147483648, reason="i32 min_value")
+        assert_equal(low::[i32](), -2147483648, reason="generic i32 min_value")
+        assert_equal(i32::max_value(), 2147483647, reason="i32 max_value")
+        assert_equal(high::[i32](), 2147483647, reason="generic i32 max_value")
+        assert_equal(i64::min_value(), -9223372036854775808, reason="i64 min_value")
+        assert_equal(low::[i64](), -9223372036854775808, reason="generic i64 min_value")
+        assert_equal(i64::max_value(), 9223372036854775807, reason="i64 max_value")
+        assert_equal(high::[i64](), 9223372036854775807, reason="generic i64 max_value")
+        assert_equal(u8::min_value(), 0, reason="u8 min_value")
+        assert_equal(low::[u8](), 0, reason="generic u8 min_value")
+        assert_equal(u8::max_value(), 255, reason="u8 max_value")
+        assert_equal(high::[u8](), 255, reason="generic u8 max_value")
+        assert_equal(u16::min_value(), 0, reason="u16 min_value")
+        assert_equal(low::[u16](), 0, reason="generic u16 min_value")
+        assert_equal(u16::max_value(), 65535, reason="u16 max_value")
+        assert_equal(high::[u16](), 65535, reason="generic u16 max_value")
+        assert_equal(u32::min_value(), 0, reason="u32 min_value")
+        assert_equal(low::[u32](), 0, reason="generic u32 min_value")
+        assert_equal(u32::max_value(), 4294967295, reason="u32 max_value")
+        assert_equal(high::[u32](), 4294967295, reason="generic u32 max_value")
+        assert_equal(u64::min_value(), 0, reason="u64 min_value")
+        assert_equal(low::[u64](), 0, reason="generic u64 min_value")
+        assert_equal(u64::max_value(), 18446744073709551615, reason="u64 max_value")
+        assert_equal(high::[u64](), 18446744073709551615, reason="generic u64 max_value")
+        assert_equal(usize::min_value(), 0, reason="usize min_value")
+        assert_equal(low::[usize](), 0, reason="generic usize min_value")
+        assert_equal(usize::max_value(), 4294967295, reason="usize max_value")
+        assert_equal(high::[usize](), 4294967295, reason="generic usize max_value")

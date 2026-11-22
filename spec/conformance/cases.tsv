@@ -7236,6 +7236,8 @@ lang/traits/generic-bounds-and-static-dispatch/where-bound-impl-misses.hd	type	r
 lang/traits/generic-bounds-and-static-dispatch/where-bound-subject-self.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.where.subject.error
 lang/traits/generic-bounds-and-static-dispatch/where-bound-subject-unknown.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.where.subject.error
 lang/traits/generic-bounds-and-static-dispatch/where-bound-subject-free-function.hd	parse	reject:syntax-error	lang/09-traits.md#r-trait.where.subject.error
+lang/traits/numeric-traits/integer-limit-methods.hd	runtime	accept	lang/09-traits.md#r-trait.num.integer.max-value
+lang/traits/numeric-traits/integer-limit-function-values.hd	runtime	accept	lang/09-traits.md#r-trait.num.integer.min-value
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

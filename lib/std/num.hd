@@ -27,6 +27,12 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[
     Out = Self,
 ] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
+    ## The greatest value this integer type can hold.
+    fn max_value() -> Self:
+        int_max::[Self]()
+    ## The least value this integer type can hold.
+    fn min_value() -> Self:
+        int_min::[Self]()
     fn to_u64(self) -> u64
     fn from_u64(n: u64) -> Self
 
@@ -104,7 +110,7 @@ impl Num for u64:
     fn one() -> u64:
         1
     fn from_i64(n: i64) -> u64:
-        u64(fit(n, 0, i64_max()))
+        u64(fit(n, 0, i64::max_value()))
 
 impl Num for f32:
     fn zero() -> f32:
@@ -194,15 +200,15 @@ pub enum ParseNumberError:
 
 # The integer methods (spec/std/num.md), written once for every integer
 # width by r-trait.target.numeric-family. Generic code has no literals or
-# casts, so the bounds come from `int_min` and `int_max`.
+# casts, so the bounds come from `Integer`'s limit methods.
 impl[N < Integer] N:
     ## The sum, or `.None` when it is out of the type's range.
     ## See [std-num.checked.add](../../spec/std/num.md#r-std-num.checked.add).
     pub fn checked_add(self, other: N) -> N?:
         zero := N::zero()
-        if other > zero && self > int_max::[N]() - other:
+        if other > zero && self > N::max_value() - other:
             return .None
-        if other < zero && self < int_min::[N]() - other:
+        if other < zero && self < N::min_value() - other:
             return .None
         .Some(self + other)
 
@@ -210,9 +216,9 @@ impl[N < Integer] N:
     ## See [std-num.checked.sub](../../spec/std/num.md#r-std-num.checked.sub).
     pub fn checked_sub(self, other: N) -> N?:
         zero := N::zero()
-        if other > zero && self < int_min::[N]() + other:
+        if other > zero && self < N::min_value() + other:
             return .None
-        if other < zero && self > int_max::[N]() + other:
+        if other < zero && self > N::max_value() + other:
             return .None
         .Some(self - other)
 
@@ -222,8 +228,8 @@ impl[N < Integer] N:
         zero := N::zero()
         if self == zero || other == zero:
             return .Some(zero)
-        lowest := int_min::[N]()
-        highest := int_max::[N]()
+        lowest := N::min_value()
+        highest := N::max_value()
         let overflows = false
         if self > zero:
             overflows = if other > zero: self > highest / other else: other < lowest / self
@@ -239,7 +245,7 @@ impl[N < Integer] N:
             return .None
         # `~zero` is -1 in a signed type, and the minimum over -1 overflows.
         minus_one := ~zero
-        if minus_one < zero && other == minus_one && self == int_min::[N]():
+        if minus_one < zero && other == minus_one && self == N::min_value():
             return .None
         .Some(self / other)
 
@@ -267,7 +273,7 @@ impl[N < Integer] N:
         match self.checked_add(other):
             .Some(sum) => sum
             .None =>
-                if other > N::zero(): int_max::[N]() else: int_min::[N]()
+                if other > N::zero(): N::max_value() else: N::min_value()
 
     ## The difference, capped at the type's largest or smallest value.
     ## See [std-num.saturating.sub](../../spec/std/num.md#r-std-num.saturating.sub).
@@ -275,7 +281,7 @@ impl[N < Integer] N:
         match self.checked_sub(other):
             .Some(difference) => difference
             .None =>
-                if other > N::zero(): int_min::[N]() else: int_max::[N]()
+                if other > N::zero(): N::min_value() else: N::max_value()
 
     ## The number of one bits in the value.
     ## See [std-num.bits.count-ones-u32](../../spec/std/num.md#r-std-num.bits.count-ones-u32).
@@ -389,8 +395,8 @@ impl[N < Integer] N:
         if index == size:
             return .Err(ParseNumberError.InvalidDigit(index))
         base := N::from_i64(i64(radix))
-        low := int_min::[N]()
-        high := int_max::[N]()
+        low := N::min_value()
+        high := N::max_value()
         let value = zero
         while index < size:
             found := byte_digit(text[index])
@@ -1028,7 +1034,7 @@ impl Parse for i64:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[i64, ParseNumberError]:
-        parse_integer(text, -i64_max() - 1, i64_max())
+        parse_integer(text, i64::min_value(), i64::max_value())
 
 impl Parse for u8:
     type Error = ParseNumberError
@@ -1229,7 +1235,3 @@ fn nonneg_u64(n: i64) -> u64:
     if n < 0:
         panic_with("integer-overflow", "integer overflow")
     u64(n)
-
-# `i64` literals take their type from context, so the bound is a function.
-fn i64_max() -> i64:
-    9223372036854775807
