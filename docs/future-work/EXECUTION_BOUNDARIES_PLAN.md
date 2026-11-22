@@ -31,7 +31,7 @@ in the same commits.
 | 1 | `Marker`, `Send`, `Wire` (built: 424dcdfb7) | 390 | 63 | +327 | 2, 3 |
 | 2 | crossing parameters, capture mode, reached top-level bindings, frozen loans (built: 1dd4c2a5c to 127293f15) | 880 | 88 | +792 | 6 |
 | 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers, the `Wire` codec (built: 5c9646dac to 00e3b32b8); the host boundary move and host handles as stubs wait on the codec's size | 1,170 | 150 | +1,018 | 4, 5 |
-| 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter | 500 | 0 | +500 | none |
+| 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter (built: std code net +86, tests +63) | 500 | 0 | +500 | none |
 | 5 | one use-graph walk per executable | 280 | 20 | +260 | none |
 | 6 | worker instances, Wasm threads for `Scope` and `Background`, a jobs store | 2,200 | 0 | +2,200 | none |
 
@@ -358,6 +358,34 @@ condition as the boundary move.
 | a dispatch | build ID compare, one served-table lookup, a `br_table` on the method number | none |
 
 ## 6. Stage 4: std.remote In hd
+
+**Built**, std code +89 / −3 (net +86) and 63 test lines against +500:
+`per_request`, `home`, `Call`, `action`, `http_transport` and
+`http_handler` in lib/std/remote.hd, specified in spec/std/remote.md
+(prefix `std-remote`). `Action` and `HttpTransport` are private. No
+compiler change. Std tests run a stub against a fixed home through
+`handle_call!`, and a stub through `http_transport` and `http_handler`
+over an in-memory `Http`, a refused caller and `ScriptedHttp` failures
+included. Readings:
+
+- A home outlives the call that made it, so its factory and an action's
+  closure may capture no local reference. hd says that only through a
+  type parameter bounded by `'static` (`ref.generic.outlives.box`): a
+  direct `fn!` parameter may hold local captures and is never stored
+  (`fn.capture.local-store`). So `per_request` takes
+  `F < Fn(&C) -> Suspend[Result[Rooted[S], Refused]] & 'static` and stores
+  a `fn!` that calls it, and `action` likewise; the call site is the
+  record's, a closure literal. `Home[S, C]` keeps its two parameters.
+- `home(root, session)` gives each call a copy of `root`, as hd values
+  copy; a worker's state that outlives a call sits behind a box in the
+  root, as `PgUsers.pool` does (`std-remote.home.fixed.copy`).
+- `http_transport` maps the record's "a connection never opened" to
+  `HttpError` cases: `NotGranted`, `InvalidUrl`, `Dns`, `Connect`, `Tls`,
+  `InvalidHeader` and `UnsupportedSetting` are `Unreachable`; any other
+  error, a failure status other than 403 and an unreadable body are
+  `Unknown`. It follows no redirect.
+- `http_handler` runs the factory before it reads the body, so a refused
+  caller is a 403 whatever its body.
 
 **What.** The plain parts the record writes out in hd go into
 lib/std/remote.hd (new): `per_request`, `home`, `Call`, `Action`, `action`,

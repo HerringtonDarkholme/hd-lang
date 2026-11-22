@@ -1,9 +1,12 @@
 # std.remote: the language items of execution boundaries that the compiler's
-# generated stubs and dispatchers name (spec/lang/10-modules.md#remote-built-ins).
-# `per_request`, `home`, `action` and the HTTP adapters are plain std over
-# these, in the stdlib tier.
+# generated stubs and dispatchers name (spec/lang/10-modules.md#remote-built-ins),
+# and the plain std over them (spec/std/remote.md): `per_request`, `home`,
+# `action` and the HTTP adapters.
 use std.annotation.inline
+use std.function.Fn
 use std.hash.Hash
+use std.http.{Http, HttpError, Request, Response, Url}
+use std.marker.Wire
 use std.num.Integer
 use std.rt.bytes.char_from_scalar
 use std.structure.{Field, Key, Members, Source, Structure, Variant, Walker}
@@ -62,6 +65,92 @@ pub enum Reply:
 ## See [module.remote.items](../../spec/lang/10-modules.md#r-module.remote.items).
 pub struct Home[S, C]:
     make: fn!(&C) -> Result[Rooted[S], Refused]
+
+## A home that builds a root and a session for each incoming call record,
+## as a server does, so a root can hold its verified caller. The home
+## outlives the call, so `make` captures no local reference.
+## See [std-remote.home.per-request](../../spec/std/remote.md#r-std-remote.home.per-request).
+pub fn per_request[S < 'static, C < 'static, F < Fn(&C) -> Suspend[Result[Rooted[S], Refused]] & 'static](
+    make: F,
+) -> *mut Home[S, C]:
+    box(Home { make: fn!(call: &C) -> Result[Rooted[S], Refused]: make(call)!() })
+
+## A home with one root and one peer, as a worker has. Each call gets a
+## copy of `root`, so state that outlives a call sits behind a box.
+## See [std-remote.home.fixed](../../spec/std/remote.md#r-std-remote.home.fixed).
+pub fn home[S < 'static, C < 'static](root: S, session: Session) -> *mut Home[S, C]:
+    per_request(fn!(call: &C) -> Result[Rooted[S], Refused]: .Ok(Rooted { root, session }))
+
+## One served function, such as a server action.
+## See [std-remote.action.call](../../spec/std/remote.md#r-std-remote.action.call).
+pub trait Call[A < Wire, T < Wire, E < Wire] < Remote:
+    fn call!(&mut self, arg: A) -> Result[T, E | CrossError]
+
+struct Action[A, T, E]:
+    code: fn!(A) -> Result[T, E]
+
+impl[A < Wire, T < Wire, E < Wire] Call[A, T, E] for Action[A, T, E]:
+    fn call!(&mut self, arg: A) -> Result[T, E]:
+        code := self.code
+        code!(arg)
+
+## Serves `code` as a remote object of this domain's home. Only a
+## reference to it leaves, so its captures need not be `Wire`; they hold
+## no local reference, since the object outlives the call.
+## See [std-remote.action.closure](../../spec/std/remote.md#r-std-remote.action.closure).
+pub fn action[A < Wire & 'static, T < Wire & 'static, E < Wire & 'static, F < Fn(A) -> Suspend[Result[T, E]] & 'static](
+    code: F,
+) -> *mut dyn Call[A, T, E]:
+    box(Action { code: fn!(arg: A) -> Result[T, E]: code(arg)!() })
+
+# HTTP: a frame is the body of a POST, a reply the body of its response.
+struct HttpTransport:
+    url: Url
+    http: *mut dyn Http
+
+impl Transport for HttpTransport:
+    fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+        response := match self.http.send!(&Request::post(self.url).set_bytes(frame), 0):
+            .Ok(response) => response
+            .Err(error) => return .Err(http_cross(error))
+        if response.status == .Forbidden:
+            return .Err(.WrongHome)
+        if !response.status.is_success():
+            return .Err(.Unknown)
+        match response.bytes():
+            .Ok(bytes) => .Ok(bytes)
+            .Err(_) => .Err(.Unknown)
+
+# A request that never left is `Unreachable`: no grant, no address, no
+# connection or no TLS session. A failure after it may follow a run.
+fn http_cross(error: HttpError) -> CrossError:
+    match error:
+        .NotGranted(_) => .Unreachable
+        .InvalidUrl(_) => .Unreachable
+        .Dns(_) => .Unreachable
+        .Connect(_) => .Unreachable
+        .Tls(_) => .Unreachable
+        .InvalidHeader(_) => .Unreachable
+        .UnsupportedSetting(_) => .Unreachable
+        _ => .Unknown
+
+## A transport that posts each frame to `url` through `Http`.
+## See [std-remote.http.transport](../../spec/std/remote.md#r-std-remote.http.transport).
+pub fn http_transport(url: Url) -> *mut dyn Transport $ Http:
+    box(HttpTransport { url, http: $.use(Http) })
+
+## Answers one HTTP request for `home`, as a server's handler: a caller its
+## factory refuses is a 403, a body that cannot be read a 400, and every
+## other request a 200 whose body is an encoded `Reply`.
+## See [std-remote.http.handler](../../spec/std/remote.md#r-std-remote.http.handler).
+pub fn http_handler![S](request: Request, home: &mut Home[S, Request]) -> Response:
+    make := home.make
+    let mut rooted = match make!(&request):
+        .Ok(rooted) => rooted
+        .Err(_) => return Response::status(.Forbidden)
+    match request.bytes():
+        .Ok(frame) => Response::status(.Ok).set_bytes(handle_call!(home, &mut rooted, frame))
+        .Err(_) => Response::status(.BadRequest)
 
 ## Returns the root object at the far end of `transport`, as a stub of the
 ## remote trait `T`.
@@ -485,6 +574,7 @@ impl['a, S < ?Copy] Source[S] for WireTake[S, 'a]:
 # The codec's round trips over every `Wire` type form, its bytes against
 # the host's tree format, and malformed frames, which decode to `.None`.
 tests:
+    use std.http.{Method, ScriptedHttp}
     use std.marker.Wire
     use std.testing.{assert, assert_equal}
 
@@ -712,3 +802,62 @@ tests:
         match shelf.take!(5):
             .Err(._0(error)) => assert_equal(error, CountError.Negative(-1))
             _ => assert(false, "the implementation's error is case _0")
+
+    # Answers each frame from `home`, for the one peer `"w"`.
+    struct HomeLink:
+        home: *mut Home[Tally, string]
+
+    impl Transport for HomeLink:
+        fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+            make := self.home.make
+            let mut rooted = match make!(&"w"):
+                .Ok(rooted) => rooted
+                .Err(_) => return .Err(.WrongHome)
+            .Ok(handle_call!(self.home, &mut rooted, frame))
+
+    it("a fixed home answers every frame from a copy of its root"):
+        counter := remote::[Counter](box(HomeLink { home: home(Tally { total: 10 }, Session { id: "w" }) }))
+        assert_equal(counter.add!(2).ok(), .Some(12))
+        assert_equal(counter.add!(5).ok(), .Some(15))
+        assert_equal(counter.label!("n", 1).ok(), .Some("n 10 x1"))
+
+    # The server's side in memory: each request goes to `http_handler`.
+    struct Server:
+        home: *mut Home[Tally, Request]
+
+    impl Http for Server:
+        fn send!(&mut self, request: &Request, redirects: usize) -> Result[Response, HttpError]:
+            .Ok(http_handler!(*request, self.home))
+
+    fn url(text: string) -> Url:
+        match Url::parse(text):
+            .Ok(url) => url
+            .Err(_) => panic("bad test URL")
+
+    it("an HTTP transport and handler carry frames, and a refused caller is WrongHome"):
+        served := per_request(fn!(request: &Request) -> Result[Rooted[Tally], Refused]:
+            match request.url.param("user"):
+                .Some(id) => .Ok(Rooted { root: Tally { total: 100 }, session: Session { id } })
+                .None => .Err(Refused { reason: "no user" })
+        )
+        $.with(Http=box(Server { home: served })):
+            counter := remote::[Counter](http_transport(url("http://api.test/rpc?user=ada")))
+            assert_equal(counter.add!(1).ok(), .Some(101))
+            match counter.add!(-2):
+                .Err(._0(error)) => assert_equal(error, CountError.Negative(-2))
+                _ => assert(false, "the implementation's error is case _0")
+            stranger := remote::[Counter](http_transport(url("http://api.test/rpc")))
+            assert_equal(cross_of(stranger.add!(1)), .Some(CrossError.WrongHome))
+
+    it("an HTTP failure before sending is Unreachable, and any later one Unknown"):
+        http := ScriptedHttp::new()
+        http.reply("http://api.test/late", .Err(.Timeout))
+        http.reply("http://api.test/crash", .Ok(Response::status(.InternalServerError)))
+        $.with(Http=http):
+            assert_equal(cross_of(remote::[Counter](http_transport(url("http://api.test/down"))).add!(1)), .Some(CrossError.Unreachable))
+            assert_equal(cross_of(remote::[Counter](http_transport(url("http://api.test/late"))).add!(1)), .Some(CrossError.Unknown))
+            assert_equal(cross_of(remote::[Counter](http_transport(url("http://api.test/crash"))).add!(1)), .Some(CrossError.Unknown))
+        sent := http.received()
+        assert_equal(sent.len(), 3)
+        assert_equal(sent[0].method, Method.Post)
+        assert(!sent[0].bytes().unwrap_or([]).is_empty(), "the frame is the body")

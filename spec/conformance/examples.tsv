@@ -787,7 +787,7 @@ lang/10-modules.md	104	complete	-
 lang/10-modules.md	105	mixed	lang/modules/execution-domains/markers/marker-trait-with-member.hd|lang/modules/execution-domains/markers/wire-implementation-is-sealed.hd|lang/modules/execution-domains/markers/box-field-is-not-wire.hd
 lang/10-modules.md	106	complete	-
 lang/10-modules.md	107	mixed	lang/modules/execution-domains/remote-traits/remote-method-not-bang.hd|lang/modules/execution-domains/remote-traits/remote-method-closure-parameter.hd|lang/modules/execution-domains/remote-traits/remote-method-generic.hd|lang/modules/execution-domains/remote-traits/remote-result-without-cross-error.hd|lang/modules/execution-domains/remote-traits/remote-implementation-with-cross-error.hd
-lang/10-modules.md	108	mixed	-
+lang/10-modules.md	108	mixed	lang/modules/execution-domains/remote-builtins/remote-builtin-non-remote-trait.hd
 lang/10-modules.md	109	complete	-
 lang/11-requirements-and-suspension.md	1	complete	-
 lang/11-requirements-and-suspension.md	2	complete	-
@@ -1243,6 +1243,8 @@ std/regex.md	12	complete	std/regex/replacing-and-splitting/regex-replace.hd
 std/regex.md	13	complete	std/regex/replacing-and-splitting/regex-split.hd
 std/regex.md	14	type-fragment	-
 std/regex.md	15	complete	std/regex/pattern-errors/regex-errors.hd
+std/remote.md	1	complete	-
+std/remote.md	2	complete	-
 std/result.md	1	complete	std/result/result-methods/result-and-then.hd
 std/result.md	2	mixed	std/result/result-methods/result-and-then-error-type.hd
 std/result.md	3	complete	std/result/mapping-the-value/result-map.hd

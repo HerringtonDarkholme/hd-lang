@@ -240,6 +240,7 @@ file of its own.
 | [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
 | [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |
+| [`remote.md`](remote.md) | `std.remote` | `std-remote` | the homes `per_request` and `home`, served functions `Call` and `action`, and the HTTP adapters `http_transport` and `http_handler` |
 | [`validate.md`](validate.md) | `std.validate` | `std-validate` | post-reader value validation, typed rule facts, structural paths, issue caps, and reader-selected path names |
 
 ## Test Provider Names
@@ -270,6 +271,8 @@ the [language glossary](../README.md#glossary).
 | **pad bits** | The low bits of the last base64 symbol that encode no byte; they are zero. See [`std-encoding.base64.encode.pad-bits`](encoding.md#r-std-encoding.base64.encode.pad-bits). |
 | **padding** | The one or two `=` characters that end a base64 text. See [`std-encoding.base64.decode.padding`](encoding.md#r-std-encoding.base64.decode.padding). |
 | **positional** | A command-line argument that is not a flag or an option; `std.cli` reads it by position. See [`std-cli.parser.arg`](cli.md#r-std-cli.parser.arg). |
+| **request factory** | The function of a home that builds a root and a session for each incoming call record, or refuses it. See [Homes](remote.md#homes). |
+| **served function** | A closure that a home serves as a remote object of the trait `Call`. See [Served Functions](remote.md#served-functions). |
 | **property test** | A test case whose body runs on inputs drawn from a `Choices` source. See [Property Tests](testing.md#property-tests). |
 
 ## Rule IDs
