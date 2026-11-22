@@ -423,6 +423,8 @@ struct Walk<'x> {
     link: &'x [bool],
     /// The bit each moving read sets, or `NONE`.
     move_bit: &'x [u32],
+    /// The bits each crossing closure's creation sets.
+    closure_moves: &'x HashMap<u32, Vec<u32>>,
     /// The binding and path of each bit.
     bits: &'x [(LocalId, Vec<u32>)],
     of_local: &'x HashMap<LocalId, Vec<u32>>,
@@ -491,6 +493,9 @@ impl Forward for Walk<'_> {
                             self.use_of(l, &[], false, x, s, st);
                         }
                     }
+                }
+                for &k in self.closure_moves.get(&x).into_iter().flatten() {
+                    s.set(st, k, true);
                 }
             }
             Tag::ItemRef
@@ -877,6 +882,27 @@ impl Ck<'_, '_> {
                 facts.reborrows.insert(w(i));
             }
         }
+        // A crossing closure moves each capture that is not copied
+        // (`fn.crossing.mode.move`): its source binding ends there.
+        let mut closure_moves: HashMap<u32, Vec<u32>> = HashMap::default();
+        for &i in &self.crossing_closures {
+            if let [start, len, ..] = *b.record(b.data[i as usize][1]) {
+                for c in start..start.saturating_add(len) {
+                    let Some(&l) = b.cap_local.get(c as usize) else {
+                        continue;
+                    };
+                    if !tracked(l) {
+                        continue;
+                    }
+                    let k = *bit_of.entry((l, Vec::new())).or_insert_with_key(|key| {
+                        bits.push(key.clone());
+                        of_local.entry(l).or_default().push(w(bits.len() - 1));
+                        w(bits.len() - 1)
+                    });
+                    closure_moves.entry(i).or_default().push(k);
+                }
+            }
+        }
         if bits.is_empty() {
             return facts;
         }
@@ -892,6 +918,7 @@ impl Ck<'_, '_> {
             let mut walk = Walk {
                 acc: &acc,
                 link: &link,
+                closure_moves: &closure_moves,
                 move_bit: &move_bit,
                 bits: &bits,
                 of_local: &of_local,

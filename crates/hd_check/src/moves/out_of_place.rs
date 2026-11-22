@@ -103,11 +103,14 @@ impl RefKind {
 }
 
 /// Each closure's captures, as (sub-body, local), sorted.
-fn captures_of(b: &Body) -> Vec<(u32, u32)> {
+/// A crossing closure runs once, so moving out of its captures is
+/// allowed (`fn.crossing.move-out`); it is left out.
+fn captures_of(b: &Body, crossing: &[u32]) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for i in 0..b.len() {
         if b.tags[i] == Tag::Closure
             && !b.is_instantiation(i)
+            && !crossing.contains(&w(i))
             && let [start, len, ..] = *b.record(b.data[i][1])
         {
             for c in start..start.saturating_add(len) {
@@ -126,10 +129,24 @@ fn captures_of(b: &Body) -> Vec<(u32, u32)> {
 /// is not copied lives in a cell the closure shares (`fn.capture.cell`;
 /// the checker's capture modes), so its scope reads it there too. A
 /// local reference is captured as itself.
-fn shared_of(b: &Body, pool: hd_types::Types<'_>) -> Vec<bool> {
+/// A crossing closure's captures are copied or moved, never shared
+/// (`fn.crossing.mode`).
+fn shared_of(b: &Body, pool: hd_types::Types<'_>, crossing: &[u32]) -> Vec<bool> {
+    let mut taken = vec![false; b.cap_local.len()];
+    for &i in crossing {
+        if let [start, len, ..] = *b.record(b.data[i as usize][1]) {
+            for c in start..start.saturating_add(len) {
+                if let Some(t) = taken.get_mut(c as usize) {
+                    *t = true;
+                }
+            }
+        }
+    }
     let mut out = vec![false; b.local_ty.len()];
-    for l in &b.cap_local {
-        out[l.idx()] = !crate::local_refs::holds_local_ref(pool, b.local_ty[l.idx()]);
+    for (c, l) in b.cap_local.iter().enumerate() {
+        if !taken[c] {
+            out[l.idx()] = !crate::local_refs::holds_local_ref(pool, b.local_ty[l.idx()]);
+        }
     }
     out
 }
@@ -171,7 +188,11 @@ impl Ck<'_, '_> {
     /// closure captures, is `move-out-of-place`.
     pub(crate) fn check_moves_out_of_place(&mut self, cx: &mut Uses) {
         let b = self.b.body();
-        let (captures, shared) = (captures_of(b), shared_of(b, self.pool()));
+        let crossing = &self.crossing_closures;
+        let (captures, shared) = (
+            captures_of(b, crossing),
+            shared_of(b, self.pool(), crossing),
+        );
         // The reads of a value that is not copied through a reference or
         // out of a capture, with where from and the place's root.
         let reads: Vec<(u32, From, Root)> = (0..b.len())

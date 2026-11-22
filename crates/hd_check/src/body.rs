@@ -611,6 +611,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// call's callee, or a whole argument for another crossing parameter
     /// (`fn.crossing.parameter.uses`).
     pub crossing_uses: HashSet<hd_base::NodeIdx>,
+    /// The `Closure` instructions written for a crossing parameter: their
+    /// captures are copied or moved, never shared (`fn.crossing.mode`).
+    pub crossing_closures: Vec<u32>,
     /// The tail expression of the function body block, when it is an `if`
     /// without `else`: that `if` is `missing-return-value`, not a value
     /// `if` (`flow.if.value.else` reports every other value position).
@@ -930,6 +933,7 @@ pub(crate) fn new_ck<'a, 'c>(
         result_omitted: false,
         crossing_params: Vec::new(),
         crossing_uses: HashSet::default(),
+        crossing_closures: Vec::new(),
         fn_body_tail: None,
         written_row: None,
         let_view: None,
@@ -5682,6 +5686,20 @@ impl Ck<'_, '_> {
         // `Move` needs the liveness pass and is not chosen yet.
         let modes: Vec<hd_tir::ir::CaptureMode> = {
             let changed = std::mem::take(&mut self.changed_locals);
+            // A crossing closure takes each capture as it is: copied, or
+            // moved when it is not `Copy` (`fn.crossing.mode.copy`,
+            // `fn.crossing.mode.move`).
+            let mut crossing = vec![false; self.b.body().cap_local.len()];
+            for &i in &self.crossing_closures {
+                let body = self.b.body();
+                if let [start, len, ..] = *body.record(body.data[i as usize][1]) {
+                    for c in start..start.saturating_add(len) {
+                        if let Some(x) = crossing.get_mut(c as usize) {
+                            *x = true;
+                        }
+                    }
+                }
+            }
             let pool = self.pool();
             (0..self.b.body().cap_local.len())
                 .map(|at| {
@@ -5691,7 +5709,13 @@ impl Ck<'_, '_> {
                     let ty = self.infer.resolve(pool, body.local_ty[l.idx()]);
                     let owns_noncopyable =
                         !self.copies(ty) && !crate::local_refs::holds_local_ref(pool, ty);
-                    if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0
+                    if crossing[at] {
+                        if self.copies(ty) {
+                            hd_tir::ir::CaptureMode::Copy
+                        } else {
+                            hd_tir::ir::CaptureMode::Move
+                        }
+                    } else if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0
                         || changed.contains(&l)
                         || owns_noncopyable
                     {

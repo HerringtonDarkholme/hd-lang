@@ -491,7 +491,7 @@ lang/07-functions.md	46	complete	lang/functions/closures/closure-mutable-capture
 lang/07-functions.md	47	mixed	lang/types/value-types/readonly-closure-capture-mutation.hd
 lang/07-functions.md	48	complete	lang/functions/closures/mutable-closure-capture.hd
 lang/07-functions.md	49	complete	-
-lang/07-functions.md	50	known-failure	-
+lang/07-functions.md	50	complete	-
 lang/07-functions.md	51	known-failure	-
 lang/07-functions.md	52	fragment	lang/functions/functions-and-closures.hd
 lang/07-functions.md	53	fragment	lang/functions/trailing-callback-blocks/consecutive-trailing-block-calls.hd

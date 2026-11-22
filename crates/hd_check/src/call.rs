@@ -2240,6 +2240,22 @@ impl Ck<'_, '_> {
         if !closure {
             return;
         }
+        if let Some(i) = r.as_inst() {
+            self.crossing_closures.push(i.0);
+        }
+        // `fn.crossing.no-write`: the closure would change only its copy.
+        if let Some(&l) = self.closure_writes.get(&e.index()) {
+            let name = self
+                .cx
+                .names
+                .text(self.b.body().local_name[l.idx()])
+                .to_owned();
+            self.err(
+                Code::CrossingCaptureWritten,
+                e,
+                &format!("this crossing closure changes its capture `{name}`, which changes only its own copy; return the new value instead"),
+            );
+        }
         for l in self.closure_caps(r) {
             let tref = TraitRef {
                 trait_: marker,
