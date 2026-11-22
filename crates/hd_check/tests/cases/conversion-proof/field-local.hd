@@ -1,0 +1,14 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn number(&self) -> i32
+struct Wrapped[T]:
+    value: T
+impl[T < 'static] Saved for Wrapped[T]:
+    fn number(&self) -> i32:
+        +7
+struct Envelope[T]:
+    value: T
+fn inspect['a](value: &Envelope[Wrapped[&'a i32]]) -> void:
+    let view: &dyn Saved = &value.value
+    pass

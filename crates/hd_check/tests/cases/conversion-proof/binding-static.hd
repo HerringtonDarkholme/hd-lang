@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+trait Saved:
+    fn number(&self) -> i32
+struct Wrapped[T]:
+    value: T
+impl[T < 'static] Saved for Wrapped[T]:
+    fn number(&self) -> i32:
+        +7
+fn inspect['a](value: &Wrapped[&'static i32]) -> void:
+    let bound = value
+    let view: &dyn Saved = bound
+    pass
