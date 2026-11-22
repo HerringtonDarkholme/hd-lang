@@ -137,6 +137,25 @@ impl<'p> Pass<'p> {
         at
     }
 
+    /// Whether the list of patterns at `at` is all wildcards: one step of
+    /// `work` per pattern read.
+    fn all_wild(&self, mut at: usize, work: &mut Work) -> Result<bool, Exceeded> {
+        let mut read = 0;
+        let wild = loop {
+            if at == NIL {
+                break true;
+            }
+            let (p, rest) = self.pats[at];
+            read += 1;
+            if !matches!(p, P::Wild) {
+                break false;
+            }
+            at = rest;
+        };
+        work.take(read)?;
+        Ok(wild)
+    }
+
     /// `rest` under `tys`, the first on top.
     fn types(&mut self, tys: &[Ty], rest: usize) -> usize {
         let mut at = rest;
@@ -2854,6 +2873,19 @@ impl Ck<'_, '_> {
                         return Ok(v);
                     }
                 }
+                continue;
+            }
+            // A class whose first row is unguarded and matches every
+            // value of its columns is that row's alone: it is reached, no
+            // later row is reached through this class, and no value of it
+            // is unmatched (Maranget's usefulness: below an irrefutable
+            // row nothing is useful). Splitting it would only repeat
+            // that per constructor, once per column.
+            if let Some(&(r, s)) = class.rows.first()
+                && !rows[r].1
+                && pass.all_wild(s, work)?
+            {
+                v.useful[r] = true;
                 continue;
             }
             let (t, rest_tys) = pass.tys[class.tys];
