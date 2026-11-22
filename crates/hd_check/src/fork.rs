@@ -94,9 +94,16 @@ impl<'a> BodyCx<'a> {
     #[must_use]
     pub fn left(&self) -> BodyLeft {
         let (named, reads) = self.results.borrow_mut().drain();
+        let (facts, crossing_roots) = {
+            let mut init = self.init.borrow_mut();
+            (
+                std::mem::take(&mut init.facts),
+                std::mem::take(&mut init.crossing_roots),
+            )
+        };
         BodyLeft {
-            facts: std::mem::take(&mut self.init.borrow_mut().facts),
-            crossing_roots: std::mem::take(&mut self.init.borrow_mut().crossing_roots),
+            facts,
+            crossing_roots,
             dbg: self.dbg_refs.take(),
             source_facts: self
                 .source_facts
