@@ -109,12 +109,11 @@
     },
     {
       "program": "bench/runtime/progs/regex-scan.hd",
-      "retained": "28264905",
-      "released": "29797894",
-      "uniques": "41293895",
-      "total": "99356694",
-      "noOpsAndSkipped": "541630",
-      "reason": "New program regex-scan (#1805 draft 94, owner 2026-11-22): its first counts."
+      "retained": "2856102",
+      "released": "3009599",
+      "uniques": "92777",
+      "total": "5958478",
+      "noOpsAndSkipped": "211965"
     },
     {
       "program": "bench/runtime/progs/resources.hd",
