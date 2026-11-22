@@ -1,0 +1,32 @@
+# @dump: stdout
+# @build: dev | checked | release
+# @main: src/main.hd
+use dep.assoc.inspect
+
+pub fn main() -> void:
+    inspect()
+
+# @dependency: assoc
+# @file: src/lib.hd
+trait Saved:
+    pass
+
+struct Wrapped[T]:
+    value: T
+
+impl[T < 'static] Saved for Wrapped[T]:
+    pass
+
+trait Shelf:
+    type Item < Saved
+
+impl['a] Shelf for Wrapped[&'a i32]:
+    type Item = Wrapped[&'a i32]
+
+fn require[T < Shelf](value: T) -> void:
+    pass
+
+origin := +7
+
+pub fn inspect() -> void:
+    require(Wrapped { value: &origin })

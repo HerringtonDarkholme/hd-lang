@@ -1017,6 +1017,58 @@ fn function_value_input_needs_are_traced_once_per_local() {
     );
 }
 
+/// An implementation assigning `width` associated types, each bounded by
+/// a trait an impl gives only for a static argument, at a proof `depth`
+/// of wrappers deep: the header walks each assignment's proof once.
+fn header_outlives(width: usize, depth: usize) -> String {
+    let mut s = String::from(
+        "trait Saved:\n    pass\n\nstruct Leaf[T]:\n    value: T\n\n\
+         struct Wrapped[T]:\n    value: T\n\n\
+         impl[T < 'static] Saved for Leaf[T]:\n    pass\n\n\
+         impl[T < Saved] Saved for Wrapped[T]:\n    pass\n\ntrait Shelf:\n",
+    );
+    for i in 0..width {
+        let _ = writeln!(s, "    type I{i} < Saved");
+    }
+    let mut assigned = String::from("Leaf[&'static i32]");
+    for _ in 0..depth {
+        assigned = format!("Wrapped[{assigned}]");
+    }
+    s.push_str("\nimpl Shelf for i32:\n");
+    for i in 0..width {
+        let _ = writeln!(s, "    type I{i} = {assigned}");
+    }
+    s
+}
+
+/// #2261-#2263: the header's outlives walk costs one step per proof node
+/// of each checked bound: linear in the bounds and in the proof depth.
+#[test]
+fn header_outlives_walk_grows_linearly() {
+    let work = |width, depth| {
+        let (out, scans) = hd_check::work::count_scan_work(|| {
+            compile(&header_outlives(width, depth), &Goal::Analyze)
+        });
+        assert!(
+            !out.diags.has_errors(),
+            "size {width}x{depth}: {}",
+            out.render()
+        );
+        scans
+    };
+    work(1, 1);
+    let (narrow, wide) = (work(100, 1), work(1000, 1));
+    assert!(
+        wide > narrow && wide * 100 <= 5 * narrow * 1000 / 4,
+        "header walk at widths 100 and 1000: {narrow} and {wide}",
+    );
+    let (shallow, deep) = (work(10, 10), work(10, 20));
+    assert!(
+        deep > shallow && deep * 10 <= 5 * shallow * 20 / 4,
+        "header walk at depths 10 and 20: {shallow} and {deep}",
+    );
+}
+
 fn nested_if(n: usize) -> String {
     let mut s = String::from("fn run(value: i32) -> i32:\n    let total = value\n");
     for i in 0..n {

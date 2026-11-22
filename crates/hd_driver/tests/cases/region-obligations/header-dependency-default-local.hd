@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# @build: dev | checked | release
+# @main: src/main.hd
+use dep.defaults.inspect
+
+fn probe() -> void:
+    pass
+
+# @dependency: defaults
+# @file: src/lib.hd
+pub fn inspect['a, T < 'static = &'a i32](value: T) -> void:
+    pass
