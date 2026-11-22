@@ -250,3 +250,43 @@ fn a_std_name_in_a_warm_package_costs_a_warm_check_and_the_page() {
         );
     }
 }
+
+/// #1801 draft 76: every run listed a path dependency's `tests` and
+/// `tasks` too, a `stat` and a row each, though a dependent reaches only
+/// its library. A warm check of the dependent now allocates as much with
+/// 300 test files in the dependency as with none.
+#[test]
+fn a_dependency_tests_are_not_listed() {
+    let dir = package("work-dep-tests");
+    let dep = dir.join("dep");
+    std::fs::create_dir_all(dep.join("src")).expect("dep src");
+    std::fs::create_dir_all(dep.join("tests")).expect("dep tests");
+    std::fs::write(dep.join("hd.toml"), "[package]\nname = \"dep\"\n").expect("write");
+    std::fs::write(dep.join("src/lib.hd"), "pub fn one() -> i32: 1\n").expect("write");
+    let manifest = "[package]\nname = \"shop\"\n\n[capabilities]\nConsole = true\n\n\
+                    [dependencies]\ndep = { path = \"dep\" }\n";
+    std::fs::write(dir.join("hd.toml"), manifest).expect("write");
+    let work = dir.join("work.json");
+    let allocs = || {
+        let out = check(&dir, &work);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let out = check(&dir, &work);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        counter(&std::fs::read_to_string(&work).expect("report"), "allocs")
+    };
+    let none = allocs();
+    for k in 0..300 {
+        let test = format!("use dep.dep.{{one}}\n\nfn t{k}() -> i32: one()\n");
+        std::fs::write(dep.join(format!("tests/t{k}.hd")), test).expect("write");
+    }
+    let many = allocs();
+    assert_eq!(none, many, "allocations with 300 dependency tests");
+}

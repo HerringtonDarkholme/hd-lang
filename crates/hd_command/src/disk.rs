@@ -571,7 +571,7 @@ fn selected_dependencies(
     let mut deps = Vec::new();
     for &i in &order[1..] {
         let p = &sel.packages[i];
-        let (sources, name) = sources_of(&p.dir)?;
+        let (sources, name) = sources_listed(&p.dir, false)?;
         deps.push(DiskPackage {
             name,
             identity: p.identity.clone(),
@@ -873,6 +873,15 @@ fn single_file_package(dir: &Path, written: &Path) -> Result<(String, Vec<Diag>)
 /// in a directory of its own is no part of it. A directory without that
 /// layout has every file under it.
 pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
+    sources_listed(root, true)
+}
+
+/// [`sources_of`], with the test root and `tasks` only when `whole`. A
+/// dependency is used through its library alone: its tests and tasks are
+/// no modules a dependent reaches (`cli.task.no-path`), so its listing
+/// skips them and is partial, keeping their rows in the set's records.
+/// Cost: one `stat` per library file, none per test or task file.
+fn sources_listed(root: &Path, whole: bool) -> Result<(DiskSources, String), String> {
     let package = package_name(root)?;
     let src = source_dir(root);
     let mut files = Vec::new();
@@ -880,7 +889,8 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     // trusted as settled (`stamp`).
     let now = std::time::SystemTime::now();
     if root.join("hd.toml").is_file() && root.join(&src).is_dir() {
-        for dir in [src.as_str(), "tasks", "tests"] {
+        let dirs = if whole { &["tasks", "tests"][..] } else { &[] };
+        for dir in std::iter::once(src.as_str()).chain(dirs.iter().copied()) {
             if root.join(dir).is_dir() {
                 walk(root, &root.join(dir), now, &mut files)?;
             }
@@ -900,7 +910,7 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
         src: (src != "src").then_some(src),
         synthetic: Vec::new(),
         identity,
-        partial: false,
+        partial: !whole,
         read: Arc::default(),
     };
     sources.files = files
