@@ -1,0 +1,70 @@
+# test: Map.insert returns replaced values with one hash, and clear preserves snapshots
+use std.hash.Hasher
+
+struct Calls:
+    count: usize
+
+struct Key:
+    number: i32
+    label: string
+    calls: *mut Calls
+
+impl Eq for Key:
+    fn eq(&self, other: &Key) -> bool:
+        self.number == other.number
+
+impl Hash for Key:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        self.calls.count += 1
+        state.write_i32(self.number)
+
+fn visits() -> Map[string, usize]:
+    let mut found: Map[string, usize] = {}
+    _ := found.insert("tea", 1)
+    _ := found.insert("tea", 2)
+    found
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("returns the previous value and hashes once for each insertion"):
+        calls := box(Calls { count: 0 })
+        first := Key { number: 7, label: "first", calls: calls }
+        equal := Key { number: 7, label: "second", calls: calls }
+        let mut values: Map[Key, i32] = {}
+        assert_equal(values.insert(first, 10), .None)
+        assert_equal(calls.count, 1)
+        assert_equal(values.insert(equal, 20), .Some(10))
+        assert_equal(calls.count, 2)
+        assert_equal(values.len(), 1)
+        for (key, value) in values:
+            assert_equal(key.label, "first")
+            assert_equal(*value, 20)
+
+    it("insertion and clearing preserve copied maps"):
+        let mut values: Map[string, string] = { "tea": "first" }
+        snapshot := values
+        assert_equal(values.insert("tea", "second"), .Some("first"))
+        assert_equal(values.insert("coffee", "new"), .None)
+        assert_equal(snapshot["tea"], "first")
+        assert_equal(snapshot.len(), 1)
+        values.clear()
+        assert(values.is_empty())
+        assert_equal(snapshot["tea"], "first")
+        values.clear()
+        assert(values.is_empty())
+        assert_equal(values.insert("water", "fresh"), .None)
+        assert_equal(values["water"], "fresh")
+
+    it("replacement keeps order and new keys append"):
+        let mut values: Map[string, i32] = {}
+        _ := values.insert("a", 1)
+        _ := values.insert("b", 2)
+        _ := values.insert("a", 3)
+        let mut seen: List[string] = []
+        for (key, _) in values:
+            seen.push(*key)
+        assert_equal(seen, ["a", "b"])
+
+    it("the documented example replaces a value"):
+        assert_equal(visits()["tea"], 2)

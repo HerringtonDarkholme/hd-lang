@@ -1326,3 +1326,4 @@ std/option.md	6	complete	std/option/unwrapping-without-a-message/option-unwrap-n
 std/result.md	5	complete	std/result/lazy-error-fallbacks/result-lazy-methods.hd
 std/result.md	6	complete	std/result/unwrapping-without-a-message/result-unwrap-err.hd
 std/num.md	22	complete	std/num/floating-point-minimum-and-maximum/float-minmax.hd
+std/collections.md	20	complete	std/collections/map-insertion-and-clearing/map-insert-clear.hd
