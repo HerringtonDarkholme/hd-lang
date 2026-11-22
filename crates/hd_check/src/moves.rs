@@ -885,7 +885,7 @@ impl Ck<'_, '_> {
         // A crossing closure moves each capture that is not copied
         // (`fn.crossing.mode.move`): its source binding ends there.
         let mut closure_moves: HashMap<u32, Vec<u32>> = HashMap::default();
-        for &i in &self.crossing_closures {
+        for &(i, _) in &self.crossing_closures {
             if let [start, len, ..] = *b.record(b.data[i as usize][1]) {
                 for c in start..start.saturating_add(len) {
                     let Some(&l) = b.cap_local.get(c as usize) else {

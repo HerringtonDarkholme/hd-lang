@@ -2241,7 +2241,7 @@ impl Ck<'_, '_> {
             return;
         }
         if let Some(i) = r.as_inst() {
-            self.crossing_closures.push(i.0);
+            self.crossing_closures.push((i.0, marker));
         }
         // `fn.crossing.no-write`: the closure would change only its copy.
         if let Some(&l) = self.closure_writes.get(&e.index()) {

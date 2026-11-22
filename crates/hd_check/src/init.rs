@@ -298,6 +298,9 @@ pub struct ModuleInit {
     /// The module's top-level bindings by name, which a named constant
     /// reads; built on first use (#1673).
     top_bindings: Option<std::sync::Arc<hd_resolve::TopBindings>>,
+    /// The module's crossing closures, for `fn.crossing.global`
+    /// ([`crate::crossing::check`]).
+    pub(crate) crossing_roots: Vec<crate::crossing::Root>,
 }
 
 /// The methods of a module's own trait impls, made in one pass over its
@@ -371,6 +374,19 @@ impl ModuleInit {
     /// `f` of the index of the module's impl methods: the one built
     /// already, or one built now (a forked body's index stays with its
     /// fork).
+    /// The methods each dispatch key in `keys` reaches, one probe each.
+    pub(crate) fn dispatch_reach(
+        &self,
+        cx: &BodyCx<'_>,
+        keys: &HashSet<DefId>,
+    ) -> HashMap<DefId, Vec<DefId>> {
+        self.with_impl_methods(cx, |index| {
+            keys.iter()
+                .map(|&k| (k, index.reached(cx, k).to_vec()))
+                .collect()
+        })
+    }
+
     fn with_impl_methods<R>(&self, cx: &BodyCx<'_>, f: impl FnOnce(&ImplMethods) -> R) -> R {
         match &self.impl_methods {
             Some(index) => f(index),
@@ -400,6 +416,7 @@ impl ModuleInit {
             pending: self.pending.clone(),
             impl_methods: self.impl_methods.clone(),
             top_bindings: self.top_bindings.clone(),
+            crossing_roots: Vec::new(),
         }
     }
 

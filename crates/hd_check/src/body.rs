@@ -613,7 +613,7 @@ pub(crate) struct Ck<'a, 'c> {
     pub crossing_uses: HashSet<hd_base::NodeIdx>,
     /// The `Closure` instructions written for a crossing parameter: their
     /// captures are copied or moved, never shared (`fn.crossing.mode`).
-    pub crossing_closures: Vec<u32>,
+    pub crossing_closures: Vec<(u32, DefId)>,
     /// The tail expression of the function body block, when it is an `if`
     /// without `else`: that `if` is `missing-return-value`, not a value
     /// `if` (`flow.if.value.else` reports every other value position).
@@ -5387,6 +5387,19 @@ impl Ck<'_, '_> {
             let facts = std::mem::take(&mut self.facts);
             self.cx.init.borrow_mut().facts.insert(item, facts);
         }
+        if !self.crossing_closures.is_empty() {
+            let b = self.b.body();
+            let topo = hd_tir::ir::Topology::new(b);
+            let send = self.cx.names.known.send;
+            let roots: Vec<crate::crossing::Root> = (self.crossing_closures.iter())
+                .map(|&(i, marker)| crate::crossing::Root {
+                    node: b.syn[i as usize],
+                    send: marker == send,
+                    facts: crate::crossing::root_facts(b, &topo, i as usize),
+                })
+                .collect();
+            self.cx.init.borrow_mut().crossing_roots.extend(roots);
+        }
         self.settle_held_literals()?;
         let pool = self.pool();
         // Literal defaults first, so `x := +0` then `x = y` resolves both.
@@ -5690,7 +5703,7 @@ impl Ck<'_, '_> {
             // moved when it is not `Copy` (`fn.crossing.mode.copy`,
             // `fn.crossing.mode.move`).
             let mut crossing = vec![false; self.b.body().cap_local.len()];
-            for &i in &self.crossing_closures {
+            for &(i, _) in &self.crossing_closures {
                 let body = self.b.body();
                 if let [start, len, ..] = *body.record(body.data[i as usize][1]) {
                     for c in start..start.saturating_add(len) {

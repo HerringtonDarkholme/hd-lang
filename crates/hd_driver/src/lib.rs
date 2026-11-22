@@ -7578,6 +7578,7 @@ impl Run<'_> {
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
+        hd_check::crossing::check(&cx, &mut diags);
         // A template needs a body in which a method calls `walk`,
         // `describe` or `build` of `Structure` (`annot.template.body`). A
         // body that did not finish says nothing about its calls.

@@ -492,7 +492,7 @@ lang/07-functions.md	47	mixed	lang/types/value-types/readonly-closure-capture-mu
 lang/07-functions.md	48	complete	lang/functions/closures/mutable-closure-capture.hd
 lang/07-functions.md	49	complete	-
 lang/07-functions.md	50	complete	-
-lang/07-functions.md	51	known-failure	-
+lang/07-functions.md	51	mixed	lang/functions/crossing-closures/crossing-argument-not-literal.hd|lang/functions/crossing-closures/crossing-capture-not-wire.hd|lang/functions/crossing-closures/crossing-capture-assigned.hd|lang/functions/crossing-closures/crossing-reaches-mutable-top-level.hd
 lang/07-functions.md	52	fragment	lang/functions/functions-and-closures.hd
 lang/07-functions.md	53	fragment	lang/functions/trailing-callback-blocks/consecutive-trailing-block-calls.hd
 lang/07-functions.md	54	mixed	lang/functions/trailing-callback-blocks/two-trailing-blocks.hd

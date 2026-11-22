@@ -188,7 +188,8 @@ impl Ck<'_, '_> {
     /// closure captures, is `move-out-of-place`.
     pub(crate) fn check_moves_out_of_place(&mut self, cx: &mut Uses) {
         let b = self.b.body();
-        let crossing = &self.crossing_closures;
+        let crossing: Vec<u32> = self.crossing_closures.iter().map(|c| c.0).collect();
+        let crossing = &crossing;
         let (captures, shared) = (
             captures_of(b, crossing),
             shared_of(b, self.pool(), crossing),

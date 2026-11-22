@@ -773,6 +773,22 @@ pub fn may_copy(pool: Types<'_>, decls: &dyn Declarations, identity: Ty) -> bool
     )
 }
 
+/// Whether `t` may be `Send` (`module.marker.structural`): the `Send`
+/// walk, which leaves each parameter for an environment and judges none.
+/// Cost: the type's distinct nodes.
+#[must_use]
+pub fn may_send(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> bool {
+    copy_parts(
+        pool,
+        decls,
+        Walk::Send,
+        t,
+        &mut Vec::new(),
+        &mut CopyMemo::default(),
+        &|_| false,
+    )
+}
+
 /// [`copy_parts`]'s answer for a type with a part that does not copy:
 /// only the asked type is kept, since the walk stopped before its other
 /// parts were answered.

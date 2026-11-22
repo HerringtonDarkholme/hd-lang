@@ -15,6 +15,7 @@ mod collide;
 pub mod comparison;
 pub mod conflicts;
 mod conform;
+pub mod crossing;
 mod dbg;
 mod frames;
 pub use dbg::DbgRef;

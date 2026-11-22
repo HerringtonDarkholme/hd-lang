@@ -2965,6 +2965,45 @@ fn marker_goals_walk_each_distinct_node_once() {
     });
 }
 
+/// A chain of `n` functions down to one that reads a top-level `let`,
+/// and `n` crossing closures, each calling the head of the chain
+/// (`fn.crossing.global`).
+fn crossing_chain(n: usize) -> String {
+    let mut s = String::from(
+        "use std.marker.Wire\n\nfn run(code: fn() -> i32 + Wire) -> i32:\n    code()\n\nlet counter = +0\n\n",
+    );
+    let _ = writeln!(s, "fn g{n}() -> i32:\n    counter\n");
+    for i in (0..n).rev() {
+        let _ = writeln!(s, "fn g{i}() -> i32:\n    g{}()\n", i + 1);
+    }
+    s.push_str("pub fn main() -> void:\n");
+    for _ in 0..n {
+        s.push_str("    _ := run(fn() -> i32: g0())\n");
+    }
+    s
+}
+
+// Checker: the reached-binding check of crossing closures pushes each
+// node's verdict to its callers once, then reads each closure's own facts:
+// linear in the module's call edges and closures, not their product.
+#[test]
+fn crossing_reach_is_linear_in_calls_and_closures() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&crossing_chain(n), &Goal::Analyze));
+            let errors = out.diags.len();
+            assert_eq!(errors, n, "{n}: one error per closure: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 100 and 1,000 crossing closures down a chain: {small} and {large}"
+        );
+    });
+}
+
 /// `n` enums, each with a `Serialize` derivation block of its own.
 fn enum_views(n: usize) -> String {
     let mut s = String::from(
