@@ -1,0 +1,10 @@
+trait Saved:
+    fn number(&self) -> i32
+struct Wrapped[T]:
+    value: T
+impl[T < 'static] Saved for Wrapped[T]:
+    fn number(&self) -> i32:
+        +7
+fn inspect['a](value: *mut Wrapped[&'a i32]) -> void:
+    let view: *mut dyn Saved = value # diagnostic: local-reference-escapes
+    pass
