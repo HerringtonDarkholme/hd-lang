@@ -1,0 +1,7 @@
+# test: unwrap on None panics with explicit-panic
+fn required(value: i32?) -> i32:
+    value.unwrap() # panic: explicit-panic
+
+tests:
+    it("panics on None"):
+        _ := required(.None)
