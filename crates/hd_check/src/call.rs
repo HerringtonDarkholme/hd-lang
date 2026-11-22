@@ -389,6 +389,16 @@ pub(crate) struct Formals<'a> {
     pub crossing: &'a [hd_resolve::Crossing],
 }
 
+/// Whether a closure written for parameter `j` may capture local
+/// references: any parameter but a crossing one whose marker bound names
+/// no lifetime (`ref.frozen.no-lifetime`).
+fn lends(formals: &Formals<'_>, j: usize) -> bool {
+    formals
+        .crossing
+        .iter()
+        .all(|c| usize::from(c.param) != j || c.lifetime != 0)
+}
+
 /// A bare generic parameter's function bound, as [`Formals`] reads it.
 #[derive(Clone, Copy)]
 pub(crate) struct FnWant {
@@ -2383,6 +2393,7 @@ impl Ck<'_, '_> {
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
+            let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
             self.crossing_captures(crossing, r, *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
@@ -2517,6 +2528,7 @@ impl Ck<'_, '_> {
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
             let crossing = self.crossing_arg(formals, skip + i, *e, false);
+            let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
             self.crossing_captures(crossing, r, *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
@@ -2588,7 +2600,9 @@ impl Ck<'_, '_> {
                     let (r, t) = self.trailing_closure(
                         block,
                         last_want.map_or(w, |f| f.ty),
-                        scoped && formals.destination.storage().is_none(),
+                        scoped
+                            && formals.destination.storage().is_none()
+                            && lends(formals, skip + last),
                     )?;
                     self.crossing_captures(crossing, r, block);
                     if let Some(place) = formals.destination.storage()

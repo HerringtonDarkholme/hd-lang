@@ -7112,6 +7112,7 @@ lang/references/dependent-results/conflicts-through-aliases/a-receiver-read-from
 lang/references/dependent-results/conflicts-through-aliases/a-receiver-read-from-a-top-level-binding-lets-the-call-read-it.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.global
 lang/references/dependent-results/frozen-loans/frozen-loan-for-scope.hd	type	accept	lang/13-values-and-references.md#r-ref.frozen.definition
 lang/references/dependent-results/frozen-loans/frozen-loan-blocks-element-store.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.frozen.write
+lang/references/dependent-results/frozen-loans/frozen-loan-ends-with-its-lifetime.hd	runtime	accept	lang/13-values-and-references.md#r-ref.frozen.lifetime
 lang/references/dependent-results/frozen-loans/frozen-loan-needs-a-lifetime.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.frozen.no-lifetime
 lang/references/dependent-results/implicit-local-cold-payload-cannot-escape-owned-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.dep.return
 lang/references/dependent-results/writes-while-borrowed/implicit-lend-closure-write.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place

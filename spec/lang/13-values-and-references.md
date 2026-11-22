@@ -798,12 +798,16 @@ impl['s] Scope['s]:
 fn keep(code: fn() -> i32 + Send) -> i32:
     code()
 
-fn demo(players: List[Player], s: &mut Scope) -> i32:
+fn demo(players: List[Player]) -> usize:
     let mut all = players
+    let mut done: List[i32] = []
+    let mut s = Scope { done: &mut done }
     first := &all[0]
     s.spawn(fn() -> i32: first.score)
     all[0].score = 9                        # error: conflicting-access
-    keep(fn() -> i32: first.score)          # error: local-reference-escapes
+    s.spawn(fn() -> i32: 0)
+    _ := keep(fn() -> i32: first.score)     # error: local-reference-escapes
+    done.len()
 ```
 
 > **Why.** A thread that reads a place while another writes it races.

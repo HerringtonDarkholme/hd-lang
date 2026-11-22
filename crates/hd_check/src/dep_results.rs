@@ -131,6 +131,21 @@ pub(crate) struct DepSig {
 }
 
 impl DepSig {
+    /// A crossing parameter's closure lends its captured references for
+    /// the lifetime its marker bound names (`ref.frozen.lifetime`): its
+    /// capture slot takes that lifetime, as a written reference slot does.
+    fn with_crossing(mut self, ls: &Layouts<'_>, crossing: &[hd_resolve::Crossing]) -> DepSig {
+        for c in crossing.iter().filter(|c| c.lifetime != 0) {
+            if let Some((t, ids)) = self.params.get_mut(usize::from(c.param))
+                && let Some(k) = ls.of(*t).slots.iter().position(|s| s.fun)
+                && let Some(id) = ids.get_mut(k)
+            {
+                *id = u32::from(c.lifetime);
+            }
+        }
+        self
+    }
+
     /// The map of a signature: `written` is `FnSig::lifetimes`, one entry
     /// per reference slot of `params` and then of `ret`, 0 where none is
     /// written.
@@ -2723,6 +2738,9 @@ struct Inputs<'a> {
     /// Per instruction, whether it may take a run-time loan
     /// ([`runtime_sites`]).
     runtime: Vec<bool>,
+    /// The locals a crossing closure captures: a reference one holds is a
+    /// frozen loan, whose element stores conflict too (`ref.frozen.write`).
+    frozen: Vec<u32>,
 }
 
 impl Inputs<'_> {
@@ -3954,7 +3972,9 @@ impl Ck<'_, '_> {
     /// lifetime elides, and a result path takes its parameter's.
     fn call_dep(&self, ls: &Layouts<'_>, sig: &hd_resolve::FnSig) -> DepSig {
         let is_self = |s| self.cx.names.text(s) == "self";
-        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).with_paths(ls, &sig.paths)
+        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
+            .with_paths(ls, &sig.paths)
+            .with_crossing(ls, &sig.crossing)
     }
 
     /// The input slots of the function type in the field that `path`
@@ -5332,6 +5352,7 @@ impl Ck<'_, '_> {
             markers: &markers,
             lent,
             runtime,
+            frozen: self.frozen_locals(),
         };
         let slots = own
             .as_ref()

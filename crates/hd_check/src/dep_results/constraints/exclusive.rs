@@ -770,6 +770,15 @@ impl Gen<'_, '_> {
             let Some((mut place, mut kind)) = loan_path(self.s, i) else {
                 continue;
             };
+            // A frozen loan lets no store reach its place, an element's
+            // included (`ref.frozen.write`): it is a shared loan of the
+            // element's own place.
+            if let Kind::Elem(false) = kind
+                && (self.s.frozen.iter()).any(|&h| has(&self.local(h).0, w(loan)))
+                && let Some(own) = raw_loan_path(self.s, i)
+            {
+                (place, kind) = (own, Kind::Shared);
+            }
             if !matches!(kind, Kind::Elem(_))
                 && raw_loan_path(self.s, i).is_some_and(|original| original != place)
             {

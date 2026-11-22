@@ -17,5 +17,3 @@ lang/modules/execution-domains/remote-builtins/remote-builtin-returns-stub.hd	#2
 lang/modules/execution-domains/remote-builtins/remote-builtin-non-remote-trait.hd	#2288		no `std.remote` yet: `CrossError`, `remote::[T]` and `handle_call!` are stage 3 of #2288
 lang/modules/execution-domains/remote-builtins/handle-call-root-not-remote.hd	#2288		no `std.remote` yet: `CrossError`, `remote::[T]` and `handle_call!` are stage 3 of #2288
 lang/modules/execution-domains/remote-builtins/cross-error-cases.hd	#2288		no `std.remote` yet: `CrossError`, `remote::[T]` and `handle_call!` are stage 3 of #2288
-lang/references/dependent-results/frozen-loans/frozen-loan-blocks-element-store.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)
-lang/references/dependent-results/frozen-loans/frozen-loan-needs-a-lifetime.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)
