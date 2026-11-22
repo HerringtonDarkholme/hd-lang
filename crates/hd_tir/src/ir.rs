@@ -2280,45 +2280,61 @@ impl TirBuilder {
             .collect()
     }
 
-    /// Lifts the open sub-body `m`'s captures `caps` to its leading
-    /// parameters `params`, as Swift's closure lifting makes captures
-    /// parameters: each place and nested capture list emitted since
-    /// instruction `from`, all `m`'s, that names `caps[i]` names `params[i]`,
-    /// and `m` captures nothing. Cost: the instructions since `from`, once.
-    pub fn lift_captures(&mut self, m: SubMark, from: usize, caps: &[LocalId], params: &[LocalId]) {
-        let map: hd_base::HashMap<u32, u32> = (caps.iter().zip(params))
-            .map(|(c, p)| (c.raw(), p.raw()))
-            .collect();
-        let b = &mut self.body;
-        for i in from..b.tags.len() {
-            let (oa, ob) = b.tags[i].operands();
+    /// Lifts the open sub-body `m`'s captures `caps` to the fields of one
+    /// leading tuple parameter `p`, as Swift's closure lifting makes
+    /// captures parameters: each place emitted since instruction `from`,
+    /// all `m`'s, rooted at `caps[i]` is rooted at `p .i`, a nested closure
+    /// captures `p` in their place, and `m` captures nothing. Cost: the
+    /// instructions since `from`, once.
+    pub fn lift_captures(&mut self, m: SubMark, from: usize, caps: &[LocalId], p: LocalId) {
+        let field = |l: u32| caps.iter().position(|c| c.raw() == l).map(u32_of);
+        for i in from..self.body.tags.len() {
+            let (oa, ob) = self.body.tags[i].operands();
             for (k, op) in [(0, oa), (1, ob)] {
-                let w = b.data[i][k];
+                let w = self.body.data[i][k];
                 if op != Op::Place || w == NONE {
                     continue;
                 }
-                if w & place::BARE_LOCAL != 0 {
-                    if let Some(&p) = map.get(&(w & !place::BARE_LOCAL)) {
-                        b.data[i][k] = p | place::BARE_LOCAL;
-                    }
-                } else if b.extra.get(w as usize + 1) == Some(&place::ROOT_LOCAL)
-                    && let Some(&p) = map.get(&b.extra[w as usize + 2])
-                {
-                    b.extra[w as usize + 2] = p;
-                }
+                let (l, rest) = if w & place::BARE_LOCAL != 0 {
+                    (w & !place::BARE_LOCAL, &[][..])
+                } else if self.body.extra.get(w as usize + 1) == Some(&place::ROOT_LOCAL) {
+                    let n = self.body.extra[w as usize] as usize;
+                    (
+                        self.body.extra[w as usize + 2],
+                        &self.body.extra[w as usize + 3..=w as usize + n],
+                    )
+                } else {
+                    continue;
+                };
+                let Some(f) = field(l) else { continue };
+                let words: Vec<u32> = [place::ROOT_LOCAL, p.raw(), place::PROJ_FIELD | f]
+                    .into_iter()
+                    .chain(rest.iter().copied())
+                    .collect();
+                self.body.data[i][k] = self.record(&words);
             }
-            if b.tags[i] == Tag::Closure {
-                let r = b.data[i][1] as usize;
-                let (start, n) = (b.extra[r + 1] as usize, b.extra[r + 2] as usize);
-                for c in &mut b.cap_local[start..start + n] {
-                    if let Some(&p) = map.get(&c.raw()) {
-                        *c = LocalId::from_raw(p);
-                    }
+            if self.body.tags[i] == Tag::Closure {
+                let r = self.body.data[i][1] as usize;
+                let (start, n) = (
+                    self.body.extra[r + 1] as usize,
+                    self.body.extra[r + 2] as usize,
+                );
+                let old = &self.body.cap_local[start..start + n];
+                if old.iter().any(|c| field(c.raw()).is_some()) {
+                    let mut kept: Vec<LocalId> = old
+                        .iter()
+                        .copied()
+                        .filter(|c| field(c.raw()).is_none())
+                        .collect();
+                    kept.push(p);
+                    self.body.extra[r + 1] = u32_of(self.body.cap_local.len());
+                    self.body.extra[r + 2] = u32_of(kept.len());
+                    self.body.cap_local.extend(kept);
                 }
             }
         }
-        let words: Vec<u32> = (params.iter().map(|l| l.raw()))
-            .chain(b.sub_param_locals(m.0.idx()).iter().copied())
+        let words: Vec<u32> = std::iter::once(p.raw())
+            .chain(self.body.sub_param_locals(m.0.idx()).iter().copied())
             .collect();
         let at = self.record(&words);
         self.body.sub_params[m.0.idx()] = Range32::new(at, u32_of(words.len()));

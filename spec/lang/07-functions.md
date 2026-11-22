@@ -1101,6 +1101,7 @@ fn demo(photo: Image) -> u32:
 8. r[fn.crossing.once] A crossing parameter is called at most once on each path: a call moves it. Error: `use-of-moved-value`.
 9. r[fn.crossing.captures] Each capture of a crossing closure must have the parameter's marker. Error: `unsatisfied-trait-bound`.
 10. r[fn.crossing.no-value] A function or method with a crossing parameter is only called. Naming it as a function value, unbound or bound, is an error, since a call through the value would pass a closure no call checked. Error: `crossing-closure-not-literal`.
+11. r[fn.crossing.lift] A closure literal passed for a crossing parameter whose marker is `Wire` is lifted to a function of its captures, with a number that every instance of the same build gives it. So a domain of separate memory runs it from that number and its encoded captures.
 
 See also: [`grammar.fn.crossing-parameter`](02-grammar.md#r-grammar.fn.crossing-parameter),
 [Markers](10-modules.md#markers).

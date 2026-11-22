@@ -7172,6 +7172,8 @@ std/http/wire-host-contract/wire-http-host.hd	runtime	accept	std/http.md#r-std-h
 std/http/wire-host-contract/wire-http-errors.hd	runtime	accept	std/http.md#r-std-http.wire.error
 std/text/string-methods/case-conversion-ascii-boundaries.hd	runtime	accept	std/text.md#r-std-text.string.lower
 std/text/string-methods/case-conversion-unicode-context.hd	runtime	accept	std/text.md#r-std-text.string.lower
+std/remote/workers/a-crossing-runs-on-a-worker-and-returns-its-result.hd	runtime	accept	std/remote.md#r-std-remote.workers.run
+std/remote/workers/a-capture-moved-to-a-worker-is-gone.hd	type	reject:use-of-moved-value	std/remote.md#r-std-remote.workers.run
 lang/types/opaque-result-types/opaque-identity-row-arguments.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.identity-position
 lang/types/opaque-result-types/opaque-identity-same-arguments-run.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.identity-position
 lang/types/opaque-result-types/opaque-identity-const-integer.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.identity-position

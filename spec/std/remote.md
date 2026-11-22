@@ -3,7 +3,7 @@
 Status: standard library specification draft.
 
 This chapter defines the plain hd parts of `std.remote`: the homes a
-domain serves from, served functions, and the HTTP adapters. They are
+domain serves from, served functions, the HTTP adapters, and workers. They are
 ordinary std code over the language items of
 [Remote Built-Ins](../lang/10-modules.md#remote-built-ins).
 
@@ -91,6 +91,37 @@ fn greet!(url: Url) -> string $ Http:
 > **Why.** A failure before sending means the call did not run, so the
 > caller may retry it. After sending, the call may have run, which
 > `Unknown` says.
+
+## Workers
+
+A **worker** is another instance of the program's own module, in its own
+memory. A crossing to a worker sends the identity of a closure the worker
+already has and its captures, copied or moved, by
+[`fn.crossing.lift`](../lang/07-functions.md#r-fn.crossing.lift):
+
+```text
+use std.remote.{CrossError, Workers}
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn widths!(workers: *mut dyn Workers, photo: Image) -> Result[u32, CrossError]:
+    workers.run!(fn() -> u32: photo.width * 2)   # photo moves to the worker
+```
+
+1. r[std-remote.workers.trait] `std.remote` declares `pub trait Workers` with one method, `fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]`, which carries one crossing's frame to a worker and returns its encoded `Reply`.
+2. r[std-remote.workers.run] `workers.run!(code)`, an inherent method of `dyn Workers` taking `code: fn() -> T + Wire` for `T < ?Copy & Wire`, sends `code` with the build ID and returns its result: `.Ok` with the value the worker's run of `code` returned.
+3. r[std-remote.workers.run.cross] A failure of `send!` is its `CrossError`; a refusal is the refused `CrossError`; a reply or a result that does not decode is `CrossError.Unknown`.
+4. r[std-remote.workers.answer] `worker_answer(frame)` answers one frame in the current instance with an encoded `Reply`: another build is `Refused(OtherBuild)`, a frame that names no closure of this build or whose captures do not decode is `Refused(WrongHome)`, and otherwise the closure runs and its encoded result is `Ran`.
+5. r[std-remote.workers.loopback] `LoopbackWorkers` is a `Workers` whose `send!` answers with `worker_answer` in the current instance, for tests.
+
+> **Why.** A worker runs the same build, so a closure crosses as a
+> number and its captures, never as code, and a deploy is one refusal.
+> Values are copied between memories, never shared, so no count is
+> atomic.
 
 See also: [Remote Traits](../lang/10-modules.md#remote-traits),
 [Crossing Errors](../lang/10-modules.md#crossing-errors),

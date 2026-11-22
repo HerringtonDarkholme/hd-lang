@@ -558,6 +558,22 @@ second form always, with sharing left to `Arc`.)
   and every instance of the module computes the same one.
 - Cost: lifting is one pass over the literal's instructions; a call pays
   one encode of the captures, even one that runs here.
+- The lifted function takes its captures as one tuple parameter, so every
+  lifted function has one input and the worker's dispatcher
+  `std.remote.crossing_run` is uniform: per literal, a test of its number,
+  a decode of the tuple, a call of the lifted code, an encode of the
+  result. Collection records each literal at its `crossing_number` call
+  and generates the dispatcher once its worklist drains, since its arms
+  are every literal of the program; each arm's call goes to its literal's
+  code instance as a known closure. A literal whose function suspends, or
+  whose result is not `Wire`, gets no arm: `Workers.run!` takes neither.
+- `std.remote.Workers` is a trait with one method, `send!(frame)`; `run!`
+  is an inherent method of `dyn Workers` (generic, so not a trait
+  method). A frame is the build ID, the number, then the captures; the
+  reply is the stage 3 `Reply`. On the worker, another build is
+  `OtherBuild`, and a number of no literal or captures that do not decode
+  are `WrongHome`, as for `handle_call!`; a reply that does not decode is
+  `Unknown`. `LoopbackWorkers` answers in the same instance, for tests.
 
 **Workers first, then threads.**
 

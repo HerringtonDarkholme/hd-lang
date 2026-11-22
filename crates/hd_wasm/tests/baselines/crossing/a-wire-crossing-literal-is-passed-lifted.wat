@@ -4,11 +4,11 @@
   (import "fixture" "println[u32]" (func $"println[u32]" (param i32 i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "wire_encode[(u32, Image)]" (func $"wire_encode[(u32, Image)]" (param i32) (result i32)))
-  (import "fixture" "type_number[fn(u32, Image) -> Image]" (func $"type_number[fn(u32, Image) -> Image]" (result i64)))
+  (import "fixture" "crossing_number[fn((u32, Image)) -> Image]" (func $"crossing_number[fn((u32, Image)) -> Image]" (param i64 i32 i32) (result i64)))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "release_value[std.remote.Crossing[fn() -> Image]]" (func $"release_value[std.remote.Crossing[fn() -> Image]]" (param i32 i32 i64 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
+  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
@@ -41,10 +41,10 @@
     local.get $provider0.vtable
     call $"println[u32]"
   )
-  (func $demo#1 (param $env i32) (param $side i32) (param $photo.width i32) (param $photo.pixels i32) (param $ctx i32) (result i32 i32)
+  (func $demo#1 (param $env i32) (param $t0 i32) (param $t2 i32) (param $t1 i32) (param $ctx i32) (result i32 i32)
     ;; 24 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
-    local.get $side
-    local.get $photo.pixels
+    local.get $t0
+    local.get $t1
   )
   (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $captures i32) (local $t0 i32) (local $t1 i64) (local $code.code.1 i32)
     ;; 24 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
@@ -79,7 +79,6 @@
     i32.store $heap
     local.get $captures
     call $"wire_encode[(u32, Image)]"
-    local.set $photo.width
     local.get $captures
     i32.load $heap offset=8
     local.get $captures
@@ -95,43 +94,46 @@
     local.get $captures
     i32.const 0
     i32.store $heap
+    local.set $photo.width
     local.set $photo.pixels
     local.set $side
-    local.set $captures
-    i64.const 17420387352622
-    call $"type_number[fn(u32, Image) -> Image]"
-    i64.xor
-    local.set $t1
+    i64.const 17454747090990
     i32.const 10
+    local.tee $captures
+    i32.const 0
+    call $"crossing_number[fn((u32, Image)) -> Image]"
+    local.set $t1
+    i32.const 11
     i32.const 20
     i32.const -2147483647
     call $rt:new/class-2
     local.tee $code.code.1
-    i32.const 11
+    local.get $captures
     i32.store $heap
     local.get $code.code.1
     i32.const 0
     i32.store $heap offset=4
-    local.get $code.code.1
-    local.get $captures
-    i32.store $heap offset=8
     local.get $code.code.1
     local.get $side
     i32.store $heap offset=16
     local.get $code.code.1
     local.get $photo.pixels
     i32.store $heap offset=12
+    local.get $code.code.1
+    local.get $photo.width
+    i32.store $heap offset=8
+    local.set $photo.width
     local.set $photo.pixels
     local.get $code.code.1
     i32.const 0
-    local.get $photo.pixels
+    local.get $photo.width
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $side
     local.set $captures
-    local.get $photo.pixels
+    local.get $photo.width
     local.get $code.code.1
     local.get $t1
-    local.get $photo.width
+    local.get $photo.pixels
     call $"release_value[std.remote.Crossing[fn() -> Image]]"
     local.get $side
     if
@@ -152,21 +154,36 @@
     i32.add
     global.set $stack
   )
-  (func $demo#2 (param $env i32) (param $ctx i32) (result i32 i32)
+  (func $demo#2 (param $env i32) (param $ctx i32) (result i32 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 24 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     local.get $env
     i32.load $heap
     local.set $ctx
     local.get $env
     i32.load $heap offset=4
-    local.get $env
-    i32.load $heap offset=8
+    local.set $t0
     local.get $env
     i32.load $heap offset=16
+    local.set $t1
     local.get $env
     i32.load $heap offset=12
+    local.set $t2
+    local.get $env
+    i32.load $heap offset=8
     local.tee $env
-    call $rt:retain_coll
+    if
+      local.get $env
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $env
+        call $rt:retain_known
+      end
+    end
+    local.get $t0
+    local.get $t1
+    local.get $t2
     local.get $env
     i32.const 0
     local.get $ctx

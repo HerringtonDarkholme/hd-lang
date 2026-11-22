@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: std/remote/crossing_run
+# The worker's dispatcher `crossing_run` has one arm per lifted `Wire`
+# crossing literal of the program (`fn.crossing.lift`): it compares the
+# frame's number, decodes the captures tuple, calls that literal's code
+# instance directly and encodes the result (`crossing_reply`). Another
+# number is `crossing_unknown`.
+# expected: an arm's decode and reply are calls of std, one per literal
+# type, not inlined into the dispatcher.
+use std.remote.{LoopbackWorkers, Workers}
+
+pub fn main!() -> void $ Console:
+    let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    side := u32(64)
+    name := "thumb"
+    a := workers.run!(fn() -> u32: side * 2)
+    b := workers.run!(fn() -> string: name)
+    println("${a.unwrap_or(0)} ${b.unwrap_or("")}")

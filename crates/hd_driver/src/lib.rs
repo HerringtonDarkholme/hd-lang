@@ -13906,6 +13906,17 @@ impl ProgramEnv for Env<'_> {
                 hd_structure::remote::u64_body(&cx, item, self.interface(def, args))
             }
             "type_number" => hd_structure::remote::u64_body(&cx, item, self.type_number(ty)),
+            "crossing_parts" => {
+                // The parameter's `Crossing` (`fn.crossing.lift`).
+                let sig = self.sig(item).ok_or_else(|| {
+                    NotImplemented::bug(Stage::Collect, "crossing parts without a signature")
+                })?;
+                let crossing = self.crossing_param(sig, 0, sig.params[0].1);
+                let crossing = self.run.pool.subst(crossing, &|p: hd_types::ParamRef| {
+                    (p.owner == item).then_some(ty)
+                });
+                hd_structure::remote::crossing_parts_body(&cx, item, crossing)
+            }
             "serve" => hd_structure::remote::serve_body(&cx, item, ty, &self.served(ty)),
             "build_id" => hd_structure::remote::u64_body(&cx, item, self.build_id()),
             _ => hd_structure::debug_texts_body(&cx, item, ty),
@@ -13935,6 +13946,28 @@ impl ProgramEnv for Env<'_> {
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug
+    }
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId)> {
+        let names = self.run.names();
+        let item = |name| names.item(hd_resolve::known::REMOTE_MODULE, name);
+        let items = (
+            item("crossing_number"),
+            item("crossing_run"),
+            self.run.known.wire,
+        );
+        (items.0 != DefId::NONE).then_some(items)
+    }
+    fn type_number(&self, ty: Ty) -> u64 {
+        Env::type_number(self, ty)
+    }
+    fn crossing_run_body(&self, item: DefId, arms: &[(u64, Ty)]) -> StageResult<Body> {
+        let names = self.run.names();
+        let cx = hd_structure::Cx {
+            names: &names,
+            items: self.p,
+            stage: Stage::Collect,
+        };
+        self.owned_generated(hd_structure::remote::crossing_run_body(&cx, item, arms)?)
     }
     fn private_templates(&self) -> (&[(DefId, DefId, DefId)], DefId) {
         let rows = self.p.private_templates.get_or_init(|| {

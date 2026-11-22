@@ -168,6 +168,67 @@ pub fn http_handler![S](request: Request, home: &mut Home[S, Request]) -> Respon
         .Ok(frame) => Response::status(.Ok).set_bytes(handle_call!(home, &mut rooted, frame))
         .Err(_) => Response::status(.BadRequest)
 
+## Separate instances of this program's module: each crossing runs a
+## closure in another memory, so its captures and its result are `Wire`.
+## A host supplies one; `LoopbackWorkers` answers in this instance.
+## See [std-remote.workers.trait](../../spec/std/remote.md#r-std-remote.workers.trait).
+pub trait Workers:
+    ## Sends one crossing's frame to a worker and returns its encoded reply.
+    fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]
+
+impl dyn Workers:
+    ## Runs `code` on a worker and returns its result: the captures move
+    ## into the worker's memory, and the result comes back. A crossing
+    ## that cannot reach a worker, or whose answer does not decode, is a
+    ## `CrossError`.
+    ## See [std-remote.workers.run](../../spec/std/remote.md#r-std-remote.workers.run).
+    pub fn run![T < ?Copy & Wire](&mut self, code: fn() -> T + Wire) -> Result[T, CrossError]:
+        let (number, captures) = crossing_parts(code)
+        let mut out = WireOut { bytes: [] }
+        out.leb(build_id())
+        out.leb(number)
+        out.bytes.extend(captures)
+        reply := self.send!(out.bytes)?
+        match wire_decode::[Reply](reply):
+            .Some(.Ran(result)) =>
+                match wire_decode::[T](result):
+                    .Some(value) => .Ok(value)
+                    .None => .Err(.Unknown)
+            .Some(.Refused(cross)) => .Err(cross)
+            .None => .Err(.Unknown)
+
+## Answers one crossing's frame in this instance: an encoded `Reply` that
+## holds the closure's encoded result, or refuses another build
+## (`OtherBuild`) and a frame naming no closure of this build or whose
+## captures do not decode (`WrongHome`). A worker's host calls it.
+## See [std-remote.workers.answer](../../spec/std/remote.md#r-std-remote.workers.answer).
+pub fn worker_answer(frame: List[u8]) -> List[u8]:
+    let mut input = WireIn { bytes: frame, at: 0 }
+    let (build, number) = match (input.leb(), input.leb()):
+        (.Some(build), .Some(number)) => (build, number)
+        _ => return serve_wrong_home()
+    if build != build_id():
+        return serve_refused(CrossError.OtherBuild)
+    match crossing_run(number, input.bytes.slice(input.at, input.bytes.len())):
+        .Some(result) => wire_encode(&Reply.Ran(result))
+        .None => serve_wrong_home()
+
+## Workers that answer in this instance, for tests: each crossing still
+## encodes its captures, finds its closure by number and decodes its
+## result.
+## See [std-remote.workers.loopback](../../spec/std/remote.md#r-std-remote.workers.loopback).
+pub struct LoopbackWorkers:
+    pass
+
+impl Workers for LoopbackWorkers:
+    fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+        .Ok(worker_answer(frame))
+
+# A `Wire` crossing parameter's number and encoded captures (fn.crossing.lift).
+@intrinsic("crossing_parts")
+fn crossing_parts[T < ?Copy](code: fn() -> T + Wire) -> (u64, List[u8]):
+    panic("intrinsic")
+
 ## Returns the root object at the far end of `transport`, as a stub of the
 ## remote trait `T`.
 ## See [module.remote.builtin.remote](../../spec/lang/10-modules.md#r-module.remote.builtin.remote).
@@ -492,8 +553,30 @@ fn crossing_frame[C < ?Copy](captures: C) -> (C, List[u8]):
 # literal's own number and the function's type, so each instance of a
 # generic literal has its own. Collection keeps the same numbers for the
 # worker's dispatcher.
+@inline(.Never)
 fn crossing_number[F](literal: u64, _code: F) -> u64:
     literal ^ type_number::[F]()
+
+# The worker's side of a `Wire` crossing: runs the function literal
+# `number` was lifted to on its encoded captures, and returns its encoded
+# result; `.None` for a number this build lifted no literal to, or
+# captures that do not decode. The compiler supplies the body once every
+# literal is numbered.
+@intrinsic("crossing_run")
+fn crossing_run(number: u64, captures: List[u8]) -> List[u8]?:
+    panic("intrinsic")
+
+# A lifted literal's encoded result, in `crossing_run`.
+fn crossing_reply[T < ?Copy](value: T) -> List[u8]?:
+    .Some(wire_encode(&value))
+
+fn crossing_unknown() -> List[u8]?:
+    .None
+
+# What `crossing_run` names where it calls a lifted literal's code; the
+# call goes to that code (`fn.crossing.lift`).
+fn crossing_absent[C, T](_captures: C) -> T:
+    panic("a crossing runs its lifted literal")
 
 # The canonical digest of `T`, as interface numbers are taken.
 @intrinsic("type_number")
@@ -507,11 +590,11 @@ fn wire_encode[T < ?Copy](value: &T) -> List[u8]:
     out.bytes
 
 # Decodes a `T` that `bytes` holds exactly, or `.None`.
-fn wire_decode[T](bytes: List[u8]) -> T?:
+fn wire_decode[T < ?Copy](bytes: List[u8]) -> T?:
     wire_read(WireIn { bytes: bytes, at: 0 })
 
 # Decodes a `T` that the rest of `input` holds exactly, or `.None`.
-fn wire_read[T](input: WireIn) -> T?:
+fn wire_read[T < ?Copy](input: WireIn) -> T?:
     let mut input = input
     value := wire_take::[T]()(&mut input)?
     if input.at != input.bytes.len():
@@ -525,7 +608,7 @@ fn wire_put[T < ?Copy]() -> fn(&T, &mut WireOut) -> void:
     panic("intrinsic")
 
 @intrinsic("wire_take")
-fn wire_take[T]() -> fn(&mut WireIn) -> T?:
+fn wire_take[T < ?Copy]() -> fn(&mut WireIn) -> T?:
     panic("intrinsic")
 
 fn wire_put_bool(value: &bool, out: &mut WireOut) -> void:
@@ -1204,3 +1287,52 @@ tests:
         both := remote::[Second](box(BothLink { root: Both {} }))
         assert_equal(both.first!(1).ok(), .Some(1001))
         assert_equal(both.second!(1).ok(), .Some(2001))
+
+    struct Photo:
+        width: u32
+        pixels: List[u8]
+
+    impl !Copy for Photo
+
+    fn shrink(photo: Photo, side: u32) -> (Photo, Photo):
+        small := Photo { width: side, pixels: [photo.pixels[0]] }
+        (photo, small)
+
+    struct Garbled:
+        reply: Result[List[u8], CrossError]
+
+    impl Workers for Garbled:
+        fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]:
+            self.reply
+
+    fn refusal(reply: List[u8]) -> CrossError?:
+        match wire_decode::[Reply](reply):
+            .Some(.Refused(cross)) => .Some(cross)
+            _ => .None
+
+    it("a worker runs a closure on its moved captures and returns its result"):
+        let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+        photo := Photo { width: 4, pixels: [7, 8, 9] }
+        side := u32(64)
+        match workers.run!(fn() -> (Photo, Photo): shrink(photo, side)):
+            .Ok((back, small)) =>
+                assert_equal(
+                    (back.width, back.pixels, small.width, small.pixels),
+                    (4, [7, 8, 9], 64, [7]),
+                )
+            .Err(cross) => assert_equal(.Some(cross), .None)
+        assert_equal(workers.run!(fn() -> u32: side * 2), .Ok(128))
+
+    it("another build, an unknown closure, a garbled reply and a lost worker are CrossErrors"):
+        let mut out = WireOut { bytes: [] }
+        out.leb(build_id() ^ 1)
+        out.leb(0)
+        assert_equal(refusal(worker_answer(out.bytes)), .Some(CrossError.OtherBuild))
+        let mut out = WireOut { bytes: [] }
+        out.leb(build_id())
+        out.leb(7)
+        assert_equal(refusal(worker_answer(out.bytes)), .Some(CrossError.WrongHome))
+        let mut garbled: *mut dyn Workers = box(Garbled { reply: .Ok([255]) })
+        assert_equal(garbled.run!(fn() -> i32: 1), .Err(CrossError.Unknown))
+        let mut lost: *mut dyn Workers = box(Garbled { reply: .Err(.Unreachable) })
+        assert_equal(lost.run!(fn() -> i32: 1), .Err(CrossError.Unreachable))

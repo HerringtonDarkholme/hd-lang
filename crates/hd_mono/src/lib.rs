@@ -292,6 +292,23 @@ pub trait ProgramEnv: LayoutEnv {
     fn stub_answers(&self, trait_: DefId, self_ty: Ty) -> bool;
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
+    /// `std.remote`'s `crossing_number` and `crossing_run`, and `Wire`
+    /// (`fn.crossing.lift`); `None` without `std.remote`.
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId)> {
+        None
+    }
+    /// The canonical digest of `ty`, as `type_number[ty]` returns it.
+    fn type_number(&self, _ty: Ty) -> u64 {
+        0
+    }
+    /// `crossing_run`'s body over the lifted literals `arms` (number, the
+    /// lifted function's type), in order (`hd_structure::remote`).
+    fn crossing_run_body(&self, _item: DefId, _arms: &[(u64, Ty)]) -> StageResult<Body> {
+        Err(NotImplemented::bug(
+            Stage::Collect,
+            "no crossing dispatcher",
+        ))
+    }
     /// The private `by Structure` templates (`DbgStructural`,
     /// `WireStructural`), one row per method: the template's method, the
     /// trait's method and the trait; then the `Structure` trait, whose
@@ -1375,6 +1392,14 @@ struct Cx<'a> {
     drop_checked: HashSet<Ty>,
     /// One node per concrete instantiated trait, across coercion sites.
     vtables: HashMap<(Ty, DefId, TyList), VTableId>,
+    /// Each lifted `Wire` crossing literal an instance numbers: its
+    /// number, its function's code instance and type (`fn.crossing.lift`).
+    crossings: Vec<(u64, Hash128, Ty)>,
+    /// `crossing_run`, once a body calls it: its body waits for every
+    /// literal, so it is generated after the worklist drains.
+    crossing_run: Option<DefId>,
+    /// The dispatcher's arms: the code instance each calls, in order.
+    crossing_arms: Vec<Hash128>,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -2069,11 +2094,23 @@ impl Cx<'_> {
                     | "stub_as"
                     | "interface_of"
                     | "type_number"
+                    | "crossing_parts"
                     | "serve"
                     | "build_id"
             )
         }) {
             return self.dbg_target(def, &key, args, parent);
+        }
+        // The worker's dispatcher: generated once every literal is numbered.
+        if self.env.crossing_items().is_some_and(|c| c.1 == def) {
+            self.crossing_run = Some(def);
+            return Ok(CallTarget {
+                key: defaults::key(self.key(def, Sub::Body(0), TyList::EMPTY), &[], &[]),
+                item: def,
+                args: TyList::EMPTY,
+                ret,
+                kind: TargetKind::Instance,
+            });
         }
         // Every other intrinsic goes through the backend's lowering table,
         // even when its std declaration has a source body. That body is only
@@ -3230,6 +3267,10 @@ impl Cx<'_> {
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
                             let targs = pool.list(&targs);
+                            if self.env.crossing_items().is_some_and(|c| c.0 == def) {
+                                let f = pool.list_items(targs).first().copied();
+                                self.note_crossing(body, i, f.unwrap_or(Ty::VOID), &calls)?;
+                            }
                             if let Some(target) = self.default_target(body, i, def, targs, id)? {
                                 self.hash_target(&target, &mut reps);
                                 calls.insert(ix, Target::Call(target));
@@ -3568,6 +3609,15 @@ impl Cx<'_> {
         }
         if let Some(plan) = &plan {
             direct_calls(body, plan, sub, &known, &mut calls);
+        }
+        // The dispatcher's arm k calls the code instance of lifted literal
+        // k directly (`fn.crossing.lift`), as a known closure.
+        if self.env.crossing_items().is_some_and(|c| c.1 == item) {
+            let values = (0..body.len()).filter(|&i| body.tags[i] == Tag::CallValue);
+            for (i, &key) in values.zip(&self.crossing_arms) {
+                calls.insert(hd_tir::ir::u32_of(i), Target::KnownClosure(key));
+                reps.hash(key);
+            }
         }
         if sub == Sub::Body(0) {
             self.hash_signature(item, args, &mut reps);
@@ -3935,6 +3985,9 @@ fn collect_roots(
         body_subs: HashMap::default(),
         drop_checked: HashSet::default(),
         vtables: HashMap::default(),
+        crossings: Vec::new(),
+        crossing_run: None,
+        crossing_arms: Vec::new(),
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {
@@ -4014,7 +4067,92 @@ impl Cx<'_> {
             next += 1;
             self.scan(id)?;
         }
+        // The worker's dispatcher (`fn.crossing.lift`): every literal is
+        // numbered now, and its arms reach no new one.
+        if let Some(def) = self.crossing_run.take() {
+            // A worker runs a closure that does not suspend and whose result
+            // crosses back; no domain sends another.
+            let wire = self.env.crossing_items().map_or(DefId::NONE, |c| c.2);
+            let mut arms = Vec::new();
+            for &(number, key, f) in &self.crossings.clone() {
+                if let TyData::Fn {
+                    result,
+                    suspends: false,
+                    ..
+                } = self.pool.get(f)
+                    && self.select(wire, result, TyList::EMPTY, None).is_ok()
+                {
+                    arms.push((number, f));
+                    self.crossing_arms.push(key);
+                }
+            }
+            let body = self.env.crossing_run_body(def, &arms)?;
+            self.out.supplied.insert((def, Ty::VOID), Arc::new(body));
+            self.push(
+                def,
+                Sub::Body(0),
+                TyList::EMPTY,
+                TyList::EMPTY,
+                InstId::NONE,
+            )?;
+            while next < self.work.len() {
+                let id = self.work[next];
+                next += 1;
+                self.scan(id)?;
+            }
+            if self.crossing_arms.len() != arms.len() {
+                return err("a crossing dispatcher's arm numbered another literal");
+            }
+        }
         Ok(())
+    }
+
+    /// A call of `crossing_number[F](literal, code)` (`fn.crossing.lift`):
+    /// records the lifted function `code` names under the number the call
+    /// returns, for the dispatcher. Cost: a few instructions back to the
+    /// closure; once per literal and instance.
+    fn note_crossing(
+        &mut self,
+        body: &Body,
+        i: usize,
+        f: Ty,
+        calls: &HashMap<u32, Target>,
+    ) -> StageResult<()> {
+        let (Some(&literal), Some(&code)) = (body.call_args(i).first(), body.call_args(i).get(1))
+        else {
+            return err("a malformed crossing number");
+        };
+        let literal = (literal & hd_tir::ir::Ref::CONST_BIT != 0)
+            .then(|| {
+                body.consts
+                    .get((literal & !hd_tir::ir::Ref::CONST_BIT) as usize)
+            })
+            .flatten()
+            .map(|c| c.1);
+        // The closure: the argument, or the one stored into the local it
+        // reads.
+        let mut at = code as usize;
+        if body.tags.get(at) == Some(&Tag::Read) {
+            let word = body.data[at][0];
+            at = (0..at)
+                .rev()
+                .find(|&s| body.tags[s] == Tag::Store && body.data[s][0] == word)
+                .map_or(usize::MAX, |s| body.data[s][1] as usize);
+        }
+        let (Some(literal), Some(&Target::Closure(key))) =
+            (literal, calls.get(&hd_tir::ir::u32_of(at)))
+        else {
+            return err("a crossing number without its literal");
+        };
+        let number = literal ^ self.env.type_number(f);
+        match self.crossings.iter().find(|c| c.0 == number) {
+            Some(c) if c.1 != key => err("two lifted crossing literals share a number"),
+            Some(_) => Ok(()),
+            None => {
+                self.crossings.push((number, key, f));
+                Ok(())
+            }
+        }
     }
 }
 

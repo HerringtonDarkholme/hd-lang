@@ -2282,14 +2282,16 @@ impl Ck<'_, '_> {
         }
         // A `Wire` literal is passed lifted (`fn.crossing.lift`): its
         // captures are the locals that hold them for its `code`.
-        let (caps, passed) = match self.wire_pass(r, t, e) {
-            Some((held, passed)) => (held, passed),
-            None => (self.closure_caps(r), r),
+        let (caps, passed) = if let Some(lifted) = self.wire_pass(r, t, e) {
+            lifted
+        } else {
+            let caps = self.closure_caps(r);
+            (caps.into_iter().map(|l| self.b.local_ty(l)).collect(), r)
         };
-        for l in caps {
+        for self_ty in caps {
             let tref = TraitRef {
                 trait_: marker,
-                self_ty: self.b.local_ty(l),
+                self_ty,
                 args: TyList::EMPTY,
             };
             self.note_impl_use(marker, None);

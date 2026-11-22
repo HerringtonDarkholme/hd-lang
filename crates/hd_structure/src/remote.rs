@@ -142,6 +142,86 @@ pub fn serve_body(cx: &Cx<'_, '_>, item: DefId, root: Ty, served: &[Served]) -> 
     g.finish(body).map(|(body, _)| body)
 }
 
+/// `crossing_run!(number, captures)`'s body over the lifted `Wire`
+/// crossing literals `arms` (`fn.crossing.lift`): for each, a test of its
+/// number and an arm that decodes its captures, calls the lifted function
+/// (collection makes the call direct, to that literal's code) and encodes
+/// its result (`crossing_reply`). Another number, or captures that do not
+/// decode, is `crossing_unknown`. Cost: one comparison per literal.
+pub fn crossing_run_body(cx: &Cx<'_, '_>, item: DefId, arms: &[(u64, Ty)]) -> StageResult<Body> {
+    let names = cx.names;
+    let pool = names.pool;
+    let sig = cx.method_sig(item).clone();
+    let mut g = Gen::new(cx, Ty::VOID, item, Handles::Supplied);
+    let [(number, n_ty), (captures, c_ty)] = g.params(&sig);
+    let out = sig.ret;
+    let blk = g.b.open_block();
+    let n = g.b.get(number, n_ty, SYN);
+    let mut tests = Vec::with_capacity(arms.len());
+    for &(k, f) in arms {
+        let TyData::Fn { params, result, .. } = pool.get(f) else {
+            continue;
+        };
+        let [held] = *pool.list_items(params) else {
+            continue;
+        };
+        let arm = g.b.open_block();
+        let bytes = g.b.get(captures, c_ty, SYN);
+        let option = g.adt(names.known.option, &[held]);
+        let decoded = g.std_call("wire_decode", &[held], &[bytes], option);
+        let some = g.b.open_block();
+        let value = g.b.payload(decoded, 1, 0, held, SYN);
+        let a =
+            g.b.refs_record(&[Ref(names.item(REMOTE, "crossing_absent").raw())]);
+        let bw = g.b.refs_record(&[Ref(pool.list(&[held, result]).0)]);
+        let code = g.b.emit(Tag::ItemRef, a, bw, f, SYN);
+        let rec = g.b.call_args_record(&[value], Providers::None);
+        let ran = g.b.emit(Tag::CallValue, code.0, rec, result, SYN);
+        let reply = g.std_call("crossing_reply", &[result], &[ran], out);
+        let some = g.b.close_block(some, Some(reply), out, SYN);
+        let none = g.b.open_block();
+        let unknown = g.std_call("crossing_unknown", &[], &[], out);
+        let none = g.b.close_block(none, Some(unknown), out, SYN);
+        let chosen = g.switch_tag(decoded, 1, some, none, out);
+        let arm = g.b.close_block(arm, Some(chosen), out, SYN);
+        let k = g.b.const_value(Ty::prim(Prim::U64), k);
+        let hit = g.b.prim(PrimOp::Eq as u32, &[n, k], Ty::BOOL, SYN);
+        tests.push((hit, arm, g.b.open_block()));
+    }
+    let mut tail = g.std_call("crossing_unknown", &[], &[], out);
+    for (same, arm, other) in tests.into_iter().rev() {
+        let other = g.b.close_block(other, Some(tail), out, SYN);
+        let rec = g.b.refs_record(&[arm, other]);
+        tail = g.b.emit(Tag::If, same.0, rec, out, SYN);
+    }
+    let root = g.b.close_block(blk, Some(tail), out, SYN);
+    g.finish(root).map(|(body, _)| body)
+}
+
+/// `crossing_parts[T](code)`'s body at `ty`, the crossing parameter's
+/// `std.remote.Crossing` (`fn.crossing.lift`): its number and its encoded
+/// captures, which a domain sends.
+pub fn crossing_parts_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty) -> StageResult<Body> {
+    let pool = cx.names.pool;
+    let sig = cx.method_sig(item);
+    let mut g = Gen::new(cx, ty, item, Handles::Supplied);
+    let code =
+        g.b.local(ty, cx.names.syms.intern("code"), local_flags::PARAM, SYN);
+    let blk = g.b.open_block();
+    let TyData::Tuple { elems, .. } = pool.get(sig.ret) else {
+        return Err(hd_base::NotImplemented::bug(cx.stage, "crossing parts"));
+    };
+    let [number, captures] = *pool.list_items(elems) else {
+        return Err(hd_base::NotImplemented::bug(cx.stage, "crossing parts"));
+    };
+    let number = g.read_field(code, 1, number);
+    let captures = g.read_field(code, 2, captures);
+    let rec = g.b.refs_record(&[number, captures]);
+    let parts = g.b.emit(Tag::NewTuple, NONE, rec, sig.ret, SYN);
+    let root = g.b.close_block(blk, Some(parts), sig.ret, SYN);
+    g.finish(root).map(|(body, _)| body)
+}
+
 /// The tuple type of `elems`.
 fn tuple(pool: &hd_types::InternPool, elems: &[Ty]) -> Ty {
     pool.intern_ty(&TyData::Tuple {
