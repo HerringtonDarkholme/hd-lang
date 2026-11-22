@@ -1,4 +1,5 @@
 # @dump: stdout
+use pkg.a.x
 pub fn main() -> void $ Console:
     println(1)
 # @file: a/x.hd

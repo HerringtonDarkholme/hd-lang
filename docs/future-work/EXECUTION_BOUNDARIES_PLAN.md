@@ -32,7 +32,7 @@ in the same commits.
 | 2 | crossing parameters, capture mode, reached top-level bindings, frozen loans (built: 1dd4c2a5c to 127293f15) | 880 | 88 | +792 | 6 |
 | 3 | `Remote`: R1, R2, stubs, dispatchers, `remote::[T]`, `handle_call!`, build ID and interface numbers, the `Wire` codec (built: 5c9646dac to 00e3b32b8); the host boundary move and host handles as stubs wait on the codec's size; R3, returned objects, built after stage 4 (net +192, not in this row) | 1,170 | 150 | +1,018 | 4, 5 |
 | 4 | `std.remote` plain parts and HTTP adapters, in hd; the `std/remote.md` chapter (built: std code net +86, tests +63) | 500 | 0 | +500 | none |
-| 5 | one use-graph walk per executable | 280 | 20 | +260 | none |
+| 5 | one use-graph walk per executable (built: compiler net +46) | 280 | 20 | +260 | none |
 | 6 | worker instances, Wasm threads for `Scope` and `Background`, a jobs store | 2,200 | 0 | +2,200 | none |
 
 Every stage grows the code, since each adds a language feature;
@@ -445,6 +445,33 @@ spec/std/remote.md (new) specifies them, with its prefix row,
 cost is stage 3's plus one HTTP round trip.
 
 ## 7. Stage 5: Targets
+
+**Built**, compiler +63 / −17 (net +46) against +260: `Run::check_scope`,
+which already narrowed `hd check FILE` to what FILE reaches, also scopes
+a program (`Goal::Program`, `Goal::Scenario`) to its entry's reach
+(`cli.exe.reach`). The sites below turned out not to be needed: the
+driver already skims every module's `use` paths for its folder graph, and
+the build ID was already one per build. Readings:
+
+- The walk follows the root package's modules through their own `use`s,
+  not their folders' closures, so a module that shares `src/` with the
+  entry but is not used by it, and the dependency only it uses, are never
+  parsed. Another package's modules, std included, are built by folder as
+  before: the closures of what the reached modules use, plus the
+  runtime's. A program's walk skips `tests:` blocks, which `hd check FILE`
+  follows.
+- Every program is scoped: an executable, a task and `hd run FILE`. A
+  missing capability in an executable's `main` row is then reported by
+  `hd check` and by building that executable, not by running a task
+  (`cli/cap-dev-required` now expects one diagnostic from `hd run
+  closure`).
+- The build ID needs no change (`module.domain.build-id`). It hashes each
+  library and executable module of the package's table, and
+  `hd_project::in_program` keeps all of them for every executable, so
+  narrowing what a program parses leaves it alone. So `in_program` stays,
+  and nothing is deleted.
+- Cost: one walk over the reached modules' `use` lists, which the folder
+  graph's skims already hold; warm, the skims come from the cache.
 
 **What.** Each executable parses and checks only the modules its entry
 reaches through `use` (B1). Today `hd_project::in_program` keeps every

@@ -5349,33 +5349,79 @@ impl Run<'_> {
                 .is_none_or(|(reach, _)| reach[m])
     }
 
-    /// A narrowed check's scope ([`Packages::check_roots`]): per module,
-    /// whether a root's module reaches it through `use`s, its `tests:`
-    /// block's included, as `hd check FILE` filters its output; and the
-    /// folders of the reached modules' closures. `None` when the run
-    /// checks the whole package.
+    /// A narrowed run's scope: per module, whether the run reaches it, and
+    /// the folders it builds. `None` when the run checks the whole package.
+    /// `hd check FILE` ([`Packages::check_roots`]) reaches through `use`s
+    /// from FILE's modules, `tests:` blocks included, as it filters its
+    /// output, and builds the reached modules' folder closures. A program
+    /// reaches the root package's modules through its entry's `use`s only,
+    /// so a module only another program uses is never parsed for it
+    /// (`cli.exe.reach`); it builds those modules' folders, the
+    /// closures of what they use in other packages, which decide alone
+    /// there, and the runtime's. Cost: one walk over the reached modules'
+    /// uses.
     fn check_scope(&self, g: &FolderGraph) -> Option<(Vec<bool>, hd_project::FolderSet)> {
-        let roots = self.check_roots.as_ref().filter(|_| self.analyze())?;
         let n = self.table.modules.len();
         let file_of = |m: usize| &self.table.files[self.table.modules[m].file.idx()];
+        let program = match &self.goal {
+            Goal::Program { entry } | Goal::Scenario { entry, .. } => {
+                let path = format!("{}.{entry}", hd_project::package_ident(&self.package));
+                Some(
+                    self.table
+                        .modules
+                        .iter()
+                        .position(|module| module.path == path)?,
+                )
+            }
+            _ => None,
+        };
+        let mut stack: Vec<usize> = if let Some(entry) = program {
+            vec![entry]
+        } else {
+            let roots = self.check_roots.as_ref().filter(|_| self.analyze())?;
+            (0..n).filter(|&m| roots.contains(file_of(m))).collect()
+        };
         let mut reach = vec![false; n];
-        let mut stack: Vec<usize> = (0..n).filter(|&m| roots.contains(file_of(m))).collect();
+        let mut folders = hd_project::FolderSet::with_capacity(self.table.folders.len());
         while let Some(m) = stack.pop() {
             if std::mem::replace(&mut reach[m], true) {
                 continue;
             }
             let s = self.skim_of(m);
-            stack.extend(
-                s.uses
-                    .iter()
-                    .chain(&s.test_uses)
-                    .filter_map(|u| self.table.module_of_use(u))
-                    .map(hd_base::ModuleId::idx),
-            );
+            let tests = if program.is_some() {
+                &[][..]
+            } else {
+                &s.test_uses[..]
+            };
+            for t in s
+                .uses
+                .iter()
+                .chain(tests)
+                .filter_map(|u| self.table.module_of_use(u))
+            {
+                let module = &self.table.modules[t.idx()];
+                if program.is_some() && module.package != 0 {
+                    folders.union(&g.closure[module.folder.idx()]);
+                } else {
+                    stack.push(t.idx());
+                }
+            }
         }
-        let mut folders = hd_project::FolderSet::with_capacity(self.table.folders.len());
-        for m in (0..n).filter(|&m| reach[m]) {
-            folders.union(&self.module_closure_in(g, m));
+        if program.is_some() {
+            for (m, module) in self.table.modules.iter().enumerate() {
+                if module.package != 0 {
+                    reach[m] = true;
+                } else if reach[m] {
+                    folders.insert(module.folder);
+                }
+            }
+            for rt in self.rt_folders() {
+                folders.union(&g.closure[rt.idx()]);
+            }
+        } else {
+            for m in (0..n).filter(|&m| reach[m]) {
+                folders.union(&self.module_closure_in(g, m));
+            }
         }
         Some((reach, folders))
     }

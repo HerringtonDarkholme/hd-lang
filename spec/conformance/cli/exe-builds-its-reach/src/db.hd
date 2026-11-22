@@ -1,0 +1,2 @@
+pub fn query() -> i32:
+    "not an int"

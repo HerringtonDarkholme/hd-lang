@@ -48,6 +48,7 @@ doc-main-page	cli.doc.main,cli.doc.private,cli.doc.items
 json-test-order	cli.json.test.result,cli.json.test.order
 exe-missing-module	cli.exe.missing-module,cli.exit.hd-failure,cli.exe.table,cli.exe.other-module
 exe-unselected-main	cli.exe.unselected-main.lint
+exe-builds-its-reach	cli.exe.reach,cli.exe.table
 doc-broken-link	cli.doc.link.broken.lint,cli.doc.link.form,cli.doc.link.scope
 doc-index-module	cli.doc.index-module,cli.doc.files,cli.doc.llms.modules
 json-file-single	cli.diagnostic.file,cli.file.check-test
