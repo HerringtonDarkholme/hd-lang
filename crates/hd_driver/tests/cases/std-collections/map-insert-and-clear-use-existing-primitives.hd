@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: release | release checked
+# expected: insertion has one map probe and ordinary value stores; clearing resets only this map value.
+fn insert(values: &mut Map[i32, i32], key: i32, value: i32) -> i32?:
+    values.insert(key, value)
+
+fn clear(values: &mut Map[i32, i32]) -> void:
+    values.clear()

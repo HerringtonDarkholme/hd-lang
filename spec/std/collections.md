@@ -918,3 +918,26 @@ fn adjust(items: &mut List[i32], stock: &mut Map[string, i32]) -> void:
 
 See also: [Built-In Methods](../lang/10-modules.md#built-in-methods),
 [Iterator Adapters](iter.md#iterator-adapters).
+
+## Map Insertion And Clearing
+
+`Map.insert` returns a replaced value, while `clear` empties this map value without changing its snapshots.
+
+```text
+fn visits() -> Map[string, usize]:
+    let mut found: Map[string, usize] = {}
+    _ := found.insert("tea", 1)
+    _ := found.insert("tea", 2)
+    found
+```
+
+1. r[std-collections.map.insert.value] The inherent `fn insert(&mut self, key: K, value: V) -> V?` stores `value` for `key`.
+2. r[std-collections.map.insert.result] It returns `.Some` of the previous value when an equal key existed, and `.None` otherwise.
+3. r[std-collections.map.insert.order] Replacing a value keeps the stored key and its position in iteration order; a new key is appended.
+4. r[std-collections.map.insert.probe] Each insertion invokes the key's `Hash` implementation once and reuses one search for either result.
+5. r[std-collections.map.clear.value] The inherent `fn clear(&mut self) -> void` removes every entry and leaves the map empty.
+6. r[std-collections.map.insert-clear.copy] Both methods leave other copies of the map unchanged.
+7. r[std-collections.map.insert-clear.cost] `insert` has the map's usual lookup and copy-on-write costs; `clear` takes constant time plus any final entry releases.
+
+> **Why.** The insertion result and retained stored key follow Rust's `HashMap::insert`.
+> `Map` has copy-on-write value semantics and exposes no capacity reservation, so clearing replaces this value with an empty map.
