@@ -97,7 +97,7 @@
     local.set $photo.width
     local.set $photo.pixels
     local.set $side
-    i64.const 17454747090990
+    i64.const -1162861209082736682
     i32.const 10
     local.tee $captures
     i32.const 0

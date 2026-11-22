@@ -119,10 +119,11 @@ impl Ck<'_, '_> {
         let code = self.wire_local(kfn_ty, "$lifted", syn);
         self.b.set(code, lifted, syn);
         self.add_flags(code, local_flags::CAPTURED);
-        // The literal: its item and node (`fn.crossing.lift`); a worker of
-        // the same build reads the same constants.
-        let item = self.b.body().item.raw();
-        let literal = (u64::from(item) << 32) | u64::from(syn.raw());
+        // The literal: its item's path digest and its node
+        // (`fn.crossing.lift`), which every build of the same source keeps.
+        let item = self.cx.names.path_hash(self.b.body().item).0;
+        let item = u64::try_from(item & u128::from(u64::MAX)).unwrap_or(0);
+        let literal = item ^ u64::from(syn.raw());
         let literal = self
             .b
             .const_value(hd_types::Ty::prim(hd_types::Prim::U64), literal);

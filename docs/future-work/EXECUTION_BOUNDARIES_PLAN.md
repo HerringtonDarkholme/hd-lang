@@ -552,7 +552,7 @@ second form always, with sharing left to `Arc`.)
   parameter is that struct (`ProgramEnv::params` and the body's local
   agree), so a call reads `code` and a domain reads the rest. Only `Wire`
   changes: a `Send` crossing shares memory and passes its closure.
-- The number is the literal's own (its item and node) XOR the canonical
+- The number is the literal's own (its item's path digest XOR its node) XOR the canonical
   digest of the lifted function's type (`type_number`, as interface
   numbers are taken), so each instance of a generic literal has its own,
   and every instance of the module computes the same one.

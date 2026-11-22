@@ -247,7 +247,7 @@
               i32.load $heap offset=36
               local.set $provider0.vtable
               local.set $provider0
-              i64.const 17441862189099
+              i64.const 8485422206848180342
               local.get $provider0
               local.get $provider0.vtable
               call $"crossing_number[fn((u32)) -> u32]"
@@ -593,7 +593,7 @@
             i32.load $heap offset=100
             local.set $provider0.vtable
             local.set $provider0
-            i64.const 17441862189116
+            i64.const 8485422206848180321
             local.get $provider0
             local.get $provider0.vtable
             call $"crossing_number[fn((string)) -> string]"
@@ -1329,7 +1329,7 @@
   (func $crossing_run (param $t0 i64) (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32)
     ;; (no span)
     local.get $t0
-    i64.const 2968850397843561566
+    i64.const 6697187868413770755
     i64.eq
     if (result i32)
       local.get $t1
@@ -1346,7 +1346,7 @@
       end
     else
       local.get $t0
-      i64.const 4872659143285222307
+      i64.const 3917393885180365822
       i64.eq
       if
         local.get $t1
