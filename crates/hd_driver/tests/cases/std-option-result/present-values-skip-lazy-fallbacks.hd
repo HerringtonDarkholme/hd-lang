@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: release | release checked
+# expected: known present variants return their argument, with no callback call or allocation.
+fn optional(value: i32) -> i32:
+    let present: i32? = .Some(value)
+    present.unwrap_or_else(fn() -> i32: 99)
+
+fn result(value: i32) -> i32:
+    let present: Result[i32, string] = .Ok(value)
+    present.unwrap_or_else(fn(error: string) -> i32: 99)

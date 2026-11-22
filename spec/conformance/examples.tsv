@@ -1214,6 +1214,8 @@ std/option.md	1	complete	std/option/optional-methods/option-and-then.hd
 std/option.md	2	complete	std/option/variant-tests-and-conversions/option-tests-conversions.hd
 std/option.md	3	complete	std/option/borrowed-payloads/option-copied.hd
 std/option.md	4	complete	std/error/one-off-errors/error-message.hd
+std/option.md	5	complete	std/option/lazy-fallbacks-and-filtering/option-lazy-methods.hd
+std/option.md	6	complete	std/option/unwrapping-without-a-message/option-unwrap-none.hd
 std/path.md	1	complete	std/path/paths/path-newtype.hd
 std/path.md	2	complete	std/path/path-operations/path-operations.hd
 std/process.md	1	complete	std/process/process-errors/process-error-display.hd
@@ -1249,6 +1251,8 @@ std/result.md	1	complete	std/result/result-methods/result-and-then.hd
 std/result.md	2	mixed	std/result/result-methods/result-and-then-error-type.hd
 std/result.md	3	complete	std/result/mapping-the-value/result-map.hd
 std/result.md	4	complete	std/result/variant-tests-and-conversions/result-tests-conversions.hd
+std/result.md	5	complete	std/result/lazy-error-fallbacks/result-lazy-methods.hd
+std/result.md	6	complete	std/result/unwrapping-without-a-message/result-unwrap-err.hd
 std/serde.md	1	complete	std/serde/derived-implementations/serde-derive-call-order.hd
 std/serde.md	2	type-fragment	-
 std/serde.md	3	complete	std/serde/derived-implementations/serde-derive-call-order.hd
