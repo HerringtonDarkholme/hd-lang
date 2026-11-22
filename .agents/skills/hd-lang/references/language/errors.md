@@ -64,6 +64,9 @@ or optional. Elsewhere the error is `invalid-result-propagation`.
 
 | Call | Gives |
 | --- | --- |
+| `x.unwrap()` | the value, or a panic (`Result` errors require `Debug`) |
+| `x.unwrap_or_else(f)` | the value, or a fallback computed on failure |
+| `x.or_else(f)` | this success, or an optional/result computed on failure |
 | `x.unwrap_or(fallback)` | the value, or the fallback |
 | `x.expect("why it is present")` | the value, or a panic with that message |
 | `x.map(fn(v): ...)` | the same wrapper around a changed value |
@@ -72,7 +75,7 @@ or optional. Elsewhere the error is `invalid-result-propagation`.
 | `r.ok()`, `r.err()` | the value or the error as an optional |
 | `r.map_err(f)` | the same result with a changed error |
 
-There is no `unwrap()`. A `Result` or optional that is computed and not
+`unwrap()` panics when there is no successful value. A `Result` or optional computed and not
 used is an error (`discarded-must-use-value`): handle it, or discard it
 with `_ := expr`.
 
