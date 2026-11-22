@@ -915,9 +915,13 @@ impl Em<'_, '_, '_> {
             PlaceRoot::Local(l) => Some(l.idx()),
             _ => None,
         };
-        // A borrowed local's value is its lender's; what it refers to is not.
+        // A borrowed local's value is its lender's; what it refers to is
+        // not, nor what a cell it shares holds (a capture's), which each
+        // sharer that overwrites it releases.
         let deref = p.proj.first() == Some(&Proj::Deref);
-        let lent = |l: usize| self.borrowed.contains(&l) || self.loan_locals.contains_key(&l);
+        let lent = |l: usize| {
+            (self.borrowed.contains(&l) || self.loan_locals.contains_key(&l)) && !self.is_cell(l)
+        };
         if !deref && root.is_some_and(lent) {
             return Ok(());
         }

@@ -1,0 +1,45 @@
+# A closure that assigns a binding it shares with its scope drops the
+# value the cell held, as the scope's own assignment does: the cell's
+# value is the cell's, not a lender's, in every body sharing it (the
+# bug: the closure skipped the old value's drop, so its hook never ran,
+# and a field's assignment the same way).
+# stdout: 1 3 made 5 gone 5
+use std.rt.Drop
+
+let made: usize = 0
+let gone: usize = 0
+
+struct Item:
+    name: string
+
+impl !Copy for Item
+
+impl Drop for Item:
+    fn drop(&mut self) -> void:
+        gone = gone + 1
+
+fn item(name: string) -> Item:
+    made = made + 1
+    Item { name: name }
+
+struct Pair:
+    left: Item
+    right: string
+
+fn whole() -> usize:
+    let x = item("c")
+    bump := fn() -> void: x = item("d")
+    bump()
+    bump()
+    x.name.len()
+
+fn field() -> usize:
+    let mut p = Pair { left: item("e"), right: "rgt" }
+    bump := fn() -> void: p.left = item("f")
+    bump()
+    p.right.len()
+
+pub fn main() -> void $ Console:
+    a := whole()
+    b := field()
+    println("${a} ${b} made ${made} gone ${gone}")
