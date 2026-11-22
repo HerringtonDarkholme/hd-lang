@@ -1,0 +1,9 @@
+# test: handle_call! for a root type that implements no remote trait is rejected
+# Spec 10 Remote Built-Ins: module.remote.handle-call.root.
+use std.remote.{Home, Rooted, handle_call}
+
+struct Pool:
+    size: i64
+
+fn answer!(home: &mut Home[Pool, string], rooted: &mut Rooted[Pool], frame: List[u8]) -> List[u8]:
+    handle_call!(home, rooted, frame) # diagnostic: unsatisfied-trait-bound

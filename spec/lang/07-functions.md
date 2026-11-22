@@ -1052,7 +1052,7 @@ let next: fn() -> i32 = fn() -> i32:
 #### Scope Of This Section
 
 1. r[fn.capture.in-process] This section defines ordinary in-process closure behavior only.
-2. r[fn.capture.serializable-deferred] Serializable closure capture, how a restored closure names its code beyond [the same compiled program](11-requirements-and-suspension.md#r-req.determinism.same-program), and restoration semantics are deferred to the runtime design.
+2. r[fn.capture.other-build] A closure that crosses into another domain follows [Crossing Closures](#crossing-closures). How it would name its code for a peer of another build is outside the language: such a peer refuses the crossing, by [`module.domain.other-build`](10-modules.md#r-module.domain.other-build).
 
 ```hd
 fn apply_twice(f: fn(i32) -> i32, x: i32) -> i32:
@@ -1061,6 +1061,100 @@ fn apply_twice(f: fn(i32) -> i32, x: i32) -> i32:
 fn demo() -> i32:
     apply_twice(fn(n) -> i32: n + 1, 10)
 ```
+
+## Crossing Closures
+
+A **crossing parameter** is a parameter whose function type ends its
+result with a marker bound, `fn!() -> T + M`. A closure literal passed
+for it is a **crossing closure**, which runs in another
+[execution domain](10-modules.md#execution-domains):
+
+```text
+use std.marker.Wire
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn shrink(photo: Image, side: u32) -> Image:
+    Image { width: side, pixels: photo.pixels }
+
+fn demo(photo: Image) -> u32:
+    small := run(fn() -> Image: shrink(photo, 64))   # photo moves into the closure
+    small.width
+```
+
+### Crossing Parameters
+
+1. r[fn.crossing.parameter] A value parameter's function type may follow its result with `+` and a marker, its **marker bound**, as in `code: fn!() -> T + Wire`. Such a parameter is a crossing parameter.
+2. r[fn.crossing.parameter.lifetime] A marker bound may end with `&` and a lifetime of the enclosing declaration, as in `fn() -> T + Send & 's`. [Frozen Loans](13-values-and-references.md#frozen-loans) gives its meaning.
+3. r[fn.crossing.parameter.row] The function type's row follows the marker bound, as in `fn!() -> T + Wire $ Log`.
+4. r[fn.crossing.parameter.marker] A marker bound that names a trait that does not extend `Marker` is an error. Error: `invalid-marker-trait`.
+5. r[fn.crossing.call] A function or method with a crossing parameter is a crossing. A call that passes it a closure runs that closure in the domain the callee chooses.
+6. r[fn.crossing.literal] The argument for a crossing parameter must be a closure literal written at the call, or the callee's own crossing parameter of the same marker, passed on whole. Error: `crossing-closure-not-literal`.
+7. r[fn.crossing.parameter.uses] Inside the callee, a crossing parameter may be called or passed on whole. Any other use, such as a binding, a field, a capture or a return, is an error. Error: `crossing-closure-not-literal`.
+8. r[fn.crossing.once] A crossing parameter is called at most once on each path: a call moves it. Error: `use-of-moved-value`.
+9. r[fn.crossing.captures] Each capture of a crossing closure must have the parameter's marker. Error: `unsatisfied-trait-bound`.
+
+See also: [`grammar.fn.crossing-parameter`](02-grammar.md#r-grammar.fn.crossing-parameter),
+[Markers](10-modules.md#markers).
+
+### Capture Mode
+
+A crossing closure takes each capture as it is when the call evaluates
+the closure. The mode is never written:
+
+1. r[fn.crossing.mode] A crossing closure shares no cell with its scope, whatever [`fn.capture.cell`](#r-fn.capture.cell) says of other closures.
+2. r[fn.crossing.mode.copy] A capture whose type is `Copy` is copied, a captured `let` variable included.
+3. r[fn.crossing.mode.move] A capture whose type is not `Copy` moves into the closure, and its source binding ends there. A later use of that binding is an error. Error: `use-of-moved-value`.
+4. r[fn.crossing.mode.lend] A captured `&T` is lent as a [frozen loan](13-values-and-references.md#frozen-loans).
+5. r[fn.crossing.mode.apart] So a later write by the caller never reaches the closure, and the closure's changes never reach the caller.
+6. r[fn.crossing.no-write] A crossing closure that assigns a captured binding, or changes one in place, is an error. Error: `crossing-capture-written`.
+7. r[fn.crossing.move-out] A crossing closure runs at most once, so it may move a capture out, unlike [`ref.move.out-of-place.capture`](13-values-and-references.md#r-ref.move.out-of-place.capture).
+
+### Only The Literal Crosses
+
+1. r[fn.crossing.fn-value] A function value that is not the crossing closure itself is neither `Send` nor `Wire`. A crossing closure that captures one, or a struct, list or `&T` that holds one, is an error. Error: `unsatisfied-trait-bound`.
+2. r[fn.crossing.global] Every top-level binding that a crossing closure reaches, directly or through a callee, must be immutable. Error: `crossing-top-level-binding`.
+3. r[fn.crossing.global.send] For the marker `Send`, every such binding must also be `Send`. Error: `crossing-top-level-binding`.
+4. r[fn.crossing.global.runtime] The storage of the runtime modules, by [`module.rt.leaf`](10-modules.md#r-module.rt.leaf), is not such a binding: it is the instance's own, not the program's.
+
+```text
+use std.marker.{Send, Wire}
+
+fn run[T < Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn spawn[T < Send](code: fn() -> T + Send) -> T:
+    code()
+
+let total = +0
+
+fn demo(xs: *mut List[i32]) -> i32:
+    let count = +0
+    read := fn() -> i32: count
+    a := run(read)                       # error: crossing-closure-not-literal
+    b := run(fn() -> usize: xs.len())    # error: unsatisfied-trait-bound
+    spawn(fn() -> void: count += 1)      # error: crossing-capture-written
+    c := run(fn() -> i32: total)         # error: crossing-top-level-binding
+    a + c
+```
+
+> **Why.** A shared cell between two threads is a data race, and between
+> two memories it cannot exist, so a crossing copies or moves what it
+> takes, as Rust's `move` closures and Swift's `sending` do. A writing
+> child returns its part instead. A stored function value hides its
+> captures behind `fn(A) -> R`, so only a literal can be checked.
+
+> **Note.** Module storage is per instance
+> ([`module.init.program-instance`](10-modules.md#r-module.init.program-instance)).
+> A `let` top-level counter would change only one domain's copy, which
+> is why a reached binding must be immutable.
 
 ## Multiple Inline Closures
 

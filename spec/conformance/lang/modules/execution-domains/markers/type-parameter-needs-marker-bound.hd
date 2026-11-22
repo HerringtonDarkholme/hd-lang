@@ -1,0 +1,9 @@
+# test: a type parameter has a marker only through its bound
+# Spec 10 Markers: module.marker.parameter.
+use std.marker.Wire
+
+fn post[T < Wire](value: T) -> void:
+    pass
+
+fn relay[T](value: T) -> void:
+    post(value) # diagnostic: unsatisfied-trait-bound

@@ -1,0 +1,4 @@
+# test: a marker bound in a field type is a syntax error
+# Spec 02 Parameters: grammar.fn.crossing-parameter.positions.
+struct Job:
+    code: fn() -> i32 + Wire  # diagnostic: syntax-error

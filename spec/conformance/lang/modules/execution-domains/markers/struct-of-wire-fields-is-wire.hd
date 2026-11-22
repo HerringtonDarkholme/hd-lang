@@ -1,0 +1,17 @@
+# test: a struct, an enum and a list whose parts are Wire are Wire
+# Spec 10 Markers: module.marker.structural, module.marker.supplied, module.marker.table.scalar, module.marker.table.composite.
+use std.marker.Wire
+
+struct Point:
+    x: f64
+    label: string
+
+enum Shape:
+    Dot(at: Point)
+    Line(points: List[Point])
+
+fn post[T < Wire](value: T) -> T:
+    value
+
+fn demo(p: Point) -> Shape:
+    post(Shape.Line(points=[p, post(p)]))

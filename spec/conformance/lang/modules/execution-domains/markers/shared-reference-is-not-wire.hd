@@ -1,0 +1,12 @@
+# test: a shared local reference is not Wire, since separate memory gets only a copy
+# Spec 10 Markers: module.marker.table.shared.
+use std.marker.Wire
+
+struct Point:
+    x: i32
+
+fn post[T < Wire](value: T) -> void:
+    pass
+
+fn demo(p: &Point) -> void:
+    post(p) # diagnostic: unsatisfied-trait-bound

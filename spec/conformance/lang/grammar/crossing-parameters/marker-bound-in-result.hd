@@ -1,0 +1,4 @@
+# test: a marker bound in a result type is a syntax error
+# Spec 02 Parameters: grammar.fn.crossing-parameter.positions.
+fn make() -> fn() -> i32 + Wire:  # diagnostic: syntax-error
+    fn() -> i32: 1

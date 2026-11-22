@@ -1,0 +1,4 @@
+# test: a marker bound that names a trait not extending Marker is rejected
+# Spec 07 Crossing Closures: fn.crossing.parameter.marker.
+fn run(code: fn() -> i32 + Display) -> i32:  # diagnostic: invalid-marker-trait
+    code()

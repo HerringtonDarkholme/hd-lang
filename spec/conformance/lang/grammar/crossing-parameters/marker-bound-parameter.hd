@@ -1,0 +1,13 @@
+# test: a parameter's function type may follow its result with + and a marker, a lifetime, and a row
+# Spec 02 Parameters: grammar.fn.crossing-parameter, grammar.type.row.plus-marker.
+trait Log:
+    fn line(&mut self, text: string) -> void
+
+fn run[T](code: fn!() -> T + Wire) -> T:
+    code!()
+
+fn spawn['s, T](code: fn() -> T + Send & 's) -> T:
+    code()
+
+fn logged[T](code: fn!() -> T + Wire $ Log) -> T $ Log:
+    code!()

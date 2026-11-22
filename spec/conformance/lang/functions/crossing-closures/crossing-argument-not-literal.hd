@@ -1,0 +1,10 @@
+# test: a function value that is not a closure literal written at the call is rejected for a crossing parameter
+# Spec 07 Crossing Closures: fn.crossing.literal.
+use std.marker.Wire
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn demo(n: i32) -> i32:
+    read := fn() -> i32: n
+    run(read)  # diagnostic: crossing-closure-not-literal

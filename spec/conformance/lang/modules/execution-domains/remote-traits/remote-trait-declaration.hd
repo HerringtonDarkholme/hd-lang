@@ -1,0 +1,22 @@
+# test: a remote trait's bang method returns E | CrossError, and its implementation declares E alone
+# Spec 10 Remote Traits: module.remote.trait, module.remote.r1.bang, module.remote.r1.wire, module.remote.r2.result, module.remote.r2.impl.
+use std.remote.{CrossError, Remote}
+
+struct User:
+    id: i64
+    name: string
+
+enum UserError:
+    Missing(id: i64)
+
+trait Users < Remote:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError | CrossError]
+
+struct Fixed:
+    user: User
+
+impl Users for Fixed:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError]:
+        if id == self.user.id:
+            return .Ok(self.user)
+        .Err(UserError.Missing(id))

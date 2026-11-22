@@ -1,0 +1,13 @@
+# test: a remote method whose parameter is a function type is rejected
+# Spec 10 Remote Traits: module.remote.r1.wire.
+use std.remote.{CrossError, Remote}
+
+enum SortError:
+    Empty
+
+trait Sorter < Remote:
+    fn sort_by!(
+        &mut self,
+        rows: List[i64],
+        key: fn(i64) -> i64,
+    ) -> Result[List[i64], SortError | CrossError] # diagnostic: invalid-remote-method

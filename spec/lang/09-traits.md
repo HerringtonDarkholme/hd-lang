@@ -2307,6 +2307,9 @@ compiler and the standard library supply.
 | r[trait.sealed.fn-read-only] Fn | `Fn` | every plain function type, except for values that [Read-Only Fn Closures](07-functions.md#r-fn.trait.read-only) leave with `FnMut` only ([Static Fn Bounds](07-functions.md#static-fn-bounds)) |
 | r[trait.sealed.fn-mut] FnMut | `FnMut` | every plain function type ([FnMut Bounds](07-functions.md#fnmut-bounds)) |
 | r[trait.sealed.copy] Copy | `Copy` | every type that holds no `&mut`, no type declared `impl !Copy`, and no type parameter that is not `Copy` ([Copy](13-values-and-references.md#copy)) |
+| r[trait.sealed.send] Send | `Send` | the types whose parts are `Send`, and the types the standard library implements it for ([Markers](10-modules.md#markers)) |
+| r[trait.sealed.wire] Wire | `Wire` | the types whose parts are `Wire`, remote references, and the types the standard library implements it for ([Markers](10-modules.md#markers)) |
+| r[trait.sealed.remote] Remote | `Remote` | every type, so it constrains only the traits that extend it ([Remote Traits](10-modules.md#remote-traits)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.

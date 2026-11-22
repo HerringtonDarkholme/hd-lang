@@ -1,7 +1,11 @@
 # Execution Domains: Moving Code And Data
 
 Status: accepted by the owner 2026-11-21 (proposed 2026-11-02); domain: language (execution domains and
-crossings) and std. Not yet in the specification; implementation is staged in #2288.
+crossings) and std. The language rules are in the specification (stage 0 of #2288):
+[Execution Domains](../../spec/lang/10-modules.md#execution-domains),
+[Crossing Closures](../../spec/lang/07-functions.md#crossing-closures) and
+[Frozen Loans](../../spec/lang/13-values-and-references.md#frozen-loans). The compiler does not
+implement them yet.
 
 - [1. Context And Goal](#1-context-and-goal)
 - [2. Eight Programs That Cross](#2-eight-programs-that-cross)
@@ -20,7 +24,8 @@ crossings) and std. Not yet in the specification; implementation is staged in #2
 The goal is to move computation and data between **execution domains**: a
 worker, a server, a job that runs later, a GPU, or a thread. Today an hd
 program runs in one instance on one thread
-([`module.instance.thread`](../../spec/lang/10-modules.md#r-module.instance.thread)).
+([`module.instance.one-thread`](../../spec/lang/10-modules.md#r-module.instance.one-thread)
+now names the exception this record adds).
 Instances exchange only boundary-safe values, copied as trees
 ([`module.boundary.allowed`](../../spec/lang/10-modules.md#r-module.boundary.allowed),
 [`module.boundary.tree`](../../spec/lang/10-modules.md#r-module.boundary.tree)), and closures never cross

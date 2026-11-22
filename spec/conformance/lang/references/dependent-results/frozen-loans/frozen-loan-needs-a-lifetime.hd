@@ -1,0 +1,13 @@
+# test: a crossing closure for a parameter whose marker bound names no lifetime may not capture a local reference
+# Spec 13 Frozen Loans: ref.frozen.no-lifetime.
+use std.marker.Send
+
+struct Player:
+    score: i32
+
+fn keep(code: fn() -> i32 + Send) -> i32:
+    code()
+
+fn demo(players: List[Player]) -> i32:
+    first := &players[0]
+    keep(fn() -> i32: first.score)  # diagnostic: local-reference-escapes

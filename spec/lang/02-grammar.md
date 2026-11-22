@@ -493,8 +493,11 @@ value_parameter = [ "mut" ], identifier, ":", parameter_type, [ "=", expression 
                 | [ "mut" ], identifier, "...", ":", type
                 ;
 
-parameter_type = type | anonymous_parameter_type ;
+parameter_type = type | anonymous_parameter_type | crossing_parameter_type ;
 anonymous_parameter_type = "impl", bound_trait_type, [ "&", lifetime ] ;
+crossing_parameter_type = "fn", [ "!" ], "(", [ type_list ], ")", "->", type,
+                          "+", bound_trait_type, [ "&", lifetime ],
+                          [ requirement_clause ] ;
 
 receiver_parameter = "self" | "mut", "self"
                    | "&", [ lifetime ], "self" | "&", [ lifetime ], "mut", "self"
@@ -513,6 +516,8 @@ receiver_parameter = "self" | "mut", "self"
 10. r[grammar.fn.impl-parameter] A named function's complete value-parameter annotation may be `impl` followed by one bound trait type and, optionally, `&` followed by one lifetime.
 11. r[grammar.fn.impl-type.positions] Outside a named-function result annotation or the complete annotation of one of its value parameters, `impl` is invalid. In particular, it is invalid in fields, bindings, closure annotations, function types, requirement rows and nested parameter types. Error: `syntax-error`.
 12. r[grammar.fn.opaque-bound.no-nesting] An `impl` type must not appear inside another `impl` bound. Error: `syntax-error`.
+13. r[grammar.fn.crossing-parameter] A named function's or a method's complete value-parameter annotation may be a function type whose result is followed by `+`, one marker, optionally `&` and one lifetime, and then its row. [Crossing Closures](07-functions.md#crossing-closures) gives its meaning.
+14. r[grammar.fn.crossing-parameter.positions] A marker bound anywhere else is an error: in a field, a binding, a closure annotation, a result, a type argument, or a nested parameter type. Error: `syntax-error`.
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
@@ -988,7 +993,7 @@ A lifetime may stand among a named type's arguments, as in `Parser[string, 'a]`.
 ### Row Operators
 
 1. r[grammar.type.row.plus-only] `+` is the only row operator: it joins keys into one row.
-2. r[grammar.type.row.plus-rows-only] `+` has no bound meaning; several bounds on one type are joined with `&`, as in `T < A & B`.
+2. r[grammar.type.row.plus-marker] Outside a row, `+` appears only before the marker of a crossing parameter's type, by [`grammar.fn.crossing-parameter`](#r-grammar.fn.crossing-parameter). Several bounds on one type are joined with `&`, as in `T < A & B`.
 3. r[grammar.type.row.no-subtraction] A `-` between requirement keys, as in the former `$ R - K`, is an error. Error: `syntax-error`.
 4. r[grammar.type.row.extension] Removing a key from a callback row is written by extension instead, as [Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism) specifies.
 

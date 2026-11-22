@@ -1,0 +1,17 @@
+# test: CrossError has the four payload-free cases Unreachable, Unknown, OtherBuild and WrongHome
+# Spec 10 Crossing Errors: module.cross.decl.
+use std.remote.CrossError
+
+fn ran(error: CrossError) -> string:
+    match error:
+        .Unreachable => "no"
+        .Unknown => "maybe"
+        .OtherBuild => "no"
+        .WrongHome => "no"
+
+tests:
+    use std.testing.assert_equal
+
+    it("only Unknown may have run"):
+        assert_equal(ran(CrossError.Unknown), "maybe")
+        assert_equal(ran(CrossError.OtherBuild), "no")

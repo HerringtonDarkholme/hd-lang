@@ -1,1 +1,54 @@
 path	issue	engine	reason
+lang/grammar/crossing-parameters/marker-bound-parameter.hd	#2288		the parser rejects a marker bound `+ M` after a parameter type's result (stage 2 of #2288)
+lang/modules/execution-domains/markers/struct-of-wire-fields-is-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/not-copy-type-may-be-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/marker-trait-with-member.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/wire-implementation-is-sealed.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/send-implementation-is-sealed.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/box-field-is-not-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/box-field-is-not-send.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/shared-reference-is-send.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/shared-reference-is-not-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/writable-reference-is-not-send.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/type-parameter-needs-marker-bound.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/library-marker-explicit-implementation.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/library-marker-structural.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/markers/remote-reference-is-wire.hd	#2288		no `std.marker` or `std.remote` yet: remote references as `Wire` are stages 1 and 3 of #2288
+lang/modules/execution-domains/markers/remote-reference-is-not-send.hd	#2288		no `std.marker` or `std.remote` yet: remote references as `Wire` are stages 1 and 3 of #2288
+lang/modules/execution-domains/markers/other-trait-value-is-not-wire.hd	#2288		no `std.marker` yet: `Marker`, `Send` and `Wire` and their structural checks are stage 1 of #2288
+lang/modules/execution-domains/remote-traits/remote-trait-declaration.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-method-not-bang.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-method-closure-parameter.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-method-closure-inside-struct.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-method-error-not-wire.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-method-generic.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-method-row.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-generic-trait.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-result-without-cross-error.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-implementation-with-cross-error.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-local-call-wraps-error.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-traits/remote-concrete-call-has-trait-result.hd	#2288		no `std.remote` yet: `Remote`, R1 and R2 are stage 3 of #2288
+lang/modules/execution-domains/remote-builtins/remote-builtin-returns-stub.hd	#2288		no `std.remote` yet: `CrossError`, `remote::[T]` and `handle_call!` are stage 3 of #2288
+lang/modules/execution-domains/remote-builtins/remote-builtin-non-remote-trait.hd	#2288		no `std.remote` yet: `CrossError`, `remote::[T]` and `handle_call!` are stage 3 of #2288
+lang/modules/execution-domains/remote-builtins/handle-call-root-not-remote.hd	#2288		no `std.remote` yet: `CrossError`, `remote::[T]` and `handle_call!` are stage 3 of #2288
+lang/modules/execution-domains/remote-builtins/cross-error-cases.hd	#2288		no `std.remote` yet: `CrossError`, `remote::[T]` and `handle_call!` are stage 3 of #2288
+lang/functions/crossing-closures/crossing-parameter.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-parameter-not-a-marker.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-argument-not-literal.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-parameter-passed-on.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-parameter-stored.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-parameter-called-twice.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-capture-not-wire.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-capture-moves.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-capture-moved-out.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-capture-copied.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-capture-assigned.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-capture-changed-in-place.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-captures-function-value.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-reaches-mutable-top-level.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-reaches-mutable-top-level-through-callee.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-reaches-immutable-top-level.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/functions/crossing-closures/crossing-send-reaches-box-top-level.hd	#2288		no crossing parameters yet: the parser rejects `fn() -> T + M`, and the capture mode is unchecked (stage 2 of #2288)
+lang/references/dependent-results/frozen-loans/frozen-loan-for-scope.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)
+lang/references/dependent-results/frozen-loans/frozen-loan-blocks-element-store.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)
+lang/references/dependent-results/frozen-loans/frozen-loan-needs-a-lifetime.hd	#2288		no frozen loans yet: the parser rejects `+ Send & 's`, and the loan checker has no crossing lifetime (stage 2 of #2288)

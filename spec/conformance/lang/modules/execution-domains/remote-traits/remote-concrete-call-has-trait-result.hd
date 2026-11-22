@@ -1,0 +1,23 @@
+# test: a call on the concrete implementing type has the trait's result, with CrossError
+# Spec 10 Remote Traits: module.remote.r2.public.
+use std.remote.{CrossError, Remote}
+
+struct User:
+    id: i64
+    name: string
+
+enum UserError:
+    Missing(id: i64)
+
+trait Users < Remote:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError | CrossError]
+
+struct Fixed:
+    user: User
+
+impl Users for Fixed:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError]:
+        .Ok(self.user)
+
+fn demo!(users: &mut Fixed) -> Result[User, UserError | CrossError]:
+    users.load_user!(7)

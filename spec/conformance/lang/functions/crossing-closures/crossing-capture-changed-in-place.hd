@@ -1,0 +1,11 @@
+# test: a crossing closure that pushes onto a captured list is rejected
+# Spec 07 Crossing Closures: fn.crossing.no-write.
+use std.marker.Wire
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn demo() -> usize:
+    let mut items: List[i32] = []
+    run(fn() -> void: items.push(1))  # diagnostic: crossing-capture-written
+    items.len()

@@ -1,0 +1,8 @@
+# test: user code cannot implement Wire, even for a type whose fields are Wire
+# Spec 10 Markers: module.marker.sealed; Spec 09 Sealed Traits: trait.sealed.wire.
+use std.marker.Wire
+
+struct Point:
+    x: i32
+
+impl Wire for Point # diagnostic: sealed-trait-implementation

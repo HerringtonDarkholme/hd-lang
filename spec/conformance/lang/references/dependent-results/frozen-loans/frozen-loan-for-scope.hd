@@ -1,0 +1,13 @@
+# test: a Send crossing closure captures a shared reference lent for the lifetime its marker bound names
+# Spec 13 Frozen Loans: ref.frozen.definition, ref.frozen.lifetime; Spec 07 Crossing Closures: fn.crossing.parameter.lifetime.
+use std.marker.Send
+
+struct Player:
+    score: i32
+
+fn total['s](players: &'s List[Player], code: fn() -> i32 + Send & 's) -> i32:
+    code()
+
+fn demo(players: List[Player]) -> i32:
+    first := &players[0]
+    total(&players, fn() -> i32: first.score)

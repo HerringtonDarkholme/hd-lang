@@ -1,0 +1,19 @@
+# test: while a frozen loan lives, a store to an element of its list is rejected
+# Spec 13 Frozen Loans: ref.frozen.write, ref.frozen.lifetime.
+use std.marker.Send
+
+struct Player:
+    score: i32
+
+struct Scope['s]:
+    done: &'s mut List[i32]
+
+impl['s] Scope['s]:
+    fn spawn(&mut self, code: fn() -> i32 + Send & 's) -> void:
+        self.done.push(code())
+
+fn demo(players: List[Player], s: &mut Scope) -> void:
+    let mut all = players
+    first := &all[0]
+    s.spawn(fn() -> i32: first.score)
+    all[0].score = 9  # diagnostic: conflicting-access

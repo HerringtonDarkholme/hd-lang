@@ -1,0 +1,17 @@
+# test: a counted trait value reference of a remote trait is Wire
+# Spec 10 Markers: module.marker.table.remote; Spec 10 Remote References: module.remote.ref.wire.
+use std.marker.Wire
+use std.remote.{CrossError, Remote}
+
+trait Users < Remote:
+    fn count!(&mut self) -> Result[i64, string | CrossError]
+
+struct Row:
+    title: string
+    users: *mut dyn Users
+
+fn post[T < Wire](value: T) -> void:
+    pass
+
+fn demo(row: Row) -> void:
+    post(row)

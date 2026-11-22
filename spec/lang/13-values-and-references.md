@@ -755,6 +755,66 @@ fn shared!(p: *mut Counter) -> i32 $ Clock:
 
 See also: [`ref.convert.lend.loan`](#r-ref.convert.lend.loan), the loan a `*mut T` takes where it converts to `&mut T` or `&T`.
 
+### Frozen Loans
+
+A local reference that a crossing closure captures is a **frozen loan**:
+until its crossing's lifetime ends, nothing writes the place it refers
+to, not even an element store:
+
+```text
+use std.marker.Send
+
+struct Player:
+    score: i32
+
+fn total['s](players: &'s List[Player], code: fn() -> i32 + Send & 's) -> i32:
+    code()
+
+fn demo(players: List[Player]) -> i32:
+    first := &players[0]
+    total(&players, fn() -> i32: first.score)   # first is frozen until 's ends
+```
+
+1. r[ref.frozen.definition] A local reference that a crossing closure captures is a frozen loan of the place it refers to.
+2. r[ref.frozen.lifetime] A frozen loan is live until the lifetime that its crossing parameter's marker bound names ends, whatever its last use.
+3. r[ref.frozen.no-lifetime] A crossing closure for a parameter whose marker bound names no lifetime captures no local reference. Error: `local-reference-escapes`.
+4. r[ref.frozen.write] While a frozen loan is live, a write to its place or to an overlapping place is an error. A store to an element counts, unlike [`ref.elem.access.live-length`](#r-ref.elem.access.live-length). Error: `conflicting-access`.
+5. r[ref.frozen.alias] Where the place is reached through a counted reference, the frozen loan holds that object's run-time loan as a shared loan until the lifetime ends. A write through an alias then panics. Panic: `borrow-conflict`.
+6. r[ref.frozen.alias.lender] That run-time loan stays with the thread that lent the reference: it begins and ends there, never on the thread that runs the closure.
+
+```text
+use std.marker.Send
+
+struct Player:
+    score: i32
+
+struct Scope['s]:
+    done: &'s mut List[i32]
+
+impl['s] Scope['s]:
+    fn spawn(&mut self, code: fn() -> i32 + Send & 's) -> void:
+        self.done.push(code())
+
+fn keep(code: fn() -> i32 + Send) -> i32:
+    code()
+
+fn demo(players: List[Player], s: &mut Scope) -> i32:
+    let mut all = players
+    first := &all[0]
+    s.spawn(fn() -> i32: first.score)
+    all[0].score = 9                        # error: conflicting-access
+    keep(fn() -> i32: first.score)          # error: local-reference-escapes
+```
+
+> **Why.** A thread that reads a place while another writes it races.
+> Rust's `thread::scope` lends the place for the scope, and the join ends
+> the loan; a frozen loan is that loan. Only a `&T` whose `T` is `Send`
+> crosses ([Markers](10-modules.md#markers)), and no box is `Send`, so a
+> thread never meets a run-time loan's state.
+
+See also: [Crossing Closures](07-functions.md#crossing-closures),
+[Element References](#element-references).
+
 ### Lifetime Variables
 
 A **lifetime variable** `'a`, written after `&`, names the lifetime of a local reference. The reference positions that write one variable share its lifetime:

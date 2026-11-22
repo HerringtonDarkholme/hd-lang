@@ -1,0 +1,15 @@
+# test: a crossing closure that calls a function reading a let top-level binding is rejected at the closure
+# Spec 07 Crossing Closures: fn.crossing.global.
+use std.marker.Wire
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+let counter = +0
+
+fn next() -> i32:
+    counter += 1
+    counter
+
+fn demo() -> i32:
+    run(fn() -> i32: next())  # diagnostic: crossing-top-level-binding

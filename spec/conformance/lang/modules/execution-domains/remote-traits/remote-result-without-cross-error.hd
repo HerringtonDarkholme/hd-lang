@@ -1,0 +1,13 @@
+# test: a remote method whose error type does not end in CrossError is rejected
+# Spec 10 Remote Traits: module.remote.r2.result.
+use std.remote.{CrossError, Remote}
+
+struct User:
+    id: i64
+    name: string
+
+enum UserError:
+    Missing(id: i64)
+
+trait Users < Remote:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError] # diagnostic: invalid-remote-method

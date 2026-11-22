@@ -1,0 +1,12 @@
+# test: a remote method with a requirement row is rejected
+# Spec 10 Remote Traits: module.remote.r1.row.
+use std.remote.{CrossError, Remote}
+
+trait Clock:
+    fn now(&self) -> i64
+
+enum StoreError:
+    Missing
+
+trait Store < Remote:
+    fn stamp!(&mut self) -> Result[i64, StoreError | CrossError] $ Clock # diagnostic: invalid-remote-method

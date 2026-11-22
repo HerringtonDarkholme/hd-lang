@@ -1,0 +1,4 @@
+# test: a marker bound inside a parameter's type, rather than on the whole type, is a syntax error
+# Spec 02 Parameters: grammar.fn.crossing-parameter.positions.
+fn run(codes: List[fn() -> i32 + Wire]) -> i32:  # diagnostic: syntax-error
+    0

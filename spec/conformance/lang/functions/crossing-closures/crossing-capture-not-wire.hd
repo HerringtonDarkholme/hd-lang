@@ -1,0 +1,9 @@
+# test: a crossing closure that captures a counted reference for a Wire parameter is rejected
+# Spec 07 Crossing Closures: fn.crossing.captures.
+use std.marker.Wire
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn demo(xs: *mut List[i32]) -> usize:
+    run(fn() -> usize: xs.len())  # diagnostic: unsatisfied-trait-bound

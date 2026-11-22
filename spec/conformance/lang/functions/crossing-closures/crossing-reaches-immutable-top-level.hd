@@ -1,0 +1,11 @@
+# test: a crossing closure may read an immutable top-level binding, which each domain initializes alike
+# Spec 07 Crossing Closures: fn.crossing.global.
+use std.marker.Wire
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+limit := +10
+
+fn demo(n: i32) -> i32:
+    run(fn() -> i32: n + limit)

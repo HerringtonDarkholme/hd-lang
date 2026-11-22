@@ -1,0 +1,11 @@
+# test: a crossing closure that assigns a captured variable is rejected
+# Spec 07 Crossing Closures: fn.crossing.no-write.
+use std.marker.Send
+
+fn spawn[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+fn demo() -> i32:
+    let total = +0
+    spawn(fn() -> void: total += 1)  # diagnostic: crossing-capture-written
+    total

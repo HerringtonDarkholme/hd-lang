@@ -1,0 +1,15 @@
+# test: a type declared impl !Copy is Wire when its fields are, and moves into a Wire parameter
+# Spec 10 Markers: module.marker.not-copy.
+use std.marker.Wire
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn post[T < ?Copy & Wire](value: T) -> T:
+    value
+
+fn demo(photo: Image) -> u32:
+    post(photo).width
