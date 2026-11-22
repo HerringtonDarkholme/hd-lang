@@ -708,6 +708,7 @@ dependencies = [
  "hd_sched",
  "hd_syntax",
  "hd_testkit",
+ "libc",
  "mimalloc",
  "nix",
  "process-wrap",

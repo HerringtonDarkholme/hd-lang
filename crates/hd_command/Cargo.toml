@@ -62,6 +62,8 @@ rustyline = { version = "=18.0.1", default-features = false, optional = true }
 # Node engine's child as SIGUSR2 (`cli.cancel.forward`). Both crates have
 # safe APIs for it; `hd_command` stays free of `unsafe`.
 [target.'cfg(unix)'.dependencies]
+# `getloadavg`, which sizes the default pool (`cli.jobs.default`).
+libc = "=0.2.190"
 nix = { version = "=0.31.3", default-features = false, features = ["signal"] }
 signal-hook = "=0.3.18"
 

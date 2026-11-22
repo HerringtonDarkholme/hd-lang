@@ -26,6 +26,20 @@ mod new_cmd;
 mod node;
 #[cfg(test)]
 mod pipeline_tests;
+#[cfg(test)]
+mod jobs_tests {
+    /// `cli.jobs.default`: the cores less the load, rounded, in 1..=8.
+    #[test]
+    fn the_default_pool_takes_the_free_cores() {
+        let free = |cores, load| super::free_cores(cores, load);
+        assert_eq!(free(14, Some(0.0)), 8);
+        assert_eq!(free(14, Some(10.4)), 4);
+        assert_eq!(free(14, Some(10.5)), 3);
+        assert_eq!(free(14, Some(40.0)), 1);
+        assert_eq!(free(4, None), 4);
+        assert!(super::load_average().is_some_and(|l| l >= 0.0));
+    }
+}
 #[cfg(windows)]
 mod process_job;
 mod repl;
@@ -430,7 +444,7 @@ pub(crate) fn set_jobs(n: usize) {
 }
 
 /// The thread count (`cli.jobs`, `cli.jobs.env`, `cli.jobs.default`): the
-/// flag, else `HD_JOBS`, else the number of cores, at most 8.
+/// flag, else `HD_JOBS`, else the cores other processes leave free.
 pub(crate) fn default_jobs() -> usize {
     let flag = JOBS_FLAG.load(std::sync::atomic::Ordering::Relaxed);
     if flag >= 1 {
@@ -441,10 +455,38 @@ pub(crate) fn default_jobs() -> usize {
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|n| *n >= 1)
         .unwrap_or_else(|| {
-            std::thread::available_parallelism()
-                .map_or(1, std::num::NonZero::get)
-                .min(8)
+            let cores = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+            free_cores(u32::try_from(cores).unwrap_or(u32::MAX), load_average())
         })
+}
+
+/// `cli.jobs.default`: the cores less the 1-minute load average, rounded,
+/// at least 1 and at most 8, so N concurrent `hd` processes do not each
+/// start a pool on every core (#1802 draft 67). With no load average, as
+/// on Windows, every core, at most 8.
+fn free_cores(cores: u32, load: Option<f64>) -> usize {
+    let busy = load.unwrap_or(0.0);
+    (0..cores)
+        .filter(|&k| f64::from(k) + 0.5 > busy)
+        .count()
+        .clamp(1, 8)
+}
+
+/// The system's 1-minute load average, as `uptime` shows it.
+#[cfg(unix)]
+#[allow(unsafe_code)]
+fn load_average() -> Option<f64> {
+    let mut load = [0.0f64; 1];
+    // SAFETY: `getloadavg` writes at most `nelem` samples, here 1, into
+    // the buffer, which holds 1, and keeps no pointer to it.
+    let got = unsafe { libc::getloadavg(load.as_mut_ptr(), 1) };
+    (got == 1 && load[0].is_finite()).then_some(load[0])
+}
+
+/// No load average off Unix: Windows has none.
+#[cfg(not(unix))]
+fn load_average() -> Option<f64> {
+    None
 }
 
 pub(crate) fn executor() -> Executor {

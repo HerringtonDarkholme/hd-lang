@@ -1514,11 +1514,12 @@ HD_JOBS=4 hd check    # four threads
 
 1. r[cli.jobs] `--jobs N` sets the number of threads that `hd` uses to check, build, format, and run tests. N is a whole number of at least 1.
 2. r[cli.jobs.env] The environment variable `HD_JOBS` sets that number when no flag does.
-3. r[cli.jobs.default] Without either, `hd` uses the number of processor cores, or 8 when there are more.
+3. r[cli.jobs.default] Without either, `hd` uses the processor cores that other processes leave free: the number of cores less the system's 1-minute load average when it starts, rounded, at least 1 and at most 8. Where the system gives no load average, as on Windows, it uses the number of cores, or 8 when there are more.
 4. r[cli.jobs.result] The number of threads changes no diagnostic, test outcome, or output order.
 
-> **Why.** Many agents often run `hd` at once on one machine. A cap of 8
-> keeps them from starving each other.
+> **Why.** Many agents often run `hd` at once on one machine. Sizing each
+> run from the free cores, and capping it at 8, keeps them from starving
+> each other.
 
 ## Workspace Mode
 
