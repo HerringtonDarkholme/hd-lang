@@ -1,0 +1,7 @@
+# test: a lazy callback must fit Iterator.next's empty row
+fn noisy(value: i32) -> i32? $ Console:
+    println("$value")
+    .Some(value)
+
+fn rejected(values: List[i32]) -> void:
+    _ := values.iter().filter_map(noisy) # diagnostic: type-mismatch

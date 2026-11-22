@@ -130,6 +130,7 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 | Adapter (lazy) | Gives |
 | --- | --- |
 | `map(f)`, `filter(f)`, `flat_map(f)` | changed or kept items |
+| `filter_map(f)` | the present results of `f(item)` |
 | `enumerate()` | `(index, item)` pairs |
 | `zip(other)`, `chain(other)` | paired or appended items |
 | `take(n)`, `skip(n)`, `take_while(f)` | part of the items |
@@ -138,6 +139,9 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 | --- | --- |
 | `collect()` | a `List` or a `Map`, chosen by the expected type |
 | `count()` | how many items |
+| `last()` | the final remaining item, or `.None` |
+| `position(f)` | the first matching remaining index; borrows and advances the cursor |
+| `for_each(f)` | visits each remaining item by value |
 | `sum()`, `product()` | a total, of the expected type |
 | `fold(initial, f)` | an accumulated value |
 | `any(f)`, `all(f)`, `find(f)` | search |
