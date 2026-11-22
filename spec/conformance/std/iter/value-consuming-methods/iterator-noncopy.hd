@@ -1,0 +1,49 @@
+# test: all four methods accept noncopy items and cursors without extra Copy bounds
+use std.collections.UniqList
+use std.function.FnMut
+
+struct Ticket:
+    label: string
+
+impl !Copy for Ticket
+
+fn tickets() -> UniqList[Ticket]:
+    let mut items = UniqList::[Ticket].new()
+    items.push(Ticket { label: "a" })
+    items.push(Ticket { label: "b" })
+    items
+
+fn each[I < ?Copy & Iterator[T], T < ?Copy, F < ?Copy & FnMut(T) -> void $ R, $ R](
+    source: I,
+    visit: F,
+) -> void $ R:
+    source.for_each(visit)
+
+fn mapped[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?](
+    source: I,
+    transform: F,
+) -> impl Iterator[U]:
+    source.filter_map::[U, F](transform)
+
+tests:
+    use std.testing.assert_equal
+
+    it("last moves the final payload"):
+        final := Iterable::[Ticket]::iter(tickets()).last().unwrap()
+        assert_equal(final.label, "b")
+
+    it("position consumes noncopy payloads and leaves the rest"):
+        let mut cursor = Iterable::[Ticket]::iter(tickets())
+        assert_equal(cursor.position(fn(ticket): ticket.label == "a"), .Some(0))
+        assert_equal(cursor.next().unwrap().label, "b")
+
+    it("filter_map and for_each move each payload into generic callbacks"):
+        let mut labels: List[string] = []
+        each(
+            mapped(
+                Iterable::[Ticket]::iter(tickets()),
+                fn(ticket: Ticket) -> Ticket?: .Some(ticket)
+            ),
+            fn(ticket: Ticket) -> void: labels.push(ticket.label)
+        )
+        assert_equal(labels, ["a", "b"])

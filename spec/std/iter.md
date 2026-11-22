@@ -97,7 +97,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 6. r[std-iter.adapter.fold.owned-drain] `fold` advances `self` until `next` returns `.None`, which exhausts the owned cursor.
 7. r[std-iter.adapter.owned-source] Lazy adapters take `self` by value and store that source value in their returned concrete adapter.
 8. r[std-iter.adapter.mutable-reference-forwarding-noncopy] A mutable reference to an `I < ?Copy & Iterator[T]` implements `Iterator[T]` by forwarding `next` to the referenced cursor.
-9. r[std-iter.adapter.draining-value] Draining methods take `self` by value and advance their owned cursor; passing a mutable cursor reference advances the referenced cursor instead.
+9. r[std-iter.adapter.owned-draining-value] `fold`, `collect`, `any`, `all`, `find`, and `count` take `self` by value and advance their cursor; passing a mutable cursor reference advances the referenced cursor instead.
 10. r[std-iter.adapter.named-layout] Each adapter is a named generic struct holding its source and its callback or traversal state.
 11. r[std-iter.adapter.dyn-bridge] `DynIterator[T]` is an ordinary concrete cursor storing an erased mutable iterator reference and forwarding `next` to it.
 12. r[std-iter.adapter.dyn-forwarding] Inherent adapter and draining methods on `dyn Iterator[T]` take `&mut self` and delegate to a `DynIterator[T]` holding that reference.
@@ -345,3 +345,40 @@ tests:
 
 See also: [Built-In Methods](../lang/10-modules.md#built-in-methods), which
 lists the methods of the built-in types that stay in the language tier.
+
+## Value Consuming Methods
+
+These operations consume each yielded item by value.
+`position` borrows the cursor so the caller can resume after the match.
+
+```text
+fn selected(values: List[i32]) -> List[i32]:
+    values.iter()
+        .filter_map(fn(value):
+            if value > 0: .Some(value * 2) else: .None
+        )
+        .collect()
+```
+
+1. r[std-iter.last.value] `Iterator.last(self) -> T?` returns the final remaining item in `.Some`, or `.None` when the cursor yields none.
+2. r[std-iter.last.drain] `last` consumes its cursor through the first `.None`, retaining only its most recent item.
+3. r[std-iter.position.value] `position[F < ?Copy & FnMut(T) -> bool $ R, $ R](&mut self, test: F) -> usize? $ R` returns the first matching item's zero-based remaining index.
+4. r[std-iter.position.progress] `position` stops immediately after that item; without a match it stops at the first `.None` and returns `.None`.
+5. r[std-iter.position.callback] Each visited item moves into `test` exactly once, and a later call continues from the cursor's current position.
+6. r[std-iter.for-each.value] `for_each[F < ?Copy & FnMut(T) -> void $ R, $ R](self, visit: F) -> void $ R` moves each remaining item into `visit`, in order.
+7. r[std-iter.for-each.drain] `for_each` consumes its cursor through the first `.None`; an empty cursor invokes no callback.
+8. r[std-iter.filter-map.value] `filter_map[U < ?Copy, F < ?Copy & FnMut(T) -> U?](self, transform: F) -> FilterMap[Self, T, U, F]` stores its source and callback without advancing them.
+9. r[std-iter.filter-map.next] Each `FilterMap.next` advances until `transform(item)` returns `.Some(value)`, which it yields, or the source returns `.None`.
+10. r[std-iter.filter-map.order] Each visited item moves into `transform` exactly once, and present results retain source order.
+11. r[std-iter.filter-map.row] The lazy callback has the empty row required by `Iterator.next`; a requirement-bearing callback is a `type-mismatch`.
+12. r[std-iter.filter-map.resume] `FilterMap` stores no exhaustion flag; another `next` calls the source again after `.None`.
+13. r[std-iter.value-methods.generic] These methods accept non-copyable items, cursors, and callbacks; `position` and `for_each` forward each callback's requirement row.
+14. r[std-iter.value-methods.dyn] The inherent methods on `dyn Iterator[T]` use the existing `DynIterator` bridge and share its referenced cursor's progress.
+15. r[std-iter.value-methods.cost] Each operation uses constant iterator state and linear work in the number of visited source items, excluding callback and item release costs.
+16. r[std-iter.filter-map.type] The public `FilterMap[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U? = fn(T) -> U?]` names the adapter's stored types.
+
+> **Why.** These signatures and stopping rules follow Rust's `Iterator` methods.
+> hd uses direct `next` loops because its protocol has no `try_fold` hook.
+> A lazy callback must fit the existing empty-row `next`; eager consumers can forward its row.
+
+> **Note.** `Iterator::[i32]::last(&mut cursor)` explicitly selects the local-reference implementation.
