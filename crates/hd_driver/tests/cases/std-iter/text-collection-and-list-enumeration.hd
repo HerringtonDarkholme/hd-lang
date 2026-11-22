@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: release | release checked
+# @helper: std/text/impl FromIterator[char] for string.from_iter
+# expected: string collection feeds one growing UTF-8 builder; List.enumerate reuses the existing snapshot adapter.
+fn text(values: List[char]) -> string:
+    values.iter().collect()
+
+fn indexed(values: List[i32]) -> usize?:
+    let mut cursor = values.enumerate()
+    match cursor.next():
+        .Some(pair) => .Some(pair._0)
+        .None => .None
