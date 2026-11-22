@@ -1,0 +1,73 @@
+# test: iterator consumers keep order, stopping position, and borrowed progress
+use std.iter.from_fn
+
+fn selected(values: List[i32]) -> List[i32]:
+    values.iter()
+        .filter_map(fn(value):
+            if value > 0: .Some(value * 2) else: .None
+        )
+        .collect()
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("last drains remaining values and handles empty cursors"):
+        let mut cursor = [+1, 2, 3].iter()
+        _ := cursor.next()
+        assert_equal(Iterator::[i32]::last(&mut cursor), .Some(3))
+        assert_equal(cursor.next(), .None)
+        let empty: List[i32] = []
+        assert_equal(empty.iter().last(), .None)
+
+    it("position stops at the first match and keeps the next item"):
+        let mut cursor = [+4, 5, 6, 7].iter()
+        _ := cursor.next()
+        let calls: usize = 0
+        assert_equal(
+            cursor.position(fn(value):
+                calls += 1
+                value == 6
+            ),
+            .Some(1),
+        )
+        assert_equal(calls, 2)
+        assert_equal(cursor.next(), .Some(7))
+        assert_equal(cursor.position(fn(_value): true), .None)
+        assert_equal(calls, 2)
+
+    it("for_each consumes items in order with mutable captures"):
+        let mut seen: List[i32] = []
+        [+3, 1, 2].iter().for_each(fn(value): seen.push(value))
+        assert_equal(seen, [+3, 1, 2])
+        let empty: List[i32] = []
+        empty.iter().for_each(fn(value): seen.push(value))
+        assert_equal(seen.len(), 3)
+
+    it("filter_map is lazy and does not fuse a resumable source"):
+        let calls: usize = 0
+        let mut cursor = from_fn(fn() -> i32?:
+            calls += 1
+            if calls == 2: .None else: .Some(i32(calls))
+        )
+            .filter_map(fn(value): .Some(value * 2))
+        assert_equal(calls, 0)
+        assert_equal(cursor.next(), .Some(2))
+        assert_equal(calls, 1)
+        assert_equal(cursor.next(), .None)
+        assert_equal(cursor.next(), .Some(6))
+        assert_equal(selected([-1, 2, 0, 3]), [+4, 6])
+
+    it("erased cursor methods share their source progress"):
+        let cursor: *mut dyn Iterator[i32] = box([+1, 2, 3, 4].iter())
+        assert_equal(cursor.position(fn(value): value == 2), .Some(1))
+        let values: List[i32] = cursor.filter_map(fn(value): .Some(value + 10)).collect()
+        assert_equal(values, [+13, 14])
+        assert_equal(cursor.last(), .None)
+        cursor.for_each(fn(_value): pass)
+        let tail: *mut dyn Iterator[i32] = box([+8, 9].iter())
+        assert_equal(tail.last(), .Some(9))
+        let remaining: *mut dyn Iterator[i32] = box([+5, 6].iter())
+        let mut seen: List[i32] = []
+        remaining.for_each(fn(value): seen.push(value))
+        assert_equal(seen, [+5, 6])
+        assert_equal(remaining.next(), .None)
