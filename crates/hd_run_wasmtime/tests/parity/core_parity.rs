@@ -1002,7 +1002,6 @@ fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
         hd_run_wasmtime::EngineConfig::default(),
         &wasm,
         &hd_run::HostSetup {
-            providers: vec![],
             grants: hd_run::Grants::default(),
             limits: hd_run::Limits::default(),
             args: vec![],
@@ -1358,7 +1357,6 @@ fn assert_native_program(p: Program) {
         hd_run_wasmtime::EngineConfig::default(),
         &wasm,
         &hd_run::HostSetup {
-            providers: vec![],
             grants: hd_run::Grants::default(),
             limits: hd_run::Limits::default(),
             args: vec![],
@@ -1516,7 +1514,6 @@ fn filesystem_fifo_read_keeps_a_sibling_running_on_both_engines() {
         };
         if mode == 2 {
             let setup = HostSetup {
-                providers: vec![],
                 grants: Grants::default(),
                 limits: Limits {
                     wall_ms: Some(20_000),

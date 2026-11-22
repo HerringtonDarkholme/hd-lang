@@ -245,7 +245,6 @@ fn wasmtime(built: &Built, providers: Vec<Provider>) -> Run {
         input: None,
     };
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::with_consent(consent(&built.root)),
         limits: Limits::default(),
         args: vec![],

@@ -160,7 +160,6 @@ pub fn main!() -> void $ Console:
         #[cfg(feature = "wasmtime")]
         {
             let setup = hd_run::HostSetup {
-                providers: Vec::new(),
                 grants: hd_run::Grants::default(),
                 limits: hd_run::Limits::default(),
                 args: Vec::new(),

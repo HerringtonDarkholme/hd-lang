@@ -879,7 +879,6 @@ fn retained_instance_stops_socket_owner(trap: bool) {
     // so a subsequent raw trap does not append another panic diagnostic.
     let (wasm, expected) = p.finish(7);
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::default(),
         limits: Limits::default(),
         args: vec![],
@@ -933,7 +932,6 @@ fn udp_ipv4_socket_to_numeric_ipv6_reports_the_native_error() {
         EngineConfig::default(),
         &wasm,
         &HostSetup {
-            providers: vec![],
             grants: Grants::default(),
             limits: Limits::default(),
             args: vec![],
@@ -1437,7 +1435,6 @@ fn net_backpressured_write_keeps_a_sibling_running_on_both_engines() {
         };
         if native {
             let setup = HostSetup {
-                providers: vec![],
                 grants: Grants::default(),
                 limits: Limits {
                     wall_ms: Some(20_000),

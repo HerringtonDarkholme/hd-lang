@@ -16,7 +16,6 @@ pub fn run_program(
     node: Option<Ran>,
 ) -> std::io::Result<Ran> {
     let setup = hd_run::HostSetup {
-        providers: Vec::new(),
         grants: hd_run::Grants::default(),
         limits: hd_run::Limits::default(),
         args: Vec::new(),
@@ -79,7 +78,6 @@ pub fn drive_scenario(
     use hd_run_wasmtime::scenario::{Scenario, drive_scenario};
 
     let setup = hd_run::HostSetup {
-        providers: Vec::new(),
         grants: hd_run::Grants::default(),
         limits: hd_run::Limits::default(),
         args: Vec::new(),
@@ -253,7 +251,6 @@ fn native_test_results(
             case.clone(),
             environment.clone(),
             hd_run::HostSetup {
-                providers: Vec::new(),
                 grants: hd_run::Grants::default(),
                 limits: hd_run::Limits::default(),
                 args: Vec::new(),

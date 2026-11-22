@@ -13,7 +13,6 @@ use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 fn setup() -> HostSetup {
     HostSetup {
-        providers: vec![],
         grants: Grants::default(),
         limits: Limits::default(),
         args: vec![],

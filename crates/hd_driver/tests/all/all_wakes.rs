@@ -62,7 +62,6 @@ fn polls(main: &str, checked: bool) -> (usize, String) {
     assert!(out.diags.is_empty(), "{}", out.render());
     let wasm = out.wasm.expect("wasm");
     let setup = hd_run::HostSetup {
-        providers: Vec::new(),
         grants: hd_run::Grants::default(),
         limits: hd_run::Limits::default(),
         args: Vec::new(),

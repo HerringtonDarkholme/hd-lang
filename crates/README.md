@@ -38,7 +38,6 @@ in each crate's `Cargo.toml`.
 | `hd_driver` | The task graph of a run; assembles compiler outputs | [Pipeline and task graph](../docs/compiler/design-overview.md#1-overview) |
 | `hd_lint` | Read-only advice over checked source facts; normal compiler clients do not depend on it | [`hd lint`](../spec/cli/command-line.md) |
 | `hd_doc` | Documentation extraction and rendering | [`hd doc`](hd_command/DESIGN.md#77-hd-doc) |
-| `hd_stdpack` | Build-time standard-library packer | [Standard-library bootstrap](hd_stdpack/DESIGN.md) |
 | `hd_web` | Playground compile session over an in-memory store | [Playground on Wasm](hd_web/DESIGN.md) |
 | `hd_wat` | The playground's lazily loaded WAT printer; independent of the compiler | [Playground on Wasm](hd_web/DESIGN.md) |
 | `hd_testkit` | Determinism and incremental-test support, and the `KNOWN_FAILURES.tsv` reader | [Testing the compiler](../docs/compiler/testing-the-compiler.md) |
@@ -129,7 +128,7 @@ for developer builds. `hd-lang` is outside `default-members`, like
 
 crates.io takes a dependency by name and version, so every crate `hd-lang`
 is built from is published too, as wasmtime-cli and typst-cli publish
-theirs. The others (`hd_web`, `hd_wat`, `hd_stdpack`, `hd_testkit`) say
+theirs. The others (`hd_web`, `hd_wat`, `hd_testkit`) say
 `publish = false`.
 
 | Rule | Where |

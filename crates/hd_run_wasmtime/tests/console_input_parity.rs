@@ -199,7 +199,6 @@ fn check_child(mut command: Command, engine: &str, harness_prefix: bool) {
 
 fn native_child(file: &Path, status: u8) -> ! {
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::default(),
         limits: Limits::default(),
         args: vec![],

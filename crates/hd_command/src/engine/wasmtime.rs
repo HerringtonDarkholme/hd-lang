@@ -164,7 +164,6 @@ impl Session {
                 }),
             };
             let setup = HostSetup {
-                providers: Vec::new(),
                 grants: case.grants.clone(),
                 limits: limits.into(),
                 args: Vec::new(),

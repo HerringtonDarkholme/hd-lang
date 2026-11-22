@@ -112,7 +112,6 @@ pub trait Spawn {
 }
 pub type Exec<'a> = dyn Fn(TaskId, TaskKind, &dyn Spawn) + Sync + 'a;
 pub struct SerialScheduler { pub order: SerialOrder }   // Fifo | Priority | Shuffled(seed)
-pub struct SteppingScheduler { pub order: SerialOrder, pub cancel: CancelFlag }
 pub fn run_pool(graph: TaskGraph, threads: usize, exec: &Exec) -> (TaskGraph, usize) // feature "threads"
 ```
 
@@ -150,12 +149,9 @@ became ready; the driver reports a nonzero count as an internal error.
   or fewer), and would scatter a module's bodies away from its shared
   scope tables. Determinism, fuel, cache keys and TIR stay per item;
   only scheduling coarsens.
-- **Stepping.** `SteppingScheduler::run_for(max_steps)` runs the serial
-  executor for at most `max_steps` tasks and returns `Done`,
-  `Yielded { ran }` or `Cancelled`; the cancel flag is checked before
-  each task. Nothing uses it yet: `hd_web` runs a check to completion.
 
-Planned, not built: browser stepping that returns to JavaScript about
+Planned, not built: a stepping executor, the serial one in slices, for
+browser stepping that returns to JavaScript about
 every 8 ms and cancels a stale run on an edit, with a step of one body
 rather than one task (a `Body` task keeps a cursor into its bodies), so
 the longest uninterruptible step is the largest body. Also planned:
@@ -175,18 +171,17 @@ many others (`ModulePrep`, `FolderGraph`) first.
 ### 6.4 Budgets, Cancellation And The Memory Cap
 
 - **Fuel** is per body (§4.15). A memo hit charges its stored steps.
-- **Cancellation** is `CancelFlag`, an atomic flag; only the stepping
-  executor reads it. `--max-errors` does not cancel checking: output is
-  in content order, and counts in the summary stay exact.
-- **The memory cap** is opt-in (§4.15) and sets the cancellation flag.
-  Implementation differs: `hd_command` counts compiler heap bytes and exits
-  the process with a report when the cap is crossed, cancelling no task;
-  not judged.
+- **Cancellation** is not built: every executor runs a graph to the end.
+  `--max-errors` does not cancel checking: output is in content order, and
+  counts in the summary stay exact.
+- **The memory cap** is opt-in (§4.15). `hd_command` counts compiler heap
+  bytes and exits the process with a report when the cap is crossed,
+  cancelling no task.
 
 Planned, not built: a panic in a task caught at the task boundary and
 reported as an internal error naming the task's item, with the rest of
-the run going on; fuel checking the cancel flag; Ctrl-C cancelling a
-build.
+the run going on; a cancel flag that the stepping executor and fuel
+check; Ctrl-C cancelling a build.
 
 ### 6.5 Deterministic Output Assembly
 

@@ -60,14 +60,6 @@ impl BitArena {
         self.cells[at..at + self.words].fill(0);
     }
 
-    /// State `to` becomes state `from`, or empty when there is none.
-    pub fn copy_or_clear(&mut self, to: usize, from: Option<u32>) {
-        match from {
-            Some(from) => self.copy(to, from as usize),
-            None => self.clear(to),
-        }
-    }
-
     /// `to |= from`; whether `to` grew.
     pub fn union(&mut self, to: usize, from: usize) -> bool {
         charge(self.words);

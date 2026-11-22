@@ -973,7 +973,6 @@ fn execute_with(
     };
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {
-        providers: Vec::new(),
         grants: caps::grants(table, table_dir.unwrap_or(&cwd), flags),
         // A run that Ctrl-C may cancel always has a cleanup bound
         // (`cli.cancel.default`).
@@ -1869,7 +1868,6 @@ mod stored_artifact_tests {
     /// A run of `wasm`'s trap frames.
     fn trap_of(wasm: &[u8]) -> Vec<(u32, u32)> {
         let host = HostSetup {
-            providers: Vec::new(),
             grants: hd_run::Grants::default(),
             limits: engine::ProgramLimits::default().into(),
             args: Vec::new(),

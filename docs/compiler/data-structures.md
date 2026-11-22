@@ -688,7 +688,7 @@ memory-mapped it from the cache.
   demand.
 
 Planned, not built: std's blobs embedded as one pack in the binary
-(`hd_stdpack`). Today the driver embeds std's sources and builds std's
+([std bootstrap](std-bootstrap.md)). Today the driver embeds std's sources and builds std's
 interfaces into the cache on first use.
 
 ### 3.17 Impl Tables

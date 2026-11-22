@@ -908,7 +908,6 @@ fn setup() -> HostSetup {
     .map(|path| (path.to_owned(), GrantValue::All))
     .collect();
     HostSetup {
-        providers: vec![],
         grants: Grants::with_consent(Consent::new(&table, &[])),
         limits: Limits::default(),
         args: vec![],

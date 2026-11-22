@@ -1108,7 +1108,6 @@ fn http_two_instances_send_at_the_same_time() {
             let wasm = wasm.clone();
             std::thread::spawn(move || {
                 let setup = hd_run::HostSetup {
-                    providers: vec![],
                     grants: hd_run::Grants::default(),
                     limits: hd_run::Limits::default(),
                     args: vec![],

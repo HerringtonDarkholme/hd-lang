@@ -125,7 +125,6 @@ fn infinite_loop(function: &mut Function) {
 
 fn setup(wall_ms: Option<u64>) -> HostSetup {
     HostSetup {
-        providers: vec![],
         grants: Grants::default(),
         limits: Limits {
             wall_ms,

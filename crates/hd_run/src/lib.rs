@@ -65,26 +65,7 @@ pub struct Limits {
     pub cleanup_ms: Option<u64>,
 }
 
-/// A host method call's result: ready now, or pending on an operation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CallResult {
-    Ready,
-    Pending(u32),
-}
-
-/// What a provider sees per call.
-pub struct CallCx<'a> {
-    pub grants: &'a Grants,
-}
-
-/// One capability trait's host implementation.
-pub trait Provider: Send + Sync {
-    fn key(&self) -> &str;
-    fn call(&self, method: u32, args: &[u8], out: &mut Vec<u8>, cx: &mut CallCx<'_>) -> CallResult;
-}
-
 pub struct HostSetup {
-    pub providers: Vec<Box<dyn Provider>>,
     pub grants: Grants,
     pub limits: Limits,
     /// The program's arguments, the words after `--` (`cli.args.pass`),
@@ -141,15 +122,6 @@ pub fn drive(inst: &mut dyn Instance, max_polls: usize) -> Outcome {
     Outcome::Internal("poll limit reached".into())
 }
 
-/// Startup refusal (§17.7): no imported capability key may be totally
-/// denied.
-pub fn check_grants(imported_keys: &[&str], grants: &Grants) -> Result<(), StartError> {
-    match imported_keys.iter().find(|k| !grants.allows(k)) {
-        Some(k) => Err(StartError::Refused(format!("capability `{k}` is denied"))),
-        None => Ok(()),
-    }
-}
-
 /// Runs a whole program: the engine-independent part of `hd run`.
 pub fn run_program<E: Engine>(
     engine: &E,
@@ -171,7 +143,7 @@ pub fn run_program<E: Engine>(
 
 #[cfg(test)]
 mod tests {
-    use super::{Grants, Instance, Limit, Outcome, check_grants, drive};
+    use super::{Instance, Outcome, drive};
     use std::task::Poll;
 
     struct Fake {
@@ -209,12 +181,5 @@ mod tests {
         };
         assert_eq!(drive(&mut f, 10), Outcome::Exit(0));
         assert_eq!(f.woke, [1, 2]);
-    }
-
-    #[test]
-    fn ungranted_capability_is_refused() {
-        let g = Grants::with_limits(vec![("FsRead".into(), Limit::Deny)]);
-        assert!(check_grants(&["Console"], &g).is_ok());
-        assert!(check_grants(&["Console", "FsRead"], &g).is_err());
     }
 }

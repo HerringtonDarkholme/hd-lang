@@ -77,7 +77,6 @@ fn run(p: Program) -> Writes {
         input: None,
     };
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::default(),
         limits: Limits::default(),
         args: vec![],

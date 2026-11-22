@@ -61,7 +61,6 @@ fn main() {
     }
     let (wasm, expected) = p.finish(7);
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::with_limits(vec![(
             "Process".into(),
             Limit::Entries(vec!["true".into()]),

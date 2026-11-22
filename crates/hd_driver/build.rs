@@ -1,6 +1,6 @@
 //! Embeds `lib/std`'s sources: until the std pack writer exists (slice 4),
 //! the driver carries std as source text and builds its interfaces like any
-//! dependency's (`docs/compiler/design-overview.md` §2.2 rule 2, `hd_stdpack`).
+//! dependency's (`docs/compiler/design-overview.md` §2.2 rule 2; `docs/compiler/std-bootstrap.md`).
 
 use hd_base::SliceSort as _;
 use std::fmt::Write as _;

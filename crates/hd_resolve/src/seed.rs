@@ -1,4 +1,4 @@
-//! Compiler-supplied std declarations (`crates/hd_stdpack/DESIGN.md`, "Prelude"):
+//! Compiler-supplied std declarations (`docs/compiler/std-bootstrap.md`, "Prelude"):
 //! `std.core`'s primitives, collections, `Option`, `Result`, the `Any`
 //! traits, `panic` and `box`; `std.task`'s suspension protocol; `std.function`'s
 //! function type constructors; `std.testing.it`. Each is an ordinary

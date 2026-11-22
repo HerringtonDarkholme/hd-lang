@@ -163,7 +163,6 @@ fn malformed_reply_shapes_fail_before_output_or_filesystem_effects() {
             .instantiate_with(
                 &program,
                 &HostSetup {
-                    providers: Vec::new(),
                     grants: hd_run::Grants::default(),
                     limits: hd_run::Limits::default(),
                     args: Vec::new(),
@@ -271,7 +270,6 @@ fn wake_delivers_the_supplied_batch_without_a_completed_preload() {
         .instantiate_with(
             &module,
             &HostSetup {
-                providers: Vec::new(),
                 grants: hd_run::Grants::default(),
                 limits: hd_run::Limits::default(),
                 args: Vec::new(),
@@ -353,7 +351,6 @@ fn empty_wake_batch_does_not_require_an_exchange_buffer() {
         .instantiate_with(
             &module,
             &HostSetup {
-                providers: Vec::new(),
                 grants: hd_run::Grants::default(),
                 limits: hd_run::Limits::default(),
                 args: Vec::new(),
@@ -447,7 +444,6 @@ fn guard_page_fault_is_a_trap() {
         EngineConfig::default(),
         &wasm.finish(),
         &hd_run::HostSetup {
-            providers: Vec::new(),
             grants: hd_run::Grants::default(),
             limits: hd_run::Limits::default(),
             args: Vec::new(),

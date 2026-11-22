@@ -7,10 +7,9 @@ pack would hold. `hd_driver::std_sources` embeds `lib/std` at build time and
 adds one virtual module, `rt/entry/mod.hd` (`hd_driver::RT_SOURCE`). Every run checks
 std from these sources, with the cache in front.
 
-`hd_stdpack::build_pack` runs the driver over std and refuses until every
-stage through `ModuleFinish` passes. Planned, not built: the pack writer
-(std's folder interface blobs, by folder, embedded in `hd_driver` in place
-of source-backed std interfaces).
+Planned, not built: a std pack, std's folder interface blobs by folder,
+written at build time and embedded in `hd_driver` in place of
+source-backed std interfaces.
 
 ## Prelude
 
