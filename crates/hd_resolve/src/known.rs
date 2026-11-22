@@ -221,6 +221,8 @@ pub struct KnownItems {
     pub send: DefId,
     pub wire: DefId,
     pub remote: DefId,
+    /// `std.remote.CrossError` (`module.cross.decl`).
+    pub cross_error: DefId,
     // std.task
     pub suspend: DefId,
     /// `std.rt.memory.Buffer`, raw memory whose room holds values of its
@@ -550,6 +552,7 @@ impl KnownItems {
             send,
             wire,
             remote,
+            cross_error: item("std.remote", "CrossError"),
         }
     }
 

@@ -785,8 +785,8 @@ lang/10-modules.md	102	complete	lang/modules/wasm-boundary/closable-handle-close
 lang/10-modules.md	103	complete	-
 lang/10-modules.md	104	complete	-
 lang/10-modules.md	105	mixed	lang/modules/execution-domains/markers/marker-trait-with-member.hd|lang/modules/execution-domains/markers/wire-implementation-is-sealed.hd|lang/modules/execution-domains/markers/box-field-is-not-wire.hd
-lang/10-modules.md	106	known-failure	-
-lang/10-modules.md	107	known-failure	-
+lang/10-modules.md	106	complete	-
+lang/10-modules.md	107	mixed	lang/modules/execution-domains/remote-traits/remote-method-not-bang.hd|lang/modules/execution-domains/remote-traits/remote-method-closure-parameter.hd|lang/modules/execution-domains/remote-traits/remote-method-generic.hd|lang/modules/execution-domains/remote-traits/remote-result-without-cross-error.hd|lang/modules/execution-domains/remote-traits/remote-implementation-with-cross-error.hd
 lang/10-modules.md	108	known-failure	-
 lang/10-modules.md	109	complete	-
 lang/11-requirements-and-suspension.md	1	complete	-

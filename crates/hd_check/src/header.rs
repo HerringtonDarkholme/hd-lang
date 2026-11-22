@@ -423,8 +423,8 @@ enum Work {
 }
 
 /// One item's goals: its environment, memo and fuel.
-struct ItemCheck<'c, 'a> {
-    cx: &'c HeaderCx<'a>,
+pub(crate) struct ItemCheck<'c, 'a> {
+    pub(crate) cx: &'c HeaderCx<'a>,
     env: ParamEnv,
     memo: BodyMemo,
     cycles: crate::value::ProjectionCycles<'static>,
@@ -498,19 +498,19 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
 }
 
 impl<'a> ItemCheck<'_, 'a> {
-    fn pool(&self) -> Types<'a> {
+    pub(crate) fn pool(&self) -> Types<'a> {
         self.cx.names.pool.types()
     }
 
     /// `t` for a message. An alias's types name its parameters by
     /// position ([`hd_resolve::KnownItems::alias_params`]); they are shown
     /// by the names the alias writes them with.
-    fn show(&self, t: Ty) -> String {
+    pub(crate) fn show(&self, t: Ty) -> String {
         let _shown = self.alias.then(|| hd_resolve::ShowAlias::enter(self.item));
         hd_resolve::show_ty(&self.cx.names, t)
     }
 
-    fn report(&mut self, slot: u32, code: Code, message: String) {
+    pub(crate) fn report(&mut self, slot: u32, code: Code, message: String) {
         self.out.push(Finding {
             item: self.item,
             slot,
@@ -630,6 +630,21 @@ impl<'a> ItemCheck<'_, 'a> {
                 Code::UnsatisfiedTraitBound,
                 message,
             );
+        }
+        // R1 and R2 on each method of a remote trait (`module.remote.r1.*`).
+        if let ItemData::Method { owner, sig, .. } = &it.data
+            && matches!(
+                self.cx.lookup.item(*owner).map(|o| &o.data),
+                Some(ItemData::Trait(_))
+            )
+            && crate::remote::is_remote_trait(
+                self.cx.lookup,
+                self.pool(),
+                self.cx.names.known,
+                *owner,
+            )
+        {
+            self.remote_method(sig)?;
         }
         // `fn.crossing.parameter.marker`: a marker bound names a marker.
         if let ItemData::Fn(sig, _) | ItemData::Method { sig, .. } = &it.data {
@@ -1686,7 +1701,7 @@ impl<'a> ItemCheck<'_, 'a> {
 
     /// Whether a written bound goal provably fails under the item's
     /// environment. This is [`Self::fails`] after the bound is substituted.
-    fn fails_ref(&mut self, tref: TraitRef, slot: u32) -> StageResult<bool> {
+    pub(crate) fn fails_ref(&mut self, tref: TraitRef, slot: u32) -> StageResult<bool> {
         Ok(matches!(self.answer_ref(tref, slot)?, Answer::Fails(_)))
     }
 

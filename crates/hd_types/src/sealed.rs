@@ -89,7 +89,7 @@ impl SealedTraits {
     /// The traits a row of this module answers goals on
     /// ([`Self::supplies`]); `DefId::NONE` for one std does not declare.
     #[must_use]
-    pub fn supplied(&self) -> [DefId; 14] {
+    pub fn supplied(&self) -> [DefId; 15] {
         [
             self.any,
             self.any_val,
@@ -105,6 +105,7 @@ impl SealedTraits {
             self.send,
             self.wire,
             self.marker,
+            self.remote,
         ]
     }
 
@@ -265,7 +266,8 @@ pub(crate) fn row(
     }
     // `Marker`: every type, so it constrains only the traits that extend
     // it (`trait.sealed.marker`).
-    if trait_ == s.marker {
+    // `Remote` too (`trait.sealed.remote`).
+    if trait_ == s.marker || trait_ == s.remote {
         return holds(BuiltinImpl::Marker);
     }
     if let TyData::Infer(v) = t {

@@ -55,6 +55,7 @@ mod providers;
 mod receiver;
 mod refs;
 mod regions;
+mod remote;
 mod render;
 mod repair;
 pub mod results;

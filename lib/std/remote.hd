@@ -1,0 +1,53 @@
+# std.remote: the language items of execution boundaries that the compiler's
+# generated stubs and dispatchers name (spec/lang/10-modules.md#remote-built-ins).
+# `per_request`, `home`, `action` and the HTTP adapters are plain std over
+# these, in the stdlib tier.
+
+## A marker for interface traits whose methods another target may run.
+## Every type has it; a trait that extends it is a remote trait.
+## See [module.remote.std](../../spec/lang/10-modules.md#r-module.remote.std).
+pub trait Remote < ?Copy
+
+## How one crossing failed.
+## See [module.cross.decl](../../spec/lang/10-modules.md#r-module.cross.decl).
+@error
+@derive(Debug, Eq)
+pub enum CrossError:
+    ## The call never left.
+    @error("unreachable")
+    Unreachable
+    ## It left and no answer came, or the answer does not decode; it may have run.
+    @error("no answer")
+    Unknown
+    ## The destination runs another build and refused.
+    @error("another build")
+    OtherBuild
+    ## The call named an object its destination does not serve.
+    @error("not served here")
+    WrongHome
+
+## Carries call frames to one home.
+## See [module.remote.items](../../spec/lang/10-modules.md#r-module.remote.items).
+pub trait Transport:
+    ## Sends one call frame and returns the encoded reply.
+    fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]
+
+## Who a call comes from, as the home verified it.
+pub struct Session:
+    pub id: string
+
+## What a request factory returns: a root and the session of its caller.
+pub struct Rooted[S]:
+    pub root: S
+    pub session: Session
+
+## Why a home turned a caller away before any call.
+pub struct Refused:
+    pub reason: string
+
+## Every answer a home sends, before any application payload.
+pub enum Reply:
+    ## The call ran: an encoded `Result[V, E]`.
+    Ran(payload: List[u8])
+    ## It did not run.
+    Refused(error: CrossError)

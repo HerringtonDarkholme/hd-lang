@@ -342,6 +342,22 @@ impl Ck<'_, '_> {
         if resolved != sig.ret {
             checked.to_mut().ret = resolved;
         }
+        // R2: an implementation of a remote method declares the trait's
+        // result without `CrossError` (`module.remote.r2.impl`).
+        let narrowed;
+        let tsig = match crate::remote::is_remote_trait(self.cx.lookup, pool, known, trait_)
+            .then(|| crate::remote::raw_result(pool, known, tsig.ret))
+            .flatten()
+        {
+            Some(raw) => {
+                narrowed = FnSig {
+                    ret: raw,
+                    ..tsig.clone()
+                };
+                &narrowed
+            }
+            None => tsig,
+        };
         if let Some(why) = Self::sig_differs(pool, (tsig, &checked), free_bounds, (&inst, &bound))
             && !(omitted && why == "the result type")
         {
