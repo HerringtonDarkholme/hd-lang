@@ -3,3 +3,4 @@ lang/modules/execution-domains/remote-traits/remote-local-call-wraps-error.hd	#2
 lang/modules/execution-domains/remote-builtins/remote-builtin-returns-stub.hd	#2288		no `remote::[T]` or `handle_call!` built-in yet (stage 3 of #2288)
 lang/modules/execution-domains/remote-builtins/remote-builtin-non-remote-trait.hd	#2288		no `remote::[T]` or `handle_call!` built-in yet (stage 3 of #2288)
 lang/modules/execution-domains/remote-builtins/handle-call-root-not-remote.hd	#2288		no `remote::[T]` or `handle_call!` built-in yet (stage 3 of #2288)
+std/iter/value-consuming-methods/local-reference-dot-last-progress.hd	#2286		Dot lookup selects the referent value iterator instead of the local mutable reference iterator, so the source cursor does not advance.
