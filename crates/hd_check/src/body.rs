@@ -604,6 +604,13 @@ pub(crate) struct Ck<'a, 'c> {
     /// inferred, never `void` by declaration, so a final value is not a
     /// `void-final` error even when checking runs with a `void` want.
     pub result_omitted: bool,
+    /// The function's crossing parameters (`fn.crossing.parameter`): each
+    /// local with its marker.
+    pub crossing_params: Vec<(LocalId, DefId)>,
+    /// The name nodes where reading a crossing parameter is allowed: a
+    /// call's callee, or a whole argument for another crossing parameter
+    /// (`fn.crossing.parameter.uses`).
+    pub crossing_uses: HashSet<hd_base::NodeIdx>,
     /// The tail expression of the function body block, when it is an `if`
     /// without `else`: that `if` is `missing-return-value`, not a value
     /// `if` (`flow.if.value.else` reports every other value position).
@@ -921,6 +928,8 @@ pub(crate) fn new_ck<'a, 'c>(
         reserve_into: None,
         fn_body: None,
         result_omitted: false,
+        crossing_params: Vec::new(),
+        crossing_uses: HashSet::default(),
         fn_body_tail: None,
         written_row: None,
         let_view: None,
@@ -1599,12 +1608,15 @@ fn fn_body_steps(
     // `I::Item` and `T` are one type under `I < Supplier[Item = T]`
     // (`trait.binding.interchangeable`).
     ck.declared_tys.insert(sig.ret);
-    for (name, ty) in sig.params.clone() {
+    for (k, (name, ty)) in sig.params.clone().into_iter().enumerate() {
         let ty = ck.norm_ty(ty);
         ck.declared_tys.insert(ty);
         ck.header_tys.push(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes.base_mut().insert(name, l);
+        if let Some(c) = sig.crossing.iter().find(|c| usize::from(c.param) == k) {
+            ck.crossing_params.push((l, c.marker));
+        }
     }
     if !infer.ret {
         let ret = ck.norm_ty(sig.ret);
@@ -2090,6 +2102,17 @@ impl Ck<'_, '_> {
         }
         if !self.note_read(l, depth, n) {
             return self.poison_value(n);
+        }
+        // `fn.crossing.parameter.uses`: a crossing parameter is called or
+        // passed on whole, never kept.
+        if self.crossing_params.iter().any(|&(c, _)| c == l)
+            && !self.crossing_uses.contains(&n.index())
+        {
+            self.err(
+                Code::CrossingClosureNotLiteral,
+                n,
+                "a crossing parameter may only be called, or passed on whole to another crossing parameter",
+            );
         }
         let t = self.b.local_ty(l);
         if self.pool().has_poison(t) {

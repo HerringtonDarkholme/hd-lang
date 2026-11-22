@@ -384,6 +384,9 @@ pub(crate) struct Formals<'a> {
     /// `Fn` or `FnMut` bound. It supplies closure parameter types without
     /// fixing the parameter to the dynamic `fn` representation.
     pub closure_wants: Option<&'a [Option<FnWant>]>,
+    /// The callee's crossing parameters (`fn.crossing.parameter`), by
+    /// index among `params`.
+    pub crossing: &'a [hd_resolve::Crossing],
 }
 
 /// A bare generic parameter's function bound, as [`Formals`] reads it.
@@ -1234,6 +1237,9 @@ impl Ck<'_, '_> {
                             }),
                         );
                     }
+                    // A call of a crossing parameter is its one use
+                    // (`fn.crossing.parameter.uses`).
+                    self.crossing_uses.insert(callee.index());
                     let (f, ft) = self.read_local(l, d, callee);
                     return self.call_value(f, ft, args, n, bang);
                 }
@@ -1887,6 +1893,7 @@ impl Ck<'_, '_> {
                 inferred: &inferred,
                 closure_wants: None,
                 destination: ArgumentDestination::Call,
+                crossing: &[],
             };
             self.local_defaults = Some(crate::local::LocalDefaults {
                 defaults: form.defaults.clone(),
@@ -1917,6 +1924,7 @@ impl Ck<'_, '_> {
                 inferred: &inferred,
                 closure_wants: None,
                 destination: ArgumentDestination::Call,
+                crossing: &[],
             };
             self.check_args(&formals, 0, args, n, "the function value")?
         };
@@ -2144,6 +2152,7 @@ impl Ck<'_, '_> {
             inferred: &[],
             closure_wants: Some(&closure_wants),
             destination,
+            crossing: &[],
         };
         self.check_args(&formals, 0, args, n, name)
     }
@@ -2183,6 +2192,70 @@ impl Ck<'_, '_> {
             return Ok(w);
         }
         Ok(self.open_projections(w, ProjectSite::Argument, e))
+    }
+
+    /// The marker of crossing parameter `j` when `e` is its argument
+    /// (`fn.crossing.literal`): a closure literal written at the call, or
+    /// the caller's own crossing parameter of the same marker, passed on
+    /// whole. Anything else is reported here.
+    fn crossing_arg(
+        &mut self,
+        formals: &Formals<'_>,
+        j: usize,
+        e: NodeRef<'_>,
+        trailing: bool,
+    ) -> Option<DefId> {
+        let c = formals
+            .crossing
+            .iter()
+            .find(|c| usize::from(c.param) == j)?;
+        let forwarded = e.kind() == SyntaxKind::NameExpr
+            && self.find_local(self.sym_of(e)).is_some_and(|(l, _)| {
+                self.crossing_params
+                    .iter()
+                    .any(|&(p, m)| p == l && m == c.marker)
+            });
+        if forwarded {
+            self.crossing_uses.insert(e.index());
+        } else if !trailing && e.kind() != SyntaxKind::ClosureExpr {
+            // One report: the read below is this argument's.
+            self.crossing_uses.insert(e.index());
+            self.err(
+                Code::CrossingClosureNotLiteral,
+                e,
+                "a crossing parameter takes a closure written at the call; a function value hides its captures",
+            );
+        }
+        Some(c.marker)
+    }
+
+    /// `fn.crossing.captures`: each capture of the closure `r`, written
+    /// for a crossing parameter, has its marker. Each is a bound goal on
+    /// the capture's type, which waits for inference as a call's bounds do.
+    fn crossing_captures(&mut self, marker: Option<DefId>, r: Ref, e: NodeRef<'_>) {
+        let Some(marker) = marker else { return };
+        let closure = r
+            .as_inst()
+            .is_some_and(|i| self.b.body().tags[i.0 as usize] == hd_tir::ir::Tag::Closure);
+        if !closure {
+            return;
+        }
+        for l in self.closure_caps(r) {
+            let tref = TraitRef {
+                trait_: marker,
+                self_ty: self.b.local_ty(l),
+                args: TyList::EMPTY,
+            };
+            self.note_impl_use(marker, None);
+            self.pending.push(crate::body::PendingGoal {
+                region_source: None,
+                tref,
+                at: e.index(),
+                kind: crate::body::Waiting::Bound {
+                    code: Code::UnsatisfiedTraitBound,
+                },
+            });
+        }
     }
 
     /// Checks arguments against parameters (positional, then named by
@@ -2290,7 +2363,9 @@ impl Ck<'_, '_> {
             let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
+            let crossing = self.crossing_arg(formals, skip + i, *e, false);
             let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
+            self.crossing_captures(crossing, r, *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
@@ -2422,7 +2497,9 @@ impl Ck<'_, '_> {
             let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
+            let crossing = self.crossing_arg(formals, skip + i, *e, false);
             let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
+            self.crossing_captures(crossing, r, *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
@@ -2488,11 +2565,13 @@ impl Ck<'_, '_> {
                             .is_some_and(Option::is_some);
                     let scoped = last_want.map_or(!last_is_generic, |f| f.scoped);
                     let before = self.diags.mark();
+                    let crossing = self.crossing_arg(formals, skip + last, block, true);
                     let (r, t) = self.trailing_closure(
                         block,
                         last_want.map_or(w, |f| f.ty),
                         scoped && formals.destination.storage().is_none(),
                     )?;
+                    self.crossing_captures(crossing, r, block);
                     if let Some(place) = formals.destination.storage()
                         && self.diags.errors_since(before) == 0
                     {
@@ -2986,6 +3065,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                     closure_wants: Some(&closure_wants),
                     destination: ArgumentDestination::Call,
+                    crossing: &sig.crossing,
                 };
                 let refs = self.check_args(&formals, 0, args, n, &name)?;
                 // A rejected argument makes the call an error value, so
@@ -4259,6 +4339,7 @@ impl Ck<'_, '_> {
                 inferred: &inferred,
                 closure_wants: Some(&closure_wants),
                 destination: ArgumentDestination::Call,
+                crossing: &sig.crossing,
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -5571,6 +5652,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                     closure_wants: Some(&closure_wants),
                     destination: ArgumentDestination::Call,
+                    crossing: &sig.crossing,
                 };
                 let before = self.diags.len();
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
@@ -5641,6 +5723,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                     closure_wants: None,
                     destination: ArgumentDestination::Call,
+                    crossing: &[],
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 if op == IntrinsicOp::MapGet && self.cx.source_facts.is_some() {
@@ -5979,6 +6062,7 @@ impl Ck<'_, '_> {
             inferred: &inferred,
             closure_wants: Some(&closure_wants),
             destination: ArgumentDestination::Call,
+            crossing: &sig.crossing,
         };
         let method_name = self
             .cx

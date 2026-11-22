@@ -785,10 +785,13 @@ impl Ck<'_, '_> {
     pub(crate) fn check_moves(&mut self, root: Ref, cx: &mut Uses) -> MoveFacts {
         let pool = self.pool();
         let mut facts = MoveFacts::default();
+        // A crossing parameter is called at most once: its call moves it
+        // (`fn.crossing.once`).
+        let crossing: Vec<LocalId> = self.crossing_params.iter().map(|&(l, _)| l).collect();
         let held: Vec<bool> = (0..self.b.body().local_ty.len())
             .map(|i| {
                 let ty = self.b.body().local_ty[i];
-                !self.copies_in(&mut cx.q, ty)
+                crossing.iter().any(|l| l.idx() == i) || !self.copies_in(&mut cx.q, ty)
             })
             .collect();
         if !(0..held.len()).any(|l| held[l] && !cx.hidden[l]) {
@@ -844,11 +847,15 @@ impl Ck<'_, '_> {
         for i in 0..n {
             let Some(a) = &acc[i] else { continue };
             let field_copies = !a.path.is_empty() && cx.copied[i];
+            let called = crossing.contains(&a.local)
+                && cx.users[i].iter().any(|&(u, _)| {
+                    b.tags[u as usize] == Tag::CallValue && b.data[u as usize][0] == w(i)
+                });
             if b.tags[i] != Tag::Read
                 || link[i]
                 || !a.exact
                 || field_copies
-                || !self.moves(cx, w(i))
+                || !(called || self.moves(cx, w(i)))
             {
                 continue;
             }
@@ -911,6 +918,10 @@ impl Ck<'_, '_> {
             } else if !path.is_empty() {
                 format!(
                     "a field of `{name}` was moved out before this use; assign the field again to use `{name}` whole"
+                )
+            } else if crossing.iter().any(|c| c.idx() == l) {
+                format!(
+                    "`{name}` is a crossing parameter, which runs once; an earlier call moved it"
                 )
             } else if is_mut_ref(self.pool(), b.local_ty[l]) {
                 format!(
