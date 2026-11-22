@@ -5,7 +5,7 @@ crossings) and std. The language rules are in the specification (stage 0 of #228
 [Execution Domains](../../spec/lang/10-modules.md#execution-domains),
 [Crossing Closures](../../spec/lang/07-functions.md#crossing-closures) and
 [Frozen Loans](../../spec/lang/13-values-and-references.md#frozen-loans). The compiler does not
-implement them yet.
+implement them yet; [EXECUTION_BOUNDARIES_PLAN.md](EXECUTION_BOUNDARIES_PLAN.md) stages the work.
 
 - [1. Context And Goal](#1-context-and-goal)
 - [2. Eight Programs That Cross](#2-eight-programs-that-cross)
