@@ -64,6 +64,7 @@ pub(crate) struct Checkpoint {
     diags: DiagMark,
     pending: usize,
     region_uses: usize,
+    marker_uses: usize,
     tool_facts: crate::comparison::FactsMark,
     mut_bindings: usize,
     ref_taken: usize,
@@ -266,6 +267,7 @@ impl Ck<'_, '_> {
             diags: self.diags.mark(),
             pending: self.pending.len(),
             region_uses: self.region_uses.len(),
+            marker_uses: self.marker_uses.len(),
             tool_facts: self.tool_facts.mark(),
             mut_bindings: self.mut_bindings.len(),
             ref_taken: self.ref_taken.len(),
@@ -358,6 +360,7 @@ impl Ck<'_, '_> {
         self.diags.truncate(c.diags);
         self.pending.truncate(c.pending);
         self.region_uses.truncate(c.region_uses);
+        self.marker_uses.truncate(c.marker_uses);
         self.lit_nodes.truncate(c.lit_nodes);
         self.overflow_lits.truncate(c.overflow_lits);
         self.neg_nodes.truncate(c.neg_nodes);
