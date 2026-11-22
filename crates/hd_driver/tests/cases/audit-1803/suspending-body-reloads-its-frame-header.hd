@@ -1,6 +1,6 @@
 # @build: release
 # @dump: wat
-# expected: audit #1803 draft 86 (#2203). The flags word is loaded once to set
+# expected: audit #1803 draft 86 (#2203, closed: measured). The flags word is loaded once to set
 # RUNNING, and one test of the frame picks the save area and readies a fresh
 # one. Still open: the RUNNING guard and the resume state each test the frame
 # again (they are made by separate stages); one prologue would test it once.

@@ -1,6 +1,6 @@
 # @build: release
 # @dump: wat
-# expected: audit #1803 draft 55 (#2205). Every point parks at one Pending exit
+# expected: audit #1803 draft 55 (#2205, closed: measured). Every point parks at one Pending exit
 # and every cancellation leaves by one exit per body, and a child's cancel is
 # one `rt:cancel_child` call: 50 awaits 25,385 B, 500 awaits 131,659 B (was
 # 35,682 / 234,431), about 236 bytes an await (was 442), ratio 5.2 (was 6.6).
