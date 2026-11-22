@@ -534,14 +534,30 @@ function rtImports({
   };
 }
 
+// A float's text as `Enc.str` writes it: its length, one LEB byte for
+// fewer than 128 bytes, then its bytes. The text is ASCII, so its bytes
+// are its UTF-16 code units, written straight into an exact array with
+// no encoder, no UTF-8 pass and no second copy.
+function ascii(text: string): Uint8Array | Enc {
+  if (text.length >= 128) {
+    return new Enc().str(text);
+  }
+  const bytes = new Uint8Array(text.length + 1);
+  bytes[0] = text.length;
+  for (let i = 0; i < text.length; i++) {
+    bytes[i + 1] = text.charCodeAt(i);
+  }
+  return bytes;
+}
+
 // The host primitives of std (spec/std/README.md#standard-library-
 // primitives): a float arrives as its value, and the text goes back
 // in the exchange buffer as a string.
 function primImports({ put, text, env }: DynamicRecord): Record<string, ProviderFunction> {
   return {
-    format_f64: (value) => put(new Enc().str(shortest(value, 64))),
-    format_f32: (value) => put(new Enc().str(shortest(value, 32))),
-    format_f64_fixed: (value, digits) => put(new Enc().str(fixed(value, Number(digits)))),
+    format_f64: (value) => put(ascii(shortest(value, 64))),
+    format_f32: (value) => put(ascii(shortest(value, 32))),
+    format_f64_fixed: (value, digits) => put(ascii(fixed(value, Number(digits)))),
     string_lower: (len) => put(new Enc().str(lower(text(len)))),
     string_upper: (len) => put(new Enc().str(upper(text(len)))),
     parse_f64: (len) => parse(text(len)),
