@@ -2490,6 +2490,7 @@ pub fn result_key(
     if package == "std" {
         return None;
     }
+    let _span = phase("result key");
     let e = embedded_std();
     let ins = package_ins(host, package, packages, &e.sources);
     let mut table = ModuleTable::discover_all(&ins);
@@ -2511,6 +2512,11 @@ pub fn result_key(
         toolchain,
         key: key?,
     })
+}
+
+/// A named serial phase of the run in the timing trace (`hd_base::trace`).
+fn phase(name: &'static str) -> hd_base::trace::Span {
+    hd_base::trace::span("phase", || name.to_owned())
 }
 
 /// See [`result_key`].
@@ -2575,7 +2581,10 @@ fn build_packages_inner(
     // A table its result key discovered and stamped is taken as it is.
     let taken = packages.discovered.and_then(|d| lock(&d.0).take());
     let stamped = taken.is_some();
-    let (mut table, read) = taken.unwrap_or_else(|| (ModuleTable::discover_all(&ins), Vec::new()));
+    let (mut table, read) = taken.unwrap_or_else(|| {
+        let _span = phase("discover");
+        (ModuleTable::discover_all(&ins), Vec::new())
+    });
     // Texts are read on first use: a warm run takes an unchanged file's
     // skim from its set's last-run record and reads no text it does not
     // check (`crates/hd_cache/DESIGN.md` §5.5).
@@ -2594,11 +2603,13 @@ fn build_packages_inner(
         &format!("a1=bounded;std={:032x}", std_hash.0),
     );
     if !stamped {
+        let _span = phase("stamps");
         stamps::resolve(&mut table, &sets, &lazy, host.store, toolchain);
     }
     // A warm `hd check` whose every listed file kept its stamp takes the
     // stored package result: no record decode and no per-module lookup
     // (#1510).
+    let stored = phase("package result");
     let result_key = package_result::key(
         false,
         goal,
@@ -2621,6 +2632,8 @@ fn build_packages_inner(
     {
         return stored_output(&table, &lazy, stored, package, packages, toolchain);
     }
+    drop(stored);
+    let setup = phase("run setup");
     // Std's skims come from the toolchain's entry, unless std is the root
     // package, whose files are the user's.
     let identities: Vec<Option<(Hash128, bool)>> = sets
@@ -2927,7 +2940,9 @@ fn build_packages_inner(
         };
         lock(&run.diags).error(*code, span, message);
     }
+    drop(setup);
     {
+        let _span = phase("tasks");
         let mut g = TaskGraph::default();
         let mut skims = Vec::new();
         for (file, i) in (0u32..).zip(0..n) {
@@ -2981,6 +2996,7 @@ fn build_packages_inner(
     } else {
         Vec::new()
     };
+    let records = phase("records");
     run.rows.finish(&run.table);
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
@@ -2992,6 +3008,8 @@ fn build_packages_inner(
         }
         .or_default() += 1;
     }
+    drop(records);
+    let _span = phase("output");
     let mut counters = lock(&run.counters).clone();
     counters.body_passes = run.planner.pass_runs();
     // The interface item records this run decoded from blobs (#213).
@@ -3933,6 +3951,20 @@ impl Run<'_> {
     }
 
     fn exec_task(&self, _id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
+        // A module's or folder's task is named by its path.
+        let _span = hd_base::trace::span("task", || match kind {
+            TaskKind::Skim(i)
+            | TaskKind::Parse(i)
+            | TaskKind::ModulePrep(i)
+            | TaskKind::Body(i)
+            | TaskKind::ModuleFinish(i) => {
+                format!("{} {}", kind.name(), self.table.modules[i as usize].path)
+            }
+            TaskKind::FolderIface(i) | TaskKind::HeaderCheck(i) | TaskKind::InitOrder(i) => {
+                format!("{} {}", kind.name(), self.table.folders[i as usize].path)
+            }
+            _ => kind.name().to_owned(),
+        });
         let t0 = self.host.clock.now_ns();
         let mut child_ns = 0;
         match kind {

@@ -353,3 +353,43 @@ fn a_check_discovers_each_module_once() {
         "unchanged: 4 modules {small:?}, 16 {large:?}"
     );
 }
+
+/// #1802 draft 31: `HD_TRACE=FILE` writes Chrome trace-event JSON with one
+/// complete event per task, named by its module or folder, and per named
+/// serial phase of the run.
+#[test]
+fn a_trace_names_each_task_and_the_serial_phases() {
+    let dir = package("work-trace");
+    let trace = dir.join("trace.json");
+    let out = hd_testkit::node::child(env!("CARGO_BIN_EXE_hd"))
+        .env("HD_CACHE", dir.cache())
+        .env("HD_TRACE", &trace)
+        .current_dir(&dir)
+        .arg("check")
+        .output()
+        .expect("run hd");
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&trace).expect("trace")).expect("json");
+    let events = json["traceEvents"].as_array().expect("events");
+    let named = |cat: &str, name: &str| {
+        events
+            .iter()
+            .any(|e| e["ph"] == "X" && e["cat"] == cat && e["name"] == name && e["dur"].is_u64())
+    };
+    assert!(named("task", "ModulePrep shop.main"), "{json}");
+    for phase in [
+        "load package",
+        "result key",
+        "tasks",
+        "records",
+        "publish",
+        "settle",
+    ] {
+        assert!(named("phase", phase), "{phase}: {json}");
+    }
+}

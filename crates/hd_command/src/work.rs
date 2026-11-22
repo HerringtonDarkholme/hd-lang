@@ -66,6 +66,32 @@ pub(crate) fn start() -> Option<std::ffi::OsString> {
     Some(file)
 }
 
+/// Turns the timing trace on when `HD_TRACE` names a file
+/// (`hd_base::trace`), and returns the file.
+pub(crate) fn start_trace() -> Option<std::ffi::OsString> {
+    let file = std::env::var_os("HD_TRACE").filter(|f| !f.is_empty())?;
+    hd_base::trace::start();
+    Some(file)
+}
+
+/// Writes the trace to `file` as Chrome trace-event JSON: one complete
+/// (`X`) event per task and phase, in µs. A write that fails is reported
+/// on stderr and does not change the exit status.
+pub(crate) fn finish_trace(file: Option<std::ffi::OsString>) {
+    let Some(file) = file else { return };
+    let events: Vec<serde_json::Value> = hd_base::trace::take()
+        .into_iter()
+        .map(|e| {
+            serde_json::json!({"name": e.name, "cat": e.cat, "ph": "X", "pid": 1,
+                "tid": e.thread, "ts": e.start_us, "dur": e.dur_us})
+        })
+        .collect();
+    let text = serde_json::json!({ "traceEvents": events }).to_string();
+    if let Err(error) = std::fs::write(&file, text) {
+        eprintln!("HD_TRACE: cannot write {}: {error}", file.to_string_lossy());
+    }
+}
+
 /// Writes the report to `file`, as `{"allocs":N,...}`. A write that fails
 /// is reported on stderr and does not change the exit status.
 pub(crate) fn finish(file: Option<std::ffi::OsString>) {
@@ -185,6 +211,7 @@ impl hd_cache::CacheStore for Store {
 impl Drop for Store {
     fn drop(&mut self) {
         let store = self.0.take();
+        let _span = hd_base::trace::span("phase", || "settle".to_owned());
         hd_base::work::uncounted(|| drop(store));
     }
 }

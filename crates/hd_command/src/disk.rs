@@ -1120,6 +1120,7 @@ const SESSION_PACKAGE: &str = "repl";
 /// The whole package at `root`, with the packages it requires, and the
 /// package-relative file `entry` as its entry module.
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
+    let _span = hd_base::trace::span("phase", || "load package".to_owned());
     if let Some(d) = manifest_syntax_problem(root) {
         // Nothing else of the package can be read: the program has no
         // sources, and its one problem stops the command.

@@ -94,6 +94,7 @@ fn usage() -> ExitCode {
 #[must_use]
 pub fn main() -> ExitCode {
     let work = work::start();
+    let trace = work::start_trace();
     let status = match std::thread::Builder::new()
         .name("main".to_owned())
         .stack_size(hd_sched::pool::WORKER_STACK)
@@ -106,6 +107,7 @@ pub fn main() -> ExitCode {
         Err(_) => command_main(),
     };
     work::finish(work);
+    work::finish_trace(trace);
     status
 }
 
