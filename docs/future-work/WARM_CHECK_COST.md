@@ -166,7 +166,7 @@ What this says:
 | git index | `lstat` per path, compared with cached stat fields | a path whose `st_mtime` is not older than the index file's own mtime is racily clean: its contents are compared; on rewrite its cached size is zeroed | none (status only) | racy-git.adoc |
 | git fsmonitor | a built-in daemon reports changed paths; refuses network mounts by default | as above for the paths it reports | none | git-fsmonitor--daemon, core.fsmonitor |
 | Go build cache | every source file read and SHA-256 hashed into the action ID on every build; the file-hash memo lasts one process | module index only: a directory with a file newer than 2 s is not cached (`modTimeCutoff`) | action IDs, no early cutoff below a package | Go 1.27.3 `cmd/go/internal/cache/hash.go` `FileHash`; `work/exec.go:429`; `modindex/read.go:78-110` |
-| Zig cache manifest | per input: size, inode, mtime, content hash | a file whose mtime is not older than a `timestamp` file Zig writes in its manifest directory is recorded with mtime and inode 0, so it is hashed next time | manifest hit or miss per artifact | Zig 0.17.1 `lib/std/Build/Cache.zig`, `isProblematicTimestamp` 1644-1685, `setStatChanged` 575-588 |
+| Zig cache manifest | per input: size, inode, mtime, content hash | a file whose mtime is not older than a `timestamp` file Zig writes in its manifest directory is recorded with mtime and inode 0, so it is hashed next time | manifest hit or miss per artifact | Zig 0.17.1 `zig/lib/std/Build/Cache.zig`, `isProblematicTimestamp` 1644-1685, `setStatChanged` 575-588 |
 | TypeScript `tsc -b` / `tsbuildinfo` | per input: mtime against the buildinfo's mtime; if newer, the text is read and its hash compared with the recorded *version* | the content compare makes a touched file cheap | per-file *signature* (hash of the emitted `.d.ts`): only files whose signature changed propagate to their referencers | tsbuildPublic.ts 1613-1660; builderState.ts 590-620 |
 | Swift driver | build record per input: mtime and hash; equal mtime, or equal hash with `useHashes`, skips the input | content hash fallback | fine-grained provides/depends: top-level, nominal, member, dynamic-lookup | FirstWaveComputer.swift 351-380; DependencyAnalysis.md |
 | rustc incremental | inputs are read by `eval_always` queries, which re-run in every session | n/a | red-green marking: `try_mark_green` reuses a node when its dependencies are green; fingerprints compare results | incremental-compilation-in-detail.md 94-200, 430-445; graph.rs 888 |
@@ -410,7 +410,7 @@ Read at the commits named; clones and files read on 2026-11-21.
   `src/cmd/go/internal/work/exec.go` line 429,
   `src/cmd/go/internal/work/buildid.go` lines 389-395,
   `src/cmd/go/internal/modindex/read.go` lines 78-110.
-- Zig 0.17.1 `lib/std/Build/Cache.zig` as installed (`zig env`), lines
+- Zig 0.17.1 `zig/lib/std/Build/Cache.zig` as installed (`zig env`), lines
   560-588 and 1644-1685.
 - TypeScript `src/compiler/tsbuildPublic.ts` lines
   1613-1660, <https://github.com/microsoft/TypeScript/blob/cc2610fd347127c28609b4fca6fa9d55ee5063c6/src/compiler/tsbuildPublic.ts>;
@@ -419,7 +419,7 @@ Read at the commits named; clones and files read on 2026-11-21.
   `src/compiler/watch.ts` line 787 (a file's version is its text's hash).
 - swift-driver `Sources/SwiftDriver/IncrementalCompilation/FirstWaveComputer.swift`
   lines 218-245 and 351-380, <https://github.com/swiftlang/swift-driver/blob/053868d430deb3862c403a430c745bf5a0dd3f0c/Sources/SwiftDriver/IncrementalCompilation/FirstWaveComputer.swift>
-- swift `docs/DependencyAnalysis.md` lines 1-40,
+- swift `swift/docs/DependencyAnalysis.md` lines 1-40,
   <https://github.com/swiftlang/swift/blob/9a9c2e9ae0d42a5711d14ac20353bff6a698ef0a/docs/DependencyAnalysis.md>
 - rustc-dev-guide `src/queries/incremental-compilation-in-detail.md`
   lines 94-200 and 430-458, <https://github.com/rust-lang/rustc-dev-guide/blob/d946d7402d269990f3b64baabaf6592409791c11/src/queries/incremental-compilation-in-detail.md>
@@ -429,23 +429,23 @@ Read at the commits named; clones and files read on 2026-11-21.
   <https://github.com/salsa-rs/salsa/blob/496752ea3879af8cf3d71d1e28d76447a0cf6482/book/src/reference/algorithm.md>;
   `book/src/plumbing/terminology/backdate.md`;
   `src/durability.rs` lines 1-20.
-- bazel `docs/reference/skyframe.mdx` lines 95-120,
+- bazel `bazel/docs/reference/skyframe.mdx` lines 95-120,
   <https://github.com/bazelbuild/bazel/blob/227605fd2aecce4770c2f36053130aefb101406b/docs/reference/skyframe.mdx>;
-  `docs/versions/9.2.0/reference/command-line-reference.mdx`
+  `bazel/docs/versions/9.2.0/reference/command-line-reference.mdx`
   lines 1855-1857;
   `src/main/java/com/google/devtools/build/lib/skyframe/LocalDiffAwareness.java`
   lines 38-45.
 - buck2 `dice/dice/docs/incrementality.md`,
   <https://github.com/facebook/buck2/blob/907b7c7494dc4cc1ecc4b87141d890363632ba19/dice/dice/docs/incrementality.md>;
   `app/buck2_file_watcher/src/file_watcher.rs` lines
-  37-160; `docs/concepts/daemon.md` lines 8-20.
+  37-160; `buck2/docs/concepts/daemon.md` lines 8-20.
 - ninja `doc/manual.asciidoc` lines 1111-1115,
   <https://github.com/ninja-build/ninja/blob/a00b184d0cc3658ce2f5d2a81c7d86569d950b57/doc/manual.asciidoc>
 - snowleopard/build `src/Build/Trace.hs` lines 27-80, the
   code of "Build Systems à la Carte" (ICFP 2018),
   <https://github.com/snowleopard/build/blob/43b18b9a362d7d27b64679ea4122e4b8c5dfedd9/src/Build/Trace.hs>
-- watchman `website/docs/file-query.md` lines 60-85;
-  `website/docs/cookies.md` lines 1-35,
+- watchman `watchman/website/docs/file-query.md` lines 60-85;
+  `watchman/website/docs/cookies.md` lines 1-35,
   <https://github.com/facebook/watchman/tree/be24d697fcd9bb01923ca698815c52a91a18e094/website/docs>
 - macOS SDK `FSEvents.framework/Headers/FSEvents.h` (Command Line Tools),
   lines 95-185 and 390-430.
