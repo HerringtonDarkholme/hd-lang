@@ -2828,7 +2828,6 @@ impl Em<'_, '_, '_> {
                 self.write_in_place(i, &members)?;
             }
             Tag::NewStruct => self.new_data(i, bw)?,
-            Tag::CopyStruct => self.copy_data(i, a, bw)?,
             Tag::NewTuple => {
                 // The rest list, if any, is the last member.
                 let mut members = self.rec(bw);
@@ -2900,6 +2899,9 @@ impl Em<'_, '_, '_> {
                 // CallHost, ContextFor, FlagSet/FlagClear or SwitchStr
                 // producer. items excludes structural Block instructions;
                 // lower a block through its owner even if passed directly.
+                // CopyStruct expands before ownership: checked updates target
+                // structs and aggregate sources are instruction values, while
+                // the constant column holds only scalars/strings/unit.
                 assert_eq!(tag, Tag::Block);
                 self.block_into(i, None)?;
             }

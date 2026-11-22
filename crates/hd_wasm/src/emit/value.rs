@@ -12,7 +12,7 @@ use std::rc::Rc;
 use super::Em;
 use crate::layout::{
     Discr, Enc, Flat, Is, IsOps as _, Kind, Leaf, LeafOps as _, Mem, Part, Step, Test, kind,
-    payload_mem, variant_steps, variants,
+    variant_steps, variants,
 };
 use crate::module::{HEAP, Sym, Val};
 use crate::rt::Helper;
@@ -411,62 +411,6 @@ impl Em<'_, '_, '_> {
             self.f.op(l.store_in(memory, base));
         }
         Ok(())
-    }
-
-    /// `CopyStruct`: a copy of `a` with the fields of the `(field, value)`
-    /// pairs `bw` replaced.
-    pub(super) fn copy_data(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
-        let words = self.rec(bw);
-        let repl: Vec<(u32, u32)> = words.chunks(2).map(|w| (w[0], w[1])).collect();
-        let t = self.ty(i);
-        let replaced = |f: usize| repl.iter().find(|(k, _)| *k as usize == f).map(|(_, v)| *v);
-        if self.newtype(t) {
-            match replaced(0) {
-                Some(v) => self.push(v)?,
-                None => self.push(a)?,
-            }
-            return self.store(i);
-        }
-        // A copy-update copies a struct, whose values are in locals.
-        let tys = self.struct_fields(t);
-        let (_, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-        let copy = self.operation_count(
-            i,
-            hd_tir::ir::Tag::Retain,
-            hd_tir::ir::count::Part::Operand(0),
-        );
-        // The copy takes a count of each kept field, and each
-        // replacement moves its count in or takes one (§23.25).
-        let from = self.vals.get(&a).cloned();
-        let mut srcs = Vec::new();
-        for (f, (ft, p)) in tys.iter().zip(&parts).enumerate() {
-            srcs.push(match (replaced(f), &from) {
-                (Some(v), _) => Some(self.consumed(v)?),
-                (None, Some(ls)) => {
-                    let kept = &ls[p.first..p.first + p.count];
-                    Some(Src::Locals(match copy {
-                        Some(copy) => self.because(copy, |em| em.copy_locals(kept, *ft))?,
-                        None => kept.to_vec(),
-                    }))
-                }
-                (None, None) => None,
-            });
-        }
-        for (f, p) in parts.iter().enumerate() {
-            match &srcs[f] {
-                Some(s) => {
-                    for k in 0..p.count {
-                        self.src(s, k)?;
-                    }
-                }
-                None => {
-                    for k in p.first..p.first + p.count {
-                        self.comp(a, k)?;
-                    }
-                }
-            }
-        }
-        self.store(i)
     }
 
     /// A field read: field `idx` of `a`, picked from a struct's values.
