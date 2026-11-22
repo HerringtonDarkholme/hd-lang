@@ -1,0 +1,66 @@
+# test: every call form returns an implementation's error as case _0, from each exit of its body
+# Spec 10 Remote Traits: module.remote.r2.public, module.remote.r2.wrap.
+use std.remote.{CrossError, Remote}
+
+enum UserError:
+    Missing(id: i64)
+    Bad
+
+trait Users < Remote:
+    fn load!(&mut self, id: i64) -> Result[string, UserError | CrossError]
+
+struct Fixed:
+    name: string
+
+fn checked(id: i64) -> Result[i64, UserError]:
+    if id < 0:
+        return .Err(UserError.Bad)
+    .Ok(id)
+
+impl Users for Fixed:
+    fn load!(&mut self, id: i64) -> Result[string, UserError]:
+        let k = checked(id)?
+        # A closure's own exits keep its own result.
+        let odd = fn(x: i64) -> Result[i64, UserError]:
+            if x == 5:
+                return .Err(UserError.Missing(x))
+            .Ok(x)
+        let j = odd(k)?
+        if j == 7:
+            return .Ok(self.name)
+        .Err(UserError.Missing(j))
+
+fn show(r: Result[string, UserError | CrossError]) -> string:
+    match r:
+        .Ok(name) => name
+        .Err(._0(.Missing(id))) => "missing $id"
+        .Err(._0(.Bad)) => "bad"
+        .Err(._1(_)) => "not sent"
+
+fn bounded![U < Users](users: &mut U, id: i64) -> string:
+    show(users.load!(id))
+
+fn dynamic!(users: &mut dyn Users, id: i64) -> string:
+    show(users.load!(id))
+
+fn qualified!(users: &mut Fixed, id: i64) -> string:
+    show(Users::load!(users, id))
+
+fn method_value!(users: Fixed, id: i64) -> string:
+    let boxed = box(users)
+    load := boxed::load
+    show(load!(id))
+
+tests:
+    use std.testing.assert_equal
+
+    it("every call form and every exit returns case _0"):
+        let mut users = Fixed { name: "Ada" }
+        assert_equal(show(users.load!(7)), "Ada")
+        assert_equal(show(users.load!(8)), "missing 8")
+        assert_equal(show(users.load!(-1)), "bad")
+        assert_equal(show(users.load!(5)), "missing 5")
+        assert_equal(bounded!(&mut users, -1), "bad")
+        assert_equal(dynamic!(&mut users, 5), "missing 5")
+        assert_equal(qualified!(&mut users, 7), "Ada")
+        assert_equal(method_value!(Fixed { name: "Bo" }, 8), "missing 8")

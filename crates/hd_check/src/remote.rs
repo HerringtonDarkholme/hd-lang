@@ -1,14 +1,18 @@
 //! Remote traits (`module.remote.*`): R1 on each method of a trait that
-//! extends `Remote` ([`ItemCheck::remote_method`]), and R2's narrower
-//! result for an implementation ([`raw_result`]).
+//! extends `Remote` ([`ItemCheck::remote_method`]), R2's narrower result
+//! for an implementation ([`raw_result`]), and the public result its
+//! callers see ([`public_result`], [`Ck::public_exit`]).
 
 use hd_base::{DefId, StageResult};
 use hd_diag::Code;
-use hd_resolve::{FnSig, KnownItems, Lookup};
+use hd_resolve::{FnSig, ItemData, KnownItems, Lookup};
+use hd_syntax::NodeRef;
+use hd_tir::TirSink as _;
+use hd_tir::ir::{Ref, Tag};
 use hd_types::solver::TraitRef;
 use hd_types::{Ty, TyData, TyList, Types};
 
-use crate::body::{Fill, walk_supertraits};
+use crate::body::{BodyCx, Ck, Fill, walk_supertraits};
 use crate::header::ItemCheck;
 
 /// Whether `def` is a remote trait: it extends `Remote`, directly or
@@ -53,6 +57,98 @@ pub(crate) fn raw_result(pool: Types<'_>, known: &KnownItems, ret: Ty) -> Option
             args: pool.list(&[v, e]),
         })
     })
+}
+
+/// The public `Result[V, E | CrossError]` of `raw`, the written
+/// `Result[V, E]` of `def`, when `def` implements a remote trait's method
+/// (`module.remote.r2.public`). `None` for any other method or result;
+/// R2 reports a wrong one. Cost: the trait's supertraits once.
+pub(crate) fn public_result(cx: &BodyCx<'_>, pool: Types<'_>, def: DefId, raw: Ty) -> Option<Ty> {
+    let (lookup, known) = (cx.lookup, cx.names.known);
+    let ItemData::Method { owner, .. } = lookup.item(def)?.data else {
+        return None;
+    };
+    let ItemData::Impl { trait_, .. } = lookup.item(owner)?.data else {
+        return None;
+    };
+    let TyData::Adt { def: result, args } = pool.get(raw) else {
+        return None;
+    };
+    let [v, e] = *pool.list_items(args) else {
+        return None;
+    };
+    if result != known.result
+        || raw_result(pool, known, raw).is_some()
+        || !is_remote_trait(lookup, pool, known, trait_)
+    {
+        return None;
+    }
+    let cross = pool.intern_ty(&TyData::Adt {
+        def: known.cross_error,
+        args: TyList::EMPTY,
+    });
+    let union = pool.intern_ty(&TyData::Union(pool.list(&[e, cross])));
+    Some(pool.intern_ty(&TyData::Adt {
+        def: result,
+        args: pool.list(&[v, union]),
+    }))
+}
+
+/// Each remote implementation method of the module with its public
+/// result, which the module's items carry for every reader but the
+/// method's own body check. Cost: one pass over the module's items.
+pub fn public_results(cx: &BodyCx<'_>) -> Vec<crate::results::Inferred> {
+    let pool = cx.names.pool.types();
+    (cx.lookup.own.iter())
+        .filter_map(|it| {
+            let ret = public_result(cx, pool, it.def, it.sig()?.ret)?;
+            Some(crate::results::Inferred {
+                def: it.def,
+                ret: Some(ret),
+                row: None,
+            })
+        })
+        .collect()
+}
+
+impl Ck<'_, '_> {
+    /// `r`, which the function frame returns as `target`, widened to the
+    /// public result (`module.remote.r2.wrap`): `.Ok(v)` is rebuilt and
+    /// `.Err(e)` is `.Err(._0(e))`. A closure's exit is `r`. Cost: one
+    /// `SwitchTag` per exit of a remote implementation method.
+    pub(crate) fn public_exit(&mut self, r: Ref, target: Ty, n: NodeRef<'_>) -> Ref {
+        let Some(public) = self.public_ret else {
+            return r;
+        };
+        if self.rets.depth() != 0 || target != *self.rets.base() {
+            return r;
+        }
+        let pool = self.pool();
+        let (TyData::Adt { args: raw, .. }, TyData::Adt { args: wide, .. }) =
+            (pool.get(target), pool.get(public))
+        else {
+            return r;
+        };
+        let (&[v, e], &[_, union]) = (pool.list_items(raw), pool.list_items(wide)) else {
+            return r;
+        };
+        let at = n.index();
+        let arm = |ck: &mut Self, case: u32, payload: Ty| {
+            let block = ck.b.open_block();
+            let mut x = ck.b.payload(r, case, 0, payload, at);
+            if case == 1 {
+                let rec = ck.b.refs_record(&[x]);
+                x = ck.b.emit(Tag::NewVariant, 0, rec, union, at);
+            }
+            let rec = ck.b.refs_record(&[x]);
+            let x = ck.b.emit(Tag::NewVariant, case, rec, public, at);
+            ck.b.close_block(block, Some(x), public, at)
+        };
+        let ok = arm(self, 0, v);
+        let err = arm(self, 1, e);
+        let rec = self.b.refs_record(&[Ref(0), ok, err]);
+        self.b.emit(Tag::SwitchTag, r.0, rec, public, at)
+    }
 }
 
 impl ItemCheck<'_, '_> {

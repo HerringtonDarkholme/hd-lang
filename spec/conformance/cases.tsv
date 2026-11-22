@@ -6911,6 +6911,7 @@ lang/modules/execution-domains/remote-traits/remote-generic-trait.hd	type	accept
 lang/modules/execution-domains/remote-traits/remote-result-without-cross-error.hd	type	reject:invalid-remote-method	lang/10-modules.md#r-module.remote.r2.result
 lang/modules/execution-domains/remote-traits/remote-implementation-with-cross-error.hd	type	reject:trait-method-signature	lang/10-modules.md#r-module.remote.r2.impl
 lang/modules/execution-domains/remote-traits/remote-local-call-wraps-error.hd	runtime	accept	lang/10-modules.md#r-module.remote.r2.wrap
+lang/modules/execution-domains/remote-traits/remote-call-forms-wrap-every-exit.hd	runtime	accept	lang/10-modules.md#r-module.remote.r2.wrap
 lang/modules/execution-domains/remote-traits/remote-concrete-call-has-trait-result.hd	type	accept	lang/10-modules.md#r-module.remote.r2.public
 lang/modules/execution-domains/remote-builtins/remote-builtin-returns-stub.hd	type	accept	lang/10-modules.md#r-module.remote.builtin.remote
 lang/modules/execution-domains/remote-builtins/remote-builtin-non-remote-trait.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.remote.builtin.remote.not-remote

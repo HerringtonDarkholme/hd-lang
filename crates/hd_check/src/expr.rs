@@ -5779,6 +5779,7 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[ev]);
                 let errv = self.b.emit(Tag::NewVariant, 1, rec, ret, n.index());
                 let errv = self.coerce(errv, ret, target, n, "result", ExpectPosition::General);
+                let errv = self.public_exit(errv, target, n);
                 self.b.emit(Tag::Return, errv.0, NONE, Ty::NEVER, n.index());
                 let err = self.b.close_block(err_b, None, Ty::NEVER, n.index());
                 let rec = self.b.refs_record(&[Ref(0), ok, err]);

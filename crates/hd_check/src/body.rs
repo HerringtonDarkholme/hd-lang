@@ -374,6 +374,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether the root function carries `@auto_closing`; nested closures do
     /// not inherit this permission for their returns.
     pub auto_closing_function: bool,
+    /// A remote implementation method's public result, to which the
+    /// function frame's exits widen ([`Ck::public_exit`]).
+    pub(crate) public_ret: Option<Ty>,
     /// The call nodes of the open trailing-block calls, whose arguments'
     /// texts are unknown to a call-site record (`fn.caller.accessor.args.complete`).
     pub trailing_heads: Vec<hd_base::NodeIdx>,
@@ -847,6 +850,7 @@ pub(crate) fn new_ck<'a, 'c>(
         cleanup_blocks: Vec::new(),
         auto_closing_statement: None,
         auto_closing_function: false,
+        public_ret: None,
         trailing_heads: Vec::new(),
         site_value: false,
         named_fns: hd_base::HashMap::default(),
@@ -1651,12 +1655,17 @@ fn fn_body_steps(
         (tail, ret)
     } else {
         let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
-        ck.join_site(want, |ck, ret| {
+        // `module.remote.r2.wrap`: a remote implementation's body checks
+        // against its written `Result[V, E]` and returns the public one.
+        ck.public_ret = want.and_then(|raw| crate::remote::public_result(cx, ck.pool(), def, raw));
+        let (tail, ret) = ck.join_site(want, |ck, ret| {
             *ck.rets.base_mut() = ret;
             let (tail, _) = ck.block_value(body, Some(ret))?;
             ck.finish_tries(ret)?;
             Ok((tail, ret))
-        })?
+        })?;
+        let tail = tail.map(|t| ck.public_exit(t, ret, body));
+        (tail, ck.public_ret.unwrap_or(ret))
     };
     let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish_with(root, ret, Some(node))
@@ -4567,6 +4576,7 @@ impl Ck<'_, '_> {
                     }
                     Ref(NONE)
                 };
+                let r = self.public_exit(r, ret, s);
                 self.b.emit(Tag::Return, r.0, NONE, Ty::NEVER, s.index());
                 return Ok(Ty::NEVER);
             }

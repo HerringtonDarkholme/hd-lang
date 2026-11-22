@@ -166,7 +166,7 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
         let mut calls: Vec<Hash128> = (f.calls.iter().filter(|d| ours(d)).copied())
             .chain(
                 (f.dispatch.iter())
-                    .filter(|k| reached.get(k).is_some_and(|m| !m.is_empty()))
+                    .filter(|&&k| reached.get(&k).is_some_and(|m| !m.is_empty()))
                     .copied(),
             )
             .map(hash)

@@ -7644,7 +7644,8 @@ impl Run<'_> {
         }
         bodies.extend(derived.bodies);
         lock(&self.report).ok(Stage::Body);
-        let inferred = hd_check::results::inferred(&cx);
+        let mut inferred = hd_check::results::inferred(&cx);
+        inferred.extend(hd_check::remote::public_results(&cx));
         let folder = module.folder;
         let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);

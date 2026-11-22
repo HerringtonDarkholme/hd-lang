@@ -141,6 +141,17 @@ new form. The retired rule fn.capture.serializable-deferred had no code.
 
 ## 5. Stage 3: Remote Traits
 
+**Built so far.** `std.remote`'s items, R1 and R2 (5c9646dac). The
+public result (`module.remote.r2.public`, `module.remote.r2.wrap`): an
+implementation method's body checks against its written `Result[V, E]`,
+and its three exits (the final value, `return`, `?`) widen to
+`Result[V, E | CrossError]` with one `SwitchTag` each, on the function's
+own frame only. The module's items carry the public result, so every
+reader past the body check (mono, the dispatch table, the backend) sees
+one ABI. Reading: no separate wrapper body, so the dispatcher encodes
+the public result as is; R2 keeps case `_1` out of an implementation, so
+a stub decodes it without rewrapping.
+
 **What.** R1 and R2 are checked at the trait and at each implementation.
 Each implementation method gets a public entry that wraps its error as
 `._0`. Post-mono, the compiler generates a stub per remote trait a target
@@ -154,7 +165,7 @@ instance names.
 | `hd_check` | `src/conform.rs` | `check_impl_method`, `sig_differs` | R2: the implementation's result is the trait's without its `CrossError` member |
 | `hd_check` | `src/header.rs` | beside `boundary` | R1 on every remote trait's methods: bang, `Wire` types, no generics, no row (`invalid-remote-method`) |
 | `hd_syntax`, `hd_check` | `src/parser/exprs.rs` `function_type_arguments`; `src/call.rs` | | `remote::[T]` takes a trait argument, as `$.use(K)` takes a key |
-| `hd_driver` | `src/own.rs`, near the `BodyKind::Handle` bodies | | the public entry wrapper per implementation method; inlining removes it |
+| `hd_check` | `src/remote.rs`, `src/body.rs`, `src/expr.rs` | `public_result`, `Ck::public_exit` | the public result: the body's exits widen in place, no wrapper body (built) |
 | `hd_mono` | `src/instance.rs`, `src/layout.rs` | `Sub` | the `remote[T]` and `handle_call[S, C]` instances name generated bodies |
 | `hd_tir` | `src/ir.rs` | `BodyKind` | `Stub` and `Dispatch`, generated like `DeriveInstance` in `hd_structure` |
 | `lib/std` | `remote.hd` (new) | | `Remote`, `CrossError`, `Transport`, `Reply`, `Session`, `Rooted`, `Home` and its served table, the two `@intrinsic` declarations |
