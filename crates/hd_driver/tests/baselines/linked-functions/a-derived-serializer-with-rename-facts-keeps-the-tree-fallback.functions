@@ -7,13 +7,12 @@ app/main/Pair.structure handle 0 0#0
 app/main/Pair.structure handle 0 1#2
 std/json/impl Iterator[(string, Json)] for JsonObjectIter.next#0
 std/structure/impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF].fact#0 [app.main.Pair, i64, std.serde.SkipNone[i64]]
-std/hash/hash_bytes_long#0
 std/format/Display.write#0 [std.json.Json]
 std/rt.cycle/scan#0
 std/structure/impl Facts.find#0 [std.serde.Skip]
 std/rt.alloc/init_classes#0
 std/json/impl JsonObject.set#0
-std/hash/hash_bytes#0
+std/rt.hash/hash_bytes_short#0
 std/rt.cycle/drain#0
 std/rt.alloc/metadata#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
@@ -30,6 +29,7 @@ std/json/impl Serializer for TextWriter.end_map#0
 std/json/impl TextWriter.start#0
 std/rt.alloc/release_known#0
 std/json/impl JsonObject.len#0
+std/rt.hash/hash_bytes_long#0
 app/main/Pair.structure facts#0
 std/json/impl TextWriter.spaced_key#0
 std/rt.alloc/alloc_class#0
@@ -38,15 +38,12 @@ std/serde/member_name#0
 std/json/impl TextWriter.name_next#0
 app/main/derive Serialize for Pair.serialize#0 [std.json.TextWriter]
 app/main/Pair.structure handle 0#1
-std/hash/hash_integer#0
 std/json/impl TextWriter.close#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 app/main/main#0
-std/hash/rotate_right#0
 std/collections/impl[T] List[T].pop#0 [string]
 std/rt.alloc/full#0
-std/hash/hash_string#0
 std/rt.alloc/move_table#0
 std/serde/joined_name#0
 std/json/impl JsonWriter.close#0
@@ -70,12 +67,12 @@ std/structure/impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF].fact#0 [app.m
 std/rt.alloc/retain#0
 std/rt.cycle/sweep#0
 std/text/impl List[string].join#0
+std/rt.hash/hash_string#0
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
 std/num/impl[N < Integer] N.checked_add#0 [usize]
 std/json/impl JsonObject.take_metadata#0
 std/rt.alloc/claim#0
-std/hash/add_wrapping#0
 app/main/derive Serialize for Pair.regular#0
 std/text/searcher#0
 std/json/impl JsonWriter.put#0
@@ -85,6 +82,7 @@ std/json/object_of#0
 std/json/key_print#0
 std/serde/case_name#0
 std/json/impl Serializer for JsonWriter.end_list#0
+std/rt.hash/hash_integer#0
 app/main/Pair.structure handle 0 0#1
 std/json/tagged_json#0
 std/rt.entry/host_provider#0 [Console]
@@ -100,7 +98,6 @@ app/main/Pair.structure handle 0 1#0
 std/text/maximal_suffix#0
 std/json/impl TextWriter.give_up#0
 std/rt.alloc/start#0
-std/hash/hash_bytes_short#0
 std/rt.alloc/free_block#0
 std/json/impl Serializer for JsonWriter.end_map#0
 std/json/encode#0 [app.main.Pair]
@@ -132,6 +129,7 @@ std/json/impl JsonObject.index_dense#0
 std/iter/impl[T] Iterator[T] for ListIter[T].next#0 [std.json.ObjectEntry]
 std/json/impl Serializer for JsonWriter.end_data#0
 std/text/impl string.replace#0
+std/rt.hash/hash_bytes#0
 std/collections/impl ByteBuffer for UniqList[u8].take_text#0
 app/main/Pair.structure handle 0 1#1
 std/rt.cycle/visit#0

@@ -2,54 +2,98 @@
 app/main/calls
   local $0 xs: List[i64] [param read captured] place
   local $1 g: fn(i64) -> i64 [read] value
-    uses $1: %17 -> %19 lend last
+    uses $1: %57 -> %59 lend last
   local $2 x: i64 [read] value
-    uses $2: %18 -> %20 consume last
+    uses $2: %58 -> %60 consume last
   local $3 x: i64 [read] value
-    uses $3: %2 -> %3 lend last
+    uses $3: %29 -> %30 lend, %32 lend, %35 lend, %38 lend, %41 lend, %44 lend last
   local $4 x: i64 [read] value
-    uses $4: %21 -> %22 lend last
+    uses $4: %2 -> %3 consume last
+  local $5 x: i64 [read] value
+    uses $5: %4 -> %5 lend, %7 lend, %10 lend, %13 lend, %16 lend, %19 lend last
+  local $6 x: i64 [read] value
+    uses $6: %61 -> %62 lend last
   %1 = Box #0 #0 : ()
-  %2 = Store [$3] 1:i64 : ()
-  %3 = Read copy [$3] : i64
-  %4 = Call app/main/long[] (%3) : i64
-  %5 = Prim Mul [%4 4:i64] : i64
-  %6 = Break L1 %5 : never
-  %7 = Block - : i64
-  %8 = Scope %7 [] : i64
-  %9 = Call app/main/long[] (2:i64) : i64
-  %10 = Prim Add [%8 %9] : i64
-  %11 = Ref local frame [$0] : &List[i64]
-  %12 = Call app/main/first[] (%11) : i64
-  %13 = LoanEnd [%11] : ()
-  %14 = Drop [$0] : ()
-  %15 = Prim Add [%10 %12] : i64
-  %16 = ItemRef #33 [..] : fn(i64) -> i64
-  %17 = Store [$1] %16 : ()
-  %18 = Store [$2] 3:i64 : ()
-  %19 = Read borrow [$1] : fn(i64) -> i64
-  %20 = Read copy [$2] : i64
-  %21 = Store [$4] %20 : ()
-  %22 = Read copy [$4] : i64
-  %23 = Prim Div [%22 2:i64] : i64
-  %24 = Break L2 %23 : never
-  %25 = Block - : i64
-  %26 = Scope %25 [] : i64
-  %27 = Break L0 %26 : never
-  %28 = Block - : i64
-  %29 = Scope %28 [] : i64
-  %30 = Drop [$1] : ()
-  %31 = Prim Add [%15 %29] : i64
-  %32 = Call app/main/make[] (4:i64) : fn(i64) -> i64
-  %33 = CallValue %32 [5:i64] : i64
-  %34 = Drop [%32] : ()
-  %35 = Prim Add [%31 %33] : i64
-  %36 = Call app/main/down[] (7:i64) : i64
-  %37 = Prim Add [%35 %36] : i64
-  %38 = Call app/main/need[] (6:i64) : i64
-  %39 = Prim Add [%37 %38] : i64
-  %40 = Drop [$0] : ()
-  %41 = Block %39 : i64
+  %2 = Store [$4] 1:i64 : ()
+  %3 = Read copy [$4] : i64
+  %4 = Store [$5] %3 : ()
+  %5 = Read copy [$5] : i64
+  %6 = Prim Add [%5 1:i64] : i64
+  %7 = Read copy [$5] : i64
+  %8 = Prim Add [%7 2:i64] : i64
+  %9 = Prim Mul [%6 %8] : i64
+  %10 = Read copy [$5] : i64
+  %11 = Prim Add [%10 3:i64] : i64
+  %12 = Prim Mul [%9 %11] : i64
+  %13 = Read copy [$5] : i64
+  %14 = Prim Add [%13 4:i64] : i64
+  %15 = Prim Mul [%12 %14] : i64
+  %16 = Read copy [$5] : i64
+  %17 = Prim Add [%16 5:i64] : i64
+  %18 = Prim Mul [%15 %17] : i64
+  %19 = Read copy [$5] : i64
+  %20 = Prim Add [%19 6:i64] : i64
+  %21 = Prim Div [%18 %20] : i64
+  %22 = Break L2 %21 : never
+  %23 = Block - : i64
+  %24 = Scope %23 [] : i64
+  %25 = Prim Mul [%24 4:i64] : i64
+  %26 = Break L3 %25 : never
+  %27 = Block - : i64
+  %28 = Scope %27 [] : i64
+  %29 = Store [$3] 2:i64 : ()
+  %30 = Read copy [$3] : i64
+  %31 = Prim Add [%30 1:i64] : i64
+  %32 = Read copy [$3] : i64
+  %33 = Prim Add [%32 2:i64] : i64
+  %34 = Prim Mul [%31 %33] : i64
+  %35 = Read copy [$3] : i64
+  %36 = Prim Add [%35 3:i64] : i64
+  %37 = Prim Mul [%34 %36] : i64
+  %38 = Read copy [$3] : i64
+  %39 = Prim Add [%38 4:i64] : i64
+  %40 = Prim Mul [%37 %39] : i64
+  %41 = Read copy [$3] : i64
+  %42 = Prim Add [%41 5:i64] : i64
+  %43 = Prim Mul [%40 %42] : i64
+  %44 = Read copy [$3] : i64
+  %45 = Prim Add [%44 6:i64] : i64
+  %46 = Prim Div [%43 %45] : i64
+  %47 = Break L1 %46 : never
+  %48 = Block - : i64
+  %49 = Scope %48 [] : i64
+  %50 = Prim Add [%28 %49] : i64
+  %51 = Ref local frame [$0] : &List[i64]
+  %52 = Call app/main/first[] (%51) : i64
+  %53 = LoanEnd [%51] : ()
+  %54 = Drop [$0] : ()
+  %55 = Prim Add [%50 %52] : i64
+  %56 = ItemRef #33 [..] : fn(i64) -> i64
+  %57 = Store [$1] %56 : ()
+  %58 = Store [$2] 3:i64 : ()
+  %59 = Read borrow [$1] : fn(i64) -> i64
+  %60 = Read copy [$2] : i64
+  %61 = Store [$6] %60 : ()
+  %62 = Read copy [$6] : i64
+  %63 = Prim Div [%62 2:i64] : i64
+  %64 = Break L4 %63 : never
+  %65 = Block - : i64
+  %66 = Scope %65 [] : i64
+  %67 = Break L0 %66 : never
+  %68 = Block - : i64
+  %69 = Scope %68 [] : i64
+  %70 = Drop [$1] : ()
+  %71 = Prim Add [%55 %69] : i64
+  %72 = Call app/main/make[] (4:i64) : fn(i64) -> i64
+  %73 = CallValue %72 [5:i64] : i64
+  %74 = Drop [%72] : ()
+  %75 = Prim Add [%71 %73] : i64
+  %76 = Call app/main/down[] (7:i64) : i64
+  %77 = Prim Add [%75 %76] : i64
+  %78 = Call app/main/need[] (6:i64) : i64
+  %79 = Prim Add [%77 %78] : i64
+  %80 = Drop [$0] : ()
+  %81 = Block %79 : i64
   exit sub 0 drops [$0]
   storage sub 0: $0 slot
   summary kept [$0] writes

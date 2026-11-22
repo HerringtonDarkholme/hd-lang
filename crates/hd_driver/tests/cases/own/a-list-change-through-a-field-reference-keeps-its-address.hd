@@ -1,8 +1,8 @@
 # @build: release
 # @dump: wat stdout
 # #2217: a list change through a field behind a `&mut` keeps the address
-# path: `through_reference` passes the field's address, through its
-# parameter, to `List.reserve` and `List.truncate`. A field of a local
+# path: `through_reference` loads and stores the list through its input
+# address for reserve, and lends the field to `List.truncate`. A field of a local
 # struct that no other reference reaches is a part of that local, so
 # `local_field` reserves its list by value, in Wasm locals with no frame.
 

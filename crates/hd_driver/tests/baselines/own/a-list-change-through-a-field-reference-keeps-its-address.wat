@@ -9,10 +9,9 @@
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
-  (import "fixture" "impl[T] List[T].reserve[usize]" (func $"impl[T] List[T].reserve[usize]" (param i32 i32)))
+  (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "impl[T] List[T].truncate[usize]" (func $"impl[T] List[T].truncate[usize]" (param i32 i32)))
-  (import "fixture" "rt:list_reserve" (func $rt:list_reserve (param i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -279,9 +278,15 @@
   )
   (func $through_reference (param $buffers i32) (param $count i32) (local $t0 i32) (local $t1 i32)
     ;; 17 |     buffers.items.reserve(count)
-    local.get $buffers
     local.get $count
-    call $"impl[T] List[T].reserve[usize]"
+    if
+      local.get $buffers
+      local.get $buffers
+      i32.load $heap
+      local.get $count
+      call $rt:list_reserve
+      i32.store $heap
+    end
     ;; 18 |     buffers.items.push(count)
     local.get $buffers
     i32.load $heap

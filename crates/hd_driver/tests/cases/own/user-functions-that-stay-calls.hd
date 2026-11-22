@@ -1,12 +1,10 @@
 # @dump: own
 # @build: v8 release
-# Release inlining copies a function outside std by std's rule: at most 16
-# instructions, no reference parameter, no call of itself. `twice` and
-# `run` are copied though each still makes a call (`long`, a function
-# value); `long` has more than 16 instructions; `first` takes a reference,
-# which a copy would count in a local; `make` creates a closure; `down`
-# calls itself: each of those calls stays a call. `need` has a requirement
-# row and explicitly requests `.Never`, so its call stays a call too.
+# Release inlining prices lowered work rather than raw TIR rows.
+# `twice`, the arithmetic `long`, and the known function-value call in
+# `run` expand. `first` keeps its reference boundary; `make` creates a
+# closure; `down` calls itself; `need` explicitly requests `.Never`.
+# Those four calls and the returned closure call remain.
 use std.annotation.inline
 fn half(x: i64) -> i64:
     x / 2

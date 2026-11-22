@@ -114,6 +114,8 @@ pub trait InlineEnv: ProgramEnv {
     fn reference(&self, t: Ty) -> bool;
     /// Whether the closed layout is Memory and contains a Memory field.
     fn memory_value(&self, t: Ty) -> (bool, bool);
+    /// Whether a closed value holds a counted leaf, from the run's cached layout facts.
+    fn counted_value(&self, t: Ty) -> bool;
     /// The item and type arguments a trait call chosen as an impl runs;
     /// `None` for any other call.
     fn impl_target(&self, callee: &Callee) -> Option<(DefId, TyList)>;
@@ -1004,6 +1006,11 @@ impl dyn InlineEnv + '_ {
                         && self.fits_size(copy, INLINE_LIMIT)
                         && !self.fits_size(nested, INLINE_LIMIT)
                         && self.plain_memory(nested)
+                        // Preserve the prepared copy's ownership simplifications.
+                        // A structural fallback cannot price away counted storage.
+                        && copy.ty.iter().chain(&copy.local_ty).all(|&ty| {
+                            !self.is_open(ty) && !self.counted_value(ty)
+                        })
                         && self.scalar_writer_refs(nested).is_none()
                 },
             );
@@ -1301,7 +1308,28 @@ impl dyn InlineEnv + '_ {
         // Price the chosen instance as well as the raw declaration:
         // rechoose exposes impl identities for the indexed cost query,
         // without another generic-argument unification.
-        priced_inline(copy, limit, |callee| self.retained_call_cost(callee))
+        self.priced_body(copy, limit)
+    }
+
+    fn priced_body(&self, body: &Body, limit: usize) -> bool {
+        // A case split can carry counted owners across its arms. The structural
+        // estimate keeps that cleanup cost until it is priced explicitly.
+        // Raw generic copies are provisional; `instance` prices settled types again.
+        let discount_bindings = body.len() > limit
+            && (!body.tags.contains(&Tag::Match)
+                || body
+                    .local_ty
+                    .iter()
+                    .zip(&body.local_flags)
+                    .all(|(&ty, &flags)| {
+                        flags & local_flags::PARAM != 0
+                            || self.is_open(ty)
+                            || self.local_reference_type(ty)
+                            || !self.counted_value(ty)
+                    }));
+        priced_inline(body, limit, discount_bindings, |callee| {
+            self.retained_call_cost(callee)
+        })
     }
 
     /// Whether `copy`, the body of `def` at `targs`, may inline:
@@ -1449,7 +1477,7 @@ impl dyn InlineEnv + '_ {
         // LLVM InlineCost separately charges lowered calls which survive
         // the copy. A target runtime transition or a cold callee consumes
         // the automatic budget; a prior fast path stops the entry census.
-        let fits = |limit| priced_inline(body, limit, |callee| self.retained_call_cost(callee));
+        let fits = |limit| self.priced_body(body, limit);
         let body_fits = match hint {
             InlineHint::Default => self.priced(body, self.declares_local_reference(def)),
             InlineHint::Auto => fits(AUTO_INLINE_LIMIT),
@@ -1466,7 +1494,7 @@ impl dyn InlineEnv + '_ {
     /// ([`priced_inline`]); a larger one in release when it is small or
     /// declares a local reference (`local_ref`).
     fn priced(&self, body: &Body, local_ref: bool) -> bool {
-        let fits = |limit| priced_inline(body, limit, |callee| self.retained_call_cost(callee));
+        let fits = |limit| self.priced_body(body, limit);
         fits(INLINE_LIMIT)
             || (self.memo().is_some()
                 && (local_ref || body.len() <= AUTO_INLINE_LIMIT)
@@ -1910,10 +1938,15 @@ fn root_type(copy: &Body) -> Option<Ty> {
 
 /// Reject an oversized candidate before querying its call costs. Failed
 /// automatic candidates must not scan an arbitrary root per call site.
-fn priced_inline(body: &Body, limit: usize, cost: impl FnMut(&Callee) -> usize) -> bool {
+fn priced_inline(
+    body: &Body,
+    limit: usize,
+    discount_bindings: bool,
+    cost: impl FnMut(&Callee) -> usize,
+) -> bool {
     // SSA savings never bypass the existing metadata copy budget. Keep the
     // original estimate for unbounded explicit hints and local-closure users.
-    let scalar_bindings = body.len() > limit && copy_metadata_fits(body);
+    let scalar_bindings = discount_bindings && body.len() > limit && copy_metadata_fits(body);
     let fits = |limit| {
         if scalar_bindings {
             hd_tir::inline::inlinable_scalar_bindings(body, limit)
@@ -2604,6 +2637,7 @@ mod tests {
             assert!(!super::priced_inline(
                 &body,
                 super::AUTO_INLINE_LIMIT,
+                true,
                 |_| {
                     prices += 1;
                     2

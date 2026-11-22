@@ -59,39 +59,60 @@ fn counted(n: usize) -> List[usize]:
 >   local $0 n: usize [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 $acc: List[usize] [assigned] value
->     uses $1: %1 -> %13 lend, %31 consume last
+>     uses $1: %1 -> %32 lend, %50 consume last
 >   local $2 $ref: RangeIter[usize] [read assigned captured captured-assigned] place
 >   local $3 $iter: &mut RangeIter[usize] [assigned] value
->     uses $3: %8 -> %9 lend
+>     uses $3: %27 -> %28 lend
 >   local $4 i: usize [read assigned] value
->     uses $4: %19 -> %11 consume last
+>     uses $4: %38 -> %30 consume last
+>   local $5 self: Range[usize] [read] value
+>     uses $5: %4 -> %5 lend, %6 lend, %8 lend, %9 lend, %11 lend, %17 consume, %18 consume, %19 consume last
 >   %0 = NewList - [] : List[usize]
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read copy [$0] : usize
 >   %3 = NewStruct [0:usize %2 0:bool] : Range[usize]
->   %4 = Call std/iter/Iterable.iter for Range[usize] [usize] via Impl (%3) : RangeIter[usize]
->   %5 = Box #2 #0 : ()
->   %6 = Store [$2] %4 : ()
->   %7 = Ref mut local frame [$2] : &mut RangeIter[usize]
->   %8 = Store [$3] %7 : ()
->   %9 = Read borrow [$3] : &mut RangeIter[usize]
->   %10 = Call std/iter/Iterator.next for RangeIter[usize] [usize] via Impl (%9) : usize?
->   %11 = Read copy [$4] : usize
->   %12 = IsUnique fresh [$1] : ()
->   %13 = Read borrow [$1] : List[usize]
->   %14 = Intrinsic ListPush [%13 %11] : ()
->   %15 = Block - : ()
->   %16 = Break L0 - : never
->   %17 = Block - : ()
->   %18 = Read copy [%10 as #1 .0] : usize
->   %19 = Store [$4] %18 : ()
->   %25 = Block - : never
->   %26 = Match %10 [%25 %15 %17] : ()
->   %27 = Block - : ()
->   %28 = Loop %27 - : ()
->   %29 = LoanEnd [$3] : ()
->   %30 = Drop [$2] : ()
->   %31 = Read move [$1] : List[usize]
->   %32 = Intrinsic Empty [] : ()
->   %33 = Block %31 : List[usize]
+>   %4 = Store [$5] %3 : ()
+>   %5 = Read copy [$5 .start] : usize
+>   %6 = Read copy [$5 .end] : usize
+>   %7 = Prim Gt [%5 %6] : bool
+>   %8 = Read copy [$5 .start] : usize
+>   %9 = Read copy [$5 .end] : usize
+>   %10 = Prim Eq [%8 %9] : bool
+>   %11 = Read copy [$5 .inclusive] : bool
+>   %12 = Prim Not [%11] : bool
+>   %13 = Block %12 : bool
+>   %14 = And %10 %13 : bool
+>   %15 = Block %14 : bool
+>   %16 = Or %7 %15 : bool
+>   %17 = Read copy [$5 .start] : usize
+>   %18 = Read copy [$5 .end] : usize
+>   %19 = Read copy [$5 .inclusive] : bool
+>   %20 = NewStruct [%17 %18 %19 %16] : RangeIter[usize]
+>   %21 = Break L1 %20 : never
+>   %22 = Block - : RangeIter[usize]
+>   %23 = Scope %22 [] : RangeIter[usize]
+>   %24 = Box #2 #0 : ()
+>   %25 = Store [$2] %23 : ()
+>   %26 = Ref mut local frame [$2] : &mut RangeIter[usize]
+>   %27 = Store [$3] %26 : ()
+>   %28 = Read borrow [$3] : &mut RangeIter[usize]
+>   %29 = Call std/iter/Iterator.next for RangeIter[usize] [usize] via Impl (%28) : usize?
+>   %30 = Read copy [$4] : usize
+>   %31 = IsUnique fresh [$1] : ()
+>   %32 = Read borrow [$1] : List[usize]
+>   %33 = Intrinsic ListPush [%32 %30] : ()
+>   %34 = Block - : ()
+>   %35 = Break L0 - : never
+>   %36 = Block - : ()
+>   %37 = Read copy [%29 as #1 .0] : usize
+>   %38 = Store [$4] %37 : ()
+>   %44 = Block - : never
+>   %45 = Match %29 [%44 %34 %36] : ()
+>   %46 = Block - : ()
+>   %47 = Loop %46 - : ()
+>   %48 = LoanEnd [$3] : ()
+>   %49 = Drop [$2] : ()
+>   %50 = Read move [$1] : List[usize]
+>   %51 = Intrinsic Empty [] : ()
+>   %52 = Block %50 : List[usize]
 >   storage sub 0: $2 slot

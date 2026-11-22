@@ -2383,6 +2383,10 @@ impl InlineEnv for Env<'_> {
         self.run.summaries.as_ref().map(|all| &all.inline)
     }
 
+    fn counted_value(&self, t: Ty) -> bool {
+        self.layout_facts(t).0
+    }
+
     fn memory_value(&self, t: Ty) -> (bool, bool) {
         if self.is_open(t) {
             return (false, false);
