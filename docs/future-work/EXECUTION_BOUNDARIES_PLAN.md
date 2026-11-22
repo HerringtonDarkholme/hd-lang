@@ -197,6 +197,25 @@ sites that read `dbg_structure`'s one triple. Readings:
 - `int_min` and `int_max` are private to `std.num`; `std.remote`
   declares its own, by the same intrinsic keys.
 
+**The host boundary move fails its size gate; the host codecs stay.**
+A ceiling run (2026-11-22, release builds, the encoder or decoder made
+public for the run only) priced the std codec against the 0.5% per-module
+gate, which is about 30 to 50 bytes on these modules:
+
+| Program | Added | Before | After | Growth |
+| --- | --- | ---: | ---: | ---: |
+| hello, printing a string | `wire_encode::[string]` | 5,593 | 7,306 | +30.6% |
+| `bench/study/nbody` | `wire_decode::[List[string]]` | 9,172 | 12,852 | +40.1% |
+
+The host's codec of the same type is 30 to 150 bytes, and every bench
+program links only four small host decoders (about 270 bytes with
+`rt:leb_get`), so deleting them cannot pay for the std codec's growth,
+which is a lower bound on the move's: an `rt:enc` or `rt:dec` that calls
+it still needs its copy into `hd.x`. Time was not measured, since size
+fails first. The move waits for a codec that is close to the host's in
+size: a reading of that is that the host keeps its own codecs, and a frame
+and a host exchange share only the format, as the codec's tests check.
+
 **Next, in this order.** Reading: the codec comes before stubs and
 dispatchers, since each stub method and each dispatcher arm is an encode,
 one call and a decode, and a stub with no codec is dormant code. The
@@ -277,8 +296,9 @@ moves onto it, one `memory.copy` into the exchange buffer, and
 `rt:enc`/`rt:dec` in `hd_wasm/src/boundary.rs` are deleted, if the perf
 gates pass; otherwise the host codecs stay and the numbers are reported.
 
-**Deletes or replaces.** The host codec emission (about −1,150 with the
-codec above). A host handle is a stub whose transport is the host:
+**Deletes or replaces.** The host codec emission was to go (about −1,150
+with the codec above); the size gate kept it (see the ceiling run under
+"Built so far"). A host handle is a stub whose transport is the host:
 `BodyKind::Handle` and `handle_vtable` fold into stubs (about −600; Q21,
 owner yes).
 
