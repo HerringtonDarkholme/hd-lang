@@ -85,6 +85,18 @@ fn named_value() -> void:
     r := apply
     r(inspect, &shared)
 
+fn returns_runner() -> fn(fn(&i32) -> void) -> void:
+    fn(f: fn(&i32) -> void) -> void:
+        x := 1
+        f(&x)
+
+struct Runner:
+    apply: fn(fn(&i32) -> void) -> void
+
+fn through(r: Runner) -> void:
+    (r.apply)(loose)
+    returns_runner()(loose)
+
 fn main() -> void:
     apply(inspect, &shared)
     f := inspect

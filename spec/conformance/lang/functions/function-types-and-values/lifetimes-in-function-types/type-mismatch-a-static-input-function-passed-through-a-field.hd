@@ -1,0 +1,11 @@
+# test: a function value a struct field holds keeps the field's declared input types
+# Spec 07 Function Types: fn.type.lifetime.input. `Runner.apply`'s input
+# `fn(&i32) -> void` takes a reference of any lifetime.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+struct Runner:
+    apply: fn(fn(&i32) -> void) -> void
+
+fn run(r: Runner) -> void:
+    (r.apply)(inspect) # diagnostic: type-mismatch

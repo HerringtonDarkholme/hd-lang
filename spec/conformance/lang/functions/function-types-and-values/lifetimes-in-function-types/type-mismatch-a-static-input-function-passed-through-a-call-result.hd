@@ -1,0 +1,13 @@
+# test: a function value a call returns keeps its declared input types
+# Spec 07 Function Types: fn.type.lifetime.input. `make()`'s input
+# `fn(&i32) -> void` takes a reference of any lifetime.
+fn inspect(value: &'static i32) -> void:
+    pass
+
+fn make() -> fn(fn(&i32) -> void) -> void:
+    fn(f: fn(&i32) -> void) -> void:
+        x := 1
+        f(&x)
+
+fn run() -> void:
+    make()(inspect) # diagnostic: type-mismatch

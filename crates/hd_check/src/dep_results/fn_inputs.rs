@@ -17,6 +17,7 @@ use super::{
     TyData, Var, fn_spot, own_inputs, returned, source_arg, w,
 };
 use hd_resolve::FnSig;
+use hd_types::ParamRef;
 
 /// What a declared function type lets a caller pass at one input.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -99,7 +100,7 @@ impl Ck<'_, '_> {
                 for source in sources {
                     let pts: Vec<Ty> = match source {
                         Source::Item(sig) => sig.params.iter().map(|&(_, t)| t).collect(),
-                        Source::Param(ct, _) | Source::Closure(ct) => {
+                        Source::Param(ct, _) | Source::Declared(ct, _) => {
                             let TyData::Fn { params, .. } = pool.get(ct) else {
                                 continue;
                             };
@@ -117,7 +118,7 @@ impl Ck<'_, '_> {
                                 sig.fn_lifetimes.get(p).map_or(&[][..], Vec::as_slice),
                                 false,
                             ),
-                            Source::Closure(_) => (&[][..], false),
+                            Source::Declared(_, rec) => (rec.get(at..at + n).unwrap_or(&[]), false),
                         };
                         at += n;
                         let Some(a) = source_arg(b, i, p) else {
@@ -309,13 +310,85 @@ impl Ck<'_, '_> {
         } else if tag == Tag::Coerce {
             self.callee_sources(b, own, values, b.data[v as usize][0], out, seen);
         } else if tag == Tag::Closure {
-            out.push(Source::Closure(b.ty[v as usize]));
+            out.push(Source::Declared(b.ty[v as usize], &[]));
+        } else if matches!(tag, Tag::Call | Tag::Await)
+            && let Some(sig) = Callee::from_words(b.record(b.data[v as usize][0]))
+                .map(|c| match c {
+                    Callee::Item { def, .. } => def,
+                    Callee::TraitMethod { method, .. } => method,
+                })
+                .and_then(|def| self.cx.lookup.item(def)?.sig())
+            && matches!(self.pool().get(sig.ret), TyData::Fn { .. })
+        {
+            // A call's result: the callee's declared result type.
+            let rec = sig.fn_lifetimes.get(sig.params.len());
+            out.push(Source::Declared(
+                b.ty[v as usize],
+                rec.map_or(&[][..], Vec::as_slice),
+            ));
+        } else if let Some(f) = self.read_field(b, v)
+            && matches!(self.pool().get(f.ty), TyData::Fn { .. })
+        {
+            // A struct field's declared function type.
+            out.push(Source::Declared(b.ty[v as usize], &f.fn_lifetimes));
         } else if tag == Tag::ItemRef
             && let Some(sig) = (b.record(b.data[v as usize][0]).first())
                 .and_then(|&d| self.cx.lookup.item(DefId::from_raw(d))?.sig())
         {
             out.push(Source::Item(sig));
         }
+    }
+
+    /// The struct field value `v` reads, through dereferences and fields
+    /// of its place.
+    fn read_field<'s>(&self, b: &Body, v: u32) -> Option<&'s hd_resolve::Field>
+    where
+        Self: 's,
+    {
+        let pool = self.pool();
+        if b.tags.get(v as usize) != Some(&Tag::Read) {
+            return None;
+        }
+        let place = b.decode_place(b.data[v as usize][0])?;
+        let mut t = match place.root {
+            PlaceRoot::Local(l) => *b.local_ty.get(l.idx())?,
+            PlaceRoot::Value(r) => *b.ty.get(r.0 as usize)?,
+            PlaceRoot::Global(_, t) => t,
+            PlaceRoot::Frame(_) | PlaceRoot::Ptr(_) => return None,
+        };
+        let (&Proj::Field(j), init) = place.proj.split_last()? else {
+            return None;
+        };
+        let field = |t: Ty, k: u32| {
+            let TyData::Adt { def, args } = pool.get(t) else {
+                return None;
+            };
+            let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|i| &i.data)
+            else {
+                return None;
+            };
+            Some((fields.get(k as usize)?, def, args))
+        };
+        for &q in init {
+            t = match q {
+                Proj::Deref => match pool.get(t) {
+                    TyData::Ref { inner, .. } => inner,
+                    _ => return None,
+                },
+                Proj::Field(k) => {
+                    let (f, def, args) = field(t, k)?;
+                    let args = pool.list_items(args);
+                    pool.subst(f.ty, &|p: ParamRef| {
+                        (p.owner == def).then(|| args.get(usize::from(p.index)).copied())?
+                    })
+                }
+                Proj::Variant(_) | Proj::Elem(_) => return None,
+            };
+        }
+        if let TyData::Ref { inner, .. } = pool.get(t) {
+            t = inner;
+        }
+        Some(field(t, j)?.0)
     }
 
     /// The lifetimes a function value's written input `var` needs a
@@ -483,13 +556,17 @@ fn whole_local_read(b: &Body, v: u32) -> Option<usize> {
 /// writes the lifetimes of its inputs' function types: a parameter's
 /// declared type and its record ([`FnSig::fn_lifetimes`]), the body's
 /// own lifetimes; a named function's signature, the callee's; or a
-/// closure literal, whose annotations write none
-/// (`ref.lifetime.not-yet.body`).
+/// declared function type whose lifetimes each use instantiates: a call's
+/// result or a struct field, or a closure literal, whose annotations
+/// write none (`ref.lifetime.not-yet.body`).
 #[derive(Clone, Copy)]
 enum Source<'s> {
     Param(Ty, &'s [u16]),
     Item(&'s FnSig),
-    Closure(Ty),
+    /// A declared function type and its record, whose written lifetimes
+    /// each use instantiates: a call's result, a struct field, or a
+    /// closure literal's, which writes none.
+    Declared(Ty, &'s [u16]),
 }
 
 /// The parameter places the place rooted at local `l` with projection

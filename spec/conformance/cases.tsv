@@ -5984,6 +5984,8 @@ lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismat
 lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-passed-through-a-copied-function-value.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
 lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-written-through-a-local-reference.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
 lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-written-through-a-local-reborrow.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
+lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-passed-through-a-call-result.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
+lang/functions/function-types-and-values/lifetimes-in-function-types/type-mismatch-a-static-input-function-passed-through-a-field.hd	type	reject:type-mismatch	lang/07-functions.md#r-fn.type.lifetime.input
 lang/references/generic-locality/static-bound-box-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
 lang/references/generic-locality/static-bound-capture-unbounded-parameter.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.capture
 lang/references/generic-locality/static-bound-local-reference-argument.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.generic.static.error
