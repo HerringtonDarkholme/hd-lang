@@ -6983,14 +6983,12 @@ impl Run<'_> {
         // A rendered body's fields by name (`hd_check::render`).
         let field_names = |t: Ty, k: u32| -> Option<(String, Ty)> {
             let pool = names.pool;
-            let TyData::Adt { def, args } = pool.get(t) else {
-                return None;
-            };
+            let (def, types) = pool.adt(t)?;
             let hd_resolve::ItemData::Struct(fs, _) = &lookup.item(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
-            let argv = pool.list_items(args);
+            let argv = pool.list_items(types);
             let ft = pool.subst(f.ty, &|p: hd_types::ParamRef| {
                 (p.owner == def)
                     .then(|| argv.get(p.index as usize).copied())
@@ -7443,7 +7441,7 @@ impl Run<'_> {
                 kind: hd_resolve::ImplKind::Derived,
                 ..
             } = &it.data
-                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                && let Some((def, _)) = names.pool.adt(*self_ty)
             {
                 derived_of.entry(def).or_default().push(it);
             }
@@ -8143,7 +8141,7 @@ impl Run<'_> {
                 // no template (`trait.derive.newtype.*`).
                 if *kind == hd_resolve::ImplKind::Derived
                     && let ItemData::Impl { self_ty, .. } = &it.data
-                    && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                    && let Some((def, _)) = names.pool.adt(*self_ty)
                     && !cx
                         .lookup
                         .own_index
@@ -8334,7 +8332,7 @@ impl Run<'_> {
         else {
             return;
         };
-        let TyData::Adt { def: data, .. } = pool.get(*self_ty) else {
+        let Some((data, _)) = pool.adt(*self_ty) else {
             return;
         };
         if heads.iter().any(|x| x.def == data)
@@ -9919,14 +9917,12 @@ impl Run<'_> {
         // no dependency map.
         let fields = |t: Ty, k: u32| -> Option<(String, Ty)> {
             let pool = names.pool;
-            let TyData::Adt { def, args } = pool.get(t) else {
-                return None;
-            };
+            let (def, types) = pool.adt(t)?;
             let ItemData::Struct(fs, _) = &p.items.get(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
-            let argv = pool.list_items(args);
+            let argv = pool.list_items(types);
             let ft = pool.subst(f.ty, &|q: hd_types::ParamRef| {
                 (q.owner == def)
                     .then(|| argv.get(q.index as usize).copied())
@@ -10920,7 +10916,7 @@ impl Run<'_> {
         let rt = |n: &str| names.item(ENTRY_MODULE, n);
         let [status, status_error, status_dyn_ref] = ENTRY_STATUS_FNS;
         let known = &self.known;
-        let TyData::Adt { def, args } = pool.get(ret) else {
+        let Some((def, args)) = pool.adt(ret) else {
             return Some((rt(status), pool.list(&[ret])));
         };
         if def != known.result {
@@ -13085,6 +13081,9 @@ impl ProgramTables {
 
 impl LayoutEnv for Env<'_> {
     fn std_kind(&self, def: DefId) -> StdKind {
+        if def.get().is_none() {
+            return StdKind::Other;
+        }
         let k = &self.run.known;
         if def == k.list {
             StdKind::List
@@ -13097,7 +13096,7 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn raw_buffer(&self, def: DefId) -> bool {
-        def == self.run.known.buffer
+        def.get().is_some() && def == self.run.known.buffer
     }
     fn has_drop(&self, def: DefId) -> bool {
         let drop_trait = self.run.known.drop_trait;
@@ -13111,7 +13110,7 @@ impl LayoutEnv for Env<'_> {
                         ItemData::Impl {
                             trait_, self_ty, ..
                         } if *trait_ == drop_trait => match self.run.pool.get(*self_ty) {
-                            TyData::Adt { def, .. } => Some(def),
+                            TyData::Adt { def, .. } => def.get(),
                             _ => None,
                         },
                         _ => None,
@@ -13121,7 +13120,7 @@ impl LayoutEnv for Env<'_> {
             .contains(&def)
     }
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Enum { variants, .. } => Some(
                 variants
                     .iter()
@@ -13139,13 +13138,17 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn is_enum(&self, def: DefId) -> bool {
+        // ruled out: an anonymous sum has no nominal declaration.
+        if def.get().is_none() {
+            return false;
+        }
         self.p
             .items
             .get(def)
             .is_some_and(|i| matches!(i.data, ItemData::Enum { .. }))
     }
     fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Enum { variants, .. } => Some(
                 variants
                     .iter()
@@ -13180,7 +13183,7 @@ impl LayoutEnv for Env<'_> {
         self.run.known.option
     }
     fn newtype_base(&self, def: DefId) -> Option<Ty> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Newtype(inner, _) => Some(self.low(*inner)),
             _ => None,
         }
@@ -13694,7 +13697,7 @@ impl ProgramEnv for Env<'_> {
         if *kind != hd_resolve::ImplKind::Derived {
             return false;
         }
-        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(..))))
+        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if def.get().is_some() && self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(..))))
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
         let item = self.p.items.get(method)?;
@@ -13753,7 +13756,7 @@ impl ProgramEnv for Env<'_> {
         self.run.host_items()
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Struct(fs, _) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
             ItemData::Newtype(inner, _) => Some(vec![self.low(*inner)]),
@@ -13761,7 +13764,7 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn enum_variant_names(&self, def: DefId) -> Option<Vec<(String, Vec<String>)>> {
-        let ItemData::Enum { variants, .. } = &self.p.items.get(def)?.data else {
+        let ItemData::Enum { variants, .. } = &self.p.items.get(def.get()?)?.data else {
             return None;
         };
         let names = self.run.names();
@@ -13781,7 +13784,7 @@ impl ProgramEnv for Env<'_> {
         )
     }
     fn data_field_names(&self, def: DefId) -> Option<Vec<String>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Struct(fs, _) => {
                 let names = self.run.names();
                 Some(fs.iter().map(|f| names.text(f.name).to_owned()).collect())
@@ -13790,12 +13793,20 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn is_struct(&self, def: DefId) -> bool {
+        // ruled out: an anonymous sum has no nominal declaration.
+        if def.get().is_none() {
+            return false;
+        }
         self.p
             .items
             .get(def)
             .is_some_and(|i| self.run.names().known.is_struct(i))
     }
     fn has_private_field(&self, def: DefId) -> bool {
+        // ruled out: an anonymous sum has no nominal declaration.
+        if def.get().is_none() {
+            return false;
+        }
         self.p.items.get(def).is_some_and(
             |i| matches!(&i.data, ItemData::Struct(fs, _) if fs.iter().any(|f| !f.public)),
         )

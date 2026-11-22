@@ -15,7 +15,6 @@ fn parts(pool: &InternPool, t: Ty) -> Vec<Ty> {
             parts.extend(pool.list_items(elems));
             parts.extend(rest);
         }
-        TyData::Union(members) => parts.extend(pool.list_items(members)),
         TyData::Ref { inner: i, .. } => parts.push(i),
         TyData::Fn {
             params,

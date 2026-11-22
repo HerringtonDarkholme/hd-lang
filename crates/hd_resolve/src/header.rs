@@ -4,6 +4,7 @@
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_types::ANON_SUM;
 
 use hd_base::{DefId, Hash128, StableHasher, StageResult};
 use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
@@ -201,7 +202,7 @@ impl<'a> Universe<'a> {
                 for imp in &list {
                     if let ItemData::Impl { self_ty, kind, .. } = &imp.data
                         && *kind != ImplKind::UnionTemplate
-                        && matches!(pool.get(*self_ty), TyData::Union(_))
+                        && matches!(pool.get(*self_ty), TyData::Adt { def: ANON_SUM, .. })
                     {
                         out.push((template.def, imp.def, self.show(*self_ty)));
                         reported.insert(imp.def);

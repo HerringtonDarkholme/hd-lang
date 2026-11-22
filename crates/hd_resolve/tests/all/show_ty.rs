@@ -72,7 +72,7 @@ fn a_deep_type_shows_its_outer_levels() {
 #[test]
 fn a_long_union_of_unions_is_cut_between_members() {
     with_names(|names, pool, _| {
-        let inner = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, Ty::STRING])));
+        let inner = pool.intern_ty(&TyData::sum(pool.list(&[Ty::I32, Ty::STRING])));
         let members: Vec<Ty> = (0..20)
             .map(|i| {
                 tuple(
@@ -90,7 +90,7 @@ fn a_long_union_of_unions_is_cut_between_members() {
             })
             .chain([inner])
             .collect();
-        let union = pool.intern_ty(&TyData::Union(pool.list(&members)));
+        let union = pool.intern_ty(&TyData::sum(pool.list(&members)));
         let shown = show_ty(names, union);
         assert_short(&shown);
         assert!(shown.starts_with("(i32 | string, f64) | "), "{shown}");

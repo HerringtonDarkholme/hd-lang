@@ -18,6 +18,7 @@ pub mod work;
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::ANON_SUM;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -767,7 +768,8 @@ fn opaque_result(
 #[must_use]
 pub fn holds_coll(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     holds_coll_walk(t, |t| {
-        let TyData::Adt { def, args } = pool.get(t) else {
+        // ruled out: this copy-class query follows declared struct fields, not sums.
+        let Some((def, args)) = pool.adt(t) else {
             return (false, Vec::new());
         };
         match env.std_kind(def) {
@@ -913,6 +915,21 @@ fn name_into(
             }
             out.push('?');
         }
+        TyData::Adt { def, args } if def == ANON_SUM => {
+            for (index, &member) in pool.list_items(args).iter().enumerate() {
+                if index > 0 {
+                    out.push_str(" | ");
+                }
+                let nested = matches!(pool.get(member), TyData::Adt { def: ANON_SUM, .. });
+                if nested {
+                    out.push('(');
+                }
+                name_into(pool, env, printed, member, out, limit);
+                if nested {
+                    out.push(')');
+                }
+            }
+        }
         TyData::Adt { def, args } => {
             out.push_str(&def_name(env, printed, def));
             if !pool.list_items(args).is_empty() {
@@ -957,21 +974,6 @@ fn name_into(
                 out.push_str("...");
             }
             out.push(')');
-        }
-        TyData::Union(members) => {
-            for (index, &member) in pool.list_items(members).iter().enumerate() {
-                if index > 0 {
-                    out.push_str(" | ");
-                }
-                let nested = matches!(pool.get(member), TyData::Union(_));
-                if nested {
-                    out.push('(');
-                }
-                name_into(pool, env, printed, member, out, limit);
-                if nested {
-                    out.push(')');
-                }
-            }
         }
         TyData::Ref {
             inner,
@@ -1064,7 +1066,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
     };
     match pool.get(t) {
         TyData::Adt { def, args } => {
-            out.push(def);
+            out.extend(def.get());
             list(args, out, seen);
         }
         TyData::TraitValue {
@@ -1108,6 +1110,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
 /// slot's provider parameters) and its supertraits (a vtable's parent
 /// fields, with the bindings they fix), as declared.
 fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
+    // ruled out: items_in records only present declaration IDs.
     if let Some(fs) = env.data_fields(def) {
         return fs;
     }
@@ -1148,7 +1151,7 @@ fn layout_hash(
 /// layout also reads: one level of [`items_in`]'s walk.
 fn type_parts(pool: &InternPool, t: Ty) -> (Option<DefId>, Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt { def, args } => (Some(def), pool.list_items(args).to_vec()),
+        TyData::Adt { def, args } => (def.get(), pool.list_items(args).to_vec()),
         TyData::TraitValue {
             def,
             args,
@@ -2036,7 +2039,6 @@ impl Cx<'_> {
                 elems: list(elems),
                 rest: rest.map(|t| self.shared_permission_type(t)),
             },
-            TyData::Union(members) => TyData::Union(list(members)),
             // A function, trait value or projection carries a signature or
             // dictionary whose selection can distinguish the permissions.
             _ => return ty,
@@ -2390,19 +2392,20 @@ impl Cx<'_> {
                     todo.push(inner);
                 }
                 TyData::Adt { def, args } => {
-                    if self.env.has_private_field(def) {
+                    if def.get().is_some() && self.env.has_private_field(def) {
                         self.note_private_boundary(ty, out, package)?;
                         // The opaque codec defines the entire wire value. Its
                         // representation fields need neither codecs nor handles.
                         continue;
                     }
+                    todo.extend(self.pool.list_items(args).iter().copied());
+                    let Some(def) = def.get() else { continue };
                     // A map's decoder rebuilds its table through the key's
                     // hash and equality (`module.boundary.map-decode`).
                     if self.env.std_kind(def) == layout::StdKind::Map {
                         let ops = self.map_key(ty, InstId::NONE, None)?;
                         self.out.boundary.entry(ty).or_default().map_key = Some(ops);
                     }
-                    todo.extend(self.pool.list_items(args).iter().copied());
                     for field in self.env.data_fields(def).unwrap_or_default() {
                         todo.push(subst(self.pool, self.env, def, args, field));
                     }
@@ -2417,10 +2420,6 @@ impl Cx<'_> {
                 TyData::Tuple { elems, rest } => {
                     todo.extend(self.pool.list_items(elems).iter().copied());
                     todo.extend(rest);
-                }
-                // A union crosses as the enum of its cases.
-                TyData::Union(members) => {
-                    todo.extend(self.pool.list_items(members).iter().copied());
                 }
                 TyData::TraitValue { .. } => handles.push((ty, package)),
                 _ => {}
@@ -2569,7 +2568,8 @@ impl Cx<'_> {
         if !self.drop_checked.insert(ty) {
             return Ok(());
         }
-        if let TyData::Adt { .. } = self.pool.get(ty)
+        // ruled out: module.rt.drop.not-copy requires a declaration; payloads follow below.
+        if self.pool.adt(ty).is_some()
             && let Some((trait_, method)) = self.env.drop_items()
             && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
         {
@@ -2580,16 +2580,17 @@ impl Cx<'_> {
             self.out.drop_glue.insert(ty, target.key);
         }
         let children = match self.pool.get(ty) {
-            TyData::Adt { def, args } => self.env.enum_variants(def, args).unwrap_or_else(|| {
-                vec![
-                    self.env
-                        .data_fields(def)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|field| subst(self.pool, self.env, def, args, field))
-                        .collect(),
-                ]
-            }),
+            TyData::Adt { def, args } => layout::enum_variants(self.pool, self.env, def, args)
+                .unwrap_or_else(|| {
+                    vec![
+                        self.env
+                            .data_fields(def)
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|field| subst(self.pool, self.env, def, args, field))
+                            .collect(),
+                    ]
+                }),
             TyData::Tuple { elems, rest } => vec![
                 self.pool
                     .list_items(elems)
@@ -3827,10 +3828,12 @@ fn pinned(
         TyData::Adt { def: d, args } => {
             // `List`, `Map`, a buffer's room and enum payloads store
             // references erased.
-            let erased = matches!(
-                env.std_kind(d),
-                layout::StdKind::List | layout::StdKind::Map
-            ) || env.raw_buffer(d)
+            let erased = d == ANON_SUM
+                || matches!(
+                    env.std_kind(d),
+                    layout::StdKind::List | layout::StdKind::Map
+                )
+                || env.raw_buffer(d)
                 || env.enum_variants(d, args).is_some();
             for a in pool.list_items(args).iter().copied() {
                 pinned(pool, env, def, a, inside || !erased, out);
@@ -3839,11 +3842,6 @@ fn pinned(
         TyData::Tuple { elems, rest } => {
             for e in pool.list_items(elems).iter().copied().chain(rest) {
                 pinned(pool, env, def, e, true, out);
-            }
-        }
-        TyData::Union(members) => {
-            for member in pool.list_items(members) {
-                pinned(pool, env, def, *member, inside, out);
             }
         }
         TyData::Fn {

@@ -5,6 +5,7 @@
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_types::ANON_SUM;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -2813,7 +2814,7 @@ pub fn header_parts(pool: &InternPool, it: &Item, defs: &mut Vec<DefId>, tys: &m
 pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<Ty>) {
     match pool.get(t) {
         TyData::Adt { def, args } => {
-            defs.push(def);
+            defs.extend(def.get());
             tys.extend(pool.list_items(args));
         }
         TyData::TraitValue {
@@ -2833,7 +2834,6 @@ pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<T
             tys.extend(pool.list_items(elems));
             tys.extend(rest);
         }
-        TyData::Union(members) => tys.extend(pool.list_items(members)),
         TyData::Ref { inner: i, .. } => tys.push(i),
         TyData::Fn {
             params,
@@ -3327,7 +3327,8 @@ impl<'s, 'n> Shower<'s, 'n> {
             // `?` follows a reference access type, so a function or union
             // inside is grouped (`grammar.type.optional.function`).
             TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, self.names.known.option) => {
-                let group = matches!(pool.get(inner), TyData::Union(_)) || self.is_fn_sugar(inner);
+                let group = matches!(pool.get(inner), TyData::Adt { def: ANON_SUM, .. })
+                    || self.is_fn_sugar(inner);
                 self.grouped(group, inner, d, marks);
                 self.put("?");
             }
@@ -3338,6 +3339,21 @@ impl<'s, 'n> Shower<'s, 'n> {
             }
             // Lifetime arguments are not shown (`ref.lifetime.struct`,
             // `ref.lifetime.enum`, `ref.lifetime.trait`).
+            TyData::Adt { def, args } if def == ANON_SUM => {
+                for (i, &member) in pool.list_items(args).iter().enumerate() {
+                    if self.cut {
+                        break;
+                    }
+                    if i > 0 {
+                        self.sep(" | ");
+                    }
+                    // A function member would take the args after it
+                    // into its result type.
+                    let group = matches!(pool.get(member), TyData::Adt { def: ANON_SUM, .. })
+                        || self.is_fn_sugar(member);
+                    self.grouped(group, member, d, marks);
+                }
+            }
             TyData::Adt { def, args } | TyData::TraitValue { def, args, .. } => {
                 let items = pool.list_items(args);
                 let shown: Vec<Ty> = if items.iter().any(|&x| is_lifetime_arg(pool, x)) {
@@ -3375,21 +3391,6 @@ impl<'s, 'n> Shower<'s, 'n> {
                 }
                 self.close(")");
             }
-            TyData::Union(members) => {
-                for (i, &member) in pool.list_items(members).iter().enumerate() {
-                    if self.cut {
-                        break;
-                    }
-                    if i > 0 {
-                        self.sep(" | ");
-                    }
-                    // A function member would take the members after it
-                    // into its result type.
-                    let group =
-                        matches!(pool.get(member), TyData::Union(_)) || self.is_fn_sugar(member);
-                    self.grouped(group, member, d, marks);
-                }
-            }
             TyData::Ref {
                 inner,
                 mutable,
@@ -3413,7 +3414,7 @@ impl<'s, 'n> Shower<'s, 'n> {
                 // function type is grouped, and so is a reference, except a
                 // counted one under a local one (`&*T`).
                 let group = match pool.get(inner) {
-                    TyData::Union(_) => true,
+                    TyData::Adt { def: ANON_SUM, .. } => true,
                     TyData::Ref { counted: c, .. } => counted || !c,
                     TyData::Adt { .. } => pool.sole_arg(inner, self.names.known.option).is_some(),
                     _ => self.is_fn_sugar(inner),
