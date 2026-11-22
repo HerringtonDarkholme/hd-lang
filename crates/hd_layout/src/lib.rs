@@ -488,55 +488,17 @@ thread_local! {
 /// [`counted`] compute each type once, so a long chain of types held by
 /// value costs its length, not its square, at every use.
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
-    struct Reset {
-        mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
-        layouts: Option<std::rc::Rc<Layouts>>,
-        tracks: Option<hd_base::HashMap<Ty, bool>>,
-        counts: Option<hd_base::HashMap<Ty, bool>>,
-        drops: Option<hd_base::HashMap<Ty, bool>>,
-        thin_refs: Option<hd_base::HashMap<Ty, bool>>,
-        local_refs: Option<hd_base::HashMap<Ty, bool>>,
-        flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
-        variants: Option<hd_base::HashMap<Ty, Option<VariantTypes>>>,
-        members: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Members>>>>,
-    }
-    impl Drop for Reset {
+    /// The scope that was in place, put back when the link ends, panic or not.
+    struct Restore(Option<Scope>);
+    impl Drop for Restore {
         fn drop(&mut self) {
-            MEMS.set(self.mems.take());
-            layouts::LAYOUTS.set(self.layouts.take());
-            TRACKS.set(self.tracks.take());
-            COUNTS.set(self.counts.take());
-            DROPS.set(self.drops.take());
-            THIN_REFS.set(self.thin_refs.take());
-            LOCAL_REFS.set(self.local_refs.take());
-            FLATS.set(self.flats.take());
-            VARIANTS.set(self.variants.take());
-            MEMBERS.set(self.members.take());
+            if let Some(outer) = self.0.take() {
+                outer.put();
+            }
         }
     }
-
-    let _reset = Reset {
-        mems: MEMS.take(),
-        layouts: layouts::LAYOUTS.take(),
-        tracks: TRACKS.take(),
-        counts: COUNTS.take(),
-        drops: DROPS.take(),
-        thin_refs: THIN_REFS.take(),
-        local_refs: LOCAL_REFS.take(),
-        flats: FLATS.take(),
-        variants: VARIANTS.take(),
-        members: MEMBERS.take(),
-    };
-    MEMS.set(Some(hd_base::HashMap::default()));
-    layouts::LAYOUTS.set(Some(std::rc::Rc::default()));
-    TRACKS.set(Some(hd_base::HashMap::default()));
-    COUNTS.set(Some(hd_base::HashMap::default()));
-    DROPS.set(Some(hd_base::HashMap::default()));
-    THIN_REFS.set(Some(hd_base::HashMap::default()));
-    LOCAL_REFS.set(Some(hd_base::HashMap::default()));
-    FLATS.set(Some(hd_base::HashMap::default()));
-    VARIANTS.set(Some(hd_base::HashMap::default()));
-    MEMBERS.set(Some(hd_base::HashMap::default()));
+    let _restore = Restore(Some(Scope::take()));
+    Scope::fresh().put();
     link()
 }
 
