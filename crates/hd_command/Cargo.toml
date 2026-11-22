@@ -48,6 +48,9 @@ hd_syntax = { workspace = true }
 # The REPL (`cli.repl.*`): the prompt's line editor with in-memory history,
 # and SIGINT while an input runs, which stops it (`cli.repl.stop`).
 ctrlc = "=3.5.2"
+# The global allocator under `work::Counting` (#1802 draft 07). Its `v2`
+# C library, as uv pins it: v3.3.2 crashes on x86 CPUs without POPCNT.
+mimalloc = { version = "=0.1.52", default-features = false, features = ["v2"] }
 serde_json = "1"
 # `HD_WAT`: the built module's text beside it, for `scripts/ir-audit.py`.
 wasmparser = { version = "0.261.0", default-features = false, features = ["std"] }

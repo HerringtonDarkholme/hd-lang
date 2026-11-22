@@ -8,41 +8,44 @@
 //! signal: a clone, rebuild or format per item shows up as allocation
 //! work even where no named counter sits.
 
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::{GlobalAlloc, Layout};
+
+use mimalloc::MiMalloc;
 
 use hd_base::work::{Counter, add};
 
-/// The system allocator, counting each allocation and reallocation and
-/// its bytes while the work signal is on. Cost while off: one relaxed
-/// load and a branch per allocation.
+/// mimalloc, counting each allocation and reallocation and its bytes while
+/// the work signal is on. Cost while off: one relaxed load and a branch
+/// per allocation. Against the system allocator, a cold check at 2,000
+/// files uses 11% less CPU (#1802 draft 07).
 struct Counting;
 
-// SAFETY: every method forwards to `System` with its own arguments, so
-// `System`'s guarantees hold; the count touches only atomics and never
+// SAFETY: every method forwards to `MiMalloc` with its own arguments, so
+// its guarantees hold; the count touches only atomics and never
 // allocates.
 #[allow(unsafe_code)]
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         count(layout.size());
-        // SAFETY: the caller's contract for `alloc` is `System`'s.
-        unsafe { System.alloc(layout) }
+        // SAFETY: the caller's contract for `alloc` is `MiMalloc`'s.
+        unsafe { MiMalloc.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         count(layout.size());
         // SAFETY: as `alloc`.
-        unsafe { System.alloc_zeroed(layout) }
+        unsafe { MiMalloc.alloc_zeroed(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        // SAFETY: `ptr` came from `System` with `layout`.
-        unsafe { System.dealloc(ptr, layout) }
+        // SAFETY: `ptr` came from `MiMalloc` with `layout`.
+        unsafe { MiMalloc.dealloc(ptr, layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         count(new_size);
         // SAFETY: as `dealloc`, and the caller's `new_size` contract.
-        unsafe { System.realloc(ptr, layout, new_size) }
+        unsafe { MiMalloc.realloc(ptr, layout, new_size) }
     }
 }
 
