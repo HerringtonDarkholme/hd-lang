@@ -288,7 +288,7 @@ impl Ck<'_, '_> {
         }
         let pool = self.pool();
         let got = self.resolved(self.infer.resolve(pool, got));
-        let TyData::Adt { def, args } = pool.get(got) else {
+        let Some((def, args)) = pool.adt(got) else {
             return;
         };
         if def != self.cx.names.known.result {
@@ -433,7 +433,7 @@ impl Ck<'_, '_> {
         while let Some((inner, _)) = self.ref_of(receiver) {
             receiver = self.resolved(inner);
         }
-        let TyData::Adt { def, .. } = pool.get(receiver) else {
+        let Some((def, _)) = pool.adt(receiver) else {
             return;
         };
         if def != self.cx.names.known.list {

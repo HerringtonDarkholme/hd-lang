@@ -286,9 +286,7 @@ fn block_view<'t>(
     else {
         return None;
     };
-    let TyData::Adt { def: data, args } = pool.get(*self_ty) else {
-        return None;
-    };
+    let (data, args) = pool.adt(*self_ty)?;
     let target = cx.lookup.item(data)?;
     let tys: Vec<Vec<Ty>> = match &target.data {
         ItemData::Struct(fields, _) => vec![fields.iter().map(|f| f.ty).collect()],
@@ -866,11 +864,12 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
                                 .map(|&t| (RefNode::Type(t), Some(node))),
                         );
                     }
-                    TyData::Adt { def, args } => {
+                    // Only declaration arguments and declared members refer by these rules.
+                    TyData::Adt { def, args } if def.get().is_some() => {
                         if def == self.data {
                             found.push(node);
                         } else {
-                            stack.push((RefNode::Fields(def), Some(node)));
+                            stack.extend(def.get().map(|d| (RefNode::Fields(d), Some(node))));
                             stack.extend(
                                 pool.list_items(args)
                                     .iter()
@@ -879,10 +878,10 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
                             );
                         }
                     }
-                    TyData::Prim(_)
+                    TyData::Adt { .. }
+                    | TyData::Prim(_)
                     | TyData::Never
                     | TyData::Poison
-                    | TyData::Union(_)
                     | TyData::Fn { .. }
                     | TyData::TraitValue { .. }
                     | TyData::Opaque { .. }
@@ -982,7 +981,8 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
                                 .collect::<Vec<_>>();
                             stack.push(Work::Any(fields.into_iter(), false));
                         }
-                        TyData::Adt { def, args } => {
+                        // ruled out: structural sums have no declaring member owner.
+                        TyData::Adt { def, args } if def.get().is_some() => {
                             if def == self.data {
                                 answer = true;
                             } else if def == k.list || def == k.map {
@@ -1245,7 +1245,7 @@ mod self_reference_walk_tests {
                             }
                         }
                         for data in [
-                            TyData::Union(p.list(&[target])),
+                            TyData::sum(p.list(&[target])),
                             TyData::TraitValue {
                                 def: data,
                                 args: p.list(&[target]),

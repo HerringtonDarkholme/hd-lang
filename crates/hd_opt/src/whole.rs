@@ -127,7 +127,7 @@ impl Scan<'_> {
         match self.pool.get(t) {
             TyData::Adt { def, args } => {
                 children.extend(self.pool.list_items(args).iter().copied());
-                if let Some(fields) = self.env.data_fields(def) {
+                if let Some(fields) = def.get().and_then(|def| self.env.data_fields(def)) {
                     children.extend(
                         fields
                             .into_iter()
@@ -138,9 +138,6 @@ impl Scan<'_> {
             TyData::Tuple { elems, rest } => {
                 children.extend(self.pool.list_items(elems).iter().copied());
                 children.extend(rest);
-            }
-            TyData::Union(members) => {
-                children.extend(self.pool.list_items(members).iter().copied());
             }
             TyData::Ref { inner, .. } => {
                 children.push(inner);

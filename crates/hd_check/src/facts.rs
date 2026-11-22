@@ -845,7 +845,7 @@ pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut
         else {
             continue;
         };
-        let TyData::Adt { def, .. } = cx.names.pool.get(*self_ty) else {
+        let Some((def, _)) = cx.names.pool.adt(*self_ty) else {
             continue;
         };
         if *trait_ == DefId::NONE {
@@ -1350,7 +1350,7 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         let m = self.infer.resolve(pool, m);
-        let TyData::Adt { def: fact, .. } = pool.get(m) else {
+        let Some((fact, _)) = pool.adt(m) else {
             return Ok(());
         };
         if self

@@ -17,6 +17,7 @@
 use hd_base::{DefId, Fuel, InferVar, StageResult, Symbol};
 use hd_diag::Code;
 use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, Names};
+use hd_types::ANON_SUM;
 use hd_types::solver::{
     Answer, BodyMemo, EnvKey, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver,
     TraitRef,
@@ -841,7 +842,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// `Drop` impl.
     fn drop_on_copy(&mut self, self_ty: Ty) {
         let pool = self.pool();
-        let TyData::Adt { def, .. } = pool.get(self_ty) else {
+        let Some((def, _)) = pool.adt(self_ty) else {
             return;
         };
         let Some(decl) = self.cx.lookup.item(def) else {
@@ -1092,7 +1093,7 @@ impl<'a> ItemCheck<'_, 'a> {
         // A newtype derives through its base type instead, with no
         // template (`trait.derive.newtype.*`).
         let newtype = match self.pool().get(*self_ty) {
-            TyData::Adt { def, .. } => self
+            TyData::Adt { def, .. } if def.get().is_some() => self
                 .cx
                 .lookup
                 .item(def)
@@ -1567,7 +1568,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// the base type (`trait.derive.newtype.requires.error`).
     fn derived_newtype(&mut self, self_ty: Ty, tv: Ty) -> StageResult<()> {
         let pool = self.pool();
-        let TyData::Adt { def, args } = pool.get(self_ty) else {
+        let Some((def, args)) = pool.adt(self_ty) else {
             return Ok(());
         };
         let Some(ItemData::Newtype(inner, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
@@ -2023,7 +2024,7 @@ impl<'a> ItemCheck<'_, 'a> {
         match pool.get(t) {
             TyData::Adt { def, args } => {
                 let args_v = pool.list_items(args);
-                if let Some(target) = self.cx.lookup.item(def) {
+                if let Some(target) = def.get().and_then(|def| self.cx.lookup.item(def)) {
                     let goals =
                         crate::written_bounds::goals(pool, def, &target.generics, None, args_v);
                     self.arg_bounds(goals, slot)?;
@@ -2058,9 +2059,6 @@ impl<'a> ItemCheck<'_, 'a> {
                         .chain(rest)
                         .map(|e| Work::Ty(e, slot)),
                 );
-            }
-            TyData::Union(members) => {
-                kids.extend(pool.list_items(members).iter().map(|&m| Work::Ty(m, slot)));
             }
             TyData::Fn {
                 params,
@@ -2181,7 +2179,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 continue;
             };
             for f in fs.iter().filter(|f| f.embedded) {
-                if let TyData::Adt { def: e, .. } = pool.get(f.ty) {
+                if let Some((e, _)) = pool.adt(f.ty) {
                     if e == def {
                         return true;
                     }
@@ -2227,7 +2225,7 @@ impl<'a> ItemCheck<'_, 'a> {
             );
             self.report(0, Code::InvalidDelegation, message);
         }
-        let TyData::Adt { def, args } = pool.get(self_ty) else {
+        let Some((def, args)) = pool.adt(self_ty) else {
             return Ok(());
         };
         let Some(ItemData::Struct(fields, _)) = lookup.item(def).map(|i| &i.data) else {
@@ -2636,7 +2634,7 @@ impl ItemCheck<'_, '_> {
                 }
                 // A union crosses as the enum of its cases
                 // (`types.union.representation`), each case its payload.
-                TyData::Union(members) => pool.list_items(members).to_vec(),
+                TyData::Adt { def, args } if def == ANON_SUM => pool.list_items(args).to_vec(),
                 // `module.boundary.rows`: a context bundles requirement
                 // bindings, which are no data.
                 TyData::Context(_) => {

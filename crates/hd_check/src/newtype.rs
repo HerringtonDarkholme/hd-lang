@@ -55,7 +55,7 @@ pub fn derived_newtype_findings<'i>(
         else {
             continue;
         };
-        let TyData::Adt { def, args } = pool.get(*self_ty) else {
+        let Some((def, args)) = pool.adt(*self_ty) else {
             continue;
         };
         if def != newtype {
@@ -565,7 +565,7 @@ mod tests {
                             elems: p.list(&[conv.newtype]),
                             rest: None,
                         },
-                        TyData::Union(p.list(&[conv.newtype])),
+                        TyData::sum(p.list(&[conv.newtype])),
                         TyData::Ref {
                             inner: conv.newtype,
                             mutable: false,

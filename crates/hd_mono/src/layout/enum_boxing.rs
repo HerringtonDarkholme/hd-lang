@@ -54,7 +54,8 @@ impl EnumBoxingCache {
                 // select only the positions that contribute to boxing.
                 let children = match pool.get(t) {
                     TyData::Adt { def, args } => {
-                        if !self.done.contains_key(&def) && seen.insert(def) {
+                        if def.get().is_some() && !self.done.contains_key(&def) && seen.insert(def)
+                        {
                             pending.push(def);
                         }
                         pool.list_items(args).to_vec()

@@ -432,7 +432,7 @@ impl Em<'_, '_, '_> {
     /// The field types of struct type `t`, substituted.
     pub(super) fn struct_fields(&self, t: Ty) -> Vec<Ty> {
         let (pool, env) = (self.pool(), self.env());
-        let TyData::Adt { def, args } = pool.get(crate::layout::strip_newtype(pool, env, t)) else {
+        let Some((def, args)) = pool.adt(crate::layout::strip_newtype(pool, env, t)) else {
             return Vec::new();
         };
         env.data_fields(def)

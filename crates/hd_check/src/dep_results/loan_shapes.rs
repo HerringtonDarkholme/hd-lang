@@ -72,23 +72,22 @@ impl Shapes {
                             None,
                             ls.pool.list_items(elems).len() + usize::from(rest.is_some()),
                         )],
-                        TyData::Adt { def, .. } => {
-                            cx.lookup
-                                .item(def)
-                                .map_or_else(Vec::new, |item| match &item.data {
-                                    ItemData::Struct(fields, _) => vec![(None, fields.len())],
-                                    ItemData::Enum {
-                                        shared, variants, ..
-                                    } if shared.is_empty() => variants
-                                        .iter()
-                                        .enumerate()
-                                        .map(|(variant, fields)| {
-                                            (Some(w(variant)), fields.fields.len())
-                                        })
-                                        .collect(),
-                                    _ => Vec::new(),
-                                })
-                        }
+                        TyData::Adt { def, .. } if def.get().is_some() => cx
+                            .lookup
+                            .item(def)
+                            .map_or_else(Vec::new, |item| match &item.data {
+                                ItemData::Struct(fields, _) => vec![(None, fields.len())],
+                                ItemData::Enum {
+                                    shared, variants, ..
+                                } if shared.is_empty() => variants
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(variant, fields)| {
+                                        (Some(w(variant)), fields.fields.len())
+                                    })
+                                    .collect(),
+                                _ => Vec::new(),
+                            }),
                         _ => Vec::new(),
                     };
                     let mut fields = Vec::new();

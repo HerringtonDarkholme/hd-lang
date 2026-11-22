@@ -210,7 +210,6 @@ fn result_facts_walk(
                 }
                 list(declared, hidden, &mut work);
             }
-            (TyData::Union(declared), TyData::Union(hidden)) => list(declared, hidden, &mut work),
             _ => {}
         }
     }
@@ -335,7 +334,6 @@ impl Reveal<'_> {
                 def,
                 args: self.list(args)?,
             },
-            TyData::Union(members) => TyData::Union(self.list(members)?),
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: self.list(elems)?,
                 rest: rest.map(|t| self.ty(t)).transpose()?,
@@ -414,8 +412,8 @@ mod tests {
         let mut declared = opaque;
         let mut hidden = Ty::I32;
         for _ in 0..20 {
-            declared = pool.intern_ty(&TyData::Union(pool.list(&vec![declared; 1000])));
-            hidden = pool.intern_ty(&TyData::Union(pool.list(&vec![hidden; 1000])));
+            declared = pool.intern_ty(&TyData::sum(pool.list(&vec![declared; 1000])));
+            hidden = pool.intern_ty(&TyData::sum(pool.list(&vec![hidden; 1000])));
         }
         let mut facts = Vec::new();
         let steps =

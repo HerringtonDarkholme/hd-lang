@@ -275,7 +275,7 @@ fn derivation_repeats<'t>(cx: &BodyCx<'t>, heads: &[Head<'t>], h: &Head<'t>, dia
         return;
     };
     let pool = cx.names.pool;
-    let TyData::Adt { def: data, args } = pool.get(*self_ty) else {
+    let Some((data, args)) = pool.adt(*self_ty) else {
         return;
     };
     let lines = crate::derive::member_lines(&cx.src, h.node);
