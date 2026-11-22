@@ -2233,7 +2233,10 @@ impl Ck<'_, '_> {
     /// for a crossing parameter, has its marker. Each is a bound goal on
     /// the capture's type, which waits for inference as a call's bounds do.
     fn crossing_captures(&mut self, marker: Option<DefId>, r: Ref, e: NodeRef<'_>) {
-        let Some(marker) = marker else { return };
+        // A bound that names no trait was reported where it is written.
+        let Some(marker) = marker.filter(|&m| m != DefId::NONE) else {
+            return;
+        };
         let closure = r
             .as_inst()
             .is_some_and(|i| self.b.body().tags[i.0 as usize] == hd_tir::ir::Tag::Closure);

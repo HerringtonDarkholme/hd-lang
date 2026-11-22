@@ -1,0 +1,9 @@
+# test: a crossing parameter whose marker is not in scope reports the unknown trait once, and its closure's captures are not checked against it
+# Spec 07 Crossing Closures: fn.crossing.parameter.marker.
+fn cross(code: fn() -> i32 + Send) -> i32: # diagnostic: unknown-trait
+    code()
+
+pub fn main() -> void $ Console:
+    let y = 1
+    _ := cross(fn() -> i32: y)
+    println("ok")

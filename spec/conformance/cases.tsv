@@ -7053,6 +7053,7 @@ lang/expressions/unary-and-binary-operators/ordering/readonly-element-calls-pres
 lang/functions/closures/known-closure-consumers-preserve-captures.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy.value
 lang/functions/crossing-closures/crossing-parameter.hd	type	accept	lang/07-functions.md#r-fn.crossing.parameter
 lang/functions/crossing-closures/crossing-parameter-not-a-marker.hd	type	reject:invalid-marker-trait	lang/07-functions.md#r-fn.crossing.parameter.marker
+lang/functions/crossing-closures/crossing-parameter-unknown-marker.hd	type	reject:unknown-trait	lang/07-functions.md#r-fn.crossing.parameter.marker
 lang/functions/crossing-closures/crossing-argument-not-literal.hd	type	reject:crossing-closure-not-literal	lang/07-functions.md#r-fn.crossing.literal
 lang/functions/crossing-closures/crossing-parameter-passed-on.hd	type	accept	lang/07-functions.md#r-fn.crossing.literal
 lang/functions/crossing-closures/crossing-parameter-stored.hd	type	reject:crossing-closure-not-literal	lang/07-functions.md#r-fn.crossing.parameter.uses
@@ -7061,6 +7062,7 @@ lang/functions/crossing-closures/crossing-capture-not-wire.hd	type	reject:unsati
 lang/functions/crossing-closures/crossing-capture-moves.hd	type	reject:use-of-moved-value	lang/07-functions.md#r-fn.crossing.mode.move
 lang/functions/crossing-closures/crossing-capture-moved-out.hd	type	accept	lang/07-functions.md#r-fn.crossing.move-out
 lang/functions/crossing-closures/crossing-capture-moved-runs.hd	runtime	accept	lang/07-functions.md#r-fn.crossing.mode.move
+lang/functions/crossing-closures/crossing-captures-in-a-package.hd	runtime	accept	lang/07-functions.md#r-fn.crossing.mode.copy
 lang/functions/crossing-closures/crossing-capture-copied.hd	runtime	accept	lang/07-functions.md#r-fn.crossing.mode.copy
 lang/functions/crossing-closures/crossing-capture-assigned.hd	type	reject:crossing-capture-written	lang/07-functions.md#r-fn.crossing.no-write
 lang/functions/crossing-closures/crossing-capture-changed-in-place.hd	type	reject:crossing-capture-written	lang/07-functions.md#r-fn.crossing.no-write

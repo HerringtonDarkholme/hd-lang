@@ -1,0 +1,24 @@
+# test: in a package, a crossing closure copies a captured let of an unsuffixed literal and moves a value that is not Copy, and calls another module
+# Spec 07 Crossing Closures: fn.crossing.mode.copy, fn.crossing.mode.move, fn.crossing.captures.
+# fixture-package-tree: crossing-captures/src/main.hd
+# expect-stdout: ok 2 3
+use pkg.values.base
+use std.marker.{Send, Wire}
+
+struct Bag:
+    items: List[i32]
+
+impl !Copy for Bag
+
+fn cross(code: fn() -> i32 + Send) -> i32:
+    code()
+
+fn post[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+pub fn main() -> void $ Console:
+    let y = 1
+    a := cross(fn() -> i32: y + base())
+    bag := Bag { items: [1, 2, 3] }
+    n := post(fn() -> usize: bag.items.len())
+    println("ok $a $n")
