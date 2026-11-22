@@ -122,11 +122,8 @@ pub fn in_place_parts(
     out.clear();
     let t = ty;
     if let TyData::Adt { def, args } = pool.get(t)
-        && env.newtype_base(def).is_some()
+        && let Some(base) = env.newtype_base(def)
     {
-        let Some(&base) = env.data_fields(def).unwrap_or_default().first() else {
-            return false;
-        };
         if variant.is_some() {
             return false;
         }
@@ -169,7 +166,7 @@ pub fn in_place_parts(
 
 /// Classifies all variants of an in-place enum in one layout query.
 /// Each flag says that the variant has no counted field. As with
-/// `in_place_parts(_, Some(_), _)`, newtypes and boxed layouts do not
+/// `in_place_parts(_, Some(_), _)`, newtypes and references do not
 /// expose variants. The caller excludes open types and runtime Drop hooks.
 pub fn in_place_empty_variants(
     pool: &InternPool,
@@ -220,32 +217,29 @@ pub fn rooted_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option
 }
 
 fn small_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
-    let Kind::Ref {
-        target, fat: false, ..
-    } = kind(pool, env, t)
+    let t = crate::strip_newtype(pool, env, t);
+    let TyData::Ref {
+        inner,
+        mutable: false,
+        ..
+    } = pool.get(t)
     else {
         return None;
     };
-    if crate::ref_mutable(pool, env, t) || !matches!(kind(pool, env, target), Kind::Value) {
+    let target = crate::strip_newtype(pool, env, inner);
+    if matches!(
+        pool.get(target),
+        TyData::TraitValue { .. } | TyData::Ref { .. }
+    ) {
         return None;
     }
     let n = crate::vals(pool, env, target).ok()?.len();
     if !(1..=4).contains(&n) {
         return None;
     }
-    // The layout's target has its newtypes erased; the promoted value keeps
-    // the declared referent, so a path through it steps into a newtype's
-    // one field, as `i32(*m)` with `m: &Meters` does.
-    Some(declared_referent(pool, env, t).unwrap_or(target))
-}
-
-/// The type a reference type `t` refers to, as declared: newtypes kept.
-fn declared_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
-    let t = crate::strip_newtype(pool, env, t);
-    match pool.get(t) {
-        TyData::Ref { inner, .. } => Some(inner),
-        _ => None,
-    }
+    // Layout erases newtypes, but promotion keeps the declared referent:
+    // a path through &Meters must still step through its one field.
+    Some(inner)
 }
 
 /// The part [`place_part`] names: its type, the root's values that hold
