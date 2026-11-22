@@ -3008,3 +3008,22 @@ fn list_extend[T](items: &mut List[T], other: List[T]) -> void:
 @intrinsic("list_reserve")
 fn list_reserve[T](items: &mut List[T], additional: usize) -> void:
     panic("intrinsic")
+
+# Standard insertion/clearing names over the existing map operations.
+impl[K < Eq & Hash, V] Map[K, V]:
+    ## Inserts a value and returns the previous value, if any, without replacing an equal stored key.
+    ## See [std-collections.map.insert.value](../../spec/std/collections.md#r-std-collections.map.insert.value).
+    @inline(.Always)
+    pub fn insert(&mut self, key: K, value: V) -> V?:
+        before := self.len()
+        slot := self.get_or_insert(key, value)
+        previous := *slot
+        *slot = value
+        if self.len() == before: .Some(previous) else: .None
+
+    ## Removes all entries from this map, leaving other copies unchanged.
+    ## See [std-collections.map.clear.value](../../spec/std/collections.md#r-std-collections.map.clear.value).
+    @inline(.Always)
+    pub fn clear(&mut self) -> void:
+        if self.len() != 0:
+            *self = {}
