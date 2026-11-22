@@ -1,4 +1,5 @@
-# @dump: diagnostics fixed
+# @dump: diagnostics
+# expected: unwrap is an ordinary value; this Result value is accepted.
 
 fn parse(text: string) -> Result[i32, string]:
     if text == "": .Err("empty") else: .Ok(1)

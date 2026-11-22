@@ -26,7 +26,7 @@ What was written, the code `hd check` reports, and what to write instead.
 
 | Wrote | Code | Write instead |
 | --- | --- | --- |
-| `x.unwrap()` | `unknown-method` | `x.expect("why it is present")` or `x.unwrap_or(fallback)` |
+| `r.unwrap()` with unconstrained `Result[T, E]` | `unsatisfied-trait-bound` | Add `E < Debug`, or use `r.unwrap_or(fallback)` without formatting the error |
 | `None`, `Some(x)`, `Ok(x)`, `Err(e)` | `unknown-name` | `.None`, `.Some(x)`, `.Ok(x)`, `.Err(e)` |
 | `"$opt"` with `opt: string?` | `unsatisfied-trait-bound` | `"${opt.unwrap_or("")}"` or `"${debug(opt)}"` |
 | `"$xs"` with a list, map or struct | `unsatisfied-trait-bound` | `"${debug(xs)}"`, or `xs.join(", ")` |
