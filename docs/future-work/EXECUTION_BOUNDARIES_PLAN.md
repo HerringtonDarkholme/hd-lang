@@ -183,6 +183,22 @@ boundary move (about −900) lands with the codec or the stage passes its
    lists, a variant index then its payload), so the host boundary can
    move onto it with one `memory.copy` into `hd.x`. A decoder returns a
    `Result` and never traps on its input.
+
+   Sites, read for this step. The dbg printer is the model:
+   `hd_structure::dbg::printer_body` picks a std function per type and
+   returns it as an `ItemRef` (about 60 lines); `hd_mono` `Cx::target`
+   routes the `dbg_printer` key to `dbg_target`, which caches the
+   generated body in `out.supplied`. The private template is special in
+   four places, each keyed by one `(method, Structure, trait)` triple from
+   `ProgramEnv::dbg_structure`: `hd_driver` `lib.rs` (the triple),
+   `own.rs` `select_choice` and the instance builder's `walk`, and
+   `hd_mono` `Cx::scan`'s `private_structure`. The codec's
+   `WireStructural` template has two methods (put, take), so those four
+   sites take a short list of private templates instead of one triple.
+   Its format follows `hd_wasm` `boundary.rs` `enc_body`: `usize` is 32
+   bits there, `bool` a one-bit unsigned integer, `Option` and `Result`
+   are plain enums, and a map writes its live count. Counted references
+   and private-field `Codec` types stay host-only until the move.
 2. Stubs. One std struct `Stub { transport, interface, object }`. The
    solver supplies `Stub: T` for each remote trait `T`, as it supplies a
    tuple's `Structure`; `supplied_body(method, Stub)` generates each
