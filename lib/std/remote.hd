@@ -365,14 +365,6 @@ fn wire_put[T < ?Copy]() -> fn(&T, &mut WireOut) -> void:
 fn wire_take[T]() -> fn(&mut WireIn) -> T?:
     panic("intrinsic")
 
-@intrinsic("int_min")
-fn int_min[N < Integer]() -> N:
-    panic("intrinsic")
-
-@intrinsic("int_max")
-fn int_max[N < Integer]() -> N:
-    panic("intrinsic")
-
 fn wire_put_bool(value: &bool, out: &mut WireOut) -> void:
     out.bytes.push(if *value: 1 else: 0)
 
@@ -387,7 +379,7 @@ fn wire_take_bool(input: &mut WireIn) -> bool?:
 fn wire_put_int[N < Integer](value: &N, out: &mut WireOut) -> void:
     n := *value
     zero := N::zero()
-    if int_min::[N]() < zero:
+    if N::min_value() < zero:
         if n < zero:
             out.leb(((zero - N::one() - n).to_u64() << 1) | 1)
         else:
@@ -399,9 +391,9 @@ fn wire_put_int[N < Integer](value: &N, out: &mut WireOut) -> void:
 # which would panic past it.
 fn wire_take_int[N < Integer](input: &mut WireIn) -> N?:
     z := input.leb()?
-    max := int_max::[N]().to_u64()
+    max := N::max_value().to_u64()
     zero := N::zero()
-    if int_min::[N]() < zero:
+    if N::min_value() < zero:
         m := z >> 1
         if m > max:
             return .None

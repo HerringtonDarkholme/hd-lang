@@ -1,0 +1,67 @@
+# @dump: wat
+# @build: release | release checked
+# expected: limits fold without helper calls; u64 zero uses a zero-initialized local
+use std.num.Integer
+
+fn high[N < Integer]() -> N:
+    N::max_value()
+
+fn low[N < Integer]() -> N:
+    N::min_value()
+
+fn min_i8() -> i8:
+    i8::min_value()
+
+fn max_i8() -> i8:
+    high::[i8]()
+
+fn min_i16() -> i16:
+    i16::min_value()
+
+fn max_i16() -> i16:
+    high::[i16]()
+
+fn min_i32() -> i32:
+    i32::min_value()
+
+fn max_i32() -> i32:
+    high::[i32]()
+
+fn min_i64() -> i64:
+    i64::min_value()
+
+fn max_i64() -> i64:
+    high::[i64]()
+
+fn min_u8() -> u8:
+    u8::min_value()
+
+fn max_u8() -> u8:
+    high::[u8]()
+
+fn min_u16() -> u16:
+    u16::min_value()
+
+fn max_u16() -> u16:
+    high::[u16]()
+
+fn min_u32() -> u32:
+    u32::min_value()
+
+fn max_u32() -> u32:
+    high::[u32]()
+
+fn min_u64() -> u64:
+    u64::min_value()
+
+fn max_u64() -> u64:
+    high::[u64]()
+
+fn min_usize() -> usize:
+    usize::min_value()
+
+fn max_usize() -> usize:
+    high::[usize]()
+
+fn generic_min_i64() -> i64:
+    low::[i64]()
