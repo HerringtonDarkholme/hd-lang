@@ -104,11 +104,14 @@ fn spread(a: i32, b: i32) -> i32:
 
 1. r[std-cmp.min-max.decl] `std.cmp` declares `pub fn min[T < Ord](a: T, b: T) -> T` and `pub fn max[T < Ord](a: T, b: T) -> T`. Code imports them, as in `use std.cmp.{max, min}`.
 2. r[std-cmp.min-max.result] `min` returns the smaller of `a` and `b`, and `max` the larger, by `cmp`.
-3. r[std-cmp.min-max.tie] When `a.cmp(&b)` is `.Equal`, both `min` and `max` return `a`.
+3. r[std-cmp.min-max.tie.v2] When `a.cmp(&b)` is `.Equal`, `min` returns `a` and `max` returns `b`, as Rust's `std::cmp::min` and `std::cmp::max` do.
 4. r[std-cmp.min-max.not-prelude] Neither name is in the prelude.
 
-> **Why.** One first-among-equals rule serves `min`, `max`, `List.min`,
-> and `List.max`, as in Python. Rust's `max` returns `b` on a tie.
+> **Why.** Established names keep their established behaviour: these are
+> Rust's `min` and `max`, ties included. One rule serves `min`, `max`,
+> `List.min`, `List.max`, `Iterator.min`, and `Iterator.max`: the
+> smallest is the first of equal values and the largest the last, so a
+> stable sort's first and last elements are the minimum and the maximum.
 
 ## Clamp
 
@@ -164,7 +167,7 @@ fn is_before(a: string, b: string) -> bool:
 
 ```text
 fn has_value(items: List[*i32], value: *i32) -> bool:
-    items.contains(value)  # compares the values the references refer to
+    items.contains(&value)  # compares the values the references refer to
 ```
 
 1. r[std-cmp.ref.eq-noncopy] `std.cmp` implements `Eq` for each reference type, `*T`, `*mut T`, `&T`, and `&mut T`, when `T < ?Copy & Eq`. Two references are equal when the values they refer to are, so `r.eq(&s)` is `*r == *s`.

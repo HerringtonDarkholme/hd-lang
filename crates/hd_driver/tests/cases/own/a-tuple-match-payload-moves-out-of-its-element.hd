@@ -1,0 +1,29 @@
+# @dump: own
+# A tuple match's payload is a read of a read of the tuple (#2290): the
+# element `[%tuple .0]`, its payload, and the binding's read. A binding
+# that is not Copy and needs a count, moved into a call or read after an
+# await, moves out along that chain; no read copies the photo.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep(photo: Photo) -> u32:
+    photo.width
+
+fn made!(side: u32) -> Photo?:
+    .Some(Photo { width: side, pixels: [] })
+
+fn moved(small: Photo?, count: i32?) -> u32:
+    match (small, count):
+        (.Some(photo), .Some(n)) => keep(photo) + u32(n)
+        _ => u32(0)
+
+fn after_await!(count: i32?) -> u32:
+    small := made!(u32(64))
+    match (small, count):
+        (.Some(photo), .Some(_)) =>
+            width := &photo.width
+            *width
+        _ => u32(0)

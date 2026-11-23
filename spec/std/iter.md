@@ -8,9 +8,9 @@ ordinary hd over the language tier:
 - the iterator adapters `filter`, `take`, `enumerate`, `map`, `fold`, and
   `collect`, with their laziness and ordering;
 - the adapters `skip`, `take_while`, `zip`, `chain`, and `flat_map`, and
-  the draining `any`, `all`, `find`, and `count`;
+  the draining `any`, `all`, `find`, `count`, `min`, and `max`;
 - the `FromIterator` trait and the collections `collect` builds:
-  `List`, `Map`, `Result`, and `T?`;
+  `List`, `Map`, `string`, `Result`, and `T?`;
 - `map` on `List[T]` and on `T?`.
 
 The language tier keeps what the compiler knows by name
@@ -76,7 +76,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 | `take` | `fn take(self, count: usize) -> Take[Self, T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
 | `enumerate` | `fn enumerate(self) -> Enumerate[Self, T]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
 | `map` | `fn map[U < ?Copy, F < FnMut(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]` | a new iterator over `transform(item)` for each item of `self`, in order |
-| r[std-iter.adapter.fold.value] `fold` | `fn fold[A, $ R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
+| r[std-iter.adapter.fold.fn-mut] `fold` | `fn fold[A, F < ?Copy & FnMut(A, T) -> A $ R, $ R](self, initial: A, step: F) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
 | r[std-iter.adapter.collect.value-target] `collect` | `fn collect[C < ?Copy & FromIterator[T]](self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
 
 1. r[std-iter.adapter.filter.borrow-fn-mut] The `filter` default method stores its callback type with signature `fn filter[F < FnMut(&T) -> bool](self, keep: F) -> Filter[Self, T, F]`; `Filter[I, T, F < FnMut(&T) -> bool = fn(&T) -> bool]` defaults `F` for written type annotations.
@@ -97,7 +97,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 6. r[std-iter.adapter.fold.owned-drain] `fold` advances `self` until `next` returns `.None`, which exhausts the owned cursor.
 7. r[std-iter.adapter.owned-source] Lazy adapters take `self` by value and store that source value in their returned concrete adapter.
 8. r[std-iter.adapter.mutable-reference-forwarding-noncopy] A mutable reference to an `I < ?Copy & Iterator[T]` implements `Iterator[T]` by forwarding `next` to the referenced cursor.
-9. r[std-iter.adapter.draining-value] Draining methods take `self` by value and advance their owned cursor; passing a mutable cursor reference advances the referenced cursor instead.
+9. r[std-iter.adapter.owned-draining-value] `fold`, `collect`, `any`, `all`, `find`, and `count` take `self` by value and advance their cursor; passing a mutable cursor reference advances the referenced cursor instead.
 10. r[std-iter.adapter.named-layout] Each adapter is a named generic struct holding its source and its callback or traversal state.
 11. r[std-iter.adapter.dyn-bridge] `DynIterator[T]` is an ordinary concrete cursor storing an erased mutable iterator reference and forwarding `next` to it.
 12. r[std-iter.adapter.dyn-forwarding] Inherent adapter and draining methods on `dyn Iterator[T]` take `&mut self` and delegate to a `DynIterator[T]` holding that reference.
@@ -167,10 +167,12 @@ fn has_blank(lines: List[string]) -> bool:
 | `zip` | `fn zip[U < ?Copy, J < ?Copy & Iterable[U]](self, other: J) -> Zip[Self, T, U, J]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
 | `chain` | `fn chain[J < ?Copy & Iterable[T]](self, other: J) -> Chain[Self, T, J]` | a new iterator over the items of `self`, then those of `other` |
 | `flat_map` | `fn flat_map[U < ?Copy, J < ?Copy & Iterable[U], F < FnMut(T) -> J](self, transform: F) -> FlatMap[Self, T, U, J, F]` | a new iterator over the items of each iterable that `transform(item)` returns, in order |
-| r[std-iter.adapter.any.value] `any` | `fn any(self, test: fn(&T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
-| r[std-iter.adapter.all.value] `all` | `fn all(self, test: fn(&T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
-| r[std-iter.adapter.find.value] `find` | `fn find(self, test: fn(&T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
+| r[std-iter.adapter.any.fn-mut] `any` | `fn any[F < ?Copy & FnMut(&T) -> bool](self, test: F) -> bool` | whether `test` returns `true` for some remaining item of `self` |
+| r[std-iter.adapter.all.fn-mut] `all` | `fn all[F < ?Copy & FnMut(&T) -> bool](self, test: F) -> bool` | whether `test` returns `true` for every remaining item of `self` |
+| r[std-iter.adapter.find.fn-mut] `find` | `fn find[F < ?Copy & FnMut(&T) -> bool](self, test: F) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
 | r[std-iter.adapter.count.value] `count` | `fn count(self) -> usize` | the number of remaining items of `self` |
+| r[std-iter.adapter.min.value] `min` | `fn min(self) -> T? where T < Ord` | the smallest remaining item of `self` by `Ord`, or `.None` |
+| r[std-iter.adapter.max.value] `max` | `fn max(self) -> T? where T < Ord` | the largest remaining item of `self` by `Ord`, or `.None` |
 | r[std-iter.adapter.sum.numeric-target] `sum` | `fn sum[S < Sum[T]](self) -> S` | the target built from the remaining items |
 
 1. r[std-iter.adapter.lazy.more] Calling `skip`, `take_while`, `zip`, `chain`, or `flat_map` advances no iterator. The returned iterator pulls only when its own `next` is called.
@@ -191,6 +193,9 @@ fn has_blank(lines: List[string]) -> bool:
 
 16. r[std-iter.adapter.flat-map.open-once] `flat_map` calls `iter()` once on each transformed result, only when that result is reached.
 17. r[std-iter.adapter.flat-map.drain-inner] It drains that cursor before transforming the next source item, skipping empty results.
+18. r[std-iter.adapter.min-max.bound] `min` and `max` bound the item type with a method `where` clause ([`trait.where.clause`](../lang/09-traits.md#r-trait.where.clause)). An iterator over items that do not implement `Ord` still implements `Iterator[T]`, and calling `min` or `max` on it is an error at the call. Error: `unsatisfied-trait-bound`.
+19. r[std-iter.adapter.min-max.tie] Of several equal items by `Ord`, `min` returns the first and `max` the last, as Rust's `Iterator::min` and `Iterator::max` do, and as [`std-cmp.min-max.tie.v2`](cmp.md#r-std-cmp.min-max.tie.v2) and [`std-collections.helper.min-max.copy-ties`](collections.md#r-std-collections.helper.min-max.copy-ties) do.
+20. r[std-iter.adapter.min-max.drain] `min` and `max` advance `self` until `next` returns `.None`, which exhausts the owned cursor. On an exhausted iterator both are `.None`.
 ```text
 fn joined(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:
     first.iter().chain(rest).collect()  # error: unsatisfied-trait-bound
@@ -210,7 +215,8 @@ fn joined_eagerly(first: List[i32], rest: *mut dyn Iterator[i32]) -> List[i32]:
 > [`std-collections.helper.sum`](collections.md#r-std-collections.helper.sum).
 
 > **Why.** The names and the pulling order are Rust's, so `zip` and
-> `take_while` drop the same items there and here. `zip` and `chain` take
+> `take_while` drop the same items there and here. `min` and `max` break
+> ties as Rust's do, so code moved from Rust picks the same item. `zip` and `chain` take
 > any `Iterable`, as Rust's two take any `IntoIterator`, so a list, set,
 > or range passes directly. `I` is a bounded type parameter, so `other.iter()`
 > is dispatched statically, with no trait value.
@@ -296,6 +302,7 @@ The standard library implements `FromIterator` for these prelude types:
 | Rule | Collection | Items | Result |
 | --- | --- | --- | --- |
 | r[std-iter.collect.list] List | `List[T]` | `T` | every remaining item, in order |
+| [String collection](#r-std-iter.collect.string) | `string` | `char` | UTF-8 text, as specified below |
 | r[std-iter.collect.map-last] Map | `Map[K, V]` | `(K, V)` | one entry per pair; for an equal key the later value wins |
 | r[std-iter.collect.result] All results | `Result[C, E]`, where `C < ?Copy & FromIterator[T]` | `Result[T, E]` | `.Ok` of the `C` collected from the `.Ok` payloads, or the first `.Err` |
 | r[std-iter.collect.option] All values | `C?`, where `C < ?Copy & FromIterator[T]` | `T?` | `.Some` of the `C` collected from the `.Some` payloads, or `.None` at the first `.None` |
@@ -326,10 +333,11 @@ fn total(values: List[i32]) -> i32:
 
 | Receiver | Method |
 | --- | --- |
-| `List[T]` | `map[U](&self, transform: fn(&T) -> U) -> List[U]` |
-| `T?` | `map[U](self, transform: fn(T) -> U) -> U?` |
+| `List[T]` | `map[U, F < ?Copy & FnMut(&T) -> U](&self, transform: F) -> List[U]` |
+| `T?` | `map[U, F < ?Copy & FnMut(T) -> U](self, transform: F) -> U?` |
 
 1. r[std-iter.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
+2. r[std-iter.option.map.fn-mut] Optional `map` accepts a generic mutable callback and moves a present payload into it exactly once; `.None` never invokes it.
 
 ```text
 tests:
@@ -345,3 +353,119 @@ tests:
 
 See also: [Built-In Methods](../lang/10-modules.md#built-in-methods), which
 lists the methods of the built-in types that stay in the language tier.
+
+## Value Consuming Methods
+
+These operations consume each yielded item by value.
+`position` borrows the cursor so the caller can resume after the match.
+
+```text
+fn selected(values: List[i32]) -> List[i32]:
+    values.iter()
+        .filter_map(fn(value):
+            if value > 0: .Some(value * 2) else: .None
+        )
+        .collect()
+```
+
+1. r[std-iter.last.value] `Iterator.last(self) -> T?` returns the final remaining item in `.Some`, or `.None` when the cursor yields none.
+2. r[std-iter.last.drain] `last` consumes its cursor through the first `.None`, retaining only its most recent item.
+3. r[std-iter.position.value] `position[F < ?Copy & FnMut(T) -> bool $ R, $ R](&mut self, test: F) -> usize? $ R` returns the first matching item's zero-based remaining index.
+4. r[std-iter.position.progress] `position` stops immediately after that item; without a match it stops at the first `.None` and returns `.None`.
+5. r[std-iter.position.callback] Each visited item moves into `test` exactly once, and a later call continues from the cursor's current position.
+6. r[std-iter.for-each.value] `for_each[F < ?Copy & FnMut(T) -> void $ R, $ R](self, visit: F) -> void $ R` moves each remaining item into `visit`, in order.
+7. r[std-iter.for-each.drain] `for_each` consumes its cursor through the first `.None`; an empty cursor invokes no callback.
+8. r[std-iter.filter-map.value] `filter_map[U < ?Copy, F < ?Copy & FnMut(T) -> U?](self, transform: F) -> FilterMap[Self, T, U, F]` stores its source and callback without advancing them.
+9. r[std-iter.filter-map.next] Each `FilterMap.next` advances until `transform(item)` returns `.Some(value)`, which it yields, or the source returns `.None`.
+10. r[std-iter.filter-map.order] Each visited item moves into `transform` exactly once, and present results retain source order.
+11. r[std-iter.filter-map.row] The lazy callback has the empty row required by `Iterator.next`; a requirement-bearing callback is a `type-mismatch`.
+12. r[std-iter.filter-map.resume] `FilterMap` stores no exhaustion flag; another `next` calls the source again after `.None`.
+13. r[std-iter.value-methods.generic] These methods accept non-copyable items, cursors, and callbacks; `position` and `for_each` forward each callback's requirement row.
+14. r[std-iter.value-methods.dyn] The inherent methods on `dyn Iterator[T]` use the existing `DynIterator` bridge and share its referenced cursor's progress.
+15. r[std-iter.value-methods.cost] Each operation uses constant iterator state and linear work in the number of visited source items, excluding callback and item release costs.
+16. r[std-iter.filter-map.type] The public `FilterMap[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U? = fn(T) -> U?]` names the adapter's stored types.
+
+> **Why.** These signatures and stopping rules follow Rust's `Iterator` methods.
+> hd uses direct `next` loops because its protocol has no `try_fold` hook.
+> A lazy callback must fit the existing empty-row `next`; eager consumers can forward its row.
+
+> **Note.** `Iterator::[i32]::last(&mut cursor)` explicitly selects the local-reference implementation.
+
+## Text Collection And List Enumeration
+
+Text collection writes Unicode scalars into one UTF-8 result.
+List enumeration exposes the existing lazy indexed cursor directly.
+
+```text
+fn rebuilt(text: string) -> string:
+    text.chars().collect()
+
+fn indexed(items: List[i32]) -> List[(usize, i32)]:
+    items.enumerate().collect()
+```
+
+1. r[std-iter.collect.string] `string` implements `FromIterator[char]`, encoding every yielded Unicode scalar in UTF-8, in source order.
+2. r[std-iter.collect.string.empty] An empty character cursor collects to the empty string.
+3. r[std-iter.collect.string.stop] String collection stops at the first `.None` and accepts any `I < ?Copy & Iterator[char]`.
+4. r[std-iter.collect.string.cost] Collection takes amortized linear time in the emitted bytes and uses one growing output buffer, excluding source advancement costs.
+5. r[std-iter.list.enumerate.borrow] The inherent `List[T].enumerate(&self) -> Enumerate[ListIter[T], T]` is equivalent to `self.iter().enumerate()`.
+6. r[std-iter.list.enumerate.snapshot] It holds the list's snapshot at creation and yields `(index, item)` pairs in order, starting with the `usize` index zero.
+7. r[std-iter.list.enumerate.lazy] Construction takes constant time and advances no cursor; subsequent calls use the existing `Enumerate` state.
+
+> **Why.** String collection follows Rust's `FromIterator<char>` and writes through the existing UTF-8 builder without per-character strings.
+> The protocol has no size hint; its output buffer therefore grows amortized.
+> `List.enumerate` is the owner's requested convenience spelling for the existing iterator adapter, with identical laziness and snapshot costs.
+
+## Double Ended Cursors
+
+A **double ended cursor** yields from either end of one remaining sequence.
+
+```text
+fn reversed(text: string) -> string:
+    text.chars().rev().collect()
+```
+
+1. r[std-iter.double-ended.trait] `std.iter.DoubleEndedIterator[T < ?Copy] < ?Copy & Iterator[T]` declares `fn next_back(&mut self) -> T?`.
+2. r[std-iter.double-ended.shared] `next` and `next_back` remove opposite ends of the same remaining sequence, without crossing or yielding an item twice.
+3. r[std-iter.double-ended.empty] `next_back` returns `.None` when no remaining item exists.
+4. r[std-iter.double-ended.rev] `DoubleEndedIterator.rev(self) -> Rev[Self, T]` stores its source without advancing, allocating, or buffering items.
+5. r[std-iter.double-ended.rev-next] `Rev[I, T].next` delegates to `I.next_back`, and `Rev[I, T].next_back` delegates to `I.next`.
+6. r[std-iter.double-ended.concrete-rev] Each standard double ended cursor has an inherent `rev` with the same behavior, requiring no trait import.
+7. r[std-iter.double-ended.exact] `std.iter.ExactSizeIterator[T < ?Copy] < ?Copy & Iterator[T]` declares `fn len(&self) -> usize`, returning the exact remaining count in constant time.
+8. r[std-iter.double-ended.roots] The following standard cursors implement `DoubleEndedIterator`, and implement `ExactSizeIterator` where the table states.
+
+| Cursor | Exact remaining count |
+| --- | --- |
+| `ListIter`, `OptionIter`, `Bytes` | yes |
+| `UniqListIter`, `UniqListIntoIter`, `UniqListDrain`, `ListDrain` | yes |
+| `ListViewIter`, `SpanIter`, `DequeIter` | yes |
+| `Chars`, `CharIndices` | no |
+| `RangeIter[T]` for every integer type | only `i8`, `u8`, `i16`, `u16` |
+
+9. r[std-iter.double-ended.range] Range reversal preserves inclusive bounds, handles empty and full-domain ranges, and never steps past a type's minimum or maximum.
+10. r[std-iter.double-ended.text] Text reversal yields Unicode scalars rather than bytes, and `CharIndices` retains offsets in the original string.
+11. r[std-iter.double-ended.drains] A partially consumed drain removes its entire selected range, drops unread owned items, and restores the original unselected tail.
+12. r[std-iter.double-ended.forwarding] `&mut I`, `*mut I`, and `ByRef[I]` forward both traits when `I` implements them, sharing its progress.
+13. r[std-iter.double-ended.erased] `DynDoubleEndedIterator[T]` forwards a mutable erased double ended cursor, whose inherent `by_ref` and `rev` preserve shared progress.
+14. r[std-iter.double-ended.adapters] Adapter implementations follow the table, preserving callback order in the requested direction and never buffering the sequence.
+
+| Adapter | Double ended when | Exact when |
+| --- | --- | --- |
+| `Rev`, `MapIter` | source is double ended | source is exact |
+| `Filter`, `FilterMap` | source is double ended | never |
+| `Enumerate`, `Skip`, `Take` | source is double ended and exact | source is exact |
+| `Zip` | both cursors are double ended and exact | both cursors are exact |
+| `Chain` | both cursors are double ended | never |
+| `FlatMap` | outer and produced cursors are double ended | never |
+
+15. r[std-iter.double-ended.enumerate] Reverse enumeration yields each item's original forward index, including after mixed front and back advancement.
+16. r[std-iter.double-ended.selection] Reversing `Skip`, `Take`, or `Zip` reverses the selected forward sequence, discarding unselected prefixes or tails only when advancement requires it.
+17. r[std-iter.double-ended.flat-map] `FlatMap` retains partially consumed front and back inner cursors, joining them when the outer cursor ends.
+18. r[std-iter.double-ended.cost] Reversal construction uses constant space and time; traversal work is proportional to advanced or discarded source items, with at most four bytes per scalar.
+19. r[std-iter.double-ended.zip-advance] After aligning lengths, `Zip.next_back` calls `next_back` once on each cursor, left before right, even when exhausted.
+20. r[std-iter.double-ended.noncopy-produced] Conditional adapter implementations accept non-copyable source and produced cursor types when they meet the required traits.
+
+> **Why.** Rust's `DoubleEndedIterator` shares front and back progress without
+> buffering. Exact counts let `take`, `skip`, and `zip` select the same
+> sequence from either end. A wide inclusive range can exceed `usize`, so
+> it cannot promise an exact representable count.

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use super::engine::{PreparedTest, TestEnvironment};
+use super::engine::{Pre, PreparedTest, TestEnvironment};
 use crate::host::{Host, HostIo, Stop};
 use crate::testing::{BodyResult, BodyRunner, State, TestCase};
 use crate::{Shared, WasmtimeInstance};
@@ -61,7 +61,24 @@ impl NativeBodyRunner {
             Ok(wasmtime::UpdateDeadline::Continue(1))
         });
         store.set_epoch_deadline(1);
-        let instance = match self.prepared.pre.instantiate(&mut store) {
+        let instance = match &self.prepared.pre {
+            Pre::Shared(pre) => pre.instantiate(&mut store),
+            Pre::Heap(linker, module, kind) => {
+                let engine = &self.prepared.engine;
+                store.data_mut().workers.spawn = Some(crate::workers::Spawn {
+                    config: engine.config,
+                    engine: Arc::clone(&engine.engine),
+                    profile: kind.profile(),
+                    module: Arc::clone(module),
+                    test: Some(*kind),
+                });
+                let mut linker = linker.clone();
+                crate::engine::link_heap(&mut linker, &mut store, module)
+                    .map_err(wasmtime::Error::msg)
+                    .and_then(|()| linker.instantiate(&mut store, module))
+            }
+        };
+        let instance = match instance {
             Ok(instance) => instance,
             Err(error)
                 if crate::limits::is_heap_exhausted(&error)

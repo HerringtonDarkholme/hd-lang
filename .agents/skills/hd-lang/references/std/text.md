@@ -2,6 +2,7 @@
 
 A `string` is immutable UTF-8 text. Its methods need no import. Every
 position a method takes or returns is a **byte** offset.
+`let text: string = chars.collect()` joins an iterator of `char` values as UTF-8.
 
 ## Methods
 
@@ -28,7 +29,7 @@ position a method takes or returns is a **byte** offset.
 | `s.char_indices()` | an iterator of `(usize, char)` |
 | `s.bytes()` | an iterator of `u8` |
 | `s.parse::[T]()` | `Result[T, ...]` for a number, `bool`, `char` and more |
-| `list.join(sep)` | a `List[string]` joined into one `string` |
+| `list.join(sep)` | the `Display` text of a `List[T]` joined into one `string` |
 | `a + b` | two strings joined |
 
 ```hd
@@ -67,7 +68,7 @@ for (offset, c) in "aé".char_indices():
 1 é
 ```
 
-`char` methods: `is_alphabetic()`, `is_alphanumeric()`, `is_ascii_digit()`,
+`char` methods: `is_alphabetic()`, `is_alphanumeric()`, `is_uppercase()`, `is_ascii_digit()`,
 `is_whitespace()`, `to_digit(radix)`, `to_u32()`.
 
 ## Parsing

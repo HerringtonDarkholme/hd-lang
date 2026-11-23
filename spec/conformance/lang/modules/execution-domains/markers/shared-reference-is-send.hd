@@ -1,0 +1,12 @@
+# test: a shared local reference to a Send and Sync type is Send
+# Spec 10 Markers: module.marker.table.shared-sync.
+use std.marker.Send
+
+struct Point:
+    x: i32
+
+fn share[T < Send](value: T) -> void:
+    pass
+
+fn demo(p: &Point) -> void:
+    share(p)

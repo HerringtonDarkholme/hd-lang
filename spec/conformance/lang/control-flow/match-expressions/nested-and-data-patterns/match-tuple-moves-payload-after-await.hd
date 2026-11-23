@@ -1,0 +1,18 @@
+# test: after an await, a tuple match moves a payload that is not Copy out of its option
+# Spec 13 Moves: ref.move.pattern.
+# expect-stdout: 64 1
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn make!(side: u32) -> Result[Photo, i32]:
+    .Ok(Photo { width: side, pixels: [] })
+
+pub fn main!() -> void $ Console:
+    small := make!(u32(64)).ok()
+    let count: i32? = .Some(1)
+    match (small, count):
+        (.Some(photo), .Some(n)) => println("${photo.width} $n")
+        _ => println("none")

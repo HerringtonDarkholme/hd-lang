@@ -15,10 +15,7 @@ fn reference(p: Types<'_>, inner: Ty, mutable: bool) -> Ty {
 
 fn rest_tuple(p: Types<'_>, fixed: Ty, item: Ty) -> Ty {
     let list = p.applied(DefId::from_raw(1), item);
-    p.intern_ty(&TyData::Tuple {
-        elems: p.list(&[fixed]),
-        rest: Some(list),
-    })
+    p.product(p.list(&[fixed]), Some(list))
 }
 
 fn key(p: Types<'_>, raw: u32) -> Ty {
@@ -68,10 +65,7 @@ fn tuple_rest_joins_keep_generic_arguments_invariant_and_rest_shape_equal() {
         Err(UnifyError::Mismatch { expected, found }) if expected == mutable && found == readonly
     ));
     let with_rest = rest_tuple(p, Ty::I32, Ty::BOOL);
-    let plain = p.intern_ty(&TyData::Tuple {
-        elems: p.list(&[Ty::I32]),
-        rest: None,
-    });
+    let plain = p.product(p.list(&[Ty::I32]), None);
     for (a, b) in [(plain, with_rest), (with_rest, plain)] {
         assert_eq!(
             infer.unify_join(p, a, b),

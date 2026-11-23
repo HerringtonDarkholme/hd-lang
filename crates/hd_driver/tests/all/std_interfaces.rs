@@ -82,6 +82,8 @@ fn std_interfaces_build_with_no_diagnostic() {
             "app",
             "std",
             "std.core",
+            "std.f32",
+            "std.f64",
             "std.prelude",
             "std.rt",
             "std.rt.checked",
@@ -90,7 +92,7 @@ fn std_interfaces_build_with_no_diagnostic() {
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::FolderIface).ok, 9);
+    assert_eq!(out.report.tally(Stage::FolderIface).ok, 11);
 }
 
 #[test]
@@ -213,7 +215,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 9);
+    assert_eq!(base.len(), 11);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -327,8 +329,8 @@ fn std_typed_signatures_compile_through_headers() {
     );
     let out = run(&s);
     let t = out.report.tally(Stage::FolderIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (10, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 10);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (12, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 12);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

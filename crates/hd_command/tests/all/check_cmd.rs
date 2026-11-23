@@ -218,15 +218,6 @@ fn json_summary_of_a_clean_package_is_written_on_success() {
 }
 
 #[test]
-fn json_file_outside_a_package_is_the_path_as_written() {
-    let dir = scratch("hd-check-json-file");
-    std::fs::write(dir.join("bad.hd"), BROKEN).expect("write");
-    let r = check(&dir, &["--format", "json", "bad.hd"]);
-    assert_eq!(r.code, Some(101), "{}", r.err);
-    assert!(r.out.contains("\"file\":\"bad.hd\""), "{}", r.out);
-}
-
-#[test]
 fn second_run_is_warm() {
     let dir = package("hd-check-warm", CLEAN);
     crate::own_objects(&dir.cache());

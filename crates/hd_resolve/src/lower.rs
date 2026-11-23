@@ -10,6 +10,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 use std::cell::{Cell, OnceCell, RefCell};
 use std::sync::Arc;
 
@@ -84,7 +85,7 @@ pub fn bare_in_row_slot(
 /// Header parsing rules out inference variables; body annotations infer them.
 pub fn inputs_tuple(pool: Types<'_>, t: Ty, bounded: impl FnOnce(Ty) -> bool) -> bool {
     match pool.get(t) {
-        TyData::Tuple { .. } | TyData::Poison | TyData::Infer(_) => true,
+        TyData::Adt(AdtId::Product { .. }, _) | TyData::Poison | TyData::Infer(_) => true,
         TyData::Param(_) => bounded(t),
         _ => false,
     }
@@ -144,12 +145,12 @@ pub fn ty_form<'t, E>(
                 .filter(|c| c.kind().is_type())
                 .map(|c| lower(c, NameRole::Type, Ok(None)))
                 .collect();
-            TyData::Union(pool.list(&members?))
+            TyData::sum(pool.list(&members?))
         }
         TypeForm::Paren => return first(n, role, &mut lower),
         TypeForm::Rest => {
             let t = first(n, NameRole::Type, &mut lower)?;
-            if !matches!(pool.get(t), TyData::Adt { def, .. } if def == known.list)
+            if !matches!(pool.get(t), TyData::Adt(AdtId::Declared(def), _) if def == known.list)
                 && t != Ty::POISON
             {
                 lower(
@@ -174,10 +175,9 @@ pub fn ty_form<'t, E>(
                     elems.push(t);
                 }
             }
-            TyData::Tuple {
-                elems: pool.list(&elems),
-                rest,
-            }
+            let has_rest = rest.is_some();
+            elems.extend(rest);
+            TyData::Adt(AdtId::Product { rest: has_rest }, pool.list(&elems))
         }
         TypeForm::Dyn => {
             if role != NameRole::Referent {
@@ -2321,10 +2321,8 @@ fn fold_slot_paths<V: Clone + Default>(
     fn parts(pool: Types<'_>, d: &TyData) -> Vec<Ty> {
         match *d {
             TyData::Ref { inner, .. } => vec![inner],
-            TyData::Tuple { elems, rest } => {
-                pool.list_items(elems).iter().copied().chain(rest).collect()
-            }
-            TyData::Union(args) | TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
                 pool.list_items(args).to_vec()
             }
             // No path to a reference slot goes through these.
@@ -3667,10 +3665,7 @@ impl Lower<'_, '_, '_> {
                 if self.row_in_type_slot(def, args, span) {
                     return Ty::POISON;
                 }
-                pool.intern_ty(&TyData::Adt {
-                    def,
-                    args: pool.list(args),
-                })
+                pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(args)))
             }
             HeadKind::Trait => {
                 let msg = format!("`{}` is a trait, not a type", self.names.display_name(def));
@@ -4993,7 +4988,7 @@ impl Lower<'_, '_, '_> {
                     self.names.known.fn_trait_name(def).is_some()
                         && matches!(
                             pool.list_items(args).first().map(|i| pool.get(*i)),
-                            Some(TyData::Tuple { elems, rest: None })
+                            Some(TyData::Adt(AdtId::Product { rest: false }, elems))
                                 if pool.list_items(elems).is_empty()
                         )
                 }
@@ -5154,6 +5149,7 @@ impl Lower<'_, '_, '_> {
         let mut variadic = false;
         let mut mut_self = false;
         let mut fn_lifetimes: Vec<Vec<u16>> = Vec::new();
+        let mut crossing = Vec::new();
         let saved = self.slots.replace(Vec::new());
         let saved_held = self.held.replace(Vec::new());
         if let Some(pl) = Src::child(f, SyntaxKind::ParameterList) {
@@ -5244,6 +5240,13 @@ impl Lower<'_, '_, '_> {
                 } else {
                     self.ty_in_slot(param_slot(params.len()), type_node, gn)
                 };
+                if let Some(bound) = type_node
+                    .filter(|t| t.kind() == SyntaxKind::FunctionType)
+                    .and_then(|t| Src::child(t, SyntaxKind::MarkerBound))
+                {
+                    let param = u16::try_from(params.len()).unwrap_or(u16::MAX);
+                    crossing.push(self.marker_bound(bound, param, gn));
+                }
                 // `fn.type.lifetime.call.written`: the lifetimes the inputs
                 // and results of its function types write, which no type
                 // keeps.
@@ -5253,7 +5256,7 @@ impl Lower<'_, '_, '_> {
                 if p.direct_token(toks, TokenKind::Ellipsis).is_some() {
                     let inner = ty;
                     let list = self.names.known.list;
-                    let is_list = matches!(self.names.pool.get(inner), TyData::Adt { def, .. } if def == list);
+                    let is_list = matches!(self.names.pool.get(inner), TyData::Adt(AdtId::Declared(def), _) if def == list);
                     if !is_list && inner != Ty::POISON && !self.inputs_tuple(inner, gn) {
                         self.diags.error(
                             Code::TypeMismatch,
@@ -5318,6 +5321,7 @@ impl Lower<'_, '_, '_> {
             fn_lifetimes = Vec::new();
         }
         let row = self.row(Src::child(f, SyntaxKind::RequirementRow), gn);
+        let wheres = self.wheres(f, gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
             .is_some();
@@ -5333,7 +5337,65 @@ impl Lower<'_, '_, '_> {
             lifetimes,
             fn_lifetimes,
             paths,
+            wheres,
+            crossing,
         }
+    }
+
+    /// A crossing parameter's `+ M & 's` (`fn.crossing.parameter`): its
+    /// marker, checked to extend `Marker` with the signature
+    /// (`fn.crossing.parameter.marker`), and the lifetime its captured
+    /// references are lent for (`fn.crossing.parameter.lifetime`).
+    fn marker_bound(&mut self, n: NodeRef<'_>, param: u16, gn: &Gen) -> crate::iface::Crossing {
+        let marker = match Src::child(n, SyntaxKind::NamedType)
+            .and_then(|t| self.trait_value(t, gn, None))
+            .map(|t| self.names.pool.get(t))
+        {
+            Some(TyData::TraitValue { def, .. }) => def,
+            _ => DefId::NONE,
+        };
+        let toks = &self.src.parse.tokens;
+        let lifetime = n
+            .direct_token(toks, TokenKind::Lifetime)
+            .map_or(0, |t| self.lifetime_of(t, gn));
+        crate::iface::Crossing {
+            param,
+            marker,
+            lifetime,
+        }
+    }
+
+    /// A method's `where` bounds (`trait.where.clause`): each subject is
+    /// an enclosing parameter in scope, which the parser checked
+    /// (`trait.where.subject`), so a name that finds none is already
+    /// reported. Bounds lower as a generic parameter's do.
+    fn wheres(&mut self, f: NodeRef<'_>, gn: &mut Gen) -> Vec<(Ty, Ty)> {
+        let mut out = Vec::new();
+        let Some(clause) = Src::child(f, SyntaxKind::WhereClause) else {
+            return out;
+        };
+        for wb in clause
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::WhereBound)
+        {
+            let Some(name) = wb.name(&self.src.parse.tokens) else {
+                continue;
+            };
+            let sym = self.sym_token(name);
+            let Some(subject) = gn.tys.last(sym).map(|p| p.ty) else {
+                continue;
+            };
+            let Some(bl) = Src::child(wb, SyntaxKind::BoundList) else {
+                continue;
+            };
+            for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
+                let (bound, _) = self.with_slots(|low| low.trait_value(b, gn, Some(subject)));
+                if let Some(bound) = bound {
+                    out.push((subject, bound));
+                }
+            }
+        }
+        out
     }
 
     /// `ref.dep.elide`, `ref.lifetime.elide`: a result slot of `ret`,
@@ -5716,7 +5778,7 @@ impl Lower<'_, '_, '_> {
         block: NodeRef<'_>,
     ) {
         let pool = self.names.pool;
-        let TyData::Adt { def: target, args } = pool.get(self_ty) else {
+        let Some((target, args)) = pool.adt(self_ty) else {
             return;
         };
         // The built-in collections' variance is the language's, not their
@@ -5868,6 +5930,37 @@ impl Lower<'_, '_, '_> {
 
     /// A trait or trait implementation declares each member once
     /// (trait.member.unique). Error: `duplicate-trait-member`.
+    /// A marker declares no member (`module.marker.members`), and its
+    /// `Self` is not bound by `Copy` (`module.marker.not-copy`).
+    fn marker_members(&mut self, self_ty: Ty, supers: &[Ty], block: Option<NodeRef<'_>>) {
+        let marker = self.names.known.marker;
+        let is_marker = marker != DefId::NONE
+            && supers.iter().any(
+                |&t| matches!(self.names.pool.get(t), TyData::TraitValue { def, .. } if def == marker),
+            );
+        if !is_marker {
+            return;
+        }
+        if let TyData::Param(p) = self.names.pool.get(self_ty) {
+            self.r.not_copy.borrow_mut().insert(p.owner);
+        }
+        if self.r.frozen.is_some() {
+            return;
+        }
+        for f in block.iter().flat_map(|b| b.children()).filter(|f| {
+            matches!(
+                f.kind(),
+                SyntaxKind::FnDecl | SyntaxKind::AssociatedTypeDecl
+            )
+        }) {
+            self.diags.error(
+                Code::InvalidMarkerTrait,
+                self.src.span(f),
+                "a marker trait declares no members",
+            );
+        }
+    }
+
     fn duplicate_members(&mut self, block: Option<NodeRef<'_>>) {
         if self.r.frozen.is_some() {
             return;
@@ -6001,7 +6094,7 @@ impl Lower<'_, '_, '_> {
         let n = h.node;
         let pool = self.names.pool;
         let target = match pool.get(self_ty) {
-            TyData::Adt { def, .. } => self
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => self
                 .kinds
                 .get(&def)
                 .copied()
@@ -6129,7 +6222,7 @@ impl Lower<'_, '_, '_> {
         gn.self_slots = std::mem::replace(&mut self.slots, saved).unwrap_or_default();
         // `ref.lifetime.struct.impl.elided`: a lifetime struct's
         // lifetimes are its last slots.
-        if let TyData::Adt { def, .. } = pool.get(self_ty)
+        if let Some((def, _)) = pool.adt(self_ty)
             && let k = self.r.lifetime_count(def)
             && k > 0
             && gn.self_slots.iter().rev().take(k).all(|l| *l == 0)
@@ -6491,7 +6584,11 @@ impl Lower<'_, '_, '_> {
             && matches!(segs.as_slice(), [(first, _)]
                 if !Prim::ALL.iter().any(|p| p.name() == first)
                     && self.resolve_path(&segs, self.src.span(imp)).is_some_and(|(_, k)| k == HeadKind::Alias));
-        alias || matches!(self.names.pool.get(self_ty), TyData::Tuple { .. })
+        alias
+            || matches!(
+                self.names.pool.get(self_ty),
+                TyData::Adt(AdtId::Product { .. }, _)
+            )
     }
 
     /// What an implementation head must satisfy: no trait value type or
@@ -6691,10 +6788,8 @@ impl Lower<'_, '_, '_> {
                     g2.const_type = g.const_type;
                     gs.push(g2);
                 }
-                let self_ty = pool.intern_ty(&TyData::Adt {
-                    def: h.def,
-                    args: pool.list(&params),
-                });
+                let self_ty =
+                    pool.intern_ty(&TyData::Adt(AdtId::Declared(h.def), pool.list(&params)));
                 let mut it = Item::new(
                     def,
                     self.sym(&seg),
@@ -6875,10 +6970,7 @@ impl Lower<'_, '_, '_> {
                     (p.owner == h.def).then(|| params.get(usize::from(p.index)).copied())?
                 })
             };
-            let self_ty = pool.intern_ty(&TyData::Adt {
-                def: h.def,
-                args: pool.list(&params),
-            });
+            let self_ty = pool.intern_ty(&TyData::Adt(AdtId::Declared(h.def), pool.list(&params)));
             let arg = arg.map(own);
             let trait_args = self.r.fill_trait_args(
                 tr,
@@ -7340,6 +7432,7 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 let (supers, super_lifetimes) = self.supers(n, &gn, self_ty);
+                self.marker_members(self_ty, &supers, block);
                 self.duplicate_members(block);
                 let (methods, assoc_decls) =
                     self.members(block, h.def, h.public, true, &mut gn, out);
@@ -8032,12 +8125,15 @@ pub fn impl_placement(
     let package = names.package_node(DefId::from_raw(module.raw()));
     let ctor_module = |t: Ty| -> Option<PathId> {
         match pool.get(t) {
-            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => {
+            TyData::Adt(AdtId::Declared(def), _) | TyData::TraitValue { def, .. }
+                if def.get().is_some() =>
+            {
                 Some(names.module_node(def))
             }
-            TyData::Prim(_) | TyData::Tuple { .. } | TyData::Fn { .. } | TyData::Ref { .. } => {
-                Some(names.known.core_module)
-            }
+            TyData::Prim(_)
+            | TyData::Adt(AdtId::Product { .. }, _)
+            | TyData::Fn { .. }
+            | TyData::Ref { .. } => Some(names.known.core_module),
             _ => None,
         }
     };
@@ -8117,7 +8213,7 @@ impl ItemIndex {
         for (i, it) in items.iter().enumerate() {
             by_def.entry(it.def).or_insert(i);
             if let ItemData::Impl { self_ty, .. } = &it.data
-                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                && let Some((def, _)) = names.pool.adt(*self_ty)
             {
                 by_target.entry(def).or_default().push(i);
             }
@@ -8191,7 +8287,7 @@ fn misplaced_block_in<'a>(
     if !derivation_block(names, it) {
         return None;
     }
-    let TyData::Adt { def, args } = pool.get(*self_ty) else {
+    let Some((def, args)) = pool.adt(*self_ty) else {
         return traitless.then_some("a derivation block with no trait targets a data type or enum");
     };
     if !same_module(names, session, it.def, def) {
@@ -8629,7 +8725,7 @@ fn related_derives(
         else {
             return true;
         };
-        let TyData::Adt { def, .. } = names.pool.get(*self_ty) else {
+        let Some((def, _)) = names.pool.adt(*self_ty) else {
             return true;
         };
         !broken
@@ -8795,7 +8891,7 @@ fn placement(
         // is already one error and counts for nothing.
         if traitless
             && msg.is_none()
-            && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+            && let Some((def, _)) = names.pool.adt(*self_ty)
             && !blocked.insert(def)
         {
             diags.error(
@@ -8867,7 +8963,7 @@ fn session_targets(
         let ItemData::Impl { self_ty, .. } = &it.data else {
             continue;
         };
-        let TyData::Adt { def, .. } = names.pool.get(*self_ty) else {
+        let Some((def, _)) = names.pool.adt(*self_ty) else {
             continue;
         };
         if index.get(items, def).is_some()
@@ -8916,7 +9012,7 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
                 && *trait_ == DefId::NONE
                 && names.text(*by) == "Structure"
                 && names.module_node(it.def) == node
-                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                && let Some((def, _)) = names.pool.adt(*self_ty)
             {
                 out.insert(def);
             }
@@ -9679,11 +9775,7 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems
                 continue;
             };
             let (trait_, trait_args, self_ty) = (*trait_, *trait_args, *self_ty);
-            let TyData::Adt {
-                def: c,
-                args: cargs,
-            } = pool.get(self_ty)
-            else {
+            let TyData::Adt(AdtId::Declared(c), cargs) = pool.get(self_ty) else {
                 continue;
             };
             let ca = pool.list_items(cargs);
@@ -9788,6 +9880,8 @@ fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems
                     lifetimes: sig.lifetimes.clone(),
                     fn_lifetimes: sig.fn_lifetimes.clone(),
                     paths: sig.paths.clone(),
+                    wheres: sig.wheres.iter().map(|&(p, b)| (ty(p), ty(b))).collect(),
+                    crossing: sig.crossing.clone(),
                 };
                 fwd.push(Item::new(
                     def,

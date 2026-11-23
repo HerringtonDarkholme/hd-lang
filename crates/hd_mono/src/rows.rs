@@ -160,10 +160,11 @@ pub fn declared_row_keys(
 
 /// The methods of trait `trait_` that have a dispatch table slot, in slot
 /// order: those with no type or row parameter of their own
-/// (`trait.dyn.type-param.no-slot`).
+/// (`trait.dyn.type-param.no-slot`) and no `where` bound
+/// (`trait.dyn.member.where`).
 #[must_use]
 pub fn slot_methods(env: &dyn ProgramEnv, trait_: DefId) -> Vec<DefId> {
     let mut methods = env.trait_methods(trait_);
-    methods.retain(|m| env.bounded(*m).is_none_or(|b| b.is_empty()));
+    methods.retain(|m| env.bounded(*m).is_none_or(|b| b.is_empty()) && !env.where_bounded(*m));
     methods
 }

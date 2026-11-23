@@ -8,9 +8,10 @@
 //! impl per primitive (`lib/std/num.hd`), with the bodies of `zero`, `one`
 //! and `from_i64`, so the impl tables answer them like any trait.
 
+use crate::{ANON_SUM, AdtId};
 use hd_base::{DefId, HashMap, InferVar};
 
-use crate::pool::{ParamRef, Ty, TyData, TyList, Types};
+use crate::pool::{ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::solver::{BuiltinImpl, FailReason};
 
 /// The sealed traits the rows answer, by `DefId` (`DefId::NONE` for one
@@ -42,6 +43,18 @@ pub struct SealedTraits {
     pub map: DefId,
     /// A suspension has identity regardless of its compiler-seeded declaration.
     pub suspend: DefId,
+    /// `Marker` (`module.marker.definition`): a trait that names it as a
+    /// supertrait is a marker, which the structural walk answers.
+    pub marker: DefId,
+    /// `Send`, `Sync` and `Wire` (`module.marker.std`,
+    /// `module.marker.sync`), answered from the type's parts
+    /// (`module.marker.structural`).
+    pub send: DefId,
+    pub sync: DefId,
+    pub wire: DefId,
+    /// `Remote` (`module.remote.std`): a counted trait value of a trait
+    /// that extends it is `Wire` (`module.marker.table.remote`).
+    pub remote: DefId,
 }
 
 impl Default for SealedTraits {
@@ -61,6 +74,11 @@ impl Default for SealedTraits {
             list: DefId::NONE,
             map: DefId::NONE,
             suspend: DefId::NONE,
+            marker: DefId::NONE,
+            send: DefId::NONE,
+            sync: DefId::NONE,
+            wire: DefId::NONE,
+            remote: DefId::NONE,
         }
     }
 }
@@ -75,7 +93,7 @@ impl SealedTraits {
     /// The traits a row of this module answers goals on
     /// ([`Self::supplies`]); `DefId::NONE` for one std does not declare.
     #[must_use]
-    pub fn supplied(&self) -> [DefId; 11] {
+    pub fn supplied(&self) -> [DefId; 16] {
         [
             self.any,
             self.any_val,
@@ -88,7 +106,37 @@ impl SealedTraits {
             self.union_type,
             self.static_bound,
             self.copy,
+            self.send,
+            self.sync,
+            self.wire,
+            self.marker,
+            self.remote,
         ]
+    }
+
+    /// The parts walk of marker `trait_`: a std marker's own, else a
+    /// library marker's.
+    #[must_use]
+    pub(crate) fn walk_of(&self, trait_: DefId) -> Walk {
+        if trait_ == self.send {
+            Walk::Send
+        } else if trait_ == self.sync {
+            Walk::Sync
+        } else if trait_ == self.wire {
+            Walk::Wire
+        } else {
+            Walk::Library(trait_)
+        }
+    }
+
+    /// Whether `trait_` is a marker: it names `Marker` among its direct
+    /// supertraits (`module.marker.definition`).
+    #[must_use]
+    pub fn is_marker(&self, decls: &dyn Declarations, pool: Types<'_>, trait_: DefId) -> bool {
+        self.marker != DefId::NONE
+            && decls.supertraits(trait_).iter().any(
+                |&t| matches!(pool.get(t), TyData::TraitValue { def, .. } if def == self.marker),
+            )
     }
 }
 
@@ -145,17 +193,21 @@ pub enum CopyDecl {
     /// No members the row reads: a std type with no declaration, or a
     /// declaration that holds itself, which the checker reports.
     Copies,
-    /// Declared `impl !Copy` (`ref.copy.opt-out`).
-    NotCopy,
+    /// Declared `impl !Copy` (`ref.copy.opt-out`), with its members, which
+    /// a marker still reads (`module.marker.not-copy`).
+    NotCopy(Vec<Ty>),
     /// The types of its fields and payloads, over its own parameters.
     Members(Vec<Ty>),
 }
 
 /// A row's answer: it holds when every subgoal does (each on the same
 /// trait, one level deeper), or it fails, or it waits for inference.
+/// `Send`'s row also has subgoals on `Sync`: a shared reference is `Send`
+/// when its referent is `Send` and `Sync` (`module.marker.table.shared-sync`).
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Row {
     Holds(BuiltinImpl, Vec<Ty>),
+    HoldsWithSync(BuiltinImpl, Vec<Ty>, Vec<Ty>),
     Fails(FailReason),
     Stalled(InferVar),
 }
@@ -171,26 +223,30 @@ enum Category {
 
 fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
     match pool.get(t) {
-        TyData::Prim(_) | TyData::Tuple { .. } | TyData::Fn { .. } => Category::Val,
+        TyData::Prim(_) | TyData::Fn { .. } | TyData::Adt(ANON_SUM | AdtId::Product { .. }, _) => {
+            Category::Val
+        }
         // A reference has identity: what it refers to (ref.type.any-ref).
         TyData::TraitValue { .. } | TyData::Ref { .. } => Category::Ref,
         // A collection is a value (`types.coll.value`).
-        TyData::Adt { def, .. }
+        TyData::Adt(AdtId::Declared(def), _)
             if def != DefId::NONE && (def == decls.sealed().list || def == decls.sealed().map) =>
         {
             Category::Val
         }
-        TyData::Adt { def, .. } if def != DefId::NONE && def == decls.sealed().suspend => {
+        TyData::Adt(AdtId::Declared(def), _)
+            if def != DefId::NONE && def == decls.sealed().suspend =>
+        {
             Category::Ref
         }
-        TyData::Adt { def, args } => match decls.type_decl(def) {
+        TyData::Adt(AdtId::Declared(def), args) => match decls.type_decl(def) {
             TypeDecl::Enum | TypeDecl::Struct => Category::Val,
             TypeDecl::Builtin => Category::Ref,
             TypeDecl::Newtype(base) => {
-                let argv = pool.list_items(args);
+                let items = pool.list_items(args);
                 Category::Base(pool.subst(base, &|p: ParamRef| {
                     (p.owner == def)
-                        .then(|| argv.get(usize::from(p.index)).copied())
+                        .then(|| items.get(usize::from(p.index)).copied())
                         .flatten()
                 }))
             }
@@ -235,6 +291,12 @@ pub(crate) fn row(
     if trait_ == s.any {
         return holds(BuiltinImpl::Any);
     }
+    // `Marker`: every type, so it constrains only the traits that extend
+    // it (`trait.sealed.marker`).
+    // `Remote` too (`trait.sealed.remote`).
+    if trait_ == s.marker || trait_ == s.remote {
+        return holds(BuiltinImpl::Marker);
+    }
     if let TyData::Infer(v) = t {
         return Some(Row::Stalled(v));
     }
@@ -248,11 +310,26 @@ pub(crate) fn row(
             return Some(Row::Fails(FailReason::NoImpl));
         }
         let mut subs = Vec::new();
-        return Some(if copy_parts(pool, decls, self_ty, &mut subs, copies) {
-            Row::Holds(BuiltinImpl::Copy, subs)
-        } else {
-            Row::Fails(FailReason::NoImpl)
-        });
+        return Some(
+            if copy_parts(
+                pool,
+                decls,
+                Walk::Copy,
+                self_ty,
+                (&mut subs, &mut Vec::new()),
+                copies,
+                &|_, _| None,
+            ) {
+                Row::Holds(BuiltinImpl::Copy, subs)
+            } else {
+                Row::Fails(FailReason::NoImpl)
+            },
+        );
+    }
+    // `Send`, `Sync` and `Wire` are answered beside their explicit
+    // impls, as a library marker is (`module.marker.explicit.only`).
+    if trait_ == s.send || trait_ == s.sync || trait_ == s.wire {
+        return None;
     }
     // A variable stalled above, before the `'static` and `Copy` rows.
     if matches!(
@@ -276,14 +353,14 @@ pub(crate) fn row(
         });
     }
     if trait_ == s.tuple {
-        return Some(if matches!(t, TyData::Tuple { .. }) {
+        return Some(if matches!(t, TyData::Adt(AdtId::Product { .. }, _)) {
             Row::Holds(BuiltinImpl::Tuple, Vec::new())
         } else {
             Row::Fails(FailReason::NoImpl)
         });
     }
     if trait_ == s.union_type {
-        return Some(if matches!(t, TyData::Union(_)) {
+        return Some(if matches!(t, TyData::Adt(ANON_SUM, _)) {
             Row::Holds(BuiltinImpl::Union, Vec::new())
         } else {
             Row::Fails(FailReason::NoImpl)
@@ -307,28 +384,32 @@ pub(crate) fn row(
             }
             // Elements are values, not arguments (`trait.inspectable.collections`);
             // a rest element is its list's argument (`annot.tuple.rest`).
-            TyData::Tuple { elems, rest } => {
-                subs.extend(pool.list_items(elems).iter().copied());
-                if let Some(r) = rest {
-                    argument(pool, r, &mut subs);
-                }
-                true
-            }
-            TyData::Union(members) => {
-                subs.extend(pool.list_items(members).iter().copied());
-                true
-            }
+
             // A declaration applied to inspectable arguments, `Option`
             // included (`trait.inspectable.declared`, `.option`), unless it
             // is local to a block suite (`trait.inspectable.not.local`).
-            TyData::Adt { def, .. } if decls.is_local(def) => false,
+            TyData::Adt(AdtId::Declared(def), _) if decls.is_local(def) => false,
             // Only type arguments count: a const argument is part of the
             // type's identity, and a row argument (`req.row.param.data-owner`)
             // is a requirement row, not a value type.
-            TyData::Adt { def, args } => {
+            TyData::Adt(def, args) => {
                 for (i, a) in pool.list_items(args).iter().enumerate() {
-                    if !decls.is_const_slot(def, i) && !matches!(pool.get(*a), TyData::Row(_)) {
-                        argument(pool, *a, &mut subs);
+                    match def {
+                        AdtId::Sum => subs.push(*a),
+                        AdtId::Product { rest } => {
+                            if rest && i + 1 == pool.list_items(args).len() {
+                                argument(pool, *a, &mut subs);
+                            } else {
+                                subs.push(*a);
+                            }
+                        }
+                        AdtId::Declared(def) => {
+                            if !decls.is_const_slot(def, i)
+                                && !matches!(pool.get(*a), TyData::Row(_))
+                            {
+                                argument(pool, *a, &mut subs);
+                            }
+                        }
                     }
                 }
                 true
@@ -351,19 +432,124 @@ pub(crate) fn row(
     // template's `T` is a parameter that the environment answers; codegen
     // asks it once a tuple template's instance is collected, and lowers
     // its methods per tuple type (`crates/hd_mono/DESIGN.md` §13.6).
-    Some(if matches!(t, TyData::Tuple { .. } | TyData::Union(_)) {
-        Row::Holds(BuiltinImpl::Structure, Vec::new())
-    } else {
-        Row::Fails(FailReason::NoImpl)
+    Some(match t {
+        TyData::Adt(AdtId::Product { .. } | ANON_SUM, _) => {
+            Row::Holds(BuiltinImpl::Structure, Vec::new())
+        }
+        _ => Row::Fails(FailReason::NoImpl),
     })
 }
 
-/// The answers of earlier `Copy` walks, by type id: `None` for a type
-/// that does not copy, else the parameters and variables left for the
+/// The answers of earlier parts walks, by walk and type id: `None` for a
+/// type that fails, else the parameters and variables left for the
 /// environment, in walk order. A type's answer is a function of its
 /// interned content and the run's declarations alone, so an entry stays
-/// valid for as long as the type's pool does (a body's, `BodyMemo`).
-pub(crate) type CopyMemo = HashMap<Ty, Option<TyList>>;
+/// valid for as long as the type's pool does (a body's, `BodyMemo`). A
+/// marker's answer also reads which heads have an explicit impl,
+/// which are the same in every context of a run.
+pub(crate) type CopyMemo = HashMap<(Walk, Ty), Option<TyList>>;
+
+/// Which trait a parts walk answers: `Copy`, a std marker, or a library
+/// marker (`module.marker.structural`). One walk serves them all; they
+/// differ only in what a leaf may be.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum Walk {
+    Copy,
+    Send,
+    Sync,
+    Wire,
+    Library(DefId),
+}
+
+/// A marker's row: the parts walk, which leaves parameters, variables and
+/// (for a library marker) the parts an explicit impl answers as subgoals
+/// on the same trait.
+pub(crate) fn marker_row(
+    pool: Types<'_>,
+    decls: &dyn Declarations,
+    walk: Walk,
+    self_ty: Ty,
+    memo: &mut CopyMemo,
+    explicit: &dyn Fn(Walk, Ty) -> Option<bool>,
+) -> Row {
+    let (mut subs, mut syncs) = (Vec::new(), Vec::new());
+    if copy_parts(
+        pool,
+        decls,
+        walk,
+        self_ty,
+        (&mut subs, &mut syncs),
+        memo,
+        explicit,
+    ) {
+        if syncs.is_empty() {
+            Row::Holds(BuiltinImpl::Marker, subs)
+        } else {
+            Row::HoldsWithSync(BuiltinImpl::Marker, subs, syncs)
+        }
+    } else {
+        Row::Fails(FailReason::NoImpl)
+    }
+}
+
+/// How a marker walk judges a node that is not a composite: `None` to
+/// keep walking (its parts, if any, are pushed), `Some(false)` to fail.
+/// `Copy` judges in [`copy_parts`] itself.
+fn marker_leaf(
+    pool: Types<'_>,
+    decls: &dyn Declarations,
+    walk: Walk,
+    data: &TyData,
+    stack: &mut Vec<Ty>,
+) -> bool {
+    let s = decls.sealed();
+    match *data {
+        // A string holds a counted buffer (`module.marker.sync.leaf`).
+        TyData::Prim(Prim::String) if walk == Walk::Sync => false,
+        TyData::Prim(_) | TyData::Never | TyData::Poison => !matches!(walk, Walk::Library(_)),
+        // `&T` and `&mut T` are `Sync` when `T` is
+        // (`module.marker.sync.refs`); [`copy_parts`] asks a shared
+        // reference's `Send`; a remote reference is `Wire`
+        // (`module.marker.table.remote`).
+        TyData::Ref { counted, inner, .. } => match walk {
+            Walk::Sync if !counted => {
+                stack.push(inner);
+                true
+            }
+            Walk::Wire if counted => matches!(
+                pool.get(inner),
+                TyData::TraitValue { def, .. }
+                    if s.remote != DefId::NONE && extends(pool, decls, def, s.remote)
+            ),
+            _ => false,
+        },
+        // A function value, a trait value, a provider context, a
+        // projection or an opaque type crosses nowhere
+        // (`module.marker.table.fn-value`, `.counted`, `.provider`).
+        _ => false,
+    }
+}
+
+/// Whether trait `def` names `base` among its supertraits, at any depth.
+/// Cost: the supertrait graph above `def`, each trait once.
+fn extends(pool: Types<'_>, decls: &dyn Declarations, def: DefId, base: DefId) -> bool {
+    let mut seen = vec![def];
+    let mut at = 0;
+    while let Some(&d) = seen.get(at) {
+        at += 1;
+        for &t in decls.supertraits(d) {
+            if let TyData::TraitValue { def: up, .. } = pool.get(t) {
+                if up == base {
+                    return true;
+                }
+                if !seen.contains(&up) {
+                    seen.push(up);
+                }
+            }
+        }
+    }
+    false
+}
 
 /// Whether `t` may copy (`ref.copy.structure`): no part held by value is
 /// a `&mut`, a type declared `!Copy`, or a type parameter whose bound
@@ -400,9 +586,11 @@ pub(crate) type CopyMemo = HashMap<Ty, Option<TyList>>;
 fn copy_parts(
     pool: Types<'_>,
     decls: &dyn Declarations,
+    walk: Walk,
     root: Ty,
-    subs: &mut Vec<Ty>,
+    (subs, syncs): (&mut Vec<Ty>, &mut Vec<Ty>),
     memo: &mut CopyMemo,
+    explicit: &dyn Fn(Walk, Ty) -> Option<bool>,
 ) -> bool {
     /// What a node leaves for the environment, as far as the walk knows.
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -443,6 +631,7 @@ fn copy_parts(
         left
     }
     let start = subs.len();
+    let synced = syncs.len();
     let mut stack: Vec<Step> = vec![Step::Enter(root)];
     // What each entered node leaves. A node on the open path reads
     // `Unknown` until it closes, so a cycle back to it is not kept. A
@@ -466,7 +655,27 @@ fn copy_parts(
             }
         };
         let data = pool.get(t);
+        // A type with an explicit impl of a std marker has each std marker
+        // only through its impl (`module.marker.explicit.only`): a part
+        // with one is left for that impl to answer, and a type without
+        // one fails. The goal's own type was matched against its impls.
+        let answered = match walk {
+            Walk::Copy => false,
+            _ => match explicit(walk, t) {
+                Some(true) => t != root,
+                Some(false) => return fails(memo, walk, root),
+                None => false,
+            },
+        };
         match data {
+            _ if answered => {
+                if !marks.contains_key(&t) {
+                    crate::work::type_node();
+                }
+                let left = leave(pool, &mut marks, subs, t);
+                take(&mut open, left);
+                continue;
+            }
             TyData::Param(_) | TyData::Infer(_) => {
                 if !marks.contains_key(&t) {
                     crate::work::type_node();
@@ -475,13 +684,13 @@ fn copy_parts(
                 take(&mut open, left);
                 continue;
             }
-            TyData::Tuple { .. } | TyData::Union(_) | TyData::Adt { .. } => {
+            TyData::Adt(AdtId::Product { .. }, _) | TyData::Adt(..) => {
                 if let Some(&left) = marks.get(&t) {
                     take(&mut open, left);
                     continue;
                 }
-                match memo.get(&t) {
-                    Some(None) => return fails(memo, root),
+                match memo.get(&(walk, t)) {
+                    Some(None) => return fails(memo, walk, root),
                     Some(Some(list)) => {
                         let list = *list;
                         for &s in pool.list_items(list) {
@@ -496,7 +705,11 @@ fn copy_parts(
                         take(&mut open, left);
                         continue;
                     }
-                    None if !pool.has_param(t) && !pool.has_infer(t) => closed.push(t),
+                    // A marker's walk may leave a part an explicit impl
+                    // answers, so its nodes are not closed.
+                    None if !pool.has_param(t) && !pool.has_infer(t) && walk == Walk::Copy => {
+                        closed.push(t);
+                    }
                     None => {}
                 }
                 marks.insert(t, Left::Unknown);
@@ -518,53 +731,94 @@ fn copy_parts(
         }
         crate::work::type_node();
         match data {
-            TyData::Ref {
-                mutable, counted, ..
-            } => {
-                if mutable && !counted {
-                    return fails(memo, root);
+            TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
+                stack.extend(pool.list_items(args).iter().rev().map(|&m| Step::Enter(m)));
+            }
+            TyData::Adt(AdtId::Declared(def), args) => match decls.copy_decl(def) {
+                CopyDecl::NotCopy(_) if walk == Walk::Copy => return fails(memo, walk, root),
+                // A collection holds its type arguments by value for a
+                // marker (`module.marker.structural`); a suspension and
+                // any other built-in crosses nowhere.
+                CopyDecl::Copies if walk != Walk::Copy => {
+                    let s = decls.sealed();
+                    // A list or map holds a counted buffer
+                    // (`module.marker.sync.leaf`).
+                    if walk == Walk::Sync && (def == s.list || def == s.map) {
+                        return fails(memo, walk, root);
+                    }
+                    if def == s.list || def == s.map {
+                        let items = pool.list_items(args);
+                        stack.extend(items.iter().rev().map(|&a| Step::Enter(a)));
+                    } else if decls.type_decl(def) == TypeDecl::Builtin {
+                        return fails(memo, walk, root);
+                    }
                 }
-            }
-            TyData::Tuple { elems, rest } => {
-                stack.extend(rest.map(Step::Enter));
-                stack.extend(pool.list_items(elems).iter().rev().map(|&e| Step::Enter(e)));
-            }
-            TyData::Union(ms) => {
-                stack.extend(pool.list_items(ms).iter().rev().map(|&m| Step::Enter(m)));
-            }
-            TyData::Adt { def, args } => match decls.copy_decl(def) {
                 CopyDecl::Copies => {}
-                CopyDecl::NotCopy => return fails(memo, root),
-                CopyDecl::Members(ms) => {
-                    let argv = pool.list_items(args);
+                CopyDecl::Members(ms) | CopyDecl::NotCopy(ms) => {
+                    let items = pool.list_items(args);
                     stack.extend(ms.iter().rev().map(|&m| {
                         Step::Enter(pool.subst(m, &|p: ParamRef| {
                             (p.owner == def)
-                                .then(|| argv.get(usize::from(p.index)).copied())
+                                .then(|| items.get(usize::from(p.index)).copied())
                                 .flatten()
                         }))
                     }));
                 }
             },
-            // A projection and an opaque type copy, as today; the rest
-            // hold nothing by value that could block a copy.
-            TyData::Param(_)
-            | TyData::Infer(_)
-            | TyData::Prim(_)
-            | TyData::Never
-            | TyData::Poison
-            | TyData::Fn { .. }
-            | TyData::TraitValue { .. }
-            | TyData::Opaque { .. }
-            | TyData::Const(_)
-            | TyData::Assoc { .. }
-            | TyData::Canon(_)
-            | TyData::Row(_)
-            | TyData::Context(_) => {}
+            // `Copy`: only a `&mut` held by value blocks a copy; a
+            // projection and an opaque type copy, as today.
+            TyData::Ref {
+                mutable, counted, ..
+            } if walk == Walk::Copy => {
+                if mutable && !counted {
+                    return fails(memo, walk, root);
+                }
+            }
+            TyData::Param(_) | TyData::Infer(_) => {}
+            _ if walk == Walk::Copy => {}
+            // A shared reference is `Send` when its referent is `Sync` as
+            // well (`module.marker.table.shared-sync`): that walk's own,
+            // whose parameters are left as `Sync` subgoals. Its memo
+            // keeps the referent's answer, so each referent is walked once.
+            TyData::Ref {
+                mutable: false,
+                counted: false,
+                inner,
+                ..
+            } if walk == Walk::Send => {
+                let mut left = Vec::new();
+                let sync = copy_parts(
+                    pool,
+                    decls,
+                    Walk::Sync,
+                    inner,
+                    (&mut left, &mut Vec::new()),
+                    memo,
+                    explicit,
+                );
+                if !sync {
+                    return fails(memo, walk, root);
+                }
+                syncs.extend(left);
+                stack.push(Step::Enter(inner));
+            }
+            // A marker judges every other node by its leaf rule.
+            _ => {
+                let mut parts = Vec::new();
+                if !marker_leaf(pool, decls, walk, &data, &mut parts) {
+                    return fails(memo, walk, root);
+                }
+                stack.extend(parts.into_iter().map(Step::Enter));
+            }
         }
     }
+    // A walk that left `Sync` subgoals keeps no answer: the memo holds
+    // a node's subgoals on its own trait alone.
+    if syncs.len() != synced {
+        return true;
+    }
     for t in closed {
-        memo.insert(t, Some(TyList::EMPTY));
+        memo.insert((walk, t), Some(TyList::EMPTY));
     }
     for (&t, &left) in &marks {
         if matches!(pool.get(t), TyData::Param(_) | TyData::Infer(_)) {
@@ -572,15 +826,15 @@ fn copy_parts(
         }
         match left {
             Left::Nothing => {
-                memo.insert(t, Some(TyList::EMPTY));
+                memo.insert((walk, t), Some(TyList::EMPTY));
             }
             Left::List(list) => {
-                memo.insert(t, Some(list));
+                memo.insert((walk, t), Some(list));
             }
             Left::Unknown => {}
         }
     }
-    memo.insert(root, Some(pool.list(&subs[start..])));
+    memo.insert((walk, root), Some(pool.list(&subs[start..])));
     true
 }
 
@@ -596,17 +850,47 @@ pub fn may_copy(pool: Types<'_>, decls: &dyn Declarations, identity: Ty) -> bool
     copy_parts(
         pool,
         decls,
+        Walk::Copy,
         identity,
-        &mut Vec::new(),
+        (&mut Vec::new(), &mut Vec::new()),
         &mut CopyMemo::default(),
+        &|_, _| None,
     )
+}
+
+/// What the explicit impls answer for part `t` of marker walk `w`
+/// (`module.marker.explicit.only`): `Some(true)` for a type with an impl
+/// of the walk's marker; for a std marker, `Some(false)` for one with an
+/// impl of another std marker only; `None` for one the walk judges by its
+/// parts. `has` probes the impls of one trait at one head.
+pub(crate) fn explicit_answer(
+    s: &SealedTraits,
+    w: Walk,
+    t: Ty,
+    has: &mut dyn FnMut(DefId, Ty) -> bool,
+) -> Option<bool> {
+    let own = match w {
+        Walk::Library(d) => return has(d, t).then_some(true),
+        // ruled out: `Copy`'s walk asks for no explicit impl.
+        Walk::Copy => return None,
+        Walk::Send => s.send,
+        Walk::Sync => s.sync,
+        Walk::Wire => s.wire,
+    };
+    if has(own, t) {
+        return Some(true);
+    }
+    [s.send, s.sync, s.wire]
+        .into_iter()
+        .any(|m| m != DefId::NONE && has(m, t))
+        .then_some(false)
 }
 
 /// [`copy_parts`]'s answer for a type with a part that does not copy:
 /// only the asked type is kept, since the walk stopped before its other
 /// parts were answered.
-fn fails(memo: &mut CopyMemo, root: Ty) -> bool {
-    memo.insert(root, None);
+fn fails(memo: &mut CopyMemo, walk: Walk, root: Ty) -> bool {
+    memo.insert((walk, root), None);
     false
 }
 
@@ -618,11 +902,8 @@ fn static_row(pool: Types<'_>, self_ty: Ty) -> Row {
     let mut subs = Vec::new();
     match pool.get(self_ty) {
         TyData::Ref { inner, .. } => subs.push(inner),
-        TyData::Tuple { elems, rest } => {
-            subs.extend_from_slice(pool.list_items(elems));
-            subs.extend(rest);
-        }
-        TyData::Adt { args, .. } | TyData::Union(args) => {
+
+        TyData::Adt(_, args) => {
             subs.extend_from_slice(pool.list_items(args));
         }
         // A projection meets it when its parts do, as Rust's projection
@@ -666,7 +947,8 @@ mod coverage_contracts {
         fn sealed(&self) -> &SealedTraits {
             &self.sealed
         }
-        fn type_decl(&self, _: DefId) -> TypeDecl {
+        fn type_decl(&self, def: DefId) -> TypeDecl {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
             TypeDecl::Builtin
         }
         fn supertraits(&self, _: DefId) -> &[Ty] {
@@ -675,15 +957,69 @@ mod coverage_contracts {
         fn has_unavailable_member(&self, _: DefId) -> bool {
             self.unavailable
         }
-        fn is_local(&self, _: DefId) -> bool {
+        fn is_local(&self, def: DefId) -> bool {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
             false
         }
-        fn copy_decl(&self, _: DefId) -> CopyDecl {
+        fn is_const_slot(&self, def: DefId, _: usize) -> bool {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
+            false
+        }
+        fn copy_decl(&self, def: DefId) -> CopyDecl {
+            assert!(def.get().is_some(), "anonymous sum has no declaration");
             CopyDecl::Copies
         }
         fn trait_requires_copy(&self, _: DefId) -> bool {
             false
         }
+    }
+
+    #[test]
+    fn anonymous_sum_rows_never_query_a_nominal_declaration() {
+        let global = crate::InternPool::new();
+        let p = global.types();
+        let id = DefId::from_raw;
+        let decls = Decl {
+            sealed: SealedTraits {
+                any_val: id(1),
+                any_ref: id(2),
+                inspectable: id(3),
+                union_type: id(4),
+                structure: id(5),
+                copy: id(6),
+                send: id(7),
+                wire: id(8),
+                ..SealedTraits::default()
+            },
+            unavailable: false,
+        };
+        let members = [Ty::I32, Ty::STRING];
+        let sum = p.intern_ty(&TyData::sum(p.list(&members)));
+        let mut memo = CopyMemo::default();
+        for (trait_, builtin) in [
+            (1, BuiltinImpl::AnyVal),
+            (4, BuiltinImpl::Union),
+            (5, BuiltinImpl::Structure),
+            (6, BuiltinImpl::Copy),
+        ] {
+            assert_eq!(
+                row(p, &decls, id(trait_), sum, &mut memo),
+                Some(Row::Holds(builtin, Vec::new())),
+            );
+        }
+        // `Send` and `Wire` are answered by the solver beside their impls
+        // (module.marker.explicit.only), so the sealed table has no row.
+        for trait_ in [7, 8] {
+            assert_eq!(row(p, &decls, id(trait_), sum, &mut memo), None);
+        }
+        assert_eq!(
+            row(p, &decls, id(2), sum, &mut memo),
+            Some(Row::Fails(FailReason::WrongCategory)),
+        );
+        assert_eq!(
+            row(p, &decls, id(3), sum, &mut memo),
+            Some(Row::Holds(BuiltinImpl::Inspectable, members.to_vec())),
+        );
     }
 
     #[test]

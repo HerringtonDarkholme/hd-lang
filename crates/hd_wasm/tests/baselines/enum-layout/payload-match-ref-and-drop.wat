@@ -10,7 +10,7 @@
     local.get $r.2
     call $"release_value[Result[string, LoadErr]]"
   )
-  (func $area (param $s i32) (result f64) (local $r f64) (local $b i32) (local $w f64) (local $a i32) (local $t0 i64)
+  (func $area (param $s i32) (result f64) (local $r f64) (local $a i32) (local $h f64) (local $b i32) (local $t0 i64)
     ;; 18 |     match s:
     block
       block
@@ -19,12 +19,12 @@
     ;; 19 |         .Circle(r) => 3.0 * r * r
             local.get $s
             i32.load $heap
-            local.set $b
+            local.set $a
             block
               block
                 block
                   block
-                    local.get $b
+                    local.get $a
                     br_table 0 1 2 7
                   end
                   local.get $s
@@ -35,23 +35,23 @@
     ;; 20 |         .Rect(w, h) => w * h
                 local.get $s
                 f64.load $heap offset=8
+                local.set $r
                 local.get $s
                 f64.load $heap offset=16
-                local.set $r
-                local.set $w
+                local.set $h
     ;; 19 |         .Circle(r) => 3.0 * r * r
                 br 3
               end
     ;; 21 |         .Tri(a, b, c) => f64(a + b + c)
               local.get $s
               i32.load $heap offset=4
+              local.set $a
               local.get $s
               i32.load $heap offset=8
               local.set $b
               local.get $s
               i32.load $heap offset=12
               local.set $s
-              local.set $a
     ;; 19 |         .Circle(r) => 3.0 * r * r
               br 3
             end
@@ -68,8 +68,8 @@
           return
         end
     ;; 20 |         .Rect(w, h) => w * h
-        local.get $w
         local.get $r
+        local.get $h
         f64.mul
     ;; 18 |     match s:
         return
@@ -188,13 +188,13 @@
     ;; 31 |         .Tri(a, _, _) => a += 1
         local.get $s
         i32.load $heap
-        local.get $s
-        i32.load $heap offset=4
-        local.set $s
         i32.const 2
         i32.eq
         i32.eqz
         br_if 1
+        local.get $s
+        i32.load $heap offset=4
+        local.set $s
         br 0
     ;; 30 |     match s:
         unreachable

@@ -529,14 +529,14 @@ mod metadata_tests {
                     payload,
                 );
             }
-            let no_args = pool.intern_ty(&TyData::Adt {
-                def: option,
-                args: TyList::EMPTY,
-            });
-            let two_args = pool.intern_ty(&TyData::Adt {
-                def: option,
-                args: pool.list(&[Ty::I32, Ty::STRING]),
-            });
+            let no_args = pool.intern_ty(&TyData::Adt(
+                hd_types::AdtId::Declared(option),
+                TyList::EMPTY,
+            ));
+            let two_args = pool.intern_ty(&TyData::Adt(
+                hd_types::AdtId::Declared(option),
+                pool.list(&[Ty::I32, Ty::STRING]),
+            ));
             let foreign = pool.applied(ck.cx.names.known.string_builder, Ty::I32);
             let before = (ck.b.body().len(), ck.b.body().extra.len());
             for ret in [Ty::I32, Ty::POISON, no_args, two_args, foreign] {

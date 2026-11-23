@@ -12,7 +12,11 @@
 
 `@derive`, `@error` and `@from` need no import either. The methods of
 strings, lists, maps, optionals and results need none: they come with the
-type.
+type. Floats also provide `sin`, `cos`, `tan`, `asin`, `acos`, `atan`,
+`atan2`, `exp`, `ln`, `log2`, `log10`, `powf`, `powi`, `abs` and `signum`
+without an import. Angles are radians. Import the constant functions with
+`use std.f64.consts.{PI, E}` or `use std.f32.consts.{PI, E}`, and call
+`PI()` or `E()`.
 
 A name may not shadow a prelude name: a function or variable called
 `string`, `f32` or `println` is `prelude-name-shadow`.
@@ -51,9 +55,7 @@ use std.text.{StringBuilder, r}
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, h, ms, now, s, sleep}
 ```
 
-`std.time` also exports the suffix `min` for minutes, which clashes with
-`std.cmp.min` in one file: import one of them under another name, as
-`use std.time.{min as minutes}`.
+`std.time.minutes(count)` constructs minutes; `90min` is the fixed duration literal spelling.
 
 Other modules: `std.http` and `std.net` (requests and sockets),
 `std.encoding` (base64 and hex), `std.digest` (hashes), `std.validate`

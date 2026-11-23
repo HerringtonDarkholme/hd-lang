@@ -20,6 +20,8 @@ use hd_syntax::SyntaxKind;
 use hd_tir::Callee;
 use hd_tir::ir::{Body, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology};
 use hd_tir::own::flow::{BitArena, Flow, Forward, Suites, forward};
+use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use hd_types::{CopyDecl, ParamRef, Ty, TyData, Types};
 
 use crate::body::Ck;
@@ -105,10 +107,8 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
         TyData::Ref {
             mutable, counted, ..
         } => Ok((mutable && !counted && !reborrow).then_some(t)),
-        TyData::Tuple { elems, rest } => {
-            Err(pool.list_items(elems).iter().copied().chain(rest).collect())
-        }
-        TyData::Union(ms) => Err(pool.list_items(ms).to_vec()),
+
+        TyData::Adt(ANON_SUM | AdtId::Product { .. }, args) => Err(pool.list_items(args).to_vec()),
         TyData::Param(_) if relaxed.contains(&t) => Ok(Some(t)),
         TyData::Param(p) => Ok((!param_copies((pool, find), p)).then_some(t)),
         TyData::Assoc { assoc, .. } => {
@@ -122,21 +122,21 @@ fn copy_step(cx: CopyContext<'_, '_>, t: Ty) -> Result<Option<Ty>, Vec<Ty>> {
             });
             Ok((!copies).then_some(t))
         }
-        TyData::Adt { def, args } => {
+        TyData::Adt(AdtId::Declared(def), args) => {
             let Some(item) = find(def) else {
                 return Ok(None);
             };
             match item.copy_decl() {
                 CopyDecl::Copies => Ok(None),
-                CopyDecl::NotCopy => Ok(Some(t)),
+                CopyDecl::NotCopy(_) => Ok(Some(t)),
                 CopyDecl::Members(ms) => {
-                    let argv = pool.list_items(args);
+                    let type_items = pool.list_items(args);
                     Err(ms
                         .iter()
                         .map(|&m| {
                             pool.subst(m, &|p| {
                                 (p.owner == def)
-                                    .then(|| argv.get(p.index as usize).copied())
+                                    .then(|| type_items.get(p.index as usize).copied())
                                     .flatten()
                             })
                         })
@@ -390,6 +390,9 @@ pub(crate) struct Uses {
     users: Vec<Vec<(u32, Role)>>,
     hidden: Vec<bool>,
     hidden_reads: HashMap<LocalId, Vec<u32>>,
+    /// A guard's twins: the store into one moves nothing, and a guard
+    /// that moves one is `move-out-of-place` (`flow.match.guard.borrow`).
+    twin: Vec<bool>,
     /// Whether a sub-body's result moves its value: the caller takes it.
     /// Use-after-move needs no such move, since nothing runs after it.
     root_result_moves: bool,
@@ -423,6 +426,8 @@ struct Walk<'x> {
     link: &'x [bool],
     /// The bit each moving read sets, or `NONE`.
     move_bit: &'x [u32],
+    /// The bits each crossing closure's creation sets.
+    closure_moves: &'x HashMap<u32, Vec<u32>>,
     /// The binding and path of each bit.
     bits: &'x [(LocalId, Vec<u32>)],
     of_local: &'x HashMap<LocalId, Vec<u32>>,
@@ -491,6 +496,9 @@ impl Forward for Walk<'_> {
                             self.use_of(l, &[], false, x, s, st);
                         }
                     }
+                }
+                for &k in self.closure_moves.get(&x).into_iter().flatten() {
+                    s.set(st, k, true);
                 }
             }
             Tag::ItemRef
@@ -686,7 +694,7 @@ impl Ck<'_, '_> {
                     // is not walked: its members may grow without end
                     // (`crate::value::holds_itself`), and it is reported.
                     .or_else(|| {
-                        matches!(pool.get(u), TyData::Adt { def, .. }
+                        matches!(pool.get(u), TyData::Adt(AdtId::Declared(def), _)
                             if crate::value::holds_itself(global, inline, pool, lookup, def))
                         .then_some(CopyAnswer {
                             blocker: None,
@@ -734,10 +742,10 @@ impl Ck<'_, '_> {
         };
         let shown = hd_resolve::show_ty(&self.cx.names, part);
         match pool.get(part) {
-            TyData::Adt { .. } if part == t => {
+            TyData::Adt(..) if part == t => {
                 format!("its type `{shown}` is declared `impl !Copy`, so it is not copied")
             }
-            TyData::Adt { .. } => {
+            TyData::Adt(..) => {
                 format!("its type holds `{shown}`, declared `impl !Copy`, so it is not copied")
             }
             TyData::Param(p)
@@ -775,6 +783,7 @@ impl Ck<'_, '_> {
             users: Vec::new(),
             hidden: self.hidden_locals(self.b.body()),
             hidden_reads: HashMap::default(),
+            twin: self.guard_twins_of(self.b.body()),
             root_result_moves: false,
         })
     }
@@ -785,10 +794,13 @@ impl Ck<'_, '_> {
     pub(crate) fn check_moves(&mut self, root: Ref, cx: &mut Uses) -> MoveFacts {
         let pool = self.pool();
         let mut facts = MoveFacts::default();
+        // A crossing parameter is called at most once: its call moves it
+        // (`fn.crossing.once`).
+        let crossing: Vec<LocalId> = self.crossing_params.iter().map(|&(l, _)| l).collect();
         let held: Vec<bool> = (0..self.b.body().local_ty.len())
             .map(|i| {
                 let ty = self.b.body().local_ty[i];
-                !self.copies_in(&mut cx.q, ty)
+                crossing.iter().any(|l| l.idx() == i) || !self.copies_in(&mut cx.q, ty)
             })
             .collect();
         if !(0..held.len()).any(|l| held[l] && !cx.hidden[l]) {
@@ -844,11 +856,15 @@ impl Ck<'_, '_> {
         for i in 0..n {
             let Some(a) = &acc[i] else { continue };
             let field_copies = !a.path.is_empty() && cx.copied[i];
+            let called = crossing.contains(&a.local)
+                && cx.users[i].iter().any(|&(u, _)| {
+                    b.tags[u as usize] == Tag::CallValue && b.data[u as usize][0] == w(i)
+                });
             if b.tags[i] != Tag::Read
                 || link[i]
                 || !a.exact
                 || field_copies
-                || !self.moves(cx, w(i))
+                || !(called || self.moves(cx, w(i)))
             {
                 continue;
             }
@@ -870,6 +886,27 @@ impl Ck<'_, '_> {
                 facts.reborrows.insert(w(i));
             }
         }
+        // A crossing closure moves each capture that is not copied
+        // (`fn.crossing.mode.move`): its source binding ends there.
+        let mut closure_moves: HashMap<u32, Vec<u32>> = HashMap::default();
+        for &(i, _) in &self.crossing_closures {
+            if let [start, len, ..] = *b.record(b.data[i as usize][1]) {
+                for c in start..start.saturating_add(len) {
+                    let Some(&l) = b.cap_local.get(c as usize) else {
+                        continue;
+                    };
+                    if !tracked(l) {
+                        continue;
+                    }
+                    let k = *bit_of.entry((l, Vec::new())).or_insert_with_key(|key| {
+                        bits.push(key.clone());
+                        of_local.entry(l).or_default().push(w(bits.len() - 1));
+                        w(bits.len() - 1)
+                    });
+                    closure_moves.entry(i).or_default().push(k);
+                }
+            }
+        }
         if bits.is_empty() {
             return facts;
         }
@@ -885,6 +922,7 @@ impl Ck<'_, '_> {
             let mut walk = Walk {
                 acc: &acc,
                 link: &link,
+                closure_moves: &closure_moves,
                 move_bit: &move_bit,
                 bits: &bits,
                 of_local: &of_local,
@@ -911,6 +949,10 @@ impl Ck<'_, '_> {
             } else if !path.is_empty() {
                 format!(
                     "a field of `{name}` was moved out before this use; assign the field again to use `{name}` whole"
+                )
+            } else if crossing.iter().any(|c| c.idx() == l) {
+                format!(
+                    "`{name}` is a crossing parameter, which runs once; an earlier call moved it"
                 )
             } else if is_mut_ref(self.pool(), b.local_ty[l]) {
                 format!(
@@ -1054,6 +1096,9 @@ impl Ck<'_, '_> {
                 if cx.hidden[h.idx()] {
                     return Consumed::Hidden(h);
                 }
+                if cx.twin[h.idx()] {
+                    return Consumed::Stays;
+                }
                 // An assignment, or a `let` that writes the type, expects
                 // the binding's `&mut` type; `:=` and a bare `let` do not.
                 // Only a `&mut` reborrows (`ref.move.reborrow.typed`).
@@ -1090,9 +1135,7 @@ impl Ck<'_, '_> {
     /// The declared type of field `j` of `t`, of variant `variant` for an
     /// enum: a struct's or an enum's, not a tuple's or an optional's.
     fn field_decl(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<Ty> {
-        let TyData::Adt { def, .. } = self.pool().get(t) else {
-            return None;
-        };
+        let (def, _) = self.pool().adt(t)?;
         let fields = match (&self.cx.lookup.item(def)?.data, variant) {
             (ItemData::Struct(fs, _), None) => fs,
             (

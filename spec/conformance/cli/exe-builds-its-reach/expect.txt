@@ -1,0 +1,6 @@
+# Only api uses src/db.hd, which has a type error: web still runs, and
+# api, which reaches it, does not.
+run: hd run web
+stdout: hi
+run: hd run api
+exit: 101

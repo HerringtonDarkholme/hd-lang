@@ -1423,7 +1423,7 @@ mod pin_tests {
 
     #[derive(Clone, Copy, Default)]
     struct Case {
-        captured: u8,
+        captured: u16,
         mutable: bool,
         deref: bool,
         inside_read: bool,

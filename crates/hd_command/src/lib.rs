@@ -26,6 +26,25 @@ mod new_cmd;
 mod node;
 #[cfg(test)]
 mod pipeline_tests;
+#[cfg(test)]
+mod jobs_tests {
+    /// `cli.jobs.default`: the cores less the load, rounded, in 1..=8.
+    #[test]
+    fn the_default_pool_takes_the_free_cores() {
+        let free = |cores, load| super::free_cores(cores, load);
+        assert_eq!(free(14, Some(0.0)), 8);
+        assert_eq!(free(14, Some(10.4)), 4);
+        assert_eq!(free(14, Some(10.5)), 3);
+        assert_eq!(free(14, Some(40.0)), 1);
+        assert_eq!(free(4, None), 4);
+        let load = super::load_average();
+        if cfg!(unix) {
+            assert!(load.is_some_and(|l| l >= 0.0));
+        } else {
+            assert_eq!(load, None);
+        }
+    }
+}
 #[cfg(windows)]
 mod process_job;
 mod repl;
@@ -94,6 +113,7 @@ fn usage() -> ExitCode {
 #[must_use]
 pub fn main() -> ExitCode {
     let work = work::start();
+    let trace = work::start_trace();
     let status = match std::thread::Builder::new()
         .name("main".to_owned())
         .stack_size(hd_sched::pool::WORKER_STACK)
@@ -106,6 +126,7 @@ pub fn main() -> ExitCode {
         Err(_) => command_main(),
     };
     work::finish(work);
+    work::finish_trace(trace);
     status
 }
 
@@ -428,7 +449,7 @@ pub(crate) fn set_jobs(n: usize) {
 }
 
 /// The thread count (`cli.jobs`, `cli.jobs.env`, `cli.jobs.default`): the
-/// flag, else `HD_JOBS`, else the number of cores, at most 8.
+/// flag, else `HD_JOBS`, else the cores other processes leave free.
 pub(crate) fn default_jobs() -> usize {
     let flag = JOBS_FLAG.load(std::sync::atomic::Ordering::Relaxed);
     if flag >= 1 {
@@ -439,10 +460,38 @@ pub(crate) fn default_jobs() -> usize {
         .and_then(|v| v.parse::<usize>().ok())
         .filter(|n| *n >= 1)
         .unwrap_or_else(|| {
-            std::thread::available_parallelism()
-                .map_or(1, std::num::NonZero::get)
-                .min(8)
+            let cores = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+            free_cores(u32::try_from(cores).unwrap_or(u32::MAX), load_average())
         })
+}
+
+/// `cli.jobs.default`: the cores less the 1-minute load average, rounded,
+/// at least 1 and at most 8, so N concurrent `hd` processes do not each
+/// start a pool on every core (#1802 draft 67). With no load average, as
+/// on Windows, every core, at most 8.
+fn free_cores(cores: u32, load: Option<f64>) -> usize {
+    let busy = load.unwrap_or(0.0);
+    (0..cores)
+        .filter(|&k| f64::from(k) + 0.5 > busy)
+        .count()
+        .clamp(1, 8)
+}
+
+/// The system's 1-minute load average, as `uptime` shows it.
+#[cfg(unix)]
+#[allow(unsafe_code)]
+fn load_average() -> Option<f64> {
+    let mut load = [0.0f64; 1];
+    // SAFETY: `getloadavg` writes at most `nelem` samples, here 1, into
+    // the buffer, which holds 1, and keeps no pointer to it.
+    let got = unsafe { libc::getloadavg(load.as_mut_ptr(), 1) };
+    (got == 1 && load[0].is_finite()).then_some(load[0])
+}
+
+/// No load average off Unix: Windows has none.
+#[cfg(not(unix))]
+fn load_average() -> Option<f64> {
+    None
 }
 
 pub(crate) fn executor() -> Executor {
@@ -643,8 +692,9 @@ fn compile_standalone_in(
     store: &dyn hd_cache::CacheStore,
 ) -> Result<(Vec<u8>, Option<String>), ExitCode> {
     // A warm build with nothing changed writes the artifact a build of the
-    // same inputs stored (#1510): one lookup, no per-module entry. A build
-    // that writes its text (`HD_WAT`) builds, for the functions' names.
+    // same inputs stored (#1510): one lookup beside the stamp table, no
+    // per-module entry. A build that writes its text (`HD_WAT`) builds,
+    // for the functions' names.
     let stored = stored_artifact(program, (profile, pipeline), store, "cli-build-artifact-v1")
         .filter(|_| !wat::requested());
     if let Some(wasm) = stored.and_then(|(key, client)| key.read(store, client)) {
@@ -771,8 +821,9 @@ impl Compiled<'_> {
 
 /// [`compile`], keeping what `hd FILE` and `hd run` need to report a
 /// panic's source location. A warm run with nothing changed takes the
-/// module a run of the same inputs stored (#1510): one lookup, no
-/// per-module entry, and the positions only when a panic asks.
+/// module a run of the same inputs stored (#1510): one lookup beside the
+/// stamp table, no per-module entry, and the positions only when a panic
+/// asks.
 fn compile_traced<'a>(
     program: &'a disk::Program,
     settings: (BuildProfile, Pipeline),
@@ -922,7 +973,6 @@ fn execute_with(
     };
     let cwd = std::env::current_dir().unwrap_or_default();
     let host = HostSetup {
-        providers: Vec::new(),
         grants: caps::grants(table, table_dir.unwrap_or(&cwd), flags),
         // A run that Ctrl-C may cancel always has a cleanup bound
         // (`cli.cancel.default`).
@@ -1760,7 +1810,8 @@ mod stored_artifact_tests {
         let (wasm, _) =
             compile_standalone_in(&program, (profile_of(false), pipeline), &mut rep, store)
                 .expect("built");
-        (wasm, store.gets.load(Ordering::Relaxed) == 1)
+        // A hit: the set's stamp table and the stored artifact.
+        (wasm, store.gets.load(Ordering::Relaxed) == 2)
     }
 
     /// Waits until every file written so far has a stamp.
@@ -1817,7 +1868,6 @@ mod stored_artifact_tests {
     /// A run of `wasm`'s trap frames.
     fn trap_of(wasm: &[u8]) -> Vec<(u32, u32)> {
         let host = HostSetup {
-            providers: Vec::new(),
             grants: hd_run::Grants::default(),
             limits: engine::ProgramLimits::default().into(),
             args: Vec::new(),
@@ -1831,7 +1881,8 @@ mod stored_artifact_tests {
     }
 
     /// Cost Model (#1510): a warm `hd run` with nothing changed takes the
-    /// stored module with one lookup, at 2 modules as at 40, and builds
+    /// stored module with one lookup beside the set's stamp table, at 2
+    /// modules as at 40, and builds
     /// nothing until a panic asks for its frames, which then print the
     /// lines the cold run's do. A settled edit builds again.
     #[test]
@@ -1847,7 +1898,7 @@ mod stored_artifact_tests {
                 "{n}: cold, {gets} lookups"
             );
             let (warm, gets) = compiled(&program, &store);
-            assert_eq!(gets, 1, "{n}: warm");
+            assert_eq!(gets, 2, "{n}: warm");
             assert!(warm.frames.is_none() && warm.stored.is_some());
             assert_eq!(warm.wasm, cold.wasm);
             let trap = trap_of(&warm.wasm);
@@ -1876,7 +1927,7 @@ mod stored_artifact_tests {
                 "{n}: an edit builds again"
             );
             let (warm, gets) = compiled(&program, &store);
-            assert_eq!(gets, 1, "{n}: warm after the edit");
+            assert_eq!(gets, 2, "{n}: warm after the edit");
             assert_eq!(
                 warm.frame_lines(&trap_of(&warm.wasm), &store),
                 [
@@ -1889,7 +1940,8 @@ mod stored_artifact_tests {
     }
 
     /// Cost Model (#1510): a warm `hd FILE` with nothing changed takes the
-    /// stored module with one lookup, as a package's run does, though the
+    /// stored module with one lookup beside its stamp table, as a
+    /// package's run does, though the
     /// file reaches std modules; its panic names the cold run's lines,
     /// under the file's stem. A settled edit builds again.
     #[test]
@@ -1912,7 +1964,7 @@ mod stored_artifact_tests {
         let (cold, gets) = compiled(&program, &store);
         assert!(cold.stored.is_none() && gets > 3, "cold, {gets} lookups");
         let (warm, gets) = compiled(&program, &store);
-        assert_eq!(gets, 1, "warm");
+        assert_eq!(gets, 2, "warm");
         assert!(warm.frames.is_none() && warm.stored.is_some());
         assert_eq!(warm.wasm, cold.wasm);
         let trap = trap_of(&warm.wasm);
@@ -1925,7 +1977,7 @@ mod stored_artifact_tests {
         let (edited, gets) = compiled(&program, &store);
         assert!(edited.stored.is_none() && gets > 1, "an edit builds again");
         let (warm, gets) = compiled(&program, &store);
-        assert_eq!(gets, 1, "warm after the edit");
+        assert_eq!(gets, 2, "warm after the edit");
         assert_eq!(
             warm.frame_lines(&trap_of(&warm.wasm), &store),
             ["pick.hd:3 pick.pick", "pick.hd:6 pick.main"]

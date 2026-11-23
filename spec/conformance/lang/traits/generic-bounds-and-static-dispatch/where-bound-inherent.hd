@@ -1,0 +1,27 @@
+# test: an inherent implementation's method bounds the implementation's parameter with where; the type with any argument keeps its other methods
+# Spec 09 Method Bounds On Enclosing Parameters: trait.where.clause, trait.where.subject, trait.where.call, trait.where.body.
+# expect-stdout: 1005 w
+trait Rank:
+    fn rank(self) -> i32
+
+struct Card:
+    value: i32
+
+impl Rank for Card:
+    fn rank(self) -> i32:
+        self.value
+
+struct Shelf[T]:
+    item: T
+
+impl[T] Shelf[T]:
+    fn get(self) -> T:
+        self.item
+
+    fn item_rank(self) -> i32 where T < Rank:
+        self.item.rank() + 1000
+
+pub fn main() -> void $ Console:
+    cards := Shelf { item: Card { value: 5 } }
+    words := Shelf { item: "w" }
+    println("${cards.item_rank()} ${words.get()}")

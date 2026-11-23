@@ -1,0 +1,17 @@
+# test: a crossing closure copies a captured let variable, and shares no cell with its scope
+# Spec 07 Crossing Closures: fn.crossing.mode, fn.crossing.mode.copy, fn.crossing.mode.apart.
+use std.marker.Wire
+
+fn later[T < ?Copy & Wire](before: fn() -> void, code: fn() -> T + Wire) -> T:
+    before()
+    code()
+
+fn demo() -> i32:
+    let n = +1
+    later(fn() -> void: n = 5, fn() -> i32: n)
+
+tests:
+    use std.testing.assert_equal
+
+    it("the crossing closure keeps the value it captured"):
+        assert_equal(demo(), 1)

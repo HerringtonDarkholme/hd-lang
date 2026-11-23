@@ -5,7 +5,7 @@ use hd_base::SliceSort as _;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use hd_base::Hash128;
+use hd_base::{Hash128, HashMap};
 use hd_diag::{Code, Severity};
 use hd_driver::{BuildProfile, Dependency, Packages};
 use hd_project::{
@@ -36,6 +36,9 @@ pub struct DiskSources {
     identity: Option<Hash128>,
     /// Whether `retain` left files out (`SourceSet::partial`).
     partial: bool,
+    /// The bytes read so far, by path: the driver's stamp step and its
+    /// texts read a file once per listing (`hd_driver::stamps`).
+    read: Arc<std::sync::Mutex<HashMap<String, Arc<[u8]>>>>,
 }
 
 impl DiskSources {
@@ -44,6 +47,30 @@ impl DiskSources {
         let before = self.files.len();
         self.files.retain(|e| keep(&e.path));
         self.partial |= self.files.len() < before;
+    }
+
+    /// The files whose package-relative path `keep` accepts, copying no
+    /// other file's row.
+    pub fn only(&self, keep: impl Fn(&str) -> bool) -> DiskSources {
+        DiskSources {
+            root: self.root.clone(),
+            files: self
+                .files
+                .iter()
+                .filter(|e| keep(&e.path))
+                .cloned()
+                .collect(),
+            src: self.src.clone(),
+            synthetic: self
+                .synthetic
+                .iter()
+                .filter(|s| keep(&s.0))
+                .cloned()
+                .collect(),
+            identity: self.identity,
+            partial: true,
+            read: Arc::clone(&self.read),
+        }
     }
 
     /// Adds a file no disk holds, listed at `path` (a doc test's program,
@@ -112,13 +139,25 @@ impl SourceSet for DiskSources {
         if let Some((_, text)) = self.synthetic.iter().find(|(p, _)| p == path) {
             return Some(text.clone());
         }
-        read_regular(&self.disk_path(path)).map(Arc::from)
+        if let Some(bytes) = self.read.lock().ok().and_then(|m| m.get(path).cloned()) {
+            return Some(bytes);
+        }
+        let bytes: Arc<[u8]> = Arc::from(read_regular(&self.disk_path(path))?);
+        if let Ok(mut m) = self.read.lock() {
+            m.insert(path.to_owned(), Arc::clone(&bytes));
+        }
+        Some(bytes)
     }
     fn identity(&self) -> Option<Hash128> {
         self.identity
     }
     fn partial(&self) -> bool {
         self.partial
+    }
+    /// A listed file's stamp is its metadata; an added text's is its
+    /// hash, so a set of added texts alone, as standard input's, has none.
+    fn metadata_stamps(&self) -> bool {
+        self.synthetic.len() < self.files.len()
     }
     fn detach(&self) -> Option<Arc<dyn SourceSet + Send>> {
         Some(Arc::new(self.clone()))
@@ -389,6 +428,7 @@ impl Program {
             instruction_origins: crate::wat::requested(),
             std_leaf: None,
             checked: false,
+            report: false,
             verify_own: false,
             verify_tir: std::env::var_os("HD_VERIFY").is_some(),
             requires: self.requires.clone(),
@@ -414,6 +454,7 @@ impl Program {
             check_roots: None,
             session: None,
             reuse: None,
+            discovered: None,
             inputs_from: None,
             failed_inputs: &[],
             body_fuel: None,
@@ -556,7 +597,7 @@ fn selected_dependencies(
     let mut deps = Vec::new();
     for &i in &order[1..] {
         let p = &sel.packages[i];
-        let (sources, name) = sources_of(&p.dir)?;
+        let (sources, name) = sources_listed(&p.dir, false)?;
         deps.push(DiskPackage {
             name,
             identity: p.identity.clone(),
@@ -858,6 +899,15 @@ fn single_file_package(dir: &Path, written: &Path) -> Result<(String, Vec<Diag>)
 /// in a directory of its own is no part of it. A directory without that
 /// layout has every file under it.
 pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
+    sources_listed(root, true)
+}
+
+/// [`sources_of`], with the test root and `tasks` only when `whole`. A
+/// dependency is used through its library alone: its tests and tasks are
+/// no modules a dependent reaches (`cli.task.no-path`), so its listing
+/// skips them and is partial, keeping their rows in the set's records.
+/// Cost: one `stat` per library file, none per test or task file.
+fn sources_listed(root: &Path, whole: bool) -> Result<(DiskSources, String), String> {
     let package = package_name(root)?;
     let src = source_dir(root);
     let mut files = Vec::new();
@@ -865,7 +915,8 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
     // trusted as settled (`stamp`).
     let now = std::time::SystemTime::now();
     if root.join("hd.toml").is_file() && root.join(&src).is_dir() {
-        for dir in [src.as_str(), "tasks", "tests"] {
+        let dirs = if whole { &["tasks", "tests"][..] } else { &[] };
+        for dir in std::iter::once(src.as_str()).chain(dirs.iter().copied()) {
             if root.join(dir).is_dir() {
                 walk(root, &root.join(dir), now, &mut files)?;
             }
@@ -885,7 +936,8 @@ pub fn sources_of(root: &Path) -> Result<(DiskSources, String), String> {
         src: (src != "src").then_some(src),
         synthetic: Vec::new(),
         identity,
-        partial: false,
+        partial: !whole,
+        read: Arc::default(),
     };
     sources.files = files
         .into_iter()
@@ -964,6 +1016,7 @@ pub fn load_file(target: &Path) -> Result<Program, String> {
             synthetic: Vec::new(),
             identity,
             partial: false,
+            read: Arc::default(),
         },
         package,
         entry: module_below(&name),
@@ -1002,6 +1055,7 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
         synthetic: Vec::new(),
         identity: Some(hd_base::StableHasher::new("disk-stdin").finish()),
         partial: false,
+        read: Arc::default(),
     };
     sources.add_synthetic("main.hd", text);
     Ok(Program {
@@ -1041,6 +1095,7 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
             synthetic: Vec::new(),
             identity: None,
             partial: false,
+            read: Arc::default(),
         },
         package: SESSION_PACKAGE.to_owned(),
         entry: String::new(),
@@ -1066,6 +1121,7 @@ const SESSION_PACKAGE: &str = "repl";
 /// The whole package at `root`, with the packages it requires, and the
 /// package-relative file `entry` as its entry module.
 pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
+    let _span = hd_base::trace::span("phase", || "load package".to_owned());
     if let Some(d) = manifest_syntax_problem(root) {
         // Nothing else of the package can be read: the program has no
         // sources, and its one problem stops the command.
@@ -1077,6 +1133,7 @@ pub fn load_package(root: &Path, entry: &str) -> Result<Program, String> {
                 synthetic: Vec::new(),
                 identity: None,
                 partial: false,
+                read: Arc::default(),
             },
             package: default_name(root),
             entry: module_below(entry),

@@ -27,8 +27,8 @@ impl Slots:
     fn push(&mut self, value: string) -> void:
         self.items.push(value)
 
-    fn remove_at(&mut self, index: usize) -> string:
-        self.items.remove_at(index)
+    fn remove(&mut self, index: usize) -> string:
+        self.items.remove(index)
 
     fn swap(&mut self, left: usize, right: usize) -> void:
         self.items.swap(left, right)
@@ -65,7 +65,7 @@ fn make() -> *mut Outer:
 
 fn probe(p: *mut Outer, alias: *mut Outer) -> string:
     r := hold_carrier((42, p.items.get_mut(1).expect("slot")))
-    _ := alias.items.remove_at(1) # panic: borrow-conflict
+    _ := alias.items.remove(1) # panic: borrow-conflict
     junk := churn()
     seen := *r
     _ := junk.len()

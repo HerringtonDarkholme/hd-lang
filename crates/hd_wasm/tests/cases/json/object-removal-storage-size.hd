@@ -1,6 +1,6 @@
 # @dump: wat
 # @build: v8 release std
-# expected: removal metadata preserves the 16-byte Json, 8-byte JsonObject, and 8-byte cursor
+# expected: removal metadata preserves the 16-byte Json, 8-byte JsonObject, and 12-byte cursor (ListIter keeps a shared front/back end word)
 use std.json.{Json, JsonObject, JsonObjectIter}
 use std.rt.memory.size_of
 

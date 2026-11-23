@@ -1,0 +1,167 @@
+# test: reversing owned and borrowed drains preserves ownership and the original tail
+use std.collections.{UniqList, UniqListIntoIter}
+use std.iter.{DoubleEndedIterator, ExactSizeIterator}
+
+struct Item:
+    id: i32
+impl !Copy for Item
+
+struct ZippedItem:
+    id: i32
+    text: UniqList[string]
+impl !Copy for ZippedItem
+
+fn zipped_item(id: i32) -> ZippedItem:
+    let mut text = UniqList::[string].new()
+    text.push("owned")
+    ZippedItem { id: id, text: text }
+
+fn zipped_items(first: i32, second: i32) -> UniqList[ZippedItem]:
+    let mut items = UniqList::[ZippedItem].new()
+    items.push(zipped_item(first))
+    items.push(zipped_item(second))
+    items
+
+struct SharedZippedCursor:
+    inner: *mut UniqListIntoIter[ZippedItem]
+
+impl Iterator[ZippedItem] for SharedZippedCursor:
+    fn next(&mut self) -> ZippedItem?:
+        self.inner.next()
+
+impl DoubleEndedIterator[ZippedItem] for SharedZippedCursor:
+    fn next_back(&mut self) -> ZippedItem?:
+        self.inner.next_back()
+
+impl ExactSizeIterator[ZippedItem] for SharedZippedCursor:
+    fn len(&self) -> usize:
+        self.inner.len()
+
+impl Iterable[ZippedItem] for SharedZippedCursor:
+    type IntoIter = SharedZippedCursor
+    fn iter(self) -> SharedZippedCursor:
+        self
+
+tests:
+    use std.testing.assert_equal
+
+    it("partial list drain reverse restores the tail from its original boundary"):
+        let mut list = [+0, 1, 2, 3, 4, 5]
+        let mut drain = list.drain(1..5)
+        assert_equal(drain.next_back(), .Some(+4))
+        assert_equal(drain.next(), .Some(+1))
+        assert_equal(drain.len(), 2)
+        _ := drain
+        assert_equal(list, [+0, 5])
+        _ := list.drain(1..1).rev()
+        assert_equal(list, [+0, 5])
+
+    it("partial unique drain moves each item and restores only the unselected tail"):
+        let mut list = UniqList::[Item].new()
+        for id in +0..6:
+            list.push(Item { id: id })
+        let mut drain = list.drain(1..5)
+        assert_equal(drain.next_back().unwrap().id, +4)
+        assert_equal(drain.next().unwrap().id, +1)
+        assert_equal(drain.len(), 2)
+        _ := drain
+        assert_equal(list.len(), 2)
+        assert_equal(list.get_ref(0).unwrap().id, +0)
+        assert_equal(list.get_ref(1).unwrap().id, +5)
+        let mut consumed = Iterable::[Item]::iter(list).rev()
+        assert_equal(consumed.next().unwrap().id, +5)
+        assert_equal(consumed.next_back().unwrap().id, +0)
+        assert_equal(consumed.len(), 0)
+        assert_equal(consumed.next().is_none(), true)
+
+    it("reversed noncopy cursors propagate through adapters"):
+        let mut list = UniqList::[Item].new()
+        list.push(Item { id: +1 })
+        list.push(Item { id: +2 })
+        list.push(Item { id: +3 })
+        ids := Iterable::[Item]::iter(list)
+            .map(fn(item: Item) -> i32: item.id)
+            .take(2)
+            .rev()
+            .collect::[List[i32]]()
+        assert_equal(ids, [+2, 1])
+
+    it("zero sized unique items and dropped reversed drains preserve counts"):
+        let mut list = UniqList::[void].new()
+        list.push(())
+        list.push(())
+        list.push(())
+        let mut drain = list.drain(1..3).rev()
+        assert_equal(drain.next(), .Some(()))
+        _ := drain
+        assert_equal(list.len(), 1)
+
+    it("reverse zip moves noncopy pairs and drops an unpaired owned tail"):
+        let mut left = UniqList::[ZippedItem].new()
+        left.push(zipped_item(+1))
+        left.push(zipped_item(+2))
+        left.push(zipped_item(+3))
+        let mut right = UniqList::[ZippedItem].new()
+        right.push(zipped_item(+4))
+        right.push(zipped_item(+5))
+        let mut pairs = Iterable::[ZippedItem]::iter(left).zip(right)
+        tail := pairs.next_back().unwrap()
+        assert_equal(tail._0.id, +2)
+        assert_equal(tail._1.id, +5)
+        assert_equal(tail._0.text.len(), 1)
+        assert_equal(tail._1.text.len(), 1)
+        _ := tail
+        front := pairs.next().unwrap()
+        assert_equal(front._0.id, +1)
+        assert_equal(front._1.id, +4)
+        _ := front
+        assert_equal(pairs.next_back().is_none(), true)
+        assert_equal(pairs.next().is_none(), true)
+
+    it("chain and flat_map reverse produced noncopy cursors"):
+        left := zipped_items(+1, +2)
+        right := zipped_items(+3, +4)
+        reversed := Iterable::[ZippedItem]::iter(left)
+            .chain(right)
+            .rev()
+            .map(fn(item: ZippedItem) -> i32: item.id)
+            .collect::[List[i32]]()
+        assert_equal(reversed, [+4, 3, 2, 1])
+        source := zipped_items(+1, +2)
+        flattened := Iterable::[ZippedItem]::iter(source)
+            .flat_map(fn(item: ZippedItem) -> UniqList[ZippedItem]:
+                let mut part = UniqList::[ZippedItem].new()
+                part.push(item)
+                part
+            )
+            .rev()
+            .map(fn(item: ZippedItem) -> i32: item.id)
+            .collect::[List[i32]]()
+        assert_equal(flattened, [+2, 1])
+
+    it("flat_map retains both partial noncopy inner cursors across mixed ends"):
+        source := zipped_items(+1, +2)
+        let mut flat = Iterable::[ZippedItem]::iter(source)
+            .flat_map(fn(item: ZippedItem) -> UniqList[ZippedItem]:
+                let mut part = UniqList::[ZippedItem].new()
+                part.push(item)
+                part.push(zipped_item(+99))
+                part
+            )
+        assert_equal(flat.next().unwrap().id, +1)
+        assert_equal(flat.next_back().unwrap().id, +99)
+        assert_equal(flat.next().unwrap().id, +99)
+        assert_equal(flat.next_back().unwrap().id, +2)
+        assert_equal(flat.next().is_none(), true)
+        assert_equal(flat.next_back().is_none(), true)
+
+    it("aliased counted cursors drop an unpaired owned value without asserting"):
+        let mut values = UniqList::[ZippedItem].new()
+        values.push(zipped_item(+7))
+        shared := box(Iterable::[ZippedItem]::iter(values))
+        left := SharedZippedCursor { inner: shared }
+        right := SharedZippedCursor { inner: shared }
+        let mut pairs = left.zip(right)
+        assert_equal(pairs.next_back().is_none(), true)
+        assert_equal(shared.len(), 0)
+        assert_equal(pairs.next_back().is_none(), true)

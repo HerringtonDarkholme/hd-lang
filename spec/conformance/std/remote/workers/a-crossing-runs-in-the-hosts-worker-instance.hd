@@ -1,0 +1,34 @@
+# test: the host's Workers run each crossing in a second instance of the module, and a worker that panics is Unreachable
+# Spec std Remote, Workers: std-remote.workers.host, std-remote.workers.serve.
+# expect-stdout: 64 1
+# expect-stdout: thumb-128
+# expect-stdout: lost unreachable
+# expect-stdout: 3
+use std.remote.{CrossError, Workers}
+
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn shrink(photo: Photo, side: u32) -> Photo:
+    Photo { width: side, pixels: [photo.pixels[0]] }
+
+fn fail(n: i32) -> i32:
+    if n > 0:
+        panic("the worker stops")
+    n
+
+pub fn main!() -> void $ Console + Workers:
+    photo := Photo { width: 4, pixels: [7, 8, 9] }
+    side := u32(64)
+    name := "thumb"
+    match $.use(Workers).run!(fn() -> Photo: shrink(photo, side)):
+        .Ok(small) => println("${small.width} ${small.pixels.len()}")
+        .Err(cross) => println("lost ${cross}")
+    println($.use(Workers).run!(fn() -> string: "$name-${side * 2}").unwrap_or(""))
+    match $.use(Workers).run!(fn() -> i32: fail(1)):
+        .Ok(n) => println("ran $n")
+        .Err(cross) => println("lost ${cross}")
+    println($.use(Workers).run!(fn() -> i32: 3).unwrap_or(0))

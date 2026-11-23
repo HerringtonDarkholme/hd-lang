@@ -529,7 +529,6 @@ fn runner(engine: &TestEngine, wasm: &[u8], limits: Limits) -> NativeBodyRunner 
 
 fn setup() -> HostSetup {
     HostSetup {
-        providers: Vec::new(),
         grants: Grants::default(),
         limits: Limits::default(),
         args: Vec::new(),

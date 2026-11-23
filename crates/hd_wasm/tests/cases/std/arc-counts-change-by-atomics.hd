@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: release
+# @helper: std/sync/impl[T < ?Copy] Arc[T].clone
+# @helper: std/sync/impl[T < ?Copy] Arc[T].strong_count
+# @helper: std/sync/impl[T < ?Copy] Drop for Arc[T].drop
+# `std.sync.Arc` changes its counts by the atomics of `std.rt.memory`, in
+# place: a clone is one `i32.atomic.rmw.add` on the block's strong count,
+# a drop one `i32.atomic.rmw.sub` with an `atomic.fence` before the last
+# drop frees the value, and `strong_count` one `i32.atomic.load`.
+use std.sync.Arc
+
+fn clone_count(arc: &Arc[i64]) -> usize:
+    copy := arc.clone()
+    count := Arc::strong_count(&copy)
+    _ := copy
+    count

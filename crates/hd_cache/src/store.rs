@@ -241,6 +241,7 @@ impl<S: CacheStore> DeferredStore<S> {
 impl<S: CacheStore> Drop for DeferredStore<S> {
     /// Publishes what is left, before the inner store drops.
     fn drop(&mut self) {
+        let _span = hd_base::trace::span("phase", || "publish".to_owned());
         self.publish();
     }
 }

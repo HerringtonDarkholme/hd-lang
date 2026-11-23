@@ -187,7 +187,9 @@ fn fetched_debug_event_reuses_dependency_check_entries_without_body_rechecks() {
         "src/main.hd",
         "use dep.money.{cents}\npub fn main() -> void:\n    _ := cents(+1)\n",
     );
-    let mut money = MemorySources::default();
+    // A named set keeps a last-run record, so the lint runs take the
+    // dependency's `dbg` references from its row.
+    let mut money = MemorySources::named("/w/money");
     money.insert(
         "src/lib.hd",
         "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    n * 100\n",

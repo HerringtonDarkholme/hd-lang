@@ -110,7 +110,10 @@ impl Parser<'_> {
     /// parameter type.
     pub(crate) fn ty_parameter(&mut self) -> Done {
         if !self.at(TokenKind::KwImpl) {
-            return self.ty();
+            self.crossing_bound = self.at(TokenKind::KwFn);
+            let done = self.ty();
+            self.crossing_bound = false;
+            return done;
         }
         let marker = self.start();
         self.bump();
@@ -703,8 +706,21 @@ impl Parser<'_> {
             }
             self.expect_token(TokenKind::RParen, "')'");
         }
+        // Only the parameter's whole type takes a marker bound, so a
+        // nested function type never sees the flag.
+        let crossing = std::mem::take(&mut self.crossing_bound);
         if self.expect_token(TokenKind::Arrow, "'->'") {
             self.ty_with(rows);
+        }
+        if crossing && self.at(TokenKind::Plus) {
+            // grammar.fn.crossing-parameter: `+ M`, then `& 's`.
+            let bound = self.start();
+            self.bump();
+            self.ty_bound_trait(true);
+            if self.eat(TokenKind::Amp) {
+                self.expect_token(TokenKind::Lifetime, "a lifetime after '&'");
+            }
+            self.complete(bound, SyntaxKind::MarkerBound);
         }
         if rows && self.at(TokenKind::Dollar) {
             self.requirement_clause();

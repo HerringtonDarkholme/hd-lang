@@ -17,6 +17,7 @@
 use hd_base::{DefId, Fuel, InferVar, StageResult, Symbol};
 use hd_diag::Code;
 use hd_resolve::{FnSig, Generic, ImplKind, Item, ItemData, Lookup, Names};
+use hd_types::AdtId;
 use hd_types::solver::{
     Answer, BodyMemo, EnvKey, GlobalMemo, Goal, ImplView, Impls, ParamEnv, SolveCx, Solver,
     TraitRef,
@@ -423,8 +424,8 @@ enum Work {
 }
 
 /// One item's goals: its environment, memo and fuel.
-struct ItemCheck<'c, 'a> {
-    cx: &'c HeaderCx<'a>,
+pub(crate) struct ItemCheck<'c, 'a> {
+    pub(crate) cx: &'c HeaderCx<'a>,
     env: ParamEnv,
     memo: BodyMemo,
     cycles: crate::value::ProjectionCycles<'static>,
@@ -498,19 +499,19 @@ impl<'c, 'a> ItemCheck<'c, 'a> {
 }
 
 impl<'a> ItemCheck<'_, 'a> {
-    fn pool(&self) -> Types<'a> {
+    pub(crate) fn pool(&self) -> Types<'a> {
         self.cx.names.pool.types()
     }
 
     /// `t` for a message. An alias's types name its parameters by
     /// position ([`hd_resolve::KnownItems::alias_params`]); they are shown
     /// by the names the alias writes them with.
-    fn show(&self, t: Ty) -> String {
+    pub(crate) fn show(&self, t: Ty) -> String {
         let _shown = self.alias.then(|| hd_resolve::ShowAlias::enter(self.item));
         hd_resolve::show_ty(&self.cx.names, t)
     }
 
-    fn report(&mut self, slot: u32, code: Code, message: String) {
+    pub(crate) fn report(&mut self, slot: u32, code: Code, message: String) {
         self.out.push(Finding {
             item: self.item,
             slot,
@@ -630,6 +631,36 @@ impl<'a> ItemCheck<'_, 'a> {
                 Code::UnsatisfiedTraitBound,
                 message,
             );
+        }
+        // R1 and R2 on each method of a remote trait (`module.remote.r1.*`).
+        if let ItemData::Method { owner, sig, .. } = &it.data
+            && matches!(
+                self.cx.lookup.item(*owner).map(|o| &o.data),
+                Some(ItemData::Trait(_))
+            )
+            && crate::remote::is_remote_trait(
+                self.cx.lookup,
+                self.pool(),
+                self.cx.names.known,
+                *owner,
+            )
+        {
+            self.remote_method(sig)?;
+        }
+        // `fn.crossing.parameter.marker`: a marker bound names a marker.
+        if let ItemData::Fn(sig, _) | ItemData::Method { sig, .. } = &it.data {
+            let marker = self.cx.names.known.marker;
+            for c in &sig.crossing {
+                let is_marker = self.cx.lookup.item(c.marker).is_some_and(|t| {
+                    t.supertraits().iter().any(|&s| {
+                        matches!(self.pool().get(s), TyData::TraitValue { def, .. } if def == marker)
+                    })
+                });
+                if c.marker != DefId::NONE && !is_marker {
+                    let message = "a crossing parameter's bound names a marker, a trait that extends `Marker`, such as `Send` or `Wire`".to_owned();
+                    self.report(u32::from(c.param) + 1, Code::InvalidMarkerTrait, message);
+                }
+            }
         }
         self.value_item(it);
         // The bounds the item writes are written types too
@@ -811,7 +842,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// `Drop` impl.
     fn drop_on_copy(&mut self, self_ty: Ty) {
         let pool = self.pool();
-        let TyData::Adt { def, .. } = pool.get(self_ty) else {
+        let Some((def, _)) = pool.adt(self_ty) else {
             return;
         };
         let Some(decl) = self.cx.lookup.item(def) else {
@@ -830,10 +861,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
             })
             .collect();
-        let identity = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&args),
-        });
+        let identity = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&args)));
         let decls = self.cx.decls(&mut self.values.local);
         if hd_types::sealed::may_copy(pool, &decls, identity) {
             let name = self.cx.names.display_name(def);
@@ -860,7 +888,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 }) if *trait_ == DefId::NONE => {
                     it.public
                         && !matches!(self.pool().get(*self_ty),
-                            TyData::Adt { def, .. } if self.is_private(def))
+                            TyData::Adt(AdtId::Declared(def), _) if self.is_private(def))
                 }
                 _ => false,
             },
@@ -981,7 +1009,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 // An impl's publicness belongs to its trait and target
                 // (`module.vis.signature.coverage`), not an impl modifier.
                 let target = match self.pool().get(*self_ty) {
-                    TyData::Adt { def, .. } => def,
+                    TyData::Adt(AdtId::Declared(def), _) => def,
                     _ => DefId::NONE,
                 };
                 [target, *trait_]
@@ -1062,7 +1090,7 @@ impl<'a> ItemCheck<'_, 'a> {
         // A newtype derives through its base type instead, with no
         // template (`trait.derive.newtype.*`).
         let newtype = match self.pool().get(*self_ty) {
-            TyData::Adt { def, .. } => self
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => self
                 .cx
                 .lookup
                 .item(def)
@@ -1537,7 +1565,7 @@ impl<'a> ItemCheck<'_, 'a> {
     /// the base type (`trait.derive.newtype.requires.error`).
     fn derived_newtype(&mut self, self_ty: Ty, tv: Ty) -> StageResult<()> {
         let pool = self.pool();
-        let TyData::Adt { def, args } = pool.get(self_ty) else {
+        let Some((def, args)) = pool.adt(self_ty) else {
             return Ok(());
         };
         let Some(ItemData::Newtype(inner, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
@@ -1671,7 +1699,7 @@ impl<'a> ItemCheck<'_, 'a> {
 
     /// Whether a written bound goal provably fails under the item's
     /// environment. This is [`Self::fails`] after the bound is substituted.
-    fn fails_ref(&mut self, tref: TraitRef, slot: u32) -> StageResult<bool> {
+    pub(crate) fn fails_ref(&mut self, tref: TraitRef, slot: u32) -> StageResult<bool> {
         Ok(matches!(self.answer_ref(tref, slot)?, Answer::Fails(_)))
     }
 
@@ -1991,9 +2019,11 @@ impl<'a> ItemCheck<'_, 'a> {
             );
         };
         match pool.get(t) {
-            TyData::Adt { def, args } => {
+            TyData::Adt(def, args) => {
                 let args_v = pool.list_items(args);
-                if let Some(target) = self.cx.lookup.item(def) {
+                if let Some(def) = def.get()
+                    && let Some(target) = self.cx.lookup.item(def)
+                {
                     let goals =
                         crate::written_bounds::goals(pool, def, &target.generics, None, args_v);
                     self.arg_bounds(goals, slot)?;
@@ -2020,18 +2050,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
             }
             TyData::Ref { inner: i, .. } => kids.push(Work::Ty(i, slot)),
-            TyData::Tuple { elems, rest } => {
-                kids.extend(
-                    pool.list_items(elems)
-                        .iter()
-                        .copied()
-                        .chain(rest)
-                        .map(|e| Work::Ty(e, slot)),
-                );
-            }
-            TyData::Union(members) => {
-                kids.extend(pool.list_items(members).iter().map(|&m| Work::Ty(m, slot)));
-            }
+
             TyData::Fn {
                 params,
                 result,
@@ -2151,7 +2170,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 continue;
             };
             for f in fs.iter().filter(|f| f.embedded) {
-                if let TyData::Adt { def: e, .. } = pool.get(f.ty) {
+                if let Some((e, _)) = pool.adt(f.ty) {
                     if e == def {
                         return true;
                     }
@@ -2197,7 +2216,7 @@ impl<'a> ItemCheck<'_, 'a> {
             );
             self.report(0, Code::InvalidDelegation, message);
         }
-        let TyData::Adt { def, args } = pool.get(self_ty) else {
+        let Some((def, args)) = pool.adt(self_ty) else {
             return Ok(());
         };
         let Some(ItemData::Struct(fields, _)) = lookup.item(def).map(|i| &i.data) else {
@@ -2601,12 +2620,10 @@ impl ItemCheck<'_, '_> {
                     }
                     Vec::new()
                 }
-                TyData::Tuple { elems, rest } => {
-                    pool.list_items(elems).iter().copied().chain(rest).collect()
+                // Anonymous products and sums cross through their ordered members.
+                TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
+                    pool.list_items(args).to_vec()
                 }
-                // A union crosses as the enum of its cases
-                // (`types.union.representation`), each case its payload.
-                TyData::Union(members) => pool.list_items(members).to_vec(),
                 // `module.boundary.rows`: a context bundles requirement
                 // bindings, which are no data.
                 TyData::Context(_) => {
@@ -2614,11 +2631,12 @@ impl ItemCheck<'_, '_> {
                         "a provider context bundles requirement bindings, not data, so it is not boundary-safe",
                     );
                 }
-                TyData::Adt { def, args } => {
-                    let argv = pool.list_items(args);
+                TyData::Adt(AdtId::Declared(def), args) => {
+                    let type_items = pool.list_items(args);
                     let sub = |x: Ty| {
                         pool.subst(x, &|p: ParamRef| {
-                            (p.owner == def).then(|| argv.get(usize::from(p.index)).copied())?
+                            (p.owner == def)
+                                .then(|| type_items.get(usize::from(p.index)).copied())?
                         })
                     };
                     if def == known.suspend {
@@ -2627,7 +2645,7 @@ impl ItemCheck<'_, '_> {
                         );
                     }
                     match self.cx.lookup.item(def).map(|i| &i.data) {
-                        _ if def == known.list || def == known.map => argv.to_vec(),
+                        _ if def == known.list || def == known.map => type_items.to_vec(),
                         Some(ItemData::Struct(fields, _)) => {
                             if fields.iter().any(|f| !f.public && !f.embedded) {
                                 let bound = pool.intern_ty(&TyData::TraitValue {

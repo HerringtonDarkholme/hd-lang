@@ -256,9 +256,7 @@ mod tests {
     }
 
     fn state(b: &mut Body) {
-        statements::run(b, &FACTS, &Topology::new(b), &mut splice::Tables::default()).unwrap();
-        let errors = verify_owned(b, &FACTS);
-        assert!(errors.is_empty(), "{errors:?}");
+        crate::own::tests::state(b, &FACTS);
     }
 
     fn scoped(width: usize, depth: usize, shared: bool, later: bool, cleanup: bool) -> Body {

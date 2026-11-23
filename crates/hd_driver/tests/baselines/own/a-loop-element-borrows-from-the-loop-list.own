@@ -38,14 +38,13 @@ app/main/count
   %30 = Read copy [%9] : string
   %31 = Retain %30 Value #0 : ()
   %32 = Store [$6] %30 : ()
-  %33 = Release %32 Operation #3 : ()
-  %35 = Block - : never
-  %36 = Match %9 [%35 %29] : ()
-  %37 = Drop [$6] : ()
-  %38 = Block - : ()
-  %39 = Break L0 - : never
-  %40 = Block - : ()
-  %41 = If %7 [%38 %40] : ()
-  %42 = Block - : ()
-  %43 = Loop %42 - : ()
-  loop %43 keeps len [$0] (-..-)
+  %34 = Block - : never
+  %35 = Match %9 [%34 %29] : ()
+  %36 = Drop [$6] : ()
+  %37 = Block - : ()
+  %38 = Break L0 - : never
+  %39 = Block - : ()
+  %40 = If %7 [%37 %39] : ()
+  %41 = Block - : ()
+  %42 = Loop %41 - : ()
+  loop %42 keeps len [$0] (-..-)

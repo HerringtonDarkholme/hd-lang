@@ -17,11 +17,15 @@
 //   adds compiler or std source, adds a conformance fixture or a test.
 // - price: a change to code the compiler emits that adds programs needs a .wat
 //   baseline showing what they emit.
+// - rust-string: no added multi-line hd program in a Rust string of a `#[test]`
+//   body (#2312). It lives in a stage case, a conformance case, or a `.hd` file
+//   read with `include_str!`.
 //
 // An override is a trailer line in a commit message of the range, read after
 // the code: `Shortcut-OK: reason`, `Cost-OK: reason`, `Price-OK: reason`, and
-// `No-fixture-OK: reason` naming the existing case. The merge script writes the
-// overrides it was given into an empty "Review overrides" commit of the batch.
+// `No-fixture-OK: reason` naming the existing case, and `Rust-string-OK: reason`
+// for a size generator's template. The merge script writes the overrides it was
+// given into an empty "Review overrides" commit of the batch.
 //
 // Cost per run: one `git diff -U3` per check and one `git log` of the range, plus
 // one `git show` per commit in the range and per changed Rust file a check reads.
@@ -292,6 +296,98 @@ report(
   "PRICE MISSING: compiler code changed and new programs were added, but no .wat baseline shows what they emit",
   emits && !priced ? programs.slice(0, 5) : [],
   "Price-OK",
+);
+
+// rust-string: an hd program a test uses is a fixture, not a Rust string (#2312).
+// A Rust string is missed by `hd fmt`, `rg -t hd` and std API migrations.
+// Comments, raw strings, plain strings and character literals, in that order.
+const rustToken =
+  /\/\/[^\n]*|\/\*[\s\S]*?\*\/|[bc]?r(#*)"[\s\S]*?"\1|[bc]?"(?:[^"\\]|\\[\s\S])*"|'(?:\\.[^'\n]*|[^'\\\n])'/g;
+// An hd line: a declaration that doesn't end as Rust's do, a dotted `use`, a
+// `:=` binding, a block statement, or a prelude print or test call.
+const hdLine = [
+  /^\s*(?:\{\w*\})?(?:pub\s+)?(?:(?:fn|struct|enum|trait|union|type)\s+\w|impl[\s[]).*[^{;,\s]\s*$/,
+  /^\s*(?:tests|(?:for|while|if|match)\s.*|else):\s*$/,
+  /^\s*use\s+\w+(?:\.[\w{}*, ]+)+\s*$/,
+  /^\s*[A-Za-z_][\w.{}]*\s*:=\s/,
+  /^\s*(?:e?println|dbg|assert|assert_equal|it)\(/,
+];
+// The multi-line hd programs in the strings of `text`'s `#[test]` bodies: each
+// one's first line number and its test.
+function testPrograms(text: string): { line: number; test: string }[] {
+  const found: { line: number; test: string }[] = [];
+  for (const token of text.matchAll(rustToken)) {
+    const literal = /^[bc]?(r#*)?"/.exec(token[0]);
+    if (!literal) {
+      continue;
+    }
+    // The text between the quotes; a plain string's escapes are decoded.
+    const hashes = literal[1] ? literal[1].length - 1 : 0;
+    const body = token[0].slice(literal[0].length, token[0].length - 1 - hashes);
+    const value = literal[1]
+      ? body
+      : body.replace(/\\(\r?\n\s*|.)/gs, (_, escape: string) =>
+          escape === "n" ? "\n" : escape.trim(),
+        );
+    const lines = value.split("\n").filter((line) => line.trim() !== "");
+    if (lines.length < 2 || !lines.some((line) => hdLine.some((shape) => shape.test(line)))) {
+      continue;
+    }
+    // The last `#[test]` function before the string holds it when no line
+    // between them closes a block at that function's indentation.
+    const before = text.slice(0, token.index);
+    const tests = [...before.matchAll(/^([ \t]*)#\[test\]\s*(?:#\[.*\]\s*)*fn\s+(\w+)/gm)];
+    const last = tests.at(-1);
+    if (last && !before.slice(last.index).includes(`\n${last[1]}}\n`)) {
+      found.push({ line: before.split("\n").length, test: last[2]! });
+    }
+  }
+  return found;
+}
+// cost: one `git diff -U0` of the range's Rust files, then two `git show` per
+// changed Rust file that has an added line.
+function addedTestPrograms(): string[] {
+  const mergeBase = git("merge-base", base, head).trim();
+  const out: string[] = [];
+  const sections = git("diff", "-U0", `${mergeBase}..${head}`, "--", "crates/**/*.rs").split(
+    /^diff --git /m,
+  );
+  for (const section of sections.slice(1)) {
+    const file = /^\+\+\+ b\/(.+)$/m.exec(section)?.[1];
+    const old = /^--- a\/(.+)$/m.exec(section)?.[1];
+    const removed = new Set<number>();
+    const added = new Set<number>();
+    for (const hunk of section.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm)) {
+      for (let i = 0; i < Number(hunk[2] ?? 1); i += 1) {
+        removed.add(Number(hunk[1]) + i);
+      }
+      for (let i = 0; i < Number(hunk[4] ?? 1); i += 1) {
+        added.add(Number(hunk[3]) + i);
+      }
+    }
+    if (!file || added.size === 0) {
+      continue;
+    }
+    const inLines = (lines: Set<number>) => (program: { line: number }) => lines.has(program.line);
+    const now = testPrograms(git("show", `${head}:${file}`)).filter(inLines(added));
+    const was = old
+      ? testPrograms(git("show", `${mergeBase}:${old}`)).filter(inLines(removed))
+      : [];
+    // A test that drops as many programs as it adds only edited them.
+    for (const program of now) {
+      const count = (list: typeof now): number =>
+        list.filter((other) => other.test === program.test).length;
+      if (count(now) > count(was)) {
+        out.push(`${file}:${program.line}: ${program.test}`);
+      }
+    }
+  }
+  return out;
+}
+report(
+  "HD PROGRAM IN A RUST STRING: move it to a stage case, a conformance case, or a .hd file read with include_str! (#2312)",
+  addedTestPrograms(),
+  "Rust-string-OK",
 );
 
 if (failures.length > 0) {

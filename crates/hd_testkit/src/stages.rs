@@ -44,7 +44,7 @@ pub struct Program {
     pub profile: Option<Vec<String>>,
     /// Functions the `wat` view prints whole: short runtime names without
     /// `rt:` and `#k`, or exact ordinary item paths
-    /// (`# @helpers: enc std/hash/hash_integer`).
+    /// (`# @helpers: enc std/rt.hash/hash_integer`).
     pub helpers: Vec<String>,
     /// The `@host` traits the case's package declares in its manifest's
     /// `[host]` (`# @host: main.Surface`), each package-relative.

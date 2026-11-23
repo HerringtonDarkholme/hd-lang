@@ -1,0 +1,17 @@
+# @dump: own
+# @build: std checked | std release
+# expected: the empty-capacity arm drops its owned Buffer before leaving;
+# the other arm transfers it. Both paths verify, including cached std take_text
+# after the drop-flag verifier fix (#2306).
+use std.rt.memory.Buffer
+use std.rt.bytes.string_from_buffer
+
+struct Bytes:
+    room: Buffer[u8]
+    size: usize
+
+impl Bytes:
+    fn take_text(&mut self) -> string:
+        size := self.size
+        self.size = 0
+        string_from_buffer(self.room.take(), size)

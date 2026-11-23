@@ -1,0 +1,37 @@
+# @dump: wat
+# @build: std
+# @helper: std/rt_tests.stage_case/Pair.take
+# `take` moves `this`, which holds a value with a `Drop` hook, into
+# `let mut held` and writes a field of that value: the drop at `take`'s
+# end gives the hook the written value, as for a field of the hooked
+# value itself (#2320). A store under a root that holds a `Drop` value
+# is no count-neutral store, whichever part it writes.
+use std.rt.Drop
+
+let drops: usize = 0
+
+struct Token:
+    id: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        drops = drops + self.id
+
+struct Pair:
+    token: Token
+    n: usize
+
+impl !Copy for Pair
+
+impl Pair:
+    # subject
+    fn take(this: Pair) -> usize:
+        let mut held = this
+        id := held.token.id
+        held.token.id = 0
+        id + held.n
+
+fn taken() -> usize:
+    Pair::take(Pair { token: Token { id: 7 }, n: 1 }) + drops

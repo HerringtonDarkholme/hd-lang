@@ -9,8 +9,8 @@ tests:
     it("entries follow the map's order"):
         stock := { "tea": 3, "milk": 1, "jam": 2 }
         pairs := stock.entries()
-        keys := stock.keys()
-        values := stock.values()
+        keys := stock.keys().collect::[List[string]]()
+        values := stock.values().collect::[List[i32]]()
         assert_equal(
             pairs.sorted(),
             [("jam", 2), ("milk", 1), ("tea", 3)],

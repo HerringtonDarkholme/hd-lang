@@ -1,0 +1,16 @@
+# test: a closure a guard makes cannot capture a binding whose value is not copied, which the guard reads in place; a reference to it may be captured
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.capture.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep(photo: Photo) -> u32:
+    photo.width
+
+fn pick(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if [u32(1)].any(fn(x): *x < photo.width) => keep(photo) # diagnostic: move-out-of-place
+        .Some(photo) => keep(photo)
+        _ => 0

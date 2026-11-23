@@ -19,7 +19,8 @@ use hd_base::{DefId, Fuel, HashMap, HashSet, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags};
-use hd_types::{ParamRef, Ty, TyData};
+use hd_types::AdtId;
+use hd_types::{ANON_SUM, ParamRef, Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition};
 use crate::refs::{Place, Root};
@@ -138,14 +139,20 @@ impl<'a> ProjectionCycles<'a> {
             &mut |t| {
                 let mut children = Vec::new();
                 match pool.get(t) {
-                    TyData::Adt { def, .. }
+                    TyData::Adt(AdtId::Product { .. }, _) => {
+                        children.extend(pool.product_parts(t).into_iter().flat_map(|(es, _)| es));
+                    }
+                    TyData::Adt(ANON_SUM, args) => {
+                        children.extend(pool.list_items(args));
+                    }
+                    TyData::Adt(AdtId::Declared(def), _)
                         if holds_itself(global, &mut self.inline, pool, lookup, def) => {}
-                    TyData::Adt { def, args } => {
-                        let argv = pool.list_items(args);
+                    TyData::Adt(AdtId::Declared(def), args) => {
+                        let type_items = pool.list_items(args);
                         let sub = |f| {
                             pool.subst(f, &|p: ParamRef| {
                                 (p.owner == def)
-                                    .then(|| argv.get(usize::from(p.index)).copied())
+                                    .then(|| type_items.get(usize::from(p.index)).copied())
                                     .flatten()
                             })
                         };
@@ -175,8 +182,7 @@ impl<'a> ProjectionCycles<'a> {
                             }
                         }
                     }
-                    TyData::Tuple { elems, .. } => children.extend(pool.list_items(elems)),
-                    TyData::Union(members) => children.extend(pool.list_items(members)),
+
                     // References, functions and trait values end containment;
                     // unresolved projections and parameters have no known fields.
                     TyData::Prim(_)
@@ -311,13 +317,9 @@ impl<'a> ProjectionCycles<'a> {
             let found = self.check(pool, lookup, impls, global, t, fuel)?;
             bad = bad.or(found);
             match pool.get(t) {
-                TyData::Adt { args, .. } => todo.extend(pool.list_items(args)),
-                TyData::Union(members) => todo.extend(pool.list_items(members)),
+                TyData::Adt(_, args) => todo.extend(pool.list_items(args)),
                 TyData::Ref { inner, .. } => todo.push(inner),
-                TyData::Tuple { elems, rest } => {
-                    todo.extend(pool.list_items(elems));
-                    todo.extend(rest);
-                }
+
                 TyData::Fn { params, result, .. } => {
                     todo.extend(pool.list_items(params));
                     todo.push(result);
@@ -704,7 +706,13 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
 /// instance decides, and a goal in error or still open.
 fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mut Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt { args, .. } => {
+        TyData::Adt(AdtId::Product { .. }, _) if let Some((elems, _)) = pool.product_parts(t) => {
+            out.extend_from_slice(elems);
+        }
+        TyData::Adt(AdtId::Sum, args) => {
+            out.extend_from_slice(pool.list_items(args));
+        }
+        TyData::Adt(_, args) => {
             let args = pool.list_items(args);
             match repr {
                 Some(repr) => out.extend(
@@ -715,9 +723,6 @@ fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mu
                 ),
                 None => out.extend_from_slice(args),
             }
-        }
-        TyData::Tuple { elems: parts, .. } | TyData::Union(parts) => {
-            out.extend_from_slice(pool.list_items(parts));
         }
         TyData::Ref { .. }
         | TyData::TraitValue { .. }
@@ -761,7 +766,7 @@ impl<'m> Decided<'m> {
             }
             crate::work::held_type();
             let repr = match pool.get(t) {
-                TyData::Adt { def, .. } => {
+                TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
                     let Some(d) = self.get(def) else { continue };
                     if d.group.first() == Some(&head) {
                         return true;
@@ -947,7 +952,7 @@ fn decide(
             }
             crate::work::held_type();
             let mut repr = None;
-            if let TyData::Adt { def: e, .. } = pool.get(t) {
+            if let Some((e, _)) = pool.adt(t) {
                 if let Some(known) = run.get(&e) {
                     repr = Some(&*known.repr);
                 } else if let Some(known) = local.get(&e) {
@@ -1040,7 +1045,7 @@ fn decide_component(
         }
         crate::work::held_type();
         match pool.get(t) {
-            TyData::Adt { def: e, args } => {
+            TyData::Adt(AdtId::Declared(e), args) if e.get().is_some() => {
                 if let Some(j) = member(e) {
                     holds[i].push(j);
                     for (k, &a) in pool.list_items(args).iter().enumerate() {
@@ -1103,6 +1108,28 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
 #[cfg(test)]
 mod containment_tests {
     use super::*;
+
+    #[test]
+    fn inline_containment_preserves_product_rest_boundary() {
+        let pool = hd_types::InternPool::new();
+        let fixed = pool.list(&[Ty::I32]);
+        for (ty, expected) in [
+            (pool.product(fixed, Some(Ty::STRING)), vec![Ty::I32]),
+            (pool.product(fixed, None), vec![Ty::I32]),
+            (
+                pool.product(hd_types::TyList::EMPTY, Some(Ty::STRING)),
+                vec![],
+            ),
+            (
+                pool.intern_ty(&TyData::Adt(AdtId::Sum, pool.list(&[Ty::I32, Ty::STRING]))),
+                vec![Ty::I32, Ty::STRING],
+            ),
+        ] {
+            let mut out = Vec::new();
+            inline_kids(pool.types(), ty, None, &mut out);
+            assert_eq!(out, expected);
+        }
+    }
 
     #[test]
     fn projection_graph_work_depends_only_on_reachable_width_and_depth() {

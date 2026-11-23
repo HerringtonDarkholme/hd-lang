@@ -164,7 +164,7 @@ crates, and the back half (`hd_mono`, `hd_opt`, `hd_wasm`) depends on
    (`crates/hd_diag/src/codes.rs`) is generated from the spec's code list
    by `spec/tools/diagnostic-codes.ts`. `hd_driver`'s `build.rs` embeds
    `lib/std`'s sources. Planned, not built: a std pack of prebuilt
-   interface blobs (`hd_stdpack`) in place of the embedded sources.
+   interface blobs ([std bootstrap](std-bootstrap.md)) in place of the embedded sources.
 3. **The driver owns no host facilities.** `hd_driver` takes its sources,
    cache, executor and clock from the caller; it has no `std::fs`,
    `std::process` or `Instant`. Sources come through `SourceSet`, the

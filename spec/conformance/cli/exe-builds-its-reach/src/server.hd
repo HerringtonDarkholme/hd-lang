@@ -1,0 +1,5 @@
+use pkg.db.query
+use pkg.users.greeting
+
+pub fn main!() -> void $ Console:
+    println("${greeting()} ${query()}")

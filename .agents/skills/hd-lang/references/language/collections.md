@@ -17,8 +17,8 @@ maybe := names.get(9)                   # `string?`: `.None` when out of range
 more := [names..., "Barbara"]           # spread into a new list
 sorted := names.sorted()                # a new list; `names.sort()` sorts in place
 head := sorted.slice(0, 2)              # a new list; there is no `xs[a..b]`
-removed := names.remove_at(0)
-println("$first ${debug(maybe)} ${more.len()} ${head.join(",")} $removed ${names.contains("Ada")}")
+removed := names.remove(0)
+println("$first ${debug(maybe)} ${more.len()} ${head.join(",")} $removed ${names.contains(&"Ada")}")
 ```
 
 ```output

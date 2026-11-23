@@ -1,5 +1,6 @@
 //! The runtime imports, which no host trait owns: `hd:rt`'s `block`,
-//! `abort`, `stderr`, `stdout`, `panic`, `fact` and `hash_seed`, and the `hd:prim` primitives,
+//! `abort`, `stderr`, `stdout`, `panic`, `fact`, `hash_seed`,
+//! `thread_spawn` and `thread_watch`, and the `hd:prim` primitives,
 //! whose text and float work is `prim.rs`.
 
 use wasmtime::{Caller, Val};
@@ -9,6 +10,10 @@ use super::link::deadlock;
 use super::reply::{Ret, complete, float_arg, handle, int_arg, text};
 use super::{Control, Host, Stop};
 use crate::prim;
+
+/// The method of a task's wait for a thread among the reactor's native
+/// calls: no package interface has this index.
+const WATCH: (usize, usize) = (usize::MAX, 0);
 
 /// An `hd:rt` import.
 pub(super) fn rt(
@@ -69,6 +74,43 @@ pub(super) fn rt(
             seed.copy_from_slice(&bytes);
             Ret::int(i64::from_le_bytes(seed))
         }
+        Rt::ThreadSpawn => {
+            let block = int_arg(params, 0)?;
+            let host = caller.data();
+            let started = (host.workers.spawn.as_ref())
+                .zip(host.workers.heap.clone())
+                .is_some_and(|(spawn, heap)| crate::workers::start_thread(spawn, heap, block));
+            Ret::int(i64::from(started))
+        }
+        // A task's wait for a thread's end (`module.rt.thread.running`):
+        // always pending, on its waiter thread (`workers::watch`).
+        Rt::ThreadWatch { finish: false } => {
+            // ruled out: both are i32 parameters, whose values fit an i32.
+            let word = |k| {
+                int_arg(params, k).map(|v| i32::try_from(v).unwrap_or_default().cast_unsigned())
+            };
+            let (address, seen) = (u64::from(word(0)?), word(1)?);
+            let host = caller.data_mut();
+            let heap = (host.workers.heap.clone())
+                .ok_or_else(|| Stop::Internal("a thread's wait with no shared heap".into()))?;
+            let call = crate::workers::watch(heap, address, seen)
+                .map_err(|e| Stop::Internal(format!("no thread waits for a thread: {e}")))?;
+            let h = (host.reactor.native(call, WATCH))
+                .ok_or_else(|| Stop::Internal("a thread's wait ended before it began".into()))?;
+            Ret::pair(1, h)
+        }
+        Rt::ThreadWatch { finish: true } => {
+            let h = handle(int_arg(params, 0)?);
+            let host = caller.data_mut();
+            (host.reactor.finish_native(h, WATCH, &mut host.handles))
+                .and_then(Result::ok)
+                .ok_or_else(|| {
+                    Stop::Contract("a finish of an operation that is not completed".into())
+                })?;
+            Ret::int(0)
+        }
+        // ruled out: the heap is a memory, never called (`link.rs`).
+        Rt::Heap => return Err(Stop::Internal("the heap is not a function".into()).into()),
     })
 }
 

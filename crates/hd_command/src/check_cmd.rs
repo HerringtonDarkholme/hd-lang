@@ -208,8 +208,10 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     };
     let (tests, left_out) = scope(&mut t, o);
     // A warm run whose inputs are unchanged replays the report a run over
-    // them stored (#1510), before the doc tests' skims or any build.
-    let stored = stored_report(&t, tests, lint, store);
+    // them stored (#1510), before the doc tests' skims or any build. A
+    // plain check's build takes the table its key discovered.
+    let found = hd_driver::Discovered::default();
+    let stored = stored_report(&t, tests, lint, store, &found);
     if let Some(mut shown) =
         stored.and_then(|(key, client)| hd_driver::diagnostics::decode(&key.read(store, client)?))
     {
@@ -245,7 +247,9 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[], lint);
+    let found = (!tests).then_some(&found);
+    let (mut shown, mut checked) =
+        check_role(&t, store, lib_sources, &Goal::Analyze, &[], lint, found);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
@@ -257,6 +261,7 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
             &Goal::CheckTests,
             &docs,
             lint,
+            None,
         );
         merge_role(&mut shown, more);
         checked.extend(names);
@@ -330,6 +335,7 @@ fn stored_report(
     tests: bool,
     lint: Option<hd_lint::Policy>,
     store: &dyn CacheStore,
+    found: &hd_driver::Discovered,
 ) -> Option<(hd_driver::ResultKey, hd_base::Hash128)> {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -339,12 +345,11 @@ fn stored_report(
         clock: &clock,
         executor: executor(),
     };
-    let key = hd_driver::result_key(
-        &host,
-        &t.program.package,
-        &t.program.packages(),
-        &Goal::Analyze,
-    )?;
+    let packages = hd_driver::Packages {
+        discovered: Some(found),
+        ..t.program.packages()
+    };
+    let key = hd_driver::result_key(&host, &t.program.package, &packages, &Goal::Analyze)?;
     let mut client = hd_base::StableHasher::new("cli-check-report-v3");
     client.u8(u8::from(tests));
     client.str(t.only.as_deref().unwrap_or(""));
@@ -373,6 +378,7 @@ fn check_role(
     goal: &Goal,
     docs: &[crate::test_cmd::Doc],
     lint: Option<hd_lint::Policy>,
+    discovered: Option<&hd_driver::Discovered>,
 ) -> (Vec<Diag>, Vec<String>) {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -386,6 +392,7 @@ fn check_role(
     // they use, deeply (crates/hd_command/DESIGN.md §7.2), the modules `shown`
     // keeps.
     let mut packages = t.program.packages();
+    packages.discovered = discovered;
     packages.doc_scopes = matches!(goal, Goal::Analyze)
         && lint.is_some_and(|policy| !policy.allows(Code::BrokenDocLink));
     packages.check_roots = t.only.as_ref().map(|only| {
@@ -475,6 +482,18 @@ fn relocate_docs(shown: &mut [Diag], docs: &[crate::test_cmd::Doc]) {
 /// Whole-package diagnostics including tests and tasks, as `hd check --all`
 /// reports them. The fixing pass uses this so every package entry is
 /// considered, as the former standalone command did.
+/// The report of `hd check` in `program`'s package, as that command
+/// makes it: a warm run replays the report a run stored (`hd doc std.NAME`).
+pub(crate) fn package_report(program: disk::Program) -> Vec<Diag> {
+    let t = Target {
+        program,
+        only: None,
+        member: None,
+    };
+    let store = DeferredStore::new(crate::disk_store());
+    check_one(t, &Options::default(), &store).0
+}
+
 pub(crate) fn fix_package(program: disk::Program, lint: Option<hd_lint::Policy>) -> Vec<Diag> {
     let t = Target {
         program,
@@ -602,7 +621,14 @@ fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
     if t.program.as_written.is_some() {
         return (tests, Vec::new());
     }
-    let layout = ModuleTable::discover(&t.program.package, &t.program.sources);
+    // A module path never crosses its root (`src`, the test root, `tasks`),
+    // so the roots that hold a left-out file are all its layout errors
+    // need: one discovery of the whole package is the build's.
+    let root = |path: &str| hd_project::Root::of(path).0;
+    let left = t.program.sources.only(|path| !keep(path));
+    let roots: Vec<_> = left.list().iter().map(|e| root(&e.path)).collect();
+    let listed = t.program.sources.only(|path| roots.contains(&root(path)));
+    let layout = ModuleTable::discover(&t.program.package, &listed);
     let left_out = layout
         .problems
         .iter()
@@ -865,9 +891,10 @@ mod stored_report_tests {
                     o.tests,
                     o.lint.is_some()
                 );
+                // The set's stamp table and the stored report.
                 assert_eq!(
                     gets,
-                    1,
+                    2,
                     "tests {}, lint {}, {only:?}",
                     o.tests,
                     o.lint.is_some()
@@ -915,7 +942,7 @@ mod stored_report_tests {
             assert!(gets > 1, "{change} misses");
             assert_ne!(report, last, "{change}");
             let (again, gets) = run(&root, &store, lint, None);
-            assert_eq!((&again, gets), (&report, 1), "after {change}");
+            assert_eq!((&again, gets), (&report, 2), "after {change}");
             last = report;
         }
         assert!(
@@ -925,7 +952,8 @@ mod stored_report_tests {
     }
 
     /// Cost Model (#1510): a warm `hd check FILE` or `hd lint FILE` of a
-    /// single-file program replays its report with one lookup, though the
+    /// single-file program replays its report with one lookup beside its
+    /// stamp table's (`hd_driver::stamps`), though the
     /// file reaches std modules. The report names the file as the command
     /// line wrote it, so another spelling of it stores its own; a settled
     /// edit misses.
@@ -958,7 +986,7 @@ mod stored_report_tests {
             let (cold, gets) = run(&file, o);
             assert!(gets > 3, "cold, {gets} lookups");
             let (warm, gets) = run(&file, o);
-            assert_eq!((&warm, gets), (&cold, 1), "lint {}", o.lint.is_some());
+            assert_eq!((&warm, gets), (&cold, 2), "lint {}", o.lint.is_some());
         }
         let (named, _) = run(&file, &lint);
         assert!(
@@ -971,11 +999,11 @@ mod stored_report_tests {
         let (other, gets) = run(&spelled, &lint);
         assert!(gets > 1, "another spelling stores its own report");
         let (again, gets) = run(&spelled, &lint);
-        assert_eq!((&again, gets), (&other, 1));
+        assert_eq!((&again, gets), (&other, 2));
         std::fs::write(&file, text(2)).expect("edit");
         settle();
         let (_, gets) = run(&file, &lint);
         assert!(gets > 1, "an edit misses");
-        assert_eq!(run(&file, &lint).1, 1, "warm after the edit");
+        assert_eq!(run(&file, &lint).1, 2, "warm after the edit");
     }
 }

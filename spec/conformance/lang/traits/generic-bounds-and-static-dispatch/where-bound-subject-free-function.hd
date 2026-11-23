@@ -1,0 +1,7 @@
+# test: a function outside a trait or implementation takes no where clause
+# Spec 09 Method Bounds On Enclosing Parameters: trait.where.subject.error.
+trait Rank:
+    fn rank(self) -> i32
+
+fn free[T](value: T) -> T where T < Rank:  # diagnostic: syntax-error
+    value

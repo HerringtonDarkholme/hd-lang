@@ -277,7 +277,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
             // as a value-level named argument, `left=l`.
             S::NamedArgument | S::ContextEntry | S::NamedPattern => self.mark_named_argument(node),
             S::UsingStmt => self.mark_using(node),
-            S::BoundList | S::ConstParameter | S::RequirementRow | S::ImplDecl => {
+            S::BoundList | S::ConstParameter | S::RequirementRow | S::ImplDecl | S::MarkerBound => {
                 self.mark_type_spacing(node);
             }
             S::VariantExpr | S::VariantPattern => self.mark_variant(node),
@@ -826,7 +826,7 @@ impl<'s, 'p> Analysis<'s, 'p> {
         };
         // A bound list's own `<` and `&` join its bounds; a `&` inside a
         // bound's type arguments is a reference type's.
-        let direct: Vec<usize> = if node.kind() == S::BoundList {
+        let direct: Vec<usize> = if matches!(node.kind(), S::BoundList | S::MarkerBound) {
             node.direct_tokens().map(hd_base::TokenIdx::idx).collect()
         } else {
             Vec::new()
@@ -838,6 +838,8 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 // `N < const usize`: its `<` is the parameter's own token.
                 S::ConstParameter => kind == T::Lt,
                 S::RequirementRow => kind == T::Plus,
+                // `fn() -> T + Send & 's` (`grammar.fn.crossing-parameter`).
+                S::MarkerBound => matches!(kind, T::Plus | T::Amp) && direct.contains(&index),
                 S::ImplDecl => kind == T::KwFor,
                 _ => false,
             };
@@ -1455,12 +1457,24 @@ fn canonical_gap(tokens: &TokenBuf, boundary: usize) -> Gap {
         || previous == T::Dollar
         || next == T::Dollar
         || previous.is_close_delimiter() && word(next)
+        || postfix_question(tokens, boundary) && word(next)
         || word(previous) && next == T::LBrace
     {
         Gap::Space
     } else {
         Gap::None
     }
+}
+
+/// The `?` before `boundary` closes an optional type or a propagation, as
+/// in `-> T? where T < Ord` (`trait.where.clause`), so a word after it
+/// takes a space; a relaxed bound's `?` opens `?Copy` and takes none.
+fn postfix_question(tokens: &TokenBuf, boundary: usize) -> bool {
+    tokens.kind[boundary - 1] == T::Question
+        && boundary >= 2
+        && (word(tokens.kind[boundary - 2])
+            || tokens.kind[boundary - 2].is_close_delimiter()
+            || tokens.kind[boundary - 2] == T::Question)
 }
 
 /// The `$` of the empty row `$()` before its `(`: the row is written as
@@ -1969,7 +1983,7 @@ mod tests {
 
     #[test]
     fn tree_oracle_keeps_call_target_parentheses() {
-        let source = "fn f(handler: Handler, event: Event):\n    (handler.callback)(event)\n";
+        let source = include_str!("call_target_parens.hd");
         let parsed = hd_syntax::parse(source.as_bytes());
         assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
         let analysis = Analysis::new(source, &parsed);

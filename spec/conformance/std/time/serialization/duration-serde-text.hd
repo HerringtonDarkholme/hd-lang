@@ -1,7 +1,7 @@
 # test: a Duration reads duration text or whole milliseconds, and writes whole milliseconds
 # Spec std/time Serialization: std-time.serde.duration-text-read, std-time.serde.int-read, std-time.serde.int-form.
 use std.json.{encode, decode, JsonError}
-use std.time.{Duration, ms, s, min}
+use std.time.{Duration, ms, s, minutes}
 
 tests:
     use std.testing.assert_equal

@@ -1,0 +1,143 @@
+# test: double ended adapters reverse the selected forward sequence lazily
+use std.iter.{DoubleEndedIterator, ExactSizeIterator}
+
+struct TracedCursor:
+    front: usize
+    back: usize
+    tag: usize
+    log: *mut List[usize]
+
+impl Iterator[usize] for TracedCursor:
+    fn next(&mut self) -> usize?:
+        self.log.push(self.tag + 10)
+        if self.front >= self.back:
+            return .None
+        item := self.front
+        self.front += 1
+        .Some(item)
+
+impl DoubleEndedIterator[usize] for TracedCursor:
+    fn next_back(&mut self) -> usize?:
+        self.log.push(self.tag)
+        if self.front >= self.back:
+            return .None
+        self.back -= 1
+        .Some(self.back)
+
+impl ExactSizeIterator[usize] for TracedCursor:
+    fn len(&self) -> usize:
+        self.back - self.front
+
+impl Iterable[usize] for TracedCursor:
+    type IntoIter = TracedCursor
+    fn iter(self) -> TracedCursor:
+        self
+
+tests:
+    use std.testing.assert_equal
+
+    it("map filter and filter_map run callbacks in the requested direction"):
+        let mut calls: List[usize] = []
+        cursor := [1, 2, 3, 4].iter()
+            .map(fn(x: usize) -> usize:
+                calls.push(x)
+                x * 10
+            )
+        let mut reverse = cursor.rev()
+        assert_equal(calls, [])
+        assert_equal(reverse.next(), .Some(40))
+        assert_equal(reverse.next_back(), .Some(10))
+        assert_equal(calls, [4, 1])
+        assert_equal(reverse.len(), 2)
+        assert_equal(reverse.collect::[List[usize]](), [30, 20])
+        assert_equal(
+            [1, 2, 3, 4].iter().filter(fn(x): *x % 2 == 0).rev().collect::[List[usize]](),
+            [4, 2],
+        )
+        assert_equal(
+            [1, 2, 3].iter()
+                .filter_map(fn(x: usize) -> usize?:
+                    (if x == 2: .None else: .Some(x * 2))
+                )
+                .rev()
+                .collect::[List[usize]](),
+            [6, 2],
+        )
+
+    it("take skip enumerate and zip retain original forward selection"):
+        let mut selected = [0, 1, 2, 3, 4].iter().take(3)
+        assert_equal(selected.next_back(), .Some(2))
+        assert_equal(selected.next(), .Some(0))
+        assert_equal(selected.len(), 1)
+        assert_equal(selected.next_back(), .Some(1))
+        assert_equal(selected.next(), .None)
+        assert_equal([0, 1, 2, 3].iter().skip(2).rev().collect::[List[usize]](), [3, 2])
+        assert_equal([0, 1].iter().skip(4).rev().count(), 0)
+        assert_equal([0, 1].iter().take(4).rev().collect::[List[usize]](), [1, 0])
+        let mut indexed = [5, 6, 7, 8].enumerate()
+        assert_equal(indexed.next(), .Some((0, 5)))
+        assert_equal(indexed.next_back(), .Some((3, 8)))
+        assert_equal(indexed.rev().collect::[List[(usize, usize)]](), [(2, 7), (1, 6)])
+        assert_equal(
+            [1, 2, 3].iter().zip([4, 5]).rev().collect::[List[(usize, usize)]](),
+            [(2, 5), (1, 4)],
+        )
+        assert_equal(
+            [1, 2].iter().zip([4, 5, 6]).rev().collect::[List[(usize, usize)]](),
+            [(2, 5), (1, 4)],
+        )
+
+    it("chain flat_map and repeated reversal meet without duplicates"):
+        let mut chain = [1, 2].iter().chain([3, 4])
+        assert_equal(chain.next_back(), .Some(4))
+        assert_equal(chain.next(), .Some(1))
+        assert_equal(chain.rev().collect::[List[usize]](), [3, 2])
+        let mut flat = [1, 2, 3].iter()
+            .flat_map(fn(x: usize) -> List[usize]:
+                (if x == 2: [] else: [x * 10, x * 10 + 1])
+            )
+        assert_equal(flat.next(), .Some(10))
+        assert_equal(flat.next_back(), .Some(31))
+        assert_equal(flat.next(), .Some(11))
+        assert_equal(flat.next_back(), .Some(30))
+        assert_equal(flat.next_back(), .None)
+        assert_equal(flat.next(), .None)
+        assert_equal([1, 2, 3].iter().rev().rev().collect::[List[usize]](), [1, 2, 3])
+
+    it("by_ref and erased cursors share underlying progress"):
+        source := box([1, 2, 3, 4].iter())
+        assert_equal(source.by_ref().rev().take(2).collect::[List[usize]](), [4, 3])
+        assert_equal(source.next(), .Some(1))
+        assert_equal(source.next_back(), .Some(2))
+        shared := box([1, 2, 3].iter())
+        let erased: *mut dyn DoubleEndedIterator[usize] = shared
+        assert_equal(erased.rev().next(), .Some(3))
+        assert_equal(shared.next(), .Some(1))
+
+    it("local mutable reference reversal advances the referenced cursor"):
+        let mut source = [1, 2, 3].iter()
+        reference := &mut source
+        assert_equal(reference.rev().next(), .Some(3))
+        assert_equal(source.next_back(), .Some(2))
+
+    it("reverse zip advances both aligned cursors even after exhaustion"):
+        log := box::[List[usize]]([])
+        left := TracedCursor { front: 0, back: 0, tag: 1, log: log }
+        right := TracedCursor { front: 0, back: 0, tag: 2, log: log }
+        let mut cursor = left.zip(right)
+        assert_equal(cursor.next_back(), .None)
+        assert_equal(*log, [1, 2])
+        assert_equal(cursor.next_back(), .None)
+        assert_equal(*log, [1, 2, 1, 2])
+        log.clear()
+        longer := TracedCursor { front: 0, back: 3, tag: 1, log: log }
+        shorter := TracedCursor { front: 0, back: 2, tag: 2, log: log }
+        let mut unequal = longer.zip(shorter)
+        assert_equal(unequal.next_back(), .Some((1, 1)))
+        assert_equal(*log, [1, 1, 2])
+        log.clear()
+        empty := TracedCursor { front: 0, back: 0, tag: 1, log: log }
+        rest := TracedCursor { front: 0, back: 2, tag: 2, log: log }
+        let mut right_longer = empty.zip(rest)
+        assert_equal(right_longer.next_back(), .None)
+        assert_equal(*log, [2, 2, 1, 2])

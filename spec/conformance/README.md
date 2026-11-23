@@ -98,6 +98,9 @@ every fixture. They are the items a numbered chapter specifies:
   `std.structure`, `std.annotation`, and `std.format`
   (`Display`, `Debug`, `DebugWriter`, and `debug`), and `Iterable` and
   `Iterator` from `std.iter`;
+- the markers of `std.marker`, and the items of `std.remote` that
+  [Remote Built-Ins](../lang/10-modules.md#remote-built-ins) and
+  [Crossing Errors](../lang/10-modules.md#crossing-errors) declare;
 - the intrinsics of built-in types, such as `List.push`, `string.len`,
   and `string.slice`.
 

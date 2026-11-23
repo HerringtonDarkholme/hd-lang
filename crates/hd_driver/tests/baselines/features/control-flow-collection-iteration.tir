@@ -43,9 +43,9 @@ fn by_value(m: Map[string, string]) -> usize:
 >   %23 = Store [$4] %22 : ()
 >   %32 = Block - : ()
 >   %33 = Read [%20 .0] : &string
->   %34 = Read [%20 .1] : &string
->   %35 = Store [$6] %33 : ()
->   %36 = Store [$7] %34 : ()
+>   %34 = Store [$6] %33 : ()
+>   %35 = Read [%20 .1] : &string
+>   %36 = Store [$7] %35 : ()
 >   %38 = Block - : never
 >   %39 = Match %20 [%38 %32] : ()
 >   %40 = Block - : ()

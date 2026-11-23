@@ -1,6 +1,7 @@
 # std.iter: user-defined cursors and lazy, named adapter values.
 use std.function.FnMut
 use std.num.Num
+use std.cmp.{Ord, Ordering}
 
 ## A cursor that yields its next item, or None when exhausted.
 pub trait Iterator[T < ?Copy] < ?Copy:
@@ -21,6 +22,14 @@ pub trait Iterator[T < ?Copy] < ?Copy:
     fn filter[F < FnMut(&T) -> bool](self, keep: F) -> Filter[Self, T, F]:
         Filter { source: self, keep: keep }
 
+    ## Lazily yields each present result of `transform`, in source order.
+    ## See [std-iter.filter-map.value](../../spec/std/iter.md#r-std-iter.filter-map.value).
+    fn filter_map[U < ?Copy, F < ?Copy & FnMut(T) -> U?](
+        self,
+        transform: F,
+    ) -> FilterMap[Self, T, U, F]:
+        FilterMap { source: self, transform: transform }
+
     fn take(self, count: usize) -> Take[Self, T]:
         Take { source: self, left: count }
 
@@ -37,18 +46,18 @@ pub trait Iterator[T < ?Copy] < ?Copy:
         Zip { source: self, rest: other.iter() }
 
     fn chain[J < ?Copy & Iterable[T]](self, other: J) -> Chain[Self, T, J]:
-        Chain { source: self, rest: other.iter(), first: true }
+        Chain { source: self, rest: other.iter(), first: true, last: true }
 
     fn flat_map[U < ?Copy, J < ?Copy & Iterable[U], F < FnMut(T) -> J](
         self,
         transform: F,
     ) -> FlatMap[Self, T, U, J, F]:
-        FlatMap { source: self, transform: transform, part: .None }
+        FlatMap { source: self, transform: transform, part: .None, back: .None, done: false }
 
     # Stops at the first item that passes, leaving the rest unread.
     ## True when `test` accepts an item; it stops at the first one.
-    ## See [std-iter.adapter.any.value](../../spec/std/iter.md#r-std-iter.adapter.any.value).
-    fn any(self, test: fn(&T) -> bool) -> bool:
+    ## See [std-iter.adapter.any.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.any.fn-mut).
+    fn any[F < ?Copy & FnMut(&T) -> bool](self, mut test: F) -> bool:
         let mut cursor = self
         while true:
             match cursor.next():
@@ -60,8 +69,8 @@ pub trait Iterator[T < ?Copy] < ?Copy:
 
     # Stops at the first item that fails, leaving the rest unread.
     ## True when `test` accepts every item; it stops at the first one it rejects.
-    ## See [std-iter.adapter.all.value](../../spec/std/iter.md#r-std-iter.adapter.all.value).
-    fn all(self, test: fn(&T) -> bool) -> bool:
+    ## See [std-iter.adapter.all.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.all.fn-mut).
+    fn all[F < ?Copy & FnMut(&T) -> bool](self, mut test: F) -> bool:
         let mut cursor = self
         while true:
             match cursor.next():
@@ -73,8 +82,8 @@ pub trait Iterator[T < ?Copy] < ?Copy:
 
     # The first item that passes, leaving the rest unread.
     ## The first item that `test` accepts, in `.Some`, or `.None`.
-    ## See [std-iter.adapter.find.value](../../spec/std/iter.md#r-std-iter.adapter.find.value).
-    fn find(self, test: fn(&T) -> bool) -> T?:
+    ## See [std-iter.adapter.find.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.find.fn-mut).
+    fn find[F < ?Copy & FnMut(&T) -> bool](self, mut test: F) -> T?:
         let mut cursor = self
         while true:
             match cursor.next():
@@ -83,6 +92,37 @@ pub trait Iterator[T < ?Copy] < ?Copy:
                         return .Some(item)
                 .None => break
         .None
+
+    ## The final remaining item, or `.None` when there is none.
+    ## See [std-iter.last.value](../../spec/std/iter.md#r-std-iter.last.value).
+    fn last(self) -> T?:
+        let mut cursor = self
+        let found: T? = .None
+        while true:
+            match cursor.next():
+                .Some(item) => found = .Some(item)
+                .None => return found
+
+    ## The first matching item's remaining index; keeps this cursor after that item.
+    ## See [std-iter.position.value](../../spec/std/iter.md#r-std-iter.position.value).
+    fn position[F < ?Copy & FnMut(T) -> bool $ R, $ R](&mut self, mut test: F) -> usize? $ R:
+        let index: usize = 0
+        while true:
+            match self.next():
+                .Some(item) =>
+                    if test(item):
+                        return .Some(index)
+                    index += 1
+                .None => return .None
+
+    ## Calls `visit` once for each remaining item, in order.
+    ## See [std-iter.for-each.value](../../spec/std/iter.md#r-std-iter.for-each.value).
+    fn for_each[F < ?Copy & FnMut(T) -> void $ R, $ R](self, mut visit: F) -> void $ R:
+        let mut cursor = self
+        while true:
+            match cursor.next():
+                .Some(item) => visit(item)
+                .None => return
 
     # The number of remaining items; it drains `self`.
     ## The number of remaining items; it drains the iterator.
@@ -96,9 +136,43 @@ pub trait Iterator[T < ?Copy] < ?Copy:
                 .None => break
         found
 
+    # The trait's `T` is bounded for these two only (`trait.where.clause`),
+    # so an iterator of unordered items stays an `Iterator`.
+    ## The smallest remaining item, the first of equal ones, or `.None`; it drains the iterator.
+    ## See [std-iter.adapter.min.value](../../spec/std/iter.md#r-std-iter.adapter.min.value).
+    fn min(self) -> T? where T < Ord:
+        let mut cursor = self
+        let best = match cursor.next():
+            .Some(item) => item
+            .None => return .None
+        while true:
+            match cursor.next():
+                .Some(item) =>
+                    match item.cmp(&best):
+                        .Less => best = item
+                        _ => pass
+                .None => break
+        .Some(best)
+
+    ## The largest remaining item, the last of equal ones, or `.None`; it drains the iterator.
+    ## See [std-iter.adapter.max.value](../../spec/std/iter.md#r-std-iter.adapter.max.value).
+    fn max(self) -> T? where T < Ord:
+        let mut cursor = self
+        let best = match cursor.next():
+            .Some(item) => item
+            .None => return .None
+        while true:
+            match cursor.next():
+                .Some(item) =>
+                    match item.cmp(&best):
+                        .Less => pass
+                        _ => best = item
+                .None => break
+        .Some(best)
+
     ## Folds the remaining items into `initial`: `step(accumulator, item)` per item, in order.
-    ## See [std-iter.adapter.fold.value](../../spec/std/iter.md#r-std-iter.adapter.fold.value).
-    fn fold[A, $ R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+    ## See [std-iter.adapter.fold.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.fold.fn-mut).
+    fn fold[A, F < ?Copy & FnMut(A, T) -> A $ R, $ R](self, initial: A, mut step: F) -> A $ R:
         let mut cursor = self
         let total = initial
         while true:
@@ -151,6 +225,10 @@ impl[T < Num] Product[T] for T:
                 .None => break
         total
 
+impl[T < ?Copy, I < ?Copy & Iterator[T]] Iterator[T] for &mut I:
+    fn next(&mut self) -> T?:
+        Iterator::[T]::next(*self)
+
 impl[T < ?Copy, I < ?Copy & Iterator[T]] Iterator[T] for *mut I:
     fn next(&mut self) -> T?:
         (*self).next()
@@ -182,6 +260,12 @@ impl[T < ?Copy] dyn Iterator[T]:
     pub fn filter[F < FnMut(&T) -> bool](*mut self, keep: F) -> Filter[DynIterator[T], T, F]:
         DynIterator { source: self }.filter::[F](keep)
 
+    pub fn filter_map[U < ?Copy, F < ?Copy & FnMut(T) -> U?](
+        *mut self,
+        transform: F,
+    ) -> FilterMap[DynIterator[T], T, U, F]:
+        DynIterator { source: self }.filter_map::[U, F](transform)
+
     pub fn take(*mut self, count: usize) -> Take[DynIterator[T], T]:
         DynIterator { source: self }.take(count)
 
@@ -209,20 +293,30 @@ impl[T < ?Copy] dyn Iterator[T]:
     ) -> FlatMap[DynIterator[T], T, U, J, F]:
         DynIterator { source: self }.flat_map::[U, J, F](transform)
 
-    pub fn any(*mut self, test: fn(&T) -> bool) -> bool:
+    pub fn any[F < ?Copy & FnMut(&T) -> bool](*mut self, test: F) -> bool:
         DynIterator { source: self }.any(test)
 
-    pub fn all(*mut self, test: fn(&T) -> bool) -> bool:
+    pub fn all[F < ?Copy & FnMut(&T) -> bool](*mut self, test: F) -> bool:
         DynIterator { source: self }.all(test)
 
-    pub fn find(*mut self, test: fn(&T) -> bool) -> T?:
+    pub fn find[F < ?Copy & FnMut(&T) -> bool](*mut self, test: F) -> T?:
         DynIterator { source: self }.find(test)
+
+    pub fn last(*mut self) -> T?:
+        DynIterator { source: self }.last()
+
+    pub fn position[F < ?Copy & FnMut(T) -> bool $ R, $ R](*mut self, test: F) -> usize? $ R:
+        let mut cursor = DynIterator { source: self }
+        cursor.position(test)
+
+    pub fn for_each[F < ?Copy & FnMut(T) -> void $ R, $ R](*mut self, visit: F) -> void $ R:
+        DynIterator { source: self }.for_each(visit)
 
     pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
 
-    pub fn fold[A, $ R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
-        DynIterator { source: self }.fold::[A](initial, step)
+    pub fn fold[A, F < ?Copy & FnMut(A, T) -> A $ R, $ R](*mut self, initial: A, step: F) -> A $ R:
+        DynIterator { source: self }.fold::[A, F](initial, step)
 
     pub fn collect[C < ?Copy & FromIterator[T]](*mut self) -> C:
         DynIterator { source: self }.collect::[C]()
@@ -251,6 +345,28 @@ impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < FnMut(T) -> U] Iterator[
         match self.source.next():
             .Some(item) => .Some((self.transform)(item))
             .None => .None
+
+## A lazy cursor yielding the present results of a value-consuming callback.
+pub struct FilterMap[
+    I < ?Copy & Iterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    F < ?Copy & FnMut(T) -> U? = fn(T) -> U?,
+]:
+    source: I
+    transform: F
+
+impl[I < ?Copy & Iterator[T], T < ?Copy, U < ?Copy, F < ?Copy & FnMut(T) -> U?] Iterator[
+    U,
+] for FilterMap[I, T, U, F]:
+    fn next(&mut self) -> U?:
+        while true:
+            item := match self.source.next():
+                .Some(value) => value
+                .None => return .None
+            match (self.transform)(item):
+                .Some(value) => return .Some(value)
+                .None => pass
 
 pub struct Filter[I < ?Copy & Iterator[T], T < ?Copy, F < FnMut(&T) -> bool = fn(&T) -> bool]:
     source: I
@@ -338,6 +454,7 @@ pub struct Chain[I < ?Copy & Iterator[T], T < ?Copy, J < ?Copy & Iterable[T]]:
     source: I
     rest: J::IntoIter
     first: bool
+    last: bool
 
 impl[I < ?Copy & Iterator[T], T < ?Copy, J < ?Copy & Iterable[T]] Iterator[T] for Chain[I, T, J]:
     fn next(&mut self) -> T?:
@@ -345,7 +462,7 @@ impl[I < ?Copy & Iterator[T], T < ?Copy, J < ?Copy & Iterable[T]] Iterator[T] fo
             match self.source.next():
                 .Some(item) => return .Some(item)
                 .None => self.first = false
-        self.rest.next()
+        if self.last: self.rest.next() else: .None
 
 pub struct FlatMap[
     I < ?Copy & Iterator[T],
@@ -357,6 +474,8 @@ pub struct FlatMap[
     source: I
     transform: F
     part: J::IntoIter?
+    back: J::IntoIter?
+    done: bool
 
 impl[
     I < ?Copy & Iterator[T],
@@ -367,18 +486,24 @@ impl[
 ] Iterator[U] for FlatMap[I, T, U, J, F]:
     fn next(&mut self) -> U?:
         while true:
-            match self.part:
-                .Some(cursor) =>
-                    let mut inner = cursor
-                    found := inner.next()
-                    self.part = if found.is_some(): .Some(inner) else: .None
-                    if found.is_some():
-                        return found
-                .None => pass
-            item := match self.source.next():
-                .Some(found) => found
-                .None => return .None
-            self.part = .Some((self.transform)(item).iter())
+            front_item := match self.part.as_mut():
+                .Some(inner) => inner.next()
+                .None => .None
+            if front_item.is_some():
+                return front_item
+            self.part = .None
+            if !self.done:
+                match self.source.next():
+                    .Some(item) =>
+                        self.part = .Some((self.transform)(item).iter())
+                        continue
+                    .None => self.done = true
+            back_item := match self.back.as_mut():
+                .Some(inner) => inner.next()
+                .None => .None
+            if back_item.is_none():
+                self.back = .None
+            return back_item
 
 # A collection built from the items of an iterator. It is not a prelude name.
 ## What `collect` builds: a target that gathers items of `T`.
@@ -487,10 +612,11 @@ fn map_steps[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V
 pub struct ListIter[T]:
     items: List[T]
     at: usize
+    end: usize
 
 impl[T] Iterator[T] for ListIter[T]:
     fn next(&mut self) -> T?:
-        if self.at >= self.items.len():
+        if self.at >= self.end:
             return .None
         item := self.items[self.at]
         self.at = self.at + 1
@@ -504,18 +630,375 @@ pub struct MapEntries[K < Eq & Hash, V]:
 
 impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
     fn next(&mut self) -> (K, V)?:
-        match (self.step)(self.at):
-            .Some((slot, entry)) =>
-                self.at = slot + 1
-                .Some(entry)
-            .None => .None
+        found := (self.step)(self.at)
+        found.map(fn(item: (usize, (K, V))) -> (K, V):
+            self.at = item._0 + 1
+            item._1
+        )
 
 impl[T] Iterable[T] for List[T]:
     type IntoIter = ListIter[T]
     fn iter(self) -> ListIter[T]:
-        ListIter { items: self, at: 0 }
+        ListIter { items: self, at: 0, end: self.len() }
 
 impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     type IntoIter = MapEntries[K, V]
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }
+
+impl[T] List[T]:
+    ## A lazy snapshot of `(index, item)` pairs, starting at zero.
+    ## See [std-iter.list.enumerate.borrow](../../spec/std/iter.md#r-std-iter.list.enumerate.borrow).
+    pub fn enumerate(&self) -> Enumerate[ListIter[T], T]:
+        self.iter().enumerate()
+
+## A cursor whose front and back share the same remaining sequence.
+pub trait DoubleEndedIterator[T < ?Copy] < ?Copy & Iterator[T]:
+    fn next_back(&mut self) -> T?
+
+    ## Reverses the remaining sequence without advancing or buffering it.
+    fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+## A cursor with a constant-time exact remaining item count.
+pub trait ExactSizeIterator[T < ?Copy] < ?Copy & Iterator[T]:
+    fn len(&self) -> usize
+
+## A lazy reversal of a double-ended cursor.
+pub struct Rev[I < ?Copy, T < ?Copy]:
+    source: I
+
+impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy] Iterator[T] for Rev[I, T]:
+    fn next(&mut self) -> T?:
+        self.source.next_back()
+
+impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy] DoubleEndedIterator[T] for Rev[I, T]:
+    fn next_back(&mut self) -> T?:
+        self.source.next()
+
+impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] ExactSizeIterator[
+    T,
+] for Rev[I, T]:
+    fn len(&self) -> usize:
+        self.source.len()
+
+impl[T] DoubleEndedIterator[T] for ListIter[T]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(self.items[self.end])
+
+impl[T] ExactSizeIterator[T] for ListIter[T]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy] DoubleEndedIterator[T] for ByRef[I]:
+    fn next_back(&mut self) -> T?:
+        self.inner.next_back()
+
+impl[I < ?Copy & ExactSizeIterator[T], T < ?Copy] ExactSizeIterator[T] for ByRef[I]:
+    fn len(&self) -> usize:
+        self.inner.len()
+
+impl[T < ?Copy, I < ?Copy & DoubleEndedIterator[T]] DoubleEndedIterator[T] for &mut I:
+    fn next_back(&mut self) -> T?:
+        DoubleEndedIterator::[T]::next_back(*self)
+
+impl[T < ?Copy, I < ?Copy & DoubleEndedIterator[T]] DoubleEndedIterator[T] for *mut I:
+    fn next_back(&mut self) -> T?:
+        (*self).next_back()
+
+impl[T < ?Copy, I < ?Copy & ExactSizeIterator[T]] ExactSizeIterator[T] for &mut I:
+    fn len(&self) -> usize:
+        ExactSizeIterator::[T]::len(*self)
+
+impl[T < ?Copy, I < ?Copy & ExactSizeIterator[T]] ExactSizeIterator[T] for *mut I:
+    fn len(&self) -> usize:
+        (*self).len()
+
+pub struct DynDoubleEndedIterator[T < ?Copy]:
+    source: *mut dyn DoubleEndedIterator[T]
+
+impl[T < ?Copy] Iterator[T] for DynDoubleEndedIterator[T]:
+    fn next(&mut self) -> T?:
+        self.source.next()
+
+impl[T < ?Copy] DoubleEndedIterator[T] for DynDoubleEndedIterator[T]:
+    fn next_back(&mut self) -> T?:
+        self.source.next_back()
+
+impl[T < ?Copy] dyn DoubleEndedIterator[T]:
+    pub fn by_ref(*mut self) -> DynDoubleEndedIterator[T]:
+        DynDoubleEndedIterator { source: self }
+
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(*mut self) -> Rev[DynDoubleEndedIterator[T], T]:
+        Rev { source: DynDoubleEndedIterator { source: self } }
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    F < FnMut(T) -> U,
+] DoubleEndedIterator[U] for MapIter[I, T, U, F]:
+    fn next_back(&mut self) -> U?:
+        match self.source.next_back():
+            .Some(item) => .Some((self.transform)(item))
+            .None => .None
+
+impl[I < ?Copy & ExactSizeIterator[T], T < ?Copy, U < ?Copy, F < FnMut(T) -> U] ExactSizeIterator[
+    U,
+] for MapIter[I, T, U, F]:
+    fn len(&self) -> usize:
+        self.source.len()
+
+impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy, F < FnMut(&T) -> bool] DoubleEndedIterator[
+    T,
+] for Filter[I, T, F]:
+    fn next_back(&mut self) -> T?:
+        while true:
+            item := match self.source.next_back():
+                .Some(value) => value
+                .None => return .None
+            if (self.keep)(&item):
+                return .Some(item)
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    F < ?Copy & FnMut(T) -> U?,
+] DoubleEndedIterator[U] for FilterMap[I, T, U, F]:
+    fn next_back(&mut self) -> U?:
+        while true:
+            item := match self.source.next_back():
+                .Some(value) => value
+                .None => return .None
+            match (self.transform)(item):
+                .Some(value) => return .Some(value)
+                .None => pass
+
+impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] DoubleEndedIterator[
+    T,
+] for Take[I, T]:
+    fn next_back(&mut self) -> T?:
+        if self.left == 0:
+            return .None
+        let trim = self.source.len()
+        while trim > self.left:
+            _ := self.source.next_back()
+            trim -= 1
+        self.left -= 1
+        self.source.next_back()
+
+impl[I < ?Copy & ExactSizeIterator[T], T < ?Copy] ExactSizeIterator[T] for Take[I, T]:
+    fn len(&self) -> usize:
+        size := self.source.len()
+        if size < self.left: size else: self.left
+
+impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] DoubleEndedIterator[
+    T,
+] for Skip[I, T]:
+    fn next_back(&mut self) -> T?:
+        if self.source.len() <= self.left:
+            return .None
+        self.source.next_back()
+
+impl[I < ?Copy & ExactSizeIterator[T], T < ?Copy] ExactSizeIterator[T] for Skip[I, T]:
+    fn len(&self) -> usize:
+        size := self.source.len()
+        if size > self.left: size - self.left else: 0
+
+impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] DoubleEndedIterator[
+    (usize, T),
+] for Enumerate[I, T]:
+    fn next_back(&mut self) -> (usize, T)?:
+        match self.source.next_back():
+            .Some(item) => .Some((self.index + self.source.len(), item))
+            .None => .None
+
+impl[I < ?Copy & ExactSizeIterator[T], T < ?Copy] ExactSizeIterator[(usize, T)] for Enumerate[I, T]:
+    fn len(&self) -> usize:
+        self.source.len()
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T],
+    T < ?Copy,
+    J < ?Copy & Iterable[T, IntoIter = R],
+    R < ?Copy & DoubleEndedIterator[T],
+] DoubleEndedIterator[T] for Chain[I, T, J]:
+    fn next_back(&mut self) -> T?:
+        if self.last:
+            match self.rest.next_back():
+                .Some(item) => return .Some(item)
+                .None => self.last = false
+        if self.first: self.source.next_back() else: .None
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    J < ?Copy & Iterable[U, IntoIter = R],
+    R < ?Copy & DoubleEndedIterator[U] & ExactSizeIterator[U],
+] DoubleEndedIterator[(T, U)] for Zip[I, T, U, J]:
+    fn next_back(&mut self) -> (T, U)?:
+        let left = self.source.len()
+        let right = self.rest.len()
+        while left > right:
+            _ := self.source.next_back()
+            left -= 1
+        while right > left:
+            _ := self.rest.next_back()
+            right -= 1
+        match (self.source.next_back(), self.rest.next_back()):
+            (.Some(a), .Some(b)) => .Some((a, b))
+            _ => .None
+
+impl[
+    I < ?Copy & ExactSizeIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    J < ?Copy & Iterable[U, IntoIter = R],
+    R < ?Copy & ExactSizeIterator[U],
+] ExactSizeIterator[(T, U)] for Zip[I, T, U, J]:
+    fn len(&self) -> usize:
+        left := self.source.len()
+        right := self.rest.len()
+        if left < right: left else: right
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    J < ?Copy & Iterable[U, IntoIter = R],
+    R < ?Copy & DoubleEndedIterator[U],
+    F < FnMut(T) -> J,
+] DoubleEndedIterator[U] for FlatMap[I, T, U, J, F]:
+    fn next_back(&mut self) -> U?:
+        while true:
+            back_item := match self.back.as_mut():
+                .Some(inner) => inner.next_back()
+                .None => .None
+            if back_item.is_some():
+                return back_item
+            self.back = .None
+            if !self.done:
+                match self.source.next_back():
+                    .Some(item) =>
+                        self.back = .Some((self.transform)(item).iter())
+                        continue
+                    .None => self.done = true
+            front_item := match self.part.as_mut():
+                .Some(inner) => inner.next_back()
+                .None => .None
+            if front_item.is_none():
+                self.part = .None
+            return front_item
+
+impl[T] ListIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+impl[I < ?Copy] ByRef[I]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev[T < ?Copy](self) -> Rev[Self, T] where I < DoubleEndedIterator[T]:
+        Rev { source: self }
+
+impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy] Rev[I, T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+impl[T < ?Copy] DynDoubleEndedIterator[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy, U < ?Copy, F < FnMut(T) -> U] MapIter[
+    I,
+    T,
+    U,
+    F,
+]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, U]:
+        Rev { source: self }
+
+impl[I < ?Copy & DoubleEndedIterator[T], T < ?Copy, F < FnMut(&T) -> bool] Filter[I, T, F]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    F < ?Copy & FnMut(T) -> U?,
+] FilterMap[I, T, U, F]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, U]:
+        Rev { source: self }
+
+impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] Take[I, T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] Skip[I, T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy] Enumerate[I, T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, (usize, T)]:
+        Rev { source: self }
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T],
+    T < ?Copy,
+    J < ?Copy & Iterable[T, IntoIter = R],
+    R < ?Copy & DoubleEndedIterator[T],
+] Chain[I, T, J]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        Rev { source: self }
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    J < ?Copy & Iterable[U, IntoIter = R],
+    R < ?Copy & DoubleEndedIterator[U] & ExactSizeIterator[U],
+] Zip[I, T, U, J]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, (T, U)]:
+        Rev { source: self }
+
+impl[
+    I < ?Copy & DoubleEndedIterator[T],
+    T < ?Copy,
+    U < ?Copy,
+    J < ?Copy & Iterable[U, IntoIter = R],
+    R < ?Copy & DoubleEndedIterator[U],
+    F < FnMut(T) -> J,
+] FlatMap[I, T, U, J, F]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, U]:
+        Rev { source: self }

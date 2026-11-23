@@ -447,7 +447,7 @@ fn walk_crossings(
         let next = match steps[k] {
             Proj::Field(f) => field_ty(pool, env, ty, f),
             Proj::Elem(_) => {
-                let TyData::Adt { args, .. } = pool.get(strip_newtype(pool, env, ty)) else {
+                let TyData::Adt(_, args) = pool.get(strip_newtype(pool, env, ty)) else {
                     break;
                 };
                 let items = pool.list_items(args);
@@ -471,7 +471,7 @@ fn walk_crossings(
                     }
                     Some(target)
                 }
-                _ => None,
+                Kind::Value => None,
             },
         };
         let Some(next) = next else {

@@ -6,6 +6,7 @@
 # backtracking (r-std-regex.time.linear). A prefilter taken from the tree
 # lets a search start threads only where a match could start and jump over
 # the text between.
+use std.collections.UniqList
 use std.format.DebugWriter
 use std.serde.{Deserialize, Deserializer, ValueKind, member_name}
 use std.structure.{Facts, Member, VariantInfo}
@@ -17,8 +18,12 @@ use std.rt.bytes.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
 ## See [std-regex.regex.decl-struct](../../spec/std/regex.md#r-std-regex.regex.decl-struct).
 pub struct Regex:
     text: string
-    program: Program
+    program: *Program
     filter: Prefilter
+    forward: *mut Dfa
+    reverse: *mut Dfa
+    # The VM a call searches with, kept between calls.
+    idle: *mut Vm
     names: List[string]
 
 # Where a match is: byte offsets into the searched text, and its text
@@ -97,11 +102,22 @@ impl Regex:
         let mut program: List[Inst] = []
         compile(parsed.node, &mut program)
         program.push(Inst.Done)
+        # Boxed because every copy of the regex and every search share it.
+        lowered := box(lower(program))
+        filter := prefilter(parsed.node)
+        built := automaton(lowered)
+        done := lowered.ops.len() - 1
+        forward := new_dfa(built.forward, &built, built.nodes, done, true, filter.literal != "")
+        reverse := new_dfa(built.reverse, &built, done, 0, false, false)
         .Ok(
             Regex {
                 text: pattern,
-                program: lower(program),
-                filter: prefilter(parsed.node),
+                program: lowered,
+                filter: filter,
+                forward: forward,
+                reverse: reverse,
+                # Boxed because every copy of the regex shares it between calls.
+                idle: box(blank_vm(lowered, filter, forward, reverse)),
                 names: names,
             },
         )
@@ -112,38 +128,45 @@ impl Regex:
     pub fn pattern(&self) -> string:
         self.text
 
-    # Whether some part of `text` matches (r-std-regex.is-match). The search
-    # stops at the first thread that reaches the end of the pattern.
+    # Whether some part of `text` matches (r-std-regex.is-match). The
+    # forward DFA stops at the first match state.
     ## True when the regex matches anywhere in `text`.
     ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
     pub fn is_match(&self, text: string) -> bool:
-        let mut vm = new_vm(self, text, 0)
-        run(&mut vm, 0, true)
+        vm := self.take(text, 0, true)
+        found := search(vm, 0, true)
+        self.give(vm)
+        found
 
     # The leftmost match, and among those that start there, the one the
     # pattern prefers (r-std-regex.find.leftmost-first).
     ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
     ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
     pub fn find(&self, text: string) -> Match?:
-        let mut vm = new_vm(self, text, 2)
-        if run(&mut vm, 0, false): .Some(vm.whole()) else: .None
+        vm := self.take(text, 2, true)
+        let found: Match? = if locate(vm, 0): .Some(vm.whole()) else: .None
+        self.give(vm)
+        found
 
     # Every match, left to right, none overlapping (r-std-regex.find-all).
     ## Every non-overlapping match in `text`, from left to right.
     ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
     pub fn find_all(&self, text: string) -> List[Match]:
-        let mut vm = new_vm(self, text, 2)
+        vm := self.take(text, 2, true)
         let mut found: List[Match] = []
-        while advance(&mut vm):
+        while advance(vm):
             found.push(vm.whole())
+        self.give(vm)
         found
 
-    # The groups of the first match (r-std-regex.captures).
+    # The groups of the first match (r-std-regex.captures), on the Pike VM.
     ## The capture groups of the leftmost match, or `.None`.
     ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
     pub fn captures(&self, text: string) -> Captures?:
-        let mut vm = new_vm(self, text, self.slot_count())
-        if run(&mut vm, 0, false): .Some(vm.groups(self.names)) else: .None
+        vm := self.take(text, self.slot_count(), false)
+        let found: Captures? = if locate(vm, 0): .Some(vm.groups(self.names)) else: .None
+        self.give(vm)
+        found
 
     ## Decodes the first match as a record through its Deserialize implementation.
     ## See [std-regex.decode.regex](../../spec/std/regex.md#r-std-regex.decode.regex).
@@ -153,42 +176,51 @@ impl Regex:
             .None => .Err(.NoMatch)
 
     # The groups of each match that `find_all` returns
-    # (r-std-regex.captures-all).
+    # (r-std-regex.captures-all), on the Pike VM.
     ## The capture groups of every non-overlapping match, from left to right.
     ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
     pub fn captures_all(&self, text: string) -> List[Captures]:
-        let mut vm = new_vm(self, text, self.slot_count())
+        vm := self.take(text, self.slot_count(), false)
         let mut found: List[Captures] = []
-        while advance(&mut vm):
+        while advance(vm):
             found.push(vm.groups(self.names))
+        self.give(vm)
         found
 
-    # `text` with its first match replaced (r-std-regex.replace).
+    # `text` with its first match replaced (r-std-regex.replace). The
+    # groups come from the Pike VM only when the template names one.
     ## The text with its leftmost match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
     pub fn replace(&self, text: string, replacement: string) -> string:
-        let mut vm = new_vm(self, text, self.slot_count())
-        if !run(&mut vm, 0, false):
-            return text
         template := Pattern::of(replacement)
-        groups := vm.groups(self.names)
-        text.slice(0, vm.start()) + expand(template, groups) + text.slice(vm.end(), text.len())
+        vm := self.take(text, self.replace_slots(template), true)
+        let replaced = text
+        if locate(vm, 0):
+            groups := self.groups_of(vm)
+            replaced = (
+                text.slice(0, vm.start())
+                + expand(template, groups)
+                + text.slice(vm.end(), text.len())
+            )
+        self.give(vm)
+        replaced
 
     # `text` with each match that `find_all` returns replaced
     # (r-std-regex.replace-all).
     ## The text with every non-overlapping match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
     pub fn replace_all(&self, text: string, replacement: string) -> string:
-        let mut vm = new_vm(self, text, self.slot_count())
         template := Pattern::of(replacement)
+        vm := self.take(text, self.replace_slots(template), true)
         # The pieces are joined once at the end, since appending each to
         # the text so far would copy that text again for every match.
         let mut pieces: List[string] = []
         let last: usize = 0
-        while advance(&mut vm):
+        while advance(vm):
             pieces.push(text.slice(last, vm.start()))
-            pieces.push(expand(template, vm.groups(self.names)))
+            pieces.push(expand(template, self.groups_of(vm)))
             last = vm.end()
+        self.give(vm)
         pieces.push(text.slice(last, text.len()))
         pieces.join("")
 
@@ -197,18 +229,48 @@ impl Regex:
     ## The text's pieces between the matches, in order.
     ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
     pub fn split(&self, text: string) -> List[string]:
-        let mut vm = new_vm(self, text, 2)
+        vm := self.take(text, 2, true)
         let mut pieces: List[string] = []
         let last: usize = 0
-        while advance(&mut vm):
+        while advance(vm):
             pieces.push(text.slice(last, vm.start()))
             last = vm.end()
+        self.give(vm)
         pieces.push(text.slice(last, text.len()))
         pieces
 
     # Two slots per group, group 0 included.
     fn slot_count(&self) -> usize:
         2 * self.names.len()
+
+    # The slots a replacement with `template` needs: every group's when
+    # the template names a group past 0, else group 0's.
+    fn replace_slots(&self, template: Pattern) -> usize:
+        if self.names.len() > 1 && names_groups(template): self.slot_count() else: 2
+
+    # The groups of the match `vm` found, as a replacement expands them.
+    fn groups_of(&self, vm: &Vm) -> Captures:
+        if vm.slot_count > 2: vm.groups(self.names) else: vm.groups([""])
+
+    # The VM for one call on `text`: the regex's own, readied for it, or a
+    # new one when a search holds that one. A search calls no code outside
+    # this module, so no call starts while another runs today; a call that
+    # did, from a task or a later callback, would get its own VM, since
+    # `busy` stays set from `take` to `give`.
+    fn take(&self, text: string, slot_count: usize, dfa: bool) -> *mut Vm:
+        let vm = self.idle
+        if vm.busy:
+            # Boxed because a call holds its VM by reference, as it holds the shared one.
+            vm = box(blank_vm(self.program, self.filter, self.forward, self.reverse))
+        ready(vm, text, slot_count)
+        vm.busy = true
+        vm.dfa = dfa
+        vm
+
+    # Hands the VM back, letting go of the text.
+    fn give(&self, vm: *mut Vm) -> void:
+        vm.busy = false
+        vm.text = ""
 
 impl Captures:
     # The number of groups, plus one for the whole match
@@ -873,19 +935,22 @@ fn compile(node: Node, program: &mut List[Inst]) -> void:
 # | 9 | `End` | - | - |
 #
 # Ops 0 to 4 are the ones a thread waits at for the next character.
+#
+# The lists are uniquely owned, so a search reads them with no reference
+# count or copy-on-write check.
 struct Program:
-    ops: List[i32]
-    left: List[usize]
-    right: List[usize]
-    points: List[i32]
-    ranges: List[i32]
+    ops: UniqList[i32]
+    left: UniqList[usize]
+    right: UniqList[usize]
+    points: UniqList[i32]
+    ranges: UniqList[i32]
 
 fn lower(program: List[Inst]) -> Program:
-    let mut ops: List[i32] = []
-    let mut left: List[usize] = []
-    let mut right: List[usize] = []
-    let mut points: List[i32] = []
-    let mut ranges: List[i32] = []
+    let mut ops = UniqList::[i32].new()
+    let mut left = UniqList::[usize].new()
+    let mut right = UniqList::[usize].new()
+    let mut points = UniqList::[i32].new()
+    let mut ranges = UniqList::[i32].new()
     for inst in program:
         let op = +0
         let first: usize = 0
@@ -922,6 +987,317 @@ fn lower(program: List[Inst]) -> Program:
 # A split that prefers `body` when greedy and `out` when lazy.
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
     if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
+
+# The program as a byte automaton for the lazy DFA, a Thompson NFA over
+# bytes as regex-automata's lazy DFA runs (src/hybrid/dfa.rs). Node `pc`
+# below the program's length is instruction `pc`. An instruction that reads
+# a character becomes a trie of byte ranges over the UTF-8 forms of its
+# scalars: its first ranges leave node `pc`, its later ones nodes added
+# after the instructions, and its last ones lead to `pc + 1`. Node n's
+# edges are those from `at[n]` up to `at[n + 1]`, in priority order: an
+# epsilon edge has `lows` -1, and a byte edge reads one byte from `lows`
+# to `highs`. `guards[n]` is 1 for `^` and 2 for `$`, which a search
+# passes only where they hold. `Save` is an epsilon edge: the DFA finds no
+# groups.
+struct Graph:
+    at: List[usize]
+    to: List[usize]
+    lows: List[i32]
+    highs: List[i32]
+    guards: List[i32]
+
+# Both directions of the byte automaton and its byte classes. The reverse
+# graph has every edge of the program's nodes turned around, and runs from
+# `Done` back to node 0. The forward graph adds the unanchored prefix,
+# regex-automata's `(?s-u:.)*?`: node `nodes` tries node 0 first and node
+# `nodes + 1` last, which reads any byte and comes back. `classes` maps
+# each byte to its class: two bytes share one when no edge tells them
+# apart (alphabet.rs, ByteClassSet), and `reps` holds a byte of each class.
+struct Automaton:
+    forward: Graph
+    reverse: Graph
+    nodes: usize
+    classes: List[usize]
+    reps: List[i32]
+
+# Edges in the order they were made, before `graph` groups them by node.
+struct Edges:
+    from: List[usize]
+    to: List[usize]
+    lows: List[i32]
+    highs: List[i32]
+
+impl Edges:
+    fn add(&mut self, from: usize, low: i32, high: i32, to: usize) -> void:
+        self.from.push(from)
+        self.to.push(to)
+        self.lows.push(low)
+        self.highs.push(high)
+
+# The program's byte automaton. It costs time and space linear in the
+# program's size times the UTF-8 pieces of its classes, a few per range.
+fn automaton(program: &Program) -> Automaton:
+    ops := &program.ops
+    size := ops.len()
+    let mut edges = Edges { from: [], to: [], lows: [], highs: [] }
+    let mut guards: List[i32] = []
+    let count = size
+    let pc: usize = 0
+    while pc < size:
+        op := ops[pc]
+        let guard = +0
+        if op <= 3:
+            count = add_scalars(&mut edges, count, pc, scalar_ranges(program, pc))
+        else if op == 5:
+            edges.add(pc, -1, -1, program.left[pc])
+            edges.add(pc, -1, -1, program.right[pc])
+        else if op == 6:
+            edges.add(pc, -1, -1, program.left[pc])
+        else if op >= 7:
+            edges.add(pc, -1, -1, pc + 1)
+            if op == 8:
+                guard = +1
+            else if op == 9:
+                guard = +2
+        guards.push(guard)
+        pc += 1
+    guards.resize(count, +0)
+    reverse := graph(count, &edges, true, guards)
+    # Past byte 0 a pattern that starts with `^` can start no match, and
+    # the prefix would only read the rest of the text.
+    edges.add(count, -1, -1, 0)
+    if restarts(program):
+        edges.add(count, -1, -1, count + 1)
+    edges.add(count + 1, 0, 255, count)
+    guards.push(+0)
+    guards.push(+0)
+    forward := graph(count + 2, &edges, false, guards)
+    # A byte that ends a range ends its class, and so does the one before a
+    # range's start.
+    let mut ends: List[bool] = []
+    ends.resize(256, false)
+    let edge: usize = 0
+    while edge < edges.lows.len():
+        low := edges.lows[edge]
+        if low > 0:
+            ends[usize(low - 1)] = true
+        if low >= 0:
+            ends[usize(edges.highs[edge])] = true
+        edge += 1
+    let mut classes: List[usize] = []
+    let mut reps: List[i32] = [+0]
+    let byte: usize = 0
+    while byte < 256:
+        classes.push(reps.len() - 1)
+        if ends[byte] && byte < 255:
+            reps.push(i32(byte) + 1)
+        byte += 1
+    Automaton { forward: forward, reverse: reverse, nodes: count, classes: classes, reps: reps }
+
+# The edges grouped by the node they leave, or, `reversed`, by the node
+# they enter and turned around, each group in the order the edges were
+# made: a stable counting sort.
+fn graph(count: usize, edges: &Edges, reversed: bool, guards: List[i32]) -> Graph:
+    total := edges.from.len()
+    let mut at = zeros(count + 1)
+    let edge: usize = 0
+    while edge < total:
+        owner := if reversed: edges.to[edge] else: edges.from[edge]
+        at[owner + 1] += 1
+        edge += 1
+    let node: usize = 0
+    while node < count:
+        at[node + 1] += at[node]
+        node += 1
+    let mut fill = at.slice(0, count)
+    let mut to = zeros(total)
+    let mut lows: List[i32] = []
+    lows.resize(total, +0)
+    let mut highs: List[i32] = []
+    highs.resize(total, +0)
+    edge = 0
+    while edge < total:
+        let owner = edges.from[edge]
+        let target = edges.to[edge]
+        if reversed:
+            owner = edges.to[edge]
+            target = edges.from[edge]
+        slot := fill[owner]
+        fill[owner] = slot + 1
+        to[slot] = target
+        lows[slot] = edges.lows[edge]
+        highs[slot] = edges.highs[edge]
+        edge += 1
+    Graph { at: at, to: to, lows: lows, highs: highs, guards: guards }
+
+# Whether a match can start past byte 0: whether instruction 0 reaches,
+# without passing a `^`, one that reads a character, ends the match, or
+# waits for the end.
+fn restarts(program: &Program) -> bool:
+    ops := &program.ops
+    let mut seen: List[bool] = []
+    seen.resize(ops.len(), false)
+    let mut stack: List[usize] = [0]
+    while stack.len() > 0:
+        pc := stack[stack.len() - 1]
+        stack.truncate(stack.len() - 1)
+        if seen[pc]:
+            continue
+        seen[pc] = true
+        op := ops[pc]
+        if op <= 4 || op == 9:
+            return true
+        if op == 5:
+            stack.push(program.right[pc])
+        if op == 5 || op == 6:
+            stack.push(program.left[pc])
+        else if op == 7:
+            stack.push(pc + 1)
+    false
+
+# The scalars instruction `pc` reads, as sorted, disjoint, inclusive
+# ranges, low then high for each, without the surrogates, which no UTF-8
+# text holds. A class's ranges are sorted by key, low * 2^21 + high.
+fn scalar_ranges(program: &Program, pc: usize) -> List[i32]:
+    op := program.ops[pc]
+    if op == 0:
+        point := program.points[pc]
+        return [point, point]
+    if op == 1:
+        return [+0, +9, +11, +55295, +57344, +1114111]
+    let mut keys: List[i64] = []
+    let bound = program.left[pc]
+    while bound < program.right[pc]:
+        keys.push(i64(program.ranges[bound]) * 2097152 + i64(program.ranges[bound + 1]))
+        bound += 2
+    keys.sort()
+    let mut merged: List[i32] = []
+    for key in keys:
+        low := i32(key / 2097152)
+        high := i32(key % 2097152)
+        last := merged.len()
+        if last > 0 && low <= merged[last - 1] + 1:
+            if high > merged[last - 1]:
+                merged[last - 1] = high
+        else:
+            merged.push(low)
+            merged.push(high)
+    if op == 3:
+        let mut outside: List[i32] = []
+        let next = +0
+        let index: usize = 0
+        while index < merged.len():
+            if merged[index] > next:
+                outside.push(next)
+                outside.push(merged[index] - 1)
+            next = merged[index + 1] + 1
+            index += 2
+        if next <= 1114111:
+            outside.push(next)
+            outside.push(+1114111)
+        merged = outside
+    let mut scalars: List[i32] = []
+    let index: usize = 0
+    while index < merged.len():
+        low := merged[index]
+        high := merged[index + 1]
+        if high < 55296 || low > 57343:
+            scalars.push(low)
+            scalars.push(high)
+        else:
+            if low < 55296:
+                scalars.push(low)
+                scalars.push(+55295)
+            if high > 57343:
+                scalars.push(+57344)
+                scalars.push(high)
+        index += 2
+    scalars
+
+# Adds below node `root` a trie that reads the UTF-8 form of each scalar in
+# `ranges` and leads to `root + 1`, numbering its new nodes from `count`,
+# and returns the count after them. Each range splits into sequences of
+# byte ranges, as regex-syntax's Utf8Sequences splits it: in ascending
+# order, so a sequence shares with the one before it a prefix of equal
+# ranges or none, and the trie needs only the previous sequence's path
+# (regex-automata's Utf8Compiler relies on the same order).
+fn add_scalars(edges: &mut Edges, count: usize, root: usize, ranges: List[i32]) -> usize:
+    let nodes = count
+    let mut last: List[i32] = []
+    let mut path: List[usize] = [root]
+    let mut pending: List[i32] = []
+    let index: usize = 0
+    while index < ranges.len():
+        pending.push(ranges[index])
+        pending.push(ranges[index + 1])
+        while pending.len() > 0:
+            top := pending.len()
+            low := pending[top - 2]
+            high := pending[top - 1]
+            pending.truncate(top - 2)
+            cut := utf8_cut(low, high)
+            if cut < high:
+                pending.push(cut + 1)
+                pending.push(high)
+                pending.push(low)
+                pending.push(cut)
+                continue
+            width := usize(scalar_bytes(low))
+            let common: usize = 0
+            while (
+                common + 1 < width
+                && 2 * common < last.len()
+                && last[2 * common] == utf8_byte(low, width, common)
+                && last[2 * common + 1] == utf8_byte(high, width, common)
+            ):
+                common += 1
+            last.truncate(2 * common)
+            path.truncate(common + 1)
+            let depth = common
+            while depth < width:
+                lo := utf8_byte(low, width, depth)
+                hi := utf8_byte(high, width, depth)
+                let target = root + 1
+                if depth + 1 < width:
+                    target = nodes
+                    nodes += 1
+                edges.add(path[depth], lo, hi, target)
+                last.push(lo)
+                last.push(hi)
+                path.push(target)
+                depth += 1
+        index += 2
+    nodes
+
+# Where `low..=high` must split for its UTF-8 forms to be one sequence of
+# byte ranges: the end of its first part, or `high` when it need not. A
+# range splits where the length of the UTF-8 form changes, and where a
+# continuation byte's range would not be full (Utf8Sequences::next).
+fn utf8_cut(low: i32, high: i32) -> i32:
+    for max in [+127, +2047, +65535]:
+        if low <= max && max < high:
+            return max
+    if high <= 127:
+        return high
+    let shift: u32 = 6
+    while shift <= 18:
+        mask := (+1 << shift) - 1
+        if (low >> shift) != (high >> shift):
+            if low & mask != 0:
+                return low | mask
+            if high & mask != mask:
+                return (high >> shift << shift) - 1
+        shift += 6
+    high
+
+# Byte `index` of the `width`-byte UTF-8 form of scalar `point`.
+fn utf8_byte(point: i32, width: usize, index: usize) -> i32:
+    if width == 1:
+        return point
+    if index == 0:
+        lead := if width == 2: +192 else if width == 3: +224 else: +240
+        return lead | (point >> u32(6 * (width - 1)))
+    128 | ((point >> u32(6 * (width - 1 - index))) & 63)
 
 # The prefilter, as RE2 and Rust's `regex` use literal prefilters. Every
 # match that starts at byte s holds `literal` at a byte from s + `lo` up
@@ -1301,7 +1677,13 @@ fn continuation(byte: u8) -> bool:
 # two numbers. A list's length is a local of the search. `slots` holds
 # `slot_count` slots for each instruction, as byte offsets with -1 for an
 # unset slot.
-fn has(dense: &List[usize], sparse: &List[usize], side: usize, count: usize, pc: usize) -> bool:
+fn has(
+    dense: &UniqList[usize],
+    sparse: &UniqList[usize],
+    side: usize,
+    count: usize,
+    pc: usize,
+) -> bool:
     place := sparse[side + pc]
     place < count && dense[side + place] == pc
 
@@ -1309,6 +1691,18 @@ fn filled(count: usize) -> List[i64]:
     let mut values: List[i64] = []
     while values.len() < count:
         values.push(-1)
+    values
+
+fn uniq_filled(count: usize) -> UniqList[i64]:
+    let mut values = UniqList::[i64].with_capacity(count)
+    while values.len() < count:
+        values.push(-1)
+    values
+
+fn uniq_zeros(count: usize) -> UniqList[usize]:
+    let mut values = UniqList::[usize].with_capacity(count)
+    while values.len() < count:
+        values.push(0)
     values
 
 fn zeros(count: usize) -> List[usize]:
@@ -1319,26 +1713,25 @@ fn zeros(count: usize) -> List[usize]:
 
 # The state of the searches of one call: the thread lists, the stack of
 # the epsilon walk, and the slots, allocated once and reused by every
-# search that call makes. The lists a search writes are new objects that
-# the VM holds by reference, so a search reads them into locals once and
-# writes their elements in place. The text is read in place, one UTF-8
+# search that call makes. The lists are uniquely owned, so a search reads
+# and writes their elements with no reference count. The text is read in place, one UTF-8
 # scalar at a time, and every position is a byte offset
 # (r-std-regex.find.chars).
 struct Vm:
-    program: Program
+    program: *Program
     text: string
     size: usize
     slot_count: usize
-    dense: *mut List[usize]
-    sparse: *mut List[usize]
-    slots: *mut List[i64]
+    dense: UniqList[usize]
+    sparse: UniqList[usize]
+    slots: UniqList[i64]
     # The epsilon walk's stack: an entry of at least 0 is an instruction to
     # visit; an entry -1 - s puts `values` at the same place back into slot s.
-    stack: *mut List[i64]
-    values: *mut List[i64]
-    scratch: *mut List[i64]
+    stack: UniqList[i64]
+    values: UniqList[i64]
+    scratch: UniqList[i64]
     # The slots of the match the last search found.
-    found: *mut List[i64]
+    found: UniqList[i64]
     # Where the next search of `advance` starts, where the last match
     # ended (-1 before the first), and whether the series is over.
     from: usize
@@ -1350,40 +1743,78 @@ struct Vm:
     # match start at the bytes from `near_from` to `near_until`.
     filter: Prefilter
     filtered: bool
+    # The lazy DFA of each direction.
+    forward: *mut Dfa
+    reverse: *mut Dfa
     hit_from: usize
     hit: i64
     near_from: i64
     near_until: i64
+    # Whether a call is using the VM, and whether the call's searches run
+    # on the DFA (all but `captures` and `captures_all`).
+    busy: bool
+    dfa: bool
 
 # A walk visits each instruction at most once and pushes at most one
 # entry for it, so the stack never holds more than width + 1.
 fn new_vm(regex: &Regex, text: string, slot_count: usize) -> Vm:
-    program := regex.program
-    filter := regex.filter
+    let mut vm = blank_vm(regex.program, regex.filter, regex.forward, regex.reverse)
+    ready(&mut vm, text, slot_count)
+    vm
+
+# A VM with the thread lists and stack `program` needs and no slots yet.
+fn blank_vm(program: *Program, filter: Prefilter, forward: *mut Dfa, reverse: *mut Dfa) -> Vm:
     width := program.ops.len()
     Vm {
         program: program,
-        text: text,
-        size: bytes_len(text),
-        slot_count: slot_count,
-        # Boxed because the returned VM stores seven aliased mutable buffers used by search helpers.
-        dense: box(zeros(2 * width)),
-        sparse: box(zeros(2 * width)),
-        slots: box(filled(2 * width * slot_count)),
-        stack: box(filled(width + 1)),
-        values: box(filled(width + 1)),
-        scratch: box(filled(slot_count)),
-        found: box(filled(slot_count)),
+        text: "",
+        size: 0,
+        slot_count: 0,
+        dense: uniq_zeros(2 * width),
+        sparse: uniq_zeros(2 * width),
+        slots: UniqList::[i64].new(),
+        stack: uniq_filled(width + 1),
+        values: uniq_filled(width + 1),
+        scratch: UniqList::[i64].new(),
+        found: UniqList::[i64].new(),
         from: 0,
         last_end: -1,
         finished: false,
         filter: filter,
         filtered: bytes_len(filter.literal) > 0 || filter.firsts.len() > 0,
-        hit_from: bytes_len(text) + 1,
+        forward: forward,
+        reverse: reverse,
+        hit_from: 1,
         hit: -1,
         near_from: 0,
         near_until: -1,
+        busy: false,
+        dfa: true,
     }
+
+# Readies `vm` for a call on `text` with `slot_count` slots for each
+# thread. The slot lists grow to the most slots a call has asked for and
+# never shrink, so a VM reused across calls allocates only when a call
+# needs more than any before it.
+fn ready(vm: &mut Vm, text: string, slot_count: usize) -> void:
+    vm.text = text
+    vm.size = bytes_len(text)
+    vm.slot_count = slot_count
+    need := 2 * vm.program.ops.len() * slot_count
+    while vm.slots.len() < need:
+        vm.slots.push(-1)
+    while vm.scratch.len() < slot_count:
+        vm.scratch.push(-1)
+    vm.found.truncate(slot_count)
+    while vm.found.len() < slot_count:
+        vm.found.push(-1)
+    vm.from = 0
+    vm.last_end = -1
+    vm.finished = false
+    vm.hit_from = vm.size + 1
+    vm.hit = -1
+    vm.near_from = 0
+    vm.near_until = -1
 
 impl Vm:
     # Where the match found starts and ends; it always has both.
@@ -1401,11 +1832,14 @@ impl Vm:
     # The groups of the match found.
     fn groups(&self, names: List[string]) -> Captures:
         let mut slots: List[usize?] = []
-        for value in self.found:
+        let slot: usize = 0
+        while slot < self.found.len():
+            value := self.found[slot]
             if value < 0:
                 slots.push(.None)
             else:
                 slots.push(.Some(usize(value)))
+            slot += 1
         Captures { text: self.text, slots: slots, names: names }
 
 # Runs the next search of a `find_all` series (r-std-regex.find-all.next)
@@ -1414,7 +1848,7 @@ impl Vm:
 # match where the last one ended is dropped. False when no match is left.
 fn advance(vm: &mut Vm) -> bool:
     while !vm.finished:
-        if !run(vm, vm.from, false):
+        if !locate(vm, vm.from):
             vm.finished = true
             return false
         start := vm.start()
@@ -1433,6 +1867,22 @@ fn advance(vm: &mut Vm) -> bool:
             return true
     false
 
+# The next match at byte `from` or later, its slots in `vm.found`: on
+# the DFA, unless the call wants every group from the Pike VM. A
+# replacement that names groups gets them by running the Pike VM again
+# from the match's start, which finds the same match: a thread it no
+# longer starts before that byte could reach no `Done`, or the match
+# would start there (regex-automata's meta engine narrows a capture
+# search to the DFA's span the same way).
+fn locate(vm: &mut Vm, from: usize) -> bool:
+    if !vm.dfa:
+        return run(vm, from, false)
+    if !search(vm, from, false):
+        return false
+    if vm.slot_count > 2:
+        _ := run(vm, vm.start(), false)
+    true
+
 # The Pike VM (r-std-regex.find.leftmost-first): threads in priority
 # order, at most one per instruction at each position, starting at byte
 # `from`. When it finds a match, it returns true with the match's slots in
@@ -1443,20 +1893,15 @@ fn advance(vm: &mut Vm) -> bool:
 fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
     # A copy: the calls below change `vm` (r-ref.excl.write).
     program := vm.program
-    ops := program.ops
-    points := program.points
-    ranges := program.ranges
-    left := program.left
-    right := program.right
+    ops := &program.ops
+    points := &program.points
+    ranges := &program.ranges
+    left := &program.left
+    right := &program.right
     text := vm.text
     size := vm.size
     slot_count := vm.slot_count
     done := ops.len() - 1
-    dense := vm.dense
-    sparse := vm.sparse
-    slots := vm.slots
-    scratch := vm.scratch
-    found := vm.found
     filtered := vm.filtered
     # The sides of the current and the next thread list, and the length of
     # the current one.
@@ -1469,9 +1914,9 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
         if start < 0:
             return false
         at = usize(start)
-    restart(scratch, slot_count, at)
-    count = add_thread(vm, &program, current, 0, 0, at)
-    if earliest && has(dense, sparse, current, count, done):
+    restart(&mut vm.scratch, slot_count, at)
+    count = add_thread(vm, program, current, 0, 0, at)
+    if earliest && has(&vm.dense, &vm.sparse, current, count, done):
         return true
     let matched = false
     while true:
@@ -1488,7 +1933,7 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 point = scalar_point(text, at, after, lead)
         let index: usize = 0
         while index < count:
-            pc := dense[current + index]
+            pc := vm.dense[current + index]
             index = index + 1
             op := ops[pc]
             let step = false
@@ -1501,10 +1946,10 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 let slot: usize = 0
                 base := (current + pc) * slot_count
                 while slot < slot_count:
-                    found[slot] = slots[base + slot]
+                    vm.found[slot] = vm.slots[base + slot]
                     slot = slot + 1
                 if slot_count > 1:
-                    found[1] = i64(at)
+                    vm.found[1] = i64(at)
                 matched = true
                 break
             else if op <= 3 && point >= 0:
@@ -1521,10 +1966,10 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 let slot: usize = 0
                 base := (current + pc) * slot_count
                 while slot < slot_count:
-                    scratch[slot] = slots[base + slot]
+                    vm.scratch[slot] = vm.slots[base + slot]
                     slot = slot + 1
-                next_count = add_thread(vm, &program, next, next_count, pc + 1, after)
-                if earliest && has(dense, sparse, next, next_count, done):
+                next_count = add_thread(vm, program, next, next_count, pc + 1, after)
+                if earliest && has(&vm.dense, &vm.sparse, next, next_count, done):
                     return true
         if at >= size:
             break
@@ -1535,9 +1980,9 @@ fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
                 seed = start_from(vm, at, next_count > 0)
             if seed >= 0:
                 at = usize(seed)
-                restart(scratch, slot_count, at)
-                next_count = add_thread(vm, &program, next, next_count, 0, at)
-                if earliest && has(dense, sparse, next, next_count, done):
+                restart(&mut vm.scratch, slot_count, at)
+                next_count = add_thread(vm, program, next, next_count, 0, at)
+                if earliest && has(&vm.dense, &vm.sparse, next, next_count, done):
                     return true
             else if next_count == 0:
                 break
@@ -1655,7 +2100,7 @@ fn find_literal(text: string, literal: string, from: usize) -> i64:
         .None => -1
 
 # Sets the scratch slots for a thread that starts at byte `at`.
-fn restart(scratch: &mut List[i64], slot_count: usize, at: usize) -> void:
+fn restart(scratch: &mut UniqList[i64], slot_count: usize, at: usize) -> void:
     if slot_count == 0:
         return
     scratch[0] = i64(at)
@@ -1702,59 +2147,55 @@ fn add_thread(
     start: usize,
     at: usize,
 ) -> usize:
-    ops := program.ops
+    # Borrowed, not copied: a copy of each list would retain and release
+    # it on every call, a fifth of a search's time.
+    ops := &program.ops
     slot_count := vm.slot_count
-    dense := vm.dense
-    sparse := vm.sparse
-    slots := vm.slots
-    scratch := vm.scratch
     if ops[start] <= 4:
         # A thread that waits for a character, the common case, needs no
         # walk.
-        if has(dense, sparse, side, count, start):
+        if has(&vm.dense, &vm.sparse, side, count, start):
             return count
-        sparse[side + start] = count
-        dense[side + count] = start
+        vm.sparse[side + start] = count
+        vm.dense[side + count] = start
         base := (side + start) * slot_count
         let slot: usize = 0
         while slot < slot_count:
-            slots[base + slot] = scratch[slot]
+            vm.slots[base + slot] = vm.scratch[slot]
             slot = slot + 1
         return count + 1
-    left := program.left
-    right := program.right
+    left := &program.left
+    right := &program.right
     size := vm.size
-    stack := vm.stack
-    values := vm.values
     let length = count
-    stack[0] = i64(start)
+    vm.stack[0] = i64(start)
     let top: usize = 1
     while top > 0:
         top = top - 1
-        entry := stack[top]
+        entry := vm.stack[top]
         if entry < 0:
-            scratch[usize(-1 - entry)] = values[top]
+            vm.scratch[usize(-1 - entry)] = vm.values[top]
             continue
         # Follow the first choice at each step in place; the stack holds
         # only the second choices and the slots to put back.
         let pc = usize(entry)
         while true:
-            place := sparse[side + pc]
-            if place < length && dense[side + place] == pc:
+            place := vm.sparse[side + pc]
+            if place < length && vm.dense[side + place] == pc:
                 break
-            sparse[side + pc] = length
-            dense[side + length] = pc
+            vm.sparse[side + pc] = length
+            vm.dense[side + length] = pc
             length = length + 1
             op := ops[pc]
             if op <= 4:
                 base := (side + pc) * slot_count
                 let slot: usize = 0
                 while slot < slot_count:
-                    slots[base + slot] = scratch[slot]
+                    vm.slots[base + slot] = vm.scratch[slot]
                     slot = slot + 1
                 break
             if op == 5:
-                stack[top] = i64(right[pc])
+                vm.stack[top] = i64(right[pc])
                 top = top + 1
                 pc = left[pc]
             else if op == 6:
@@ -1762,10 +2203,10 @@ fn add_thread(
             else if op == 7:
                 slot := left[pc]
                 if slot < slot_count:
-                    stack[top] = -1 - i64(slot)
-                    values[top] = scratch[slot]
+                    vm.stack[top] = -1 - i64(slot)
+                    vm.values[top] = vm.scratch[slot]
                     top = top + 1
-                    scratch[slot] = i64(at)
+                    vm.scratch[slot] = i64(at)
                 pc = pc + 1
             else if op == 8:
                 if at != 0:
@@ -1776,6 +2217,438 @@ fn add_thread(
                     break
                 pc = pc + 1
     length
+
+# One direction of the lazy DFA, as regex-automata's hybrid DFA builds one
+# (src/hybrid/dfa.rs, Lazy::cache_next_state): a state is the list of
+# nodes the search's threads wait at, and its transitions are computed the
+# first time a search takes them. The forward DFA keeps a state's nodes in
+# priority order and drops those after `accept` (determinize::next drops
+# them for leftmost-first), so the last match it sees is the one the Pike
+# VM picks; the reverse DFA keeps every thread (MatchKind::All) and sorts
+# its nodes. A guard that fails becomes a marker, node `nodes + n`, when it
+# may still hold where the search ends: `$` going forward, `^` going back.
+#
+# The cache: state s's transition on byte class c is
+# `trans[s * stride + c]`, holding the next state's code: its row,
+# `s * stride`, plus `special()` when the state is dead, a match, or the
+# start the prefilter skips from, and `unknown()` before it is computed
+# (MoonBit's regex_engine/dfa.mbt marks the entries that stop its scan
+# loop the same way). Its nodes are `sets[set_at[s]]` up to
+# `sets[set_at[s + 1]]`, and `table` finds a state from its nodes by their
+# hash, with linear probing. The tables are uniquely owned lists in the
+# DFA's box, so a step reads one with no reference count. A step reads one
+# table entry; computing a transition costs time linear in the graph's
+# edges out of the state's nodes and in the nodes it reaches. When a new
+# state would take the entries in use past `limit`, the cache is cleared,
+# once in a search; when it fills again the search gives up and the Pike
+# VM runs it (Lazy::try_clear_cache gives up after a set count of clears
+# too).
+struct Dfa:
+    graph: Graph
+    nodes: usize
+    classes: UniqList[usize]
+    reps: List[i32]
+    stride: usize
+    accept: usize
+    forward: bool
+    late: i32
+    # The nodes of the start states: 0 where the edge guard holds (`^` at
+    # byte 0 going forward, `$` at the end going back), 1 elsewhere.
+    starts: List[List[usize]]
+    tagged: bool
+    limit: usize
+    cleared: bool
+    gave_up: usize
+    trans: UniqList[usize]
+    flags: UniqList[usize]
+    hashes: UniqList[u32]
+    sets: UniqList[usize]
+    set_at: UniqList[usize]
+    table: UniqList[usize]
+    start_codes: UniqList[usize]
+    # The closure's scratch: a sparse set of the nodes it has visited, and
+    # its stack, which never holds more than the graph's edges plus one.
+    dense: UniqList[usize]
+    sparse: UniqList[usize]
+    stack: UniqList[usize]
+
+# A transition not computed yet, and the mark of a state that stops the
+# scan loop.
+fn unknown() -> usize:
+    536870912
+
+fn special() -> usize:
+    268435456
+
+# The cache entries a DFA may use: 2^18, a mebibyte of 4-byte entries
+# for each direction, half of regex-automata's default two mebibytes.
+fn cache_limit() -> usize:
+    262144
+
+fn new_dfa(
+    graph: Graph,
+    built: &Automaton,
+    start: usize,
+    accept: usize,
+    forward: bool,
+    tagged: bool,
+) -> *mut Dfa:
+    count := graph.at.len() - 1
+    edges := graph.to.len()
+    let mut classes = UniqList::[usize].with_capacity(256)
+    for class in built.classes:
+        classes.push(class)
+    # Boxed because each regex shares its cache across its searches.
+    dfa := box(
+        Dfa {
+            graph: graph,
+            nodes: count,
+            classes: classes,
+            reps: built.reps,
+            stride: built.reps.len(),
+            accept: accept,
+            forward: forward,
+            late: if forward: +2 else: +1,
+            starts: [],
+            tagged: tagged,
+            limit: cache_limit(),
+            cleared: false,
+            gave_up: 0,
+            trans: UniqList::[usize].new(),
+            flags: UniqList::[usize].new(),
+            hashes: UniqList::[u32].new(),
+            sets: UniqList::[usize].new(),
+            set_at: UniqList::[usize].new(),
+            table: uniq_zeros(64),
+            start_codes: UniqList::[usize].new(),
+            dense: uniq_zeros(count),
+            sparse: uniq_zeros(count),
+            stack: uniq_zeros(edges + 1),
+        }
+    )
+    for variant in [true, false]:
+        let mut set: List[usize] = []
+        _ := close(dfa, &mut set, 0, start, forward && variant, !forward && variant)
+        if !forward:
+            set.sort()
+        dfa.starts.push(set)
+    reset(dfa)
+    dfa
+
+# Empties the cache but for the dead state, state 0, whose list is empty.
+fn reset(dfa: *mut Dfa) -> void:
+    dfa.trans.clear()
+    dfa.flags.clear()
+    dfa.hashes.clear()
+    dfa.sets.clear()
+    dfa.set_at.clear()
+    dfa.set_at.push(0)
+    let slot: usize = 0
+    while slot < dfa.table.len():
+        dfa.table[slot] = 0
+        slot += 1
+    dfa.start_codes.clear()
+    dfa.start_codes.push(unknown())
+    dfa.start_codes.push(unknown())
+    let empty: List[usize] = []
+    _ := intern(dfa, &empty)
+
+# Adds to `set` the nodes the threads reach from `node` without reading a
+# byte, in priority order, with `seen` nodes visited so far in this step,
+# and returns the count visited after. A node is kept when it reads a
+# byte, is `accept`, or is a guard's marker. Reaching `accept` going
+# forward ends the walk: the threads still on the stack rank below it.
+fn close(
+    dfa: *mut Dfa,
+    set: &mut List[usize],
+    seen: usize,
+    node: usize,
+    begin: bool,
+    end: bool,
+) -> usize:
+    graph := &dfa.graph
+    accept := dfa.accept
+    let count = seen
+    dfa.stack[0] = node
+    let top: usize = 1
+    while top > 0:
+        top -= 1
+        here := dfa.stack[top]
+        place := dfa.sparse[here]
+        if place < count && dfa.dense[place] == here:
+            continue
+        dfa.sparse[here] = count
+        dfa.dense[count] = here
+        count += 1
+        guard := graph.guards[here]
+        if (guard == 1 && !begin) || (guard == 2 && !end):
+            if guard == dfa.late:
+                set.push(dfa.nodes + here)
+            continue
+        if here == accept:
+            set.push(here)
+            if dfa.forward:
+                return count
+        let reads = false
+        let edge = graph.at[here + 1]
+        while edge > graph.at[here]:
+            edge -= 1
+            if graph.lows[edge] < 0:
+                dfa.stack[top] = graph.to[edge]
+                top += 1
+            else:
+                reads = true
+        if reads && here != accept:
+            set.push(here)
+    count
+
+# The code of the state whose nodes are `set`, added when it is new, or
+# `unknown()` when it does not fit in the cache.
+fn intern(dfa: *mut Dfa, set: &List[usize]) -> usize:
+    let hash: u32 = 2166136261
+    for node in set:
+        hash = (hash ^ u32(node)).wrapping_mul(16777619)
+    let mask = dfa.table.len() - 1
+    let slot = usize(hash) & mask
+    while dfa.table[slot] != 0:
+        id := dfa.table[slot] - 1
+        if dfa.hashes[id] == hash && same(&dfa.sets, dfa.set_at[id], dfa.set_at[id + 1], set):
+            return code_of(dfa, id)
+        slot = (slot + 1) & mask
+    stride := dfa.stride
+    if dfa.trans.len() + dfa.sets.len() + dfa.table.len() + set.len() + stride > dfa.limit:
+        return unknown()
+    id := dfa.hashes.len()
+    for node in set:
+        dfa.sets.push(node)
+    dfa.set_at.push(dfa.sets.len())
+    dfa.hashes.push(hash)
+    let column: usize = 0
+    while column < stride:
+        dfa.trans.push(unknown())
+        column += 1
+    let flag: usize = if set.len() == 0: 4 else: 0
+    if set.contains(&dfa.accept):
+        flag = flag | 1
+    if dfa.tagged && dfa.starts[1] == *set:
+        flag = flag | 2
+    dfa.flags.push(flag)
+    dfa.table[slot] = id + 1
+    if 2 * (id + 1) > dfa.table.len():
+        # Twice the size, and every state put back in its new place.
+        size := 2 * dfa.table.len()
+        mask = size - 1
+        dfa.table.clear()
+        while dfa.table.len() < size:
+            dfa.table.push(0)
+        let state: usize = 0
+        while state <= id:
+            let place = usize(dfa.hashes[state]) & mask
+            while dfa.table[place] != 0:
+                place = (place + 1) & mask
+            dfa.table[place] = state + 1
+            state += 1
+    code_of(dfa, id)
+
+fn code_of(dfa: *mut Dfa, id: usize) -> usize:
+    row := id * dfa.stride
+    if dfa.flags[id] != 0: row + special() else: row
+
+# Whether `list` from `start` up to `end` holds the nodes of `set`.
+fn same(list: &UniqList[usize], start: usize, end: usize, set: &List[usize]) -> bool:
+    if end - start != set.len():
+        return false
+    let index: usize = 0
+    while index < set.len():
+        if list[start + index] != set[index]:
+            return false
+        index += 1
+    true
+
+# The code of start state `variant`.
+fn start_code(dfa: *mut Dfa, variant: usize) -> usize:
+    known := dfa.start_codes[variant]
+    if known != unknown():
+        return known
+    set := dfa.starts[variant]
+    let found = intern(dfa, &set)
+    if found == unknown() && !dfa.cleared:
+        reset(dfa)
+        dfa.cleared = true
+        found = intern(dfa, &set)
+    if found != unknown():
+        dfa.start_codes[variant] = found
+    found
+
+# The code of the state that state `id` goes to on byte class `class`,
+# computed and kept, or `unknown()` when the cache gave out.
+fn transition(dfa: *mut Dfa, id: usize, class: usize) -> usize:
+    # Copies, which share the lists: `close` below changes `dfa`.
+    at := dfa.graph.at
+    to := dfa.graph.to
+    lows := dfa.graph.lows
+    highs := dfa.graph.highs
+    byte := dfa.reps[class]
+    let mut set: List[usize] = []
+    let seen: usize = 0
+    let index = dfa.set_at[id]
+    end := dfa.set_at[id + 1]
+    while index < end:
+        node := dfa.sets[index]
+        index += 1
+        if node >= dfa.nodes:
+            continue
+        let edge = at[node]
+        while edge < at[node + 1]:
+            low := lows[edge]
+            if low >= 0 && byte >= low && byte <= highs[edge]:
+                seen = close(dfa, &mut set, seen, to[edge], false, false)
+                if dfa.forward && set.len() > 0 && set[set.len() - 1] == dfa.accept:
+                    index = end
+                    break
+            edge += 1
+    if !dfa.forward:
+        set.sort()
+    found := intern(dfa, &set)
+    if found == unknown() && !dfa.cleared:
+        # The state left is gone with the cache, so the transition is not
+        # kept.
+        reset(dfa)
+        dfa.cleared = true
+        return intern(dfa, &set)
+    if found != unknown():
+        dfa.trans[id * dfa.stride + class] = found
+    found
+
+# Whether state `id` reaches `accept` where the search ends, there being
+# its markers' guards may hold.
+fn ends_matching(dfa: *mut Dfa, id: usize, begin: bool, end: bool) -> bool:
+    let mut set: List[usize] = []
+    let seen: usize = 0
+    let index = dfa.set_at[id]
+    while index < dfa.set_at[id + 1]:
+        node := dfa.sets[index]
+        if node >= dfa.nodes:
+            seen = close(dfa, &mut set, seen, node - dfa.nodes, begin, end)
+        index += 1
+    set.contains(&dfa.accept)
+
+# The end of the leftmost-first match that starts at byte `from` or later,
+# -1 when there is none, or -2 when the cache gave out; with `earliest`,
+# the end of the first match seen (hybrid/search.rs, find_fwd). Each byte
+# costs one table read until a special state, and the prefilter's literal
+# moves the search over the text a match cannot start in.
+fn forward_end(vm: &mut Vm, from: usize, earliest: bool) -> i64:
+    dfa := vm.forward
+    dfa.cleared = false
+    text := vm.text
+    size := vm.size
+    let at = from
+    if vm.filtered:
+        first := next_start(vm, from)
+        if first < 0:
+            return -1
+        at = usize(first)
+    let code = start_code(dfa, if at == 0: 0 else: 1)
+    stride := dfa.stride
+    stop := special()
+    let found: i64 = -1
+    while code != unknown():
+        let row = code
+        if code >= stop:
+            row = code - stop
+            flag := dfa.flags[row / stride]
+            if flag & 4 != 0:
+                return found
+            if flag & 1 != 0:
+                found = i64(at)
+                if earliest:
+                    return found
+            else if flag & 2 != 0:
+                # A start state with no thread older than itself: nothing
+                # is lost by moving on to where the literal allows a match.
+                skip := next_start(vm, at)
+                if skip < 0:
+                    return found
+                if usize(skip) > at:
+                    at = usize(skip)
+        while at < size:
+            next := dfa.trans[row + dfa.classes[usize(bytes_at(text, at))]]
+            if next >= stop:
+                break
+            row = next
+            at += 1
+        if at >= size:
+            if found != i64(size) && ends_matching(dfa, row / stride, size == 0, true):
+                found = i64(size)
+            return found
+        class := dfa.classes[usize(bytes_at(text, at))]
+        code = dfa.trans[row + class]
+        if code == unknown():
+            code = transition(dfa, row / stride, class)
+        at += 1
+    dfa.gave_up += 1
+    -2
+
+# The start of the match that ends at byte `end`, scanning back to `from`:
+# the reverse DFA keeps every thread, so the last match it sees is the
+# leftmost start (hybrid/regex.rs, try_search). -1 when the cache gave out.
+fn reverse_start(vm: &mut Vm, from: usize, end: usize) -> i64:
+    dfa := vm.reverse
+    dfa.cleared = false
+    text := vm.text
+    let code = start_code(dfa, if end == vm.size: 0 else: 1)
+    stride := dfa.stride
+    stop := special()
+    let found: i64 = -1
+    let at = end
+    while code != unknown():
+        let row = code
+        if code >= stop:
+            row = code - stop
+            flag := dfa.flags[row / stride]
+            if flag & 4 != 0:
+                return found
+            if flag & 1 != 0:
+                found = i64(at)
+        while at > from:
+            next := dfa.trans[row + dfa.classes[usize(bytes_at(text, at - 1))]]
+            if next >= stop:
+                break
+            row = next
+            at -= 1
+        if at <= from:
+            if found != i64(from) && ends_matching(dfa, row / stride, from == 0, from == vm.size):
+                found = i64(from)
+            return found
+        class := dfa.classes[usize(bytes_at(text, at - 1))]
+        code = dfa.trans[row + class]
+        if code == unknown():
+            code = transition(dfa, row / stride, class)
+        at -= 1
+    dfa.gave_up += 1
+    -1
+
+# One search from byte `from`: with `earliest`, whether any match is there,
+# as `is_match` asks; otherwise the leftmost-first match's bounds, put in
+# `vm.found`. The forward DFA finds the end and the reverse DFA the start,
+# and the Pike VM runs the search when either one's cache gives out.
+fn search(vm: &mut Vm, from: usize, earliest: bool) -> bool:
+    end := forward_end(vm, from, earliest)
+    if end == -2:
+        return run(vm, from, earliest)
+    if end < 0:
+        return false
+    if earliest:
+        return true
+    let start = i64(from)
+    if usize(end) > from:
+        start = reverse_start(vm, from, usize(end))
+        if start < 0:
+            return run(vm, from, earliest)
+    vm.found[0] = start
+    vm.found[1] = end
+    true
 
 # A reference in a replacement (r-std-regex.replace.expand).
 enum Reference:
@@ -1837,6 +2710,25 @@ fn expand(template: Pattern, groups: Captures) -> string:
     if literal < template.chars.len():
         pieces.push(template.piece(literal, template.chars.len()))
     pieces.join("")
+
+# Whether `template` refers to a group other than group 0.
+fn names_groups(template: Pattern) -> bool:
+    let at: usize = 0
+    while at < template.chars.len():
+        if template.has(at, '$'):
+            match reference_at(template, at):
+                .Some(found) =>
+                    match found.reference:
+                        .Index(value) =>
+                            if value > 0:
+                                return true
+                        .Name(_) => return true
+                        .Dollar => pass
+                    at = found.next
+                    continue
+                .None => pass
+        at += 1
+    false
 
 fn reference_text(reference: Reference, groups: Captures) -> string:
     match reference:
@@ -1919,3 +2811,297 @@ fn word_char(c: char) -> bool:
 impl Debug for Regex:
     fn debug(&self, out: *mut DebugWriter) -> void:
         out.debug_struct("Regex").field("pattern", self.text).finish()
+
+tests:
+    use std.rt.bytes.char_from_scalar
+    use std.testing.{assert, assert_equal}
+
+    it("byte classes split at each range's ends and nowhere else"):
+        regex := match Regex::new("[a-c]x"):
+            .Ok(regex) => regex
+            .Err(_) => panic("pattern")
+        classes := &regex.forward.classes
+        assert_equal(classes[usize(char_scalar('a'))], classes[usize(char_scalar('c'))])
+        assert(classes[usize(char_scalar('`'))] != classes[usize(char_scalar('a'))])
+        assert(classes[usize(char_scalar('c'))] != classes[usize(char_scalar('d'))])
+        assert(classes[usize(char_scalar('w'))] != classes[usize(char_scalar('x'))])
+        assert(classes[usize(char_scalar('x'))] != classes[usize(char_scalar('y'))])
+        assert_equal(classes[0], classes[usize(char_scalar('`'))])
+        assert_equal(classes[usize(char_scalar('d'))], classes[usize(char_scalar('w'))])
+        assert_equal(classes[255], classes[usize(char_scalar('y'))])
+        assert_equal(classes[255], 4)
+
+    it("a multi-byte character's bytes are classes of their own"):
+        regex := match Regex::new("é"):
+            .Ok(regex) => regex
+            .Err(_) => panic("pattern")
+        classes := &regex.forward.classes
+        assert(classes[0xC3] != classes[0xC2])
+        assert(classes[0xC3] != classes[0xC4])
+        assert(classes[0xA9] != classes[0xA8])
+        assert(classes[0xA9] != classes[0xAA])
+        assert_equal(classes[0xC4], classes[0xFF])
+
+    it("a class reads exactly the UTF-8 forms of its scalars"):
+        scalar := fn(point: i32) -> string:
+            match char_from_scalar(u32(point)):
+                .Some(c) => "$c"
+                .None => ""
+        # Whether the forward graph, from node 0 and with no prefix, reads
+        # all of `text` and ends at `Done`: a plain NFA run over its bytes.
+        reads := fn(pattern: string, text: string) -> bool:
+            regex := match Regex::new(pattern):
+                .Ok(regex) => regex
+                .Err(_) => return false
+            graph := regex.forward.graph
+            done := regex.program.ops.len() - 1
+            let mut current: List[usize] = [0]
+            let at: usize = 0
+            while true:
+                let mut seen: List[usize] = []
+                while current.len() > 0:
+                    node := current[current.len() - 1]
+                    current.truncate(current.len() - 1)
+                    if !seen.contains(&node):
+                        seen.push(node)
+                        let edge = graph.at[node]
+                        while edge < graph.at[node + 1]:
+                            if graph.lows[edge] < 0:
+                                current.push(graph.to[edge])
+                            edge += 1
+                if at == bytes_len(text):
+                    return seen.contains(&done)
+                byte := i32(bytes_at(text, at))
+                for node in seen:
+                    let edge = graph.at[node]
+                    while edge < graph.at[node + 1]:
+                        if (
+                            graph.lows[edge] >= 0
+                            && byte >= graph.lows[edge]
+                            && byte <= graph.highs[edge]
+                        ):
+                            current.push(graph.to[edge])
+                        edge += 1
+                at += 1
+            false
+        probes := [
+            +0,
+            +9,
+            +10,
+            +11,
+            +126,
+            +127,
+            +128,
+            +129,
+            +2046,
+            +2047,
+            +2048,
+            +2049,
+            +4095,
+            +4096,
+            +55295,
+            +57344,
+            +65534,
+            +65535,
+            +65536,
+            +65537,
+            +262143,
+            +262144,
+            +1114110,
+            +1114111,
+        ]
+        bounds := [
+            (+128, +1114111),
+            (+2049, +65534),
+            (+127, +65536),
+            (+4097, +262142),
+            (+129, +2048),
+            (+65537, +1114110),
+            (+10, +10),
+        ]
+        for bound in bounds:
+            low := scalar(bound._0)
+            high := scalar(bound._1)
+            for point in probes:
+                inside := point >= bound._0 && point <= bound._1
+                text := scalar(point)
+                assert_equal(reads("[$low-$high]", text), inside, reason="[$low-$high] on $point")
+                assert_equal(
+                    reads("[^$low-$high]", text),
+                    !inside,
+                    reason="[^$low-$high] on $point",
+                )
+        for point in probes:
+            assert_equal(reads(".", scalar(point)), point != 10, reason=". on $point")
+        assert(!reads(".", ""))
+        assert(!reads(".", "ab"))
+        assert(!reads("[^a]", "a"))
+        assert(reads("[ab][é€]", "a€"))
+
+    it("the lazy DFA finds what the Pike VM finds from every start"):
+        cases := [
+            ("a+", "baab"),
+            ("a+?", "baab"),
+            ("(a|ab)(c|bcd)", "xabcd"),
+            ("x*", "axxb"),
+            ("^a", "aba"),
+            ("a$", "aba"),
+            ("^$", ""),
+            ("\$", "ab"),
+            ("^", "ab"),
+            ("b|^a", "ab"),
+            ("a|\$", "bab"),
+            ("\$a", "a"),
+            ("a^b", "ab"),
+            ("", "é"),
+            ("é+", "aéé😀"),
+            ("[^a]+", "aé€b"),
+            ("(?:ab)*b", "abab"),
+            ("a{2,3}", "aaaaa"),
+            ("a{2,}?", "aaaa"),
+            ("\\w+@\\w+", "x ab@cd e"),
+            ("(é|😀)+€", "é😀€"),
+            (".\$|^.", "é\n😀"),
+            ("b\$|a+", "aab"),
+            ("\\s*\$", "a \n"),
+        ]
+        for case in cases:
+            regex := match Regex::new(case._0):
+                .Ok(regex) => regex
+                .Err(_) => panic("pattern ${case._0}")
+            text := case._1
+            for (from, _) in (text + "!").char_indices():
+                let mut fast = new_vm(&regex, text, 2)
+                let mut slow = new_vm(&regex, text, 2)
+                matched := run(&mut slow, from, false)
+                assert_equal(search(&mut fast, from, false), matched, reason="${case._0} at $from")
+                if matched:
+                    assert_equal(fast.found[0], slow.found[0], reason="${case._0} start at $from")
+                    assert_equal(fast.found[1], slow.found[1], reason="${case._0} end at $from")
+                let mut any = new_vm(&regex, text, 0)
+                assert_equal(
+                    search(&mut any, from, true),
+                    matched,
+                    reason="${case._0} any at $from",
+                )
+
+    it("a full cache clears once in a search, then the Pike VM runs it"):
+        text := "abaababbbaabababbbaaabbabababbaabbbab"
+        # The first pattern's forward DFA grows a state for each set of
+        # places an `a` was seen at, and the second's reverse DFA does.
+        for (pattern, ahead) in [("[ab]*a[ab]{4}", true), ("[ab]{4}a[ab]*", false)]:
+            regex := match Regex::new(pattern):
+                .Ok(regex) => regex
+                .Err(_) => panic("pattern $pattern")
+            for limit in [140, 240, 1000]:
+                regex.forward.limit = limit
+                regex.reverse.limit = limit
+                let from: usize = 0
+                while from < bytes_len(text):
+                    let mut fast = new_vm(&regex, text, 2)
+                    let mut slow = new_vm(&regex, text, 2)
+                    matched := run(&mut slow, from, false)
+                    assert_equal(
+                        search(&mut fast, from, false),
+                        matched,
+                        reason="$pattern at $from",
+                    )
+                    if matched:
+                        assert_equal(fast.found[0], slow.found[0], reason="$pattern at $from")
+                        assert_equal(fast.found[1], slow.found[1], reason="$pattern at $from")
+                    from += 3
+            gave_up := if ahead: regex.forward.gave_up else: regex.reverse.gave_up
+            assert(gave_up > 0, reason="$pattern gave up")
+
+    it("the lazy DFA agrees with the Pike VM on generated patterns and texts"):
+        # A seeded generator (MINSTD), so each run checks the same cases.
+        rng := box::[List[u64]]([u64(20261122)])
+        draw := fn(bound: usize) -> usize:
+            rng[0] = rng[0] * 48271 % 2147483647
+            usize(rng[0] >> 4) % bound
+        pick := fn(items: List[string]) -> string: items[draw(items.len())]
+        simple := fn() -> string:
+            match draw(10):
+                0 => "."
+                1 => "^"
+                2 => "\$"
+                3 => pick(["\\d", "\\w", "\\W", "\\s"])
+                4 => pick(["[ab]", "[^a]", "[a-é]", "[é-😀]", "[^\\n€]", "[b€]"])
+                _ => pick(["a", "b", "é", "€", "😀", "\\n"])
+        suffix := fn() -> string:
+            lazy := if draw(2) == 0: "?" else: ""
+            low := draw(3)
+            match draw(10):
+                4 => "*" + lazy
+                5 => "+" + lazy
+                6 => "?" + lazy
+                7 => "{$low}" + lazy
+                8 => "{$low,}" + lazy
+                9 => "{$low,${low + draw(3)}}" + lazy
+                _ => ""
+        flat := fn() -> string:
+            let mut branches: List[string] = []
+            count := 1 + draw(2)
+            while branches.len() < count:
+                let piece = ""
+                for _ in 0..draw(4):
+                    piece = piece + simple() + suffix()
+                branches.push(piece)
+            branches.join("|")
+        let cases: usize = 0
+        while cases < 400:
+            let mut branches: List[string] = []
+            count := 1 + draw(3)
+            while branches.len() < count:
+                let piece = ""
+                for _ in 0..draw(5):
+                    kind := draw(4)
+                    atom := if kind == 0:
+                        "(" + flat() + ")"
+                    else if kind == 1:
+                        "(?:" + flat() + ")"
+                    else:
+                        simple()
+                    piece = piece + atom + suffix()
+                branches.push(piece)
+            pattern := branches.join("|")
+            let mut parts: List[string] = []
+            for _ in 0..draw(13):
+                parts.push(pick(["a", "b", "ab", "é", "€", "😀", "\n", "x"]))
+            text := parts.join("")
+            regex := match Regex::new(pattern):
+                .Ok(regex) => regex
+                .Err(error) => panic("pattern $pattern: $error")
+            for (from, _) in (text + "!").char_indices():
+                let mut fast = new_vm(&regex, text, 2)
+                let mut slow = new_vm(&regex, text, 2)
+                matched := run(&mut slow, from, false)
+                assert_equal(search(&mut fast, from, false), matched, reason="$pattern at $from")
+                if matched:
+                    assert_equal(fast.found[0], slow.found[0], reason="$pattern start at $from")
+                    assert_equal(fast.found[1], slow.found[1], reason="$pattern end at $from")
+                let mut any = new_vm(&regex, text, 0)
+                assert_equal(search(&mut any, from, true), matched, reason="$pattern any at $from")
+            cases += 1
+
+    it("replacements take groups from the Pike VM only when the template names one"):
+        regex := match Regex::new("(?P<user>[a-z]+)@([a-z]+)"):
+            .Ok(regex) => regex
+            .Err(_) => panic("pattern")
+        text := "to ann@x and bo@yz."
+        assert_equal(regex.replace_all(text, "<\$0>"), "to <ann@x> and <bo@yz>.")
+        assert_equal(regex.replace_all(text, "\${user}"), "to ann and bo.")
+        assert_equal(regex.replace(text, "\$2-\$1 \$\$"), "to x-ann \$ and bo@yz.")
+        assert_equal(regex.replace(text, "\$9"), "to  and bo@yz.")
+        assert_equal(regex.replace("none", "\$1"), "none")
+        assert_equal(regex.split(text), ["to ", " and ", "."])
+
+    it("a call while the regex's VM is busy searches with a VM of its own"):
+        regex := match Regex::new("b+"):
+            .Ok(regex) => regex
+            .Err(_) => panic("pattern")
+        regex.idle.busy = true
+        assert_equal(regex.find_all("abbcb").len(), 2)
+        assert(regex.idle.busy)
+        regex.idle.busy = false
+        assert_equal(regex.find("abbcb"), .Some(Match { start: 1, end: 3, text: "bb" }))

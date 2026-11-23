@@ -1,0 +1,21 @@
+# Blocks with the same member lines don't warn.
+use std.structure.Structure
+use std.serde.Serialize
+
+struct Session:
+    id: i64
+    cache: i64 = 0
+
+impl Debug for Session by Structure:
+    cache = pass
+
+impl Serialize for Session by Structure:
+    cache = pass
+
+# A lone block doesn't warn.
+struct Lone:
+    id: i64
+    cache: i64 = 0
+
+impl Debug for Lone by Structure:
+    cache = pass

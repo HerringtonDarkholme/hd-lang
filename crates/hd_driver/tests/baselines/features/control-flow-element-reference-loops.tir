@@ -102,7 +102,7 @@ fn shouted(prices: List[string]) -> List[string]:
 >   local $4 p: &mut string [read assigned]
 >   %0 = Read [$0] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %29 = Block %28 : List[string]
+>   %30 = Block %29 : List[string]
     for p in &mut out:
 >   %2 = Read [$1] : List[string]
 >   %3 = Intrinsic ListLen [%2] : usize
@@ -117,18 +117,19 @@ fn shouted(prices: List[string]) -> List[string]:
 >   %12 = Store [$3] %11 : ()
 >   %13 = Ref mut local [%2 [%9]] : &mut string
 >   %17 = Block - : ()
->   %18 = Store [$4] %13 : ()
->   %20 = Block - : never
->   %21 = Match %13 [%20 %17] : ()
->   %22 = Block - : ()
->   %23 = Break L0 - : never
->   %24 = Block - : ()
->   %25 = If %8 [%22 %24] : ()
->   %26 = Block - : ()
->   %27 = Loop %26 - : ()
+>   %18 = Read [%13] : &mut string
+>   %19 = Store [$4] %18 : ()
+>   %21 = Block - : never
+>   %22 = Match %13 [%21 %17] : ()
+>   %23 = Block - : ()
+>   %24 = Break L0 - : never
+>   %25 = Block - : ()
+>   %26 = If %8 [%23 %25] : ()
+>   %27 = Block - : ()
+>   %28 = Loop %27 - : ()
         *p = *p + "!"
 >   %14 = Read [*$4] : string
 >   %15 = Intrinsic StrConcat [%14 "!"] : string
 >   %16 = Store [*$4] %15 : ()
     out
->   %28 = Read [$1] : List[string]
+>   %29 = Read [$1] : List[string]

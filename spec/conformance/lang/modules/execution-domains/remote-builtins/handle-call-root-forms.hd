@@ -1,0 +1,23 @@
+# test: handle_call! serves a root of a generic remote trait, and a root type parameter
+# Spec 10 Remote Built-Ins: module.remote.handle-call, module.remote.handle-call.root.
+use std.marker.Wire
+use std.remote.{CrossError, Home, Remote, Rooted, handle_call}
+
+enum StoreError:
+    Missing
+
+trait TypedStore[T < Wire] < Remote:
+    fn get!(&mut self, key: string) -> Result[T, StoreError | CrossError]
+
+struct Names:
+    first: string
+
+impl TypedStore[string] for Names:
+    fn get!(&mut self, key: string) -> Result[string, StoreError]:
+        .Ok(self.first)
+
+fn answer!(home: &mut Home[Names, string], rooted: &mut Rooted[Names], frame: List[u8]) -> List[u8]:
+    handle_call!(home, rooted, frame)
+
+fn answer_any![S](home: &mut Home[S, string], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]:
+    handle_call!(home, rooted, frame)

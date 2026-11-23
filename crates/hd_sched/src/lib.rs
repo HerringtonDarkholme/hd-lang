@@ -1,15 +1,12 @@
 #![forbid(unsafe_code)]
 //! `hd_sched`: the task graph and its executors (`crates/hd_sched/DESIGN.md` §6.1 to
-//! §6.4; `docs/compiler/data-structures.md` §3.21): serial (FIFO, priority or shuffled),
-//! stepping (the browser's `run_for`), and the rayon pool (feature
-//! `threads`). Every executor runs the same task signature, `Exec`: a task
+//! §6.3; `docs/compiler/data-structures.md` §3.21): serial (FIFO, priority or shuffled)
+//! and the rayon pool (feature `threads`). Every executor runs the same task signature, `Exec`: a task
 //! gets its id, its kind and a `&dyn Spawn` (SK-13).
 
 use std::cell::RefCell;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(feature = "threads")]
 pub mod pool;
@@ -96,7 +93,6 @@ pub enum State {
     Ready,
     Running,
     Done,
-    Cancelled,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -153,7 +149,7 @@ pub struct TaskGraph {
     ready: ReadyQueue,
     /// The readinesses so far: the next entry's number.
     seq: u64,
-    /// The tasks done or cancelled, so `unfinished` is one subtraction.
+    /// The tasks done, so `unfinished` is one subtraction.
     finished: usize,
     /// Ready entries pushed, popped, dropped dead or moved to another
     /// queue shape, and edges added: the queue's counted work.
@@ -169,20 +165,6 @@ pub enum SerialOrder {
     Priority,
     /// A seeded random choice: finds order dependence without threads (§8.1).
     Shuffled(u64),
-}
-
-/// The cancellation flag (§6.4): checked when a task starts.
-#[derive(Clone, Default, Debug)]
-pub struct CancelFlag(Arc<AtomicBool>);
-
-impl CancelFlag {
-    pub fn cancel(&self) {
-        self.0.store(true, Ordering::Release);
-    }
-    #[must_use]
-    pub fn is_cancelled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
-    }
 }
 
 impl TaskGraph {
@@ -305,7 +287,7 @@ impl TaskGraph {
             matches!(self.nodes[to.0].state, State::Waiting | State::Ready),
             "edge into a started task"
         );
-        if matches!(self.nodes[from.0].state, State::Done | State::Cancelled) {
+        if self.nodes[from.0].state == State::Done {
             return;
         }
         self.work += 1;
@@ -371,7 +353,7 @@ impl TaskGraph {
 
     /// Marks a task done and readies successors whose last dependency it was.
     pub fn complete(&mut self, id: TaskId) {
-        if !matches!(self.nodes[id.0].state, State::Done | State::Cancelled) {
+        if self.nodes[id.0].state != State::Done {
             self.finished += 1;
         }
         self.nodes[id.0].state = State::Done;
@@ -385,19 +367,7 @@ impl TaskGraph {
         }
     }
 
-    /// Marks every unfinished task cancelled (§6.4).
-    pub fn cancel_all(&mut self) {
-        for n in &mut self.nodes {
-            if n.state != State::Done {
-                n.state = State::Cancelled;
-            }
-        }
-        self.finished = self.nodes.len();
-        self.ready = ReadyQueue::default();
-    }
-
-    /// The tasks neither done nor cancelled: one subtraction, since the
-    /// stepping executor asks after every slice.
+    /// The tasks not done: one subtraction.
     #[must_use]
     pub fn unfinished(&self) -> usize {
         self.nodes.len() - self.finished
@@ -462,53 +432,9 @@ impl SerialScheduler {
     }
 }
 
-/// What a stepping slice ended with.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Progress {
-    Done,
-    Yielded { ran: usize },
-    Cancelled,
-}
-
-/// The stepping executor (§6.2): the serial executor in slices, so the
-/// browser worker can return to JavaScript between them.
-#[derive(Clone, Debug)]
-pub struct SteppingScheduler {
-    pub order: SerialOrder,
-    pub cancel: CancelFlag,
-}
-
-impl SteppingScheduler {
-    /// Runs at most `max_steps` tasks, then returns.
-    pub fn run_for(&mut self, g: &mut TaskGraph, max_steps: usize, exec: &Exec<'_>) -> Progress {
-        let mut ran = 0;
-        while ran < max_steps {
-            if self.cancel.is_cancelled() {
-                g.cancel_all();
-                return Progress::Cancelled;
-            }
-            let Some(id) = g.pop(self.order) else {
-                return Progress::Done;
-            };
-            let kind = g.kind(id);
-            exec(id, kind, &SerialSpawn(RefCell::new(g)));
-            g.complete(id);
-            ran += 1;
-        }
-        if g.unfinished() == 0 {
-            Progress::Done
-        } else {
-            Progress::Yielded { ran }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        CancelFlag, ExtTask, Progress, SerialOrder, SerialScheduler, Spawn, State,
-        SteppingScheduler, TaskGraph, TaskId, TaskKind,
-    };
+    use super::{ExtTask, SerialOrder, SerialScheduler, Spawn, State, TaskGraph, TaskId, TaskKind};
     use std::sync::Mutex;
 
     #[test]
@@ -691,39 +617,5 @@ mod tests {
         g.complete(late);
         assert_eq!(g.pop(SerialOrder::Fifo), None);
         assert_eq!(g.unfinished(), 0);
-    }
-
-    // A task completed after `cancel_all` (the caller ran it before the
-    // cancel) is counted finished once.
-    #[test]
-    fn completing_a_cancelled_task_counts_it_once() {
-        let mut g = diamond();
-        let first = g.pop(SerialOrder::Priority).expect("ready");
-        g.cancel_all();
-        assert_eq!(g.unfinished(), 0);
-        g.complete(first);
-        assert_eq!(g.unfinished(), 0);
-        assert_eq!(g.pop(SerialOrder::Priority), None);
-    }
-
-    #[test]
-    fn stepping_yields_and_cancels() {
-        let mut g = diamond();
-        let cancel = CancelFlag::default();
-        let mut s = SteppingScheduler {
-            order: SerialOrder::Fifo,
-            cancel: cancel.clone(),
-        };
-        let noop = |_: TaskId, _: TaskKind, _: &dyn Spawn| {};
-        assert_eq!(s.run_for(&mut g, 2, &noop), Progress::Yielded { ran: 2 });
-        cancel.cancel();
-        assert_eq!(s.run_for(&mut g, 2, &noop), Progress::Cancelled);
-        assert_eq!(g.unfinished(), 0);
-        let mut g = diamond();
-        let mut s = SteppingScheduler {
-            order: SerialOrder::Fifo,
-            cancel: CancelFlag::default(),
-        };
-        assert_eq!(s.run_for(&mut g, 100, &noop), Progress::Done);
     }
 }

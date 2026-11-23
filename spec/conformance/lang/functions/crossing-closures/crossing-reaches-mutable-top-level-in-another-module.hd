@@ -1,0 +1,12 @@
+# test: a crossing closure that calls a function of another module of its package, which writes that module's let binding, is rejected
+# Spec 07 Crossing Closures: fn.crossing.global.
+# fixture-package-tree: crossing-captures/src/main.hd
+use pkg.counter.next
+use std.marker.Wire
+
+fn run(code: fn() -> i32 + Wire) -> i32:
+    code()
+
+pub fn main() -> void $ Console:
+    n := run(fn() -> i32: next()) # diagnostic: crossing-top-level-binding
+    println("$n")

@@ -92,6 +92,8 @@ pub struct Host {
     /// The host calls made, not served from a replay's record, but for the
     /// `hd:prim` functions: what a session's tests count.
     pub(crate) calls: u64,
+    /// `Workers` and `WorkerPort` (`std-remote.workers.host`).
+    pub(crate) workers: crate::workers::State,
 }
 
 impl Host {
@@ -132,6 +134,7 @@ impl Host {
             replay: None,
             muted: false,
             calls: 0,
+            workers: crate::workers::State::default(),
         }
     }
 

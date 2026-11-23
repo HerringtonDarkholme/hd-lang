@@ -16,3 +16,193 @@ fn partial(flag: bool):
         finish()
 struct Fixed[T < Copy, N < const usize]:
     pass
+# `using!` separates the effect marker from the binding
+fn f!():
+    using! value = open!()
+# keyword spacing distinguishes postfix and leading variants
+struct Item:
+    x: bool
+impl Item:
+    fn f(&self, x: bool):
+        self.x
+        true.eq(x)
+        return .None
+# self receivers glue to index brackets
+impl Items:
+    fn first(self):
+        self[0]
+    fn first_type():
+        Self[0]
+# range patterns keep a space before their guard
+fn f(a: i32, t: (i32, i32)) -> i32:
+    match a:
+        20.. if a % 2 == 0 => 1
+        -3.. if a > 0 => 2
+        ..5 if a > 0 => 3
+        ..=-5 if a < 0 => 4
+        6..8 if a > 0 => 5
+        9..=12 if a > 0 => 6
+        _ => 7
+    match t:
+        (20.., ..=3) if a > 0 => 8
+        _ => 9
+# keyword and reference operands keep lexical space
+fn f(xs: List[i32], v: i32):
+    return [v]
+fn g():
+    for x in [1, 2]:
+        pass
+    match [1].cmp([2]):
+        _ => pass
+    edit := &mut [v]
+# adjacent dereferences do not become a power operator
+fn f(x: i32):
+    x ** * *x
+# type operators use node-directed spacing
+fn order[T < Ord & Hash](value: T) -> void $ Console + FsRead:
+    pass
+impl[T] Show for *T:
+    fn show(&self) -> string:
+        "x"
+# a typed data literal keeps the space before its brace
+fn f[T](o: T):
+    Walker::[T] { other: o }
+# a statement `if` looks only at its direct else clauses
+fn f():
+    if ready:
+        log(if value: +1 else: +2)
+# binding and assignment values may keep inline `if` expressions
+fn f(c: bool):
+    let close: u8 = if c: 125 else: 93
+    x = if c: +1 else: +2
+# short binary binding values stay on their statement line
+fn f(value: u32):
+    _ := value >= 0
+    _ := 0 <= value
+# `=` and brace spacing have one canonical spelling
+fn f(c: &Clock, o: Item, store: Store[Item = string]):
+    assert(false, reason="x")
+    $.with(Clock=c):
+        Point { x: 0 }
+    match o:
+        Point { x: value } => value
+# negative impls and relaxed bounds keep their markers
+impl !Copy for Photo
+impl[T] !Copy for Pair[T]
+fn hold[T < Eq & ?Copy](x: T):
+    pass
+trait Disposable < ?Copy:
+    fn dispose(&mut self)
+fn f!():
+    g!(1)
+# a reference in a bound's type argument keeps its ampersand tight
+fn fill['a, S < Store[&'a Point] & Eq](s: &mut S):
+    pass
+trait Shelf < Store[(i32, &mut Point)]:
+    fn size(&self) -> i32
+# an impl parameter list keeps a space before a parenthesized self type
+impl['a, T] (&'a T)?:
+    pub fn copied(self) -> T:
+        *self
+impl[T] (T, T):
+    fn first(self) -> T:
+        self._0
+fn f():
+    g[i32](1)
+# a counted reference operand of a reference type keeps its spacing
+fn f(a: &*T, b: &*mut T, c: &mut *T, d: &(*T)) -> void:
+    pass
+# the empty row is written `$()` in every position
+type NoRow = $()
+trait Hook[$ R = $()]:
+    fn run(&self) -> void $ R
+fn invoke(callback: fn() -> void $()) -> void $():
+    let ctx: $.Context[$()] = $.context()
+    let keyed: $.Context[$ Db] = $.context()
+    let slot: Box[$()]? = .None
+    callback()
+fn bound[F < Fn[(i32,), i32, $()]](f: F) -> void:
+    run := fn() -> void $(): pass
+# duration units keep their spelling, and line ends are trimmed
+fn durations():
+    [500ms, 30s, 1_500ms, 1h + 30min]
+# a word after an optional type keeps its space
+trait Seq[T]:
+    fn top(self) -> T? where T < Ord
+# every reference form formats as written
+fn demo(r: &mut Point, xs: List[&Point], f: fn(&Point) -> &mut Point) -> &Point?:
+    view := &xs[0].x
+    edit := &mut r.y
+    made := &Point { x: 1, y: 2 }
+    *r = *view
+    *r.x += 1
+    both := a && b & &c * *d ^ e
+    .None
+# `mut` before a parameter name formats as written
+impl S:
+    fn put(&mut self, mut n: i32, f: fn(i32) -> i32) -> S:
+        g := fn(mut a: i32): a
+        self
+# union types space their pipes and keep nesting parentheses
+type Flat = A | B | C
+type NestedLeft = (A | B) | C
+type NestedRight = A | (B | C)
+type NestedBoth = (A | B) | (C | D)
+type NestedDeep = ((A | B) | C) | D
+type Applied = Box[A] | B
+# short groups join and drop their optional trailing commas
+fn f(value: i64):
+    pass
+fn f():
+    Item { value: +1 }
+# a parenthesized value and a single context argument never become tuples
+fn f():
+    (+1)
+fn f(ctx: $.Context[$ Console]):
+    pass
+fn f():
+    $.Context[$ Console]
+# the tail `if` of a function is classified by syntax only
+fn inferred(flag: bool):
+    if flag: +1 else: +2
+fn explicit(flag: bool) -> void:
+    if flag:
+        finish()
+    else:
+        fail()
+fn incomplete(flag: bool):
+    if flag:
+        finish()
+# inline grammar boundaries stay parseable
+fn sum_to(limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: 0 else: n + sum(n - 1)
+    sum(limit)
+fn read(value: i32?) -> i32?:
+    let .Some(found) = value else:
+        return .None
+    .Some(found)
+fn doubled(xs: List[i32]):
+    [
+        for x in xs:
+            x * 2
+    ]
+# lexical separation and named-argument spacing are canonical
+fn f(a: i32):
+    left := & &a
+    assert_equal(left, &a, reason="same")
+# a `pass` suite keeps its inline or vertical shape
+struct Empty: pass
+struct Hollow:
+    pass
+# authored blank lines are bounded, and generated indentation is four spaces
+fn f():
+    first()
+
+    second()
+
+fn g():
+    pass
+# line ends and the file's end are trimmed; a literal's spaces stay
+fn main() -> void $ Console:
+    println("a  ")

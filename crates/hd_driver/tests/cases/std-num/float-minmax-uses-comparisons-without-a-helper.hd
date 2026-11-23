@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: release | release checked
+# expected: each operation uses two float comparisons and selects an input, with no helper call or allocation.
+fn minimum32(left: f32, right: f32) -> f32:
+    left.min(right)
+
+fn maximum32(left: f32, right: f32) -> f32:
+    left.max(right)
+
+fn minimum64(left: f64, right: f64) -> f64:
+    left.min(right)
+
+fn maximum64(left: f64, right: f64) -> f64:
+    left.max(right)

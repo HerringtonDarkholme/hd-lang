@@ -27,10 +27,12 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 - [Decimal](DECIMAL.md): parked by the owner on 2026-11-11 until after the ticket push and reference-counting work; the earlier fixed 128-bit package proposal is retained as a dated record (#840).
 - [Function Values](FUNCTION_VALUES.md): proposal 2026-11-21, not accepted: a capture-free one-word `fn(..)`, a type per closure taken by `F < FnMut(..)`, and counted `*mut dyn FnMut(..)` for stored capturing closures (#1436 Route A, #1449 on top).
 - [Execution Boundaries](EXECUTION_BOUNDARIES.md): accepted by the owner 2026-11-21 (proposed 2026-11-02): moving code and data between execution domains on four parts: `Send` and `Wire` bounds, `Remote` interfaces whose objects are reached as `*mut dyn T`, `CrossError` kept apart as `E | CrossError`, and one build per target; every domain runs the same program; domains are run-time values and their kinds are std library; with an 18-case stress test (#166, PR #1139).
+- [Execution Boundaries Plan](EXECUTION_BOUNDARIES_PLAN.md): the staged compiler plan for #2288, stages 1 to 6 with sites, line prices and per-run costs, and the readings stage 0 wrote into the spec for the owner to confirm.
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
 
 ### Tooling
 
+- [Warm Check Cost](WARM_CHECK_COST.md): design exploration for #1801 draft 89 (owner decision): measurements of a warm `hd check` at 500 and 2,000 files, a survey of change detection in git, Go, Zig, TypeScript, Swift, rustc, Salsa, Bazel, Buck2, Ninja and Watchman, and five options from a content-checked racy rule to a resident checker.
 - [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes; every version is compared with the last stable release (#28).
 
 ### Memory model and performance

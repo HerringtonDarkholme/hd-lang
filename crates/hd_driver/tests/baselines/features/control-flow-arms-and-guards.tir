@@ -18,9 +18,9 @@ fn pick(t: Tag) -> string:
 >   local $3 r: string [read assigned captured]
 >   local $4 r: string [read assigned]
 >   %0 = Read [$0] : Tag
->   %38 = Block - : never
->   %39 = Match %0 [%38 %6 %14 %16 %17] : string
->   %40 = Block %39 : string
+>   %39 = Block - : never
+>   %40 = Match %0 [%39 %6 %14 %16 %17] : string
+>   %41 = Block %40 : string
         .Named(n) if n.len() > 3 => n
 >   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
@@ -31,7 +31,7 @@ fn pick(t: Tag) -> string:
 >   %18 = Read [%0 as #0 .0] : string
 >   %19 = Store [$1] %18 : ()
 >   %25 = Block - : never
->   %37 = SwitchTag %0 [#0 %25 %36] : never
+>   %38 = SwitchTag %0 [#0 %25 %37] : never
         .Pair(right=r, left=l) if l.len() > r.len() => l
 >   %7 = Ref local [$2] : &string
 >   %8 = Call std/text/impl string.len[] (%7) : usize
@@ -42,13 +42,14 @@ fn pick(t: Tag) -> string:
 >   %13 = Read [$2] : string
 >   %14 = Block %13 : string
 >   %26 = Read [%0 as #1 .0] : string
->   %27 = Read [%0 as #1 .1] : string
->   %28 = Store [$2] %26 : ()
->   %29 = Store [$3] %27 : ()
+>   %27 = Store [$2] %26 : ()
+>   %28 = Read [%0 as #1 .1] : string
+>   %29 = Store [$3] %28 : ()
         .Pair(left=_, right=r) => r
 >   %15 = Read [$4] : string
 >   %16 = Block %15 : string
->   %32 = Store [$4] %27 : ()
+>   %32 = Read [%0 as #1 .1] : string
+>   %33 = Store [$4] %32 : ()
         _ => "short"
 >   %17 = Block "short" : string
 

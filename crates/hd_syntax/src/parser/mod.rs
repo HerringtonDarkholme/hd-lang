@@ -344,6 +344,9 @@ pub(crate) struct Parser<'t> {
     opaque_result: bool,
     /// An opaque bound cannot itself declare another opaque occurrence.
     opaque_bound: bool,
+    /// A named function's parameter type that starts with `fn` may end
+    /// its result with a marker bound (`grammar.fn.crossing-parameter`).
+    crossing_bound: bool,
     /// `_` stands for an inferred type inside a `let` annotation and an
     /// expression's type-argument list (`types.generic.placeholder.local`).
     infer_types: bool,
@@ -351,6 +354,12 @@ pub(crate) struct Parser<'t> {
     /// Reserved words the current top-level item tried to bind with `:=`:
     /// after that one error, the word reads as the name it was meant as.
     bound_keywords: Vec<TokenKind>,
+    /// The type parameter names the last generic parameter list declared,
+    /// and those of the trait or implementation whose members are being
+    /// parsed: a method's `where` clause names only the latter
+    /// (`trait.where.subject`).
+    declared_generics: Vec<String>,
+    enclosing_generics: Vec<String>,
 }
 
 impl<'t> Parser<'t> {
@@ -385,9 +394,12 @@ impl<'t> Parser<'t> {
             links: 0,
             opaque_result: false,
             opaque_bound: false,
+            crossing_bound: false,
             infer_types: false,
             attached: vec![false; toks.com_kind.len()],
             bound_keywords: Vec::new(),
+            declared_generics: Vec::new(),
+            enclosing_generics: Vec::new(),
         }
     }
 

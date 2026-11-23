@@ -22,6 +22,7 @@ use hd_tir::ir::{
     Body, BodyKind, Callee, Phase, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, Tag,
     TirBuilder, TirSink, VerifyError, local_flags, ref_word,
 };
+use hd_types::AdtId;
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 
 use crate::{
@@ -180,19 +181,22 @@ impl Counts {
             TyData::Fn { .. } => at(1, true),
             TyData::Context(_) => at(0, true),
             TyData::Canon(_) if hd_mono::is_class_ref(pool, s) => at(0, false),
-            TyData::Tuple { .. } => self.product(pool, env, s, &tuple_members(pool, s))?,
-            TyData::Union(_) => self.sum(pool, env, s)?,
+            TyData::Adt(AdtId::Product { .. }, _) => {
+                self.product(pool, env, s, &tuple_members(pool, s))?
+            }
             TyData::Ref { inner, counted, .. } => {
                 let fat = fat(pool, env, inner);
                 self.leaf(reference(fat, counted), !fat && counted)
             }
-            TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => at(0, true),
-            TyData::Adt { def, args } => match kind(pool, env, s) {
-                Kind::Boxed => at(0, true),
-                Kind::Ref { fat, whole, .. } => self.leaf(reference(fat, whole), !fat && whole),
-                Kind::Value if env.enum_variants(def, args).is_some() => self.sum(pool, env, s)?,
-                Kind::Value => self.product(pool, env, s, &value_parts(pool, env, s))?,
-            },
+            TyData::Adt(AdtId::Declared(def), _) if env.std_kind(def) != StdKind::Other => {
+                at(0, true)
+            }
+            TyData::Adt(def, args)
+                if hd_mono::layout::enum_variants(pool, env, def, args).is_some() =>
+            {
+                self.sum(pool, env, s)?
+            }
+            TyData::Adt(..) => self.product(pool, env, s, &value_parts(pool, env, s))?,
             _ => Count::None,
         };
         // A value that holds a `Drop` hook has its own release shim, which
@@ -270,7 +274,7 @@ impl Counts {
                     }
                 } else {
                     let parts = match pool.get(s) {
-                        TyData::Tuple { .. } => tuple_members(pool, s),
+                        TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, s),
                         _ => value_parts(pool, env, s),
                     };
                     let (_, at) = crate::payload_mem(pool, env, &parts)?;
@@ -413,8 +417,8 @@ fn null_niche(
 /// or enum that is not boxed.
 fn value_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     match pool.get(t) {
-        TyData::Tuple { .. } | TyData::Union(_) => true,
-        TyData::Adt { def, .. } => {
+        TyData::Adt(AdtId::Sum | AdtId::Product { .. }, _) => true,
+        TyData::Adt(AdtId::Declared(def), _) => {
             env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value)
         }
         _ => false,
@@ -611,7 +615,7 @@ impl Writer<'_> {
     fn parts(&mut self, t: Ty, v: Ref, path: &[Proj]) -> StageResult<()> {
         let t = strip_newtype(self.pool, self.env, t);
         let parts = match self.pool.get(t) {
-            TyData::Tuple { .. } => tuple_members(self.pool, t),
+            TyData::Adt(AdtId::Product { .. }, _) => tuple_members(self.pool, t),
             _ => value_parts(self.pool, self.env, t),
         };
         for (k, &p) in (0u32..).zip(&parts) {

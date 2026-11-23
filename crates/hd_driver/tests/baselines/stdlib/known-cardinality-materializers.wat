@@ -13,45 +13,26 @@
   (import "fixture" "release_value[std.collections.UniqList[i32]]" (func $"release_value[std.collections.UniqList[i32]]" (param i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[i32]" (func $"impl[T < ?Copy] UniqList[T].sort_by[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:list_reserve'3" (func $rt:list_reserve'3 (param i32 i32) (result i32)))
-  (import "fixture" "rt:map_slot_next" (func $rt:map_slot_next (param i32 i32 i32) (result i32)))
-  (import "fixture" "rt:list_reserve'4" (func $rt:list_reserve'4 (param i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:list_reserve'4" (func $rt:list_reserve'4 (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_slot_next" (func $rt:map_slot_next (param i32 i32 i32) (result i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]" (param i32 i32 i32)))
+  (import "fixture" "release_value[std.collections.UniqList[(i32, usize)]]" (func $"release_value[std.collections.UniqList[(i32, usize)]]" (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:list_reserve'5" (func $rt:list_reserve'5 (param i32 i32) (result i32)))
-  (import "fixture" "std/collections/impl[T] List[T].view[i32]'1" (func $"std/collections/impl[T] List[T].view[i32]'1" (param i32 i32 i32) (result i32 i32 i32)))
-  (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
-  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (param i32 i32 i32)))
-  (import "fixture" "release_value[std.collections.UniqList[(i32, usize)]]" (func $"release_value[std.collections.UniqList[(i32, usize)]]" (param i32)))
+  (import "fixture" "impl[T] List[T].view[i32]" (func $"impl[T] List[T].view[i32]" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(string, i32)]" (func $"impl[T < Copy] UniqList[T].from_list[(string, i32)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (param i32)))
   (import "fixture" "release_value[std.collections.UniqList[(string, i32)]]" (func $"release_value[std.collections.UniqList[(string, i32)]]" (param i32)))
-  (import "fixture" "std/collections/impl[T] List[T].view[i32]'2" (func $"std/collections/impl[T] List[T].view[i32]'2" (param i32 i32 i32) (result i32 i32 i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[i32, fn(&i32, &i32) -> Ordering]" (func $"impl[T < ?Copy] UniqList[T].sort_by[i32, fn(&i32, &i32) -> Ordering]" (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 44 funcref))
-  (func $"impl[T] List[T].sorted_by_key#1[i32, i32]" (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32)
-    ;; (no span)
-    local.get $t0
-    i32.load $heap
-    local.set $env
-    local.get $t1
-    i32.load $heap
-    local.set $t0
-    i32.const 1
-    local.get $env
-    local.get $t0
-    i32.gt_s
-    i32.add
-    local.get $env
-    local.get $t0
-    i32.lt_s
-    i32.sub
-  )
+  (import "fixture" "table0" (table $table0 46 funcref))
   (func $"impl[T < Ord] List[T].sorted[string]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
@@ -161,7 +142,7 @@
           i32.eq
           if
             local.get $t7
-            i32.const 13
+            i32.const 14
             call_indirect $table0 (param i32) (result i32)
             local.tee $t7
             local.set $t1
@@ -306,7 +287,7 @@
           i32.eq
           if
             local.get $t6
-            i32.const 14
+            i32.const 15
             call_indirect $table0 (param i32) (result i32)
             local.tee $t6
             local.set $t1
@@ -342,12 +323,31 @@
     i32.add
     global.set $stack
   )
+  (func $"impl[T] List[T].sorted_by_key#1[i32, i32, fn(&i32) -> i32]" (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32)
+    ;; (no span)
+    local.get $t0
+    i32.load $heap
+    local.set $env
+    local.get $t1
+    i32.load $heap
+    local.set $t0
+    i32.const 1
+    local.get $env
+    local.get $t0
+    i32.gt_s
+    i32.add
+    local.get $env
+    local.get $t0
+    i32.lt_s
+    i32.sub
+  )
   (func $"impl[T] List[T].reversed[i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; (no span)
     i32.const 80 ;; &empty-buffer
     local.tee $t0
     local.set $t1
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.tee $t3
     if
@@ -357,6 +357,7 @@
       local.set $t0
     end
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.set $t1
     block
@@ -368,16 +369,19 @@
         i32.const 1
         i32.sub
         local.tee $t1
-        local.tee $t3
         local.get $t2
+        i32.load $heap
+        local.set $t3
+        local.tee $t4
+        local.get $t3
         i32.load $heap offset=4
         i32.ge_u
         if
           call $rt:panic'2
           unreachable
         end
-        local.get $t2
         local.get $t3
+        local.get $t4
         i32.const 4
         i32.mul
         i32.add
@@ -392,7 +396,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -414,7 +418,7 @@
     end
     local.get $t0
   )
-  (func $"std/collections/impl[T] List[T].map[i32, i32]'1" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
+  (func $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'1" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -497,7 +501,7 @@
         i32.eq
         if
           local.get $t6
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
           local.set $t1
@@ -533,149 +537,6 @@
     local.get $t1
     local.get $t0
     i32.const 16
-    i32.add
-    global.set $stack
-  )
-  (func $"impl[T] List[T].sorted_by[i32]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32)
-    ;; (no span)
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 40
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 40
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    block
-      local.get $t1
-      i32.load $heap offset=4
-      i32.const 1
-      i32.le_u
-      if
-        local.get $t1
-        call $rt:retain_coll
-        br 1
-      end
-      local.get $t1
-      call $"impl[T < Copy] UniqList[T].from_list[i32]"
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t4
-      local.get $t3
-      i32.store $heap
-      local.get $t4
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $t4
-      local.get $t1
-      i32.store $heap offset=8
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $t4
-      local.get $t5
-      local.get $t6
-      call $"impl[T < ?Copy] UniqList[T].sort_by[i32]"
-      i32.const 80 ;; &empty-buffer
-      local.tee $t1
-      local.set $t5
-      local.get $t4
-      i32.load $heap offset=8
-      local.tee $t6
-      if
-        local.get $t5
-        local.get $t6
-        call $rt:list_reserve'2
-        local.set $t1
-      end
-      local.get $t4
-      i32.load $heap offset=8
-      local.set $t5
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=8
-      block
-        loop
-          local.get $t7
-          local.get $t5
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t4
-          i32.load $heap
-          local.get $t7
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap
-          local.set $t6
-          local.get $t1
-          local.tee $t2
-          i32.load $heap offset=4
-          local.tee $t3
-          local.get $t2
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t2
-            i32.const 14
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t2
-            local.set $t1
-          end
-          local.get $t2
-          local.get $t3
-          i32.const 4
-          i32.mul
-          i32.add
-          local.get $t6
-          i32.store $heap offset=16
-          local.get $t2
-          local.get $t3
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-          local.get $t7
-          i32.const 1
-          i32.add
-          local.set $t7
-          br 0
-        end
-      end
-      local.get $t4
-      if
-        local.get $t4
-        call $"release_value[std.collections.UniqList[i32]]"
-      end
-    end
-    local.get $t1
-    local.get $t0
-    i32.const 40
     i32.add
     global.set $stack
   )
@@ -734,7 +595,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -767,6 +628,7 @@
     local.set $t1
     local.get $t2
     local.get $t3
+    i32.load $heap
     i32.load $heap offset=4
     i32.lt_u
     if
@@ -774,6 +636,7 @@
       local.set $t4
     else
       local.get $t3
+      i32.load $heap
       i32.load $heap offset=4
       local.set $t4
     end
@@ -793,19 +656,23 @@
         br_if 1
         local.get $t5
         local.get $t3
+        i32.load $heap
         i32.load $heap offset=4
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t5
         local.get $t3
+        i32.load $heap
+        local.set $t1
+        local.get $t5
+        local.get $t1
         i32.load $heap offset=4
         i32.ge_u
         if
           call $rt:panic'2
           unreachable
         end
-        local.get $t3
+        local.get $t1
         local.get $t5
         i32.const 4
         i32.mul
@@ -821,7 +688,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -853,12 +720,14 @@
     local.tee $t0
     local.set $t1
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.get $t3
     i32.load $heap offset=4
     i32.lt_u
     if
       local.get $t2
+      i32.load $heap
       i32.load $heap offset=4
       local.set $t4
     else
@@ -877,6 +746,7 @@
       loop
         local.get $t5
         local.get $t2
+        i32.load $heap
         i32.load $heap offset=4
         i32.lt_u
         i32.eqz
@@ -888,6 +758,17 @@
         i32.eqz
         br_if 1
         local.get $t2
+        i32.load $heap
+        local.set $t1
+        local.get $t5
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic'2
+          unreachable
+        end
+        local.get $t1
         local.get $t5
         i32.const 4
         i32.mul
@@ -918,7 +799,7 @@
         i32.eq
         if
           local.get $t6
-          i32.const 25
+          i32.const 27
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
           local.set $t0
@@ -948,307 +829,7 @@
     end
     local.get $t0
   )
-  (func $"std/collections/impl[T] List[T].map[i32, i32]'2" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
-    ;; (no span)
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    i32.const 80 ;; &empty-buffer
-    local.tee $t1
-    local.set $t2
-    local.get $t3
-    i32.load $heap
-    i32.load $heap offset=4
-    local.tee $t4
-    if
-      local.get $t2
-      local.get $t4
-      call $rt:list_reserve'2
-      local.set $t1
-    end
-    local.get $t3
-    i32.load $heap
-    local.tee $t3
-    i32.load $heap offset=4
-    local.set $t2
-    block
-      loop
-        local.get $t5
-        local.get $t2
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t3
-        local.get $t5
-        i32.const 4
-        i32.mul
-        i32.add
-        i32.load $heap offset=16
-        local.set $t4
-        local.get $t5
-        i32.const 1
-        i32.add
-        local.set $t5
-        local.get $t0
-        i64.const 0
-        i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.set $t6
-        block
-          local.get $t6
-          local.get $t4
-          i32.store $heap
-          br 0
-          unreachable
-        end
-        local.get $t7
-        local.get $t6
-        i32.const 0
-        local.get $t8
-        call_indirect $table0 (param i32 i32 i32) (result i32)
-        local.set $t4
-        local.get $t1
-        local.tee $t6
-        i32.load $heap offset=4
-        local.tee $t9
-        local.get $t6
-        i32.load $heap
-        i32.eq
-        if
-          local.get $t6
-          i32.const 14
-          call_indirect $table0 (param i32) (result i32)
-          local.tee $t6
-          local.set $t1
-        end
-        local.get $t6
-        local.get $t9
-        i32.const 4
-        i32.mul
-        i32.add
-        local.get $t4
-        i32.store $heap offset=16
-        local.get $t6
-        local.get $t9
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-        br 0
-      end
-    end
-    local.get $t1
-    local.get $t0
-    i32.const 16
-    i32.add
-    global.set $stack
-  )
-  (func $"impl[K < Eq & Hash, V] Map[K, V].values[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
-    i32.const 80 ;; &empty-buffer
-    local.tee $t0
-    local.set $t1
-    local.get $t2
-    i32.load $heap
-    local.tee $t3
-    if
-      local.get $t1
-      local.get $t3
-      call $rt:list_reserve'2
-      local.set $t0
-    end
-    local.get $t2
-    i32.load $heap offset=4
-    local.set $t1
-    block
-      loop
-        local.get $t2
-        local.get $t4
-        local.get $t1
-        call $rt:map_slot_next
-        local.tee $t4
-        local.get $t1
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t2
-        local.get $t2
-        i32.load $heap offset=12
-        i32.const 14
-        i32.mul
-        i32.add
-        i32.const 32
-        i32.add
-        local.get $t4
-        i32.const 12
-        i32.mul
-        i32.add
-        local.tee $t3
-        local.get $t3
-        i32.const 8
-        i32.add
-        local.set $t3
-        drop
-        local.get $t4
-        i32.const 1
-        i32.add
-        local.set $t4
-        block
-          br 0
-          unreachable
-        end
-        local.get $t3
-        i32.load $heap
-        local.set $t3
-        local.get $t0
-        local.tee $t5
-        i32.load $heap offset=4
-        local.tee $t6
-        local.get $t5
-        i32.load $heap
-        i32.eq
-        if
-          local.get $t5
-          i32.const 14
-          call_indirect $table0 (param i32) (result i32)
-          local.tee $t5
-          local.set $t0
-        end
-        local.get $t5
-        local.get $t6
-        i32.const 4
-        i32.mul
-        i32.add
-        local.get $t3
-        i32.store $heap offset=16
-        local.get $t5
-        local.get $t6
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-        br 0
-      end
-    end
-    local.get $t0
-  )
-  (func $"impl[K < Eq & Hash, V] Map[K, V] #2.entries[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
-    ;; (no span)
-    i32.const 80 ;; &empty-buffer
-    local.tee $t0
-    local.set $t1
-    local.get $t2
-    i32.load $heap
-    local.tee $t3
-    if
-      local.get $t1
-      local.get $t3
-      call $rt:list_reserve'4
-      local.set $t0
-    end
-    local.get $t2
-    i32.load $heap offset=4
-    local.set $t1
-    block
-      loop
-        local.get $t2
-        local.get $t4
-        local.get $t1
-        call $rt:map_slot_next
-        local.tee $t4
-        local.get $t1
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t2
-        local.get $t2
-        i32.load $heap offset=12
-        i32.const 14
-        i32.mul
-        i32.add
-        i32.const 32
-        i32.add
-        local.get $t4
-        i32.const 12
-        i32.mul
-        i32.add
-        local.tee $t3
-        local.get $t3
-        i32.const 8
-        i32.add
-        local.set $t3
-        local.set $t5
-        local.get $t4
-        i32.const 1
-        i32.add
-        local.set $t4
-        block
-          br 0
-          unreachable
-        end
-        local.get $t5
-        i32.load $heap
-        local.get $t5
-        i32.load $heap offset=4
-        local.set $t5
-        local.tee $t6
-        if
-          local.get $t6
-          call $retain
-        end
-        local.get $t3
-        i32.load $heap
-        local.set $t3
-        local.get $t0
-        local.tee $t7
-        i32.load $heap offset=4
-        local.tee $t8
-        local.get $t7
-        i32.load $heap
-        i32.eq
-        if
-          local.get $t7
-          i32.const 26
-          call_indirect $table0 (param i32) (result i32)
-          local.tee $t7
-          local.set $t0
-        end
-        local.get $t7
-        local.get $t8
-        i32.const 12
-        i32.mul
-        i32.add
-        local.tee $t9
-        local.get $t6
-        i32.store $heap offset=16
-        local.get $t9
-        local.get $t5
-        i32.store $heap offset=20
-        local.get $t9
-        local.get $t3
-        i32.store $heap offset=24
-        local.get $t7
-        local.get $t8
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-        br 0
-      end
-    end
-    local.get $t0
-  )
-  (func $"impl[T] List[T].sorted_by_key[i32, i32]" (param $t3 i32) (param $t9 i32) (param $t8 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t12 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t0 i32) (local $t10 i32) (local $t11 i32) (local $t13 i32)
+  (func $"impl[T] List[T].sorted_by_key[i32, i32, fn(&i32) -> i32]" (param $t3 i32) (param $t9 i32) (param $t8 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t12 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t0 i32) (local $t10 i32) (local $t11 i32) (local $t13 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -1337,7 +918,7 @@
         i32.eq
         if
           local.get $t7
-          i32.const 25
+          i32.const 27
           call_indirect $table0 (param i32) (result i32)
           local.tee $t7
           local.set $t1
@@ -1366,9 +947,9 @@
       end
     end
     local.get $t1
-    i32.const 27
+    i32.const 28
     i32.const 0
-    call $"impl[T] List[T].sorted_by[(i32, usize)]"
+    call $"impl[T] List[T].sorted_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]"
     local.get $t1
     if
       local.get $t1
@@ -1452,7 +1033,7 @@
         i32.eq
         if
           local.get $t1
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t1
           local.set $t8
@@ -1491,6 +1072,262 @@
     i32.add
     global.set $stack
   )
+  (func $"impl[K < Eq & Hash, V] Map[K, V] #2.entries[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+    ;; (no span)
+    i32.const 80 ;; &empty-buffer
+    local.tee $t0
+    local.set $t1
+    local.get $t2
+    i32.load $heap
+    local.tee $t3
+    if
+      local.get $t1
+      local.get $t3
+      call $rt:list_reserve'4
+      local.set $t0
+    end
+    local.get $t2
+    i32.load $heap offset=4
+    local.set $t1
+    block
+      loop
+        local.get $t2
+        local.get $t4
+        local.get $t1
+        call $rt:map_slot_next
+        local.tee $t4
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t2
+        local.get $t2
+        i32.load $heap offset=12
+        i32.const 14
+        i32.mul
+        i32.add
+        i32.const 32
+        i32.add
+        local.get $t4
+        i32.const 12
+        i32.mul
+        i32.add
+        local.tee $t3
+        local.get $t3
+        i32.const 8
+        i32.add
+        local.set $t3
+        local.set $t5
+        local.get $t4
+        i32.const 1
+        i32.add
+        local.set $t4
+        block
+          br 0
+          unreachable
+        end
+        local.get $t5
+        i32.load $heap
+        local.get $t5
+        i32.load $heap offset=4
+        local.set $t5
+        local.tee $t6
+        if
+          local.get $t6
+          call $retain
+        end
+        local.get $t3
+        i32.load $heap
+        local.set $t3
+        local.get $t0
+        local.tee $t7
+        i32.load $heap offset=4
+        local.tee $t8
+        local.get $t7
+        i32.load $heap
+        i32.eq
+        if
+          local.get $t7
+          i32.const 29
+          call_indirect $table0 (param i32) (result i32)
+          local.tee $t7
+          local.set $t0
+        end
+        local.get $t7
+        local.get $t8
+        i32.const 12
+        i32.mul
+        i32.add
+        local.tee $t9
+        local.get $t6
+        i32.store $heap offset=16
+        local.get $t9
+        local.get $t5
+        i32.store $heap offset=20
+        local.get $t9
+        local.get $t3
+        i32.store $heap offset=24
+        local.get $t7
+        local.get $t8
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+        br 0
+      end
+    end
+    local.get $t0
+  )
+  (func $"impl[T] List[T].sorted_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+    ;; (no span)
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 40
+    i32.lt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    global.get $stack
+    i32.const 40
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    block
+      local.get $t1
+      i32.load $heap offset=4
+      i32.const 1
+      i32.le_u
+      if
+        local.get $t1
+        call $rt:retain_coll
+        br 1
+      end
+      local.get $t1
+      call $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]"
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $t4
+      local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
+      i32.store $heap offset=4
+      local.get $t4
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=28
+      local.get $t4
+      local.get $t5
+      local.get $t6
+      call $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]"
+      i32.const 80 ;; &empty-buffer
+      local.tee $t1
+      local.set $t5
+      local.get $t4
+      i32.load $heap offset=8
+      local.tee $t6
+      if
+        local.get $t5
+        local.get $t6
+        call $rt:list_reserve'3
+        local.set $t1
+      end
+      local.get $t4
+      i32.load $heap offset=8
+      local.set $t5
+      local.get $t4
+      i32.const 0
+      i32.store $heap offset=8
+      block
+        loop
+          local.get $t7
+          local.get $t5
+          i32.lt_u
+          i32.eqz
+          br_if 1
+          local.get $t4
+          i32.load $heap
+          local.get $t7
+          i32.const 8
+          i32.mul
+          i32.add
+          local.tee $t6
+          i32.load $heap
+          local.get $t6
+          i32.load $heap offset=4
+          local.set $t6
+          local.set $t2
+          local.get $t1
+          local.tee $t3
+          i32.load $heap offset=4
+          local.tee $t8
+          local.get $t3
+          i32.load $heap
+          i32.eq
+          if
+            local.get $t3
+            i32.const 27
+            call_indirect $table0 (param i32) (result i32)
+            local.tee $t3
+            local.set $t1
+          end
+          local.get $t3
+          local.get $t8
+          i32.const 8
+          i32.mul
+          i32.add
+          local.tee $t9
+          local.get $t2
+          i32.store $heap offset=16
+          local.get $t9
+          local.get $t6
+          i32.store $heap offset=20
+          local.get $t3
+          local.get $t8
+          i32.const 1
+          i32.add
+          i32.store $heap offset=4
+          local.get $t7
+          i32.const 1
+          i32.add
+          local.set $t7
+          br 0
+        end
+      end
+      local.get $t4
+      if
+        local.get $t4
+        call $"release_value[std.collections.UniqList[(i32, usize)]]"
+      end
+    end
+    local.get $t1
+    local.get $t0
+    i32.const 40
+    i32.add
+    global.set $stack
+  )
   (func $"impl[T] List[T].chunks[i32]" (param $t3 i32) (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
     ;; (no span)
     local.get $t0
@@ -1498,7 +1335,7 @@
     if
       i32.const 851 ;; &"chunks: size must be positive"
       i32.const 29
-      i32.const 6
+      i32.const 7
       call_indirect $table0 (param i32 i32)
       unreachable
     end
@@ -1566,7 +1403,7 @@
         local.get $t3
         local.get $t5
         local.get $t2
-        call $"std/collections/impl[T] List[T].view[i32]'1"
+        call $"impl[T] List[T].view[i32]"
         local.set $t2
         local.set $t6
         local.set $t7
@@ -1579,7 +1416,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 30
+          i32.const 32
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -1612,264 +1449,126 @@
     end
     local.get $t1
   )
-  (func $map_once'1 (param $values i32) (param $transform.0 i32) (param $transform.1 i32) (result i32)
-    ;; 24 |     values.map(transform)
-    local.get $values
-    local.get $transform.0
-    local.get $transform.1
-    call $"std/collections/impl[T] List[T].map[i32, i32]'1"
-  )
-  (func $"impl[T] List[T].sorted_by[(i32, usize)]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'2" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 40
+    i32.const 16
     i32.lt_u
     if
       call $rt:panic'1
       unreachable
     end
     global.get $stack
-    i32.const 40
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $stack
-    block
-      local.get $t1
-      i32.load $heap offset=4
-      i32.const 1
-      i32.le_u
-      if
-        local.get $t1
-        call $rt:retain_coll
-        br 1
-      end
-      local.get $t1
-      call $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]"
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t4
-      local.get $t3
-      i32.store $heap
-      local.get $t4
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $t4
-      local.get $t1
-      i32.store $heap offset=8
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $t4
-      local.get $t5
-      local.get $t6
-      call $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]"
-      i32.const 80 ;; &empty-buffer
-      local.tee $t1
-      local.set $t5
-      local.get $t4
-      i32.load $heap offset=8
-      local.tee $t6
-      if
-        local.get $t5
-        local.get $t6
-        call $rt:list_reserve'3
-        local.set $t1
-      end
-      local.get $t4
-      i32.load $heap offset=8
-      local.set $t5
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=8
-      block
-        loop
-          local.get $t7
-          local.get $t5
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t4
-          i32.load $heap
-          local.get $t7
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t6
-          i32.load $heap
-          local.get $t6
-          i32.load $heap offset=4
-          local.set $t6
-          local.set $t2
-          local.get $t1
-          local.tee $t3
-          i32.load $heap offset=4
-          local.tee $t8
-          local.get $t3
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t3
-            i32.const 25
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t3
-            local.set $t1
-          end
-          local.get $t3
-          local.get $t8
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t9
-          local.get $t2
-          i32.store $heap offset=16
-          local.get $t9
-          local.get $t6
-          i32.store $heap offset=20
-          local.get $t3
-          local.get $t8
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-          local.get $t7
-          i32.const 1
-          i32.add
-          local.set $t7
-          br 0
-        end
-      end
-      local.get $t4
-      if
-        local.get $t4
-        call $"release_value[std.collections.UniqList[(i32, usize)]]"
-      end
-    end
-    local.get $t1
-    local.get $t0
-    i32.const 40
-    i32.add
-    global.set $stack
-  )
-  (func $"impl[K < Eq & Hash, V] Map[K, V].keys[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
-    ;; (no span)
     i32.const 80 ;; &empty-buffer
-    local.tee $t0
-    local.set $t1
-    local.get $t2
+    local.tee $t1
+    local.set $t2
+    local.get $t3
+    i32.load $heap
+    i32.load $heap offset=4
+    local.tee $t4
+    if
+      local.get $t2
+      local.get $t4
+      call $rt:list_reserve'2
+      local.set $t1
+    end
+    local.get $t3
     i32.load $heap
     local.tee $t3
-    if
-      local.get $t1
-      local.get $t3
-      call $rt:list_reserve'1
-      local.set $t0
-    end
-    local.get $t2
     i32.load $heap offset=4
-    local.set $t1
+    local.set $t2
     block
       loop
+        local.get $t5
         local.get $t2
-        local.get $t4
-        local.get $t1
-        call $rt:map_slot_next
-        local.tee $t4
-        local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $t2
-        i32.load $heap offset=12
-        i32.const 14
+        local.get $t3
+        local.get $t5
+        i32.const 4
         i32.mul
         i32.add
-        i32.const 32
-        i32.add
-        local.get $t4
-        i32.const 12
-        i32.mul
-        i32.add
-        local.set $t3
-        local.get $t4
+        i32.load $heap offset=16
+        local.set $t4
+        local.get $t5
         i32.const 1
         i32.add
-        local.set $t4
+        local.set $t5
+        local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
+        i32.const 8
+        i32.add
+        local.set $t6
         block
+          local.get $t6
+          local.get $t4
+          i32.store $heap
           br 0
           unreachable
         end
-        local.get $t3
-        i32.load $heap
-        local.get $t3
-        i32.load $heap offset=4
-        local.set $t3
-        local.tee $t5
-        if
-          local.get $t5
-          call $retain
-        end
-        local.get $t0
+        local.get $t7
+        local.get $t6
+        i32.const 0
+        local.get $t8
+        call_indirect $table0 (param i32 i32 i32) (result i32)
+        local.set $t4
+        local.get $t1
         local.tee $t6
         i32.load $heap offset=4
-        local.tee $t7
+        local.tee $t9
         local.get $t6
         i32.load $heap
         i32.eq
         if
           local.get $t6
-          i32.const 13
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
-          local.set $t0
+          local.set $t1
         end
         local.get $t6
-        local.get $t7
-        i32.const 8
+        local.get $t9
+        i32.const 4
         i32.mul
         i32.add
-        local.tee $t8
-        local.get $t5
+        local.get $t4
         i32.store $heap offset=16
-        local.get $t8
-        local.get $t3
-        i32.store $heap offset=20
         local.get $t6
-        local.get $t7
+        local.get $t9
         i32.const 1
         i32.add
         i32.store $heap offset=4
         br 0
       end
     end
+    local.get $t1
     local.get $t0
+    i32.const 16
+    i32.add
+    global.set $stack
+  )
+  (func $map_once'1 (param $values i32) (param $transform.0 i32) (param $transform.1 i32) (result i32)
+    ;; 24 |     values.map(transform)
+    local.get $values
+    local.get $transform.0
+    local.get $transform.1
+    call $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'1"
   )
   (func $map_once'2 (param $values i32) (param $transform.0 i32) (param $transform.1 i32) (result i32)
     ;; 24 |     values.map(transform)
     local.get $values
     local.get $transform.0
     local.get $transform.1
-    call $"std/collections/impl[T] List[T].map[i32, i32]'2"
+    call $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'2"
   )
   (func $"impl[T < Ord] List[T].sorted[(string, i32)]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
     ;; (no span)
@@ -1983,7 +1682,7 @@
           i32.eq
           if
             local.get $t8
-            i32.const 26
+            i32.const 29
             call_indirect $table0 (param i32) (result i32)
             local.tee $t8
             local.set $t1
@@ -2065,7 +1764,7 @@
         i32.eq
         if
           local.get $t3
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t3
           local.set $t0
@@ -2096,9 +1795,9 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 949 ;; &"windows: size must be positive"
+      i32.const 1005 ;; &"windows: size must be positive"
       i32.const 30
-      i32.const 6
+      i32.const 7
       call_indirect $table0 (param i32 i32)
       unreachable
     end
@@ -2106,26 +1805,15 @@
     local.set $t1
     local.get $t0
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     i32.gt_u
     if
       local.get $t1
-      local.get $t2
-      if
-        local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t2
-          call $rt:release_ref
-        end
-      end
       return
     end
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.get $t0
     i32.sub
@@ -2153,7 +1841,7 @@
         local.get $t2
         local.get $t5
         local.get $t4
-        call $"std/collections/impl[T] List[T].view[i32]'2"
+        call $"impl[T] List[T].view[i32]"
         local.set $t4
         local.set $t6
         local.set $t7
@@ -2166,7 +1854,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 30
+          i32.const 32
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -2197,20 +1885,150 @@
         br 0
       end
     end
-    local.get $t2
+    local.get $t1
+  )
+  (func $"impl[T] List[T].sorted_by[i32, fn(&i32, &i32) -> Ordering]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32)
+    ;; (no span)
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 40
+    i32.lt_u
     if
-      local.get $t2
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
+      call $rt:panic'1
+      unreachable
+    end
+    global.get $stack
+    i32.const 40
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    block
+      local.get $t1
+      i32.load $heap offset=4
+      i32.const 1
+      i32.le_u
       if
-        local.get $t2
-        call $rt:release_ref
+        local.get $t1
+        call $rt:retain_coll
+        br 1
+      end
+      local.get $t1
+      call $"impl[T < Copy] UniqList[T].from_list[i32]"
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $t4
+      local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
+      i32.store $heap offset=4
+      local.get $t4
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=28
+      local.get $t4
+      local.get $t5
+      local.get $t6
+      call $"impl[T < ?Copy] UniqList[T].sort_by[i32, fn(&i32, &i32) -> Ordering]"
+      i32.const 80 ;; &empty-buffer
+      local.tee $t1
+      local.set $t5
+      local.get $t4
+      i32.load $heap offset=8
+      local.tee $t6
+      if
+        local.get $t5
+        local.get $t6
+        call $rt:list_reserve'2
+        local.set $t1
+      end
+      local.get $t4
+      i32.load $heap offset=8
+      local.set $t5
+      local.get $t4
+      i32.const 0
+      i32.store $heap offset=8
+      block
+        loop
+          local.get $t7
+          local.get $t5
+          i32.lt_u
+          i32.eqz
+          br_if 1
+          local.get $t4
+          i32.load $heap
+          local.get $t7
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load $heap
+          local.set $t6
+          local.get $t1
+          local.tee $t2
+          i32.load $heap offset=4
+          local.tee $t3
+          local.get $t2
+          i32.load $heap
+          i32.eq
+          if
+            local.get $t2
+            i32.const 15
+            call_indirect $table0 (param i32) (result i32)
+            local.tee $t2
+            local.set $t1
+          end
+          local.get $t2
+          local.get $t3
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t6
+          i32.store $heap offset=16
+          local.get $t2
+          local.get $t3
+          i32.const 1
+          i32.add
+          i32.store $heap offset=4
+          local.get $t7
+          i32.const 1
+          i32.add
+          local.set $t7
+          br 0
+        end
+      end
+      local.get $t4
+      if
+        local.get $t4
+        call $"release_value[std.collections.UniqList[i32]]"
       end
     end
     local.get $t1
+    local.get $t0
+    i32.const 40
+    i32.add
+    global.set $stack
   )
 )
 == @build: release checked
@@ -2228,45 +2046,26 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
-  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[i32]" (func $"impl[T < ?Copy] UniqList[T].sort_by[i32]" (param i32 i32 i32)))
   (import "fixture" "rt:list_reserve'3" (func $rt:list_reserve'3 (param i32 i32) (result i32)))
-  (import "fixture" "rt:map_slot_next" (func $rt:map_slot_next (param i32 i32 i32) (result i32)))
-  (import "fixture" "rt:list_reserve'4" (func $rt:list_reserve'4 (param i32 i32) (result i32)))
-  (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
+  (import "fixture" "rt:list_reserve'4" (func $rt:list_reserve'4 (param i32 i32) (result i32)))
+  (import "fixture" "rt:map_slot_next" (func $rt:map_slot_next (param i32 i32 i32) (result i32)))
+  (import "fixture" "retain" (func $retain (param i32)))
+  (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]" (param i32 i32 i32)))
+  (import "fixture" "release_value[std.collections.UniqList[(i32, usize)]]" (func $"release_value[std.collections.UniqList[(i32, usize)]]" (param i32)))
   (import "fixture" "rt:panic'3" (func $rt:panic'3))
   (import "fixture" "rt:list_reserve'5" (func $rt:list_reserve'5 (param i32 i32) (result i32)))
-  (import "fixture" "std/collections/impl[T] List[T].view[i32]'1" (func $"std/collections/impl[T] List[T].view[i32]'1" (param i32 i32 i32) (result i32 i32 i32)))
-  (import "fixture" "impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (func $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]" (param i32) (result i32 i32 i32)))
-  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (func $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]" (param i32 i32 i32)))
-  (import "fixture" "release_value[std.collections.UniqList[(i32, usize)]]" (func $"release_value[std.collections.UniqList[(i32, usize)]]" (param i32)))
+  (import "fixture" "impl[T] List[T].view[i32]" (func $"impl[T] List[T].view[i32]" (param i32 i32 i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < Copy] UniqList[T].from_list[(string, i32)]" (func $"impl[T < Copy] UniqList[T].from_list[(string, i32)]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (func $"impl[T < ?Copy & Ord] UniqList[T].sort[(string, i32)]" (param i32)))
   (import "fixture" "release_value[std.collections.UniqList[(string, i32)]]" (func $"release_value[std.collections.UniqList[(string, i32)]]" (param i32)))
-  (import "fixture" "std/collections/impl[T] List[T].view[i32]'2" (func $"std/collections/impl[T] List[T].view[i32]'2" (param i32 i32 i32) (result i32 i32 i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].sort_by[i32, fn(&i32, &i32) -> Ordering]" (func $"impl[T < ?Copy] UniqList[T].sort_by[i32, fn(&i32, &i32) -> Ordering]" (param i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 44 funcref))
-  (func $"impl[T] List[T].sorted_by_key#1[i32, i32]" (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32)
-    ;; (no span)
-    local.get $t0
-    i32.load $heap
-    local.set $env
-    local.get $t1
-    i32.load $heap
-    local.set $t0
-    i32.const 1
-    local.get $env
-    local.get $t0
-    i32.gt_s
-    i32.add
-    local.get $env
-    local.get $t0
-    i32.lt_s
-    i32.sub
-  )
+  (import "fixture" "table0" (table $table0 46 funcref))
   (func $"impl[T < Ord] List[T].sorted[string]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
@@ -2376,7 +2175,7 @@
           i32.eq
           if
             local.get $t7
-            i32.const 13
+            i32.const 14
             call_indirect $table0 (param i32) (result i32)
             local.tee $t7
             local.set $t1
@@ -2521,7 +2320,7 @@
           i32.eq
           if
             local.get $t6
-            i32.const 14
+            i32.const 15
             call_indirect $table0 (param i32) (result i32)
             local.tee $t6
             local.set $t1
@@ -2557,12 +2356,31 @@
     i32.add
     global.set $stack
   )
+  (func $"impl[T] List[T].sorted_by_key#1[i32, i32, fn(&i32) -> i32]" (param $env i32) (param $t0 i32) (param $t1 i32) (param $ctx i32) (result i32)
+    ;; (no span)
+    local.get $t0
+    i32.load $heap
+    local.set $env
+    local.get $t1
+    i32.load $heap
+    local.set $t0
+    i32.const 1
+    local.get $env
+    local.get $t0
+    i32.gt_s
+    i32.add
+    local.get $env
+    local.get $t0
+    i32.lt_s
+    i32.sub
+  )
   (func $"impl[T] List[T].reversed[i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; (no span)
     i32.const 80 ;; &empty-buffer
     local.tee $t0
     local.set $t1
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.tee $t3
     if
@@ -2572,6 +2390,7 @@
       local.set $t0
     end
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.set $t1
     block
@@ -2583,16 +2402,19 @@
         i32.const 1
         i32.sub
         local.tee $t1
-        local.tee $t3
         local.get $t2
+        i32.load $heap
+        local.set $t3
+        local.tee $t4
+        local.get $t3
         i32.load $heap offset=4
         i32.ge_u
         if
           call $rt:panic'2
           unreachable
         end
-        local.get $t2
         local.get $t3
+        local.get $t4
         i32.const 4
         i32.mul
         i32.add
@@ -2607,7 +2429,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -2629,7 +2451,7 @@
     end
     local.get $t0
   )
-  (func $"std/collections/impl[T] List[T].map[i32, i32]'1" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
+  (func $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'1" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -2712,7 +2534,7 @@
         i32.eq
         if
           local.get $t6
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
           local.set $t1
@@ -2752,149 +2574,6 @@
     local.get $t1
     local.get $t0
     i32.const 16
-    i32.add
-    global.set $stack
-  )
-  (func $"impl[T] List[T].sorted_by[i32]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32)
-    ;; (no span)
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 40
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 40
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    block
-      local.get $t1
-      i32.load $heap offset=4
-      i32.const 1
-      i32.le_u
-      if
-        local.get $t1
-        call $rt:retain_coll
-        br 1
-      end
-      local.get $t1
-      call $"impl[T < Copy] UniqList[T].from_list[i32]"
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t4
-      local.get $t3
-      i32.store $heap
-      local.get $t4
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $t4
-      local.get $t1
-      i32.store $heap offset=8
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $t4
-      local.get $t5
-      local.get $t6
-      call $"impl[T < ?Copy] UniqList[T].sort_by[i32]"
-      i32.const 80 ;; &empty-buffer
-      local.tee $t1
-      local.set $t5
-      local.get $t4
-      i32.load $heap offset=8
-      local.tee $t6
-      if
-        local.get $t5
-        local.get $t6
-        call $rt:list_reserve'2
-        local.set $t1
-      end
-      local.get $t4
-      i32.load $heap offset=8
-      local.set $t5
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=8
-      block
-        loop
-          local.get $t7
-          local.get $t5
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t4
-          i32.load $heap
-          local.get $t7
-          i32.const 4
-          i32.mul
-          i32.add
-          i32.load $heap
-          local.set $t6
-          local.get $t1
-          local.tee $t2
-          i32.load $heap offset=4
-          local.tee $t3
-          local.get $t2
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t2
-            i32.const 14
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t2
-            local.set $t1
-          end
-          local.get $t2
-          local.get $t3
-          i32.const 4
-          i32.mul
-          i32.add
-          local.get $t6
-          i32.store $heap offset=16
-          local.get $t2
-          local.get $t3
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-          local.get $t7
-          i32.const 1
-          i32.add
-          local.set $t7
-          br 0
-        end
-      end
-      local.get $t4
-      if
-        local.get $t4
-        call $"release_value[std.collections.UniqList[i32]]"
-      end
-    end
-    local.get $t1
-    local.get $t0
-    i32.const 40
     i32.add
     global.set $stack
   )
@@ -2953,7 +2632,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -2986,6 +2665,7 @@
     local.set $t1
     local.get $t2
     local.get $t3
+    i32.load $heap
     i32.load $heap offset=4
     i32.lt_u
     if
@@ -2993,6 +2673,7 @@
       local.set $t4
     else
       local.get $t3
+      i32.load $heap
       i32.load $heap offset=4
       local.set $t4
     end
@@ -3012,19 +2693,23 @@
         br_if 1
         local.get $t5
         local.get $t3
+        i32.load $heap
         i32.load $heap offset=4
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t5
         local.get $t3
+        i32.load $heap
+        local.set $t1
+        local.get $t5
+        local.get $t1
         i32.load $heap offset=4
         i32.ge_u
         if
           call $rt:panic'2
           unreachable
         end
-        local.get $t3
+        local.get $t1
         local.get $t5
         i32.const 4
         i32.mul
@@ -3040,7 +2725,7 @@
         i32.eq
         if
           local.get $t4
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t4
           local.set $t0
@@ -3072,12 +2757,14 @@
     local.tee $t0
     local.set $t1
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.get $t3
     i32.load $heap offset=4
     i32.lt_u
     if
       local.get $t2
+      i32.load $heap
       i32.load $heap offset=4
       local.set $t4
     else
@@ -3096,6 +2783,7 @@
       loop
         local.get $t5
         local.get $t2
+        i32.load $heap
         i32.load $heap offset=4
         i32.lt_u
         i32.eqz
@@ -3107,6 +2795,17 @@
         i32.eqz
         br_if 1
         local.get $t2
+        i32.load $heap
+        local.set $t1
+        local.get $t5
+        local.get $t1
+        i32.load $heap offset=4
+        i32.ge_u
+        if
+          call $rt:panic'2
+          unreachable
+        end
+        local.get $t1
         local.get $t5
         i32.const 4
         i32.mul
@@ -3137,7 +2836,7 @@
         i32.eq
         if
           local.get $t6
-          i32.const 25
+          i32.const 27
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
           local.set $t0
@@ -3167,309 +2866,7 @@
     end
     local.get $t0
   )
-  (func $"std/collections/impl[T] List[T].map[i32, i32]'2" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
-    ;; (no span)
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      call $rt:panic'1
-      unreachable
-    end
-    global.get $stack
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    i32.const 80 ;; &empty-buffer
-    local.tee $t1
-    local.set $t2
-    local.get $t3
-    i32.load $heap
-    i32.load $heap offset=4
-    local.tee $t4
-    if
-      local.get $t2
-      local.get $t4
-      call $rt:list_reserve'2
-      local.set $t1
-    end
-    local.get $t3
-    i32.load $heap
-    local.tee $t3
-    i32.load $heap offset=4
-    local.set $t2
-    block
-      loop
-        local.get $t5
-        local.get $t2
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t3
-        local.get $t5
-        i32.const 4
-        i32.mul
-        i32.add
-        i32.load $heap offset=16
-        local.set $t4
-        local.get $t5
-        i32.const 1
-        i32.add
-        local.set $t5
-        local.get $t0
-        i64.const 0
-        i64.store $heap
-        local.get $t0
-        i32.const 8
-        i32.add
-        local.set $t6
-        block
-          local.get $t6
-          local.get $t4
-          i32.store $heap
-          br 0
-          unreachable
-        end
-        local.get $t7
-        local.get $t6
-        i32.const 0
-        local.get $t8
-        call_indirect $table0 (param i32 i32 i32) (result i32)
-        local.set $t4
-        local.get $t1
-        local.tee $t6
-        i32.load $heap offset=4
-        local.tee $t9
-        local.get $t6
-        i32.load $heap
-        i32.eq
-        if
-          local.get $t6
-          i32.const 14
-          call_indirect $table0 (param i32) (result i32)
-          local.tee $t6
-          local.set $t1
-        end
-        local.get $t6
-        local.get $t9
-        i32.const 4
-        i32.mul
-        i32.add
-        local.get $t4
-        i32.store $heap offset=16
-        local.get $t6
-        local.get $t9
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-        br 0
-      end
-    end
-    local.get $t1
-    local.get $t0
-    i32.const 16
-    i32.add
-    global.set $stack
-  )
-  (func $"impl[K < Eq & Hash, V] Map[K, V].values[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
-    ;; (no span)
-    i32.const 80 ;; &empty-buffer
-    local.tee $t0
-    local.set $t1
-    local.get $t2
-    i32.load $heap
-    local.tee $t3
-    if
-      local.get $t1
-      local.get $t3
-      call $rt:list_reserve'2
-      local.set $t0
-    end
-    local.get $t2
-    i32.load $heap offset=4
-    local.set $t1
-    block
-      loop
-        local.get $t2
-        local.get $t4
-        local.get $t1
-        call $rt:map_slot_next
-        local.tee $t4
-        local.get $t1
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t2
-        local.get $t2
-        i32.load $heap offset=12
-        i32.const 14
-        i32.mul
-        i32.add
-        i32.const 32
-        i32.add
-        local.get $t4
-        i32.const 12
-        i32.mul
-        i32.add
-        local.tee $t3
-        local.get $t3
-        i32.const 8
-        i32.add
-        local.set $t3
-        drop
-        local.get $t4
-        i32.const 1
-        i32.add
-        local.set $t4
-        block
-          br 0
-          unreachable
-        end
-        local.get $t3
-        i32.load $heap
-        local.set $t3
-        local.get $t0
-        local.tee $t5
-        i32.load $heap offset=4
-        local.tee $t6
-        local.get $t5
-        i32.load $heap
-        i32.eq
-        if
-          local.get $t5
-          i32.const 14
-          call_indirect $table0 (param i32) (result i32)
-          local.tee $t5
-          local.set $t0
-        end
-        local.get $t5
-        local.get $t6
-        i32.const 4
-        i32.mul
-        i32.add
-        local.get $t3
-        i32.store $heap offset=16
-        local.get $t5
-        local.get $t6
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-        br 0
-      end
-    end
-    local.get $t0
-  )
-  (func $"impl[K < Eq & Hash, V] Map[K, V] #2.entries[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
-    ;; (no span)
-    i32.const 80 ;; &empty-buffer
-    local.tee $t0
-    local.set $t1
-    local.get $t2
-    i32.load $heap
-    local.tee $t3
-    if
-      local.get $t1
-      local.get $t3
-      call $rt:list_reserve'4
-      local.set $t0
-    end
-    local.get $t2
-    i32.load $heap offset=4
-    local.set $t1
-    block
-      loop
-        local.get $t2
-        local.get $t4
-        local.get $t1
-        call $rt:map_slot_next
-        local.tee $t4
-        local.get $t1
-        i32.lt_u
-        i32.eqz
-        br_if 1
-        local.get $t2
-        local.get $t2
-        i32.load $heap offset=12
-        i32.const 14
-        i32.mul
-        i32.add
-        i32.const 32
-        i32.add
-        local.get $t4
-        i32.const 12
-        i32.mul
-        i32.add
-        local.tee $t3
-        local.get $t3
-        i32.const 8
-        i32.add
-        local.set $t3
-        local.set $t5
-        local.get $t4
-        i32.const 1
-        i32.add
-        local.set $t4
-        block
-          br 0
-          unreachable
-        end
-        local.get $t5
-        i32.load $heap
-        local.get $t5
-        i32.load $heap offset=4
-        local.set $t5
-        local.tee $t6
-        if
-          local.get $t6
-          call $retain
-        else
-          call $skipped_test
-        end
-        local.get $t3
-        i32.load $heap
-        local.set $t3
-        local.get $t0
-        local.tee $t7
-        i32.load $heap offset=4
-        local.tee $t8
-        local.get $t7
-        i32.load $heap
-        i32.eq
-        if
-          local.get $t7
-          i32.const 26
-          call_indirect $table0 (param i32) (result i32)
-          local.tee $t7
-          local.set $t0
-        end
-        local.get $t7
-        local.get $t8
-        i32.const 12
-        i32.mul
-        i32.add
-        local.tee $t9
-        local.get $t6
-        i32.store $heap offset=16
-        local.get $t9
-        local.get $t5
-        i32.store $heap offset=20
-        local.get $t9
-        local.get $t3
-        i32.store $heap offset=24
-        local.get $t7
-        local.get $t8
-        i32.const 1
-        i32.add
-        i32.store $heap offset=4
-        br 0
-      end
-    end
-    local.get $t0
-  )
-  (func $"impl[T] List[T].sorted_by_key[i32, i32]" (param $t3 i32) (param $t9 i32) (param $t8 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t12 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t0 i32) (local $t10 i32) (local $t11 i32) (local $t13 i32)
+  (func $"impl[T] List[T].sorted_by_key[i32, i32, fn(&i32) -> i32]" (param $t3 i32) (param $t9 i32) (param $t8 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t12 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t0 i32) (local $t10 i32) (local $t11 i32) (local $t13 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -3558,7 +2955,7 @@
         i32.eq
         if
           local.get $t7
-          i32.const 25
+          i32.const 27
           call_indirect $table0 (param i32) (result i32)
           local.tee $t7
           local.set $t1
@@ -3587,9 +2984,9 @@
       end
     end
     local.get $t1
-    i32.const 27
+    i32.const 28
     i32.const 0
-    call $"impl[T] List[T].sorted_by[(i32, usize)]"
+    call $"impl[T] List[T].sorted_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]"
     local.get $t1
     if
       local.get $t1
@@ -3677,7 +3074,7 @@
         i32.eq
         if
           local.get $t1
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t1
           local.set $t8
@@ -3720,6 +3117,264 @@
     i32.add
     global.set $stack
   )
+  (func $"impl[K < Eq & Hash, V] Map[K, V] #2.entries[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+    ;; (no span)
+    i32.const 80 ;; &empty-buffer
+    local.tee $t0
+    local.set $t1
+    local.get $t2
+    i32.load $heap
+    local.tee $t3
+    if
+      local.get $t1
+      local.get $t3
+      call $rt:list_reserve'4
+      local.set $t0
+    end
+    local.get $t2
+    i32.load $heap offset=4
+    local.set $t1
+    block
+      loop
+        local.get $t2
+        local.get $t4
+        local.get $t1
+        call $rt:map_slot_next
+        local.tee $t4
+        local.get $t1
+        i32.lt_u
+        i32.eqz
+        br_if 1
+        local.get $t2
+        local.get $t2
+        i32.load $heap offset=12
+        i32.const 14
+        i32.mul
+        i32.add
+        i32.const 32
+        i32.add
+        local.get $t4
+        i32.const 12
+        i32.mul
+        i32.add
+        local.tee $t3
+        local.get $t3
+        i32.const 8
+        i32.add
+        local.set $t3
+        local.set $t5
+        local.get $t4
+        i32.const 1
+        i32.add
+        local.set $t4
+        block
+          br 0
+          unreachable
+        end
+        local.get $t5
+        i32.load $heap
+        local.get $t5
+        i32.load $heap offset=4
+        local.set $t5
+        local.tee $t6
+        if
+          local.get $t6
+          call $retain
+        else
+          call $skipped_test
+        end
+        local.get $t3
+        i32.load $heap
+        local.set $t3
+        local.get $t0
+        local.tee $t7
+        i32.load $heap offset=4
+        local.tee $t8
+        local.get $t7
+        i32.load $heap
+        i32.eq
+        if
+          local.get $t7
+          i32.const 29
+          call_indirect $table0 (param i32) (result i32)
+          local.tee $t7
+          local.set $t0
+        end
+        local.get $t7
+        local.get $t8
+        i32.const 12
+        i32.mul
+        i32.add
+        local.tee $t9
+        local.get $t6
+        i32.store $heap offset=16
+        local.get $t9
+        local.get $t5
+        i32.store $heap offset=20
+        local.get $t9
+        local.get $t3
+        i32.store $heap offset=24
+        local.get $t7
+        local.get $t8
+        i32.const 1
+        i32.add
+        i32.store $heap offset=4
+        br 0
+      end
+    end
+    local.get $t0
+  )
+  (func $"impl[T] List[T].sorted_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+    ;; (no span)
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 40
+    i32.lt_u
+    if
+      call $rt:panic'1
+      unreachable
+    end
+    global.get $stack
+    i32.const 40
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    block
+      local.get $t1
+      i32.load $heap offset=4
+      i32.const 1
+      i32.le_u
+      if
+        local.get $t1
+        call $rt:retain_coll
+        br 1
+      end
+      local.get $t1
+      call $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]"
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $t4
+      local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
+      i32.store $heap offset=4
+      local.get $t4
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=28
+      local.get $t4
+      local.get $t5
+      local.get $t6
+      call $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]"
+      i32.const 80 ;; &empty-buffer
+      local.tee $t1
+      local.set $t5
+      local.get $t4
+      i32.load $heap offset=8
+      local.tee $t6
+      if
+        local.get $t5
+        local.get $t6
+        call $rt:list_reserve'3
+        local.set $t1
+      end
+      local.get $t4
+      i32.load $heap offset=8
+      local.set $t5
+      local.get $t4
+      i32.const 0
+      i32.store $heap offset=8
+      block
+        loop
+          local.get $t7
+          local.get $t5
+          i32.lt_u
+          i32.eqz
+          br_if 1
+          local.get $t4
+          i32.load $heap
+          local.get $t7
+          i32.const 8
+          i32.mul
+          i32.add
+          local.tee $t6
+          i32.load $heap
+          local.get $t6
+          i32.load $heap offset=4
+          local.set $t6
+          local.set $t2
+          local.get $t1
+          local.tee $t3
+          i32.load $heap offset=4
+          local.tee $t8
+          local.get $t3
+          i32.load $heap
+          i32.eq
+          if
+            local.get $t3
+            i32.const 27
+            call_indirect $table0 (param i32) (result i32)
+            local.tee $t3
+            local.set $t1
+          end
+          local.get $t3
+          local.get $t8
+          i32.const 8
+          i32.mul
+          i32.add
+          local.tee $t9
+          local.get $t2
+          i32.store $heap offset=16
+          local.get $t9
+          local.get $t6
+          i32.store $heap offset=20
+          local.get $t3
+          local.get $t8
+          i32.const 1
+          i32.add
+          i32.store $heap offset=4
+          local.get $t7
+          i32.const 1
+          i32.add
+          local.set $t7
+          br 0
+        end
+      end
+      local.get $t4
+      if
+        local.get $t4
+        call $"release_value[std.collections.UniqList[(i32, usize)]]"
+      end
+    end
+    local.get $t1
+    local.get $t0
+    i32.const 40
+    i32.add
+    global.set $stack
+  )
   (func $"impl[T] List[T].chunks[i32]" (param $t3 i32) (param $t0 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
     ;; (no span)
     local.get $t0
@@ -3727,7 +3382,7 @@
     if
       i32.const 1186 ;; &"chunks: size must be positive"
       i32.const 29
-      i32.const 6
+      i32.const 7
       call_indirect $table0 (param i32 i32)
       unreachable
     end
@@ -3795,7 +3450,7 @@
         local.get $t3
         local.get $t5
         local.get $t2
-        call $"std/collections/impl[T] List[T].view[i32]'1"
+        call $"impl[T] List[T].view[i32]"
         local.set $t2
         local.set $t6
         local.set $t7
@@ -3808,7 +3463,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 30
+          i32.const 32
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -3841,266 +3496,126 @@
     end
     local.get $t1
   )
-  (func $map_once'1 (param $values i32) (param $transform.0 i32) (param $transform.1 i32) (result i32)
-    ;; 24 |     values.map(transform)
-    local.get $values
-    local.get $transform.0
-    local.get $transform.1
-    call $"std/collections/impl[T] List[T].map[i32, i32]'1"
-  )
-  (func $"impl[T] List[T].sorted_by[(i32, usize)]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
+  (func $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'2" (param $t3 i32) (param $t8 i32) (param $t7 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t0 i32) (local $t9 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 40
+    i32.const 16
     i32.lt_u
     if
       call $rt:panic'1
       unreachable
     end
     global.get $stack
-    i32.const 40
+    i32.const 16
     i32.sub
     local.tee $t0
     global.set $stack
-    block
-      local.get $t1
-      i32.load $heap offset=4
-      i32.const 1
-      i32.le_u
-      if
-        local.get $t1
-        call $rt:retain_coll
-        br 1
-      end
-      local.get $t1
-      call $"impl[T < Copy] UniqList[T].from_list[(i32, usize)]"
-      local.set $t1
-      local.set $t2
-      local.set $t3
-      local.get $t0
-      i64.const 0
-      i64.store $heap
-      local.get $t0
-      i32.const 8
-      i32.add
-      local.tee $t4
-      local.get $t3
-      i32.store $heap
-      local.get $t4
-      local.get $t2
-      i32.store $heap offset=4
-      local.get $t4
-      local.get $t1
-      i32.store $heap offset=8
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=12
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=16
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=20
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=24
-      local.get $t4
-      i32.const 1
-      i32.store $heap offset=28
-      local.get $t4
-      local.get $t5
-      local.get $t6
-      call $"impl[T < ?Copy] UniqList[T].sort_by[(i32, usize)]"
-      i32.const 80 ;; &empty-buffer
-      local.tee $t1
-      local.set $t5
-      local.get $t4
-      i32.load $heap offset=8
-      local.tee $t6
-      if
-        local.get $t5
-        local.get $t6
-        call $rt:list_reserve'3
-        local.set $t1
-      end
-      local.get $t4
-      i32.load $heap offset=8
-      local.set $t5
-      local.get $t4
-      i32.const 0
-      i32.store $heap offset=8
-      block
-        loop
-          local.get $t7
-          local.get $t5
-          i32.lt_u
-          i32.eqz
-          br_if 1
-          local.get $t4
-          i32.load $heap
-          local.get $t7
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t6
-          i32.load $heap
-          local.get $t6
-          i32.load $heap offset=4
-          local.set $t6
-          local.set $t2
-          local.get $t1
-          local.tee $t3
-          i32.load $heap offset=4
-          local.tee $t8
-          local.get $t3
-          i32.load $heap
-          i32.eq
-          if
-            local.get $t3
-            i32.const 25
-            call_indirect $table0 (param i32) (result i32)
-            local.tee $t3
-            local.set $t1
-          end
-          local.get $t3
-          local.get $t8
-          i32.const 8
-          i32.mul
-          i32.add
-          local.tee $t9
-          local.get $t2
-          i32.store $heap offset=16
-          local.get $t9
-          local.get $t6
-          i32.store $heap offset=20
-          local.get $t3
-          local.get $t8
-          i32.const 1
-          i32.add
-          i32.store $heap offset=4
-          local.get $t7
-          i32.const 1
-          i32.add
-          local.set $t7
-          br 0
-        end
-      end
-      local.get $t4
-      if
-        local.get $t4
-        call $"release_value[std.collections.UniqList[(i32, usize)]]"
-      end
-    end
-    local.get $t1
-    local.get $t0
-    i32.const 40
-    i32.add
-    global.set $stack
-  )
-  (func $"impl[K < Eq & Hash, V] Map[K, V].keys[string, i32]" (param $t2 i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32)
-    ;; (no span)
     i32.const 80 ;; &empty-buffer
-    local.tee $t0
-    local.set $t1
-    local.get $t2
+    local.tee $t1
+    local.set $t2
+    local.get $t3
+    i32.load $heap
+    i32.load $heap offset=4
+    local.tee $t4
+    if
+      local.get $t2
+      local.get $t4
+      call $rt:list_reserve'2
+      local.set $t1
+    end
+    local.get $t3
     i32.load $heap
     local.tee $t3
-    if
-      local.get $t1
-      local.get $t3
-      call $rt:list_reserve'1
-      local.set $t0
-    end
-    local.get $t2
     i32.load $heap offset=4
-    local.set $t1
+    local.set $t2
     block
       loop
+        local.get $t5
         local.get $t2
-        local.get $t4
-        local.get $t1
-        call $rt:map_slot_next
-        local.tee $t4
-        local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t2
-        local.get $t2
-        i32.load $heap offset=12
-        i32.const 14
+        local.get $t3
+        local.get $t5
+        i32.const 4
         i32.mul
         i32.add
-        i32.const 32
-        i32.add
-        local.get $t4
-        i32.const 12
-        i32.mul
-        i32.add
-        local.set $t3
-        local.get $t4
+        i32.load $heap offset=16
+        local.set $t4
+        local.get $t5
         i32.const 1
         i32.add
-        local.set $t4
+        local.set $t5
+        local.get $t0
+        i64.const 0
+        i64.store $heap
+        local.get $t0
+        i32.const 8
+        i32.add
+        local.set $t6
         block
+          local.get $t6
+          local.get $t4
+          i32.store $heap
           br 0
           unreachable
         end
-        local.get $t3
-        i32.load $heap
-        local.get $t3
-        i32.load $heap offset=4
-        local.set $t3
-        local.tee $t5
-        if
-          local.get $t5
-          call $retain
-        else
-          call $skipped_test
-        end
-        local.get $t0
+        local.get $t7
+        local.get $t6
+        i32.const 0
+        local.get $t8
+        call_indirect $table0 (param i32 i32 i32) (result i32)
+        local.set $t4
+        local.get $t1
         local.tee $t6
         i32.load $heap offset=4
-        local.tee $t7
+        local.tee $t9
         local.get $t6
         i32.load $heap
         i32.eq
         if
           local.get $t6
-          i32.const 13
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
-          local.set $t0
+          local.set $t1
         end
         local.get $t6
-        local.get $t7
-        i32.const 8
+        local.get $t9
+        i32.const 4
         i32.mul
         i32.add
-        local.tee $t8
-        local.get $t5
+        local.get $t4
         i32.store $heap offset=16
-        local.get $t8
-        local.get $t3
-        i32.store $heap offset=20
         local.get $t6
-        local.get $t7
+        local.get $t9
         i32.const 1
         i32.add
         i32.store $heap offset=4
         br 0
       end
     end
+    local.get $t1
     local.get $t0
+    i32.const 16
+    i32.add
+    global.set $stack
+  )
+  (func $map_once'1 (param $values i32) (param $transform.0 i32) (param $transform.1 i32) (result i32)
+    ;; 24 |     values.map(transform)
+    local.get $values
+    local.get $transform.0
+    local.get $transform.1
+    call $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'1"
   )
   (func $map_once'2 (param $values i32) (param $transform.0 i32) (param $transform.1 i32) (result i32)
     ;; 24 |     values.map(transform)
     local.get $values
     local.get $transform.0
     local.get $transform.1
-    call $"std/collections/impl[T] List[T].map[i32, i32]'2"
+    call $"std/collections/impl[T] List[T].map[i32, i32, fn(&i32) -> i32]'2"
   )
   (func $"impl[T < Ord] List[T].sorted[(string, i32)]" (param $t1 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t5 i32) (local $t7 i32) (local $t6 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
     ;; (no span)
@@ -4214,7 +3729,7 @@
           i32.eq
           if
             local.get $t8
-            i32.const 26
+            i32.const 29
             call_indirect $table0 (param i32) (result i32)
             local.tee $t8
             local.set $t1
@@ -4296,7 +3811,7 @@
         i32.eq
         if
           local.get $t3
-          i32.const 14
+          i32.const 15
           call_indirect $table0 (param i32) (result i32)
           local.tee $t3
           local.set $t0
@@ -4327,9 +3842,9 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 1285 ;; &"windows: size must be positive"
+      i32.const 1341 ;; &"windows: size must be positive"
       i32.const 30
-      i32.const 6
+      i32.const 7
       call_indirect $table0 (param i32 i32)
       unreachable
     end
@@ -4337,30 +3852,15 @@
     local.set $t1
     local.get $t0
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     i32.gt_u
     if
       local.get $t1
-      local.get $t2
-      if
-        local.get $t2
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        global.get $tracing
-        i32.or
-        if
-          local.get $t2
-          call $rt:release_ref
-        else
-          call $skipped_test
-        end
-      else
-        call $skipped_test
-      end
       return
     end
     local.get $t2
+    i32.load $heap
     i32.load $heap offset=4
     local.get $t0
     i32.sub
@@ -4388,7 +3888,7 @@
         local.get $t2
         local.get $t5
         local.get $t4
-        call $"std/collections/impl[T] List[T].view[i32]'2"
+        call $"impl[T] List[T].view[i32]"
         local.set $t4
         local.set $t6
         local.set $t7
@@ -4401,7 +3901,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 30
+          i32.const 32
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -4432,23 +3932,149 @@
         br 0
       end
     end
-    local.get $t2
+    local.get $t1
+  )
+  (func $"impl[T] List[T].sorted_by[i32, fn(&i32, &i32) -> Ordering]" (param $t1 i32) (param $t5 i32) (param $t6 i32) (result i32) (local $t3 i32) (local $t2 i32) (local $t4 i32) (local $t0 i32) (local $t7 i32)
+    ;; (no span)
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 40
+    i32.lt_u
     if
-      local.get $t2
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
+      call $rt:panic'1
+      unreachable
+    end
+    global.get $stack
+    i32.const 40
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    block
+      local.get $t1
+      i32.load $heap offset=4
+      i32.const 1
+      i32.le_u
       if
-        local.get $t2
-        call $rt:release_ref
-      else
-        call $skipped_test
+        local.get $t1
+        call $rt:retain_coll
+        br 1
       end
-    else
-      call $skipped_test
+      local.get $t1
+      call $"impl[T < Copy] UniqList[T].from_list[i32]"
+      local.set $t1
+      local.set $t2
+      local.set $t3
+      local.get $t0
+      i64.const 0
+      i64.store $heap
+      local.get $t0
+      i32.const 8
+      i32.add
+      local.tee $t4
+      local.get $t3
+      i32.store $heap
+      local.get $t4
+      local.get $t2
+      i32.store $heap offset=4
+      local.get $t4
+      local.get $t1
+      i32.store $heap offset=8
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t4
+      i32.const 1
+      i32.store $heap offset=28
+      local.get $t4
+      local.get $t5
+      local.get $t6
+      call $"impl[T < ?Copy] UniqList[T].sort_by[i32, fn(&i32, &i32) -> Ordering]"
+      i32.const 80 ;; &empty-buffer
+      local.tee $t1
+      local.set $t5
+      local.get $t4
+      i32.load $heap offset=8
+      local.tee $t6
+      if
+        local.get $t5
+        local.get $t6
+        call $rt:list_reserve'2
+        local.set $t1
+      end
+      local.get $t4
+      i32.load $heap offset=8
+      local.set $t5
+      local.get $t4
+      i32.const 0
+      i32.store $heap offset=8
+      block
+        loop
+          local.get $t7
+          local.get $t5
+          i32.lt_u
+          i32.eqz
+          br_if 1
+          local.get $t4
+          i32.load $heap
+          local.get $t7
+          i32.const 4
+          i32.mul
+          i32.add
+          i32.load $heap
+          local.set $t6
+          local.get $t1
+          local.tee $t2
+          i32.load $heap offset=4
+          local.tee $t3
+          local.get $t2
+          i32.load $heap
+          i32.eq
+          if
+            local.get $t2
+            i32.const 15
+            call_indirect $table0 (param i32) (result i32)
+            local.tee $t2
+            local.set $t1
+          end
+          local.get $t2
+          local.get $t3
+          i32.const 4
+          i32.mul
+          i32.add
+          local.get $t6
+          i32.store $heap offset=16
+          local.get $t2
+          local.get $t3
+          i32.const 1
+          i32.add
+          i32.store $heap offset=4
+          local.get $t7
+          i32.const 1
+          i32.add
+          local.set $t7
+          br 0
+        end
+      end
+      local.get $t4
+      if
+        local.get $t4
+        call $"release_value[std.collections.UniqList[i32]]"
+      end
     end
     local.get $t1
+    local.get $t0
+    i32.const 40
+    i32.add
+    global.set $stack
   )
 )

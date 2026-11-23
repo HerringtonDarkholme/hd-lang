@@ -724,6 +724,11 @@ tests:
         assert_equal(kept, ["fruit", "fresh", "bakery", "dairy"], reason="first occurrences, in item order")
 ```
 
+For lazy reversal, use `items.iter().rev()`; no intermediate list is built.
+Use `text.chars().rev().collect::[string]()` to reverse Unicode scalars.
+Front and back advancement share one remaining sequence; see
+[Double Ended Cursors](../../spec/std/iter.md#double-ended-cursors).
+
 A `Set` keeps each value once, in the order it first appeared. `Deque`
 and `Heap` serve a queue and a priority queue; see
 [Collections](../../spec/std/collections.md).
@@ -737,7 +742,7 @@ monotonic reading for measuring intervals, never a wall time. The exact
 rules are in [Time](../../spec/std/time.md):
 
 ```hd
-use std.time.{Duration, Instant, Timestamp, min, s}
+use std.time.{Duration, Instant, Timestamp, minutes, s}
 
 fn deadline(now: Timestamp) -> Timestamp:
     now + 30s
@@ -763,7 +768,7 @@ clock. A test binds `ManualClock`, so waiting costs no real time; see
 ## Building Text
 
 `trim` and `split` take text apart. The other direction has three tools:
-`join` for a list with a separator, `StringBuilder` for a loop that
+`join` for the `Display` text of list elements with a separator, `StringBuilder` for a loop that
 appends, and `repeat` for padding. `chars` and `bytes` walk a string by
 character or by byte. The exact rules are in [Text](../../spec/std/text.md):
 

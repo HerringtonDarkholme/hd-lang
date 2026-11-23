@@ -47,11 +47,16 @@
 //! Declaration documentation comes from the resolver's auxiliary item
 //! docs, outside semantic hashes.
 
+use hd_types::AdtId;
 mod dbg;
+pub mod remote;
+mod unique;
 
 pub use dbg::{
-    printer_body as dbg_printer_body, target as dbg_target, texts_body as debug_texts_body,
+    codec_body as wire_codec_body, printer_body as dbg_printer_body, target as dbg_target,
+    texts_body as debug_texts_body,
 };
+pub use unique::unique_body;
 
 use hd_base::{DefId, HashSet, LocalId, NodeIdx, Stage, StageResult};
 use hd_intern::PathKind;
@@ -61,6 +66,7 @@ use hd_tir::ir::{
     BodyKind, Callee, ChoiceKind, Coercion, NONE, Place, PlaceRoot, Proj, Providers, ReadMode, Ref,
     Tag, TirBuilder, TirSink, VerifyError, local_flags,
 };
+use hd_types::ANON_SUM;
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 /// Where the generator reads declarations: `std.structure`'s structs
@@ -209,10 +215,7 @@ pub struct Target {
 /// that is not a tuple.
 #[must_use]
 pub fn tuple_target(pool: &InternPool, ty: Ty) -> Option<Target> {
-    let TyData::Tuple { elems, rest } = pool.get(ty) else {
-        return None;
-    };
-    let elems = pool.list_items(elems);
+    let (elems, rest) = pool.product_parts(ty)?;
     let member = |k: usize, t: Ty, rest: bool| {
         let position = u32::try_from(k).unwrap_or(u32::MAX);
         Mem {
@@ -260,7 +263,7 @@ pub fn tuple_target(pool: &InternPool, ty: Ty) -> Option<Target> {
 /// single-payload enum variant `_k` per member, in member order.
 #[must_use]
 pub fn union_target(pool: &InternPool, ty: Ty) -> Option<Target> {
-    let TyData::Union(members) = pool.get(ty) else {
+    let TyData::Adt(ANON_SUM, members) = pool.get(ty) else {
         return None;
     };
     let vars = pool
@@ -633,6 +636,10 @@ pub fn subst_sig(names: &Names<'_>, sig: &FnSig, f: &dyn Fn(ParamRef) -> Option<
             ..g.clone()
         })
         .collect();
+    for (p, b) in &mut s.wheres {
+        *p = pool.subst(*p, f);
+        *b = pool.subst(*b, f);
+    }
     s
 }
 
@@ -890,10 +897,7 @@ impl<'a, 'n> Gen<'a, 'n> {
 
     fn adt(&self, def: DefId, args: &[Ty]) -> Ty {
         let pool = self.names.pool;
-        pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(args),
-        })
+        pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(args)))
     }
 
     /// A shared reference to the `std.structure` record `def[args]`, the
@@ -1084,7 +1088,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                 .parent(hd_base::PathId::from_raw(def.raw()))
                 .raw(),
         );
-        if let TyData::Adt { def: data, args } = pool.get(self.target)
+        if let TyData::Adt(AdtId::Declared(data), args) = pool.get(self.target)
             && data == owner
         {
             return args;
@@ -2010,14 +2014,11 @@ mod tests {
     #[test]
     fn a_tuple_target_lists_its_elements_then_its_rest_member() {
         let pool = InternPool::new();
-        let list = pool.intern_ty(&TyData::Adt {
-            def: DefId::from_raw(7),
-            args: pool.list(&[Ty::I32]),
-        });
-        let t = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[Ty::I32, Ty::BOOL]),
-            rest: Some(list),
-        });
+        let list = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(DefId::from_raw(7)),
+            pool.list(&[Ty::I32]),
+        ));
+        let t = pool.product(pool.list(&[Ty::I32, Ty::BOOL]), Some(list));
         let target = tuple_target(&pool, t).expect("a tuple");
         assert_eq!(target.name, "");
         let [v] = &target.vars[..] else {
@@ -2054,7 +2055,7 @@ mod tests {
     #[test]
     fn a_union_target_is_an_enum_with_one_positional_payload_per_case() {
         let pool = InternPool::new();
-        let t = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, Ty::STRING])));
+        let t = pool.intern_ty(&TyData::sum(pool.list(&[Ty::I32, Ty::STRING])));
         let target = union_target(&pool, t).expect("a union");
         assert_eq!(target.name, "Union");
         let shown: Vec<_> = target

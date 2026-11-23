@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: release | release checked
+# expected: named adapters keep concrete callback types and do not collect an intermediate list.
+fn matching(values: List[i32]) -> usize?:
+    let mut cursor = values.iter()
+    cursor.position(fn(value: i32) -> bool: value > 0)
+
+fn sum_positive(values: List[i32]) -> i32:
+    let total = +0
+    values.iter()
+        .filter_map(fn(value: i32) -> i32?:
+            if value > 0: .Some(value) else: .None
+        )
+        .for_each(fn(value: i32) -> void: total += value)
+    total
+
+fn final(values: List[i32]) -> i32?:
+    values.iter().last()

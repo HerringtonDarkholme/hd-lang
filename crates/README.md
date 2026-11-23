@@ -38,7 +38,6 @@ in each crate's `Cargo.toml`.
 | `hd_driver` | The task graph of a run; assembles compiler outputs | [Pipeline and task graph](../docs/compiler/design-overview.md#1-overview) |
 | `hd_lint` | Read-only advice over checked source facts; normal compiler clients do not depend on it | [`hd lint`](../spec/cli/command-line.md) |
 | `hd_doc` | Documentation extraction and rendering | [`hd doc`](hd_command/DESIGN.md#77-hd-doc) |
-| `hd_stdpack` | Build-time standard-library packer | [Standard-library bootstrap](hd_stdpack/DESIGN.md) |
 | `hd_web` | Playground compile session over an in-memory store | [Playground on Wasm](hd_web/DESIGN.md) |
 | `hd_wat` | The playground's lazily loaded WAT printer; independent of the compiler | [Playground on Wasm](hd_web/DESIGN.md) |
 | `hd_testkit` | Determinism and incremental-test support, and the `KNOWN_FAILURES.tsv` reader | [Testing the compiler](../docs/compiler/testing-the-compiler.md) |
@@ -129,7 +128,7 @@ for developer builds. `hd-lang` is outside `default-members`, like
 
 crates.io takes a dependency by name and version, so every crate `hd-lang`
 is built from is published too, as wasmtime-cli and typst-cli publish
-theirs. The others (`hd_web`, `hd_wat`, `hd_stdpack`, `hd_testkit`) say
+theirs. The others (`hd_web`, `hd_wat`, `hd_testkit`) say
 `publish = false`.
 
 | Rule | Where |
@@ -212,8 +211,7 @@ check keys, so it cannot reuse an unchecked result.
 - Parser corpus, fuzz, and tree snapshots are under
   `crates/hd_syntax/tests/`. `.tree` files pair with `.hd` inputs.
   Checker, runtime, incremental, and standard-library tests are under
-  `crates/hd_driver/tests/`. Golden TIR of a few std bodies is in
-  `crates/hd_driver/tests/tir/`.
+  `crates/hd_driver/tests/`.
 - CLI compile/run samples are in `examples/` and exercised by
   `crates/hd_command/tests/all/run.rs`.
 - The implementation-neutral suite is in `spec/conformance/`. Every
@@ -231,14 +229,12 @@ From the repository root, `cargo test` runs the default members, which
 leave out `hd_run_wasmtime` and the tests that need it. `cargo test --workspace
 --all-features` runs everything (see [Wasmtime Engine](#wasmtime-engine)).
 Only update checked-in output after reviewing the diff. `HD_BLESS=1` is the
-one variable that accepts new output: stage baselines, `.tree` snapshots,
-the golden std TIR
-(`checker::std_bodies_match_golden_tir`) and the generated host ABI files
+one variable that accepts new output: stage baselines, `.tree` snapshots
+and the generated host ABI files
 (`cargo test -p hd_host_abi --test abi_model`).
 
 ```sh
 HD_BLESS=1 cargo test -p hd_check --test stages
-HD_BLESS=1 cargo test -p hd_driver --test all checker::std_bodies_match_golden_tir
 ```
 
 The `checked-report` feature also audits dynamic retain/release pairs. Set

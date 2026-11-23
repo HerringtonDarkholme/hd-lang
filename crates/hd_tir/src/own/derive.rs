@@ -750,7 +750,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
             // references held in local aggregates and dependent results.
             let lends = call != NONE || t.v[i].read_through || b.data[i][1] & ref_word::FRAME != 0;
             t.l[l.idx()].shared_lends_only &= b.data[i][1] & ref_word::MUT == 0 && lends;
-            t.l[l.idx()].binding_lends_only &= t.reference_roots[i] != NONE && frame_lends[l.idx()];
+            // A view's address stays in the guard that reads it, which
+            // keeps what it views unchanged (`flow.match.guard.borrow`).
+            let view = b.local_flags[l.idx()] & local_flags::VIEW != 0;
+            t.l[l.idx()].binding_lends_only &=
+                view || t.reference_roots[i] != NONE && frame_lends[l.idx()];
             if b.data[i][1] & ref_word::FRAME == 0 && !lends {
                 t.l[l.idx()].escapes = true;
             }
@@ -769,7 +773,16 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
     collapse_aliases(&mut t.v, || {});
     // A value no instance may copy needs a count wherever a use keeps it or a
     // store takes a part of it, which only a move gives; so does the read the
-    // part leaves.
+    // part leaves. A view takes no count (`local_flags::VIEW`): its part
+    // stays where it is, as a match guard's twin of its arm's binding leaves
+    // the payload for the arm (`flow.match.guard.borrow`).
+    let viewed = |t: &Tables, i: usize| {
+        let s = t.store_of(i);
+        s != NONE
+            && b.view(b.data[s as usize][0])
+                .local()
+                .is_some_and(|l| b.local_flags[l as usize] & local_flags::VIEW != 0)
+    };
     for i in (0..n).rev() {
         if b.tags[i] != Tag::Read
             || b.data[i][1] != ReadMode::Copy as u32
@@ -780,7 +793,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
         }
         let p = b.view(b.data[i][0]);
         let part = !p.whole() && p.in_place(b);
-        if t.v[i].keeps || (part && t.store_of(i) != NONE) {
+        if t.v[i].keeps || (part && t.store_of(i) != NONE && !viewed(t, i)) {
             t.v[i].keeps = true;
             if let Root::Value(v) = p.root
                 && p.in_place(b)
@@ -1209,6 +1222,54 @@ impl Backward for Tables {
     }
 }
 
+/// The read a binding local `l` holds while that read borrows: the
+/// binding owns nothing, and a read of it reads what that read reads.
+fn held(t: &Tables, l: u32) -> Option<usize> {
+    let bit = t.l[l as usize].bit;
+    (bit != NONE)
+        .then(|| t.bits[bit as usize].read as usize)
+        .filter(|&r| t.v[r].borrows)
+}
+
+/// The read a place's root is, when the place is in place and that read
+/// borrows: a borrowing read of a value, or the read a borrowing binding
+/// holds ([`held`]). What a chain of borrowing reads steps to.
+fn borrowed_root(b: &Body, t: &Tables, word: u32) -> Option<usize> {
+    let place = b.view(word);
+    if !place.in_place(b) {
+        return None;
+    }
+    match place.root {
+        Root::Value(v) if b.tags[v as usize] == Tag::Read && t.v[v as usize].borrows => {
+            Some(v as usize)
+        }
+        Root::Local(l) => held(t, l),
+        _ => None,
+    }
+}
+
+/// Whether place `word` reaches, in place and through reads and bindings
+/// that borrow only, a value or local that owns or may own ([`solve`]'s
+/// `owns_local`): what a chain of reads can move out of. Cost: one step
+/// per read of the chain.
+fn owned_chain(b: &Body, t: &Tables, mut word: u32, owns_local: impl Fn(u32) -> bool) -> bool {
+    loop {
+        if let Some(r) = borrowed_root(b, t, word) {
+            word = b.data[r][0];
+            continue;
+        }
+        let place = b.view(word);
+        if !place.in_place(b) {
+            return false;
+        }
+        return match place.root {
+            Root::Value(v) => !t.v[v as usize].borrows,
+            Root::Local(l) => owns_local(l),
+            _ => false,
+        };
+    }
+}
+
 /// Whether every `Drop` bit `bit` crossed empties what owns nothing.
 fn crossed_ok(b: &Body, t: &Tables, bit: u32) -> bool {
     let lo = t.crossed.partition_point(|c| c.0 < bit);
@@ -1299,16 +1360,20 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             let needed = taken[r]
                 || (f.alias != NONE && taken[f.alias as usize])
                 || (bind != NONE && t.l[bind as usize].kept > 0);
+            // A local owns, or may: a parameter its caller gives the body
+            // is unowned only while no read of it keeps a count.
+            let owns_local = |m: u32| {
+                !t.l[m as usize].unowned
+                    || list
+                        .iter()
+                        .position(|&p| p == m)
+                        .is_some_and(|at| !suspends && cx.received(b.item, at, n) == Pass::Owned)
+            };
             // It could move only out of what can own, by a place a move
             // takes: not a value that borrows, nor a parameter its caller
             // keeps, nor what lies behind a reference or in a buffer.
             let root_owned = match b.view(b.data[r][0]).root {
-                Root::Local(m) => {
-                    !t.l[m as usize].unowned
-                        || list.iter().position(|&p| p == m).is_some_and(|at| {
-                            !suspends && cx.received(b.item, at, n) == Pass::Owned
-                        })
-                }
+                Root::Local(m) => owns_local(m),
                 Root::Value(v) => !t.v[v as usize].borrows,
                 _ => true,
             };
@@ -1321,7 +1386,34 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
                 at = t.bits[bit as usize];
             }
             let moves = needed && root_owned && b.view(b.data[r][0]).in_place(b);
+            // A value no instance copies cannot borrow where a count is
+            // needed, nor be copied there later: it keeps its count, and so
+            // does each borrowing read it is a part of, down to one that can
+            // move out of what owns it (the scan's rule for parts, applied
+            // to a binding the solve keeps). A tuple match's payload is such
+            // a chain: `[%payload]` of `[%elem as .Some .0]` of
+            // `[%tuple .0]`; so is a binding of a binding, as an inlined
+            // callee's parameter bound to a match's binding, whose held read
+            // then keeps the count and the binding owns it. A chain that
+            // goes behind a reference, as a match through `place.as_mut()`
+            // does, has nothing to move out of and keeps its borrow. Cost:
+            // the chain's length per needed read of such a type, and the
+            // marking walk takes each read once per solve.
+            let owns = needed
+                && !moves
+                && cx.copies(b.ty[r]) != Tri::Yes
+                && owned_chain(b, t, b.data[r][0], owns_local);
+            if owns {
+                t.v[r].keeps = true;
+                let mut word = b.data[r][0];
+                while let Some(v) = borrowed_root(b, t, word) {
+                    t.v[v].borrows = false;
+                    t.v[v].keeps = true;
+                    word = b.data[v][0];
+                }
+            }
             if moves
+                || owns
                 || get(&t.changed, bit)
                 || !crossed_ok(b, t, bit)
                 || (t.probe && at.relied != 0)
@@ -1359,14 +1451,17 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     // A value no instance copies is never copied: a match decides through
-    // its scrutinee by borrowing it. There is no count to end or drop.
+    // its scrutinee by borrowing it, and a match column that only names
+    // its bindings' place, which they read again, has no use at all.
+    // There is no count to end or drop.
     for r in 0..b.len() {
         if b.tags[r] == Tag::Read
             && b.data[r][1] == ReadMode::Copy as u32
             && !t.v[r].keeps
-            && !cx.counted(b.ty[r])
             && cx.copies(b.ty[r]) != Tri::Yes
-            && match_reference_read(b, topo, r, |value| t.v[value].borrows)
+            && (t.v[r].uses == 0
+                || !cx.counted(b.ty[r])
+                    && match_reference_read(b, topo, r, |value| t.v[value].borrows))
         {
             t.v[r].borrows = true;
         }
@@ -2196,17 +2291,24 @@ pub(crate) fn frame_reference_origins(
 }
 
 /// Stores whose new value changes no count, reference dependency or Drop
-/// obligation. One instruction census and one query per distinct stored type.
+/// obligation: neither the stored value's type nor the type of the place's
+/// root holds a `Drop` value, since that root's hook reads the part the
+/// store writes. One instruction census and one query per distinct pair of
+/// stored type and root type.
 pub(crate) fn count_neutral_stores(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
-    count_neutral_stores_with(b, |ty| {
+    count_neutral_stores_with(b, |ty, root| {
         !cx.counted(ty)
             && !cx.holds_ref(ty)
             && cx.holds_drop(ty) == Tri::No
             && cx.copies(ty) == Tri::Yes
+            && root.is_none_or(|root| cx.holds_drop(root) == Tri::No)
     })
 }
 
-fn count_neutral_stores_with(b: &Body, mut neutral: impl FnMut(hd_types::Ty) -> bool) -> Vec<bool> {
+fn count_neutral_stores_with(
+    b: &Body,
+    mut neutral: impl FnMut(hd_types::Ty, Option<hd_types::Ty>) -> bool,
+) -> Vec<bool> {
     let mut types = hd_base::HashMap::default();
     b.tags
         .iter()
@@ -2223,7 +2325,12 @@ fn count_neutral_stores_with(b: &Body, mut neutral: impl FnMut(hd_types::Ty) -> 
                     .get((value.0 & !Ref::CONST_BIT) as usize)
                     .map(|c| c.0),
             };
-            ty.is_some_and(|ty| *types.entry(ty).or_insert_with(|| neutral(ty)))
+            let root = match b.view(b.data[i][0]).root {
+                Root::Local(l) => b.local_ty.get(l as usize).copied(),
+                Root::Value(v) => b.ty.get(v as usize).copied(),
+                _ => None,
+            };
+            ty.is_some_and(|ty| *types.entry((ty, root)).or_insert_with(|| neutral(ty, root)))
         })
         .collect()
 }
@@ -3189,7 +3296,7 @@ mod lending_tests {
                 let roots = origins.roots;
                 assert!(work <= 5 * body.len() + 4 * body.local_ty.len());
                 let mut queries = 0;
-                let neutral = count_neutral_stores_with(&body, |ty| {
+                let neutral = count_neutral_stores_with(&body, |ty, _| {
                     queries += 1;
                     ty == Ty::I32
                 });

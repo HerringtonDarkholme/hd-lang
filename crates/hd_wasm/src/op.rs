@@ -10,6 +10,9 @@ pub struct LabelListId(pub u32);
 
 #[derive(Clone, Copy, Debug)]
 pub enum Op {
+    /// `atomic.fence`, and the `i32.atomic.*` instructions on the heap
+    /// (`module.rt.memory.atomic`): valid on unshared memory too.
+    AtomicFence,
     Block(BlockType),
     Br(u32),
     BrIf(u32),
@@ -88,6 +91,11 @@ pub enum Op {
     I32GtU,
     I32LeS,
     I32LeU,
+    I32AtomicLoad(MemArg),
+    I32AtomicRmwAdd(MemArg),
+    I32AtomicRmwCmpxchg(MemArg),
+    I32AtomicRmwSub(MemArg),
+    I32AtomicStore(MemArg),
     I32Load(MemArg),
     I32Load16S(MemArg),
     I32Load16U(MemArg),
@@ -157,9 +165,15 @@ pub enum Op {
     LocalSet(u32),
     LocalTee(u32),
     Loop(BlockType),
-    MemoryCopy { src_mem: u32, dst_mem: u32 },
+    MemoryCopy {
+        src_mem: u32,
+        dst_mem: u32,
+    },
     MemoryFill(u32),
     MemoryGrow(u32),
+    /// `memory.atomic.notify` and `memory.atomic.wait32` (`module.rt.memory.atomic.wait`).
+    MemoryAtomicNotify(MemArg),
+    MemoryAtomicWait32(MemArg),
     MemorySize(u32),
     Return,
     Select,
@@ -170,6 +184,7 @@ impl Op {
     /// Resolves the scalar operation without allocation or information loss.
     pub fn to_wasm(self, labels: &[Vec<u32>]) -> Wasm<'_> {
         match self {
+            Self::AtomicFence => Wasm::AtomicFence,
             Self::Block(x0) => Wasm::Block(x0),
             Self::Br(x0) => Wasm::Br(x0),
             Self::BrIf(x0) => Wasm::BrIf(x0),
@@ -250,6 +265,11 @@ impl Op {
             Self::I32GtU => Wasm::I32GtU,
             Self::I32LeS => Wasm::I32LeS,
             Self::I32LeU => Wasm::I32LeU,
+            Self::I32AtomicLoad(x0) => Wasm::I32AtomicLoad(x0),
+            Self::I32AtomicRmwAdd(x0) => Wasm::I32AtomicRmwAdd(x0),
+            Self::I32AtomicRmwCmpxchg(x0) => Wasm::I32AtomicRmwCmpxchg(x0),
+            Self::I32AtomicRmwSub(x0) => Wasm::I32AtomicRmwSub(x0),
+            Self::I32AtomicStore(x0) => Wasm::I32AtomicStore(x0),
             Self::I32Load(x0) => Wasm::I32Load(x0),
             Self::I32Load16S(x0) => Wasm::I32Load16S(x0),
             Self::I32Load16U(x0) => Wasm::I32Load16U(x0),
@@ -322,6 +342,8 @@ impl Op {
             Self::MemoryCopy { src_mem, dst_mem } => Wasm::MemoryCopy { src_mem, dst_mem },
             Self::MemoryFill(x0) => Wasm::MemoryFill(x0),
             Self::MemoryGrow(x0) => Wasm::MemoryGrow(x0),
+            Self::MemoryAtomicNotify(x0) => Wasm::MemoryAtomicNotify(x0),
+            Self::MemoryAtomicWait32(x0) => Wasm::MemoryAtomicWait32(x0),
             Self::MemorySize(x0) => Wasm::MemorySize(x0),
             Self::Return => Wasm::Return,
             Self::Select => Wasm::Select,

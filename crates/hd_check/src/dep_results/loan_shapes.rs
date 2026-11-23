@@ -2,6 +2,7 @@
 //! logical origin slots; instance layout later supplies physical positions.
 use super::{BodyCx, HashMap, HashSet, ItemData, Layouts, Rc, Ty, TyData, w};
 use hd_tir::ir::LoanField;
+use hd_types::AdtId;
 
 #[derive(Clone, Debug)]
 pub(super) struct Shape {
@@ -68,27 +69,25 @@ impl Shapes {
                         continue;
                     }
                     let groups: Vec<_> = match ls.pool.get(ty) {
-                        TyData::Tuple { elems, rest } => vec![(
-                            None,
-                            ls.pool.list_items(elems).len() + usize::from(rest.is_some()),
-                        )],
-                        TyData::Adt { def, .. } => {
-                            cx.lookup
-                                .item(def)
-                                .map_or_else(Vec::new, |item| match &item.data {
-                                    ItemData::Struct(fields, _) => vec![(None, fields.len())],
-                                    ItemData::Enum {
-                                        shared, variants, ..
-                                    } if shared.is_empty() => variants
-                                        .iter()
-                                        .enumerate()
-                                        .map(|(variant, fields)| {
-                                            (Some(w(variant)), fields.fields.len())
-                                        })
-                                        .collect(),
-                                    _ => Vec::new(),
-                                })
+                        TyData::Adt(AdtId::Product { .. }, args) => {
+                            vec![(None, ls.pool.list_items(args).len())]
                         }
+                        TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => cx
+                            .lookup
+                            .item(def)
+                            .map_or_else(Vec::new, |item| match &item.data {
+                                ItemData::Struct(fields, _) => vec![(None, fields.len())],
+                                ItemData::Enum {
+                                    shared, variants, ..
+                                } if shared.is_empty() => variants
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(variant, fields)| {
+                                        (Some(w(variant)), fields.fields.len())
+                                    })
+                                    .collect(),
+                                _ => Vec::new(),
+                            }),
                         _ => Vec::new(),
                     };
                     let mut fields = Vec::new();

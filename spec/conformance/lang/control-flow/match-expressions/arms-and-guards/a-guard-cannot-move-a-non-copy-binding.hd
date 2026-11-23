@@ -1,0 +1,16 @@
+# test: a guard reads its arm's bindings in place, so it cannot move one whose value is not copied: the next arm matches the same value when the guard is false
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.move.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep(photo: Photo) -> bool:
+    photo.width > 3
+
+fn pick(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if keep(photo) => 1 # diagnostic: move-out-of-place
+        .Some(photo) => photo.width
+        _ => 0

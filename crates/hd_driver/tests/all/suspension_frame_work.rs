@@ -150,7 +150,6 @@ fn one_thousand_real_awaits_execute_on_wasmtime() {
             );
             if let Some(wasm) = out.wasm {
                 let setup = hd_run::HostSetup {
-                    providers: Vec::new(),
                     grants: hd_run::Grants::default(),
                     limits: hd_run::Limits::default(),
                     args: Vec::new(),

@@ -145,6 +145,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/serde.md` | `std-serde` |
 | `std/cli.md` | `std-cli` |
 | `std/regex.md` | `std-regex` |
+| `std/remote.md` | `std-remote` |
 | `std/validate.md` | `std-validate` |
 | `std/process.md` | `std-process` |
 | `std/http.md` | `std-http` |
@@ -154,6 +155,8 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/text.md` | `std-text` |
 | `std/time.md` | `std-time` |
 | `std/task.md` | `std-task` |
+| `std/sync.md` | `std-sync` |
+| `std/thread.md` | `std-thread` |
 | [Command Line](cli/command-line.md) | `cli` |
 
 A stdlib chapter's prefix is `std-` and its module name. The CLI tier's

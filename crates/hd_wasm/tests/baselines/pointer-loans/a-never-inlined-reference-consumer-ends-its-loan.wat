@@ -13,9 +13,9 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
-  (import "fixture" "impl[T] List[T].remove_at[string]" (func $"impl[T] List[T].remove_at[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "impl[T] List[T].swap[string]" (func $"impl[T] List[T].swap[string]" (param i32 i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
+  (import "fixture" "impl[T] List[T].remove[string]" (func $"impl[T] List[T].remove[string]" (param i32 i32) (result i32 i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 7 funcref))
   (func $slots (param $first.0 i32) (param $first.1 i32) (param $last.0 i32) (param $last.1 i32) (result i32) (local $t0 i32) (local $t1 i32)
@@ -204,7 +204,7 @@
     i32.eqz
     if
     ;; 85 |         panic("the reference read another value than its original")
-      i32.const 187 ;; &"the reference read another value than its original"
+      i32.const 121 ;; &"the reference read another value than its original"
       i32.const 50
       i32.const 2
       call_indirect $table0 (param i32 i32)
@@ -212,7 +212,7 @@
     ;; 84 |     if seen != orig():
     end
     ;; 86 |     println("ok")
-    i32.const 237 ;; &"ok"
+    i32.const 171 ;; &"ok"
     i32.const 2
     local.get $provider0
     local.get $provider0.vtable
@@ -220,7 +220,7 @@
   )
   (func $churn (result i32) (local $junk i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32)
     ;; 59 |     let mut junk: List[string] = []
-    i32.const 248 ;; &empty-buffer
+    i32.const 184 ;; &empty-buffer
     local.set $junk
     ;; 60 |     for round in 0..8:
     i32.const 8
@@ -256,7 +256,7 @@
         local.get $t2
         i32.add
         local.set $t2
-        i32.const 272 ;; &"j"
+        i32.const 208 ;; &"j"
         i32.const 1
         local.get $t2
         call $"impl string.repeat"
@@ -336,7 +336,7 @@
   )
   (func $fresh (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32)
     ;; 51 |     "w-" + "x".repeat(40)
-    i32.const 273 ;; &"x"
+    i32.const 272 ;; &"x"
     i32.const 1
     i32.const 40
     call $"impl string.repeat"
@@ -388,12 +388,6 @@
     i32.store $heap offset=8
     local.get $t3
   )
-  (func $"impl Slots.remove_at" (param $self i32) (param $index i32) (result i32 i32)
-    ;; 35 |         self.items.remove_at(index)
-    local.get $self
-    local.get $index
-    call $"impl[T] List[T].remove_at[string]"
-  )
   (func $"impl Slots.swap" (param $self i32) (param $left i32) (param $right i32)
     ;; 38 |         self.items.swap(left, right)
     local.get $self
@@ -406,7 +400,7 @@
     local.get $p
     i32.const 1
     call $"impl Slots.get_ref"
-    i32.const 276 ;; &"slot"
+    i32.const 275 ;; &"slot"
     i32.const 4
     local.set $message.1
     local.set $message.0
@@ -520,9 +514,15 @@
       call $rt:release_ref'1
     end
   )
+  (func $"impl Slots.remove" (param $self i32) (param $index i32) (result i32 i32)
+    ;; 35 |         self.items.remove(index)
+    local.get $self
+    local.get $index
+    call $"impl[T] List[T].remove[string]"
+  )
   (func $orig (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; 45 |     "orig-" + "z".repeat(40)
-    i32.const 280 ;; &"z"
+    i32.const 279 ;; &"z"
     i32.const 1
     i32.const 40
     call $"impl string.repeat"

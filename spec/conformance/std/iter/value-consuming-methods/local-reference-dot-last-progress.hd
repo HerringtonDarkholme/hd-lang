@@ -1,0 +1,28 @@
+# test: dot lookup selects the mutable reference's iterator implementation before the referent's value implementation
+
+tests:
+    use std.testing.assert_equal
+
+    it("a mutable reference consumer advances its source"):
+        let mut cursor = [+1, 2, 3].iter()
+        _ := cursor.next()
+        assert_equal((&mut cursor).last(), .Some(3))
+        assert_equal(cursor.next(), .None)
+
+    it("a mutable reference binding's adapter shares its source's progress"):
+        let mut cursor = [+1, 2, 3, 4].iter()
+        r := &mut cursor
+        assert_equal(r.take(2).count(), 2)
+        assert_equal(cursor.next(), .Some(3))
+
+    it("a counted mutable reference consumer advances what it refers to"):
+        shared := box([+1, 2, 3].iter())
+        _ := shared.next()
+        assert_equal(shared.last(), .Some(3))
+        assert_equal(shared.next(), .None)
+
+    it("an owned cursor consumer takes its own copy"):
+        let mut cursor = [+1, 2, 3].iter()
+        _ := cursor.next()
+        assert_equal(cursor.last(), .Some(3))
+        assert_equal(cursor.next(), .Some(2))

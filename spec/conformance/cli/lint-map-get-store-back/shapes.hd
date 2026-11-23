@@ -1,0 +1,85 @@
+# The message names the copy, the store and the call.
+fn group_named_key(n: i32, m: &mut Map[string, List[i32]]) -> void:
+    for i in 0..n:
+        let mut xs = m.get("k").unwrap_or([])
+        xs.push(i)
+        m["k"] = xs
+
+# A `match` on `get` is reported in either arm order, and with a wildcard arm.
+fn group_match_arms(n: i32, key: i32) -> Map[i32, List[i32]]:
+    let mut m: Map[i32, List[i32]] = {}
+    for i in 0..n:
+        let mut ys = match m.get(key):
+            .Some(v) => v
+            .None => []
+        ys.push(i)
+        ys.push(i + 1)
+        m[key] = ys
+    for i in 0..n:
+        let mut zs: List[i32] = match m.get(1):
+            .None => [7]
+            .Some(found) => found
+        zs[0] = i
+        m[1] = zs
+    for i in 0..n:
+        let mut ws = match m.get(2):
+            .Some(w) => w
+            _ => []
+        ws.push(i)
+        m[2] = ws
+    m
+
+# Struct values, their fields and a map held in a field are rewritten.
+struct Tally:
+    count: i32
+    names: List[string]
+
+struct Book:
+    tallies: Map[string, Tally]
+
+impl Book:
+    fn note(&mut self, name: string) -> void:
+        let mut tally = self.tallies.get(name).unwrap_or(Tally { count: 0, names: [] })
+        tally.count += 1
+        # the name joins the list
+        tally.names.push("seen")
+        self.tallies[name] = tally
+
+fn count(words: List[string]) -> Map[string, Tally]:
+    let mut t: Map[string, Tally] = {}
+    for word in words:
+        let mut tally = t.get(word).unwrap_or(Tally { count: 0, names: [] })
+        tally.count += 1
+        t[word] = tally
+    t
+
+# Two interleaved maps and a reused name each report their own store.
+fn group_two_maps(n: i32) -> Map[i32, List[i32]]:
+    let mut a: Map[i32, List[i32]] = {}
+    let mut b: Map[i32, List[i32]] = {}
+    for i in 0..n:
+        let mut xs = a.get(0).unwrap_or([])
+        xs.push(i)
+        a[0] = xs
+        let mut xs = b.get(0).unwrap_or([])
+        xs.push(i)
+        b[0] = xs
+    a
+
+# A generic body, a closure body and a nested block each report once.
+fn add[K < Eq & Hash](m: &mut Map[K, List[i32]], key: K, n: i32) -> void:
+    let mut xs = m.get(key).unwrap_or([])
+    xs.push(n)
+    m[key] = xs
+
+fn group_body_forms(n: i32) -> Map[i32, List[i32]]:
+    let mut m: Map[i32, List[i32]] = {}
+    add(&mut m, 1, 2)
+    add(&mut m, 3, 4)
+    note := fn(key: i32): add(&mut m, key, 0)
+    note(5)
+    if n > 0:
+        let mut ys = m.get(n).unwrap_or([])
+        ys.push(1)
+        m[n] = ys
+    m

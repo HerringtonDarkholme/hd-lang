@@ -72,10 +72,10 @@ a `char`, a list or a map, or are one machine operation on a number.
 | `char_scalar`, `char_from_scalar` | `(c: char) -> u32`, `(point: u32) -> char?` | a `char` is its scalar value at run time; `char_from_scalar` gives `.None` for a value that is not a Unicode scalar value, a surrogate or one above `0x10FFFF` |
 | `f64_to_bits`, `f64_from_bits` | `(value: f64) -> u64`, `(bits: u64) -> f64` | the bit cast between an `f64` and its IEEE 754 pattern, one reinterpret instruction; hd has no other way to read a NaN's sign, which [`std-num.float-bits.to`](num.md#r-std-num.float-bits.to) and `total_cmp` need |
 | `f32_to_bits`, `f32_from_bits` | `(value: f32) -> u32`, `(bits: u32) -> f32` | the same bit cast for `f32` |
-| `int_min`, `int_max` | `[N < Integer]() -> N` | each integer type's bounds as constants, which a generic body over `Integer` cannot name otherwise |
+| `int_min`, `int_max` | `[N < Integer]() -> N` | private implementation hooks for `Integer::min_value()` and `Integer::max_value()` |
 | `int_wrapping_add`, `int_wrapping_sub`, `int_wrapping_mul` | the methods `wrapping_add`, `wrapping_sub`, `wrapping_mul` of `impl[N < Integer] N`: `(self, other: N) -> N` | one machine instruction that wraps in every profile, where `+`, `-` and `*` panic on overflow in a debug or test build |
 | `int_count_ones`, `int_leading_zeros`, `int_trailing_zeros` | the methods `count_ones`, `leading_zeros`, `trailing_zeros` of `impl[N < Integer] N`: `(self) -> u32` | one machine instruction (`popcnt`, `clz`, `ctz`) at the type's width |
-| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove_at` and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
+| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void` | shortens the list `items` refers to, to its first `len` elements, the one hook under `List.pop`, `insert`, `remove` and `clear`; panics when `len` is greater than the size. Panic: `index-out-of-bounds` |
 | `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void` | appends `other`'s elements to the list `items` refers to with one capacity check and one copy of all of them, where `push` in a loop checks and may grow once per element; `List.extend` is this call. `other` may be the list itself |
 | `list_reserve` | `[T](items: &mut List[T], count: usize) -> void` | makes room in the list `items` refers to for at least `count` more elements with at most one new buffer, where pushing and truncating elements would grow it once per doubling; `count` 0 does nothing. `list_extend` and `List.reserve` reuse it. |
 | `map_probe` | the body of `Map.get_or_insert(&mut self, key: K, default: V) -> &mut V` | finds or inserts a key's entry in one probe of the map's table and returns a reference into it ([`module.map.probe.get-or-insert.decl`](../lang/10-modules.md#r-module.map.probe.get-or-insert.decl)) |
@@ -110,7 +110,7 @@ raises with a category other than `explicit-panic`.
 | `task_idle_hook` | `std.rt.wait.idle_hook(hook: fn() -> void)` installs the function a driver runs when every task waits on the host; the driver's loop is compiler-supplied |
 | `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`: a call through a function value's code and environment, whose layout only the compiler knows ([`fn.trait.decl`](../lang/07-functions.md#r-fn.trait.decl), [`fn.trait.mut.decl`](../lang/07-functions.md#r-fn.trait.mut.decl)) |
 | `ref_identity` | the identity of a reference's place, which `deep_equal` keys its visited pairs by; the checker reads it from the reference |
-| `mem_ref_address` | the address of the place a shared reference refers to, which `MembersRecord.id` returns for a member directory's static record ([`annot.structure.members.id`](../lang/14-annotations.md#r-annot.structure.members.id)) |
+| `mem_ref_address` | the address of a borrowed place, used for scalar scratch storage and returned by `MembersRecord.id` for a member directory's static record ([`annot.structure.members.id`](../lang/14-annotations.md#r-annot.structure.members.id)) |
 | `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()` in `std.debug`: the call site of the enclosing `@track_caller` function, which only the compiler knows ([`fn.caller.location`](../lang/07-functions.md#r-fn.caller.location)) |
 | `descriptor_glue_mask` | the checked report's mask of a block descriptor's glue bits, which the compiler lays out |
 
@@ -216,6 +216,8 @@ file of its own.
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; `split_once`, `split_whitespace`, padding, and `count`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `ParseTimeError`; the serialization opt-in of the time types |
+| [`sync.md`](sync.md) | `std.sync` | `std-sync` | `Arc` and `Weak`, shared ownership across threads over atomic counts |
+| [`thread.md`](thread.md) | `std.thread` | `std-thread` | `scope`, `Scope` and `Handle`: scoped threads on one heap |
 | [`task.md`](task.md) | `std.task` | `std-task` | `Layer` and `apply!`; retry, timeout, fallback, breaker and hedge policies; `TimedOut` and `CircuitOpen`; `map_join!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
@@ -240,6 +242,7 @@ file of its own.
 | [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
 | [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |
+| [`remote.md`](remote.md) | `std.remote` | `std-remote` | the homes `per_request` and `home`, served functions `Call` and `action`, and the HTTP adapters `http_transport` and `http_handler` |
 | [`validate.md`](validate.md) | `std.validate` | `std-validate` | post-reader value validation, typed rule facts, structural paths, issue caps, and reader-selected path names |
 
 ## Test Provider Names
@@ -270,6 +273,8 @@ the [language glossary](../README.md#glossary).
 | **pad bits** | The low bits of the last base64 symbol that encode no byte; they are zero. See [`std-encoding.base64.encode.pad-bits`](encoding.md#r-std-encoding.base64.encode.pad-bits). |
 | **padding** | The one or two `=` characters that end a base64 text. See [`std-encoding.base64.decode.padding`](encoding.md#r-std-encoding.base64.decode.padding). |
 | **positional** | A command-line argument that is not a flag or an option; `std.cli` reads it by position. See [`std-cli.parser.arg`](cli.md#r-std-cli.parser.arg). |
+| **request factory** | The function of a home that builds a root and a session for each incoming call record, or refuses it. See [Homes](remote.md#homes). |
+| **served function** | A closure that a home serves as a remote object of the trait `Call`. See [Served Functions](remote.md#served-functions). |
 | **property test** | A test case whose body runs on inputs drawn from a `Choices` source. See [Property Tests](testing.md#property-tests). |
 
 ## Rule IDs

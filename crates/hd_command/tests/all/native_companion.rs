@@ -273,7 +273,6 @@ fn the_companion_of_a_wasmtime_build_answers_its_guest() {
     // The app manifest consents to the trait (`native-two-keys`): a
     // registration alone grants nothing.
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::with_consent(Consent::new(
             &[("pkg.main.Server".to_owned(), GrantValue::All)],
             &[],

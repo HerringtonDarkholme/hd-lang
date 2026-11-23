@@ -141,13 +141,13 @@ impl Ck<'_, '_> {
         let Some((Indexed::Map, key, value)) = self.index_kind(mt) else {
             unreachable!("for_loop selected an Indexed::Map source");
         };
-        let item = self.pool().intern_ty(&hd_types::TyData::Tuple {
-            elems: self.pool().list(&[
+        let item = self.pool().product(
+            self.pool().list(&[
                 self.ref_ty(key, false, false),
                 self.ref_ty(value, mutable, false),
             ]),
-            rest: None,
-        });
+            None,
+        );
         self.collection_loop(
             pat,
             (source, source_ty, item, true),
@@ -263,6 +263,7 @@ impl Ck<'_, '_> {
             wrap_some: false,
             binds,
             guard: None,
+            twins: Vec::new(),
             arm: 0,
         }];
         let db = self.b.open_block();

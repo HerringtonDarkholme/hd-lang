@@ -28,6 +28,8 @@
 //! a construction cannot be lined up with the slots, each slot takes the
 //! union of all of them through one region, which only adds origins.
 
+use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -131,6 +133,21 @@ pub(crate) struct DepSig {
 }
 
 impl DepSig {
+    /// A crossing parameter's closure lends its captured references for
+    /// the lifetime its marker bound names (`ref.frozen.lifetime`): its
+    /// capture slot takes that lifetime, as a written reference slot does.
+    fn with_crossing(mut self, ls: &Layouts<'_>, crossing: &[hd_resolve::Crossing]) -> DepSig {
+        for c in crossing.iter().filter(|c| c.lifetime != 0) {
+            if let Some((t, ids)) = self.params.get_mut(usize::from(c.param))
+                && let Some(k) = ls.of(*t).slots.iter().position(|s| s.fun)
+                && let Some(id) = ids.get_mut(k)
+            {
+                *id = u32::from(c.lifetime);
+            }
+        }
+        self
+    }
+
     /// The map of a signature: `written` is `FnSig::lifetimes`, one entry
     /// per reference slot of `params` and then of `ret`, 0 where none is
     /// written.
@@ -937,31 +954,24 @@ fn line_up_with(
                 stack.push(Step::Pair(a, b, d1));
                 true
             }
-            (TyData::Union(a), TyData::Union(b)) => list(stack, a, b),
             // A rest that does not line up fails the whole walk, so it
             // fails before the elements are entered.
-            (TyData::Tuple { elems: a, rest: ra }, TyData::Tuple { elems: b, rest: rb }) => {
-                if let (Some(x), Some(y)) = (ra, rb) {
-                    stack.push(Step::Pair(x, y, d1));
+            (TyData::Adt(x, a), TyData::Adt(y, b)) if x == y => {
+                // Layout::walk puts the suspension's retained origins after
+                // its result slots, including inside another type argument.
+                if x == AdtId::Declared(ls.suspend) {
+                    stack.push(Step::Retained);
                 }
-                ra.is_some() == rb.is_some() && list(stack, a, b)
+                list(stack, a, b)
             }
-            (TyData::Adt { def: x, args: a }, TyData::Adt { def: y, args: b })
-            | (
+            (
                 TyData::TraitValue {
                     def: x, args: a, ..
                 },
                 TyData::TraitValue {
                     def: y, args: b, ..
                 },
-            ) if x == y => {
-                // Layout::walk puts the suspension's retained origins after
-                // its result slots, including inside another type argument.
-                if x == ls.suspend {
-                    stack.push(Step::Retained);
-                }
-                list(stack, a, b)
-            }
+            ) if x == y => list(stack, a, b),
             _ => ls.of(d).slots.is_empty() && ls.of(t).slots.is_empty(),
         }
     });
@@ -1057,7 +1067,8 @@ impl Layout {
         let (pool, suspend) = (ls.pool, ls.suspend);
         let mut stack: Vec<(Ty, bool, u32, Option<usize>)> = vec![(t, top, depth, None)];
         while let Some((t, top, depth, entered)) = stack.pop() {
-            let hold = matches!(pool.get(t), TyData::Adt { def, .. } if def == suspend);
+            let hold =
+                matches!(pool.get(t), TyData::Adt(AdtId::Declared(def), _) if def == suspend);
             let slot = Slot {
                 ty: t,
                 fun: hold || matches!(pool.get(t), TyData::Fn { .. }),
@@ -1118,13 +1129,8 @@ impl Layout {
                 // A counted reference holds its referent's slots, as a
                 // generic instance does (`ref.local.holding.counted`).
                 TyData::Ref { inner, .. } => stack.push((inner, top, d, None)),
-                TyData::Tuple { elems, rest } => {
-                    let parts = pool.list_items(elems).iter().chain(rest.iter());
-                    stack.extend(parts.map(|&e| (e, top, d, None)));
-                }
-                TyData::Adt { args, .. }
-                | TyData::TraitValue { args, .. }
-                | TyData::Union(args) => {
+
+                TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
                     stack.extend(pool.list_items(args).iter().map(|&a| (a, top, d, None)));
                 }
                 TyData::Prim(_)
@@ -1186,18 +1192,14 @@ impl SlotCounts {
                 u32::from(!counted)
             }
             TyData::Opaque { borrows: true, .. } | TyData::Fn { .. } => 1,
-            TyData::Tuple { elems, rest } => {
-                out.extend(pool.list_items(elems));
-                out.extend(rest);
-                0
-            }
-            TyData::Adt { def, args } => {
-                out.extend(pool.list_items(args));
-                u32::from(def == self.suspend)
-            }
-            TyData::TraitValue { args, .. } | TyData::Union(args) => {
+
+            TyData::TraitValue { args, .. } => {
                 out.extend(pool.list_items(args));
                 0
+            }
+            TyData::Adt(def, args) => {
+                out.extend(pool.list_items(args));
+                u32::from(def.get().is_some_and(|def| def == self.suspend))
             }
             _ => 0,
         }
@@ -1358,19 +1360,23 @@ impl<'a> Layouts<'a> {
             .collect()
     }
 
-    /// The slot of an instance with arguments `argv` of a type with
+    /// The slot of an instance with arguments `type_items` of a type with
     /// `generics` that its `l`th lifetime, 1-based, lies in: that
     /// argument's one top slot.
     fn lifetime_slot(
         &self,
         generics: &[hd_resolve::Generic],
-        argv: &[Ty],
+        type_items: &[Ty],
         l: u16,
     ) -> Option<usize> {
         let mut lts = (generics.iter().enumerate()).filter(|(_, g)| g.lifetime);
         let g = lts.nth(usize::from(l).checked_sub(1)?)?.0;
-        let start: usize = argv.get(..g)?.iter().map(|&x| self.of(x).slots.len()).sum();
-        match self.of(*argv.get(g)?).tops.as_slice() {
+        let start: usize = type_items
+            .get(..g)?
+            .iter()
+            .map(|&x| self.of(x).slots.len())
+            .sum();
+        match self.of(*type_items.get(g)?).tops.as_slice() {
             [one] => Some(start + one),
             _ => None,
         }
@@ -1381,8 +1387,8 @@ impl<'a> Layouts<'a> {
         let len = |t: Ty| self.of(t).slots.len();
         let run = |start: usize, t: Ty| Some((start..start + len(t)).collect());
         match (pool.get(t), variant) {
-            (TyData::Tuple { elems, .. }, None) => {
-                let es = pool.list_items(elems);
+            (TyData::Adt(AdtId::Product { .. }, _), None) => {
+                let (es, _) = pool.product_parts(t)?;
                 let e = *es.get(j as usize)?;
                 let start = es[..j as usize].iter().map(|&x| len(x)).sum();
                 Some(FieldMap {
@@ -1392,7 +1398,7 @@ impl<'a> Layouts<'a> {
                     statik: false,
                 })
             }
-            (TyData::Adt { def, args }, _) => {
+            (TyData::Adt(AdtId::Declared(def), args), _) if def.get().is_some() => {
                 let item = cx.lookup.item(def)?;
                 let fields = match (&item.data, variant) {
                     (ItemData::Struct(fs, _), None) => fs,
@@ -1406,10 +1412,10 @@ impl<'a> Layouts<'a> {
                 };
                 let field = fields.get(j as usize)?;
                 let f = field.ty;
-                let argv = pool.list_items(args);
-                let ty = subst_owner(pool, def, argv, f);
-                let start = |a: usize| argv[..a].iter().map(|&x| len(x)).sum::<usize>();
-                let lifetime = |l: u16| self.lifetime_slot(&item.generics, argv, l);
+                let type_items = pool.list_items(args);
+                let ty = subst_owner(pool, def, type_items, f);
+                let start = |a: usize| type_items[..a].iter().map(|&x| len(x)).sum::<usize>();
+                let lifetime = |l: u16| self.lifetime_slot(&item.generics, type_items, l);
                 let at = match pool.get(f) {
                     // `ref.generic.outlives.position`: a field of a type
                     // parameter bounded by a lifetime lies in that
@@ -1419,7 +1425,7 @@ impl<'a> Layouts<'a> {
                     {
                         lifetime(l).map(|s| vec![s; len(ty)])
                     }
-                    TyData::Param(p) if p.owner == def && (p.index as usize) < argv.len() => {
+                    TyData::Param(p) if p.owner == def && (p.index as usize) < type_items.len() => {
                         run(start(p.index as usize), ty)
                     }
                     // `ref.lifetime.struct.read`: each slot of a field lies
@@ -1758,10 +1764,7 @@ mod line_up_tests {
     use hd_types::{InternPool, ParamRef};
 
     fn tuple(pool: &InternPool, elems: &[Ty]) -> Ty {
-        pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(elems),
-            rest: None,
-        })
+        pool.product(pool.list(elems), None)
     }
 
     #[test]
@@ -1854,12 +1857,7 @@ mod line_up_tests {
                 };
                 let mut deep = (pool.intern_ty(&TyData::Param(p)), r);
                 for _ in 1..hd_base::limits::TYPE_DEPTH {
-                    let pair = |x| {
-                        pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&[r, x]),
-                            rest: None,
-                        })
-                    };
+                    let pair = |x| pool.product(pool.list(&[r, x]), None);
                     deep = (pair(deep.0), pair(deep.1));
                 }
                 let lifetimed = |_: DefId| false;
@@ -1988,10 +1986,7 @@ mod projection_lifetime_tests {
                                     ),
                                     (Vec::<Vec<u32>>::new(), 1)
                                 );
-                                let scalar = p.intern_ty(&TyData::Tuple {
-                                    elems: TyList::EMPTY,
-                                    rest: None,
-                                });
+                                let scalar = p.product(TyList::EMPTY, None);
                                 assert!(ck.proj_lifetimes(&ls, scalar).is_empty());
                             }
                         },
@@ -2036,6 +2031,10 @@ struct CallSig {
     /// of a function value, or a call passing one
     /// (`fn.type.lifetime.call.written`).
     by_value: bool,
+    /// Each closure literal argument whose parameter's function type
+    /// writes some of the callee's lifetimes at its inputs, and the
+    /// lifetime of each input slot, 0 where none (`fn.closure.lifetime.call`).
+    closures: Vec<(u32, Vec<u16>)>,
 }
 
 fn canonical_impl_head(pool: Types<'_>, t: Ty, declaration: &hd_resolve::Item) -> Ty {
@@ -2329,11 +2328,10 @@ fn member_origins<V: Clone>(
         at += ls.of(t).slots.len();
     };
     let (members, rest) = match pool.get(target) {
-        TyData::Tuple { elems, rest } => (elems, rest),
-        TyData::Union(members) => (members, None),
-        _ => return None,
-    };
-    for &e in pool.list_items(members) {
+        TyData::Adt(ANON_SUM, args) => Some((pool.list_items(args), None)),
+        _ => pool.product_parts(target),
+    }?;
+    for &e in members {
         part(e, &mut parts);
     }
     if let Some(r) = rest {
@@ -2347,7 +2345,7 @@ fn member_origins<V: Clone>(
     for s in plan.iter() {
         match s.on {
             hd_types::solver::MemberOn::Elements => {
-                asked.extend(0..pool.list_items(members).len());
+                asked.extend(0..members.len());
             }
             hd_types::solver::MemberOn::RestItem | hd_types::solver::MemberOn::RestList => {
                 asked.extend(rest.map(|_| parts.len() - 1));
@@ -2378,14 +2376,8 @@ fn line_up_goal(ls: &Layouts<'_>, declared: Ty, actual: Ty) -> Vec<Key> {
     let pool = ls.pool;
     let none = |t: Ty| std::iter::repeat_n(Key::None, ls.of(t).slots.len());
     let (
-        TyData::Tuple {
-            elems: d,
-            rest: None,
-        },
-        TyData::Tuple {
-            elems: a,
-            rest: None,
-        },
+        TyData::Adt(AdtId::Product { rest: false }, d),
+        TyData::Adt(AdtId::Product { rest: false }, a),
     ) = (pool.get(declared), pool.get(actual))
     else {
         return line_up(ls, declared, actual).unwrap_or_else(|| none(actual).collect());
@@ -2415,13 +2407,13 @@ fn line_up_goal(ls: &Layouts<'_>, declared: Ty, actual: Ty) -> Vec<Key> {
 /// order; a function's or suspension's slot writes none.
 fn written_slots(ls: &Layouts<'_>, t: Ty, lists: &[&[u16]]) -> Vec<u16> {
     let pool = ls.pool;
-    let TyData::Tuple { elems, .. } = pool.get(t) else {
+    let Some((elems, _)) = pool.product_parts(t) else {
         return Vec::new();
     };
     let mut out = Vec::new();
     let mut list = lists.iter().map(|l| l.iter());
     let (mut first, mut rest) = (list.next(), list.next());
-    for (k, &e) in pool.list_items(elems).iter().enumerate() {
+    for (k, &e) in elems.iter().enumerate() {
         let ids = if k == 0 { &mut first } else { &mut rest };
         for slot in &ls.of(e).slots {
             let id = match ids {
@@ -2463,7 +2455,9 @@ pub(crate) fn written_escapes(
     };
     // The subject's lifetime at each of its layout slots.
     let first = match pool.get(goal) {
-        TyData::Tuple { elems, .. } => pool.list_items(elems).first().copied(),
+        TyData::Adt(AdtId::Product { .. }, _) => pool
+            .product_parts(goal)
+            .and_then(|(es, _)| es.first().copied()),
         _ => None,
     };
     let own: Vec<u32> = first.map_or_else(Vec::new, |t| {
@@ -2485,9 +2479,10 @@ pub(crate) fn written_escapes(
     // The declared subject's slots, which its written lifetimes key
     // before the trait arguments'.
     let n = match pool.get(declared) {
-        TyData::Tuple { elems, .. } => {
-            (pool.list_items(elems).first()).map_or(0, |&t| ls.of(t).slots.len())
-        }
+        TyData::Adt(AdtId::Product { .. }, _) => pool
+            .product_parts(declared)
+            .and_then(|(es, _)| es.first())
+            .map_or(0, |&t| ls.of(t).slots.len()),
         _ => 0,
     };
     let origins = (keys.into_iter().enumerate()).map(|(k, key)| {
@@ -2513,10 +2508,7 @@ pub(crate) fn written_escapes(
 pub(crate) fn goal_tuple(pool: Types<'_>, subject: Ty, args: hd_types::TyList) -> Ty {
     let mut elems = vec![subject];
     elems.extend_from_slice(pool.list_items(args));
-    pool.intern_ty(&TyData::Tuple {
-        elems: pool.list(&elems),
-        rest: None,
-    })
+    pool.product(pool.list(&elems), None)
 }
 
 impl CallSig {
@@ -2596,9 +2588,11 @@ pub(crate) type RunLoans = (
 /// one, whose place may cross an object a pointer, a shared variable's cell
 /// or a top-level binding's slot holds: a dereference on its path or on the
 /// path of the read its root value is, a global root, or a captured local's
-/// root. The backend takes the loans of the crossings that hold a counted
-/// object. Cost: one pass in instruction order, as a root comes before the
-/// place on it.
+/// root. A dereference of a known local Ref reuses that address's crossing
+/// fact; it does not introduce another object. Unknown references and later
+/// dereferences remain conservative. The backend takes loans of counted
+/// crossings. Cost: O(instructions + place projections + captures), one
+/// forward pass, as a root comes before the place on it.
 pub(crate) fn runtime_sites(b: &Body, pool: Types<'_>) -> Vec<bool> {
     let mut captured = vec![false; b.local_ty.len()];
     for l in &b.cap_local {
@@ -2607,19 +2601,46 @@ pub(crate) fn runtime_sites(b: &Body, pool: Types<'_>) -> Vec<bool> {
     let mut crosses = vec![false; b.len()];
     let mut sites = vec![false; b.len()];
     for i in 0..b.len() {
+        crate::work::scan_work(1);
         if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
             continue;
         }
         let p = b.view(b.data[i][0]);
-        crosses[i] = p.steps(b).any(|s| matches!(s, Proj::Deref))
-            || match p.root {
-                hd_tir::ir::Root::Global(..) => true,
-                hd_tir::ir::Root::Local(l) => captured[l as usize],
-                hd_tir::ir::Root::Value(r) => {
-                    (r as usize) < i && b.tags[r as usize] == Tag::Read && crosses[r as usize]
-                }
-                _ => false,
-            };
+        // A local reference made by Ref keeps its place's provenance.
+        // Dereferencing that known address adds no new counted crossing
+        // (rustc instsimplify's &*a identity). Further dereferences, or an
+        // unknown/loaded reference, still need the conservative loan.
+        let mut steps = p.steps(b);
+        let known = match p.root {
+            hd_tir::ir::Root::Value(r)
+                if (r as usize) < i
+                    && b.tags[r as usize] == Tag::Ref
+                    && matches!(
+                        pool.get(b.ty[r as usize]),
+                        TyData::Ref { counted: false, .. }
+                    )
+                    && steps.next() == Some(Proj::Deref) =>
+            {
+                Some(r as usize)
+            }
+            _ => None,
+        };
+        crosses[i] = match known {
+            Some(r) => crosses[r] || steps.any(|s| matches!(s, Proj::Deref)),
+            None => {
+                p.steps(b).any(|s| matches!(s, Proj::Deref))
+                    || match p.root {
+                        hd_tir::ir::Root::Global(..) => true,
+                        hd_tir::ir::Root::Local(l) => captured[l as usize],
+                        hd_tir::ir::Root::Value(r) => {
+                            (r as usize) < i
+                                && b.tags[r as usize] == Tag::Read
+                                && crosses[r as usize]
+                        }
+                        _ => false,
+                    }
+            }
+        };
         sites[i] = crosses[i]
             || b.tags[i] == Tag::Read
                 && matches!(pool.get(b.ty[i]), TyData::Ref { counted: true, .. });
@@ -2723,6 +2744,9 @@ struct Inputs<'a> {
     /// Per instruction, whether it may take a run-time loan
     /// ([`runtime_sites`]).
     runtime: Vec<bool>,
+    /// The locals a crossing closure captures: a reference one holds is a
+    /// frozen loan, whose element stores conflict too (`ref.frozen.write`).
+    frozen: Vec<u32>,
 }
 
 impl Inputs<'_> {
@@ -3063,10 +3087,9 @@ impl Ck<'_, '_> {
         cache: &mut BoundOrigins,
     ) -> ProofSlots<Var> {
         let pool = ls.pool;
-        let TyData::Tuple { elems, .. } = pool.get(goal) else {
+        let Some((elems, _)) = pool.product_parts(goal) else {
             return subject.cloned().unwrap_or_default();
         };
-        let elems = pool.list_items(elems);
         let generics = self.cx.lookup.item(param.owner).map(|it| match &it.data {
             ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => &sig.generics,
             _ => &it.generics,
@@ -3517,7 +3540,7 @@ impl Ck<'_, '_> {
         // what its arguments hold in a slot of its own, and its result's
         // slots depend as the call's with `!` would (`ref.dep.suspension`).
         let output = match pool.get(b.ty[i]) {
-            TyData::Adt { def, args } if def == ls.suspend => {
+            TyData::Adt(AdtId::Declared(def), args) if def == ls.suspend => {
                 pool.list_items(args).first().copied()
             }
             _ => None,
@@ -3603,7 +3626,7 @@ impl Ck<'_, '_> {
         // caller's or a call's, wherever `f` comes from; a call passing
         // `f` for a parameter whose type writes `'b` makes `'b` that one
         // (`fn.type.lifetime.call.written`).
-        let mut by_value = false;
+        let (mut by_value, mut closures) = (false, Vec::new());
         if tag == Tag::CallValue {
             let ins: Vec<u32> = (dep.params.iter())
                 .flat_map(|(t, ids)| ref_ids_of(ls, *t, ids))
@@ -3626,6 +3649,9 @@ impl Ck<'_, '_> {
                 else {
                     continue;
                 };
+                if b.tags[a as usize] == Tag::Closure && !b.is_instantiation(a as usize) {
+                    closures.push((a, lts.to_vec()));
+                }
                 for (k, var) in self.written_inputs(ls, b, (a, Vec::new()), values) {
                     if let Some(&l) = lts.get(k).filter(|&&l| l != 0) {
                         links.push((Var::Life(u32::from(l)), var));
@@ -3689,6 +3715,7 @@ impl Ck<'_, '_> {
             CallSig {
                 links,
                 by_value,
+                closures,
                 paths,
                 store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
                 result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),
@@ -3954,7 +3981,9 @@ impl Ck<'_, '_> {
     /// lifetime elides, and a result path takes its parameter's.
     fn call_dep(&self, ls: &Layouts<'_>, sig: &hd_resolve::FnSig) -> DepSig {
         let is_self = |s| self.cx.names.text(s) == "self";
-        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes).with_paths(ls, &sig.paths)
+        DepSig::new(ls, &sig.params, is_self, sig.ret, &sig.lifetimes)
+            .with_paths(ls, &sig.paths)
+            .with_crossing(ls, &sig.crossing)
     }
 
     /// The input slots of the function type in the field that `path`
@@ -3998,7 +4027,7 @@ impl Ck<'_, '_> {
         // lies in, which a struct held by value never repeats.
         let mut stack: Vec<(Ty, Vec<Part>, Vec<DefId>)> = vec![(top.0, top.1, Vec::new())];
         while let Some((t, path, mut outer)) = stack.pop() {
-            let TyData::Adt { def, .. } = pool.get(t) else {
+            let Some((def, _)) = pool.adt(t) else {
                 continue;
             };
             if !(ls.lifetimed)(def) || outer.contains(&def) {
@@ -4016,7 +4045,7 @@ impl Ck<'_, '_> {
                 let written = f.fn_lifetimes.iter().any(|&l| l != 0);
                 if written && matches!(pool.get(f.ty), TyData::Fn { .. }) {
                     out.push(here);
-                } else if matches!(pool.get(f.ty), TyData::Adt { .. }) {
+                } else if matches!(pool.get(f.ty), TyData::Adt(..)) {
                     stack.push((f.ty, here, outer.clone()));
                 }
             }
@@ -4075,7 +4104,7 @@ impl Ck<'_, '_> {
                 // A list's slots are its element's, as for any generic
                 // instance (`ref.local.holding`).
                 Part::Proj(Proj::Elem(_)) => match pool.get(ty) {
-                    TyData::Adt { def, args } if def == self.cx.names.known.list => {
+                    TyData::Adt(AdtId::Declared(def), args) if def == self.cx.names.known.list => {
                         ty = *pool.list_items(args).first()?;
                     }
                     _ => return None,
@@ -4099,9 +4128,7 @@ impl Ck<'_, '_> {
         rest: &[Part],
     ) -> Option<Vec<(usize, usize)>> {
         let pool = ls.pool;
-        let TyData::Adt { def, args } = pool.get(ty) else {
-            return None;
-        };
+        let (def, types) = pool.adt(ty)?;
         let item = self.cx.lookup.item(def)?;
         let fields = match (&item.data, variant) {
             (ItemData::Struct(fs, _), None) => fs,
@@ -4109,7 +4136,7 @@ impl Ck<'_, '_> {
             _ => return None,
         };
         let field = fields.get(j as usize)?;
-        let argv = pool.list_items(args);
+        let type_items = pool.list_items(types);
         let (lo, n) = match fn_spot(self.cx, pool, field.ty, rest)? {
             Spot::Fn(lo, n) => (lo, n),
             // A field of the field's function type's result, as
@@ -4122,7 +4149,7 @@ impl Ck<'_, '_> {
                 let found = self.result_field_inputs(ls, (ty, &rest[from..], at), rec)?;
                 return found
                     .into_iter()
-                    .map(|(k, l)| Some((k, ls.lifetime_slot(&item.generics, argv, l)?)))
+                    .map(|(k, l)| Some((k, ls.lifetime_slot(&item.generics, type_items, l)?)))
                     .collect();
             }
             Spot::Field(_) => return None,
@@ -4132,7 +4159,7 @@ impl Ck<'_, '_> {
             if l == hd_resolve::STATIC_LIFETIME {
                 out.push((k, STATIC_SLOT));
             } else if l != 0 {
-                out.push((k, ls.lifetime_slot(&item.generics, argv, l)?));
+                out.push((k, ls.lifetime_slot(&item.generics, type_items, l)?));
             }
         }
         Some(out)
@@ -5332,6 +5359,7 @@ impl Ck<'_, '_> {
             markers: &markers,
             lent,
             runtime,
+            frozen: self.frozen_locals(),
         };
         let slots = own
             .as_ref()
@@ -5556,7 +5584,7 @@ impl Ck<'_, '_> {
             return Err((Code::PrivateTypeLeak, msg));
         }
         let args = match pool.get(self.resolved(t)) {
-            TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
+            TyData::Adt(_, args) => pool.list_items(args).to_vec(),
             _ => Vec::new(),
         };
         Ok((w(j), subst_owner(pool, def, &args, fs[j].ty)))
@@ -6186,7 +6214,7 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
         match (*part, pool.get(ty)) {
             (Part::Proj(Proj::Deref), TyData::Ref { inner, .. }) => ty = inner,
             (Part::Proj(Proj::Variant(k)), _) => variant = Some(k),
-            (Part::Proj(Proj::Elem(_)), TyData::Adt { def, args })
+            (Part::Proj(Proj::Elem(_)), TyData::Adt(AdtId::Declared(def), args))
                 if def == cx.names.known.list =>
             {
                 ty = *pool.list_items(args).first()?;
@@ -6198,13 +6226,15 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
                 base += slots(ps);
                 ty = result;
             }
-            (Part::Proj(Proj::Field(j)), TyData::Tuple { elems, rest }) => {
-                let items: Vec<Ty> = pool.list_items(elems).iter().copied().chain(rest).collect();
+            (Part::Proj(Proj::Field(j)), TyData::Adt(AdtId::Product { .. }, args)) => {
+                let items = pool.list_items(args);
                 let j = j as usize;
                 base += slots(items.get(..j)?);
                 ty = *items.get(j)?;
             }
-            (Part::Proj(Proj::Field(j)), TyData::Adt { def, args }) => {
+            (Part::Proj(Proj::Field(j)), TyData::Adt(AdtId::Declared(def), args))
+                if def.get().is_some() =>
+            {
                 let fields = match (&cx.lookup.item(def)?.data, variant.take()) {
                     (ItemData::Struct(fs, _), None) => fs,
                     (ItemData::Enum { variants, .. }, Some(k)) => &variants.get(k as usize)?.fields,
@@ -6221,13 +6251,13 @@ fn fn_spot(cx: &BodyCx<'_>, pool: Types<'_>, t: Ty, path: &[Part]) -> Option<Spo
                         None => Spot::Field(i),
                     });
                 };
-                let argv = pool.list_items(args);
+                let type_items = pool.list_items(args);
                 let k = usize::from(pr.index);
                 if pr.owner != def {
                     return None;
                 }
-                base += slots(argv.get(..k)?);
-                ty = *argv.get(k)?;
+                base += slots(type_items.get(..k)?);
+                ty = *type_items.get(k)?;
             }
             _ => return None,
         }

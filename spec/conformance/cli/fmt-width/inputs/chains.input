@@ -4,3 +4,12 @@ fn pipeline(source: Source, handler: Handler, event: Event):
     if source.configuration_for_the_current_authenticated_application().has_valid_authorization_for_the_selected_request():
         pass
     +1 |> double_the_current_authenticated_request_count |> increment_the_current_authenticated_request_count
+# obsolete continuation parentheses leave, and call target parentheses stay
+fn f(a: i32, b: i32, handler: Handler, event: Event):
+    sum := (a + b)
+    other := (
+        handler
+        .value
+        + a
+    )
+    (handler.callback)(event)

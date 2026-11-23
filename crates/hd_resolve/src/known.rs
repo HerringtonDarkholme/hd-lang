@@ -11,6 +11,10 @@ use hd_intern::{PathKind, PathTable};
 
 /// Shared module spellings for source seeding, runtime roots and textual import hints.
 pub const CORE_MODULE: &str = "std.core";
+/// `Marker`, `Send` and `Wire` (`module.marker.std`).
+pub const MARKER_MODULE: &str = "std.marker";
+/// `std.remote`, whose language items stubs and dispatchers name.
+pub const REMOTE_MODULE: &str = "std.remote";
 pub const TASK_MODULE: &str = "std.task";
 pub const FUNCTION_MODULE: &str = "std.function";
 pub const INSPECT_MODULE: &str = "std.inspect";
@@ -21,6 +25,11 @@ pub const CHECKED_MODULE: &str = "std.rt.checked";
 pub const RUNTIME_MODULE: &str = "std.rt";
 pub const FORMAT_MODULE: &str = "std.format";
 pub const BYTES_MODULE: &str = "std.rt.bytes";
+pub const HASH_RUNTIME_MODULE: &str = "std.rt.hash";
+/// The walks a `Send` crossing's `std.rt.unique` calls, and the
+/// collections whose raw buffers std walks (`fn.crossing.mode.unique`).
+pub const CROSSING_MODULE: &str = "std.rt.crossing";
+pub const COLLECTIONS_MODULE: &str = "std.collections";
 
 /// The modules with compiler-supplied declarations, in seed order.
 pub const SEEDED_MODULES: &[&str] = &[
@@ -142,7 +151,7 @@ pub struct KnownItems {
     pub ordering: DefId,
     pub hash: DefId,
     /// The keyed hashes a map buckets its keys by
-    /// (spec/std/hash.md#r-std-hash.map.foldhash-fast): `std.hash`'s seeded
+    /// (spec/std/hash.md#r-std-hash.map.foldhash-fast): `std.rt.hash`'s seeded
     /// `hash_key` for a key that is not inline, `hash_string` for a string
     /// and `hash_integer` for any other inline key.
     pub map_key_hash: DefId,
@@ -170,8 +179,10 @@ pub struct KnownItems {
     /// `std.format.debug`, the prelude function whose bare call of a
     /// statement value the checker leaves unwarned.
     pub debug_fn: DefId,
-    /// `std.format.DbgStructural`, the structural `dbg` rendering trait.
+    /// `std.format.DbgStructural`, the structural `dbg` rendering trait,
+    /// and `std.remote.WireStructural`, the structural `Wire` codec's.
     pub dbg_structural: DefId,
+    pub wire_structural: DefId,
     /// `std.format`'s REPL support functions, which render and record a
     /// REPL line's value.
     pub repl_text: DefId,
@@ -213,6 +224,22 @@ pub struct KnownItems {
     /// The `Copy` marker (`ref.copy.marker`), a sealed trait the compiler
     /// answers from a type's structure.
     pub copy: DefId,
+    /// `Marker`, `Send`, `Sync`, `Wire` (`module.marker.std`,
+    /// `module.marker.sync`) and `Remote` (`module.remote.std`).
+    pub marker: DefId,
+    pub send: DefId,
+    pub sync: DefId,
+    pub wire: DefId,
+    pub remote: DefId,
+    /// `std.remote.CrossError` (`module.cross.decl`).
+    pub cross_error: DefId,
+    /// The built-ins `std.remote.remote` and `std.remote.handle_call`
+    /// (`module.remote.builtin.remote`, `module.remote.handle-call`).
+    pub remote_fn: DefId,
+    /// `std.remote.Stub`, the type whose generated methods are every
+    /// remote trait's stub (`module.remote.stub`).
+    pub stub: DefId,
+    pub handle_call: DefId,
     // std.task
     pub suspend: DefId,
     /// `std.rt.memory.Buffer`, raw memory whose room holds values of its
@@ -282,10 +309,36 @@ pub struct KnownItems {
     pub property_runner: DefId,
     /// The sealed traits, in the order of the table in spec/lang/09-traits.md
     /// "Sealed Traits" (`trait.sealed.list`).
-    sealed: [DefId; 15],
+    sealed: [DefId; 20],
 }
 
 impl KnownItems {
+    /// A `Wire` crossing parameter of type `fn(..) -> T` as its callee holds
+    /// it (`fn.crossing.lift`): `fn(bool, ..) -> Result[C, List[u8]]`, where
+    /// `C` is the call's value, `T` or its cold `Suspend[T]`. For `false` it
+    /// runs the literal here; for `true` it gives the literal's frame.
+    #[must_use]
+    pub fn crossing_code(&self, pool: hd_types::Types<'_>, f: hd_types::Ty) -> hd_types::Ty {
+        use hd_types::{AdtId, Ty, TyData};
+        let TyData::Fn {
+            result, suspends, ..
+        } = pool.get(f)
+        else {
+            return f;
+        };
+        let value = if suspends {
+            pool.applied(self.suspend, result)
+        } else {
+            result
+        };
+        let bytes = pool.applied(self.list, Ty::prim(hd_types::Prim::U8));
+        let result = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.result),
+            pool.list(&[value, bytes]),
+        ));
+        pool.fn_led(f, Ty::BOOL, Some((result, false))).unwrap_or(f)
+    }
+
     /// A struct declaration.
     #[must_use]
     pub fn is_struct(&self, item: &crate::Item) -> bool {
@@ -311,6 +364,11 @@ impl KnownItems {
             list: self.list,
             map: self.map,
             suspend: self.suspend,
+            marker: self.marker,
+            send: self.send,
+            sync: self.sync,
+            wire: self.wire,
+            remote: self.remote,
         }
     }
 
@@ -355,6 +413,11 @@ impl KnownItems {
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
         let copy = item(CORE_MODULE, "Copy");
+        let marker = item(MARKER_MODULE, "Marker");
+        let send = item(MARKER_MODULE, "Send");
+        let sync = item(MARKER_MODULE, "Sync");
+        let wire = item(MARKER_MODULE, "Wire");
+        let remote = item(REMOTE_MODULE, "Remote");
         let drop_trait = item(RUNTIME_MODULE, "Drop");
         Self {
             any,
@@ -452,10 +515,10 @@ impl KnownItems {
             ord: item("std.cmp", "Ord"),
             ordering: item("std.cmp", "Ordering"),
             hash: item(CORE_MODULE, "Hash"),
-            map_key_hash: item("std.hash", "hash_key"),
+            map_key_hash: item(HASH_RUNTIME_MODULE, "hash_key"),
             key_equal: item("std.hash", "key_equal"),
-            map_string_hash: item("std.hash", "hash_string"),
-            map_integer_hash: item("std.hash", "hash_integer"),
+            map_string_hash: item(HASH_RUNTIME_MODULE, "hash_string"),
+            map_integer_hash: item(HASH_RUNTIME_MODULE, "hash_integer"),
             display: item(FORMAT_MODULE, "Display"),
             debug: item(FORMAT_MODULE, "Debug"),
             site_location: item("std.debug", "site_location"),
@@ -465,6 +528,7 @@ impl KnownItems {
             default_marker: item("std.ops", "default"),
             debug_fn: item(FORMAT_MODULE, "debug"),
             dbg_structural: item(FORMAT_MODULE, "DbgStructural"),
+            wire_structural: item(REMOTE_MODULE, "WireStructural"),
             repl_text: item(FORMAT_MODULE, "repl_text"),
             repl_value: item(FORMAT_MODULE, "repl_value"),
             string_builder: item("std.text", "StringBuilder"),
@@ -484,7 +548,7 @@ impl KnownItems {
             duration_suffix: [
                 item("std.time", "ms"),
                 item("std.time", "s"),
-                item("std.time", "min"),
+                item("std.time", "minutes"),
                 item("std.time", "h"),
             ],
             iterator: item("std.iter", "Iterator"),
@@ -496,8 +560,8 @@ impl KnownItems {
             race: item(TASK_MODULE, "race"),
             all_list: item(TASK_MODULE, "all_list"),
             annotate: item("std.annotation", "annotate"),
-            inline: item("std.annotation", "inline"),
-            cold: item("std.annotation", "cold"),
+            inline: item("std.core", "inline"),
+            cold: item("std.core", "cold"),
             testing_module: module(TESTING_MODULE),
             hd_run: item(TESTING_MODULE, "hd_run"),
             case_timeout: item(TESTING_MODULE, "case_timeout"),
@@ -525,7 +589,21 @@ impl KnownItems {
                 fn_mut_trait,
                 static_bound,
                 copy,
+                marker,
+                send,
+                sync,
+                wire,
+                remote,
             ],
+            marker,
+            send,
+            sync,
+            wire,
+            remote,
+            cross_error: item(REMOTE_MODULE, "CrossError"),
+            remote_fn: item(REMOTE_MODULE, "remote"),
+            stub: item(REMOTE_MODULE, "Stub"),
+            handle_call: item(REMOTE_MODULE, "handle_call"),
         }
     }
 

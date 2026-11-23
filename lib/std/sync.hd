@@ -1,0 +1,172 @@
+# std.sync: shared ownership across threads (spec/std/sync.md). The
+# compiler's own counts are never atomic (`module.marker.send.counts`),
+# so a value that several threads own at once is an `Arc`, whose counts
+# change by the atomic intrinsics of `std.rt.memory`. This is Rust's
+# `alloc::sync`; every Wasm atomic is sequentially consistent, so the
+# orderings Rust names (`Relaxed`, `Release`, `Acquire`) are all one here.
+use std.marker.{Send, Sync}
+use std.rt.Drop
+use std.rt.alloc.{alloc, free_block}
+use std.rt.memory.{
+    Ptr,
+    atomic_add_u32,
+    atomic_compare_exchange_u32,
+    atomic_fence,
+    atomic_load_u32,
+    atomic_sub_u32,
+    size_of,
+    store_u32,
+}
+
+# The block an `Arc` and its `Weak`s share: the strong count at its
+# address, the weak count 4 bytes on, and the value 8 bytes on. The strong
+# Arcs together hold one weak count, so the block lives while any handle
+# does, and the value while any `Arc` does. `alloc` gives a multiple of
+# 16, so both counts are aligned for the atomics and the value for any `T`.
+WEAK := 4
+VALUE := 8
+
+# The weak count's value while `get_mut` tests uniqueness (Rust's lock).
+LOCKED := u32(0xffffffff)
+
+## An owner of a `T` that several threads may hold at once. A clone shares the value and adds to its count; the drop of the last one drops the value.
+## See [std-sync.arc.new](../../spec/std/sync.md#r-std-sync.arc.new).
+pub struct Arc[T < ?Copy]:
+    block: usize
+
+impl[T < ?Copy] !Copy for Arc[T]
+
+## A reference to an `Arc`'s value that does not keep it alive.
+## See [std-sync.weak.downgrade](../../spec/std/sync.md#r-std-sync.weak.downgrade).
+pub struct Weak[T < ?Copy]:
+    block: usize
+
+impl[T < ?Copy] !Copy for Weak[T]
+
+## Threads that hold an `Arc` read its value at once and may drop it last, so it needs a `T` that is both.
+## See [std-sync.arc.send](../../spec/std/sync.md#r-std-sync.arc.send).
+impl[T < ?Copy & Send & Sync] Send for Arc[T]
+
+impl[T < ?Copy & Send & Sync] Sync for Arc[T]
+
+## See [std-sync.weak.send](../../spec/std/sync.md#r-std-sync.weak.send).
+impl[T < ?Copy & Send & Sync] Send for Weak[T]
+
+impl[T < ?Copy & Send & Sync] Sync for Weak[T]
+
+impl[T < ?Copy] Arc[T]:
+    ## A new `Arc` that owns `value`, with a strong count of one.
+    ## See [std-sync.arc.new](../../spec/std/sync.md#r-std-sync.arc.new).
+    pub fn new(value: T) -> Arc[T]:
+        block := alloc(VALUE + size_of::[T]())
+        store_u32(block, 1)
+        store_u32(block + WEAK, 1)
+        Ptr::[T] { address: block + VALUE }.write(value)
+        Arc::[T] { block: block }
+
+    ## Another `Arc` that owns the same value.
+    ## See [std-sync.arc.clone](../../spec/std/sync.md#r-std-sync.arc.clone).
+    pub fn clone(&self) -> Arc[T]:
+        _ := atomic_add_u32(self.block, 1)
+        Arc::[T] { block: self.block }
+
+    ## The value, lent for as long as this `Arc` is.
+    ## See [std-sync.arc.get](../../spec/std/sync.md#r-std-sync.arc.get).
+    pub fn get(&self) -> &T:
+        Ptr::[T] { address: self.block + VALUE }.as_ref()
+
+    ## How many `Arc`s own the value; another thread may change it at any time.
+    ## See [std-sync.arc.counts](../../spec/std/sync.md#r-std-sync.arc.counts).
+    pub fn strong_count(this: &Arc[T]) -> usize:
+        usize(atomic_load_u32(this.block))
+
+    ## How many `Weak`s refer to the value; another thread may change it at any time.
+    ## See [std-sync.arc.counts](../../spec/std/sync.md#r-std-sync.arc.counts).
+    pub fn weak_count(this: &Arc[T]) -> usize:
+        weak := atomic_load_u32(this.block + WEAK)
+        # The strong Arcs' own weak count is no `Weak`.
+        if weak == LOCKED: 0 else: usize(weak - 1)
+
+    ## Whether `a` and `b` own the same value.
+    ## See [std-sync.arc.ptr-eq](../../spec/std/sync.md#r-std-sync.arc.ptr-eq).
+    pub fn ptr_eq(a: &Arc[T], b: &Arc[T]) -> bool:
+        a.block == b.block
+
+    ## A `Weak` to the value.
+    ## See [std-sync.weak.downgrade](../../spec/std/sync.md#r-std-sync.weak.downgrade).
+    pub fn downgrade(this: &Arc[T]) -> Weak[T]:
+        # Wait out a `get_mut` that holds the weak count locked.
+        while true:
+            weak := atomic_load_u32(this.block + WEAK)
+            if (
+                weak != LOCKED
+                && atomic_compare_exchange_u32(this.block + WEAK, weak, weak + 1) == weak
+            ):
+                return Weak::[T] { block: this.block }
+        Weak::[T] { block: this.block }
+
+    ## The value to change, when no other `Arc` or `Weak` holds it.
+    ## See [std-sync.arc.get-mut](../../spec/std/sync.md#r-std-sync.arc.get-mut).
+    pub fn get_mut(this: &mut Arc[T]) -> (&mut T)?:
+        # Locking the weak count keeps a racing `downgrade` from making a
+        # `Weak` while the strong count is read.
+        if atomic_compare_exchange_u32(this.block + WEAK, 1, LOCKED) != 1:
+            return .None
+        unique := atomic_load_u32(this.block) == 1
+        _ := atomic_compare_exchange_u32(this.block + WEAK, LOCKED, 1)
+        if !unique:
+            return .None
+        .Some(Ptr::[T] { address: this.block + VALUE }.as_mut())
+
+    ## The value, when this is the only `Arc` that owns it; else `.Err` gives the `Arc` back.
+    ## See [std-sync.arc.try-unwrap](../../spec/std/sync.md#r-std-sync.arc.try-unwrap).
+    pub fn try_unwrap(this: Arc[T]) -> Result[T, Arc[T]]:
+        if atomic_compare_exchange_u32(this.block, 1, 0) != 1:
+            return .Err(this)
+        atomic_fence()
+        # The emptied handle's drop does nothing.
+        let mut arc = this
+        block := arc.block
+        arc.block = 0
+        value := Ptr::[T] { address: block + VALUE }.read()
+        release_weak(block)
+        .Ok(value)
+
+impl[T < ?Copy] Drop for Arc[T]:
+    fn drop(&mut self) -> void:
+        # A handle `try_unwrap` emptied owns nothing.
+        if self.block == 0 || atomic_sub_u32(self.block, 1) != 1:
+            return
+        # The last strong count: every other thread's use of the value
+        # comes before its drop.
+        atomic_fence()
+        _ := Ptr::[T] { address: self.block + VALUE }.read()
+        release_weak(self.block)
+
+impl[T < ?Copy] Weak[T]:
+    ## A new `Arc` to the value while an `Arc` still owns it, and `.None` after the value was dropped.
+    ## See [std-sync.weak.upgrade](../../spec/std/sync.md#r-std-sync.weak.upgrade).
+    pub fn upgrade(&self) -> Arc[T]?:
+        while true:
+            strong := atomic_load_u32(self.block)
+            if strong == 0:
+                return .None
+            if atomic_compare_exchange_u32(self.block, strong, strong + 1) == strong:
+                return .Some(Arc::[T] { block: self.block })
+        .None
+
+    ## Another `Weak` to the same value.
+    ## See [std-sync.weak.clone](../../spec/std/sync.md#r-std-sync.weak.clone).
+    pub fn clone(&self) -> Weak[T]:
+        _ := atomic_add_u32(self.block + WEAK, 1)
+        Weak::[T] { block: self.block }
+
+impl[T < ?Copy] Drop for Weak[T]:
+    fn drop(&mut self) -> void:
+        release_weak(self.block)
+
+# Subtracts one weak count of `block`; the last one frees the block.
+fn release_weak(block: usize) -> void:
+    if atomic_sub_u32(block + WEAK, 1) == 1:
+        atomic_fence()
+        free_block(block)

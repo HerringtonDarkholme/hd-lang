@@ -5,7 +5,8 @@ use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 use std.annotation.inline
 use std.cmp.Ordering
 use std.text.Parse
-use std.rt.bytes.{string_from_bytes, panic_with}
+use std.rt.bytes.{string_from_bytes, panic_with, bytes_at}
+use std.rt.memory.{address_of, load_u64, store_u64}
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
@@ -27,6 +28,12 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 pub trait Integer < Num & Ord & BitAnd[Out = Self] & BitOr[Out = Self] & BitXor[Out = Self] & Not[
     Out = Self,
 ] & Shl[u32, Out = Self] & Shr[u32, Out = Self]:
+    ## The greatest value this integer type can hold.
+    fn max_value() -> Self:
+        int_max::[Self]()
+    ## The least value this integer type can hold.
+    fn min_value() -> Self:
+        int_min::[Self]()
     fn to_u64(self) -> u64
     fn from_u64(n: u64) -> Self
 
@@ -104,7 +111,7 @@ impl Num for u64:
     fn one() -> u64:
         1
     fn from_i64(n: i64) -> u64:
-        u64(fit(n, 0, i64_max()))
+        u64(fit(n, 0, i64::max_value()))
 
 impl Num for f32:
     fn zero() -> f32:
@@ -194,15 +201,15 @@ pub enum ParseNumberError:
 
 # The integer methods (spec/std/num.md), written once for every integer
 # width by r-trait.target.numeric-family. Generic code has no literals or
-# casts, so the bounds come from `int_min` and `int_max`.
+# casts, so the bounds come from `Integer`'s limit methods.
 impl[N < Integer] N:
     ## The sum, or `.None` when it is out of the type's range.
     ## See [std-num.checked.add](../../spec/std/num.md#r-std-num.checked.add).
     pub fn checked_add(self, other: N) -> N?:
         zero := N::zero()
-        if other > zero && self > int_max::[N]() - other:
+        if other > zero && self > N::max_value() - other:
             return .None
-        if other < zero && self < int_min::[N]() - other:
+        if other < zero && self < N::min_value() - other:
             return .None
         .Some(self + other)
 
@@ -210,9 +217,9 @@ impl[N < Integer] N:
     ## See [std-num.checked.sub](../../spec/std/num.md#r-std-num.checked.sub).
     pub fn checked_sub(self, other: N) -> N?:
         zero := N::zero()
-        if other > zero && self < int_min::[N]() + other:
+        if other > zero && self < N::min_value() + other:
             return .None
-        if other < zero && self > int_max::[N]() + other:
+        if other < zero && self > N::max_value() + other:
             return .None
         .Some(self - other)
 
@@ -222,8 +229,8 @@ impl[N < Integer] N:
         zero := N::zero()
         if self == zero || other == zero:
             return .Some(zero)
-        lowest := int_min::[N]()
-        highest := int_max::[N]()
+        lowest := N::min_value()
+        highest := N::max_value()
         let overflows = false
         if self > zero:
             overflows = if other > zero: self > highest / other else: other < lowest / self
@@ -239,7 +246,7 @@ impl[N < Integer] N:
             return .None
         # `~zero` is -1 in a signed type, and the minimum over -1 overflows.
         minus_one := ~zero
-        if minus_one < zero && other == minus_one && self == int_min::[N]():
+        if minus_one < zero && other == minus_one && self == N::min_value():
             return .None
         .Some(self / other)
 
@@ -267,7 +274,7 @@ impl[N < Integer] N:
         match self.checked_add(other):
             .Some(sum) => sum
             .None =>
-                if other > N::zero(): int_max::[N]() else: int_min::[N]()
+                if other > N::zero(): N::max_value() else: N::min_value()
 
     ## The difference, capped at the type's largest or smallest value.
     ## See [std-num.saturating.sub](../../spec/std/num.md#r-std-num.saturating.sub).
@@ -275,7 +282,7 @@ impl[N < Integer] N:
         match self.checked_sub(other):
             .Some(difference) => difference
             .None =>
-                if other > N::zero(): int_min::[N]() else: int_max::[N]()
+                if other > N::zero(): N::min_value() else: N::max_value()
 
     ## The number of one bits in the value.
     ## See [std-num.bits.count-ones-u32](../../spec/std/num.md#r-std-num.bits.count-ones-u32).
@@ -389,8 +396,8 @@ impl[N < Integer] N:
         if index == size:
             return .Err(ParseNumberError.InvalidDigit(index))
         base := N::from_i64(i64(radix))
-        low := int_min::[N]()
-        high := int_max::[N]()
+        low := N::min_value()
+        high := N::max_value()
         let value = zero
         while index < size:
             found := byte_digit(text[index])
@@ -1028,7 +1035,7 @@ impl Parse for i64:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[i64, ParseNumberError]:
-        parse_integer(text, -i64_max() - 1, i64_max())
+        parse_integer(text, i64::min_value(), i64::max_value())
 
 impl Parse for u8:
     type Error = ParseNumberError
@@ -1230,6 +1237,920 @@ fn nonneg_u64(n: i64) -> u64:
         panic_with("integer-overflow", "integer overflow")
     u64(n)
 
-# `i64` literals take their type from context, so the bound is a function.
-fn i64_max() -> i64:
-    9223372036854775807
+# Rust minNum/maxNum behavior at each primitive float width.
+impl f32:
+    ## The smaller input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-min.value](../../spec/std/num.md#r-std-num.float-min.value).
+    pub fn min(self, other: f32) -> f32:
+        if other != other || self < other: self else: other
+
+    ## The larger input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-max.value](../../spec/std/num.md#r-std-num.float-max.value).
+    pub fn max(self, other: f32) -> f32:
+        if other != other || self > other: self else: other
+
+impl f64:
+    ## The smaller input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-min.value](../../spec/std/num.md#r-std-num.float-min.value).
+    pub fn min(self, other: f64) -> f64:
+        if other != other || self < other: self else: other
+
+    ## The larger input, returning the numeric input when the other is NaN.
+    ## See [std-num.float-max.value](../../spec/std/num.md#r-std-num.float-max.value).
+    pub fn max(self, other: f64) -> f64:
+        if other != other || self > other: self else: other
+
+# Transcendental kernels ported from OpenLibm/fdlibm e_log.c and e_exp.c.
+# ====================================================
+# Copyright (C) 1993, 2004 by Sun Microsystems, Inc. All rights reserved.
+# Developed at SunSoft, a Sun Microsystems, Inc. business.
+# Permission to use, copy, modify, and distribute this
+# software is freely granted, provided that this notice is preserved.
+# ====================================================
+# Normalize once, then evaluate the fixed-degree approximation using split
+# ln(2) constants. No heap workspace, input-sized loop or native recursion.
+fn float_ln_f64(value: f64) -> f64:
+    if value == 0.0:
+        return -1.0 / 0.0
+    if value < 0.0:
+        return 0.0 / 0.0
+    if !value.is_finite():
+        return value + value
+    reduced := float_log_reduction(value)
+    f := reduced._0
+    exponent := reduced._1
+    word := reduced._2
+    k := f64(exponent)
+    hi := 6.93147180369123816490e-01
+    lo := 1.90821492927058770002e-10
+    if ((word + 2) & 0x000fffff) < 3:
+        if f == 0.0:
+            return if exponent == 0: 0.0 else: k * hi + k * lo
+        correction := f * f * (0.5 - 0.33333333333333333 * f)
+        return if exponent == 0: f - correction else: k * hi - ((correction - k * lo) - f)
+    s := f / (2.0 + f)
+    z := s * s
+    remainder := float_log_polynomial(z)
+    if ((i32(word) - 398458) | (440401 - i32(word))) > 0:
+        half_square := 0.5 * f * f
+        return if exponent == 0:
+            f - (half_square - s * (half_square + remainder))
+        else:
+            k * hi - ((half_square - (s * (half_square + remainder) + k * lo)) - f)
+    if exponent == 0: f - s * (f - remainder) else: k * hi - ((s * (f - remainder) - k * lo) - f)
+
+fn float_exp_f64(value: f64) -> f64:
+    if value.is_nan():
+        return value + value
+    if value > 7.09782712893383973096e+02:
+        return 1.0 / 0.0
+    if value < -7.45133219101941108420e+02:
+        return 0.0
+    let x = value
+    let k: i32 = 0
+    let hi = 0.0
+    let lo = 0.0
+    word := high_word(x) & 0x7fffffff
+    if word > 0x3fd62e42:
+        if word < 0x3ff0a2b2:
+            k = if x < 0.0: -1 else: +1
+            hi = x - f64(k) * 6.93147180369123816490e-01
+            lo = f64(k) * 1.90821492927058770002e-10
+        else:
+            k = i32(x * 1.44269504088896338700e+00 + 0.5.copysign(x))
+            hi = x - f64(k) * 6.93147180369123816490e-01
+            lo = f64(k) * 1.90821492927058770002e-10
+        x = hi - lo
+    else if word < 0x3e300000:
+        return 1.0 + x
+    square := x * x
+    p4 := -1.65339022054652515390e-06 + square * 4.13813679705723846039e-08
+    p3 := 6.61375632143793436117e-05 + square * p4
+    p2 := -2.77777777770155933842e-03 + square * p3
+    polynomial := 1.66666666666666019037e-01 + square * p2
+    correction := x - square * polynomial
+    if k == 0:
+        return 1.0 - ((x * correction) / (correction - 2.0) - x)
+    y := 1.0 - ((lo - (x * correction) / (2.0 - correction)) - hi)
+    if k == 1024:
+        return y * 2.0 * float_power_of_two(1023)
+    if k >= -1021:
+        return y * float_power_of_two(k)
+    y * float_power_of_two(k + 1000) * 9.33263618503218878990e-302
+
+# The signed exponent has at most 32 bits, including i32's minimum value.
+# Widen before negation; repeated squaring consumes one exponent bit per step.
+fn float_integer_power[F < Float](value: F, exponent: i32) -> F:
+    let bits = u32(if exponent < 0: -i64(exponent) else: i64(exponent))
+    let factor = if exponent < 0: F::one() / value else: value
+    let result = F::one()
+    while bits != 0:
+        if (bits & 1) != 0:
+            result *= factor
+        bits = bits >> 1
+        if bits != 0:
+            factor *= factor
+    result
+
+impl f64:
+    ## The natural logarithm.
+    ## See [std-num.float-math.ln](../../spec/std/num.md#r-std-num.float-math.ln).
+    pub fn ln(self) -> f64:
+        float_ln_f64(self)
+    ## The natural exponential.
+    ## See [std-num.float-math.exp](../../spec/std/num.md#r-std-num.float-math.exp).
+    pub fn exp(self) -> f64:
+        float_exp_f64(self)
+    ## This value raised to a floating-point exponent.
+    ## See [std-num.float-math.powf](../../spec/std/num.md#r-std-num.float-math.powf).
+    pub fn powf(self, exponent: f64) -> f64:
+        float_pow_f64(self, exponent)
+    ## This value raised to a signed integer exponent.
+    ## See [std-num.float-math.powi](../../spec/std/num.md#r-std-num.float-math.powi).
+    pub fn powi(self, exponent: i32) -> f64:
+        float_integer_power(self, exponent)
+    ## The sign as negative one, positive one, or NaN.
+    ## See [std-num.float-math.signum](../../spec/std/num.md#r-std-num.float-math.signum).
+    pub fn signum(self) -> f64:
+        if self.is_nan(): self else: 1.0.copysign(self)
+
+impl f32:
+    ## The natural logarithm.
+    ## See [std-num.float-math.ln](../../spec/std/num.md#r-std-num.float-math.ln).
+    pub fn ln(self) -> f32:
+        f32(float_ln_f64(f64(self)))
+    ## The natural exponential.
+    ## See [std-num.float-math.exp](../../spec/std/num.md#r-std-num.float-math.exp).
+    pub fn exp(self) -> f32:
+        f32(float_exp_f64(f64(self)))
+    ## This value raised to a floating-point exponent.
+    ## See [std-num.float-math.powf](../../spec/std/num.md#r-std-num.float-math.powf).
+    pub fn powf(self, exponent: f32) -> f32:
+        f32(float_pow_f64(f64(self), f64(exponent)))
+    ## This value raised to a signed integer exponent.
+    ## See [std-num.float-math.powi](../../spec/std/num.md#r-std-num.float-math.powi).
+    pub fn powi(self, exponent: i32) -> f32:
+        float_integer_power(self, exponent)
+    ## The sign as negative one, positive one, or NaN.
+    ## See [std-num.float-math.signum](../../spec/std/num.md#r-std-num.float-math.signum).
+    pub fn signum(self) -> f32:
+        if self.is_nan(): self else: f32(1.0).copysign(self)
+
+# Shared finite-positive reduction for ln, log2 and log10.
+fn float_log_reduction(value: f64) -> (f64, i32, u32):
+    let x = value
+    let exponent: i32 = 0
+    let word = high_word(x)
+    if word < 0x00100000:
+        x *= 18014398509481984.0
+        exponent -= 54
+        word = high_word(x)
+    exponent += i32(word >> 20) - 1023
+    word = word & 0x000fffff
+    halve := (word + 0x95f64) & 0x100000
+    x = f64_from((u64(word | (halve ^ 0x3ff00000)) << 32) | (f64_bits(x) & 0xffffffff))
+    exponent += i32(halve >> 20)
+    (x - 1.0, exponent, word)
+
+@inline(.Always)
+fn float_log_polynomial(z: f64) -> f64:
+    w := z * z
+    even := (
+        w
+        * (3.999999999940941908e-01 + w * (2.222219843214978396e-01 + w * 1.531383769920937332e-01))
+    )
+    odd_tail := 1.818357216161805012e-01 + w * 1.479819860511658591e-01
+    odd_middle := 2.857142874366239149e-01 + w * odd_tail
+    odd := z * (6.666666666666735130e-01 + w * odd_middle)
+    even + odd
+
+fn float_log_scaled(
+    value: f64,
+    inverse_hi: f64,
+    inverse_lo: f64,
+    exponent_hi: f64,
+    exponent_lo: f64,
+) -> f64:
+    if value == 0.0:
+        return -1.0 / 0.0
+    if value < 0.0:
+        return 0.0 / 0.0
+    if !value.is_finite():
+        return value + value
+    if value == 1.0:
+        return 0.0
+    reduced := float_log_reduction(value)
+    f := reduced._0
+    k := f64(reduced._1)
+    half_square := 0.5 * f * f
+    ratio := f / (2.0 + f)
+    remainder := ratio * (half_square + float_log_polynomial(ratio * ratio))
+    hi := low_cleared(f - half_square)
+    lo := (f - hi) - half_square + remainder
+    value_hi := hi * inverse_hi
+    exponent_value := k * exponent_hi
+    value_lo := k * exponent_lo + (lo + hi) * inverse_lo + lo * inverse_hi
+    sum := exponent_value + value_hi
+    (value_lo + ((exponent_value - sum) + value_hi)) + sum
+
+# OpenLibm s_atan.c: four argument-reduction intervals and an 11-term
+# minimax polynomial. The two chains preserve the reference's evaluation.
+fn float_atan_f64(value: f64) -> f64:
+    if value.is_nan():
+        return value + value
+    word := high_word(value) & 0x7fffffff
+    if word >= 0x44100000:
+        return 1.57079632679489655800.copysign(value)
+    if word < 0x3e400000:
+        return value
+    let x = value
+    let region: i32 = -1
+    if word >= 0x3fdc0000:
+        x = value.abs()
+        if word < 0x3ff30000:
+            if word < 0x3fe60000:
+                region = 0
+                x = (2.0 * x - 1.0) / (2.0 + x)
+            else:
+                region = 1
+                x = (x - 1.0) / (x + 1.0)
+        else if word < 0x40038000:
+            region = 2
+            x = (x - 1.5) / (1.0 + 1.5 * x)
+        else:
+            region = 3
+            x = -1.0 / x
+    z := x * x
+    w := z * z
+    odd4 := 4.97687799461593236017e-02 + w * 1.62858201153657823623e-02
+    odd3 := 6.66107313738753120669e-02 + w * odd4
+    odd2 := 9.09088713343650656196e-02 + w * odd3
+    odd1 := 1.42857142725034663711e-01 + w * odd2
+    odd := z * (3.33333333333329318027e-01 + w * odd1)
+    even3 := -5.83357013379057348645e-02 + w * -3.65315727442169155270e-02
+    even2 := -7.69187620504482999495e-02 + w * even3
+    even1 := -1.11111104054623557880e-01 + w * even2
+    even := w * (-1.99999999998764832476e-01 + w * even1)
+    if region < 0:
+        return x - x * (odd + even)
+    head := match region:
+        0 => 4.63647609000806093515e-01
+        1 => 7.85398163397448278999e-01
+        2 => 9.82793723247329054082e-01
+        _ => 1.57079632679489655800e+00
+    tail := match region:
+        0 => 2.26987774529616870924e-17
+        1 => 3.06161699786838301793e-17
+        2 => 1.39033110312309984516e-17
+        _ => 6.12323399573676603587e-17
+    (head - ((x * (odd + even) - tail) - x)).copysign(value)
+
+fn float_atan2_f64(y: f64, x: f64) -> f64:
+    if x.is_nan() || y.is_nan():
+        return x + y
+    negative_x := (f64_bits(x) >> 63) != 0
+    pi := 3.14159265358979311600
+    half_pi := 1.57079632679489655800
+    if y == 0.0:
+        return if negative_x: pi.copysign(y) else: y
+    if x == 0.0:
+        return half_pi.copysign(y)
+    if !x.is_finite():
+        if !y.is_finite():
+            return (if negative_x:
+                3.0 * 7.85398163397448278999e-01
+            else:
+                7.85398163397448278999e-01).copysign(y)
+        return (if negative_x: pi else: 0.0).copysign(y)
+    if !y.is_finite():
+        return half_pi.copysign(y)
+    difference := (i32(high_word(y) & 0x7fffffff) - i32(high_word(x) & 0x7fffffff)) >> 20
+    if difference > 60:
+        return half_pi.copysign(y)
+    z := if negative_x && difference < -60: 0.0 else: float_atan_f64((y / x).abs())
+    (if negative_x: pi - (z - 1.2246467991473531772e-16) else: z).copysign(y)
+
+# Shared rational correction for asin and acos on their reduced intervals.
+@inline(.Always)
+fn float_asin_correction(z: f64) -> f64:
+    p4 := 7.91534994289814532176e-04 + z * 3.47933107596021167570e-05
+    p3 := -4.00555345006794114027e-02 + z * p4
+    p2 := 2.01212532134862925881e-01 + z * p3
+    p1 := -3.25565818622400915405e-01 + z * p2
+    numerator := z * (1.66666666666666657415e-01 + z * p1)
+    q3 := -6.88283971605453293030e-01 + z * 7.70381505559019352791e-02
+    q2 := 2.02094576023350569471e+00 + z * q3
+    q1 := -2.40339491173441421878e+00 + z * q2
+    denominator := 1.0 + z * q1
+    numerator / denominator
+
+fn float_asin_f64(value: f64) -> f64:
+    size := value.abs()
+    if size >= 1.0:
+        return if size == 1.0:
+            value * 1.57079632679489655800 + value * 6.12323399573676603587e-17
+        else:
+            0.0 / 0.0
+    if size < 0.5:
+        if (high_word(value) & 0x7fffffff) < 0x3e500000:
+            return value
+        return value + value * float_asin_correction(value * value)
+    z := (1.0 - size) * 0.5
+    root := z.sqrt()
+    correction := float_asin_correction(z)
+    if (high_word(value) & 0x7fffffff) >= 0x3fef3333:
+        tail := 2.0 * (root + root * correction) - 6.12323399573676603587e-17
+        head := 1.57079632679489655800 - tail
+        return head.copysign(value)
+    high_root := low_cleared(root)
+    low_root := (z - high_root * high_root) / (root + high_root)
+    p := 2.0 * root * correction - (6.12323399573676603587e-17 - 2.0 * low_root)
+    q := 7.85398163397448278999e-01 - 2.0 * high_root
+    (7.85398163397448278999e-01 - (p - q)).copysign(value)
+
+fn float_acos_f64(value: f64) -> f64:
+    size := value.abs()
+    if size >= 1.0:
+        if size != 1.0:
+            return 0.0 / 0.0
+        return if value > 0.0: 0.0 else: 3.14159265358979311600
+    if size < 0.5:
+        if (high_word(value) & 0x7fffffff) <= 0x3c600000:
+            return 1.57079632679489655800
+        return (
+            1.57079632679489655800
+            - (value - (6.12323399573676603587e-17 - value * float_asin_correction(value * value)))
+        )
+    z := (1.0 - size) * 0.5
+    root := z.sqrt()
+    correction := float_asin_correction(z)
+    if value < 0.0:
+        return (
+            3.14159265358979311600
+            - 2.0 * (root + (correction * root - 6.12323399573676603587e-17))
+        )
+    high_root := low_cleared(root)
+    low_root := (z - high_root * high_root) / (root + high_root)
+    2.0 * (high_root + (correction * root + low_root))
+
+impl f64:
+    ## The base-two logarithm.
+    ## See [std-num.float-math.log2](../../spec/std/num.md#r-std-num.float-math.log2).
+    pub fn log2(self) -> f64:
+        float_log_scaled(self, 1.44269504072144627571, 1.67517131648865118353e-10, 1.0, 0.0)
+    ## The base-ten logarithm.
+    ## See [std-num.float-math.log10](../../spec/std/num.md#r-std-num.float-math.log10).
+    pub fn log10(self) -> f64:
+        float_log_scaled(
+            self,
+            4.34294481878168880939e-01,
+            2.50829467116452752298e-11,
+            3.01029995663611771306e-01,
+            3.69423907715893078616e-13,
+        )
+    ## The principal arctangent in radians.
+    ## See [std-num.float-math.atan](../../spec/std/num.md#r-std-num.float-math.atan).
+    pub fn atan(self) -> f64:
+        float_atan_f64(self)
+    ## The four-quadrant angle of (x, self), in radians.
+    ## See [std-num.float-math.atan2](../../spec/std/num.md#r-std-num.float-math.atan2).
+    pub fn atan2(self, x: f64) -> f64:
+        float_atan2_f64(self, x)
+    ## The principal arcsine in radians.
+    ## See [std-num.float-math.asin](../../spec/std/num.md#r-std-num.float-math.asin).
+    pub fn asin(self) -> f64:
+        float_asin_f64(self)
+    ## The principal arccosine in radians.
+    ## See [std-num.float-math.acos](../../spec/std/num.md#r-std-num.float-math.acos).
+    pub fn acos(self) -> f64:
+        float_acos_f64(self)
+
+impl f32:
+    ## The base-two logarithm.
+    ## See [std-num.float-math.log2](../../spec/std/num.md#r-std-num.float-math.log2).
+    pub fn log2(self) -> f32:
+        f32(f64(self).log2())
+    ## The base-ten logarithm.
+    ## See [std-num.float-math.log10](../../spec/std/num.md#r-std-num.float-math.log10).
+    pub fn log10(self) -> f32:
+        f32(f64(self).log10())
+    ## The principal arctangent in radians.
+    ## See [std-num.float-math.atan](../../spec/std/num.md#r-std-num.float-math.atan).
+    pub fn atan(self) -> f32:
+        f32(float_atan_f64(f64(self)))
+    ## The four-quadrant angle of (x, self), in radians.
+    ## See [std-num.float-math.atan2](../../spec/std/num.md#r-std-num.float-math.atan2).
+    pub fn atan2(self, x: f32) -> f32:
+        f32(float_atan2_f64(f64(self), f64(x)))
+    ## The principal arcsine in radians.
+    ## See [std-num.float-math.asin](../../spec/std/num.md#r-std-num.float-math.asin).
+    pub fn asin(self) -> f32:
+        f32(float_asin_f64(f64(self)))
+    ## The principal arccosine in radians.
+    ## See [std-num.float-math.acos](../../spec/std/num.md#r-std-num.float-math.acos).
+    pub fn acos(self) -> f32:
+        f32(float_acos_f64(f64(self)))
+
+# One slot per binary64 2/pi limb (66), plus the two extra input digits.
+# Borrowed access keeps the tuple place alive through each raw load/store.
+# No address escapes these methods, and no scratch buffer is heap allocated.
+struct FloatReductionWords:
+    cells: (
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+    )
+
+impl FloatReductionWords:
+    fn new() -> FloatReductionWords:
+        FloatReductionWords {
+            cells: (
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ),
+        }
+
+    @inline(.Always)
+    fn get(&self, index: i32) -> f64:
+        f64_from(load_u64(address_of(&self.cells) + usize(index) * 8))
+
+    @inline(.Always)
+    fn set(&mut self, index: i32, value: f64) -> void:
+        store_u64(address_of(&self.cells) + usize(index) * 8, f64_bits(value))
+
+# The 66 24-bit limbs used by fdlibm for IEEE binary64; wider long-double
+# tables are not needed because hd's largest binary format is binary64.
+fn float_two_over_pi(index: i32) -> f64:
+    # Base64 holds each 24-bit limb in four ASCII bytes: the same 264 bytes
+    # as the C table, in immutable string storage rather than a heap list.
+    words := "ovmDbk5EFSn8J1fR9TTdwNtilZk8Q5BB/lFjq967xWG3JG46Qk3S4AZJLuoJ0ZIc/h3rHLEppz7ogjX1LrtEhOmccCa0X35BOZHWOYNTOfSchF+LvfkoOx/4l//eBZgP7y8Ri1oKbR9tNn7PJ8sJt09GP2aeX+otdSe6x+vl8Xs9Bzn3ilKS6mv7X7EfjV0IVgMwRvx7a6vwz7wgmvQ2HanjkWFe5hsIZZmFXxSgaECN/9iATXMnMQYGFVbKc6jJYOJ7wIxr"
+    start := usize(index) * 4
+    first := float_limb_digit(bytes_at(words, start))
+    second := float_limb_digit(bytes_at(words, start + 1))
+    third := float_limb_digit(bytes_at(words, start + 2))
+    fourth := float_limb_digit(bytes_at(words, start + 3))
+    f64((first << 18) | (second << 12) | (third << 6) | fourth)
+
+@inline(.Always)
+fn float_limb_digit(byte: u8) -> u32:
+    if byte >= 65 && byte <= 90:
+        return u32(byte) - 65
+    if byte >= 97 && byte <= 122:
+        return u32(byte) - 71
+    if byte >= 48 && byte <= 57:
+        return u32(byte) + 4
+    if byte == 43: 62 else: 63
+
+fn float_scale_binary(value: f64, exponent: i32) -> f64:
+    if exponent < -1022:
+        return value * float_power_of_two(exponent + 1022) * float_power_of_two(-1022)
+    if exponent > 1023:
+        return value * float_power_of_two(exponent - 1023) * float_power_of_two(1023)
+    value * float_power_of_two(exponent)
+
+fn float_reduction_digit(digits: (f64, f64, f64), index: i32) -> f64:
+    match index:
+        0 => digits._0
+        1 => digits._1
+        _ => digits._2
+
+fn float_half_pi_digit(index: i32) -> f64:
+    match index:
+        0 => 1.57079625129699707031e+00
+        1 => 7.54978941586159635335e-08
+        2 => 5.39030252995776476554e-15
+        3 => 3.28200341580791294123e-22
+        _ => 1.27065575308067607349e-29
+
+# fdlibm's double-precision Payne-Hanek kernel: multiply only the window
+# of 2/pi that contributes the low three quotient bits and remainder.
+# Each input has at most three 24-bit digits. The table fixes the total
+# width; recomputation extends its window and never recurses.
+fn float_reduce_large(value: f64) -> (i32, f64, f64):
+    magnitude := value.abs()
+    exponent := i32(high_word(magnitude) >> 20) - 1046
+    scaled := f64_from((f64_bits(magnitude) & 0x000fffffffffffff) | (1046 << 52))
+    first := scaled.trunc()
+    rest := (scaled - first) * 16777216.0
+    second := rest.trunc()
+    third := (rest - second) * 16777216.0
+    digits := (first, second, third)
+    last := if third != 0.0: +2 else: (if second != 0.0: +1 else: +0)
+    start := if exponent > 3: (exponent - 3) / 24 else: +0
+    let scale = exponent - 24 * (start + 1)
+    let mut f = FloatReductionWords::new()
+    let mut q = FloatReductionWords::new()
+    let mut iq = FloatReductionWords::new()
+    let mut fq = FloatReductionWords::new()
+    let i: i32 = 0
+    while i <= last + 4:
+        at := start - last + i
+        f.set(i, if at < 0: 0.0 else: float_two_over_pi(at))
+        i += 1
+    i = 0
+    while i <= 4:
+        let sum = 0.0
+        let j: i32 = 0
+        while j <= last:
+            sum += float_reduction_digit(digits, j) * f.get(last + i - j)
+            j += 1
+        q.set(i, sum)
+        i += 1
+    let end: i32 = 4
+    let n: i32 = 0
+    let z = 0.0
+    let half: i32 = 0
+    while true:
+        z = q.get(end)
+        let j = end
+        i = 0
+        while j > 0:
+            carry := (z * 5.9604644775390625e-08).trunc()
+            iq.set(i, z - 16777216.0 * carry)
+            z = q.get(j - 1) + carry
+            i += 1
+            j -= 1
+        z = float_scale_binary(z, scale)
+        z -= 8.0 * (z * 0.125).floor()
+        n = i32(z)
+        z -= f64(n)
+        half = 0
+        if scale > 0:
+            top := i32(iq.get(end - 1))
+            extra := top >> u32(24 - scale)
+            n += extra
+            iq.set(end - 1, f64(top - (extra << u32(24 - scale))))
+            half = i32(iq.get(end - 1)) >> u32(23 - scale)
+        else if scale == 0:
+            half = i32(iq.get(end - 1)) >> 23
+        else if z >= 0.5:
+            half = 2
+        if half > 0:
+            n += 1
+            let carry: i32 = 0
+            i = 0
+            while i < end:
+                digit := i32(iq.get(i))
+                if carry == 0:
+                    if digit != 0:
+                        carry = 1
+                        iq.set(i, f64(16777216 - digit))
+                else:
+                    iq.set(i, f64(16777215 - digit))
+                i += 1
+            if scale == 1:
+                iq.set(end - 1, f64(i32(iq.get(end - 1)) & 0x7fffff))
+            else if scale == 2:
+                iq.set(end - 1, f64(i32(iq.get(end - 1)) & 0x3fffff))
+            if half == 2:
+                z = 1.0 - z
+                if carry != 0:
+                    z -= float_scale_binary(1.0, scale)
+        if z == 0.0:
+            let any: i32 = 0
+            i = end - 1
+            while i >= 4:
+                any = any | i32(iq.get(i))
+                i -= 1
+            if any == 0:
+                let more: i32 = 1
+                while iq.get(4 - more) == 0.0:
+                    more += 1
+                i = end + 1
+                while i <= end + more:
+                    f.set(last + i, float_two_over_pi(start + i))
+                    let sum = 0.0
+                    let j: i32 = 0
+                    while j <= last:
+                        sum += float_reduction_digit(digits, j) * f.get(last + i - j)
+                        j += 1
+                    q.set(i, sum)
+                    i += 1
+                end += more
+                continue
+        break
+    if z == 0.0:
+        end -= 1
+        scale -= 24
+        while iq.get(end) == 0.0:
+            end -= 1
+            scale -= 24
+    else:
+        z = float_scale_binary(z, -scale)
+        if z >= 16777216.0:
+            carry := (z * 5.9604644775390625e-08).trunc()
+            iq.set(end, z - 16777216.0 * carry)
+            end += 1
+            scale += 24
+            iq.set(end, carry)
+        else:
+            iq.set(end, z)
+    let weight = float_scale_binary(1.0, scale)
+    i = end
+    while i >= 0:
+        q.set(i, weight * iq.get(i))
+        weight *= 5.9604644775390625e-08
+        i -= 1
+    i = end
+    while i >= 0:
+        let sum = 0.0
+        let k: i32 = 0
+        while k <= 4 && k <= end - i:
+            sum += float_half_pi_digit(k) * q.get(i + k)
+            k += 1
+        fq.set(end - i, sum)
+        i -= 1
+    let head = 0.0
+    i = end
+    while i >= 0:
+        head += fq.get(i)
+        i -= 1
+    let tail = fq.get(0) - head
+    i = 1
+    while i <= end:
+        tail += fq.get(i)
+        i += 1
+    if half != 0:
+        head = -head
+        tail = -tail
+    if value < 0.0: (-(n & 7), -head, -tail) else: (n & 7, head, tail)
+
+fn float_reduce_half_pi(value: f64) -> (i32, f64, f64):
+    word := high_word(value) & 0x7fffffff
+    if word >= 0x413921fb:
+        return float_reduce_large(value)
+    # The medium algorithm also covers the four small nonzero quadrants.
+    # Wasm's native nearest replaces fdlibm's rounding-mode add/sub trick.
+    count := (value * 6.36619772367581382433e-01).round_ties_even()
+    let r = value - count * 1.57079632673412561417
+    let w = count * 6.07710050650619224932e-11
+    let head = r - w
+    original_exponent := i32(word >> 20)
+    if original_exponent - i32((high_word(head) >> 20) & 0x7ff) > 16:
+        previous := r
+        part := count * 6.07710050630396597660e-11
+        r = previous - part
+        w = count * 2.02226624879595063154e-21 - ((previous - r) - part)
+        head = r - w
+        if original_exponent - i32((high_word(head) >> 20) & 0x7ff) > 49:
+            previous := r
+            part := count * 2.02226624871116645580e-21
+            r = previous - part
+            w = count * 8.47842766036889956997e-32 - ((previous - r) - part)
+            head = r - w
+    (i32(count), head, (r - head) - w)
+
+fn float_sin_kernel(x: f64, tail: f64, reduced: bool) -> f64:
+    square := x * x
+    fourth := square * square
+    remainder := (
+        8.33333333332248946124e-03
+        + square * (-1.98412698298579493134e-04 + square * 2.75573137070700676789e-06)
+        + square * fourth * (-2.50507602534068634195e-08 + square * 1.58969099521155010221e-10)
+    )
+    cube := square * x
+    if !reduced:
+        return x + cube * (-1.66666666666666324348e-01 + square * remainder)
+    x - ((square * (0.5 * tail - cube * remainder) - tail) - cube * -1.66666666666666324348e-01)
+
+fn float_cos_kernel(x: f64, tail: f64) -> f64:
+    square := x * x
+    fourth := square * square
+    lower_tail := -1.38888888888741095749e-03 + square * 2.48015872894767294178e-05
+    lower := square * (4.16666666666666019037e-02 + square * lower_tail)
+    upper_tail := 2.08757232129817482790e-09 + square * -1.13596475577881948265e-11
+    upper := fourth * fourth * (-2.75573143513906633035e-07 + square * upper_tail)
+    remainder := lower + upper
+    half_square := 0.5 * square
+    head := 1.0 - half_square
+    head + (((1.0 - head) - half_square) + (square * remainder - x * tail))
+
+fn float_tan_kernel(value: f64, tail: f64, inverse: bool) -> f64:
+    transformed := (high_word(value) & 0x7fffffff) >= 0x3fe59428
+    let x = value
+    let y = tail
+    if transformed:
+        if value < 0.0:
+            x = -x
+            y = -y
+        x = (7.85398163397448278999e-01 - x) + (3.06161699786838301793e-17 - y)
+        y = 0.0
+    square := x * x
+    fourth := square * square
+    odd4 := 7.81794442939557092300e-05 + fourth * -1.85586374855275456654e-05
+    odd3 := 5.88041240820264096874e-04 + fourth * odd4
+    odd2 := 3.59207910759131235356e-03 + fourth * odd3
+    odd1 := 2.18694882948595424599e-02 + fourth * odd2
+    odd := 1.33333333333201242699e-01 + fourth * odd1
+    even4 := 7.14072491382608190305e-05 + fourth * 2.59073051863633712884e-05
+    even3 := 2.46463134818469906812e-04 + fourth * even4
+    even2 := 1.45620945432529025516e-03 + fourth * even3
+    even1 := 8.86323982359930005737e-03 + fourth * even2
+    even := square * (5.39682539762260521377e-02 + fourth * even1)
+    cube := square * x
+    correction := (y + square * (cube * (odd + even) + y)) + 3.33333333333334091986e-01 * cube
+    sum := x + correction
+    if transformed:
+        direction := if inverse: -1.0 else: 1.0
+        result := direction - 2.0 * (x - (sum * sum / (sum + direction) - correction))
+        return if value < 0.0: -result else: result
+    if !inverse:
+        return sum
+    if sum == 0.0:
+        return -1.0 / sum
+    head := low_cleared(sum)
+    tail_sum := correction - (head - x)
+    reciprocal := -1.0 / sum
+    reciprocal_head := low_cleared(reciprocal)
+    reciprocal_head + reciprocal * ((1.0 + reciprocal_head * head) + reciprocal_head * tail_sum)
+
+impl f64:
+    ## The sine of this angle in radians.
+    ## See [std-num.float-math.sin](../../spec/std/num.md#r-std-num.float-math.sin).
+    pub fn sin(self) -> f64:
+        word := high_word(self) & 0x7fffffff
+        if word < 0x3e500000:
+            return self
+        if !self.is_finite():
+            return self - self
+        if word <= 0x3fe921fb:
+            return float_sin_kernel(self, 0.0, false)
+        reduced := float_reduce_half_pi(self)
+        match reduced._0 & 3:
+            0 => float_sin_kernel(reduced._1, reduced._2, true)
+            1 => float_cos_kernel(reduced._1, reduced._2)
+            2 => -float_sin_kernel(reduced._1, reduced._2, true)
+            _ => -float_cos_kernel(reduced._1, reduced._2)
+    ## The cosine of this angle in radians.
+    ## See [std-num.float-math.cos](../../spec/std/num.md#r-std-num.float-math.cos).
+    pub fn cos(self) -> f64:
+        word := high_word(self) & 0x7fffffff
+        if word < 0x3e400000:
+            return 1.0
+        if !self.is_finite():
+            return self - self
+        if word <= 0x3fe921fb:
+            return float_cos_kernel(self, 0.0)
+        reduced := float_reduce_half_pi(self)
+        match reduced._0 & 3:
+            0 => float_cos_kernel(reduced._1, reduced._2)
+            1 => -float_sin_kernel(reduced._1, reduced._2, true)
+            2 => -float_cos_kernel(reduced._1, reduced._2)
+            _ => float_sin_kernel(reduced._1, reduced._2, true)
+    ## The tangent of this angle in radians.
+    ## See [std-num.float-math.tan](../../spec/std/num.md#r-std-num.float-math.tan).
+    pub fn tan(self) -> f64:
+        word := high_word(self) & 0x7fffffff
+        if word < 0x3e400000:
+            return self
+        if !self.is_finite():
+            return self - self
+        if word <= 0x3fe921fb:
+            return float_tan_kernel(self, 0.0, false)
+        reduced := float_reduce_half_pi(self)
+        float_tan_kernel(reduced._1, reduced._2, (reduced._0 & 1) != 0)
+
+impl f32:
+    ## The sine of this angle in radians.
+    ## See [std-num.float-math.sin](../../spec/std/num.md#r-std-num.float-math.sin).
+    pub fn sin(self) -> f32:
+        f32(f64(self).sin())
+    ## The cosine of this angle in radians.
+    ## See [std-num.float-math.cos](../../spec/std/num.md#r-std-num.float-math.cos).
+    pub fn cos(self) -> f32:
+        f32(f64(self).cos())
+    ## The tangent of this angle in radians.
+    ## See [std-num.float-math.tan](../../spec/std/num.md#r-std-num.float-math.tan).
+    pub fn tan(self) -> f32:
+        f32(f64(self).tan())

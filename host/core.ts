@@ -46,7 +46,7 @@
 import { OperationQueue } from "./operation-queue.ts";
 import { shortest, fixed, lower, upper, parse } from "./float.ts";
 import { bindPackageRuntime } from "./core-package.ts";
-import { WireHttpError as HttpError, METHODS } from "./gen/abi.ts";
+import { CrossError, WireHttpError as HttpError, METHODS } from "./gen/abi.ts";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.ts";
 export {
   CANCEL_STATUS,
@@ -150,6 +150,8 @@ export interface CoreEnv extends DynamicRecord {
   runner?: Dynamic;
   providers?: ((io: DynamicRecord) => DynamicRecord) | null;
   countAudit?: (rows: import("./checked-report.ts").CountPairRow[]) => void;
+  // A thread's instance: the heap its program shares (module.rt.thread.heap).
+  heap?: WebAssembly.Memory;
 }
 
 export interface Grant {
@@ -534,14 +536,30 @@ function rtImports({
   };
 }
 
+// A float's text as `Enc.str` writes it: its length, one LEB byte for
+// fewer than 128 bytes, then its bytes. The text is ASCII, so its bytes
+// are its UTF-16 code units, written straight into an exact array with
+// no encoder, no UTF-8 pass and no second copy.
+function ascii(text: string): Uint8Array | Enc {
+  if (text.length >= 128) {
+    return new Enc().str(text);
+  }
+  const bytes = new Uint8Array(text.length + 1);
+  bytes[0] = text.length;
+  for (let i = 0; i < text.length; i++) {
+    bytes[i + 1] = text.charCodeAt(i);
+  }
+  return bytes;
+}
+
 // The host primitives of std (spec/std/README.md#standard-library-
 // primitives): a float arrives as its value, and the text goes back
 // in the exchange buffer as a string.
 function primImports({ put, text, env }: DynamicRecord): Record<string, ProviderFunction> {
   return {
-    format_f64: (value) => put(new Enc().str(shortest(value, 64))),
-    format_f32: (value) => put(new Enc().str(shortest(value, 32))),
-    format_f64_fixed: (value, digits) => put(new Enc().str(fixed(value, Number(digits)))),
+    format_f64: (value) => put(ascii(shortest(value, 64))),
+    format_f32: (value) => put(ascii(shortest(value, 32))),
+    format_f64_fixed: (value, digits) => put(ascii(fixed(value, Number(digits)))),
     string_lower: (len) => put(new Enc().str(lower(text(len)))),
     string_upper: (len) => put(new Enc().str(upper(text(len)))),
     parse_f64: (len) => parse(text(len)),
@@ -1108,6 +1126,10 @@ function buildCoreImports(options: Dynamic): Dynamic {
     "hd:Args": argsProvider({ program, args }),
     "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
     "hd:PropertyRunner": propertyRunnerProvider({ env }),
+    // A host without workers refuses each crossing; an instance that is
+    // no worker has no frame (std-remote.workers.host).
+    "hd:Workers": { send: () => Err(variant(CrossError, "Unreachable")) },
+    "hd:WorkerPort": env.workerPort ?? { next: () => null, reply: () => undefined },
   };
   // The platform layer's providers; a module it names extends the core's
   // provider for that module rather than replacing it.
@@ -1134,6 +1156,33 @@ function buildCoreImports(options: Dynamic): Dynamic {
       stack,
     }),
     "hd:prim": primImports({ put, text, env }),
+  };
+  // A program that starts threads imports its heap, shared with each
+  // thread's instance (module.rt.thread.heap), and asks the platform for
+  // threads; a platform without them refuses each (module.rt.thread.spawn).
+  let heap: WebAssembly.Memory | null = env.heap ?? null;
+  Object.defineProperty(imports["hd:rt"], "heap", {
+    get: () => (heap ??= new WebAssembly.Memory({ initial: 1, maximum: 65536, shared: true })),
+  });
+  imports["hd:rt"].thread_spawn = (block: number): number =>
+    Number(layer?.startThread?.(env.module, heap, block) === true);
+  // A task's wait for a thread to end (module.rt.thread.running): done at
+  // once when the word at `address` no longer holds `seen`, else pending
+  // until a notify there. `Atomics.waitAsync` registers the wait now, so
+  // it hears the notify whenever it comes, and a cancel only drops it.
+  // A Promise, so a synchronous `block` resumes the event loop for it.
+  const watch = "hd:rt thread_watch";
+  imports["hd:rt"]["thread_watch.start"] = (address: number, seen: number): number[] => {
+    const wait = Atomics.waitAsync(new Int32Array(heap!.buffer), address >> 2, seen);
+    if (!wait.async) {
+      return [0, 0];
+    }
+    const subscribe = (ready: () => void): void => void wait.value.then(ready);
+    return pending({ at: performance.now(), done: null, method: watch, promise: true, subscribe });
+  };
+  imports["hd:rt"]["thread_watch.finish"] = (handle: number): number => {
+    finished(handle, watch);
+    return 0;
   };
   const io: DynamicRecord = {
     view,

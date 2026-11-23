@@ -11,3 +11,73 @@ impl Builder:
         consume(fn(item):
             use_the_descriptive_value_and_record_the_descriptive_result_for_the_current_operation(item)
         )
+# a header wraps only its outer binary expression
+fn f():
+    for _ in value := the_first_descriptive_parameter_name + the_second_descriptive_parameter_name * third + the_third_descriptive_parameter_name ^ fifth ^ sixth:
+        return
+# a suite-valued comprehension clause keeps the next clause separate
+fn f():
+    { for _ in match true:
+        _ => return
+    for '\n' in main := if true:
+        return
+    if true => false: false }
+# pipe step suites remain on one line
+fn f(value: i32):
+    value |> map(fn(item): consume(item, aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa))
+# a generated comma is included in the fit decision
+fn f():
+    consume(innerinnerinnerinnerinnerinnerinnerinnerinnerinnerinnerinnerinnerinnerinnerinner(first, second), the_second_descriptive_parameter_name)
+# a suffix comment's separator does not count toward the code width
+fn f():
+    consume(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx) # note
+# continuation wrappers use the printed column
+fn f():
+    value := (aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)
+# binary parentheses are added only in whitelisted slots
+fn f():
+    consume([aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa + bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb])
+# a pipe closure chain keeps empty arguments and uses dot lines
+fn f(value: Item):
+    value |> map(fn(item): item.configuration().named("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"))
+# a postfix chain keeps the first complete call as its head
+fn f(app: App):
+    app.configuration().named("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+# nested groups repeat until every breakable line fits
+fn f():
+    consume(Record { first: [the_first_descriptive_parameter_name, the_second_descriptive_parameter_name, the_third_descriptive_parameter_name], second: [the_first_descriptive_parameter_name, the_second_descriptive_parameter_name, the_third_descriptive_parameter_name] }, the_first_descriptive_parameter_name)
+# literal arguments split without splitting either literal
+fn f():
+    consume("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
+# inline closures and suites keep their expression boundaries
+fn f():
+    apply(fn(the_first_descriptive_parameter_name, the_second_descriptive_parameter_name, the_third_descriptive_parameter_name): the_first_descriptive_parameter_name + the_second_descriptive_parameter_name)
+fn f():
+    if ready: apply(the_first_descriptive_parameter_name, the_second_descriptive_parameter_name, the_third_descriptive_parameter_name) else: missing
+fn f():
+    match value:
+        .Some(found) => consume(the_first_descriptive_parameter_name, the_second_descriptive_parameter_name, the_third_descriptive_parameter_name)
+        .None => pass
+# exactly one hundred columns stay on one line, and one more breaks
+fn f():
+    consume(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa)
+fn f():
+    consume(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaax)
+# a broken value `if` argument ends the list with no lone comma
+fn f():
+    consume(if ready: the_first_descriptive_parameter_name + the_second_descriptive_parameter_name else: the_second_descriptive_parameter_name + the_third_descriptive_parameter_name)
+# a value `if` before another struct field stays parseable
+struct S:
+    a: i32
+    b: i32
+
+fn pick(flag_with_a_rather_long_name: bool, first_value_with_a_long_name: i32, second_value_with_a_long_name: i32) -> S:
+    S {
+        a: if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000,
+        b: 2,
+    }
+# a nonfinal value `if` in call and collection literals stays parseable
+fn f(flag_with_a_rather_long_name: bool, first_value_with_a_long_name: i32, second_value_with_a_long_name: i32):
+    consume(if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000, 2)
+    [if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000, 2]
+    {"a": if flag_with_a_rather_long_name: first_value_with_a_long_name else: second_value_with_a_long_name + 1000000, "b": 2}

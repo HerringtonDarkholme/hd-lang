@@ -1,0 +1,13 @@
+# test: a remote method whose parameter holds a function value inside a struct is rejected
+# Spec 10 Remote Traits: module.remote.r1.wire.
+use std.remote.{CrossError, Remote}
+
+enum SortError:
+    Empty
+
+struct SortJob:
+    rows: List[i64]
+    key: fn(i64) -> i64
+
+trait Sorter < Remote:
+    fn sort!(&mut self, job: SortJob) -> Result[List[i64], SortError | CrossError] # diagnostic: invalid-remote-method

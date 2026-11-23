@@ -45,12 +45,10 @@ pub mod boundary;
 pub(crate) mod cache;
 pub(crate) mod call_args;
 pub(crate) mod call_row;
-pub(crate) mod capture_entry;
 pub(crate) mod capture_env;
 pub(crate) mod captures;
 pub(crate) mod child;
 pub(crate) mod cold;
-pub(crate) mod cold_captures;
 pub(crate) mod cold_row;
 pub(crate) mod context;
 pub(crate) mod copy_struct;
@@ -64,7 +62,6 @@ pub(crate) mod join_results;
 mod local_refs;
 #[cfg(test)]
 pub(crate) mod test_cx;
-pub(crate) mod waker;
 pub use frame::store_finds_empty;
 mod effect_places;
 mod element_checks;
@@ -109,8 +106,6 @@ pub mod values;
 pub(crate) use reason::CANCELLED;
 #[cfg(not(target_arch = "wasm32"))]
 pub use reason::check_copy_reasons;
-#[cfg(all(feature = "test-utils", not(target_arch = "wasm32")))]
-pub use reason::check_write_sweep;
 pub use reason::{EXIT_DROP, OVERWRITTEN, Reason, copy_reasons, reason};
 
 /// Whether a value of a type may be copied ([`OwnCx::copies`]).
@@ -1172,11 +1167,13 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
     known::place_arm_drops(b, &scratch.known, edits);
     splice::apply(b, topo, edits)?;
+    edits.remap(&mut scratch.known.empty_stores);
     if self_store::applies(b) {
         scratch.topo.build(b);
         scratch.splice.clear();
         self_store::run(b, cx, &scratch.topo, &mut scratch.splice);
         splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+        scratch.splice.remap(&mut scratch.known.empty_stores);
     }
     scratch.topo.build(b);
     scratch.splice.clear();
@@ -1188,11 +1185,18 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         &mut scratch.splice,
     ) {
         splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+        scratch.splice.remap(&mut scratch.known.empty_stores);
         scratch.topo.build(b);
     }
     plain::loan_ends(b, cx);
     scratch.splice.clear();
-    overwrites::plan(b, cx, &scratch.topo, &mut scratch.splice);
+    overwrites::plan(
+        b,
+        cx,
+        &scratch.topo,
+        &scratch.known.empty_stores,
+        &mut scratch.splice,
+    );
     retains::plan(b, cx, &scratch.topo, &mut scratch.splice)?;
     counts::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     overwrites::anchor(b);
@@ -2049,6 +2053,16 @@ pub(crate) mod tests {
     use hd_base::{DefId, LocalId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
+    /// States `b`'s count packets under `cx`, then checks the owned body:
+    /// the fixture every count-packet module's tests share.
+    pub(crate) fn state(b: &mut Body, cx: &dyn super::OwnCx) {
+        let topo = crate::ir::Topology::new(b);
+        let edits = &mut super::splice::Tables::default();
+        super::counts::run(b, cx, &topo, edits).unwrap();
+        let errors = verify_owned(b, cx);
+        assert!(errors.is_empty(), "{errors:?}");
+    }
+
     /// A list type: counted, and changed in place by a push.
     const LIST: Ty = Ty(1_000_000);
     /// A counted type declared `!Copy`.
@@ -2236,7 +2250,7 @@ pub(crate) mod tests {
         out
     }
 
-    fn local(b: &mut TirBuilder, flags: u8) -> LocalId {
+    fn local(b: &mut TirBuilder, flags: u16) -> LocalId {
         b.local(Ty::STRING, Symbol::from_raw(0), flags, NodeIdx::from_raw(1))
     }
 
@@ -2659,9 +2673,9 @@ pub(crate) mod tests {
         assert_eq!(
             text,
             "%0 Call\n%1 Store [$0] %0\n%2 Read borrow [$0]\n%3 Call %2\n\
-             %4 Read move [$0]\n%5 Call\n%6 Store [$0] %5\n%7 Release\n%8 Call %4\n\
-             %9 Drop [%4]\n%10 Read move [$0]\n%11 Call %10\n\
-             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
+             %4 Read move [$0]\n%5 Call\n%6 Store [$0] %5\n%7 Call %4\n\
+             %8 Drop [%4]\n%9 Read move [$0]\n%10 Call %9\n\
+             %11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\n"
         );
     }
 
@@ -3099,6 +3113,64 @@ pub(crate) mod tests {
              %12 Drop [$1]\n%13 Block [%10 %11 %12]\n%14 If %4\n\
              %15 Block [%0 %1 %2 %3 %4 %9 %13 %14]\n"
         );
+    }
+
+    /// A hooked local moved on one arm only (#2306): its drop after the
+    /// arms runs under its drop flag once elaborated, and the verifier
+    /// reads the flag's `If` as the drop on both ways out, as a stored
+    /// body is checked. Without the drop the local still leaks.
+    #[test]
+    fn an_elaborated_flag_guarded_drop_empties_its_local() {
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(HOOKED, Symbol::from_raw(0), 0, n);
+        let v = call(&mut b, 7, &[], HOOKED);
+        b.set(x, v, n);
+        // Read by address, as `bytes.capacity()`: a slot, whose drop
+        // reads a flag.
+        let whole = b.place(&"[$0]".parse().expect("place"));
+        let reference = b.emit(Tag::Ref, whole, crate::ir::ref_word::LOCAL, Ty::I32, n);
+        call(&mut b, 8, &[reference], Ty::VOID);
+        let c = call(&mut b, 6, &[], Ty::BOOL);
+        let then = b.open_block();
+        let then = b.close_block(then, None, Ty::VOID, n);
+        let els = b.open_block();
+        let r = b.get(x, HOOKED, n);
+        call(&mut b, 9, &[r], Ty::VOID);
+        let els = b.close_block(els, None, Ty::VOID, n);
+        let arms = b.refs_record(&[then, els]);
+        b.emit(Tag::If, c.0, arms, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
+        super::elaborate(&mut body, &Cx).expect("elaborates");
+        let leaks = |b: &Body| {
+            let errs = verify_owned(b, &Cx);
+            errs.iter().any(|e| e.invariant == 23)
+        };
+        assert!(
+            !leaks(&body),
+            "{:?}\n{}",
+            verify_owned(&body, &Cx),
+            show(&body)
+        );
+        let bare = crate::ir::place::BARE_LOCAL | x.raw();
+        let guarded = (0..body.len())
+            .find(|&i| body.tags[i] == Tag::Drop && body.data[i][0] == bare)
+            .map(crate::ir::u32_of)
+            .expect("the flag's drop");
+        let blk = (0..body.len())
+            .find(|&i| {
+                body.tags[i] == Tag::Block && body.record(body.data[i][0]).contains(&guarded)
+            })
+            .expect("its block");
+        let rest: Vec<u32> = (body.record(body.data[blk][0]).iter())
+            .copied()
+            .filter(|&m| m != guarded)
+            .collect();
+        body.data[blk][0] = body.push_record(&rest);
+        assert!(leaks(&body), "{}", show(&body));
     }
 
     /// Known-null in a loop: a local stored and moved on each round is

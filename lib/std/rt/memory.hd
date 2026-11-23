@@ -9,6 +9,12 @@ use std.rt.Drop
 use std.rt.alloc.{alloc, free_block}
 use std.rt.cycle.hold_room
 
+# The address is used only while the original place remains alive. Std uses
+# it for static member IDs and borrowed, stack-resident scalar scratch.
+@intrinsic("mem_ref_address")
+pub fn address_of[T < ?Copy](target: &T) -> usize:
+    panic("intrinsic")
+
 @intrinsic("mem_pages")
 ## The heap's size in pages of 65,536 bytes.
 ## See [module.rt.memory.pages](../../../spec/lang/10-modules.md#r-module.rt.memory.pages).
@@ -83,6 +89,36 @@ pub fn copy_bytes(to: usize, from: usize, count: usize) -> void:
 ## Sets the `count` bytes from `to` to `byte`.
 ## See [module.rt.memory.fill](../../../spec/lang/10-modules.md#r-module.rt.memory.fill).
 pub fn fill(to: usize, byte: u8, count: usize) -> void:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_load_u32")
+## The 4 bytes from `address`, read as one atomic step; `address` is a multiple of 4.
+## See [module.rt.memory.atomic](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic).
+pub fn atomic_load_u32(address: usize) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_add_u32")
+## Adds `value` to the 4 bytes from `address`, wrapping, as one atomic step, and returns what they held before.
+## See [module.rt.memory.atomic.add](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.add).
+pub fn atomic_add_u32(address: usize, value: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_sub_u32")
+## Subtracts `value` from the 4 bytes from `address`, wrapping, as one atomic step, and returns what they held before.
+## See [module.rt.memory.atomic.add](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.add).
+pub fn atomic_sub_u32(address: usize, value: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_cmpxchg_u32")
+## Writes `new` to the 4 bytes from `address` when they hold `expected`, as one atomic step, and returns what they held before.
+## See [module.rt.memory.atomic.exchange](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.exchange).
+pub fn atomic_compare_exchange_u32(address: usize, expected: u32, new: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_fence")
+## Orders this thread's heap accesses before it against those after it, for every thread.
+## See [module.rt.memory.atomic.fence](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.fence).
+pub fn atomic_fence() -> void:
     panic("intrinsic")
 
 ## The address of a value of type `T` in the heap. A copy of a `Ptr[T]` copies the address, never the value.
@@ -220,4 +256,22 @@ pub fn new_string(len: usize) -> string:
 
 @intrinsic("panic")
 fn panic_with(category: string, message: string) -> never:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_wait_u32")
+## Waits while the 4 bytes from `address` hold `expected`, until a notify there wakes it or `timeout` nanoseconds pass, never for a negative `timeout`: 0 when woken, 1 when they held another value, 2 when the time passed. Only a heap that threads share may wait.
+## See [module.rt.memory.atomic.wait](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.wait).
+pub fn atomic_wait_u32(address: usize, expected: u32, timeout: i64) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_notify")
+## Wakes at most `count` of the waits at `address`, oldest first, and gives how many it woke.
+## See [module.rt.memory.atomic.wait](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.wait).
+pub fn atomic_notify(address: usize, count: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_store_u32")
+## Writes `value` to the 4 bytes from `address` as one atomic step; `address` is a multiple of 4.
+## See [module.rt.memory.atomic](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic).
+pub fn atomic_store_u32(address: usize, value: u32) -> void:
     panic("intrinsic")

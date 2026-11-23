@@ -75,6 +75,8 @@ use crate::own::flow::{
 use crate::own::parts::Slots;
 use crate::own::{OwnCx, Role, consumes_counts as consumes, operands, tracked};
 use hd_base::SliceSort as _;
+
+mod place_index;
 use hd_types::{Ty, TyData, TyList};
 
 /// Verifies a body after the ownership passes: the structural invariants,
@@ -97,6 +99,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     let frame_lends =
         crate::own::derive::frame_lending_roots(b, cx, &reference_roots, &neutral_stores);
     let reference_values = reference_values(b);
+    let reference_sources = reference_sources(b, &reference_values, &places);
     let own = cx;
     let cx = Cx {
         b,
@@ -105,6 +108,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         addressed: &reference_uses.escaping,
         reference_calls: &reference_uses.calls,
         reference_values: &reference_values,
+        reference_sources: &reference_sources,
         reference_roots: &reference_roots,
         frame_lends: &frame_lends,
         neutral_stores: &neutral_stores,
@@ -729,6 +733,7 @@ struct Cx<'a> {
     addressed: &'a [bool],
     reference_calls: &'a [u32],
     reference_values: &'a [u32],
+    reference_sources: &'a [u32],
     reference_roots: &'a [u32],
     frame_lends: &'a [bool],
     neutral_stores: &'a [bool],
@@ -771,6 +776,52 @@ fn reference_values(b: &Body) -> Vec<u32> {
     values
 }
 
+/// Resolve the existing unary reference-definition relation once, as the
+/// frame-origin analysis does: each node settles once, including cycles and
+/// definitions later in block layout. Queries never walk an alias chain.
+/// Cost: O(instructions + inspected place words), with O(instructions)
+/// scratch. Each node enters/leaves the heap work path once; no fixpoint.
+fn reference_sources(b: &Body, values: &[u32], places: &[Option<Place>]) -> Vec<u32> {
+    let mut sources = vec![NONE; b.len()];
+    let mut state = vec![0u8; b.len()];
+    let mut path = Vec::new();
+    for start in 0..b.len() {
+        crate::work::empty_place_work(1);
+        let mut at = start;
+        let source = loop {
+            if at >= b.len() || state[at] == 1 {
+                break NONE;
+            }
+            if state[at] == 2 {
+                break sources[at];
+            }
+            crate::work::empty_place_work(1);
+            state[at] = 1;
+            path.push(at);
+            let next = match b.tags[at] {
+                Tag::Ref => break u32_of(at),
+                Tag::Read => places[at].as_ref().and_then(|place| match place.root {
+                    PlaceRoot::Local(local) if place.proj.is_empty() => {
+                        values.get(local.idx()).copied()
+                    }
+                    _ => None,
+                }),
+                Tag::Coerce if b.same_value_coercion(at) => Some(b.data[at][0]),
+                _ => None,
+            };
+            match next.and_then(|next| Ref(next).as_inst()) {
+                Some(next) => at = next.0 as usize,
+                None => break NONE,
+            }
+        };
+        for at in path.drain(..) {
+            sources[at] = source;
+            state[at] = 2;
+        }
+    }
+    sources
+}
+
 impl Cx<'_> {
     /// Resolve only direct local places and references whose one immutable
     /// definition names such a place. Unknown aliases retain the ordinary
@@ -792,47 +843,24 @@ impl Cx<'_> {
         {
             return None;
         }
-        let mut value = match p.root {
+        let value = match p.root {
             PlaceRoot::Local(l) => *self.reference_values.get(l.idx())?,
             PlaceRoot::Value(r) => r.0,
             _ => return None,
         };
-        // A valid definition chain visits each instruction at most once.
-        // Bound malformed cycles by graph size, not a source alias limit.
-        for _ in 0..self.b.len() {
-            let i = Ref(value).as_inst()?.0 as usize;
-            match self.b.tags.get(i)? {
-                Tag::Ref => {
-                    let mut origin = self.places[i].clone()?;
-                    if !matches!(origin.root, PlaceRoot::Local(_))
-                        || !origin
-                            .proj
-                            .iter()
-                            .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
-                    {
-                        return None;
-                    }
-                    origin.proj.extend_from_slice(rest);
-                    return Some(origin);
-                }
-                Tag::Read => {
-                    let Place {
-                        root: PlaceRoot::Local(l),
-                        proj,
-                    } = self.places[i].as_ref()?
-                    else {
-                        return None;
-                    };
-                    if !proj.is_empty() {
-                        return None;
-                    }
-                    value = *self.reference_values.get(l.idx())?;
-                }
-                Tag::Coerce if self.b.same_value_coercion(i) => value = self.b.data[i][0],
-                _ => return None,
-            }
+        let value = Ref(value).as_inst()?;
+        let source = *self.reference_sources.get(value.0 as usize)?;
+        let mut origin = self.places.get(source as usize)?.as_ref()?.clone();
+        if !matches!(origin.root, PlaceRoot::Local(_))
+            || !origin
+                .proj
+                .iter()
+                .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+        {
+            return None;
         }
-        None
+        origin.proj.extend_from_slice(rest);
+        Some(origin)
     }
 
     /// Whether places `p` and `q` may name overlapping storage
@@ -852,21 +880,23 @@ impl Cx<'_> {
                 _ => true,
             });
         }
-        let behind = |p: &Place| {
-            matches!(p.root, PlaceRoot::Ptr(_))
-                || p.proj
-                    .iter()
-                    .any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
-        };
-        let reachable = |p: &Place| {
-            behind(p)
-                || match p.root {
-                    PlaceRoot::Global(..) | PlaceRoot::Frame(_) => true,
-                    PlaceRoot::Local(l) => self.addressed.get(l.idx()).copied().unwrap_or(true),
-                    PlaceRoot::Value(_) | PlaceRoot::Ptr(_) => false,
-                }
-        };
-        (behind(p) || behind(q)) && reachable(p) && reachable(q)
+        (Self::behind(p) || Self::behind(q)) && self.reachable(p) && self.reachable(q)
+    }
+
+    fn behind(p: &Place) -> bool {
+        matches!(p.root, PlaceRoot::Ptr(_))
+            || p.proj
+                .iter()
+                .any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+    }
+
+    fn reachable(&self, p: &Place) -> bool {
+        Self::behind(p)
+            || match p.root {
+                PlaceRoot::Global(..) | PlaceRoot::Frame(_) => true,
+                PlaceRoot::Local(l) => self.addressed.get(l.idx()).copied().unwrap_or(true),
+                PlaceRoot::Value(_) | PlaceRoot::Ptr(_) => false,
+            }
     }
 }
 
@@ -907,6 +937,13 @@ struct Empties<'a> {
     /// (instruction, move number) for each use through a reference into a
     /// part of a frame local that a `move` read empties, sorted.
     part_uses: Vec<(u32, u32)>,
+    raw: place_index::Places,
+    local: place_index::Places,
+    /// Sparse domain-word masks for facts that may alias another root.
+    reachable: Vec<Vec<(usize, u64)>>,
+    behind: Vec<Vec<(usize, u64)>>,
+    candidates: Vec<usize>,
+    path_stack: Vec<(usize, usize)>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
 }
@@ -979,6 +1016,47 @@ impl<'a> Empties<'a> {
             });
         }
         part_uses.sort_stable();
+        let (mut raw, mut local) = (
+            place_index::Places::default(),
+            place_index::Places::default(),
+        );
+        let (mut reachable, mut behind) = (
+            vec![Vec::new(); domains.len()],
+            vec![Vec::new(); domains.len()],
+        );
+        let add_alias = |rows: &mut Vec<Vec<(usize, u64)>>, fact: usize| {
+            let sub = cx.topo.sub[at[fact] as usize] as usize;
+            let Some(row) = rows.get_mut(sub) else { return };
+            if number[fact] == NONE {
+                return;
+            }
+            let bit = number[fact] as usize;
+            let word = bit / 64;
+            let mask = 1 << (bit % 64);
+            match row.last_mut() {
+                Some((last, bits)) if *last == word => *bits |= mask,
+                _ => row.push((word, mask)),
+            }
+        };
+        for (fact, &instruction) in at.iter().enumerate() {
+            crate::work::empty_place_work(1);
+            if let Some(place) = &cx.places[instruction as usize] {
+                raw.insert(place, fact);
+                if let Some(resolved) = cx.local_place(place).filter(|p| p != place) {
+                    local.insert(&resolved, fact);
+                }
+                // A whole local move/drop empties only that exact root,
+                // never an alias into the storage its old value owned.
+                if !(matches!(place.root, PlaceRoot::Local(_)) && place.proj.is_empty())
+                    && cx.reachable(place)
+                {
+                    add_alias(&mut reachable, fact);
+                    if Cx::behind(place) {
+                        add_alias(&mut behind, fact);
+                    }
+                }
+            }
+        }
         Empties {
             cx,
             id,
@@ -988,6 +1066,12 @@ impl<'a> Empties<'a> {
             domain: 0,
             by_value,
             part_uses,
+            raw,
+            local,
+            reachable,
+            behind,
+            candidates: Vec::new(),
+            path_stack: Vec::new(),
             reported: vec![false; b.len()],
             errs: Vec::new(),
         }
@@ -1018,26 +1102,24 @@ impl<'a> Empties<'a> {
     }
 
     /// A `Store` refills every emptied place it covers.
-    fn refill(&self, x: u32, s: &mut Set) {
+    fn refill(&mut self, x: u32, s: &mut Set) {
         let Some(q) = &self.cx.places[x as usize] else {
             return;
         };
-        for word in 0..s.len() {
-            charge(1);
-            let mut bits = s[word];
-            while bits != 0 {
-                charge(1);
-                let k = word * 64 + bits.trailing_zeros() as usize;
-                bits &= bits - 1;
-                let global = self.domains[self.domain][k];
-                let e = self.at[global];
-                if let Some(p) = &self.cx.places[e as usize]
-                    && covers(q, p)
-                {
-                    set_bit(s, k, false);
-                }
+        let mut candidates = std::mem::take(&mut self.candidates);
+        candidates.clear();
+        self.raw.query(q, &mut self.path_stack, &mut candidates);
+        for &global in &candidates {
+            crate::work::empty_place_work(1);
+            let e = self.at[global];
+            if self.cx.topo.sub[e as usize] as usize == self.domain
+                && let Some(p) = &self.cx.places[e as usize]
+                && covers(q, p)
+            {
+                set_bit(s, self.number[global] as usize, false);
             }
         }
+        self.candidates = candidates;
     }
 
     /// Whether emptying `p` at `e` empties what `q` reads. A move of a
@@ -1069,13 +1151,77 @@ impl<'a> Empties<'a> {
         if self.reported[x as usize] {
             return;
         }
-        for k in set_indices(s) {
-            let global = self.domains[self.domain][k];
+        let mut candidates = std::mem::take(&mut self.candidates);
+        candidates.clear();
+        self.raw.query(q, &mut self.path_stack, &mut candidates);
+        if let Some(local) = self.cx.local_place(q) {
+            if local != *q {
+                self.raw
+                    .query(&local, &mut self.path_stack, &mut candidates);
+            }
+            self.local
+                .query(&local, &mut self.path_stack, &mut candidates);
+        }
+        let from = self.part_uses.partition_point(|&(at, _)| at < x);
+        candidates.extend(
+            self.part_uses[from..]
+                .iter()
+                .take_while(|&&(at, _)| at == x)
+                .map(|&(_, fact)| fact as usize),
+        );
+        // Tree traversal order differs from instruction order. Keep the
+        // original diagnostic's earliest live conflicting move/drop.
+        let mut bad = candidates
+            .iter()
+            .copied()
+            .filter(|&global| {
+                crate::work::empty_place_work(1);
+                let e = self.at[global];
+                if self.cx.topo.sub[e as usize] as usize != self.domain
+                    || !get_bit(s, self.number[global] as usize)
+                {
+                    return false;
+                }
+                self.cx.places[e as usize].as_ref().is_some_and(|p| {
+                    self.empties(e, p, q)
+                        || self.part_uses.binary_search(&(x, u32_of(global))).is_ok()
+                })
+            })
+            .min();
+        // Unknown cross-root aliases retain the conservative predicate,
+        // but only live alias facts are visited. Sparse word masks skip
+        // private roots and preserve the original earliest-error order.
+        if self.cx.reachable(q) {
+            let rows = if Cx::behind(q) {
+                &self.reachable[self.domain]
+            } else {
+                &self.behind[self.domain]
+            };
+            'aliases: for &(word, mask) in rows {
+                crate::work::empty_place_work(1);
+                let mut bits = s[word] & mask;
+                while bits != 0 {
+                    crate::work::empty_place_work(1);
+                    let bit = word * 64 + bits.trailing_zeros() as usize;
+                    bits &= bits - 1;
+                    let global = self.domains[self.domain][bit];
+                    if bad.is_some_and(|first| first <= global) {
+                        break 'aliases;
+                    }
+                    let e = self.at[global];
+                    if self.cx.places[e as usize]
+                        .as_ref()
+                        .is_some_and(|p| self.empties(e, p, q))
+                    {
+                        bad = Some(global);
+                        break 'aliases;
+                    }
+                }
+            }
+        }
+        if let Some(global) = bad {
             let e = self.at[global];
-            if let Some(p) = &self.cx.places[e as usize]
-                && (self.empties(e, p, q)
-                    || self.part_uses.binary_search(&(x, u32_of(global))).is_ok())
-            {
+            if let Some(p) = &self.cx.places[e as usize] {
                 self.reported[x as usize] = true;
                 let what = format!(
                     "`{}` of {q} after `{}` of {p} at %{e} empties it",
@@ -1083,9 +1229,9 @@ impl<'a> Empties<'a> {
                     self.cx.b.tags[e as usize].name()
                 );
                 err(&mut self.errs, x, what);
-                return;
             }
         }
+        self.candidates = candidates;
     }
 }
 
@@ -1207,7 +1353,8 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             && cx.topo.sub[i] == 0
             && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME)
                 == ref_word::LOCAL | ref_word::FRAME
-            && (binding[l.idx()] && cx.frame_lends[l.idx()]
+            && (binding[l.idx()]
+                && (cx.frame_lends[l.idx()] || b.local_flags[l.idx()] & local_flags::VIEW != 0)
                 || !binding[l.idx()]
                     && b.data[i][1] & ref_word::MUT == 0
                     && (no_external_write
@@ -1867,9 +2014,54 @@ struct Balance<'a> {
     /// the passes own: a counted type's, or one a cell may hold.
     exit: Vec<bool>,
     owned: Vec<bool>,
+    /// Each `If` an elaborated drop runs under (`own::elaborate`): its
+    /// condition reads local `l`'s whole drop flag and its first block
+    /// drops all of `l`. The flag is clear only where `l` holds nothing,
+    /// so `l` is empty on both paths out.
+    flag_drops: hd_base::HashMap<u32, usize>,
     ops: Vec<crate::own::Operand>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
+}
+
+/// [`Balance::flag_drops`]. Cost: two passes over the instructions.
+fn flag_drops(b: &Body) -> hd_base::HashMap<u32, usize> {
+    let whole_local = |word: u32| {
+        let v = b.view(word);
+        v.whole().then(|| v.local()).flatten()
+    };
+    let mut flag_of = hd_base::HashMap::<u32, u32>::default();
+    for i in 0..b.len() {
+        if matches!(b.tags[i], Tag::FlagSet | Tag::FlagClear)
+            && let Some(l) = whole_local(b.data[i][0])
+        {
+            flag_of.insert(b.data[i][1], l);
+        }
+    }
+    let mut out = hd_base::HashMap::default();
+    if flag_of.is_empty() {
+        return out;
+    }
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::If) {
+        let [c, w] = b.data[i];
+        let flag = (b.tags.get(c as usize) == Some(&Tag::Read))
+            .then(|| b.data[c as usize][0])
+            .filter(|word| word & place::BARE_LOCAL != 0);
+        let Some(&l) = flag.and_then(|word| flag_of.get(&(word & !place::BARE_LOCAL))) else {
+            continue;
+        };
+        let Some(&then) = b.record(w).first() else {
+            continue;
+        };
+        if b.tags.get(then as usize) == Some(&Tag::Block)
+            && b.record(b.data[then as usize][0]).iter().any(|&x| {
+                b.tags[x as usize] == Tag::Drop && whole_local(b.data[x as usize][0]) == Some(l)
+            })
+        {
+            out.insert(u32_of(i), l as usize);
+        }
+    }
+    out
 }
 
 impl<'a> Balance<'a> {
@@ -1970,6 +2162,11 @@ impl<'a> Balance<'a> {
             empty_variants: std::cell::OnceCell::new(),
             exit: vec![false; b.local_ty.len()],
             owned: held,
+            flag_drops: if b.phase == Phase::Elaborated {
+                flag_drops(b)
+            } else {
+                hd_base::HashMap::default()
+            },
             ops: Vec::new(),
             reported: vec![false; n],
             errs: Vec::new(),
@@ -2197,11 +2394,17 @@ impl<'a> Balance<'a> {
             {
                 self.local_part(x, l, st);
             }
-            Tag::Drop | Tag::LoanEnd if a & place::BARE_LOCAL != 0 => {
+            Tag::LoanEnd if a & place::BARE_LOCAL != 0 => {
                 self.set_full(st, (a & !place::BARE_LOCAL) as usize, false);
             }
-            Tag::Read if a & place::BARE_LOCAL != 0 && w == ReadMode::Move as u32 => {
-                self.set_full(st, (a & !place::BARE_LOCAL) as usize, false);
+            // A whole local, bare or through a place word (an inlined
+            // closure's read of its capture), drops or moves out all of it.
+            Tag::Read | Tag::Drop
+                if (b.tags[x as usize] == Tag::Drop || w == ReadMode::Move as u32)
+                    && (a & place::BARE_LOCAL != 0 || b.view(a).whole())
+                    && let Some(l) = local(a) =>
+            {
+                self.set_full(st, l, false);
             }
             Tag::Ref if w & super::ref_word::TAKES != 0 => {
                 if let Some(l) = local(a) {
@@ -2460,6 +2663,9 @@ impl Forward for Balance<'_> {
             self.put(st, 0, k, true);
             self.put(st, 1, k, false);
             self.put(st, 2, k, false);
+        }
+        if let Some(&l) = self.flag_drops.get(&x) {
+            self.set_full(s.row_mut(st), l, false);
         }
     }
 
@@ -2910,6 +3116,7 @@ mod sub_body_metadata_tests {
             addressed: &[],
             reference_calls: &[],
             reference_values: &[],
+            reference_sources: &[],
             reference_roots: &roots,
             frame_lends: &[],
             neutral_stores: &[],

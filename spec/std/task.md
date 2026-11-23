@@ -81,7 +81,7 @@ fn is_busy(error: string) -> bool:
 
 fn connect!(replies: *mut List[Result[string, string]]) -> Result[string, string] $ Clock:
     apply!(retry(Backoff { attempts: 5, initial: 0ms }).when(is_busy)):
-        replies.remove_at(0)
+        replies.remove(0)
 ```
 
 With replies `.Err("busy")`, `.Err("refused")`, `.Ok("ready")`, `connect!` returns

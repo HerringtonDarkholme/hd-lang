@@ -1,0 +1,15 @@
+# test: a struct that holds a counted reference is not Send either
+# Spec 10 Markers: module.marker.table.counted, module.marker.unsatisfied.
+use std.marker.Send
+
+struct Point:
+    x: i32
+
+struct Holder:
+    target: *Point
+
+fn share[T < Send](value: T) -> void:
+    pass
+
+fn demo(h: Holder) -> void:
+    share(h) # diagnostic: unsatisfied-trait-bound

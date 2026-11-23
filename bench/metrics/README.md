@@ -333,7 +333,7 @@ node --experimental-strip-types bench/metrics/check-fixtures.ts [--hd "COMMAND"]
 
 ## Mistake Corpus
 
-[`fixtures/mistakes/`](fixtures/mistakes) holds 70 programs, one per
+[`fixtures/mistakes/`](fixtures/mistakes) holds 69 programs, one per
 distinct mistake in
 [docs/audit/hd-writing-log.md](../../docs/audit/hd-writing-log.md),
 deduplicated and restated in today's hd. Each holds exactly one mistake.
@@ -367,7 +367,7 @@ fn negate(ready: bool) -> bool:
 - Log rows left out: runtime failures, mistakes inside `lib/std` or the std
   loader, compiler bugs that the specification makes valid code, mistakes
   that need a package layout or a host, and mistakes the language has since
-  made valid, such as a Rust literal suffix (`1u32`).
+  made valid, such as a Rust literal suffix (`1u32`) or `Result.unwrap()`.
 
 ## Pathological Cases
 

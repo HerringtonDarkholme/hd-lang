@@ -4,4 +4,4 @@ fn place(target: &mut i32, value: i32) -> void:
     *target = value
 
 fn through(scores: &mut List[i32]) -> void:
-    place(&mut scores[0], scores.remove_at(1)) # diagnostic: conflicting-access
+    place(&mut scores[0], scores.remove(1)) # diagnostic: conflicting-access

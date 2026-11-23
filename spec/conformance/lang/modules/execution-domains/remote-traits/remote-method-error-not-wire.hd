@@ -1,0 +1,12 @@
+# test: a remote method whose error type holds a counted reference is rejected
+# Spec 10 Remote Traits: module.remote.r1.wire.
+use std.remote.{CrossError, Remote}
+
+struct Conn:
+    id: i64
+
+enum StoreError:
+    Broken(conn: *mut Conn)
+
+trait Store < Remote:
+    fn get!(&mut self, key: string) -> Result[string, StoreError | CrossError] # diagnostic: invalid-remote-method

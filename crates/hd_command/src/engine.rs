@@ -504,7 +504,6 @@ impl ReplSession {
             #[cfg(feature = "wasmtime")]
             EngineKind::Wasmtime => {
                 let setup = HostSetup {
-                    providers: Vec::new(),
                     grants: hd_run::Grants::default(),
                     limits: Limits::default(),
                     args: Vec::new(),

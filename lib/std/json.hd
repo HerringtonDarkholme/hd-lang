@@ -131,7 +131,7 @@ impl JsonObject:
                 # members. Its bounded shift retains the reusable buffer,
                 # avoiding metadata and allocations for small-object churn.
                 if self.index.is_empty():
-                    return match self.entries.remove_at(at):
+                    return match self.entries.remove(at):
                         .Member(_, value) => .Some(value)
                         _ => .None
                 removed := self.value_at(at)

@@ -64,6 +64,9 @@ counters! {
     SlotPathNodes = "slot_path_nodes",
     RootLookups = "root_lookups",
     InitOrderSteps = "init_order_steps",
+    ItemDecodes = "item_decodes",
+    EntryLookups = "entry_lookups",
+    DiscoveredFiles = "discovered_files",
 }
 
 static ON: AtomicBool = AtomicBool::new(false);

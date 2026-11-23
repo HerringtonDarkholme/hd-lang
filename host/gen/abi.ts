@@ -62,6 +62,12 @@ export const ConsoleError = variants({
   NotGranted: { stream: ConsoleStream },
   Other: { code: signed },
 });
+export const CrossError = variants({
+  Unreachable: {},
+  Unknown: {},
+  OtherBuild: {},
+  WrongHome: {},
+});
 export const Datagram = data({
   bytes: bytes,
   host: str,
@@ -329,6 +335,14 @@ export const METHODS = {
       result: result(WireResponse, WireHttpError),
     },
   },
+  "hd:Workers": {
+    send: {
+      wait: "may",
+      resource: null,
+      params: [bytes],
+      result: result(bytes, CrossError),
+    },
+  },
   "hd:Net": {
     lookup: {
       wait: "may",
@@ -523,6 +537,20 @@ export const METHODS = {
       resource: null,
       params: [],
       result: list(str),
+    },
+  },
+  "hd:WorkerPort": {
+    next: {
+      wait: "never",
+      resource: null,
+      params: [],
+      result: option(bytes),
+    },
+    reply: {
+      wait: "never",
+      resource: null,
+      params: [bytes],
+      result: "void",
     },
   },
   "hd:TestRunner": {

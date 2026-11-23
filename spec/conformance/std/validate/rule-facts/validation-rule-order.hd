@@ -2,7 +2,7 @@
 # Standard Validation: std-validate.rule.builtin-order
 use std.structure.Structure
 use std.testing.assert_equal
-use std.validate.{Problem, Validate, check, max, min}
+use std.validate.{Problem, Validate, check, max, at_least}
 
 fn custom(value: &i32) -> Result[void, Problem]:
     .Err(Problem { code: "custom", message: "custom check" })
@@ -11,7 +11,7 @@ struct Ordered:
     value: i32
 
 impl Validate for Ordered by Structure:
-    value = [check(custom), max(0), min(10)]
+    value = [check(custom), max(0), at_least(10)]
 
 pub fn main() -> void:
     error := Ordered { value: 5 }.validated().err().expect("invalid")

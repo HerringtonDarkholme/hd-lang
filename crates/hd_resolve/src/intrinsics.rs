@@ -17,6 +17,7 @@
 //! `task_all` and `test_case`. Seeding builds their signatures, so they
 //! have no row here.
 
+use hd_types::AdtId;
 use hd_types::{Prim, Ty, TyData};
 
 use crate::iface::{FnSig, Names};
@@ -93,6 +94,7 @@ const fn s(generics: u8, params: &'static [Kind], ret: Kind) -> Shape {
 /// A static table: nothing builds it at run time.
 pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("block_on", &[s(1, &[SUSPEND], Named("BlockOn"))]),
+    ("build_id", &[s(0, &[], U64)]),
     ("bytes_at", &[s(0, &[STR, USIZE], U8)]),
     ("bytes_index", &[s(0, &[STR, USIZE, U8], USIZE)]),
     (
@@ -112,6 +114,9 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("char_scalar", &[s(0, &[CHAR], U32)]),
     ("count_release", &[s(1, &[Any], VOID)]),
     ("count_retain", &[s(1, &[Any], VOID)]),
+    ("crossing_run", &[s(0, &[U64, LIST], Opt)]),
+    ("crossing_sent", &[s(1, &[Any], LIST)]),
+    ("crossing_unique", &[s(1, &[REF_MUT], VOID)]),
     ("dbg_printer", &[s(1, &[], Fn)]),
     ("dbg_write", &[s(0, &[STR], VOID)]),
     ("debug_texts", &[s(1, &[Any, LIST], LIST)]),
@@ -145,12 +150,21 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("int_wrapping_add", &[s(0, &[Any, Any], Any)]),
     ("int_wrapping_mul", &[s(0, &[Any, Any], Any)]),
     ("int_wrapping_sub", &[s(0, &[Any, Any], Any)]),
+    ("interface_of", &[s(1, &[], U64)]),
     ("list_extend", &[s(1, &[REF_MUT, LIST], VOID)]),
     ("list_reserve", &[s(1, &[REF_MUT, USIZE], VOID)]),
     ("list_truncate", &[s(1, &[REF_MUT, USIZE], VOID)]),
     ("map_hash_seed", &[s(0, &[], U64)]),
     ("map_probe", &[s(0, &[REF_MUT, Any, Any], REF_MUT)]),
     ("map_steps", &[s(2, &[Named("Map")], Fn)]),
+    ("mem_atomic_add_u32", &[s(0, &[USIZE, U32], U32)]),
+    ("mem_atomic_cmpxchg_u32", &[s(0, &[USIZE, U32, U32], U32)]),
+    ("mem_atomic_fence", &[s(0, &[], VOID)]),
+    ("mem_atomic_load_u32", &[s(0, &[USIZE], U32)]),
+    ("mem_atomic_notify", &[s(0, &[USIZE, U32], U32)]),
+    ("mem_atomic_store_u32", &[s(0, &[USIZE, U32], VOID)]),
+    ("mem_atomic_sub_u32", &[s(0, &[USIZE, U32], U32)]),
+    ("mem_atomic_wait_u32", &[s(0, &[USIZE, U32, I64], U32)]),
     ("mem_copy", &[s(0, &[USIZE, USIZE, USIZE], VOID)]),
     ("mem_fill", &[s(0, &[USIZE, U8, USIZE], VOID)]),
     ("mem_grow", &[s(0, &[USIZE], Opt)]),
@@ -179,6 +193,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("ptr_write", &[s(0, &[PTR, Any], VOID)]),
     ("ref_identity", &[s(1, &[REF], Named("RefIdentity"))]),
     ("repl_write", &[s(0, &[STR], VOID)]),
+    ("serve", &[s(1, &[REF_MUT, Named("Served")], LIST)]),
     ("snapshot_update", &[s(0, &[STR], BOOL)]),
     (
         "string_from_bytes",
@@ -191,17 +206,24 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("string_lower", &[s(0, &[STR], STR)]),
     ("string_to_bytes", &[s(0, &[STR], LIST)]),
     ("string_upper", &[s(0, &[STR], STR)]),
+    ("stub_as", &[s(1, &[COUNTED_MUT], COUNTED_MUT)]),
     ("task_abandon", &[s(1, &[SUSPEND], VOID)]),
     ("task_all_frame", &[s(1, &[LIST], SUSPEND)]),
     ("task_cleanup_frame", &[s(1, &[SUSPEND], SUSPEND)]),
     ("task_idle_hook", &[s(0, &[Fn], VOID)]),
     ("task_pending_frame", &[s(1, &[], SUSPEND)]),
     ("task_race_frame", &[s(1, &[LIST], SUSPEND)]),
+    ("task_thread_frame", &[s(0, &[USIZE, U32], SUSPEND)]),
     ("task_wait_cell", &[s(0, &[], COUNTED_MUT)]),
     ("task_wait_frame", &[s(0, &[COUNTED_MUT], SUSPEND)]),
     ("task_wait_signal", &[s(0, &[COUNTED_MUT], VOID)]),
+    ("thread_spawn", &[s(1, &[USIZE, Fn, Fn], BOOL)]),
+    ("threads_reachable", &[s(0, &[], BOOL)]),
     ("type_id_of", &[s(1, &[], Named("TypeId"))]),
+    ("type_number", &[s(1, &[], U64)]),
     ("utf8_valid_len", &[s(0, &[LIST], USIZE)]),
+    ("wire_put", &[s(1, &[], Fn)]),
+    ("wire_take", &[s(1, &[], Fn)]),
 ];
 
 /// The shapes of `key`, or `None` when no intrinsic has that key.
@@ -221,7 +243,7 @@ fn has_kind(names: &Names<'_>, t: Ty, k: Kind) -> bool {
     match (k, names.pool.get(t)) {
         (Any, _) => true,
         (Is(want), _) => t == want,
-        (Named(name), TyData::Adt { def, .. }) => is_named(def, name),
+        (Named(name), TyData::Adt(AdtId::Declared(def), _)) => is_named(def, name),
         (
             Kind::Ref { mutable, counted },
             TyData::Ref {
@@ -230,8 +252,8 @@ fn has_kind(names: &Names<'_>, t: Ty, k: Kind) -> bool {
                 ..
             },
         ) => mutable == m && counted == c,
-        (Opt, TyData::Adt { def, .. }) => def == names.known.option,
-        (Tuple(n), TyData::Tuple { elems, rest: None }) => {
+        (Opt, TyData::Adt(AdtId::Declared(def), _)) => def == names.known.option,
+        (Tuple(n), TyData::Adt(AdtId::Product { rest: false }, elems)) => {
             names.pool.list_items(elems).len() == usize::from(n)
         }
         (Fn, TyData::Fn { .. }) => true,

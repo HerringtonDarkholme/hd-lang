@@ -7,6 +7,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 
 use hd_base::{DefId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, DiagBuf};
@@ -298,6 +299,9 @@ pub struct ModuleInit {
     /// The module's top-level bindings by name, which a named constant
     /// reads; built on first use (#1673).
     top_bindings: Option<std::sync::Arc<hd_resolve::TopBindings>>,
+    /// The module's crossing closures, for `fn.crossing.global`
+    /// ([`crate::crossing::check`]).
+    pub(crate) crossing_roots: Vec<crate::crossing::Root>,
 }
 
 /// The methods of a module's own trait impls, made in one pass over its
@@ -371,6 +375,19 @@ impl ModuleInit {
     /// `f` of the index of the module's impl methods: the one built
     /// already, or one built now (a forked body's index stays with its
     /// fork).
+    /// The methods each dispatch key in `keys` reaches, one probe each.
+    pub(crate) fn dispatch_reach(
+        &self,
+        cx: &BodyCx<'_>,
+        keys: &HashSet<DefId>,
+    ) -> HashMap<DefId, Vec<DefId>> {
+        self.with_impl_methods(cx, |index| {
+            keys.iter()
+                .map(|&k| (k, index.reached(cx, k).to_vec()))
+                .collect()
+        })
+    }
+
     fn with_impl_methods<R>(&self, cx: &BodyCx<'_>, f: impl FnOnce(&ImplMethods) -> R) -> R {
         match &self.impl_methods {
             Some(index) => f(index),
@@ -400,6 +417,7 @@ impl ModuleInit {
             pending: self.pending.clone(),
             impl_methods: self.impl_methods.clone(),
             top_bindings: self.top_bindings.clone(),
+            crossing_roots: Vec::new(),
         }
     }
 
@@ -623,10 +641,10 @@ fn init_steps(
             mutable: false,
             counted: true,
         });
-        pool.intern_ty(&hd_types::TyData::Adt {
-            def: known.result,
-            args: pool.list(&[Ty::VOID, dyn_error]),
-        })
+        pool.intern_ty(&hd_types::TyData::Adt(
+            AdtId::Declared(known.result),
+            pool.list(&[Ty::VOID, dyn_error]),
+        ))
     } else {
         Ty::VOID
     };
@@ -1167,10 +1185,7 @@ impl Ck<'_, '_> {
             let from = args.positional.len().min(params.len());
             let tys: Vec<Ty> = params[from..].iter().map(|p| p.1).collect();
             let pool = self.pool();
-            let want = pool.intern_ty(&hd_types::TyData::Tuple {
-                elems: pool.list(&tys),
-                rest: None,
-            });
+            let want = pool.product(pool.list(&tys), None);
             let (r, t) = self.expr(sp, Some(want))?;
             let r = self.coerce(r, t, want, sp, "argument", ExpectPosition::General);
             for (k, &ty) in (0u32..).zip(&tys) {
@@ -1252,7 +1267,7 @@ impl Ck<'_, '_> {
     pub(crate) fn shared_param(&self, t: Ty, name: &str) -> Option<(Symbol, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
+        let hd_types::TyData::Adt(AdtId::Declared(def), _) = pool.get(t) else {
             return None;
         };
         let ItemData::Enum { shared, .. } = &self.cx.lookup.item(def)?.data else {
@@ -1281,7 +1296,7 @@ impl Ck<'_, '_> {
     ) -> Option<(Ref, Ty)> {
         let (field, ft) = self.shared_param(t, name)?;
         let pool = self.pool();
-        let hd_types::TyData::Adt { def, .. } = pool.get(t) else {
+        let hd_types::TyData::Adt(AdtId::Declared(def), _) = pool.get(t) else {
             return None;
         };
         let item = self.cx.lookup.item(def)?;

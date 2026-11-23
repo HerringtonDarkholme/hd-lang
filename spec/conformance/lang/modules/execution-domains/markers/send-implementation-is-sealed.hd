@@ -1,0 +1,8 @@
+# test: user code cannot implement Send for a type that holds a box
+# Spec 09 Sealed Traits: trait.sealed.send; Spec 10 Markers: module.marker.sealed.
+use std.marker.Send
+
+struct Counter:
+    value: *mut i32
+
+impl Send for Counter # diagnostic: sealed-trait-implementation

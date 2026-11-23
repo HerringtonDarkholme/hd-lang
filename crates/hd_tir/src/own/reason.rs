@@ -5,19 +5,10 @@
 //! named copy-read reasons. Where today's passes compute no fact behind
 //! a count, it is `Conservative`, naming the site that placed it.
 
-#[cfg(any(test, target_arch = "wasm32"))]
-use super::values::{Level, after, statement_chain};
 use super::{Operand, OwnCx, Role, consumes_counts as consumes, operands};
-use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, u32_of, unique_word};
+use crate::ir::{Body, NONE, Proj, ReadMode, Root, Tag, Topology, ref_word, u32_of, unique_word};
 
-#[cfg(not(target_arch = "wasm32"))]
 mod future;
-#[cfg(not(target_arch = "wasm32"))]
-mod native;
-#[cfg(all(test, not(target_arch = "wasm32")))]
-use native::changes;
-#[cfg(not(target_arch = "wasm32"))]
-pub use native::{check_copy_reasons, copy_reasons};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Reason {
@@ -108,84 +99,6 @@ pub fn reason(b: &Body, i: usize) -> Option<Reason> {
         Tag::Read if w == ReadMode::Copy as u32 => Reason::Conservative("copy read"),
         _ => return None,
     })
-}
-
-/// The reason of each `copy` read of `b`, a body after the passes, in
-/// `out` (`None` for any other instruction): `Stored` when a use of the
-/// read's value consumes it while its source keeps its own count (the
-/// source owns none to give: a lent parameter, a borrowed temporary, a
-/// place behind a dereference, in a buffer or in a top-level binding;
-/// or the source is used again after the read), where a store of the
-/// read alone into a value local whose every use lends binds the value
-/// and consumes nothing; `SecondOwner` when the
-/// value only lends, and a write may change its source while it lives (a
-/// store into or change of the same local, a mutable `Ref` of it,
-/// or, for a place behind a dereference or in a buffer, any write through
-/// one and any call that may write; a drop or a move of the source is
-/// no write: where the copy borrowed, the passes would place them after
-/// it); otherwise `Conservative("copy
-/// read")`, a copy no fact here explains. Labels only: the emitter's
-/// counts view reads them.
-#[cfg(target_arch = "wasm32")]
-pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Option<Reason>>) {
-    let n = b.len();
-    out.clear();
-    out.resize(n, None);
-    let copy = |i: usize| b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Copy as u32;
-    if !(0..n).any(copy) {
-        return;
-    }
-    let (mut consumed, mut last, count) = value_uses(b, topo, cx);
-    // A store into all of a value local whose every use lends binds the
-    // value, as a borrow's binding does: it consumes nothing, and the
-    // value lives as long as the local is named.
-    let mut classes = Vec::new();
-    super::values::classify(b, &mut classes);
-    let mut uses = Vec::new();
-    super::values::uses(b, cx, topo, &classes, &mut uses);
-    let mut lends_only: Vec<bool> = classes
-        .iter()
-        .map(|c| matches!(c, super::values::Local::Value(_)))
-        .collect();
-    for u in &uses {
-        if u.how == super::values::Use::Consume {
-            lends_only[u.local as usize] = false;
-        }
-    }
-    for i in 0..n {
-        if b.tags[i] != Tag::Store {
-            continue;
-        }
-        let p = b.view(b.data[i][0]);
-        let v = b.data[i][1] as usize;
-        if let Some(l) = p.local()
-            && v < n
-            && p.whole()
-            && lends_only[l as usize]
-            && count[v] == 1
-        {
-            consumed[v] = false;
-            for j in 0..n {
-                if matches!(b.tags[j], Tag::Read | Tag::Drop | Tag::Ref)
-                    && b.view(b.data[j][0]).local() == Some(l)
-                {
-                    last[v] = last[v].max(u32_of(j));
-                }
-            }
-        }
-    }
-    moved_consumers(b, &mut consumed);
-    let held = loan_holds(b);
-    let (mut cu, mut cw) = (Vec::new(), Vec::new());
-    for r in (0..n).filter(|&r| copy(r)) {
-        out[r] = Some(label(
-            b,
-            r,
-            consumed[r],
-            |root| used_again(b, topo, r, root, &mut cu, &mut cw),
-            || changed_while(b, topo, cx, r, last[r], held_source(b, &held, b.data[r][0])),
-        ));
-    }
 }
 
 /// A post-pass use that takes a count, including a lending coercion whose
@@ -362,149 +275,217 @@ fn moved_consumers(b: &Body, consumed: &mut [bool]) {
     }
 }
 
-/// Whether root `root` of copy read `r` is used again after it: another
-/// read, reference or capture of the same local (or use of the same
-/// value) that may run after `r`, or one in a loop around `r` that holds
-/// no whole store of the local.
-#[cfg(any(test, target_arch = "wasm32"))]
-fn used_again(
-    b: &Body,
-    topo: &Topology,
-    r: usize,
-    root: Option<Root>,
-    cu: &mut Vec<Level>,
-    cw: &mut Vec<Level>,
-) -> bool {
-    let touches = |i: usize| -> bool {
-        match root {
-            Some(Root::Local(l)) => match b.tags[i] {
-                Tag::Read | Tag::Ref | Tag::IsUnique => b.view(b.data[i][0]).local() == Some(l),
-                Tag::Closure => {
-                    let rec = b.record(b.data[i][1]);
-                    (rec[0]..rec[0] + rec[1]).any(|c| b.cap_local[c as usize].raw() == l)
-                }
-                _ => false,
-            },
-            Some(Root::Value(v)) => {
-                let mut hit = false;
-                crate::ir::slots(b, i, |_, x, s| {
-                    hit |= x == v && matches!(s, crate::ir::Word::Value(_));
-                });
-                hit && b.tags[i] != Tag::Drop
-            }
-            _ => false,
-        }
-    };
-    let whole_store = |i: usize| {
-        b.tags[i] == Tag::Store
-            && matches!(root, Some(Root::Local(l)) if {
+/// The reason of each `copy` read of `b`, a body after the passes, in
+/// `out` (`None` for any other instruction): `Stored` when a use of the
+/// read's value consumes it while its source keeps its own count (the
+/// source owns none to give: a lent parameter, a borrowed temporary, a
+/// place behind a dereference, in a buffer or in a top-level binding;
+/// or the source is used again after the read), where a store of the
+/// read alone into a value local whose every use lends binds the value
+/// and consumes nothing; `SecondOwner` when the
+/// value only lends, and a write may change its source while it lives (a
+/// store into or change of the same local, a mutable `Ref` of it,
+/// or, for a place behind a dereference or in a buffer, any write through
+/// one and any call that may write; a drop or a move of the source is
+/// no write: where the copy borrowed, the passes would place them after
+/// it); otherwise `Conservative("copy
+/// read")`, a copy no fact here explains. Labels only: the emitter's
+/// counts view reads them.
+pub fn copy_reasons(b: &Body, topo: &Topology, cx: &dyn OwnCx, out: &mut Vec<Option<Reason>>) {
+    let n = b.len();
+    out.clear();
+    out.resize(n, None);
+    let copy = |i: usize| b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Copy as u32;
+    if !(0..n).any(copy) {
+        return;
+    }
+    let (mut consumed, mut last, count) = value_uses(b, topo, cx);
+    // A store into all of a value local whose every use lends binds the
+    // value, as a borrow's binding does: it consumes nothing, and the
+    // value lives as long as the local is named.
+    let mut classes = Vec::new();
+    super::values::classify(b, &mut classes);
+    let mut lends_only: Vec<bool> = classes
+        .iter()
+        .map(|c| matches!(c, super::values::Local::Value(_)))
+        .collect();
+    let mut local_last = vec![NONE; b.local_ty.len()];
+    for (i, &takes) in consumed.iter().enumerate() {
+        match b.tags[i] {
+            Tag::Read | Tag::Drop | Tag::Ref => {
                 let p = b.view(b.data[i][0]);
-                p.local() == Some(l) && p.whole()
-            })
-    };
-    statement_chain(topo, u32_of(r), cu);
-    let inner = topo.loop_of[r];
-    let holds = |l: u32, i: usize| {
-        let mut m = topo.loop_of[i];
-        while m != NONE {
-            if m == l {
-                return true;
+                if let Some(l) = p.local() {
+                    local_last[l as usize] = u32_of(i);
+                }
+                if b.tags[i] == Tag::Read
+                    && takes
+                    && p.steps(b)
+                        .all(|s| matches!(s, Proj::Field(_) | Proj::Variant(_)))
+                    && let Root::Local(l) = p.root
+                {
+                    lends_only[l as usize] = false;
+                }
             }
-            m = topo.loop_of[m as usize];
+            Tag::Closure => {
+                let rec = b.record(b.data[i][1]);
+                for c in rec[0]..rec[0] + rec[1] {
+                    if !b.cap_mode.get(c as usize).is_some_and(|m| m.shares()) {
+                        lends_only[b.cap_local[c as usize].idx()] = false;
+                    }
+                }
+            }
+            _ => {}
         }
-        false
-    };
-    let renewed = inner != NONE && (0..b.len()).any(|i| whole_store(i) && holds(inner, i));
-    (0..b.len()).any(|j| {
-        if j == r || !touches(j) {
-            return false;
+    }
+    for i in 0..n {
+        if b.tags[i] != Tag::Store {
+            continue;
         }
-        if inner != NONE && !renewed && holds(inner, j) {
-            return true;
+        let p = b.view(b.data[i][0]);
+        let v = b.data[i][1] as usize;
+        if let Some(l) = p.local()
+            && v < n
+            && p.whole()
+            && lends_only[l as usize]
+            && count[v] == 1
+        {
+            consumed[v] = false;
+            if local_last[l as usize] != NONE {
+                last[v] = last[v].max(local_last[l as usize]);
+            }
         }
-        statement_chain(topo, u32_of(j), cw);
-        after(b, cu, cw)
-    })
+    }
+    moved_consumers(b, &mut consumed);
+    let used = future::uses(b, topo);
+    let changed = changes(b, topo, cx, &last);
+    for r in (0..n).filter(|&r| copy(r)) {
+        out[r] = Some(label(b, r, consumed[r], |_| used[r], || changed[r]));
+    }
 }
 
-/// Whether a write may change the source of copy read `r` while its value
-/// lives, up to its last use `end` ([`copy_reasons`]), over the range of
-/// instructions from the first of the read's statement.
-#[cfg(any(test, feature = "test-utils", target_arch = "wasm32"))]
-fn changed_while(
+/// Answer all copy lifetimes in one sweep. A query ends at its value's
+/// last use; the latest local/indirect write there answers its range.
+fn changes(b: &Body, topo: &Topology, cx: &dyn OwnCx, last: &[u32]) -> Vec<bool> {
+    let n = b.len();
+    let mut head = vec![NONE; n];
+    let mut next = vec![NONE; n];
+    for r in 0..n {
+        if b.tags[r] == Tag::Read && b.data[r][1] == ReadMode::Copy as u32 && last[r] != NONE {
+            let end = last[r] as usize;
+            next[r] = head[end];
+            head[end] = u32_of(r);
+        }
+    }
+    let loans = loan_holds(b);
+    let mut written = vec![NONE; b.local_ty.len()];
+    let mut indirect = NONE;
+    let mut out = vec![false; n];
+    for (i, &first_query) in head.iter().enumerate() {
+        match b.tags[i] {
+            Tag::Store | Tag::IsUnique | Tag::Ref => {
+                let p = b.view(b.data[i][0]);
+                let changes = b.tags[i] != Tag::Ref || b.data[i][1] & ref_word::MUT != 0;
+                if changes && let Root::Local(l) = p.root {
+                    written[l as usize] = u32_of(i);
+                }
+                if b.tags[i] != Tag::Ref
+                    && p.steps(b).any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+                {
+                    indirect = u32_of(i);
+                }
+            }
+            Tag::Call => {
+                if crate::ir::Callee::from_words(b.record(b.data[i][0]))
+                    .is_none_or(|c| cx.may_write(&c))
+                {
+                    indirect = u32_of(i);
+                }
+            }
+            Tag::CallValue => indirect = u32_of(i),
+            Tag::Intrinsic if super::changed(b, i).next().is_some() => indirect = u32_of(i),
+            _ => {}
+        }
+        let mut r = first_query;
+        while r != NONE {
+            let read = r as usize;
+            let src = held_source(b, &loans, b.data[read][0]);
+            let start = read_start(b, topo, read);
+            let in_range = |at: u32| at != NONE && at >= start;
+            out[read] = matches!(src.root, Some(Root::Local(l)) if in_range(written[l as usize]))
+                || (src.behind && in_range(indirect));
+            r = next[read];
+        }
+    }
+    out
+}
+
+/// Step 30a's independent verifier. `stored` has a consuming use;
+/// `second owner` has none except a binding's whole store, and a possible
+/// write at or after its statement. This checks the labels, not whether
+/// the old ownership passes could have removed the copy. Native checked
+/// builds call it even when no counts view is requested. No web code.
+#[cfg(not(target_arch = "wasm32"))]
+#[must_use]
+pub fn check_copy_reasons(
     b: &Body,
     topo: &Topology,
     cx: &dyn OwnCx,
-    r: usize,
-    end: u32,
-    src: Source,
-) -> bool {
-    if end == NONE {
-        return false;
+    reasons: &[Option<Reason>],
+) -> Vec<String> {
+    let n = b.len();
+    let mut takers = vec![Vec::new(); n];
+    let mut moved = vec![false; n];
+    let mut ops = Vec::new();
+    let mut writes_after = vec![false; n + 1];
+    for i in (0..n).rev() {
+        writes_after[i] = writes_after[i + 1]
+            || match b.tags[i] {
+                Tag::Store | Tag::IsUnique | Tag::Call | Tag::CallValue => true,
+                Tag::Ref => b.data[i][1] & ref_word::MUT != 0,
+                Tag::Intrinsic => super::changed(b, i).next().is_some(),
+                _ => false,
+            };
+        operands(b, i, &mut ops);
+        for op in &ops {
+            let value = op.value as usize;
+            if value >= n || op.role == Role::Dropped {
+                continue;
+            }
+            // A `move` read hands the value on to what consumes it.
+            moved[value] |= b.tags[i] == Tag::Read
+                && b.data[i][1] == ReadMode::Move as u32
+                && b.view(b.data[i][0]).root == Root::Value(op.value);
+            if takes_count(b, topo, cx, i, op) {
+                takers[value].push(i);
+            }
+        }
     }
-    let lo = read_start(b, topo, r) as usize;
-    let local = match src.root {
-        Some(Root::Local(l)) => Some(l),
-        _ => None,
-    };
-    (lo..=end as usize).any(|i| {
-        if i == r {
-            return false;
-        }
-        let names_local = |i: usize| {
-            local.is_some() && {
-                let p = b.view(b.data[i][0]);
-                p.local() == local || matches!(p.root, Root::Local(l) if Some(l) == local)
+    let mut bad = Vec::new();
+    for (read, reason) in reasons.iter().enumerate().take(n) {
+        let valid = match reason {
+            Some(Reason::Stored) => moved[read] || !takers[read].is_empty(),
+            Some(Reason::SecondOwner) => {
+                takers[read].iter().all(|&at| {
+                    b.tags[at] == Tag::Store && b.data[at][1] as usize == read && {
+                        let place = b.view(b.data[at][0]);
+                        place.whole() && place.local().is_some()
+                    }
+                }) && writes_after[read_start(b, topo, read) as usize]
             }
+            Some(Reason::Conservative(_)) | None => true,
+            Some(_) => false,
         };
-        match b.tags[i] {
-            Tag::Store | Tag::IsUnique => {
-                names_local(i)
-                    || (src.behind
-                        && b.view(b.data[i][0])
-                            .steps(b)
-                            .any(|s| matches!(s, Proj::Deref | Proj::Elem(_))))
-            }
-            Tag::Ref => b.data[i][1] & crate::ir::ref_word::MUT != 0 && names_local(i),
-            Tag::Call => {
-                src.behind
-                    && crate::ir::Callee::from_words(b.record(b.data[i][0]))
-                        .is_none_or(|c| cx.may_write(&c))
-            }
-            Tag::CallValue => src.behind,
-            Tag::Intrinsic => src.behind && super::changed(b, i).next().is_some(),
-            _ => false,
+        if !valid {
+            bad.push(format!(
+                "%{read}: a copy read whose reason `{}` its facts do not show",
+                reason.map_or_else(String::new, |reason| reason.to_string())
+            ));
         }
-    })
+    }
+    bad
 }
 
-/// Compare the production sweep with the browser's range walk on a
-/// supplied program body. Available only to cross-crate compiler tests.
-#[cfg(all(feature = "test-utils", not(target_arch = "wasm32")))]
-#[must_use]
-pub fn check_write_sweep(b: &Body, cx: &dyn OwnCx) -> Vec<u32> {
-    let topo = Topology::new(b);
-    let last = vec![u32_of(b.len().saturating_sub(1)); b.len()];
-    let actual = native::changes(b, &topo, cx, &last);
-    let held = loan_holds(b);
-    (0..b.len())
-        .filter(|&r| b.tags[r] == Tag::Read && b.data[r][1] == ReadMode::Copy as u32)
-        .filter(|&r| {
-            actual[r]
-                != changed_while(
-                    b,
-                    &topo,
-                    cx,
-                    r,
-                    last[r],
-                    held_source(b, &held, b.data[r][0]),
-                )
-        })
-        .map(u32_of)
-        .collect()
-}
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::{BodyKind, Callee, Providers, TirBuilder, TirSink, local_flags};

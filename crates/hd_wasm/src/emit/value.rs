@@ -6,13 +6,14 @@
 
 use crate::op::Op as I;
 use hd_base::StageResult;
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 use std::rc::Rc;
 
 use super::Em;
 use crate::layout::{
     Discr, Enc, Flat, Is, IsOps as _, Kind, Leaf, LeafOps as _, Mem, Part, Step, Test, kind,
-    payload_mem, variant_steps, variants,
+    variant_steps, variants,
 };
 use crate::module::{HEAP, Sym, Val};
 use crate::rt::Helper;
@@ -49,7 +50,7 @@ impl Em<'_, '_, '_> {
 
     /// Whether `t` is a nominal newtype, which erases to its base.
     pub(super) fn newtype(&self, t: Ty) -> bool {
-        matches!(self.pool().get(t), TyData::Adt { def, .. }
+        matches!(self.pool().get(t), TyData::Adt(AdtId::Declared(def), _)
             if self.env().newtype_base(def).is_some())
     }
 
@@ -105,12 +106,6 @@ impl Em<'_, '_, '_> {
         self.variant_tys.borrow()[&t].clone()
     }
 
-    /// Payload types for an enum or optional; None for ordinary value types.
-    pub(super) fn try_variant_tys(&self, t: Ty) -> Option<Rc<Vec<Vec<Ty>>>> {
-        self.cache_variant_tys(t)
-            .then(|| self.variant_tys.borrow()[&t].clone())
-    }
-
     /// Populate the existing body-local cache without cloning its payload.
     fn cache_variant_tys(&self, t: Ty) -> bool {
         if self.variant_tys.borrow().contains_key(&t) {
@@ -142,18 +137,6 @@ impl Em<'_, '_, '_> {
                 Ok(())
             }
         }
-    }
-
-    /// Pushes the value of leaf `l` at `address + base`.
-    fn load(
-        &mut self,
-        address: &dyn Fn(&mut Self) -> StageResult<()>,
-        base: u32,
-        l: Leaf,
-    ) -> StageResult<()> {
-        address(self)?;
-        self.f.op(l.load(base));
-        Ok(())
     }
 
     /// Stores into leaf `l` at `address + base` the value that `value`
@@ -215,116 +198,6 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(at);
         at
-    }
-
-    /// The release glue of boxed enum `t`'s cell, laid out as `flat`: its
-    /// `Drop` hook on the payload, then, under the test of the variant it
-    /// holds, one count less on each counted field. Made once per key as
-    /// its own function, whose parameter is the payload's address.
-    pub(super) fn boxed_glue(&mut self, t: Ty, flat: &Flat) -> StageResult<Option<Sym>> {
-        let hook = self.input.collected.drop_glue.get(&t).copied();
-        let variants = self.try_variant_tys(t).unwrap_or_default();
-        let mut arms = Vec::new();
-        for (v, (fields, at)) in (0u32..).zip(variants.iter().zip(&flat.positions)) {
-            let test = flat.test(v);
-            if matches!(test, Test::Const(false) | Test::Read(_, Is::Never)) {
-                continue;
-            }
-            let mut counted = Vec::new();
-            for (&field, ks) in fields.iter().zip(at) {
-                let c = crate::rt::counted_of(self.input, self.m, field)?;
-                if c.counts() {
-                    counted.push((c, ks.clone()));
-                }
-            }
-            if !counted.is_empty() {
-                arms.push((test, counted));
-            }
-        }
-        if hook.is_none() && arms.is_empty() {
-            return Ok(None);
-        }
-        let mut h = hd_base::StableHasher::new("boxed-drop");
-        for l in &flat.mem.leaves {
-            h.u32(l.offset);
-            h.str(&format!("{l:?}"));
-        }
-        if let Some(k) = hook {
-            h.hash(k);
-        }
-        for (test, counted) in &arms {
-            match test {
-                Test::Read(d, is) => {
-                    h.u32(d.value);
-                    h.str(&format!("{is:?}"));
-                }
-                Test::Const(_) => h.u32(u32::MAX),
-            }
-            for (c, ks) in counted {
-                match c {
-                    crate::rt::Counted::None => {}
-                    crate::rt::Counted::Address { index, known } => {
-                        h.u32(*index);
-                        h.u32(u32::from(*known));
-                    }
-                    crate::rt::Counted::Coll { index } => {
-                        h.u32(*index);
-                        h.u32(4);
-                    }
-                    crate::rt::Counted::Optional { index, known } => {
-                        h.u32(*index);
-                        h.u32(2 | u32::from(*known));
-                    }
-                    crate::rt::Counted::Shims(s) => h.hash(s.release),
-                }
-                for &k in ks {
-                    h.u32(k);
-                }
-            }
-        }
-        let sym = Sym::CellDrop(h.finish());
-        if !self.m.is_defined(sym.clone()) {
-            let mut f = self.m.func("rt:boxed_drop", vec![Val::I32], vec![]);
-            if let Some(k) = hook {
-                f.get(0);
-                f.call(Sym::Inst(k));
-            }
-            let ls = f.load_locals(0, &flat.mem.leaves);
-            for (test, counted) in &arms {
-                if let Test::Read(d, is) = test {
-                    f.get(ls[d.value as usize]);
-                    for op in crate::layout::IsOps::ops(*is) {
-                        f.op(op);
-                    }
-                    f.op(I::If(wasm_encoder::BlockType::Empty));
-                }
-                for (c, ks) in counted {
-                    // A field whose release runs in place, at its address.
-                    let off = ks
-                        .first()
-                        .map_or(0, |&k| flat.mem.leaves[k as usize].offset)
-                        - c.first_offset();
-                    c.emit_at(
-                        &mut f,
-                        self.m,
-                        &|f| {
-                            f.get(0);
-                            if off != 0 {
-                                f.u32(off);
-                                f.op(I::I32Add);
-                            }
-                        },
-                        &|f, k| f.get(ls[ks[k as usize] as usize]),
-                        false,
-                    );
-                }
-                if matches!(test, Test::Read(..)) {
-                    f.op(I::End);
-                }
-            }
-            self.m.define(sym.clone(), f);
-        }
-        Ok(Some(sym))
     }
 
     /// The parts of a payload that is one `t` value: the value whole,
@@ -541,62 +414,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `CopyStruct`: a copy of `a` with the fields of the `(field, value)`
-    /// pairs `bw` replaced.
-    pub(super) fn copy_data(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
-        let words = self.rec(bw);
-        let repl: Vec<(u32, u32)> = words.chunks(2).map(|w| (w[0], w[1])).collect();
-        let t = self.ty(i);
-        let replaced = |f: usize| repl.iter().find(|(k, _)| *k as usize == f).map(|(_, v)| *v);
-        if self.newtype(t) {
-            match replaced(0) {
-                Some(v) => self.push(v)?,
-                None => self.push(a)?,
-            }
-            return self.store(i);
-        }
-        // A copy-update copies a struct, whose values are in locals.
-        let tys = self.struct_fields(t);
-        let (_, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-        let copy = self.operation_count(
-            i,
-            hd_tir::ir::Tag::Retain,
-            hd_tir::ir::count::Part::Operand(0),
-        );
-        // The copy takes a count of each kept field, and each
-        // replacement moves its count in or takes one (§23.25).
-        let from = self.vals.get(&a).cloned();
-        let mut srcs = Vec::new();
-        for (f, (ft, p)) in tys.iter().zip(&parts).enumerate() {
-            srcs.push(match (replaced(f), &from) {
-                (Some(v), _) => Some(self.consumed(v)?),
-                (None, Some(ls)) => {
-                    let kept = &ls[p.first..p.first + p.count];
-                    Some(Src::Locals(match copy {
-                        Some(copy) => self.because(copy, |em| em.copy_locals(kept, *ft))?,
-                        None => kept.to_vec(),
-                    }))
-                }
-                (None, None) => None,
-            });
-        }
-        for (f, p) in parts.iter().enumerate() {
-            match &srcs[f] {
-                Some(s) => {
-                    for k in 0..p.count {
-                        self.src(s, k)?;
-                    }
-                }
-                None => {
-                    for k in p.first..p.first + p.count {
-                        self.comp(a, k)?;
-                    }
-                }
-            }
-        }
-        self.store(i)
-    }
-
     /// A field read: field `idx` of `a`, picked from a struct's values.
     pub(super) fn field(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
         let t = self.ty_of(a);
@@ -616,7 +433,7 @@ impl Em<'_, '_, '_> {
     /// The field types of struct type `t`, substituted.
     pub(super) fn struct_fields(&self, t: Ty) -> Vec<Ty> {
         let (pool, env) = (self.pool(), self.env());
-        let TyData::Adt { def, args } = pool.get(crate::layout::strip_newtype(pool, env, t)) else {
+        let Some((def, args)) = pool.adt(crate::layout::strip_newtype(pool, env, t)) else {
             return Vec::new();
         };
         env.data_fields(def)
@@ -657,9 +474,6 @@ impl Em<'_, '_, '_> {
         if let Some(l) = self.lazy.get(&a) {
             self.f.get(l.word);
             return Ok(());
-        }
-        if matches!(self.kind(self.ty_of(a)), Kind::Boxed) {
-            return self.load(&|em: &mut Self| em.comp(a, 0), 0, d.leaf);
         }
         self.comp(a, d.value as usize)
     }
@@ -749,11 +563,6 @@ impl Em<'_, '_, '_> {
                 self.f.get(z.at);
                 self.f.op(l.load(z.off));
             }
-        } else if matches!(self.kind(t), Kind::Boxed) {
-            // The cell holds the payload at its offset.
-            for l in &flat.leaves[v][f] {
-                self.load(&|em: &mut Self| em.comp(a, 0), 0, *l)?;
-            }
         } else {
             for k in flat.selection(v, f) {
                 self.comp(a, k)?;
@@ -787,34 +596,8 @@ impl Em<'_, '_, '_> {
         // fields, as the backend's own constructions do.
         let mut leaf = |em: &mut Self, f: usize, k: usize| em.src(&fields[f], k);
         let m = &flat.mem;
-        if matches!(self.kind(t), Kind::Boxed) {
-            // The cell is memory: the discriminant and the variant's leaves
-            // at their offsets.
-            let cyclic = self.cyclic_object(t);
-            let recursive = self.recursive_object(t);
-            let glue = self.boxed_glue(t, &flat)?;
-            let cell = self.new_object(m.size, glue, cyclic, recursive);
-            let at = |em: &mut Self| {
-                em.f.get(cell);
-                Ok(())
-            };
-            // `write_discr`: the tag, or a niche value, when `v` writes one.
-            if let Some(d) = flat.cell()
-                && let Some(raw) = d.enc.raw(v)
-            {
-                self.store_leaf(&at, 0, d.leaf, &mut |em: &mut Self| {
-                    em.f.u32(raw);
-                    Ok(())
-                })?;
-            }
-            for (fi, ls) in flat.leaves[v as usize].iter().enumerate() {
-                for (k, l) in ls.iter().enumerate() {
-                    self.store_leaf(&at, 0, *l, &mut |em: &mut Self| leaf(em, fi, k))?;
-                }
-            }
-            self.f.get(cell);
-            return self.store(i);
-        }
+        // data.enum.no-recursion and data.enum.no-boxing: enum values stay
+        // inline; recursive links are explicit references, built by box/ref.
         let values = variant_steps(&flat, v);
         for (c, steps) in values.iter().enumerate() {
             let steps = crate::layout::value_or_zero(&m.leaves, c, steps.as_ref());

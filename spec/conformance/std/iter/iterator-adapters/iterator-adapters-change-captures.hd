@@ -43,6 +43,6 @@ tests:
             replies := box::[List[Result[string, string]]]([.Err("busy"), .Err("busy"), .Ok("ok")])
             policy := retry(Backoff { attempts: 5, initial: 0ms })
             result := apply!(policy.when(fn(e: string): counted(&mut seen, 1) > 0 && e == "busy")):
-                replies.remove_at(0)
+                replies.remove(0)
             assert_equal(result, .Ok("ok"))
             assert_equal(seen, 2)

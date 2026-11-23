@@ -1,0 +1,33 @@
+# @dump: wat
+# @build: v8 release
+# A remote implementation method returns the trait's public result: each
+# exit of its own frame, `?`, `return` and the final value, rebuilds its
+# `Result[V, E]` as `Result[V, E | CrossError]`, the error as case `_0`.
+# Per exit: one `i32.eq` on the tag and a two-arm `if` that keeps an
+# error's tag or moves `Ok` from tag 2 to 3, about 15 instructions; no
+# call, no memory access, no count.
+# expected: an exit whose case is known folds to its constant tag: the
+# error path of `?`, `return .Ok(...)` and the final `.Err(...)` here.
+use std.remote.{CrossError, Remote}
+
+enum Fault:
+    Bad
+    Odd(n: i64)
+
+trait Counter < Remote:
+    fn count!(&mut self, n: i64) -> Result[i64, Fault | CrossError]
+
+struct Fixed:
+    base: i64
+
+fn checked(n: i64) -> Result[i64, Fault]:
+    if n < 0:
+        return .Err(Fault.Bad)
+    .Ok(n)
+
+impl Counter for Fixed:
+    fn count!(&mut self, n: i64) -> Result[i64, Fault]:
+        # subject
+        match checked(n)?:
+            7 => return .Ok(self.base)
+            k => .Err(Fault.Odd(k))

@@ -16,6 +16,7 @@ use hd_resolve::{FnSig, ImplKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Callee, TirSink, local_flags};
+use hd_types::AdtId;
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, Ty, TyData, TyList, with_assoc_args};
 
@@ -46,11 +47,7 @@ pub fn forwarder_bodies(
     else {
         return Ok(Vec::new());
     };
-    let TyData::Adt {
-        def: c,
-        args: cargs,
-    } = pool.get(*self_ty)
-    else {
+    let TyData::Adt(AdtId::Declared(c), cargs) = pool.get(*self_ty) else {
         return Ok(Vec::new());
     };
     let Some(ItemData::Struct(fields, _)) = cx.lookup.item(c).map(|i| &i.data) else {

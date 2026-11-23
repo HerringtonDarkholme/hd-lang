@@ -178,7 +178,7 @@ impl Ck<'_, '_> {
                     }
                 }
             } else if matches!(b.tags[i], Tag::NewStruct | Tag::NewVariant) {
-                let TyData::Adt { def, .. } = pool.get(b.ty[i]) else {
+                let Some((def, _)) = pool.adt(b.ty[i]) else {
                     continue;
                 };
                 let fields = match (self.cx.lookup.item(def).map(|it| &it.data), b.tags[i]) {
@@ -235,8 +235,8 @@ impl Ck<'_, '_> {
         let mut out = Vec::new();
         if takes(t) {
             out.push(Vec::new());
-        } else if let TyData::Tuple { elems, .. } = pool.get(t) {
-            for (j, &e) in pool.list_items(elems).iter().enumerate() {
+        } else if let Some((elems, _)) = pool.product_parts(t) {
+            for (j, &e) in elems.iter().enumerate() {
                 let at = Part::Proj(Proj::Field(w(j)));
                 if takes(e) {
                     out.push(vec![at]);
@@ -247,7 +247,7 @@ impl Ck<'_, '_> {
             }
         }
         // A variant's field whose function type writes a lifetime.
-        if let TyData::Adt { def, .. } = pool.get(t)
+        if let Some((def, _)) = pool.adt(t)
             && let Some(ItemData::Enum { variants, .. }) =
                 self.cx.lookup.item(def).map(|it| &it.data)
         {
@@ -360,9 +360,7 @@ impl Ck<'_, '_> {
             return None;
         };
         let field = |t: Ty, k: u32| {
-            let TyData::Adt { def, args } = pool.get(t) else {
-                return None;
-            };
+            let (def, args) = pool.adt(t)?;
             let Some(ItemData::Struct(fields, _)) = self.cx.lookup.item(def).map(|i| &i.data)
             else {
                 return None;

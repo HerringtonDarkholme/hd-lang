@@ -72,7 +72,7 @@ Services, driver and runtime:
 
 - `hd_cache`: the `CacheStore` interface, its memory and disk stores,
   entry framing and key rules. [DESIGN.md](../../crates/hd_cache/DESIGN.md)
-- `hd_sched`: the serial, stepping and threaded executors over the task
+- `hd_sched`: the serial and threaded executors over the task
   graph. Leaf crate. [DESIGN.md](../../crates/hd_sched/DESIGN.md)
 - `hd_driver`: the task graph of a run; assembles every output.
 - `hd_run`: the engine-neutral embedding API, the poll and wake driver, the
@@ -91,8 +91,6 @@ Tools and front ends:
 - `hd_deps`: version selection, fetching with `git`, tree hashes, `hd.sum`.
 - `hd_fmt`: the green-tree formatter.
 - `hd_doc`: documentation pages for `hd doc`.
-- `hd_stdpack`: the build-time std packer.
-  [DESIGN.md](../../crates/hd_stdpack/DESIGN.md)
 - `hd_web`: the playground's compile session for `wasm32`, over an
   in-memory store. [DESIGN.md](../../crates/hd_web/DESIGN.md)
 - `hd_wat`: the playground's lazily loaded WAT printer; independent of
@@ -124,6 +122,8 @@ Tools and front ends:
   crate rules (§1 to §2).
 - [data-structures.md](data-structures.md): IDs, interners, types, arenas,
   the data-oriented encoding and IR contracts (§3).
+- [std-bootstrap.md](std-bootstrap.md): the prelude, compiler-supplied
+  std names, intrinsics and std's folder graph.
 - [lowering-catalog.md](lowering-catalog.md): the lowering of each data
   type and syntax form, with its cost.
 - [engines-and-test-runner.md](engines-and-test-runner.md): engines, tiers

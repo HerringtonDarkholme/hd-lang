@@ -1,0 +1,5 @@
+let count = +0
+
+pub fn next() -> i32:
+    count += 1
+    count

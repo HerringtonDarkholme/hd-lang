@@ -1,0 +1,18 @@
+# @dump: own
+# @build: release
+# Both stores of x find it empty: they lie on disjoint match leaves.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn width(photo: Photo?) -> u32:
+    match photo:
+        .Some(p) => p.width
+        .None => u32(0)
+
+fn part_bind(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.Some(p), 1) => p.width
+        (x, _) => width(x)

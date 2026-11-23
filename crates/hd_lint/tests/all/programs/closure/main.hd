@@ -1,0 +1,4 @@
+use pkg.helper.value
+use dep.remote.value as remote_value
+fn root() -> i32:
+    value() + remote_value()

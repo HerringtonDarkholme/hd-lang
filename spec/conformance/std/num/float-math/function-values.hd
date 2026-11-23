@@ -1,0 +1,55 @@
+# test: float methods are usable as ordinary function values at both widths
+use std.f64.consts.{PI, E}
+
+fn apply64(callback: fn(f64) -> f64, value: f64) -> f64:
+    callback(value)
+
+fn apply32(callback: fn(f32) -> f32, value: f32) -> f32:
+    callback(value)
+
+tests:
+    it("binary32 methods keep their function-value signature"):
+        assert_equal(apply32(f32::sin, f32(0.0)), f32(0.0))
+        assert_equal(apply32(f32::cos, f32(0.0)), f32(1.0))
+        assert_equal(apply32(f32::tan, f32(0.0)), f32(0.0))
+        assert_equal(apply32(f32::asin, f32(0.0)), f32(0.0))
+        assert_equal(apply32(f32::acos, f32(1.0)), f32(0.0))
+        assert_equal(apply32(f32::atan, f32(0.0)), f32(0.0))
+        assert_equal(apply32(f32::exp, f32(0.0)), f32(1.0))
+        assert_equal(apply32(f32::ln, f32(1.0)), f32(0.0))
+        assert_equal(apply32(f32::log2, f32(1.0)), f32(0.0))
+        assert_equal(apply32(f32::log10, f32(1.0)), f32(0.0))
+        assert_equal(apply32(f32::abs, f32(-2.0)), f32(2.0))
+        assert_equal(apply32(f32::signum, f32(-2.0)), f32(-1.0))
+        let power: fn(f32, f32) -> f32 = f32::powf
+        let integer_power: fn(f32, i32) -> f32 = f32::powi
+        let angle: fn(f32, f32) -> f32 = f32::atan2
+        assert_equal(power(f32(2.0), f32(3.0)), f32(8.0))
+        assert_equal(integer_power(f32(2.0), -3), f32(0.125))
+        assert_equal(angle(f32(0.0), f32(1.0)), f32(0.0))
+
+    it("binary64 methods keep their function-value signature"):
+        assert_equal(apply64(f64::sin, 0.0), 0.0)
+        assert_equal(apply64(f64::cos, 0.0), 1.0)
+        assert_equal(apply64(f64::tan, 0.0), 0.0)
+        assert_equal(apply64(f64::asin, 0.0), 0.0)
+        assert_equal(apply64(f64::acos, 1.0), 0.0)
+        assert_equal(apply64(f64::atan, 0.0), 0.0)
+        assert_equal(apply64(f64::exp, 0.0), 1.0)
+        assert_equal(apply64(f64::ln, 1.0), 0.0)
+        assert_equal(apply64(f64::log2, 1.0), 0.0)
+        assert_equal(apply64(f64::log10, 1.0), 0.0)
+        assert_equal(apply64(f64::abs, -2.0), 2.0)
+        assert_equal(apply64(f64::signum, -2.0), -1.0)
+        let power: fn(f64, f64) -> f64 = f64::powf
+        let integer_power: fn(f64, i32) -> f64 = f64::powi
+        let angle: fn(f64, f64) -> f64 = f64::atan2
+        assert_equal(power(2.0, 3.0), 8.0)
+        assert_equal(integer_power(2.0, -3), 0.125)
+        assert_equal(angle(0.0, 1.0), 0.0)
+
+    it("constant functions retain ordinary zero-argument function values"):
+        let pi: fn() -> f64 = PI
+        let e: fn() -> f64 = E
+        assert_equal(pi(), PI())
+        assert_equal(e(), E())

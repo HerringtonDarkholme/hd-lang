@@ -904,11 +904,11 @@
             local.get $provider0
             i32.store $heap offset=8
             block
-              local.get $second.0
               local.get $t1
               i32.load $heap offset=8
               local.get $width
               i32.store $heap
+              local.get $second.0
               local.get $t1
               local.get $second.1
               i32.store $heap offset=16
@@ -1049,11 +1049,9 @@
           local.set $provider0.vtable
     ;; 22 |     let (b, second) = ready!(false)
           block
-            local.get $second.0
             local.get $provider0.vtable
             local.get $width
             i32.store $heap
-            local.set $second.0
             br 0
             unreachable
           end
@@ -2893,11 +2891,11 @@
             local.get $provider0
             i32.store $heap offset=8
             block
-              local.get $second.0
               local.get $t1
               i32.load $heap offset=8
               local.get $width
               i32.store $heap
+              local.get $second.0
               local.get $t1
               local.get $second.1
               i32.store $heap offset=16
@@ -3048,11 +3046,9 @@
           local.set $provider0.vtable
     ;; 22 |     let (b, second) = ready!(false)
           block
-            local.get $second.0
             local.get $provider0.vtable
             local.get $width
             i32.store $heap
-            local.set $second.0
             br 0
             unreachable
           end
@@ -4888,11 +4884,11 @@
             local.get $provider0
             i32.store $heap offset=8
             block
-              local.get $second.0
               local.get $t1
               i32.load $heap offset=8
               local.get $width
               i32.store $heap
+              local.get $second.0
               local.get $t1
               local.get $second.1
               i32.store $heap offset=16
@@ -5033,11 +5029,9 @@
           local.set $provider0.vtable
     ;; 22 |     let (b, second) = ready!(false)
           block
-            local.get $second.0
             local.get $provider0.vtable
             local.get $width
             i32.store $heap
-            local.set $second.0
             br 0
             unreachable
           end
@@ -6692,11 +6686,11 @@
             local.get $provider0
             i32.store $heap offset=8
             block
-              local.get $second.0
               local.get $t1
               i32.load $heap offset=8
               local.get $width
               i32.store $heap
+              local.get $second.0
               local.get $t1
               local.get $second.1
               i32.store $heap offset=16
@@ -6847,11 +6841,9 @@
           local.set $provider0.vtable
     ;; 22 |     let (b, second) = ready!(false)
           block
-            local.get $second.0
             local.get $provider0.vtable
             local.get $width
             i32.store $heap
-            local.set $second.0
             br 0
             unreachable
           end

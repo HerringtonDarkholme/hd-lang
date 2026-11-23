@@ -69,7 +69,7 @@ let heap: usize = 0
 
 ## Allocates a block of at least `size` bytes and gives its address, which is a multiple of 16; its bytes are not zeroed.
 pub fn alloc(size: usize) -> usize:
-    if table == 0:
+    if table == 0 && !(threaded() && adopted()):
         start()
     if size > 32768:
         count := (size + PAGE - 1) / PAGE
@@ -124,7 +124,7 @@ pub fn alloc(size: usize) -> usize:
 pub fn alloc_class(size: usize, class: usize) -> usize:
     if class == 0:
         return alloc(size)
-    if table == 0:
+    if table == 0 && !(threaded() && adopted()):
         start()
     freed := usize(load_u32(table + FREED + 4 * class))
     if freed != 0:
@@ -175,7 +175,7 @@ pub fn free(address: usize) -> void:
 
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed, as `free` does, for a block the cycle collector never sees.
 pub fn free_block(address: usize) -> void:
-    let page_number = address / PAGE
+    let page_number = if threaded(): local_page(address) else: address / PAGE
     let entry = usize(load_u32(table + LISTS + 4 * page_number))
     if entry / SMALL == 3:
         page_number = entry & LOW
@@ -210,9 +210,9 @@ pub fn free_block(address: usize) -> void:
 
 # Compiler-private ABI, which the backend inlines: address is a live block
 # of class, with no buffered candidate bit. It goes on its class's freed
-# list; its page keeps counting it until `reclaim`.
+# list, counted by its page until `reclaim`; a thread with no table frees it.
 pub fn free_class(address: usize, class: usize) -> void:
-    if class == 0:
+    if class == 0 || (threaded() && table == 0):
         free_block(address)
         return
     at := table + FREED + 4 * class
@@ -221,7 +221,7 @@ pub fn free_class(address: usize, class: usize) -> void:
 
 ## Gives every block on the classes' freed lists back to its span, which returns to the pool when that was its last live block; only small classes cache an empty head page.
 pub fn reclaim() -> void:
-    let class: usize = 1
+    let class: usize = if threaded(): drain() else: 1
     while class <= 32:
         at := table + FREED + 4 * class
         let block = usize(load_u32(at))
@@ -237,7 +237,7 @@ pub fn block_of(address: usize) -> usize:
     let page_number = address / PAGE
     # Before the first allocation `known` is 0 too.
     if page_number >= known:
-        return 0
+        return if threaded(): foreign_block(address) else: 0
     let entry = usize(load_u32(table + LISTS + 4 * page_number))
     if entry / SMALL == 3:
         page_number = entry & LOW
@@ -257,7 +257,7 @@ pub fn block_of(address: usize) -> usize:
         slot := usize((u64(address - page - 16) * reciprocal) >> 48)
         page + 16 + slot * bytes
     else:
-        0
+        if threaded(): foreign_block(address) else: 0
 
 # A counted object (crates/hd_wasm/DESIGN.md §23.4) is a block whose
 # first 4 bytes are its count; emitted code calls these two with any
@@ -348,7 +348,7 @@ pub fn release_known_acyclic(address: usize) -> usize:
 
 ## The bytes of the block at `block`, which `alloc` gave: its size class's, or its run's whole pages.
 pub fn block_bytes(block: usize) -> usize:
-    let entry = usize(load_u32(table + LISTS + 4 * (block / PAGE)))
+    let entry = if threaded(): held(block) else: usize(load_u32(table + LISTS + 4 * (block / PAGE)))
     if entry / SMALL == 3:
         entry = usize(load_u32(table + LISTS + 4 * (entry & LOW)))
     if entry / SMALL == 2: (entry & LOW) * PAGE else: class_bytes(entry & LOW)
@@ -357,7 +357,7 @@ pub fn block_bytes(block: usize) -> usize:
 pub fn block_size(size: usize) -> usize:
     if size > 32768:
         return (size + PAGE - 1) / PAGE * PAGE
-    if table == 0:
+    if table == 0 && !(threaded() && adopted()):
         start()
     class_bytes(class_of(size))
 
@@ -445,7 +445,7 @@ fn lower_hint(page_number: usize) -> void:
 fn start() -> void:
     at := grown(1)
     table = at * PAGE
-    heap = table
+    heap = if threaded(): joined(heap) else: table
     capacity = (PAGE - LISTS) / 4
     init_classes()
     claim(at, 1, u32(SMALL))
@@ -505,17 +505,17 @@ fn move_table(need: usize) -> void:
     copy(first * PAGE, table, LISTS + 4 * known)
     old := table / PAGE
     old_count := (LISTS + 4 * capacity + PAGE - 1) / PAGE
-    table = first * PAGE
+    table = if threaded(): publish(first * PAGE) else: first * PAGE
     capacity = (count * PAGE - LISTS) / 4
     claim(first, count, u32(SMALL))
-    claim(old, old_count, 0)
+    claim(old, old_count, if threaded(): u32(SMALL) else: 0)
     lower_hint(old)
 
 # Sets the entries of the `count` pages from `first` to `entry`, and those
 # from the last known page up to `first`, which another part of the program
 # grew, to static.
 fn claim(first: usize, count: usize, entry: u32) -> void:
-    let page_number = known
+    let page_number = if threaded(): owns(first, count) else: known
     while page_number < first:
         set(page_number, u32(SMALL))
         page_number = page_number + 1
@@ -534,4 +534,213 @@ fn grown(count: usize) -> usize:
 
 @intrinsic("panic")
 fn panic_with(category: string, message: string) -> never:
+    panic("intrinsic")
+
+# Threads (module.rt.thread.heap). Each thread's instance allocates from a
+# heap of its own: this module's storage, over the pages it grew. The
+# registry, which the first allocation grows, says which heap owns each
+# page, and holds one record per heap: its state (0 unused, 1 in use, 2
+# retired), its table, the blocks other threads freed, then the rest of
+# its storage while it is retired; record 0 holds how many heaps exist,
+# then `shared_held`. A block that another thread frees goes
+# on its owner's list, and the owner gives it back before it takes pages.
+# A thread that ends retires its heap, and the next thread to start adopts
+# it, so no heap is lost to a thread's end.
+# The heap word below static data that holds the registry's address, 1
+# while the first allocation makes it.
+REGISTRY := 12
+RECORD := 32
+RECORDS := 1024
+REMOTE := 8
+# One u16 per page: the record of the heap that grew it, 0 for none.
+OWNERS := 32768
+
+# This instance's heap: the owner of its table's first page, 0 before its
+# first allocation. It needs no storage, which a program without threads
+# would carry too.
+fn me() -> usize:
+    owner(table)
+
+# The registry's address, which the first call makes.
+fn registry() -> usize:
+    let at = usize(atomic_load(REGISTRY))
+    if at == 0 && atomic_compare_exchange(REGISTRY, 0, 1) == 0:
+        at = grown(3) * PAGE
+        atomic_store(REGISTRY, u32(at))
+        _ := atomic_notify(REGISTRY, u32(0xffffffff))
+    while at <= 1:
+        _ := atomic_wait(REGISTRY, 1, -1)
+        at = usize(atomic_load(REGISTRY))
+    at
+
+## The registry's word that `std.rt.checked` counts the program's held blocks in, since a block one thread allocates another may free.
+pub fn shared_held() -> usize:
+    registry() + 4
+
+# The record of heap `id`.
+fn record(id: usize) -> usize:
+    registry() + RECORD * id
+
+# Gives this instance a retired heap, and whether there was one. Else it
+# records a new heap, whose number `heap` holds until `start` makes the
+# heap's table (`joined`).
+fn adopted() -> bool:
+    at := registry()
+    made := usize(atomic_load(at))
+    let id: usize = 1
+    while id <= made:
+        rec := at + RECORD * id
+        if atomic_compare_exchange(rec, 2, 1) == 2:
+            table = usize(load_u32(rec + 4))
+            capacity = usize(load_u32(rec + 12))
+            known = usize(load_u32(rec + 16))
+            hint = usize(load_u32(rec + 20))
+            miss_size = usize(load_u32(rec + 24))
+            miss_end = usize(load_u32(rec + 28))
+            heap = at
+            return true
+        id = id + 1
+    fresh := usize(atomic_add(at, 1)) + 1
+    if fresh >= RECORDS:
+        panic_with("heap-exhausted", "an allocation does not fit the heap")
+    atomic_store(at + RECORD * fresh, 1)
+    heap = fresh
+    false
+
+# `start`'s new heap `fresh`: its table's page becomes its, other threads
+# read its blocks through the table from now on, and `heap` is the
+# registry's address, below every block.
+fn joined(fresh: usize) -> usize:
+    at := registry()
+    store_u16(at + OWNERS + 2 * (table / PAGE), u16(fresh))
+    atomic_store(at + RECORD * fresh + 4, u32(table))
+    at
+
+## Retires this instance's heap when its thread ends, for the next thread that starts to adopt it with all its blocks.
+pub fn retire() -> void:
+    if table == 0:
+        return
+    rec := record(me())
+    store_u32(rec + 12, u32(capacity))
+    store_u32(rec + 16, u32(known))
+    store_u32(rec + 20, u32(hint))
+    store_u32(rec + 24, u32(miss_size))
+    store_u32(rec + 28, u32(miss_end))
+    atomic_store(rec, 2)
+
+# Makes `at` this heap's table, which other threads read its blocks
+# through: its first page becomes the heap's, as the table it replaces is.
+fn publish(at: usize) -> usize:
+    id := me()
+    store_u16(registry() + OWNERS + 2 * (at / PAGE), u16(id))
+    atomic_store(record(id) + 4, u32(at))
+    at
+
+# `claim`'s first page to mark static: the `count` pages from `first`,
+# which this instance grew, become its heap's.
+fn owns(first: usize, count: usize) -> usize:
+    at := registry()
+    let j: usize = 0
+    while j < count:
+        store_u16(at + OWNERS + 2 * (first + j), u16(me()))
+        j = j + 1
+    known
+
+# The record of the heap that owns `address`'s page, 0 for none.
+fn owner(address: usize) -> usize:
+    at := usize(atomic_load(REGISTRY))
+    if at <= 1: 0 else: usize(load_u16(at + OWNERS + 2 * (address / PAGE)))
+
+# `free_block`'s page of `address`: its own, or else, for a block of
+# another heap, page 0 (static data, so nothing more happens) after the
+# block goes on that heap's list.
+fn local_page(address: usize) -> usize:
+    if table == 0 && !adopted():
+        start()
+    id := owner(address)
+    if id == 0 || id == me():
+        return address / PAGE
+    at := record(id) + REMOTE
+    while true:
+        head := atomic_load(at)
+        store_u32(address, head)
+        if atomic_compare_exchange(at, head, u32(address)) == head:
+            return 0
+    0
+
+# Gives the blocks that other threads freed back to this heap; 1, the
+# first class `reclaim` visits.
+fn drain() -> usize:
+    at := record(me()) + REMOTE
+    let block = usize(atomic_load(at))
+    while block != 0 && atomic_compare_exchange(at, u32(block), 0) != u32(block):
+        block = usize(atomic_load(at))
+    while block != 0:
+        next := usize(load_u32(block))
+        free_block(block)
+        block = next
+    1
+
+# `block_of` of an address on another heap's page, from that heap's table.
+fn foreign_block(address: usize) -> usize:
+    id := owner(address)
+    if id == 0 || id == me():
+        return 0
+    at := usize(atomic_load(record(id) + 4))
+    let page_number = address / PAGE
+    let entry = usize(load_u32(at + LISTS + 4 * page_number))
+    if entry / SMALL == 3:
+        page_number = entry & LOW
+        entry = usize(load_u32(at + LISTS + 4 * page_number))
+    kind := entry / SMALL
+    page := page_number * PAGE
+    if kind == 2:
+        page
+    else if kind == 1 && entry != SMALL && address >= page + 16:
+        index := 4 * ((entry & LOW) - 1)
+        bytes := usize(load_u32(at + SIZES + index))
+        reciprocal := load_u64(at + RECIPROCALS + 2 * index)
+        slot := usize((u64(address - page - 16) * reciprocal) >> 48)
+        page + 16 + slot * bytes
+    else:
+        0
+
+# `block_bytes`'s entry of `block`, a run's or a span's first page's, from
+# the table of the heap that holds it.
+fn held(block: usize) -> usize:
+    if table == 0 && !adopted():
+        start()
+    id := owner(block)
+    at := if id == 0 || id == me(): table else: usize(atomic_load(record(id) + 4))
+    entry := usize(load_u32(at + LISTS + 4 * (block / PAGE)))
+    if entry / SMALL == 3: usize(load_u32(at + LISTS + 4 * (entry & LOW))) else: entry
+
+# Whether the program may start a thread, a constant of its build
+# (module.rt.thread.reachable): every use above folds away without threads.
+@intrinsic("threads_reachable")
+fn threaded() -> bool:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_load_u32")
+fn atomic_load(address: usize) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_store_u32")
+fn atomic_store(address: usize, value: u32) -> void:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_add_u32")
+fn atomic_add(address: usize, value: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_cmpxchg_u32")
+fn atomic_compare_exchange(address: usize, expected: u32, new: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_wait_u32")
+fn atomic_wait(address: usize, expected: u32, timeout: i64) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_notify")
+fn atomic_notify(address: usize, count: u32) -> u32:
     panic("intrinsic")

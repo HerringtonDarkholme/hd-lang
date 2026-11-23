@@ -40,9 +40,9 @@ fn both!(a: string, b: string) -> usize:
 >   %4 = AwaitAll [%1 %3] : (string, string)
 >   %5 = Block - : ()
 >   %6 = Read [%4 .0] : string
->   %7 = Read [%4 .1] : string
->   %8 = Store [$2] %6 : ()
->   %9 = Store [$3] %7 : ()
+>   %7 = Store [$2] %6 : ()
+>   %8 = Read [%4 .1] : string
+>   %9 = Store [$3] %8 : ()
 >   %11 = Block - : never
 >   %12 = Match %4 [%11 %5] : ()
 >   %18 = Block %17 : usize

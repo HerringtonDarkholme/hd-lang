@@ -7,3 +7,24 @@ fn present():
     consume(
         value, # already has its comma  
     )
+# a parent-column comment closes deeper suites
+fn f():
+    if ready:
+        x()
+    # next statement note
+    y()
+fn f():
+    if outer:
+        while inner:
+            x()
+        # closes while, stays in if
+        y()
+# each standalone comment chooses its own suite
+fn f():
+    if outer:
+        if inner:
+            work()
+        # outer suite
+    # function suite
+# root
+finish()

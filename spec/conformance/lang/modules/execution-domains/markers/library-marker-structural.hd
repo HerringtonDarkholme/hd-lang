@@ -1,0 +1,17 @@
+# test: a struct whose fields have a library marker has it too, with no implementation written
+# Spec 10 Markers: module.marker.structural, module.marker.supplied.
+use std.marker.Marker
+
+pub trait GpuData < Marker
+
+impl GpuData for f32
+
+struct Pixel:
+    r: f32
+    g: f32
+
+fn launch[T < GpuData](value: T) -> void:
+    pass
+
+fn demo(p: Pixel) -> void:
+    launch(p)

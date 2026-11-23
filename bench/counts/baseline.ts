@@ -1,27 +1,22 @@
-export interface Counts {
+// A measurement and its comparison with the merge base's measurement, which
+// main's CI stores as an artifact. No expected number is committed.
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+
+export interface Entry {
+  program: string;
   retained: string;
   released: string;
   uniques: string;
   total: string;
-}
-export interface Entry extends Counts {
-  program: string;
   // Count calls on an address with no count: paid for, changing nothing. Not in `total`.
   noOps: string;
   // Count calls a call-site test skipped: the test is all they cost.
   skipped: string;
 }
-export interface Recorded extends Counts {
-  program: string;
-  reason?: string;
-  // `noOps` + `skipped`, limited like `total`. A baseline older than this limit has none.
-  noOpsAndSkipped?: string;
-}
-export interface Baseline {
-  version: 1;
-  pipeline: "optimized-release-checked";
-  engine: "node-default";
-  programs: Recorded[];
+export interface Comparison {
+  table: string;
+  increases: string[];
+  decreases: string[];
 }
 
 export function countEntry(
@@ -45,160 +40,130 @@ export function countEntry(
   };
 }
 
-function noOpsAndSkipped(row: Entry): string {
-  return String(BigInt(row.noOps) + BigInt(row.skipped));
-}
-
-function totalRose(row: Counts, old?: Counts): boolean {
-  return !old || BigInt(row.total) > BigInt(old.total);
-}
-
-function noOpsRose(row: Recorded, old?: Recorded): boolean {
-  if (!old) {
-    return true;
-  }
-  return (
-    row.noOpsAndSkipped !== undefined &&
-    old.noOpsAndSkipped !== undefined &&
-    BigInt(row.noOpsAndSkipped) > BigInt(old.noOpsAndSkipped)
-  );
-}
-
-export function readBaseline(text: string): Baseline {
-  const value = JSON.parse(text) as Baseline;
-  if (
-    value.version !== 1 ||
-    value.pipeline !== "optimized-release-checked" ||
-    value.engine !== "node-default" ||
-    !Array.isArray(value.programs)
-  ) {
-    throw new Error("unsupported count-operation baseline");
+/** The `programs` of a stored `actual.json`; a row that does not add up is refused. */
+export function readCounts(text: string): Entry[] {
+  const rows = (JSON.parse(text) as { programs?: Entry[] }).programs;
+  if (!Array.isArray(rows)) {
+    throw new Error("not a count-operation measurement");
   }
   const seen = new Set<string>();
-  for (const row of value.programs) {
-    if (typeof row.program !== "string" || !row.program || seen.has(row.program)) {
-      throw new Error("missing or duplicate program in count baseline");
-    }
-    seen.add(row.program);
-    const numbers = [row.retained, row.released, row.uniques, row.total];
+  for (const row of rows) {
+    const numbers = [row.retained, row.released, row.uniques, row.total, row.noOps, row.skipped];
     if (
+      typeof row.program !== "string" ||
+      seen.has(row.program) ||
       numbers.some((number) => typeof number !== "string" || !/^\d+$/.test(number)) ||
-      BigInt(row.total) !== BigInt(row.retained) + BigInt(row.released) + BigInt(row.uniques) ||
-      (row.reason !== undefined && typeof row.reason !== "string") ||
-      (row.noOpsAndSkipped !== undefined && !/^\d+$/.test(String(row.noOpsAndSkipped)))
+      BigInt(row.total) !== BigInt(row.retained) + BigInt(row.released) + BigInt(row.uniques)
     ) {
       throw new Error(`invalid operation counts: ${row.program}`);
     }
+    seen.add(row.program);
   }
-  return value;
+  return rows;
 }
 
-export function compareCounts(
-  actual: readonly Entry[],
-  recorded: Baseline,
-  previous?: Baseline,
-): string[] {
-  const failures: string[] = [];
-  const wanted = new Map(recorded.programs.map((row) => [row.program, row]));
-  const measured = new Map(actual.map((row) => [row.program, row]));
-  for (const row of actual) {
-    const limit = wanted.get(row.program);
-    if (!limit) {
-      failures.push(`${row.program}: missing baseline`);
-    } else if (BigInt(row.total) > BigInt(limit.total)) {
-      failures.push(
-        `${row.program}: count operations ${limit.total} -> ${row.total}; record the measured increase and its reason`,
-      );
-    }
-    if (limit && limit.noOpsAndSkipped === undefined) {
-      failures.push(`${row.program}: baseline has no limit for no-op and skipped calls`);
-    } else if (limit && BigInt(noOpsAndSkipped(row)) > BigInt(limit.noOpsAndSkipped!)) {
-      failures.push(
-        `${row.program}: no-op and skipped calls ${limit.noOpsAndSkipped} -> ${noOpsAndSkipped(row)}; record the measured increase and its reason`,
-      );
-    }
+const noOpsAndSkipped = (row: Entry) => BigInt(row.noOps) + BigInt(row.skipped);
+const signed = (delta: bigint | number) => `${delta > 0 ? "+" : ""}${delta}`;
+
+/** Sorts one metric's move from `before` to `after` into the comparison's lists. */
+export function judge(into: Comparison, what: string, before: bigint, after: bigint): string {
+  const line = `${what} ${before} -> ${after} (${signed(after - before)})`;
+  if (after > before) {
+    into.increases.push(line);
+  } else if (after < before) {
+    into.decreases.push(line);
   }
-  for (const row of recorded.programs) {
-    if (!measured.has(row.program)) {
-      failures.push(`${row.program}: baseline has no measured program`);
-    }
-  }
-  if (previous) {
-    failures.push(...checkIncreaseExplanations(measured, recorded, previous));
-  }
-  return failures;
+  return signed(after - before);
 }
 
-function checkIncreaseExplanations(
-  measured: Map<string, Entry>,
-  recorded: Baseline,
-  previous: Baseline,
-): string[] {
-  const failures: string[] = [];
-  const before = new Map(previous.programs.map((row) => [row.program, row]));
-  for (const row of recorded.programs) {
-    const old = before.get(row.program);
-    const totalUp = totalRose(row, old);
-    const noOpsUp = noOpsRose(row, old);
-    if (!totalUp && !noOpsUp) {
-      continue;
-    }
-    if (!row.reason?.trim() || row.reason === old?.reason) {
-      failures.push(
-        `${row.program}: a new/increased baseline needs a new explanation in its reason field`,
-      );
-    }
-    const now = measured.get(row.program);
-    if (totalUp && now?.total !== row.total) {
-      failures.push(`${row.program}: an increased baseline must equal the measured total`);
-    }
-    if (noOpsUp && (!now || noOpsAndSkipped(now) !== row.noOpsAndSkipped)) {
-      failures.push(`${row.program}: an increased no-op limit must equal the measured calls`);
-    }
-  }
-  return failures;
-}
-
-export function recordCounts(actual: Entry[], previous?: Baseline, reason?: string): Baseline {
-  const before = new Map(previous?.programs.map((row) => [row.program, row]));
-  const programs = actual.map((row) => {
-    const old = before.get(row.program);
-    const { noOps: _noOps, skipped: _skipped, ...counts } = row;
-    const next: Recorded = { ...counts, noOpsAndSkipped: noOpsAndSkipped(row) };
-    const increased = previous && (totalRose(next, old) || noOpsRose(next, old));
-    if (increased && !reason?.trim()) {
-      throw new Error(`${row.program}: --reason is required for an increase or a new benchmark`);
-    }
-    const same =
-      old?.total === next.total &&
-      (old.noOpsAndSkipped ?? next.noOpsAndSkipped) === next.noOpsAndSkipped;
-    const kept = same ? old?.reason : undefined;
-    const note = increased ? reason : kept;
-    return { ...next, ...(note ? { reason: note } : {}) };
-  });
-  return { version: 1, pipeline: "optimized-release-checked", engine: "node-default", programs };
-}
-
-export function countTable(actual: readonly Entry[], recorded?: Baseline): string {
-  const limits = new Map(recorded?.programs.map((row) => [row.program, row]));
+/**
+ * Each program is judged on its own `total`, and on its no-op and skipped calls,
+ * which are outside `total` but still cost time. A cut in one program or metric
+ * can't pay for a rise in another. A program the base lacks is new: reported only.
+ */
+export function compareCounts(actual: readonly Entry[], base?: readonly Entry[]): Comparison {
+  const before = new Map(base?.map((row) => [row.program, row]));
+  const result: Comparison = { table: "", increases: [], decreases: [] };
   const lines = [
     "| Program | Retains | Releases | Uniqueness | Total | Change | No-op calls | Skipped by a test | Change |",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
   ];
   for (const row of actual) {
-    const limit = limits.get(row.program);
-    const delta = limit ? BigInt(row.total) - BigInt(limit.total) : 0n;
-    const noOpsDelta =
-      limit?.noOpsAndSkipped === undefined
-        ? 0n
-        : BigInt(noOpsAndSkipped(row)) - BigInt(limit.noOpsAndSkipped);
+    const old = before.get(row.program);
+    const total = old
+      ? judge(result, `${row.program}: count operations`, BigInt(old.total), BigInt(row.total))
+      : "new";
+    const calls = old
+      ? judge(
+          result,
+          `${row.program}: no-op and skipped calls`,
+          noOpsAndSkipped(old),
+          noOpsAndSkipped(row),
+        )
+      : "new";
     lines.push(
-      `| ${row.program} | ${row.retained} | ${row.released} | ${row.uniques} | ${row.total} | ${signed(delta)} | ${row.noOps} | ${row.skipped} | ${signed(noOpsDelta)} |`,
+      `| ${row.program} | ${row.retained} | ${row.released} | ${row.uniques} | ${row.total} | ${total} | ${row.noOps} | ${row.skipped} | ${calls} |`,
     );
   }
-  return lines.join("\n") + "\n";
+  result.table = lines.join("\n") + "\n";
+  return result;
 }
 
-function signed(delta: bigint): string {
-  return `${delta > 0n ? "+" : ""}${delta}`;
+/**
+ * The verdict both gates share. Without a base it only reports. An increase
+ * fails unless a commit in the change carries `Cost-OK: <reason>` (`costOk`).
+ */
+export function verdict(
+  comparison: Comparison,
+  hasBase: boolean,
+  costOk?: string,
+): { text: string; failed: boolean } {
+  const list = (lines: string[]) => lines.map((line) => `- ${line}\n`).join("");
+  if (!hasBase) {
+    return { text: "No stored main measurement to compare with: report only.\n", failed: false };
+  }
+  let text = comparison.decreases.length
+    ? `Decreases from the base:\n\n${list(comparison.decreases)}\n`
+    : "";
+  const failed = comparison.increases.length > 0 && !costOk?.trim();
+  if (!comparison.increases.length) {
+    text += "No increase over the base.\n";
+  } else if (failed) {
+    text += `Increases over the base. Explain them in a \`Cost-OK: <reason>\` line of a commit message in the change:\n\n${list(comparison.increases)}`;
+  } else {
+    text += `Increases over the base, accepted by \`Cost-OK: ${costOk}\`:\n\n${list(comparison.increases)}`;
+  }
+  return { text, failed };
+}
+
+/**
+ * The end of both gates: read the base measurement at `--base` if there is
+ * one, compare, write `summary.md` and fail the process on an increase that
+ * `--cost-ok` does not explain. A base this code can't read (another format)
+ * is reported only.
+ */
+export function gate<Base>(
+  output: string,
+  options: Map<string, string>,
+  read: (text: string) => Base,
+  compare: (base?: Base) => Comparison,
+): void {
+  const basePath = options.get("--base");
+  const costOk = options.get("--cost-ok");
+  let base: Base | undefined;
+  if (basePath && existsSync(basePath)) {
+    try {
+      base = read(readFileSync(basePath, "utf8"));
+    } catch (error) {
+      process.stderr.write(`::warning::unreadable base ${basePath} (${error}): report only\n`);
+    }
+  }
+  const comparison = compare(base);
+  const { text, failed } = verdict(comparison, base !== undefined, costOk);
+  writeFileSync(`${output}/summary.md`, `${text}\n${comparison.table}`);
+  process.stdout.write(`${text}\n${comparison.table}`);
+  if (failed) {
+    process.stderr.write(`${comparison.increases.join("\n")}\nno Cost-OK line in the change\n`);
+    process.exitCode = 1;
+  }
 }

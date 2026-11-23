@@ -2,6 +2,7 @@
 //! interpolation, names, operators, fields, indexing, collection and data
 //! literals, `if`, loops, closures, `?`, ranges and providers.
 
+use hd_types::AdtId;
 use std::fmt::Write as _;
 
 use hd_base::{DefId, HashMap, NotImplemented, Stage, StageResult, TokenIdx};
@@ -598,7 +599,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let sb = self.cx.names.known.string_builder;
         matches!(pool.get(self.resolved(t)), TyData::Ref { inner, mutable: true, .. }
-            if matches!(pool.get(inner), TyData::Adt { def, .. } if def == sb))
+            if matches!(pool.get(inner), TyData::Adt(AdtId::Declared(def), _) if def == sb))
     }
 
     /// Whether `n` is an unprefixed string literal with at least one
@@ -816,10 +817,7 @@ impl Ck<'_, '_> {
             n.index(),
         );
         let fields = self.b.refs_record(&[bytes]);
-        let ty = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&[]),
-        });
+        let ty = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&[])));
         let value = self.b.emit(Tag::NewStruct, NONE, fields, ty, n.index());
         let name = self.cx.names.syms.intern("$interpolation");
         let local = self.b.local(ty, name, local_flags::ASSIGNED, n.index());
@@ -849,10 +847,10 @@ impl Ck<'_, '_> {
     /// The private `std.text.StringBuilder` helper `name`.
     pub(crate) fn string_builder_helper(&mut self, name: &str) -> StageResult<DefId> {
         let pool = self.pool();
-        let sb = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.string_builder,
-            args: pool.list(&[]),
-        });
+        let sb = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.cx.names.known.string_builder),
+            pool.list(&[]),
+        ));
         Ok(self.interpolation_inherent(sb, name)?.0)
     }
 
@@ -1079,10 +1077,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let def = self.cx.names.known.string_builder;
-        let sb = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&[]),
-        });
+        let sb = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&[])));
         let (method, _, _) = self.interpolation_inherent(sb, name)?;
         let Some(sig) = self.sig_of(method) else {
             return Ok(self.poison_value(n));
@@ -1818,10 +1813,7 @@ impl Ck<'_, '_> {
         let t = self.resolved(t);
         matches!(
             pool.get(t),
-            TyData::Adt { .. }
-                | TyData::Tuple { .. }
-                | TyData::Fn { .. }
-                | TyData::TraitValue { .. }
+            TyData::Adt(..) | TyData::Fn { .. } | TyData::TraitValue { .. }
         )
     }
 
@@ -1897,7 +1889,7 @@ impl Ck<'_, '_> {
     pub(crate) fn tuple_key_choice(&mut self, tr: DefId, at: Ty, kt: Ty) -> StageResult<()> {
         let pool = self.pool();
         let key = self.infer.resolve(pool, self.resolved(kt));
-        if !matches!(pool.get(key), TyData::Tuple { .. }) {
+        if !matches!(pool.get(key), TyData::Adt(AdtId::Product { .. }, _)) {
             return Ok(());
         }
         let mut lits = Vec::new();
@@ -1998,8 +1990,10 @@ impl Ck<'_, '_> {
                     out.push(t);
                 }
             }
-            TyData::Tuple { elems, .. } => {
-                for &e in pool.list_items(elems) {
+            TyData::Adt(AdtId::Product { .. }, _)
+                if let Some((elems, _)) = pool.product_parts(t) =>
+            {
+                for &e in elems {
                     self.open_tuple_literals(e, out);
                 }
             }
@@ -2008,8 +2002,7 @@ impl Ck<'_, '_> {
             TyData::Prim(_)
             | TyData::Never
             | TyData::Poison
-            | TyData::Adt { .. }
-            | TyData::Union(_)
+            | TyData::Adt(..)
             | TyData::Fn { .. }
             | TyData::TraitValue { .. }
             | TyData::Opaque { .. }
@@ -2101,8 +2094,8 @@ impl Ck<'_, '_> {
             );
             let pool = self.pool();
             if tr == k.add
-                && matches!(pool.get(self.resolved(self.infer.resolve(pool, at))), TyData::Adt { def, .. } if def == k.list)
-                && matches!(pool.get(self.resolved(self.infer.resolve(pool, ct))), TyData::Adt { def, .. } if def == k.list)
+                && matches!(pool.get(self.resolved(self.infer.resolve(pool, at))), TyData::Adt(AdtId::Declared(def), _) if def == k.list)
+                && matches!(pool.get(self.resolved(self.infer.resolve(pool, ct))), TyData::Adt(AdtId::Declared(def), _) if def == k.list)
                 && let Some(left) = n.children().next()
             {
                 let left = self.cx.src.span(left);
@@ -2656,15 +2649,13 @@ impl Ck<'_, '_> {
     pub(crate) fn field_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
+        let (def, types) = pool.adt(t)?;
         let ItemData::Struct(fields, _) = &self.cx.lookup.item(def)?.data else {
             return None;
         };
         let sym = self.cx.names.syms.intern(name);
         let i = *self.field_index(def, fields).get(&sym)? as usize;
-        let argv = pool.list_items(args);
+        let argv = pool.list_items(types);
         let ft = pool.subst(fields[i].ty, &|p: ParamRef| {
             (p.owner == def)
                 .then(|| argv.get(p.index as usize).copied())
@@ -2693,15 +2684,11 @@ impl Ck<'_, '_> {
     pub(crate) fn tuple_elem_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
         let pool = self.pool();
         let t = self.resolved(self.infer.resolve(pool, t));
-        let TyData::Tuple { elems, rest } = pool.get(t) else {
+        let TyData::Adt(AdtId::Product { .. }, args) = pool.get(t) else {
             return None;
         };
         let i = name.strip_prefix('_')?.parse::<usize>().ok()?;
-        let items = pool.list_items(elems);
-        let et = items
-            .get(i)
-            .copied()
-            .or_else(|| rest.filter(|_| i == items.len()))?;
+        let et = pool.list_items(args).get(i).copied()?;
         Some((u32::try_from(i).ok()?, et))
     }
 
@@ -2758,17 +2745,12 @@ impl Ck<'_, '_> {
         if matches!(inner, Ty::NEVER | Ty::POISON) {
             return Ok((Ref(NONE), inner));
         }
-        if let TyData::Tuple { elems, rest } = pool.get(inner)
+        if let TyData::Adt(AdtId::Product { .. }, args) = pool.get(inner)
             && let Ok(i) = name.trim_start_matches('_').parse::<usize>()
         {
             // `types.tuple.rest.value`: the rest list follows the fixed
             // elements and is selected like any other element.
-            let items = pool.list_items(elems);
-            let Some(t) = items
-                .get(i)
-                .copied()
-                .or_else(|| rest.filter(|_| i == items.len()))
-            else {
+            let Some(t) = pool.list_items(args).get(i).copied() else {
                 // A selection past the end is a missing field read
                 // (`expr.tuple.select-underscore`).
                 let msg = format!("no field `{name}` on {}", self.show(bt));
@@ -2830,10 +2812,8 @@ impl Ck<'_, '_> {
         if t == Ty::STRING {
             return Some((Indexed::Str, Ty::prim(Prim::Usize), Ty::prim(Prim::U8)));
         }
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
-        let argv = pool.list_items(args);
+        let (def, types) = pool.adt(t)?;
+        let argv = pool.list_items(types);
         let known = self.cx.names.known;
         match def {
             d if d == known.list => Some((Indexed::List, Ty::prim(Prim::Usize), *argv.first()?)),
@@ -3071,10 +3051,10 @@ impl Ck<'_, '_> {
         let want = builtin.map(|(get, kt, _)| {
             if key.kind() == SyntaxKind::RangeExpr && get != Indexed::Map {
                 let known = self.cx.names.known;
-                self.pool().intern_ty(&TyData::Adt {
-                    def: known.range,
-                    args: self.pool().list(&[kt]),
-                })
+                self.pool().intern_ty(&TyData::Adt(
+                    AdtId::Declared(known.range),
+                    self.pool().list(&[kt]),
+                ))
             } else {
                 kt
             }
@@ -3087,7 +3067,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let known = self.cx.names.known;
         match pool.get(self.resolved(t)) {
-            TyData::Adt { def, .. } => [
+            TyData::Adt(AdtId::Declared(def), _) => [
                 known.range,
                 known.range_from,
                 known.range_to,
@@ -3138,13 +3118,11 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let want = self.literal_want(want);
-        let (wants, want_rest) = match want.map(|w| pool.get(self.infer.shallow(pool, w))) {
-            Some(TyData::Tuple { elems, rest }) => (
-                pool.list_items(elems).iter().copied().map(Some).collect(),
-                rest,
-            ),
-            _ => (Vec::<Option<Ty>>::new(), None),
-        };
+        let (wants, want_rest) =
+            match want.and_then(|w| pool.product_parts(self.infer.shallow(pool, w))) {
+                Some((elems, rest)) => (elems.iter().copied().map(Some).collect(), rest),
+                _ => (Vec::<Option<Ty>>::new(), None),
+            };
         // The element type each collected rest value is checked against.
         let rest_item = want_rest.and_then(|r| self.list_item(r));
         let spread = kids
@@ -3196,7 +3174,7 @@ impl Ck<'_, '_> {
                 // list, which gives the rest element.
                 let t = self.resolved(*t);
                 let list = self.cx.names.known.list;
-                if !matches!(pool.get(t), TyData::Adt { def, .. } if def == list) {
+                if !matches!(pool.get(t), TyData::Adt(AdtId::Declared(def), _) if def == list) {
                     if t == Ty::NEVER {
                         return Ok((Ref(NONE), Ty::NEVER));
                     }
@@ -3206,16 +3184,10 @@ impl Ck<'_, '_> {
                     }
                     return Ok((Ref(NONE), Ty::POISON));
                 }
-                pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&tys),
-                    rest: Some(t),
-                })
+                pool.product(pool.list(&tys), Some(t))
             }
             (None, None) => {
-                let t = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&tys),
-                    rest: None,
-                });
+                let t = pool.product(pool.list(&tys), None);
                 let rec = self.b.refs_record(&refs);
                 return Ok((self.b.emit(Tag::NewTuple, NONE, rec, t, n.index()), t));
             }
@@ -3241,7 +3213,9 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let list = self.cx.names.known.list;
         match pool.get(self.expected_shape(list_ty)) {
-            TyData::Adt { def, args } if def == list => pool.list_items(args).first().copied(),
+            TyData::Adt(AdtId::Declared(def), args) if def == list => {
+                pool.list_items(args).first().copied()
+            }
             _ => None,
         }
     }
@@ -3251,7 +3225,9 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let map = self.cx.names.known.map;
         match pool.get(self.expected_shape(map_ty)) {
-            TyData::Adt { def, args } if def == map => pool.list_items(args).get(1).copied(),
+            TyData::Adt(AdtId::Declared(def), args) if def == map => {
+                pool.list_items(args).get(1).copied()
+            }
             _ => None,
         }
     }
@@ -3269,14 +3245,10 @@ impl Ck<'_, '_> {
         at: NodeRef<'_>,
     ) -> Ref {
         let pool = self.pool();
-        let TyData::Tuple {
-            elems,
-            rest: Some(list_ty),
-        } = pool.get(tt)
-        else {
+        let Some((elems, Some(list_ty))) = pool.product_parts(tt) else {
             return Ref(NONE);
         };
-        let fixed = pool.list_items(elems).len();
+        let fixed = elems.len();
         if items.len() < fixed || (tail.is_some() && items.len() != fixed) {
             let noun = if fixed == 1 { "element" } else { "elements" };
             let msg = format!(
@@ -3308,7 +3280,7 @@ impl Ck<'_, '_> {
             .map(|w| self.infer.shallow(pool, w))
             .map(|w| pool.get(w))
         {
-            Some(TyData::Adt { def, args }) if def == list => {
+            Some(TyData::Adt(AdtId::Declared(def), args)) if def == list => {
                 pool.list_items(args).first().copied()
             }
             _ => None,
@@ -3322,10 +3294,8 @@ impl Ck<'_, '_> {
             for (k, e) in kids.iter().enumerate() {
                 if e.kind() == SyntaxKind::SpreadExpr {
                     let [operand] = e.parts();
-                    let list_ty = pool.intern_ty(&TyData::Adt {
-                        def: list,
-                        args: pool.list(&[elem]),
-                    });
+                    let list_ty =
+                        pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[elem])));
                     let (r, t) = this.expr(operand, Some(list_ty))?;
                     // `expr.list.spread.type`: the operand is a list.
                     let Some(item) = this.list_item(this.infer.resolve(pool, t)) else {
@@ -3398,10 +3368,7 @@ impl Ck<'_, '_> {
             if inferred {
                 this.check_collection_item(elem, n)?;
             }
-            let t = pool.intern_ty(&TyData::Adt {
-                def: list,
-                args: pool.list(&[elem]),
-            });
+            let t = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[elem])));
             if inferred {
                 // The join closes before assembly, so every spread converts
                 // to the final element type, even one widened by a later value.
@@ -3460,10 +3427,7 @@ impl Ck<'_, '_> {
         let at = operand.index();
         let us = Ty::prim(Prim::Usize);
         let list = self.cx.names.known.list;
-        let list_t = pool.intern_ty(&TyData::Adt {
-            def: list,
-            args: pool.list(&[elem]),
-        });
+        let list_t = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[elem])));
         let acc_t = list_t;
         let sym = |me: &Self, s: &str| me.cx.names.syms.intern(s);
         let src_l = self.b.local(t, sym(self, "$coll"), ASSIGNED, at);
@@ -3539,7 +3503,7 @@ impl Ck<'_, '_> {
             .map(|w| self.infer.shallow(pool, w))
             .map(|w| pool.get(w))
         {
-            Some(TyData::Adt { def, args }) if def == map => {
+            Some(TyData::Adt(AdtId::Declared(def), args)) if def == map => {
                 let a = pool.list_items(args);
                 (Some(a[0]), Some(a[1]))
             }
@@ -3570,10 +3534,7 @@ impl Ck<'_, '_> {
                 if vw.is_none() {
                     this.check_collection_item(v, n)?;
                 }
-                let t = pool.intern_ty(&TyData::Adt {
-                    def: map,
-                    args: pool.list(&[k, v]),
-                });
+                let t = pool.intern_ty(&TyData::Adt(AdtId::Declared(map), pool.list(&[k, v])));
                 let rec = this.b.refs_record(&refs);
                 Ok((this.b.emit(Tag::NewMap, NONE, rec, t, n.index()), t))
             })
@@ -3604,7 +3565,7 @@ impl Ck<'_, '_> {
         let Some(def) = self.resolve_path(&segs).or_else(|| {
             (segs.len() == 1 && segs[0] == "Self")
                 .then(|| match self.self_ty.map(|t| pool.get(t)) {
-                    Some(TyData::Adt { def, .. }) => Some(def),
+                    Some(TyData::Adt(AdtId::Declared(def), _)) => Some(def),
                     _ => None,
                 })
                 .flatten()
@@ -3648,7 +3609,7 @@ impl Ck<'_, '_> {
         // An expected type of the same declaration solves the inferred
         // arguments first, so a field sees its substituted type.
         if let Some(w) = want
-            && let TyData::Adt { def: wd, args: wa } = pool.get(self.expected_shape(w))
+            && let TyData::Adt(AdtId::Declared(wd), wa) = pool.get(self.expected_shape(w))
             && wd == def
         {
             for (v, a) in targs
@@ -3700,10 +3661,7 @@ impl Ck<'_, '_> {
                 if source.is_some() {
                     continue;
                 }
-                let target = pool.intern_ty(&TyData::Adt {
-                    def,
-                    args: pool.list(&targs),
-                });
+                let target = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&targs)));
                 let [inner] = a.parts();
                 // `expr.update.spread-first`, `expr.update.exact-type`.
                 let (sr, st) = self.expr(inner, Some(target))?;
@@ -3740,7 +3698,7 @@ impl Ck<'_, '_> {
             // of the result expectation; its fields keep ordinary conversions.
             let ft = source
                 .and_then(|(_, ty)| match pool.get(self.expected_shape(ty)) {
-                    TyData::Adt { args, .. } => Some(crate::call::subst_owner(
+                    TyData::Adt(_, args) => Some(crate::call::subst_owner(
                         pool,
                         def,
                         pool.list_items(args),
@@ -3824,10 +3782,7 @@ impl Ck<'_, '_> {
                 self.err(Code::MissingRequiredField, n, &msg);
             }
         }
-        let ty = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&targs),
-        });
+        let ty = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&targs)));
         self.check_construct_bounds(def, &targs, n)?;
         if let Some((sr, _)) = source {
             let rec = self.copy_record(&vals);
@@ -4163,7 +4118,7 @@ impl Ck<'_, '_> {
             }
             _ => st_i,
         };
-        if let TyData::Adt { def, args } = pool.get(st_i)
+        if let TyData::Adt(AdtId::Declared(def), args) = pool.get(st_i)
             && def == self.cx.names.known.range
             && matches!(
                 pat.kind(),
@@ -4177,18 +4132,17 @@ impl Ck<'_, '_> {
                 return self.range_loop(pat, (sr, et), (els, reserve), e, body);
             }
         }
-        if let TyData::Adt { def, args } = pool.get(st_i)
+        if let TyData::Adt(AdtId::Declared(def), args) = pool.get(st_i)
             && (def == self.cx.names.known.list || def == self.cx.names.known.map)
         {
             let items = pool.list_items(args);
             let map = def == self.cx.names.known.map;
             // A list has its one argument and a map its two (`ctor`).
             let item = match items {
-                [k, v] => pool.intern_ty(&TyData::Tuple {
-                    elems: pool
-                        .list(&[self.ref_ty(*k, false, false), self.ref_ty(*v, false, false)]),
-                    rest: None,
-                }),
+                [k, v] => pool.product(
+                    pool.list(&[self.ref_ty(*k, false, false), self.ref_ty(*v, false, false)]),
+                    None,
+                ),
                 _ => items.first().copied().unwrap_or(Ty::POISON),
             };
             let reserve = reserve.filter(|_| !map);
@@ -4225,7 +4179,7 @@ impl Ck<'_, '_> {
             // while the literal is open, and reports `unsatisfied-trait-bound`
             // when nothing fixes it to an iterable type.
             // Every std range is `Iterable[T] for Range[T]` (and `RangeFrom`).
-            TyData::Adt { def, args }
+            TyData::Adt(AdtId::Declared(def), args)
                 if def == self.cx.names.known.range || def == self.cx.names.known.range_from =>
             {
                 let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
@@ -4254,10 +4208,7 @@ impl Ck<'_, '_> {
                 } else {
                     self.cx.names.known.range_from_iter
                 };
-                let it_t = pool.intern_ty(&TyData::Adt {
-                    def: cursor,
-                    args: pool.list(&[et]),
-                });
+                let it_t = pool.intern_ty(&TyData::Adt(AdtId::Declared(cursor), pool.list(&[et])));
                 let c = hd_tir::ir::Callee::TraitMethod {
                     trait_: iterable,
                     method,
@@ -4373,8 +4324,12 @@ impl Ck<'_, '_> {
                     None => false,
                 };
             }
-            TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
-            TyData::Tuple { elems, .. } => pool.list_items(elems).to_vec(),
+            TyData::Adt(AdtId::Product { .. }, _)
+                if let Some((elems, _)) = pool.product_parts(t) =>
+            {
+                elems.to_vec()
+            }
+            TyData::Adt(_, args) => pool.list_items(args).to_vec(),
             TyData::Ref { inner: i, .. } => vec![i],
             _ => vec![],
         };
@@ -4624,7 +4579,7 @@ impl Ck<'_, '_> {
     /// The slot-entry operation for the fixed key/value pair a map loop yields.
     fn map_loop_entry(&self, item_ty: Ty) -> StageResult<IntrinsicOp> {
         let pool = self.pool();
-        let TyData::Tuple { elems, rest: None } = pool.get(item_ty) else {
+        let TyData::Adt(AdtId::Product { rest: false }, elems) = pool.get(item_ty) else {
             return Err(invalid_map_loop_item());
         };
         let [_, value] = pool.list_items(elems) else {
@@ -4755,6 +4710,7 @@ impl Ck<'_, '_> {
             wrap_some: false,
             binds,
             guard: None,
+            twins: Vec::new(),
             arm: 0,
         }];
         let db = self.b.open_block();
@@ -4901,7 +4857,9 @@ impl Ck<'_, '_> {
         let (def, args) = if is_map {
             let map = self.cx.names.known.map;
             let a = match want.map(|w| pool.get(w)) {
-                Some(TyData::Adt { def, args }) if def == map => pool.list_items(args).to_vec(),
+                Some(TyData::Adt(AdtId::Declared(def), args)) if def == map => {
+                    pool.list_items(args).to_vec()
+                }
                 _ => vec![
                     self.infer.fresh(pool, VarKind::General),
                     self.infer.fresh(pool, VarKind::General),
@@ -4911,16 +4869,15 @@ impl Ck<'_, '_> {
         } else {
             let list = self.cx.names.known.list;
             let a = match want.map(|w| pool.get(w)) {
-                Some(TyData::Adt { def, args }) if def == list => pool.list_items(args).to_vec(),
+                Some(TyData::Adt(AdtId::Declared(def), args)) if def == list => {
+                    pool.list_items(args).to_vec()
+                }
                 _ => vec![self.infer.fresh(pool, VarKind::General)],
             };
             (list, a)
         };
         self.row_argument_vars(def, &args, n);
-        let t = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&args),
-        });
+        let t = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&args)));
         let mt = t;
         let acc_sym = self.cx.names.syms.intern("$acc");
         let acc = self
@@ -5410,6 +5367,7 @@ impl Ck<'_, '_> {
                 ))
             .then(|| self.checkpoint());
             crate::work::local_body(self, n.index());
+            let first = self.b.body().len();
             let mark = self.b.open_sub(&params);
             self.local_capture_open(mark.sub().raw(), n.index(), local_base, own);
             // A generic local function's name: what its uses instantiate, over
@@ -5506,7 +5464,9 @@ impl Ck<'_, '_> {
             }
             let scoped = self.local_capture_argument == Some(n.index());
             self.local_ref_captures(mark, n, scoped);
-            let r = self.b.close_sub(mark, root, ft, n.index());
+            self.send_unique(mark, first, n);
+            let lifted = self.wire_lift(mark, first, ft, n).unwrap_or(ft);
+            let r = self.b.close_sub(mark, root, lifted, n.index());
             if matches!(
                 self.local_rows,
                 Some(crate::local_rows::LocalRows::Discover(_))
@@ -5634,13 +5594,13 @@ impl Ck<'_, '_> {
         };
         let option = self.cx.names.known.option;
         let hint = match pool.get(ret) {
-            TyData::Adt { def, .. } if def == option => Some(self.optional(success)),
-            TyData::Adt { def, args } if def == result => {
+            TyData::Adt(AdtId::Declared(def), _) if def == option => Some(self.optional(success)),
+            TyData::Adt(AdtId::Declared(def), args) if def == result => {
                 let err = pool.list_items(args)[1];
-                Some(pool.intern_ty(&TyData::Adt {
-                    def,
-                    args: pool.list(&[success, err]),
-                }))
+                Some(pool.intern_ty(&TyData::Adt(
+                    AdtId::Declared(def),
+                    pool.list(&[success, err]),
+                )))
             }
             _ => None,
         };
@@ -5681,19 +5641,19 @@ impl Ck<'_, '_> {
         let result = self.cx.names.known.result;
         if self.joins.is_site(target) {
             match pool.get(t) {
-                TyData::Adt { def, .. } if def == self.cx.names.known.option => {
+                TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.option => {
                     self.joins.propagate(target, true, n.index());
                     let value = self.infer.fresh(pool, VarKind::General);
                     self.optional(value)
                 }
-                TyData::Adt { def, args } if def == result => {
+                TyData::Adt(AdtId::Declared(def), args) if def == result => {
                     self.joins.propagate(target, false, n.index());
                     let value = self.infer.fresh(pool, VarKind::General);
                     let error = pool.list_items(args)[1];
-                    pool.intern_ty(&TyData::Adt {
-                        def,
-                        args: pool.list(&[value, error]),
-                    })
+                    pool.intern_ty(&TyData::Adt(
+                        AdtId::Declared(def),
+                        pool.list(&[value, error]),
+                    ))
                 }
                 _ => ret,
             }
@@ -5713,7 +5673,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let (result, option) = (self.cx.names.known.result, self.cx.names.known.option);
         match (pool.get(t), pool.get(ret)) {
-            (TyData::Adt { def, args }, TyData::Adt { def: to, .. })
+            (TyData::Adt(AdtId::Declared(def), args), TyData::Adt(AdtId::Declared(to), _))
                 if def == option && to == option =>
             {
                 let inner = pool.list_items(args)[0];
@@ -5732,7 +5692,7 @@ impl Ck<'_, '_> {
                     inner,
                 ))
             }
-            (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 })
+            (TyData::Adt(AdtId::Declared(d1), a1), TyData::Adt(AdtId::Declared(d2), a2))
                 if d1 == result && d2 == result =>
             {
                 let a1 = pool.list_items(a1);
@@ -5779,6 +5739,7 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[ev]);
                 let errv = self.b.emit(Tag::NewVariant, 1, rec, ret, n.index());
                 let errv = self.coerce(errv, ret, target, n, "result", ExpectPosition::General);
+                let errv = self.public_exit(errv, target, n);
                 self.b.emit(Tag::Return, errv.0, NONE, Ty::NEVER, n.index());
                 let err = self.b.close_block(err_b, None, Ty::NEVER, n.index());
                 let rec = self.b.refs_record(&[Ref(0), ok, err]);
@@ -5815,7 +5776,7 @@ impl Ck<'_, '_> {
         let bound_want = want.and_then(|w| {
             let w = self.resolved(w);
             match pool.get(w) {
-                TyData::Adt { def, args }
+                TyData::Adt(AdtId::Declared(def), args)
                     if [known.range, known.range_from, known.range_to].contains(&def) =>
                 {
                     pool.list_items(args).first().copied()
@@ -5833,10 +5794,10 @@ impl Ck<'_, '_> {
             // `expr.range.form.full`: `RangeFull {}`, with no bound and
             // no element type.
             (0, _) => {
-                let t = pool.intern_ty(&TyData::Adt {
-                    def: known.range_full,
-                    args: pool.list(&[]),
-                });
+                let t = pool.intern_ty(&TyData::Adt(
+                    AdtId::Declared(known.range_full),
+                    pool.list(&[]),
+                ));
                 let rec = self.b.refs_record(&[]);
                 return Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t));
             }
@@ -5878,10 +5839,7 @@ impl Ck<'_, '_> {
         if def != known.range_from {
             refs.push(self.b.const_value(Ty::BOOL, u64::from(inclusive)));
         }
-        let t = pool.intern_ty(&TyData::Adt {
-            def,
-            args: pool.list(&[et]),
-        });
+        let t = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&[et])));
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
     }
@@ -6075,8 +6033,8 @@ impl Ck<'_, '_> {
             let Some(w) = want else { return false };
             let w = if keys.len() == 1 {
                 Some(w)
-            } else if let TyData::Tuple { elems, .. } = pool.get(w) {
-                pool.list_items(elems).get(i).copied()
+            } else if let Some((elems, _)) = pool.product_parts(w) {
+                elems.get(i).copied()
             } else {
                 None
             };
@@ -6097,10 +6055,7 @@ impl Ck<'_, '_> {
         }
         // `$.use(A, B)` is the tuple of the providers in the requested key
         // order (`req.use.order`).
-        let t = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&tys),
-            rest: None,
-        });
+        let t = pool.product(pool.list(&tys), None);
         let rec = self.b.refs_record(&refs);
         Ok((self.b.emit(Tag::NewTuple, NONE, rec, t, n.index()), t))
     }
@@ -6344,10 +6299,7 @@ mod map_loop_metadata_tests {
                         IntrinsicOp::MapSlotEntryMut,
                     ),
                 ] {
-                    let pair = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&[Ty::I32, field]),
-                        rest: None,
-                    });
+                    let pair = pool.product(pool.list(&[Ty::I32, field]), None);
                     assert_eq!(ck.map_loop_entry(pair).expect("map pair"), expected);
                 }
             }
@@ -6361,15 +6313,9 @@ mod map_loop_metadata_tests {
             let node = ck.cx.src.parse.tree.root();
             let mut invalid = vec![Ty::I32, Ty::POISON];
             for fields in [&[][..], &[Ty::I32][..], &[Ty::I32, Ty::I32, Ty::I32][..]] {
-                invalid.push(pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(fields),
-                    rest: None,
-                }));
+                invalid.push(pool.product(pool.list(fields), None));
             }
-            invalid.push(pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&[Ty::I32, Ty::STRING]),
-                rest: Some(Ty::I32),
-            }));
+            invalid.push(pool.product(pool.list(&[Ty::I32, Ty::STRING]), Some(Ty::I32)));
             let before = (
                 ck.b.body().len(),
                 ck.b.body().extra.len(),

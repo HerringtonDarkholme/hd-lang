@@ -1,0 +1,9 @@
+# test: remote::[T] with a trait that does not extend Remote is rejected
+# Spec 10 Remote Built-Ins: module.remote.builtin.remote.not-remote.
+use std.remote.{Transport, remote}
+
+trait Page:
+    fn show(&mut self, text: string) -> void
+
+fn connect(transport: *mut dyn Transport) -> void:
+    page := remote::[Page](transport) # diagnostic: unsatisfied-trait-bound

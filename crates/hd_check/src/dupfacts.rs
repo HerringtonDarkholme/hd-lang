@@ -14,6 +14,7 @@
 //! typed here.
 
 use hd_base::HashMap;
+use hd_types::AdtId;
 
 use hd_base::DefId;
 use hd_diag::{Code, DiagBuf};
@@ -275,7 +276,7 @@ fn derivation_repeats<'t>(cx: &BodyCx<'t>, heads: &[Head<'t>], h: &Head<'t>, dia
         return;
     };
     let pool = cx.names.pool;
-    let TyData::Adt { def: data, args } = pool.get(*self_ty) else {
+    let Some((data, args)) = pool.adt(*self_ty) else {
         return;
     };
     let lines = crate::derive::member_lines(&cx.src, h.node);
@@ -298,7 +299,7 @@ fn derivation_repeats<'t>(cx: &BodyCx<'t>, heads: &[Head<'t>], h: &Head<'t>, dia
             .find(|it| {
                 matches!(&it.data, ItemData::Impl { trait_, by: Some(_), self_ty, .. }
                     if *trait_ == DefId::NONE
-                        && matches!(pool.get(*self_ty), TyData::Adt { def, .. } if def == data))
+                        && matches!(pool.get(*self_ty), TyData::Adt(AdtId::Declared(def), _) if def == data))
             })
             .and_then(|it| heads.iter().find(|x| x.def == it.def).map(|x| x.node));
         let mut view = crate::structure::declaration_facts(cx, item, decl, traitless);

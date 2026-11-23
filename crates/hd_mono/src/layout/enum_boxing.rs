@@ -1,5 +1,6 @@
 use super::{EnumBoxing, LayoutEnv, sccs};
 use hd_base::{DefId, HashMap, HashSet};
+use hd_types::AdtId;
 use hd_types::{InternPool, Ty, TyData};
 
 /// Declaration and type facts shared by lazy enum-boxing queries in one program.
@@ -53,15 +54,16 @@ impl EnumBoxingCache {
                 // as the original declaration closure did. Value edges below
                 // select only the positions that contribute to boxing.
                 let children = match pool.get(t) {
-                    TyData::Adt { def, args } => {
-                        if !self.done.contains_key(&def) && seen.insert(def) {
+                    TyData::Adt(def, args) => {
+                        if let Some(def) = def.get()
+                            && !self.done.contains_key(&def)
+                            && seen.insert(def)
+                        {
                             pending.push(def);
                         }
                         pool.list_items(args).to_vec()
                     }
-                    TyData::Tuple { elems, rest } => {
-                        pool.list_items(elems).iter().copied().chain(rest).collect()
-                    }
+
                     TyData::Ref { inner, .. } => vec![inner],
                     _ => Vec::new(),
                 };
@@ -88,12 +90,10 @@ impl EnumBoxingCache {
                 opaque: false,
             });
             let (edges, nominal, opaque) = match pool.get(t) {
-                TyData::Tuple { elems, rest } => (
-                    pool.list_items(elems).iter().copied().chain(rest).collect(),
-                    None,
-                    false,
-                ),
-                TyData::Adt { def, args }
+                TyData::Adt(AdtId::Product { .. }, args) => {
+                    (pool.list_items(args).to_vec(), None, false)
+                }
+                TyData::Adt(AdtId::Declared(def), args)
                     if declarations.contains_key(&def)
                         || self.done.get(&def).is_some_and(Option::is_some) =>
                 {

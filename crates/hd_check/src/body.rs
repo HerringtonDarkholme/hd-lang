@@ -10,6 +10,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 use std::fmt::Write as _;
 
 use crate::dep_results::RunLoans;
@@ -308,6 +309,26 @@ pub(crate) enum ExpectPosition {
     General,
 }
 
+/// A guard's twin of its arm's binding (`flow.match.guard.borrow`): the
+/// twin, the read that fills it, which starts the guard's block, and that
+/// block, the guard's last instruction.
+#[derive(Clone, Copy)]
+pub(crate) struct GuardView {
+    pub twin: LocalId,
+    pub read: Ref,
+    pub end: u32,
+}
+
+/// A guard of a match (`flow.match.guard.borrow.matched`): the read the
+/// match matches, and the guard's instructions, from `start` to its
+/// block `end`.
+#[derive(Clone, Copy)]
+pub(crate) struct MatchGuard {
+    pub matched: Ref,
+    pub start: u32,
+    pub end: u32,
+}
+
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
     /// Body-local append-only facts for tooling, recorded only when a tool
@@ -374,6 +395,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether the root function carries `@auto_closing`; nested closures do
     /// not inherit this permission for their returns.
     pub auto_closing_function: bool,
+    /// A remote implementation method's public result, to which the
+    /// function frame's exits widen ([`Ck::public_exit`]).
+    pub(crate) public_ret: Option<Ty>,
     /// The call nodes of the open trailing-block calls, whose arguments'
     /// texts are unknown to a call-site record (`fn.caller.accessor.args.complete`).
     pub trailing_heads: Vec<hd_base::NodeIdx>,
@@ -604,6 +628,21 @@ pub(crate) struct Ck<'a, 'c> {
     /// inferred, never `void` by declaration, so a final value is not a
     /// `void-final` error even when checking runs with a `void` want.
     pub result_omitted: bool,
+    /// The function's crossing parameters (`fn.crossing.parameter`): each
+    /// local with its marker.
+    pub crossing_params: Vec<(LocalId, DefId)>,
+    /// The name nodes where reading a crossing parameter is allowed: a
+    /// call's callee, or a whole argument for another crossing parameter
+    /// (`fn.crossing.parameter.uses`).
+    pub crossing_uses: HashSet<hd_base::NodeIdx>,
+    /// The `Closure` instructions written for a crossing parameter: their
+    /// captures are copied or moved, never shared (`fn.crossing.mode`).
+    pub crossing_closures: Vec<(u32, DefId)>,
+    /// The closure literals being written for a `Wire` or `Send` crossing
+    /// parameter, with their markers, innermost last, and what lifting a
+    /// `Wire` one left for the call (`fn.crossing.lift`).
+    pub crossing_literals: Vec<(hd_base::NodeIdx, DefId)>,
+    pub wire_lifted: Option<crate::wire_crossing::WireLift>,
     /// The tail expression of the function body block, when it is an `if`
     /// without `else`: that `if` is `missing-return-value`, not a value
     /// `if` (`flow.if.value.else` reports every other value position).
@@ -630,6 +669,21 @@ pub(crate) struct Ck<'a, 'c> {
     /// The pattern bindings that take a reference to their payload rather
     /// than a copy, and whether it is `&mut` (`ref.match.borrow`).
     pub ref_bound: HashMap<LocalId, bool>,
+    /// The twin each guarded arm's binding has while its guard runs
+    /// (`flow.match.guard.borrow`).
+    pub guard_bindings: Vec<GuardView>,
+    /// Each match guard and the value its match reads
+    /// (`flow.match.guard.borrow.matched`).
+    pub match_guards: Vec<MatchGuard>,
+    /// The first instruction of the decision tree being built.
+    pub decision_start: usize,
+    /// Whether a guard of that decision views a binding
+    /// (`flow.match.guard.borrow`).
+    pub decision_views: bool,
+    /// The read of a local's place that decision matches, which its
+    /// bindings read through to that place (`ref.move.pattern`), or
+    /// `NONE`.
+    pub decision_root: Ref,
     /// Source bindings for unread-suspension checks and optional tooling
     /// facts, each with the node whose first identifier names it: its
     /// declaring node, or a recursive closure's binding pattern.
@@ -837,6 +891,7 @@ pub(crate) fn new_ck<'a, 'c>(
         cleanup_blocks: Vec::new(),
         auto_closing_statement: None,
         auto_closing_function: false,
+        public_ret: None,
         trailing_heads: Vec::new(),
         site_value: false,
         named_fns: hd_base::HashMap::default(),
@@ -921,6 +976,11 @@ pub(crate) fn new_ck<'a, 'c>(
         reserve_into: None,
         fn_body: None,
         result_omitted: false,
+        crossing_params: Vec::new(),
+        crossing_uses: HashSet::default(),
+        crossing_closures: Vec::new(),
+        crossing_literals: Vec::new(),
+        wire_lifted: None,
         fn_body_tail: None,
         written_row: None,
         let_view: None,
@@ -928,6 +988,11 @@ pub(crate) fn new_ck<'a, 'c>(
         unknown_variant_tys: None,
         pattern_below_ref: None,
         ref_bound: HashMap::default(),
+        guard_bindings: Vec::new(),
+        match_guards: Vec::new(),
+        decision_start: 0,
+        decision_views: false,
+        decision_root: Ref(NONE),
         user_locals: Vec::new(),
         norm_stack: Vec::new(),
         norm_reported: HashSet::default(),
@@ -1054,6 +1119,10 @@ pub(crate) fn new_ck<'a, 'c>(
     };
     ck.add_generics(env, 0, &gs);
     ck.next_gen = u16::try_from(gs.len()).unwrap_or(u16::MAX);
+    // The body relies on the method's `where` bounds (`trait.where.body`).
+    for &(p, b) in it.sig().map_or(&[][..], |sig| &sig.wheres) {
+        ck.add_bound(p, b);
+    }
     ck
 }
 
@@ -1595,12 +1664,15 @@ fn fn_body_steps(
     // `I::Item` and `T` are one type under `I < Supplier[Item = T]`
     // (`trait.binding.interchangeable`).
     ck.declared_tys.insert(sig.ret);
-    for (name, ty) in sig.params.clone() {
+    for (k, (name, ty)) in sig.params.clone().into_iter().enumerate() {
         let ty = ck.norm_ty(ty);
         ck.declared_tys.insert(ty);
         ck.header_tys.push(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes.base_mut().insert(name, l);
+        if let Some(c) = sig.crossing.iter().find(|c| usize::from(c.param) == k) {
+            ck.crossing_params.push((l, c.marker));
+        }
     }
     if !infer.ret {
         let ret = ck.norm_ty(sig.ret);
@@ -1631,12 +1703,17 @@ fn fn_body_steps(
         (tail, ret)
     } else {
         let want = (!infer.ret).then(|| ck.norm_ty(sig.ret));
-        ck.join_site(want, |ck, ret| {
+        // `module.remote.r2.wrap`: a remote implementation's body checks
+        // against its written `Result[V, E]` and returns the public one.
+        ck.public_ret = want.and_then(|raw| crate::remote::public_result(cx, ck.pool(), def, raw));
+        let (tail, ret) = ck.join_site(want, |ck, ret| {
             *ck.rets.base_mut() = ret;
             let (tail, _) = ck.block_value(body, Some(ret))?;
             ck.finish_tries(ret)?;
             Ok((tail, ret))
-        })?
+        })?;
+        let tail = tail.map(|t| ck.public_exit(t, ret, body));
+        (tail, ck.public_ret.unwrap_or(ret))
     };
     let root = ck.b.close_block(blk, tail, ret, body.index());
     ck.finish_with(root, ret, Some(node))
@@ -2087,6 +2164,17 @@ impl Ck<'_, '_> {
         if !self.note_read(l, depth, n) {
             return self.poison_value(n);
         }
+        // `fn.crossing.parameter.uses`: a crossing parameter is called or
+        // passed on whole, never kept.
+        if self.crossing_params.iter().any(|&(c, _)| c == l)
+            && !self.crossing_uses.contains(&n.index())
+        {
+            self.err(
+                Code::CrossingClosureNotLiteral,
+                n,
+                "a crossing parameter may only be called, or passed on whole to another crossing parameter",
+            );
+        }
         let t = self.b.local_ty(l);
         if self.pool().has_poison(t) {
             self.read_poison_name = true;
@@ -2129,6 +2217,23 @@ impl Ck<'_, '_> {
             self.add_flags(l, local_flags::CAPTURED);
         }
         true
+    }
+
+    /// The locals the body's crossing closures capture
+    /// (`ref.frozen.definition`).
+    pub(crate) fn frozen_locals(&self) -> Vec<u32> {
+        let body = self.b.body();
+        let mut out = Vec::new();
+        for &(i, _) in &self.crossing_closures {
+            if let [start, len, ..] = *body.record(body.data[i as usize][1]) {
+                for c in start..start.saturating_add(len) {
+                    if let Some(l) = body.cap_local.get(c as usize) {
+                        out.push(l.raw());
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Marks each open closure that local `l`, declared at scope depth
@@ -2355,26 +2460,13 @@ impl Ck<'_, '_> {
         // origins need the counted producer and borrowed destination
         // separately, including operands of aggregate constructions.
         if self.lends_by_kind(g, w) {
-            if let (
-                TyData::Tuple {
-                    elems: from,
-                    rest: from_rest,
-                },
-                TyData::Tuple {
-                    elems: to,
-                    rest: to_rest,
-                },
-            ) = (pool.get(g), pool.get(w))
+            if let (Some((from, from_rest)), Some((to, to_rest))) =
+                (pool.product_parts(g), pool.product_parts(w))
             {
                 // Each field has its own ownership: a borrowed reference
                 // must not consume the neighboring owned fields. Project
                 // without rewriting the shared aggregate producer.
-                let fields: Vec<_> = pool
-                    .list_items(from)
-                    .iter()
-                    .copied()
-                    .zip(pool.list_items(to).iter().copied())
-                    .collect();
+                let fields: Vec<_> = from.iter().copied().zip(to.iter().copied()).collect();
                 // Interned type lists have a u32 length, so every field
                 // index and the optional tail index fit that word.
                 let mut values = Vec::with_capacity(fields.len());
@@ -2540,9 +2632,7 @@ impl Ck<'_, '_> {
         let snapshot = self.infer.snapshot();
         let variance_view = matches!(
             (pool.get(g), pool.get(w)),
-            (TyData::Fn { .. }, TyData::Fn { .. })
-                | (TyData::Adt { .. }, TyData::Adt { .. })
-                | (TyData::Tuple { .. }, TyData::Tuple { .. })
+            (TyData::Fn { .. }, TyData::Fn { .. }) | (TyData::Adt(..), TyData::Adt(..))
         ) && self.variance_fits(g, w);
         if !variance_view {
             self.infer.rollback(snapshot);
@@ -2626,10 +2716,10 @@ impl Ck<'_, '_> {
         else {
             return None;
         };
-        let suspend = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[result]),
-        });
+        let suspend = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.cx.names.known.suspend),
+            pool.list(&[result]),
+        ));
         Some(pool.intern_ty(&TyData::Fn {
             params,
             result: suspend,
@@ -2659,10 +2749,10 @@ impl Ck<'_, '_> {
         };
         let input = pool.inputs_tuple(params, inputs);
         let output = if suspends {
-            pool.intern_ty(&TyData::Adt {
-                def: self.cx.names.known.suspend,
-                args: pool.list(&[result]),
-            })
+            pool.intern_ty(&TyData::Adt(
+                AdtId::Declared(self.cx.names.known.suspend),
+                pool.list(&[result]),
+            ))
         } else {
             result
         };
@@ -2898,9 +2988,10 @@ impl Ck<'_, '_> {
                     let want = self.resolved(self.infer.resolve(pool, want));
                     let mut pairs = Vec::new();
                     match (pool.get(got), pool.get(want)) {
-                        (TyData::Adt { def, args: xs }, TyData::Adt { def: d2, args: ys })
-                            if def == d2 =>
-                        {
+                        (
+                            TyData::Adt(AdtId::Declared(def), xs),
+                            TyData::Adt(AdtId::Declared(d2), ys),
+                        ) if def == d2 => {
                             let vs = self.declared_variances(def);
                             for (j, (&x, &y)) in pool
                                 .list_items(xs)
@@ -3099,14 +3190,8 @@ impl Ck<'_, '_> {
             )
         };
         let data = match pool.get(t) {
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(args),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(elems),
-                rest: rest.map(|t| self.integer_variant(t, replacement, changed)),
-            },
+            TyData::Adt(def, args) => TyData::Adt(def, list(args)),
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -3262,8 +3347,8 @@ impl Ck<'_, '_> {
             msg.push_str("; integer literals defaulted to `usize`");
         }
         let optional = self.option_arg(ty).is_some();
-        let collection = matches!(pool.get(ty), TyData::Adt { def, .. } if def == self.cx.names.known.list || def == self.cx.names.known.map)
-            || matches!(pool.get(ty), TyData::Tuple { .. });
+        let collection = matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.list || def == self.cx.names.known.map)
+            || matches!(pool.get(ty), TyData::Adt(AdtId::Product { .. }, _));
         if tref.trait_ == self.cx.names.known.display && (optional || collection) {
             let value = if at.kind() == SyntaxKind::NameExpr || self.interpolated(at) {
                 Some(at)
@@ -3310,7 +3395,7 @@ impl Ck<'_, '_> {
         }
         let pool = self.pool();
         let ty = self.resolved(self.infer.resolve(pool, ty));
-        if !matches!(pool.get(ty), TyData::Adt { def, .. }
+        if !matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _)
             if def == self.cx.names.known.list || def == self.cx.names.known.map)
             || pool.has_infer(ty)
             || pool.has_poison(ty)
@@ -3889,8 +3974,12 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let known = self.cx.names.known;
         match pool.get(self.infer.resolve(pool, t)) {
-            TyData::Adt { def, .. } if def == known.option || def == known.result => Some(false),
-            TyData::Adt { def, .. } if def == self.cx.names.known.suspend => Some(true),
+            TyData::Adt(AdtId::Declared(def), _) if def == known.option || def == known.result => {
+                Some(false)
+            }
+            TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.suspend => {
+                Some(true)
+            }
             _ => None,
         }
     }
@@ -4519,6 +4608,7 @@ impl Ck<'_, '_> {
                     }
                     Ref(NONE)
                 };
+                let r = self.public_exit(r, ret, s);
                 self.b.emit(Tag::Return, r.0, NONE, Ty::NEVER, s.index());
                 return Ok(Ty::NEVER);
             }
@@ -5171,10 +5261,7 @@ impl Ck<'_, '_> {
         let waited = choice == crate::call::PENDING_CHOICE;
         if !waited
             && (choice.0 != hd_tir::ir::ChoiceKind::Builtin
-                || !matches!(
-                    pool.get(self_ty),
-                    TyData::Adt { .. } | TyData::Tuple { .. } | TyData::Prim(_)
-                ))
+                || !matches!(pool.get(self_ty), TyData::Adt(..) | TyData::Prim(_)))
         {
             return Ok(choice);
         }
@@ -5285,7 +5372,7 @@ impl Ck<'_, '_> {
         };
         let self_ty = *self_ty;
         let generics = impl_item.generics.clone();
-        let TyData::Adt { def: target, args } = pool.get(self_ty) else {
+        let Some((target, args)) = pool.adt(self_ty) else {
             return;
         };
         // The built-in collections' variance is the language's, as in
@@ -5355,6 +5442,19 @@ impl Ck<'_, '_> {
             let item = self.b.body_mut().item;
             let facts = std::mem::take(&mut self.facts);
             self.cx.init.borrow_mut().facts.insert(item, facts);
+        }
+        if !self.crossing_closures.is_empty() {
+            let b = self.b.body();
+            let topo = hd_tir::ir::Topology::new(b);
+            let send = self.cx.names.known.send;
+            let roots: Vec<crate::crossing::Root> = (self.crossing_closures.iter())
+                .map(|&(i, marker)| crate::crossing::Root {
+                    node: b.syn[i as usize],
+                    send: marker == send,
+                    facts: crate::crossing::root_facts(b, &topo, i as usize),
+                })
+                .collect();
+            self.cx.init.borrow_mut().crossing_roots.extend(roots);
         }
         self.settle_held_literals()?;
         let pool = self.pool();
@@ -5641,6 +5741,7 @@ impl Ck<'_, '_> {
         if let Some(mut cx) = self.move_base() {
             move_facts = self.check_moves(root, &mut cx);
             self.check_moves_out_of_place(&mut cx);
+            self.check_guard_views(&mut cx);
         }
         if !self.too_many_slots && !slots.over(pool, ret) {
             self.check_dependent_results(root, ret, fun, &move_facts)?;
@@ -5655,6 +5756,24 @@ impl Ck<'_, '_> {
         // `Move` needs the liveness pass and is not chosen yet.
         let modes: Vec<hd_tir::ir::CaptureMode> = {
             let changed = std::mem::take(&mut self.changed_locals);
+            // A crossing closure takes each capture as it is: copied, or
+            // moved when it is not `Copy` (`fn.crossing.mode.copy`,
+            // `fn.crossing.mode.move`).
+            let mut crossing = vec![false; self.b.body().cap_local.len()];
+            for &(i, _) in &self.crossing_closures {
+                let body = self.b.body_mut();
+                // `fn.crossing.once`: its body takes its captures.
+                let sub = body.data[i as usize][0] as usize;
+                body.sub_flags[sub] |= hd_tir::ir::sub_flags::ONCE;
+                let body = self.b.body();
+                if let [start, len, ..] = *body.record(body.data[i as usize][1]) {
+                    for c in start..start.saturating_add(len) {
+                        if let Some(x) = crossing.get_mut(c as usize) {
+                            *x = true;
+                        }
+                    }
+                }
+            }
             let pool = self.pool();
             (0..self.b.body().cap_local.len())
                 .map(|at| {
@@ -5664,7 +5783,13 @@ impl Ck<'_, '_> {
                     let ty = self.infer.resolve(pool, body.local_ty[l.idx()]);
                     let owns_noncopyable =
                         !self.copies(ty) && !crate::local_refs::holds_local_ref(pool, ty);
-                    if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0
+                    if crossing[at] {
+                        if self.copies(ty) {
+                            hd_tir::ir::CaptureMode::Copy
+                        } else {
+                            hd_tir::ir::CaptureMode::Move
+                        }
+                    } else if f & (local_flags::CAPTURED_ASSIGNED | local_flags::MUTATED) != 0
                         || changed.contains(&l)
                         || owns_noncopyable
                     {
@@ -5702,6 +5827,7 @@ impl Ck<'_, '_> {
                 }
             }
         }
+        self.wire_params_finish();
         let errors = self.diags.has_errors() || self.read_poison_name;
         let tolerated: &[u8] = if errors { &[4] } else { &[] };
         // The backend reads each reference's kind as written (`refs.rs`).

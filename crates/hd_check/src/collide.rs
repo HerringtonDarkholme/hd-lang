@@ -29,13 +29,10 @@ fn mentions_param(pool: Types<'_>, subst: &[(ParamRef, Ty)], t: Ty, p: ParamRef)
         let t = resolve_param(pool, subst, t);
         match pool.get(t) {
             TyData::Param(q) => return q != p,
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } | TyData::Union(args) => {
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
                 stack.extend(pool.list_items(args).iter().rev().copied());
             }
-            TyData::Tuple { elems, rest } => {
-                stack.extend(rest);
-                stack.extend(pool.list_items(elems).iter().rev().copied());
-            }
+
             TyData::Ref { inner, .. } => stack.push(inner),
             _ => return true,
         }
@@ -88,9 +85,7 @@ fn can_coincide(pool: Types<'_>, subst: &mut Vec<(ParamRef, Ty)>, a: Ty, b: Ty) 
                 subst.push((q, a));
                 true
             }
-            (TyData::Adt { def: d1, args: x }, TyData::Adt { def: d2, args: y }) => {
-                d1 == d2 && all_coincide(pool, stack, x, y)
-            }
+            (TyData::Adt(d1, x), TyData::Adt(d2, y)) => d1 == d2 && all_coincide(pool, stack, x, y),
             (
                 TyData::TraitValue {
                     def: d1,
@@ -109,17 +104,7 @@ fn can_coincide(pool: Types<'_>, subst: &mut Vec<(ParamRef, Ty)>, a: Ty, b: Ty) 
                 stack.push(Coincide::Bindings(b1, b2));
                 all_coincide(pool, stack, x, y)
             }
-            (
-                TyData::Tuple {
-                    elems: x,
-                    rest: None,
-                },
-                TyData::Tuple {
-                    elems: y,
-                    rest: None,
-                },
-            )
-            | (TyData::Union(x), TyData::Union(y)) => all_coincide(pool, stack, x, y),
+
             _ => false,
         }
     })

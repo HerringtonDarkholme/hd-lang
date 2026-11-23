@@ -35,6 +35,9 @@
     { "key": "Http", "std": "std.http_wire.Http", "methods": [
       { "name": "send", "wait": "may", "resource": "host", "params": ["WireRequest"], "result": "Result[WireResponse, WireHttpError]" }
     ]},
+    { "key": "Workers", "std": "std.remote.Workers", "methods": [
+      { "name": "send", "wait": "may", "resource": null, "params": ["List[u8]"], "result": "Result[List[u8], CrossError]" }
+    ]},
     { "key": "Net", "std": "std.net.Net", "methods": [
       { "name": "lookup", "wait": "may", "resource": "host", "params": ["string"], "result": "Result[List[string], NetError]" },
       { "name": "connect", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[TcpStream, NetError]" },
@@ -60,6 +63,10 @@
     ]}
   ],
   "runners": [
+    { "key": "WorkerPort", "std": "std.remote.WorkerPort", "methods": [
+      { "name": "next", "wait": "never", "resource": null, "params": [], "result": "List[u8]?" },
+      { "name": "reply", "wait": "never", "resource": null, "params": ["List[u8]"], "result": "void" }
+    ]},
     { "key": "TestRunner", "std": "std.testing.TestRunner", "methods": [
       { "name": "row", "wait": "never", "resource": null, "params": ["i32"], "result": "i32" },
       { "name": "report_timeout", "wait": "never", "resource": null, "params": ["i64"], "result": "void" },
@@ -114,6 +121,12 @@
       { "name": "Stdout", "fields": [] },
       { "name": "Stderr", "fields": [] },
       { "name": "Stdin", "fields": [] }
+    ] },
+    "CrossError": { "kind": "enum", "module": "lib/std/remote.hd", "generics": [], "variants": [
+      { "name": "Unreachable", "fields": [] },
+      { "name": "Unknown", "fields": [] },
+      { "name": "OtherBuild", "fields": [] },
+      { "name": "WrongHome", "fields": [] }
     ] },
     "Datagram": { "kind": "data", "module": "lib/std/net.hd", "generics": [], "fields": [{ "name": "bytes", "type": "List[u8]" }, { "name": "host", "type": "string" }, { "name": "port", "type": "u16" }] },
     "Duration": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },

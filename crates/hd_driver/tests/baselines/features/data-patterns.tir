@@ -27,9 +27,9 @@ fn sizes(u: User) -> usize:
 >   %5 = Prim Add [%2 %4] : usize
 >   %6 = Block %5 : usize
 >   %7 = Read [%0 .name] : string
->   %8 = Read [%0 .tags] : List[string]
->   %9 = Store [$1] %7 : ()
->   %10 = Store [$2] %8 : ()
+>   %8 = Store [$1] %7 : ()
+>   %9 = Read [%0 .tags] : List[string]
+>   %10 = Store [$2] %9 : ()
 
 fn pick(u: User) -> string:
     match u:
@@ -43,12 +43,12 @@ fn pick(u: User) -> string:
         User { age: 0 } => "none"
 >   %1 = Block "none" : string
 >   %4 = Read [%0 .age] : i32
->   %6 = Prim Eq [%4 0:i32] : bool
->   %8 = Block - : never
+>   %5 = Prim Eq [%4 0:i32] : bool
+>   %7 = Block - : never
 >   %11 = Block - : never
->   %12 = If %6 [%8 %11] : never
+>   %12 = If %5 [%7 %11] : never
         User { name } => name
 >   %2 = Read [$1] : string
 >   %3 = Block %2 : string
->   %5 = Read [%0 .name] : string
->   %9 = Store [$1] %5 : ()
+>   %8 = Read [%0 .name] : string
+>   %9 = Store [$1] %8 : ()

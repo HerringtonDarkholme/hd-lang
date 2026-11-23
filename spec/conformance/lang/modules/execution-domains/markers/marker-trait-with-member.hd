@@ -1,0 +1,6 @@
+# test: a trait that extends Marker and declares a method is rejected on the method
+# Spec 10 Markers: module.marker.members.
+use std.marker.Marker
+
+trait Tagged < Marker:
+    fn tag(&self) -> string # diagnostic: invalid-marker-trait

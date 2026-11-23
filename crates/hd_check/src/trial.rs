@@ -9,9 +9,10 @@ use hd_diag::{Code, DiagMark};
 use hd_resolve::FnSig;
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, TirCheckpoint, TirSink};
+use hd_types::AdtId;
 use hd_types::solver::{
     Answer, Candidate, Goal, ImplOrigin, ImplTable, Impls, Instantiations, TraitRef, plan_goals,
-    tuple_goals, union_goals,
+    positional_goals,
 };
 use hd_types::unify::TrialMark;
 use hd_types::{ParamRef, Ty, TyData, VarKind};
@@ -24,7 +25,7 @@ use crate::call::{Args, TraitTarget, subst_owner};
 /// value, or what was added.
 pub(crate) enum BodyUndo {
     /// A local's flags before bits were set in them.
-    Flags(LocalId, u8),
+    Flags(LocalId, u16),
     /// A global read added to the init facts.
     Read(DefId),
     /// A function call added to the init facts.
@@ -118,7 +119,7 @@ impl Ck<'_, '_> {
     }
 
     /// Sets `bits` in a local's flags.
-    pub(crate) fn add_flags(&mut self, l: LocalId, bits: u8) {
+    pub(crate) fn add_flags(&mut self, l: LocalId, bits: u16) {
         let old = self.b.body_mut().local_flags[l.idx()];
         if old | bits != old {
             self.b.body_mut().local_flags[l.idx()] = old | bits;
@@ -630,7 +631,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         match pool.get(self.resolved(self.infer.resolve(pool, t))) {
             TyData::Prim(p) => Some(RigidHead::Prim(p)),
-            TyData::Adt { def, .. } if def != self.cx.names.known.option => {
+            TyData::Adt(AdtId::Declared(def), _) if def != self.cx.names.known.option => {
                 Some(RigidHead::Adt(def))
             }
             _ => None,
@@ -690,6 +691,60 @@ impl Ck<'_, '_> {
         format!("{}: {}", self.show(self_ty), shown.join(", "))
     }
 
+    /// One candidate's impl, a fresh variable for each impl parameter,
+    /// and its residual bounds at those variables (§6.5's scheme).
+    pub(crate) fn candidate_residual(
+        &mut self,
+        c: &Candidate,
+        self_ty: Ty,
+    ) -> StageResult<(DefId, Vec<Ty>, Vec<TraitRef>)> {
+        let pool = self.pool();
+        let row = c.row.row as usize;
+        let table = candidate_table(self.cx.impl_table(c.row.module), row)?;
+        let impl_def = table.def[row];
+        let n_params = pool.list_items(c.impl_args).len();
+        let vars: Vec<Ty> = (0..n_params)
+            .map(|_| self.infer.fresh(pool, VarKind::General))
+            .collect();
+        let inst = |x: Ty| subst_owner(pool, impl_def, &vars, x);
+        let impl_args: Vec<Ty> = pool
+            .list_items(c.impl_args)
+            .iter()
+            .map(|x| inst(*x))
+            .collect();
+        // A tuple template's member steps number on after its bound
+        // plan's, at the receiver's tuple type (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
+        let mut goals = plan_goals(pool, table, row, &impl_args);
+        if matches!(
+            table.origin[row],
+            ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
+        ) && let Some(steps) = Impls::Owned(self.cx.impls).tuple_plan(impl_def)
+        {
+            let first = u16::try_from(table.plan[row].len()).unwrap_or(u16::MAX);
+            let target = self.resolved(self_ty);
+            goals.extend(positional_goals(pool, impl_def, &steps, target, first));
+        }
+        let residual: Vec<TraitRef> = goals
+            .into_iter()
+            .filter(|(i, _)| c.residual.contains(i))
+            .map(|(_, g)| g)
+            .collect();
+        Ok((impl_def, vars, residual))
+    }
+
+    /// Whether candidate `c` of `self_ty` may apply: none of its residual
+    /// bounds fails (`ref.read.auto.by-value` asks it before it takes a
+    /// reference's own method). One goal per residual bound.
+    pub(crate) fn candidate_may_apply(&mut self, c: &Candidate, self_ty: Ty) -> StageResult<bool> {
+        let (_, _, residual) = self.candidate_residual(c, self_ty)?;
+        for goal in residual {
+            if matches!(self.solve(goal)?, hd_types::solver::Answer::Fails(_)) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     /// Calls one candidate (§6.5's scheme): a fresh variable for each
     /// impl parameter the receiver left open, the arguments checked
     /// against its method, then, in a trial, the result against the
@@ -705,41 +760,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
-        let row = c.row.row as usize;
-        let table = candidate_table(self.cx.impl_table(c.row.module), row)?;
-        let impl_def = table.def[row];
-        let n_params = pool.list_items(c.impl_args).len();
-        let vars: Vec<Ty> = (0..n_params)
-            .map(|_| self.infer.fresh(pool, VarKind::General))
-            .collect();
+        let (impl_def, vars, residual) = self.candidate_residual(c, self_ty)?;
         let inst = |x: Ty| subst_owner(pool, impl_def, &vars, x);
-        let impl_args: Vec<Ty> = pool
-            .list_items(c.impl_args)
-            .iter()
-            .map(|x| inst(*x))
-            .collect();
         let targs: Vec<Ty> = pool.list_items(c.args).iter().map(|x| inst(*x)).collect();
-        // A tuple template's member steps number on after its bound
-        // plan's, at the receiver's tuple type (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
-        let mut goals = plan_goals(pool, table, row, &impl_args);
-        if matches!(
-            table.origin[row],
-            ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
-        ) && let Some(steps) = Impls::Owned(self.cx.impls).tuple_plan(impl_def)
-        {
-            let first = u16::try_from(table.plan[row].len()).unwrap_or(u16::MAX);
-            let target = self.resolved(self_ty);
-            goals.extend(match table.origin[row] {
-                ImplOrigin::TupleTemplate => tuple_goals(pool, impl_def, &steps, target, first),
-                ImplOrigin::UnionTemplate => union_goals(pool, impl_def, &steps, target, first),
-                _ => Vec::new(),
-            });
-        }
-        let residual: Vec<TraitRef> = goals
-            .into_iter()
-            .filter(|(i, _)| c.residual.contains(i))
-            .map(|(_, g)| g)
-            .collect();
         // A closed residual bound may already determine a trait argument
         // used by a method's own bounds, e.g. I: Iterator[T] for ByRef[I].
         // Learn those facts before checking collect's target bound; bounds
@@ -1178,9 +1201,7 @@ impl Ck<'_, '_> {
             TyData::Poison | TyData::Never => return Ok(None),
             // The solver answers the rest below.
             TyData::Prim(_)
-            | TyData::Adt { .. }
-            | TyData::Tuple { .. }
-            | TyData::Union(_)
+            | TyData::Adt(..)
             | TyData::Ref { .. }
             | TyData::Fn { .. }
             | TyData::Assoc { .. }

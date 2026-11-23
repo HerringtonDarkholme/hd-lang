@@ -674,7 +674,6 @@ pub fn parity_masked(
         .map(|(k, v)| (k.to_owned(), v))
         .collect::<Vec<_>>();
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::with_limits(limits.clone()),
         limits: Limits::default(),
         args: vec![],

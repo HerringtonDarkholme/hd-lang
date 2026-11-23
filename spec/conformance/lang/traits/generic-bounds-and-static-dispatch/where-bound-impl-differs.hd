@@ -1,0 +1,23 @@
+# test: an implementation method that adds a where bound differs from the trait's declaration
+# Spec 09 Method Bounds On Enclosing Parameters: trait.where.impl.repeat, trait.where.impl.error.
+trait Rank:
+    fn rank(self) -> i32
+
+trait Show:
+    fn show(self) -> string
+
+trait Pile[T]:
+    fn top(self) -> T
+
+    fn top_rank(self) -> i32 where T < Rank:
+        self.top().rank()
+
+struct Deck[T]:
+    first: T
+
+impl[T] Pile[T] for Deck[T]:
+    fn top(self) -> T:
+        self.first
+
+    fn top_rank(self) -> i32 where T < Rank & Show: # diagnostic: trait-method-signature
+        self.first.rank()

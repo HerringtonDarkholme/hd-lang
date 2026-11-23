@@ -1,0 +1,35 @@
+# A zero written with a digit separator or in another base is still zero, and
+# the message names the comparison as `a >= 0`.
+fn separated_zero(a: u32) -> bool:
+    a >= 0_0
+fn binary_zero(a: u32) -> bool:
+    a >= 0b0
+fn octal_zero(a: u32) -> bool:
+    a >= 0o0
+
+# A signed operand, a nonzero bound, and the comparisons that can be false are quiet.
+fn signed_below(a: i64) -> bool:
+    a < 0
+fn at_least_one(a: u32) -> bool:
+    a >= 1
+fn above_zero(a: u32) -> bool:
+    a > 0
+fn equal_zero(a: u32) -> bool:
+    a == 0
+fn not_zero(a: u32) -> bool:
+    a != 0
+fn zero_at_least(a: u32) -> bool:
+    0 >= a
+fn zero_below(a: u32) -> bool:
+    0 < a
+
+# A site allow covers its direct statement only: the comparison nested in the
+# `if` below is still reported.
+fn nested_under_allow(a: u32) -> bool:
+    # lint-allow: unsigned-comparison-always
+    if true: a >= 0 else: true
+
+# A site allow that names a lint with no finding there is accepted.
+fn allow_without_finding(a: u32) -> bool:
+    # lint-allow: unsigned-comparison-always
+    a == 0

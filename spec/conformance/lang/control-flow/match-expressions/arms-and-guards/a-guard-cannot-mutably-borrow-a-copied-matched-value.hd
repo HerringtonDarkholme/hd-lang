@@ -1,0 +1,11 @@
+# test: a guard cannot mutably borrow the local a match reads even when its value is copied
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.matched.
+fn bump(x: &mut i32) -> bool:
+    *x = *x + 1
+    false
+
+fn changed(n: i32) -> i32:
+    let mut x = n
+    match x:
+        1 if bump(&mut x) => 1 # diagnostic: conflicting-access
+        other => other

@@ -23,6 +23,7 @@ use hd_mono::{BoundaryMap, ProgramEnv, Target, subst};
 use hd_tir::ir::{
     Body, Callee, NONE, PlaceRoot, Proj, Ref, Role, Tag, Topology, Word, local_flags, slot_words,
 };
+use hd_types::AdtId;
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
@@ -372,7 +373,7 @@ fn of_at(
     let s = layout::strip_newtype(pool, env, t);
     // A data type with a field that is not `pub` crosses a profile's
     // boundary as the string of its std host codec.
-    if let (TyData::Adt { def, .. }, Some(at)) = (pool.get(s), at)
+    if let (TyData::Adt(AdtId::Declared(def), _), Some(at)) = (pool.get(s), at)
         && env.has_private_field(def)
     {
         return codec(input, t, s, at);
@@ -396,7 +397,7 @@ fn of_at(
         },
         // A rest element is one more member, its `List[T]`
         // (`types.tuple.rest.list`).
-        TyData::Tuple { .. } => {
+        TyData::Adt(AdtId::Product { .. }, _) => {
             let mut fields = Vec::new();
             for e in layout::tuple_members(pool, s) {
                 fields.push(of_at(input, m, e, path, at)?);
@@ -437,7 +438,11 @@ fn of_at(
                 ..handle_of(input, m, def, at)?
             }))
         }
-        TyData::Adt { def, args } => match env.std_kind(def) {
+        TyData::Adt(AdtId::Sum, args) => {
+            let variants: Vec<Vec<Ty>> = pool.list_items(args).iter().map(|&t| vec![t]).collect();
+            return enum_of(input, m, &variants, path, at);
+        }
+        TyData::Adt(AdtId::Declared(def), args) => match env.std_kind(def) {
             hd_mono::layout::StdKind::List => {
                 let items = pool.list_items(args);
                 debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
@@ -511,12 +516,6 @@ fn of_at(
                 return data_of(input, m, s, def, args, path, at);
             }
         },
-        // A union crosses as the enum of its cases
-        // (`types.union.representation`, `module.boundary.allowed`): its
-        // tag, then that case's payload.
-        TyData::Union(members) => {
-            enum_of(input, m, &layout::union_variants(pool, members), path, at)?
-        }
         // ruled out: `never` crosses only as a host method's whole result,
         // which `result_type` takes first, and module.boundary.not-safe.error
         // (hd_check header::crossing_fault) rejects it anywhere else, a
@@ -2793,7 +2792,7 @@ fn package_value(
     use hd_host_abi::schema::Value;
     let (pool, env) = (input.pool, input.env);
     let s = layout::strip_newtype(pool, env, t);
-    if let TyData::Adt { def, .. } = pool.get(s)
+    if let Some((def, _)) = pool.adt(s)
         && env.has_private_field(def)
     {
         return Ok(Value::Json);
@@ -2815,7 +2814,7 @@ fn package_value(
             Prim::F64 => Value::F64,
             Prim::String => Value::String,
         },
-        TyData::Tuple { .. } => {
+        TyData::Adt(AdtId::Product { .. }, _) => {
             let ts = layout::tuple_members(pool, s)
                 .into_iter()
                 .map(|t| package_value(input, t, path))
@@ -2826,10 +2825,12 @@ fn package_value(
                 Value::Tuple(ts)
             }
         }
-        TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, env.option()) => {
+        TyData::Adt(..) if let Some(inner) = pool.sole_arg(t, env.option()) => {
             Value::Option(Box::new(package_value(input, inner, path)?))
         }
-        TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::List => {
+        TyData::Adt(AdtId::Declared(def), args)
+            if env.std_kind(def) == hd_mono::layout::StdKind::List =>
+        {
             let items = pool.list_items(args);
             debug_assert_eq!(items.len(), 1, "ruled out: `List` has one element type");
             let elem = items[0];
@@ -2839,7 +2840,9 @@ fn package_value(
                 Value::List(Box::new(package_value(input, elem, path)?))
             }
         }
-        TyData::Adt { def, args } if env.std_kind(def) == hd_mono::layout::StdKind::Map => {
+        TyData::Adt(AdtId::Declared(def), args)
+            if env.std_kind(def) == hd_mono::layout::StdKind::Map =>
+        {
             let items = pool.list_items(args);
             debug_assert_eq!(
                 items.len(),
@@ -2851,7 +2854,10 @@ fn package_value(
                 Box::new(package_value(input, items[1], path)?),
             )
         }
-        TyData::Adt { def, args } => {
+        TyData::Adt(def, args) => {
+            if def.get().is_none() {
+                return package_data(input, def, args, path);
+            }
             if let Some(at) = path.iter().position(|(t, _)| *t == s) {
                 // Each binder on the path has its own number: the count
                 // of binders before it.
@@ -2885,25 +2891,6 @@ fn package_value(
             Value::Handle(package_module(&identity, true))
         }
 
-        // A union crosses as the enum of its cases, `_0`, `_1`, ..., each
-        // with its one positional payload `0`, as a nominal enum with one
-        // single-payload variant per case would (`types.union.representation`).
-        TyData::Union(members) => Value::Enum(
-            String::new(),
-            pool.list_items(members)
-                .iter()
-                .enumerate()
-                .map(|(i, &case)| {
-                    Ok(hd_host_abi::schema::Variant {
-                        name: format!("_{i}"),
-                        fields: vec![hd_host_abi::schema::Field {
-                            name: "0".to_owned(),
-                            value: package_value(input, case, path)?,
-                        }],
-                    })
-                })
-                .collect::<StageResult<_>>()?,
-        ),
         // ruled out: `package_method` takes a whole `never` result first,
         // and module.boundary.not-safe.error (hd_check
         // header::crossing_fault) rejects `never` anywhere else, a
@@ -2938,65 +2925,86 @@ fn package_value(
 /// fields but no field names, is its base here (`layout::strip_newtype`).
 fn package_data(
     input: &Input<'_>,
-    def: DefId,
+    def: AdtId,
     args: TyList,
     path: &mut Binders,
 ) -> StageResult<hd_host_abi::schema::Value> {
     use hd_host_abi::schema::{Field, Value, Variant};
     let (pool, env) = (input.pool, input.env);
-    Ok({
-        {
-            if let Some(variants) = env.enum_variants(def, args) {
-                if (input.path)(def).replace('/', ".") == "std.core.Result"
-                    && variants.len() == 2
-                    && variants.iter().all(|v| v.len() == 1)
-                {
-                    Value::Result(
-                        Box::new(package_value(input, variants[0][0], path)?),
-                        Box::new(package_value(input, variants[1][0], path)?),
-                    )
-                } else {
-                    let names = env.enum_variant_names(def).unwrap_or_default();
-                    debug_assert_eq!(names.len(), variants.len(), "an enum's variant names");
-                    let mut out = Vec::new();
-                    for ((name, fields), types) in names.into_iter().zip(variants) {
-                        debug_assert_eq!(fields.len(), types.len(), "a variant's field names");
-                        out.push(Variant {
-                            name,
-                            fields: fields
-                                .into_iter()
-                                .zip(types)
-                                .map(|(name, ty)| {
-                                    Ok(Field {
-                                        name,
-                                        value: package_value(input, ty, path)?,
-                                    })
-                                })
-                                .collect::<StageResult<_>>()?,
-                        });
-                    }
-                    Value::Enum(input.env.source_type_name(def), out)
-                }
-            } else {
-                let types = env.data_fields(def).unwrap_or_default();
-                let names = env.data_field_names(def).unwrap_or_default();
-                debug_assert_eq!(names.len(), types.len(), "a struct's field names");
-                Value::Record(
-                    input.env.source_type_name(def),
-                    names
-                        .into_iter()
-                        .zip(types)
-                        .map(|(name, ty)| {
-                            Ok(Field {
-                                name,
-                                value: package_value(input, subst(pool, env, def, args, ty), path)?,
-                            })
-                        })
-                        .collect::<StageResult<_>>()?,
+    Ok(
+        if let Some(variants) = hd_mono::layout::enum_variants(pool, env, def, args) {
+            if def
+                .get()
+                .is_some_and(|d| (input.path)(d).replace('/', ".") == "std.core.Result")
+                && variants.len() == 2
+                && variants.iter().all(|v| v.len() == 1)
+            {
+                Value::Result(
+                    Box::new(package_value(input, variants[0][0], path)?),
+                    Box::new(package_value(input, variants[1][0], path)?),
                 )
+            } else {
+                let names = def.get().map_or_else(
+                    || {
+                        (0..variants.len())
+                            .map(|i| (format!("_{i}"), vec!["0".to_owned()]))
+                            .collect()
+                    },
+                    |def| env.enum_variant_names(def).unwrap_or_default(),
+                );
+                debug_assert_eq!(names.len(), variants.len(), "an enum's variant names");
+                let mut out = Vec::new();
+                for ((name, fields), types) in names.into_iter().zip(variants) {
+                    debug_assert_eq!(fields.len(), types.len(), "a variant's field names");
+                    out.push(Variant {
+                        name,
+                        fields: fields
+                            .into_iter()
+                            .zip(types)
+                            .map(|(name, ty)| {
+                                Ok(Field {
+                                    name,
+                                    value: package_value(input, ty, path)?,
+                                })
+                            })
+                            .collect::<StageResult<_>>()?,
+                    });
+                }
+                let name = def
+                    .get()
+                    .map_or_else(String::new, |def| env.source_type_name(def));
+                Value::Enum(name, out)
             }
-        }
-    })
+        } else if let AdtId::Declared(def) = def {
+            let types = env.data_fields(def).unwrap_or_default();
+            let names = env.data_field_names(def).unwrap_or_default();
+            debug_assert_eq!(names.len(), types.len(), "a struct's field names");
+            Value::Record(
+                input.env.source_type_name(def),
+                names
+                    .into_iter()
+                    .zip(types)
+                    .map(|(name, ty)| {
+                        Ok(Field {
+                            name,
+                            value: package_value(input, subst(pool, env, def, args, ty), path)?,
+                        })
+                    })
+                    .collect::<StageResult<_>>()?,
+            )
+        } else {
+            let fields = pool
+                .list_items(args)
+                .iter()
+                .map(|&t| package_value(input, t, path))
+                .collect::<StageResult<Vec<_>>>()?;
+            if fields.is_empty() {
+                Value::Void
+            } else {
+                Value::Tuple(fields)
+            }
+        },
+    )
 }
 
 #[cfg(test)]

@@ -1,0 +1,16 @@
+# test: a Send crossing closure that reaches an immutable top-level string is rejected: a string is Send but holds a counted buffer, so it is not Sync
+# Spec 07 Crossing Closures: fn.crossing.global.send; Spec 10 Markers: module.marker.sync.leaf.
+use std.marker.Send
+
+fn spawn[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+greeting := "hello"
+
+limit := +3
+
+fn demo() -> usize:
+    spawn(fn() -> usize: greeting.len()) # diagnostic: crossing-top-level-binding
+
+fn fine() -> i32:
+    spawn(fn() -> i32: limit)

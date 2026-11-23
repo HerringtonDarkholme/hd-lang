@@ -28,6 +28,10 @@ pub enum SyntaxKind {
     /// `'name` in a generic list (`types.lifetime.declare`).
     LifetimeParameter,
     BoundList,
+    /// A method's `where` clause (`trait.where.clause`).
+    WhereClause,
+    /// One `Name < Bounds` of a `where` clause.
+    WhereBound,
     TypeDefault,
     TypeArgumentList,
     /// An expression-shaped positional generic argument, such as `4` or `N + 1`.
@@ -133,6 +137,8 @@ pub enum SyntaxKind {
     RestType,
     InferType,
     RequirementRow,
+    /// A crossing parameter's `+ M & 's` (`grammar.fn.crossing-parameter`).
+    MarkerBound,
     Error,
 }
 

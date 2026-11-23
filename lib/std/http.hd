@@ -418,7 +418,7 @@ fn header_token_byte(byte: u8) -> bool:
         (byte >= 48 && byte <= 57)
         || (byte >= 65 && byte <= 90)
         || (byte >= 97 && byte <= 122)
-        || "!#$%&'*+-.^_`|~".to_utf8().contains(byte)
+        || "!#$%&'*+-.^_`|~".to_utf8().contains(&byte)
     )
 
 # Keep typed cookie components until the wire adapter checks them. Flattening
@@ -835,7 +835,7 @@ fn multipart_boundary_valid(boundary: &string) -> bool:
             (byte >= 48 && byte <= 57)
             || (byte >= 65 && byte <= 90)
             || (byte >= 97 && byte <= 122)
-            || "'()+_,-./:=? ".to_utf8().contains(byte)
+            || "'()+_,-./:=? ".to_utf8().contains(&byte)
         ):
             continue
         return false
@@ -1735,11 +1735,11 @@ fn url_unreserved(byte: u8) -> bool:
         (byte >= 65 && byte <= 90)
         || (byte >= 97 && byte <= 122)
         || (byte >= 48 && byte <= 57)
-        || "-._~".to_utf8().contains(byte)
+        || "-._~".to_utf8().contains(&byte)
     )
 
 fn url_subdelimiter(byte: u8) -> bool:
-    "!$&'()*+,;=".to_utf8().contains(byte)
+    "!$&'()*+,;=".to_utf8().contains(&byte)
 
 fn url_component_byte(byte: u8, component: UrlComponent) -> bool:
     if url_unreserved(byte):
@@ -2170,7 +2170,7 @@ impl CookieJar:
                     break
             if expires.map(fn(expiry): expiry <= now.unix_milliseconds()).unwrap_or(false):
                 if index < self.cookies.len():
-                    _ := self.cookies.remove_at(index)
+                    _ := self.cookies.remove(index)
                 continue
             stored := StoredCookie {
                 name: cookie.name,

@@ -103,3 +103,53 @@ pub fn main() -> void $ Console:
     assert_eq!(reused.render(), fresh.render());
     assert!(reused.diags.has_errors());
 }
+
+/// A new run decodes the anonymous sum from its stored interface and bodies,
+/// preserving nested positional identities through checking and collection.
+#[test]
+fn anonymous_sums_survive_warm_interface_and_body_reads() {
+    let text = r#"type Choice = (i32 | string) | bool
+
+pub fn make() -> Choice:
+    ._0(._1("kept"))
+
+pub fn describe(value: Choice) -> string:
+    match value:
+        ._0(inner) => inner.to_string()
+        ._1(flag) => flag.to_string()
+
+pub fn main() -> void $ Console:
+    println(describe(make()))
+"#;
+    assert_anonymous_warm_reads(text);
+}
+
+/// Fixed, nested and rest products keep their shape through both cache layers.
+#[test]
+fn anonymous_products_survive_warm_interface_and_body_reads() {
+    let text = r#"type Pair = ((i32, string), List[string]...)
+
+pub fn make() -> Pair:
+    ((7, "fixed"), ["kept"]...)
+
+pub fn describe(value: Pair) -> string:
+    value._0._1 + value._1[0]
+
+pub fn main() -> void $ Console:
+    println(describe(make()))
+"#;
+    assert_anonymous_warm_reads(text);
+}
+
+fn assert_anonymous_warm_reads(text: &str) {
+    let store = MemoryStore::default();
+    let cold = build(text, &store, &program(), None);
+    assert!(cold.wasm.is_some(), "{}", cold.render());
+    let warm = build(text, &store, &program(), None);
+    assert!(!warm.diags.has_errors(), "{}", warm.render());
+    assert_eq!(warm.wasm, cold.wasm);
+    assert_eq!(warm.render(), cold.render());
+    assert!(warm.counters.hit("iface") > 0);
+    assert_eq!(warm.counters.miss("iface"), 0);
+    assert!(warm.counters.bodies_owned.is_empty());
+}

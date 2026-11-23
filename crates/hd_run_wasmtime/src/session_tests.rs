@@ -49,7 +49,6 @@ fn with_session_input(
                     input: input.map(|b| Box::new(b) as Box<dyn std::io::BufRead + Send>),
                 };
                 let setup = HostSetup {
-                    providers: Vec::new(),
                     grants: hd_run::Grants::default(),
                     limits: hd_run::Limits::default(),
                     args: Vec::new(),
@@ -862,7 +861,6 @@ fn a_program_run_records_no_journal() {
                     input: None,
                 };
                 let setup = HostSetup {
-                    providers: Vec::new(),
                     grants: hd_run::Grants::default(),
                     limits: hd_run::Limits::default(),
                     args: Vec::new(),

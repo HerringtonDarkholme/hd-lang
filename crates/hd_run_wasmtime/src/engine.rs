@@ -116,7 +116,7 @@ impl WasmtimeEngine {
         io: HostIo,
         bindings: crate::native::Bindings,
     ) -> Result<WasmtimeInstance, StartError> {
-        self.instantiate_native(m, host_of(setup, io), Some(bindings))
+        self.instantiate_native(m, host_of(setup, io), Some(bindings), "hd.poll")
     }
 
     /// [`WasmtimeEngine::instantiate_with`], for a run the host may cancel
@@ -153,7 +153,17 @@ impl WasmtimeEngine {
         m: &Module,
         host: Host,
     ) -> Result<WasmtimeInstance, StartError> {
-        self.instantiate_native(m, host, None)
+        self.instantiate_native(m, host, None, "hd.poll")
+    }
+
+    /// A worker instance of `m` (`std-remote.workers.serve`): `hd.init`,
+    /// then `hd.worker`.
+    pub(crate) fn instantiate_worker(
+        &self,
+        m: &Module,
+        host: Host,
+    ) -> Result<WasmtimeInstance, StartError> {
+        self.instantiate_native(m, host, None, "hd.worker")
     }
 
     fn instantiate_native(
@@ -161,7 +171,16 @@ impl WasmtimeEngine {
         m: &Module,
         mut host: Host,
         bindings: Option<crate::native::Bindings>,
+        poll: &str,
     ) -> Result<WasmtimeInstance, StartError> {
+        // A send starts a worker on this module (`std-remote.workers.host`).
+        host.workers.spawn = Some(crate::workers::Spawn {
+            config: self.config,
+            engine: Arc::clone(&self.engine),
+            profile: self.profile,
+            module: Arc::clone(&m.0),
+            test: None,
+        });
         let package = m.2.as_deref();
         host.natives = package::preflight(package, bindings, &host.grants.consent)?;
         let mut store = new_store(&self.engine, host)?;
@@ -169,6 +188,7 @@ impl WasmtimeEngine {
         let mut defined = HashSet::default();
         package::define(&mut linker, &m.0, package, &mut defined)?;
         define(&mut linker, &m.0, self.profile, &mut defined).map_err(StartError::Engine)?;
+        link_heap(&mut linker, &mut store, &m.0).map_err(StartError::Engine)?;
         let instance = match linker.instantiate(&mut store, &m.0) {
             Ok(instance) => instance,
             Err(error)
@@ -186,7 +206,7 @@ impl WasmtimeEngine {
             Arc::clone(&self.engine),
             instance,
             "hd.init",
-            "hd.poll",
+            poll,
         )?;
         run.report.clone_from(&m.1);
         Ok(run)
@@ -209,6 +229,10 @@ pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
     c.wasm_gc(false)
         .wasm_multi_value(true)
         .wasm_bulk_memory(true)
+        // The atomics of `std.rt.memory`, and the shared heap of a program
+        // that starts threads (`module.rt.thread.heap`, a tier 2 feature).
+        .wasm_threads(true)
+        .shared_memory(true)
         .wasm_extended_const(true)
         .wasm_tail_call(false)
         .epoch_interruption(true)
@@ -239,6 +263,33 @@ pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
             OptLevel::Speed => wasmtime::OptLevel::Speed,
         });
     c
+}
+
+/// Links the shared heap of a program that starts threads
+/// (`module.rt.thread.heap`): the store's own, a thread's, or a new one of
+/// the module's import type, which the store keeps for the threads it
+/// starts. Nothing for a module that imports no heap.
+pub(crate) fn link_heap(
+    linker: &mut Linker<Host>,
+    store: &mut Store<Host>,
+    module: &wasmtime::Module,
+) -> Result<(), String> {
+    let Some(ty) = module.imports().find_map(|i| {
+        (i.module() == "hd:rt" && i.name() == "heap")
+            .then(|| i.ty().memory().cloned())
+            .flatten()
+    }) else {
+        return Ok(());
+    };
+    let heap = match store.data().workers.heap.clone() {
+        Some(heap) => heap,
+        None => wasmtime::SharedMemory::new(store.engine(), ty).map_err(|e| format!("{e:#}"))?,
+    };
+    store.data_mut().workers.heap = Some(heap.clone());
+    linker
+        .define(&mut *store, "hd:rt", "heap", heap)
+        .map(|_| ())
+        .map_err(|e| format!("{e:#}"))
 }
 
 pub(crate) fn new_store(

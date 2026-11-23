@@ -1,0 +1,15 @@
+# test: a struct that holds a counted reference is not Wire
+# Spec 10 Markers: module.marker.table.counted, module.marker.unsatisfied.
+use std.marker.Wire
+
+struct Point:
+    x: i32
+
+struct Holder:
+    target: *mut Point
+
+fn post[T < Wire](value: T) -> void:
+    pass
+
+fn demo(h: Holder) -> void:
+    post(h) # diagnostic: unsatisfied-trait-bound

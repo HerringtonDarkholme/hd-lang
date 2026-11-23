@@ -1,0 +1,10 @@
+# test: a generic method of a remote trait is rejected
+# Spec 10 Remote Traits: module.remote.r1.generic.
+use std.marker.Wire
+use std.remote.{CrossError, Remote}
+
+enum StoreError:
+    Missing
+
+trait Store < Remote:
+    fn get![T < Wire](&mut self, key: string) -> Result[T, StoreError | CrossError] # diagnostic: invalid-remote-method

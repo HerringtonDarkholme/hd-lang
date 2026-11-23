@@ -15,6 +15,7 @@
 use crate::op::Op as I;
 use hd_base::{DefId, StageResult};
 use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Ref, Tag};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use super::Em;
@@ -186,7 +187,7 @@ impl Em<'_, '_, '_> {
     /// part of `t`'s values and memory. A newtype's one field is the
     /// value itself.
     pub(super) fn path_step(&self, t: Ty, f: u32) -> StageResult<(Ty, Part)> {
-        if let TyData::Adt { def, args } = self.pool().get(t)
+        if let TyData::Adt(AdtId::Declared(def), args) = self.pool().get(t)
             && let Some(base) = self.env().newtype_base(def)
         {
             let ft = hd_mono::subst(self.pool(), self.env(), def, args, base);
@@ -716,12 +717,6 @@ impl Em<'_, '_, '_> {
             match step {
                 Proj::Variant(v) => {
                     let f = place_field(steps.next());
-                    // ruled out: data.enum.no-recursion/no-boxing; hd_check
-                    // rejects cycles after associated payload substitution (#1554).
-                    assert!(
-                        !matches!(self.kind(ty), Kind::Boxed),
-                        "checked enum payloads have a value layout"
-                    );
                     // A checked place's payload step names a field of
                     // its variant.
                     // A `Proj::Variant` step, into an enum or an optional.
@@ -1388,9 +1383,6 @@ impl Em<'_, '_, '_> {
         let (v, f) = (v as usize, f as usize);
         let ft = self.variant_tys(ty)[v][f];
         let field = flat.offsets[v][f];
-        // ruled out: data.enum.no-recursion/no-boxing; hd_check rejects
-        // by-value enum cycles after associated payload substitution (#1554).
-        assert!(!matches!(self.kind(ty), Kind::Boxed));
         let at = match at.value() {
             ValueAt::Mem(a, off) => At::Mem(a, off + field),
             ValueAt::Vals(ls) => At::Vals(flat.selection(v, f).iter().map(|&p| ls[p]).collect()),
@@ -1601,7 +1593,7 @@ pub(super) fn part_use(b: &hd_tir::ir::Body, k: usize) -> Option<u32> {
 mod tests {
     use super::bare_local;
     use hd_base::{DefId, LocalId};
-    use hd_tir::ir::{BodyKind, Place, PlaceRoot, Proj, Ref, TirBuilder, place};
+    use hd_tir::ir::{BodyKind, Place, TirBuilder};
 
     #[test]
     fn memory_trait_value_projection_loads_both_leaves_and_counts_nothing() {
@@ -1682,6 +1674,9 @@ mod tests {
     #[cfg(debug_assertions)]
     #[test]
     fn bare_local_rejects_other_place_encodings() {
+        // Imported here: the test exists only with debug assertions, so the
+        // release test build would warn about them at module level.
+        use hd_tir::ir::{PlaceRoot, Proj, Ref, place};
         let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
         let record_local = builder.words_record(&[place::ROOT_LOCAL, 7]);
         let projected = builder.place(&Place {

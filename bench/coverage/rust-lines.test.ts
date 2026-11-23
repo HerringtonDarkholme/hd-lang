@@ -218,3 +218,48 @@ test("cfg(test) items leave the report, and test module files are named", () => 
 test("unbalanced brackets name the file and line", () => {
   assert.throws(() => classifyRust("fn f() {\n  (]\n}", "a.rs"), /a\.rs:2: unbalanced/);
 });
+
+test("internal bug errors are invariant while guards and ordinary errors remain code", () => {
+  const src = [
+    "fn f(ok: bool) -> Result<(), NotImplemented> {",
+    "    if !ok {",
+    "        return Err(hd_base::NotImplemented::bug(",
+    "            Stage::Emit,",
+    '            "an internal check failed",',
+    "        ));",
+    "    }",
+    '    let bug = NotImplemented::bug(Stage::Emit, "message");',
+    '    let size = NotImplemented::too_large(Stage::Emit, "size");',
+    '    let fuel = NotImplemented::out_of_fuel(Stage::Emit, "fuel");',
+    '    let ordinary = Other::bug("ordinary error");',
+    '    let mixed = (NotImplemented::bug(Stage::Emit, "check"), run());',
+    "    Err(bug)",
+    "}",
+  ].join("\n");
+  assert.deepEqual(kinds(src), [
+    "1:code",
+    "2:code",
+    "3:invariant",
+    "4:invariant",
+    "5:invariant",
+    "6:invariant",
+    "7:invariant",
+    "8:code",
+    "9:code",
+    "10:code",
+    "11:code",
+    "12:code",
+    "13:code",
+    "14:code",
+  ]);
+  assert.deepEqual(
+    kinds(
+      [
+        "fn fail() -> Result<(), NotImplemented> {",
+        '    Err(NotImplemented::bug(Stage::Emit, "check"))',
+        "}",
+      ].join("\n"),
+    ),
+    ["1:invariant", "2:invariant", "3:invariant"],
+  );
+});

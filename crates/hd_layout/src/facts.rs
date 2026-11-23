@@ -6,17 +6,16 @@
 use hd_base::StageResult;
 use hd_mono::ProgramEnv;
 use hd_tir::ir::Proj;
+use hd_types::AdtId;
 use hd_types::{InternPool, Ty, TyData};
 
 use crate::{Kind, kind};
 
-/// A1's shared owned-address class on this backend. Boxed values have
-/// the class's owned parameter convention. References keep concrete keys,
-/// including when their layout is one address: local references borrow,
-/// while counted references carry an owner.
+/// Concrete values have no implicit owned-address class: recursive links
+/// are explicit references, whose loan convention keeps their concrete keys.
 #[must_use]
-pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
-    matches!(kind(pool, env, ty), Kind::Boxed)
+pub fn shared_reference_layout(_pool: &InternPool, _env: &dyn ProgramEnv, _ty: Ty) -> bool {
+    false
 }
 
 /// The types a value of `ty` holds by value, `ty` stripped of newtypes
@@ -60,7 +59,7 @@ pub fn thin_counted_reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: 
 pub fn reference_target_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Option<Ty> {
     match kind(pool, env, ty) {
         Kind::Ref { target, .. } => Some(target),
-        _ => None,
+        Kind::Value => None,
     }
 }
 
@@ -86,7 +85,7 @@ pub fn copies_collection_type(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) ->
 pub fn reference_ownership(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Option<bool> {
     match kind(pool, env, ty) {
         Kind::Ref { whole, .. } => Some(whole),
-        _ => None,
+        Kind::Value => None,
     }
 }
 
@@ -123,12 +122,9 @@ pub fn in_place_parts(
 ) -> bool {
     out.clear();
     let t = ty;
-    if let TyData::Adt { def, args } = pool.get(t)
-        && env.newtype_base(def).is_some()
+    if let TyData::Adt(AdtId::Declared(def), args) = pool.get(t)
+        && let Some(base) = env.newtype_base(def)
     {
-        let Some(&base) = env.data_fields(def).unwrap_or_default().first() else {
-            return false;
-        };
         if variant.is_some() {
             return false;
         }
@@ -139,7 +135,7 @@ pub fn in_place_parts(
         return false;
     }
     let s = crate::strip_newtype(pool, env, t);
-    if let TyData::Tuple { .. } = pool.get(s) {
+    if matches!(pool.get(s), TyData::Adt(AdtId::Product { .. }, _)) {
         out.extend(crate::tuple_members(pool, s));
         return variant.is_none();
     }
@@ -151,7 +147,7 @@ pub fn in_place_parts(
         return true;
     }
     match pool.get(s) {
-        TyData::Adt { def, args }
+        TyData::Adt(AdtId::Declared(def), args)
             if variant.is_none()
                 && env.std_kind(def) == hd_mono::layout::StdKind::Other
                 && env.is_struct(def) =>
@@ -171,7 +167,7 @@ pub fn in_place_parts(
 
 /// Classifies all variants of an in-place enum in one layout query.
 /// Each flag says that the variant has no counted field. As with
-/// `in_place_parts(_, Some(_), _)`, newtypes and boxed layouts do not
+/// `in_place_parts(_, Some(_), _)`, newtypes and references do not
 /// expose variants. The caller excludes open types and runtime Drop hooks.
 pub fn in_place_empty_variants(
     pool: &InternPool,
@@ -181,7 +177,7 @@ pub fn in_place_empty_variants(
     mut counted: impl FnMut(Ty) -> bool,
 ) {
     out.clear();
-    if matches!(pool.get(ty), TyData::Adt { def, .. } if env.newtype_base(def).is_some())
+    if matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if env.newtype_base(def).is_some())
         || !matches!(kind(pool, env, ty), Kind::Value)
     {
         return;
@@ -222,32 +218,29 @@ pub fn rooted_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option
 }
 
 fn small_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
-    let Kind::Ref {
-        target, fat: false, ..
-    } = kind(pool, env, t)
+    let t = crate::strip_newtype(pool, env, t);
+    let TyData::Ref {
+        inner,
+        mutable: false,
+        ..
+    } = pool.get(t)
     else {
         return None;
     };
-    if crate::ref_mutable(pool, env, t) || !matches!(kind(pool, env, target), Kind::Value) {
+    let target = crate::strip_newtype(pool, env, inner);
+    if matches!(
+        pool.get(target),
+        TyData::TraitValue { .. } | TyData::Ref { .. }
+    ) {
         return None;
     }
     let n = crate::vals(pool, env, target).ok()?.len();
     if !(1..=4).contains(&n) {
         return None;
     }
-    // The layout's target has its newtypes erased; the promoted value keeps
-    // the declared referent, so a path through it steps into a newtype's
-    // one field, as `i32(*m)` with `m: &Meters` does.
-    Some(declared_referent(pool, env, t).unwrap_or(target))
-}
-
-/// The type a reference type `t` refers to, as declared: newtypes kept.
-fn declared_referent(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Ty> {
-    let t = crate::strip_newtype(pool, env, t);
-    match pool.get(t) {
-        TyData::Ref { inner, .. } => Some(inner),
-        _ => None,
-    }
+    // Layout erases newtypes, but promotion keeps the declared referent:
+    // a path through &Meters must still step through its one field.
+    Some(inner)
 }
 
 /// The part [`place_part`] names: its type, the root's values that hold

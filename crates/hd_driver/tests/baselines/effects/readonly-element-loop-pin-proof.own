@@ -130,9 +130,9 @@ fn read_inside_loop(values: &List[string]) -> usize:
 >   local $4 $incl: bool [assigned] value
 >     uses $4: none
 >   local $5 item: &string [:= read assigned] value
->     uses $5: %19 -> %22 lend last
+>     uses $5: %19 -> %21 lend last
 >   %0 = Store [$1] 0:usize : ()
->   %36 = Block %35 : usize
+>   %35 = Block %34 : usize
     for _ in 0..values.len():
 >   %1 = Read borrow [*$0] : List[string]
 >   %2 = Intrinsic ListLen [%1] : usize
@@ -150,26 +150,25 @@ fn read_inside_loop(values: &List[string]) -> usize:
 >   %14 = Read copy [$2] : usize
 >   %15 = Prim Add [%14 1:usize] : usize
 >   %16 = Store [$2] %15 : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = If %12 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %12 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
         item := &values[0]
 >   %17 = Ref local [*$0 [0:usize]] : &string
 >   %18 = LoanBegin %17 #0 : ()
 >   %19 = Store [$5] %17 : ()
->   %20 = Release %19 Operation #3 : ()
         total += item.len()
->   %21 = Read copy [$1] : usize
->   %22 = Read move [$5] : &string
->   %23 = Intrinsic Empty [] : ()
->   %24 = Call std/text/impl string.len[] (%22) : usize
->   %25 = LoanClose %18 : ()
->   %26 = LoanEnd [%22] : ()
->   %27 = Prim Add [%21 %24] : usize
->   %28 = Store [$1] %27 : ()
+>   %20 = Read copy [$1] : usize
+>   %21 = Read move [$5] : &string
+>   %22 = Intrinsic Empty [] : ()
+>   %23 = Call std/text/impl string.len[] (%21) : usize
+>   %24 = LoanClose %18 : ()
+>   %25 = LoanEnd [%21] : ()
+>   %26 = Prim Add [%20 %23] : usize
+>   %27 = Store [$1] %26 : ()
     total
->   %35 = Read copy [$1] : usize
+>   %34 = Read copy [$1] : usize
 >   summary kept [] writes

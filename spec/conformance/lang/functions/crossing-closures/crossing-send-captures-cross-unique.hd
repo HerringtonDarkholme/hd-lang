@@ -1,0 +1,56 @@
+# test: a Send crossing closure takes each capture's buffers as its own, in every form it holds them, so a change on either side never reaches the other
+# Spec 07 Crossing Closures: fn.crossing.mode.unique, fn.crossing.mode.apart, fn.crossing.mode.copy.
+# expect-stdout: ["ab", "cd"] ["ab", "cd", "mine"] ["ab", "cd", "theirs"]
+# expect-stdout: abab 3 [["abab"]] ["x", "y"] 2
+# expect-stdout: ["abab"] Shape.Words(["abab"]) ("abab", Option.Some("abab"))
+# expect-stdout: {"k": ["abab"]} 1
+use std.marker.Send
+
+fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+fn with_theirs(items: List[string]) -> List[string]:
+    let mut changed = items
+    changed.push("theirs")
+    changed
+
+fn generic[T < Send & 'static](value: T) -> T:
+    run(fn() -> T: value)
+
+struct Held:
+    name: string
+    items: List[string]
+    n: i32
+
+@derive(Debug)
+enum Shape:
+    Dot
+    Words(List[string])
+
+type Label(string)
+
+pub fn main() -> void $ Console:
+    let mut shared = ["ab", "cd"]
+    before := shared
+    theirs := run(fn() -> List[string]: with_theirs(shared))
+    shared.push("mine")
+    println("${debug(before)} ${debug(shared)} ${debug(theirs)}")
+    word := "ab".repeat(2)
+    held := Held { name: word, items: [word], n: 3 }
+    got := run(fn() -> Held: held)
+    deep := generic([[word]])
+    last := run(fn() -> List[string]: ["x", "y"])
+    inner := run(fn() -> usize:
+        (fn() -> usize: held.items.len() + 1)()
+    )
+    println("${got.name} ${got.n} ${debug(deep)} ${debug(last)} $inner")
+    label := Label(word)
+    shape := Shape.Words([word])
+    let maybe: string? = .Some(word)
+    let (named, shaped, pair) = run(
+        fn() -> (Label, Shape, (string, string?)): (label, shape, (word, maybe))
+    )
+    println("${debug([string(named)])} ${debug(shaped)} ${debug(pair)}")
+    entries := { "k": [word] }
+    copied := run(fn() -> Map[string, List[string]]: entries)
+    println("${debug(copied)} ${entries.len()}")

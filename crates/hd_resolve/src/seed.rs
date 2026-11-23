@@ -1,4 +1,4 @@
-//! Compiler-supplied std declarations (`crates/hd_stdpack/DESIGN.md`, "Prelude"):
+//! Compiler-supplied std declarations (`docs/compiler/std-bootstrap.md`, "Prelude"):
 //! `std.core`'s primitives, collections, `Option`, `Result`, the `Any`
 //! traits, `panic` and `box`; `std.task`'s suspension protocol; `std.function`'s
 //! function type constructors; `std.testing.it`. Each is an ordinary
@@ -7,6 +7,7 @@
 
 use hd_base::Symbol;
 use hd_intern::PathKind;
+use hd_types::AdtId;
 use hd_types::{ParamRef, Prim, RowData, RowId, RowParamRef, Ty, TyData, TyList};
 
 use crate::iface::{
@@ -334,15 +335,15 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             // compiler supplies it to a target while a template runs.
             let tr = names.item(module, "Structure");
             let self_ty = param(names, tr, 0);
-            let facts = pool.intern_ty(&TyData::Adt {
-                def: names.item(module, "Facts"),
-                args: TyList::EMPTY,
-            });
+            let facts = pool.intern_ty(&TyData::Adt(
+                AdtId::Declared(names.item(module, "Facts")),
+                TyList::EMPTY,
+            ));
             let result = |ok: Ty, err: Ty| {
-                pool.intern_ty(&TyData::Adt {
-                    def: names.known.result,
-                    args: pool.list(&[ok, err]),
-                })
+                pool.intern_ty(&TyData::Adt(
+                    AdtId::Declared(names.known.result),
+                    pool.list(&[ok, err]),
+                ))
             };
             let mut methods = Vec::new();
             let mut members = Vec::new();

@@ -1,0 +1,9 @@
+# test: remote::[T] takes a remote trait and returns a *mut dyn T
+# Spec 10 Remote Built-Ins: module.remote.builtin.remote, module.remote.builtin.remote.trait.
+use std.remote.{CrossError, Remote, Transport, remote}
+
+trait Users < Remote:
+    fn count!(&mut self) -> Result[i64, string | CrossError]
+
+fn connect(transport: *mut dyn Transport) -> *mut dyn Users:
+    remote::[Users](transport)

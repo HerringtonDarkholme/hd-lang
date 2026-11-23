@@ -160,3 +160,58 @@ fn a_match_or_pattern_past_the_body_fuel_is_item_too_complex() {
     assert_eq!(codes_with_fuel(&s, 1_000_000), Vec::<String>::new());
     assert_eq!(codes_with_fuel(&s, 300), ["item-too-complex"]);
 }
+
+/// #2274: a match on a tuple of `width` `bool`s with two arms per column,
+/// `true` there and `_` elsewhere, then `false` there: the first two arms
+/// cover every value, so the rest are unreachable.
+fn two_arms_per_column(width: usize) -> String {
+    let mut s = String::from("fn pick(t: (");
+    s.push_str(&vec!["bool"; width].join(", "));
+    s.push_str(")) -> i32:\n    match t:\n");
+    for i in 0..width {
+        for (k, b) in ["true", "false"].into_iter().enumerate() {
+            let mut cells = vec!["_"; width];
+            cells[i] = b;
+            let _ = writeln!(s, "        ({}) => {}", cells.join(", "), 2 * i + k);
+        }
+    }
+    s
+}
+
+/// #2274: usefulness work on [`two_arms_per_column`] grows with the arms
+/// and columns, not with the values: a class whose first row is unguarded
+/// and all wildcards is covered by it (Maranget's usefulness), so it
+/// splits no further.
+#[test]
+fn a_match_with_two_arms_per_column_costs_polynomial_work() {
+    let fuel = |width| {
+        let mut src = MemorySources::default();
+        src.insert("main.hd", &two_arms_per_column(width));
+        let store = crate::warm_store();
+        let host = Host {
+            render_tir: &[],
+            sources: &src,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+        };
+        let (out, checks) =
+            hd_check::work::count_item_body_checks(|| build(&host, "app", &Goal::Analyze));
+        let codes: Vec<_> = out.diags.code.iter().map(|c| c.as_str()).collect();
+        assert!(
+            codes.iter().all(|&c| c == "unreachable-match-arm"),
+            "width {width}: {codes:?}",
+        );
+        (checks.iter())
+            .filter(|c| c.owner.starts_with("app/"))
+            .map(|c| c.fuel_spent)
+            .sum::<u64>()
+    };
+    let (small, large) = (fuel(10), fuel(20));
+    // Arms and columns both double: at most quadratic in the arms, times
+    // the columns each class reads.
+    assert!(
+        large <= 10 * small,
+        "fuel at 10 and 20 columns: {small} and {large}"
+    );
+}

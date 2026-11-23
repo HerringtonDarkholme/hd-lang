@@ -1,0 +1,9 @@
+# test: a closure literal whose captures are Wire is passed for a crossing parameter
+# Spec 07 Crossing Closures: fn.crossing.parameter, fn.crossing.call, fn.crossing.captures.
+use std.marker.Wire
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn demo(name: string, n: i32) -> string:
+    run(fn() -> string: "$name $n")

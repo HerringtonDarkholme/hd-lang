@@ -1,0 +1,16 @@
+# test: a guard cannot call a `&mut self` method on a value that holds the place the match reads
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.matched.
+struct Counter:
+    n: i32
+    seen: i32
+
+impl Counter:
+    fn tick(&mut self) -> bool:
+        self.seen = self.seen + 1
+        false
+
+fn count(start: Counter) -> i32:
+    let mut counter = start
+    match counter.n:
+        1 if counter.tick() => 1 # diagnostic: conflicting-access
+        other => other

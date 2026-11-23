@@ -308,12 +308,12 @@ fn impl_slots(
     let m = methods.iter().find(|(n, _)| *n == name)?.1;
     let n_trait = cx.lookup.item(trait_).map_or(0, |t| t.generics.len());
     let args = pool.list_items(targs);
-    let mut fixed: Vec<Option<Ty>> = vec![None; it.generics.len()];
-    let mut seen = HashSet::default();
-    head_match(pool, imp, *head, self_ty, &mut fixed, &mut seen);
-    for (&x, &y) in pool.list_items(*trait_args).iter().zip(args) {
-        head_match(pool, imp, x, y, &mut fixed, &mut seen);
-    }
+    let heads = [&[*head], pool.list_items(*trait_args)].concat();
+    let n = heads.len().min(1 + args.len());
+    let goals = [&[self_ty], &args[..n - 1]].concat();
+    let mut fixed = Vec::new();
+    hd_types::solver::bind_head(pool, imp, &heads[..n], &goals, &mut fixed);
+    fixed.truncate(it.generics.len());
     let mut slots = Vec::new();
     for (k, t) in fixed.into_iter().enumerate() {
         if let Some(t) = t {
@@ -326,74 +326,6 @@ fn impl_slots(
         slots.push((ParamRef { owner: m, index }, a));
     }
     Some((m, slots))
-}
-
-/// Binds the parameters of `owner` in `pattern` to the parts of `t`
-/// they stand for.
-fn head_match(
-    pool: Types<'_>,
-    owner: DefId,
-    pattern: Ty,
-    t: Ty,
-    out: &mut [Option<Ty>],
-    seen: &mut HashSet<(Ty, Ty)>,
-) {
-    if !pool.has_param(pattern) {
-        return;
-    }
-    let pairs = |a, b| {
-        pool.list_items(a)
-            .iter()
-            .zip(pool.list_items(b))
-            .rev()
-            .map(|(&x, &y)| (x, y))
-    };
-    hd_base::stack::all((pattern, t), |(pattern, t), stack| {
-        if !pool.has_param(pattern) || !seen.insert((pattern, t)) {
-            return true;
-        }
-        hd_types::work::type_node();
-        match (pool.get(pattern), pool.get(t)) {
-            (TyData::Param(p), _) if p.owner == owner => {
-                if let Some(slot) = out.get_mut(usize::from(p.index)) {
-                    slot.get_or_insert(t);
-                }
-            }
-            (TyData::Row(_), TyData::Row(_)) => {
-                if let Some(p) = bare_param(pool, pattern)
-                    && p.owner == owner
-                    && let Some(slot) = out.get_mut(usize::from(p.index))
-                {
-                    slot.get_or_insert(t);
-                }
-            }
-            (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
-            | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
-            | (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. })
-            | (TyData::Union(a), TyData::Union(b)) => {
-                stack.extend(pairs(a, b));
-            }
-            (
-                TyData::Fn {
-                    params: a,
-                    result: r,
-                    ..
-                },
-                TyData::Fn {
-                    params: b,
-                    result: s,
-                    ..
-                },
-            ) => {
-                stack.push((r, s));
-                stack.extend(pairs(a, b));
-            }
-            // ruled out: two types of different kinds, or of a kind without type arguments, have no
-            // heads to pair; the pairs are the open product of the type kinds.
-            _ => {}
-        }
-        true
-    });
 }
 
 /// The type parameters that occur in `t`, outside projections, sorted
@@ -431,16 +363,12 @@ fn params_in(pool: Types<'_>, t: Ty, memo: &mut ParamsMemo) -> Vec<ParamRef> {
         hd_types::work::type_node();
         match pool.get(t) {
             TyData::Param(p) => out.push(p),
-            TyData::Adt { args, .. } => stack.extend_from_slice(pool.list_items(args)),
+            TyData::Adt(_, args) => stack.extend_from_slice(pool.list_items(args)),
             TyData::Opaque { args, bound, .. } => {
                 stack.extend_from_slice(pool.list_items(args));
                 stack.push(bound);
             }
-            TyData::Tuple { elems, rest } => {
-                stack.extend_from_slice(pool.list_items(elems));
-                stack.extend(rest);
-            }
-            TyData::Union(members) => stack.extend_from_slice(pool.list_items(members)),
+
             TyData::Ref { inner, .. } => stack.push(inner),
             TyData::Fn {
                 params,
@@ -523,119 +451,4 @@ fn path(
     }
     out.reverse();
     out
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use hd_types::{FnDeps, Inputs, InternPool, RowData, RowId, RowParamRef, TyList};
-
-    #[test]
-    fn instance_heads_at_depth_1000_fit_a_small_stack() {
-        std::thread::Builder::new()
-            // cost: one 96 KiB thread for this test.
-            .stack_size(96 << 10)
-            .spawn(|| {
-                let pool = InternPool::new();
-                let types = pool.types();
-                let owner = DefId::from_raw(1);
-                let p = pool.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
-                for depth in [13, 130, 100, 1_000] {
-                    let mut chain = [p, Ty::I32];
-                    for _ in 0..depth {
-                        for t in &mut chain {
-                            *t = pool.intern_ty(&TyData::Tuple {
-                                elems: pool.list(&[*t, *t]),
-                                rest: None,
-                            });
-                        }
-                    }
-                    let mut out = [None];
-                    let mut seen = HashSet::default();
-                    let ((), work) = hd_types::work::count_type_nodes(|| {
-                        head_match(types, owner, chain[0], chain[1], &mut out, &mut seen);
-                    });
-                    assert_eq!(out, [Some(Ty::I32)]);
-                    assert_eq!(work, depth + 1);
-                    let ((), work) = hd_types::work::count_type_nodes(|| {
-                        head_match(types, owner, chain[0], chain[1], &mut out, &mut seen);
-                    });
-                    assert_eq!(work, 0, "a sibling root shares the memo");
-                    let mut closed_out = [None];
-                    let mut closed_seen = HashSet::default();
-                    let ((), work) = hd_types::work::count_type_nodes(|| {
-                        head_match(
-                            types,
-                            owner,
-                            chain[1],
-                            chain[1],
-                            &mut closed_out,
-                            &mut closed_seen,
-                        );
-                    });
-                    assert_eq!(work, 0, "closed heads have no parameters to bind");
-                    assert_eq!(closed_out, [None]);
-                    assert!(closed_seen.is_empty());
-                }
-                let function = |input, result| {
-                    pool.intern_ty(&TyData::Fn {
-                        params: pool.list(&[input]),
-                        result,
-                        row: RowId::EMPTY,
-                        suspends: false,
-                        inputs: Inputs::Fixed,
-                        deps: FnDeps::NONE,
-                    })
-                };
-                let mut out = [None];
-                head_match(
-                    types,
-                    owner,
-                    function(p, p),
-                    function(Ty::BOOL, Ty::I32),
-                    &mut out,
-                    &mut HashSet::default(),
-                );
-                assert_eq!(
-                    out,
-                    [Some(Ty::BOOL)],
-                    "the first parameter occurrence wins over the result"
-                );
-                let row = |params| {
-                    pool.intern_ty(&TyData::Row(pool.row(&RowData {
-                        keys: vec![],
-                        params,
-                    })))
-                };
-                let root = row(vec![RowParamRef { owner, index: 0 }]);
-                let value = row(vec![]);
-                let mut out = [None];
-                head_match(types, owner, root, value, &mut out, &mut HashSet::default());
-                assert_eq!(out, [Some(value)]);
-                let opaque = pool.intern_ty(&TyData::Opaque {
-                    owner,
-                    site: 0,
-                    borrows: false,
-                    args: TyList::EMPTY,
-                    bound: p,
-                });
-                let mut out = [None];
-                head_match(
-                    types,
-                    owner,
-                    opaque,
-                    opaque,
-                    &mut out,
-                    &mut HashSet::default(),
-                );
-                assert_eq!(
-                    out,
-                    [None],
-                    "projection/opaque boundaries do not collect their parameters"
-                );
-            })
-            .expect("thread")
-            .join()
-            .expect("no stack overflow");
-    }
 }

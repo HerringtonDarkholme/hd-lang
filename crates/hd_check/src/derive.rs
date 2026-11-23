@@ -25,6 +25,7 @@
 //! template's own mistakes.
 
 use hd_base::SliceSort as _;
+use hd_types::AdtId;
 use std::cell::{Cell, RefCell};
 
 use hd_base::{DefId, NotImplemented, Stage, StageResult, Symbol};
@@ -197,9 +198,7 @@ impl OptIn {
             return None;
         };
         let pool = names.pool.types();
-        let TyData::Adt { def, args } = pool.get(*self_ty) else {
-            return None;
-        };
+        let (def, args) = pool.adt(*self_ty)?;
         let args = pool.list_items(args);
         let ty = |t: Ty| {
             pool.subst(t, &|p: ParamRef| {
@@ -334,7 +333,7 @@ pub fn check_omitted_defaults(
     let ItemData::Impl { self_ty, .. } = &it.data else {
         return;
     };
-    let TyData::Adt { def, .. } = pool.get(*self_ty) else {
+    let Some((def, _)) = pool.adt(*self_ty) else {
         return;
     };
     let Some(ItemData::Struct(fields, _)) = lookup.item(def).map(|i| &i.data) else {
@@ -475,7 +474,7 @@ pub fn check_opt_in<'i>(
                 && member.facts.iter().any(|&fact| {
                     matches!(
                         names.pool.get(fact),
-                        TyData::Adt { def, .. } if def == skip_none
+                        TyData::Adt(AdtId::Declared(def), _) if def == skip_none
                     )
                 });
             if carries_skip_none {

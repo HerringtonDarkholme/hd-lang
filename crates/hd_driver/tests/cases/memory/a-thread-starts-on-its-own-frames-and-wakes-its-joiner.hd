@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: std release
+# @helpers: thread_start
+# @helper: std/thread/Scope.spawn
+# @helper: std/rt.thread/wait
+# @helper: std/rt.thread/run
+# `thread_spawn` stores the code and environment of `run` and moves the
+# closure's into the block, and calls the host's `thread_spawn`. A thread's instance
+# enters through `hd.thread`: it takes the block's frame region, runs the
+# runtime modules' inits, calls `run(block)`, which calls the closure,
+# writes its value into the block, ends the thread (one atomic step sets
+# the state word's ended bit and ends the thread's owner, then wakes every
+# wait on it) and retires the thread's heap; a stopped instance only sets
+# the ended and stopped bits and wakes. `wait` waits with
+# `memory.atomic.wait32` while the ended bit is clear.
+use std.thread.{Scope, scope}
+
+fn run() -> bool:
+    scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: true).join())

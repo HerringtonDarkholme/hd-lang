@@ -17,7 +17,7 @@ fn read_match(s: Shape) -> usize:
 >   local $1 n: string [read assigned] value
 >     uses $1: %21 -> %1 lend last
 >   local $2 a: string [read assigned] value
->     uses $2: %26 -> %7 lend last
+>     uses $2: %25 -> %7 lend last
 >   local $3 b: string [read assigned] value
 >     uses $3: %27 -> %12 lend last
 >   %0 = Read borrow [$0] : Shape
@@ -54,9 +54,9 @@ fn read_match(s: Shape) -> usize:
 >   %17 = Prim Add [%11 %16] : usize
 >   %18 = Block %17 : usize
 >   %24 = Read borrow [%0 as #1 .0] : string
->   %25 = Read borrow [%0 as #1 .1] : string
->   %26 = Store [$2] %24 : ()
->   %27 = Store [$3] %25 : ()
+>   %25 = Store [$2] %24 : ()
+>   %26 = Read borrow [%0 as #1 .1] : string
+>   %27 = Store [$3] %26 : ()
 >   %29 = Block - : never
         .Empty => 0
 >   %19 = Block 0:usize : usize
@@ -103,11 +103,11 @@ fn ref_match(s: &Shape) -> usize:
     match s:
 > app/main/ref_match
 >   local $0 s: &Shape [param read] value
->     uses $0: entry -> %0 lend, %20 lend, %21 lend last, %25 lend, %26 lend last
+>     uses $0: entry -> %0 lend, %20 lend, %21 lend last, %25 lend, %27 lend last
 >   local $1 n: string [read assigned] value
 >     uses $1: %22 -> %1 lend last
 >   local $2 a: string [read assigned] value
->     uses $2: %27 -> %7 lend last
+>     uses $2: %26 -> %7 lend last
 >   local $3 b: string [read assigned] value
 >     uses $3: %28 -> %12 lend last
 >   %0 = Read borrow [$0] : &Shape
@@ -140,9 +140,9 @@ fn ref_match(s: &Shape) -> usize:
 >   %17 = Prim Add [%11 %16] : usize
 >   %18 = Block %17 : usize
 >   %25 = Read borrow [*$0 as #1 .0] : string
->   %26 = Read borrow [*$0 as #1 .1] : string
->   %27 = Store [$2] %25 : ()
->   %28 = Store [$3] %26 : ()
+>   %26 = Store [$2] %25 : ()
+>   %27 = Read borrow [*$0 as #1 .1] : string
+>   %28 = Store [$3] %27 : ()
 >   %30 = Block - : never
         .Empty => 0
 >   %19 = Block 0:usize : usize

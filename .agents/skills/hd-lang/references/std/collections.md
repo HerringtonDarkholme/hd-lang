@@ -10,7 +10,7 @@ from `std.collections`.
 | `xs.len()`, `xs.is_empty()` | size |
 | `xs[i]` | the element; panics when out of range |
 | `xs.get(i)`, `xs.first()`, `xs.last()` | the element as `T?` |
-| `xs.contains(v)`, `xs.index_of(v)` | search by value; `index_of` gives `usize?` |
+| `xs.contains(&v)`, `xs.index_of(v)` | search by value; `index_of` gives `usize?` |
 | `xs.slice(start, end)`, `xs.take(n)` | a new list |
 | `xs.sorted()`, `xs.reversed()`, `xs.unique()` | a new list |
 | `xs.sorted_by_key(f)`, `xs.min()`, `xs.max()`, `xs.sum()` | ordering and totals |
@@ -28,7 +28,7 @@ These change the list, so they need `let mut xs` (or a `&mut List[T]`):
 | `xs.push(v)` | add one element at the end |
 | `xs.extend(ys)` | add every element of another list |
 | `xs.pop()` | remove and return the last, as `T?` |
-| `xs.insert(i, v)`, `xs.remove_at(i)` | at an index; `remove_at` returns the element |
+| `xs.insert(i, v)`, `xs.remove(i)` | at an index; `remove` returns the element |
 | `xs[i] = v`, `xs.swap(i, j)` | replace or exchange |
 | `xs.sort()`, `xs.sort_by_key(f)`, `xs.reverse()`, `xs.dedup()` | reorder in place |
 | `xs.retain(f)`, `xs.truncate(n)`, `xs.clear()` | drop elements |
@@ -69,7 +69,8 @@ ship 2 write,test,ship 2 [1, 2, 5] 8
 | `m.get(key)` | the value as `V?` |
 | `m[key]` | the value; panics when the key is missing |
 | `m.contains_key(key)` | `bool` |
-| `m.keys()`, `m.values()`, `m.entries()` | lists of copies |
+| `m.keys()`, `m.values()` | lazy snapshot cursors; use `.collect()` for a list |
+| `m.entries()` | a list of copied pairs |
 | `for (key, value) in m` | each entry, as `(&K, &V)` |
 | `m[key] = v` | insert or replace (needs `let mut`) |
 | `m.get_or_insert(key, default)` | `&mut V`, inserting the default when missing |
@@ -87,7 +88,7 @@ tally := counts(words)
 let mut lengths: Map[usize, List[string]] = {}
 for word in words:
     lengths.get_or_insert(word.len(), []).push(word)
-println("${tally["the"]} ${tally.most_common(1)[0]._0} ${lengths[3].len()} ${lengths.keys().sorted().len()}")
+println("${tally["the"]} ${tally.most_common(1)[0]._0} ${lengths[3].len()} ${lengths.keys().collect::[List[usize]]().sorted().len()}")
 ```
 
 ```output
@@ -114,7 +115,7 @@ let mut heap: Heap[i32] = Heap::new()
 heap.push(5)
 heap.push(9)
 heap.push(1)
-println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${heap.len()}")
+println("$fresh ${seen.contains(&"b")} ${debug(front)} ${debug(heap.pop())} ${heap.len()}")
 ```
 
 ```output
@@ -122,6 +123,7 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 ```
 
 `Heap.pop()` returns the largest element.
+`left.union(&right)` and `left.intersection(&right)` return lazy snapshot iterators; collect them when you need a new set.
 
 ## Iterators
 
@@ -130,17 +132,29 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 | Adapter (lazy) | Gives |
 | --- | --- |
 | `map(f)`, `filter(f)`, `flat_map(f)` | changed or kept items |
-| `enumerate()` | `(index, item)` pairs |
+| `filter_map(f)` | the present results of `f(item)` |
+| `rev()` | the remaining items in reverse order, for double ended cursors |
+| `enumerate()` | `(index, item)` pairs; lists also offer `xs.enumerate()` |
 | `zip(other)`, `chain(other)` | paired or appended items |
 | `take(n)`, `skip(n)`, `take_while(f)` | part of the items |
 
+`text.chars().rev().collect::[string]()` reverses Unicode scalars.
+Import `std.iter.DoubleEndedIterator` for `next_back`, and
+`std.iter.ExactSizeIterator` for constant-time remaining `len`. The ends
+share progress; `take`, `skip`, `zip`, and `enumerate` need exact source
+lengths to reverse. Map entries and arbitrary `from_fn` cursors are forward only.
+
 | Draining call | Gives |
 | --- | --- |
-| `collect()` | a `List` or a `Map`, chosen by the expected type |
+| `collect()` | a collection chosen by the expected type; `char` items also build a `string` |
 | `count()` | how many items |
+| `last()` | the final remaining item, or `.None` |
+| `position(f)` | the first matching remaining index; borrows and advances the cursor |
+| `for_each(f)` | visits each remaining item by value |
 | `sum()`, `product()` | a total, of the expected type |
 | `fold(initial, f)` | an accumulated value |
 | `any(f)`, `all(f)`, `find(f)` | search |
+| `min()`, `max()` | the smallest or largest item as `T?`: `min` the first of equal ones, `max` the last, as in Rust; items must be `Ord` |
 
 ```hd
 let squares: List[i32] = (1..=5).iter().map(fn(n): n * n).filter(fn(n): n % 2 == 1).collect()
@@ -157,7 +171,11 @@ println("${debug(squares)} ${index["bb"]} $total")
 
 | Call | On | Gives |
 | --- | --- | --- |
+| `unwrap()` | both | the value, or a panic; `Result` errors require `Debug` |
 | `unwrap_or(fallback)` | both | the value, or the fallback |
+| `unwrap_or_else(f)` | both | the value, or a fallback computed only on failure |
+| `or_else(f)` | both | this success, or an optional/result computed on failure |
+| `filter(f)` | `T?` | keeps a present value when `f(&value)` returns true |
 | `expect(message)` | both | the value, or a panic |
 | `map(f)` | both | the same wrapper around `f(value)` |
 | `and_then(f)` | both | chains a step that returns the same kind of wrapper |
@@ -167,4 +185,5 @@ println("${debug(squares)} ${index["bb"]} $total")
 | `ok()`, `err()` | `Result` | the value or the error, as an optional |
 | `map_err(f)` | `Result` | the same result with a changed error |
 
-There is no `unwrap()`. See [language/errors.md](../language/errors.md).
+`unwrap()` uses the standard panic message; `expect(message)` supplies your message.
+See [language/errors.md](../language/errors.md).

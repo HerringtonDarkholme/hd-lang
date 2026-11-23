@@ -1,0 +1,19 @@
+# test: a library marker reaches a type that holds a box through an explicit implementation, which Wire does not
+# Spec 10 Markers: module.marker.explicit, module.marker.kind.
+use std.marker.Marker
+
+pub trait GpuData < Marker
+
+struct Buffer:
+    bytes: List[u8]
+
+pub struct Texture:
+    buffer: *mut Buffer
+
+impl GpuData for Texture
+
+fn launch[T < GpuData](value: T) -> void:
+    pass
+
+fn demo(tex: Texture) -> void:
+    launch(tex)

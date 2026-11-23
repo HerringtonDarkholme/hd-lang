@@ -1,0 +1,77 @@
+# test: a method call takes a reference's own by-value method before reading through it, unless the referent's method takes that very reference
+# Spec 13 Reading Through A Reference: ref.read.auto.by-value, ref.read.auto.
+# expect-stdout: value walks a copy 3 then 1
+# expect-stdout: mut walks the cursor 4 then 4
+# expect-stdout: shared reads the cursor 13 then 1
+# expect-stdout: counted walks the cursor 104 then 4
+# expect-stdout: exact receiver 8 then 9
+# expect-stdout: unmet bound 5
+struct Cursor:
+    at: i32
+
+trait Walk < ?Copy:
+    fn rest(self) -> i32
+
+impl Walk for Cursor:
+    fn rest(self) -> i32:
+        self.at + 2
+
+impl Walk for &mut Cursor:
+    fn rest(self) -> i32:
+        self.at = self.at + 3
+        self.at
+
+impl Walk for &Cursor:
+    fn rest(self) -> i32:
+        self.at + 12
+
+impl Walk for *mut Cursor:
+    fn rest(self) -> i32:
+        self.at = self.at + 3
+        self.at + 100
+
+impl Cursor:
+    fn bump(&mut self) -> i32:
+        self.at = self.at + 7
+        self.at
+
+trait Bump < ?Copy:
+    fn bump(self) -> i32
+
+impl Bump for &mut Cursor:
+    fn bump(self) -> i32:
+        -100
+
+trait Label < ?Copy:
+    fn label(self) -> i32
+
+impl[W < ?Copy & Walk] Label for *mut W:
+    fn label(self) -> i32:
+        -5
+
+struct Plain:
+    n: i32
+
+impl Plain:
+    fn label(&mut self) -> i32:
+        self.n
+
+pub fn main() -> void $ Console:
+    let mut a = Cursor { at: 1 }
+    x := a.rest()
+    println("value walks a copy $x then ${a.at}")
+    let mut b = Cursor { at: 1 }
+    y := (&mut b).rest()
+    println("mut walks the cursor $y then ${b.at}")
+    c := Cursor { at: 1 }
+    z := (&c).rest()
+    println("shared reads the cursor $z then ${c.at}")
+    p := box(Cursor { at: 1 })
+    w := p.rest()
+    println("counted walks the cursor $w then ${p.at}")
+    let mut d = Cursor { at: 1 }
+    r := &mut d
+    v := r.bump()
+    println("exact receiver $v then ${d.at + 1}")
+    plain := box(Plain { n: 5 })
+    println("unmet bound ${plain.label()}")

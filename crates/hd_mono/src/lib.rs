@@ -7,6 +7,7 @@
 //! emission never selects again. Reads TIR and interfaces only, never
 //! syntax. Bodies of every package (std included) are collected alike.
 
+use hd_types::AdtId;
 pub mod defaults;
 pub mod dyn_graph;
 pub mod instance;
@@ -18,6 +19,7 @@ pub mod work;
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::ANON_SUM;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -30,7 +32,7 @@ use hd_types::solver::{
     BodyMemo, ConcreteTraitRef, Declarations, GlobalMemo, ImplRef, ImplUniverseId, Impls, ParamEnv,
     Selection, SolveCx, Solver, TraitRef,
 };
-use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 mod type_depth;
 /// Per sub-body, the generic local functions' parameter ranges
@@ -108,6 +110,11 @@ pub trait ProgramEnv: LayoutEnv {
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
+    /// Whether a method has a `where` bound on its owner's parameters,
+    /// which keeps it off a vtable (`trait.dyn.member.where`).
+    fn where_bounded(&self, _def: DefId) -> bool {
+        false
+    }
     /// Per instance argument: is a row parameter (`$R`), including owner
     /// arguments. A trait owner's implicit `Self` is not a row parameter.
     fn generic_rows(&self, def: DefId) -> Vec<bool>;
@@ -259,9 +266,12 @@ pub trait ProgramEnv: LayoutEnv {
     /// emission lowers the method itself (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
     /// The requested body first, followed by the cached helper bodies it calls.
     fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>>;
-    /// The body of one of the `dbg` functions the compiler supplies per
+    /// The body of one of the selection functions the compiler supplies per
     /// concrete argument (`dbg_printer[ty]`, `debug_texts[args]`; spec/lang/10-modules.md
-    /// "Debug Printing"). `debug`: `ty` implements `Debug`.
+    /// "Debug Printing"; `wire_put[ty]`, `wire_take[ty]`, `module.remote.codec`;
+    /// `remote[ty]`, `serve[ty]`, `build_id[]`, `module.remote.stub`;
+    /// `unique[ty]`, `fn.crossing.mode.unique`).
+    /// `debug`: `ty` implements `Debug`.
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
     /// `body`, which collection built (a function reference's call body,
     /// [`adapter_call_body`]), after the ownership passes, as the driver
@@ -280,20 +290,43 @@ pub trait ProgramEnv: LayoutEnv {
     /// count-bearing Copy data with no Drop and a materialized body.
     /// This fact alone does not change a call's result convention.
     fn return_loan_parameter(&self, item: DefId, args: TyList) -> Option<u8>;
+    /// Whether `self_ty` is std's `Stub` and `trait_` a remote trait, which
+    /// the stub answers with generated methods (`module.remote.stub`).
+    fn stub_answers(&self, trait_: DefId, self_ty: Ty) -> bool;
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
-    /// The private `DbgStructural` template's method, the `Structure` trait,
-    /// and the `DbgStructural` trait; no public conformance is added.
-    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)>;
+    /// `std.remote`'s `crossing_number`, `crossing_run` and `worker_serve`,
+    /// and `Wire` (`fn.crossing.lift`); `None` without `std.remote`.
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)> {
+        None
+    }
+    /// The canonical digest of `ty`, as `type_number[ty]` returns it.
+    fn type_number(&self, _ty: Ty) -> u64 {
+        0
+    }
+    /// `crossing_run`'s body over the lifted literals `arms` (number, the
+    /// lifted function's type), in order (`hd_structure::remote`).
+    fn crossing_run_body(&self, _item: DefId, _arms: &[(u64, Ty)]) -> StageResult<Body> {
+        Err(NotImplemented::bug(
+            Stage::Collect,
+            "no crossing dispatcher",
+        ))
+    }
+    /// The private `by Structure` templates (`DbgStructural`,
+    /// `WireStructural`), one row per method: the template's method, the
+    /// trait's method and the trait; then the `Structure` trait, whose
+    /// calls in those methods are the compiler's walk. No public
+    /// conformance is added.
+    fn private_templates(&self) -> (&[(DefId, DefId, DefId)], DefId);
 
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
     /// §13.12): `std.hash.key_equal`, which compares two keys by value
-    /// through `Eq`, and `std.hash.hash_key`, the keyed hash a map
+    /// through `Eq`, and `std.rt.hash.hash_key`, the keyed hash a map
     /// buckets a key that is not inline by.
     fn map_key_items(&self) -> Option<(DefId, DefId)>;
     /// The keyed hash a map buckets an inline key by (`crates/hd_mono/DESIGN.md`
-    /// §13.12): `std.hash.hash_string` for a `string`, else
-    /// `std.hash.hash_integer`, which takes the key's bits as a `u64`.
+    /// §13.12): `std.rt.hash.hash_string` for a `string`, else
+    /// `std.rt.hash.hash_integer`, which takes the key's bits as a `u64`.
     fn inline_bucket_hash(&self, string: bool) -> DefId;
     /// The build's profile (`cli.profile.*`), which decides whether
     /// emitted integer arithmetic checks overflow and shift counts.
@@ -405,7 +438,7 @@ pub enum Target {
         eq: CallTarget,
     },
     /// A map operation on an inline key: its keyed bucket hash,
-    /// `std.hash.hash_string` or `std.hash.hash_integer`
+    /// `std.rt.hash.hash_string` or `std.rt.hash.hash_integer`
     /// (`crates/hd_mono/DESIGN.md` §13.12); equality stays inline.
     MapInline(CallTarget),
 }
@@ -552,14 +585,22 @@ pub struct Collected {
     /// Concrete data types whose release glue first calls their
     /// `std.rt.Drop.drop` implementation, by type and instance key.
     pub drop_glue: HashMap<Ty, Hash128>,
+    /// A program that sends a crossing to a worker: `std.remote.worker_serve`
+    /// and its instance, which a worker instance runs (`hd.worker`).
+    pub worker: Option<(DefId, Hash128)>,
+    /// A program that starts threads (`thread_spawn`): its heap is shared
+    /// (`module.rt.thread.heap`).
+    pub threads: bool,
 }
 
 impl Collected {
     /// The TIR of an instance whose item has no body of its own: the
     /// compiler-supplied method's, at the instance's self type.
     #[must_use]
+    /// `build_id`'s, which has no type argument, is keyed at `void`.
     pub fn supplied_body(&self, pool: &InternPool, item: DefId, args: TyList) -> Option<&Body> {
-        let self_ty = pool.list_items(args).first().copied()?;
+        let self_ty = (pool.list_items(args).first().copied())
+            .or_else(|| (args == TyList::EMPTY).then_some(Ty::VOID))?;
         self.supplied.get(&(item, self_ty)).map(AsRef::as_ref)
     }
 
@@ -683,7 +724,10 @@ fn opaque_result(
         body_memo: &mut memo,
         global,
     };
-    let Selection::Impl { impl_row, .. } = hd_types::solver::TableSolver
+    let Selection::Impl {
+        impl_row,
+        args: impl_args,
+    } = hd_types::solver::TableSolver
         .select(
             &mut cx,
             ConcreteTraitRef(TraitRef {
@@ -703,20 +747,12 @@ fn opaque_result(
         // The trait's default body shares its Self/trait/method arguments.
         return env.opaque_result(pool, method, site);
     };
-    let (head, formals, count) = env.impl_head(imp)?;
-    let mut values = vec![None; count];
-    unify(pool, imp, head, self_ty, &mut values);
-    for (&formal, &actual) in pool
-        .list_items(formals)
-        .iter()
-        .zip(pool.list_items(trait_args))
-    {
-        unify(pool, imp, formal, actual, &mut values);
+    // Selection's arguments, every impl parameter's; a parameter neither
+    // the head nor a `Bind` step fixes is poison.
+    let mut selected_args = pool.list_items(impl_args).to_vec();
+    if selected_args.contains(&Ty::POISON) {
+        return None;
     }
-    if values.iter().any(Option::is_none) {
-        hd_types::solver::apply_binds(types, env.impls(), table, row, &mut values);
-    }
-    let mut selected_args: Vec<Ty> = values.into_iter().collect::<Option<_>>()?;
     selected_args.extend_from_slice(&rest[n..]);
     let selected_result = substitute(
         pool,
@@ -740,7 +776,8 @@ fn opaque_result(
 #[must_use]
 pub fn holds_coll(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     holds_coll_walk(t, |t| {
-        let TyData::Adt { def, args } = pool.get(t) else {
+        // ruled out: this copy-class query follows declared struct fields, not sums.
+        let Some((def, args)) = pool.adt(t) else {
             return (false, Vec::new());
         };
         match env.std_kind(def) {
@@ -880,13 +917,42 @@ fn name_into(
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
         // `Option[T]` is spelled `T?` (`types.option.sugar`).
-        TyData::Adt { def, args } if def == env.option() => {
+        TyData::Adt(AdtId::Declared(def), args) if def == env.option() => {
             for &inner in pool.list_items(args) {
                 name_into(pool, env, printed, inner, out, limit);
             }
             out.push('?');
         }
-        TyData::Adt { def, args } => {
+        TyData::Adt(ANON_SUM, args) => {
+            for (index, &member) in pool.list_items(args).iter().enumerate() {
+                if index > 0 {
+                    out.push_str(" | ");
+                }
+                let nested = matches!(pool.get(member), TyData::Adt(ANON_SUM, _));
+                if nested {
+                    out.push('(');
+                }
+                name_into(pool, env, printed, member, out, limit);
+                if nested {
+                    out.push(')');
+                }
+            }
+        }
+        TyData::Adt(AdtId::Product { rest }, args) => {
+            let elems = pool.list_items(args);
+            out.push('(');
+            for (i, &t) in elems.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                name_into(pool, env, printed, t, out, limit);
+                if rest && i + 1 == elems.len() {
+                    out.push_str("...");
+                }
+            }
+            out.push(')');
+        }
+        TyData::Adt(AdtId::Declared(def), args) => {
             out.push_str(&def_name(env, printed, def));
             if !pool.list_items(args).is_empty() {
                 out.push('[');
@@ -918,34 +984,7 @@ fn name_into(
                 out.push(']');
             }
         }
-        TyData::Tuple { elems, rest } => {
-            out.push('(');
-            let elems = pool.list_items(elems);
-            list(elems, ", ", out);
-            if let Some(r) = rest {
-                if !elems.is_empty() {
-                    out.push_str(", ");
-                }
-                name_into(pool, env, printed, r, out, limit);
-                out.push_str("...");
-            }
-            out.push(')');
-        }
-        TyData::Union(members) => {
-            for (index, &member) in pool.list_items(members).iter().enumerate() {
-                if index > 0 {
-                    out.push_str(" | ");
-                }
-                let nested = matches!(pool.get(member), TyData::Union(_));
-                if nested {
-                    out.push('(');
-                }
-                name_into(pool, env, printed, member, out, limit);
-                if nested {
-                    out.push(')');
-                }
-            }
-        }
+
         TyData::Ref {
             inner,
             mutable,
@@ -1022,134 +1061,6 @@ fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
         .collect()
 }
 
-/// Matches an impl head's `pattern` (over the parameters of `owner`)
-/// against a concrete type, filling `out`. Selection has already checked
-/// that the head matches and repeated parameters agree; this extracts them.
-pub fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
-    unify_walk(pool, owner, pattern, t, out);
-}
-
-// Returns distinct formal types and all popped steps so the generated
-// width/depth test counts work, including memo hits, without another pass.
-fn unify_walk(
-    pool: &InternPool,
-    owner: DefId,
-    pattern: Ty,
-    t: Ty,
-    out: &mut Vec<Option<Ty>>,
-) -> (usize, usize) {
-    enum Step {
-        Types(Ty, Ty),
-        Rows(RowId, RowId),
-    }
-    let mut work = vec![Step::Types(pattern, t)];
-    let mut seen = HashSet::default();
-    let mut popped = 0;
-    let list = |a, b, work: &mut Vec<Step>| {
-        work.extend(
-            pool.list_items(a)
-                .iter()
-                .zip(pool.list_items(b))
-                .rev()
-                .map(|(&x, &y)| Step::Types(x, y)),
-        );
-    };
-    while let Some(step) = work.pop() {
-        popped += 1;
-        let (pattern, t) = match step {
-            Step::Types(pattern, t) => (pattern, t),
-            Step::Rows(a, b) => {
-                unify_row(pool, owner, a, b, out);
-                continue;
-            }
-        };
-        // Selection already proved that repeated occurrences bind the same
-        // arguments. Once this formal subtree has supplied its parameters,
-        // revisiting it cannot add one. Bound work by the formal head graph,
-        // even when the actual type graph shares it in different contexts.
-        if !seen.insert(pattern) {
-            continue;
-        }
-        match (pool.get(pattern), pool.get(t)) {
-            (TyData::Param(p), _) if p.owner == owner => {
-                let i = p.index as usize;
-                if out.len() <= i {
-                    out.resize(i + 1, None);
-                }
-                out[i].get_or_insert(t);
-            }
-            (TyData::Adt { args: a, .. }, TyData::Adt { args: b, .. })
-            | (TyData::TraitValue { args: a, .. }, TyData::TraitValue { args: b, .. })
-            | (TyData::Union(a), TyData::Union(b)) => list(a, b, &mut work),
-            (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
-                if let (Some(x), Some(y)) = (ar, br) {
-                    work.push(Step::Types(x, y));
-                }
-                list(a, b, &mut work);
-            }
-            (
-                TyData::Fn {
-                    params: a,
-                    result: r,
-                    row: ar,
-                    inputs: ai,
-                    ..
-                },
-                TyData::Fn {
-                    params: b,
-                    result: s,
-                    row: br,
-                    inputs: bi,
-                    ..
-                },
-            ) => {
-                work.push(Step::Rows(ar, br));
-                work.push(Step::Types(r, s));
-                if ai == bi {
-                    list(a, b, &mut work);
-                } else {
-                    // `Fn[Args, O, $ R]` against a concrete function type:
-                    // `Args` is its whole inputs tuple (`fn.type.ctor.inputs`).
-                    let p = pool.types();
-                    work.push(Step::Types(p.inputs_tuple(a, ai), p.inputs_tuple(b, bi)));
-                }
-            }
-            (TyData::Row(a), TyData::Row(b)) => unify_row(pool, owner, a, b, out),
-            (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
-                work.push(Step::Types(a, b));
-            }
-            _ => {}
-        }
-    }
-    (seen.len(), popped)
-}
-
-#[cfg(test)]
-mod matching_tests;
-
-/// Matches an impl head's row parameters, filling their instance arguments
-/// with the concrete row as a `TyData::Row`, just as `unify` does for type
-/// parameters. `Types::subst_row` consumes that same representation.
-fn unify_row(
-    pool: &InternPool,
-    owner: DefId,
-    pattern: RowId,
-    actual: RowId,
-    out: &mut Vec<Option<Ty>>,
-) {
-    for p in pool.row_data(pattern).params {
-        if p.owner != owner {
-            continue;
-        }
-        let i = p.index as usize;
-        if out.len() <= i {
-            out.resize(i + 1, None);
-        }
-        let row = pool.intern_ty(&TyData::Row(actual));
-        out[i].get_or_insert(row);
-    }
-}
-
 /// The items a type names: data types, enums and traits (a projection's
 /// trait included). `seen` holds the types already walked, so a type shared
 /// by its parts is walked once however large its tree.
@@ -1164,8 +1075,8 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
         }
     };
     match pool.get(t) {
-        TyData::Adt { def, args } => {
-            out.push(def);
+        TyData::Adt(def, args) => {
+            out.extend(def.get());
             list(args, out, seen);
         }
         TyData::TraitValue {
@@ -1189,12 +1100,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
             items_in(pool, self_ty, out, seen);
             list(args, out, seen);
         }
-        TyData::Tuple { elems, rest } => {
-            list(elems, out, seen);
-            if let Some(r) = rest {
-                items_in(pool, r, out, seen);
-            }
-        }
+
         TyData::Fn { params, result, .. } => {
             list(params, out, seen);
             items_in(pool, result, out, seen);
@@ -1209,6 +1115,7 @@ fn items_in(pool: &InternPool, t: Ty, out: &mut Vec<DefId>, seen: &mut HashSet<T
 /// slot's provider parameters) and its supertraits (a vtable's parent
 /// fields, with the bindings they fix), as declared.
 fn declared_types(env: &dyn ProgramEnv, def: DefId) -> Vec<Ty> {
+    // ruled out: items_in records only present declaration IDs.
     if let Some(fs) = env.data_fields(def) {
         return fs;
     }
@@ -1249,7 +1156,7 @@ fn layout_hash(
 /// layout also reads: one level of [`items_in`]'s walk.
 fn type_parts(pool: &InternPool, t: Ty) -> (Option<DefId>, Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt { def, args } => (Some(def), pool.list_items(args).to_vec()),
+        TyData::Adt(def, args) => (def.get(), pool.list_items(args).to_vec()),
         TyData::TraitValue {
             def,
             args,
@@ -1269,11 +1176,7 @@ fn type_parts(pool: &InternPool, t: Ty) -> (Option<DefId>, Vec<Ty>) {
             parts.extend_from_slice(pool.list_items(args));
             (Some(trait_), parts)
         }
-        TyData::Tuple { elems, rest } => {
-            let mut parts = pool.list_items(elems).to_vec();
-            parts.extend(rest);
-            (None, parts)
-        }
+
         TyData::Fn { params, result, .. } => {
             let mut parts = pool.list_items(params).to_vec();
             parts.push(result);
@@ -1493,6 +1396,16 @@ struct Cx<'a> {
     drop_checked: HashSet<Ty>,
     /// One node per concrete instantiated trait, across coercion sites.
     vtables: HashMap<(Ty, DefId, TyList), VTableId>,
+    /// Each lifted `Wire` crossing literal an instance numbers: its
+    /// number, its function's code instance and type (`fn.crossing.lift`).
+    crossings: Vec<(u64, Hash128, Ty)>,
+    /// `crossing_run`, once a body calls it: its body waits for every
+    /// literal, so it is generated after the worklist drains.
+    crossing_run: Option<DefId>,
+    /// The dispatcher's arms: the code instance each calls, in order.
+    crossing_arms: Vec<Hash128>,
+    /// Whether a body sends a crossing to a worker (`crossing_sent`).
+    worker_sends: bool,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -1584,10 +1497,10 @@ pub fn adapter_call_body(
     };
     let ret = s(env.ret(item).unwrap_or(Ty::VOID));
     let call_ty = if env.suspends(item) {
-        pool.intern_ty(&TyData::Adt {
-            def: env.suspend_def(),
-            args: pool.list(&[ret]),
-        })
+        pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(env.suspend_def()),
+            pool.list(&[ret]),
+        ))
     } else {
         ret
     };
@@ -2121,15 +2034,8 @@ impl Cx<'_> {
                 mutable: false,
                 counted,
             },
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: list(args),
-            },
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: list(elems),
-                rest: rest.map(|t| self.shared_permission_type(t)),
-            },
-            TyData::Union(members) => TyData::Union(list(members)),
+            TyData::Adt(def, args) => TyData::Adt(def, list(args)),
+
             // A function, trait value or projection carries a signature or
             // dictionary whose selection can distinguish the permissions.
             _ => return ty,
@@ -2177,18 +2083,42 @@ impl Cx<'_> {
     /// The target of a call of `def` at full arguments `args`.
     fn target(&mut self, def: DefId, args: TyList, parent: InstId) -> StageResult<CallTarget> {
         let ret = self.env.ret(def).unwrap_or(Ty::VOID);
-        if let Some(key) = self
-            .env
-            .intrinsic(def)
-            .filter(|k| matches!(k.as_str(), "debug_texts" | "dbg_printer"))
-        {
+        if let Some(key) = self.env.intrinsic(def).filter(|k| {
+            matches!(
+                k.as_str(),
+                "debug_texts"
+                    | "dbg_printer"
+                    | "wire_put"
+                    | "wire_take"
+                    | "stub_as"
+                    | "interface_of"
+                    | "type_number"
+                    | "crossing_sent"
+                    | "crossing_unique"
+                    | "serve"
+                    | "build_id"
+            )
+        }) {
+            self.worker_sends |= key == "crossing_sent";
             return self.dbg_target(def, &key, args, parent);
+        }
+        // The worker's dispatcher: generated once every literal is numbered.
+        if self.env.crossing_items().is_some_and(|c| c.1 == def) {
+            self.crossing_run = Some(def);
+            return Ok(CallTarget {
+                key: defaults::key(self.key(def, Sub::Body(0), TyList::EMPTY), &[], &[]),
+                item: def,
+                args: TyList::EMPTY,
+                ret,
+                kind: TargetKind::Instance,
+            });
         }
         // Every other intrinsic goes through the backend's lowering table,
         // even when its std declaration has a source body. That body is only
         // a placeholder: compiling it would turn an unlowered intrinsic into
         // a run-time `panic("intrinsic")` instead of a build error.
         if let Some(key) = self.env.intrinsic(def) {
+            self.out.threads |= key == "thread_spawn";
             return Ok(CallTarget {
                 key: Hash128(0),
                 item: def,
@@ -2294,19 +2224,22 @@ impl Cx<'_> {
         // exempts, a typed fact's read through a handle and its place in a
         // `Facts`, needs a runtime identity whatever its type arguments
         // are (`annot.handle.fact.key`, `annot.handle.fact.exact`).
-        if choice.is_none() && trait_ == env.decls().sealed().inspectable {
+        if choice.is_none()
+            && (trait_ == env.decls().sealed().inspectable || env.stub_answers(trait_, self_ty))
+        {
             self.selected.insert(key, Picked::Builtin);
             return Ok(Picked::Builtin);
         }
         let view = env.impls();
-        let at = if let Some(d) = choice {
+        // The impl and its arguments: selection's, or for an impl the
+        // checker recorded, its head bound from the goal as selection binds it.
+        let (at, args) = if let Some(d) = choice {
             let Some(at) = env.impl_row(d) else {
                 return err("a chosen impl outside the impl tables");
             };
-            at
+            (at, None)
         } else {
-            // Impl heads name `&T`, as bodies and declarations do. The
-            // arguments below unify the head with `self_ty`.
+            // Impl heads name `&T`, as bodies and declarations do.
             let tref = ConcreteTraitRef(TraitRef {
                 trait_,
                 self_ty,
@@ -2334,7 +2267,7 @@ impl Cx<'_> {
                 e
             })?;
             match picked {
-                Selection::Impl { impl_row, .. } => impl_row,
+                Selection::Impl { impl_row, args } => (impl_row, Some(args)),
                 Selection::Builtin(_) => {
                     self.selected.insert(key, Picked::Builtin);
                     return Ok(Picked::Builtin);
@@ -2346,32 +2279,17 @@ impl Cx<'_> {
         };
         let row = at.row as usize;
         let impl_ = t.def[row];
-        let Some((head, targs, n)) = env.impl_head(impl_) else {
-            return err("a selected impl without a head");
+        let types = self.pool.types();
+        // Selection leaves a parameter nothing fixes as poison.
+        let args = if let Some(args) = args {
+            Some(types.list_items(args).to_vec()).filter(|a| !a.contains(&Ty::POISON))
+        } else {
+            let goal = types.list_items(trait_args);
+            hd_types::solver::impl_args(types, view, t, row, self_ty, goal)
         };
-        let mut out = vec![None; n];
-        unify(self.pool, impl_, head, self_ty, &mut out);
-        for (x, y) in self
-            .pool
-            .list_items(targs)
-            .iter()
-            .copied()
-            .zip(self.pool.list_items(trait_args).iter().copied())
-        {
-            unify(self.pool, impl_, x, y, &mut out);
-        }
-        // Parameters that a bound's binding fixes (`Bind` steps).
-        if out.iter().any(Option::is_none) {
-            out.resize(out.len().max(n), None);
-            hd_types::solver::apply_binds(self.pool.types(), view, t, row, &mut out);
-        }
-        let mut args = Vec::new();
-        for a in out.into_iter().take(n) {
-            let Some(a) = a else {
-                return err("an impl parameter that its head does not fix (a `Bind` step)");
-            };
-            args.push(a);
-        }
+        let Some(args) = args else {
+            return err("an impl parameter that its head does not fix (a `Bind` step)");
+        };
         let picked = Picked::Impl(impl_, args);
         self.selected.insert(key, picked.clone());
         Ok(picked)
@@ -2473,20 +2391,21 @@ impl Cx<'_> {
                     }
                     todo.push(inner);
                 }
-                TyData::Adt { def, args } => {
-                    if self.env.has_private_field(def) {
+                TyData::Adt(def, args) => {
+                    if def.get().is_some_and(|def| self.env.has_private_field(def)) {
                         self.note_private_boundary(ty, out, package)?;
                         // The opaque codec defines the entire wire value. Its
                         // representation fields need neither codecs nor handles.
                         continue;
                     }
+                    todo.extend(self.pool.list_items(args).iter().copied());
+                    let Some(def) = def.get() else { continue };
                     // A map's decoder rebuilds its table through the key's
                     // hash and equality (`module.boundary.map-decode`).
                     if self.env.std_kind(def) == layout::StdKind::Map {
                         let ops = self.map_key(ty, InstId::NONE, None)?;
                         self.out.boundary.entry(ty).or_default().map_key = Some(ops);
                     }
-                    todo.extend(self.pool.list_items(args).iter().copied());
                     for field in self.env.data_fields(def).unwrap_or_default() {
                         todo.push(subst(self.pool, self.env, def, args, field));
                     }
@@ -2498,14 +2417,7 @@ impl Cx<'_> {
                         }
                     }
                 }
-                TyData::Tuple { elems, rest } => {
-                    todo.extend(self.pool.list_items(elems).iter().copied());
-                    todo.extend(rest);
-                }
-                // A union crosses as the enum of its cases.
-                TyData::Union(members) => {
-                    todo.extend(self.pool.list_items(members).iter().copied());
-                }
+
                 TyData::TraitValue { .. } => handles.push((ty, package)),
                 _ => {}
             }
@@ -2588,9 +2500,11 @@ impl Cx<'_> {
         }))
     }
 
-    /// A call of `dbg_printer` or `debug_texts`, whose body the compiler writes at the
-    /// exact argument (`ProgramEnv::dbg_body`): an instance keyed like any
-    /// other, with no A1 class, since the body reads the type's declaration.
+    /// A call of `dbg_printer`, `debug_texts`, `wire_put`, `wire_take`,
+    /// `remote`, `serve`, `unique` or `build_id`, whose body the compiler writes at
+    /// the exact argument (`ProgramEnv::dbg_body`): an instance keyed like
+    /// any other, with no A1 class, since the body reads the type's
+    /// declaration.
     fn dbg_target(
         &mut self,
         def: DefId,
@@ -2598,9 +2512,8 @@ impl Cx<'_> {
         args: TyList,
         parent: InstId,
     ) -> StageResult<CallTarget> {
-        let Some(&ty) = self.pool.list_items(args).first() else {
-            return err("a `dbg` function without its type argument");
-        };
+        // `build_id` alone has no type argument: one body per build.
+        let ty = (self.pool.list_items(args).first().copied()).unwrap_or(Ty::VOID);
         if !self.out.supplied.contains_key(&(def, ty)) {
             // A class placeholder or a type parameter has no declaration to
             // print: its text is implementation-defined (`module.dbg.value.generic`).
@@ -2631,14 +2544,8 @@ impl Cx<'_> {
         }
         // A tuple's `Debug` is a template that checks its elements only when
         // it is instantiated, so the elements decide here.
-        if let TyData::Tuple { elems, rest } = self.pool.get(ty) {
-            let parts: Vec<Ty> = self
-                .pool
-                .list_items(elems)
-                .iter()
-                .copied()
-                .chain(rest)
-                .collect();
+        if let TyData::Adt(AdtId::Product { .. }, args) = self.pool.get(ty) {
+            let parts = self.pool.list_items(args).to_vec();
             return parts.into_iter().all(|t| self.implements_debug(t));
         }
         let debug = self.env.debug_trait();
@@ -2652,7 +2559,8 @@ impl Cx<'_> {
         if !self.drop_checked.insert(ty) {
             return Ok(());
         }
-        if let TyData::Adt { .. } = self.pool.get(ty)
+        // ruled out: module.rt.drop.not-copy requires a declaration; payloads follow below.
+        if self.pool.adt(ty).is_some()
             && let Some((trait_, method)) = self.env.drop_items()
             && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
         {
@@ -2663,24 +2571,9 @@ impl Cx<'_> {
             self.out.drop_glue.insert(ty, target.key);
         }
         let children = match self.pool.get(ty) {
-            TyData::Adt { def, args } => self.env.enum_variants(def, args).unwrap_or_else(|| {
-                vec![
-                    self.env
-                        .data_fields(def)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|field| subst(self.pool, self.env, def, args, field))
-                        .collect(),
-                ]
-            }),
-            TyData::Tuple { elems, rest } => vec![
-                self.pool
-                    .list_items(elems)
-                    .iter()
-                    .copied()
-                    .chain(rest)
-                    .collect(),
-            ],
+            TyData::Adt(def, args) => layout::enum_variants(self.pool, self.env, def, args)
+                .unwrap_or_else(|| vec![layout::product_fields(self.pool, self.env, def, args)]),
+
             _ => Vec::new(),
         };
         for child in children.into_iter().flatten() {
@@ -3189,7 +3082,7 @@ impl Cx<'_> {
         while let TyData::Ref { inner, .. } = pool.get(map) {
             map = inner;
         }
-        let TyData::Adt { args, .. } = pool.get(map) else {
+        let TyData::Adt(_, args) = pool.get(map) else {
             return err("a map operation on a non-map type");
         };
         let Some(&key) = pool.list_items(args).first() else {
@@ -3251,10 +3144,10 @@ impl Cx<'_> {
         let env = self.env;
         // A compiler-supplied method's instance has no item body: its
         // TIR was generated at its self type (`supplied_target`).
-        let supplied = pool
-            .list_items(args)
-            .first()
-            .and_then(|&t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
+        // `build_id`'s, which has no type argument, is keyed at `void`.
+        let supplied = (pool.list_items(args).first().copied())
+            .or_else(|| (args == TyList::EMPTY).then_some(Ty::VOID))
+            .and_then(|t| Some((t, self.out.supplied.get(&(item, t))?.clone())));
         // An item's root instance asks for its body; each closure's code
         // instance shares its parent's, which made its environment. A
         // supplied method's or factory's instance body is its generated
@@ -3350,6 +3243,10 @@ impl Cx<'_> {
                             let targs: Vec<Ty> =
                                 pool.list_items(targs).iter().copied().map(s).collect();
                             let targs = pool.list(&targs);
+                            if self.env.crossing_items().is_some_and(|c| c.0 == def) {
+                                let f = pool.list_items(targs).first().copied();
+                                self.note_crossing(body, i, f.unwrap_or(Ty::VOID), &calls)?;
+                            }
                             if let Some(target) = self.default_target(body, i, def, targs, id)? {
                                 self.hash_target(&target, &mut reps);
                                 calls.insert(ix, Target::Call(target));
@@ -3429,17 +3326,19 @@ impl Cx<'_> {
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }
-                            let private = env.dbg_structure();
-                            let private_structure = private
-                                .is_some_and(|(caller, tr, _)| caller == item && tr == trait_);
-                            // `dbg_structural`'s call of `DbgStructural.show`:
+                            let (private, structure) = env.private_templates();
+                            let private_structure =
+                                trait_ == structure && private.iter().any(|&(own, ..)| own == item);
+                            // `dbg_structural`'s call of `DbgStructural.show`,
+                            // and the codec's of `WireStructural`'s methods:
                             // the private template's method at the receiver.
                             let structural = private
-                                .filter(|&(.., dbg)| dbg == trait_)
-                                .map(|(show, ..)| show);
+                                .iter()
+                                .find(|&&(_, of, _)| of == method)
+                                .map(|&(own, ..)| own);
                             let supplied = match (choice.0, structural) {
-                                (_, Some(show)) => {
-                                    Some(self.target(show, pool.list(&[self_ty]), id)?)
+                                (_, Some(own)) => {
+                                    Some(self.target(own, pool.list(&[self_ty]), id)?)
                                 }
                                 _ if private_structure => {
                                     self.supplied_target(method, self_ty, &targs, id)?
@@ -3687,6 +3586,15 @@ impl Cx<'_> {
         if let Some(plan) = &plan {
             direct_calls(body, plan, sub, &known, &mut calls);
         }
+        // The dispatcher's arm k calls the code instance of lifted literal
+        // k directly (`fn.crossing.lift`), as a known closure.
+        if self.env.crossing_items().is_some_and(|c| c.1 == item) {
+            let values = (0..body.len()).filter(|&i| body.tags[i] == Tag::CallValue);
+            for (i, &key) in values.zip(&self.crossing_arms) {
+                calls.insert(hd_tir::ir::u32_of(i), Target::KnownClosure(key));
+                reps.hash(key);
+            }
+        }
         if sub == Sub::Body(0) {
             self.hash_signature(item, args, &mut reps);
         }
@@ -3892,28 +3800,25 @@ fn pinned(
                 *x = true;
             }
         }
-        TyData::Adt { def: d, args } => {
+        TyData::Adt(d, args) => {
             // `List`, `Map`, a buffer's room and enum payloads store
             // references erased.
-            let erased = matches!(
-                env.std_kind(d),
-                layout::StdKind::List | layout::StdKind::Map
-            ) || env.raw_buffer(d)
-                || env.enum_variants(d, args).is_some();
+            let erased = match d {
+                AdtId::Sum => true,
+                AdtId::Product { .. } => false,
+                AdtId::Declared(d) => {
+                    matches!(
+                        env.std_kind(d),
+                        layout::StdKind::List | layout::StdKind::Map
+                    ) || env.raw_buffer(d)
+                        || env.enum_variants(d, args).is_some()
+                }
+            };
             for a in pool.list_items(args).iter().copied() {
                 pinned(pool, env, def, a, inside || !erased, out);
             }
         }
-        TyData::Tuple { elems, rest } => {
-            for e in pool.list_items(elems).iter().copied().chain(rest) {
-                pinned(pool, env, def, e, true, out);
-            }
-        }
-        TyData::Union(members) => {
-            for member in pool.list_items(members) {
-                pinned(pool, env, def, *member, inside, out);
-            }
-        }
+
         TyData::Fn {
             params,
             result,
@@ -4053,6 +3958,10 @@ fn collect_roots(
         body_subs: HashMap::default(),
         drop_checked: HashSet::default(),
         vtables: HashMap::default(),
+        crossings: Vec::new(),
+        crossing_run: None,
+        crossing_arms: Vec::new(),
+        worker_sends: false,
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {
@@ -4132,7 +4041,111 @@ impl Cx<'_> {
             next += 1;
             self.scan(id)?;
         }
+        // A program that sends to a worker holds the worker's root, which a
+        // second instance runs (`std-remote.workers.serve`).
+        if self.worker_sends
+            && let Some((.., serve, _)) = self.env.crossing_items()
+        {
+            let key = self.push(
+                serve,
+                Sub::Body(0),
+                TyList::EMPTY,
+                TyList::EMPTY,
+                InstId::NONE,
+            )?;
+            self.out.worker = Some((serve, key));
+            while next < self.work.len() {
+                let id = self.work[next];
+                next += 1;
+                self.scan(id)?;
+            }
+        }
+        // The worker's dispatcher (`fn.crossing.lift`): every literal is
+        // numbered now, and its arms reach no new one.
+        if let Some(def) = self.crossing_run.take() {
+            // A worker runs a closure that does not suspend and whose result
+            // crosses back; no domain sends another.
+            let wire = self.env.crossing_items().map_or(DefId::NONE, |c| c.3);
+            let mut arms = Vec::new();
+            for &(number, key, f) in &self.crossings.clone() {
+                if let TyData::Fn {
+                    result,
+                    suspends: false,
+                    ..
+                } = self.pool.get(f)
+                    && self.select(wire, result, TyList::EMPTY, None).is_ok()
+                {
+                    arms.push((number, f));
+                    self.crossing_arms.push(key);
+                }
+            }
+            let body = self.env.crossing_run_body(def, &arms)?;
+            self.out.supplied.insert((def, Ty::VOID), Arc::new(body));
+            self.push(
+                def,
+                Sub::Body(0),
+                TyList::EMPTY,
+                TyList::EMPTY,
+                InstId::NONE,
+            )?;
+            while next < self.work.len() {
+                let id = self.work[next];
+                next += 1;
+                self.scan(id)?;
+            }
+            if self.crossing_arms.len() != arms.len() {
+                return err("a crossing dispatcher's arm numbered another literal");
+            }
+        }
         Ok(())
+    }
+
+    /// A call of `crossing_number[F](literal, code)` (`fn.crossing.lift`):
+    /// records the lifted function `code` names under the number the call
+    /// returns, for the dispatcher. Cost: a few instructions back to the
+    /// closure; once per literal and instance.
+    fn note_crossing(
+        &mut self,
+        body: &Body,
+        i: usize,
+        f: Ty,
+        calls: &HashMap<u32, Target>,
+    ) -> StageResult<()> {
+        let (Some(&literal), Some(&code)) = (body.call_args(i).first(), body.call_args(i).get(1))
+        else {
+            return err("a malformed crossing number");
+        };
+        let literal = (literal & hd_tir::ir::Ref::CONST_BIT != 0)
+            .then(|| {
+                body.consts
+                    .get((literal & !hd_tir::ir::Ref::CONST_BIT) as usize)
+            })
+            .flatten()
+            .map(|c| c.1);
+        // The closure: the argument, or the one stored into the local it
+        // reads.
+        let mut at = code as usize;
+        if body.tags.get(at) == Some(&Tag::Read) {
+            let word = body.data[at][0];
+            at = (0..at)
+                .rev()
+                .find(|&s| body.tags[s] == Tag::Store && body.data[s][0] == word)
+                .map_or(usize::MAX, |s| body.data[s][1] as usize);
+        }
+        let (Some(literal), Some(&Target::Closure(key))) =
+            (literal, calls.get(&hd_tir::ir::u32_of(at)))
+        else {
+            return err("a crossing number without its literal");
+        };
+        let number = literal ^ self.env.type_number(f);
+        match self.crossings.iter().find(|c| c.0 == number) {
+            Some(c) if c.1 != key => err("two lifted crossing literals share a number"),
+            Some(_) => Ok(()),
+            None => {
+                self.crossings.push((number, key, f));
+                Ok(())
+            }
+        }
     }
 }
 

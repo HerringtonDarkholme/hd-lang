@@ -52,9 +52,28 @@ pub struct ImplSeg {
     pub ordinal: u16,
 }
 
-const SHARDS: usize = 16;
+const SHARDS: usize = 64;
 
-type PathIndex = Mutex<HashMap<(PathId, PathKind, Symbol), PathId>>;
+/// One dedup shard on its own cache lines, as the type pool's are (#1802
+/// draft 92): 16 shards packed three to a line made each lock bounce its
+/// neighbors' line between the pool's threads.
+#[repr(align(128))]
+struct Shard<K, V>(Mutex<HashMap<K, V>>);
+
+impl<K, V> Default for Shard<K, V> {
+    fn default() -> Self {
+        Shard(Mutex::new(HashMap::default()))
+    }
+}
+
+impl<K, V> std::ops::Deref for Shard<K, V> {
+    type Target = Mutex<HashMap<K, V>>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+type PathIndex = Shard<(PathId, PathKind, Symbol), PathId>;
 
 /// The trie. Columns are append-only, so a reader indexes without a lock;
 /// the shards guard only the dedup index.
@@ -69,7 +88,9 @@ pub struct PathTable {
     /// The names declared type and row parameters are written with, by
     /// owner and position, for messages (the trie holds no parameter nodes).
     param_names: Mutex<HashMap<(u32, u16), Box<str>>>,
-    index: [PathIndex; SHARDS],
+    /// On the heap: 64 shards of 128 bytes inline made a table 8 KiB, and
+    /// building one on a small thread stack overflowed it.
+    index: Box<[PathIndex]>,
 }
 
 impl Default for PathTable {
@@ -83,7 +104,7 @@ impl Default for PathTable {
             def_module: AppendVec::new(),
             append: Mutex::new(()),
             param_names: Mutex::new(HashMap::default()),
-            index: std::array::from_fn(|_| Mutex::new(HashMap::default())),
+            index: (0..SHARDS).map(|_| Shard::default()).collect(),
         }
     }
 }
@@ -244,12 +265,13 @@ impl core::fmt::Display for StablePath<'_> {
     }
 }
 
-/// The sharded string interner of §3.3: lookups lock one of 16 shards,
+/// The sharded string interner of §3.3: lookups lock one of 64 shards,
 /// reads of an existing symbol take no lock.
 pub struct ShardedInterner {
     text: AppendVec<Box<str>>,
     append: Mutex<()>,
-    index: [Mutex<HashMap<Box<str>, u32>>; SHARDS],
+    /// On the heap, as the path table's shards.
+    index: Box<[Shard<Box<str>, u32>]>,
 }
 
 impl Default for ShardedInterner {
@@ -257,7 +279,7 @@ impl Default for ShardedInterner {
         Self {
             text: AppendVec::new(),
             append: Mutex::new(()),
-            index: std::array::from_fn(|_| Mutex::new(HashMap::default())),
+            index: (0..SHARDS).map(|_| Shard::default()).collect(),
         }
     }
 }

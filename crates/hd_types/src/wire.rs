@@ -3,6 +3,7 @@
 //! symbols one blob mentions and gives each a row; the reader re-interns
 //! the rows into this run's tables. Rows refer only to earlier rows.
 
+use crate::AdtId;
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
@@ -45,12 +46,11 @@ mod tag {
     pub const PRIM: u8 = 0;
     pub const NEVER: u8 = 1;
     pub const POISON: u8 = 2;
-    pub const ADT: u8 = 3;
-    pub const TUPLE: u8 = 4;
+    // 3 was the declaration/absence-only ADT row.
+    pub const ADT: u8 = 28;
     pub const PARAM: u8 = 6;
     pub const FN: u8 = 8;
     pub const LIST: u8 = 9;
-    pub const TUPLE_REST: u8 = 11;
     pub const TRAIT_VALUE: u8 = 12;
     pub const ASSOC: u8 = 13;
     pub const ROW: u8 = 14;
@@ -66,7 +66,7 @@ mod tag {
     pub const CREF: u8 = 24;
     pub const CREF_MUT: u8 = 25;
     pub const CONST: u8 = 26;
-    pub const UNION: u8 = 27;
+    // 27 was a union; anonymous sums now use ADT with no declaration.
 }
 
 impl<'a> TableWriter<'a> {
@@ -218,13 +218,10 @@ impl<'a> TableWriter<'a> {
     fn nested_parts(&self, t: Ty, out: &mut Vec<Ty>) {
         let items = |l: TyList| self.pool.list_items(l);
         match self.pool.get(t) {
-            TyData::Adt { args, .. } | TyData::Union(args) | TyData::TraitValue { args, .. } => {
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
                 out.extend_from_slice(items(args));
             }
-            TyData::Tuple { elems, rest } => {
-                out.extend_from_slice(items(elems));
-                out.extend(rest);
-            }
+
             TyData::Opaque { args, bound, .. } => {
                 out.extend_from_slice(items(args));
                 out.push(bound);
@@ -288,25 +285,17 @@ impl<'a> TableWriter<'a> {
             TyData::Prim(p) => self.row(tag::PRIM, &[p as u32]),
             TyData::Never => self.row(tag::NEVER, &[]),
             TyData::Poison => self.row(tag::POISON, &[]),
-            TyData::Adt { def, args } => {
-                let words = [self.def(def), self.list(args)?];
+            TyData::Adt(id, args) => {
+                let (shape, declared) = match id {
+                    AdtId::Declared(def) => (0, self.def(def)),
+                    AdtId::Sum => (1, NONE),
+                    AdtId::Product { rest: false } => (2, NONE),
+                    AdtId::Product { rest: true } => (3, NONE),
+                };
+                let words = [shape, declared, self.list(args)?];
                 self.row(tag::ADT, &words)
             }
-            TyData::Tuple { elems, rest: None } => {
-                let elems = self.list(elems)?;
-                self.row(tag::TUPLE, &[elems])
-            }
-            TyData::Tuple {
-                elems,
-                rest: Some(r),
-            } => {
-                let words = [self.list(elems)?, self.ty(r)?];
-                self.row(tag::TUPLE_REST, &words)
-            }
-            TyData::Union(members) => {
-                let members = self.list(members)?;
-                self.row(tag::UNION, &[members])
-            }
+
             TyData::Opaque {
                 owner,
                 site,
@@ -504,19 +493,21 @@ impl Tables {
                 tag::NEVER => Ty::NEVER.0,
                 tag::POISON => Ty::POISON.0,
                 tag::ADT => {
-                    pool.intern_ty(&TyData::Adt {
-                        def: def(0)?,
-                        args: TyList(row(1)?),
-                    })
+                    pool.intern_ty(&TyData::Adt(
+                        match words.as_slice() {
+                            [0, _, _] => AdtId::Declared(def(1)?),
+                            [1, NONE, _] => AdtId::Sum,
+                            [2, NONE, _] => AdtId::Product { rest: false },
+                            [3, NONE, _] if !pool.list_items(TyList(row(2)?)).is_empty() => {
+                                AdtId::Product { rest: true }
+                            }
+                            _ => return None,
+                        },
+                        TyList(row(2)?),
+                    ))
                     .0
                 }
-                tag::TUPLE => {
-                    pool.intern_ty(&TyData::Tuple {
-                        elems: TyList(row(0)?),
-                        rest: None,
-                    })
-                    .0
-                }
+
                 tag::OPAQUE => {
                     pool.intern_ty(&TyData::Opaque {
                         owner: def(0)?,
@@ -578,14 +569,7 @@ impl Tables {
                     })
                     .0
                 }
-                tag::TUPLE_REST => {
-                    pool.intern_ty(&TyData::Tuple {
-                        elems: TyList(row(0)?),
-                        rest: Some(Ty(row(1)?)),
-                    })
-                    .0
-                }
-                tag::UNION => pool.intern_ty(&TyData::Union(TyList(row(0)?))).0,
+
                 tag::TRAIT_VALUE => {
                     let mut bindings = Vec::new();
                     let mut i = 2;
@@ -662,6 +646,7 @@ impl Tables {
 
 #[cfg(test)]
 mod tests {
+    use crate::AdtId;
     #[test]
     fn opaque_cache_rows_reintern_declaration_and_arguments() {
         let (pool, paths, syms) = (
@@ -740,15 +725,9 @@ mod tests {
         let mut t = Ty::I32;
         for level in 0..20_000 {
             let data = match level % 8 {
-                0 => TyData::Adt {
-                    def: list,
-                    args: pool.list(&[t]),
-                },
-                1 => TyData::Tuple {
-                    elems: pool.list(&[Ty::BOOL, t]),
-                    rest: None,
-                },
-                2 => TyData::Union(pool.list(&[Ty::STRING, t])),
+                0 => TyData::Adt(AdtId::Declared(list), pool.list(&[t])),
+                1 => TyData::Adt(AdtId::Product { rest: false }, pool.list(&[Ty::BOOL, t])),
+                2 => TyData::sum(pool.list(&[Ty::STRING, t])),
                 3 => TyData::Ref {
                     inner: t,
                     mutable: level % 16 == 3,
@@ -843,7 +822,7 @@ mod tests {
     }
 
     #[test]
-    fn nested_rows_keep_the_existing_wire_bytes() {
+    fn nested_rows_match_the_shared_adt_wire_format() {
         use crate::pool::{Inputs, RowParamRef, TyList};
         use hd_base::{DefId, PathId};
         use hd_intern::PathKind;
@@ -869,10 +848,10 @@ mod tests {
             mutable: false,
             counted: false,
         });
-        let adt = pool.intern_ty(&TyData::Adt {
-            def: point,
-            args: pool.list(&[optional, Ty::BOOL]),
-        });
+        let adt = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(point),
+            pool.list(&[optional, Ty::BOOL]),
+        ));
         let row = pool.row(&RowData {
             keys: vec![Ty::BOOL, Ty::I32],
             params: vec![RowParamRef {
@@ -880,10 +859,7 @@ mod tests {
                 index: 2,
             }],
         });
-        let result = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[Ty::I32]),
-            rest: Some(adt),
-        });
+        let result = pool.product(pool.list(&[Ty::I32]), Some(adt));
         let function = pool.intern_ty(&TyData::Fn {
             params: pool.list(&[adt, optional]),
             result,
@@ -906,7 +882,7 @@ mod tests {
         let mut actual = Writer::default();
         tables.write(&mut actual);
 
-        // Hand-specified legacy format: path records, symbols, then tagged
+        // Hand-specified format: path records, symbols, then tagged
         // length-prefixed type words. No in-run ID or flat storage offset is written.
         let mut expected = Writer::default();
         expected.u32(6);
@@ -929,11 +905,11 @@ mod tests {
             (21, &[0]),                 // &i32
             (0, &[11]),                 // bool
             (9, &[1, 2]),               // type list
-            (3, &[2, 3]),               // Point[&i32, bool]
+            (28, &[0, 2, 3]),           // declared Point[&i32, bool]
             (14, &[2, 0, 2, 2, 2]),     // sorted keys and row parameter
             (9, &[4, 1]),               // function inputs
-            (9, &[0]),                  // tuple's fixed prefix
-            (11, &[7, 4]),              // tuple with a rest
+            (9, &[0, 4]),               // product members: fixed i32, rest Point
+            (28, &[3, u32::MAX, 7]),    // anonymous product with a rest
             (8, &[6, 8, 5, 1]),         // suspending function
             (9, &[]),                   // empty trait arguments
             (12, &[3, 10, 4, 1, 5, 2]), // bindings sorted Alpha, Zulu
@@ -988,8 +964,8 @@ mod tests {
             PathTable::new(),
             ShardedInterner::default(),
         );
-        let inner = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, Ty::STRING])));
-        let outer = pool.intern_ty(&TyData::Union(pool.list(&[inner, Ty::BOOL, Ty::BOOL])));
+        let inner = pool.intern_ty(&TyData::sum(pool.list(&[Ty::I32, Ty::STRING])));
+        let outer = pool.intern_ty(&TyData::sum(pool.list(&[inner, Ty::BOOL, Ty::BOOL])));
         let mut tables = TableWriter::new(&pool, &paths, &syms);
         let row = tables.ty(outer).expect("union");
         let mut bytes = Writer::default();
@@ -1000,9 +976,72 @@ mod tests {
         let decoded = Tables::read(&mut reader, &other, &paths, &syms).expect("tables");
         let union = decoded.ty(row).expect("union row");
         assert!(reader.ok() && reader.at_end());
-        let inner = other.intern_ty(&TyData::Union(other.list(&[Ty::I32, Ty::STRING])));
-        let expected = other.intern_ty(&TyData::Union(other.list(&[inner, Ty::BOOL, Ty::BOOL])));
+        let inner = other.intern_ty(&TyData::sum(other.list(&[Ty::I32, Ty::STRING])));
+        let expected = other.intern_ty(&TyData::sum(other.list(&[inner, Ty::BOOL, Ty::BOOL])));
         assert_eq!(union, expected, "{:?}", other.get(union));
+    }
+
+    #[test]
+    fn anonymous_product_and_sum_identities_round_trip_without_a_declaration() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let args = pool.list(&[Ty::I32, Ty::STRING]);
+        let types = [
+            pool.intern_ty(&TyData::sum(args)),
+            pool.product(args, None),
+            pool.product(pool.list(&[Ty::I32]), Some(Ty::STRING)),
+        ];
+        let mut writer = TableWriter::new(&pool, &paths, &syms);
+        let rows: Vec<_> = types
+            .iter()
+            .map(|&t| writer.ty(t).expect("type row"))
+            .collect();
+        let mut bytes = Writer::default();
+        writer.write(&mut bytes);
+        let other = InternPool::new();
+        let decoded =
+            Tables::read(&mut Reader::new(&bytes.bytes), &other, &paths, &syms).expect("tables");
+        let args = other.list(&[Ty::I32, Ty::STRING]);
+        let expected = [
+            other.intern_ty(&TyData::sum(args)),
+            other.product(args, None),
+            other.product(other.list(&[Ty::I32]), Some(Ty::STRING)),
+        ];
+        for (row, want) in rows.into_iter().zip(expected) {
+            assert_eq!(decoded.ty(row), Some(want));
+            assert_eq!(other.adt(want), None);
+        }
+        assert_ne!(expected[0], expected[1]);
+        assert_ne!(expected[1], expected[2]);
+    }
+
+    #[test]
+    fn retired_adt_and_tuple_wire_tags_are_rejected_instead_of_reinterpreted() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let t = pool.product(pool.list(&[Ty::I32]), None);
+        for retired in [3, 4, 11] {
+            let mut writer = TableWriter::new(&pool, &paths, &syms);
+            let row = writer.ty(t).expect("product row");
+            writer.ty_rows[row as usize].0 = retired;
+            let mut bytes = Writer::default();
+            writer.write(&mut bytes);
+            assert!(
+                Tables::read(
+                    &mut Reader::new(&bytes.bytes),
+                    &InternPool::new(),
+                    &paths,
+                    &syms
+                )
+                .is_none()
+            );
+        }
     }
 
     #[test]
@@ -1065,10 +1104,7 @@ mod tests {
             ShardedInterner::default(),
         );
         let point = paths.item("app", "geo.shapes", "Point");
-        let adt = pool.intern_ty(&TyData::Adt {
-            def: point,
-            args: pool.list(&[Ty::I32]),
-        });
+        let adt = pool.intern_ty(&TyData::Adt(AdtId::Declared(point), pool.list(&[Ty::I32])));
         let param = pool.intern_ty(&TyData::Param(ParamRef {
             owner: point,
             index: 1,
@@ -1088,10 +1124,7 @@ mod tests {
         let point2 = paths2.item("app", "geo.shapes", "Point");
         assert_eq!(
             pool2.get(t.ty(a).expect("a")),
-            TyData::Adt {
-                def: point2,
-                args: pool2.list(&[Ty::I32])
-            }
+            TyData::Adt(AdtId::Declared(point2), pool2.list(&[Ty::I32]))
         );
         assert_eq!(
             pool2.get(t.ty(p).expect("p")),
@@ -1111,10 +1144,7 @@ mod tests {
         );
         let user = paths.item("app", "users", "User");
         let r = |p: &InternPool| {
-            let adt = p.intern_ty(&TyData::Adt {
-                def: user,
-                args: crate::TyList::EMPTY,
-            });
+            let adt = p.intern_ty(&TyData::Adt(AdtId::Declared(user), crate::TyList::EMPTY));
             p.intern_ty(&TyData::Ref {
                 inner: adt,
                 mutable: false,
@@ -1150,10 +1180,7 @@ mod tests {
         // An open map, of a result with no reference slot, round-trips
         // (`fn.type.lifetime.result.param`).
         let open = |p: &InternPool, r: Ty| {
-            let t = p.intern_ty(&TyData::Tuple {
-                elems: crate::TyList::EMPTY,
-                rest: None,
-            });
+            let t = p.product(crate::TyList::EMPTY, None);
             p.intern_ty(&TyData::Fn {
                 params: p.list(&[r, r]),
                 result: t,

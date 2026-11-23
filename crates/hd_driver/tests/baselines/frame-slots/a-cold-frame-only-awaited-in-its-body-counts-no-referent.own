@@ -100,7 +100,7 @@ fn both!(n: usize) -> usize $ Clock:
 >   local $1 a: string [read assigned captured] place
 >   local $2 b: string [read assigned captured] place
 >   local $3 x: usize [read assigned] value
->     uses $3: %26 -> %31 lend last
+>     uses $3: %25 -> %31 lend last
 >   local $4 y: usize [read assigned] value
 >     uses $4: %27 -> %32 lend last
 >   %0 = Retain %36 Cold row #0 : ()
@@ -133,9 +133,9 @@ fn both!(n: usize) -> usize $ Clock:
 >   %22 = Drop [$1] : ()
 >   %23 = Block - : ()
 >   %24 = Read copy [%15 .0] : usize
->   %25 = Read copy [%15 .1] : usize
->   %26 = Store [$3] %24 : ()
->   %27 = Store [$4] %25 : ()
+>   %25 = Store [$3] %24 : ()
+>   %26 = Read copy [%15 .1] : usize
+>   %27 = Store [$4] %26 : ()
 >   %29 = Block - : never
 >   %30 = Match %15 [%29 %23] : ()
 >   %41 = Drop [$1] : ()

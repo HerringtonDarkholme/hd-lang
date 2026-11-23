@@ -8,41 +8,44 @@
 //! signal: a clone, rebuild or format per item shows up as allocation
 //! work even where no named counter sits.
 
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::{GlobalAlloc, Layout};
+
+use mimalloc::MiMalloc;
 
 use hd_base::work::{Counter, add};
 
-/// The system allocator, counting each allocation and reallocation and
-/// its bytes while the work signal is on. Cost while off: one relaxed
-/// load and a branch per allocation.
+/// mimalloc, counting each allocation and reallocation and its bytes while
+/// the work signal is on. Cost while off: one relaxed load and a branch
+/// per allocation. Against the system allocator, a cold check at 2,000
+/// files uses 11% less CPU (#1802 draft 07).
 struct Counting;
 
-// SAFETY: every method forwards to `System` with its own arguments, so
-// `System`'s guarantees hold; the count touches only atomics and never
+// SAFETY: every method forwards to `MiMalloc` with its own arguments, so
+// its guarantees hold; the count touches only atomics and never
 // allocates.
 #[allow(unsafe_code)]
 unsafe impl GlobalAlloc for Counting {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         count(layout.size());
-        // SAFETY: the caller's contract for `alloc` is `System`'s.
-        unsafe { System.alloc(layout) }
+        // SAFETY: the caller's contract for `alloc` is `MiMalloc`'s.
+        unsafe { MiMalloc.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         count(layout.size());
         // SAFETY: as `alloc`.
-        unsafe { System.alloc_zeroed(layout) }
+        unsafe { MiMalloc.alloc_zeroed(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        // SAFETY: `ptr` came from `System` with `layout`.
-        unsafe { System.dealloc(ptr, layout) }
+        // SAFETY: `ptr` came from `MiMalloc` with `layout`.
+        unsafe { MiMalloc.dealloc(ptr, layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         count(new_size);
         // SAFETY: as `dealloc`, and the caller's `new_size` contract.
-        unsafe { System.realloc(ptr, layout, new_size) }
+        unsafe { MiMalloc.realloc(ptr, layout, new_size) }
     }
 }
 
@@ -63,6 +66,32 @@ pub(crate) fn start() -> Option<std::ffi::OsString> {
     Some(file)
 }
 
+/// Turns the timing trace on when `HD_TRACE` names a file
+/// (`hd_base::trace`), and returns the file.
+pub(crate) fn start_trace() -> Option<std::ffi::OsString> {
+    let file = std::env::var_os("HD_TRACE").filter(|f| !f.is_empty())?;
+    hd_base::trace::start();
+    Some(file)
+}
+
+/// Writes the trace to `file` as Chrome trace-event JSON: one complete
+/// (`X`) event per task and phase, in µs. A write that fails is reported
+/// on stderr and does not change the exit status.
+pub(crate) fn finish_trace(file: Option<std::ffi::OsString>) {
+    let Some(file) = file else { return };
+    let events: Vec<serde_json::Value> = hd_base::trace::take()
+        .into_iter()
+        .map(|e| {
+            serde_json::json!({"name": e.name, "cat": e.cat, "ph": "X", "pid": 1,
+                "tid": e.thread, "ts": e.start_us, "dur": e.dur_us})
+        })
+        .collect();
+    let text = serde_json::json!({ "traceEvents": events }).to_string();
+    if let Err(error) = std::fs::write(&file, text) {
+        eprintln!("HD_TRACE: cannot write {}: {error}", file.to_string_lossy());
+    }
+}
+
 /// Writes the report to `file`, as `{"allocs":N,...}`. A write that fails
 /// is reported on stderr and does not change the exit status.
 pub(crate) fn finish(file: Option<std::ffi::OsString>) {
@@ -78,15 +107,19 @@ pub(crate) fn finish(file: Option<std::ffi::OsString>) {
     }
 }
 
-/// The scale check's self-test (`cargo build --release -p hd_command
-/// --features plant-quadratic`): a quadratic loop over the lines of the
-/// package's sources, hashing every pair, which the check must flag on
-/// any shape. It runs only with `HD_WORK` set.
+/// The scale check's self-test (a build with `--features plant-quadratic`):
+/// a quadratic loop over the lines of the package's sources, hashing every
+/// pair, which the check must flag on any shape. It runs only with both
+/// `HD_WORK` and `HD_PLANT_QUADRATIC` set, so CI's one all-features build
+/// runs the scale check and its self-test.
 #[cfg(feature = "plant-quadratic")]
 mod plant {
     use std::hash::{BuildHasher as _, Hash as _, Hasher as _};
 
     pub(super) fn run() {
+        if std::env::var_os("HD_PLANT_QUADRATIC").is_none() {
+            return;
+        }
         let mut lines = Vec::new();
         let mut dirs = vec![std::path::PathBuf::from("src")];
         while let Some(dir) = dirs.pop() {
@@ -182,6 +215,7 @@ impl hd_cache::CacheStore for Store {
 impl Drop for Store {
     fn drop(&mut self) {
         let store = self.0.take();
+        let _span = hd_base::trace::span("phase", || "settle".to_owned());
         hd_base::work::uncounted(|| drop(store));
     }
 }

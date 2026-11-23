@@ -145,31 +145,10 @@ fn result_facts_walk(
             continue;
         }
         match (pool.get(declared), pool.get(hidden)) {
-            (
-                TyData::Adt {
-                    def: a,
-                    args: declared,
-                },
-                TyData::Adt {
-                    def: b,
-                    args: hidden,
-                },
-            ) if a == b => list(declared, hidden, &mut work),
-            (
-                TyData::Tuple {
-                    elems: declared,
-                    rest: a,
-                },
-                TyData::Tuple {
-                    elems: hidden,
-                    rest: b,
-                },
-            ) => {
-                if let (Some(declared), Some(hidden)) = (a, b) {
-                    work.push((declared, hidden));
-                }
+            (TyData::Adt(a, declared), TyData::Adt(b, hidden)) if a == b => {
                 list(declared, hidden, &mut work);
             }
+
             (
                 TyData::Ref {
                     inner: declared, ..
@@ -210,7 +189,6 @@ fn result_facts_walk(
                 }
                 list(declared, hidden, &mut work);
             }
-            (TyData::Union(declared), TyData::Union(hidden)) => list(declared, hidden, &mut work),
             _ => {}
         }
     }
@@ -331,15 +309,8 @@ impl Reveal<'_> {
                 self.stack.pop();
                 return result;
             }
-            TyData::Adt { def, args } => TyData::Adt {
-                def,
-                args: self.list(args)?,
-            },
-            TyData::Union(members) => TyData::Union(self.list(members)?),
-            TyData::Tuple { elems, rest } => TyData::Tuple {
-                elems: self.list(elems)?,
-                rest: rest.map(|t| self.ty(t)).transpose()?,
-            },
+            TyData::Adt(def, args) => TyData::Adt(def, self.list(args)?),
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -414,8 +385,8 @@ mod tests {
         let mut declared = opaque;
         let mut hidden = Ty::I32;
         for _ in 0..20 {
-            declared = pool.intern_ty(&TyData::Union(pool.list(&vec![declared; 1000])));
-            hidden = pool.intern_ty(&TyData::Union(pool.list(&vec![hidden; 1000])));
+            declared = pool.intern_ty(&TyData::sum(pool.list(&vec![declared; 1000])));
+            hidden = pool.intern_ty(&TyData::sum(pool.list(&vec![hidden; 1000])));
         }
         let mut facts = Vec::new();
         let steps =
@@ -512,10 +483,7 @@ mod tests {
                 Ty::I32
             } else {
                 let child = make(owner.raw() - 1);
-                pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[child, child]),
-                    rest: None,
-                })
+                pool.product(pool.list(&[child, child]), None)
             };
             Some((TyList::EMPTY, result))
         });

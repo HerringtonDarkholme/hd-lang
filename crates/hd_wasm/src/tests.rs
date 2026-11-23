@@ -1335,7 +1335,7 @@ fn a_constant_operand_range_matches_the_exact_result() {
 /// Symbolic runtime identities for assembler-only tests. Program behaviour is
 /// exercised through driver builds with the actual std runtime definitions.
 pub(crate) fn runtime() -> crate::Runtime {
-    let keys: Vec<_> = crate::runtime_items(false)
+    let keys: Vec<_> = crate::runtime_items(false, false)
         .iter()
         .enumerate()
         .map(|(i, _)| Some(Hash128((1u128 << 127) + i as u128)))
@@ -1353,7 +1353,7 @@ pub(crate) fn runtime() -> crate::Runtime {
 /// explicit. Count/drop behaviour is covered by driver tests with std linked.
 pub(crate) fn define_runtime(module: &mut Module) {
     let runtime = runtime();
-    let keys = crate::runtime_items(false);
+    let keys = crate::runtime_items(false, false);
     for (i, (_, name)) in keys.into_iter().enumerate() {
         let (args, result) = match name {
             "collect" => (6, false),

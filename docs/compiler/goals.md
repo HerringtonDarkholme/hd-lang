@@ -196,7 +196,7 @@ per item with poison types; no exponential algorithms, and hard limits
 diagnostics instead of hangs; deterministic output; compact diagnostics
 with details on request, JSON, and exact-edit fix-its.
 
-**v1:** std checked in advance and built into the binary (`hd_stdpack`);
+**v1:** std checked in advance and built into the binary (a std pack);
 the fast dev pipeline; one diagnostic per root cause; `hd check --fix` and
 `hd lint --fix`; `hd fmt`;
 scoped `hd check FILE`; `hd test --affected`; `--max-errors` and

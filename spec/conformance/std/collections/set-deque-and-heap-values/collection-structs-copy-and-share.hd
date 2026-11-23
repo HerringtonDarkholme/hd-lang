@@ -62,7 +62,7 @@ tests:
         _ := second.insert("b")
         _ := first.remove("a")
         assert_equal(first.len(), 0, reason="the original lost its element")
-        assert_equal(second.contains("a"), true, reason="the copy kept it")
+        assert_equal(second.contains(&"a"), true, reason="the copy kept it")
         assert_equal(second.len(), 2, reason="the copy grew")
 
     it("a &mut set is shared"):

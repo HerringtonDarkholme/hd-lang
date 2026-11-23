@@ -65,6 +65,7 @@ mod test_fifo;
 pub mod testing;
 #[cfg(test)]
 mod tests;
+mod workers;
 
 pub use cancel::HostInterrupt;
 pub use code_cache::{CodeCache, CodeCacheStats, code_cache_stats, install_code_cache};

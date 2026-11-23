@@ -4,8 +4,8 @@ Status: standard library specification draft.
 
 This chapter defines the part of `std.result` that `lib/std` writes in
 ordinary hd over the language tier. That is the inherent methods
-`and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`,
-and `expect` of `Result[T, E]`.
+`and_then`, `map_err`, `unwrap_or`, `unwrap_or_else`, `or_else`, `map`,
+`ok`, `err`, `is_ok`, `is_err`, `unwrap`, and `expect` of `Result[T, E]`.
 
 The language tier keeps what the compiler knows by name
 ([Result Types](../lang/04-type-system.md#result-types)):
@@ -149,3 +149,40 @@ fn configured_port(text: string) -> i32:
 > assumed and what failed.
 
 See also: [Option](option.md), [Error Context](error.md#error-context), [List And Optional Map](iter.md#list-and-optional-map), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).
+
+## Lazy Error Fallbacks
+
+Lazy error fallbacks consume an error only when the result is `.Err`.
+
+```text
+fn value_or_default(value: Result[i32, string]) -> i32:
+    value.unwrap_or_else(fn(error: string) -> i32: 0)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-result.unwrap-or-else.value] `unwrap_or_else` | `fn unwrap_or_else[F < ?Copy & FnMut(E) -> T $ R, $ R](self, mut fallback: F) -> T $ R` | The payload of `.Ok`, or `fallback(error)` for `.Err(error)` |
+| r[std-result.or-else.value] `or_else` | `fn or_else[E2 < ?Copy, F < ?Copy & FnMut(E) -> Result[T, E2] $ R, $ R](self, mut fallback: F) -> Result[T, E2] $ R` | Keeps an `.Ok` payload, or returns `fallback(error)` for `.Err(error)` |
+
+1. r[std-result.lazy.inherent] These inherent methods need no import and accept payloads, errors, and callbacks that are not copied.
+2. r[std-result.lazy.once] Each fallback is called exactly once for `.Err`, receiving its error, and never for `.Ok`.
+3. r[std-result.or-else.error-type] `or_else` may change the error type but keeps the success type.
+4. r[std-result.lazy.row] The methods propagate the callback's requirement row and do not suspend.
+
+> **Why.** These names and variant behavior follow Rust's `Result` methods.
+> hd uses generic `FnMut` callbacks for mutable captures; each callback is invoked at most once.
+
+## Unwrapping Without A Message
+
+`unwrap` extracts a successful payload and includes an error's debug text in its standard panic message.
+
+```text
+fn required(value: Result[i32, string]) -> i32:
+    value.unwrap()
+```
+
+1. r[std-result.unwrap.value] The inherent `fn unwrap(self) -> T` returns the payload of `.Ok`, including a payload that is not copied.
+2. r[std-result.unwrap.bound] `unwrap` requires `E < Debug` and does not require `Display`.
+3. r[std-result.unwrap.panic] For `.Err(error)`, `unwrap` panics with category `explicit-panic` and includes `debug(error)` in its message. Panic: `explicit-panic`.
+
+> **Note.** `expect(message)` remains the method for a caller-supplied message and an error implementing `Display`.

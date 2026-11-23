@@ -142,6 +142,7 @@ pub const CAPABILITY_KEYS: &[(&str, bool)] = &[
     ("Http", true),
     ("Net", true),
     ("Sys", true),
+    ("Workers", false),
 ];
 
 /// Why a grant for `key` breaks `cli.cap.table.keys.with-package-host` or

@@ -6,6 +6,7 @@ use hd_diag::Code;
 use hd_diag::FixSafety;
 use hd_resolve::BindingKind;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
+use hd_types::AdtId;
 use hd_types::solver::{Answer, Evidence, TraitRef};
 use hd_types::{Ty, TyData};
 
@@ -288,7 +289,7 @@ impl Ck<'_, '_> {
         }
         let pool = self.pool();
         let got = self.resolved(self.infer.resolve(pool, got));
-        let TyData::Adt { def, args } = pool.get(got) else {
+        let Some((def, args)) = pool.adt(got) else {
             return;
         };
         if def != self.cx.names.known.result {
@@ -335,7 +336,7 @@ impl Ck<'_, '_> {
         }
         let t = self.resolved(self.infer.resolve(pool, t));
         let (payload, error) = match pool.get(t) {
-            TyData::Adt { def, args } if def == self.cx.names.known.result => {
+            TyData::Adt(AdtId::Declared(def), args) if def == self.cx.names.known.result => {
                 let &[ok, error] = pool.list_items(args) else {
                     return;
                 };
@@ -433,7 +434,7 @@ impl Ck<'_, '_> {
         while let Some((inner, _)) = self.ref_of(receiver) {
             receiver = self.resolved(inner);
         }
-        let TyData::Adt { def, .. } = pool.get(receiver) else {
+        let Some((def, _)) = pool.adt(receiver) else {
             return;
         };
         if def != self.cx.names.known.list {
@@ -447,7 +448,7 @@ impl Ck<'_, '_> {
         else {
             return;
         };
-        let TyData::Adt { def, args: types } = pool.get(self.resolved(inner)) else {
+        let TyData::Adt(AdtId::Declared(def), types) = pool.get(self.resolved(inner)) else {
             return;
         };
         if def != self.cx.names.known.list {
@@ -547,7 +548,8 @@ impl Ck<'_, '_> {
             ty = self.resolved(inner);
             borrowed = true;
         }
-        if !matches!(pool.get(ty), TyData::Adt { def, .. } if def == self.cx.names.known.result) {
+        if !matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.result)
+        {
             return;
         }
         let mut edits = Vec::new();

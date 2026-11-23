@@ -1,0 +1,26 @@
+# test: a closure crosses to a worker with its captures and its result comes back
+# Spec std Remote, Workers: std-remote.workers.run, std-remote.workers.loopback.
+# expect-stdout: 3 64 7 128
+use std.remote.{LoopbackWorkers, Workers}
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn thumbnail(photo: Image, side: u32) -> (Image, Image):
+    small := Image { width: side, pixels: [photo.pixels[0]] }
+    (photo, small)
+
+pub fn main!() -> void $ Console:
+    let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    photo := Image { width: 4, pixels: [7, 8, 9] }
+    side := u32(64)
+    match workers.run!(fn() -> (Image, Image): thumbnail(photo, side)):
+        .Ok((back, small)) =>
+            doubled := workers.run!(fn() -> u32: side * 2)
+            println(
+                "${back.pixels.len()} ${small.width} ${small.pixels[0]} ${doubled.unwrap_or(0)}",
+            )
+        .Err(cross) => println("not sent: $cross")

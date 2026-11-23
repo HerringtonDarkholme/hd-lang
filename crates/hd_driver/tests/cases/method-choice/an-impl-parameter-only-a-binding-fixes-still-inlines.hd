@@ -1,0 +1,31 @@
+# @dump: wat
+# @build: release
+# `Size for Feed[I]` has a parameter, `T`, that its head does not name:
+# only the binding `Item = T` on `I`'s bound fixes it. The optimizer finds
+# a chosen impl's arguments as selection does, so `T` is `i32` here and
+# `size` is inlined into `total`, as an impl without the binding would be.
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Counter:
+    start: i32
+
+impl Supplier for Counter:
+    type Item = i32
+    fn get(self) -> i32:
+        self.start
+
+trait Size:
+    fn size(&self) -> i32
+
+struct Feed[I]:
+    source: I
+
+impl[T, I < Supplier[Item = T]] Size for Feed[I]:
+    fn size(&self) -> i32:
+        7
+
+# subject
+fn total(f: Feed[Counter]) -> i32:
+    f.size() + 1

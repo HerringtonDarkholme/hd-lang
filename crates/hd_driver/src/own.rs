@@ -19,6 +19,8 @@
 //! body, and a default body's result type is its checked body's root.
 
 use hd_base::SliceSort as _;
+use hd_types::ANON_SUM;
+use hd_types::AdtId;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt::Write as _;
@@ -59,13 +61,13 @@ impl Env<'_> {
         }
         let pool = &self.run.pool;
         let found = match (pool.get(key.ty), key.field) {
-            (TyData::Tuple { elems, rest }, Some(field)) => {
-                pool.list_items(elems).get(field as usize).copied().or(rest)
+            (TyData::Adt(AdtId::Product { .. }, args), Some(field)) => {
+                pool.list_items(args).get(field as usize).copied()
             }
-            (TyData::Union(members), Some(0)) => key
+            (TyData::Adt(ANON_SUM, members), Some(0)) => key
                 .variant
                 .and_then(|v| pool.list_items(members).get(v as usize).copied()),
-            (TyData::Adt { def, args }, field) => {
+            (TyData::Adt(AdtId::Declared(def), args), field) => {
                 if let Some(field) = field {
                     let raw = self.p.items.get(def).and_then(|item| match &item.data {
                         hd_resolve::ItemData::Struct(fields, _) => {
@@ -289,6 +291,7 @@ thread_local! {
 /// passes read that write from `may_write` alone.
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
+    "threads_reachable",
     "int_wrapping_add",
     "int_wrapping_sub",
     "int_wrapping_mul",
@@ -342,8 +345,10 @@ fn pure_float_method(path: &str) -> bool {
 /// The intrinsics that own their value arguments, as a function's value
 /// parameters do: `string_from_bytes` takes over the list's buffer when its
 /// argument is the buffer's one holder (`crates/hd_wasm/DESIGN.md`
-/// §23.17), so the call consumes the list, moved in at its last use.
-const OWNING_INTRINSICS: &[&str] = &["string_from_bytes"];
+/// §23.17), so the call consumes the list, moved in at its last use;
+/// `thread_spawn` keeps its closure's environment in the thread's block,
+/// whose thread runs it (`module.rt.thread.spawn`).
+const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "thread_spawn"];
 
 impl Env<'_> {
     /// The compiler-known raw-memory relation of an intrinsic. This names
@@ -357,8 +362,17 @@ impl Env<'_> {
             Some("mem_new_string") => CallMemory::Allocate,
             Some("mem_string_bytes" | "ptr_offset") => CallMemory::Derive(0),
             Some(
-                "mem_store_u8" | "mem_store_u16" | "mem_store_u32" | "mem_store_u64" | "mem_copy"
-                | "mem_fill",
+                "mem_store_u8"
+                | "mem_store_u16"
+                | "mem_store_u32"
+                | "mem_store_u64"
+                | "mem_copy"
+                | "mem_fill"
+                | "mem_atomic_add_u32"
+                | "mem_atomic_sub_u32"
+                | "mem_atomic_cmpxchg_u32"
+                | "mem_atomic_store_u32"
+                | "thread_spawn",
             ) => CallMemory::Write(0),
             Some("format_int") => CallMemory::Write(1),
             _ => CallMemory::None,
@@ -459,12 +473,12 @@ impl hd_opt::prove::Cx for Env<'_> {
     }
     fn tuple(&self, t: Ty) -> bool {
         let t = hd_mono::layout::strip_newtype(&self.run.pool, self, t);
-        matches!(self.run.pool.get(t), TyData::Tuple { .. })
+        matches!(self.run.pool.get(t), TyData::Adt(AdtId::Product { .. }, _))
     }
     fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
         match hd_layout::kind(&self.run.pool, self, t) {
             hd_layout::Kind::Ref { target, fat, .. } => Some((target, fat)),
-            _ => None,
+            hd_layout::Kind::Value => None,
         }
     }
     fn field(&self, t: Ty, k: u32) -> Option<Ty> {
@@ -542,7 +556,7 @@ impl OwnCx for Env<'_> {
         let base = hd_layout::strip_newtype(pool, self, ty);
         let mut layer = ty;
         loop {
-            let TyData::Adt { def, args } = pool.get(layer) else {
+            let Some((def, args)) = pool.adt(layer) else {
                 return if self.is_open(layer) {
                     Tri::Maybe
                 } else {
@@ -1110,7 +1124,7 @@ impl OwnCx for Env<'_> {
     fn in_place_struct(&self, ty: Ty) -> bool {
         let pool = &self.run.pool;
         let t = ty;
-        matches!(pool.get(t), TyData::Adt { def, .. }
+        matches!(pool.get(t), TyData::Adt(AdtId::Declared(def), _)
             if self.std_kind(def) == hd_mono::layout::StdKind::Other && self.is_struct(def))
     }
 
@@ -1120,7 +1134,7 @@ impl OwnCx for Env<'_> {
             return false;
         }
         let pool = &self.run.pool;
-        let TyData::Adt { def, args } = pool.get(ty) else {
+        let Some((def, args)) = pool.adt(ty) else {
             return false;
         };
         let Some(fields) = self.data_fields(def) else {
@@ -1153,10 +1167,10 @@ impl OwnCx for Env<'_> {
         // An enum's own runtime Drop hook still runs for an empty
         // variant; its fields alone do not describe its ownership.
         if variant.is_some()
-            && let TyData::Adt { def, .. } =
-                self.run
-                    .pool
-                    .get(hd_layout::strip_newtype(&self.run.pool, self, ty))
+            && let TyData::Adt(AdtId::Declared(def), _) = self
+                .run
+                .pool
+                .get(hd_layout::strip_newtype(&self.run.pool, self, ty))
             && self.has_drop(def)
         {
             out.clear();
@@ -1170,7 +1184,7 @@ impl OwnCx for Env<'_> {
         if self.is_open(ty)
             || matches!(
                 self.run.pool.get(hd_layout::strip_newtype(&self.run.pool, self, ty)),
-                TyData::Adt { def, .. } if self.has_drop(def)
+                TyData::Adt(AdtId::Declared(def), _) if self.has_drop(def)
             )
         {
             return true;
@@ -1495,13 +1509,9 @@ impl RefFacts {
 /// a tuple's members and rest, a union's members. A reference's referent
 /// is not one: the reference alone decides.
 fn ref_parts(pool: &hd_types::InternPool, t: Ty, out: &mut Vec<Ty>) {
-    let (list, rest) = match pool.get(t) {
-        TyData::Adt { args: l, .. } | TyData::Union(l) => (l, None),
-        TyData::Tuple { elems, rest } => (elems, rest),
-        _ => (TyList::EMPTY, None),
-    };
-    out.extend(pool.list_items(list));
-    out.extend(rest);
+    if let TyData::Adt(_, args) = pool.get(t) {
+        out.extend(pool.list_items(args));
+    }
 }
 
 /// `t`'s reference facts from its kind and its parts' facts, which `part`
@@ -1524,17 +1534,13 @@ fn ref_facts_of(
             only_counted: false,
             counted: false,
         },
-        TyData::Adt { def, args } if def == ptr => RefFacts {
+        TyData::Adt(AdtId::Declared(def), args) if def == ptr => RefFacts {
             holds: true,
             only_counted: false,
             ..all(pool.list_items(args))
         },
-        TyData::Adt { args: l, .. } | TyData::Union(l) => all(pool.list_items(l)),
-        TyData::Tuple { elems, rest } => {
-            let mut ts = pool.list_items(elems).to_vec();
-            ts.extend(rest);
-            all(&ts)
-        }
+        TyData::Adt(_, l) => all(pool.list_items(l)),
+
         TyData::Param(..) => RefFacts {
             only_counted: false,
             ..RefFacts::NONE
@@ -1610,12 +1616,7 @@ fn a_function_beside_a_counted_reference_may_hold_a_local_reference() {
         inputs: hd_types::Inputs::Fixed,
         deps: hd_types::FnDeps::NONE,
     });
-    let pair = |right| {
-        pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[boxed, right]),
-            rest: None,
-        })
-    };
+    let pair = |right| pool.product(pool.list(&[boxed, right]), None);
     let mut memo = TypeTable::default();
     let mut only = |t| {
         let f = ref_facts(&pool, ptr, t, &mut memo);
@@ -2180,6 +2181,9 @@ impl Env<'_> {
             items: self.p,
             stage: Stage::Collect,
         };
+        if let Some(family) = self.stub_family(&cx, method, self_ty)? {
+            return Ok(Some(family));
+        }
         let Some(root) = hd_structure::supplied_root(&cx, method) else {
             return Ok(None);
         };
@@ -2498,9 +2502,10 @@ impl InlineEnv for Env<'_> {
     }
 
     /// The item and type arguments a trait call chosen as an impl runs:
-    /// the impl's method at the impl's arguments, matched from the receiver
-    /// and the trait's arguments as collection selects, then the method's
-    /// own; or the trait's default body at the receiver and the call's.
+    /// the impl's method at the impl's arguments, bound from the receiver
+    /// and the trait's arguments as selection binds them (`Bind` steps
+    /// included), then the method's own; or the trait's default body at the
+    /// receiver and the call's.
     fn impl_target(&self, callee: &Callee) -> Option<(DefId, TyList)> {
         let &Callee::TraitMethod {
             trait_,
@@ -2530,13 +2535,12 @@ impl InlineEnv for Env<'_> {
             return Some((method, pool.list(&[&[self_ty], items].concat())));
         };
         let (trait_args, own) = items.split_at(self.trait_arity(trait_).min(items.len()));
-        let (head, heads, n) = self.impl_head(impl_)?;
-        let mut out = vec![None; n];
-        hd_mono::unify(pool, impl_, head, self_ty, &mut out);
-        for (&x, &y) in pool.list_items(heads).iter().zip(trait_args) {
-            hd_mono::unify(pool, impl_, x, y, &mut out);
-        }
-        let mut all = out.into_iter().collect::<Option<Vec<_>>>()?;
+        let at = self.impl_row(impl_)?;
+        let table = self.impls.table(at.module)?;
+        let types = pool.types();
+        let row = at.row as usize;
+        let mut all =
+            hd_types::solver::impl_args(types, self.impls, table, row, self_ty, trait_args)?;
         all.extend_from_slice(own);
         Some((m, pool.list(&all)))
     }
@@ -2553,16 +2557,21 @@ impl InlineEnv for Env<'_> {
 
     /// As `hd_mono`'s collection chooses a bound's call (`Cx::scan`): a
     /// trait value dispatches through its table, whatever was chosen, so
-    /// it is left to that; the private `DbgStructural` trait, which no
-    /// impl answers, is the compiler's template at every receiver
-    /// (`ProgramEnv::dbg_structure`; collection reads no choice for it);
+    /// it is left to that; a private template's trait (`DbgStructural`,
+    /// `WireStructural`), which no impl answers, is the compiler's template
+    /// at every receiver (`ProgramEnv::private_templates`; collection reads
+    /// no choice for it);
     /// any other closed receiver runs the impl or builtin the solver
     /// selects.
     fn select_choice(&self, trait_: DefId, self_ty: Ty, targs: TyList) -> Option<Chosen> {
         if hd_mono::is_trait_value(&self.run.pool, self.ref_target_or(self_ty)) {
             return None;
         }
-        if ProgramEnv::dbg_structure(self).is_some_and(|(.., dbg)| dbg == trait_) {
+        if ProgramEnv::private_templates(self)
+            .0
+            .iter()
+            .any(|&(.., template)| template == trait_)
+        {
             return Some(Chosen::Builtin(0));
         }
         self.solve(trait_, self_ty, targs)
@@ -2682,7 +2691,7 @@ impl FactEnv for Env<'_> {
     }
 
     fn is_facts(&self, ty: Ty) -> bool {
-        matches!(self.run.pool.get(ty), TyData::Adt { def, .. } if def == self.run.known.facts)
+        matches!(self.run.pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if def == self.run.known.facts)
     }
 
     fn known_facts(
@@ -3072,12 +3081,14 @@ impl Env<'_> {
             generic.clone()
         } else {
             lock(&self.run.counters).instances_built += 1;
-            // The private `DbgStructural` template's own `Structure` calls
-            // are the compiler's walk at its receiver, as collection
-            // chooses them for that item alone (`private_structure`).
-            let walk = ProgramEnv::dbg_structure(self)
-                .filter(|&(show, ..)| show == def)
-                .map(|(_, structure, _)| structure);
+            // A private template's own `Structure` calls are the
+            // compiler's walk at its receiver, as collection chooses them
+            // for its methods alone (`private_structure`).
+            let (private, structure) = ProgramEnv::private_templates(self);
+            let walk = private
+                .iter()
+                .any(|&(own, ..)| own == def)
+                .then_some(structure);
             let generic = Cow::Borrowed(generic);
             hd_mono::instantiate(&self.run.pool, self, def, args, generic, &|t, s, a| {
                 if walk == Some(t) {

@@ -1684,6 +1684,86 @@ See also: [`trait.bound.unsatisfied`](#r-trait.bound.unsatisfied),
 [`trait.avail.generic`](#r-trait.avail.generic), and
 [`types.map-key.declared-bound`](04-type-system.md#r-types.map-key.declared-bound).
 
+### Method Bounds On Enclosing Parameters
+
+A method may bound a type parameter of the trait or implementation that
+declares it, in a `where` clause after its result. Only that method needs
+the bound:
+
+```hd
+trait Rank:
+    fn rank(self) -> i32
+
+trait Pile[T]:
+    fn top(self) -> T
+
+    fn top_rank(self) -> i32 where T < Rank:
+        self.top().rank()
+
+struct Card:
+    value: i32
+
+impl Rank for Card:
+    fn rank(self) -> i32: self.value
+
+struct Cards:
+    first: Card
+
+impl Pile[Card] for Cards:
+    fn top(self) -> Card: self.first
+
+struct Words:
+    first: string
+
+impl Pile[string] for Words:
+    fn top(self) -> string: self.first
+
+fn ranks(cards: Cards, words: Words) -> i32:
+    _ := words.top()
+    cards.top_rank()
+```
+
+1. r[trait.where.clause] A method of a trait or of an implementation may write, after its result and before its requirement clause, `where` and one or more bounds separated by `,`. Each bound is a type parameter's name, `<`, and traits joined by `&`, as in `where T < Ord & Hash, U < Display`.
+2. r[trait.where.subject] Each bound names a type parameter of the enclosing trait or implementation.
+3. r[trait.where.subject.error] A `where` bound that names the method's own type parameter, `Self`, or any other name is an error, and so is a `where` clause on a function outside a trait or implementation. The method's own parameter takes its bound inline, as in `fn pick[T < Ord](self, value: T)`. Error: `syntax-error`.
+4. r[trait.where.call] A call of the method requires each of its `where` bounds, with the parameters the call instantiates. A type that does not satisfy one is an error, reported at the call. Error: `unsatisfied-trait-bound`.
+5. r[trait.where.implements] A `where` bound does not limit which types implement the trait, or which types the implementation applies to.
+6. r[trait.where.body] The method's body may rely on its `where` bounds as it relies on the bounds of the declaration around it. This holds for a default body in the trait and for the body in an implementation.
+7. r[trait.where.impl.repeat] An implementation method repeats the trait method's `where` bounds, each with the trait's parameters replaced by the implementation's trait arguments, in the same order.
+8. r[trait.where.impl.concrete] A bound whose subject is then not one of the implementation's type parameters is not written, and the implementation method's body does not rely on it.
+9. r[trait.where.impl.error] An extra, missing, reordered or different `where` bound on an implementation method is an error. Error: `trait-method-signature`.
+10. r[trait.where.dyn] A method with a `where` clause is unavailable on a `dyn` value, as [`trait.dyn.member.where`](#r-trait.dyn.member.where) states.
+
+```text
+fn word_rank(words: Words) -> i32:
+    words.top_rank()  # error: unsatisfied-trait-bound
+
+trait Show:
+    fn show(self) -> string
+
+struct Deck[T]:
+    first: T
+
+impl[T] Pile[T] for Deck[T]:
+    fn top(self) -> T: self.first
+
+    fn top_rank(self) -> i32 where T < Rank & Show:  # error: trait-method-signature
+        self.first.rank()
+
+impl[T] Deck[T]:
+    fn pick[U](self, other: U) -> T where U < Rank:  # error: syntax-error
+        self.first
+```
+
+> **Why.** As Rust's method `where` clauses do, the bound stays on the
+> method that needs it. A trait over items of any type keeps methods that
+> need more of those items, such as a largest item for ordered ones,
+> without requiring every implementation to supply what they need.
+
+See also: rustc's `compare_method_predicate_entailment`
+(`compiler/rustc_hir_analysis/src/check/compare_impl_item.rs`), which
+checks an implementation method's bounds against the trait method's.
+
 ### Associated Type Bindings
 
 A trait in a generic parameter bound may bind associated types after its
@@ -1902,6 +1982,7 @@ Each kind of member is available or unavailable on a `dyn` value:
 | r[trait.dyn.member.opaque-result] Opaque results | a method whose return annotation contains `impl Trait` | unavailable |
 | r[trait.dyn.assoc-type.reference-values] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `&dyn Supplier[Item = i32]` does |
 | r[trait.dyn.member.type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | unavailable |
+| r[trait.dyn.member.where] Method bounds on enclosing parameters | a method with a `where` clause on the trait's parameters, as in `fn top_rank(self) -> i32 where T < Rank` | unavailable |
 | r[trait.dyn.member.row-parameter] Row parameters | a method-level row parameter | unavailable |
 | r[trait.dyn.suspending] Suspending methods | a suspending method, such as `fn fetch!(&self) -> string` | available |
 
@@ -2226,6 +2307,10 @@ compiler and the standard library supply.
 | r[trait.sealed.fn-read-only] Fn | `Fn` | every plain function type, except for values that [Read-Only Fn Closures](07-functions.md#r-fn.trait.read-only) leave with `FnMut` only ([Static Fn Bounds](07-functions.md#static-fn-bounds)) |
 | r[trait.sealed.fn-mut] FnMut | `FnMut` | every plain function type ([FnMut Bounds](07-functions.md#fnmut-bounds)) |
 | r[trait.sealed.copy] Copy | `Copy` | every type that holds no `&mut`, no type declared `impl !Copy`, and no type parameter that is not `Copy` ([Copy](13-values-and-references.md#copy)) |
+| r[trait.sealed.marker] Marker | `Marker` | every type, so it constrains only the traits that extend it ([Markers](10-modules.md#markers)) |
+| r[trait.sealed.send] Send | `Send` | the types whose parts are `Send`, and the types the standard library implements it for ([Markers](10-modules.md#markers)) |
+| r[trait.sealed.wire] Wire | `Wire` | the types whose parts are `Wire`, remote references, and the types the standard library implements it for ([Markers](10-modules.md#markers)) |
+| r[trait.sealed.remote] Remote | `Remote` | every type, so it constrains only the traits that extend it ([Remote Traits](10-modules.md#remote-traits)) |
 
 1. r[trait.sealed.definition] A sealed trait is a standard trait whose implementations only the compiler and the standard library supply.
 2. r[trait.sealed.list] The sealed traits are those in the table above.
@@ -2333,6 +2418,11 @@ pub trait Num < AnyVal & PartialOrd & Display & Add[Out = Self] & Sub[Out = Self
 7. r[trait.num.from-i64-cast] A [numeric cast](04-type-system.md#numeric-casts) `T(n)` stays the way to wrap.
 8. r[trait.num.division] `/` and `%` keep each type's own meaning under `Num`. Integer division truncates and panics on a zero divisor, and floating-point division follows IEEE 754.
 9. r[trait.num.std-operators] The standard library's operator implementations behave as the built-in operators do.
+10. r[trait.num.integer.max-value] `Integer` declares `fn max_value() -> Self`, which returns the greatest value its integer type can hold.
+11. r[trait.num.integer.min-value] `Integer` declares `fn min_value() -> Self`, which returns the least value its integer type can hold.
+
+The limit methods are callable as `i32::max_value()` or, through an
+`Integer` bound, as `N::max_value()`; `min_value` follows the same form.
 
 ```text
 use std.num.Num

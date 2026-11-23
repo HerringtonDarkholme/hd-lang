@@ -161,9 +161,7 @@ fn place(names: &Names<'_>, b: &Body, word: u32, fields: &FieldNames<'_>) -> Str
             Proj::Elem(r) => {
                 let _ = write!(out, " [{}]", value(names, b, r.0));
                 at = at.and_then(|t| match names.pool.get(t) {
-                    hd_types::TyData::Adt { args, .. } => {
-                        names.pool.list_items(args).first().copied()
-                    }
+                    hd_types::TyData::Adt(_, args) => names.pool.list_items(args).first().copied(),
                     _ => None,
                 });
             }
@@ -178,7 +176,7 @@ fn place(names: &Names<'_>, b: &Body, word: u32, fields: &FieldNames<'_>) -> Str
 }
 
 /// A local's flags by name, as ` [param read]`; empty when none is set.
-fn local_flag_names(flags: u8) -> String {
+fn local_flag_names(flags: u16) -> String {
     use hd_tir::ir::local_flags as f;
     let names: Vec<&str> = [
         (f::PARAM, "param"),
@@ -189,6 +187,7 @@ fn local_flag_names(flags: u8) -> String {
         (f::CAPTURED, "captured"),
         (f::CAPTURED_ASSIGNED, "captured-assigned"),
         (f::NOT_YET, "not-yet"),
+        (f::VIEW, "view"),
     ]
     .into_iter()
     .filter(|(bit, _)| flags & bit != 0)

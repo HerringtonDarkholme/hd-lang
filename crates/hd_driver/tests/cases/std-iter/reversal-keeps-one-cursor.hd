@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/iter/impl[T] DoubleEndedIterator[T] for ListIter[T].next_back
+# expected: reversal construction copies only cursor state; advancing reads the shared back boundary, without buffering
+use std.iter.{Rev, ListIter}
+
+fn reversed(values: List[i32]) -> Rev[ListIter[i32], i32]:
+    values.iter().rev()
+
+fn back(values: List[i32]) -> i32?:
+    values.iter().rev().next()
+
+fn scalar_back(text: string) -> char?:
+    text.chars().rev().next()

@@ -4,7 +4,8 @@
 # `max`, `min` and `sort` of `impl[T < Ord] List[T]` on float literals;
 # `Heap::new()` and `push` of `impl[T < Ord] Heap[T]`; `Set::new()` and
 # `contains` of `impl[T < Eq & Hash] Set[T]`; and an empty `{}` with
-# `keys` of `impl[K < Eq & Hash, V] Map[K, V]`, each once the element
+# `keys` of `impl[K < Eq & Hash, V] Map[K, V]` and collecting its cursor,
+# each once the element
 # settles to `f64`. A call whose types lookup already knew adds no goal.
 use std.collections.{Heap, Set}
 
@@ -25,12 +26,12 @@ pub fn queue() -> void:
 
 pub fn seen() -> bool:
     let set = Set::new()
-    set.contains(1.5)
+    set.contains(&1.5)
 
 pub fn keys() -> List[f64]:
     let mut m = {}
     m[1.5] = 1
-    m.keys()
+    m.keys().collect()
 
 pub fn fine() -> List[i32]:
     [2, 1].sorted()

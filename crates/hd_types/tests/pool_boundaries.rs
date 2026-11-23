@@ -10,10 +10,7 @@ fn dependency_queries_and_referent_queries_keep_their_domains() {
     let pool = InternPool::new();
     let types = pool.types();
     assert_eq!(types.fn_ty_deps(Ty::I32), None);
-    let tuple = types.intern_ty(&TyData::Tuple {
-        elems: types.list(&[Ty::I32, Ty::STRING]),
-        rest: None,
-    });
+    let tuple = types.product(types.list(&[Ty::I32, Ty::STRING]), None);
     assert_eq!(types.fn_ty_deps(tuple), None);
     for counted in [false, true] {
         for mutable in [false, true] {
@@ -129,7 +126,7 @@ fn associated_arguments_fill_union_members_and_preserve_written_arguments() {
     };
     let supplied = types.list(&[Ty::I32]);
     let written = types.list(&[Ty::STRING]);
-    let union = |members: &[Ty]| types.intern_ty(&TyData::Union(types.list(members)));
+    let union = |members: &[Ty]| types.intern_ty(&TyData::sum(types.list(members)));
     let untouched_other = projection(other, TyList::EMPTY);
     let explicit = projection(owner, written);
     let before = union(&[projection(owner, TyList::EMPTY), untouched_other, explicit]);

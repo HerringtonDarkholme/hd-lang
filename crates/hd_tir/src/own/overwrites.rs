@@ -9,22 +9,26 @@
 use super::{OwnCx, splice};
 use crate::ir::count::{At, Info, Part};
 use crate::ir::{Body, NONE, Ref, Tag, Topology, local_flags, u32_of};
+use hd_base::HashSet;
 use hd_types::Ty;
 
 /// Where a body's stores stand, per local.
 struct Stores {
     /// The first instruction that stores into the local, whole or in part.
     first: Vec<u32>,
+    /// Empty-place proofs from the existing known-null walk, after splicing.
+    empty: HashSet<u32>,
     /// Whether a `Ref` or a capture reaches the local: it lives in a slot or
     /// a cell, which has a count or a value to end whatever its type.
     placed: Vec<bool>,
 }
 
 impl Stores {
-    fn of(b: &Body) -> Self {
+    fn of(b: &Body, empty: &[u32]) -> Self {
         let locals = b.local_ty.len();
         let mut s = Stores {
             first: vec![NONE; locals],
+            empty: empty.iter().copied().collect(),
             placed: vec![false; locals],
         };
         for i in 0..b.len() {
@@ -73,12 +77,17 @@ impl Stores {
         counts && !whole.is_some_and(|l| self.finds_empty(b, topo, i, l))
     }
 
-    /// Whether `Store` `i`, of all of local `l`, finds it holding nothing:
+    /// Whether Store i finds its whole local empty: the existing known-null
+    /// walk proves it on every incoming path, or the first-store fallback
+    /// proves it for storage the walk does not track. For the fallback,
     /// the local is no parameter, no store comes before this one (a local is
     /// always initialized where it is declared, so a closure's store comes
     /// after), and no loop of the sub-body runs it again with a value left in
     /// it ([`super::frame::store_finds_empty`]).
     fn finds_empty(&self, b: &Body, topo: &Topology, i: usize, l: u32) -> bool {
+        if self.empty.contains(&u32_of(i)) {
+            return true;
+        }
         let l = l as usize;
         if b.local_flags[l] & local_flags::PARAM != 0 || self.first[l] != u32_of(i) {
             return false;
@@ -92,11 +101,17 @@ impl Stores {
 
 /// Plans a `Release` right after each store that releases what its place
 /// holds. The caller applies the edits.
-pub(super) fn plan(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut splice::Tables) {
+pub(super) fn plan(
+    b: &mut Body,
+    cx: &dyn OwnCx,
+    topo: &Topology,
+    empty: &[u32],
+    edits: &mut splice::Tables,
+) {
     if !b.tags.contains(&Tag::Store) {
         return;
     }
-    let stores = Stores::of(b);
+    let stores = Stores::of(b, empty);
     for i in 0..b.len() {
         if b.tags[i] == Tag::Store && stores.releases(b, cx, topo, i) {
             let record = Info::new(At::Operation, Part::Result, 3).write(b);

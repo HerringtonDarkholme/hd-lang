@@ -110,22 +110,6 @@ impl Layout {
         }
     }
 
-    /// The layout's leaves, each `offset` bytes further on: its part of an
-    /// enclosing value's leaves. None for a `Memory` layout.
-    #[must_use]
-    pub fn leaves_at(&self, offset: u32) -> Vec<Leaf> {
-        match &self.repr {
-            Repr::Scalars(leaves) => leaves
-                .iter()
-                .map(|l| Leaf {
-                    offset: l.offset + offset,
-                    ..*l
-                })
-                .collect(),
-            Repr::Memory => Vec::new(),
-        }
-    }
-
     /// The layout of `m`, whose values are `scalars`, saturated.
     fn new(m: Mem, scalars: usize, fields: Fields, variants: Variants) -> Layout {
         let scalars = scalars.min(INDIRECT + 1);
@@ -331,8 +315,6 @@ mod tests {
         assert_eq!(past.scalars as usize, INDIRECT + 1, "saturated");
         assert!(past.part().leaves.is_empty());
         assert_eq!(past.part().size, 4 * 21);
-        assert!(past.leaves_at(8).is_empty());
-        assert_eq!(scalar(1).leaves_at(8)[0].offset, 8);
     }
 
     #[test]

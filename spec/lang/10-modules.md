@@ -1236,7 +1236,7 @@ The following built-in methods are normative:
 | --- | --- |
 | `string` | `len(&self) -> usize`; `chars(self) -> Chars`; `char_indices(self) -> CharIndices`; `bytes(self) -> Bytes`; `slice(self, start: usize, end: usize) -> string` |
 | `List[T]` | `len(self) -> usize`; `iter(self) -> ListIter[T]` |
-| `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
+| `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
 | `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> MapEntries[K, V]` |
 | `Map[K, V]`, changing | `remove(&mut self, key: K) -> V?` |
 | `Display` | `to_string(&self) -> string`; `write(&self, out: &mut StringBuilder) -> void`, whose default pushes `to_string()` |
@@ -1251,18 +1251,20 @@ The following built-in methods are normative:
 8. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
 9. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
 10. r[module.method.list-insert.range] An `insert` index greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
-11. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
-12. r[module.method.list-remove-at.range] A `remove_at` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+11. r[module.method.list-remove-indexed] `remove(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
+12. r[module.method.list-remove-indexed.range] A `remove` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
 13. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
 
 | Call on `[1, 2, 3]` | List after |
 | --- | --- |
 | `insert(1, 9)` | `[1, 9, 2, 3]` |
 | `insert(3, 9)` | `[1, 2, 3, 9]` |
-| `remove_at(0)`, which returns `1` | `[2, 3]` |
+| `remove(0)`, which returns `1` | `[2, 3]` |
 | `clear()` | `[]` |
 
-> **Note.** `push`, `insert`, `remove_at`, `pop` and `clear` change the
+> **Why.** The name follows Rust's `Vec::remove`: indexed removal returns the removed element and preserves the remaining order.
+
+> **Note.** `push`, `insert`, `remove`, `pop` and `clear` change the
 > list, not an iterator taken from it before the change, which iterates
 > the list as `iter()` found it
 > ([`flow.for.cursor.snapshot`](06-control-flow.md#r-flow.for.cursor.snapshot)).
@@ -1673,7 +1675,7 @@ holds the primitives and the declarations that every other std module
 builds on. It uses no other module, so every std folder may use it.
 
 1. r[module.core.leaf] `std.core` is a folder of its own, and it uses no other module.
-2. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds.
+2. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds. It also declares the inline and cold decorators ([`annot.inline.declared.v2`](14-annotations.md#r-annot.inline.declared.v2)), so the runtime modules can use them.
 3. r[module.core.re-exports] `std.ops` re-exports `Copy`, `std.cmp` re-exports `Eq`, and `std.hash` re-exports `Hash` and `Hasher`, so `use std.hash.Hasher` names the declaration in `std.core`.
 4. r[module.core.prelude] `std.core` sees only its own prelude names, the `std.core` row of the [prelude](#prelude).
 5. r[module.core.hint] An import hint for a name that `std.core` declares and another std module re-exports names the re-exporting module.
@@ -1769,6 +1771,14 @@ pub fn store_u32(address: usize, value: u32) -> void
 pub fn store_u64(address: usize, value: u64) -> void
 pub fn copy(to: usize, from: usize, count: usize) -> void
 pub fn fill(to: usize, byte: u8, count: usize) -> void
+pub fn atomic_load_u32(address: usize) -> u32
+pub fn atomic_add_u32(address: usize, value: u32) -> u32
+pub fn atomic_sub_u32(address: usize, value: u32) -> u32
+pub fn atomic_compare_exchange_u32(address: usize, expected: u32, new: u32) -> u32
+pub fn atomic_fence() -> void
+pub fn atomic_store_u32(address: usize, value: u32) -> void
+pub fn atomic_wait_u32(address: usize, expected: u32, timeout: i64) -> u32
+pub fn atomic_notify(address: usize, count: u32) -> u32
 ```
 
 1. r[module.rt.memory.decl] Each function of the block is an ordinary hd declaration marked `@intrinsic`, and the compiler supplies only its body, as for [`dbg_printer`](#r-module.dbg.printer.declaration).
@@ -1784,11 +1794,50 @@ pub fn fill(to: usize, byte: u8, count: usize) -> void
 11. r[module.rt.memory.fill] `fill(to, byte, count)` sets each of the `count` bytes from `to` to `byte`.
 12. r[module.rt.memory.store.shared] While a shared reference is live, no store, `copy`, or `fill` that std makes writes a byte of its referent, as [`ref.excl.shared`](13-values-and-references.md#r-ref.excl.shared) forbids for a place.
 13. r[module.rt.memory.bounds] A call that reaches a byte outside the heap stops the program instance with no panic category. Only the standard library makes these calls, and it never makes one that reaches outside.
+14. r[module.rt.memory.atomic] `atomic_load_u32(address)` returns the 4 bytes from `address` as one step: no other thread's write to them is seen in part. `atomic_store_u32(address, value)` writes them as one step. Every atomic call is sequentially consistent: all threads see all atomic calls in one order.
+15. r[module.rt.memory.atomic.add] `atomic_add_u32` and `atomic_sub_u32` add `value` to the 4 bytes, or subtract it, wrapping, as one step, and return what the bytes held before.
+16. r[module.rt.memory.atomic.exchange] `atomic_compare_exchange_u32(address, expected, new)` writes `new` when the 4 bytes hold `expected`, as one step, and returns what they held before.
+17. r[module.rt.memory.atomic.fence] `atomic_fence()` orders the calling thread's heap accesses before it against the ones after it, as seen by every thread.
+18. r[module.rt.memory.atomic.aligned] The `address` of an atomic call is a multiple of 4. A call with another address stops the program instance with no panic category, as rule 13's does.
+19. r[module.rt.memory.atomic.wait] `atomic_wait_u32(address, expected, timeout)` returns 1 at once when the 4 bytes from `address` do not hold `expected`. Otherwise the calling thread waits until an `atomic_notify` at `address` wakes it, which returns 0, or until `timeout` nanoseconds pass, which returns 2. A negative `timeout` never passes. `atomic_notify(address, count)` wakes at most `count` of the threads waiting at `address`, those that started waiting first, and returns how many it woke. Both are atomic calls.
+20. r[module.rt.memory.atomic.wait.shared] Only a heap that threads share, by [`module.rt.thread.heap`](#r-module.rt.thread.heap), may wait. A wait on another heap stops the program instance with no panic category, and a notify there wakes none.
 
 > **Note.** The heap is the memory of a linear-memory implementation. The
 > bytes below the size the heap starts with hold what the implementation
 > places there, such as static data, so std code reads and writes only the
 > pages it grew.
+
+### Thread Intrinsics
+
+`std.rt.thread` keeps the blocks of threads on the heap, which
+[`std.thread`](../std/thread.md) starts and waits for:
+
+```text
+pub fn new_block[T < ?Copy]() -> usize
+pub fn run[T < ?Copy](block: usize) -> void
+pub fn run_here[T < ?Copy](block: usize) -> void
+pub fn wait(thread: usize) -> bool
+pub fn running(thread: usize) -> u32
+pub fn take[T < ?Copy](thread: usize) -> T
+pub fn abandon[T < ?Copy](thread: usize) -> void
+pub fn share(thread: usize) -> void
+pub fn release(thread: usize) -> void
+```
+
+1. r[module.rt.thread.heap] A program that may start a thread has one heap, which every thread reads and writes. Each thread runs its own program instance. Its top-level bindings are on that heap, so every thread sees the values the first thread's inits gave them. The storage of the runtime modules is each instance's own, as [`fn.crossing.global.runtime`](07-functions.md#r-fn.crossing.global.runtime) states. A program whose reachable code never starts a thread keeps a heap of its own, and its build is the same as without this rule.
+2. r[module.rt.thread.spawn] `new_block[T]()` returns a thread's block, with two owners, its caller and its thread, for work that returns a `T`. `std.thread` moves a `Send` closure into it and asks the host for a thread whose instance runs `run[T](block)`. That instance's runtime modules run their inits first, then the closure, which gives its value to the block. Then the thread ends, in one step that also ends its owner, and its heap retires. Its frames take a region of 1 MiB of the heap. When the host starts no threads, `run_here[T](block)` runs the closure on the calling thread, which then is a thread that ended.
+3. r[module.rt.thread.wait] `wait(thread)` waits until the thread of `thread` ends. It returns `true` when its closure returned, and `false` when the thread's instance stopped first, by a panic or any other stop. After `true`, `take[T](thread)` gives the closure's value, once.
+4. r[module.rt.thread.running] `running(thread)` returns the block's state word while the thread of `thread` runs, and 0 once it ended. `std.thread` waits for the word to change without blocking its thread: a host operation completes when it no longer holds what `running` returned, or a notify there wakes it. On Node it is `Atomics.waitAsync`; on wasmtime, one waiter thread per waiting task that wakes the instance's reactor. Cancelling the wait ends that operation at once.
+5. r[module.rt.thread.abandon] `abandon[T](thread)` gives up the closure's value unless `take` took it: the caller drops it when the closure already returned, and else the thread drops it when the closure returns.
+6. r[module.rt.thread.release] `share(thread)` adds an owner to the block, and `release(thread)` ends one. The last owner frees the block and its frame region: a `release` after the thread ended, or the thread's end when every other owner released first. Nothing after a thread's end uses its frame region.
+7. r[module.rt.thread.stop] A thread that stops ends only its own instance. Its panic report goes to the process's standard error at once.
+8. r[module.rt.thread.alloc] Each instance allocates from a heap of its own: the allocator's state is runtime storage, over the pages that instance grew. A block may be freed, retained or released on any thread. A block that a thread frees from another instance's heap returns to that heap, which can give it out again before it grows.
+9. r[module.rt.thread.alloc.adopt] When a thread's work returns, its heap is retired with every block in it. The next thread to start adopts a retired heap, and makes a new one only when none is retired. At most 1,023 heaps exist at once; an allocation in an instance past that panics `heap-exhausted`.
+10. r[module.rt.thread.reachable] The runtime's private intrinsic `threads_reachable()` is `true` in a program that may start a thread, by rule 1, and `false` in any other. It is a constant of the build, so code under a `false` one is not built.
+
+> **Note.** A thread that stops keeps its heap: nothing adopts it, and
+> nothing gives back its blocks. It keeps its owner of its block too, so
+> that block is never freed. Std is the only caller.
 
 ### Typed Memory
 
@@ -2546,13 +2595,14 @@ pub trait Vault:  # a host capability of the selected runtime profile
 
 ### Instances And Threads
 
-1. r[module.instance.thread] One program instance executes on one thread and has no shared-memory parallelism or source-level atomics.
-2. r[module.instance.parallel] Hosts may run multiple Wasm instances in parallel only by exchanging boundary-safe values.
-3. r[module.instance.disjoint] Their heaps, mutable globals, and suspension drivers are disjoint.
+1. r[module.instance.one-thread] A program instance runs its own code on one thread. Only a crossing closure whose marker is `Send` may run on another thread of the same memory ([Execution Domains](#execution-domains)).
+2. r[module.instance.no-atomics] The language has no source-level atomics.
+3. r[module.instance.parallel-wire] Instances run in parallel only by exchanging values: `Wire` values at a crossing, or boundary-safe values through the host.
+4. r[module.instance.disjoint] Their heaps, mutable globals, and suspension drivers are disjoint.
 
 ```hd
 fn demo() -> i32:
-    +1   # one thread, no atomics: this is the whole story
+    +1   # an instance's own code runs on one thread, with no atomics
 ```
 
 ### Host Boundary
@@ -2661,6 +2711,311 @@ pub trait Session < AsyncDisposable:
 > after close as any other failure of the module, as Go's `net.ErrClosed`
 > does. A close that can fail stays an explicit call that returns a
 > `Result`, since `dispose!` reports nothing.
+
+## Execution Domains
+
+An **execution domain** is a place code runs: a thread, a worker
+instance, a server, a device, or a run of a job queue. This section
+defines what may cross into another domain, and how a call reaches code
+of another target.
+
+```text
+use std.marker.Wire
+
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn post[T < ?Copy & Wire](value: T) -> T:
+    value
+
+fn demo(photo: Photo) -> u32:
+    post(photo).width   # every field of Photo is Wire, so Photo is Wire
+```
+
+### Domains And Crossings
+
+1. r[module.domain.value] Code reaches a domain only through a value it holds, a **domain value**. No type names one domain.
+2. r[module.domain.target] A **target** is one executable of the package, by [`cli.exe.table`](../cli/command-line.md#r-cli.exe.table), and its output.
+3. r[module.domain.build] A **build** compiles every target of the package once. Each of its outputs carries the same **build ID**.
+4. r[module.domain.same-build] Every domain runs code of one build. A crossing sends the identity of code the destination already has, and data; it never sends code.
+5. r[module.domain.crossing] A **crossing** is a call that runs code in another domain. It passes a closure for a [crossing parameter](07-functions.md#crossing-closures), or calls a remote trait's method on a stub.
+6. r[module.domain.other-build] A peer of another build refuses every crossing before any code runs, with `CrossError.OtherBuild`.
+7. r[module.domain.build-id] Every target of a build has the same build ID, though each checks only what it reaches, by [`cli.exe.reach`](../cli/command-line.md#r-cli.exe.reach). The ID hashes the toolchain and each library and executable module of the package.
+
+> **Why.** A crossing that names code the peer already has needs no code
+> transport, no content hash and no sandbox. A deploy is then one refusal
+> the caller can match, not undefined behavior.
+
+### Markers
+
+A **marker** is a trait with no members that extends `Marker`. Each kind
+of domain names the marker its values need:
+
+```text
+use std.marker.{Marker, Send, Wire}
+
+pub trait GpuData < Marker   # a library's marker for one kind of device
+
+struct Point:
+    x: f64
+    y: f64
+
+fn post[T < Wire](value: T) -> void:
+    pass
+
+fn share[T < Send](value: T) -> void:
+    pass
+
+fn demo(p: Point) -> void:
+    post(p)    # every field is Wire
+    share(p)   # and Send
+```
+
+1. r[module.marker.definition] A marker is a trait that extends `Marker` and declares no members. Its implementations say what may cross into one kind of domain.
+2. r[module.marker.std] `std.marker` declares `Marker`, `Send` and `Wire`, and `Send` and `Wire` extend `Marker`. Code imports them where it writes them, as in `use std.marker.Wire`.
+3. r[module.marker.members] A trait that extends `Marker` and declares a member is an error, reported on the member. Error: `invalid-marker-trait`.
+4. r[module.marker.not-copy] A marker does not bound its `Self` by `Copy`, unlike [`ref.copy.trait.default`](13-values-and-references.md#r-ref.copy.trait.default). A type that is not `Copy` may have a marker.
+5. r[module.marker.structural] A struct, enum, tuple, union, optional, `Result`, `List`, `Map`, `Set` or newtype has a marker when every field, payload, member, element, key and base type has it.
+6. r[module.marker.supplied] The compiler supplies those implementations, as it supplies `Copy`'s, by [`trait.sealed.supplied`](09-traits.md#r-trait.sealed.supplied). A generic type has a marker at each instance whose parts have it.
+7. r[module.marker.explicit] A type has a marker that rule 5 does not give it only through an explicit implementation. [Implementation Ownership](09-traits.md#implementation-ownership) places it beside the marker or beside the type.
+8. r[module.marker.explicit.only] A type with an explicit implementation of `Send`, `Sync` or `Wire` has each of the three only through an explicit implementation: rule 5 gives it none. Where such a type is a part of another type, its implementations answer for it. So [`std.sync.Arc`](../std/sync.md#arc), which holds only an address, is `Send` and `Sync` when its implementations say so, and never `Wire`.
+9. r[module.marker.sealed] `Send` and `Wire` are sealed: only the compiler and the standard library supply their implementations, by [`trait.sealed.send`](09-traits.md#r-trait.sealed.send) and [`trait.sealed.wire`](09-traits.md#r-trait.sealed.wire).
+10. r[module.marker.parameter] A type parameter has a marker only through its bound, as in `T < Wire`.
+11. r[module.marker.unsatisfied] A type argument that lacks a marker its bound names is an error. Error: `unsatisfied-trait-bound`.
+12. r[module.marker.kind] A marker names a kind of domain, never one domain. Which device or worker holds a value is known only at run time.
+13. r[module.marker.wire] A `Wire` value crosses into separate memory as a self-contained tree, by [`module.boundary.tree`](#r-module.boundary.tree).
+14. r[module.marker.send] A `Send` value may be copied, moved or lent to another thread of the same memory.
+15. r[module.marker.sync] `std.marker` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
+16. r[module.marker.sync.meaning] A `Sync` value holds no counted buffer, so threads that read it at once change no count.
+17. r[module.marker.sync.leaf] Numbers, `bool`, `char` and `never` are `Sync`. `string`, `List`, `Map` and `Set` hold counted buffers and are not `Sync`.
+18. r[module.marker.sync.structural] A struct, enum, tuple, union, optional, `Result` or newtype is `Sync` when every field, payload, member and base type is.
+19. r[module.marker.sync.refs] `&T` and `&mut T` are `Sync` when `T` is. A counted reference, a trait value reference, a provider and a function value are not `Sync`.
+20. r[module.marker.send.counts] Counts are never atomic: a copy or a drop changes a buffer's count with a plain add, on every thread. A value that several threads own at once is held by a standard library type over atomic operations.
+
+`Wire` and `Send` are checked separately, so a value may have one and not
+the other:
+
+| Rule | Type | `Wire` | `Send` |
+| --- | --- | --- | --- |
+| r[module.marker.table.scalar] Scalars | numbers, `bool`, `char` and `string` | yes | yes |
+| r[module.marker.table.composite] Composites | the types of rule 5 | when every part is | when every part is |
+| r[module.marker.table.remote] Remote references | `*mut dyn T` with `T < Remote` | yes, as its home, interface, object number and token | no |
+| r[module.marker.table.shared-sync] Shared local references | `&T` | no | when `T` is `Send` and `Sync` |
+| r[module.marker.table.writable] Writable local references | `&mut T` | no | no |
+| r[module.marker.table.counted] Counted references | `*T`, `*mut T`, and every other trait value reference | no | no |
+| r[module.marker.table.provider] Providers | a provider value, and a provider context | no | no |
+| r[module.marker.table.closure] Crossing closures | a closure literal for a crossing parameter | when every capture is | when every capture is |
+| r[module.marker.table.fn-value] Function values | every other value of a function type | no | no |
+
+```text
+use std.marker.{Marker, Wire}
+
+trait Tagged < Marker:
+    fn tag(&self) -> string  # error: invalid-marker-trait
+
+struct Point:
+    x: i32
+
+impl Wire for Point  # error: sealed-trait-implementation
+
+struct Holder:
+    target: *mut Point
+
+fn post[T < Wire](value: T) -> void:
+    pass
+
+fn demo(h: Holder) -> void:
+    post(h)  # error: unsatisfied-trait-bound
+```
+
+> **Why.** A thread that shares memory may borrow, so `&T` may be `Send`;
+> a separate memory gets only a copy, so no reference is `Wire`. A box is
+> neither, since its count and loan state are not atomic. A copy would
+> split one object into two. Counts are never atomic, so two threads that
+> read one buffer at once, and copy out of it, race on its count. `Sync`
+> rules that out as Rust's does: `&T` is `Send` only for a `Sync` `T`,
+> one with no counted buffer.
+
+> **Note.** `Wire` is not the host boundary's boundary-safe set
+> ([Boundary-Safe Values](#boundary-safe-values)). A box is boundary-safe
+> but not `Wire`, and a remote reference is `Wire` but not boundary-safe.
+
+See also: [Copy](13-values-and-references.md#copy),
+[Sealed Traits](09-traits.md#sealed-traits),
+[Crossing Closures](07-functions.md#crossing-closures).
+
+### Remote Traits
+
+A **remote trait** is a trait that extends `Remote`. Its methods are the
+only code that a domain of another target may run:
+
+```text
+use std.remote.{CrossError, Remote}
+
+struct User:
+    id: i64
+    name: string
+
+enum UserError:
+    Missing(id: i64)
+
+trait Users < Remote:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError | CrossError]
+
+struct Fixed:
+    user: User
+
+impl Users for Fixed:
+    fn load_user!(&mut self, id: i64) -> Result[User, UserError]:   # no CrossError here
+        if id == self.user.id:
+            return .Ok(self.user)
+        .Err(UserError.Missing(id))
+
+fn demo!(users: &mut Fixed) -> string:
+    match users.load_user!(7):
+        .Ok(user) => user.name
+        .Err(._0(error)) => "missing"
+        .Err(._1(cross)) => "not sent"
+```
+
+1. r[module.remote.std] `std.remote` declares `Remote`, a sealed trait with no members that the compiler supplies for every type, by [`trait.sealed.remote`](09-traits.md#r-trait.sealed.remote).
+2. r[module.remote.trait] A trait that extends `Remote`, directly or through another remote trait, is a remote trait.
+3. r[module.remote.only-entry] A domain of another target runs only methods of remote traits. Nothing else of the program is reachable from outside its target.
+
+Every method of a remote trait obeys R1:
+
+4. r[module.remote.r1.bang] It is a bang method. Error: `invalid-remote-method`.
+5. r[module.remote.r1.wire] Its parameter types, its success type and its error type are `Wire`, so no function value appears in them at any depth. Error: `invalid-remote-method`.
+6. r[module.remote.r1.generic] It declares no generic parameter. Error: `invalid-remote-method`.
+7. r[module.remote.r1.row] It has no requirement row. Its implementation reaches what it needs through its own fields. Error: `invalid-remote-method`.
+8. r[module.remote.r1.trait-generic] A remote trait may be generic, and the type a home serves fixes its type arguments.
+
+It also obeys R2, which keeps a call's own failure apart from the
+implementation's errors:
+
+9. r[module.remote.r2.result] Its declared result is `Result[V, E | CrossError]`: an error type that is a union of exactly two members, the second `CrossError`. Error: `invalid-remote-method`.
+10. r[module.remote.r2.impl] An implementation of the method declares `Result[V, E]`, the trait's result without `CrossError`. Another result is an error. Error: `trait-method-signature`.
+11. r[module.remote.r2.public] Every call of the method has the trait's result: on a concrete value, through a generic bound, through `&dyn` or `*mut dyn`, and through a method value.
+12. r[module.remote.r2.wrap] A call that runs the implementation returns its error as case `_0`.
+13. r[module.remote.r2.raw] The implementation's own result reaches only the dispatcher of [`module.remote.handle-call`](#r-module.remote.handle-call).
+14. r[module.remote.r2.cross] Only a stub returns case `_1`, and it describes the one call it is returned from.
+15. r[module.remote.r3.returned] A method may return a remote reference to a new object. The home that ran the call serves that object too.
+
+```text
+use std.remote.{CrossError, Remote}
+
+enum SortError:
+    Empty
+
+trait Sorter < Remote:
+    fn sort(&mut self, rows: List[i64]) -> Result[List[i64], SortError | CrossError]  # error: invalid-remote-method
+    fn sort_by!(&mut self, rows: List[i64], key: fn(i64) -> i64) -> Result[List[i64], SortError | CrossError]  # error: invalid-remote-method
+    fn pick![T](&mut self, rows: List[T]) -> Result[T, SortError | CrossError]  # error: invalid-remote-method
+    fn count!(&mut self) -> Result[usize, SortError]  # error: invalid-remote-method
+
+trait Counter < Remote:
+    fn count!(&mut self) -> Result[usize, SortError | CrossError]
+
+struct Fixed:
+    n: usize
+
+impl Counter for Fixed:
+    fn count!(&mut self) -> Result[usize, SortError | CrossError]:  # error: trait-method-signature
+        .Ok(self.n)
+```
+
+> **Why.** A remote method is an endpoint another program calls, so its
+> types must cross and no caller may pick the code it runs, as with gRPC
+> and Swift's distributed actors. An implementation without
+> `CrossError` cannot pass on another call's failure as its own.
+
+### Remote References
+
+A **remote reference** is a `*mut dyn T` of a remote trait `T`. It refers
+to an object that one domain serves, the object's **home**.
+
+1. r[module.remote.ref.home] On its home a remote reference is the object itself. Anywhere else it is a **stub**: a value of a type that the compiler generates for `T`.
+2. r[module.remote.ref.wire] A remote reference is `Wire`. It crosses as its home, its interface, its object number and a token.
+3. r[module.remote.ref.not-send] A remote reference is not `Send`, since a stub calls through its own transport.
+4. r[module.remote.stub] For each remote trait whose objects a target can hold away from their home, the compiler generates a stub type and its implementation of the trait. A stub holds no implementation code.
+5. r[module.remote.stub.send] A stub's method encodes its arguments and sends them through its transport, with the build ID, the interface and the method's number.
+6. r[module.remote.stub.reply] It returns an answer that ran as the decoded result, with the error as case `_0`. A refusal or a transport failure is case `_1`.
+7. r[module.remote.stub.decode] An answer that does not decode is `._1(CrossError.Unknown)`, never a panic.
+8. r[module.remote.interface] Every frame names its interface: the trait's path and type arguments, numbered once per build. Every target of a build numbers each trait's methods alike.
+9. r[module.remote.session] A remote reference that leaves its target carries an unguessable token bound to the session it was sent to. Its home refuses a call from any other session with `WrongHome`.
+10. r[module.remote.lease] Each call renews the reference's lease, and a call in progress holds it. Its home drops the object when the lease expires, and refuses a later call with `WrongHome`.
+11. r[module.remote.send-own] Only a domain that has a home sends a reference to one of its own objects. Any other domain refuses to send one, with `WrongHome`.
+12. r[module.remote.decoded] A decoded remote reference takes the transport its frame came on as its home's.
+13. r[module.remote.codec] Every `Wire` type that a target sends or receives gets a generated codec, the tree encoding of [`module.boundary.tree`](#r-module.boundary.tree).
+
+> **Note.** What must last or travel is stored as plain data, such as an
+> id, and looked up again, which gives the new holder its own reference.
+
+### Crossing Errors
+
+`std.remote` declares the enum `CrossError`, which says how one crossing
+failed:
+
+| Rule | Case | Meaning | The call ran |
+| --- | --- | --- | --- |
+| r[module.cross.unreachable] Unreachable | `Unreachable` | the call never left | no |
+| r[module.cross.unknown] Unknown | `Unknown` | it left and no answer came, including a timeout, a crash at the destination, or an answer that does not decode | maybe |
+| r[module.cross.other-build] Other build | `OtherBuild` | the destination runs another build and refused | no |
+| r[module.cross.wrong-home] Wrong home | `WrongHome` | the call named an object its destination does not serve | no |
+
+1. r[module.cross.decl] `CrossError` has exactly the four payload-free cases in the table above.
+2. r[module.cross.one-call] A `CrossError` describes the one invocation it is returned from.
+3. r[module.cross.cancel] Abandoning a task that waits on a crossing, by [`req.abandon.host`](11-requirements-and-suspension.md#r-req.abandon.host), sends a cancel. The call's outcome is then `Unknown`.
+4. r[module.cross.no-return] A value that moved into a crossing never comes back through an error.
+
+### Remote Built-Ins
+
+`std.remote` declares two built-ins, which the compiler lowers, and the
+items that the stubs and dispatchers it generates name:
+
+| Item | Declaration |
+| --- | --- |
+| `Transport` | `trait Transport:` with `fn call!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]` |
+| `Session` | `struct Session:` with `pub id: string` |
+| `Rooted[S]` | `struct Rooted[S]:` with `pub root: S` and `pub session: Session` |
+| `Reply` | `enum Reply:` with `Ran(payload: List[u8])` and `Refused(error: CrossError)` |
+| `Home[S, C]` | the objects one domain serves, each with its session, token and lease, and a request factory `fn!(&C) -> Result[Rooted[S], Refused]`; its fields are private |
+| `remote` | `fn remote[T < Remote](transport: *mut dyn Transport) -> *mut dyn T` |
+| `handle_call` | `fn handle_call![S, C](home: &mut Home[S, C], rooted: &mut Rooted[S], frame: List[u8]) -> List[u8]` |
+
+1. r[module.remote.items] `std.remote` declares the items in the table above with those shapes, and `Refused`, a struct with the field `pub reason: string`.
+2. r[module.remote.builtin.remote] `remote::[T](transport)` returns the root object at the far end of `transport`, as a stub of type `*mut dyn T`.
+3. r[module.remote.builtin.remote.trait] Its one type argument is a remote trait, not a type, as `$.use(K)` takes a requirement key. A generic remote trait writes its arguments, as in `remote::[Call[string, void, TodoError]]`.
+4. r[module.remote.builtin.remote.not-remote] A type argument that is not a remote trait is an error. Error: `unsatisfied-trait-bound`.
+5. r[module.remote.handle-call] `handle_call!` answers one call frame for a home whose root type is `S`, and returns an encoded `Reply`. The compiler generates its body for each `S`.
+6. r[module.remote.handle-call.root] `S` must implement a remote trait. Error: `unsatisfied-trait-bound`.
+7. r[module.remote.handle-call.build] The body first checks the frame's build ID. Another build is `Reply.Refused(.OtherBuild)`.
+8. r[module.remote.handle-call.object] It then finds the object the frame names, and checks its token and lease against `rooted.session`. A failed check is `Reply.Refused(.WrongHome)`.
+9. r[module.remote.handle-call.interface] It checks that the object serves the frame's interface. Another interface is `Reply.Refused(.WrongHome)`.
+10. r[module.remote.handle-call.untrusted] It decodes the method number and the arguments as untrusted input. A frame that fails to decode is `Reply.Refused(.WrongHome)`, never a panic.
+11. r[module.remote.handle-call.run] It then calls the method's implementation and answers `Reply.Ran` with the encoded `Result[V, E]`.
+12. r[module.remote.handle-call.session] The session comes from `rooted`, never from the frame. Each object that a method returns is recorded with that session.
+
+```text
+use std.remote.{Remote, Transport, remote}
+
+trait Page:
+    fn show(&mut self, text: string) -> void
+
+fn demo(transport: *mut dyn Transport) -> void:
+    page := remote::[Page](transport)  # error: unsatisfied-trait-bound
+```
+
+> **Why.** A `Reply` envelope lets a caller tell a refusal apart from an
+> application result, so a refused call never decodes as one. The session
+> comes from the home's own check of the call, such as a cookie, so a
+> frame cannot claim another caller's objects.
+
+See also: [Execution Domains](#execution-domains),
+[Requirement Keys](11-requirements-and-suspension.md#requirement-keys).
 
 ## Tooling, ABI, And Unsupported Extensions
 

@@ -11,7 +11,7 @@ std/rt_tests.stage_case/sum
   local $5 $end: usize [assigned] value
     uses $5: %8 -> %12 lend, %16 lend
   local $6 key: &usize [read assigned] value
-    uses $6: %33 -> %25 lend last
+    uses $6: %32 -> %25 lend last
   local $7 value: &usize [read assigned] value
     uses $7: %34 -> %26 lend last
   %1 = Read borrow [*$0] : Map[usize, usize]
@@ -45,9 +45,9 @@ std/rt_tests.stage_case/sum
   %29 = Store [$1] %28 : ()
   %30 = Block - : ()
   %31 = Read borrow [%20 .0] : &usize
-  %32 = Read borrow [%20 .1] : &usize
-  %33 = Store [$6] %31 : ()
-  %34 = Store [$7] %32 : ()
+  %32 = Store [$6] %31 : ()
+  %33 = Read borrow [%20 .1] : &usize
+  %34 = Store [$7] %33 : ()
   %36 = Block - : never
   %37 = Match %20 [%36 %30] : ()
   %38 = Drop [%20] : ()

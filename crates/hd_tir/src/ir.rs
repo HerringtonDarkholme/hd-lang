@@ -970,20 +970,24 @@ impl ReadMode {
     }
 }
 
-/// Local flags (u8): READ | ASSIGNED | MUTATED | CAPTURED | `CAPTURED_ASSIGNED` | PARAM.
+/// Local flags (u16): READ | ASSIGNED | MUTATED | CAPTURED | `CAPTURED_ASSIGNED` | PARAM.
 pub mod local_flags {
-    pub const READ: u8 = 1;
-    pub const ASSIGNED: u8 = 2;
-    pub const MUTATED: u8 = 4;
-    pub const CAPTURED: u8 = 8;
-    pub const CAPTURED_ASSIGNED: u8 = 16;
-    pub const PARAM: u8 = 32;
+    pub const READ: u16 = 1;
+    pub const ASSIGNED: u16 = 2;
+    pub const MUTATED: u16 = 4;
+    pub const CAPTURED: u16 = 8;
+    pub const CAPTURED_ASSIGNED: u16 = 16;
+    pub const PARAM: u16 = 32;
     /// A `:=` binding, which `=` cannot reassign.
-    pub const SHORT: u8 = 64;
+    pub const SHORT: u16 = 64;
     /// A parameter of the function whose default is being checked, at or
     /// after the default's own: named, but not yet visible
     /// (`fn.default.later-parameter`). A read is an error.
-    pub const NOT_YET: u8 = 128;
+    pub const NOT_YET: u16 = 128;
+    /// A view: a binding that holds a part of a value in place, with no
+    /// count of its own, and that nothing takes out of. A match guard's
+    /// twin of its arm's binding is one (`flow.match.guard.borrow`).
+    pub const VIEW: u16 = 256;
 }
 
 /// Sub-body flags (u8).
@@ -1004,6 +1008,11 @@ pub mod sub_flags {
     /// The root result forwards an input loan. Callers that keep its bits
     /// state their own retain; this body returns no owned count.
     pub const BORROWED_RESULT: u8 = 4;
+    /// A crossing closure's body (`fn.crossing.once`): it runs at most
+    /// once, so it takes its captures on entry, as Rust's `FnOnce` takes
+    /// its closure, and the environment it leaves owns none of them. A
+    /// copy of it inlined at its call keeps no environment alive after it.
+    pub const ONCE: u8 = 8;
 }
 
 /// Ownership mode in a `Return`'s second word. `NONE` keeps the ordinary
@@ -1108,7 +1117,7 @@ pub struct Body {
     pub local_ty: Vec<Ty>,
     pub local_name: Vec<Symbol>,
     pub local_syn: Vec<NodeIdx>,
-    pub local_flags: Vec<u8>,
+    pub local_flags: Vec<u16>,
     pub sub_root: Vec<u32>,
     /// Parameter locals per sub-body: `start` points at a length prefix in
     /// `extra`, and `len` is the number of following local IDs. An empty
@@ -2099,7 +2108,7 @@ impl SubMark {
 /// implements it; a discarding sink implements it for no-emit mode.
 pub trait TirSink {
     fn konst(&mut self, index: u32) -> Ref;
-    fn local(&mut self, ty: Ty, name: Symbol, flags: u8, syn: NodeIdx) -> LocalId;
+    fn local(&mut self, ty: Ty, name: Symbol, flags: u16, syn: NodeIdx) -> LocalId;
     fn get(&mut self, l: LocalId, ty: Ty, syn: NodeIdx) -> Ref;
     fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx);
     fn prim(&mut self, op: u32, args: &[Ref], ty: Ty, syn: NodeIdx) -> Ref;
@@ -2280,6 +2289,104 @@ impl TirBuilder {
             .collect()
     }
 
+    /// Lifts the open sub-body `m`'s captures `caps` to the fields of one
+    /// leading tuple parameter `p`, as Swift's closure lifting makes
+    /// captures parameters: each place emitted since instruction `from`,
+    /// all `m`'s, rooted at `caps[i]` is rooted at `p .i`, a nested closure
+    /// captures `p` in their place, and `m` captures nothing. Cost: the
+    /// instructions since `from`, once.
+    pub fn lift_captures(&mut self, m: SubMark, from: usize, caps: &[LocalId], p: LocalId) {
+        self.reroot(from, &|l| {
+            let f = caps.iter().position(|c| c.raw() == l)?;
+            Some((p, Some(u32_of(f))))
+        });
+        let words: Vec<u32> = std::iter::once(p.raw())
+            .chain(self.body.sub_param_locals(m.0.idx()).iter().copied())
+            .collect();
+        let at = self.record(&words);
+        self.body.sub_params[m.0.idx()] = Range32::new(at, u32_of(words.len()));
+        let mut at = 0;
+        self.open_caps.retain(|c| {
+            at += 1;
+            at <= m.1 as usize || c.0 != m.0
+        });
+    }
+
+    /// The open sub-body `m` captures `to[i].1` in place of `to[i].0`:
+    /// each place emitted since instruction `from` rooted at the one is
+    /// rooted at the other, and a nested closure captures it instead.
+    /// Cost: the instructions since `from`, once.
+    pub fn rename_captures(&mut self, m: SubMark, from: usize, to: &[(LocalId, LocalId)]) {
+        self.reroot(from, &|l| {
+            let &(_, new) = to.iter().find(|(old, _)| old.raw() == l)?;
+            Some((new, None))
+        });
+        for c in self.open_caps.get_mut(m.1 as usize..).unwrap_or(&mut []) {
+            if let Some(&(_, new)) = to.iter().find(|(old, _)| c.0 == m.0 && *old == c.1) {
+                c.1 = new;
+            }
+        }
+    }
+
+    /// Each place emitted since instruction `from` rooted at a local `l`
+    /// for which `to(l)` is `(p, f)` is rooted at `p`, field `f` first if
+    /// given, and a closure among them captures each such `p`, after its
+    /// other captures, in place of those locals.
+    fn reroot(&mut self, from: usize, to: &dyn Fn(u32) -> Option<(LocalId, Option<u32>)>) {
+        for i in from..self.body.tags.len() {
+            let (oa, ob) = self.body.tags[i].operands();
+            for (k, op) in [(0, oa), (1, ob)] {
+                let w = self.body.data[i][k];
+                if op != Op::Place || w == NONE {
+                    continue;
+                }
+                let (l, rest) = if w & place::BARE_LOCAL != 0 {
+                    (w & !place::BARE_LOCAL, &[][..])
+                } else if self.body.extra.get(w as usize + 1) == Some(&place::ROOT_LOCAL) {
+                    let n = self.body.extra[w as usize] as usize;
+                    (
+                        self.body.extra[w as usize + 2],
+                        &self.body.extra[w as usize + 3..=w as usize + n],
+                    )
+                } else {
+                    continue;
+                };
+                let Some((p, f)) = to(l) else { continue };
+                let words: Vec<u32> = [place::ROOT_LOCAL, p.raw()]
+                    .into_iter()
+                    .chain(f.map(|f| place::PROJ_FIELD | f))
+                    .chain(rest.iter().copied())
+                    .collect();
+                self.body.data[i][k] = self.record(&words);
+            }
+            if self.body.tags[i] == Tag::Closure {
+                let r = self.body.data[i][1] as usize;
+                let (start, n) = (
+                    self.body.extra[r + 1] as usize,
+                    self.body.extra[r + 2] as usize,
+                );
+                let old = &self.body.cap_local[start..start + n];
+                if old.iter().any(|c| to(c.raw()).is_some()) {
+                    // The callers map each old local to its own new one,
+                    // or all of them to one tuple: equal roots are adjacent.
+                    let mut kept: Vec<LocalId> = Vec::with_capacity(n);
+                    let mut roots: Vec<LocalId> = Vec::new();
+                    for &c in old {
+                        match to(c.raw()) {
+                            Some((p, _)) if roots.last() != Some(&p) => roots.push(p),
+                            Some(_) => {}
+                            None => kept.push(c),
+                        }
+                    }
+                    kept.extend(roots);
+                    self.body.extra[r + 1] = u32_of(self.body.cap_local.len());
+                    self.body.extra[r + 2] = u32_of(kept.len());
+                    self.body.cap_local.extend(kept);
+                }
+            }
+        }
+    }
+
     /// A constant of the body's own column.
     pub fn const_value(&mut self, ty: Ty, bits: u64) -> Ref {
         let i = u32::try_from(self.body.consts.len()).expect("consts");
@@ -2375,7 +2482,7 @@ impl TirSink for TirBuilder {
     fn konst(&mut self, index: u32) -> Ref {
         Ref::konst(index)
     }
-    fn local(&mut self, ty: Ty, name: Symbol, flags: u8, syn: NodeIdx) -> LocalId {
+    fn local(&mut self, ty: Ty, name: Symbol, flags: u16, syn: NodeIdx) -> LocalId {
         let l = LocalId::from_raw(u32::try_from(self.body.local_ty.len()).expect("locals"));
         self.body.local_ty.push(ty);
         self.body.local_name.push(name);
@@ -3535,7 +3642,7 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 b.local_name.push(Symbol::from_raw(v[1]));
                 b.local_syn.push(NodeIdx::from_raw(v[2]));
                 b.local_flags
-                    .push(u8::try_from(v[3]).map_err(|_| e("flags".into()))?);
+                    .push(u16::try_from(v[3]).map_err(|_| e("flags".into()))?);
             }
             "sub" => {
                 let v = nums(1)?;

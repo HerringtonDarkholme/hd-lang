@@ -1,0 +1,28 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: app/main/shared app/main/moved app/main/scalar std/rt.crossing/own_list
+# A closure that crosses a `Send` crossing takes each capture's buffers as
+# its own (`fn.crossing.mode.unique`). `shared` reads `items` again after
+# the crossing, so its capture is a copy, one more count, and `own_list`
+# copies the buffer. `moved` crosses `items` at its last use: the read
+# moves it, no count is taken, and the check finds the buffer its own.
+# `own_list` is that check: `rt:list_truncate` at the length copies a
+# buffer with another holder, and the empty list is the static one.
+# `scalar` captures no buffer, and the crossing adds nothing.
+use std.marker.Send
+
+fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+fn shared(items: List[i32]) -> usize:
+    let mut kept = items
+    kept.push(1)
+    n := run(fn() -> usize: kept.len())
+    n + kept.len()
+
+fn moved(size: i32) -> usize:
+    items := [size, size]
+    run(fn() -> usize: items.len())
+
+fn scalar(size: i32) -> i32:
+    run(fn() -> i32: size + 1)

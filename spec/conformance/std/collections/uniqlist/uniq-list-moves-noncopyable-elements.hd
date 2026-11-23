@@ -47,10 +47,10 @@ tests:
         items.push(Ticket { label: "c" })
         items.insert(1, Ticket { label: "b" })
         items.swap(0, 2)
-        first := items.remove_at(0)
+        first := items.remove(0)
         $.with(Console=console):
             println(first.label)
-        assert_equal(first.label, "c", reason="remove_at returns the moved element")
+        assert_equal(first.label, "c", reason="remove returns the moved element")
         last := take_last(&mut items)
         $.with(Console=console):
             println(last.label)

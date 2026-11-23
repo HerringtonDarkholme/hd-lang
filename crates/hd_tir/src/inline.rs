@@ -252,6 +252,20 @@ struct Ready {
     sub: SubId,
 }
 
+impl Ready {
+    /// The rows of the cleanup suite that keeps the environment's locals
+    /// alive across the copy: a read of each, then their block. A copy of
+    /// a body that runs once (`sub_flags::ONCE`) takes them instead.
+    fn kept(&self) -> usize {
+        let once = self.k.sub_flags.first().copied().unwrap_or(0) & crate::ir::sub_flags::ONCE;
+        if self.environment.is_empty() || once != 0 {
+            0
+        } else {
+            self.environment.len() + 1
+        }
+    }
+}
+
 /// Replaces each site's `Call` of `b` by its copy, all in one rebuild:
 /// the caller is renumbered once and its columns permuted once, however
 /// many calls are copied. `sites` come in descending call order, which is
@@ -334,11 +348,7 @@ pub fn inline_bound_calls(
         while s > 0 && ready[s - 1].c == i {
             s -= 1;
             ready[s].base = u32_of(i + shift);
-            shift += ready[s].params.len()
-                + ready[s].k.len()
-                + 1
-                + ready[s].environment.len()
-                + usize::from(!ready[s].environment.is_empty());
+            shift += ready[s].params.len() + ready[s].k.len() + 1 + ready[s].kept();
         }
         fin.push(u32_of(i + shift));
     }
@@ -636,6 +646,7 @@ fn relocated_local(local: u32, lbase: u32, environment: &[(u32, u32)]) -> u32 {
 /// the call's block, the `Scope`, and the members the block lists before
 /// it.
 fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
+    let keep = r.kept();
     let Ready {
         c,
         mut k,
@@ -648,7 +659,6 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     } = r;
     let (m, np) = (k.len(), params.len());
     let args = out.record(out.data[c][1]).to_vec();
-    let keep = environment.len() + usize::from(!environment.is_empty());
     let root_at = base + u32_of(np + m + keep);
     let (start, lbase) = (out.len(), u32_of(out.local_ty.len()));
     let label = u32_of(out.label_inst.len() + k.label_inst.len());
@@ -704,11 +714,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     // lists the blocks the `Scope` runs, its cleanup suite and its root: a
     // child block stands in the block around its runner (`Topology::blk`).
     let scope = root_at + 1;
-    let cleanup_root = if environment.is_empty() {
-        root_at
-    } else {
-        root_at - 2
-    };
+    let cleanup_root = if keep == 0 { root_at } else { root_at - 2 };
     let mut before: Vec<u32> = (0..np).map(|p| base + u32_of(p)).collect();
     before.extend((cleanup_root != root_at).then_some(cleanup_root));
     before.push(root_at);
@@ -718,11 +724,11 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
     list.push(root_at - 1);
     let rec = out.push_record(&list);
     let cleanup_start = base + u32_of(np + m - 1);
-    let cleanup_members: Vec<u32> = (0..u32_of(environment.len()))
+    let cleanup_members: Vec<u32> = (0..u32_of(keep.saturating_sub(1)))
         .map(|i| cleanup_start + i)
         .collect();
     let cleanup_record = out.push_record(&cleanup_members);
-    let cleanups = out.push_record(&if environment.is_empty() {
+    let cleanups = out.push_record(&if keep == 0 {
         Vec::new()
     } else {
         vec![cleanup_root]
@@ -795,7 +801,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         put(start + np + j, None, Some(j));
     }
     let mut n = start + np + m - 1;
-    for &(local, parent) in &environment {
+    for &(local, parent) in environment.iter().take(keep.saturating_sub(1)) {
         let data = [
             place::BARE_LOCAL | parent,
             crate::ir::ReadMode::Borrow as u32,
@@ -803,7 +809,7 @@ fn copy_in(out: &mut Body, r: Ready) -> Result<(usize, u32, Vec<u32>), String> {
         put(n, Some((Tag::Read, data, k.local_ty[local as usize])), None);
         n += 1;
     }
-    if !environment.is_empty() {
+    if keep != 0 {
         put(
             n,
             Some((Tag::Block, [cleanup_record, NONE], Ty::VOID)),

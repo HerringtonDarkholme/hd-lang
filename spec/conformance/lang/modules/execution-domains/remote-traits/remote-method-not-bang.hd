@@ -1,0 +1,13 @@
+# test: a remote trait's method that is not a bang method is rejected
+# Spec 10 Remote Traits: module.remote.r1.bang.
+use std.remote.{CrossError, Remote}
+
+struct User:
+    id: i64
+    name: string
+
+enum UserError:
+    Missing(id: i64)
+
+trait Users < Remote:
+    fn load_user(&mut self, id: i64) -> Result[User, UserError | CrossError] # diagnostic: invalid-remote-method

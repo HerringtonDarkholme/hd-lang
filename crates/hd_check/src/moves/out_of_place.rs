@@ -11,6 +11,7 @@ use hd_base::{HashMap, LocalId, SliceSort as _};
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_tir::ir::{Body, NONE, Place, PlaceRoot, Proj, Role, Tag, Word, slots};
+use hd_types::AdtId;
 use hd_types::{Ty, TyData};
 
 use super::{Uses, local_of, w};
@@ -80,6 +81,8 @@ enum From {
     Capture,
     /// A binding a closure shares through a cell, read in its scope.
     Cell,
+    /// A guard's twin of its arm's binding (`flow.match.guard.borrow`).
+    Guard,
 }
 
 /// The reference a place is behind: `&T`, `&mut T`, or a counted `*T`
@@ -103,11 +106,14 @@ impl RefKind {
 }
 
 /// Each closure's captures, as (sub-body, local), sorted.
-fn captures_of(b: &Body) -> Vec<(u32, u32)> {
+/// A crossing closure runs once, so moving out of its captures is
+/// allowed (`fn.crossing.move-out`); it is left out.
+fn captures_of(b: &Body, crossing: &[u32]) -> Vec<(u32, u32)> {
     let mut out = Vec::new();
     for i in 0..b.len() {
         if b.tags[i] == Tag::Closure
             && !b.is_instantiation(i)
+            && !crossing.contains(&w(i))
             && let [start, len, ..] = *b.record(b.data[i][1])
         {
             for c in start..start.saturating_add(len) {
@@ -126,10 +132,24 @@ fn captures_of(b: &Body) -> Vec<(u32, u32)> {
 /// is not copied lives in a cell the closure shares (`fn.capture.cell`;
 /// the checker's capture modes), so its scope reads it there too. A
 /// local reference is captured as itself.
-fn shared_of(b: &Body, pool: hd_types::Types<'_>) -> Vec<bool> {
+/// A crossing closure's captures are copied or moved, never shared
+/// (`fn.crossing.mode`).
+fn shared_of(b: &Body, pool: hd_types::Types<'_>, crossing: &[u32]) -> Vec<bool> {
+    let mut taken = vec![false; b.cap_local.len()];
+    for &i in crossing {
+        if let [start, len, ..] = *b.record(b.data[i as usize][1]) {
+            for c in start..start.saturating_add(len) {
+                if let Some(t) = taken.get_mut(c as usize) {
+                    *t = true;
+                }
+            }
+        }
+    }
     let mut out = vec![false; b.local_ty.len()];
-    for l in &b.cap_local {
-        out[l.idx()] = !crate::local_refs::holds_local_ref(pool, b.local_ty[l.idx()]);
+    for (c, l) in b.cap_local.iter().enumerate() {
+        if !taken[c] {
+            out[l.idx()] = !crate::local_refs::holds_local_ref(pool, b.local_ty[l.idx()]);
+        }
     }
     out
 }
@@ -166,12 +186,183 @@ impl Ck<'_, '_> {
             .collect()
     }
 
+    /// Which locals are a guard's twins of its arm's bindings
+    /// (`flow.match.guard.borrow`).
+    pub(super) fn guard_twins_of(&self, b: &Body) -> Vec<bool> {
+        let mut twin = vec![false; b.local_ty.len()];
+        for g in &self.guard_bindings {
+            twin[g.twin.idx()] = true;
+        }
+        twin
+    }
+
+    /// `flow.match.guard.borrow`: while a guard runs, each twin reads its
+    /// payload in place, so the guard may not assign, mutably borrow or
+    /// move a place that overlaps it (Rust's fake borrows): such an access
+    /// is `conflicting-access`, reported once per twin. A twin of a value
+    /// the match itself made, a call's result, reads a place nothing else
+    /// names. A closure the guard makes may not capture a twin, which
+    /// would share it in a cell (`fn.capture.cell`): `move-out-of-place`.
+    /// Cost: per twin, its guard's instructions.
+    pub(crate) fn check_guard_views(&mut self, cx: &mut Uses) {
+        if self.guard_bindings.is_empty() && self.match_guards.is_empty() {
+            return;
+        }
+        cx.follow(self.b.body(), true);
+        let mut found = self.guard_changes(cx);
+        let matched = found.len();
+        let views = self.guard_bindings.clone();
+        let mut captured: Vec<(usize, LocalId)> = Vec::new();
+        for g in views {
+            let b = self.b.body();
+            let r = g.read.0 as usize;
+            if let Some(i) = (r + 1..=g.end as usize).find(|&i| {
+                b.tags[i] == Tag::Closure
+                    && !b.is_instantiation(i)
+                    && b.record(b.data[i][1])
+                        .first()
+                        .zip(b.record(b.data[i][1]).get(1))
+                        .is_some_and(|(&start, &len)| {
+                            (start..start + len)
+                                .any(|c| b.cap_local.get(c as usize) == Some(&g.twin))
+                        })
+            }) {
+                captured.push((i, g.twin));
+            }
+            let viewed = (b.tags[r] == Tag::Read)
+                .then(|| local_place(b, b.data[r][0]))
+                .flatten();
+            let Some((l, viewed)) = viewed else { continue };
+            for i in r + 1..=g.end as usize {
+                let what = match b.tags[i] {
+                    Tag::Store => "assigns",
+                    Tag::Ref if b.data[i][1] & hd_tir::ir::ref_word::MUT != 0 => "mutably borrows",
+                    Tag::Read if !cx.copied[i] && self.moves(cx, w(i)) => "moves",
+                    _ => continue,
+                };
+                if let Some((m, p)) = local_place(b, b.data[i][0])
+                    && m == l
+                    && overlaps(&p, &viewed)
+                {
+                    // `flow.match.guard.borrow.matched` reported it.
+                    if !found.iter().any(|f| f.0 == i) {
+                        found.push((i, what));
+                    }
+                    break;
+                }
+            }
+        }
+        for (k, (i, what)) in found.into_iter().enumerate() {
+            let at = self.b.body().syn[i];
+            if at == hd_base::NodeIdx::NONE {
+                continue;
+            }
+            let msg = if k < matched {
+                format!(
+                    "this {what} the value the match reads while its guard runs; when the guard is false, the next arm matches that same value. Change it in the arm, or before the match"
+                )
+            } else {
+                format!(
+                    "this {what} the value the match tests while its guard reads a binding of it in place; the arm takes the binding once the guard holds. Change the value in the arm, or before the match"
+                )
+            };
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::ConflictingAccess, node, &msg);
+        }
+        for (i, twin) in captured {
+            let at = self.b.body().syn[i];
+            if at == hd_base::NodeIdx::NONE {
+                continue;
+            }
+            let name = self
+                .cx
+                .names
+                .text(self.b.body().local_name[twin.idx()])
+                .to_owned();
+            let msg = format!(
+                "this closure captures `{name}`, a binding of its match guard whose value is not copied and which the guard reads in place; a capture would share it. Capture a reference, as `(r := &{name})` in the guard makes, or make the closure in the arm"
+            );
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::MoveOutOfPlace, node, &msg);
+        }
+    }
+
+    /// `flow.match.guard.borrow.matched`: while a guard runs, the match
+    /// still reads its place, so the guard may not mutably borrow a place
+    /// that overlaps it, whether or not its value is copied (Rust's fake
+    /// borrows, E0510). The first such borrow of each guard, as
+    /// (instruction, what it does). A guard is an expression, so it
+    /// assigns only through such a borrow. A match of a value it made
+    /// itself, a tuple or a call's result, reads no place the guard can
+    /// name. A move of the place is `use-of-moved-value` at the arm that
+    /// reads it. Cost: per guard, its instructions.
+    fn guard_changes(&self, cx: &Uses) -> Vec<(usize, &'static str)> {
+        let b = self.b.body();
+        let mut found = Vec::new();
+        for g in &self.match_guards {
+            let read = g.matched.as_inst().map(|m| m.0 as usize);
+            let Some((l, matched)) = read
+                .filter(|&m| b.tags[m] == Tag::Read)
+                .and_then(|m| local_place(b, b.data[m][0]))
+            else {
+                continue;
+            };
+            for i in g.start as usize..=g.end as usize {
+                // A `&mut` reference read whole is passed on: what it
+                // reaches is borrowed again, as `bump(r)` borrows `*r`.
+                let (what, reached) = match b.tags[i] {
+                    Tag::Ref if b.data[i][1] & hd_tir::ir::ref_word::MUT != 0 => {
+                        ("mutably borrows", false)
+                    }
+                    Tag::Read
+                        if self.ref_of(b.ty[i]).is_some_and(|(_, m)| m)
+                            && !self.only_weakened(cx, i) =>
+                    {
+                        ("mutably borrows", true)
+                    }
+                    _ => continue,
+                };
+                if let Some((m, mut p)) = local_place(b, b.data[i][0])
+                    && m == l
+                    && {
+                        if reached {
+                            p.push(Proj::Deref);
+                        }
+                        overlaps(&p, &matched)
+                    }
+                {
+                    found.push((i, what));
+                    break;
+                }
+            }
+        }
+        found
+    }
+
+    /// Whether every use of value `i` makes a shared reference of it, as
+    /// `peek(r)` passes a `&mut T` to a `&T` parameter: what it reaches is
+    /// only read.
+    fn only_weakened(&self, cx: &Uses, i: usize) -> bool {
+        let b = self.b.body();
+        let users = &cx.users[i];
+        !users.is_empty()
+            && users.iter().all(|&(u, _)| {
+                let u = u as usize;
+                b.tags[u] == Tag::Coerce && self.ref_of(b.ty[u]).is_some_and(|(_, m)| !m)
+            })
+    }
+
     /// `ref.move.out-of-place`: each read that moves a value that is not
     /// copied out of a place behind a reference, or out of a binding its
     /// closure captures, is `move-out-of-place`.
     pub(crate) fn check_moves_out_of_place(&mut self, cx: &mut Uses) {
         let b = self.b.body();
-        let (captures, shared) = (captures_of(b), shared_of(b, self.pool()));
+        let crossing: Vec<u32> = self.crossing_closures.iter().map(|c| c.0).collect();
+        let crossing = &crossing;
+        let (captures, shared) = (
+            captures_of(b, crossing),
+            shared_of(b, self.pool(), crossing),
+        );
         // The reads of a value that is not copied through a reference or
         // out of a capture, with where from and the place's root.
         let reads: Vec<(u32, From, Root)> = (0..b.len())
@@ -181,6 +372,7 @@ impl Ck<'_, '_> {
                 let root = root_of(b, p.root);
                 let from = match self.behind_ref(b, &p) {
                     Some(kind) => From::Reference(kind),
+                    None if matches!(root, Root::Local(l) if cx.twin[l.idx()]) => From::Guard,
                     None => captured(&captures, &shared, cx.topo.sub[i], root, &p)?,
                 };
                 Some((w(i), from, root))
@@ -224,6 +416,9 @@ impl Ck<'_, '_> {
                 ),
                 From::Cell => format!(
                     "this moves a value out of a binding a closure shares, which the closure may still read; {why}. Borrow it with `&`"
+                ),
+                From::Guard => format!(
+                    "a match guard reads its bindings in place, and the next arm matches the same value when the guard is false, so the guard cannot move one; {why}. Borrow it with `&`, or move it in the arm"
                 ),
             };
             let node = self.cx.src.parse.tree.node(at);
@@ -318,8 +513,10 @@ impl Ck<'_, '_> {
     fn field_ty(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<Ty> {
         let pool = self.pool();
         match pool.get(t) {
-            TyData::Tuple { elems, .. } => pool.list_items(elems).get(j as usize).copied(),
-            TyData::Adt { def, args } => {
+            TyData::Adt(AdtId::Product { .. }, _) => {
+                pool.product_parts(t)?.0.get(j as usize).copied()
+            }
+            TyData::Adt(AdtId::Declared(def), args) if def.get().is_some() => {
                 let fields = match (&self.cx.lookup.item(def)?.data, variant) {
                     (ItemData::Struct(fs, _), None) => fs,
                     (
@@ -331,14 +528,47 @@ impl Ck<'_, '_> {
                     _ => return None,
                 };
                 let ft = fields.get(j as usize)?.ty;
-                let argv = pool.list_items(args);
+                let type_items = pool.list_items(args);
                 Some(pool.subst(ft, &|q| {
                     (q.owner == def)
-                        .then(|| argv.get(q.index as usize).copied())
+                        .then(|| type_items.get(q.index as usize).copied())
                         .flatten()
                 }))
             }
             _ => None,
         }
     }
+}
+
+/// The local a place word reaches and its path from it, through each
+/// value that reads a place (`[%r .0]` of `%r = Read [$l .p]` is
+/// `[$l .p .0]`); `None` for a place rooted at anything else.
+fn local_place(b: &Body, word: u32) -> Option<(LocalId, Vec<Proj>)> {
+    let mut p = b.decode_place(word)?;
+    loop {
+        match p.root {
+            PlaceRoot::Local(l) => return Some((l, p.proj)),
+            PlaceRoot::Value(r)
+                if (r.0 as usize) < b.len() && b.tags[r.0 as usize] == Tag::Read =>
+            {
+                let inner = b.decode_place(b.data[r.0 as usize][0])?;
+                let mut proj = inner.proj;
+                proj.extend(p.proj);
+                p = Place {
+                    root: inner.root,
+                    proj,
+                };
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// Whether two paths from one local overlap: one is a prefix of the
+/// other. Two elements of a list may be the same one.
+fn overlaps(a: &[Proj], c: &[Proj]) -> bool {
+    a.iter().zip(c).all(|(x, y)| match (x, y) {
+        (Proj::Elem(_), Proj::Elem(_)) => true,
+        _ => x == y,
+    })
 }

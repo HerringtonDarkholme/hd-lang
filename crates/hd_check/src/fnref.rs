@@ -19,6 +19,7 @@ use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, Providers, Ref, Tag, TirSink, local_flags,
 };
+use hd_types::AdtId;
 use hd_types::solver::TraitRef;
 use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, TyList, VarKind, with_assoc_args};
 
@@ -84,7 +85,8 @@ struct Member {
 /// language-tier built-in method of `List` or `Map`, which has no
 /// declaration (spec/lang/10-modules.md#built-in-methods).
 enum Found {
-    Member(Member),
+    // Boxed: a member's signature is far larger than a built-in's.
+    Member(Box<Member>),
     Builtin {
         op: IntrinsicOp,
         params: Vec<Ty>,
@@ -300,8 +302,8 @@ impl Ck<'_, '_> {
         let t = self.infer.resolve(self.pool(), self.b.local_ty(l));
         let known = self.cx.names.known;
         let changes = match self.pool().get(self.resolved(t)) {
-            TyData::Adt { def, .. } if def == known.list => name == "push",
-            TyData::Adt { def, .. } if def == known.map => name == "remove",
+            TyData::Adt(AdtId::Declared(def), _) if def == known.list => name == "push",
+            TyData::Adt(AdtId::Declared(def), _) if def == known.map => name == "remove",
             _ => false,
         };
         if !changes || !self.mut_locals.contains(&l) || self.local_generics.contains_key(&l) {
@@ -381,7 +383,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         match self.member_of(t, name, explicit, n)? {
-            Some(Found::Member(m)) => self.unbound(m, want, n),
+            Some(Found::Member(m)) => self.unbound(*m, want, n),
             Some(Found::Builtin {
                 op,
                 params,
@@ -634,7 +636,7 @@ impl Ck<'_, '_> {
                 return Ok(None);
             }
         };
-        Ok(Some(Found::Member(m)))
+        Ok(Some(Found::Member(Box::new(m))))
     }
 
     /// Whether `t` has a member `name` that `T::name` reaches, by the
@@ -684,9 +686,9 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         let rest = m.sig.variadic
             && params.len() + skip == m.sig.params.len()
-            && params
-                .last()
-                .is_some_and(|t| matches!(pool.get(*t), TyData::Adt { def, .. } if def == list));
+            && params.last().is_some_and(
+                |t| matches!(pool.get(*t), TyData::Adt(AdtId::Declared(def), _) if def == list),
+            );
         let params = pool.list(&params);
         let row = inst_row(pool, m, row);
         let suspends = m.sig.suspends;
@@ -924,6 +926,20 @@ impl Ck<'_, '_> {
         }
     }
 
+    /// `fn.crossing.no-value`: a function with a crossing parameter is only
+    /// called, so every closure it gets is checked at a call. Reported here.
+    fn crossing_value(&mut self, m: &Member, n: NodeRef<'_>) -> bool {
+        if m.sig.crossing.is_empty() {
+            return false;
+        }
+        self.err(
+            Code::CrossingClosureNotLiteral,
+            n,
+            "a function with a crossing parameter is only called, never a value: a value's caller could pass any closure",
+        );
+        true
+    }
+
     /// The rest of an unbound reference: fit, bounds, `ItemRef`.
     fn unbound(
         &mut self,
@@ -931,6 +947,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
+        if self.crossing_value(&m, n) {
+            return Ok(self.poison_value(n));
+        }
         let pool = self.pool();
         self.note_call(m.def);
         let function = self.member_fn_ty(&m, 0)?;
@@ -1107,7 +1126,7 @@ impl Ck<'_, '_> {
             captured = Some((rl, lt, by_ref));
         } else {
             ptys.push(first_ty);
-            if let TyData::Adt { args, .. } = pool.get(self_ty) {
+            if let TyData::Adt(_, args) = pool.get(self_ty) {
                 for a in pool.list_items(args) {
                     self.ref_params.push((*a, None, syn));
                 }
@@ -1178,6 +1197,9 @@ impl Ck<'_, '_> {
         want: Option<Ty>,
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
+        if self.crossing_value(&m, n) {
+            return Ok(self.poison_value(n));
+        }
         let pool = self.pool();
         let (trait_, _, _) = m.owner.trait_parts()?;
         if pool.has_opaque(m.sig.ret) {
@@ -1191,13 +1213,13 @@ impl Ck<'_, '_> {
             ));
             return Ok(self.poison_value(n));
         }
-        if m.sig.has_own_params() {
+        if m.sig.needs_static_call() {
             let name = self
                 .cx
                 .lookup
                 .item(m.def)
                 .map_or("method", |item| self.cx.names.text(item.name));
-            let message = super::call::dyn_type_param_message(name);
+            let message = super::call::dyn_type_param_message(name, &m.sig);
             self.err(Code::DynMemberUnavailable, n, &message);
             return Ok(self.poison_value(n));
         }
@@ -1317,7 +1339,7 @@ impl Ck<'_, '_> {
         let dynamic = self.dyn_ref_of(rt);
         let lookup = dynamic.map_or(rt, |(tv, _)| tv);
         let mut m = match self.member_of(lookup, name, explicit, n)? {
-            Some(Found::Member(m)) => m,
+            Some(Found::Member(m)) => *m,
             Some(Found::Builtin {
                 op, params, ret, ..
             }) => return Ok(self.builtin_ref(Some((recv, rt)), rt, op, &params, ret, want, n)),
@@ -1331,6 +1353,9 @@ impl Ck<'_, '_> {
             );
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::POISON));
+        }
+        if self.crossing_value(&m, n) {
+            return Ok(self.poison_value(n));
         }
         if let Some((tv, writable)) = dynamic
             && matches!(

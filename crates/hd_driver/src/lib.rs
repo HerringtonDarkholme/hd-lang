@@ -17,6 +17,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -66,8 +67,11 @@ mod package_result;
 pub use own::copy_report_label;
 mod pipeline;
 mod positions;
+mod remote;
 mod report;
+mod rows;
 mod skims;
+mod stamps;
 mod texts;
 pub mod work;
 pub use hd_base::lines::count_indexed_bytes;
@@ -178,13 +182,18 @@ fn entry_write(text: string) -> void:
 /// the program uses: [`ENTRY_MODULE`] (`RT_SOURCE`) and the runtime
 /// allocator's module, whose folder holds the other runtime modules that
 /// emitted code calls.
-fn rt_roots(table: &ModuleTable, checked: bool) -> impl Iterator<Item = ModuleId> + '_ {
+fn rt_roots(
+    table: &ModuleTable,
+    checked: bool,
+    report: bool,
+) -> impl Iterator<Item = ModuleId> + '_ {
     // A checked build links the checked runtime, which has folders of its
-    // own (`std.rt.checked`, and `std.rt.checked_report` with that feature).
-    let checked_rt: &[&str] = if checked {
-        &[hd_resolve::known::CHECKED_MODULE, hd_wasm::CHECKED_MODULE]
-    } else {
-        &[]
+    // own (`std.rt.checked`, and `std.rt.checked_report` when it asks for
+    // the report).
+    let checked_rt: &[&str] = match (checked, report) {
+        (true, true) => &[hd_wasm::CHECKED_MODULE, hd_wasm::REPORT_MODULE],
+        (true, false) => &[hd_wasm::CHECKED_MODULE],
+        _ => &[],
     };
     [ENTRY_MODULE, hd_wasm::RUNTIME_MODULE]
         .into_iter()
@@ -798,6 +807,7 @@ type BodyOut = (
     Vec<hd_check::DbgRef>,
     Vec<InputBinding>,
     Vec<hd_check::inst_cycles::Edge>,
+    hd_check::crossing::Reach,
 );
 
 /// What a module's derivations add to its `check` entry: the derived
@@ -817,13 +827,23 @@ type OptInEntry = (usize, hd_check::derive::OptIn, Option<FactBodies>);
 
 /// A module's `check` entry, as far as `prog_key` needs it.
 struct CheckOut {
-    entry: Arc<[u8]>,
+    /// The whole entry; `None` for a module taken from its row (`rows`),
+    /// which no later step of the run reads whole ([`Run::record_row`]).
+    entry: Option<Arc<[u8]>>,
+    /// The init summary (the entry's section 5), which `InitOrder` reads.
+    summary: Box<[u8]>,
     content: Hash128,
     has_errors: bool,
     generic_edges: Vec<hd_check::inst_cycles::Edge>,
+    /// The module's part of the package's crossing reach graph
+    /// (`fn.crossing.global`), which the package join reads.
+    reach: hd_check::crossing::Reach,
     has_opaque: bool,
     /// The module has an init body, known without reading the entry's bodies.
     has_init: bool,
+    /// The module declares an `@inline(.Always)` item, known without
+    /// decoding the entry's items: `check_inline_always` decodes no other.
+    has_inline_always: bool,
     /// The hash of the module's checked items (the entry's items section,
     /// inferred results and rows written in), hashed once when the module
     /// is checked and read back from the entry's meta on a hit: what
@@ -849,7 +869,9 @@ struct ProgramTables {
     /// return templates serve collection and emission; bodies live in Collected.
     supplied_rets: Mutex<HashMap<DefId, Ty>>,
     supplied_families: Mutex<HashMap<(DefId, Ty), SuppliedFamilyCell>>,
-    dbg_structure: OnceLock<Option<(DefId, DefId, DefId)>>,
+    private_templates: OnceLock<Vec<(DefId, DefId, DefId)>>,
+    /// The build ID (`Env::build_id`), made once per build.
+    build_id: OnceLock<u64>,
     bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
     impl_rows: HashMap<DefId, ImplRef>,
@@ -1524,7 +1546,7 @@ fn repl_texts(
     let mut stack = vec![start];
     // The compiler roots `std.rt.entry` and the runtime after an entry, a
     // REPL input's too (`RT_SOURCE`).
-    stack.extend(rt_roots(table, false).map(ModuleId::idx));
+    stack.extend(rt_roots(table, false, false).map(ModuleId::idx));
     while let Some(m) = stack.pop() {
         if skims[m].is_some() {
             continue;
@@ -1665,6 +1687,8 @@ struct Run<'a> {
     level: OptLevel,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
+    /// Whether a checked build links the report's hooks ([`Packages::report`]).
+    checked_report: bool,
     /// Whether the ownership passes' output is verified without debug
     /// assertions or `checked` ([`Packages::verify_own`]).
     verify_own: bool,
@@ -1732,6 +1756,8 @@ struct Run<'a> {
     fetched: Vec<bool>,
     /// Each module's text skim, std's from the toolchain's `depfiles` entry.
     files: skims::FileSkims<'a>,
+    /// Each module's row of the last check run of its kind (`rows`).
+    rows: rows::ModuleRows<'a>,
     skim: Vec<OnceLock<SkimOut>>,
     parse: Vec<OnceLock<Parse>>,
     graph: OnceLock<GraphOut>,
@@ -2179,6 +2205,10 @@ pub struct Packages<'a> {
     /// The folder interfaces an earlier build of the caller decoded or
     /// built ([`Reuse`]); an empty one is filled by this build.
     pub reuse: Option<&'a Reuse>,
+    /// Where [`result_key`] leaves its table for this build, which takes
+    /// it instead of discovering again: the caller passes one only to a
+    /// result key and a build over the same sources and packages.
+    pub discovered: Option<&'a Discovered>,
     /// For a `Goal::ReplInput { input }` with a session: build every input
     /// from this number to `input` as one module, for a rebuild that holds
     /// many inputs in one instance (`docs/compiler/live-execution.md`
@@ -2203,6 +2233,11 @@ pub struct Packages<'a> {
     /// Enable allocation/count auditing for compiler conformance checks.
     /// Requires the default-enabled `checked-builds` crate feature.
     pub checked: bool,
+    /// A checked build that also links the checked report's hooks
+    /// (`std.rt.checked_report`: count sites, cycle and pair reports).
+    /// Needs the `checked-report` feature; without it, or with this false,
+    /// a build emits what a compiler without the feature emits (#2308).
+    pub report: bool,
     /// Verify the ownership passes' output (`hd_tir::ir::verify_owned`)
     /// in a compiler built without debug assertions too, as debug and
     /// checked builds always do, so a release-built conformance run
@@ -2244,6 +2279,15 @@ pub struct Session {
 /// lookup for a reused folder.
 #[derive(Default)]
 pub struct Reuse(OnceLock<Reused>);
+
+/// A table [`result_key`] discovered and stamped, with the texts the
+/// stamps were read from, so the build keys each file by the text it
+/// reads ([`Packages::discovered`]).
+#[derive(Default)]
+pub struct Discovered(Mutex<Option<Stamped>>);
+
+/// A stamped table and, per module, its text if the stamping read it.
+type Stamped = (ModuleTable, Vec<Option<Arc<str>>>);
 
 /// What [`Reuse`] holds: the filling build's interners, which the reused
 /// interfaces' items name, and the interfaces by their folder's `reads_key`.
@@ -2454,7 +2498,8 @@ fn package_ins<'a>(
 /// the CLI's whole `hd check` report or `hd build`'s artifact (#1510): the
 /// run's inputs as its package-result key ([`package_result`]) holds them,
 /// or `None` when the run could not take one. It lists the packages and
-/// hashes each path and stamp; it reads no source and makes no lookup.
+/// hashes each path and content stamp; it reads only the files its sets'
+/// stamp tables do not vouch for ([`stamps::resolve`]).
 #[must_use]
 pub fn result_key(
     host: &Host<'_>,
@@ -2465,18 +2510,67 @@ pub fn result_key(
     if package == "std" {
         return None;
     }
+    let _span = phase("result key");
     let e = embedded_std();
     let ins = package_ins(host, package, packages, &e.sources);
-    let table = ModuleTable::discover_all(&ins);
+    let mut table = ModuleTable::discover_all(&ins);
     let toolchain = toolchain_key(
         COMPILER,
         TARGET,
         &format!("a1=bounded;std={:032x}", e.hash.0),
     );
+    let sets: Vec<&dyn SourceSet> = ins.iter().map(|p| p.sources).collect();
+    let texts = Texts::lazy(&table.sources, &sets, None);
+    stamps::resolve(
+        &mut table,
+        &sets,
+        &texts,
+        host.store,
+        (toolchain, host.executor),
+    );
     let key = package_result::key(
         true, goal, package, packages, host, None, &ins, &table, toolchain,
-    )?;
-    Some(ResultKey { toolchain, key })
+    );
+    if let Some(d) = packages.discovered {
+        *lock(&d.0) = Some((table, texts.read()));
+    }
+    Some(ResultKey {
+        toolchain,
+        key: key?,
+    })
+}
+
+/// `f` of each of `items`, in their order, on the run's threads (#1802):
+/// a cold run reads, hashes and skims every file before the task graph
+/// starts, and each file's result is its own, so the results are the same
+/// at any thread count.
+fn par_files<R: Send>(
+    executor: Executor,
+    items: &[usize],
+    f: impl Fn(usize) -> R + Sync + Send,
+) -> Vec<R> {
+    #[cfg(feature = "threads")]
+    if let Executor::Pool(threads) = executor
+        && items.len() > 1
+    {
+        let out = Mutex::new(Vec::new());
+        let mut g = TaskGraph::default();
+        g.add(TaskKind::FolderGraph, &[]);
+        // One task maps the items: `par_map` is parallel inside a pool task.
+        hd_sched::pool::run_pool(g, threads, &|_, _, _| {
+            *lock(&out) = hd_sched::par_map(items, |&m| f(m));
+        });
+        return out
+            .into_inner()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    }
+    let _ = executor;
+    items.iter().map(|&m| f(m)).collect()
+}
+
+/// A named serial phase of the run in the timing trace (`hd_base::trace`).
+fn phase(name: &'static str) -> hd_base::trace::Span {
+    hd_base::trace::span("phase", || name.to_owned())
 }
 
 /// See [`result_key`].
@@ -2538,7 +2632,13 @@ fn build_packages_inner(
         &root_std
     };
     let ins = package_ins(host, package, packages, std);
-    let mut table = ModuleTable::discover_all(&ins);
+    // A table its result key discovered and stamped is taken as it is.
+    let taken = packages.discovered.and_then(|d| lock(&d.0).take());
+    let stamped = taken.is_some();
+    let (mut table, read) = taken.unwrap_or_else(|| {
+        let _span = phase("discover");
+        (ModuleTable::discover_all(&ins), Vec::new())
+    });
     // Texts are read on first use: a warm run takes an unchanged file's
     // skim from its set's last-run record and reads no text it does not
     // check (`crates/hd_cache/DESIGN.md` §5.5).
@@ -2547,7 +2647,8 @@ fn build_packages_inner(
         &table.sources,
         &sets,
         embedded.map(|e| (ins.len() - 1, &e.texts)),
-    );
+    )
+    .with_read(read);
     let mut text = |m: usize| -> Arc<str> { Arc::clone(&lazy[m]) };
     let std_hash = embedded.map_or_else(|| sources_hash(std, packages.std_leaf), |e| e.hash);
     let toolchain = toolchain_key(
@@ -2555,9 +2656,20 @@ fn build_packages_inner(
         TARGET,
         &format!("a1=bounded;std={:032x}", std_hash.0),
     );
+    if !stamped {
+        let _span = phase("stamps");
+        stamps::resolve(
+            &mut table,
+            &sets,
+            &lazy,
+            host.store,
+            (toolchain, host.executor),
+        );
+    }
     // A warm `hd check` whose every listed file kept its stamp takes the
     // stored package result: no record decode and no per-module lookup
     // (#1510).
+    let stored = phase("package result");
     let result_key = package_result::key(
         false,
         goal,
@@ -2580,6 +2692,8 @@ fn build_packages_inner(
     {
         return stored_output(&table, &lazy, stored, package, packages, toolchain);
     }
+    drop(stored);
+    let setup = phase("run setup");
     // Std's skims come from the toolchain's entry, unless std is the root
     // package, whose files are the user's.
     let identities: Vec<Option<(Hash128, bool)>> = sets
@@ -2614,7 +2728,15 @@ fn build_packages_inner(
             reached: None,
         }
     });
-    let folder_cycles = recover_folder_cycles(&mut table, &texts, &files, reached.as_deref());
+    let cycles = phase("folder cycles");
+    let folder_cycles = recover_folder_cycles(
+        &mut table,
+        &texts,
+        &files,
+        reached.as_deref(),
+        host.executor,
+    );
+    drop(cycles);
     let n = table.modules.len();
     let nf = table.folders.len();
     let pipeline = pipeline::key(packages.target, packages.level);
@@ -2696,6 +2818,14 @@ fn build_packages_inner(
         key.hash(hosts);
         package_key = key.finish();
     }
+    // A check run keeps rows, one record per run kind and root package.
+    let kind = matches!(goal, Goal::Analyze | Goal::CheckTests).then(|| {
+        let mut k = hd_base::StableHasher::new("rows-kind");
+        k.u8(u8::from(matches!(goal, Goal::CheckTests)));
+        k.hash(package_key);
+        k.finish()
+    });
+    let rows = rows::ModuleRows::new(host.store, toolchain, &identities, kind, n);
     let run = Run {
         lint: analysis::Lint::new(analysis, n),
         host,
@@ -2734,6 +2864,7 @@ fn build_packages_inner(
         level: packages.level,
         body_fuel: packages.body_fuel,
         checked: packages.checked,
+        checked_report: packages.report,
         verify_own: packages.verify_own,
         verify_tir: verifies_tir(
             cfg!(debug_assertions),
@@ -2774,6 +2905,7 @@ fn build_packages_inner(
             .chain(std::iter::once(false))
             .collect(),
         files,
+        rows,
         skim: skims
             .into_iter()
             .map(|s| s.map_or_else(OnceLock::new, OnceLock::from))
@@ -2877,7 +3009,9 @@ fn build_packages_inner(
         };
         lock(&run.diags).error(*code, span, message);
     }
+    drop(setup);
     {
+        let _span = phase("tasks");
         let mut g = TaskGraph::default();
         let mut skims = Vec::new();
         for (file, i) in (0u32..).zip(0..n) {
@@ -2931,6 +3065,8 @@ fn build_packages_inner(
     } else {
         Vec::new()
     };
+    let records = phase("records");
+    run.rows.finish(&run.table);
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
         let kind = EntryKind::Depfiles.as_str();
@@ -2941,6 +3077,8 @@ fn build_packages_inner(
         }
         .or_default() += 1;
     }
+    drop(records);
+    let _span = phase("output");
     let mut counters = lock(&run.counters).clone();
     counters.body_passes = run.planner.pass_runs();
     // The interface item records this run decoded from blobs (#213).
@@ -3059,7 +3197,8 @@ fn build_packages_inner(
                 || !run.check[*m]
                     .get()
                     .and_then(Option::as_ref)
-                    .is_some_and(|c| Arc::ptr_eq(&c.entry, entry))
+                    .and_then(|c| c.entry.as_ref())
+                    .is_some_and(|e| Arc::ptr_eq(e, entry))
             {
                 continue;
             }
@@ -3100,7 +3239,7 @@ fn build_packages_inner(
             .map(|c| {
                 c.get()
                     .and_then(Option::as_ref)
-                    .map(|c| Arc::clone(&c.entry))
+                    .and_then(|c| c.entry.clone())
             })
             .collect(),
         position_inputs: Vec::new(),
@@ -3136,6 +3275,7 @@ fn build_packages_inner(
     output.position_inputs = position_inputs.into_iter().map(Arc::new).collect();
     #[cfg(feature = "checked-report")]
     if packages.checked
+        && packages.report
         && let Some(mut wasm) = output.wasm.take()
     {
         // The CLI enables this Cargo feature, but ordinary run/test builds
@@ -3283,16 +3423,17 @@ fn recover_folder_cycles(
     texts: &Texts<'_>,
     files: &skims::FileSkims<'_>,
     reached: Option<&[bool]>,
+    executor: Executor,
 ) -> Vec<FolderCycle> {
-    let module_uses: Vec<Vec<(String, u32, u32)>> = (0..table.modules.len())
-        .map(|m| {
-            if table.modules[m].package != 0 || reached.is_some_and(|r| !r[m]) {
-                return Vec::new();
-            }
-            let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-            written_use_lines(&files.get(table, m, || Arc::clone(&texts[m])), &roots)
-        })
-        .collect();
+    // Each module's skim, read and made on the run's threads.
+    let modules: Vec<usize> = (0..table.modules.len()).collect();
+    let module_uses: Vec<Vec<(String, u32, u32)>> = par_files(executor, &modules, |m| {
+        if table.modules[m].package != 0 || reached.is_some_and(|r| !r[m]) {
+            return Vec::new();
+        }
+        let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
+        written_use_lines(&files.get(table, m, || Arc::clone(&texts[m])), &roots)
+    });
     let uses: Vec<Vec<String>> = module_uses
         .iter()
         .map(|v| v.iter().map(|(p, _, _)| p.clone()).collect())
@@ -3788,6 +3929,21 @@ impl Run<'_> {
         cfg!(feature = "checked-builds") && self.checked
     }
 
+    /// Whether this checked build links the checked report's hooks.
+    fn report(&self) -> bool {
+        cfg!(feature = "checked-report") && self.checked() && self.checked_report
+    }
+
+    /// The runtime module whose inits run first: the report's, which
+    /// starts its observer, when the build links it.
+    fn init_runtime(&self) -> &'static str {
+        if self.report() {
+            hd_wasm::REPORT_MODULE
+        } else {
+            hd_wasm::runtime_module(self.checked())
+        }
+    }
+
     /// Whether the ownership passes' output is verified
     /// ([`Packages::verify_own`]): always in a debug build, otherwise in a
     /// checked or verifying build with the `checked-builds` feature.
@@ -3881,6 +4037,20 @@ impl Run<'_> {
     }
 
     fn exec_task(&self, _id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
+        // A module's or folder's task is named by its path.
+        let _span = hd_base::trace::span("task", || match kind {
+            TaskKind::Skim(i)
+            | TaskKind::Parse(i)
+            | TaskKind::ModulePrep(i)
+            | TaskKind::Body(i)
+            | TaskKind::ModuleFinish(i) => {
+                format!("{} {}", kind.name(), self.table.modules[i as usize].path)
+            }
+            TaskKind::FolderIface(i) | TaskKind::HeaderCheck(i) | TaskKind::InitOrder(i) => {
+                format!("{} {}", kind.name(), self.table.folders[i as usize].path)
+            }
+            _ => kind.name().to_owned(),
+        });
         let t0 = self.host.clock.now_ns();
         let mut child_ns = 0;
         match kind {
@@ -3990,7 +4160,7 @@ impl Run<'_> {
         self.glue_items.get_or_init(|| {
             let names = self.names();
             let host = self.host_items();
-            hd_wasm::runtime_items(self.checked())
+            hd_wasm::runtime_items(self.checked(), self.report())
                 .into_iter()
                 .chain(ENTRY_STATUS_FNS.map(|name| (ENTRY_MODULE, name)))
                 .map(|(module, name)| names.item(module, name))
@@ -4013,6 +4183,7 @@ impl Run<'_> {
     }
 
     fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<CacheSection>> {
+        hd_base::work::add(hd_base::work::Counter::EntryLookups, 1);
         let sections = self
             .host
             .store
@@ -4294,7 +4465,7 @@ impl Run<'_> {
         // The compiler roots `std.rt.entry`'s result functions after an entry or
         // a test case (`RT_SOURCE`), and the runtime that emitted code calls,
         // whatever the program uses.
-        for rt in rt_roots(&self.table, self.checked()) {
+        for rt in rt_roots(&self.table, self.checked(), self.report()) {
             reached.union(&self.module_closure_in(g, rt.idx()));
         }
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
@@ -5111,7 +5282,7 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::InitOrder);
         let m = self.table.folders[fi].modules[0].idx();
         lock(&self.report).ok(Stage::ModulePrep);
-        self.read_check(m, check, Arc::from(join_sections(check)));
+        self.read_check(m, check, Some(Arc::from(join_sections(check))));
         let _ = self.prep[m].set(None);
         true
     }
@@ -5191,7 +5362,8 @@ impl Run<'_> {
     /// The folders of [`rt_roots`], the hd the compiler roots after an
     /// entry, when the run's std has them.
     fn rt_folders(&self) -> impl Iterator<Item = FolderId> + '_ {
-        rt_roots(&self.table, self.checked()).map(|m| self.table.modules[m.idx()].folder)
+        rt_roots(&self.table, self.checked(), self.report())
+            .map(|m| self.table.modules[m.idx()].folder)
     }
 
     /// Whether this run builds module `m`: a module of a folder it builds,
@@ -5208,33 +5380,75 @@ impl Run<'_> {
                 .is_none_or(|(reach, _)| reach[m])
     }
 
-    /// A narrowed check's scope ([`Packages::check_roots`]): per module,
-    /// whether a root's module reaches it through `use`s, its `tests:`
-    /// block's included, as `hd check FILE` filters its output; and the
-    /// folders of the reached modules' closures. `None` when the run
-    /// checks the whole package.
+    /// A narrowed run's scope: per module, whether the run reaches it, and
+    /// the folders it builds. `None` when the run checks the whole package.
+    /// `hd check FILE` ([`Packages::check_roots`]) reaches through `use`s
+    /// from FILE's modules, `tests:` blocks included, as it filters its
+    /// output, and builds the reached modules' folder closures. A program
+    /// checks only the root package's modules its entry reaches through
+    /// `use`s (`cli.exe.reach`), and builds every folder's interface as an
+    /// unscoped run does; another package's bodies follow the reached
+    /// modules' closures as before. A program whose root package is std
+    /// is unscoped, since the compiler reaches std's items through its
+    /// known items, not only through `use`. Cost: one walk over the
+    /// reached modules' uses.
     fn check_scope(&self, g: &FolderGraph) -> Option<(Vec<bool>, hd_project::FolderSet)> {
-        let roots = self.check_roots.as_ref().filter(|_| self.analyze())?;
         let n = self.table.modules.len();
         let file_of = |m: usize| &self.table.files[self.table.modules[m].file.idx()];
+        let program = match &self.goal {
+            Goal::Program { entry } | Goal::Scenario { entry, .. } => {
+                if self.table.identities[0] == "std" {
+                    return None;
+                }
+                let path = format!("{}.{entry}", hd_project::package_ident(&self.package));
+                Some(
+                    self.table
+                        .modules
+                        .iter()
+                        .position(|module| module.path == path)?,
+                )
+            }
+            _ => None,
+        };
+        let mut stack: Vec<usize> = if let Some(entry) = program {
+            vec![entry]
+        } else {
+            let roots = self.check_roots.as_ref().filter(|_| self.analyze())?;
+            (0..n).filter(|&m| roots.contains(file_of(m))).collect()
+        };
         let mut reach = vec![false; n];
-        let mut stack: Vec<usize> = (0..n).filter(|&m| roots.contains(file_of(m))).collect();
         while let Some(m) = stack.pop() {
-            if std::mem::replace(&mut reach[m], true) {
+            if std::mem::replace(&mut reach[m], true)
+                || (program.is_some() && self.table.modules[m].package != 0)
+            {
                 continue;
             }
             let s = self.skim_of(m);
+            let tests = if program.is_some() {
+                &[][..]
+            } else {
+                &s.test_uses[..]
+            };
             stack.extend(
                 s.uses
                     .iter()
-                    .chain(&s.test_uses)
+                    .chain(tests)
                     .filter_map(|u| self.table.module_of_use(u))
-                    .map(hd_base::ModuleId::idx),
+                    .map(ModuleId::idx),
             );
         }
         let mut folders = hd_project::FolderSet::with_capacity(self.table.folders.len());
-        for m in (0..n).filter(|&m| reach[m]) {
-            folders.union(&self.module_closure_in(g, m));
+        if program.is_some() {
+            for (m, module) in self.table.modules.iter().enumerate() {
+                reach[m] |= module.package != 0;
+            }
+            for f in 0..self.table.folders.len() {
+                folders.insert(FolderId::from_raw(u32_of(f)));
+            }
+        } else {
+            for m in (0..n).filter(|&m| reach[m]) {
+                folders.union(&self.module_closure_in(g, m));
+            }
         }
         Some((reach, folders))
     }
@@ -5699,8 +5913,7 @@ impl Run<'_> {
                     sums.clear();
                     break;
                 }
-                let sections = split_sections(&c.entry)?;
-                sums.push((m, sections.get(5).copied().unwrap_or(&[])));
+                sums.push((m, &*c.summary));
             }
             if !sums.is_empty() {
                 cycles.push(sums);
@@ -5848,9 +6061,7 @@ impl Run<'_> {
         let starts: Vec<usize> = mods.iter().map(|m| m.idx()).collect();
         let (groups, _) = strongly_connected(&edges, &starts);
         let initializes = |m: usize| match self.check[m].get() {
-            Some(Some(c)) => split_sections(&c.entry)
-                .and_then(|s| s.get(5).map(|b| summary_statements(b) > 0))
-                .unwrap_or(false),
+            Some(Some(c)) => summary_statements(&c.summary) > 0,
             _ => false,
         };
         groups
@@ -6524,6 +6735,10 @@ impl Run<'_> {
         lock(&self.counters)
             .check_keys
             .insert(self.table.modules[mi].path.clone(), key);
+        // A module whose key and text match its row takes the row and reads
+        // no entry ([`Self::record_row`]).
+        let source = self.skim_of(mi).file.source_hash;
+        let row = self.rows.get(&self.table, mi, key, source);
         // A module that does not parse is checked every run, its broken
         // declarations left out (`grammar.recovery.item`), and never
         // stored: the key ignores comments and blank lines, which can
@@ -6542,18 +6757,27 @@ impl Run<'_> {
         // Only a fresh check makes a rendered body's text.
         let (cached, _owed) = if !parses || analysis_missing || self.renders_module(mi) {
             (None, None)
+        } else if let Some(sections) = row {
+            (Some((sections, None)), None)
         } else {
             match self.lookup_owed(EntryKind::Check, key) {
-                Ok(sections) => (Some(sections), None),
+                Ok(sections) => {
+                    let entry = Arc::from(join_sections(&sections));
+                    (Some((sections, Some(entry))), None)
+                }
                 Err(owed) => (None, Some(owed)),
             }
         };
-        if let Some(sections) = cached {
+        if let Some((sections, entry)) = cached {
             if let Some(findings) = cached_analysis {
                 self.lint_keep(mi, findings);
             }
             lock(&self.report).ok(Stage::ModulePrep);
-            self.read_check(mi, &sections, Arc::from(join_sections(&sections)));
+            let fetched = entry.is_some();
+            self.read_check(mi, &sections, entry);
+            if fetched {
+                self.record_row(mi, key, &sections);
+            }
             let _ = self.prep[mi].set(None);
             return 0;
         }
@@ -6614,15 +6838,20 @@ impl Run<'_> {
             .all(|m| self.parses(m.idx()))
     }
 
-    /// Whether the module's bytes parse without a diagnostic: a `parse`
-    /// entry says so, else the parse runs and a clean one is recorded.
+    /// Whether the module's bytes parse without a diagnostic: its row or a
+    /// `parse` entry says so, else the parse runs and a clean one is
+    /// recorded.
     fn parses(&self, m: usize) -> bool {
         // A rejected parse has no disk marker. Reuse its existing AST
         // result rather than reclaiming and cancelling the same key.
         if self.parse[m].get().is_some_and(|parsed| !parsed.is_ok()) {
             return false;
         }
-        let key = parse_key(self.toolchain, self.skim_of(m).file.source_hash);
+        let source = self.skim_of(m).file.source_hash;
+        if self.rows.parsed(&self.table, m, source) {
+            return true;
+        }
+        let key = parse_key(self.toolchain, source);
         if self.lookup(EntryKind::Parse, key).is_some() {
             return true;
         }
@@ -6785,14 +7014,12 @@ impl Run<'_> {
         // A rendered body's fields by name (`hd_check::render`).
         let field_names = |t: Ty, k: u32| -> Option<(String, Ty)> {
             let pool = names.pool;
-            let TyData::Adt { def, args } = pool.get(t) else {
-                return None;
-            };
+            let (def, types) = pool.adt(t)?;
             let hd_resolve::ItemData::Struct(fs, _) = &lookup.item(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
-            let argv = pool.list_items(args);
+            let argv = pool.list_items(types);
             let ft = pool.subst(f.ty, &|p: hd_types::ParamRef| {
                 (p.owner == def)
                     .then(|| argv.get(p.index as usize).copied())
@@ -7245,7 +7472,7 @@ impl Run<'_> {
                 kind: hd_resolve::ImplKind::Derived,
                 ..
             } = &it.data
-                && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                && let Some((def, _)) = names.pool.adt(*self_ty)
             {
                 derived_of.entry(def).or_default().push(it);
             }
@@ -7429,6 +7656,7 @@ impl Run<'_> {
         if !init_facts.is_empty() {
             hd_check::init::definite_init(&cx, &stmts, &init_facts, &mut diags);
         }
+        let reach = hd_check::crossing::summary(&cx);
         // A template needs a body in which a method calls `walk`,
         // `describe` or `build` of `Structure` (`annot.template.body`). A
         // body that did not finish says nothing about its calls.
@@ -7490,7 +7718,8 @@ impl Run<'_> {
         }
         bodies.extend(derived.bodies);
         lock(&self.report).ok(Stage::Body);
-        let inferred = hd_check::results::inferred(&cx);
+        let mut inferred = hd_check::results::inferred(&cx);
+        inferred.extend(hd_check::remote::public_results(&cx));
         let folder = module.folder;
         let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
@@ -7513,6 +7742,7 @@ impl Run<'_> {
             dbg,
             bindings,
             generic_edges,
+            reach,
         )));
     }
 
@@ -7942,7 +8172,7 @@ impl Run<'_> {
                 // no template (`trait.derive.newtype.*`).
                 if *kind == hd_resolve::ImplKind::Derived
                     && let ItemData::Impl { self_ty, .. } = &it.data
-                    && let TyData::Adt { def, .. } = names.pool.get(*self_ty)
+                    && let Some((def, _)) = names.pool.adt(*self_ty)
                     && !cx
                         .lookup
                         .own_index
@@ -8094,7 +8324,7 @@ impl Run<'_> {
         }
         let pool = cx.names.pool;
         let item = cx.lookup.item(data)?;
-        let TyData::Adt { args, .. } = pool.get(opt.target) else {
+        let TyData::Adt(_, args) = pool.get(opt.target) else {
             return None;
         };
         let (mut view, edited) = hd_check::structure::layered_facts(cx, item, (&base, args), lines);
@@ -8133,7 +8363,7 @@ impl Run<'_> {
         else {
             return;
         };
-        let TyData::Adt { def: data, .. } = pool.get(*self_ty) else {
+        let Some((data, _)) = pool.adt(*self_ty) else {
             return;
         };
         if heads.iter().any(|x| x.def == data)
@@ -8536,6 +8766,7 @@ impl Run<'_> {
                 dbg,
                 bindings,
                 generic_edges,
+                reach,
             ))),
         ) = (self.prep[m].get(), self.body[m].get())
         else {
@@ -8700,6 +8931,11 @@ impl Run<'_> {
         );
         meta.u8(u8::from(keep.iter().any(|b| b.item == init)));
         meta.hash(items_hash);
+        meta.u8(u8::from(
+            all_items
+                .iter()
+                .any(|i| i.inline() == hd_resolve::iface::INLINE_ALWAYS),
+        ));
         let Some(key) = self.check_key(m) else { return };
         // The references to `dbg`, whichever the profile: a release build
         // reads them (`module.dbg.release`), so they stay out of the TIR
@@ -8739,7 +8975,7 @@ impl Run<'_> {
             },
             &|d| tracked.contains(&d),
         );
-        let generic_edges = encode_generic_edges(generic_edges, &lines);
+        let generic_edges = encode_generic_edges(generic_edges, reach, &lines);
         let mut sections: Vec<&[u8]> = vec![
             &dw.bytes,
             &meta.bytes,
@@ -8780,7 +9016,8 @@ impl Run<'_> {
             let _ = self.check[m].set(None);
             return;
         }
-        if self.parses(m) {
+        let parses = self.parses(m);
+        if parses {
             self.put(EntryKind::Check, key, &sections);
             self.lint_store(m, key, &lines);
         }
@@ -8789,7 +9026,10 @@ impl Run<'_> {
             .push(self.table.modules[m].path.clone());
         lock(&self.report).ok(Stage::ModuleFinish);
         let owned: Vec<Vec<u8>> = sections.iter().map(|s| s.to_vec()).collect();
-        self.read_check(m, &owned, Arc::from(join_sections(&owned)));
+        self.read_check(m, &owned, Some(Arc::from(join_sections(&owned))));
+        if parses {
+            self.record_row(m, key, &owned);
+        }
     }
 
     /// `module.dbg.release`: a release build rejects each reference to
@@ -8866,7 +9106,8 @@ impl Run<'_> {
     }
 
     /// Reads diagnostics and the meta section; the rest waits for `Collect`.
-    fn read_check(&self, m: usize, sections: &[impl AsRef<[u8]>], entry: Arc<[u8]>) {
+    /// `entry` is the whole entry, `None` for a row.
+    fn read_check(&self, m: usize, sections: &[impl AsRef<[u8]>], entry: Option<Arc<[u8]>>) {
         self.keep_input(
             m,
             |e| &mut e.check,
@@ -8953,7 +9194,7 @@ impl Run<'_> {
             let bindings = decode_bindings(b.as_ref(), &self.names()).unwrap_or_default();
             let _ = self.input_bindings[m].set(bindings);
         }
-        let Some(generic_edges) = sections
+        let Some((generic_edges, reach)) = sections
             .get(8)
             .and_then(|b| decode_generic_edges(b.as_ref(), &lines, FileId::from_raw(u32_of(m))))
         else {
@@ -8965,15 +9206,46 @@ impl Run<'_> {
         let has_opaque = !meta_reader.at_end() && meta_reader.u8() != 0;
         let has_init = !meta_reader.at_end() && meta_reader.u8() != 0;
         let items = (!meta_reader.at_end()).then(|| meta_reader.hash());
+        let has_inline_always = !meta_reader.at_end() && meta_reader.u8() != 0;
         let _ = self.check[m].set(Some(CheckOut {
             entry,
+            summary: sections.get(5).map_or(&[][..], AsRef::as_ref).into(),
             content,
             has_errors,
             generic_edges,
+            reach,
             has_opaque,
             has_init,
+            has_inline_always,
             items,
         }));
+    }
+
+    /// Records module `m`'s row from its stored entry's `sections`, unless
+    /// a step after the module checks reads the whole entry: the
+    /// `@inline(.Always)` and hidden-result checks read their modules'
+    /// items and bodies, the entry capabilities an entry or test module's
+    /// items. These facts are functions of the check key, so a module
+    /// whose key matches a row needs no entry; a check run collects no
+    /// program.
+    fn record_row(&self, m: usize, key: Hash128, sections: &[impl AsRef<[u8]>]) {
+        let regs = self.regs[m].get().map_or(&[][..], Vec::as_slice);
+        let checked = self.check[m].get().and_then(Option::as_ref);
+        if checked.is_some_and(|c| {
+            !c.has_opaque && !c.has_inline_always && !self.capabilities_read(m, regs)
+        }) {
+            let source = self.skim_of(m).file.source_hash;
+            self.rows.record(&self.table, m, key, source, sections);
+        }
+    }
+
+    /// Whether the entry capabilities read module `m`'s items: an entry
+    /// module's or one with test bodies, of the root package.
+    fn capabilities_read(&self, m: usize, regs: &[hd_check::tests::TestReg]) -> bool {
+        let module = &self.table.modules[m];
+        module.package == 0
+            && (self.entry_module(m) && module.role != Role::Test
+                || regs.iter().any(|r| r.body.is_some()))
     }
 
     /// The written `@inline(.Always)` on `def`, including private items
@@ -9021,10 +9293,10 @@ impl Run<'_> {
             let Some(Some(checked)) = checked.get() else {
                 continue;
             };
-            if checked.has_errors {
+            if checked.has_errors || !checked.has_inline_always {
                 continue;
             }
-            let Some(sections) = split_sections(&checked.entry) else {
+            let Some((entry, sections)) = checked.entry.as_deref().and_then(entry_sections) else {
                 continue;
             };
             let mut wanted: HashSet<Hash128> = HashSet::default();
@@ -9060,7 +9332,7 @@ impl Run<'_> {
             if wanted.is_empty() {
                 continue;
             }
-            let Some(index) = body_index(&checked.entry) else {
+            let Some(index) = body_index(entry) else {
                 continue;
             };
             for (key, at) in index {
@@ -9074,7 +9346,7 @@ impl Run<'_> {
                     None => None,
                 };
                 if let Some(body) =
-                    hd_tir::wire::read_body(&checked.entry[at], &self.pool, &self.paths, &self.syms)
+                    hd_tir::wire::read_body(&entry[at], &self.pool, &self.paths, &self.syms)
                 {
                     bodies.insert(selected.unwrap_or(body.item), body);
                 }
@@ -9191,7 +9463,7 @@ impl Run<'_> {
             if checked.has_errors || !checked.has_opaque {
                 continue;
             }
-            let Some(sections) = split_sections(&checked.entry) else {
+            let Some((entry, sections)) = checked.entry.as_deref().and_then(entry_sections) else {
                 continue;
             };
             let Some(items) = sections
@@ -9205,16 +9477,13 @@ impl Run<'_> {
                 .iter()
                 .filter_map(|i| i.sig().map(|s| (i.def, s.ret)))
                 .collect();
-            let Some(index) = body_index(&checked.entry) else {
+            let Some(index) = body_index(entry) else {
                 continue;
             };
             for (_, at) in index {
-                let Some(body) = hd_tir::wire::read_body(
-                    &checked.entry[at],
-                    &self.pool,
-                    &self.paths,
-                    &self.syms,
-                ) else {
+                let Some(body) =
+                    hd_tir::wire::read_body(&entry[at], &self.pool, &self.paths, &self.syms)
+                else {
                     continue;
                 };
                 for f in
@@ -9288,6 +9557,14 @@ impl Run<'_> {
         for edges in folder_edges.values() {
             hd_check::inst_cycles::growing_cycles(edges, &mut lock(&self.diags));
         }
+        // The package's crossing closures against its whole call graph
+        // (`fn.crossing.global`), cache hits included.
+        let reach: Vec<&hd_check::crossing::Reach> = (0..self.table.modules.len())
+            .filter(|&m| self.table.modules[m].package == 0 && self.builds_module(m))
+            .filter_map(|m| self.check[m].get().and_then(Option::as_ref))
+            .map(|c| &c.reach)
+            .collect();
+        hd_check::crossing::join(&reach, &mut lock(&self.diags));
         // `InitOrder(F)` reads the init summaries of the folder's modules,
         // so it runs once they are checked.
         let kept = self.kept.get();
@@ -9358,19 +9635,21 @@ impl Run<'_> {
             if c.has_errors {
                 return None;
             }
+            // A build takes no rows, so each checked module has its entry.
+            let entry = c.entry.as_ref()?;
             if self.reads_on_first_use(m) {
                 let at = u32_of(items.std.modules.len());
                 items.std.by_node.insert(self.module_node(m), at);
                 items.std.modules.push(StdModule {
                     m,
-                    entry: c.entry.clone(),
+                    entry: Arc::clone(entry),
                     read: OnceLock::new(),
                 });
                 continue;
             }
-            let range = item_section(&c.entry)?;
+            let range = item_section(entry)?;
             let test_role = self.role(m) == "test";
-            let decoded = hd_resolve::decode_lazy_in(&names, c.entry.clone(), range)?.0;
+            let decoded = hd_resolve::decode_lazy_in(&names, Arc::clone(entry), range)?.0;
             let configured = configured_bodies(&names, &decoded, self.build_profile);
             if test_role {
                 for (i, def) in decoded.defs().iter().enumerate() {
@@ -9382,13 +9661,13 @@ impl Run<'_> {
             items.add_checked(decoded);
             // An earlier REPL input's bodies yield to this build's.
             let kept = self.is_kept(m);
-            for (mut item, at) in body_index(&c.entry)? {
+            for (mut item, at) in body_index(entry)? {
                 if let Some(selected) = configured.get(&item) {
                     let Some(canonical) = selected else { continue };
                     item = *canonical;
                 }
                 let lazy = LazyBody {
-                    wire: Some((m, c.entry.clone(), at)),
+                    wire: Some((m, Arc::clone(entry), at)),
                     forms: OnceLock::new(),
                 };
                 if kept {
@@ -9476,7 +9755,8 @@ impl Run<'_> {
             items,
             supplied_rets: Mutex::new(HashMap::default()),
             supplied_families: Mutex::new(HashMap::default()),
-            dbg_structure: OnceLock::new(),
+            private_templates: OnceLock::new(),
+            build_id: OnceLock::new(),
             bodies: Bodies {
                 all: bodies,
                 bad: std::sync::atomic::AtomicBool::new(false),
@@ -9668,14 +9948,12 @@ impl Run<'_> {
         // no dependency map.
         let fields = |t: Ty, k: u32| -> Option<(String, Ty)> {
             let pool = names.pool;
-            let TyData::Adt { def, args } = pool.get(t) else {
-                return None;
-            };
+            let (def, types) = pool.adt(t)?;
             let ItemData::Struct(fs, _) = &p.items.get(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
-            let argv = pool.list_items(args);
+            let argv = pool.list_items(types);
             let ft = pool.subst(f.ty, &|q: hd_types::ParamRef| {
                 (q.owner == def)
                     .then(|| argv.get(q.index as usize).copied())
@@ -9913,7 +10191,12 @@ impl Run<'_> {
             Goal::Fixture { .. } => format!("fixture:{entry_key}"),
             _ => entry_key.clone(),
         };
-        let keyed_entry = format!("linear:checked={}:{}", self.checked(), keyed_entry);
+        let keyed_entry = format!(
+            "linear:checked={}:report={}:{}",
+            self.checked(),
+            self.report(),
+            keyed_entry
+        );
         let keyed_entry = self.host_contract_key.map_or_else(
             || keyed_entry.clone(),
             |k| format!("{keyed_entry}:package-host={:032x}", k.0),
@@ -10027,7 +10310,7 @@ impl Run<'_> {
             let mut order: Vec<(DefId, &str)> = Vec::new();
             // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
             // runs its module's inits first, in every root's group.
-            let runtime = hd_wasm::runtime_module(self.checked());
+            let runtime = self.init_runtime();
             let graph = self.init_graph();
             let mut query = InitQuery::new(&graph);
             let runtime_inits: Vec<DefId> =
@@ -10161,7 +10444,7 @@ impl Run<'_> {
                     extra.insert(r);
                 }
             }
-            for (module, name) in hd_wasm::runtime_items(self.checked()) {
+            for (module, name) in hd_wasm::runtime_items(self.checked(), self.report()) {
                 let r = (names.item(module, name), TyList::EMPTY);
                 if self.body_of(p, r.0).is_some() {
                     extra.insert(r);
@@ -10326,10 +10609,9 @@ impl Run<'_> {
                     if !matches!(item.data, ItemData::Struct(_, _)) || !item.generics.is_empty() {
                         continue;
                     }
-                    let ty = self.pool.intern_ty(&TyData::Adt {
-                        def: head.def,
-                        args: TyList::EMPTY,
-                    });
+                    let ty = self
+                        .pool
+                        .intern_ty(&TyData::Adt(AdtId::Declared(head.def), TyList::EMPTY));
                     let Some(layout) = self.stage(
                         Stage::Collect,
                         hd_wasm::views::inspect_layout(&self.pool, env, ty),
@@ -10379,7 +10661,7 @@ impl Run<'_> {
             // Code generation can introduce allocator/count calls even when the
             // source has none. Their bodies are collected but retained only when
             // the emitted fixture reaches them.
-            for (m, n) in hd_wasm::runtime_items(self.checked()) {
+            for (m, n) in hd_wasm::runtime_items(self.checked(), self.report()) {
                 let d = names.item(m, n);
                 if self.body_of(p, d).is_some() {
                     roots.push((d, TyList::EMPTY));
@@ -10401,7 +10683,7 @@ impl Run<'_> {
             let mut query = InitQuery::new(&graph);
             let mut inits = Vec::new();
             let mut seen: HashSet<DefId> = HashSet::default();
-            for m in [hd_wasm::runtime_module(self.checked()), module] {
+            for m in [self.init_runtime(), module] {
                 let Some(order) = self.stage(
                     Stage::Collect,
                     self.root_init_order(&graph, &mut query, m, &init_of, &has_init),
@@ -10669,7 +10951,7 @@ impl Run<'_> {
         let rt = |n: &str| names.item(ENTRY_MODULE, n);
         let [status, status_error, status_dyn_ref] = ENTRY_STATUS_FNS;
         let known = &self.known;
-        let TyData::Adt { def, args } = pool.get(ret) else {
+        let Some((def, args)) = pool.adt(ret) else {
             return Some((rt(status), pool.list(&[ret])));
         };
         if def != known.result {
@@ -11030,16 +11312,18 @@ impl Run<'_> {
         let names = self.names();
         let mut out = Vec::new();
         for (m, module) in self.table.modules.iter().enumerate() {
-            if module.package != 0 {
-                continue;
-            }
             let Some(Some(checked)) = self.check[m].get() else {
                 continue;
             };
-            if checked.has_errors {
+            // Only an entry module or one with test bodies is parsed: a
+            // warm run reads no other module's text (`crates/hd_cache/DESIGN.md` §5.5),
+            // and decodes no other module's items.
+            let regs = self.regs[m].get().map_or(&[][..], Vec::as_slice);
+            if checked.has_errors || !self.capabilities_read(m, regs) {
                 continue;
             }
-            let Some(sections) = split_sections(&checked.entry) else {
+            let entry = self.entry_module(m) && module.role != Role::Test;
+            let Some(sections) = checked.entry.as_deref().and_then(split_sections) else {
                 continue;
             };
             let Some(items) = sections
@@ -11048,17 +11332,6 @@ impl Run<'_> {
             else {
                 continue;
             };
-            // Only an entry module or one with test bodies is parsed: a
-            // warm run reads no other module's text (`crates/hd_cache/DESIGN.md` §5.5).
-            let entry = self.entry_module(m) && module.role != Role::Test;
-            let tests = self.regs[m]
-                .get()
-                .into_iter()
-                .flatten()
-                .any(|r| r.body.is_some());
-            if !entry && !tests {
-                continue;
-            }
             let at = |(lo, hi): (u32, u32)| Span {
                 file: module.file,
                 lo,
@@ -11345,6 +11618,7 @@ impl Run<'_> {
                         .map(|k| (*k, !entry_inits.contains(k)))
                         .collect(),
                     report: *report,
+                    worker: c.collected.worker,
                 },
                 // This whole-history build runs every
                 // init, so the first own body is among them.
@@ -11477,16 +11751,17 @@ impl Run<'_> {
                     hold: self.scenario_hold(p),
                 },
             };
-            let runtime_keys: Vec<Option<Hash128>> = hd_wasm::runtime_items(self.checked())
-                .into_iter()
-                .map(|(module, n)| {
-                    let def = names.item(module, n);
-                    let table = &c.collected.table;
-                    table
-                        .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
-                        .map(|id| table.key[id.idx()])
-                })
-                .collect();
+            let runtime_keys: Vec<Option<Hash128>> =
+                hd_wasm::runtime_items(self.checked(), self.report())
+                    .into_iter()
+                    .map(|(module, n)| {
+                        let def = names.item(module, n);
+                        let table = &c.collected.table;
+                        table
+                            .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
+                            .map(|id| table.key[id.idx()])
+                    })
+                    .collect();
             let Some(runtime) = hd_wasm::Runtime::from_keys(&runtime_keys) else {
                 self.stage::<()>(
                     Stage::Link,
@@ -11738,7 +12013,11 @@ impl Lines<'_> {
 }
 
 /// Stable call-edge identities and anchored source positions, without TIR.
-fn encode_generic_edges(edges: &[hd_check::inst_cycles::Edge], lines: &Lines<'_>) -> Vec<u8> {
+fn encode_generic_edges(
+    edges: &[hd_check::inst_cycles::Edge],
+    reach: &hd_check::crossing::Reach,
+    lines: &Lines<'_>,
+) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(edges);
     for edge in edges {
@@ -11754,6 +12033,32 @@ fn encode_generic_edges(edges: &[hd_check::inst_cycles::Edge], lines: &Lines<'_>
         lines.write(&mut w, edge.span.lo);
         lines.write(&mut w, edge.span.hi);
     }
+    // The module's crossing reach part (`fn.crossing.global`).
+    let hashes = |w: &mut Writer, hs: &[Hash128]| {
+        w.len_of(hs);
+        for h in hs {
+            w.hash(*h);
+        }
+    };
+    w.len_of(&reach.bad);
+    for (h, v) in &reach.bad {
+        w.hash(*h);
+        w.u8(*v);
+    }
+    w.len_of(&reach.bodies);
+    for (h, reads, calls) in &reach.bodies {
+        w.hash(*h);
+        hashes(&mut w, reads);
+        hashes(&mut w, calls);
+    }
+    w.len_of(&reach.roots);
+    for r in &reach.roots {
+        hashes(&mut w, &r.reads);
+        hashes(&mut w, &r.callees);
+        w.u8(u8::from(r.send));
+        lines.write(&mut w, r.span.lo);
+        lines.write(&mut w, r.span.hi);
+    }
     w.bytes
 }
 
@@ -11761,7 +12066,7 @@ fn decode_generic_edges(
     bytes: &[u8],
     lines: &Lines<'_>,
     file: FileId,
-) -> Option<Vec<hd_check::inst_cycles::Edge>> {
+) -> Option<(Vec<hd_check::inst_cycles::Edge>, hd_check::crossing::Reach)> {
     let mut r = Reader::new(bytes);
     let mut edges = Vec::new();
     for _ in 0..r.count() {
@@ -11783,7 +12088,31 @@ fn decode_generic_edges(
             span: Span { file, lo, hi },
         });
     }
-    r.ok().then_some(edges)
+    let hashes = |r: &mut Reader<'_>| (0..r.count()).map(|_| r.hash()).collect::<Vec<_>>();
+    let mut reach = hd_check::crossing::Reach::default();
+    for _ in 0..r.count() {
+        let h = r.hash();
+        reach.bad.push((h, r.u8()));
+    }
+    for _ in 0..r.count() {
+        let h = r.hash();
+        let reads = hashes(&mut r);
+        reach.bodies.push((h, reads, hashes(&mut r)));
+    }
+    for _ in 0..r.count() {
+        let reads = hashes(&mut r);
+        let callees = hashes(&mut r);
+        let send = r.u8() != 0;
+        let lo = lines.read(&mut r);
+        let hi = lines.read(&mut r);
+        reach.roots.push(hd_check::crossing::ReachRoot {
+            reads,
+            callees,
+            send,
+            span: Span { file, lo, hi },
+        });
+    }
+    r.ok().then_some((edges, reach))
 }
 
 /// A module's init summary in its `check` entry: the statement count
@@ -12750,6 +13079,11 @@ fn item_section(entry: &[u8]) -> Option<std::ops::Range<usize>> {
     Some(start..start + bytes.len())
 }
 
+/// A joined entry with its sections ([`split_sections`]).
+fn entry_sections(bytes: &[u8]) -> Option<(&[u8], Vec<&[u8]>)> {
+    Some((bytes, split_sections(bytes)?))
+}
+
 fn split_sections(bytes: &[u8]) -> Option<Vec<&[u8]>> {
     let mut r = Reader::new(bytes);
     let n = r.count();
@@ -12784,6 +13118,9 @@ impl ProgramTables {
 
 impl LayoutEnv for Env<'_> {
     fn std_kind(&self, def: DefId) -> StdKind {
+        if def.get().is_none() {
+            return StdKind::Other;
+        }
         let k = &self.run.known;
         if def == k.list {
             StdKind::List
@@ -12796,7 +13133,7 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn raw_buffer(&self, def: DefId) -> bool {
-        def == self.run.known.buffer
+        def.get().is_some() && def == self.run.known.buffer
     }
     fn has_drop(&self, def: DefId) -> bool {
         let drop_trait = self.run.known.drop_trait;
@@ -12810,7 +13147,7 @@ impl LayoutEnv for Env<'_> {
                         ItemData::Impl {
                             trait_, self_ty, ..
                         } if *trait_ == drop_trait => match self.run.pool.get(*self_ty) {
-                            TyData::Adt { def, .. } => Some(def),
+                            TyData::Adt(def, _) => def.get(),
                             _ => None,
                         },
                         _ => None,
@@ -12820,7 +13157,7 @@ impl LayoutEnv for Env<'_> {
             .contains(&def)
     }
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Enum { variants, .. } => Some(
                 variants
                     .iter()
@@ -12838,13 +13175,17 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn is_enum(&self, def: DefId) -> bool {
+        // ruled out: an anonymous sum has no nominal declaration.
+        if def.get().is_none() {
+            return false;
+        }
         self.p
             .items
             .get(def)
             .is_some_and(|i| matches!(i.data, ItemData::Enum { .. }))
     }
     fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Enum { variants, .. } => Some(
                 variants
                     .iter()
@@ -12879,7 +13220,7 @@ impl LayoutEnv for Env<'_> {
         self.run.known.option
     }
     fn newtype_base(&self, def: DefId) -> Option<Ty> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Newtype(inner, _) => Some(self.low(*inner)),
             _ => None,
         }
@@ -13205,6 +13546,9 @@ impl ProgramEnv for Env<'_> {
         self.sig(def)
             .map(|s| s.generics.iter().map(|g| g.bound.is_some()).collect())
     }
+    fn where_bounded(&self, def: DefId) -> bool {
+        self.sig(def).is_some_and(|s| !s.wheres.is_empty())
+    }
     fn generic_rows(&self, def: DefId) -> Vec<bool> {
         let own = self
             .sig(def)
@@ -13272,8 +13616,11 @@ impl ProgramEnv for Env<'_> {
                     .collect(),
             );
         }
-        self.sig(def)
-            .map(|s| s.params.iter().map(|p| self.low(p.1)).collect())
+        self.sig(def).map(|s| {
+            (0..s.params.len())
+                .map(|k| self.crossing_param(s, k, self.low(s.params[k].1)))
+                .collect()
+        })
     }
     fn cold_transfers(&self, def: DefId, ty: Ty) -> bool {
         self.cold_transfers_declared(def, ty)
@@ -13387,7 +13734,7 @@ impl ProgramEnv for Env<'_> {
         if *kind != hd_resolve::ImplKind::Derived {
             return false;
         }
-        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(..))))
+        matches!(self.run.pool.get(*self_ty), TyData::Adt(AdtId::Declared(def), _) if self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(..))))
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
         let item = self.p.items.get(method)?;
@@ -13446,7 +13793,7 @@ impl ProgramEnv for Env<'_> {
         self.run.host_items()
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Struct(fs, _) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
             ItemData::Newtype(inner, _) => Some(vec![self.low(*inner)]),
@@ -13454,7 +13801,7 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn enum_variant_names(&self, def: DefId) -> Option<Vec<(String, Vec<String>)>> {
-        let ItemData::Enum { variants, .. } = &self.p.items.get(def)?.data else {
+        let ItemData::Enum { variants, .. } = &self.p.items.get(def.get()?)?.data else {
             return None;
         };
         let names = self.run.names();
@@ -13474,7 +13821,7 @@ impl ProgramEnv for Env<'_> {
         )
     }
     fn data_field_names(&self, def: DefId) -> Option<Vec<String>> {
-        match &self.p.items.get(def)?.data {
+        match &self.p.items.get(def.get()?)?.data {
             ItemData::Struct(fs, _) => {
                 let names = self.run.names();
                 Some(fs.iter().map(|f| names.text(f.name).to_owned()).collect())
@@ -13483,12 +13830,20 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn is_struct(&self, def: DefId) -> bool {
+        // ruled out: an anonymous sum has no nominal declaration.
+        if def.get().is_none() {
+            return false;
+        }
         self.p
             .items
             .get(def)
             .is_some_and(|i| self.run.names().known.is_struct(i))
     }
     fn has_private_field(&self, def: DefId) -> bool {
+        // ruled out: an anonymous sum has no nominal declaration.
+        if def.get().is_none() {
+            return false;
+        }
         self.p.items.get(def).is_some_and(
             |i| matches!(&i.data, ItemData::Struct(fs, _) if fs.iter().any(|f| !f.public)),
         )
@@ -13583,11 +13938,44 @@ impl ProgramEnv for Env<'_> {
         };
         let body = match key {
             "dbg_printer" => hd_structure::dbg_printer_body(&cx, item, ty, debug),
+            "wire_put" | "wire_take" => {
+                hd_structure::wire_codec_body(&cx, item, ty, key == "wire_take")
+            }
+            "crossing_unique" => hd_structure::unique_body(&cx, item, ty),
+            "stub_as" => hd_structure::remote::stub_as_body(&cx, item, ty),
+            "interface_of" => {
+                // ruled out: std instantiates `interface_of` only at the
+                // trait value of `remote::[T]` or of a remote reference.
+                let TyData::TraitValue { def, args, .. } = self.run.pool.get(ty) else {
+                    return Err(NotImplemented::bug(
+                        Stage::Collect,
+                        "an interface of no trait",
+                    ));
+                };
+                hd_structure::remote::u64_body(&cx, item, self.interface(def, args))
+            }
+            "type_number" => hd_structure::remote::u64_body(&cx, item, self.type_number(ty)),
+            "crossing_sent" => {
+                // The parameter's code (`fn.crossing.lift`).
+                let sig = self.sig(item).ok_or_else(|| {
+                    NotImplemented::bug(Stage::Collect, "crossing code without a signature")
+                })?;
+                let crossing = self.crossing_param(sig, 0, sig.params[0].1);
+                let crossing = self.run.pool.subst(crossing, &|p: hd_types::ParamRef| {
+                    (p.owner == item).then_some(ty)
+                });
+                hd_structure::remote::crossing_sent_body(&cx, item, crossing)
+            }
+            "serve" => hd_structure::remote::serve_body(&cx, item, ty, &self.served(ty)),
+            "build_id" => hd_structure::remote::u64_body(&cx, item, self.build_id()),
             _ => hd_structure::debug_texts_body(&cx, item, ty),
         }?;
-        // Written at the exact argument, it is its instance's body.
+        // Written at the exact argument, it is its instance's body;
+        // `build_id` has none.
         let mut body = body;
-        self.mark_instance(&mut body, self.run.pool.list(&[ty]));
+        if key != "build_id" {
+            self.mark_instance(&mut body, self.run.pool.list(&[ty]));
+        }
         self.owned_generated(body)
     }
     fn own_generated(&self, body: Body) -> StageResult<Body> {
@@ -13602,29 +13990,65 @@ impl ProgramEnv for Env<'_> {
     fn return_loan_parameter(&self, item: DefId, args: TyList) -> Option<u8> {
         self.return_loan_layout(item, args)
     }
+    fn stub_answers(&self, trait_: DefId, self_ty: Ty) -> bool {
+        Env::stub_answers(self, trait_, self_ty)
+    }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug
     }
-    fn dbg_structure(&self) -> Option<(DefId, DefId, DefId)> {
-        *self.p.dbg_structure.get_or_init(|| {
-            let trait_def = self.run.names().known.dbg_structural;
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)> {
+        let names = self.run.names();
+        let item = |name| names.item(hd_resolve::known::REMOTE_MODULE, name);
+        let items = (
+            item("crossing_number"),
+            item("crossing_run"),
+            item("worker_serve"),
+            self.run.known.wire,
+        );
+        (items.0 != DefId::NONE).then_some(items)
+    }
+    fn type_number(&self, ty: Ty) -> u64 {
+        Env::type_number(self, ty)
+    }
+    fn crossing_run_body(&self, item: DefId, arms: &[(u64, Ty)]) -> StageResult<Body> {
+        let names = self.run.names();
+        let cx = hd_structure::Cx {
+            names: &names,
+            items: self.p,
+            stage: Stage::Collect,
+        };
+        self.owned_generated(hd_structure::remote::crossing_run_body(&cx, item, arms)?)
+    }
+    fn private_templates(&self) -> (&[(DefId, DefId, DefId)], DefId) {
+        let rows = self.p.private_templates.get_or_init(|| {
+            let known = &self.run.names().known;
+            let traits = [known.dbg_structural, known.wire_structural];
             let template = |kind, _| kind == hd_resolve::ImplKind::Template;
-            self.p.items.impls(template).find_map(|item| {
+            let mut rows = Vec::new();
+            for item in self.p.items.impls(template) {
                 let ItemData::Impl {
                     trait_, methods, ..
                 } = &item.data
                 else {
-                    return None;
+                    continue;
                 };
-                (*trait_ == trait_def)
-                    .then(|| {
-                        methods
-                            .first()
-                            .map(|m| (m.1, self.run.known.structure, trait_def))
-                    })
+                let Some(ItemData::Trait(declared)) = traits
+                    .contains(trait_)
+                    .then(|| self.p.items.get(*trait_))
                     .flatten()
-            })
-        })
+                    .map(|t| &t.data)
+                else {
+                    continue;
+                };
+                for &(name, own) in methods {
+                    if let Some(&(_, of)) = declared.methods.iter().find(|m| m.0 == name) {
+                        rows.push((own, of, *trait_));
+                    }
+                }
+            }
+            rows
+        });
+        (rows, self.run.known.structure)
     }
 }
 
@@ -13743,7 +14167,7 @@ fn derivation_facts<'t>(
     let edited = hd_check::structure::edit_facts(cx, item, &mut view, lines);
     // The derivation's bodies are in its own scope, where the target is
     // the struct or enum at the derivation's arguments.
-    if let TyData::Adt { args, .. } = pool.get(opt.target) {
+    if let TyData::Adt(_, args) = pool.get(opt.target) {
         view.retarget(cx, data, pool.list_items(args));
     }
     let (own, bodies) = hd_check::structure::fact_bodies(
@@ -13869,7 +14293,7 @@ fn traitless_target(pool: &InternPool, it: &Item) -> Option<DefId> {
             self_ty,
             ..
         } if *trait_ == DefId::NONE => match pool.get(*self_ty) {
-            TyData::Adt { def, .. } => Some(def),
+            TyData::Adt(AdtId::Declared(def), _) => Some(def),
             _ => None,
         },
         _ => None,

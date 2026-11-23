@@ -8,6 +8,7 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::AdtId;
 use std::borrow::Cow;
 
 use hd_base::{DefId, Span, Symbol};
@@ -281,7 +282,6 @@ impl Folder<'_, '_> {
         // By member name: each declaration's implementation, target and place.
         let mut by_name: HashMap<String, Vec<Decl>> = HashMap::default();
         let mut order = Vec::new();
-        let mut ground = None;
         for (m, heads) in self.mods.iter().zip(self.heads) {
             for h in heads.iter().filter(|h| h.kind == HeadKind::Impl) {
                 let Some(Item {
@@ -314,7 +314,7 @@ impl Folder<'_, '_> {
                     }
                     by_name.entry(name).or_default().push((
                         h.def,
-                        self.targets(h.def, *self_ty, &mut ground),
+                        self.targets(h.def, *self_ty),
                         m.src.span(f),
                         super::has_cfg(&m.src, f),
                     ));
@@ -392,14 +392,9 @@ impl Folder<'_, '_> {
     /// member of it clashes only with a member of one of those types. Any
     /// other target stands for itself.
     ///
-    /// `ground` holds each trait's impls with a ground target, made once
-    /// from the program's items on the first bounded parameter target.
-    fn targets(
-        &self,
-        def: DefId,
-        self_ty: hd_types::Ty,
-        ground: &mut Option<HashMap<DefId, Vec<hd_types::Ty>>>,
-    ) -> Vec<hd_types::Ty> {
+    /// The sealed primitive families have a language-defined member set,
+    /// independent of which folder declares their trait implementations.
+    fn targets(&self, def: DefId, self_ty: hd_types::Ty) -> Vec<hd_types::Ty> {
         let pool = self.names.pool;
         let TyData::Param(p) = pool.get(self_ty) else {
             return vec![self_ty];
@@ -413,29 +408,17 @@ impl Folder<'_, '_> {
         let Some(bound) = bound else {
             return vec![self_ty];
         };
-        let ground = ground.get_or_insert_with(|| {
-            let mut by_trait: HashMap<DefId, Vec<hd_types::Ty>> = HashMap::default();
-            for i in self.own.values() {
-                crate::work::member_pairs(1);
-                if let ItemData::Impl {
-                    trait_,
-                    self_ty,
-                    kind,
-                    ..
-                } = &i.data
-                    && *trait_ != DefId::NONE
-                    && kind.is_impl()
-                    && !pool.has_param(*self_ty)
-                {
-                    by_trait.entry(*trait_).or_default().push(*self_ty);
-                }
-            }
-            by_trait
-        });
-        match ground.get(&bound) {
-            Some(members) => members.clone(),
-            None => vec![self_ty],
+        let known = self.names.known;
+        let integers = bound == known.integer || bound == known.num;
+        let floats = bound == known.float || bound == known.num;
+        if !integers && !floats {
+            return vec![self_ty];
         }
+        hd_types::Prim::ALL
+            .into_iter()
+            .filter(|p| (integers && p.is_integer()) || (floats && p.is_float()))
+            .map(hd_types::Ty::prim)
+            .collect()
     }
 
     /// An embedded field names a struct type, generic or not: not an enum, a
@@ -449,7 +432,7 @@ impl Folder<'_, '_> {
         let pool = self.names.pool;
         let known = self.names.known;
         let is_part = |ty| match pool.get(ty) {
-            TyData::Adt { def, .. } => {
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
                 def != known.list
                     && def != known.map
                     && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Struct))
@@ -499,7 +482,7 @@ impl Folder<'_, '_> {
                 .iter()
                 .filter(|f| f.embedded)
                 .map(|f| match pool.get(f.ty) {
-                    TyData::Adt { def, .. }
+                    TyData::Adt(AdtId::Declared(def), _)
                         if matches!(item(def).map(|i| i.kind()), Some(Some(HeadKind::Struct))) =>
                     {
                         Some(def)

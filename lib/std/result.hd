@@ -1,4 +1,5 @@
 # std.result: inherent methods on `Result[T, E]` (spec/std/result.md).
+use std.function.FnMut
 
 impl[T < ?Copy, E < ?Copy] Result[T, E]:
     ## `.Ok` of `transform(value)` for an `.Ok`, and the error unchanged for an `.Err`.
@@ -66,3 +67,29 @@ impl[T, E < Display] Result[T, E]:
         match self:
             .Ok(value) => value
             .Err(error) => panic("${message}: ${error}")
+
+impl[T < ?Copy, E < ?Copy] Result[T, E]:
+    ## The successful payload, or one call of `fallback` with the error.
+    ## See [std-result.unwrap-or-else.value](../../spec/std/result.md#r-std-result.unwrap-or-else.value).
+    pub fn unwrap_or_else[F < ?Copy & FnMut(E) -> T $ R, $ R](self, mut fallback: F) -> T $ R:
+        match self:
+            .Ok(value) => value
+            .Err(error) => fallback(error)
+
+    ## Keeps an `.Ok`, or replaces an `.Err` through `fallback`.
+    ## See [std-result.or-else.value](../../spec/std/result.md#r-std-result.or-else.value).
+    pub fn or_else[E2 < ?Copy, F < ?Copy & FnMut(E) -> Result[T, E2] $ R, $ R](
+        self,
+        mut fallback: F,
+    ) -> Result[T, E2] $ R:
+        match self:
+            .Ok(value) => .Ok(value)
+            .Err(error) => fallback(error)
+
+impl[T < ?Copy, E < ?Copy & Debug] Result[T, E]:
+    ## The successful payload; an error panics with its debug text.
+    ## See [std-result.unwrap.value](../../spec/std/result.md#r-std-result.unwrap.value).
+    pub fn unwrap(self) -> T:
+        match self:
+            .Ok(value) => value
+            .Err(error) => panic("called `Result::unwrap()` on an `Err` value: ${debug(&error)}")

@@ -5,3 +5,7 @@ fn f():
     # after inner suite  
     finish()
 # root tail  
+
+fn g():
+    pass
+    # function tail  

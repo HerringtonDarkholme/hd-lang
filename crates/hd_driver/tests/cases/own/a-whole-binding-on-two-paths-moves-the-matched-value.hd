@@ -1,0 +1,36 @@
+# @dump: own wat
+# @build: release
+# A row that binds the whole matched value, of a type that moves, moves it
+# out of a place at each leaf that reaches the row, as a MIR binding moves
+# out of the scrutinee's place (ref.move.pattern). A tuple or a call the
+# match makes goes into the hidden local `$matched` first, which each leaf
+# moves (`Read move [$4]`); a parameter is that place itself. No read
+# copies the photo.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn width(photo: Photo?) -> u32:
+    match photo:
+        .Some(p) => p.width
+        .None => u32(0)
+
+fn make(width: u32) -> Photo?:
+    .Some(Photo { width: width, pixels: [] })
+
+fn other_bind(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.Some(p), 1) => p.width
+        other => width(other._0)
+
+fn guarded(small: Photo?) -> u32:
+    match small:
+        .Some(p) if p.width > 3 => p.width
+        other => width(other) + 100
+
+fn made(w: u32) -> u32:
+    match make(w):
+        .Some(p) if p.width > 3 => p.width
+        other => width(other) + 100

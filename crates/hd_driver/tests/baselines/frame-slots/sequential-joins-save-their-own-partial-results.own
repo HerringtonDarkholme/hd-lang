@@ -32,11 +32,11 @@ fn sequential!(left: string, right: string) -> string:
 >   local $1 right: string [param read] value
 >     uses $1: entry -> %7 consume last
 >   local $2 a: string [read assigned] value
->     uses $2: %20 -> %25 consume, %46 lend last
+>     uses $2: %18 -> %25 consume, %46 lend last
 >   local $3 b: string [read assigned] value
 >     uses $3: %21 -> %28 consume last
 >   local $4 c: string [read assigned] value
->     uses $4: %41 -> %48 lend last
+>     uses $4: %39 -> %48 lend last
 >   local $5 d: string [read assigned] value
 >     uses $5: %42 -> %53 lend last
 >   %0 = Retain %61 Cold local $0 #0 : ()
@@ -58,10 +58,10 @@ fn sequential!(left: string, right: string) -> string:
 >   %15 = Block - : ()
 >   %16 = Read move [%10 .0] : string
 >   %17 = Intrinsic Empty [] : ()
->   %18 = Read move [%10 .1] : string
->   %19 = Intrinsic Empty [] : ()
->   %20 = Store [$2] %16 : ()
->   %21 = Store [$3] %18 : ()
+>   %18 = Store [$2] %16 : ()
+>   %19 = Read move [%10 .1] : string
+>   %20 = Intrinsic Empty [] : ()
+>   %21 = Store [$3] %19 : ()
 >   %23 = Block - : never
 >   %24 = Match %10 [%23 %15] : ()
 >   %58 = Drop [$0] : ()
@@ -92,10 +92,10 @@ fn sequential!(left: string, right: string) -> string:
 >   %36 = Block - : ()
 >   %37 = Read move [%31 .0] : string
 >   %38 = Intrinsic Empty [] : ()
->   %39 = Read move [%31 .1] : string
->   %40 = Intrinsic Empty [] : ()
->   %41 = Store [$4] %37 : ()
->   %42 = Store [$5] %39 : ()
+>   %39 = Store [$4] %37 : ()
+>   %40 = Read move [%31 .1] : string
+>   %41 = Intrinsic Empty [] : ()
+>   %42 = Store [$5] %40 : ()
 >   %44 = Block - : never
 >   %45 = Match %31 [%44 %36] : ()
     a + c + d

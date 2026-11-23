@@ -1,0 +1,30 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/iter/impl[I < ?Copy & DoubleEndedIterator[T] & ExactSizeIterator[T], T < ?Copy, U < ?Copy, J < ?Copy & Iterable[U, IntoIter = R], R < ?Copy & DoubleEndedIterator[U] & ExactSizeIterator[U],] DoubleEndedIterator[(T, U)] for Zip[I, T, U, J].next_back
+# expected: the shared counter increases twice even though both aligned cursors return None
+use std.iter.{DoubleEndedIterator, ExactSizeIterator}
+
+struct Cursor:
+    calls: *mut usize
+
+impl Iterator[usize] for Cursor:
+    fn next(&mut self) -> usize?:
+        .None
+
+impl DoubleEndedIterator[usize] for Cursor:
+    fn next_back(&mut self) -> usize?:
+        *self.calls += 1
+        .None
+
+impl ExactSizeIterator[usize] for Cursor:
+    fn len(&self) -> usize:
+        0
+
+impl Iterable[usize] for Cursor:
+    type IntoIter = Cursor
+    fn iter(self) -> Cursor:
+        self
+
+fn exhausted(calls: *mut usize) -> void:
+    let mut pairs = Cursor { calls: calls }.zip(Cursor { calls: calls })
+    _ := pairs.next_back()

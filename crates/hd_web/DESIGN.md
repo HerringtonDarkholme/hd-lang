@@ -54,8 +54,7 @@ interfaces of the std folders a program reaches. A separately fetched
 std asset would gain nothing, since every compile needs std.
 
 Planned, not built: a prebuilt std pack of interface blobs, which would
-skip std parsing; `hd_stdpack::build_pack` still refuses ("std pack
-writer").
+skip std parsing ([std bootstrap](../../docs/compiler/std-bootstrap.md)).
 
 ## 3. The JS API and the Host
 
@@ -190,7 +189,8 @@ The JS host is split, not forked:
 Before it instantiates a program, the runner reads
 `WebAssembly.Module.imports` (`unboundTraits`). A `hd:<Trait>` module the
 playground does not bind is refused: "main needs FsRead, which the
-playground does not provide". This mirrors `hd_run::check_grants`.
+playground does not provide". This mirrors the CLI's startup refusal
+(`hd_command::caps::refusal`).
 
 The output uses scalar Wasm, linear memories and a function table. The
 browser must support the emitted multi-memory and multi-value features.

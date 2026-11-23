@@ -11,15 +11,15 @@ fn total(t: (string, List[string]...)) -> usize:
 >   local $0 t: (string, List[string]...) [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 a: string [read assigned] value
->     uses $1: %4 -> %9 lend last
+>     uses $1: %3 -> %9 lend last
 >   local $2 xs: List[string] [read assigned] value
 >     uses $2: %5 -> %14 lend last
 >   %0 = Read borrow [$0] : (string, List[string]...)
 >   %1 = Block - : ()
 >   %2 = Read borrow [%0 .0] : string
->   %3 = Read borrow [%0 .1] : List[string]
->   %4 = Store [$1] %2 : ()
->   %5 = Store [$2] %3 : ()
+>   %3 = Store [$1] %2 : ()
+>   %4 = Read borrow [%0 .1] : List[string]
+>   %5 = Store [$2] %4 : ()
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %1] : ()
 >   %17 = Intrinsic ParamOwned [0:i32] : bool

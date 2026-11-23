@@ -3,7 +3,7 @@ app/main/describe
   local $0 i: i32 [param read] value
     uses $0: entry -> %0 lend last
   local $1 n: string [read assigned] value
-    uses $1: %15 -> %2 consume last
+    uses $1: %13 -> %2 consume last
   local $2 k: string [read assigned] value
     uses $2: %16 -> %4 consume last
   local $3 r: string [read assigned] value
@@ -21,10 +21,10 @@ app/main/describe
   %10 = Block %8 : string
   %11 = Read move [%1 as #1 .0] : string
   %12 = Intrinsic Empty [] : ()
-  %13 = Read move [%1 as #1 .1] : string
-  %14 = Intrinsic Empty [] : ()
-  %15 = Store [$1] %11 : ()
-  %16 = Store [$2] %13 : ()
+  %13 = Store [$1] %11 : ()
+  %14 = Read move [%1 as #1 .1] : string
+  %15 = Intrinsic Empty [] : ()
+  %16 = Store [$2] %14 : ()
   %18 = Block - : never
   %19 = Read move [%1 as #0 .0] : string
   %20 = Intrinsic Empty [] : ()

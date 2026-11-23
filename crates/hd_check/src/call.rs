@@ -5,6 +5,8 @@
 
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
+use hd_types::ANON_SUM;
+use hd_types::AdtId;
 
 use hd_base::{DefId, InferVar, StageResult, Symbol};
 use hd_diag::Code;
@@ -118,7 +120,7 @@ impl MethodIndex {
                 } => {
                     if *trait_ == DefId::NONE {
                         let head = match pool.get(*self_ty) {
-                            TyData::Adt { def, .. } => Some(def),
+                            TyData::Adt(AdtId::Declared(def), _) => Some(def),
                             _ => None,
                         };
                         for (n, m) in methods {
@@ -188,7 +190,7 @@ impl MethodIndex {
     /// merged by position; otherwise every one. Cost: the impls of that
     /// name and head, not every impl of the name.
     fn inherent_for(&self, sym: Symbol, t: &TyData) -> Option<Vec<(DefId, DefId)>> {
-        let TyData::Adt { def, .. } = *t else {
+        let TyData::Adt(AdtId::Declared(def), _) = *t else {
             let all = self.candidates(sym, true);
             crate::work::trait_lookup(all.as_ref().map_or(0, Vec::len) as u64);
             return all;
@@ -263,7 +265,7 @@ impl MethodIndex {
     /// takes no other receiver. Cost: those names.
     fn inherent_names_for(&self, t: &TyData, out: &mut Vec<Symbol>) {
         for ix in std::iter::once(self).chain(self.shared.as_deref()) {
-            if let TyData::Adt { def, .. } = *t {
+            if let TyData::Adt(AdtId::Declared(def), _) = *t {
                 out.extend(ix.inherent_names.get(&def).into_iter().flatten());
             }
             out.extend(&ix.open_names);
@@ -384,6 +386,19 @@ pub(crate) struct Formals<'a> {
     /// `Fn` or `FnMut` bound. It supplies closure parameter types without
     /// fixing the parameter to the dynamic `fn` representation.
     pub closure_wants: Option<&'a [Option<FnWant>]>,
+    /// The callee's crossing parameters (`fn.crossing.parameter`), by
+    /// index among `params`.
+    pub crossing: &'a [hd_resolve::Crossing],
+}
+
+/// Whether a closure written for parameter `j` may capture local
+/// references: any parameter but a crossing one whose marker bound names
+/// no lifetime (`ref.frozen.no-lifetime`).
+fn lends(formals: &Formals<'_>, j: usize) -> bool {
+    formals
+        .crossing
+        .iter()
+        .all(|c| usize::from(c.param) != j || c.lifetime != 0)
 }
 
 /// A bare generic parameter's function bound, as [`Formals`] reads it.
@@ -848,6 +863,9 @@ impl Ck<'_, '_> {
         callee: NodeRef<'_>,
         tl: NodeRef<'_>,
     ) -> StageResult<Vec<Ty>> {
+        if let Some(t) = self.remote_targ(callee, tl)? {
+            return Ok(vec![t]);
+        }
         let member = matches!(callee.kind(), SyntaxKind::FieldExpr | SyntaxKind::PathExpr);
         let gens = match self.path_generics(callee) {
             Some(gens) => gens,
@@ -1234,6 +1252,9 @@ impl Ck<'_, '_> {
                             }),
                         );
                     }
+                    // A call of a crossing parameter is its one use
+                    // (`fn.crossing.parameter.uses`).
+                    self.crossing_uses.insert(callee.index());
                     let (f, ft) = self.read_local(l, d, callee);
                     return self.call_value(f, ft, args, n, bang);
                 }
@@ -1372,9 +1393,7 @@ impl Ck<'_, '_> {
     fn newtype_base(&self, t: Ty) -> Option<Ty> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
+        let (def, args) = pool.adt(t)?;
         let Some(ItemData::Newtype(inner, _)) = self.cx.lookup.item(def).map(|i| &i.data) else {
             return None;
         };
@@ -1787,7 +1806,7 @@ impl Ck<'_, '_> {
         let mut ft = self.infer.resolve(pool, ft);
         // `s!()` on a stored suspension: a suspension point.
         let suspend = self.cx.names.known.suspend;
-        if let TyData::Adt { def, args: sa } = pool.get(ft)
+        if let TyData::Adt(AdtId::Declared(def), sa) = pool.get(ft)
             && def == suspend
             && bang
             && args.positional.is_empty()
@@ -1887,6 +1906,7 @@ impl Ck<'_, '_> {
                 inferred: &inferred,
                 closure_wants: None,
                 destination: ArgumentDestination::Call,
+                crossing: &[],
             };
             self.local_defaults = Some(crate::local::LocalDefaults {
                 defaults: form.defaults.clone(),
@@ -1917,6 +1937,7 @@ impl Ck<'_, '_> {
                 inferred: &inferred,
                 closure_wants: None,
                 destination: ArgumentDestination::Call,
+                crossing: &[],
             };
             self.check_args(&formals, 0, args, n, "the function value")?
         };
@@ -1934,26 +1955,19 @@ impl Ck<'_, '_> {
             self.local_call_defaults(call.local, vars);
         }
         self.check_row(row, n);
-        let rec = self.b.call_args_record(&refs, Providers::None);
         if !suspends {
             if bang {
                 self.check_bang(false, n);
             }
-            return Ok((
-                self.b.emit(Tag::CallValue, f.0, rec, result, n.index()),
-                result,
-            ));
+            return Ok((self.value_call(f, &refs, result, n.index()), result));
         }
         // A suspending function value: a plain call is cold, a bang call
         // awaits it.
         if !bang && self.bare_step {
             return Ok(self.suspending_pipe_step(n));
         }
-        let st = pool.intern_ty(&TyData::Adt {
-            def: suspend,
-            args: pool.list(&[result]),
-        });
-        let cold = self.b.emit(Tag::CallValue, f.0, rec, st, n.index());
+        let st = pool.applied(suspend, result);
+        let cold = self.value_call(f, &refs, st, n.index());
         if bang {
             self.check_bang(true, n);
             let empty = self.b.call_args_record(&[], hd_tir::ir::Providers::None);
@@ -2020,15 +2034,9 @@ impl Ck<'_, '_> {
         let r = self.coerce(r, t, input, spread, "argument", ExpectPosition::General);
         let solved = self.infer.resolve(pool, input);
         match pool.get(solved) {
-            TyData::Tuple { elems, rest } => {
+            TyData::Adt(AdtId::Product { .. }, args) => {
                 let mut refs = Vec::new();
-                for (k, et) in pool
-                    .list_items(elems)
-                    .iter()
-                    .copied()
-                    .chain(rest)
-                    .enumerate()
-                {
+                for (k, et) in pool.list_items(args).iter().copied().enumerate() {
                     let idx = u32::try_from(k).unwrap_or(0);
                     refs.push(self.b.field(r, idx, et, spread.index()));
                 }
@@ -2113,7 +2121,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Vec<Ref>> {
         let pool = self.pool();
         let mut closure_wants = vec![None; params.len()];
-        if let TyData::Adt { def, args: targs } = pool.get(self.infer.shallow(pool, target))
+        if let TyData::Adt(AdtId::Declared(def), targs) = pool.get(self.infer.shallow(pool, target))
             && let Some(item) = self.cx.lookup.item(def)
         {
             // Reuse the already selected variant index; no second variant search.
@@ -2144,6 +2152,7 @@ impl Ck<'_, '_> {
             inferred: &[],
             closure_wants: Some(&closure_wants),
             destination,
+            crossing: &[],
         };
         self.check_args(&formals, 0, args, n, name)
     }
@@ -2183,6 +2192,107 @@ impl Ck<'_, '_> {
             return Ok(w);
         }
         Ok(self.open_projections(w, ProjectSite::Argument, e))
+    }
+
+    /// The marker of crossing parameter `j` when `e` is its argument
+    /// (`fn.crossing.literal`): a closure literal written at the call, or
+    /// the caller's own crossing parameter of the same marker, passed on
+    /// whole. Anything else is reported here.
+    fn crossing_arg(
+        &mut self,
+        formals: &Formals<'_>,
+        j: usize,
+        e: NodeRef<'_>,
+        trailing: bool,
+    ) -> Option<DefId> {
+        let c = formals
+            .crossing
+            .iter()
+            .find(|c| usize::from(c.param) == j)?;
+        let forwarded = e.kind() == SyntaxKind::NameExpr
+            && self.find_local(self.sym_of(e)).is_some_and(|(l, _)| {
+                self.crossing_params
+                    .iter()
+                    .any(|&(p, m)| p == l && m == c.marker)
+            });
+        let known = &self.cx.names.known;
+        if [known.wire, known.send].contains(&c.marker) && e.kind() == SyntaxKind::ClosureExpr {
+            self.crossing_literals.push((e.index(), c.marker));
+        }
+        if forwarded {
+            self.crossing_uses.insert(e.index());
+        } else if !trailing && e.kind() != SyntaxKind::ClosureExpr {
+            // One report: the read below is this argument's.
+            self.crossing_uses.insert(e.index());
+            self.err(
+                Code::CrossingClosureNotLiteral,
+                e,
+                "a crossing parameter takes a closure written at the call; a function value hides its captures",
+            );
+        }
+        Some(c.marker)
+    }
+
+    /// `fn.crossing.captures`: each capture of the closure `r`, written
+    /// for a crossing parameter, has its marker. Each is a bound goal on
+    /// the capture's type, which waits for inference as a call's bounds do.
+    fn crossing_captures(
+        &mut self,
+        marker: Option<DefId>,
+        (r, t): (Ref, Ty),
+        e: NodeRef<'_>,
+    ) -> Ref {
+        // A bound that names no trait was reported where it is written.
+        let Some(marker) = marker.filter(|&m| m != DefId::NONE) else {
+            return r;
+        };
+        let closure = r
+            .as_inst()
+            .is_some_and(|i| self.b.body().tags[i.0 as usize] == hd_tir::ir::Tag::Closure);
+        if !closure {
+            return r;
+        }
+        if let Some(i) = r.as_inst() {
+            self.crossing_closures.push((i.0, marker));
+        }
+        // `fn.crossing.no-write`: the closure would change only its copy.
+        if let Some(&l) = self.closure_writes.get(&e.index()) {
+            let name = self
+                .cx
+                .names
+                .text(self.b.body().local_name[l.idx()])
+                .to_owned();
+            self.err(
+                Code::CrossingCaptureWritten,
+                e,
+                &format!("this crossing closure changes its capture `{name}`, which changes only its own copy; return the new value instead"),
+            );
+        }
+        // A `Wire` literal is passed lifted (`fn.crossing.lift`): its
+        // captures are the locals that hold them for its `code`.
+        let (caps, passed) = if let Some(lifted) = self.wire_pass(r, t, e) {
+            lifted
+        } else {
+            let caps = self.closure_caps(r);
+            (caps.into_iter().map(|l| self.b.local_ty(l)).collect(), r)
+        };
+        for self_ty in caps {
+            let tref = TraitRef {
+                trait_: marker,
+                self_ty,
+                args: TyList::EMPTY,
+            };
+            self.note_impl_use(marker, None);
+            self.pending.push(crate::body::PendingGoal {
+                region_source: None,
+                tref,
+                at: e.index(),
+                kind: crate::body::Waiting::Bound {
+                    code: Code::UnsatisfiedTraitBound,
+                },
+            });
+        }
+        passed
     }
 
     /// Checks arguments against parameters (positional, then named by
@@ -2290,7 +2400,10 @@ impl Ck<'_, '_> {
             let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
+            let crossing = self.crossing_arg(formals, skip + i, *e, false);
+            let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, expect, scoped_capture, formals.destination)?;
+            let r = self.crossing_captures(crossing, (r, t), *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if let Some(p) = rest.get(i)
                 && open.get(i).copied().unwrap_or(false)
@@ -2422,7 +2535,10 @@ impl Ck<'_, '_> {
             let scoped_capture = (e.kind() == SyntaxKind::ClosureExpr || self.bound_local_ref(*e))
                 && (bounded.is_none() && formals.inferred.get(skip + i).is_none_or(Vec::is_empty)
                     || fn_want.is_some_and(|f| f.scoped));
+            let crossing = self.crossing_arg(formals, skip + i, *e, false);
+            let scoped_capture = scoped_capture && lends(formals, skip + i);
             let (r, t) = self.placed_arg(*e, Some(expect), scoped_capture, formals.destination)?;
+            let r = self.crossing_captures(crossing, (r, t), *e);
             let (r, t) = self.bounded_closure(r, t, fn_want.map(|f| f.ty), *e);
             if open[i] && self.infer.resolve(pool, t) == Ty::NEVER && !self.diags.has_errors() {
                 self.never_args.push(rest[i].1);
@@ -2488,11 +2604,15 @@ impl Ck<'_, '_> {
                             .is_some_and(Option::is_some);
                     let scoped = last_want.map_or(!last_is_generic, |f| f.scoped);
                     let before = self.diags.mark();
+                    let crossing = self.crossing_arg(formals, skip + last, block, true);
                     let (r, t) = self.trailing_closure(
                         block,
                         last_want.map_or(w, |f| f.ty),
-                        scoped && formals.destination.storage().is_none(),
+                        scoped
+                            && formals.destination.storage().is_none()
+                            && lends(formals, skip + last),
                     )?;
+                    let r = self.crossing_captures(crossing, (r, t), block);
                     if let Some(place) = formals.destination.storage()
                         && self.diags.errors_since(before) == 0
                     {
@@ -2583,10 +2703,9 @@ impl Ck<'_, '_> {
     fn rest_of(&mut self, lt: Ty) -> StageResult<Option<Ty>> {
         let pool = self.pool();
         let lt = self.normalize_deep(lt)?;
-        Ok(match pool.get(self.resolved(lt)) {
-            TyData::Tuple { rest, .. } => rest,
-            _ => None,
-        })
+        Ok(pool
+            .product_parts(self.resolved(lt))
+            .and_then(|(_, rest)| rest))
     }
 
     /// The expected type of each of `count` separate arguments a vararg of
@@ -2597,21 +2716,22 @@ impl Ck<'_, '_> {
         let lt = self.normalize_deep(lt)?;
         let list = self.cx.names.known.list;
         Ok(match pool.get(self.resolved(lt)) {
-            TyData::Adt { def, args } if def == list => {
+            TyData::Adt(AdtId::Declared(def), args) if def == list => {
                 let et = pool.list_items(args).first().copied().unwrap_or(Ty::POISON);
                 vec![Some(et); count]
             }
-            TyData::Tuple { elems, rest: None } if pool.list_items(elems).len() == count => {
+            TyData::Adt(AdtId::Product { rest: false }, elems)
+                if pool.list_items(elems).len() == count =>
+            {
                 pool.list_items(elems).iter().copied().map(Some).collect()
             }
             // The fixed elements one each, then the rest's item type
             // (`expr.tuple.rest.collect`).
-            TyData::Tuple {
-                elems,
-                rest: Some(rest),
-            } => {
+            TyData::Adt(AdtId::Product { rest: true }, _)
+                if let Some((elems, Some(rest))) = pool.product_parts(self.resolved(lt)) =>
+            {
                 let item = self.list_item(rest);
-                let fixed = pool.list_items(elems).iter().copied().map(Some);
+                let fixed = elems.iter().copied().map(Some);
                 fixed.chain(std::iter::repeat(item)).take(count).collect()
             }
             _ => vec![None; count],
@@ -2628,20 +2748,17 @@ impl Ck<'_, '_> {
         let list = self.cx.names.known.list;
         let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
         let shape = pool.get(self.resolved(lt));
-        if matches!(shape, TyData::Adt { def, .. } if def == list) {
+        if matches!(shape, TyData::Adt(AdtId::Declared(def), _) if def == list) {
             let rec = self.b.refs_record(&refs);
             return Ok(self.b.emit(Tag::NewList, NONE, rec, lt, n.index()));
         }
-        if matches!(shape, TyData::Tuple { rest: Some(_), .. }) {
+        if matches!(shape, TyData::Adt(AdtId::Product { rest: true }, _)) {
             let stripped = self.resolved(lt);
             let refs: Vec<Ref> = items.iter().map(|i| i.0).collect();
             return Ok(self.rest_tuple_value(stripped, &refs, None, n));
         }
         let tys: Vec<Ty> = items.iter().map(|i| i.1).collect();
-        let tt = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&tys),
-            rest: None,
-        });
+        let tt = pool.product(pool.list(&tys), None);
         self.expect_ty(tt, lt, n, "argument", ExpectPosition::General);
         let rec = self.b.refs_record(&refs);
         Ok(self.b.emit(Tag::NewTuple, NONE, rec, tt, n.index()))
@@ -2734,7 +2851,8 @@ impl Ck<'_, '_> {
             if slots[nfixed].is_some() {
                 // Separate arguments already supplied it.
                 let list = self.cx.names.known.list;
-                if matches!(pool.get(self.resolved(lt)), TyData::Adt { def, .. } if def == list) {
+                if matches!(pool.get(self.resolved(lt)), TyData::Adt(AdtId::Declared(def), _) if def == list)
+                {
                     self.err(
                         Code::DuplicateArgument,
                         e,
@@ -2756,8 +2874,9 @@ impl Ck<'_, '_> {
         // (`expr.call.spread.inputs`).
         let list = self.cx.names.known.list;
         match pool.get(self.resolved(t)) {
-            TyData::Tuple { elems, rest } => {
-                let elems = pool.list_items(elems);
+            TyData::Adt(AdtId::Product { .. }, _)
+                if let Some((elems, rest)) = pool.product_parts(t) =>
+            {
                 // A rest element fills the vararg; a tuple without one
                 // fills the remaining inputs exactly (`expr.call.spread.inputs`).
                 let fits = if rest.is_some() {
@@ -2792,7 +2911,7 @@ impl Ck<'_, '_> {
                         Some(self.coerce(g, rest, w, e, "argument", ExpectPosition::General));
                 }
             }
-            TyData::Adt { def, .. } if def == list => {
+            TyData::Adt(AdtId::Declared(def), _) if def == list => {
                 self.err(
                     Code::PositionalSpreadNeedsVararg,
                     e,
@@ -2940,16 +3059,8 @@ impl Ck<'_, '_> {
                         // different error type that `From` converts while
                         // its success type solves a callee parameter
                         // (`expr.try.expected.result`).
-                        if let (
-                            TyData::Adt {
-                                def: ret_def,
-                                args: ret_args,
-                            },
-                            TyData::Adt {
-                                def: want_def,
-                                args: want_args,
-                            },
-                        ) = (pool.get(ret), pool.get(w))
+                        if let (TyData::Adt(ret_def, ret_args), TyData::Adt(want_def, want_args)) =
+                            (pool.get(ret), pool.get(w))
                             && ret_def == want_def
                         {
                             let ret_args = pool.list_items(ret_args).to_vec();
@@ -2986,6 +3097,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                     closure_wants: Some(&closure_wants),
                     destination: ArgumentDestination::Call,
+                    crossing: &sig.crossing,
                 };
                 let refs = self.check_args(&formals, 0, args, n, &name)?;
                 // A rejected argument makes the call an error value, so
@@ -2995,6 +3107,9 @@ impl Ck<'_, '_> {
                         .is_some_and(|i| self.b.body_mut().tags[i.0 as usize] == Tag::Poison)
                 }) {
                     return Ok(self.poison_value(n));
+                }
+                if def == self.cx.names.known.handle_call {
+                    self.served_root(vars[0], n)?;
                 }
                 // Parameters named only in bounds, then defaults (§2.4
                 // steps 7 and 8); a bound naming one still open waits.
@@ -3095,10 +3210,7 @@ impl Ck<'_, '_> {
                 let inner = *inner;
                 let name = self.cx.names.text(item.name).to_owned();
                 let targs = self.ctor_args(item, explicit, n);
-                let t = pool.intern_ty(&TyData::Adt {
-                    def,
-                    args: pool.list(&targs),
-                });
+                let t = pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(&targs)));
                 let it = subst_owner(pool, def, &targs, inner);
                 let param = self.cx.names.syms.intern("$0");
                 let refs = self.constructor_args(
@@ -3123,7 +3235,7 @@ impl Ck<'_, '_> {
                 let to = self.ctor(def, explicit, n);
                 match pool.get(to) {
                     // An alias calls the type it expands to.
-                    TyData::Adt { def: base, args: a } if base != def => {
+                    TyData::Adt(AdtId::Declared(base), a) if base != def => {
                         self.call_item(base, pool.list_items(a), args, n, bang, want)
                     }
                     TyData::Prim(_) => self.conversion(to, args, n),
@@ -3169,7 +3281,7 @@ impl Ck<'_, '_> {
     /// is a `Suspend` and `not-suspending` has not already reported `n`.
     fn cold_call(&self, want: Ty, n: NodeRef<'_>) -> Option<String> {
         let suspend = self.cx.names.known.suspend;
-        if !matches!(self.pool().get(self.resolved(want)), TyData::Adt { def, .. } if def == suspend)
+        if !matches!(self.pool().get(self.resolved(want)), TyData::Adt(AdtId::Declared(def), _) if def == suspend)
             || n.kind() != SyntaxKind::CallExpr
         {
             return None;
@@ -3275,7 +3387,7 @@ impl Ck<'_, '_> {
             let (r, t) = self.expr(*e, None)?;
             let st = self.resolved(t);
             let x = match pool.get(st) {
-                TyData::Adt { def, args } if def == suspend => {
+                TyData::Adt(AdtId::Declared(def), args) if def == suspend => {
                     pool.list_items(args).first().copied().unwrap_or(Ty::POISON)
                 }
                 _ => {
@@ -3291,10 +3403,7 @@ impl Ck<'_, '_> {
             tys.push(x);
             inputs.push(st);
         }
-        let t = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&tys),
-            rest: None,
-        });
+        let t = pool.product(pool.list(&tys), None);
         if !bang {
             if self.bare_step {
                 return Ok(self.suspending_pipe_step(n));
@@ -3336,10 +3445,10 @@ impl Ck<'_, '_> {
         let root = self.b.close_block(block, Some(joined), result, syn);
         let callable = self.join_fn_ty(inputs, result);
         let function = self.b.close_sub(sub, root, callable, syn);
-        let suspension = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[result]),
-        });
+        let suspension = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.cx.names.known.suspend),
+            pool.list(&[result]),
+        ));
         let args = self.b.call_args_record(children, Providers::None);
         (
             self.b
@@ -3390,7 +3499,7 @@ impl Ck<'_, '_> {
             .list_item(self.infer.resolve(pool, t))
             .map(|i| self.resolved(i))
             .and_then(|i| match pool.get(i) {
-                TyData::Adt { def, args } if def == suspend => {
+                TyData::Adt(AdtId::Declared(def), args) if def == suspend => {
                     pool.list_items(args).first().copied()
                 }
                 _ => None,
@@ -3404,10 +3513,7 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         };
         let list = self.cx.names.known.list;
-        let ret = pool.intern_ty(&TyData::Adt {
-            def: list,
-            args: pool.list(&[x]),
-        });
+        let ret = pool.intern_ty(&TyData::Adt(AdtId::Declared(list), pool.list(&[x])));
         let c = Callee::Item {
             def: self.cx.names.known.all_list,
             targs: pool.list(&[x]),
@@ -3426,10 +3532,10 @@ impl Ck<'_, '_> {
         let item = self.b.words_record(&[self.cx.names.known.all_list.raw()]);
         let targs = self.b.words_record(&[pool.list(&[x]).0]);
         let function = self.b.emit(Tag::ItemRef, item, targs, callable, n.index());
-        let suspension = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[ret]),
-        });
+        let suspension = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.cx.names.known.suspend),
+            pool.list(&[ret]),
+        ));
         let args = self.b.call_args_record(&[r], Providers::None);
         Ok((
             self.b
@@ -3601,10 +3707,7 @@ impl Ck<'_, '_> {
         }
         if suspends && !bang {
             let suspend = self.cx.names.known.suspend;
-            let st = pool.intern_ty(&TyData::Adt {
-                def: suspend,
-                args: pool.list(&[ret]),
-            });
+            let st = pool.intern_ty(&TyData::Adt(AdtId::Declared(suspend), pool.list(&[ret])));
             return (self.b.call(c, refs, Providers::None, st, n.index()), st);
         }
         let r = self.b.call(c, refs, Providers::None, ret, n.index());
@@ -3620,8 +3723,7 @@ impl Ck<'_, '_> {
     /// and an argument can fix the self type and the projection together.
     fn open_projections(&mut self, t: Ty, site: ProjectSite, n: NodeRef<'_>) -> Ty {
         enum Build {
-            Adt(DefId),
-            Tuple(Option<Ty>),
+            Adt(AdtId, Option<Ty>),
             Ref(bool, bool),
             Fn(hd_types::RowId, bool, hd_types::Inputs, hd_types::FnDeps),
         }
@@ -3635,14 +3737,11 @@ impl Ck<'_, '_> {
             match work {
                 Work::Done(build, start, out) => {
                     let data = match build {
-                        Build::Adt(def) => TyData::Adt {
-                            def,
-                            args: pool.list(&values[start..]),
-                        },
-                        Build::Tuple(rest) => TyData::Tuple {
-                            elems: pool.list(&values[start..]),
-                            rest,
-                        },
+                        Build::Adt(id, rest) => {
+                            values.extend(rest);
+                            TyData::Adt(id, pool.list(&values[start..]))
+                        }
+
                         Build::Ref(mutable, counted) => TyData::Ref {
                             inner: values[start],
                             mutable,
@@ -3701,13 +3800,16 @@ impl Ck<'_, '_> {
                             values[out] = var;
                             return true;
                         }
-                        TyData::Adt { def, args } => {
-                            values.extend_from_slice(pool.list_items(args));
-                            Build::Adt(def)
-                        }
-                        TyData::Tuple { elems, rest } => {
-                            values.extend_from_slice(pool.list_items(elems));
-                            Build::Tuple(rest)
+                        TyData::Adt(id, args) => {
+                            // Tuple-rest projections retain their written identity.
+                            let rest = if let Some((fixed, Some(rest))) = pool.product_parts(t) {
+                                values.extend_from_slice(fixed);
+                                Some(rest)
+                            } else {
+                                values.extend_from_slice(pool.list_items(args));
+                                None
+                            };
+                            Build::Adt(id, rest)
                         }
                         TyData::Ref {
                             inner,
@@ -3760,7 +3862,7 @@ impl Ck<'_, '_> {
         let name = self.cx.src.text(self.cx.src.last(v)).to_owned();
         let w = want.map(|w| self.infer.shallow(pool, w));
         let enum_ty = match w.map(|w| pool.get(w)) {
-            Some(TyData::Adt { .. } | TyData::Union(_)) => w.unwrap_or(Ty::POISON),
+            Some(TyData::Adt(..)) => w.unwrap_or(Ty::POISON),
             // A poisoned expectation already reported its error.
             Some(TyData::Poison) => return Ok((Ref(NONE), Ty::POISON)),
             // An open expectation may still resolve to an optional or a
@@ -3780,10 +3882,10 @@ impl Ck<'_, '_> {
                         let a = self.infer.fresh(pool, VarKind::General);
                         let b = self.infer.fresh(pool, VarKind::General);
                         self.row_argument_vars(self.cx.names.known.result, &[a, b], v);
-                        pool.intern_ty(&TyData::Adt {
-                            def: self.cx.names.known.result,
-                            args: pool.list(&[a, b]),
-                        })
+                        pool.intern_ty(&TyData::Adt(
+                            AdtId::Declared(self.cx.names.known.result),
+                            pool.list(&[a, b]),
+                        ))
                     }
                 }
             }
@@ -3811,27 +3913,27 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let t = self.infer.shallow(pool, enum_ty);
         match pool.get(t) {
-            TyData::Adt { def, args } => {
+            TyData::Adt(ANON_SUM, args) => {
+                let index = name.strip_prefix('_')?.parse::<usize>().ok()?;
+                if name != format!("_{index}") {
+                    return None;
+                }
+                let member = pool.list_items(args).get(index).copied()?;
+                Some((u32::try_from(index).ok()?, vec![member]))
+            }
+            TyData::Adt(AdtId::Declared(def), args) => {
                 let ItemData::Enum { variants, .. } = &self.cx.lookup.item(def)?.data else {
                     return None;
                 };
                 let sym = self.cx.names.syms.intern(name);
                 let i = variants.iter().position(|v| v.name == sym)?;
-                let argv = pool.list_items(args);
+                let type_items = pool.list_items(args);
                 let fs = variants[i]
                     .fields
                     .iter()
-                    .map(|f| subst_owner(pool, def, argv, f.ty))
+                    .map(|f| subst_owner(pool, def, type_items, f.ty))
                     .collect();
                 Some((u32::try_from(i).ok()?, fs))
-            }
-            TyData::Union(members) => {
-                let index = name.strip_prefix('_')?.parse::<usize>().ok()?;
-                if name != format!("_{index}") {
-                    return None;
-                }
-                let member = pool.list_items(members).get(index).copied()?;
-                Some((u32::try_from(index).ok()?, vec![member]))
             }
             _ => None,
         }
@@ -3841,12 +3943,12 @@ impl Ck<'_, '_> {
     fn has_variants(&self, t: Ty) -> bool {
         let pool = self.pool();
         match pool.get(self.infer.shallow(pool, t)) {
-            TyData::Adt { def, .. } => self
+            TyData::Adt(ANON_SUM, _) => true,
+            TyData::Adt(AdtId::Declared(def), _) => self
                 .cx
                 .lookup
                 .item(def)
                 .is_some_and(|i| matches!(i.data, ItemData::Enum { .. })),
-            TyData::Union(_) => true,
             _ => false,
         }
     }
@@ -3868,7 +3970,7 @@ impl Ck<'_, '_> {
         }
         t = self.resolved(t);
         match pool.get(t) {
-            TyData::Union(_) => Some(t),
+            TyData::Adt(ANON_SUM, _) => Some(t),
             TyData::Poison => Some(Ty::POISON),
             _ => {
                 self.err(
@@ -3985,7 +4087,7 @@ impl Ck<'_, '_> {
         self.fit_expected(ft, want);
         // The enum's own type arguments are decided like a reference's.
         let targs = match pool.get(self.infer.resolve(pool, t)) {
-            TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
+            TyData::Adt(_, args) => pool.list_items(args).to_vec(),
             _ => vec![],
         };
         for a in targs {
@@ -4044,7 +4146,7 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         }
         let pool = self.pool();
-        if let TyData::Adt { def, args } = pool.get(self.infer.shallow(pool, t)) {
+        if let Some((def, args)) = pool.adt(self.infer.shallow(pool, t)) {
             self.check_construct_bounds(def, pool.list_items(args), n)?;
         }
         let rec = self.b.refs_record(&refs);
@@ -4055,7 +4157,7 @@ impl Ck<'_, '_> {
     pub(crate) fn variant_field_names(&self, t: Ty, name: &str) -> Vec<String> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, .. } = pool.get(t) else {
+        let Some((def, _)) = pool.adt(t) else {
             return vec!["0".into()];
         };
         let Some(ItemData::Enum { variants, .. }) = self.cx.lookup.item(def).map(|i| &i.data)
@@ -4200,6 +4302,19 @@ impl Ck<'_, '_> {
             }
             (recv, rt) = self.emit_deref(recv, rt, base.index());
         }
+        // `ref.read.auto.by-value`, Rust's order: a reference's own
+        // method taking it by value comes before its referent's methods,
+        // unless the referent's method takes exactly this reference.
+        if let Some((inner, mutable)) = self.ref_of(rt) {
+            let vt = self.deref_ty(inner);
+            let counted = self.ref_counted(rt).unwrap_or(true);
+            if self.ref_receiver_kind_named(vt, &name)? != Some((mutable, counted))
+                && self.own_value_method(rt, &name)?
+            {
+                self.method_targs = method_targs;
+                return self.method_on(recv, rt, &name, args, (n, bang), want);
+            }
+        }
         // A method call through a reference calls it on the referenced
         // value (`ref.read.auto`), unless the method takes a reference.
         if let Some(passed) = self.pass_reference_receiver(recv, rt, &name, base)? {
@@ -4259,6 +4374,7 @@ impl Ck<'_, '_> {
                 inferred: &inferred,
                 closure_wants: Some(&closure_wants),
                 destination: ArgumentDestination::Call,
+                crossing: &sig.crossing,
             };
             let refs = self.check_args(&formals, 0, args, n, name)?;
             self.fill_method_defaults(&sig, &vars, &inst, want)?;
@@ -4495,6 +4611,20 @@ impl Ck<'_, '_> {
                 self.check_bindings(vars[i], inst(*b), n)?;
             }
         }
+        // `trait.where.call`: the method's bounds on its owner's parameters.
+        for &(p, b) in &sig.wheres {
+            if let Some((trait_, args)) = pool.trait_value(inst(b)) {
+                let self_ty = inst(p);
+                self.require_ref(
+                    TraitRef {
+                        trait_,
+                        self_ty,
+                        args,
+                    },
+                    n,
+                )?;
+            }
+        }
         Ok(())
     }
 
@@ -4624,7 +4754,7 @@ impl Ck<'_, '_> {
             || !self
                 .available_traits(self.cx.names.syms.intern("new"))
                 .is_empty()
-            || !matches!(pool.get(self.resolved(ty)), TyData::Adt { def, .. }
+            || !matches!(pool.get(self.resolved(ty)), TyData::Adt(AdtId::Declared(def), _)
                 if def == self.cx.names.known.map)
         {
             return;
@@ -4633,7 +4763,7 @@ impl Ck<'_, '_> {
             return;
         };
         let want = self.infer.resolve(pool, want);
-        if !matches!(pool.get(want), TyData::Adt { def, .. } if def == self.cx.names.known.map)
+        if !matches!(pool.get(want), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.map)
             || pool.has_infer(want)
             || pool.has_poison(want)
             || !self.can_unify(ty, want)
@@ -4656,7 +4786,7 @@ impl Ck<'_, '_> {
         let bare = self.resolved(self.infer.resolve(self.pool(), t));
         let data = self.pool().get(bare);
         if name == "new"
-            && matches!(data, TyData::Adt { def, .. } if def == self.cx.names.known.map)
+            && matches!(data, TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.map)
         {
             return "; write `{}` for an empty map".to_owned();
         }
@@ -4944,9 +5074,7 @@ impl Ck<'_, '_> {
     fn builtin_method(&mut self, t: Ty, name: &str) -> Option<(IntrinsicOp, Vec<Ty>, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return None;
-        };
+        let (def, args) = pool.adt(t)?;
         let a = pool.list_items(args);
         let usize_t = Ty::prim(Prim::Usize);
         let known = self.cx.names.known;
@@ -5557,6 +5685,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                     closure_wants: Some(&closure_wants),
                     destination: ArgumentDestination::Call,
+                    crossing: &sig.crossing,
                 };
                 let before = self.diags.len();
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
@@ -5577,7 +5706,7 @@ impl Ck<'_, '_> {
                 let handle_fact = name == "fact"
                     && matches!(
                         pool.get(self.resolved(rt)),
-                        TyData::Adt { def, .. } if def == self.cx.names.known.field
+                        TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.field
                     );
                 if handle_fact {
                     if let Some(&m) = vars.first() {
@@ -5627,6 +5756,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                     closure_wants: None,
                     destination: ArgumentDestination::Call,
+                    crossing: &[],
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
                 if op == IntrinsicOp::MapGet && self.cx.source_facts.is_some() {
@@ -5676,11 +5806,12 @@ impl Ck<'_, '_> {
                     ));
                     return Ok((Ref(NONE), Ty::POISON));
                 }
-                if choice.0 == ChoiceKind::TraitValue && sig.has_own_params() {
+                if choice.0 == ChoiceKind::TraitValue && sig.needs_static_call() {
+                    let message = dyn_type_param_message(name, sig);
                     for e in &args.positional {
                         self.expr(*e, Some(Ty::POISON))?;
                     }
-                    self.err(Code::DynMemberUnavailable, n, &dyn_type_param_message(name));
+                    self.err(Code::DynMemberUnavailable, n, &message);
                     return Ok((Ref(NONE), Ty::POISON));
                 }
                 if let Some(&(s, _)) = sig.params.first()
@@ -5776,7 +5907,7 @@ impl Ck<'_, '_> {
         let rt = self
             .ref_of(self.resolved(rt))
             .map_or(self.resolved(rt), |(inner, _)| inner);
-        let TyData::Adt { def, args: types } = pool.get(rt) else {
+        let TyData::Adt(AdtId::Declared(def), types) = pool.get(rt) else {
             return;
         };
         let types = pool.list_items(types);
@@ -5964,6 +6095,7 @@ impl Ck<'_, '_> {
             inferred: &inferred,
             closure_wants: Some(&closure_wants),
             destination: ArgumentDestination::Call,
+            crossing: &sig.crossing,
         };
         let method_name = self
             .cx
@@ -5994,14 +6126,14 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::POISON));
             }
         }
-        if sig.has_own_params() {
+        if sig.needs_static_call() {
             let self_ty = self.resolved(self.infer.resolve(pool, self_ty));
             let inner = self.ref_of(self_ty).map_or(self_ty, |(t, _)| t);
             if matches!(pool.get(inner), TyData::TraitValue { .. }) {
                 self.err(
                     Code::DynMemberUnavailable,
                     n,
-                    &dyn_type_param_message(&method_name),
+                    &dyn_type_param_message(&method_name, &sig),
                 );
                 self.note_call(method);
                 return Ok((Ref(NONE), Ty::POISON));
@@ -6600,8 +6732,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<Ty> {
         enum Constructor {
             Assoc(DefId, DefId),
-            Adt(DefId),
-            Tuple(Option<Ty>),
+            Adt(AdtId, Option<Ty>),
             Ref(bool, bool),
             Function(hd_types::RowId, bool, Inputs, hd_types::FnDeps),
         }
@@ -6645,13 +6776,16 @@ impl Ck<'_, '_> {
                             children.extend_from_slice(pool.list_items(args));
                             Constructor::Assoc(assoc, trait_)
                         }
-                        TyData::Adt { args, def } => {
-                            children.extend_from_slice(pool.list_items(args));
-                            Constructor::Adt(def)
-                        }
-                        TyData::Tuple { elems, rest } => {
-                            children.extend_from_slice(pool.list_items(elems));
-                            Constructor::Tuple(rest)
+                        // Structural sums retain their projection-identity boundary.
+                        TyData::Adt(id, args) if id != AdtId::Sum => {
+                            let rest = if let Some((fixed, Some(rest))) = pool.product_parts(t) {
+                                children.extend_from_slice(fixed);
+                                Some(rest)
+                            } else {
+                                children.extend_from_slice(pool.list_items(args));
+                                None
+                            };
+                            Constructor::Adt(id, rest)
                         }
                         TyData::Ref {
                             inner,
@@ -6700,14 +6834,15 @@ impl Ck<'_, '_> {
                             self_ty: parts[0],
                             args: pool.list(&parts[1..]),
                         },
-                        Constructor::Adt(def) => TyData::Adt {
-                            def,
-                            args: pool.list(parts),
-                        },
-                        Constructor::Tuple(rest) => TyData::Tuple {
-                            elems: pool.list(parts),
-                            rest,
-                        },
+                        Constructor::Adt(id, rest) => TyData::Adt(
+                            id,
+                            if let Some(rest) = rest {
+                                pool.list(&parts.iter().copied().chain([rest]).collect::<Vec<_>>())
+                            } else {
+                                pool.list(parts)
+                            },
+                        ),
+
                         Constructor::Ref(mutable, counted) => TyData::Ref {
                             inner: parts[0],
                             mutable,
@@ -6941,7 +7076,13 @@ pub(crate) fn subst_owner(pool: hd_types::Types<'_>, owner: DefId, args: &[Ty], 
 
 /// The error at a call of a method with its own type parameter through a
 /// trait value (`trait.dyn.type-param.hint`).
-pub(crate) fn dyn_type_param_message(name: &str) -> String {
+pub(crate) fn dyn_type_param_message(name: &str, sig: &FnSig) -> String {
+    if !sig.has_own_params() {
+        // `trait.dyn.member.where`
+        return format!(
+            "`{name}` has a `where` bound on the trait's parameters, which a trait value cannot check, so it is unavailable on a trait value; call it on a type that implements the trait, or through a generic bound"
+        );
+    }
     format!(
         "`{name}` has a type or row parameter of its own, which is unavailable on a trait value; use a generic bound on the caller, or give the method a parameter typed `&dyn Trait` or `*dyn Trait`"
     )
@@ -6987,12 +7128,7 @@ mod projection_walk_tests {
                     for depth in [100, 1000] {
                         let (mut root, mut wanted) = (leaf, Ty::I32);
                         for _ in 0..depth {
-                            let tuple = |t| {
-                                p.intern_ty(&TyData::Tuple {
-                                    elems: p.list(&[t, t]),
-                                    rest: None,
-                                })
-                            };
+                            let tuple = |t| p.product(p.list(&[t, t]), None);
                             root = tuple(root);
                             wanted = tuple(wanted);
                         }
@@ -7020,19 +7156,13 @@ mod projection_walk_tests {
                     });
                     let wrap = |t, i| {
                         p.intern_ty(&match i % 4 {
-                            0 => TyData::Adt {
-                                def: owner,
-                                args: p.list(&[t, t]),
-                            },
+                            0 => TyData::Adt(AdtId::Declared(owner), p.list(&[t, t])),
                             1 => TyData::Ref {
                                 inner: t,
                                 mutable: true,
                                 counted: true,
                             },
-                            2 => TyData::Tuple {
-                                elems: p.list(&[t, t]),
-                                rest: Some(leaf),
-                            },
+                            2 => TyData::Adt(AdtId::Product { rest: true }, p.list(&[t, t, leaf])),
                             _ => TyData::Fn {
                                 params: p.list(&[t, t]),
                                 result: t,
@@ -7050,7 +7180,7 @@ mod projection_walk_tests {
                     }
                     assert_eq!(ck.normalize_deep(root).unwrap(), wanted);
                     for data in [
-                        TyData::Union(p.list(&[leaf])),
+                        TyData::sum(p.list(&[leaf])),
                         TyData::Opaque {
                             owner,
                             site: 0,
@@ -7083,15 +7213,10 @@ mod projection_walk_tests {
                     let opened = ck.open_projections(deep, ProjectSite::Result, node);
                     assert!(!p.has_assoc(opened));
                     assert_eq!(ck.pending.len(), 1);
-                    let pair = p.intern_ty(&TyData::Tuple {
-                        elems: p.list(&[projected, projected]),
-                        rest: Some(projected),
-                    });
+                    let pair = p.product(p.list(&[projected, projected]), Some(projected));
                     let opened = ck.open_projections(pair, ProjectSite::Result, node);
-                    let TyData::Tuple { elems, rest } = p.get(opened) else {
-                        panic!("tuple");
-                    };
-                    assert_ne!(p.list_items(elems)[0], p.list_items(elems)[1]);
+                    let (elems, rest) = p.product_parts(opened).expect("product");
+                    assert_ne!(elems[0], elems[1]);
                     assert_eq!(rest, Some(projected));
                     assert_eq!(ck.pending.len(), 3);
                 });
@@ -7150,10 +7275,7 @@ mod projection_walk_tests {
                         let (proj, trait_, _) = projection(ck, base, None);
                         let mut root = proj;
                         for _ in 0..depth {
-                            root = p.intern_ty(&TyData::Tuple {
-                                elems: p.list(&[root, root]),
-                                rest: None,
-                            });
+                            root = p.product(p.list(&[root, root]), None);
                         }
                         let query = |env: &mut hd_types::solver::ParamEnv| {
                             hd_types::work::count_type_nodes(|| {

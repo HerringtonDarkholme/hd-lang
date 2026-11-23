@@ -247,7 +247,7 @@ tests:
         let mut value: Set[i32] = Set::new()
         for item in input.values:
             _ := value.insert(item)
-            if !unique.contains(item):
+            if !unique.contains(&item):
                 unique.push(item)
         found := value.iter().collect::[List[i32]]()
         assert_equal(found.sorted(), unique.sorted(), reason="each distinct element once")

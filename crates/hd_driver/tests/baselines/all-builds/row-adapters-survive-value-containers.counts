@@ -107,7 +107,6 @@ pub fn main() -> void $ Console:
     captured := "x"
     closure := fn() -> i32 $ Base: original() + i32(captured.len())
 >   retain counted reference (stored)
->   release counted reference (last use)
 > app/main/main
 >   retain string (stored)
 >   release string (last use)
@@ -321,7 +320,6 @@ pub fn main() -> void $ Console:
     captured := "x"
     closure := fn() -> i32 $ Base: original() + i32(captured.len())
 >   retain counted reference (stored)
->   release counted reference (last use)
 > app/main/main
 >   retain string (stored)
 >   release string (last use)

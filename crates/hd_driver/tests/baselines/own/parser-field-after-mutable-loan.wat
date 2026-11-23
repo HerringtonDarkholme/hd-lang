@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]" (func $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]" (param i32 i32 i32) (result i32)))
+  (import "fixture" "impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]" (func $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
@@ -194,6 +194,7 @@
     local.get $text.0
     local.get $text.1
     i32.const 0
+    local.get $text.1
     call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
     local.tee $text.0
     ;; 35 |     chars := parser.chars
@@ -260,6 +261,7 @@
     local.get $text.0
     local.get $text.1
     i32.const 0
+    local.get $text.1
     call $"impl[T] FromIterator[T] for List[T].from_iter[char, std.text.Chars]"
     local.set $text.0
     i32.const 8

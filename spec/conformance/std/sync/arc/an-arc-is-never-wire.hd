@@ -1,0 +1,10 @@
+# test: an Arc holds only an address, so it never crosses into separate memory, even of a Wire value
+# Spec std/sync: std-sync.arc.send. Spec lang/10 Markers: module.marker.explicit.only.
+use std.marker.Wire
+use std.sync.Arc
+
+fn post[T < ?Copy & Wire](value: T) -> void:
+    pass
+
+fn main() -> void:
+    post(Arc::new(1)) # diagnostic: unsatisfied-trait-bound

@@ -5,6 +5,7 @@
 
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
+use hd_types::{ANON_SUM, AdtId};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -521,6 +522,23 @@ pub struct FnSig {
     /// The result reference slots that name a parameter's field path
     /// (`ref.result.path.form`), in source order. Such a slot's lifetime is 0.
     pub paths: Vec<ResultPath>,
+    /// The `where` bounds on the enclosing trait's or implementation's
+    /// parameters (`trait.where.clause`), in order: the parameter's type
+    /// and one bound, a trait value. A call requires each
+    /// (`trait.where.call`) and the body assumes each (`trait.where.body`).
+    pub wheres: Vec<(Ty, Ty)>,
+    /// The crossing parameters (`fn.crossing.parameter`), by index.
+    pub crossing: Vec<Crossing>,
+}
+
+/// A crossing parameter's marker bound (`fn.crossing.parameter`): the
+/// parameter, its marker, and the lifetime its captured references are
+/// lent for (`ref.frozen.lifetime`), 0 for none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Crossing {
+    pub param: u16,
+    pub marker: DefId,
+    pub lifetime: u16,
 }
 
 /// The slot lifetime of a reference written `&'static T` (`ref.static.form`),
@@ -549,6 +567,14 @@ impl FnSig {
         self.generics.iter().any(|g| !g.lifetime)
     }
 
+    /// Whether the method is unavailable on a `dyn` value for what its
+    /// signature declares: a type or row parameter of its own, or a
+    /// `where` bound (`trait.dyn.member.where`).
+    #[must_use]
+    pub fn needs_static_call(&self) -> bool {
+        self.has_own_params() || !self.wheres.is_empty()
+    }
+
     #[must_use]
     pub fn simple(generics: Vec<Generic>, params: Vec<(Symbol, Ty)>, ret: Ty) -> Self {
         let n = params.len();
@@ -564,6 +590,8 @@ impl FnSig {
             lifetimes: Vec::new(),
             fn_lifetimes: Vec::new(),
             paths: Vec::new(),
+            wheres: Vec::new(),
+            crossing: Vec::new(),
         }
     }
 }
@@ -913,28 +941,28 @@ impl Item {
         matches!(&self.data, ItemData::Trait(t) if !t.relaxed_copy)
     }
     /// What the `Copy` row reads of a type declaration
-    /// (`ref.copy.structure`): its fields, payloads or base, unless it is
-    /// declared `!Copy`.
+    /// (`ref.copy.structure`): its fields, payloads or base, marked when
+    /// it is declared `!Copy`.
     #[must_use]
     pub fn copy_decl(&self) -> CopyDecl {
-        match &self.data {
-            ItemData::Struct(_, a) | ItemData::Enum { attrs: a, .. } | ItemData::Newtype(_, a)
-                if a.not_copy =>
-            {
-                CopyDecl::NotCopy
-            }
-            ItemData::Struct(fs, _) => CopyDecl::Members(fs.iter().map(|f| f.ty).collect()),
+        let members = match &self.data {
+            ItemData::Struct(fs, _) => fs.iter().map(|f| f.ty).collect(),
             ItemData::Enum {
                 shared, variants, ..
-            } => CopyDecl::Members(
-                (shared.iter())
-                    .chain(variants.iter().flat_map(|v| &v.fields))
-                    .map(|f| f.ty)
-                    .collect(),
-            ),
+            } => (shared.iter())
+                .chain(variants.iter().flat_map(|v| &v.fields))
+                .map(|f| f.ty)
+                .collect(),
             // A newtype holds its base by value (`types.newtype.holds`).
-            ItemData::Newtype(base, _) => CopyDecl::Members(vec![*base]),
-            _ => CopyDecl::Copies,
+            ItemData::Newtype(base, _) => vec![*base],
+            _ => return CopyDecl::Copies,
+        };
+        match self.type_attrs().or(match &self.data {
+            ItemData::Newtype(_, a) => Some(a),
+            _ => None,
+        }) {
+            Some(a) if a.not_copy => CopyDecl::NotCopy(members),
+            _ => CopyDecl::Members(members),
         }
     }
     /// What the solver's compiler-supplied rows read of a type
@@ -1418,7 +1446,7 @@ impl Declarations for LookupDecls<'_> {
                 let required = self.lookup.item(*method).is_some_and(|i| {
                     matches!(i.data, ItemData::Method { has_body: false, .. })
                 });
-                self.pool.has_opaque(sig.ret) || (required && sig.has_own_params()) || sig.params.first().is_none_or(|&(name, ty)| {
+                self.pool.has_opaque(sig.ret) || (required && sig.needs_static_call()) || sig.params.first().is_none_or(|&(name, ty)| {
                     self.syms.resolve(name) != "self"
                         || matches!(self.pool.get(ty), TyData::Ref { mutable: true, .. } if !mutable)
                 })
@@ -1747,6 +1775,17 @@ fn put_sig(w: &mut Writer, t: &mut TableWriter<'_>, s: &FnSig) -> StageResult<()
             w.u32(t.sym(*f));
         }
     }
+    w.len_of(&s.wheres);
+    for (p, b) in &s.wheres {
+        w.u32(t.ty(*p)?);
+        w.u32(t.ty(*b)?);
+    }
+    w.len_of(&s.crossing);
+    for c in &s.crossing {
+        w.u32(u32::from(c.param));
+        w.u32(t.def(c.marker));
+        w.u32(u32::from(c.lifetime));
+    }
     Ok(())
 }
 
@@ -1780,6 +1819,21 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
             fields,
         });
     }
+    let mut wheres = Vec::new();
+    for _ in 0..r.count() {
+        wheres.push((t.ty(r.u32())?, t.ty(r.u32())?));
+    }
+    let mut crossing = Vec::new();
+    for _ in 0..r.count() {
+        let param = u16::try_from(r.u32()).ok()?;
+        let marker = t.def(r.u32())?;
+        let lifetime = u16::try_from(r.u32()).ok()?;
+        crossing.push(Crossing {
+            param,
+            marker,
+            lifetime,
+        });
+    }
     Some(FnSig {
         generics,
         params,
@@ -1792,6 +1846,8 @@ fn get_sig(r: &mut Reader<'_>, t: &Tables) -> Option<FnSig> {
         lifetimes,
         fn_lifetimes,
         paths,
+        wheres,
+        crossing,
     })
 }
 
@@ -2318,6 +2374,8 @@ fn param_names(item: &Item) -> (bool, &[Generic]) {
 #[must_use]
 pub fn decode_items(names: &Names<'_>, bytes: &[u8]) -> Option<(Vec<Item>, Vec<Export>)> {
     let (items, exports) = decode_lazy(names, Arc::from(bytes))?;
+    let n = u64::try_from(items.len()).unwrap_or(u64::MAX);
+    hd_base::work::add(hd_base::work::Counter::ItemDecodes, n);
     let all = (0..items.len())
         .map(|i| items.get(i).cloned())
         .collect::<Option<Vec<Item>>>()?;
@@ -2646,7 +2704,7 @@ pub fn private_impl_items(pool: &InternPool, all: &[Item]) -> hd_base::HashSet<D
         } = &i.data
         {
             let head = match pool.get(*self_ty) {
-                TyData::Adt { def, .. } => Some(def),
+                TyData::Adt(AdtId::Declared(def), _) => Some(def),
                 _ => None,
             };
             if private.contains(trait_) || head.is_some_and(|d| private.contains(&d)) {
@@ -2755,8 +2813,8 @@ pub fn header_parts(pool: &InternPool, it: &Item, defs: &mut Vec<DefId>, tys: &m
 /// [`mentioned_defs`]'s walk.
 pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt { def, args } => {
-            defs.push(def);
+        TyData::Adt(def, args) => {
+            defs.extend(def.get());
             tys.extend(pool.list_items(args));
         }
         TyData::TraitValue {
@@ -2772,11 +2830,7 @@ pub fn ty_parts(pool: &InternPool, t: Ty, defs: &mut Vec<DefId>, tys: &mut Vec<T
             tys.extend(pool.list_items(args));
             tys.push(bound);
         }
-        TyData::Tuple { elems, rest } => {
-            tys.extend(pool.list_items(elems));
-            tys.extend(rest);
-        }
-        TyData::Union(members) => tys.extend(pool.list_items(members)),
+
         TyData::Ref { inner: i, .. } => tys.push(i),
         TyData::Fn {
             params,
@@ -3238,7 +3292,8 @@ impl<'s, 'n> Shower<'s, 'n> {
     /// Whether `t` is written as one name, with no part below it.
     fn is_atom(&self, t: Ty) -> bool {
         match self.pool.get(t) {
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => args == TyList::EMPTY,
+            TyData::Adt(AdtId::Declared(_) | AdtId::Sum, args)
+            | TyData::TraitValue { args, .. } => args == TyList::EMPTY,
             TyData::Prim(_)
             | TyData::Never
             | TyData::Poison
@@ -3269,19 +3324,35 @@ impl<'s, 'n> Shower<'s, 'n> {
             // `Option[T]` is spelled `T?` (`types.option.sugar`).
             // `?` follows a reference access type, so a function or union
             // inside is grouped (`grammar.type.optional.function`).
-            TyData::Adt { .. } if let Some(inner) = pool.sole_arg(t, self.names.known.option) => {
-                let group = matches!(pool.get(inner), TyData::Union(_)) || self.is_fn_sugar(inner);
+            TyData::Adt(..) if let Some(inner) = pool.sole_arg(t, self.names.known.option) => {
+                let group =
+                    matches!(pool.get(inner), TyData::Adt(ANON_SUM, _)) || self.is_fn_sugar(inner);
                 self.grouped(group, inner, d, marks);
                 self.put("?");
             }
-            TyData::Adt { def, args } | TyData::TraitValue { def, args, .. }
+            TyData::Adt(AdtId::Declared(def), args) | TyData::TraitValue { def, args, .. }
                 if args == TyList::EMPTY =>
             {
                 self.seg(def);
             }
             // Lifetime arguments are not shown (`ref.lifetime.struct`,
             // `ref.lifetime.enum`, `ref.lifetime.trait`).
-            TyData::Adt { def, args } | TyData::TraitValue { def, args, .. } => {
+            TyData::Adt(ANON_SUM, args) => {
+                for (i, &member) in pool.list_items(args).iter().enumerate() {
+                    if self.cut {
+                        break;
+                    }
+                    if i > 0 {
+                        self.sep(" | ");
+                    }
+                    // A function member would take the args after it
+                    // into its result type.
+                    let group = matches!(pool.get(member), TyData::Adt(ANON_SUM, _))
+                        || self.is_fn_sugar(member);
+                    self.grouped(group, member, d, marks);
+                }
+            }
+            TyData::Adt(AdtId::Declared(def), args) | TyData::TraitValue { def, args, .. } => {
                 let items = pool.list_items(args);
                 let shown: Vec<Ty> = if items.iter().any(|&x| is_lifetime_arg(pool, x)) {
                     items
@@ -3302,8 +3373,8 @@ impl<'s, 'n> Shower<'s, 'n> {
             // A one-element tuple keeps its trailing comma, a rest element
             // alone included (`types.tuple.one-element`, `grammar.type.rest`):
             // `(T)` is a grouped `T`.
-            TyData::Tuple { elems, rest } => {
-                let elems = pool.list_items(elems);
+            TyData::Adt(AdtId::Product { .. }, _) => {
+                let (elems, rest) = pool.product_parts(t).unwrap_or_default();
                 self.put("(");
                 self.list(elems, ", ", d, marks);
                 if let Some(r) = rest {
@@ -3318,21 +3389,7 @@ impl<'s, 'n> Shower<'s, 'n> {
                 }
                 self.close(")");
             }
-            TyData::Union(members) => {
-                for (i, &member) in pool.list_items(members).iter().enumerate() {
-                    if self.cut {
-                        break;
-                    }
-                    if i > 0 {
-                        self.sep(" | ");
-                    }
-                    // A function member would take the members after it
-                    // into its result type.
-                    let group =
-                        matches!(pool.get(member), TyData::Union(_)) || self.is_fn_sugar(member);
-                    self.grouped(group, member, d, marks);
-                }
-            }
+
             TyData::Ref {
                 inner,
                 mutable,
@@ -3356,9 +3413,9 @@ impl<'s, 'n> Shower<'s, 'n> {
                 // function type is grouped, and so is a reference, except a
                 // counted one under a local one (`&*T`).
                 let group = match pool.get(inner) {
-                    TyData::Union(_) => true,
+                    TyData::Adt(ANON_SUM, _) => true,
                     TyData::Ref { counted: c, .. } => counted || !c,
-                    TyData::Adt { .. } => pool.sole_arg(inner, self.names.known.option).is_some(),
+                    TyData::Adt(..) => pool.sole_arg(inner, self.names.known.option).is_some(),
                     _ => self.is_fn_sugar(inner),
                 };
                 self.grouped(group, inner, d, marks);

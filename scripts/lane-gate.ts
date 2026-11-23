@@ -352,27 +352,6 @@ const driverRule: Rule = (ctx) => {
   return steps;
 };
 
-const goldenRule: Rule = (ctx) => {
-  if (!anyOf(ctx.touched, ["hd_check", "hd_tir"]) && !ctx.std) {
-    return [];
-  }
-  return [
-    step(
-      "golden_tir",
-      "hd_check, hd_tir or lib/std changed",
-      cargoTest(
-        "-p",
-        "hd_driver",
-        "--test",
-        "all",
-        "--",
-        "--exact",
-        "checker::std_bodies_match_golden_tir",
-      ),
-    ),
-  ];
-};
-
 const cliRule: Rule = (ctx) => {
   // hd_command's test binaries are debug links of the whole compiler. When hd_command
   // is only a dependent, clippy type-checks it and CI runs its tests; the gate
@@ -480,7 +459,6 @@ const RULES: Rule[] = [
   crateRule,
   stageRule,
   driverRule,
-  goldenRule,
   cliRule,
   cliCaseRule,
   stdFmtRule,

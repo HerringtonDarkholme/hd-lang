@@ -147,6 +147,42 @@ impl Wire for ConsoleStream {
     }
 }
 
+/// `CrossError` of `lib/std/remote.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CrossError {
+    Unreachable,
+    Unknown,
+    OtherBuild,
+    WrongHome,
+}
+
+impl Wire for CrossError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Unreachable => {
+                e.leb(0);
+            }
+            Self::Unknown => {
+                e.leb(1);
+            }
+            Self::OtherBuild => {
+                e.leb(2);
+            }
+            Self::WrongHome => {
+                e.leb(3);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(4)? {
+            0 => Self::Unreachable,
+            1 => Self::Unknown,
+            2 => Self::OtherBuild,
+            _ => Self::WrongHome,
+        })
+    }
+}
+
 /// `Datagram` of `lib/std/net.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Datagram {
@@ -1039,6 +1075,7 @@ pub enum Id {
     RandomNextU64,
     RandomFill,
     HttpSend,
+    WorkersSend,
     NetLookup,
     NetConnect,
     NetListen,
@@ -1052,6 +1089,8 @@ pub enum Id {
     EnvNames,
     ArgsProgram,
     ArgsList,
+    WorkerPortNext,
+    WorkerPortReply,
     TestRunnerRow,
     TestRunnerReportTimeout,
     TestRunnerSnapshotCheck,
@@ -1287,6 +1326,15 @@ pub static METHODS: &[HostMethod] = &[
         result: Codec::Buffer("Result[WireResponse, WireHttpError]"),
     },
     HostMethod {
+        id: Id::WorkersSend,
+        module: "hd:Workers",
+        name: "send",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Buffer("List[u8]")],
+        result: Codec::Buffer("Result[List[u8], CrossError]"),
+    },
+    HostMethod {
         id: Id::NetLookup,
         module: "hd:Net",
         name: "lookup",
@@ -1402,6 +1450,24 @@ pub static METHODS: &[HostMethod] = &[
         resource: None,
         params: &[],
         result: Codec::Buffer("List[string]"),
+    },
+    HostMethod {
+        id: Id::WorkerPortNext,
+        module: "hd:WorkerPort",
+        name: "next",
+        wait: Wait::Never,
+        resource: None,
+        params: &[],
+        result: Codec::Buffer("List[u8]?"),
+    },
+    HostMethod {
+        id: Id::WorkerPortReply,
+        module: "hd:WorkerPort",
+        name: "reply",
+        wait: Wait::Never,
+        resource: None,
+        params: &[Codec::Buffer("List[u8]")],
+        result: Codec::Void,
     },
     HostMethod {
         id: Id::TestRunnerRow,

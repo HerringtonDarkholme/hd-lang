@@ -1,0 +1,19 @@
+# test: a crossing closure runs once, so it may move a capture that is not Copy out of itself
+# Spec 07 Crossing Closures: fn.crossing.move-out, fn.crossing.mode.move.
+use std.marker.Wire
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn shrink(photo: Image, side: u32) -> Image:
+    Image { width: side, pixels: photo.pixels }
+
+fn demo(photo: Image) -> u32:
+    small := run(fn() -> Image: shrink(photo, 64))
+    small.width

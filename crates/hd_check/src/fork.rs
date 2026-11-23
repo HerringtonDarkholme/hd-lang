@@ -54,6 +54,7 @@ const _: fn() = || {
 /// state.
 pub struct BodyLeft {
     facts: HashMap<DefId, InitFacts>,
+    crossing_roots: Vec<crate::crossing::Root>,
     dbg: Vec<DbgRef>,
     source_facts: crate::comparison::SourceFacts,
     named: Vec<DefId>,
@@ -93,8 +94,16 @@ impl<'a> BodyCx<'a> {
     #[must_use]
     pub fn left(&self) -> BodyLeft {
         let (named, reads) = self.results.borrow_mut().drain();
+        let (facts, crossing_roots) = {
+            let mut init = self.init.borrow_mut();
+            (
+                std::mem::take(&mut init.facts),
+                std::mem::take(&mut init.crossing_roots),
+            )
+        };
         BodyLeft {
-            facts: std::mem::take(&mut self.init.borrow_mut().facts),
+            facts,
+            crossing_roots,
             dbg: self.dbg_refs.take(),
             source_facts: self
                 .source_facts
@@ -109,6 +118,7 @@ impl<'a> BodyCx<'a> {
     /// been checked in this one.
     pub fn join(&self, left: BodyLeft) {
         self.init.borrow_mut().facts.extend(left.facts);
+        (self.init.borrow_mut().crossing_roots).extend(left.crossing_roots);
         if let Some(sink) = &self.source_facts {
             sink.borrow_mut().extend(left.source_facts);
         }

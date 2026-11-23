@@ -17,8 +17,15 @@ pub trait Drop < ?Copy:
     fn drop(&mut self) -> void
 
 # The private seed bridge shared by Map and UniqMap. The bucket algorithms
-# live in std.hash; this runtime leaf exposes no seed sequence to user code.
+# live in std.rt.hash; this runtime leaf exposes no seed sequence to user code.
 # See std-hash.map.seed-new and std-hash.map.seed-replay.
 @intrinsic("map_hash_seed")
 pub fn map_hash_seed() -> u64:
+    panic("intrinsic")
+
+# The `Send` crossing's walk; std.rt.crossing holds its leaves.
+## Makes each counted buffer `value` holds its own: one that another holder counts is copied, and the buffers in it in turn. The compiler supplies each instance's body, which calls the functions below on each part that may hold one.
+## See [fn.crossing.mode.unique](../../../spec/lang/07-functions.md#r-fn.crossing.mode.unique).
+@intrinsic("crossing_unique")
+pub fn unique[T < ?Copy](value: &mut T) -> void:
     panic("intrinsic")

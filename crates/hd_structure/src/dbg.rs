@@ -2,15 +2,15 @@
 //! Rendering policy and traversal are in std.format; this module only selects
 //! a function, or supplies type-name metadata to an hd printer factory.
 
-use hd_base::{DefId, StageResult};
+use hd_base::{DefId, NotImplemented, StageResult};
 use hd_resolve::ItemData;
 use hd_tir::Body;
-use hd_tir::ir::{BodyKind, Callee, Providers, Ref, Tag, TirBuilder, TirSink};
-use hd_types::{ParamRef, Ty, TyData};
+use hd_tir::ir::{BlockMark, BodyKind, Callee, Providers, Ref, Tag, TirBuilder, TirSink};
+use hd_types::{AdtId, ParamRef, Prim, Ty, TyData};
 
 use super::{Cx, Gen, Handles, Mem, SYN, Shape, Target, Var};
 
-use hd_resolve::known::FORMAT_MODULE as FORMAT;
+use hd_resolve::known::{FORMAT_MODULE as FORMAT, REMOTE_MODULE as REMOTE};
 
 /// A raw declaration's traversal metadata, without any public trait opt-in.
 /// This is used only by the private dbg Structure template.
@@ -24,9 +24,7 @@ pub fn target(cx: &Cx<'_, '_>, ty: Ty) -> Option<Target> {
     }
     let names = cx.names;
     let pool = names.pool;
-    let TyData::Adt { def, args } = pool.get(ty) else {
-        return None;
-    };
+    let (def, args) = pool.adt(ty)?;
     let args = pool.list_items(args);
     let item = cx.items.item(def)?;
     let shown = names.text(item.name).to_owned();
@@ -145,25 +143,30 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
         match pool.get(ty) {
             TyData::Never => ("dbg_never", vec![ty]),
             TyData::Ref { inner, .. } => ("dbg_ref_printer", vec![inner]),
-            TyData::Adt { def, args } if def == names.known.option => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.option => {
                 ("dbg_option_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, args } if def == names.known.list => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.list => {
                 ("dbg_list_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, args } if def == names.known.map => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.map => {
                 ("dbg_map_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, args } if def == names.known.result => {
+            TyData::Adt(AdtId::Declared(def), args) if def == names.known.result => {
                 ("dbg_result_printer", pool.list_items(args).to_vec())
             }
-            TyData::Adt { def, .. } if def == names.known.suspend => ("dbg_handle", vec![ty]),
+            TyData::Adt(AdtId::Declared(def), _) if def == names.known.suspend => {
+                ("dbg_handle", vec![ty])
+            }
             _ if target(cx, ty).is_some() => ("dbg_structural", vec![ty]),
             _ => ("dbg_opaque_printer", vec![ty]),
         }
     };
     let def = names.item(FORMAT, name);
-    let value = if name == "dbg_opaque_printer" {
+    if name != "dbg_opaque_printer" {
+        return selected(g, block, def, &args, ft);
+    }
+    let value = {
         // A trait value, printed behind its reference, shows the trait it
         // implements and not its concrete type (`module.dbg.value.trait-value`).
         let shown = hd_resolve::show_ty_full(names, ty);
@@ -182,13 +185,95 @@ pub fn printer_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageR
             ft,
             SYN,
         )
-    } else {
-        let a = g.b.refs_record(&[Ref(def.raw())]);
-        let bw = g.b.refs_record(&[Ref(pool.list(&args).0)]);
-        g.b.emit(Tag::ItemRef, a, bw, ft, SYN)
     };
     let body = g.b.close_block(block, Some(value), ft, SYN);
     g.finish(body).map(|(body, _)| body)
+}
+
+/// The body that returns `def[args]` as a function value of type `ft`, in
+/// `g`'s open `block`.
+fn selected(
+    mut g: Gen<'_, '_>,
+    block: BlockMark,
+    def: DefId,
+    args: &[Ty],
+    ft: Ty,
+) -> StageResult<Body> {
+    let a = g.b.refs_record(&[Ref(def.raw())]);
+    let bw = g.b.refs_record(&[Ref(g.names.pool.list(args).0)]);
+    let value = g.b.emit(Tag::ItemRef, a, bw, ft, SYN);
+    let body = g.b.close_block(block, Some(value), ft, SYN);
+    g.finish(body).map(|(body, _)| body)
+}
+
+/// Select `ty`'s `Wire` encoder (`wire_put`) or, with `take`, its decoder
+/// (`wire_take`) among `std.remote`'s codec functions
+/// (`module.remote.codec`); no value is encoded or decoded here. A struct,
+/// enum, tuple, union or newtype selects the private `WireStructural`
+/// template, whose members select their own.
+pub fn codec_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, take: bool) -> StageResult<Body> {
+    let names = cx.names;
+    let pool = names.pool;
+    let mut g = Gen::new(cx, ty, item, Handles::Supplied);
+    g.b = TirBuilder::new(item, BodyKind::Fn);
+    let local = |inner, mutable| {
+        pool.intern_ty(&TyData::Ref {
+            inner,
+            mutable,
+            counted: false,
+        })
+    };
+    let ft = if take {
+        let input = local(g.adt(names.item(REMOTE, "WireIn"), &[]), true);
+        g.fn_ty(&[input], g.adt(names.known.option, &[ty]))
+    } else {
+        let out = local(g.adt(names.item(REMOTE, "WireOut"), &[]), true);
+        g.fn_ty(&[local(ty, false), out], Ty::VOID)
+    };
+    let block = g.b.open_block();
+    let (name, args) = match pool.get(ty) {
+        TyData::Prim(Prim::Bool) => ("bool", vec![]),
+        TyData::Prim(Prim::Char) => ("char", vec![]),
+        TyData::Prim(Prim::F32) => ("f32", vec![]),
+        TyData::Prim(Prim::F64) => ("f64", vec![]),
+        TyData::Prim(Prim::String) => ("string", vec![]),
+        TyData::Prim(_) => ("int", vec![ty]),
+        TyData::Never => ("never", vec![]),
+        TyData::Adt(AdtId::Declared(def), args) if def == names.known.list => {
+            let items = pool.list_items(args);
+            if items == [Ty::prim(Prim::U8)] {
+                ("bytes", vec![])
+            } else {
+                ("list", items.to_vec())
+            }
+        }
+        TyData::Adt(AdtId::Declared(def), args) if def == names.known.map => {
+            ("map", pool.list_items(args).to_vec())
+        }
+        // A `Wire` trait value reference is a remote reference
+        // (`module.marker.table.remote`).
+        TyData::Ref {
+            inner,
+            mutable: true,
+            counted: true,
+        } if matches!(pool.get(inner), TyData::TraitValue { .. }) => ("remote", vec![inner]),
+        _ if target(cx, ty).is_some() => ("structural", vec![ty]),
+        // gap: #2288 — a counted reference crosses only the host boundary,
+        // which keeps its own codecs until the boundary move;
+        // module.marker.table rules out every other type for `Wire`.
+        _ => {
+            return Err(NotImplemented::new(
+                cx.stage,
+                format!(
+                    "no `Wire` codec for `{}` yet (#2288)",
+                    hd_resolve::show_ty_full(names, ty)
+                ),
+            ));
+        }
+    };
+    let side = if take { "take" } else { "put" };
+    let def = names.item(REMOTE, &format!("wire_{side}_{name}"));
+    selected(g, block, def, &args, ft)
 }
 
 /// The body of `debug_texts[args]` (`module.dbg.texts`): its parameters are
@@ -203,8 +288,8 @@ pub fn texts_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> {
     let names = cx.names;
     let pool = names.pool;
     // ruled out: debug_texts's sealed Args < Tuple bound excludes non-tuples.
-    let (elems, rest) = pool.tuple_parts(args);
-    let elems = pool.list_items(elems).to_vec();
+    let (elems, rest) = pool.product_parts(args).unwrap_or_default();
+    let elems = elems.to_vec();
     let mut g = Gen::new(cx, args, item, Handles::Supplied);
     g.b = TirBuilder::new(item, BodyKind::Fn);
     let usize = Ty::prim(hd_types::Prim::Usize);

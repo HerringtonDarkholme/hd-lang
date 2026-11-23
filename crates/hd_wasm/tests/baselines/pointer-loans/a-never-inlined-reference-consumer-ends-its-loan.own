@@ -115,9 +115,9 @@ impl Slots:
 >   %7 = Block - : ()
 >   exit sub 0 drops [$1]
 
-    fn remove_at(&mut self, index: usize) -> string:
-        self.items.remove_at(index)
-> app/main/impl Slots.remove_at
+    fn remove(&mut self, index: usize) -> string:
+        self.items.remove(index)
+> app/main/impl Slots.remove
 >   local $0 self: &mut Slots [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 index: usize [param read] value
@@ -126,7 +126,7 @@ impl Slots:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Read copy [$1] : usize
 >   %3 = LoanBegin %0 #2 : ()
->   %4 = Call std/collections/impl[T] List[T].remove_at[string] (%0, %2) : string
+>   %4 = Call std/collections/impl[T] List[T].remove[string] (%0, %2) : string
 >   %5 = LoanClose %1 : ()
 >   %6 = LoanEnd [%0] : ()
 >   %7 = Block %4 : string

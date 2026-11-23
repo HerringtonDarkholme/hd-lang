@@ -40,7 +40,7 @@ use hd_base::{NotImplemented, SliceSort as _, Stage, StageResult};
 use hd_mono::layout::StdKind;
 pub use hd_mono::layout::strip_newtype;
 use hd_mono::{ProgramEnv, subst};
-use hd_types::{InternPool, Prim, Ty, TyData, TyList};
+use hd_types::{AdtId, InternPool, Prim, Ty, TyData};
 
 /// A scalar value class (rustc's `Primitive`): every reference is an
 /// `i32` address.
@@ -229,8 +229,6 @@ pub enum Kind {
     /// Its values are in locals: a scalar, a string, an enum, a struct or
     /// tuple, a trait value.
     Value,
-    /// The address of a counted cell containing an enum value.
-    Boxed,
     /// A reference to a place of type `T` (`&T` or `&mut T`, or `*T` or
     /// `*mut T` when `whole`): the place's address, or, when
     /// `T` is a trait value (`fat`), that trait value. A `whole` one is
@@ -242,29 +240,15 @@ pub enum Kind {
 /// Which kind `t` is.
 pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     let t = strip_newtype(pool, env, t);
-    let (def, args) = match pool.get(t) {
-        TyData::Ref { inner, counted, .. } => {
-            return Kind::Ref {
-                target: strip_newtype(pool, env, inner),
-                fat: fat(pool, env, inner),
-                whole: counted,
-            };
-        }
-        TyData::Adt { def, args } => (def, args),
-        _ => return Kind::Value,
-    };
-    if env.std_kind(def) != StdKind::Other {
-        return Kind::Value;
+    match pool.get(t) {
+        TyData::Ref { inner, counted, .. } => Kind::Ref {
+            target: strip_newtype(pool, env, inner),
+            fat: fat(pool, env, inner),
+            whole: counted,
+        },
+        // data.enum.no-recursion/no-boxing: recursion uses explicit references.
+        _ => Kind::Value,
     }
-    // The instance decides, as its resolved payloads do (`enum_boxing`).
-    if env.is_enum(def) {
-        return if env.recursive_enum(def, args) {
-            Kind::Boxed
-        } else {
-            Kind::Value
-        };
-    }
-    Kind::Value
 }
 
 /// Whether a reference to `target` is fat: a reference to a trait value
@@ -287,7 +271,7 @@ pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
 /// The kind of `t`, once stripped, when it is a list or a map.
 pub fn coll_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<StdKind> {
     match pool.get(strip_newtype(pool, env, t)) {
-        TyData::Adt { def, .. } => {
+        TyData::Adt(AdtId::Declared(def), _) => {
             Some(env.std_kind(def)).filter(|k| matches!(k, StdKind::List | StdKind::Map))
         }
         _ => None,
@@ -297,11 +281,12 @@ pub fn coll_kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<StdKi
 /// The type of struct, tuple or newtype field `f` of `t`.
 pub fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Option<Ty> {
     match pool.get(t) {
-        TyData::Adt { def, args } => {
+        // ruled out: sums have variant payloads, not declared product fields.
+        TyData::Adt(AdtId::Declared(def), args) => {
             let fs = env.data_fields(def)?;
             Some(hd_mono::subst(pool, env, def, args, *fs.get(f as usize)?))
         }
-        TyData::Tuple { .. } => tuple_members(pool, t).get(f as usize).copied(),
+        TyData::Adt(AdtId::Product { .. }, args) => pool.list_items(args).get(f as usize).copied(),
         _ => None,
     }
 }
@@ -310,18 +295,9 @@ pub fn field_ty(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, f: u32) -> Optio
 /// when it has one, laid out as one more member.
 pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
-        TyData::Tuple { elems, rest } => {
-            pool.list_items(elems).iter().copied().chain(rest).collect()
-        }
+        TyData::Adt(AdtId::Product { .. }, args) => pool.list_items(args).to_vec(),
         _ => Vec::new(),
     }
-}
-
-pub fn union_variants(pool: &InternPool, members: TyList) -> Vec<Vec<Ty>> {
-    pool.list_items(members)
-        .iter()
-        .map(|member| vec![*member])
-        .collect()
 }
 
 /// The most scalar values a struct, tuple or enum passes as values. A larger one
@@ -347,8 +323,8 @@ pub fn by_address(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult
 /// struct or enum kept by value.
 fn inline(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     match pool.get(t) {
-        TyData::Tuple { .. } | TyData::Union(_) => true,
-        TyData::Adt { def, .. } => {
+        TyData::Adt(AdtId::Sum | AdtId::Product { .. }, _) => true,
+        TyData::Adt(AdtId::Declared(def), _) => {
             env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value)
         }
         _ => false,
@@ -376,11 +352,12 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
     }
     let t = strip_newtype(pool, env, t);
     let fields: Option<(Vec<String>, Vec<Ty>)> = match pool.get(t) {
-        TyData::Tuple { .. } => {
+        TyData::Adt(AdtId::Product { .. }, _) => {
             let members = tuple_members(pool, t);
             Some(((0..members.len()).map(|k| k.to_string()).collect(), members))
         }
-        TyData::Adt { def, args }
+        TyData::Adt(AdtId::Declared(def), args)
+            // Anonymous shapes have no declared field names.
             if env.std_kind(def) == StdKind::Other
                 && matches!(kind(pool, env, t), Kind::Value)
                 && !env.is_enum(def) =>
@@ -421,19 +398,14 @@ pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String
 /// fields, a struct's fields. Every other type is one leaf or address.
 pub fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     match pool.get(t) {
-        TyData::Tuple { .. } => tuple_members(pool, t),
-        TyData::Union(members) => pool.list_items(members).to_vec(),
-        TyData::Adt { def, args }
-            if env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value) =>
+        TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, t),
+        TyData::Adt(def, args)
+            if def.get().is_none_or(|d| env.std_kind(d) == StdKind::Other)
+                && matches!(kind(pool, env, t), Kind::Value) =>
         {
-            match env.enum_variants(def, args) {
+            match hd_mono::layout::enum_variants(pool, env, def, args) {
                 Some(variants) => variants.into_iter().flatten().collect(),
-                None => env
-                    .data_fields(def)
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|f| subst(pool, env, def, args, f))
-                    .collect(),
+                None => hd_mono::layout::product_fields(pool, env, def, args),
             }
         }
         _ => Vec::new(),
@@ -504,55 +476,17 @@ thread_local! {
 /// [`counted`] compute each type once, so a long chain of types held by
 /// value costs its length, not its square, at every use.
 pub fn cached<R>(link: impl FnOnce() -> R) -> R {
-    struct Reset {
-        mems: Option<hd_base::HashMap<Ty, StageResult<Mem>>>,
-        layouts: Option<std::rc::Rc<Layouts>>,
-        tracks: Option<hd_base::HashMap<Ty, bool>>,
-        counts: Option<hd_base::HashMap<Ty, bool>>,
-        drops: Option<hd_base::HashMap<Ty, bool>>,
-        thin_refs: Option<hd_base::HashMap<Ty, bool>>,
-        local_refs: Option<hd_base::HashMap<Ty, bool>>,
-        flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
-        variants: Option<hd_base::HashMap<Ty, Option<VariantTypes>>>,
-        members: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Members>>>>,
-    }
-    impl Drop for Reset {
+    /// The scope that was in place, put back when the link ends, panic or not.
+    struct Restore(Option<Scope>);
+    impl Drop for Restore {
         fn drop(&mut self) {
-            MEMS.set(self.mems.take());
-            layouts::LAYOUTS.set(self.layouts.take());
-            TRACKS.set(self.tracks.take());
-            COUNTS.set(self.counts.take());
-            DROPS.set(self.drops.take());
-            THIN_REFS.set(self.thin_refs.take());
-            LOCAL_REFS.set(self.local_refs.take());
-            FLATS.set(self.flats.take());
-            VARIANTS.set(self.variants.take());
-            MEMBERS.set(self.members.take());
+            if let Some(outer) = self.0.take() {
+                outer.put();
+            }
         }
     }
-
-    let _reset = Reset {
-        mems: MEMS.take(),
-        layouts: layouts::LAYOUTS.take(),
-        tracks: TRACKS.take(),
-        counts: COUNTS.take(),
-        drops: DROPS.take(),
-        thin_refs: THIN_REFS.take(),
-        local_refs: LOCAL_REFS.take(),
-        flats: FLATS.take(),
-        variants: VARIANTS.take(),
-        members: MEMBERS.take(),
-    };
-    MEMS.set(Some(hd_base::HashMap::default()));
-    layouts::LAYOUTS.set(Some(std::rc::Rc::default()));
-    TRACKS.set(Some(hd_base::HashMap::default()));
-    COUNTS.set(Some(hd_base::HashMap::default()));
-    DROPS.set(Some(hd_base::HashMap::default()));
-    THIN_REFS.set(Some(hd_base::HashMap::default()));
-    LOCAL_REFS.set(Some(hd_base::HashMap::default()));
-    FLATS.set(Some(hd_base::HashMap::default()));
-    VARIANTS.set(Some(hd_base::HashMap::default()));
-    MEMBERS.set(Some(hd_base::HashMap::default()));
+    let _restore = Restore(Some(Scope::take()));
+    Scope::fresh().put();
     link()
 }
 
@@ -722,21 +656,15 @@ fn mem_one(
             Prim::String => Mem::string(),
         },
         TyData::Never => Mem::NEVER,
-        TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part, &named)?.0,
-        TyData::Union(members) => {
-            let variants = union_variants(pool, members);
-            enum_flat_by(t, &variants, part, &named, full)?
+        TyData::Adt(AdtId::Product { .. }, _) => {
+            payload_mem_by(&tuple_members(pool, t), part, &named)?.0
         }
-        TyData::Adt { def, args } => match env.std_kind(def) {
+        TyData::Adt(def, args) => match def.get().map_or(StdKind::Other, |d| env.std_kind(d)) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::nonnull(),
-            StdKind::Other => match kind(pool, env, t) {
-                Kind::Boxed => Mem::nonnull(),
-                Kind::Ref { fat, .. } => ref_mem(fat),
-                Kind::Value => match env.enum_variants(def, args) {
-                    Some(variants) => enum_flat_by(t, &variants, part, &named, full)?,
-                    None => payload_mem_by(&value_parts(pool, env, t), part, &named)?.0,
-                },
+            StdKind::Other => match hd_mono::layout::enum_variants(pool, env, def, args) {
+                Some(variants) => enum_flat_by(t, &variants, part, &named, full)?,
+                None => payload_mem_by(&value_parts(pool, env, t), part, &named)?.0,
             },
         },
         // A function value's code is a table slot, which may be 0, and its
@@ -865,12 +793,13 @@ pub fn ref_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<RefLeaf
             TyData::Prim(Prim::String) | TyData::TraitValue { .. } => leaf(0, true),
             TyData::Fn { .. } => leaf(1, true),
             TyData::Context(_) => leaf(0, true),
-            TyData::Tuple { .. } => fields(&tuple_members(pool, t), &mut work),
-            TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => leaf(0, true),
+            TyData::Adt(AdtId::Product { .. }, _) => fields(&tuple_members(pool, t), &mut work),
+            TyData::Adt(AdtId::Declared(def), _) if env.std_kind(def) != StdKind::Other => {
+                leaf(0, true);
+            }
             TyData::Ref { counted, .. } => leaf(0, counted),
             TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => leaf(0, true),
-            TyData::Union(_) | TyData::Adt { .. } => match kind(pool, env, t) {
-                Kind::Boxed => leaf(0, true),
+            TyData::Adt(..) => match kind(pool, env, t) {
                 Kind::Ref { whole, .. } => leaf(0, whole),
                 Kind::Value => {
                     if let Some(vs) = variants(pool, env, t) {
@@ -952,24 +881,19 @@ fn holds_one(
         | TyData::Fn { .. }
         | TyData::TraitValue { .. }
         | TyData::Context(_) => true,
-        TyData::Tuple { .. } => tuple_members(pool, t).into_iter().any(part),
-        TyData::Adt { def, .. } if env.std_kind(def) != StdKind::Other => true,
-        TyData::Union(_) => {
-            variants(pool, env, t).is_some_and(|vs| vs.iter().flatten().any(|&f| part(f)))
-        }
+        TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, t).into_iter().any(part),
+        TyData::Adt(AdtId::Declared(def), _) if env.std_kind(def) != StdKind::Other => true,
         TyData::Ref { counted, .. } => held(counted),
-        TyData::Adt { def, args } => match kind(pool, env, t) {
-            Kind::Boxed => true,
-            Kind::Ref { whole, .. } => held(whole),
-            Kind::Value => {
-                let any = match env.enum_variants(def, args) {
-                    Some(_) => variants(pool, env, t)
-                        .is_some_and(|vs| vs.iter().flatten().any(|&f| part(f))),
-                    None => value_parts(pool, env, t).into_iter().any(part),
-                };
-                any || env.has_drop(def)
-            }
-        },
+        TyData::Adt(def, args) => {
+            let any = match hd_mono::layout::enum_variants(pool, env, def, args) {
+                Some(_) => {
+                    variants(pool, env, t).is_some_and(|vs| vs.iter().flatten().any(|&f| part(f)))
+                }
+                None => value_parts(pool, env, t).into_iter().any(part),
+            };
+            // module.rt.drop.not-copy requires a declaration; payload hooks are in `any`.
+            any || def.get().is_some_and(|d| env.has_drop(d))
+        }
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => true,
         _ => false,
     }
@@ -986,7 +910,6 @@ pub fn holds_local_ref(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
         &|t, part| match kind(pool, env, t) {
             Kind::Ref { whole, .. } => !whole,
             Kind::Value => value_parts(pool, env, t).into_iter().any(part),
-            Kind::Boxed => false,
         },
     )
 }
@@ -1266,13 +1189,8 @@ pub fn members(
         return got;
     }
     let tys: Vec<Ty> = match pool.get(t) {
-        TyData::Tuple { .. } => tuple_members(pool, t),
-        TyData::Adt { def, args } => env
-            .data_fields(def)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|f| subst(pool, env, def, args, f))
-            .collect(),
+        TyData::Adt(AdtId::Product { .. }, _) => tuple_members(pool, t),
+        TyData::Adt(id, args) => hd_mono::layout::product_fields(pool, env, id, args),
         _ => Vec::new(),
     };
     crate::work::member_layouts(tys.len());
@@ -1916,7 +1834,8 @@ fn drops_by_parts(
             }
         }
         crate::work::member_layouts(1);
-        let own = matches!(pool.get(u), TyData::Adt { def, .. } if env.has_drop(def));
+        // ruled out: anonymous sums have no declaration-level Drop hook.
+        let own = matches!(pool.get(u), TyData::Adt(AdtId::Declared(def), _) if env.has_drop(def));
         let got = own || parts.iter().any(|p| done.get(p).copied().unwrap_or(false));
         open.remove(&u);
         done.insert(u, got);
@@ -1955,8 +1874,7 @@ pub fn newtype_layers(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, visit: &mu
 pub fn variants(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<VariantTypes> {
     let t = strip_newtype(pool, env, t);
     cached_variants(t, || match pool.get(t) {
-        TyData::Union(members) => Some(union_variants(pool, members)),
-        TyData::Adt { def, args } => env.enum_variants(def, args),
+        TyData::Adt(def, args) => hd_mono::layout::enum_variants(pool, env, def, args),
         _ => None,
     })
 }
@@ -2166,10 +2084,8 @@ mod tests {
         if let Some(saved) = MEMS.with(|m| m.borrow().as_ref().and_then(|m| m.get(&ty)).cloned()) {
             return saved;
         }
-        let TyData::Tuple { elems, .. } = pool.get(ty) else {
-            panic!("test tuple");
-        };
-        let item = pool.list_items(elems)[0];
+        let (elems, _) = pool.product_parts(ty).expect("test product");
+        let item = elems[0];
         let computed = match pool.get(item) {
             TyData::Prim(Prim::I64) => Mem::one(Val::I64, 8, false),
             TyData::Prim(Prim::String) => Mem::string(),
@@ -2187,15 +2103,9 @@ mod tests {
     #[test]
     fn a_later_layout_from_a_different_pool_matches_a_clean_cache() {
         let earlier = InternPool::default();
-        let earlier_ty = earlier.intern_ty(&TyData::Tuple {
-            elems: earlier.list(&[Ty::prim(Prim::I64)]),
-            rest: None,
-        });
+        let earlier_ty = earlier.product(earlier.list(&[Ty::prim(Prim::I64)]), None);
         let later = InternPool::default();
-        let later_ty = later.intern_ty(&TyData::Tuple {
-            elems: later.list(&[Ty::STRING]),
-            rest: None,
-        });
+        let later_ty = later.product(later.list(&[Ty::STRING]), None);
         assert_eq!(earlier_ty, later_ty, "the pools reuse the same type index");
         let clean = cached(|| tuple_mem(&later, later_ty)).expect("clean layout");
 
@@ -2389,6 +2299,54 @@ mod tests {
         // No variant present: `never`.
         let none = flat_of(&[vec![Mem::NEVER]]).expect("fits");
         assert!(none.mem.uninhabited && none.mem.size == 0);
+    }
+
+    #[test]
+    fn scalar_class_indices_keep_float_classes_distinct() {
+        assert_eq!(
+            [Val::I32, Val::I64, Val::F32, Val::F64].map(Val::index),
+            [0, 1, 2, 3]
+        );
+    }
+
+    #[test]
+    fn discriminant_width_grows_at_the_byte_boundaries() {
+        for (variants, bytes) in [(257, 2), (65_537, 4)] {
+            let flat = flat_of(&vec![Vec::new(); variants]).expect("fits");
+            let cell = flat.cell().expect("multiple variants");
+            assert_eq!((cell.leaf.bytes, cell.enc), (bytes, Enc::Direct));
+            let last = u32::try_from(variants - 1).expect("variant");
+            assert_eq!(cell.enc.raw(last), Some(last));
+            assert_eq!(cell.enc.reads(last), last);
+            assert_eq!(flat.test(last), Test::Read(cell, Is::Eq(last)));
+        }
+    }
+
+    #[test]
+    fn niche_encoding_round_trips_and_excludes_uninhabited_variants() {
+        let enc = Enc::Niche {
+            untagged: 0,
+            first: 1,
+            last: 2,
+            start: 254,
+            bytes: 1,
+        };
+        assert_eq!(enc.raw(0), None);
+        for variant in [1, 2] {
+            let raw = enc.raw(variant).expect("tagged variant");
+            assert_eq!(enc.reads(raw), variant);
+            assert_eq!(enc.is(variant), Is::Eq(raw));
+        }
+        assert_eq!(enc.reads(0), 0);
+        assert_eq!(enc.is(3), Is::Never);
+        assert_eq!(
+            enc.is(0),
+            Is::Outside {
+                start: 254,
+                count: 2,
+                bytes: 1
+            }
+        );
     }
 
     #[test]

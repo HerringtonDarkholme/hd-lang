@@ -24,6 +24,7 @@ use hd_resolve::{Head, HeadKind, Item, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_tir::Body;
 use hd_tir::ir::{BodyKind, Coercion, NONE, Ref, Tag, TirSink};
+use hd_types::AdtId;
 use hd_types::solver::TraitRef;
 use hd_types::{ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
@@ -52,10 +53,10 @@ fn facts_items(item: Option<&Item>) -> StageResult<Ty> {
 fn facts_types(cx: &BodyCx<'_>) -> StageResult<(Ty, Ty)> {
     let facts = cx.names.known.facts;
     let items = facts_items(cx.lookup.item(facts))?;
-    let ty = cx.names.pool.intern_ty(&TyData::Adt {
-        def: facts,
-        args: TyList::EMPTY,
-    });
+    let ty = cx
+        .names
+        .pool
+        .intern_ty(&TyData::Adt(AdtId::Declared(facts), TyList::EMPTY));
     Ok((ty, items))
 }
 
@@ -404,11 +405,11 @@ fn internal_payload_allowed(cx: &BodyCx<'_>, mut ty: Ty) -> bool {
     loop {
         match cx.names.pool.get(ty) {
             TyData::Ref { inner, .. } => ty = inner,
-            TyData::Adt { def, args } if def == cx.names.known.map => {
+            TyData::Adt(AdtId::Declared(def), args) if def == cx.names.known.map => {
                 return cx.names.pool.list_items(args).first().copied() == Some(Ty::STRING);
             }
-            TyData::Adt { def, .. } if def == cx.names.known.list => return false,
-            TyData::Adt { def, .. } => {
+            TyData::Adt(AdtId::Declared(def), _) if def == cx.names.known.list => return false,
+            TyData::Adt(AdtId::Declared(def), _) => {
                 return matches!(
                     cx.lookup.item(def),
                     Some(item) if matches!(&item.data, ItemData::Struct(_, _))
@@ -491,7 +492,7 @@ fn data_field<'t>(cx: &BodyCx<'t>, value: NodeRef<'t>, name: &str) -> Option<Nod
 fn concrete_fact(cx: &BodyCx<'_>, value: WrittenFact<'_>, expected: DefId) -> bool {
     matches!(
         expression_fact_type(cx, value.owner, value.node).map(|ty| cx.names.pool.get(ty)),
-        Some(TyData::Adt { def, .. }) if def == expected
+        Some(TyData::Adt(AdtId::Declared(def), _)) if def == expected
     )
 }
 
@@ -845,7 +846,7 @@ pub fn check_enum_tagging_decls(cx: &BodyCx<'_>, heads: &[Head<'_>], diags: &mut
         else {
             continue;
         };
-        let TyData::Adt { def, .. } = cx.names.pool.get(*self_ty) else {
+        let Some((def, _)) = cx.names.pool.adt(*self_ty) else {
             continue;
         };
         if *trait_ == DefId::NONE {
@@ -1155,7 +1156,9 @@ impl Ck<'_, '_> {
     /// (`annot.typed-fact.check.inferred`).
     fn typed_fact_of(&mut self, e: NodeRef<'_>, single: bool) -> StageResult<Option<DefId>> {
         let pool = self.cx.names.pool;
-        if let Some(TyData::Adt { def, .. }) = self.called_result(e).map(|t| pool.get(t)) {
+        if let Some(TyData::Adt(AdtId::Declared(def), _)) =
+            self.called_result(e).map(|t| pool.get(t))
+        {
             return Ok(self.is_typed_fact(def).then_some(def));
         }
         let mut found = None;
@@ -1166,7 +1169,7 @@ impl Ck<'_, '_> {
                 ck.expr(e, None)?
             };
             let pool = ck.pool();
-            if let TyData::Adt { def, .. } = pool.get(ck.infer.resolve(pool, t))
+            if let TyData::Adt(AdtId::Declared(def), _) = pool.get(ck.infer.resolve(pool, t))
                 && ck.is_typed_fact(def)
             {
                 found = Some(def);
@@ -1298,10 +1301,9 @@ impl Ck<'_, '_> {
             let Some(vars) = ck.match_fact_pattern(fact, target, at)? else {
                 return Ok(());
             };
-            let inferred = ck.pool().intern_ty(&TyData::Adt {
-                def: fact,
-                args: ck.pool().list(&vars),
-            });
+            let inferred = ck
+                .pool()
+                .intern_ty(&TyData::Adt(AdtId::Declared(fact), ck.pool().list(&vars)));
             fits = ck.unify_now(written, inferred);
             Ok(())
         })?;
@@ -1343,14 +1345,14 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let pool = self.pool();
         let handle = self.infer.resolve(pool, self.resolved(handle));
-        let TyData::Adt { args, .. } = pool.get(handle) else {
+        let TyData::Adt(_, args) = pool.get(handle) else {
             return Ok(());
         };
         let Some(&member) = pool.list_items(args).get(1) else {
             return Ok(());
         };
         let m = self.infer.resolve(pool, m);
-        let TyData::Adt { def: fact, .. } = pool.get(m) else {
+        let Some((fact, _)) = pool.adt(m) else {
             return Ok(());
         };
         if self
@@ -1364,10 +1366,7 @@ impl Ck<'_, '_> {
         let Some(vars) = self.match_fact_target(fact, member, n, Some(m))? else {
             return Ok(());
         };
-        let inferred = pool.intern_ty(&TyData::Adt {
-            def: fact,
-            args: pool.list(&vars),
-        });
+        let inferred = pool.intern_ty(&TyData::Adt(AdtId::Declared(fact), pool.list(&vars)));
         if !self.unify_now(m, inferred) {
             let msg = format!(
                 "the handle's member type infers {}, but the call writes {}",
@@ -1410,10 +1409,7 @@ impl Ck<'_, '_> {
         let Some(vars) = self.match_fact_target(fact, target, e, optional_written)? else {
             return Ok(None);
         };
-        let want = pool.intern_ty(&TyData::Adt {
-            def: fact,
-            args: pool.list(&vars),
-        });
+        let want = pool.intern_ty(&TyData::Adt(AdtId::Declared(fact), pool.list(&vars)));
         let before = self.diags.len();
         let (r, t) = if single {
             self.fact_value(e, Some(want))?

@@ -293,3 +293,59 @@ fn damaged_exports_are_cache_misses() -> Result<(), &'static str> {
     assert!(decode_items(&names, &bad_module).is_none());
     Ok(())
 }
+
+/// Result-path metadata is read back from disk independently of the source
+/// resolver (ref.result.path.form, ref.result.path.lifetime). Re-intern in a
+/// different session so matching numeric symbol IDs cannot mask a lost path.
+#[test]
+fn result_paths_survive_eager_and_lazy_interfaces_in_a_fresh_session() {
+    let source = include_str!("inputs/result_paths.hd");
+    let writer = Run::new();
+    let (items, exports) = super::const_generics::resolve_in(writer.names(), source);
+    let bytes = encode_items(&writer.names(), &items, &exports).expect("encode result paths");
+
+    let reader = Run::new();
+    reader.paths.item("other", "before", "Earlier");
+    reader.syms.intern("an earlier symbol");
+    assert_ne!(writer.syms.intern("name"), reader.syms.intern("name"));
+    let names = reader.names();
+    let (eager, _) = decode_items(&names, &bytes).expect("eager result paths");
+    let (lazy, _) = decode_lazy(&names, Arc::from(bytes)).expect("lazy result paths");
+    assert_eq!(lazy.decoded(), 0);
+
+    for (function, expected) in [
+        (
+            "parts",
+            vec![(0, 1, vec!["name", "first"]), (1, 0, vec!["name", "last"])],
+        ),
+        ("tuple", vec![(0, 0, vec!["_1", "name", "first"])]),
+    ] {
+        let index = eager
+            .iter()
+            .position(|item| names.text(item.name) == function)
+            .expect("function in eager interface");
+        let item = lazy.get(index).expect("function in lazy interface");
+        assert_eq!(item, &eager[index]);
+        let sig = item.sig().expect("function signature");
+        let actual: Vec<_> = sig
+            .paths
+            .iter()
+            .map(|path| {
+                (
+                    path.slot,
+                    path.param,
+                    path.fields
+                        .iter()
+                        .map(|field| names.text(*field))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect();
+        assert_eq!(actual, expected, "{function}");
+    }
+    assert_eq!(
+        lazy.decoded(),
+        2,
+        "only the requested signatures are decoded"
+    );
+}

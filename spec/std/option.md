@@ -4,7 +4,8 @@ Status: standard library specification draft.
 
 This chapter defines the part of `std.option` that `lib/std` writes in
 ordinary hd over the language tier. That is the inherent methods
-`and_then`, `unwrap_or`, `or`, `ok_or`, `is_some`, `is_none`, and `expect`
+`and_then`, `unwrap_or`, `unwrap_or_else`, `or`, `or_else`, `filter`,
+`ok_or`, `is_some`, `is_none`, `unwrap`, and `expect`
 of `T?`.
 
 The language tier keeps what the compiler knows by name
@@ -138,3 +139,42 @@ For an empty list, `first_word` returns an error that displays as `no words`.
 > `Result[T, *dyn Error]` otherwise needs `ok_or` and an error type.
 
 See also: [Result](result.md), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).
+
+## Lazy Fallbacks And Filtering
+
+Lazy fallbacks run only for an absent optional; filtering borrows a present payload before deciding whether to keep it.
+
+```text
+fn port(value: i32?) -> i32:
+    value.filter(fn(port: &i32) -> bool: *port > 0).unwrap_or_else(fn() -> i32: 8080)
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-option.unwrap-or-else.value] `unwrap_or_else` | `fn unwrap_or_else[F < ?Copy & FnMut() -> T $ R, $ R](self, mut fallback: F) -> T $ R` | The payload of `.Some`, or `fallback()` for `.None` |
+| r[std-option.or-else.value] `or_else` | `fn or_else[F < ?Copy & FnMut() -> T? $ R, $ R](self, mut fallback: F) -> T? $ R` | The optional itself for `.Some`, or `fallback()` for `.None` |
+| r[std-option.filter.value] `filter` | `fn filter[F < ?Copy & FnMut(&T) -> bool $ R, $ R](self, mut predicate: F) -> T? $ R` | Keeps `.Some(value)` exactly when `predicate(&value)` is true; otherwise `.None` |
+
+1. r[std-option.lazy.inherent] These inherent methods need no import and accept payloads and callbacks that are not copied.
+2. r[std-option.lazy.fallback-once] Each fallback is called exactly once for `.None`, and never for `.Some`.
+3. r[std-option.filter.once] `filter` calls its predicate exactly once for `.Some`, and never for `.None`.
+4. r[std-option.filter.borrow] The predicate borrows the payload; an accepted payload is returned unchanged, and a rejected payload is discarded.
+5. r[std-option.lazy.row] The methods propagate the callback's requirement row and do not suspend.
+
+> **Why.** These names and variant behavior follow Rust's `Option` methods.
+> hd accepts generic `FnMut` callbacks, the callable trait hd provides for mutable captures; each callback is invoked at most once.
+> `unwrap_or` and `or` retain their eager-argument behavior.
+
+## Unwrapping Without A Message
+
+`unwrap` extracts a required optional payload with a standard panic message.
+
+```text
+fn required(value: i32?) -> i32:
+    value.unwrap()
+```
+
+1. r[std-option.unwrap.value] The inherent `fn unwrap(self) -> T` returns the payload of `.Some`, including a payload that is not copied.
+2. r[std-option.unwrap.panic] For `.None`, `unwrap` panics with category `explicit-panic` and message ``called `Option::unwrap()` on a `None` value``. Panic: `explicit-panic`.
+
+> **Note.** `expect(message)` remains the method for a caller-supplied panic message.

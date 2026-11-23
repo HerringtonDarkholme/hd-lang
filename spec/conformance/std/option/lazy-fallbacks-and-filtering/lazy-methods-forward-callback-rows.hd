@@ -1,0 +1,29 @@
+# test: optional and result lazy methods forward each callback requirement row
+fn fallback() -> i32 $ Console:
+    println("fallback")
+    7
+
+fn alternative() -> i32? $ Console:
+    println("alternative")
+    .Some(7)
+
+fn predicate(value: &i32) -> bool $ Console:
+    println("predicate")
+    *value > 0
+
+fn recover(error: string) -> i32 $ Console:
+    println(error)
+    7
+
+fn reroute(error: string) -> Result[i32, bool] $ Console:
+    println(error)
+    .Err(false)
+
+fn optional(value: i32?) -> i32 $ Console:
+    value.filter(predicate).or_else(alternative).unwrap_or_else(fallback)
+
+fn result(value: Result[i32, string]) -> i32 $ Console:
+    value.unwrap_or_else(recover)
+
+fn result_alternative(value: Result[i32, string]) -> Result[i32, bool] $ Console:
+    value.or_else(reroute)

@@ -1,0 +1,13 @@
+[package]
+name = "shop"
+
+[[executable]]
+name = "web"
+module = "browser"
+
+[[executable]]
+name = "api"
+module = "server"
+
+[capabilities]
+Console = true

@@ -1,0 +1,13 @@
+# test: a capture that is not Copy moves to the worker, so the caller cannot use it after the crossing
+# Spec std Remote, Workers: std-remote.workers.run; Spec 07 Crossing Closures: fn.crossing.mode.move.
+use std.remote.{CrossError, Workers}
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn send!(workers: *mut dyn Workers, photo: Image) -> Result[u32, CrossError]:
+    width := workers.run!(fn() -> u32: photo.width)?
+    .Ok(width + photo.width) # diagnostic: use-of-moved-value

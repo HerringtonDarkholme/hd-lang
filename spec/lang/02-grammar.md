@@ -493,8 +493,11 @@ value_parameter = [ "mut" ], identifier, ":", parameter_type, [ "=", expression 
                 | [ "mut" ], identifier, "...", ":", type
                 ;
 
-parameter_type = type | anonymous_parameter_type ;
+parameter_type = type | anonymous_parameter_type | crossing_parameter_type ;
 anonymous_parameter_type = "impl", bound_trait_type, [ "&", lifetime ] ;
+crossing_parameter_type = "fn", [ "!" ], "(", [ type_list ], ")", "->", type,
+                          "+", bound_trait_type, [ "&", lifetime ],
+                          [ requirement_clause ] ;
 
 receiver_parameter = "self" | "mut", "self"
                    | "&", [ lifetime ], "self" | "&", [ lifetime ], "mut", "self"
@@ -513,6 +516,8 @@ receiver_parameter = "self" | "mut", "self"
 10. r[grammar.fn.impl-parameter] A named function's complete value-parameter annotation may be `impl` followed by one bound trait type and, optionally, `&` followed by one lifetime.
 11. r[grammar.fn.impl-type.positions] Outside a named-function result annotation or the complete annotation of one of its value parameters, `impl` is invalid. In particular, it is invalid in fields, bindings, closure annotations, function types, requirement rows and nested parameter types. Error: `syntax-error`.
 12. r[grammar.fn.opaque-bound.no-nesting] An `impl` type must not appear inside another `impl` bound. Error: `syntax-error`.
+13. r[grammar.fn.crossing-parameter] A named function's or a method's complete value-parameter annotation may be a function type whose result is followed by `+`, one marker, optionally `&` and one lifetime, and then its row. [Crossing Closures](07-functions.md#crossing-closures) gives its meaning.
+14. r[grammar.fn.crossing-parameter.positions] A marker bound anywhere else is an error: in a field, a binding, a closure annotation, a result, a type argument, or a nested parameter type. Error: `syntax-error`.
 
 ```text
 fn scaled(values...: List[i32], factor: i32) -> i32: factor  # error: nonfinal-vararg
@@ -606,7 +611,8 @@ supertrait_bound = bound_trait_type | relaxed_bound ;
 trait_member = associated_type_decl
              | { decorator_line }, "fn", callable_name, [ function_generic_params ],
                parameter_clause,
-               "->", function_result_type, [ requirement_clause ],
+               "->", function_result_type, [ method_where_clause ],
+               [ requirement_clause ],
                ( NEWLINE | ":", suite_body )
              ;
 
@@ -637,7 +643,10 @@ derivation_line = ( identifier | "Self" ), ( "=" | "+=" ), closed_expression,
 
 method_decl = [ "pub" ], "fn", callable_name, [ function_generic_params ],
               parameter_clause, [ "->", function_result_type ],
-              [ requirement_clause ], ":", suite_body ;
+              [ method_where_clause ], [ requirement_clause ], ":", suite_body ;
+
+method_where_clause = "where", where_bound, { ",", where_bound } ;
+where_bound = identifier, "<", supertrait_bounds ;
 
 associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
                        [ "=", type ], NEWLINE ;
@@ -656,7 +665,7 @@ associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
 11. r[grammar.trait.method-receiver] A function member whose first parameter is a receiver (`self`, `mut self`, `&self`, or `&mut self`) is a method; a receiverless member is an associated function.
 12. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
 13. r[grammar.trait.associated-type.bound] Only a trait's associated type declaration may name bounds after `<`. Bounds in an implementation's declaration are an error. Error: `syntax-error`.
-14. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
+14. r[grammar.impl.inline-bounds.v2] Generic implementations state every bound of their own parameters inline in their generic parameter list. The one separate bound clause is a method's `method_where_clause`, which bounds the parameters of the trait or implementation around the method ([Method Bounds On Enclosing Parameters](09-traits.md#method-bounds-on-enclosing-parameters)).
 15. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 16. r[grammar.impl.by-no-trait] `impl T by Structure`, without a trait, declares a derivation block with no trait, as [Derivation Blocks With No Trait](14-annotations.md#derivation-blocks-with-no-trait) defines.
 17. r[grammar.impl.by-no-trait.other] In a header without a trait, `by` followed by any other name is a semantic error, not a grammar error, as [`trait.by.no-trait`](09-traits.md#r-trait.by.no-trait) defines.
@@ -984,7 +993,7 @@ A lifetime may stand among a named type's arguments, as in `Parser[string, 'a]`.
 ### Row Operators
 
 1. r[grammar.type.row.plus-only] `+` is the only row operator: it joins keys into one row.
-2. r[grammar.type.row.plus-rows-only] `+` has no bound meaning; several bounds on one type are joined with `&`, as in `T < A & B`.
+2. r[grammar.type.row.plus-marker] Outside a row, `+` appears only before the marker of a crossing parameter's type, by [`grammar.fn.crossing-parameter`](#r-grammar.fn.crossing-parameter). Several bounds on one type are joined with `&`, as in `T < A & B`.
 3. r[grammar.type.row.no-subtraction] A `-` between requirement keys, as in the former `$ R - K`, is an error. Error: `syntax-error`.
 4. r[grammar.type.row.extension] Removing a key from a callback row is written by extension instead, as [Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism) specifies.
 

@@ -1,0 +1,18 @@
+# test: a guard cannot mutably borrow the local a match reads when its value is not copied, even in an arm that binds nothing
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.matched.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn clear(x: &mut (Photo?)) -> bool:
+    *x = .None
+    false
+
+fn changed(n: Photo?) -> u32:
+    let mut x = n
+    match x:
+        .Some(_) if clear(&mut x) => 1 # diagnostic: conflicting-access
+        .Some(p) => p.width
+        .None => 0

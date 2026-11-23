@@ -2,10 +2,9 @@
 (module
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
@@ -60,7 +59,7 @@
     local.get $ctx
     if
       local.get $ctx
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
   )
   (func $"impl Probes.reborrow" (param $value i32) (result i32)
@@ -70,47 +69,21 @@
     local.get $value
     call $"impl Probes.same"
   )
-  (func $"impl Probes.captured_copy" (param $t0 i32) (param $t1 i32) (result i32 i32) (local $value i32) (local $t2 i32)
+  (func $"impl Probes.captured_copy" (param $value.0 i32) (param $value.1 i32) (result i32 i32) (local $t0 i32)
     ;; 53 |         fn() -> usize:
-    i32.const 8
-    i32.const 1
-    call $rt:new/class-1
-    local.tee $value
-    local.get $t0
-    i32.store $heap
-    local.get $value
-    local.get $t1
-    i32.store $heap offset=4
     i32.const 5
-    local.get $value
-    i32.load $heap
-    local.set $t0
-    local.get $value
-    i32.load $heap offset=4
-    local.set $t1
     i32.const 8
     i32.const 1
     call $rt:new/class-1
-    local.tee $t2
-    local.get $t0
+    local.tee $t0
+    local.get $value.0
     i32.store $heap
-    local.get $t2
-    local.get $t1
+    local.get $t0
+    local.get $value.1
     i32.store $heap offset=4
-    local.get $t2
+    local.get $t0
     call $rt:retain_fields
-    local.get $value
-    if
-      local.get $value
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $value
-        call $rt:release_ref'2
-      end
-    end
-    local.get $t2
+    local.get $t0
   )
   (func $"impl Probes.new_object" (param $value.0 i32) (param $value.1 i32) (result i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t0 i32)
     ;; 47 |         borrowed := &(value + "!")
@@ -169,7 +142,7 @@
       local.tee $value.0
       if
         local.get $value.0
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
     local.get $value.1

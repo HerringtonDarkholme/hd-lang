@@ -328,9 +328,11 @@ impl Parser<'_> {
         if self.at(TokenKind::Bang) && self.nth_glued(0) {
             self.bump();
         }
+        self.declared_generics.clear();
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Function);
         }
+        let own = std::mem::take(&mut self.declared_generics);
         if self.at(TokenKind::LParen) {
             self.param_list(Params::Function);
         } else {
@@ -338,6 +340,9 @@ impl Parser<'_> {
         }
         if self.eat(TokenKind::Arrow) {
             self.ty_result();
+        }
+        if self.at_word("where") {
+            self.where_clause(owner, &own);
         }
         if self.at(TokenKind::Dollar) {
             self.requirement_clause();
@@ -355,6 +360,51 @@ impl Parser<'_> {
             self.expected("':' and a function body");
         }
         self.complete(marker, SyntaxKind::FnDecl);
+    }
+
+    /// `where T < A & B, U < C`: bounds on the enclosing trait's or
+    /// implementation's parameters (`trait.where.clause`). Each subject
+    /// must be one of those parameters, never the method's `own` nor
+    /// `Self` (`trait.where.subject.error`).
+    fn where_clause(&mut self, owner: Owner, own: &[String]) {
+        let marker = self.start();
+        self.bump(); // where
+        loop {
+            let bound = self.start();
+            let at = self.pos();
+            let name = self.nth_text(0).to_owned();
+            let message = if owner == Owner::Free {
+                Some("a `where` clause bounds the parameters of the trait or implementation around a method; write a function's bounds inline, as `fn pick[T < Ord](value: T)`".to_owned())
+            } else if self.at(TokenKind::KwSelfType) {
+                Some("a `where` clause bounds the parameters of the trait or implementation around the method, not `Self`".to_owned())
+            } else if own.contains(&name) {
+                Some(format!(
+                    "`{name}` is the method's own parameter: write its bound inline, as `[{name} < ...]`"
+                ))
+            } else if !self.enclosing_generics.contains(&name) {
+                Some(format!(
+                    "`{name}` is not a type parameter of the trait or implementation around the method"
+                ))
+            } else {
+                None
+            };
+            if let Some(message) = message {
+                self.error_at(Code::SyntaxError, at, &message);
+            }
+            if !self.eat(TokenKind::KwSelfType) {
+                self.expect_name("a type parameter name");
+            }
+            if self.at(TokenKind::Lt) {
+                self.bound_list(false, false);
+            } else {
+                self.expected("'<' and a bound after the parameter name");
+            }
+            self.complete(bound, SyntaxKind::WhereBound);
+            if !self.eat(TokenKind::Comma) {
+                break;
+            }
+        }
+        self.complete(marker, SyntaxKind::WhereClause);
     }
 
     /// `[ param, ... ]` of a declaration.
@@ -388,6 +438,8 @@ impl Parser<'_> {
                 self.bump();
             }
             let row = self.eat(TokenKind::Dollar);
+            let name = self.nth_text(0).to_owned();
+            self.declared_generics.push(name);
             self.expect_name("a generic parameter name");
             let const_parameter = self.at(TokenKind::Lt)
                 && self.nth(1) == Some(TokenKind::Ident)
@@ -834,9 +886,12 @@ impl Parser<'_> {
     fn trait_decl(&mut self, marker: Marker) {
         self.bump(); // trait
         self.expect_name("a trait name");
+        self.declared_generics.clear();
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Type);
         }
+        let enclosing = std::mem::take(&mut self.declared_generics);
+        let around = std::mem::replace(&mut self.enclosing_generics, enclosing);
         if self.at(TokenKind::Lt) {
             self.bound_list(false, true);
         }
@@ -849,6 +904,7 @@ impl Parser<'_> {
                 self.recover_line();
             }
         }
+        self.enclosing_generics = around;
         self.complete(marker, SyntaxKind::TraitDecl);
     }
 
@@ -905,9 +961,11 @@ impl Parser<'_> {
 
     fn impl_decl(&mut self, marker: Marker) {
         self.bump(); // impl
+        self.declared_generics.clear();
         if self.at(TokenKind::LBracket) {
             self.generic_params(Generics::Impl);
         }
+        let enclosing = std::mem::take(&mut self.declared_generics);
         // A negative implementation, `impl !Copy for T`.
         let negative = self.eat(TokenKind::Bang);
         if matches!(
@@ -942,9 +1000,11 @@ impl Parser<'_> {
         } else {
             Owner::InherentImpl
         };
+        let around = std::mem::replace(&mut self.enclosing_generics, enclosing);
         if self.eat(TokenKind::Colon) {
             self.member_block(false, |p| p.impl_member(owner));
         }
+        self.enclosing_generics = around;
         self.complete(marker, SyntaxKind::ImplDecl);
     }
 

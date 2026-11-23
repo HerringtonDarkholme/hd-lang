@@ -1,0 +1,31 @@
+# @dump: wat
+# @build: std
+# @helper: std/rt_tests.stage_case/Token.take
+# `take` moves `this`, whose type has a `Drop` hook, into `let mut held`
+# and writes a field of it, so the drop at `take`'s end gives the hook
+# the written value: `held` owns what it holds. A field write into a
+# value whose hook reads it is no count-neutral store, so `held` is no
+# binding that borrows `this` (#2320).
+use std.rt.Drop
+
+let drops: usize = 0
+
+struct Token:
+    id: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        drops = drops + self.id
+
+impl Token:
+    # subject
+    fn take(this: Token) -> usize:
+        let mut held = this
+        id := held.id
+        held.id = 0
+        id
+
+fn taken() -> usize:
+    Token::take(Token { id: 5 }) + drops

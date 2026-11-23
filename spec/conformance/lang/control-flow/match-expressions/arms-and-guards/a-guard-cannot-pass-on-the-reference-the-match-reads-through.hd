@@ -1,0 +1,10 @@
+# test: a guard cannot pass on the `&mut` reference a match reads through, which borrows the matched place again
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.matched.
+fn bump(x: &mut i32) -> bool:
+    *x = *x + 1
+    false
+
+fn changed(r: &mut i32) -> i32:
+    match *r:
+        1 if bump(r) => 1 # diagnostic: conflicting-access
+        other => other

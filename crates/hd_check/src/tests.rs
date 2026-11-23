@@ -10,6 +10,7 @@
 //! runner (`case_runner`).
 
 use hd_base::HashSet;
+use hd_types::AdtId;
 
 use hd_base::{DefId, StageResult};
 use hd_diag::{Code, DiagBuf};
@@ -26,7 +27,7 @@ use crate::expr::literal_text;
 
 /// The stable panic categories (`flow.panic.known-categories`), which an
 /// `expect_panic` option must name.
-pub const PANIC_CATEGORIES: [&str; 19] = [
+pub const PANIC_CATEGORIES: [&str; 20] = [
     "assertion-failed",
     "borrow-conflict",
     "explicit-panic",
@@ -45,6 +46,7 @@ pub const PANIC_CATEGORIES: [&str; 19] = [
     "suspension-forbidden-context",
     "suspension-invalid-state",
     "suspension-reentrant-poll",
+    "thread-stopped",
     "time-limit",
 ];
 
@@ -440,6 +442,8 @@ fn too_complex_case(
         lifetimes: Vec::new(),
         fn_lifetimes: Vec::new(),
         paths: Vec::new(),
+        wheres: Vec::new(),
+        crossing: Vec::new(),
     };
     let item = Item::new(
         def,
@@ -553,6 +557,8 @@ fn check_case(
         lifetimes: Vec::new(),
         fn_lifetimes: Vec::new(),
         paths: Vec::new(),
+        wheres: Vec::new(),
+        crossing: Vec::new(),
     };
     let item = Item::new(
         def,
@@ -612,10 +618,10 @@ pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
         mutable: false,
         counted: true,
     });
-    pool.intern_ty(&TyData::Adt {
-        def: cx.names.item("std.core", "Result"),
-        args: pool.list(&[Ty::VOID, error]),
-    })
+    pool.intern_ty(&TyData::Adt(
+        AdtId::Declared(cx.names.item("std.core", "Result")),
+        pool.list(&[Ty::VOID, error]),
+    ))
 }
 
 /// The std body that a test case of registration function `def` runs. Its
@@ -657,10 +663,10 @@ struct RegCall<'t> {
 /// (`std-testing.option.timeout-any-duration`).
 pub(crate) fn timeout_ty(cx: &BodyCx<'_>) -> Ty {
     let pool = cx.names.pool;
-    let duration = pool.intern_ty(&TyData::Adt {
-        def: cx.names.item("std.time", "Duration"),
-        args: TyList::EMPTY,
-    });
+    let duration = pool.intern_ty(&TyData::Adt(
+        AdtId::Declared(cx.names.item("std.time", "Duration")),
+        TyList::EMPTY,
+    ));
     pool.applied(cx.names.known.option, duration)
 }
 
@@ -758,6 +764,8 @@ fn check_registration(
         lifetimes: Vec::new(),
         fn_lifetimes: Vec::new(),
         paths: Vec::new(),
+        wheres: Vec::new(),
+        crossing: Vec::new(),
     };
     let item = Item::new(
         def,

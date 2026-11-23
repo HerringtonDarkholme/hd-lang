@@ -8,28 +8,32 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $names (param $xs i32) (result i32 i32)
+  (func $names (param $xs i32) (result i32 i32 i32) (local $t0 i32)
     ;; 9 |     xs.iter()
     local.get $xs
     i32.load $heap
     local.tee $xs
+    i32.load $heap offset=4
+    local.set $t0
+    local.get $xs
     call $rt:retain_coll
     local.get $xs
     i32.const 0
+    local.get $t0
   )
-  (func $count_long (param $self i32) (result i32) (local $xs i32) (local $t0 i32) (local $n i32) (local $t1 i32)
+  (func $count_long (param $self i32) (result i32) (local $xs i32) (local $t0 i32) (local $n i32) (local $t2 i32) (local $t1 i32)
     ;; 12 |     let n: usize = 0
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 32
+    i32.const 40
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 32
+    i32.const 40
     i32.sub
     local.tee $t0
     global.set $stack
@@ -46,7 +50,14 @@
     local.get $xs
     i32.load $heap
     local.tee $self
+    i32.load $heap offset=4
+    local.set $t1
+    local.get $self
     call $rt:retain_coll
+    local.get $self
+    i32.const 0
+    local.set $self
+    local.set $t2
     local.get $xs
     if
       local.get $xs
@@ -72,11 +83,14 @@
     i32.add
     local.tee $xs
     ;; 13 |     for x in names(&xs):
-    local.get $self
+    local.get $t2
     i32.store $heap
     local.get $xs
-    i32.const 0
+    local.get $self
     i32.store $heap offset=4
+    local.get $xs
+    local.get $t1
+    i32.store $heap offset=8
     block
       loop
         local.get $xs
@@ -130,7 +144,7 @@
     local.get $n
     ;; 12 |     let n: usize = 0
     local.get $t0
-    i32.const 32
+    i32.const 40
     i32.add
     global.set $stack
   )

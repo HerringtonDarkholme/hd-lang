@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# expected: indexed removal is remove; remove_at is no longer a List or UniqList method.
+use std.collections.UniqList
+
+fn old_name() -> i32:
+    values := [1, 2]
+    values.remove_at(0)
+
+fn old_unique_name() -> i32:
+    let mut values: UniqList[i32] = UniqList::new()
+    values.remove_at(0)

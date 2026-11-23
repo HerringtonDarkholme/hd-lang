@@ -755,6 +755,70 @@ fn shared!(p: *mut Counter) -> i32 $ Clock:
 
 See also: [`ref.convert.lend.loan`](#r-ref.convert.lend.loan), the loan a `*mut T` takes where it converts to `&mut T` or `&T`.
 
+### Frozen Loans
+
+A local reference that a crossing closure captures is a **frozen loan**:
+until its crossing's lifetime ends, nothing writes the place it refers
+to, not even an element store:
+
+```text
+use std.marker.Send
+
+struct Player:
+    score: i32
+
+fn total['s](players: &'s List[Player], code: fn() -> i32 + Send & 's) -> i32:
+    code()
+
+fn demo(players: List[Player]) -> i32:
+    first := &players[0]
+    total(&players, fn() -> i32: first.score)   # first is frozen until 's ends
+```
+
+1. r[ref.frozen.definition] A local reference that a crossing closure captures is a frozen loan of the place it refers to.
+2. r[ref.frozen.lifetime] A frozen loan is live until the lifetime that its crossing parameter's marker bound names ends, whatever its last use.
+3. r[ref.frozen.no-lifetime] A crossing closure for a parameter whose marker bound names no lifetime captures no local reference. Error: `local-reference-escapes`.
+4. r[ref.frozen.write] While a frozen loan is live, a write to its place or to an overlapping place is an error. A store to an element counts, unlike [`ref.elem.access.live-length`](#r-ref.elem.access.live-length). Error: `conflicting-access`.
+5. r[ref.frozen.alias] Where the place is reached through a counted reference, the frozen loan holds that object's run-time loan as a shared loan until the lifetime ends. A write through an alias then panics. Panic: `borrow-conflict`.
+6. r[ref.frozen.alias.lender] That run-time loan stays with the thread that lent the reference: it begins and ends there, never on the thread that runs the closure.
+
+```text
+use std.marker.Send
+
+struct Player:
+    score: i32
+
+struct Scope['s]:
+    done: &'s mut List[i32]
+
+impl['s] Scope['s]:
+    fn spawn(&mut self, code: fn() -> i32 + Send & 's) -> void:
+        self.done.push(code())
+
+fn keep(code: fn() -> i32 + Send) -> i32:
+    code()
+
+fn demo(players: List[Player]) -> usize:
+    let mut all = players
+    let mut done: List[i32] = []
+    let mut s = Scope { done: &mut done }
+    first := &all[0]
+    s.spawn(fn() -> i32: first.score)
+    all[0].score = 9                        # error: conflicting-access
+    s.spawn(fn() -> i32: 0)
+    _ := keep(fn() -> i32: first.score)     # error: local-reference-escapes
+    done.len()
+```
+
+> **Why.** A thread that reads a place while another writes it races.
+> Rust's `thread::scope` lends the place for the scope, and the join ends
+> the loan; a frozen loan is that loan. Only a `&T` whose `T` is `Send`
+> crosses ([Markers](10-modules.md#markers)), and no box is `Send`, so a
+> thread never meets a run-time loan's state.
+
+See also: [Crossing Closures](07-functions.md#crossing-closures),
+[Element References](#element-references).
+
 ### Lifetime Variables
 
 A **lifetime variable** `'a`, written after `&`, names the lifetime of a local reference. The reference positions that write one variable share its lifetime:
@@ -1562,14 +1626,15 @@ fn demo(r: &Vec2) -> f64:
 1. r[ref.read.auto] A field read or a method call on a reference applies to the value it refers to: `r.x` reads the field `x` of that value, and `r.len2()` calls `len2` on it.
 2. r[ref.read.auto.levels] The read goes through every reference level, `&`, `&mut`, `*`, and `*mut` alike: with `x: &*mut User`, `x.name` reads `(*(*x)).name`, and `x.describe()` calls `describe` on the `User`.
 3. r[ref.read.auto.method-level] A method call stops at the first level whose referent has the method itself, as Rust's auto-deref does: with `x: &*T` and an `impl Display for *T`, `x.to_string()` calls that impl's method.
-4. r[ref.read.auto.write] A field write or a `&mut self` call through several levels needs only the last level to be writable, as `(*x).f = v` does by [`ref.read.shallow`](#r-ref.read.shallow): `x.age = 1` is valid with `x: &*mut User` and an error with `x: &mut *User`. Error: `not-writable`.
-5. r[ref.read.auto.explicit] Only field access and method calls read through every level. A condition, a cast, a range bound, `?`, a spread, and a call of a function value keep an explicit `*`.
-6. r[ref.deref.read] `*r` reads the whole value `r` refers to. The result is a copy.
-7. r[ref.deref.kinds] `*r` reads through a counted and a local reference alike.
-8. r[ref.deref.not-reference] `*e` on a value that is not a reference is an error. Error: `type-mismatch`.
-9. r[ref.read.type] A read through a writable reference, `*mut T` or `&mut T`, has type `T`, and the value it reaches is a writable place.
-10. r[ref.read.shallow] A read through a read-only reference, `*T` or `&T`, keeps its declared type; the reference makes only the value it refers to read-only.
-11. r[ref.read.index.declared] An index on a reference to a list, map, or string reads an element of the referenced value.
+4. r[ref.read.auto.by-value] Before it reads through a reference of type `R`, a method call takes a method of `R`'s own whose receiver is `self`, unless the referent's method of that name has the receiver type `R` itself: `&self` for `&T`, `&mut self` for `&mut T`, `*self` for `*T`, and `*mut self` for `*mut T`. This is Rust's probe order, which tries the receiver's type by value before it reads through it. With an `impl Walk for &mut Cursor` whose `rest(self)` walks the cursor, `(&mut c).rest()` calls that method on the reference and walks `c` itself, not a copy of it.
+5. r[ref.read.auto.write] A field write or a `&mut self` call through several levels needs only the last level to be writable, as `(*x).f = v` does by [`ref.read.shallow`](#r-ref.read.shallow): `x.age = 1` is valid with `x: &*mut User` and an error with `x: &mut *User`. Error: `not-writable`.
+6. r[ref.read.auto.explicit] Only field access and method calls read through every level. A condition, a cast, a range bound, `?`, a spread, and a call of a function value keep an explicit `*`.
+7. r[ref.deref.read] `*r` reads the whole value `r` refers to. The result is a copy.
+8. r[ref.deref.kinds] `*r` reads through a counted and a local reference alike.
+9. r[ref.deref.not-reference] `*e` on a value that is not a reference is an error. Error: `type-mismatch`.
+10. r[ref.read.type] A read through a writable reference, `*mut T` or `&mut T`, has type `T`, and the value it reaches is a writable place.
+11. r[ref.read.shallow] A read through a read-only reference, `*T` or `&T`, keeps its declared type; the reference makes only the value it refers to read-only.
+12. r[ref.read.index.declared] An index on a reference to a list, map, or string reads an element of the referenced value.
 
 With `Team { name: string, lead: *mut User }` and `t: &Team`:
 
@@ -1840,7 +1905,7 @@ fn demo() -> void:
 3. r[ref.elem.access.live-length] While an access lasts, nothing may change the collection, or a place that holds it, other than by a store to one of its elements. Reads of the collection, and stores to its elements, the referenced one included, stay valid.
 4. r[ref.elem.access.length] While a binding that holds an element reference is live ([`ref.excl.live`](#r-ref.excl.live)), a change of its collection or of a place that holds it is an error, and so is a `&mut` of another element of it. Error: `conflicting-access`.
    - The collection is a place that [`ref.excl.place`](#r-ref.excl.place) covers, so it may be reached through a `&mut` parameter.
-   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove_at`, `pop`, `clear` and `reserve` do, or an assignment of a whole value to it, as in `xs = []`.
+   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove`, `pop`, `clear` and `reserve` do, or an assignment of a whole value to it, as in `xs = []`.
    - A map's `remove` is one, and so is a map store of a key other than the referenced one.
    - Two keys are one key when both are one constant or reads of one `:=` binding.
 5. r[ref.elem.access.mut] While a binding that holds a `&mut` element reference is live, any use of its collection or of a place that holds it is an error: a copy, a `&` of it, a `len()` or another method call. So is any other reference into the collection, `&` or `&mut`, at any index. A read of another element or a store to one stays valid. Error: `conflicting-access`.
@@ -1856,7 +1921,7 @@ following to the collection, or to a place that holds it:
 | Rule | The argument or receiver | Example |
 | --- | --- | --- |
 | r[ref.elem.conflict.reference] Reference | takes `&mut` of it | `record(&mut scores, &mut scores[0])` |
-| r[ref.elem.conflict.method] Method call | calls a `&mut self` method on it | `place(&mut scores[0], scores.remove_at(1))` |
+| r[ref.elem.conflict.method] Method call | calls a `&mut self` method on it | `place(&mut scores[0], scores.remove(1))` |
 
 > **Why.** This is Swift's Law of Exclusivity, and for a `&mut` element
 > reference Rust's borrow rules. A conflict is caught at compile time

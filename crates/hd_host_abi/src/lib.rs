@@ -281,6 +281,17 @@ pub static TABLE: &[HostTrait] = &[
         )],
     },
     HostTrait {
+        key: "Workers",
+        std_path: "std.remote.Workers",
+        methods: &[m(
+            "send",
+            &[B("List[u8]")],
+            B("Result[List[u8], CrossError]"),
+            Wait::May,
+            None,
+        )],
+    },
+    HostTrait {
         key: "Net",
         std_path: "std.net.Net",
         methods: &[
@@ -384,9 +395,18 @@ pub static TABLE: &[HostTrait] = &[
 ];
 
 /// The test runner's host traits (§16.4, `docs/compiler/engines-and-test-runner.md` §19;
-/// `std-testing.runner.declares-ref.reference-values`): imported from `hd:<Key>` like a
-/// capability, but no grant names them.
+/// `std-testing.runner.declares-ref.reference-values`), and a worker instance's
+/// (`std-remote.workers.port`): imported from `hd:<Key>` like a capability,
+/// but no grant names them.
 pub static RUNNERS: &[HostTrait] = &[
+    HostTrait {
+        key: "WorkerPort",
+        std_path: "std.remote.WorkerPort",
+        methods: &[
+            m("next", &[], B("List[u8]?"), Wait::Never, None),
+            m("reply", &[B("List[u8]")], V, Wait::Never, None),
+        ],
+    },
     HostTrait {
         key: "TestRunner",
         std_path: "std.testing.TestRunner",
@@ -580,6 +600,13 @@ pub const RUNTIME_IMPORTS: &[(&str, &str)] = &[
     ("hd:rt", "panic"),
     ("hd:rt", "fact"),
     ("hd:rt", "hash_seed"),
+    // A program that starts threads (`module.rt.thread.heap`): its shared
+    // heap, a memory, the start of each thread, and a task's wait for one
+    // to end (`module.rt.thread.running`).
+    ("hd:rt", "heap"),
+    ("hd:rt", "thread_spawn"),
+    ("hd:rt", "thread_watch.start"),
+    ("hd:rt", "thread_watch.finish"),
 ];
 
 /// The host primitives, imports of module `hd:prim`: the std intrinsics

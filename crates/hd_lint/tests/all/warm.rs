@@ -67,10 +67,7 @@ fn a_warm_lint_run_replays_its_findings_with_the_same_lookups_at_ten_times_the_m
     let mut warm = Vec::new();
     for modules in [100, 1_000] {
         let mut sources = MemorySources::named(&format!("lint-warm-{modules}"));
-        sources.insert(
-            "main.hd",
-            "pub fn main() -> void:\n    unread := +1\n    pass\n",
-        );
+        sources.insert("main.hd", include_str!("programs/unread_main.hd"));
         for i in 0..modules {
             sources.insert(
                 &format!("m{i}.hd"),
@@ -94,7 +91,7 @@ fn a_warm_lint_run_replays_its_findings_with_the_same_lookups_at_ten_times_the_m
         assert_eq!(out.render(), cold.render());
         warm.push((gets, bytes));
         // An edit misses and is linted again.
-        sources.insert("main.hd", "pub fn main() -> void:\n    pass\n");
+        sources.insert("main.hd", include_str!("programs/empty_main.hd"));
         let (_, _, edited) = lint(&sources, &store);
         assert_eq!(edited.counters.hit("package"), 0);
         assert!(

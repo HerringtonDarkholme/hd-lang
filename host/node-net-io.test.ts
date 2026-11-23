@@ -36,6 +36,7 @@ async function heldLookupHost(testContext: TestContext): Promise<Dynamic> {
     "output.ts",
     "output-worker.ts",
     "worker-control.ts",
+    "workers.ts",
     "checked-report.ts",
     "float.ts",
     "journal.ts",

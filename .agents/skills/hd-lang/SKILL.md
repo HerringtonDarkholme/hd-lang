@@ -124,8 +124,8 @@ Types and values:
 - A struct, list, map and string are values: assigning or passing one
   copies it. `&mut x` lends a variable to one call; `box(value)` makes a
   shared object.
-- There is no `null` and no `unwrap()`: use `match`, `?`,
-  `unwrap_or(fallback)` or `expect("why")`.
+- There is no `null`: use `T?`. `unwrap()` panics on failure; use `match`, `?`,
+  `unwrap_or(fallback)` or `expect("why")` for the behavior you need.
 - An unused `Result` or optional is an error: discard it with `_ := expr`.
 
 Requirements:

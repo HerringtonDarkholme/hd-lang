@@ -1,3 +1,27 @@
 # comment comment comment comment comment comment comment comment comment comment comment comment comment comment comment comment comment comment comment comment   
 fn f():
     "literal literal literal literal literal literal literal literal literal literal literal literal literal literal literal literal literal literal literal literal "
+# comments and literal contents stay exact even when long
+# aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  
+fn f():
+    literal := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  "
+    short()  # aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  
+fn f():
+    "${the_first_descriptive_parameter_name + the_second_descriptive_parameter_name + the_third_descriptive_parameter_name}"
+# an inline argument comment and a multi-line literal keep their text
+fn f():
+    consume(the_first_descriptive_parameter_name, the_second_descriptive_parameter_name, the_third_descriptive_parameter_name, # attached  
+        fn(value):
+            use_value(value)
+    )
+fn f():
+    consume(the_first_descriptive_parameter_name, the_second_descriptive_parameter_name, the_third_descriptive_parameter_name, """alpha
+  literal indentation
+end""")
+# a required comma keeps an unsplittable literal exact, one column past the width
+fn f():
+    consume(
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    )
+# the file's last comment keeps its trailing spaces and gains a line end
+# markdown  

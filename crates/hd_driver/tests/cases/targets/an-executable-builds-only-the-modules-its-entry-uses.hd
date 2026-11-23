@@ -1,0 +1,26 @@
+# @dump: stdout
+# @main: src/main.hd
+# @entry: server
+# An executable parses and checks only the modules its entry reaches
+# through `use` (B1): `src/db.hd` has a type error, and only the `server`
+# executable uses it, so `main` still builds and runs.
+use pkg.users.greeting
+use std.console.Console
+
+pub fn main() -> void $ Console:
+    println(greeting())
+
+# @file: src/users.hd
+pub fn greeting() -> string:
+    "hi"
+
+# @file: src/db.hd
+pub fn query() -> i32:
+    "not an int"
+
+# @file: src/server.hd
+use pkg.db.query
+use std.console.Console
+
+pub fn main() -> void $ Console:
+    println("${query()}")

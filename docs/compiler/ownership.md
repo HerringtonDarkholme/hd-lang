@@ -218,7 +218,11 @@ for a baseline; the verifier makes them checked.
   Where the cell lives is unobservable, so a cell no escaping closure
   shares is a frame slot or a value. A suspending closure's environment
   lives as long as the frame that holds it, so it escapes when the frame
-  does.
+  does. A copied capture lives in its environment, so a reference to it
+  in the closure's body roots no storage of the creator's local. A
+  crossing closure's body runs at most once, so it takes its captures
+  from its environment, which then owns none (`sub_flags::ONCE`, as
+  Rust's `FnOnce` takes its closure).
 - **Suspension frames**
   ([Suspending Functions](../../spec/lang/11-requirements-and-suspension.md#suspending-functions)).
   A frame holds the live values at each point. By-value arguments move

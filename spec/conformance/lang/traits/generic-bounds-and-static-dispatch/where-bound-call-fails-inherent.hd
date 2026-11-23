@@ -1,0 +1,14 @@
+# test: a call of an inherent method whose where bound the type argument fails is an error at the call
+# Spec 09 Method Bounds On Enclosing Parameters: trait.where.call.
+trait Rank:
+    fn rank(self) -> i32
+
+struct Shelf[T]:
+    item: T
+
+impl[T] Shelf[T]:
+    fn item_rank(self) -> i32 where T < Rank:
+        self.item.rank()
+
+fn shelf_rank(shelf: Shelf[string]) -> i32:
+    shelf.item_rank() # diagnostic: unsatisfied-trait-bound

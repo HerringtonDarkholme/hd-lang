@@ -1,5 +1,5 @@
-# test: min and max return the first argument when two distinguishable values compare equal
-# Spec std/cmp Min And Max: std-cmp.min-max.tie, std-cmp.min-max.result; lists order lexicographically (expr.ord.std.sequences).
+# test: when two distinguishable values compare equal, min returns the first argument and max the second
+# Spec std/cmp Min And Max: std-cmp.min-max.tie.v2, std-cmp.min-max.result; lists order lexicographically (expr.ord.std.sequences).
 use std.cmp.{max, min}
 # Ordered by `rank` only, so two entries can be equal and still differ.
 struct Entry:
@@ -21,13 +21,13 @@ impl Ord for Entry:
 tests:
     use std.testing.assert_equal
 
-    it("the first of two equal values is the result"):
+    it("min keeps the first of two equal values and max the second"):
         first := Entry { rank: 1, label: "first" }
         second := Entry { rank: 1, label: "second" }
         assert_equal(min(first, second).label, "first", reason="min")
-        assert_equal(max(first, second).label, "first", reason="max")
+        assert_equal(max(first, second).label, "second", reason="max")
         assert_equal(min(second, first).label, "second", reason="min with the arguments swapped")
-        assert_equal(max(second, first).label, "second", reason="max with the arguments swapped")
+        assert_equal(max(second, first).label, "first", reason="max with the arguments swapped")
 
     it("min and max order lists lexicographically"):
         assert_equal(min([2, 1], [1, 9]), [1, 9], reason="the first element decides")

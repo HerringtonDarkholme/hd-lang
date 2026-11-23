@@ -1,3 +1,4 @@
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # std.ops: the operator and index traits, the range types with their
 # slicing and iteration implementations, the stdlib `Default` trait
 # (spec/std/ops.md), and the literal-suffix and string-prefix markers
@@ -661,3 +662,44 @@ impl[S] Source[S] for DefaultSource[S]:
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
         panic("the default source names every member")
+
+impl[T < Integer] DoubleEndedIterator[T] for RangeIter[T]:
+    fn next_back(&mut self) -> T?:
+        if self.done:
+            return .None
+        value := if self.inclusive: self.end else: self.end - T::one()
+        if value == self.at:
+            self.done = true
+        else:
+            self.end = if self.inclusive: value - T::one() else: value
+        .Some(value)
+
+impl[T < Integer] RangeIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+
+impl ExactSizeIterator[i8] for RangeIter[i8]:
+    fn len(&self) -> usize:
+        if self.done:
+            return 0
+        usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)
+
+impl ExactSizeIterator[u8] for RangeIter[u8]:
+    fn len(&self) -> usize:
+        if self.done:
+            return 0
+        usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)
+
+impl ExactSizeIterator[i16] for RangeIter[i16]:
+    fn len(&self) -> usize:
+        if self.done:
+            return 0
+        usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)
+
+impl ExactSizeIterator[u16] for RangeIter[u16]:
+    fn len(&self) -> usize:
+        if self.done:
+            return 0
+        usize(i64(self.end) - i64(self.at)) + (if self.inclusive: 1 else: 0)

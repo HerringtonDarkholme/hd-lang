@@ -95,3 +95,31 @@ impl string:
     @intrinsic("string_to_bytes")
     pub fn to_utf8(self) -> List[u8]:
         panic("intrinsic")
+
+# The inline and cold decorators, here in std's leaf layer so runtime
+# modules can use them (r-annot.inline.declared.v2); `std.annotation`
+# re-exports all four names. The compiler recognizes `inline` and `cold` by
+# their qualified names and checks their targets itself
+# (r-annot.inline.targets).
+## How the compiler copies calls of a function: `.Auto` prefers a copy,
+## `.Always` asks for one at every call, `.Never` copies none.
+## See [annot.inline.recognized](../../../spec/lang/14-annotations.md#r-annot.inline.recognized).
+pub enum InlineHint:
+    Auto
+    Always
+    Never
+
+## The `@inline` decorator: a bare `@inline` is `@inline(.Auto)`.
+## See [annot.inline.recognized](../../../spec/lang/14-annotations.md#r-annot.inline.recognized).
+pub fn inline(hint: InlineHint = .Auto) -> InlineHint:
+    hint
+
+## Marks a function unlikely to be called: never copied, and called through
+## the function table.
+## See [annot.inline.cold](../../../spec/lang/14-annotations.md#r-annot.inline.cold).
+pub struct Cold: pass
+
+## The `@cold` decorator.
+## See [annot.inline.cold](../../../spec/lang/14-annotations.md#r-annot.inline.cold).
+pub fn cold() -> Cold:
+    Cold {}

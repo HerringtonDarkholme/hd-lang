@@ -1,0 +1,11 @@
+# test: a Send crossing closure that reaches an immutable top-level box is rejected
+# Spec 07 Crossing Closures: fn.crossing.global.send.
+use std.marker.Send
+
+fn spawn[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+shared := box(+0)
+
+fn demo() -> i32:
+    spawn(fn() -> i32: *shared) # diagnostic: crossing-top-level-binding

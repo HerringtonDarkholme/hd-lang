@@ -46,9 +46,6 @@ pub(crate) fn mark(chunks: &mut [Chunk], at: u32) {
 }
 
 fn active(section: &mut DataSection, bytes: &[u8], range: Range<usize>) {
-    if range.is_empty() {
-        return;
-    }
     // ruled out: Module allocated the original segment in 32-bit memory.
     let offset = crate::emit::required(u32::try_from(range.start).ok(), "static data offset fits");
     section.active(
@@ -64,8 +61,16 @@ fn active(section: &mut DataSection, bytes: &[u8], range: Range<usize>) {
 /// The heap-zero segment header is at most 13 bytes (flags, i32.const
 /// opcode and signed offset, end, and u32 payload length); leave smaller holes to avoid many tiny segments.
 pub(crate) fn section(bytes: &[u8], chunks: &[Chunk], visit: &mut impl FnMut()) -> DataSection {
-    let mut original = DataSection::new();
-    active(&mut original, bytes, 0..bytes.len());
+    write(bytes, &segments(bytes, chunks, visit), false)
+}
+
+/// The ranges of `bytes` that [`section`] initializes, in address order.
+pub(crate) fn segments(
+    bytes: &[u8],
+    chunks: &[Chunk],
+    visit: &mut impl FnMut(),
+) -> Vec<Range<usize>> {
+    let whole = std::iter::once(0..bytes.len()).collect::<Vec<_>>();
     let mut cuts: Vec<Range<usize>> = Vec::new();
     for chunk in chunks {
         visit();
@@ -83,24 +88,39 @@ pub(crate) fn section(bytes: &[u8], chunks: &[Chunk], visit: &mut impl FnMut()) 
     // No profitable range means no candidate encoding or byte comparison.
     cuts.retain(|cut| cut.len() > 13);
     if cuts.is_empty() {
-        return original;
+        return whole;
     }
-    let mut candidate = DataSection::new();
+    let mut kept = Vec::with_capacity(cuts.len() + 1);
     let mut start = 0;
     for cut in cuts {
-        active(&mut candidate, bytes, start..cut.start);
+        kept.push(start..cut.start);
         start = cut.end;
     }
-    active(&mut candidate, bytes, start..bytes.len());
-    let mut old = Vec::new();
-    original.encode(&mut old);
-    let mut new = Vec::new();
-    candidate.encode(&mut new);
-    if new.len() < old.len() {
-        candidate
+    kept.push(start..bytes.len());
+    let size = |ranges: &[Range<usize>]| {
+        let mut out = Vec::new();
+        write(bytes, ranges, false).encode(&mut out);
+        out.len()
+    };
+    if size(&kept) < size(&whole) {
+        kept
     } else {
-        original
+        whole
     }
+}
+
+/// The segments of `ranges`: active at their addresses, or passive, for a
+/// shared heap that only its first instance fills (`module.rt.thread.heap`).
+pub(crate) fn write(bytes: &[u8], ranges: &[Range<usize>], passive: bool) -> DataSection {
+    let mut section = DataSection::new();
+    for range in ranges.iter().filter(|r| !r.is_empty()) {
+        if passive {
+            section.passive(bytes[range.clone()].iter().copied());
+        } else {
+            active(&mut section, bytes, range.clone());
+        }
+    }
+    section
 }
 
 #[cfg(test)]

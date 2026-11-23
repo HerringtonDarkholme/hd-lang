@@ -153,16 +153,16 @@ not built yet. The requirements are in
 A serializable closure is code you can send somewhere else and run there,
 with the values it captured. Three uses motivate it:
 
-- **As RPC.** Send a function to the service that holds the data, rather than
-  pulling the data back to the caller.
+- **As RPC.** Call a method of the service that holds the data, rather than
+  pulling the data back to the caller; only the call's arguments travel.
 - **As a thread.** Run a closure on another thread, with the type checker
   making sure what it captured is safe to move.
 - **As a worker script.** Ship a closure to a worker, such as a browser Web
   Worker or an edge function, as its program.
 
-**Status.** Not built. The specification defers it: today a closure can't be
-saved or restored ([`fn.capture.serializable-deferred`](../../spec/lang/07-functions.md)).
-The design options are in [PR #1139](https://github.com/HerringtonDarkholme/hd-lang/pull/1139):
-named code with copied data, portable closures placed by requirement rows,
-typed crossing contracts, or `Send`-style threads. They wait on the owner's
-choice, so this page shows no syntax for them yet.
+**Status.** Specified, not built yet (#2288). A closure written for a
+crossing parameter, `fn!() -> T + Wire` or `+ Send`, copies or moves what it
+captures ([Crossing Closures](../../spec/lang/07-functions.md#crossing-closures)),
+and a service another target calls is a `Remote` trait
+([Execution Domains](../../spec/lang/10-modules.md#execution-domains)).
+Until the compiler implements them, this page shows no examples.

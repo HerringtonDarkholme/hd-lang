@@ -1,0 +1,3 @@
+@derive(Debug)
+pub struct Other:
+    pub value: i64

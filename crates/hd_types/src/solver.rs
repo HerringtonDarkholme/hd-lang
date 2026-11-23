@@ -7,6 +7,8 @@
 //! fuel charged per proof node); the projection goal is still not
 //! implemented (the checker normalizes).
 
+use crate::ANON_SUM;
+use crate::AdtId;
 use hd_base::SliceSort as _;
 use hd_base::{HashMap, HashSet};
 use std::collections::BTreeMap;
@@ -549,11 +551,16 @@ impl ImplUniverses {
 pub enum HeadKey {
     Ctor(DefId),
     Prim(Prim),
-    Tuple(u16),
+    Tuple(u32),
     TupleAny,
     UnionAny,
     Fn,
     SuspendFn,
+    /// A reference by its kind, `mutable | counted << 1`: an impl for
+    /// `&mut I` is a candidate only for a `&mut` receiver, as rustc's
+    /// `SimplifiedType::Ref` and `Ptr` key it (`ref.read.auto.by-value`
+    /// probes a reference's own impls on every call through one).
+    Ref(u8),
     Param,
     Any,
 }
@@ -563,15 +570,22 @@ impl HeadKey {
     #[must_use]
     pub fn of(pool: Types<'_>, t: Ty) -> HeadKey {
         match pool.get(t) {
-            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => HeadKey::Ctor(def),
-            TyData::Prim(p) => HeadKey::Prim(p),
-            TyData::Tuple { elems, rest: None } => {
-                HeadKey::Tuple(u16::try_from(pool.list_items(elems).len()).expect("arity"))
+            TyData::Adt(ANON_SUM, _) => HeadKey::UnionAny,
+            TyData::Adt(AdtId::Product { rest: true }, _) => HeadKey::TupleAny,
+            TyData::Adt(AdtId::Product { rest: false }, args) => {
+                // ruled out: the interned list stores its member count as u32.
+                HeadKey::Tuple(u32::try_from(pool.list_items(args).len()).expect("list length"))
             }
-            TyData::Tuple { rest: Some(_), .. } => HeadKey::TupleAny,
-            TyData::Union(_) => HeadKey::UnionAny,
+            TyData::Adt(AdtId::Declared(def), _) | TyData::TraitValue { def, .. } => {
+                HeadKey::Ctor(def)
+            }
+            TyData::Prim(p) => HeadKey::Prim(p),
+
             TyData::Fn { suspends: true, .. } => HeadKey::SuspendFn,
             TyData::Fn { .. } => HeadKey::Fn,
+            TyData::Ref {
+                mutable, counted, ..
+            } => HeadKey::Ref(u8::from(mutable) | u8::from(counted) << 1),
             TyData::Param(_) | TyData::Opaque { .. } => HeadKey::Param,
             _ => HeadKey::Any,
         }
@@ -585,13 +599,14 @@ impl HeadKey {
         let (tag, payload) = match self {
             HeadKey::Ctor(d) => (1, d.raw()),
             HeadKey::Prim(p) => (2, u32::from(p as u8)),
-            HeadKey::Tuple(n) => (3, u32::from(n)),
+            HeadKey::Tuple(n) => (3, n),
             HeadKey::TupleAny => (4, 0),
             HeadKey::UnionAny => (5, 0),
             HeadKey::Fn => (6, 0),
             HeadKey::SuspendFn => (7, 0),
             HeadKey::Param => (8, 0),
             HeadKey::Any => (9, 0),
+            HeadKey::Ref(kind) => (10, u32::from(kind)),
         };
         (tag << 32) | u64::from(payload)
     }
@@ -701,36 +716,35 @@ fn member_goal(
     }
 }
 
-/// [`tuple_goals`] or [`union_goals`].
-type MemberGoals = fn(Types<'_>, DefId, &[MemberStep], Ty, u16) -> Vec<(u16, TraitRef)>;
-
-/// The member goals of a tuple template's plan at the tuple `tuple`, each
+/// The member goals of a positional template's plan at `target`, each
 /// with its step index, numbered from `first` in the order the steps and
-/// the members come (§3.9). A tuple type that is not a tuple asks none.
+/// the members come (§3.9). Other target shapes ask none.
 #[must_use]
-pub fn tuple_goals(
+pub fn positional_goals(
     pool: Types<'_>,
     template: DefId,
     steps: &[MemberStep],
-    tuple: Ty,
+    target: Ty,
     first: u16,
 ) -> Vec<(u16, TraitRef)> {
-    let TyData::Tuple { elems, rest } = pool.get(tuple) else {
+    let parts = match pool.get(target) {
+        TyData::Adt(ANON_SUM, args) => Some((pool.list_items(args), None)),
+        _ => pool.product_parts(target),
+    };
+    let Some((elems, rest)) = parts else {
         return Vec::new();
     };
-    let elems = pool.list_items(elems);
     // The item type of a rest element `List[I]`.
-    let item = rest.and_then(|r| match pool.get(r) {
-        TyData::Adt { args, .. } => match pool.list_items(args) {
+    let item = rest
+        .and_then(|r| pool.adt(r))
+        .and_then(|(_, args)| match pool.list_items(args) {
             [i] => Some(*i),
             _ => None,
-        },
-        _ => None,
-    });
+        });
     let mut out = Vec::new();
     let ask = |member: Ty, step: &MemberStep, out: &mut Vec<(u16, TraitRef)>| {
         let at = first.saturating_add(u16::try_from(out.len()).unwrap_or(u16::MAX));
-        out.push((at, member_goal(pool, template, step, tuple, member)));
+        out.push((at, member_goal(pool, template, step, target, member)));
     };
     for step in steps {
         match step.on {
@@ -754,32 +768,6 @@ pub fn tuple_goals(
     out
 }
 
-/// The member goals of a union template's plan at `union`. Each positional
-/// case contributes its one payload type, in case order.
-#[must_use]
-pub fn union_goals(
-    pool: Types<'_>,
-    template: DefId,
-    steps: &[MemberStep],
-    union: Ty,
-    first: u16,
-) -> Vec<(u16, TraitRef)> {
-    let TyData::Union(members) = pool.get(union) else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    for step in steps {
-        if step.on != MemberOn::Elements {
-            continue;
-        }
-        for &member in pool.list_items(members) {
-            let at = first.saturating_add(u16::try_from(out.len()).unwrap_or(u16::MAX));
-            out.push((at, member_goal(pool, template, step, union, member)));
-        }
-    }
-    out
-}
-
 /// Fills the impl parameters that `Bind` steps fix from the projections
 /// of parameters the head fixed; a projection that is not concrete yet
 /// leaves its target as it was.
@@ -791,6 +779,52 @@ pub fn apply_binds(
     args: &mut [Option<Ty>],
 ) {
     apply_binds_in(pool, impls, t, row, args, &mut Reads::default());
+}
+
+/// Binds the parameters of impl `owner` in head patterns `pats` to the
+/// parts of `goals` they stand for, with selection's own head match
+/// (§3.4); a part that does not match binds nothing more. For callers
+/// that already know the impl: the checker's instantiation graph, and a
+/// choice the checker recorded. Cost: one visit per distinct pair of
+/// pattern and goal nodes, shared by all of `pats`.
+pub fn bind_head(
+    pool: Types<'_>,
+    owner: DefId,
+    pats: &[Ty],
+    goals: &[Ty],
+    binds: &mut Vec<Option<Ty>>,
+) {
+    let node = MatchNode::List(pool.list(pats), pool.list(goals));
+    match_nodes(pool, owner, node, binds);
+}
+
+/// The arguments of impl `row` of `t` at a goal it answers, as
+/// [`Solver::select`] returns them in [`Selection::Impl`]: the head
+/// bound from `self_ty` and the trait arguments, then the parameters its
+/// `Bind` steps fix. `None` while one stays unfixed. The goal's function
+/// types carry no dependencies (erased before monomorphization), so the
+/// head is erased to match them.
+#[must_use]
+pub fn impl_args(
+    pool: Types<'_>,
+    impls: Impls<'_>,
+    t: &ImplTable,
+    row: usize,
+    self_ty: Ty,
+    trait_args: &[Ty],
+) -> Option<Vec<Ty>> {
+    let head = pool.erase_fn_deps_list(t.head_args[row]);
+    let pats = [
+        &[pool.erase_fn_deps(t.head_self[row])],
+        pool.list_items(head),
+    ]
+    .concat();
+    let goals = [&[self_ty], trait_args].concat();
+    let mut binds = Vec::new();
+    bind_head(pool, t.def[row], &pats, &goals, &mut binds);
+    binds.resize(usize::from(t.n_params[row]).max(binds.len()), None);
+    apply_binds(pool, impls, t, row, &mut binds);
+    binds.into_iter().collect()
 }
 
 fn apply_binds_in(
@@ -1756,6 +1790,8 @@ pub enum BuiltinImpl {
     FnMut,
     /// `Copy` (`ref.copy.structure`), from the type's parts.
     Copy,
+    /// A marker (`module.marker.structural`), from the type's parts.
+    Marker,
 }
 
 /// What a `Holds` answer carries (§8.1).
@@ -1995,10 +2031,7 @@ fn fold_node<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
         (d, _) => d,
     };
     let d = match d {
-        TyData::Adt { def, args } => TyData::Adt {
-            def,
-            args: fold_list(pool, args, leaves)?,
-        },
+        TyData::Adt(def, args) => TyData::Adt(def, fold_list(pool, args, leaves)?),
         TyData::Opaque {
             owner,
             site,
@@ -2012,14 +2045,7 @@ fn fold_node<E>(pool: Types<'_>, t: Ty, leaves: &mut Leaves<'_, E>) -> Result<Ty
             args: fold_list(pool, args, leaves)?,
             bound: fold_vars(pool, bound, leaves)?,
         },
-        TyData::Tuple { elems, rest } => TyData::Tuple {
-            elems: fold_list(pool, elems, leaves)?,
-            rest: match rest {
-                Some(r) => Some(fold_vars(pool, r, leaves)?),
-                None => None,
-            },
-        },
-        TyData::Union(members) => TyData::Union(fold_list(pool, members, leaves)?),
+
         TyData::Ref {
             inner,
             mutable,
@@ -2401,7 +2427,7 @@ fn match_head(
     match (pool.get(pat), pool.get(t)) {
         (_, TyData::Poison) => M::Yes,
         (_, TyData::Infer(_)) => M::Maybe,
-        (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
+        (TyData::Adt(d1, a1), TyData::Adt(d2, a2)) if d1 == d2 => {
             match_parts([MatchNode::List(a1, a2)], true, stack)
         }
         // An impl for a reference covers only its own kind
@@ -2418,31 +2444,7 @@ fn match_head(
                 counted: c2,
             },
         ) if m1 == m2 && c1 == c2 => match_parts([MatchNode::Ty(p, x)], true, stack),
-        (
-            TyData::Tuple {
-                elems: e1,
-                rest: None,
-            },
-            TyData::Tuple {
-                elems: e2,
-                rest: None,
-            },
-        ) => match_parts([MatchNode::List(e1, e2)], true, stack),
-        (
-            TyData::Tuple {
-                elems: e1,
-                rest: Some(r1),
-            },
-            TyData::Tuple {
-                elems: e2,
-                rest: Some(r2),
-            },
-        ) => match_parts(
-            [MatchNode::List(e1, e2), MatchNode::Ty(r1, r2)],
-            true,
-            stack,
-        ),
-        (TyData::Union(a), TyData::Union(b)) => match_parts([MatchNode::List(a, b)], true, stack),
+
         (
             TyData::Fn {
                 params: p1,
@@ -2673,21 +2675,14 @@ pub fn row_goals(
 ) -> Vec<(u16, TraitRef)> {
     let mut goals = plan_goals(pool, t, row, args);
     // A template's member goals: one per element or union member.
-    let members: Option<MemberGoals> = match t.origin[row] {
-        ImplOrigin::TupleTemplate => Some(tuple_goals),
-        ImplOrigin::UnionTemplate => Some(union_goals),
-        ImplOrigin::Written
-        | ImplOrigin::Derived { .. }
-        | ImplOrigin::Delegated { .. }
-        | ImplOrigin::Error
-        | ImplOrigin::NumericFamily => None,
-    };
-    if let Some(members) = members
-        && let Some(&target) = args.first()
+    if matches!(
+        t.origin[row],
+        ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate
+    ) && let Some(&target) = args.first()
         && let Some(steps) = impls.tuple_plan(t.def[row])
     {
         let first = u16::try_from(t.plan[row].len()).unwrap_or(u16::MAX);
-        goals.extend(members(pool, t.def[row], &steps, target, first));
+        goals.extend(positional_goals(pool, t.def[row], &steps, target, first));
     }
     goals
 }
@@ -3191,8 +3186,10 @@ impl<'s, 'a> Search<'s, 'a> {
             ) {
                 let fits = matches!(
                     (t.origin[r], pool.get(self_ty)),
-                    (ImplOrigin::TupleTemplate, TyData::Tuple { .. })
-                        | (ImplOrigin::UnionTemplate, TyData::Union(_))
+                    (
+                        ImplOrigin::TupleTemplate,
+                        TyData::Adt(AdtId::Product { .. }, _)
+                    ) | (ImplOrigin::UnionTemplate, TyData::Adt(ANON_SUM, _))
                 );
                 if fits {
                     yes.push((at, vec![self_ty], t));
@@ -3258,6 +3255,50 @@ impl<'s, 'a> Search<'s, 'a> {
         // match a goal with no open variable exist only beside an overlap
         // error (§5.4): the first in content order is taken.
         let open_goal = pool.has_infer(self_ty) || goal_args.iter().any(|a| pool.has_infer(*a));
+        // A marker with no explicit impl for this head answers from the
+        // type's parts (`module.marker.structural`); a part with an
+        // explicit impl is left to it (`module.marker.explicit.only`).
+        let sealed = *self.cx.decls.sealed();
+        let walk = sealed.walk_of(tref.trait_);
+        if yes.is_empty()
+            && maybes == 0
+            && goal_args.is_empty()
+            && sealed.is_marker(self.cx.decls, pool, tref.trait_)
+            && !matches!(pool.get(self_ty), TyData::Param(_) | TyData::Infer(_))
+            // A std marker judges an opaque or projected type by its leaf
+            // rule; a library marker has no answer for one.
+            && (!matches!(walk, crate::sealed::Walk::Library(_))
+                || !matches!(pool.get(self_ty), TyData::Opaque { .. } | TyData::Assoc { .. }))
+        {
+            let reads = std::cell::RefCell::new(Reads::default());
+            let explicit = |w: crate::sealed::Walk, t: Ty| {
+                crate::sealed::explicit_answer(&sealed, w, t, &mut |m, t| {
+                    !reads
+                        .borrow_mut()
+                        .candidates(impls, pool, m, t, &[], false)
+                        .is_empty()
+                })
+            };
+            let cx = &mut *self.cx;
+            let row = crate::sealed::marker_row(
+                pool,
+                cx.decls,
+                walk,
+                self_ty,
+                &mut cx.body_memo.copies,
+                &explicit,
+            );
+            let reads = reads.into_inner();
+            if reads.seen.dir && key.universe.is_none() {
+                return Err(NotImplemented::bug(
+                    Stage::Body,
+                    "a marker walk read the candidate directory, but its memo key has no impl universe",
+                ));
+            }
+            self.read(&reads);
+            let (o, h) = self.supplied(key, cg, tref.trait_, row, depth, root)?;
+            return Ok((o, h.saturating_add(heads)));
+        }
         if yes.is_empty() && maybes == 0 && !pool.has_infer(self_ty) {
             let fails = Answer::Fails(Box::new(FailInfo {
                 leaf: cg,
@@ -3352,8 +3393,9 @@ impl<'s, 'a> Search<'s, 'a> {
     }
 
     /// A compiler-supplied row's answer (§3.9): its subgoals, each on the
-    /// same trait one level deeper, in order; the first that does not hold
-    /// decides, as a committed impl's bound plan does (§3.6).
+    /// same trait one level deeper, then a `Send` row's on `Sync`, in
+    /// order; the first that does not hold decides, as a committed impl's
+    /// bound plan does (§3.6).
     fn supplied(
         &mut self,
         key: &MemoKey,
@@ -3374,13 +3416,21 @@ impl<'s, 'a> Search<'s, 'a> {
                 }));
                 return Ok(self.leaf(key, root, fails));
             }
-            Row::Holds(b, subs) => (b, subs),
+            Row::Holds(b, subs) => (b, subs.into_iter().map(|t| (trait_, t)).collect::<Vec<_>>()),
+            Row::HoldsWithSync(b, subs, syncs) => {
+                let sync = self.cx.decls.sealed().sync;
+                let subs = subs.into_iter().map(|t| (trait_, t));
+                (
+                    b,
+                    subs.chain(syncs.into_iter().map(|t| (sync, t))).collect(),
+                )
+            }
         };
         if !self.charge(key, 0, root) {
             return Ok((Outcome::leaf(Answer::OutOfFuel), 0));
         }
         let mut height = 1;
-        for self_ty in subs {
+        for (trait_, self_ty) in subs {
             let sub = TraitRef {
                 trait_,
                 self_ty,
@@ -3558,14 +3608,10 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>, seen: &mut Hash
         let start = stack.len();
         match pool.get(t) {
             TyData::Infer(v) => out.push(v),
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => {
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => {
                 stack.extend_from_slice(pool.list_items(args));
             }
-            TyData::Tuple { elems, rest } => {
-                stack.extend_from_slice(pool.list_items(elems));
-                stack.extend(rest);
-            }
-            TyData::Union(members) => stack.extend_from_slice(pool.list_items(members)),
+
             TyData::Ref { inner, .. } => stack.push(inner),
             TyData::Fn { params, result, .. } => {
                 stack.extend_from_slice(pool.list_items(params));
@@ -3747,9 +3793,7 @@ impl Search<'_, '_> {
             // Impl heads match the rest below.
             TyData::Prim(_)
             | TyData::Never
-            | TyData::Adt { .. }
-            | TyData::Tuple { .. }
-            | TyData::Union(_)
+            | TyData::Adt(..)
             | TyData::Fn { .. }
             | TyData::Const(_)
             | TyData::Assoc { .. }
@@ -3774,8 +3818,10 @@ impl Search<'_, '_> {
             ) {
                 let fits = matches!(
                     (t.origin[r], pool.get(self_ty)),
-                    (ImplOrigin::TupleTemplate, TyData::Tuple { .. })
-                        | (ImplOrigin::UnionTemplate, TyData::Union(_))
+                    (
+                        ImplOrigin::TupleTemplate,
+                        TyData::Adt(AdtId::Product { .. }, _)
+                    ) | (ImplOrigin::UnionTemplate, TyData::Adt(ANON_SUM, _))
                 );
                 if fits {
                     matched.push((at, t, None));
@@ -3821,11 +3867,8 @@ impl Search<'_, '_> {
                 let goals = impls
                     .tuple_plan(t.def[r])
                     .map(|steps| match t.origin[r] {
-                        ImplOrigin::TupleTemplate => {
-                            tuple_goals(pool, t.def[r], &steps, self_ty, first)
-                        }
-                        ImplOrigin::UnionTemplate => {
-                            union_goals(pool, t.def[r], &steps, self_ty, first)
+                        ImplOrigin::TupleTemplate | ImplOrigin::UnionTemplate => {
+                            positional_goals(pool, t.def[r], &steps, self_ty, first)
                         }
                         _ => Vec::new(),
                     })
@@ -4316,6 +4359,19 @@ pub(crate) fn has_rows_at(rows: &HashMap<u64, Vec<DefId>>, codes: [Option<u64>; 
 
 #[cfg(test)]
 mod tests {
+    use crate::AdtId;
+    #[test]
+    fn tuple_head_keys_keep_arities_above_u16_distinct() {
+        let pool = InternPool::new();
+        for count in [65_535u32, 65_536, 65_537] {
+            let ty = pool.product(pool.list(&vec![Ty::I32; count as usize]), None);
+            assert_eq!(
+                super::HeadKey::of(pool.types(), ty),
+                super::HeadKey::Tuple(count)
+            );
+        }
+    }
+
     #[test]
     fn whole_key_indexes_are_shared_and_unrelated_state_does_not_rebuild_them() {
         let memo = super::GlobalMemo::default();
@@ -4409,12 +4465,12 @@ mod tests {
         }
     }
 
-    use super::RegionObligations;
     use super::{
         BodyMemo, ConcreteTraitRef, GlobalMemo, Goal, GoalKind, HeadKey, ImplOrigin, ImplTable,
         ImplUniverses, M, MemoEntry, MemoKey, MemoKind, ParamEnv, SolveCx, Solver, TableSolver,
         TraitRef, canonicalize, match_ty,
     };
+    use super::{RegionObligations, bind_head};
     use crate::pool::{
         InternPool, LocalPool, Prim, RowData, RowParamRef, Ty, TyData, TyList, Types,
     };
@@ -4442,15 +4498,9 @@ mod tests {
                     })
                     .collect();
                 for depth in [100, 1_000] {
-                    let mut t = pool.intern_ty(&TyData::Tuple {
-                        elems: pool.list(&[vars[1], vars[0], vars[1]]),
-                        rest: None,
-                    });
+                    let mut t = pool.product(pool.list(&[vars[1], vars[0], vars[1]]), None);
                     for _ in 0..depth {
-                        t = pool.intern_ty(&TyData::Tuple {
-                            elems: pool.list(&[t, t]),
-                            rest: None,
-                        });
+                        t = pool.product(pool.list(&[t, t]), None);
                     }
                     let root = pool.intern_ty(&TyData::Fn {
                         params: pool.list(&[t]),
@@ -4644,12 +4694,7 @@ mod tests {
                 let owner = DefId::from_raw(1);
                 let param = p.intern_ty(&TyData::Param(crate::ParamRef { owner, index: 0 }));
                 let var = InferTable::default().fresh(p, VarKind::General);
-                let tuple = |x, n| {
-                    p.intern_ty(&TyData::Tuple {
-                        elems: p.list(&vec![x; n]),
-                        rest: None,
-                    })
-                };
+                let tuple = |x, n| p.product(p.list(&vec![x; n]), None);
                 for depth in [100, 1000] {
                     for (leaf, goal, answer) in [
                         (param, Ty::BOOL, M::Yes),
@@ -4716,15 +4761,18 @@ mod tests {
                             mutable: false,
                             counted: true,
                         },
-                        1 => TyData::Adt {
-                            def: DefId::from_raw(2),
-                            args: p.list(&[t]),
-                        },
-                        2 => TyData::Union(p.list(&[t, Ty::BOOL])),
-                        3 => TyData::Tuple {
-                            elems: p.list(&[Ty::BOOL]),
-                            rest: Some(t),
-                        },
+                        1 => TyData::Adt(AdtId::Declared(DefId::from_raw(2)), p.list(&[t])),
+                        2 => TyData::sum(p.list(&[t, Ty::BOOL])),
+                        3 => TyData::Adt(
+                            AdtId::Product { rest: true },
+                            p.list(
+                                &p.list_items(p.list(&[Ty::BOOL]))
+                                    .iter()
+                                    .copied()
+                                    .chain([t])
+                                    .collect::<Vec<_>>(),
+                            ),
+                        ),
                         4 => TyData::Fn {
                             params: p.list(&[t]),
                             result: Ty::BOOL,
@@ -4806,12 +4854,7 @@ mod tests {
         let p = Types::with_local(&gp, &lp);
         let owner = DefId::from_raw(1);
         let param = |index| p.intern_ty(&TyData::Param(crate::ParamRef { owner, index }));
-        let tuple = |xs: &[Ty], rest| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(xs),
-                rest,
-            })
-        };
+        let tuple = |xs: &[Ty], rest| p.product(p.list(xs), rest);
         let row = |params| {
             p.row(&RowData {
                 keys: Vec::new(),
@@ -4891,6 +4934,39 @@ mod tests {
     }
 
     #[test]
+    fn bind_head_binds_members_and_rests_and_walks_shared_roots_once() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let owner = DefId::from_raw(1);
+        let param = |index| p.intern_ty(&TyData::Param(crate::ParamRef { owner, index }));
+        let union = p.intern_ty(&TyData::sum(p.list(&[param(0), param(1)])));
+        let goal = p.intern_ty(&TyData::sum(p.list(&[Ty::STRING, Ty::I32])));
+        let mut binds = Vec::new();
+        bind_head(p, owner, &[union], &[goal], &mut binds);
+        assert_eq!(binds, [Some(Ty::STRING), Some(Ty::I32)], "member positions");
+        let tuple = |rest| p.product(p.list(&[Ty::I32]), Some(rest));
+        binds.clear();
+        bind_head(p, owner, &[tuple(param(0))], &[tuple(Ty::BOOL)], &mut binds);
+        assert_eq!(binds, [Some(Ty::BOOL)], "a rest with no fixed occurrence");
+        // A receiver and a trait argument that share a deep head: the one
+        // walk visits each distinct pair once.
+        let (mut a, mut b) = (param(0), Ty::I32);
+        for _ in 0..1000 {
+            a = p.product(p.list(&[a, a]), None);
+            b = p.product(p.list(&[b, b]), None);
+        }
+        binds.clear();
+        let ((), work) =
+            crate::work::count_type_nodes(|| bind_head(p, owner, &[a, a], &[b, b], &mut binds));
+        assert_eq!(binds, [Some(Ty::I32)]);
+        assert_eq!(
+            work,
+            2 * 1000 + 2,
+            "the root list, then one depth-1000 walk"
+        );
+    }
+
+    #[test]
     fn data_row_parameter_matches_a_concrete_row() {
         let gp = InternPool::new();
         let p = gp.types();
@@ -4954,10 +5030,7 @@ mod tests {
         let v0 = t2.fresh(p2, VarKind::General);
         let g = |p: Types<'_>, v| TraitRef {
             trait_: eq,
-            self_ty: p.intern_ty(&TyData::Adt {
-                def: list,
-                args: p.list(&[v]),
-            }),
+            self_ty: p.intern_ty(&TyData::Adt(AdtId::Declared(list), p.list(&[v]))),
             args: TyList::EMPTY,
         };
         let (a, _) = canonicalize(p1, GoalKind::Implements, g(p1, v3), false, None);
@@ -4980,12 +5053,7 @@ mod tests {
         let mut table = InferTable::default();
         let (w, show) = (DefId::from_raw(1), DefId::from_raw(2));
         let vars: Vec<Ty> = (0..9).map(|_| table.fresh(p, VarKind::General)).collect();
-        let adt = |args: &[Ty]| {
-            p.intern_ty(&TyData::Adt {
-                def: w,
-                args: p.list(args),
-            })
-        };
+        let adt = |args: &[Ty]| p.intern_ty(&TyData::Adt(AdtId::Declared(w), p.list(args)));
         let goal = |self_ty: Ty, args: &[Ty]| TraitRef {
             trait_: show,
             self_ty,
@@ -5144,12 +5212,7 @@ mod tests {
         for (i, m) in (0u32..).zip(mods) {
             owners.insert(m, f(i));
         }
-        let adt = |def| {
-            g.intern_ty(&TyData::Adt {
-                def,
-                args: TyList::EMPTY,
-            })
-        };
+        let adt = |def| g.intern_ty(&TyData::Adt(AdtId::Declared(def), TyList::EMPTY));
         let (recv_ty, prod_ty) = (adt(receiver), adt(product));
         let mut t = ImplTable::default();
         let def = DefId::from_raw(paths.intern(mods[1], PathKind::Impl, "Pick").raw());
@@ -5297,10 +5360,7 @@ mod tests {
         for (i, m) in (0u32..).zip(mods) {
             owners.insert(m, f(i));
         }
-        let thing_ty = g.intern_ty(&TyData::Adt {
-            def: thing,
-            args: TyList::EMPTY,
-        });
+        let thing_ty = g.intern_ty(&TyData::Adt(AdtId::Declared(thing), TyList::EMPTY));
         let row = |m: PathId, self_ty: Ty| {
             let mut t = ImplTable::default();
             let def = DefId::from_raw(paths.intern(m, PathKind::Impl, "Tag").raw());
@@ -5460,12 +5520,7 @@ mod tests {
         );
         let mut owners = OwnerMap::default();
         owners.insert(base, FolderId::from_raw(0));
-        let adt = |def, args: &[Ty]| {
-            g.intern_ty(&TyData::Adt {
-                def,
-                args: g.list(args),
-            })
-        };
+        let adt = |def, args: &[Ty]| g.intern_ty(&TyData::Adt(AdtId::Declared(def), g.list(args)));
         let param = g.intern_ty(&TyData::Param(ParamRef {
             owner: imp,
             index: 0,
@@ -5571,10 +5626,7 @@ mod tests {
     }
 
     fn adt(p: Types<'_>, def: DefId, args: &[Ty]) -> Ty {
-        p.intern_ty(&TyData::Adt {
-            def,
-            args: p.list(args),
-        })
+        p.intern_ty(&TyData::Adt(AdtId::Declared(def), p.list(args)))
     }
 
     fn param(p: Types<'_>, owner: DefId, index: u16) -> Ty {
@@ -6787,6 +6839,7 @@ mod tests {
                 list: DefId::NONE,
                 map: DefId::NONE,
                 suspend: id(24),
+                ..Default::default()
             },
             kinds: vec![
                 (id(21), super::TypeDecl::Enum),
@@ -6856,10 +6909,7 @@ mod tests {
         let global = GlobalMemo::default();
         let id = DefId::from_raw;
         let ask = |tr, t| builtin_of(&ask_row(p, &decls, &env, &global, on(tr, t)));
-        let pair = p.intern_ty(&TyData::Tuple {
-            elems: p.list(&[Ty::I32, Ty::STRING]),
-            rest: None,
-        });
+        let pair = p.product(p.list(&[Ty::I32, Ty::STRING]), None);
         let point = adt(p, id(20), &[]);
         let color = adt(p, id(21), &[]);
         let mile = adt(p, id(22), &[]);
@@ -6970,10 +7020,7 @@ mod tests {
         let decls = sealed_decls(p);
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
-        let unit = p.intern_ty(&TyData::Tuple {
-            elems: TyList::EMPTY,
-            rest: None,
-        });
+        let unit = p.product(TyList::EMPTY, None);
         let a = ask_row(p, &decls, &env, &global, on(5, unit));
         assert_eq!(builtin_of(&a), Some(super::BuiltinImpl::Tuple));
         let a = ask_row(p, &decls, &env, &global, on(6, unit));
@@ -7013,12 +7060,7 @@ mod tests {
             inputs: crate::pool::Inputs::Fixed,
             deps: crate::pool::FnDeps::NONE,
         });
-        let tuple = |elems: &[Ty]| {
-            p.intern_ty(&TyData::Tuple {
-                elems: p.list(elems),
-                rest: None,
-            })
-        };
+        let tuple = |elems: &[Ty]| p.product(p.list(elems), None);
         let reference = |inner, counted| {
             p.intern_ty(&TyData::Ref {
                 inner,
@@ -7352,10 +7394,7 @@ mod tests {
     }
 
     fn tuple(p: Types<'_>, elems: &[Ty], rest: Option<Ty>) -> Ty {
-        p.intern_ty(&TyData::Tuple {
-            elems: p.list(elems),
-            rest,
-        })
+        p.product(p.list(elems), rest)
     }
 
     /// §3.9, `annot.template.tuple.implements` and `.unmet`: a tuple
@@ -7512,7 +7551,7 @@ mod tests {
     /// concrete tuple or union for `T` in the step arguments.
     #[test]
     fn member_steps_substitute_the_member_and_the_anonymous_target() {
-        use super::{MEMBER_PARAM, MemberOn, MemberStep, tuple_goals, union_goals};
+        use super::{MEMBER_PARAM, MemberOn, MemberStep, positional_goals};
         let gp = InternPool::new();
         let p = gp.types();
         let (template, tr) = (DefId::from_raw(7), DefId::from_raw(8));
@@ -7522,7 +7561,7 @@ mod tests {
             args: p.list(&[param(p, template, MEMBER_PARAM), param(p, template, 0)]),
         };
         let pair = tuple(p, &[Ty::I32, Ty::STRING], None);
-        let goals = tuple_goals(p, template, std::slice::from_ref(&step), pair, 1);
+        let goals = positional_goals(p, template, std::slice::from_ref(&step), pair, 1);
         let got: Vec<(u16, Ty, Vec<Ty>)> = goals
             .iter()
             .map(|(i, g)| (*i, g.self_ty, p.list_items(g.args).to_vec()))
@@ -7534,9 +7573,9 @@ mod tests {
                 (2, Ty::STRING, vec![Ty::STRING, pair])
             ]
         );
-        assert!(tuple_goals(p, template, &[], Ty::I32, 0).is_empty());
-        let union = p.intern_ty(&TyData::Union(p.list(&[Ty::I32, Ty::STRING])));
-        let goals = union_goals(p, template, &[step], union, 3);
+        assert!(positional_goals(p, template, &[], Ty::I32, 0).is_empty());
+        let union = p.intern_ty(&TyData::sum(p.list(&[Ty::I32, Ty::STRING])));
+        let goals = positional_goals(p, template, &[step], union, 3);
         assert_eq!(goals[0].0, 3);
         assert_eq!(goals[0].1.self_ty, Ty::I32);
         assert_eq!(p.list_items(goals[0].1.args), [Ty::I32, union]);

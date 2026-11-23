@@ -1,0 +1,12 @@
+# test: a counted trait value reference of a trait that does not extend Remote is not Wire
+# Spec 10 Markers: module.marker.table.counted.
+use std.marker.Wire
+
+trait Page:
+    fn show(&mut self, text: string) -> void
+
+fn post[T < Wire](value: T) -> void:
+    pass
+
+fn demo(page: *mut dyn Page) -> void:
+    post(page) # diagnostic: unsatisfied-trait-bound

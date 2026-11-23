@@ -29,7 +29,7 @@ ready
   call it as `read_text!(...)`.
 - A script may make bang calls at top level.
 - A closure that makes bang calls is written `fn!(...)`.
-- Duration suffixes come from `std.time`: `ms`, `s`, `min`, `h`.
+- Duration literals use `ms`, `s`, `min`, `h`; ordinary constructors in `std.time` are `ms`, `s`, `minutes`, `h`.
 
 ## Reading input and files
 

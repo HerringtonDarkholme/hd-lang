@@ -16,7 +16,7 @@ fn by_value(m: Map[string, string]) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %6 -> %10 lend, %14 lend
 >   local $6 k: &string [read assigned] value
->     uses $6: %33 -> %23 lend last
+>     uses $6: %32 -> %23 lend last
 >   local $7 v: &string [read assigned] value
 >     uses $7: %34 -> %25 lend last
 >   %0 = Store [$1] 0:usize : ()
@@ -50,9 +50,9 @@ fn by_value(m: Map[string, string]) -> usize:
 >   %21 = Store [$4] %20 : ()
 >   %30 = Block - : ()
 >   %31 = Read borrow [%18 .0] : &string
->   %32 = Read borrow [%18 .1] : &string
->   %33 = Store [$6] %31 : ()
->   %34 = Store [$7] %32 : ()
+>   %32 = Store [$6] %31 : ()
+>   %33 = Read borrow [%18 .1] : &string
+>   %34 = Store [$7] %33 : ()
 >   %36 = Block - : never
 >   %37 = Match %18 [%36 %30] : ()
 >   %38 = Drop [%18] : ()
@@ -144,7 +144,7 @@ fn keys(m: Map[string, string]) -> List[string]:
 >   local $0 m: Map[string, string] [param read] value
 >     uses $0: entry -> %2 lend, %5 lend, %9 lend, %17 lend
 >   local $1 out: List[string] [read assigned] value
->     uses $1: %1 -> %26 lend, %44 consume last
+>     uses $1: %1 -> %26 lend, %43 consume last
 >   local $3 $len: usize [assigned] value
 >     uses $3: none
 >   local $4 $pos: usize [assigned] place
@@ -154,12 +154,12 @@ fn keys(m: Map[string, string]) -> List[string]:
 >     uses $6: %31 -> %23 lend last
 >   %0 = NewList - [] : List[string]
 >   %1 = Store [$1] %0 : ()
->   %46 = Intrinsic ParamOwned [0:i32] : bool
->   %47 = Drop [$0] : ()
->   %48 = Block - : ()
->   %49 = If %46 [%48 -] : ()
->   %50 = Release %51 Exit local $0 #2 : ()
->   %51 = Block %44 : List[string]
+>   %45 = Intrinsic ParamOwned [0:i32] : bool
+>   %46 = Drop [$0] : ()
+>   %47 = Block - : ()
+>   %48 = If %45 [%47 -] : ()
+>   %49 = Release %50 Exit local $0 #2 : ()
+>   %50 = Block %43 : List[string]
     for (k, _) in m:
 >   %2 = Read borrow [$0] : Map[string, string]
 >   %3 = Intrinsic MapLen [%2] : usize
@@ -186,17 +186,16 @@ fn keys(m: Map[string, string]) -> List[string]:
 >   %29 = Read move [%19 .0] : &string
 >   %30 = Intrinsic Empty [] : ()
 >   %31 = Store [$6] %29 : ()
->   %32 = Release %31 Operation #3 : ()
->   %34 = Block - : never
->   %35 = Match %19 [%34 %28] : ()
->   %36 = Drop [$6] : ()
->   %37 = Drop [%19] : ()
->   %38 = Block - : ()
->   %39 = Break L0 - : never
->   %40 = Block - : ()
->   %41 = If %16 [%38 %40] : ()
->   %42 = Block - : ()
->   %43 = Loop %42 - : ()
+>   %33 = Block - : never
+>   %34 = Match %19 [%33 %28] : ()
+>   %35 = Drop [$6] : ()
+>   %36 = Drop [%19] : ()
+>   %37 = Block - : ()
+>   %38 = Break L0 - : never
+>   %39 = Block - : ()
+>   %40 = If %16 [%37 %39] : ()
+>   %41 = Block - : ()
+>   %42 = Loop %41 - : ()
         out.push(*k)
 >   %23 = Read copy [*$6] : string
 >   %24 = Retain %23 Value #0 : ()
@@ -204,6 +203,6 @@ fn keys(m: Map[string, string]) -> List[string]:
 >   %26 = Read borrow [$1] : List[string]
 >   %27 = Intrinsic ListPush [%26 %23] : ()
     out
->   %44 = Read move [$1] : List[string]
->   %45 = Intrinsic Empty [] : ()
+>   %43 = Read move [$1] : List[string]
+>   %44 = Intrinsic Empty [] : ()
 >   summary kept [] borrows [$0]

@@ -1,0 +1,8 @@
+use std.structure.Structure
+
+struct Hidden:
+    id: i64
+
+@"internal"
+impl Hidden by Structure:
+    id += ["key"]

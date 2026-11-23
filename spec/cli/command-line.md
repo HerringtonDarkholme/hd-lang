@@ -185,6 +185,7 @@ module = "tools.migrate"
 12. r[cli.exe.entry-no-use] A use of an executable's entry module from another module is an error. Error: `unknown-module`.
 13. r[cli.exe.default-name] The default executable is named after the package, the `name` of its `[package]` table, as Cargo names `src/main.rs`.
 14. r[cli.exe.default-name.clash] A task with the package's name therefore clashes with the default executable, by [`cli.task.name-clash`](#r-cli.task.name-clash).
+15. r[cli.exe.reach] A program, an executable's or a task's, checks the bodies of only the modules of the package that its entry reaches through `use`s. A module that only another program reaches is not checked for it, and errors in its bodies do not stop it. Its declarations are still read.
 
 ```toml
 [package]
@@ -311,6 +312,7 @@ profile**, which binds these traits:
 | `Http` | `std.http` | sends each request from the host |
 | `Net` | `std.net` | the host's DNS resolver, and its TCP and UDP sockets |
 | `Sys` | `std.host` | the host's operating system, architecture, host name, and processor count |
+| `Workers` | `std.remote` | runs each crossing in a worker, a second instance of the program's module on a thread of its own |
 
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
 3. r[cli.host.script-binding] When `hd` runs a script, it binds every trait of the default profile, as the [REPL](#repl) does, so the script's top level may use each of them. The script's [capability grant](#capability-grants) still limits the resources they touch.
@@ -377,7 +379,7 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 | `Env` | `std.host.Env` | variable names, or a prefix followed by `*` |
 | `Process` | `std.process.Process` | program names |
 | `Sys` | `std.host.Sys` | method names of `Sys` |
-| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args` | none: only `true` or `false` |
+| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args`, `std.remote.Workers` | none: only `true` or `false` |
 
 1. r[cli.cap.table] The `[capabilities]` table of `hd.toml` sets the grant of each host capability trait that it names.
 2. r[cli.cap.table.keys.with-package-host] Its keys are built-in capability names or quoted package capability paths beginning with `pkg.` or `dep.`.
@@ -1498,7 +1500,7 @@ hd test --time-limit 5s    # each test case gets five seconds
 | Form | Meaning | Examples |
 | --- | --- | --- |
 | SIZE | a whole number of bytes, or a whole number followed by `K`, `M`, or `G`, for 1024, 1024², or 1024³ bytes | `65536`, `256M`, `2G` |
-| DURATION | a whole number followed by `ms`, `s`, `min`, or `h`, the [duration suffixes](../std/time.md#r-std-time.prelude.time-suffixes) | `500ms`, `30s`, `2min` |
+| DURATION | a whole number followed by `ms`, `s`, `min`, or `h`, the [duration suffixes](../std/time.md#r-std-time.duration.constructors) | `500ms`, `30s`, `2min` |
 
 5. r[cli.limit.forms] A SIZE or DURATION value has a form of the table above. Any other value is a usage error.
 
@@ -1514,11 +1516,12 @@ HD_JOBS=4 hd check    # four threads
 
 1. r[cli.jobs] `--jobs N` sets the number of threads that `hd` uses to check, build, format, and run tests. N is a whole number of at least 1.
 2. r[cli.jobs.env] The environment variable `HD_JOBS` sets that number when no flag does.
-3. r[cli.jobs.default] Without either, `hd` uses the number of processor cores, or 8 when there are more.
+3. r[cli.jobs.default] Without either, `hd` uses the processor cores that other processes leave free: the number of cores less the system's 1-minute load average when it starts, rounded, at least 1 and at most 8. Where the system gives no load average, as on Windows, it uses the number of cores, or 8 when there are more.
 4. r[cli.jobs.result] The number of threads changes no diagnostic, test outcome, or output order.
 
-> **Why.** Many agents often run `hd` at once on one machine. A cap of 8
-> keeps them from starving each other.
+> **Why.** Many agents often run `hd` at once on one machine. Sizing each
+> run from the free cores, and capping it at 8, keeps them from starving
+> each other.
 
 ## Workspace Mode
 

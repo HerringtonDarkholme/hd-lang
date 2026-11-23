@@ -1,0 +1,36 @@
+# test: integer limits remain callable as generic function values
+# Spec 09 Numeric Traits: trait.num.integer.min-value, trait.num.integer.max-value.
+# expect: test
+
+use std.num.Integer
+
+fn minimum[N < Integer]() -> N:
+    get := N::min_value
+    get()
+
+fn maximum[N < Integer]() -> N:
+    get := N::max_value
+    get()
+
+tests:
+    use std.testing.assert_equal
+
+    it("limit function values retain their concrete integer type"):
+        assert_equal(minimum::[i8](), -128, reason="i8 minimum function value")
+        assert_equal(maximum::[i8](), 127, reason="i8 maximum function value")
+        assert_equal(minimum::[i16](), -32768, reason="i16 minimum function value")
+        assert_equal(maximum::[i16](), 32767, reason="i16 maximum function value")
+        assert_equal(minimum::[i32](), -2147483648, reason="i32 minimum function value")
+        assert_equal(maximum::[i32](), 2147483647, reason="i32 maximum function value")
+        assert_equal(minimum::[i64](), -9223372036854775808, reason="i64 minimum function value")
+        assert_equal(maximum::[i64](), 9223372036854775807, reason="i64 maximum function value")
+        assert_equal(minimum::[u8](), 0, reason="u8 minimum function value")
+        assert_equal(maximum::[u8](), 255, reason="u8 maximum function value")
+        assert_equal(minimum::[u16](), 0, reason="u16 minimum function value")
+        assert_equal(maximum::[u16](), 65535, reason="u16 maximum function value")
+        assert_equal(minimum::[u32](), 0, reason="u32 minimum function value")
+        assert_equal(maximum::[u32](), 4294967295, reason="u32 maximum function value")
+        assert_equal(minimum::[u64](), 0, reason="u64 minimum function value")
+        assert_equal(maximum::[u64](), 18446744073709551615, reason="u64 maximum function value")
+        assert_equal(minimum::[usize](), 0, reason="usize minimum function value")
+        assert_equal(maximum::[usize](), 4294967295, reason="usize maximum function value")

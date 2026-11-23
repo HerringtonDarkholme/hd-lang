@@ -1,0 +1,9 @@
+# test: a background closure may not borrow, since its thread may outlive the task that awaits it
+# Spec std/thread: std-thread.background.
+use std.thread.background
+
+struct Point:
+    x: i32
+
+fn read!(point: &Point) -> i32:
+    background!(fn() -> i32: point.x) # diagnostic: local-reference-escapes

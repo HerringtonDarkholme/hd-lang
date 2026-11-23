@@ -2357,10 +2357,8 @@ fn holds_local_with(
                 return true;
             }
             TyData::Ref { inner, .. } => (TyList::EMPTY, Some(inner)),
-            TyData::Adt { args, .. } | TyData::TraitValue { args, .. } | TyData::Union(args) => {
-                (args, None)
-            }
-            TyData::Tuple { elems, rest } => (elems, rest),
+            TyData::Adt(_, args) | TyData::TraitValue { args, .. } => (args, None),
+
             _ => continue,
         };
         for &child in pool.list_items(elems) {
@@ -2948,10 +2946,7 @@ mod tests {
             let pool = InternPool::new();
             let mut nested = Ty::I32;
             for _ in 0..depth {
-                nested = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[nested]),
-                    rest: None,
-                });
+                nested = pool.product(pool.list(&[nested]), None);
             }
             let reference = pool.intern_ty(&TyData::Ref {
                 inner: Ty::I32,
@@ -3254,10 +3249,7 @@ mod tests {
         });
         let mut nested = local;
         for _ in 0..64 {
-            nested = pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&[nested]),
-                rest: None,
-            });
+            nested = pool.product(pool.list(&[nested]), None);
         }
         assert!(super::holds_local(&pool, nested));
     }
@@ -3270,7 +3262,7 @@ mod tests {
             mutable: false,
             counted: false,
         });
-        let sum = pool.intern_ty(&TyData::Union(pool.list(&[Ty::I32, local])));
+        let sum = pool.intern_ty(&TyData::sum(pool.list(&[Ty::I32, local])));
         let opaque = pool.intern_ty(&TyData::Opaque {
             owner: DefId::from_raw(1),
             site: 0,
@@ -3307,13 +3299,13 @@ mod tests {
             mutable: true,
             counted: true,
         });
-        let tuple_rest = pool.intern_ty(&TyData::Tuple {
-            elems: hd_types::TyList::EMPTY,
-            rest: Some(pool.intern_ty(&TyData::Adt {
-                def: DefId::from_raw(1),
-                args: pool.list(&[local]),
-            })),
-        });
+        let tuple_rest = pool.product(
+            hd_types::TyList::EMPTY,
+            Some(pool.intern_ty(&TyData::Adt(
+                hd_types::AdtId::Declared(DefId::from_raw(1)),
+                pool.list(&[local]),
+            ))),
+        );
         let function = pool.intern_ty(&TyData::Fn {
             params: pool.list(&[local]),
             result: local,
@@ -3354,10 +3346,7 @@ mod tests {
                 counted: true,
             });
             for _ in 0..depth {
-                nested = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&vec![nested; width]),
-                    rest: None,
-                });
+                nested = pool.product(pool.list(&vec![nested; width]), None);
             }
             let mut work = 0;
             assert!(!super::holds_local_with(&pool, [nested], || work += 1));
@@ -3381,10 +3370,7 @@ mod tests {
             counted: false,
         });
         for _ in 0..20_000 {
-            nested = pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(&[nested]),
-                rest: None,
-            });
+            nested = pool.product(pool.list(&[nested]), None);
         }
         let mut work = 0;
         assert!(super::holds_local_with(&pool, [nested], || work += 1));

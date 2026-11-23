@@ -1,0 +1,16 @@
+# test: a capture that is not Copy moves into the crossing closure, so a later use of its source is rejected
+# Spec 07 Crossing Closures: fn.crossing.mode.move.
+use std.marker.Wire
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn demo(photo: Image) -> u32:
+    small := run(fn() -> u32: photo.width)
+    small + photo.width # diagnostic: use-of-moved-value

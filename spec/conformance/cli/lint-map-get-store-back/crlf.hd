@@ -1,0 +1,12 @@
+fn group(n: i32) -> Map[i32, List[i32]]:
+    let mut m: Map[i32, List[i32]] = {}
+    for i in 0..n:
+        let mut xs = m.get(0).unwrap_or([])
+        xs.push(i)
+        xs.push(i)
+        m[0] = xs
+    for i in 0..n:
+        let mut ys = m.get(1).unwrap_or([])
+        ys.push(i)
+        m[1] = ys
+    m

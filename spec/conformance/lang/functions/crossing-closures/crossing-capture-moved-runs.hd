@@ -1,0 +1,25 @@
+# test: a crossing closure that moves a capture that is not Copy runs with it, and a later write to a copied capture's source does not reach it
+# Spec 07 Crossing Closures: fn.crossing.mode.move, fn.crossing.mode.copy, fn.crossing.move-out.
+# expect-stdout: a 64 3 b
+use std.marker.Wire
+
+struct Image:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Image
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn shrink(photo: Image, side: u32) -> Image:
+    Image { width: side, pixels: photo.pixels }
+
+pub fn main() -> void $ Console:
+    photo := Image { width: 4, pixels: [1, 2, 3] }
+    small := run(fn() -> Image: shrink(photo, 64))
+    let name = "a"
+    w := small.width
+    label := run(fn() -> string: "$name $w")
+    name = "b"
+    println("$label ${small.pixels.len()} $name")

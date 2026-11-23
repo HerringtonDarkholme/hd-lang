@@ -70,7 +70,7 @@ fn same_but_projections(
                 stack.push((inner, gi));
                 mutable == gm && counted == gc
             }
-            (TyData::Adt { def, args }, TyData::Adt { def: gd, args: ga }) => {
+            (TyData::Adt(def, args), TyData::Adt(gd, ga)) => {
                 def == gd && lists(args, ga, &mut stack)
             }
             (
@@ -79,20 +79,6 @@ fn same_but_projections(
                     def: gd, args: ga, ..
                 },
             ) => def == gd && lists(args, ga, &mut stack),
-            (
-                TyData::Tuple { elems, rest },
-                TyData::Tuple {
-                    elems: ge,
-                    rest: gr,
-                },
-            ) => {
-                match (rest, gr) {
-                    (Some(r), Some(q)) => stack.push((r, q)),
-                    (None, None) => {}
-                    _ => return false,
-                }
-                lists(elems, ge, &mut stack)
-            }
             (
                 TyData::Fn { params, result, .. },
                 TyData::Fn {
@@ -342,6 +328,22 @@ impl Ck<'_, '_> {
         if resolved != sig.ret {
             checked.to_mut().ret = resolved;
         }
+        // R2: an implementation of a remote method declares the trait's
+        // result without `CrossError` (`module.remote.r2.impl`).
+        let narrowed;
+        let tsig = match crate::remote::is_remote_trait(self.cx.lookup, pool, known, trait_)
+            .then(|| crate::remote::raw_result(pool, known, tsig.ret))
+            .flatten()
+        {
+            Some(raw) => {
+                narrowed = FnSig {
+                    ret: raw,
+                    ..tsig.clone()
+                };
+                &narrowed
+            }
+            None => tsig,
+        };
         if let Some(why) = Self::sig_differs(pool, (tsig, &checked), free_bounds, (&inst, &bound))
             && !(omitted && why == "the result type")
         {
@@ -478,6 +480,24 @@ impl Ck<'_, '_> {
                 return Some("a type parameter's default");
             }
         }
+        // `trait.where.impl.repeat`: the trait's `where` bounds whose
+        // subject is still a type parameter, in order; one whose subject
+        // became another type is not written (`trait.where.impl.concrete`).
+        let wheres = want
+            .wheres
+            .iter()
+            .map(|&(p, b)| (inst(p), inst(b)))
+            .filter(|&(p, _)| matches!(pool.get(p), TyData::Param(_)));
+        let mut written = got.wheres.iter();
+        for w in wheres {
+            match written.next() {
+                Some(g) if w == *g || pool.has_poison(g.1) || pool.has_poison(w.1) => {}
+                _ => return Some("the `where` bounds"),
+            }
+        }
+        if written.next().is_some() {
+            return Some("the `where` bounds");
+        }
         // The trait declaration gives the parameter defaults
         // (`trait.impl.param-default.no-restate`).
         if got.defaults.iter().any(|&d| d) {
@@ -507,12 +527,7 @@ mod comparison_tests {
             self_ty: Ty::I32,
             args: TyList::EMPTY,
         });
-        let pair = |values: &[Ty]| {
-            pool.intern_ty(&TyData::Tuple {
-                elems: pool.list(values),
-                rest: None,
-            })
-        };
+        let pair = |values: &[Ty]| pool.product(pool.list(values), None);
         let bound = |ty| (ty == projection).then_some(Ty::I32);
         let mut work = Vec::new();
         for width in [100, 1_000] {

@@ -32,9 +32,9 @@ pub mod work;
 
 pub use header::Universe;
 pub use iface::{
-    AliasUse, CallAttrs, Export, Field, FnAttrs, FnSig, FolderIface, Generic, HeadKind, ImplKind,
-    Item, ItemData, Items, Lookup, LookupDecls, Names, ResultPath, STATIC_LIFETIME, ShowAlias,
-    TraitData, TypeAttrs, Variant, declares_assoc_function, decode_items, decode_lazy,
+    AliasUse, CallAttrs, Crossing, Export, Field, FnAttrs, FnSig, FolderIface, Generic, HeadKind,
+    ImplKind, Item, ItemData, Items, Lookup, LookupDecls, Names, ResultPath, STATIC_LIFETIME,
+    ShowAlias, TraitData, TypeAttrs, Variant, declares_assoc_function, decode_items, decode_lazy,
     decode_lazy_in, decode_module_uses, decode_private_names, deep_hash, encode_docs, encode_items,
     encode_module_uses, encode_private_names, fill_trait_args, fill_type_args, folder_iface,
     generic_kind_mismatch, header_parts, impl_table, instantiate_alias, interface_items,

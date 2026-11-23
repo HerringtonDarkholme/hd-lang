@@ -9,6 +9,7 @@ use hd_resolve::{
     Origin, Src, TypeAttrs,
 };
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind, parse};
+use hd_types::AdtId;
 use hd_types::{InternPool, TyData};
 use std::sync::Arc;
 
@@ -272,10 +273,10 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
     let run = Run::new();
     let names = run.names();
     let record = run.item("Record", ItemData::Struct(Vec::new(), TypeAttrs::default()));
-    let target = run.pool.intern_ty(&TyData::Adt {
-        def: record.def,
-        args: run.pool.list(&[]),
-    });
+    let target = run.pool.intern_ty(&TyData::Adt(
+        AdtId::Declared(record.def),
+        run.pool.list(&[]),
+    ));
     let trait_ = names.known.eq;
     let implementation = |label, kind| {
         run.item(

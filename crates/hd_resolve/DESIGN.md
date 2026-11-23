@@ -501,7 +501,7 @@ pub struct ImplTable {                    // per folder, SoA
     pub by_trait: BTreeMap<u32, (u32, u32)>,  // trait -> range of rows
     pub by_key: Vec<u32>,                 // head index: rows per trait sorted by head key
 }
-pub enum HeadKey { Ctor(DefId), Prim(Prim), Tuple(u16), TupleAny, Fn, SuspendFn, Param, Any }   // fast reject
+pub enum HeadKey { Ctor(DefId), Prim(Prim), Tuple(u32), TupleAny, Fn, SuspendFn, Param, Any }   // fast reject
 ```
 
 Rows are sorted by the trait's path hash, then the impl's, so candidate

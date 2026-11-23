@@ -21,6 +21,7 @@ use hd_base::{HashMap, NodeIdx, SliceSort as _};
 use hd_tir::ir::{
     Body, IntrinsicOp, NONE, PlaceRoot, Proj, Ref, Tag, Topology, Word, local_flags, slots,
 };
+use hd_types::AdtId;
 use hd_types::{Ty, TyData, Types};
 
 use hd_syntax::SyntaxKind;
@@ -251,7 +252,7 @@ fn counted_after_element(s: &Inputs<'_>, root: u32, path: &[Proj], element: usiz
     for (at, step) in path.iter().enumerate() {
         ty = match *step {
             Proj::Elem(_) => {
-                let TyData::Adt { def, args } = s.pool.get(ty) else {
+                let Some((def, args)) = s.pool.adt(ty) else {
                     return false;
                 };
                 let known = &s.cx.names.known;
@@ -770,6 +771,15 @@ impl Gen<'_, '_> {
             let Some((mut place, mut kind)) = loan_path(self.s, i) else {
                 continue;
             };
+            // A frozen loan lets no store reach its place, an element's
+            // included (`ref.frozen.write`): it is a shared loan of the
+            // element's own place.
+            if let Kind::Elem(false) = kind
+                && (self.s.frozen.iter()).any(|&h| has(&self.local(h).0, w(loan)))
+                && let Some(own) = raw_loan_path(self.s, i)
+            {
+                (place, kind) = (own, Kind::Shared);
+            }
             if !matches!(kind, Kind::Elem(_))
                 && raw_loan_path(self.s, i).is_some_and(|original| original != place)
             {
@@ -859,7 +869,12 @@ impl Gen<'_, '_> {
                     }
                     let live =
                         |u: u32| order.hop(at, u, h) && !order.kills(&sets[h as usize], at, u);
-                    if reads[h as usize].iter().any(|&u| live(u)) {
+                    // A closure parameter at a call's lifetime holds its
+                    // loan until the call ends, so for the rest of the
+                    // closure's body (`fn.closure.lifetime.call`).
+                    let held = (self.bound.iter())
+                        .any(|x| x.0 == h && (x.2.0..x.2.1).contains(&node.raw()));
+                    if held || reads[h as usize].iter().any(|&u| live(u)) {
                         let inner = matches!(kind, Kind::Elem(_))
                             && sp.iter().any(|s| matches!(s, Proj::Field(_)));
                         let msg = if access == Access::Move {
@@ -1537,7 +1552,7 @@ impl Order<'_, '_, '_> {
         let TyData::Ref { inner, .. } = pool.get(b.ty[i as usize]) else {
             return None;
         };
-        if !matches!(pool.get(inner), TyData::Adt { def, .. } if def == self.cx.s.cx.names.known.map)
+        if !matches!(pool.get(inner), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.s.cx.names.known.map)
         {
             return None;
         }

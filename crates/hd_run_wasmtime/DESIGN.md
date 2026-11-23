@@ -98,7 +98,7 @@ pub struct HostMethod {
     pub resource: Option<ResourceArg>,  // which argument the grant checks: Path | Host | Addr | EnvName | Program | SysName
 }
 pub static TABLE: &[HostTrait];         // capability traits
-pub static RUNNERS: &[HostTrait];       // TestRunner, PropertyRunner
+pub static RUNNERS: &[HostTrait];       // WorkerPort, TestRunner, PropertyRunner
 pub static HANDLES: &[HostTrait];       // Net's TcpStream, TcpListener, UdpSocket
 pub const PRIMITIVES: &[&str];          // the hd:prim imports
 ```
@@ -464,7 +464,7 @@ cancelled and holds the worker until it ends.
   list, maps each `hd:<Key>` module to its trait, and refuses with status
   101 when a needed trait is totally denied, naming the setting
   ([Total Deny](../../spec/cli/command-line.md#total-deny);
-  `hd_run::check_grants`). Nothing runs before the check, not even init.
+  `hd_command::caps::refusal`). Nothing runs before the check, not even init.
 - **Partial deny.** The provider extracts the method's resource argument,
   checks it against the grant (`hd_run::Grants`), and on a refusal
   encodes the method's `NotGranted` variant as the result. The program
@@ -539,22 +539,16 @@ pub trait Instance {
     fn call_test(&mut self, case: u32) -> Poll<Outcome>; // runs hd.test(case, ctx)
     fn completed(&mut self) -> Vec<u32>;
 }
-pub trait Provider: Send + Sync {
-    fn key(&self) -> &str;
-    fn call(&self, method: u32, args: &[u8], out: &mut Vec<u8>, cx: &mut CallCx) -> CallResult;  // Ready | Pending
-}
-pub struct HostSetup { pub providers: Vec<Box<dyn Provider>>, pub grants: Grants, pub limits: Limits, pub args: Vec<String>, pub program: String }
+pub struct HostSetup { pub grants: Grants, pub limits: Limits, pub args: Vec<String>, pub program: String }
 pub enum Outcome { Exit(u8), Panic(PanicReport), Internal(String) }
 ```
 
 - `hd run` builds a `HostSetup` from the package's grant. `hd test`
   builds one per test kind (§19.3).
-- A later embedder supplies its own providers for its own capability
-  traits through the `Provider` trait, with their ABI descriptions at run
-  time instead of from the static table (#51).
-  Implementation differs: the wasmtime engine binds its native providers
-  directly in its linker (`hd_run_wasmtime/src/host/`) and does not call
-  `HostSetup::providers`; not judged, since no embedder exists yet.
+- The wasmtime engine binds its native providers directly in its linker
+  (`hd_run_wasmtime/src/host/`). Planned, not built: an embedder supplying
+  its own providers for its own capability traits, with their ABI
+  descriptions at run time instead of from the static table (#51).
 - wasmtime compiled modules are cached in process only, keyed by their
   bytes; wasmtime's serialized modules are `unsafe` to deserialize, so
   there is no cross-run module cache (`cache.rs`). Their machine code is

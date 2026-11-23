@@ -1,0 +1,22 @@
+# @dump: own wat
+# @build: release
+# The guard reads `photo` through its view, a binding that holds the
+# payload in place with no count of its own (`Read borrow`), and each arm
+# moves the payload out once its guard holds (`Read move`), as Rust binds
+# by reference in a guard (flow.match.guard.borrow). No read copies the
+# photo; a failing guard leaves it for the second arm.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep(photo: Photo) -> u32:
+    photo.width
+
+# subject
+fn guarded(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if photo.width > 5 => keep(photo)
+        .Some(photo) => photo.width
+        _ => u32(0)

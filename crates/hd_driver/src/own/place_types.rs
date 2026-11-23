@@ -71,10 +71,7 @@ mod tests {
             let mut root = leaf;
             let mut roots = Vec::new();
             for _ in 0..depth {
-                root = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&vec![root; width]),
-                    rest: None,
-                });
+                root = pool.product(pool.list(&vec![root; width]), None);
                 roots.push(root);
             }
             let mut memo = HashMap::default();
@@ -106,10 +103,7 @@ mod tests {
                 "overlapping field queries reuse all substituted children"
             );
             for _ in 0..depth {
-                let TyData::Tuple { elems, .. } = pool.get(result) else {
-                    panic!("tuple shape changed");
-                };
-                let elements = pool.list_items(elems);
+                let (elements, _) = pool.product_parts(result).expect("product shape changed");
                 assert_eq!(elements.len(), width);
                 result = elements[0];
                 assert!(elements.iter().all(|&ty| ty == result));

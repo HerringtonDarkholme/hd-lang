@@ -58,6 +58,12 @@ pub trait SourceSet: Sync {
     fn partial(&self) -> bool {
         false
     }
+    /// Whether the stamps are the files' metadata, not their contents: the
+    /// driver then keys the files by their texts' hashes, read once per
+    /// metadata change (`crates/hd_cache/DESIGN.md` §5.5).
+    fn metadata_stamps(&self) -> bool {
+        false
+    }
     /// A handle that reads this set after the run, for the texts a run's
     /// output holds but the run never read. `None`: the output holds only
     /// the texts the run read.
@@ -1185,6 +1191,8 @@ impl ModuleTable {
                         && !e.path.ends_with("_test.hd")
                 });
             }
+            let found = u64::try_from(entries.len()).unwrap_or(u64::MAX);
+            hd_base::work::add(hd_base::work::Counter::DiscoveredFiles, found);
             let mut dirs = std::collections::BTreeSet::new();
             for e in &entries {
                 let mut d = e.path.as_str();

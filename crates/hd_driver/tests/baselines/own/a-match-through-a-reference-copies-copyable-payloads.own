@@ -14,7 +14,7 @@ fn eval(expr: &Expr) -> i64:
 >   local $1 value: i64 [read assigned] value
 >     uses $1: %19 -> %1 consume last
 >   local $2 left: *Expr [read assigned] value
->     uses $2: %26 -> %3 lend last
+>     uses $2: %24 -> %3 lend last
 >   local $3 right: *Expr [read assigned] value
 >     uses $3: %27 -> %8 lend last
 >   %0 = Read borrow [$0] : &Expr
@@ -27,7 +27,7 @@ fn eval(expr: &Expr) -> i64:
 >   %1 = Read copy [$1] : i64
 >   %2 = Block %1 : i64
 >   %17 = Read borrow [*$0] : Expr
->   %18 = Read copy [%17 as #0 .0] : i64
+>   %18 = Read copy [*%0 as #0 .0] : i64
 >   %19 = Store [$1] %18 : ()
 >   %21 = Block - : never
 >   %30 = SwitchTag %17 [#0 %21 %29] : never
@@ -44,9 +44,9 @@ fn eval(expr: &Expr) -> i64:
 >   %12 = LoanEnd [%8] : ()
 >   %13 = Prim Add [%5 %10] : i64
 >   %16 = Block %13 : i64
->   %22 = Read copy [%17 as #1 .0] : *Expr
+>   %22 = Read copy [*%0 as #1 .0] : *Expr
 >   %23 = Retain %22 Value #0 : ()
->   %24 = Read copy [%17 as #1 .1] : *Expr
->   %25 = Retain %24 Value #0 : ()
->   %26 = Store [$2] %22 : ()
->   %27 = Store [$3] %24 : ()
+>   %24 = Store [$2] %22 : ()
+>   %25 = Read copy [*%0 as #1 .1] : *Expr
+>   %26 = Retain %25 Value #0 : ()
+>   %27 = Store [$3] %25 : ()

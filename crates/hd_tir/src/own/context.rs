@@ -137,9 +137,7 @@ mod tests {
     }
 
     fn state(b: &mut Body) {
-        statements::run(b, &Cx, &Topology::new(b), &mut splice::Tables::default()).unwrap();
-        let errors = verify_owned(b, &Cx);
-        assert!(errors.is_empty(), "{errors:?}");
+        crate::own::tests::state(b, &Cx);
     }
 
     #[test]

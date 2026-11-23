@@ -67,7 +67,6 @@ fn run_main(source: &str) -> hd_run_wasmtime::Captured {
     assert!(built.diags.is_empty(), "{}", built.render());
     let wasm = built.wasm.expect("hello builds");
     let setup = HostSetup {
-        providers: vec![],
         grants: Grants::default(),
         limits: Limits::default(),
         args: vec![],

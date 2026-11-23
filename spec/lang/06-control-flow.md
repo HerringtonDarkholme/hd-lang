@@ -590,9 +590,14 @@ message := match status:
 3. r[flow.match.guard.eval] After its pattern matches, the guard is evaluated using that arm's pattern bindings.
 4. r[flow.match.guard.result] If the guard is false, matching continues with the next arm; if it is true, that arm is selected.
 5. r[flow.match.guard.skipped] A guard is not evaluated when its pattern fails.
-6. r[flow.match.body] Only the selected arm's body is evaluated.
-7. r[flow.match.result] All arm results must have one compatible type when the match value is used.
-8. r[flow.match.result.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the arm results.
+6. r[flow.match.guard.borrow] While the guard runs, a binding whose value is not copied reads the matched value in place. The arm's binding takes the value once the guard holds.
+7. r[flow.match.guard.borrow.move] A guard that moves such a binding is an error. Error: `move-out-of-place`.
+8. r[flow.match.guard.borrow.change] While the guard runs, assigning, mutably borrowing or moving a place that overlaps the value such a binding reads is an error. Error: `conflicting-access`.
+9. r[flow.match.guard.borrow.capture] A closure that the guard makes may not capture such a binding, though it may capture a reference to it. Error: `move-out-of-place`.
+10. r[flow.match.guard.borrow.matched] While any guard runs, assigning or mutably borrowing a place that overlaps the place the match reads is an error, whether or not its value is copied. Passing on a `&mut` reference to that place borrows it mutably. A value the match makes itself, such as a tuple or a call's result, is not such a place. Error: `conflicting-access`.
+11. r[flow.match.body] Only the selected arm's body is evaluated.
+12. r[flow.match.result] All arm results must have one compatible type when the match value is used.
+13. r[flow.match.result.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the arm results.
 
 ```hd
 fn grade(score: i32) -> string:
@@ -601,6 +606,33 @@ fn grade(score: i32) -> string:
         s if s >= 70 => "passing"
         _ => "needs work"
 ```
+
+```hd
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep(photo: Photo) -> u32:
+    photo.width
+
+fn pick(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if photo.width > 5 => keep(photo)
+        .Some(photo) => keep(photo) + 1
+        _ => 0
+
+fn moved(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if keep(photo) > 5 => 1  # error: move-out-of-place
+        _ => 0
+```
+
+> **Why.** When the guard is false, the next arm matches the same value, so
+> the guard cannot have taken or changed it. Rust's guards likewise bind by
+> reference and borrow the matched place (E0510); the arm binds by value
+> once the guard holds.
 
 ### Exhaustiveness
 
@@ -1316,7 +1348,7 @@ tests:
 
 ### Panic Categories
 
-1. r[flow.panic.known-categories] Stable panic categories are exactly `assertion-failed`, `borrow-conflict`, `explicit-panic`, `fact-evaluation-failed`, `heap-exhausted`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `stack-exhausted`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-deadlock`, `suspension-forbidden-context`, `suspension-invalid-state`, `suspension-reentrant-poll`, and `time-limit`.
+1. r[flow.panic.known-categories] Stable panic categories are exactly `assertion-failed`, `borrow-conflict`, `explicit-panic`, `fact-evaluation-failed`, `heap-exhausted`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `stack-exhausted`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-deadlock`, `suspension-forbidden-context`, `suspension-invalid-state`, `suspension-reentrant-poll`, `thread-stopped`, and `time-limit`.
 2. r[flow.panic.explicit] The prelude function `panic(message: string) -> never` explicitly causes an `explicit-panic` failure.
 3. r[flow.panic.never] A panic or other abrupt expression is valid in any value-producing arm without affecting the compatible result type of reachable normal arms.
 

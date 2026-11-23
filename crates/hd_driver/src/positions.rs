@@ -10,7 +10,7 @@
 //! A frame names its function as hd names it, not by its stable path: a
 //! module's path as its declarations print (trait.typeid.name.*), then the
 //! function, a method after its type's name with no generic arguments
-//! (`std.collections.List.remove_at`), and a test case's body as
+//! (`std.collections.List.remove`), and a test case's body as
 //! `test "NAME"`. The module carries its printed path, so the line table
 //! keeps stable paths and a release build's `hd.names` names the same.
 
@@ -22,6 +22,7 @@ use hd_base::{DefId, FileId, Hash128, NodeIdx, PathId};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 use hd_resolve::{Generic, Names, Src, show_ty_full};
 use hd_syntax::{Parse, parse};
+use hd_types::AdtId;
 use hd_types::{InternPool, Ty, TyData};
 
 /// What resolves anchors for one built program: each of its modules, by
@@ -86,7 +87,7 @@ struct Module {
 }
 
 /// A body of a module: its syntax node per instruction, and its name in
-/// the module (`List.remove_at`), from the module's frame-name record.
+/// the module (`List.remove`), from the module's frame-name record.
 #[derive(Clone)]
 struct Body {
     syn: Arc<[NodeIdx]>,
@@ -301,7 +302,7 @@ impl Positions {
     /// `item` names (`cli.test.report.frame`): a test case's body by its
     /// registered name, as `test "sums prices"`, any other body by its
     /// module's printed path and its name in the module, as
-    /// `shop.cart.total` or `std.collections.List.remove_at`. A body the
+    /// `shop.cart.total` or `std.collections.List.remove`. A body the
     /// run did not check keeps its stable path.
     #[must_use]
     pub fn name(&self, item: &str) -> String {
@@ -406,7 +407,7 @@ fn path_of(paths: &PathTable, d: DefId) -> String {
 
 /// Writes the frame names of a module's bodies, a section of its `check`
 /// entry: per body, its stable path and the segments of its name in the
-/// module (`["List", "remove_at"]`). An item's segment is its name, an
+/// module (`["List", "remove"]`). An item's segment is its name, an
 /// impl's is the name of the type it is for (`impl[T] List[T]` is
 /// `List`, as `impl_type` names it from the impl's item), and a hidden segment,
 /// such as a default argument's body or a block-local scope, is left out,
@@ -469,12 +470,12 @@ fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, (String, bool)>> {
 pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) -> String {
     let pool = names.pool.types();
     match pool.get(ty) {
-        TyData::Adt { def, .. } => names.display_name(def).to_owned(),
+        TyData::Adt(AdtId::Declared(def), _) => names.display_name(def).to_owned(),
         TyData::Param(p) => generics.get(usize::from(p.index)).map_or_else(
             || show_ty_full(names, ty),
             |g| names.text(g.name).to_owned(),
         ),
-        TyData::Tuple { elems, rest: None } => {
+        TyData::Adt(AdtId::Product { rest: false }, elems) => {
             let items = pool.list_items(elems);
             if items.is_empty() {
                 return "void".to_owned();
@@ -679,7 +680,7 @@ mod tests {
             (id, DefId::from_raw(id.raw()))
         };
         let (generic, generic_impl) = def(m, PathKind::Impl, "??? generic spelling ???");
-        let (_, generic_method) = def(generic, PathKind::Member, "remove_at");
+        let (_, generic_method) = def(generic, PathKind::Member, "remove");
         let (derived, derived_impl) = def(m, PathKind::Impl, "something else #2");
         let (_, derived_method) = def(derived, PathKind::Member, "eq");
         let (inherent, inherent_impl) = def(m, PathKind::Impl, "impl Cart");
@@ -700,7 +701,7 @@ mod tests {
         write_frame_names(&mut w, &paths, &items, &record, &|d| d == free);
         let names = read_frame_names(&w.bytes).expect("record");
         let of = |d: DefId| names[&super::path_of(&paths, d)].clone();
-        assert_eq!(of(generic_method), ("List.remove_at".to_owned(), false));
+        assert_eq!(of(generic_method), ("List.remove".to_owned(), false));
         assert_eq!(of(derived_method), ("Cart.eq".to_owned(), false));
         assert_eq!(of(inherent_method), ("Cart.total".to_owned(), false));
         assert_eq!(of(free), ("run".to_owned(), true));

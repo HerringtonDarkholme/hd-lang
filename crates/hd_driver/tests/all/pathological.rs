@@ -835,6 +835,10 @@ fn recursive_values_work(source: &str, reports: usize) -> u64 {
 
 #[test]
 fn rings_below_chains_cost_their_size() {
+    on_small_stack(rings_below_chains_cost_their_size_on_this_stack);
+}
+
+fn rings_below_chains_cost_their_size_on_this_stack() {
     recursive_values_work(&struct_ring(2), 1);
     // Whether each struct of the shape hangs a ring of its own: the comb
     // reports each ring.
@@ -844,11 +848,11 @@ fn rings_below_chains_cost_their_size() {
         ("comb of rings", ring_comb, true),
     ] {
         let reports = |n: usize| if per_struct { n } else { 1 };
-        let small = recursive_values_work(&generate(2000), reports(2000));
-        let large = recursive_values_work(&generate(20_000), reports(20_000));
+        let small = recursive_values_work(&generate(200), reports(200));
+        let large = recursive_values_work(&generate(2_000), reports(2_000));
         assert!(
-            small >= 2000 && large <= 10 * small * 5 / 4,
-            "types entered for the {name} of 2,000 and 20,000: {small} and {large}",
+            small >= 200 && large <= 10 * small * 5 / 4,
+            "types entered for the {name} of 200 and 2,000: {small} and {large}",
         );
     }
 }
@@ -1338,6 +1342,58 @@ fn captures(n: usize) -> String {
     s
 }
 
+/// A generated scale program: its name, its generator, and its small size.
+type ScaleProgram<'a> = (&'a str, &'a dyn Fn(usize) -> String, usize);
+
+/// The emitted module of `source`, built for its `main`: its size in
+/// bytes and its function count, one per instance the build kept.
+fn built_size(source: &str) -> (usize, usize) {
+    let out = compile(
+        source,
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    assert!(!out.diags.has_errors(), "{}", out.render());
+    let wasm = out.wasm.unwrap_or_default();
+    let mut functions = 0;
+    for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+        if let Ok(wasmparser::Payload::CodeSectionEntry(_)) = payload {
+            functions += 1;
+        }
+    }
+    (wasm.len(), functions)
+}
+
+/// #1800 draft 56: the scale programs the checker guards also build, and
+/// their emitted bytes and instances grow at most linearly with their size
+/// (a quarter's slack over the size ratio; std's runtime is a constant).
+#[test]
+fn scale_programs_build_linearly() {
+    let programs: [ScaleProgram; 4] = [
+        ("nested", &nested, 10),
+        ("wide", &wide, 50),
+        ("ring", &ring, 50),
+        (
+            "omitted-result chain",
+            &|n| omitted_result_chain(n, true, false),
+            50,
+        ),
+    ];
+    for (name, generate, small) in programs {
+        let large = 2 * small;
+        let ((b0, f0), (b1, f1)) = (built_size(&generate(small)), built_size(&generate(large)));
+        assert!(
+            b1 > b0 && b1 * small <= 5 * b0 * large / 4,
+            "{name}: {b0} and {b1} bytes at {small} and {large}",
+        );
+        assert!(
+            f1 * small <= 5 * f0 * large / 4,
+            "{name}: {f0} and {f1} functions at {small} and {large}",
+        );
+    }
+}
+
 /// Backend: count Wasm operators and, separately, the width of switch tables.
 fn operator_counts(source: &str) -> Result<(usize, u32), wasmparser::BinaryReaderError> {
     let out = compile(
@@ -1428,8 +1484,21 @@ fn flat_struct_match(n: usize) -> String {
 
 /// Runs `run` on a thread with a test thread's default stack, 2 MiB.
 fn on_test_stack(run: impl FnOnce() + Send + 'static) {
+    on_stack(2 << 20, run);
+}
+
+/// A work test at a tenth of the size its issue reported runs on a stack
+/// about a tenth of a test thread's, so a native call per item still
+/// overflows where the full size did on [`on_test_stack`]. Its counter
+/// tells linear from quadratic at either size: a scan of every item per
+/// item is still about n / 10 times the linear work at the larger size.
+fn on_small_stack(run: impl FnOnce() + Send + 'static) {
+    on_stack(256 << 10, run);
+}
+
+fn on_stack(bytes: usize, run: impl FnOnce() + Send + 'static) {
     std::thread::Builder::new()
-        .stack_size(2 << 20)
+        .stack_size(bytes)
         .spawn(run)
         .expect("thread")
         .join()
@@ -1970,11 +2039,14 @@ fn tracked_call_records_index_their_file_once() {
     }
 }
 
-/// Builds and runs the literal decision chain on the scheduler's worker stack.
-/// Control continuation counts include target lookup and branch compaction.
+/// Builds and runs the literal decision chain on a test thread's 2 MiB
+/// stack. 10,000 arms there leave under 210 bytes per arm, so a native
+/// call per arm overflows; 50,000 arms on a 32 MiB worker stack left 670
+/// and took 4x longer. Control continuation counts include target lookup
+/// and branch compaction.
 fn emitted_literal_decisions(generate: fn(usize) -> String, strings: bool) {
     std::thread::Builder::new()
-        .stack_size(hd_sched::pool::WORKER_STACK)
+        .stack_size(2 << 20)
         .spawn(move || {
             let program = |n: usize| {
                 let mut source = generate(n);
@@ -1995,7 +2067,7 @@ fn emitted_literal_decisions(generate: fn(usize) -> String, strings: bool) {
             let initial = compile(&program(1), &goal);
             assert!(!initial.diags.has_errors(), "{}", initial.render());
             let mut base = 0;
-            for n in [1000, 10_000, 50_000] {
+            for n in [1000, 10_000] {
                 let (out, work) = hd_wasm::work::count_control(|| compile(&program(n), &goal));
                 assert!(!out.diags.has_errors(), "size {n}: {}", out.render());
                 let wasm = out.wasm.as_deref().expect("the program links");
@@ -2032,16 +2104,16 @@ fn emitted_literal_decisions(generate: fn(usize) -> String, strings: bool) {
         })
         .expect("worker-stack thread")
         .join()
-        .expect("build and run without overflowing the worker stack");
+        .expect("build and run without overflowing a test thread's stack");
 }
 
 #[test]
-fn literal_match_builds_and_runs_fifty_thousand_arms_on_a_worker_stack() {
+fn literal_match_builds_and_runs_ten_thousand_arms_on_a_small_stack() {
     emitted_literal_decisions(literal_match, false);
 }
 
 #[test]
-fn string_match_builds_and_runs_fifty_thousand_arms_on_a_worker_stack() {
+fn string_match_builds_and_runs_ten_thousand_arms_on_a_small_stack() {
     emitted_literal_decisions(string_match, true);
 }
 
@@ -2259,18 +2331,18 @@ fn local_types(n: usize) -> String {
 // statement.
 #[test]
 fn local_declarations_are_found_by_one_probe_each() {
-    on_test_stack(|| {
+    on_small_stack(|| {
         let mut base = 0;
-        for n in [2_000, 32_000] {
+        for n in [200, 3_200] {
             let (out, probes) =
                 hd_resolve::work::count_local_probes(|| compile(&local_types(n), &Goal::Analyze));
             assert!(out.diags.is_empty(), "{n}: {}", out.render());
-            if n == 2_000 {
+            if n == 200 {
                 base = probes;
             }
             assert!(
                 base > 0 && probes <= 16 * base * 5 / 4,
-                "local lookups for 2,000 and {n} functions: {base}, {probes}"
+                "local lookups for 200 and {n} functions: {base}, {probes}"
             );
         }
     });
@@ -2361,11 +2433,11 @@ fn import_hints_probe_one_index_per_interface() {
 }
 
 // #1876: the index answers for a module's last segment too: an unknown
-// `json` is std's module, an unknown `min` has several homes.
+// `json` is std's module, `min` has one home, and `max` has several.
 #[test]
 fn import_hints_name_a_module_and_several_homes_from_the_index() {
     let out = compile(
-        "pub fn main() -> void:\n    a := json\n    b := min\n",
+        "pub fn main() -> void:\n    a := json\n    b := min\n    c := max\n",
         &Goal::Analyze,
     );
     let shown = out.render();
@@ -2374,7 +2446,11 @@ fn import_hints_name_a_module_and_several_homes_from_the_index() {
         "{shown}"
     );
     assert!(
-        shown.contains("`min` has several public std homes"),
+        shown.contains("`min` is not defined; add `use std.cmp.min`"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("`max` has several public std homes: `std.cmp`, `std.validate`"),
         "{shown}"
     );
 }
@@ -2403,18 +2479,18 @@ fn trait_impls(n: usize) -> String {
 // of every item of the folder per implementation cost n² / 2.
 #[test]
 fn trait_impls_find_their_traits_by_one_probe_each() {
-    on_test_stack(|| {
+    on_small_stack(|| {
         let mut base = 0;
-        for n in [2_000, 20_000] {
+        for n in [200, 2_000] {
             let (out, probes) =
                 hd_resolve::work::count_item_probes(|| compile(&trait_impls(n), &Goal::Analyze));
             assert!(out.diags.is_empty(), "{n}: {}", out.render());
-            if n == 2_000 {
+            if n == 200 {
                 base = probes;
             }
             assert!(
                 base > 0 && probes <= 10 * base * 5 / 4,
-                "implementation work for 2,000 and {n} traits: {base}, {probes}"
+                "implementation work for 200 and {n} traits: {base}, {probes}"
             );
         }
     });
@@ -2599,22 +2675,22 @@ fn bounded_traits_of_one_method(n: usize) -> String {
 // whether they declare the name.
 #[test]
 fn method_calls_ask_only_the_traits_visible_to_them() {
-    on_test_stack(|| {
+    on_small_stack(|| {
         for (shape, source) in [
             ("local", local_traits_of_one_method as fn(usize) -> String),
             ("bounded", bounded_traits_of_one_method),
         ] {
             let mut base = 0;
-            for n in [1_000, 10_000] {
+            for n in [100, 1_000] {
                 let (out, work) =
                     hd_check::work::count_trait_lookup_work(|| compile(&source(n), &Goal::Analyze));
                 assert!(out.diags.is_empty(), "{shape} {n}: {}", out.render());
-                if n == 1_000 {
+                if n == 100 {
                     base = work;
                 }
                 assert!(
                     base > 0 && work <= 10 * base * 5 / 4,
-                    "{shape} trait lookups for 1,000 and {n}: {base}, {work}"
+                    "{shape} trait lookups for 100 and {n}: {base}, {work}"
                 );
             }
         }
@@ -2642,26 +2718,26 @@ fn inherent_members_of_one_name(n: usize) -> String {
 // struct, not every method of the name in the module.
 #[test]
 fn inherent_members_are_compared_by_target_head() {
-    on_test_stack(|| {
+    on_small_stack(|| {
         let mut base = (0, 0);
-        for n in [2_000, 20_000] {
+        for n in [200, 2_000] {
             let ((out, lookups), pairs) = hd_resolve::work::count_member_pairs(|| {
                 hd_check::work::count_trait_lookup_work(|| {
                     compile(&inherent_members_of_one_name(n), &Goal::Analyze)
                 })
             });
             assert!(out.diags.is_empty(), "{n}: {}", out.render());
-            if n == 2_000 {
+            if n == 200 {
                 base = (pairs, lookups);
             }
             assert!(
                 base.0 > 0 && pairs <= 10 * base.0 * 5 / 4,
-                "inherent member comparisons for 2,000 and {n}: {}, {pairs}",
+                "inherent member comparisons for 200 and {n}: {}, {pairs}",
                 base.0
             );
             assert!(
                 base.1 > 0 && lookups <= 10 * base.1 * 5 / 4,
-                "method lookups for 2,000 and {n}: {}, {lookups}",
+                "method lookups for 200 and {n}: {}, {lookups}",
                 base.1
             );
         }
@@ -2690,18 +2766,18 @@ fn derived_types(n: usize) -> String {
 // item or head per derivation.
 #[test]
 fn derivations_find_what_they_need_by_one_probe_each() {
-    on_test_stack(|| {
+    on_small_stack(|| {
         let mut base = 0;
-        for n in [1_000, 10_000] {
+        for n in [100, 1_000] {
             let (out, work) =
                 hd_resolve::work::count_derive_work(|| compile(&derived_types(n), &Goal::Analyze));
             assert!(out.diags.is_empty(), "{n}: {}", out.render());
-            if n == 1_000 {
+            if n == 100 {
                 base = work;
             }
             assert!(
                 base > 0 && work <= 10 * base * 5 / 4,
-                "derivation lookups for 1,000 and {n}: {base}, {work}"
+                "derivation lookups for 100 and {n}: {base}, {work}"
             );
         }
     });
@@ -2872,6 +2948,83 @@ fn copy_goals_down_a_generic_chain_walk_each_level_once() {
                 );
             }
         }
+    });
+}
+
+/// A value of `Two` doubled `n` levels deep, passed to a `Wire` bound or
+/// to a library marker's (`module.marker.structural`).
+fn marker_doubled(library: bool, n: usize) -> String {
+    let mut s = String::from(
+        "use std.marker.{Marker, Wire}\n\npub trait Gpu < Marker\n\nimpl Gpu for string\n\nstruct Two[T]:\n    a: T\n    b: T\n\nfn post[T < Wire](v: T) -> void: pass\n\nfn launch[T < Gpu](v: T) -> void: pass\n\npub fn main() -> void:\n    x0 := \"a\"\n",
+    );
+    for i in 1..=n {
+        let _ = writeln!(s, "    x{i} := Two {{ a: x{}, b: x{} }}", i - 1, i - 1);
+    }
+    let _ = writeln!(s, "    {}(x{n})", if library { "launch" } else { "post" });
+    s
+}
+
+// Types: a marker goal walks each distinct node of the asked type once, as
+// the `Copy` row does (#1886): `Two` doubled n levels is 2^n leaves.
+#[test]
+fn marker_goals_walk_each_distinct_node_once() {
+    on_test_stack(|| {
+        let _ = compile(&marker_doubled(false, 2), &Goal::Analyze);
+        for library in [false, true] {
+            let mut base = 0;
+            for n in [10, 100] {
+                let (out, nodes) = hd_types::work::count_type_nodes(|| {
+                    compile(&marker_doubled(library, n), &Goal::Analyze)
+                });
+                assert!(out.diags.is_empty(), "{library} {n}: {}", out.render());
+                if n == 10 {
+                    base = nodes;
+                }
+                assert!(
+                    base > 0 && nodes <= 10 * base * 5 / 4,
+                    "type nodes walked for 10 and {n} levels (library {library}): {base}, {nodes}"
+                );
+            }
+        }
+    });
+}
+
+/// A chain of `n` functions down to one that reads a top-level `let`,
+/// and `n` crossing closures, each calling the head of the chain
+/// (`fn.crossing.global`).
+fn crossing_chain(n: usize) -> String {
+    let mut s = String::from(
+        "use std.marker.Wire\n\nfn run(code: fn() -> i32 + Wire) -> i32:\n    code()\n\nlet counter = +0\n\n",
+    );
+    let _ = writeln!(s, "fn g{n}() -> i32:\n    counter\n");
+    for i in (0..n).rev() {
+        let _ = writeln!(s, "fn g{i}() -> i32:\n    g{}()\n", i + 1);
+    }
+    s.push_str("pub fn main() -> void:\n");
+    for _ in 0..n {
+        s.push_str("    _ := run(fn() -> i32: g0())\n");
+    }
+    s
+}
+
+// Checker: the reached-binding check of crossing closures pushes each
+// node's verdict to its callers once, then reads each closure's own facts:
+// linear in the module's call edges and closures, not their product.
+#[test]
+fn crossing_reach_is_linear_in_calls_and_closures() {
+    on_test_stack(|| {
+        let work = |n: usize| {
+            let (out, work) =
+                hd_check::work::count_scan_work(|| compile(&crossing_chain(n), &Goal::Analyze));
+            let errors = out.diags.len();
+            assert_eq!(errors, n, "{n}: one error per closure: {}", out.render());
+            work
+        };
+        let (small, large) = (work(100), work(1_000));
+        assert!(
+            small > 0 && large <= 10 * small + 100,
+            "scan work for 100 and 1,000 crossing closures down a chain: {small} and {large}"
+        );
     });
 }
 
@@ -4181,29 +4334,38 @@ fn if_value_run(n: usize) -> String {
 /// A generated program, its size n, and what it prints at size k.
 type ValueShape = (&'static str, fn(usize) -> String, usize, fn(usize) -> usize);
 
+/// Runs the program `out` linked and checks what it prints. A work test
+/// runs only its largest size: the smaller programs repeat the same code
+/// fewer times, so their output proves nothing the largest's does not,
+/// and each run is a Node process.
+fn runs_and_prints(name: &str, out: &Output, printed: &str) {
+    let ran = crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
+    assert!(
+        ran.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
+}
+
 // Emitter: #1905, #1913, rule 6 of the local cleanup (a value `if` whose
 // arms each set one local) rewrote one `if` per pass over the body, and
 // rule 20 copied the body for each value `if` it tested, so a body's value
 // `if`s, nested or one after another, cost their count times its length.
 // Now one pass rewrites every rule 6 `if`, and rule 20 copies only for a
-// rewrite, which counts as work. Each program runs and prints its value.
+// rewrite, which counts as work. The largest program runs and prints its value.
 #[test]
 fn value_ifs_rewrite_in_one_pass_over_the_body() {
     on_test_stack(|| {
         let goal = Goal::Program {
             entry: "main".into(),
         };
-        let work = |name: &str, source: String, printed: String| {
+        let work = |name: &str, source: String, printed: Option<String>| {
             let (out, work) = hd_wasm::work::count_control(|| compile(&source, &goal));
             assert!(!out.diags.has_errors(), "{name}: {}", out.render());
-            let ran =
-                crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
-            assert!(
-                ran.status.success(),
-                "{name}: {}",
-                String::from_utf8_lossy(&ran.stderr)
-            );
-            assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
+            if let Some(printed) = printed {
+                runs_and_prints(name, &out, &printed);
+            }
             work
         };
         let shapes: [ValueShape; 3] = [
@@ -4213,9 +4375,13 @@ fn value_ifs_rewrite_in_one_pass_over_the_body() {
             ("if-value-run", if_value_run, 100, |n| n + 1),
         ];
         for (name, generate, n, printed) in shapes {
-            let zero = work(name, generate(0), format!("{}\n", printed(0)));
-            let small = work(name, generate(n), format!("{}\n", printed(n))) - zero;
-            let large = work(name, generate(10 * n), format!("{}\n", printed(10 * n))) - zero;
+            let zero = work(name, generate(0), None);
+            let small = work(name, generate(n), None) - zero;
+            let large = work(
+                name,
+                generate(10 * n),
+                Some(format!("{}\n", printed(10 * n))),
+            ) - zero;
             assert!(
                 small > 0 && large <= 12 * small,
                 "{name}: control work over the empty body at {n} and {}: {small} and {large}",
@@ -4348,17 +4514,12 @@ fn build_at(source: &str, level: hd_driver::OptLevel) -> Output {
 #[test]
 fn loop_proofs_list_each_loops_instructions_from_one_tree() {
     on_test_stack(|| {
-        let work = |name: &str, source: String, level, printed: String| {
+        let work = |name: &str, source: String, level, printed: Option<String>| {
             let (out, work) = hd_opt::prove::count_scans(|| build_at(&source, level));
             assert!(!out.diags.has_errors(), "{name}: {}", out.render());
-            let ran =
-                crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
-            assert!(
-                ran.status.success(),
-                "{name}: {}",
-                String::from_utf8_lossy(&ran.stderr)
-            );
-            assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
+            if let Some(printed) = printed {
+                runs_and_prints(name, &out, &printed);
+            }
             work
         };
         let shapes: [ValueShape; 8] = [
@@ -4380,12 +4541,12 @@ fn loop_proofs_list_each_loops_instructions_from_one_tree() {
         ];
         for level in [hd_driver::OptLevel::Dev, hd_driver::OptLevel::Optimized] {
             for (name, generate, n, printed) in shapes {
-                let run = |k| work(name, generate(k), level, format!("{}\n", printed(k)));
+                let run = |k, printed| work(name, generate(k), level, printed);
                 // The first build proves the std bodies the run then reuses.
-                run(0);
-                let zero = run(0);
-                let small = run(n) - zero;
-                let large = run(10 * n) - zero;
+                run(0, None);
+                let zero = run(0, None);
+                let small = run(n, None) - zero;
+                let large = run(10 * n, Some(format!("{}\n", printed(10 * n)))) - zero;
                 assert!(
                     small > 0 && large <= 12 * small,
                     "{name} {level:?}: loop scans over the empty body at {n} and {}: {small} and {large}",
@@ -4604,7 +4765,7 @@ fn failing_local_trait_calls(n: usize, shared: bool) -> String {
 // receiver's methods.
 #[test]
 fn unknown_method_hints_ask_only_the_receivers_methods() {
-    on_test_stack(|| {
+    on_small_stack(|| {
         for shared in [true, false] {
             let work = |n: usize| {
                 let (out, work) = hd_check::work::count_scan_work(|| {
@@ -4615,11 +4776,11 @@ fn unknown_method_hints_ask_only_the_receivers_methods() {
             };
             work(0);
             let zero = work(0);
-            let small = work(1_000) - zero;
-            let large = work(10_000) - zero;
+            let small = work(100) - zero;
+            let large = work(1_000) - zero;
             assert!(
                 small > 0 && large <= 12 * small,
-                "shared {shared}: scan work over 0 calls at 1,000 and 10,000: {small} and {large}"
+                "shared {shared}: scan work over 0 calls at 100 and 1,000: {small} and {large}"
             );
         }
     });
@@ -4773,17 +4934,12 @@ fn branch_feeding_logic_values_rewrite_in_one_pass_over_the_body() {
         let goal = Goal::Program {
             entry: "main".into(),
         };
-        let work = |name: &str, source: String, printed: String| {
+        let work = |name: &str, source: String, printed: Option<String>| {
             let (out, work) = hd_wasm::work::count_control(|| compile(&source, &goal));
             assert!(!out.diags.has_errors(), "{name}: {}", out.render());
-            let ran =
-                crate::release_profile_run::run_wasm(name, out.wasm.as_deref().expect("links"));
-            assert!(
-                ran.status.success(),
-                "{name}: {}",
-                String::from_utf8_lossy(&ran.stderr)
-            );
-            assert_eq!(String::from_utf8_lossy(&ran.stdout), printed, "{name}");
+            if let Some(printed) = printed {
+                runs_and_prints(name, &out, &printed);
+            }
             work
         };
         let shapes: [ValueShape; 6] = [
@@ -4799,9 +4955,13 @@ fn branch_feeding_logic_values_rewrite_in_one_pass_over_the_body() {
             }),
         ];
         for (name, generate, n, printed) in shapes {
-            let zero = work(name, generate(0), format!("{}\n", printed(0)));
-            let small = work(name, generate(n), format!("{}\n", printed(n))) - zero;
-            let large = work(name, generate(10 * n), format!("{}\n", printed(10 * n))) - zero;
+            let zero = work(name, generate(0), None);
+            let small = work(name, generate(n), None) - zero;
+            let large = work(
+                name,
+                generate(10 * n),
+                Some(format!("{}\n", printed(10 * n))),
+            ) - zero;
             assert!(
                 small > 0 && large <= 12 * small,
                 "{name}: control work over the empty body at {n} and {}: {small} and {large}",
