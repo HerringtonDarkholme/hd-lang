@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn f() -> i32: 1
+
+fn g():
+    f()! (println("x"))

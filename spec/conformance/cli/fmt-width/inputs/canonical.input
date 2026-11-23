@@ -201,6 +201,19 @@ fn doubled(xs: List[i32]):
 fn f(a: i32):
     left := & &a
     assert_equal(left, &a, reason = "same")
+# bound joins keep spaces; nested reference operators stay glued
+fn run['a](cb: impl FnMut() -> void & 'a) -> void:
+    pass
+
+fn keep['a](cb: impl Show & 'a) -> void:
+    pass
+
+fn nested['a](cb: impl Visitor[&i32] & 'a) -> void:
+    pass
+
+fn press[F < FnMut() -> void & 'a, 'a](f: F) -> void:
+    pass
+
 # a `pass` suite keeps its inline or vertical shape
 struct Empty: pass
 struct Hollow:

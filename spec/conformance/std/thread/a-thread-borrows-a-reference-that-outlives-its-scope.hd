@@ -1,0 +1,11 @@
+# test: a scope's thread borrows a reference the scope's closure captured, which outlives the call of scope
+# Spec std/thread: std-thread.spawn.borrow. Spec lang/07: fn.closure.lifetime.call.
+use std.thread.{Scope, scope}
+
+struct Point:
+    x: i32
+
+fn read(point: &Point) -> i32:
+    scope(fn(s: &mut Scope) -> i32:
+        s.spawn(fn() -> i32: point.x).join()
+    )

@@ -612,6 +612,7 @@ fn build_for(
         target,
         level: level(),
         checked: fixture.checked,
+        report: true,
         verify_own: true,
         verify_tir: selection_env("HD_VERIFY").is_some(),
         // A std fixture's file is a leaf of std, so its builds share the rest.

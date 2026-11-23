@@ -2,29 +2,27 @@
 app/main/impl Probes.captured_copy
   local $0 value: string [param read captured] place
   local $1 borrowed: &string [:= read assigned] value
-    uses $1: %5 -> %6 lend last
-  %0 = Retain %18 Entry local $0 #0 : ()
-  %1 = Box #0 #1 : ()
-  %2 = Retain %13 Entry captures #0 : ()
-  %3 = Ref local [$0] : &string
-  %4 = LoanBegin %3 #0 : ()
-  %5 = Store [$1] %3 : ()
-  %6 = Read move [$1] : &string
-  %7 = Intrinsic Empty [] : ()
-  %8 = Call std/text/impl string.len[] (%6) : usize
-  %9 = LoanClose %4 : ()
-  %10 = Drop [%6] : ()
+    uses $1: %4 -> %5 lend last
+  %0 = Retain %12 Entry captures #0 : ()
+  %1 = Retain %17 Entry local $0 #0 : ()
+  %2 = Ref local [$0] : &string
+  %3 = LoanBegin %2 #0 : ()
+  %4 = Store [$1] %2 : ()
+  %5 = Read move [$1] : &string
+  %6 = Intrinsic Empty [] : ()
+  %7 = Call std/text/impl string.len[] (%5) : usize
+  %8 = LoanClose %3 : ()
+  %9 = Drop [%5] : ()
+  %10 = Drop [$0] : ()
   %11 = Drop [$0] : ()
-  %12 = Drop [$0] : ()
-  %13 = Block %8 : usize
-  %14 = Closure #1 : fn() -> usize
-  %15 = Retain %14 Operation captures #0 : ()
+  %12 = Block %7 : usize
+  %13 = Closure #1 : fn() -> usize
+  %14 = Retain %13 Operation captures #0 : ()
+  %15 = Drop [$0] : ()
   %16 = Drop [$0] : ()
-  %17 = Drop [$0] : ()
-  %18 = Block %14 : fn() -> usize
+  %17 = Block %13 : fn() -> usize
   exit sub 0 drops [$0]
   exit sub 1 drops [$0]
-  storage sub 0: $0 cell
   summary kept [$0]
 app/main/impl Probes.new_object
   local $0 value: string [param read] value

@@ -39,6 +39,9 @@ fn check_transfer() -> void:
     assert(allocated() == given + 1, "transfer allocates no second block")
     assert(text == "hi", "the transferred bytes remain alive")
 
+fn empty_transfer(capacity: usize) -> string?:
+    .Some(string_from_buffer(Buffer::[u8].new(capacity), 0))
+
 @inline(.Never)
 fn large_trig(value: f64) -> (f64, f64, f64):
     (value.sin(), value.cos(), value.tan())
@@ -74,6 +77,15 @@ tests:
         assert(live() == before, "no empty block remains live")
         assert(bytes.capacity() == 0, "zero capacity stays zero")
         assert(empty.capacity() == 32, "zero-sized room still records its capacity")
+
+    it("empty room transfers preserve the optional string niche and free storage"):
+        before := live()
+        given := allocated()
+        assert(empty_transfer(0) == .Some(""), "a zero address never becomes a string")
+        assert(allocated() == given, "an empty transfer allocates no block")
+        assert(empty_transfer(8) == .Some(""), "allocated empty room remains present")
+        assert(allocated() == given + 1, "only the supplied room was allocated")
+        assert(live() == before, "empty transfer drops the supplied room")
 
     it("the collector audits deferred room frees once after tracing"):
         before := live()

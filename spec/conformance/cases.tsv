@@ -2380,7 +2380,7 @@ lang/lexical/literals/reserved-word-suffix.hd	parse	reject:syntax-error	lang/01-
 lang/lexical/literals/reserved-word-prefix.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.literal-fn.reserved-glued
 lang/lexical/literals/string-literal-suffix.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#literal-suffixes
 lang/grammar/expressions/suffixed-literal-pattern.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.pattern.no-literal-call
-std/time/duration-suffixes/literal-suffix-duration.hd	type	accept	std/time.md#r-std-time.suffix.std.fn
+std/time/duration-suffixes/literal-suffix-duration.hd	type	accept	std/time.md#r-std-time.suffix.std.constructors
 lang/types/literal-types/literal-suffix-result-type.hd	type	accept	lang/04-type-system.md#r-types.literal.user-call-result
 lang/expressions/primary-expressions/literal-suffix-user.hd	type	accept	lang/05-expressions.md#r-expr.literal-fn.marker
 lang/names/use-declarations/literal-suffix-local-shadow.hd	type	accept	lang/03-names-and-scopes.md#r-names.literal-fn.no-local
@@ -5515,7 +5515,7 @@ std/http/client/http-client-send-missing-provider.hd	type	reject:missing-require
 std/iter/iterator-adapters/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.fn-mut-noncopy
 std/task/retry-with-backoff/task-retry-policy.hd	runtime	accept	std/task.md#retry-with-backoff
 std/task/retry/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.policy.retry.clock
-std/collections/list-helpers/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-owned
+std/collections/list-helpers/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-borrow
 std/host/environment/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.typed-env-decl
 std/http/request-builder/http-typed-request-bodies.hd	runtime	accept	std/http.md#r-std-http.request.set-form
 std/http/scripted-http/http-scripted-used-reply.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.scripted.reply-used-panic
@@ -5918,6 +5918,9 @@ lang/functions/function-types-and-values/lifetimes-in-function-types/lifetime-fu
 lang/functions/function-types-and-values/lifetimes-in-function-types/lifetime-function-value-outlives.hd	type	reject:local-reference-outlives-local	lang/07-functions.md#r-fn.type.lifetime.call
 lang/functions/closures/lifetime-closure-function-type.hd	type	accept	lang/07-functions.md#r-fn.closure.lifetime
 lang/functions/closures/lifetime-closure-other-source.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.closure.lifetime.return
+lang/functions/closures/lifetime-closure-call-stores-a-capture.hd	type	accept	lang/07-functions.md#r-fn.closure.lifetime.call
+lang/functions/closures/lifetime-closure-call-stores-no-own-local.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.closure.lifetime.call
+lang/functions/closures/lifetime-closure-call-loan-lasts-the-call.hd	type	reject:conflicting-access	lang/07-functions.md#r-fn.closure.lifetime.call.loan
 lang/traits/trait-implementations/implementation-declarations/lifetime-trait-method-renamed.hd	type	accept	lang/09-traits.md#r-trait.impl.lifetime.subtype
 lang/traits/trait-implementations/implementation-declarations/lifetime-trait-impl-more-general.hd	type	accept	lang/09-traits.md#r-trait.impl.lifetime.subtype
 lang/traits/trait-implementations/implementation-declarations/lifetime-trait-impl-sharing.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.lifetime.subtype.error
@@ -7099,6 +7102,8 @@ lang/functions/crossing-closures/crossing-reaches-immutable-top-level.hd	type	ac
 lang/functions/crossing-closures/crossing-send-reaches-box-top-level.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global.send
 lang/functions/crossing-closures/crossing-send-reaches-a-string-top-level.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global.send
 lang/functions/crossing-closures/crossing-send-captures-cross-unique.hd	runtime	accept	lang/07-functions.md#r-fn.crossing.mode.unique
+lang/functions/crossing-closures/crossing-send-capture-has-one-owner.hd	runtime	accept	lang/07-functions.md#r-fn.crossing.once
+lang/functions/crossing-closures/crossing-wire-capture-has-one-owner.hd	runtime	accept	lang/07-functions.md#r-fn.crossing.once
 lang/references/dependent-results/conflicts-through-aliases/known-closure-consumer-keeps-captured-root-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 lang/functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd	runtime	accept	lang/07-functions.md#r-fn.trait.mut.call
 lang/control-flow/for-loops/zero-iteration-callback-preserves-dependent-read.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.range.half-open
@@ -7294,9 +7299,17 @@ std/sync/arc/an-arc-of-a-value-that-is-not-sync-is-not-send.hd	type	reject:unsat
 std/sync/arc/an-arc-is-never-wire.hd	type	reject:unsatisfied-trait-bound	std/sync.md#r-std-sync.arc.send
 std/sync/arc/an-arc-of-a-sync-value-is-send-and-sync-as-a-part.hd	type	accept	std/sync.md#r-std-sync.arc.send
 std/sync/arc/a-crossing-reaches-a-top-level-arc-only-of-a-sync-value.hd	type	reject:crossing-top-level-binding	std/sync.md#r-std-sync.arc.send
+std/thread/a-thread-borrows-a-reference-that-outlives-its-scope.hd	type	accept	std/thread.md#r-std-thread.spawn.borrow
+std/thread/a-thread-may-not-borrow-a-local-of-its-scopes-closure.hd	type	reject:local-reference-escapes	std/thread.md#r-std-thread.spawn.borrow
+std/thread/a-place-a-thread-borrows-is-not-written-before-its-scope-returns.hd	type	reject:conflicting-access	std/thread.md#r-std-thread.spawn.borrow
+std/thread/a-handle-is-never-wire.hd	type	reject:unsatisfied-trait-bound	std/thread.md#r-std-thread.handle.send
+std/thread/a-background-closure-may-not-borrow.hd	type	reject:local-reference-escapes	std/thread.md#r-std-thread.background
 std/iter/double-ended-cursors/noncopy-rev-without-trait-import.hd	runtime	accept	std/iter.md#r-std-iter.double-ended.concrete-rev
+std/text/joining-and-building/display-list-join.hd	runtime	accept	std/text.md#r-std-text.join.display-list
+std/text/joining-and-building/non-display-list-join.hd	type	reject:unsatisfied-trait-bound	std/text.md#r-std-text.join.display-list
 std/collections/list-helpers/contains-borrows-value.hd	runtime	accept	std/collections.md#list-helpers
 std/collections/list-helpers/dedup-in-place.hd	runtime	accept	std/collections.md#r-std-collections.helper.dedup-in-place
+std/collections/list-helpers/generic-fn-mut-callbacks.hd	runtime	accept	std/collections.md#r-std-collections.helper.callback-generic-ref
 std/collections/map-methods/map-key-value-cursors.hd	runtime	accept	std/collections.md#map-methods
 std/num/float-math/both-widths-and-special-values.hd	runtime	accept	std/num.md#float-math
 std/num/float-math/exp-ln-power.hd	runtime	accept	std/num.md#float-math

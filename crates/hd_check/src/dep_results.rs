@@ -2031,6 +2031,10 @@ struct CallSig {
     /// of a function value, or a call passing one
     /// (`fn.type.lifetime.call.written`).
     by_value: bool,
+    /// Each closure literal argument whose parameter's function type
+    /// writes some of the callee's lifetimes at its inputs, and the
+    /// lifetime of each input slot, 0 where none (`fn.closure.lifetime.call`).
+    closures: Vec<(u32, Vec<u16>)>,
 }
 
 fn canonical_impl_head(pool: Types<'_>, t: Ty, declaration: &hd_resolve::Item) -> Ty {
@@ -2584,9 +2588,11 @@ pub(crate) type RunLoans = (
 /// one, whose place may cross an object a pointer, a shared variable's cell
 /// or a top-level binding's slot holds: a dereference on its path or on the
 /// path of the read its root value is, a global root, or a captured local's
-/// root. The backend takes the loans of the crossings that hold a counted
-/// object. Cost: one pass in instruction order, as a root comes before the
-/// place on it.
+/// root. A dereference of a known local Ref reuses that address's crossing
+/// fact; it does not introduce another object. Unknown references and later
+/// dereferences remain conservative. The backend takes loans of counted
+/// crossings. Cost: O(instructions + place projections + captures), one
+/// forward pass, as a root comes before the place on it.
 pub(crate) fn runtime_sites(b: &Body, pool: Types<'_>) -> Vec<bool> {
     let mut captured = vec![false; b.local_ty.len()];
     for l in &b.cap_local {
@@ -2595,19 +2601,46 @@ pub(crate) fn runtime_sites(b: &Body, pool: Types<'_>) -> Vec<bool> {
     let mut crosses = vec![false; b.len()];
     let mut sites = vec![false; b.len()];
     for i in 0..b.len() {
+        crate::work::scan_work(1);
         if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
             continue;
         }
         let p = b.view(b.data[i][0]);
-        crosses[i] = p.steps(b).any(|s| matches!(s, Proj::Deref))
-            || match p.root {
-                hd_tir::ir::Root::Global(..) => true,
-                hd_tir::ir::Root::Local(l) => captured[l as usize],
-                hd_tir::ir::Root::Value(r) => {
-                    (r as usize) < i && b.tags[r as usize] == Tag::Read && crosses[r as usize]
-                }
-                _ => false,
-            };
+        // A local reference made by Ref keeps its place's provenance.
+        // Dereferencing that known address adds no new counted crossing
+        // (rustc instsimplify's &*a identity). Further dereferences, or an
+        // unknown/loaded reference, still need the conservative loan.
+        let mut steps = p.steps(b);
+        let known = match p.root {
+            hd_tir::ir::Root::Value(r)
+                if (r as usize) < i
+                    && b.tags[r as usize] == Tag::Ref
+                    && matches!(
+                        pool.get(b.ty[r as usize]),
+                        TyData::Ref { counted: false, .. }
+                    )
+                    && steps.next() == Some(Proj::Deref) =>
+            {
+                Some(r as usize)
+            }
+            _ => None,
+        };
+        crosses[i] = match known {
+            Some(r) => crosses[r] || steps.any(|s| matches!(s, Proj::Deref)),
+            None => {
+                p.steps(b).any(|s| matches!(s, Proj::Deref))
+                    || match p.root {
+                        hd_tir::ir::Root::Global(..) => true,
+                        hd_tir::ir::Root::Local(l) => captured[l as usize],
+                        hd_tir::ir::Root::Value(r) => {
+                            (r as usize) < i
+                                && b.tags[r as usize] == Tag::Read
+                                && crosses[r as usize]
+                        }
+                        _ => false,
+                    }
+            }
+        };
         sites[i] = crosses[i]
             || b.tags[i] == Tag::Read
                 && matches!(pool.get(b.ty[i]), TyData::Ref { counted: true, .. });
@@ -3593,7 +3626,7 @@ impl Ck<'_, '_> {
         // caller's or a call's, wherever `f` comes from; a call passing
         // `f` for a parameter whose type writes `'b` makes `'b` that one
         // (`fn.type.lifetime.call.written`).
-        let mut by_value = false;
+        let (mut by_value, mut closures) = (false, Vec::new());
         if tag == Tag::CallValue {
             let ins: Vec<u32> = (dep.params.iter())
                 .flat_map(|(t, ids)| ref_ids_of(ls, *t, ids))
@@ -3616,6 +3649,9 @@ impl Ck<'_, '_> {
                 else {
                     continue;
                 };
+                if b.tags[a as usize] == Tag::Closure && !b.is_instantiation(a as usize) {
+                    closures.push((a, lts.to_vec()));
+                }
                 for (k, var) in self.written_inputs(ls, b, (a, Vec::new()), values) {
                     if let Some(&l) = lts.get(k).filter(|&&l| l != 0) {
                         links.push((Var::Life(u32::from(l)), var));
@@ -3679,6 +3715,7 @@ impl Ck<'_, '_> {
             CallSig {
                 links,
                 by_value,
+                closures,
                 paths,
                 store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
                 result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),

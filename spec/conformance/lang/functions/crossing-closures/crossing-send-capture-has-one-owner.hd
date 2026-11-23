@@ -1,0 +1,64 @@
+# test: a Send crossing closure takes the captures that are not Copy from its environment, so each has one owner: moved out, only read, or never run
+# Spec 07 Crossing Closures: fn.crossing.mode.move, fn.crossing.move-out, fn.crossing.once.
+# expect-stdout: 2 3
+# expect-stdout: 8 2 1
+# expect-stdout: 2 5 4 true
+# expect-stdout: 2 1 2 0 2 2
+# expect-stdout: 0
+use std.collections.UniqList
+use std.marker.Send
+use std.sync.Arc
+
+fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+fn skip(code: fn() -> usize + Send) -> usize:
+    0
+
+fn names(n: usize) -> UniqList[string]:
+    let mut out: UniqList[string] = UniqList::new()
+    for i in 0..n:
+        out.push("n".repeat(i + 1))
+    out
+
+struct Bag:
+    items: UniqList[string]
+    n: usize
+
+pub fn main() -> void $ Console:
+    list := names(2)
+    moved := run(fn() -> UniqList[string]: list)
+    read_only := names(3)
+    count := run(fn() -> usize: read_only.len())
+    println("${moved.len()} $count")
+    bag := Bag { items: names(1), n: 7 }
+    total := run(fn() -> usize: bag.n + bag.items.len())
+    other := Bag { items: names(2), n: 1 }
+    back := run(fn() -> Bag: other)
+    println("$total ${back.items.len()} ${back.n}")
+    pair := (names(2), 5)
+    let (items, k) = run(fn() -> (UniqList[string], i32): pair)
+    let maybe: UniqList[string]? = .Some(names(4))
+    size := run(fn() -> usize:
+        match &maybe:
+            .Some(found) => found.len()
+            .None => 0
+    )
+    let kept: UniqList[string]? = .Some(names(1))
+    taken := run(fn() -> UniqList[string]?: kept)
+    println("${items.len()} $k $size ${taken.is_some()}")
+    shared := Arc::new(names(2))
+    reader := shared.clone()
+    read := run(fn() -> usize: reader.get().len())
+    after_read := Arc::strong_count(&shared)
+    mover := shared.clone()
+    held := run(fn() -> Arc[UniqList[string]]: mover)
+    after_move := Arc::strong_count(&shared)
+    unused := shared.clone()
+    skipped := skip(fn() -> usize: unused.get().len())
+    println(
+        "$read $after_read $after_move $skipped ${Arc::strong_count(&shared)} ${held.get().len()}",
+    )
+    words := names(3)
+    none := skip(fn() -> usize: words.len())
+    println("$none")

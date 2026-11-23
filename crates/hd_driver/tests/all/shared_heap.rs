@@ -89,8 +89,8 @@ fn a_program_that_starts_threads_imports_a_shared_heap_it_fills_once() {
 #[test]
 fn a_program_that_never_starts_one_keeps_its_own_heap() {
     let single = THREADS.replace(
-        "    match spawn(add_one):\n        .Some(thread) => println(\"joined ${join(thread)} ${atomic_load_u32(COUNTER)}\")\n        .None => println(\"no threads\")\n",
-        "    add_one()\n    println(\"${atomic_load_u32(COUNTER)}\")\n",
+        "    scope(fn(s: &mut Scope) -> void: s.spawn(fn() -> void: add_one()).join())\n",
+        "    add_one()\n",
     );
     assert_ne!(single, THREADS);
     let (shared, defined, start, passive, active, thread) =
@@ -113,7 +113,7 @@ fn a_thread_runs_its_work_on_node_before_join_returns() -> Result<(), String> {
     let stdout = String::from_utf8_lossy(&ran.stdout);
     assert_eq!(
         stdout,
-        "joined true 1\n",
+        "joined 1\n",
         "{}",
         String::from_utf8_lossy(&ran.stderr)
     );

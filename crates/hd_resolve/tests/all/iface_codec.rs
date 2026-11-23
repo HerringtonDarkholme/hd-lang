@@ -264,6 +264,43 @@ fn every_truncated_item_blob_is_a_cache_miss() -> Result<(), &'static str> {
     Ok(())
 }
 
+/// A corrupt item record is an ordinary cache miss, including on lazy reads.
+/// The builtin control also has none of a callable's or declared type's attrs.
+#[test]
+fn builtin_records_round_trip_and_unknown_item_tags_are_memoized_cache_misses() {
+    let run = Run::new();
+    let names = run.names();
+    let mut builtin = hd_resolve::seed::items(&names, "std.core")
+        .into_iter()
+        .find(|item| item.def == run.known.list)
+        .expect("the real builtin List declaration");
+    assert!(builtin.call_mut().is_none());
+    assert!(builtin.type_attrs().is_none());
+    assert_eq!(builtin.type_decl(), hd_types::sealed::TypeDecl::Builtin);
+    let mut bytes = encode_items(&names, &[builtin.clone()], &[]).expect("encode builtin");
+    assert_eq!(
+        decode_items(&names, &bytes),
+        Some((vec![builtin.clone()], vec![]))
+    );
+    let (good, _) = decode_lazy(&names, Arc::from(bytes.clone())).expect("valid index");
+    assert_eq!(good.get(0), Some(&builtin));
+
+    // put_item's builtin discriminator is followed only by the empty export
+    // count. Check that boundary explicitly before corrupting its kind byte.
+    let tag = bytes.len() - size_of::<u32>() - 1;
+    assert_eq!(bytes[tag], 9);
+    assert_eq!(&bytes[tag + 1..], &[0; size_of::<u32>()]);
+    bytes[tag] = u8::MAX;
+    assert!(decode_items(&names, &bytes).is_none());
+    let (bad, _) =
+        decode_lazy(&names, Arc::from(bytes)).expect("record corruption leaves index valid");
+    assert_eq!(bad.decoded(), 0);
+    assert!(bad.get(0).is_none());
+    assert_eq!(bad.decoded(), 1);
+    assert!(bad.get(0).is_none());
+    assert_eq!(bad.decoded(), 1, "a cached failure is not decoded again");
+}
+
 #[test]
 fn damaged_exports_are_cache_misses() -> Result<(), &'static str> {
     let run = Run::new();
@@ -292,4 +329,60 @@ fn damaged_exports_are_cache_misses() -> Result<(), &'static str> {
     bad_module[at] = 0xff;
     assert!(decode_items(&names, &bad_module).is_none());
     Ok(())
+}
+
+/// Result-path metadata is read back from disk independently of the source
+/// resolver (ref.result.path.form, ref.result.path.lifetime). Re-intern in a
+/// different session so matching numeric symbol IDs cannot mask a lost path.
+#[test]
+fn result_paths_survive_eager_and_lazy_interfaces_in_a_fresh_session() {
+    let source = include_str!("inputs/result_paths.hd");
+    let writer = Run::new();
+    let (items, exports) = super::const_generics::resolve_in(writer.names(), source);
+    let bytes = encode_items(&writer.names(), &items, &exports).expect("encode result paths");
+
+    let reader = Run::new();
+    reader.paths.item("other", "before", "Earlier");
+    reader.syms.intern("an earlier symbol");
+    assert_ne!(writer.syms.intern("name"), reader.syms.intern("name"));
+    let names = reader.names();
+    let (eager, _) = decode_items(&names, &bytes).expect("eager result paths");
+    let (lazy, _) = decode_lazy(&names, Arc::from(bytes)).expect("lazy result paths");
+    assert_eq!(lazy.decoded(), 0);
+
+    for (function, expected) in [
+        (
+            "parts",
+            vec![(0, 1, vec!["name", "first"]), (1, 0, vec!["name", "last"])],
+        ),
+        ("tuple", vec![(0, 0, vec!["_1", "name", "first"])]),
+    ] {
+        let index = eager
+            .iter()
+            .position(|item| names.text(item.name) == function)
+            .expect("function in eager interface");
+        let item = lazy.get(index).expect("function in lazy interface");
+        assert_eq!(item, &eager[index]);
+        let sig = item.sig().expect("function signature");
+        let actual: Vec<_> = sig
+            .paths
+            .iter()
+            .map(|path| {
+                (
+                    path.slot,
+                    path.param,
+                    path.fields
+                        .iter()
+                        .map(|field| names.text(*field))
+                        .collect::<Vec<_>>(),
+                )
+            })
+            .collect();
+        assert_eq!(actual, expected, "{function}");
+    }
+    assert_eq!(
+        lazy.decoded(),
+        2,
+        "only the requested signatures are decoded"
+    );
 }

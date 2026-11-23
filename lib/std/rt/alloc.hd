@@ -210,9 +210,9 @@ pub fn free_block(address: usize) -> void:
 
 # Compiler-private ABI, which the backend inlines: address is a live block
 # of class, with no buffered candidate bit. It goes on its class's freed
-# list; its page keeps counting it until `reclaim`.
+# list, counted by its page until `reclaim`; a thread with no table frees it.
 pub fn free_class(address: usize, class: usize) -> void:
-    if class == 0:
+    if class == 0 || (threaded() && table == 0):
         free_block(address)
         return
     at := table + FREED + 4 * class
@@ -541,7 +541,8 @@ fn panic_with(category: string, message: string) -> never:
 # registry, which the first allocation grows, says which heap owns each
 # page, and holds one record per heap: its state (0 unused, 1 in use, 2
 # retired), its table, the blocks other threads freed, then the rest of
-# its storage while it is retired. A block that another thread frees goes
+# its storage while it is retired; record 0 holds how many heaps exist,
+# then `shared_held`. A block that another thread frees goes
 # on its owner's list, and the owner gives it back before it takes pages.
 # A thread that ends retires its heap, and the next thread to start adopts
 # it, so no heap is lost to a thread's end.
@@ -571,6 +572,10 @@ fn registry() -> usize:
         _ := atomic_wait(REGISTRY, 1, -1)
         at = usize(atomic_load(REGISTRY))
     at
+
+## The registry's word that `std.rt.checked` counts the program's held blocks in, since a block one thread allocates another may free.
+pub fn shared_held() -> usize:
+    registry() + 4
 
 # The record of heap `id`.
 fn record(id: usize) -> usize:

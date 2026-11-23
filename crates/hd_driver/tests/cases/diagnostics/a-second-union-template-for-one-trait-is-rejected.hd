@@ -1,0 +1,40 @@
+# @dump: diagnostics
+# @build: std
+# annot.template.unique: each trait has at most one template of each kind.
+# Distinct traits may have union templates; the second Probe template is rejected.
+use std.structure.{Field, Structure, UnionType, Variant, Walker}
+
+trait Probe < ?Copy:
+    fn probe(&self) -> bool
+
+trait Other < ?Copy:
+    fn other(&self) -> bool
+
+struct Noop: pass
+
+impl[S < ?Copy] Walker[S] for Noop:
+    type Error = never
+
+    fn variant(&mut self, value: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < ?Copy](&mut self, field: Field[S, F], value: &F) -> Result[void, never]:
+        .Ok(())
+
+impl[T < ?Copy & UnionType] Probe for T by Structure:
+    fn probe(&self) -> bool:
+        let mut walker = Noop {}
+        _ := Structure::walk(self, &mut walker)
+        true
+
+impl[T < ?Copy & UnionType] Other for T by Structure:
+    fn other(&self) -> bool:
+        let mut walker = Noop {}
+        _ := Structure::walk(self, &mut walker)
+        true
+
+impl[U < ?Copy & UnionType] Probe for U by Structure:
+    fn probe(&self) -> bool:
+        let mut walker = Noop {}
+        _ := Structure::walk(self, &mut walker)
+        false

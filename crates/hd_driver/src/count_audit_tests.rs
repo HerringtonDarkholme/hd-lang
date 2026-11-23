@@ -52,6 +52,7 @@ fn emitted_pairs_have_source_lines_and_observation_barriers() {
         "std",
         &Packages {
             checked: true,
+            report: true,
             ..Packages::default()
         },
         &Goal::Program {

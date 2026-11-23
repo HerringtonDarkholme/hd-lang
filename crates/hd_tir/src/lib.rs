@@ -29,5 +29,6 @@ pub mod inline;
 pub mod ir;
 pub mod own;
 pub mod wire;
+pub mod work;
 
 pub use ir::{Body, BodyKind, Callee, ChoiceKind, PrimOp, Ref, Tag, TirBuilder, TirSink};

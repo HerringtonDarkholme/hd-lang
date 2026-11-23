@@ -203,7 +203,9 @@ impl Index {
         out.sub_root.push(*values.get(body.sub_root.get(sub)?)?);
         out.sub_params.push(Range32::default());
         out.sub_parent.push(SubId::from_raw(0));
-        out.sub_flags.push(0);
+        // A copy of a body that runs once takes its captures at its call.
+        out.sub_flags
+            .push(body.sub_flags.get(sub)? & crate::ir::sub_flags::ONCE);
         copy_frames(body, &mut out, budget)?;
         Some((out, local_map))
     }

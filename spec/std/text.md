@@ -328,13 +328,16 @@ fn header(line: string) -> string?:
 
 ## Joining And Building
 
-The `join` method of `List[string]` and `StringBuilder` join many
-pieces of text:
+The `join` method formats list elements with `Display`; `StringBuilder`
+assembles pieces of text:
 
 ```text
 use std.text.StringBuilder
 
 fn csv(cells: List[string]) -> string:
+    cells.join(",")
+
+fn numbers(cells: List[i32]) -> string:
     cells.join(",")
 
 fn report(names: List[string]) -> string:
@@ -346,8 +349,8 @@ fn report(names: List[string]) -> string:
     out.build()
 ```
 
-1. r[std-text.join.list-method] `std.text` gives `List[string]` the method `join(&self, separator: string) -> string`. Calling it needs no import.
-2. r[std-text.join.list-result] `join` returns the parts in order with `separator` between each two, so one part gives that part and no part gives `""`.
+1. r[std-text.join.display-list] `std.text` gives `List[T < Display]` the method `join(&self, separator: string) -> string`, requiring no import.
+2. r[std-text.join.display-result] `join` returns each element's `Display.write` text in list order, separated by `separator`, with no leading or trailing separator.
 3. r[std-text.builder.decl-struct] `std.text` declares the struct `StringBuilder`, with private fields, which implements `Debug`. Code imports it, as in `use std.text.StringBuilder`.
 4. r[std-text.builder.new-ref] `StringBuilder::new() -> *mut StringBuilder` returns an empty builder, a new object. Every copy of the reference pushes to that one builder.
 5. r[std-text.builder.push-local] `StringBuilder.push(&mut self, text: string) -> void` appends `text`.
@@ -357,6 +360,9 @@ fn report(names: List[string]) -> string:
 9. r[std-text.builder.reserve-local] `StringBuilder.reserve(&mut self, count: usize) -> void` makes room for at least `count` more bytes without appending text.
 10. r[std-text.builder.build-local] `StringBuilder.build(&mut self) -> string` returns every text pushed since the builder was made or last built, in push order, joined with nothing between, and empties the builder.
 11. r[std-text.builder.unique-storage] A `StringBuilder` value owns its byte storage uniquely and does not implement `Copy`; its counted references remain copyable.
+12. r[std-text.join.display-once] `join` calls each element's `Display.write` exactly once, in list order, even with an empty separator.
+13. r[std-text.join.display-empty] An empty list joins to `""`; a singleton joins to its element's display text.
+14. r[std-text.join.display-cost] Excluding custom display work, `join` takes amortized linear time in element count and output bytes, using one growing output buffer.
 
 | Calls on a new builder `b` | `b.build()` gives | A second `b.build()` gives |
 | --- | --- | --- |
@@ -365,11 +371,11 @@ fn report(names: List[string]) -> string:
 | `b.reserve(8)`, then `b.push_ascii(33)` | `"!"` | `""` |
 | `b.push_ascii(200)` | panics `explicit-panic` | |
 
-> **Why.** The method is Rust's `[String].join(sep)`, and agents wrote it
-> in usability probes. There is no free `join(parts, separator)`, since it
-> was a second spelling of the method.
-> `trait.inherent.unique-unifying.disjoint` already allows an inherent
-> implementation for `List[string]` alone.
+> **Why.** The established name is Rust's string-slice `join`; displayable
+> non-string elements follow Rust itertools' `Itertools::join`. Both
+> produce text separated between elements. Streaming `Display.write`
+> lets implementations avoid intermediate strings and repeated concatenation.
+> There is no second free-function spelling.
 >
 > A builder is one buffer of bytes. `build` hands it over and starts
 > again, as Go's `strings.Builder` shares its buffer with the string it

@@ -345,8 +345,10 @@ fn pure_float_method(path: &str) -> bool {
 /// The intrinsics that own their value arguments, as a function's value
 /// parameters do: `string_from_bytes` takes over the list's buffer when its
 /// argument is the buffer's one holder (`crates/hd_wasm/DESIGN.md`
-/// §23.17), so the call consumes the list, moved in at its last use.
-const OWNING_INTRINSICS: &[&str] = &["string_from_bytes"];
+/// §23.17), so the call consumes the list, moved in at its last use;
+/// `thread_spawn` keeps its closure's environment in the thread's block,
+/// whose thread runs it (`module.rt.thread.spawn`).
+const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "thread_spawn"];
 
 impl Env<'_> {
     /// The compiler-known raw-memory relation of an intrinsic. This names

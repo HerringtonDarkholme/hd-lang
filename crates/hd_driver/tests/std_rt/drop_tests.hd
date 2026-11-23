@@ -8,6 +8,7 @@ use std.collections.{UniqList, UniqListIntoIter, UniqMap}
 use std.iter.Iterable
 use std.rt.memory.pages
 use std.rt.checked.released
+use std.sync.Arc
 
 let log = ""
 let box_drops: usize = 0
@@ -17,6 +18,7 @@ let cycle_drops: usize = 0
 let empty_drops: usize = 0
 let cursor_cycle_drops: usize = 0
 let slot_drops: usize = 0
+let stamp_drops: usize = 0
 
 struct Inner:
     name: string
@@ -218,6 +220,37 @@ fn release_cycle() -> void:
         pressure := box(Pressure { next: .None })
         pressure.next = .Some(pressure)
 
+# A value whose hook reads its field, and one that holds it beside another
+# field: a consuming function that empties a `let mut` copy before its
+# drop, as `Arc::try_unwrap` does, leaves the hook the written field
+# (#2320).
+struct Stamp:
+    id: usize
+
+impl !Copy for Stamp
+
+impl Drop for Stamp:
+    fn drop(&mut self) -> void:
+        stamp_drops = stamp_drops + self.id
+
+struct Stamped:
+    stamp: Stamp
+    n: usize
+
+impl !Copy for Stamped
+
+fn emptied(this: Stamp) -> usize:
+    let mut held = this
+    id := held.id
+    held.id = 0
+    id
+
+fn emptied_nested(this: Stamped) -> usize:
+    let mut held = this
+    id := held.stamp.id
+    held.stamp.id = 0
+    id + held.n
+
 tests:
     use std.testing.{assert, it}
 
@@ -308,3 +341,14 @@ tests:
         slot_drops = 0
         assert(slot_parameter(Held { id: 1 }, true) + slot_parameter(Held { id: 1 }, false) == 4, "a moved parameter")
         assert(slot_drops == 2, "each parameter drops once: $slot_drops")
+
+    it("a let mut copy of a moved parameter drops with the fields written into it"):
+        stamp_drops = 0
+        assert(emptied(Stamp { id: 5 }) == 5, "the field as read before the write")
+        assert(stamp_drops == 0, "the hook saw the written field: $stamp_drops")
+        assert(emptied_nested(Stamped { stamp: Stamp { id: 7 }, n: 1 }) == 8, "the nested field and n")
+        assert(stamp_drops == 0, "the hook saw the written nested field: $stamp_drops")
+        match Arc::try_unwrap(Arc::new(Stamp { id: 3 })):
+            .Ok(stamp) => assert(stamp.id == 3, "the unwrapped value")
+            .Err(_) => assert(false, "a unique Arc unwraps")
+        assert(stamp_drops == 3, "the unwrapped value drops once: $stamp_drops")

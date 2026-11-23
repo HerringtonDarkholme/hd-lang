@@ -102,8 +102,8 @@ fn tuple_comparisons_keep_owners_walker_effects_and_unordered_results()
 #[test]
 fn tuple_effect_summaries_borrow_small_and_shared_wide_operands() {
     let store = MemoryStore::default();
-    // 2,048 fields take the shared wide instance, as 4,096 did (4.6 s of
-    // the test's 7.2 s).
+    // Exercise small and shared-wide instances. The separate scale test
+    // also builds 4,096 fields and checks verifier work, not elapsed time.
     for width in [2, 32, 128, 2048] {
         let fields = std::iter::repeat_n("string", width)
             .collect::<Vec<_>>()
@@ -186,5 +186,47 @@ fn existing_read_only_string_helpers_keep_their_effects() {
             .lines()
             .any(|line| line.starts_with("summary ") && !line.contains("writes")),
         "{owned}"
+    );
+}
+
+#[test]
+fn wide_tuple_comparisons_build_with_linear_place_verifier_work() {
+    let mut measured = Vec::new();
+    for width in [2048, 4096] {
+        let fields = vec!["string"; width].join(", ");
+        let text = include_str!("inputs/wide-tuple-comparison.hd").replace("FIELDS", &fields);
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", &text);
+        let store = MemoryStore::default();
+        let host = Host {
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Priority),
+            render_tir: &[],
+        };
+        let (out, work) = hd_tir::work::count_empty_place_work(|| {
+            build_packages(
+                &host,
+                "app",
+                &Packages {
+                    build_profile: BuildProfile::Release,
+                    level: OptLevel::Optimized,
+                    verify_own: true,
+                    ..Packages::default()
+                },
+                &Goal::Fixture {
+                    module: "main".into(),
+                },
+            )
+        });
+        assert!(!out.diags.has_errors(), "{}", out.render());
+        assert!(out.wasm.is_some());
+        eprintln!("tuple width {width}: place-verifier work {work}");
+        measured.push(work);
+    }
+    assert!(
+        measured[0] > 0 && measured[1] * 4 <= measured[0] * 9,
+        "{measured:?}"
     );
 }

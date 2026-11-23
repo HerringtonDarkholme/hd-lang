@@ -755,7 +755,7 @@ pub struct Elem {
 
 /// Count ownership of a host slot's argument record. Value indices refer
 /// to the shared area layout, so the slot stores that layout only once.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct HostCounts {
     pub borrowed: Vec<(u32, Counted)>,
     pub owned: Vec<(u32, Counted)>,
@@ -1236,8 +1236,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             if bang {
                 m.export("hd.wake", Sym::Helper(Helper::WakeMark));
             }
-            #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.checked {
+            if let Some(c) = m.runtime.report() {
                 m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
                 m.export("hd.cycles.length", Sym::Inst(c.length));
                 m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
@@ -1292,12 +1291,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         m.export("hd.uniques", Sym::Inst(c.unique_checks));
         m.export("hd.no_ops", Sym::Inst(c.no_op_counts));
         m.export("hd.skipped", Sym::Inst(c.skipped_tests));
-        #[cfg(feature = "checked-report")]
-        {
-            m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
-            m.export("hd.cycles.length", Sym::Inst(c.length));
-            m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
-            m.export("hd.count.pairs.length", Sym::Inst(c.count_audit.length));
+        if let Some(r) = c.report {
+            m.export("hd.cycles.pointer", Sym::Inst(r.pointer));
+            m.export("hd.cycles.length", Sym::Inst(r.length));
+            m.export("hd.count.pairs.pointer", Sym::Inst(r.count_audit.pointer));
+            m.export("hd.count.pairs.length", Sym::Inst(r.count_audit.length));
         }
     }
     if m.frames.contains_key(&key) {
@@ -1319,10 +1317,12 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
 /// take the region whose top and limit are the block's first two words;
 /// the runtime modules' inits give the instance its own runtime storage
 /// (`fn.crossing.global.runtime`); then it calls the function value in the
-/// next two words, `thread_spawn`'s `run`, on the block. Then the block's fifth word gets 1, and its waiters wake.
+/// next two words, `thread_spawn`'s `run`, on the block, which ends the
+/// thread in the block's fifth word, its state (`std.rt.thread`).
 /// When the instance stopped instead (a panic or a trap), the host calls
-/// it again with `stopped` 2, which only sets the word and wakes them
-/// (`module.rt.thread.join`). Cost: O(1) besides `run`.
+/// it again with `stopped` 2, which only sets the state's ended and
+/// stopped bits and wakes its waiters; the stopped thread keeps its owner
+/// (`module.rt.thread.wait`). Cost: O(1) besides `run`.
 fn thread_start(m: &Module) -> Func {
     let mut f = m.func("rt:thread_start", vec![Val::I32, Val::I32], vec![]);
     f.get(1);
@@ -1355,16 +1355,17 @@ fn thread_start(m: &Module) -> Func {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
     f.call_indirect(vec![Val::I32, Val::I32, Val::I32], vec![]);
-    f.i32(1);
-    f.set(1);
-    f.op(Instruction::End);
+    f.op(Instruction::Else);
+    // A thread that stopped never ended, so its two low bits are clear.
     f.get(0);
-    f.get(1);
-    f.op(Instruction::I32AtomicStore(mem(HEAP, 16, 2)));
+    f.i32(3);
+    f.op(Instruction::I32AtomicRmwAdd(mem(HEAP, 16, 2)));
+    f.op(Instruction::Drop);
     f.get(0);
     f.i32(-1);
     f.op(Instruction::MemoryAtomicNotify(mem(HEAP, 16, 2)));
     f.op(Instruction::Drop);
+    f.op(Instruction::End);
     f
 }
 
@@ -2664,10 +2665,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CycleFree => {
             let mut f = m.func("rt:cycle_free", vec![Val::I32; 3], vec![]);
-            #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.checked {
+            if let Some(r) = m.runtime.report() {
                 f.get(1);
-                f.call(Sym::Inst(c.collected));
+                f.call(Sym::Inst(r.collected));
             }
             free_object(&mut f, m, 1);
             f
@@ -3609,6 +3609,14 @@ fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) 
     f.op(Instruction::I32And);
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
+    if m.threads {
+        // A thread's instance has no table before its first allocation
+        // (`module.rt.thread.alloc`): `free` gives it its heap first.
+        f.call(Sym::Inst(r.small.metadata));
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::I32And);
+    }
     f.op(Instruction::If(BlockType::Empty));
     f.call(Sym::Inst(r.small.metadata));
     f.get(class);
@@ -4746,7 +4754,7 @@ pub(crate) fn ref_store(
 /// added in unchecked builds; the linker aliases the same release glue.
 #[cfg(feature = "checked-report")]
 pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
-    if m.runtime.checked.is_none() || !m.allocation_kind_reporting {
+    if m.runtime.report().is_none() || !m.allocation_kind_reporting {
         return;
     }
     if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::Glue(_) | Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) {
@@ -5105,7 +5113,7 @@ mod checked_fixed_allocation_tests {
 
     #[test]
     fn fixed_requests_use_the_checked_allocator_without_class_bits() -> Result<(), String> {
-        let keys: Vec<_> = crate::runtime_items(true)
+        let keys: Vec<_> = crate::runtime_items(true, false)
             .iter()
             .enumerate()
             .map(|(i, _)| u128::try_from(i).map(|n| Some(Hash128(n + 1))))

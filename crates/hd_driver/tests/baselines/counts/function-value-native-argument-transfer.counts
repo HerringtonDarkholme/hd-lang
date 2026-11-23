@@ -264,13 +264,9 @@ pub fn main!() -> void $ Clock:
         started := cold_starts
         pending := prepared_native(literal, seen)
 >   retain *mut i32 (stored)
->   release Suspend[usize] (overwritten)
         assert_equal(*seen, before, reason="an unpolled frame keeps its native input alive")
->   release string (overwritten)
         assert_equal(cold_starts, started, reason="constructing a native callback does not poll it")
->   release string (overwritten)
         assert_equal(
->   release string (overwritten)
             pending!(),
 >   retain counted reference (stored)
 >   release counted reference (last use)
@@ -283,17 +279,14 @@ pub fn main!() -> void $ Clock:
             reason="the suspended callback reads its unique input after awaiting",
         )
         assert_equal(*seen, before + 1, reason="awaiting drops the mixed native owner once")
->   release string (overwritten)
         assert_equal(cold_starts, started + 1)
         _ := prepared_native(literal, seen)
 >   retain *mut i32 (stored)
 >   release Suspend[usize] (last use)
         assert_equal(
->   release string (overwritten)
             *seen,
             before + 2,
             reason="abandoning an unpolled frame drops its mixed owner once",
         )
         assert_equal(cold_starts, started + 1, reason="abandonment never starts the callback body")
->   release string (overwritten)
     assert_equal(*seen, +4, reason="named and literal cold frames each transfer both owners once")

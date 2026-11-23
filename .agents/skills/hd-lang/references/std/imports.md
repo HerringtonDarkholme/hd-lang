@@ -55,9 +55,7 @@ use std.text.{StringBuilder, r}
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, h, ms, now, s, sleep}
 ```
 
-`std.time` also exports the suffix `min` for minutes, which clashes with
-`std.cmp.min` in one file: import one of them under another name, as
-`use std.time.{min as minutes}`.
+`std.time.minutes(count)` constructs minutes; `90min` is the fixed duration literal spelling.
 
 Other modules: `std.http` and `std.net` (requests and sockets),
 `std.encoding` (base64 and hex), `std.digest` (hashes), `std.validate`

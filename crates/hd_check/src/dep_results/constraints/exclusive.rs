@@ -869,7 +869,12 @@ impl Gen<'_, '_> {
                     }
                     let live =
                         |u: u32| order.hop(at, u, h) && !order.kills(&sets[h as usize], at, u);
-                    if reads[h as usize].iter().any(|&u| live(u)) {
+                    // A closure parameter at a call's lifetime holds its
+                    // loan until the call ends, so for the rest of the
+                    // closure's body (`fn.closure.lifetime.call`).
+                    let held = (self.bound.iter())
+                        .any(|x| x.0 == h && (x.2.0..x.2.1).contains(&node.raw()));
+                    if held || reads[h as usize].iter().any(|&u| live(u)) {
                         let inner = matches!(kind, Kind::Elem(_))
                             && sp.iter().any(|s| matches!(s, Proj::Field(_)));
                         let msg = if access == Access::Move {

@@ -42,7 +42,6 @@ std/json/encode_pretty#0 [List[app.main.Row]]
 std/rt.alloc/retain#0
 app/main/Row.structure handle 0 1#2
 std/rt.cycle/sweep#0
-std/text/impl List[string].join#0
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
 std/num/impl[N < Integer] N.checked_add#0 [usize]

@@ -1,0 +1,12 @@
+# test: a handle names a block of the shared heap, so it is Send but never Wire
+# Spec std/thread: std-thread.handle.send.
+use std.marker.Wire
+use std.thread.{Handle, Scope, scope}
+
+fn post[T < ?Copy & Wire](value: T) -> void:
+    pass
+
+fn send() -> void:
+    scope(fn(s: &mut Scope) -> void:
+        post(s.spawn(fn() -> i32: 1)) # diagnostic: unsatisfied-trait-bound
+    )

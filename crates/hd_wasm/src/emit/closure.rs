@@ -55,6 +55,14 @@ pub(super) fn captures(
     hd_tir::own::closure_captures(b, ci, recursive).collect()
 }
 
+/// Whether closure `ci`'s body runs once (`sub_flags::ONCE`): it takes
+/// its captures with their counts, and its environment gives them up. A
+/// crossing closure shares no cell (`fn.crossing.mode`), so every capture
+/// is a value of the environment's.
+pub(super) fn takes_captures(b: &Body, ci: usize) -> bool {
+    b.sub_flags[b.data[ci][0] as usize] & hd_tir::ir::sub_flags::ONCE != 0
+}
+
 /// Whether each capture [`captures`] lists for closure `ci` moves into
 /// the environment (`CaptureMode::Move`, the move pass's rule 5): the
 /// environment takes the local's count, so the closure retains nothing.
@@ -293,7 +301,7 @@ impl Em<'_, '_, '_> {
         let glue = self.cell_glue(ty, &m)?;
         let obj = self.new_object(m.size, glue, cyclic, recursive);
         #[cfg(feature = "checked-report")]
-        if self.input.runtime.checked.is_some() && self.cells.contains_key(&l) {
+        if self.input.runtime.report().is_some() && self.cells.contains_key(&l) {
             crate::rt::checked_kind(&mut self.f, self.m, 2);
         }
         self.f.get(obj);
@@ -498,12 +506,6 @@ impl Em<'_, '_, '_> {
             .into_iter()
             .filter(|(first, _)| !moved_at.contains(first))
             .collect();
-        // Drop glue releases a value whole: a moved part's local then
-        // releases its count, as the `Drop` the move took would have.
-        let glue = fields
-            .iter()
-            .flatten()
-            .any(|t| crate::layout::holds_drop(self.pool(), self.env(), *t));
         if let Some(reason) =
             self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Captures)
         {
@@ -519,10 +521,6 @@ impl Em<'_, '_, '_> {
             .filter(|(_, mv)| **mv)
             .map(|((c, t), _)| (c.0, *t))
         {
-            if glue {
-                self.release_local(l)?;
-                continue;
-            }
             if self.needs_drop(t) {
                 for x in self.local(u32::try_from(l).expect("locals"))? {
                     self.f.zero(x);
@@ -570,7 +568,29 @@ impl Em<'_, '_, '_> {
                 self.borrowed.insert(*l);
             }
         }
+        if env == 0 && takes_captures(self.b, ci) {
+            self.give_up_captures(env);
+        }
         Ok(())
+    }
+
+    /// After a body that runs once took the captures of its environment
+    /// in local `env` (`sub_flags::ONCE`): the environment's descriptor
+    /// loses its release glue, so its last release frees its block alone,
+    /// whoever holds it then. One load and one store.
+    pub(super) fn give_up_captures(&mut self, env: u32) {
+        let desc = self.f.local(Val::I32);
+        self.f.get(env);
+        self.f.u32(4);
+        self.f.op(I::I32Sub);
+        self.f.op(I::LocalTee(desc));
+        self.f.get(desc);
+        self.f
+            .op(I::I32Load(crate::module::mem(crate::module::HEAP, 0, 2)));
+        self.f.u32(!crate::module::GLUE);
+        self.f.op(I::I32And);
+        self.f
+            .op(I::I32Store(crate::module::mem(crate::module::HEAP, 0, 2)));
     }
 
     /// `CallValue`: the environment, the arguments and the context of the

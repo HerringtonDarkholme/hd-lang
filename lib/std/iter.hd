@@ -56,8 +56,8 @@ pub trait Iterator[T < ?Copy] < ?Copy:
 
     # Stops at the first item that passes, leaving the rest unread.
     ## True when `test` accepts an item; it stops at the first one.
-    ## See [std-iter.adapter.any.value](../../spec/std/iter.md#r-std-iter.adapter.any.value).
-    fn any(self, test: fn(&T) -> bool) -> bool:
+    ## See [std-iter.adapter.any.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.any.fn-mut).
+    fn any[F < ?Copy & FnMut(&T) -> bool](self, mut test: F) -> bool:
         let mut cursor = self
         while true:
             match cursor.next():
@@ -69,8 +69,8 @@ pub trait Iterator[T < ?Copy] < ?Copy:
 
     # Stops at the first item that fails, leaving the rest unread.
     ## True when `test` accepts every item; it stops at the first one it rejects.
-    ## See [std-iter.adapter.all.value](../../spec/std/iter.md#r-std-iter.adapter.all.value).
-    fn all(self, test: fn(&T) -> bool) -> bool:
+    ## See [std-iter.adapter.all.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.all.fn-mut).
+    fn all[F < ?Copy & FnMut(&T) -> bool](self, mut test: F) -> bool:
         let mut cursor = self
         while true:
             match cursor.next():
@@ -82,8 +82,8 @@ pub trait Iterator[T < ?Copy] < ?Copy:
 
     # The first item that passes, leaving the rest unread.
     ## The first item that `test` accepts, in `.Some`, or `.None`.
-    ## See [std-iter.adapter.find.value](../../spec/std/iter.md#r-std-iter.adapter.find.value).
-    fn find(self, test: fn(&T) -> bool) -> T?:
+    ## See [std-iter.adapter.find.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.find.fn-mut).
+    fn find[F < ?Copy & FnMut(&T) -> bool](self, mut test: F) -> T?:
         let mut cursor = self
         while true:
             match cursor.next():
@@ -171,8 +171,8 @@ pub trait Iterator[T < ?Copy] < ?Copy:
         .Some(best)
 
     ## Folds the remaining items into `initial`: `step(accumulator, item)` per item, in order.
-    ## See [std-iter.adapter.fold.value](../../spec/std/iter.md#r-std-iter.adapter.fold.value).
-    fn fold[A, $ R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+    ## See [std-iter.adapter.fold.fn-mut](../../spec/std/iter.md#r-std-iter.adapter.fold.fn-mut).
+    fn fold[A, F < ?Copy & FnMut(A, T) -> A $ R, $ R](self, initial: A, mut step: F) -> A $ R:
         let mut cursor = self
         let total = initial
         while true:
@@ -293,13 +293,13 @@ impl[T < ?Copy] dyn Iterator[T]:
     ) -> FlatMap[DynIterator[T], T, U, J, F]:
         DynIterator { source: self }.flat_map::[U, J, F](transform)
 
-    pub fn any(*mut self, test: fn(&T) -> bool) -> bool:
+    pub fn any[F < ?Copy & FnMut(&T) -> bool](*mut self, test: F) -> bool:
         DynIterator { source: self }.any(test)
 
-    pub fn all(*mut self, test: fn(&T) -> bool) -> bool:
+    pub fn all[F < ?Copy & FnMut(&T) -> bool](*mut self, test: F) -> bool:
         DynIterator { source: self }.all(test)
 
-    pub fn find(*mut self, test: fn(&T) -> bool) -> T?:
+    pub fn find[F < ?Copy & FnMut(&T) -> bool](*mut self, test: F) -> T?:
         DynIterator { source: self }.find(test)
 
     pub fn last(*mut self) -> T?:
@@ -315,8 +315,8 @@ impl[T < ?Copy] dyn Iterator[T]:
     pub fn count(*mut self) -> usize:
         DynIterator { source: self }.count()
 
-    pub fn fold[A, $ R](*mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
-        DynIterator { source: self }.fold::[A](initial, step)
+    pub fn fold[A, F < ?Copy & FnMut(A, T) -> A $ R, $ R](*mut self, initial: A, step: F) -> A $ R:
+        DynIterator { source: self }.fold::[A, F](initial, step)
 
     pub fn collect[C < ?Copy & FromIterator[T]](*mut self) -> C:
         DynIterator { source: self }.collect::[C]()
@@ -648,8 +648,8 @@ impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
 
 impl[T] List[T]:
     ## A lazy snapshot of `(index, item)` pairs, starting at zero.
-    ## See [std-iter.list.enumerate.value](../../spec/std/iter.md#r-std-iter.list.enumerate.value).
-    pub fn enumerate(self) -> Enumerate[ListIter[T], T]:
+    ## See [std-iter.list.enumerate.borrow](../../spec/std/iter.md#r-std-iter.list.enumerate.borrow).
+    pub fn enumerate(&self) -> Enumerate[ListIter[T], T]:
         self.iter().enumerate()
 
 ## A cursor whose front and back share the same remaining sequence.

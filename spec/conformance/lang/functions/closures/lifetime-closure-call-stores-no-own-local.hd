@@ -1,0 +1,22 @@
+# test: a closure may not store a reference to its own local at its parameter's call lifetime, which outlives the closure's body
+# Spec 07 Closure Annotations: fn.closure.lifetime.call.
+struct Point:
+    x: i32
+
+struct Shelf['s]:
+    count: i32
+
+impl['s] Shelf['s]:
+    fn keep(&mut self, point: &'s Point) -> void:
+        self.count += point.x
+
+fn fill['s](code: fn(&mut Shelf['s]) -> i32) -> i32:
+    let mut shelf = Shelf { count: 0 }
+    code(&mut shelf)
+
+fn demo() -> i32:
+    fill(fn(shelf: &mut Shelf) -> i32:
+        mine := Point { x: 1 }
+        shelf.keep(&mine) # diagnostic: local-reference-escapes
+        shelf.count
+    )
