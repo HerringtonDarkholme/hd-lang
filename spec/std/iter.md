@@ -76,7 +76,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 | `take` | `fn take(self, count: usize) -> Take[Self, T]` | a new iterator over the first `count` items of `self`, or fewer when `self` ends first |
 | `enumerate` | `fn enumerate(self) -> Enumerate[Self, T]` | a new iterator over `(index, item)` pairs, with `usize` indices counting from `0` |
 | `map` | `fn map[U < ?Copy, F < FnMut(T) -> U](self, transform: F) -> MapIter[Self, T, U, F]` | a new iterator over `transform(item)` for each item of `self`, in order |
-| r[std-iter.adapter.fold.value] `fold` | `fn fold[A, $ R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
+| r[std-iter.adapter.fold.fn-mut] `fold` | `fn fold[A, F < ?Copy & FnMut(A, T) -> A $ R, $ R](self, initial: A, step: F) -> A $ R` | the accumulator after `step` has combined it with each remaining item of `self`, in order, starting from `initial` |
 | r[std-iter.adapter.collect.value-target] `collect` | `fn collect[C < ?Copy & FromIterator[T]](self) -> C` | a `C` built from the remaining items of `self`, as [What Collect Builds](#what-collect-builds) specifies |
 
 1. r[std-iter.adapter.filter.borrow-fn-mut] The `filter` default method stores its callback type with signature `fn filter[F < FnMut(&T) -> bool](self, keep: F) -> Filter[Self, T, F]`; `Filter[I, T, F < FnMut(&T) -> bool = fn(&T) -> bool]` defaults `F` for written type annotations.
@@ -167,9 +167,9 @@ fn has_blank(lines: List[string]) -> bool:
 | `zip` | `fn zip[U < ?Copy, J < ?Copy & Iterable[U]](self, other: J) -> Zip[Self, T, U, J]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
 | `chain` | `fn chain[J < ?Copy & Iterable[T]](self, other: J) -> Chain[Self, T, J]` | a new iterator over the items of `self`, then those of `other` |
 | `flat_map` | `fn flat_map[U < ?Copy, J < ?Copy & Iterable[U], F < FnMut(T) -> J](self, transform: F) -> FlatMap[Self, T, U, J, F]` | a new iterator over the items of each iterable that `transform(item)` returns, in order |
-| r[std-iter.adapter.any.value] `any` | `fn any(self, test: fn(&T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
-| r[std-iter.adapter.all.value] `all` | `fn all(self, test: fn(&T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
-| r[std-iter.adapter.find.value] `find` | `fn find(self, test: fn(&T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
+| r[std-iter.adapter.any.fn-mut] `any` | `fn any[F < ?Copy & FnMut(&T) -> bool](self, test: F) -> bool` | whether `test` returns `true` for some remaining item of `self` |
+| r[std-iter.adapter.all.fn-mut] `all` | `fn all[F < ?Copy & FnMut(&T) -> bool](self, test: F) -> bool` | whether `test` returns `true` for every remaining item of `self` |
+| r[std-iter.adapter.find.fn-mut] `find` | `fn find[F < ?Copy & FnMut(&T) -> bool](self, test: F) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
 | r[std-iter.adapter.count.value] `count` | `fn count(self) -> usize` | the number of remaining items of `self` |
 | r[std-iter.adapter.min.value] `min` | `fn min(self) -> T? where T < Ord` | the smallest remaining item of `self` by `Ord`, or `.None` |
 | r[std-iter.adapter.max.value] `max` | `fn max(self) -> T? where T < Ord` | the largest remaining item of `self` by `Ord`, or `.None` |
@@ -333,7 +333,7 @@ fn total(values: List[i32]) -> i32:
 
 | Receiver | Method |
 | --- | --- |
-| `List[T]` | `map[U](&self, transform: fn(&T) -> U) -> List[U]` |
+| `List[T]` | `map[U, F < ?Copy & FnMut(&T) -> U](&self, transform: F) -> List[U]` |
 | `T?` | `map[U](self, transform: fn(T) -> U) -> U?` |
 
 1. r[std-iter.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
@@ -407,7 +407,7 @@ fn indexed(items: List[i32]) -> List[(usize, i32)]:
 2. r[std-iter.collect.string.empty] An empty character cursor collects to the empty string.
 3. r[std-iter.collect.string.stop] String collection stops at the first `.None` and accepts any `I < ?Copy & Iterator[char]`.
 4. r[std-iter.collect.string.cost] Collection takes amortized linear time in the emitted bytes and uses one growing output buffer, excluding source advancement costs.
-5. r[std-iter.list.enumerate.value] The inherent `List[T].enumerate(self) -> Enumerate[ListIter[T], T]` is equivalent to `self.iter().enumerate()`.
+5. r[std-iter.list.enumerate.borrow] The inherent `List[T].enumerate(&self) -> Enumerate[ListIter[T], T]` is equivalent to `self.iter().enumerate()`.
 6. r[std-iter.list.enumerate.snapshot] It holds the list's snapshot at creation and yields `(index, item)` pairs in order, starting with the `usize` index zero.
 7. r[std-iter.list.enumerate.lazy] Construction takes constant time and advances no cursor; subsequent calls use the existing `Enumerate` state.
 

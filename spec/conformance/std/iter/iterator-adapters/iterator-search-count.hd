@@ -1,5 +1,5 @@
 # test: looking consumers stop at the deciding item, while count drains
-# Spec std/iter More Adapters: std-iter.adapter.any.value, .all, .find, .count, .stop-early, .exhausted, and .count.drain.
+# Spec std/iter More Adapters: std-iter.adapter.any.fn-mut, .all, .find, .count, .stop-early, .exhausted, and .count.drain.
 fn has_blank(lines: List[string]) -> bool:
     lines.iter().any(fn(line: &string) -> bool: line.trim() == "")
 

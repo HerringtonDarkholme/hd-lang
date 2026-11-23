@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: std release
+# @helper: std/collections/impl[T] List[T].any
+# @helper: std/iter/Iterator.fold
+# @helper: std/collections/drift_insertion_sort
+# expected: predicates and fold callbacks call directly; ordinary Ord sorting keeps static comparisons.
+fn any(values: &List[i32], target: i32) -> bool:
+    values.any(fn(value: &i32) -> bool: *value == target)
+
+fn folded(values: List[i32], scale: i32) -> i32:
+    values.iter().fold(+0, fn(total: i32, value: i32) -> i32: total + value * scale)
+
+fn sorted(values: &mut List[i32]) -> void:
+    values.sort()

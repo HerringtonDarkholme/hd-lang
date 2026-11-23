@@ -5515,7 +5515,7 @@ std/http/client/http-client-send-missing-provider.hd	type	reject:missing-require
 std/iter/iterator-adapters/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.fn-mut-noncopy
 std/task/retry-with-backoff/task-retry-policy.hd	runtime	accept	std/task.md#retry-with-backoff
 std/task/retry/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.policy.retry.clock
-std/collections/list-helpers/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-owned
+std/collections/list-helpers/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-borrow
 std/host/environment/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.typed-env-decl
 std/http/request-builder/http-typed-request-bodies.hd	runtime	accept	std/http.md#r-std-http.request.set-form
 std/http/scripted-http/http-scripted-used-reply.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.scripted.reply-used-panic
@@ -7296,6 +7296,7 @@ std/sync/arc/an-arc-of-a-sync-value-is-send-and-sync-as-a-part.hd	type	accept	st
 std/sync/arc/a-crossing-reaches-a-top-level-arc-only-of-a-sync-value.hd	type	reject:crossing-top-level-binding	std/sync.md#r-std-sync.arc.send
 std/iter/double-ended-cursors/noncopy-rev-without-trait-import.hd	runtime	accept	std/iter.md#r-std-iter.double-ended.concrete-rev
 std/collections/list-helpers/dedup-in-place.hd	runtime	accept	std/collections.md#r-std-collections.helper.dedup-in-place
+std/collections/list-helpers/generic-fn-mut-callbacks.hd	runtime	accept	std/collections.md#r-std-collections.helper.callback-generic-ref
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
