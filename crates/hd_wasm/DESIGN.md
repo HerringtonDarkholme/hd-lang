@@ -1861,6 +1861,11 @@ is unchanged.
   embedding excludes both checked runtime source modules, since the
   playground compiles only unchecked programs. Unchecked modules preserve
   their existing descriptors and bytes even with the CLI feature enabled.
+  A checked build links the report only when it asks
+  (`Packages::report`, #2308: the conformance runner and the CLI's
+  checked builds do); one that does not, as the count budgets' `count_ops`,
+  emits the bytes a compiler without the feature emits, so CI takes every
+  tool from its one test build.
 - **The sweep.** `HD_CONFORMANCE_CHECKED=1` builds every
   case of the conformance runner in checked mode, so each must pass with
   its counts audited.

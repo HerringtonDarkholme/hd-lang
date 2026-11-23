@@ -81,28 +81,21 @@ jobs:
             echo "::warning::sccache did not start; building without it"
           fi
 
-      # The scale check and the count budgets measure their own builds: the
-      # scale check the `hd` that ships, and the counts hd_driver alone, without
-      # the `checked-report` that hd_command and the tests turn on, which
-      # changes plain builds too (count_ops: int-loop.hd's no-op calls 0 -> 9,
-      # runs 45194113785 and 45198757197). Each is its own cargo run, so
-      # features do not unify across them, and they are kept in target/tools
-      # (the test build writes target/release/hd again). The `hd` has the
-      # planted quadratic loop, off unless HD_PLANT_QUADRATIC is set.
-      #
-      # `cargo test --no-run` also builds every example and binary. The list
-      # of test binaries (package directory, target, executable) goes with
-      # them, for scripts/ci-tests.sh.
+      # `cargo test --no-run` also builds every example and binary: the scale
+      # check's `hd` (with the planted quadratic loop, off unless
+      # HD_PLANT_QUADRATIC is set) and the count budgets' count_ops come from
+      # this one build. A checked build links the checked report only when it
+      # asks (`Packages::report`, #2308), so `--all-features` emits the
+      # modules a build without `checked-report` does. They are kept in
+      # target/tools. The list of test binaries (package directory, target,
+      # executable) goes with them, for scripts/ci-tests.sh.
       - name: Build
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/tools
-          cargo build --release -p hd_command --features plant-quadratic
-          cp target/release/hd target/tools/
-          cargo build --release -p hd_driver --example count_ops
-          cp target/release/examples/count_ops target/tools/
           cargo test --release --all-features --workspace --no-run --message-format=json-render-diagnostics > target/ci-build.json
+          cp target/release/hd target/release/examples/count_ops target/tools/
           jq -r --arg root "$PWD/" 'select(.reason == "compiler-artifact" and .executable != null)
             | [(.manifest_path | ltrimstr($root) | rtrimstr("/Cargo.toml")), .target.name,
                (.executable | ltrimstr($root)), .profile.test] | @tsv' target/ci-build.json > target/ci-build.tsv

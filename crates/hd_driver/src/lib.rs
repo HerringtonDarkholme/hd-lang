@@ -182,13 +182,18 @@ fn entry_write(text: string) -> void:
 /// the program uses: [`ENTRY_MODULE`] (`RT_SOURCE`) and the runtime
 /// allocator's module, whose folder holds the other runtime modules that
 /// emitted code calls.
-fn rt_roots(table: &ModuleTable, checked: bool) -> impl Iterator<Item = ModuleId> + '_ {
+fn rt_roots(
+    table: &ModuleTable,
+    checked: bool,
+    report: bool,
+) -> impl Iterator<Item = ModuleId> + '_ {
     // A checked build links the checked runtime, which has folders of its
-    // own (`std.rt.checked`, and `std.rt.checked_report` with that feature).
-    let checked_rt: &[&str] = if checked {
-        &[hd_resolve::known::CHECKED_MODULE, hd_wasm::CHECKED_MODULE]
-    } else {
-        &[]
+    // own (`std.rt.checked`, and `std.rt.checked_report` when it asks for
+    // the report).
+    let checked_rt: &[&str] = match (checked, report) {
+        (true, true) => &[hd_wasm::CHECKED_MODULE, hd_wasm::REPORT_MODULE],
+        (true, false) => &[hd_wasm::CHECKED_MODULE],
+        _ => &[],
     };
     [ENTRY_MODULE, hd_wasm::RUNTIME_MODULE]
         .into_iter()
@@ -1541,7 +1546,7 @@ fn repl_texts(
     let mut stack = vec![start];
     // The compiler roots `std.rt.entry` and the runtime after an entry, a
     // REPL input's too (`RT_SOURCE`).
-    stack.extend(rt_roots(table, false).map(ModuleId::idx));
+    stack.extend(rt_roots(table, false, false).map(ModuleId::idx));
     while let Some(m) = stack.pop() {
         if skims[m].is_some() {
             continue;
@@ -1682,6 +1687,8 @@ struct Run<'a> {
     level: OptLevel,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
+    /// Whether a checked build links the report's hooks ([`Packages::report`]).
+    checked_report: bool,
     /// Whether the ownership passes' output is verified without debug
     /// assertions or `checked` ([`Packages::verify_own`]).
     verify_own: bool,
@@ -2226,6 +2233,11 @@ pub struct Packages<'a> {
     /// Enable allocation/count auditing for compiler conformance checks.
     /// Requires the default-enabled `checked-builds` crate feature.
     pub checked: bool,
+    /// A checked build that also links the checked report's hooks
+    /// (`std.rt.checked_report`: count sites, cycle and pair reports).
+    /// Needs the `checked-report` feature; without it, or with this false,
+    /// a build emits what a compiler without the feature emits (#2308).
+    pub report: bool,
     /// Verify the ownership passes' output (`hd_tir::ir::verify_owned`)
     /// in a compiler built without debug assertions too, as debug and
     /// checked builds always do, so a release-built conformance run
@@ -2852,6 +2864,7 @@ fn build_packages_inner(
         level: packages.level,
         body_fuel: packages.body_fuel,
         checked: packages.checked,
+        checked_report: packages.report,
         verify_own: packages.verify_own,
         verify_tir: verifies_tir(
             cfg!(debug_assertions),
@@ -3262,6 +3275,7 @@ fn build_packages_inner(
     output.position_inputs = position_inputs.into_iter().map(Arc::new).collect();
     #[cfg(feature = "checked-report")]
     if packages.checked
+        && packages.report
         && let Some(mut wasm) = output.wasm.take()
     {
         // The CLI enables this Cargo feature, but ordinary run/test builds
@@ -3915,6 +3929,21 @@ impl Run<'_> {
         cfg!(feature = "checked-builds") && self.checked
     }
 
+    /// Whether this checked build links the checked report's hooks.
+    fn report(&self) -> bool {
+        cfg!(feature = "checked-report") && self.checked() && self.checked_report
+    }
+
+    /// The runtime module whose inits run first: the report's, which
+    /// starts its observer, when the build links it.
+    fn init_runtime(&self) -> &'static str {
+        if self.report() {
+            hd_wasm::REPORT_MODULE
+        } else {
+            hd_wasm::runtime_module(self.checked())
+        }
+    }
+
     /// Whether the ownership passes' output is verified
     /// ([`Packages::verify_own`]): always in a debug build, otherwise in a
     /// checked or verifying build with the `checked-builds` feature.
@@ -4131,7 +4160,7 @@ impl Run<'_> {
         self.glue_items.get_or_init(|| {
             let names = self.names();
             let host = self.host_items();
-            hd_wasm::runtime_items(self.checked())
+            hd_wasm::runtime_items(self.checked(), self.report())
                 .into_iter()
                 .chain(ENTRY_STATUS_FNS.map(|name| (ENTRY_MODULE, name)))
                 .map(|(module, name)| names.item(module, name))
@@ -4436,7 +4465,7 @@ impl Run<'_> {
         // The compiler roots `std.rt.entry`'s result functions after an entry or
         // a test case (`RT_SOURCE`), and the runtime that emitted code calls,
         // whatever the program uses.
-        for rt in rt_roots(&self.table, self.checked()) {
+        for rt in rt_roots(&self.table, self.checked(), self.report()) {
             reached.union(&self.module_closure_in(g, rt.idx()));
         }
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
@@ -5333,7 +5362,8 @@ impl Run<'_> {
     /// The folders of [`rt_roots`], the hd the compiler roots after an
     /// entry, when the run's std has them.
     fn rt_folders(&self) -> impl Iterator<Item = FolderId> + '_ {
-        rt_roots(&self.table, self.checked()).map(|m| self.table.modules[m.idx()].folder)
+        rt_roots(&self.table, self.checked(), self.report())
+            .map(|m| self.table.modules[m.idx()].folder)
     }
 
     /// Whether this run builds module `m`: a module of a folder it builds,
@@ -10161,7 +10191,12 @@ impl Run<'_> {
             Goal::Fixture { .. } => format!("fixture:{entry_key}"),
             _ => entry_key.clone(),
         };
-        let keyed_entry = format!("linear:checked={}:{}", self.checked(), keyed_entry);
+        let keyed_entry = format!(
+            "linear:checked={}:report={}:{}",
+            self.checked(),
+            self.report(),
+            keyed_entry
+        );
         let keyed_entry = self.host_contract_key.map_or_else(
             || keyed_entry.clone(),
             |k| format!("{keyed_entry}:package-host={:032x}", k.0),
@@ -10275,7 +10310,7 @@ impl Run<'_> {
             let mut order: Vec<(DefId, &str)> = Vec::new();
             // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
             // runs its module's inits first, in every root's group.
-            let runtime = hd_wasm::runtime_module(self.checked());
+            let runtime = self.init_runtime();
             let graph = self.init_graph();
             let mut query = InitQuery::new(&graph);
             let runtime_inits: Vec<DefId> =
@@ -10409,7 +10444,7 @@ impl Run<'_> {
                     extra.insert(r);
                 }
             }
-            for (module, name) in hd_wasm::runtime_items(self.checked()) {
+            for (module, name) in hd_wasm::runtime_items(self.checked(), self.report()) {
                 let r = (names.item(module, name), TyList::EMPTY);
                 if self.body_of(p, r.0).is_some() {
                     extra.insert(r);
@@ -10626,7 +10661,7 @@ impl Run<'_> {
             // Code generation can introduce allocator/count calls even when the
             // source has none. Their bodies are collected but retained only when
             // the emitted fixture reaches them.
-            for (m, n) in hd_wasm::runtime_items(self.checked()) {
+            for (m, n) in hd_wasm::runtime_items(self.checked(), self.report()) {
                 let d = names.item(m, n);
                 if self.body_of(p, d).is_some() {
                     roots.push((d, TyList::EMPTY));
@@ -10648,7 +10683,7 @@ impl Run<'_> {
             let mut query = InitQuery::new(&graph);
             let mut inits = Vec::new();
             let mut seen: HashSet<DefId> = HashSet::default();
-            for m in [hd_wasm::runtime_module(self.checked()), module] {
+            for m in [self.init_runtime(), module] {
                 let Some(order) = self.stage(
                     Stage::Collect,
                     self.root_init_order(&graph, &mut query, m, &init_of, &has_init),
@@ -11716,16 +11751,17 @@ impl Run<'_> {
                     hold: self.scenario_hold(p),
                 },
             };
-            let runtime_keys: Vec<Option<Hash128>> = hd_wasm::runtime_items(self.checked())
-                .into_iter()
-                .map(|(module, n)| {
-                    let def = names.item(module, n);
-                    let table = &c.collected.table;
-                    table
-                        .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
-                        .map(|id| table.key[id.idx()])
-                })
-                .collect();
+            let runtime_keys: Vec<Option<Hash128>> =
+                hd_wasm::runtime_items(self.checked(), self.report())
+                    .into_iter()
+                    .map(|(module, n)| {
+                        let def = names.item(module, n);
+                        let table = &c.collected.table;
+                        table
+                            .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
+                            .map(|id| table.key[id.idx()])
+                    })
+                    .collect();
             let Some(runtime) = hd_wasm::Runtime::from_keys(&runtime_keys) else {
                 self.stage::<()>(
                     Stage::Link,

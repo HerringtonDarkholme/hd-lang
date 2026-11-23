@@ -1390,6 +1390,7 @@ mod tests {
                 target: EngineTarget::V8,
                 level,
                 checked,
+                report: checked,
                 verify_own: true,
                 ..program.packages()
             };

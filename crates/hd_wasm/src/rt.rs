@@ -1236,8 +1236,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             if bang {
                 m.export("hd.wake", Sym::Helper(Helper::WakeMark));
             }
-            #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.checked {
+            if let Some(c) = m.runtime.report() {
                 m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
                 m.export("hd.cycles.length", Sym::Inst(c.length));
                 m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
@@ -1292,12 +1291,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         m.export("hd.uniques", Sym::Inst(c.unique_checks));
         m.export("hd.no_ops", Sym::Inst(c.no_op_counts));
         m.export("hd.skipped", Sym::Inst(c.skipped_tests));
-        #[cfg(feature = "checked-report")]
-        {
-            m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
-            m.export("hd.cycles.length", Sym::Inst(c.length));
-            m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
-            m.export("hd.count.pairs.length", Sym::Inst(c.count_audit.length));
+        if let Some(r) = c.report {
+            m.export("hd.cycles.pointer", Sym::Inst(r.pointer));
+            m.export("hd.cycles.length", Sym::Inst(r.length));
+            m.export("hd.count.pairs.pointer", Sym::Inst(r.count_audit.pointer));
+            m.export("hd.count.pairs.length", Sym::Inst(r.count_audit.length));
         }
     }
     if m.frames.contains_key(&key) {
@@ -2664,10 +2662,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CycleFree => {
             let mut f = m.func("rt:cycle_free", vec![Val::I32; 3], vec![]);
-            #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.checked {
+            if let Some(r) = m.runtime.report() {
                 f.get(1);
-                f.call(Sym::Inst(c.collected));
+                f.call(Sym::Inst(r.collected));
             }
             free_object(&mut f, m, 1);
             f
@@ -4746,7 +4743,7 @@ pub(crate) fn ref_store(
 /// added in unchecked builds; the linker aliases the same release glue.
 #[cfg(feature = "checked-report")]
 pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
-    if m.runtime.checked.is_none() || !m.allocation_kind_reporting {
+    if m.runtime.report().is_none() || !m.allocation_kind_reporting {
         return;
     }
     if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::Glue(_) | Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) {
@@ -5105,7 +5102,7 @@ mod checked_fixed_allocation_tests {
 
     #[test]
     fn fixed_requests_use_the_checked_allocator_without_class_bits() -> Result<(), String> {
-        let keys: Vec<_> = crate::runtime_items(true)
+        let keys: Vec<_> = crate::runtime_items(true, false)
             .iter()
             .enumerate()
             .map(|(i, _)| u128::try_from(i).map(|n| Some(Hash128(n + 1))))
