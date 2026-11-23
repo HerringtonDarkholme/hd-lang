@@ -1,0 +1,8 @@
+struct Value:
+    flag: bool
+    text: string
+    items: List[i32]
+fn duplicate(value: Value) -> (Value, Value):
+    (value, value)
+fn duplicate_list(items: List[i32]) -> (List[i32], List[i32]):
+    (items, items)

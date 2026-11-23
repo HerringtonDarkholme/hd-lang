@@ -3,16 +3,7 @@ use hd_driver::{EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Packages,
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const SOURCE: &str = "\
-struct Value:
-    flag: bool
-    text: string
-    items: List[i32]
-fn duplicate(value: Value) -> (Value, Value):
-    (value, value)
-fn duplicate_list(items: List[i32]) -> (List[i32], List[i32]):
-    (items, items)
-";
+const SOURCE: &str = include_str!("programs/fixture_views/source.hd");
 
 #[test]
 fn count_labels_preserve_bytes_offsets_and_real_source_origins() {
