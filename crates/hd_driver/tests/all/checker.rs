@@ -54,20 +54,22 @@ fn analyze_std(render: &[&str]) -> Output {
     build(&host, "std", &Goal::Analyze)
 }
 
-/// Every module of `lib/std`, plus the compiler-supplied `std.rt.entry`, and the
-/// trait default bodies among the bodies: 59 modules.
+/// Every module checks: each `.hd` file of `lib/std`, plus the compiler-supplied
+/// `std.rt.entry`, with the trait default bodies among the bodies. The count
+/// comes from the files, so adding a std module needs no edit here.
 #[test]
 fn every_std_body_checks_with_no_diagnostic() {
+    let modules = hd_project::SourceSet::list(&std_sources()).len() + 1;
     let out = analyze_std(&[]);
     let body = out.report.tally(Stage::Body);
     assert_eq!(
         (body.ok, body.not_implemented, body.blocked),
-        (59, 0, 0),
+        (modules, 0, 0),
         "{}\n{:?}",
         out.report.render(),
         out.report.body_failures
     );
-    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, 59);
+    assert_eq!(out.report.tally(Stage::ModuleFinish).ok, modules);
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
     assert!(out.report.body_ok > 1000, "{}", out.report.body_ok);
     assert_eq!(out.diags.len(), 0, "{}", out.render());
