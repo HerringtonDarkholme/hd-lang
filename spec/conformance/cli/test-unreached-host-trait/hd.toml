@@ -1,4 +1,4 @@
 [package]
 name="quirk"
 [host]
-"surface.Surface"="providers/surface.mjs"
+"surface.Surface"="providers/surface.ts"

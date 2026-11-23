@@ -1,4 +1,4 @@
 [package]
 name="shop"
 [host]
-"main.Server"="provider.mjs"
+"main.Server"="provider.ts"
