@@ -1500,7 +1500,7 @@ hd test --time-limit 5s    # each test case gets five seconds
 | Form | Meaning | Examples |
 | --- | --- | --- |
 | SIZE | a whole number of bytes, or a whole number followed by `K`, `M`, or `G`, for 1024, 1024², or 1024³ bytes | `65536`, `256M`, `2G` |
-| DURATION | a whole number followed by `ms`, `s`, `min`, or `h`, the [duration suffixes](../std/time.md#r-std-time.prelude.time-suffixes) | `500ms`, `30s`, `2min` |
+| DURATION | a whole number followed by `ms`, `s`, `min`, or `h`, the [duration suffixes](../std/time.md#r-std-time.duration.constructors) | `500ms`, `30s`, `2min` |
 
 5. r[cli.limit.forms] A SIZE or DURATION value has a form of the table above. Any other value is a usage error.
 

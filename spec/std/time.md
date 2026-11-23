@@ -7,7 +7,7 @@ ordinary hd over the language tier:
 
 - the `Duration` type, its public API, its arithmetic, and its `Display`
   text;
-- the duration suffixes `ms`, `s`, `min`, and `h`;
+- the duration constructors `ms`, `s`, `minutes`, and `h`;
 - `impl Parse for Duration`, which reads Go-style duration text, and `impl Parse for Timestamp`, which reads RFC 3339 text;
 - the host capability trait `Clock`, the `Timestamp` and `Instant` types
   it returns, and the helpers `now`, `monotonic`, `elapsed`, and `sleep!`;
@@ -26,9 +26,9 @@ The language tier keeps the suffix mechanism
 | suffix name lookup and typing | [Literal Suffix Names](../lang/03-names-and-scopes.md#literal-suffix-names) and [Suffixed Literals](../lang/04-type-system.md#suffixed-literals) hold for every suffix |
 | `Duration?` in the test signature | `it` names it as its `timeout` type ([Test Cases](../lang/10-modules.md#test-cases)); the stdlib-tier `it_each`, `it_prop`, and `it_prop_with` name it too |
 
-The duration suffixes are ordinary functions marked `@num_suffix`, so
-nothing in the language tier names `ms`, `s`, `min`, or `h`. What the
-`timeout` option does is stdlib tier as well:
+Fixed duration literals select their qualified constructors through
+[Duration Literals](../lang/04-type-system.md#duration-literals).
+The constructors and the `timeout` option's behavior are described here:
 [Test Timeout](testing.md#test-timeout).
 
 ## Duration
@@ -39,7 +39,7 @@ nothing in the language tier names `ms`, `s`, `min`, or `h`. What the
 4. r[std-time.duration.negative-count] `Duration::milliseconds(n)` and `Duration::seconds(n)` with a negative `n` panic at run time, in every build. Panic: `explicit-panic`.
 5. r[std-time.duration.seconds-overflow] `Duration::seconds(n)` whose milliseconds do not fit in `i64` panics at run time, in every build, as in `Duration::seconds(9223372036854776)`. Panic: `integer-overflow`.
 6. r[std-time.duration.no-neg] `Duration` does not implement `std.ops.Neg`, so `-5s`, which is `-(5s)`, is rejected by the type check: `type-mismatch`.
-7. r[std-time.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
+7. r[std-time.duration.constructors] `std.time` declares `Duration` and the constructors `ms`, `s`, `minutes`, and `h`, which ordinary calls import, as in `use std.time.{Duration, s}`.
 8. r[std-time.duration.eq-ord] `Duration` implements `Eq` and `Ord`, which compare its milliseconds.
 9. r[std-time.duration.value] `Duration` is a struct, a value with private fields, so copying one copies its milliseconds.
 
@@ -89,7 +89,7 @@ That is hours, minutes, and seconds, as in `1h2min3.5s`, or milliseconds
 under one second, as in `500ms`:
 
 ```text
-use std.time.{Duration, min, s}
+use std.time.{Duration, minutes, s}
 
 fn waited() -> string:
     "waited ${90s}, then ${60min}"  # "waited 1min30s, then 1h0min0s"
@@ -195,17 +195,17 @@ the one error type of all time text, at a byte position:
 
 ## Duration Suffixes
 
-The standard library declares these suffixes in `std.time`:
+The standard library declares these duration constructors in `std.time`:
 
-| Rule | Suffix | Meaning |
+| Rule | Constructor | Meaning |
 | --- | --- | --- |
 | r[std-time.suffix.std.ms] Milliseconds | `ms` | `Duration` of that many milliseconds |
 | r[std-time.suffix.std.s] Seconds | `s` | `Duration` of that many seconds |
-| r[std-time.suffix.std.min] Minutes | `min` | `Duration` of that many minutes |
+| r[std-time.suffix.std.minutes] Minutes | `minutes` | `Duration` of that many minutes; the fixed `min` literal unit calls this constructor |
 | r[std-time.suffix.std.h] Hours | `h` | `Duration` of that many hours |
 
-1. r[std-time.suffix.std.fn] Each is a suffix function that takes one `i64` and returns the standard `std.time.Duration`, as in `@num_suffix pub fn ms(count: i64) -> Duration`.
-2. r[std-time.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
+1. r[std-time.suffix.std.constructors] Each constructor takes one `i64` and returns the standard `std.time.Duration`; fixed duration literals select their unit’s constructor.
+2. r[std-time.suffix.std.four-constructors] These four are the only standard duration constructors corresponding to literal units. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
 3. r[std-time.suffix.std.call-import] None is a prelude name; ordinary calls import them, as in `use std.time.{ms, s}`.
 4. r[std-time.suffix.std.call-overflow] A standard suffix call whose result does not fit in `i64` milliseconds panics at run time, in every build, as in `h(10_000_000_000_000_000)`. Panic: `integer-overflow`.
 

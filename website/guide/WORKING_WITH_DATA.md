@@ -742,7 +742,7 @@ monotonic reading for measuring intervals, never a wall time. The exact
 rules are in [Time](../../spec/std/time.md):
 
 ```hd
-use std.time.{Duration, Instant, Timestamp, min, s}
+use std.time.{Duration, Instant, Timestamp, minutes, s}
 
 fn deadline(now: Timestamp) -> Timestamp:
     now + 30s
