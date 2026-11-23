@@ -449,6 +449,88 @@ fn scope_overlay_rebases_modules_and_ambiguities_and_hides_unreadable_names() {
     );
 }
 
+/// Worlds may expose their already-owned module text; the recorder must
+/// preserve that fast path without making the path-text query a dependency.
+#[test]
+fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
+    use hd_base::PathId;
+    use hd_resolve::{FolderIface, Reads, Recorded, World};
+    use std::cell::RefCell;
+
+    struct IndexedWorld {
+        node: PathId,
+        calls: RefCell<Vec<String>>,
+    }
+    impl World for IndexedWorld {
+        fn module_path_node(&self, module: PathId) -> Option<&str> {
+            (module == self.node).then_some("app.data")
+        }
+        fn module_folder(&self, module: &str) -> Option<u32> {
+            self.calls.borrow_mut().push(module.to_owned());
+            (module == "app.data").then_some(7)
+        }
+        fn usable(&self, module: &str) -> bool {
+            module == "app.data"
+        }
+        fn test_only(&self, _module: &str) -> bool {
+            false
+        }
+        fn iface(&self, _folder: u32) -> Option<Arc<FolderIface>> {
+            None
+        }
+    }
+
+    let run = Run::new();
+    let names = run.names();
+    let data = names.module("app.data");
+    let missing = names.module("app.missing");
+    let world = IndexedWorld {
+        node: data,
+        calls: RefCell::default(),
+    };
+    let recorded = Recorded::new(&world);
+    assert_eq!(recorded.module_path_node(data), Some("app.data"));
+    assert_eq!(recorded.module_path_node(missing), None);
+    assert_eq!(recorded.reads(), Reads::default());
+    assert!(world.calls.borrow().is_empty());
+
+    // The default node lookup takes owned text for data and renders the
+    // missing node's text. Every lookup reaches the world exactly once.
+    assert_eq!(recorded.module_folder_node(&names, missing), None);
+    assert_eq!(recorded.module_folder_node(&names, data), Some(7));
+    assert_eq!(recorded.module_folder_node(&names, data), Some(7));
+    assert_eq!(
+        *world.calls.borrow(),
+        ["app.missing", "app.data", "app.data"]
+    );
+    let expected = Reads {
+        modules: vec!["app.data".into(), "app.missing".into()],
+        folders: Vec::new(),
+    };
+    assert_eq!(recorded.reads(), expected);
+
+    // Holding dependency reads must not suppress the underlying lookup.
+    recorded.hold_reads(true);
+    assert_eq!(
+        recorded.module_folder_node(&names, names.module("app.held")),
+        None
+    );
+    assert_eq!(
+        world.calls.borrow().last().map(String::as_str),
+        Some("app.held")
+    );
+    assert_eq!(recorded.reads(), expected);
+    recorded.hold_reads(false);
+    assert_eq!(
+        recorded.module_folder_node(&names, names.module("app.held")),
+        None
+    );
+    assert_eq!(
+        recorded.reads().modules,
+        ["app.data", "app.held", "app.missing"]
+    );
+}
+
 /// `module.rt.std-only`: neither a runtime module nor a public re-export
 /// of its declaration is a usable import repair in another package.
 #[test]

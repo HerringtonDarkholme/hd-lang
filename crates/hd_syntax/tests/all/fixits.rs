@@ -5,6 +5,7 @@ use hd_syntax::{UseInsertion, parse};
 fn moved_punctuation_and_documentation_fixes_parse() {
     for (source, corrected) in [
         ("fn f!(): value()!\n", "fn f!(): value!()\n"),
+        ("fn f!(): value!()!\n", "fn f!(): value!()\n"),
         (
             "fn f!(): value::[i32](+1)!\n",
             "fn f!(): value!::[i32](+1)\n",
@@ -38,7 +39,6 @@ fn moved_punctuation_and_documentation_fixes_parse() {
 #[test]
 fn incomplete_spreads_and_other_comment_positions_have_no_fix() {
     for source in [
-        "fn f!(): value!()!\n",
         "fn f!(): value() !\n",
         "fn f(): [...]\n",
         "fn f(): [..., value]\n",
