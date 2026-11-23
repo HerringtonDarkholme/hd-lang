@@ -487,7 +487,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 | --- | --- |
 | `List[T]` | `sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]`; `group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]`; `partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T])`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool`; `find(&self, test: fn(&T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
 | `List[T]` | `min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?`; `max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?` |
-| `List[T]`, when `T < Eq` | `contains(&self, value: &T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(self) -> List[T]` |
+| `List[T]`, when `T < Eq` | `contains(&self, value: &T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(&mut self) -> void` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
 | `List[T]`, when `T < Ord` | `sorted(&self) -> List[T]`; `sort(&mut self) -> void`; `min(&self) -> T?`; `max(&self) -> T?` |
 | `List[T]`, when `T < Num` | `sum(self) -> T` |
@@ -513,7 +513,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 19. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
 20. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
 21. r[std-collections.helper.by-key.copy-ties] `min_by_key(key)` returns a copy of the first element whose `key` is smallest by `Ord`. `max_by_key(key)` returns a copy of the last whose `key` is largest. Each returns `.Some`, so equal keys give the earlier element for `min_by_key` and the later one for `max_by_key`, as `min` and `max` do and as Rust's `Iterator::min_by_key` and `Iterator::max_by_key` do. An empty list gives `.None`.
-22. r[std-collections.helper.dedup] `dedup` returns the list without each element that equals the element just before it in the receiver, as Rust's `Vec::dedup` does, so only adjacent duplicates go and `[1, 2, 1]` is unchanged.
+22. r[std-collections.helper.dedup-in-place] `dedup(&mut self) -> void` removes consecutive equal elements in place, keeping the first in each run, as Rust's `Vec::dedup` does.
 23. r[std-collections.helper.unique] `unique` returns the list without each element that equals an earlier element, so every distinct element stays once, at its first position.
 24. r[std-collections.helper.callback-ref] Each callback looks at an element by reference: `fn(&T)`, and `fn(&T, &T)` for `sorted_by` and `sort_by`. Each receiver is `&self`, or `&mut self` for a method that changes the list.
 25. r[std-collections.helper.retain] `retain(keep)` keeps the elements for which `keep` is true, in list order, and drops the rest, in place.
@@ -532,7 +532,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 | `[5, 7, 5].index_of(5)` | `.Some(0)` |
 | `[2, 9, 4].max()` | `.Some(9)` |
 | `["bb", "a", "cc"].max_by_key(fn(w: &string) -> usize: w.len())` | `.Some("cc")` |
-| `[1, 1, 2, 1].dedup()` | `[1, 2, 1]` |
+| `xs.dedup()` on mutable `xs = [1, 1, 2, 1]` | `()`; `xs` becomes `[1, 2, 1]` |
 | `[1, 1, 2, 1].unique()` | `[1, 2]` |
 | `[1, 2, 3].sum()` | `6` |
 | `[0.5, 0.25].sum()` | `0.75` |

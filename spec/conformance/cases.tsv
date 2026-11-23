@@ -7296,6 +7296,7 @@ std/sync/arc/an-arc-of-a-sync-value-is-send-and-sync-as-a-part.hd	type	accept	st
 std/sync/arc/a-crossing-reaches-a-top-level-arc-only-of-a-sync-value.hd	type	reject:crossing-top-level-binding	std/sync.md#r-std-sync.arc.send
 std/iter/double-ended-cursors/noncopy-rev-without-trait-import.hd	runtime	accept	std/iter.md#r-std-iter.double-ended.concrete-rev
 std/collections/list-helpers/contains-borrows-value.hd	runtime	accept	std/collections.md#list-helpers
+std/collections/list-helpers/dedup-in-place.hd	runtime	accept	std/collections.md#r-std-collections.helper.dedup-in-place
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
