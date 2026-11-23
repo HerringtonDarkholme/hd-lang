@@ -182,6 +182,7 @@ function publishOrder(): Package[] {
 const unpacked = join(work, "unpacked");
 
 function cargo(args: string[], cwd: string): void {
+  // cost: one cargo process; `verify` makes two per publish run.
   const result = spawnSync("cargo", args, {
     cwd,
     stdio: "inherit",
@@ -229,6 +230,7 @@ function verify(order: Package[], installed: Package): void {
   // cost: one build of every package and its dependencies.
   cargo(["build", "--manifest-path", top, "--target-dir", targetDir, ...patches], unpacked);
   // The target directory is new each run, so a fingerprint is this build's.
+  // cost: one listing of about 200 entries, one per compiled crate.
   const built = new Set(
     readdirSync(join(targetDir, "debug", ".fingerprint")).map((entry) =>
       entry.slice(0, entry.lastIndexOf("-")),
