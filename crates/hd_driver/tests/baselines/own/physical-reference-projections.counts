@@ -4,6 +4,5 @@ app/main/impl Probes.captured_copy
   release string (last use)
 app/main/impl Probes.captured_copy
   retain counted reference (stored)
-  release counted reference (last use)
 app/main/impl Probes.new_object
   release string (last use)

@@ -15,7 +15,9 @@
 //!   value parameters.
 //!
 //! The cold and entry packets are per sub-body, stated once however many
-//! constructions share it.
+//! constructions share it. A crossing closure's body (`sub_flags::ONCE`)
+//! has neither: it takes the environment's counts, which the environment
+//! then gives up.
 
 use super::OwnCx;
 use crate::ir::{
@@ -44,7 +46,9 @@ pub(super) fn counts(b: &Body, cx: &dyn OwnCx) -> Vec<(Tag, u32, Info)> {
             fresh.push((Tag::Retain, u32_of(i), info));
         }
         let sub = b.data[i][0] as usize;
-        if sub == 0 || !(own.is_some() || caps.clone().any(counted)) {
+        // A body that runs once takes its environment's counts.
+        let once = b.sub_flags[sub] & crate::ir::sub_flags::ONCE != 0;
+        if sub == 0 || once || !(own.is_some() || caps.clone().any(counted)) {
             continue;
         }
         let suspends = cx.function_suspends(b.ty[i]);

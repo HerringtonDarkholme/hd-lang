@@ -2198,11 +2198,17 @@ impl<'a> Balance<'a> {
             {
                 self.local_part(x, l, st);
             }
-            Tag::Drop | Tag::LoanEnd if a & place::BARE_LOCAL != 0 => {
+            Tag::LoanEnd if a & place::BARE_LOCAL != 0 => {
                 self.set_full(st, (a & !place::BARE_LOCAL) as usize, false);
             }
-            Tag::Read if a & place::BARE_LOCAL != 0 && w == ReadMode::Move as u32 => {
-                self.set_full(st, (a & !place::BARE_LOCAL) as usize, false);
+            // A whole local, bare or through a place word (an inlined
+            // closure's read of its capture), drops or moves out all of it.
+            Tag::Read | Tag::Drop
+                if (b.tags[x as usize] == Tag::Drop || w == ReadMode::Move as u32)
+                    && (a & place::BARE_LOCAL != 0 || b.view(a).whole())
+                    && let Some(l) = local(a) =>
+            {
+                self.set_full(st, l, false);
             }
             Tag::Ref if w & super::ref_word::TAKES != 0 => {
                 if let Some(l) = local(a) {

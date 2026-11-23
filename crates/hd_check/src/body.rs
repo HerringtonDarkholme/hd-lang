@@ -5761,6 +5761,10 @@ impl Ck<'_, '_> {
             // `fn.crossing.mode.move`).
             let mut crossing = vec![false; self.b.body().cap_local.len()];
             for &(i, _) in &self.crossing_closures {
+                let body = self.b.body_mut();
+                // `fn.crossing.once`: its body takes its captures.
+                let sub = body.data[i as usize][0] as usize;
+                body.sub_flags[sub] |= hd_tir::ir::sub_flags::ONCE;
                 let body = self.b.body();
                 if let [start, len, ..] = *body.record(body.data[i as usize][1]) {
                     for c in start..start.saturating_add(len) {

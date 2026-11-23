@@ -705,10 +705,14 @@ copies a shared one, then its elements in turn; a struct, enum, tuple,
 union or newtype calls `unique` on each member that may hold a buffer;
 any other type's body is empty, and a scalar or reference capture gets
 no call. Readings: a map key is lent only shared, so std makes it unique
-through its address once its loan ends (its bytes and hash stay equal);
-a capture with a `Drop` hook that the closure moves out was already
-broken in release and checked builds, and stays a finding
-(`hd_driver` stage case `crossing/a-send-crossing-moves-out-a-capture-with-a-drop-hook`).
+through its address once its loan ends (its bytes and hash stay equal).
+Built (2026-11-23, #2305): a crossing closure's body runs at most once
+(`fn.crossing.once`), so it takes its captures on entry, as Rust's
+`FnOnce` takes its closure (`sub_flags::ONCE`): no entry count, and its
+environment's descriptor loses its release glue, so the environment's
+last release frees its block alone; a copy inlined at its call keeps no
+environment alive after it. Each capture, a `Drop` one included, has
+one owner: the environment until the body runs, then the body.
 Cost: one call per capture that may hold a buffer; at run time a count
 test per buffer and a copy of each shared one.
 

@@ -1008,6 +1008,11 @@ pub mod sub_flags {
     /// The root result forwards an input loan. Callers that keep its bits
     /// state their own retain; this body returns no owned count.
     pub const BORROWED_RESULT: u8 = 4;
+    /// A crossing closure's body (`fn.crossing.once`): it runs at most
+    /// once, so it takes its captures on entry, as Rust's `FnOnce` takes
+    /// its closure, and the environment it leaves owns none of them. A
+    /// copy of it inlined at its call keeps no environment alive after it.
+    pub const ONCE: u8 = 8;
 }
 
 /// Ownership mode in a `Return`'s second word. `NONE` keeps the ordinary

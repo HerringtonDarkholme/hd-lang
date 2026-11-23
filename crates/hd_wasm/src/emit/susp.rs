@@ -1939,6 +1939,9 @@ pub(super) fn finish(
                         }
                     }
                 }
+                if super::closure::takes_captures(em.b, ci) {
+                    em.give_up_captures(0);
+                }
             }
         }
         em.f.get(fr);
