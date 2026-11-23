@@ -3106,6 +3106,64 @@ pub(crate) mod tests {
         );
     }
 
+    /// A hooked local moved on one arm only (#2306): its drop after the
+    /// arms runs under its drop flag once elaborated, and the verifier
+    /// reads the flag's `If` as the drop on both ways out, as a stored
+    /// body is checked. Without the drop the local still leaks.
+    #[test]
+    fn an_elaborated_flag_guarded_drop_empties_its_local() {
+        let n = NodeIdx::from_raw(1);
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let x = b.local(HOOKED, Symbol::from_raw(0), 0, n);
+        let v = call(&mut b, 7, &[], HOOKED);
+        b.set(x, v, n);
+        // Read by address, as `bytes.capacity()`: a slot, whose drop
+        // reads a flag.
+        let whole = b.place(&"[$0]".parse().expect("place"));
+        let reference = b.emit(Tag::Ref, whole, crate::ir::ref_word::LOCAL, Ty::I32, n);
+        call(&mut b, 8, &[reference], Ty::VOID);
+        let c = call(&mut b, 6, &[], Ty::BOOL);
+        let then = b.open_block();
+        let then = b.close_block(then, None, Ty::VOID, n);
+        let els = b.open_block();
+        let r = b.get(x, HOOKED, n);
+        call(&mut b, 9, &[r], Ty::VOID);
+        let els = b.close_block(els, None, Ty::VOID, n);
+        let arms = b.refs_record(&[then, els]);
+        b.emit(Tag::If, c.0, arms, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
+        super::elaborate(&mut body, &Cx).expect("elaborates");
+        let leaks = |b: &Body| {
+            let errs = verify_owned(b, &Cx);
+            errs.iter().any(|e| e.invariant == 23)
+        };
+        assert!(
+            !leaks(&body),
+            "{:?}\n{}",
+            verify_owned(&body, &Cx),
+            show(&body)
+        );
+        let bare = crate::ir::place::BARE_LOCAL | x.raw();
+        let guarded = (0..body.len())
+            .find(|&i| body.tags[i] == Tag::Drop && body.data[i][0] == bare)
+            .map(crate::ir::u32_of)
+            .expect("the flag's drop");
+        let blk = (0..body.len())
+            .find(|&i| {
+                body.tags[i] == Tag::Block && body.record(body.data[i][0]).contains(&guarded)
+            })
+            .expect("its block");
+        let rest: Vec<u32> = (body.record(body.data[blk][0]).iter())
+            .copied()
+            .filter(|&m| m != guarded)
+            .collect();
+        body.data[blk][0] = body.push_record(&rest);
+        assert!(leaks(&body), "{}", show(&body));
+    }
+
     /// Known-null in a loop: a local stored and moved on each round is
     /// empty at the loop's head and after it, so the drop after the loop
     /// and its exit row go.

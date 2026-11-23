@@ -1868,9 +1868,54 @@ struct Balance<'a> {
     /// the passes own: a counted type's, or one a cell may hold.
     exit: Vec<bool>,
     owned: Vec<bool>,
+    /// Each `If` an elaborated drop runs under (`own::elaborate`): its
+    /// condition reads local `l`'s whole drop flag and its first block
+    /// drops all of `l`. The flag is clear only where `l` holds nothing,
+    /// so `l` is empty on both paths out.
+    flag_drops: hd_base::HashMap<u32, usize>,
     ops: Vec<crate::own::Operand>,
     reported: Vec<bool>,
     errs: Vec<VerifyError>,
+}
+
+/// [`Balance::flag_drops`]. Cost: two passes over the instructions.
+fn flag_drops(b: &Body) -> hd_base::HashMap<u32, usize> {
+    let whole_local = |word: u32| {
+        let v = b.view(word);
+        v.whole().then(|| v.local()).flatten()
+    };
+    let mut flag_of = hd_base::HashMap::<u32, u32>::default();
+    for i in 0..b.len() {
+        if matches!(b.tags[i], Tag::FlagSet | Tag::FlagClear)
+            && let Some(l) = whole_local(b.data[i][0])
+        {
+            flag_of.insert(b.data[i][1], l);
+        }
+    }
+    let mut out = hd_base::HashMap::default();
+    if flag_of.is_empty() {
+        return out;
+    }
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::If) {
+        let [c, w] = b.data[i];
+        let flag = (b.tags.get(c as usize) == Some(&Tag::Read))
+            .then(|| b.data[c as usize][0])
+            .filter(|word| word & place::BARE_LOCAL != 0);
+        let Some(&l) = flag.and_then(|word| flag_of.get(&(word & !place::BARE_LOCAL))) else {
+            continue;
+        };
+        let Some(&then) = b.record(w).first() else {
+            continue;
+        };
+        if b.tags.get(then as usize) == Some(&Tag::Block)
+            && b.record(b.data[then as usize][0]).iter().any(|&x| {
+                b.tags[x as usize] == Tag::Drop && whole_local(b.data[x as usize][0]) == Some(l)
+            })
+        {
+            out.insert(u32_of(i), l as usize);
+        }
+    }
+    out
 }
 
 impl<'a> Balance<'a> {
@@ -1971,6 +2016,11 @@ impl<'a> Balance<'a> {
             empty_variants: std::cell::OnceCell::new(),
             exit: vec![false; b.local_ty.len()],
             owned: held,
+            flag_drops: if b.phase == Phase::Elaborated {
+                flag_drops(b)
+            } else {
+                hd_base::HashMap::default()
+            },
             ops: Vec::new(),
             reported: vec![false; n],
             errs: Vec::new(),
@@ -2467,6 +2517,9 @@ impl Forward for Balance<'_> {
             self.put(st, 0, k, true);
             self.put(st, 1, k, false);
             self.put(st, 2, k, false);
+        }
+        if let Some(&l) = self.flag_drops.get(&x) {
+            self.set_full(s.row_mut(st), l, false);
         }
     }
 
