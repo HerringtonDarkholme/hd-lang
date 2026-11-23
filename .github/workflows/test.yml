@@ -269,8 +269,15 @@ jobs:
       # The generated scale check (#1880, bench/metrics/scripts/scale.ts): its
       # own correct programs, holding every syntax node kind, at n and 4n,
       # judged by the compiler's deterministic work counters.
+      # The `hd` comes from the test build, whose `--all-features` turns on
+      # `dist`, and a dist `hd` runs programs on wasmtime. The scale check
+      # measures the compiler's work, so it selects the Node engine: on
+      # wasmtime, list-type-nest's build counted wasmtime's own control and
+      # allocation work and failed (run 45232087737).
       - name: Scale check
         if: ${{ !cancelled() }}
+        env:
+          HD_ENGINE: node
         run: pnpm run metrics -- --hd target/tools/hd --only scale
 
       # Its self-test: the same `hd` with its planted quadratic loop turned
@@ -278,6 +285,8 @@ jobs:
       - name: A planted quadratic loop fails the scale check
         if: ${{ !cancelled() }}
         shell: bash
+        env:
+          HD_ENGINE: node
         run: |
           set -uo pipefail
           status=0
