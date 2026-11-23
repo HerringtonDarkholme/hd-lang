@@ -29,7 +29,7 @@ position a method takes or returns is a **byte** offset.
 | `s.char_indices()` | an iterator of `(usize, char)` |
 | `s.bytes()` | an iterator of `u8` |
 | `s.parse::[T]()` | `Result[T, ...]` for a number, `bool`, `char` and more |
-| `list.join(sep)` | a `List[string]` joined into one `string` |
+| `list.join(sep)` | the `Display` text of a `List[T]` joined into one `string` |
 | `a + b` | two strings joined |
 
 ```hd

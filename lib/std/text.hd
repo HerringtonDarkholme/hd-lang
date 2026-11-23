@@ -60,7 +60,7 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
         pieces.push(t.values[index].to_string())
         pieces.push(t.raw_parts[index + 1])
         index = index + 1
-    pieces.join("")
+    concat_all(pieces)
 
 # An invalid escape sequence: `position` is the byte offset of its backslash
 # (Literal Suffixes L21, L22; Strings STR10).
@@ -106,7 +106,7 @@ pub fn process_escapes(text: string) -> Result[string, EscapeError]:
             pieces.push(meaning)
         plain = index
     pieces.push(bytes_slice(text, plain, size))
-    .Ok(pieces.join(""))
+    .Ok(concat_all(pieces))
 
 # The meaning of a simple escape, by the byte after the backslash. The
 # carriage return is written `\u{d}` because the std loader renames every
@@ -434,7 +434,7 @@ impl string:
                 pieces.push(bytes_slice(self, start, end))
                 pieces.push(replacement)
                 start = end
-            return pieces.join("")
+            return concat_all(pieces)
         finder := searcher(old)
         let start: usize = 0
         let searching = true
@@ -446,7 +446,7 @@ impl string:
                     start = found + bytes_len(old)
                 .None => searching = false
         pieces.push(bytes_slice(self, start, size))
-        pieces.join("")
+        concat_all(pieces)
 
     # Removes the Unicode White_Space property at both ends.
     ## Returns the string without whitespace at either end.
@@ -672,21 +672,18 @@ impl char:
     pub fn to_u32(self) -> u32:
         char_scalar(self)
 
-impl List[string]:
-    # The parts in order with `separator` between each two
-    # (r-std-text.join.list-method).
-    ## Joins the list's elements with `separator` between each two.
-    ## See [std-text.join.list-method](../../spec/std/text.md#r-std-text.join.list-method).
+impl[T < Display] List[T]:
+    ## Joins each element's Display text with `separator` between elements.
+    ## See [std-text.join.display-list](../../spec/std/text.md#r-std-text.join.display-list).
     pub fn join(&self, separator: string) -> string:
-        if bytes_len(separator) == 0:
-            return concat_all(*self)
-        # The parts with a separator between each two, then one copy of all.
-        let mut pieces: List[string] = []
+        let mut output = StringBuilder { bytes: UniqList::[u8].new() }
+        let first = true
         for part in self:
-            if pieces.len() > 0:
-                pieces.push(separator)
-            pieces.push(part)
-        concat_all(pieces)
+            if !first:
+                output.push(separator)
+            first = false
+            part.write(&mut output)
+        output.build()
 
 ## Joins many pieces of text by pushing them, cheaper than repeated concatenation.
 ## See [std-text.builder.decl-struct](../../spec/std/text.md#r-std-text.builder.decl-struct).

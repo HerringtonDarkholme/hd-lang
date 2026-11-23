@@ -1,0 +1,5 @@
+# test: join requires Display rather than silently choosing Debug
+struct Hidden:
+    value: i32
+fn rejected(items: List[Hidden]) -> string:
+    items.join(",") # diagnostic: unsatisfied-trait-bound

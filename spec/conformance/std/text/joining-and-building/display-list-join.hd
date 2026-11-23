@@ -1,0 +1,96 @@
+# test: join accepts every displayable element type and writes each value once in list order
+use std.text.StringBuilder
+
+struct Trace:
+    writes: List[i32]
+    fallback: usize
+
+struct Piece:
+    id: i32
+    trace: *mut Trace
+
+impl Display for Piece:
+    fn to_string(&self) -> string:
+        self.trace.fallback += 1
+        "<${self.id}>"
+
+    fn write(&self, out: &mut StringBuilder) -> void:
+        self.trace.writes.push(self.id)
+        out.push("<")
+        self.id.write(out)
+        out.push(">")
+
+struct Token:
+    text: string
+impl !Copy for Token
+impl Display for Token:
+    fn to_string(&self) -> string:
+        self.text
+
+fn numbers(cells: List[i32]) -> string:
+    cells.join(",")
+
+fn present_join(parts: List[string]) -> string?:
+    .Some(parts.join(""))
+
+tests:
+    use std.testing.assert_equal
+
+    it("formats numbers bools and characters without a caller conversion"):
+        assert_equal(numbers([+1, -2, 0]), "1,-2,0")
+        assert_equal([true, false, true].join("|"), "true|false|true")
+        assert_equal(['a', 'é', '🦀'].join("中"), "a中é中🦀")
+        assert_equal([1.5, -2.25].join(","), "1.5,-2.25")
+        let empty: List[i32] = []
+        assert_equal(empty.join(","), "")
+        assert_equal([+7].join("--"), "7")
+        assert_equal([+1, 2, 3].join(""), "123")
+
+    it("string joins preserve empty elements Unicode and embedded zero"):
+        assert_equal(["", "é", "", "🦀"].join("\0"), "\0é\0\0🦀")
+        assert_equal(["", ""].join("-"), "-")
+        assert_equal(["", ""].join(""), "")
+        let empty: List[string] = []
+        assert_equal(empty.join("🦀"), "")
+        assert_equal(["é\0🦀"].join("unused"), "é\0🦀")
+
+    it("empty joined strings remain present optional values"):
+        assert_equal(present_join([]), .Some(""))
+        assert_equal(present_join([""]), .Some(""))
+        assert_equal(present_join(["", ""]), .Some(""))
+        assert_equal(present_join(["a", "b"]), .Some("ab"))
+
+    it("custom Display.write runs once and respects order with no measuring pass"):
+        trace := box(Trace { writes: [], fallback: 0 })
+        values := [
+            Piece { id: +3, trace: trace },
+            Piece { id: +1, trace: trace },
+            Piece { id: +2, trace: trace },
+        ]
+        assert_equal(values.join("/"), "<3>/<1>/<2>")
+        assert_equal(trace.writes, [+3, 1, 2])
+        assert_equal(trace.fallback, 0)
+        trace.writes = []
+        assert_equal(values.join(""), "<3><1><2>")
+        assert_equal(trace.writes, [+3, 1, 2])
+        assert_equal(trace.fallback, 0)
+
+    it("a list of references formats noncopy referents without consuming them"):
+        first := box(Token { text: "one" })
+        second := box(Token { text: "two" })
+        assert_equal([first, second].join(" "), "one two")
+        assert_equal(first.text, "one")
+        assert_equal(second.text, "two")
+
+    it("formatting work scales with element count including width1000"):
+        trace := box(Trace { writes: [], fallback: 0 })
+        small := [for index in 0..100 => Piece { id: i32(index), trace: trace }]
+        _ := small.join(",")
+        assert_equal(trace.writes.len(), 100)
+        trace.writes = []
+        large := [for index in 0..1000 => Piece { id: i32(index), trace: trace }]
+        _ := large.join(",")
+        assert_equal(trace.writes.len(), 1000)
+        assert_equal(trace.writes[0], +0)
+        assert_equal(trace.writes[999], +999)
+        assert_equal(trace.fallback, 0)
