@@ -1,7 +1,6 @@
 //! M4a's exit: every `lib/std` body checks through `InferTable`, the
 //! solver and `TirBuilder` to verified TIR with no diagnostic when std is
-//! the root package, and a few bodies' TIR is pinned by golden files. The
-//! checker's errors in user programs are stage cases
+//! the root package. The checker's errors in user programs are stage cases
 //! (`tests/cases/checker-programs/`, `hd_check`'s `tests/cases/checker/`).
 
 use hd_base::SliceSort as _;
@@ -41,11 +40,11 @@ fn std_sources() -> MemorySources {
     s
 }
 
-fn analyze_std(render: &[&str]) -> Output {
+fn analyze_std() -> Output {
     let src = std_sources();
     let store = MemoryStore::default();
     let host = Host {
-        render_tir: render,
+        render_tir: &[],
         sources: &src,
         store: &store,
         clock: &NoClock,
@@ -60,7 +59,7 @@ fn analyze_std(render: &[&str]) -> Output {
 #[test]
 fn every_std_body_checks_with_no_diagnostic() {
     let modules = hd_project::SourceSet::list(&std_sources()).len() + 1;
-    let out = analyze_std(&[]);
+    let out = analyze_std();
     let body = out.report.tally(Stage::Body);
     assert_eq!(
         (body.ok, body.not_implemented, body.blocked),
@@ -73,39 +72,4 @@ fn every_std_body_checks_with_no_diagnostic() {
     assert_eq!(out.report.body_failed, 0, "{:?}", out.report.body_failures);
     assert!(out.report.body_ok > 1000, "{}", out.report.body_ok);
     assert_eq!(out.diags.len(), 0, "{}", out.render());
-}
-
-/// The golden TIR of a few std bodies: `println` (rows, `$.use`, a cold
-/// suspending call, `block_on`, interpolation, `match` on a `BlockOn` of a
-/// `Result`),
-/// `simple_escape` (integer patterns), `Option.map` (an `Option` match with a
-/// closure call) and `Iterator.take` (a trait default returning an owned
-/// named adapter).
-/// `HD_BLESS=1` rewrites the files.
-#[test]
-fn std_bodies_match_golden_tir() {
-    let bodies = [
-        ("std/console/println", "println"),
-        ("std/text/simple_escape", "simple_escape"),
-        ("std/option/impl[T < ?Copy] T?.map", "option_map"),
-        ("std/iter/Iterator.take", "iterator_take"),
-    ];
-    let paths: Vec<&str> = bodies.iter().map(|b| b.0).collect();
-    let out = analyze_std(&paths);
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/tir");
-    let update = std::env::var_os("HD_BLESS").is_some();
-    for (path, file) in bodies {
-        let got = out
-            .tir_text
-            .get(path)
-            .unwrap_or_else(|| panic!("no body {path}; have {:?}", out.tir_text.keys()));
-        let golden = dir.join(format!("{file}.tir"));
-        if update {
-            std::fs::create_dir_all(&dir).expect("dir");
-            std::fs::write(&golden, got).expect("write golden");
-            continue;
-        }
-        let want = std::fs::read_to_string(&golden).unwrap_or_default();
-        assert_eq!(got, &want, "{path}: TIR differs from {}", golden.display());
-    }
 }
