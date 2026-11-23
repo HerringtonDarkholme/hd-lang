@@ -1982,6 +1982,7 @@ impl Gen<'_, '_> {
         // whatever the local's regions say, and a read of it through no
         // dereference holds them too. Cost: one pass over the stores and
         // the reads, and the rows of each stored value and read local.
+        crate::work::scan_work(rows.len());
         rows.sort_stable();
         let mut stored = Vec::new();
         for i in 0..b.len() {
@@ -2007,6 +2008,7 @@ impl Gen<'_, '_> {
         }
         rows.extend(stored);
         // A read of such a local through no dereference holds its loans.
+        crate::work::scan_work(rows.len());
         rows.sort_stable();
         let mut read = Vec::new();
         for i in 0..b.len() {
@@ -2111,6 +2113,7 @@ impl Gen<'_, '_> {
             }
             rows.extend(extra);
         }
+        crate::work::scan_work(rows.len());
         rows.sort_stable();
         rows.dedup();
         (sites, rows)
