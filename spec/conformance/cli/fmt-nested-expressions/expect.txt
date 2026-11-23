@@ -1,0 +1,17 @@
+# cli.fmt preserves syntax and behavior; nested arithmetic obeys the width policy.
+run: hd fmt inputs/conditionals.input
+same-text: inputs/conditionals.input want/conditionals.hd
+run: hd fmt --check inputs/conditionals.input
+stdout-json: []
+run: hd fmt inputs/conditionals.input
+same-text: inputs/conditionals.input want/conditionals.hd
+run: hd check want/conditionals.hd
+run: hd want/conditionals.hd
+stdout: nested conditionals ok
+run: hd fmt inputs/polynomial.input
+same-text: inputs/polynomial.input want/polynomial.hd
+run: hd fmt --check inputs/polynomial.input
+stdout-json: []
+run: hd fmt inputs/polynomial.input
+same-text: inputs/polynomial.input want/polynomial.hd
+run: hd check want/polynomial.hd

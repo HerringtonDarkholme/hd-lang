@@ -1,0 +1,75 @@
+use std.testing.assert_equal
+
+fn returned(first: bool, second: bool) -> i32:
+    return if first:
+        if second: +1 else: +2
+    else:
+        +3
+
+fn bound(first: bool, second: bool) -> i32:
+    value := if first:
+        if second: +1 else: +2
+    else:
+        +3
+    value
+
+fn tail(first: bool, second: bool) -> i32:
+    if first:
+        if second: +1 else: +2
+    else:
+        +3
+
+fn other_arm(first: bool, second: bool) -> i32:
+    return if first:
+        +4
+    else:
+        if second: +5 else: +6
+
+fn matched(first: bool, second: bool) -> i32:
+    return if first:
+        match second:
+            true => +7
+            false => +8
+    else:
+        +9
+
+fn choose_float(first: bool, second: bool) -> f64:
+    return if first:
+        if second: 0.0 else: 3.0
+    else:
+        0.0 / 0.0
+
+fn parenthesized(first: bool, second: bool) -> i32:
+    return if first: +4 else: (if second: +5 else: +6)
+
+fn keep(value: i32) -> i32:
+    value
+
+fn in_call(first: bool, second: bool) -> i32:
+    return if first: keep(if second: +1 else: +2) else: +3
+
+pub fn main() -> void $ Console:
+    assert_equal(returned(true, true), +1)
+    assert_equal(returned(true, false), +2)
+    assert_equal(returned(false, true), +3)
+    assert_equal(bound(true, true), +1)
+    assert_equal(bound(true, false), +2)
+    assert_equal(bound(false, false), +3)
+    assert_equal(tail(true, true), +1)
+    assert_equal(tail(true, false), +2)
+    assert_equal(tail(false, false), +3)
+    assert_equal(other_arm(true, false), +4)
+    assert_equal(other_arm(false, true), +5)
+    assert_equal(other_arm(false, false), +6)
+    assert_equal(matched(true, true), +7)
+    assert_equal(matched(true, false), +8)
+    assert_equal(matched(false, false), +9)
+    assert_equal(choose_float(true, true), 0.0)
+    assert_equal(choose_float(true, false), 3.0)
+    assert_equal(parenthesized(true, false), +4)
+    assert_equal(parenthesized(false, true), +5)
+    assert_equal(parenthesized(false, false), +6)
+    assert_equal(in_call(true, true), +1)
+    assert_equal(in_call(true, false), +2)
+    assert_equal(in_call(false, false), +3)
+    println("nested conditionals ok")

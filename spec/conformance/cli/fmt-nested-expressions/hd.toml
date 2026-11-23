@@ -1,0 +1,5 @@
+[package]
+name = "fmt_nested_expressions"
+
+[capabilities]
+Console = true
