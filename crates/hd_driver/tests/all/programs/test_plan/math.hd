@@ -1,0 +1,13 @@
+use std.testing.{assert, assert_equal}
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+tests:
+    it("adds"):
+        assert_equal(add(2, 3), 5, reason="small sums")
+
+    it("skips", ignore="slow"):
+        assert(false, reason="never runs")
+
+    it("times out", timeout=.None):
+        assert(true, reason="no limit")
