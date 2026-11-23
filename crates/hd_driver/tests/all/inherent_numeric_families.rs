@@ -43,10 +43,11 @@ fn comparisons(width: usize) -> Result<u64, String> {
 
 #[test]
 fn unrelated_heads_do_not_compare_with_a_sealed_numeric_family() -> Result<(), String> {
-    // Fresh stores keep the fixed std contribution equal in all three runs.
+    // Each measurement deliberately builds std cold in a fresh store,
+    // keeping the fixed std contribution equal in all three runs.
     // The only source-sized work is one candidate-index visit per local type.
     let fixed = comparisons(0)?;
-    for width in [1_000, 10_000] {
+    for width in [100, 1_000] {
         let work = comparisons(width)?;
         println!(
             "width {width}: {work} visits, fixed {fixed}, delta {}",

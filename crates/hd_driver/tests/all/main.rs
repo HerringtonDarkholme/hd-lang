@@ -38,6 +38,7 @@ mod iface_put_order;
 mod impl_universe;
 mod import_fix_line_endings;
 mod inferred_rows_run;
+mod inherent_numeric_families;
 mod init_cycle_run;
 mod inlined_callee_edit;
 mod instantiation_depth;
