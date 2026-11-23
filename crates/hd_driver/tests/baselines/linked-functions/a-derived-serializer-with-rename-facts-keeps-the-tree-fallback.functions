@@ -149,6 +149,7 @@ std/rt.cycle/init.init#0
 std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
+std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]

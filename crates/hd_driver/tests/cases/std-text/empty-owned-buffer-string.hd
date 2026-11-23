@@ -1,7 +1,7 @@
 # @dump: wat
 # @build: std checked
-# expected: transfer selects the existing non-null empty string for a null
-# Buffer address before constructing Some; no allocation or wrapper call.
+# expected: std checks the room capacity before constructing Some, returning
+# the existing empty string for no room and transferring allocated room unchanged.
 use std.rt.memory.Buffer
 use std.rt.bytes.string_from_buffer
 

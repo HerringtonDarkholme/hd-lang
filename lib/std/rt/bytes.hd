@@ -74,10 +74,15 @@ pub trait ByteBuffer < ?Copy & TextSink:
     fn take_text(&mut self) -> string
     fn copy_text(&self) -> string
 
-## Takes over `len` initialized UTF-8 bytes of this owned raw allocation.
 @intrinsic("string_from_bytes")
-pub fn string_from_buffer(bytes: Buffer[u8], len: usize) -> string:
+fn take_buffer_text(bytes: Buffer[u8], len: usize) -> string:
     panic("intrinsic")
+
+## Takes over `len` initialized UTF-8 bytes of this owned raw allocation.
+pub fn string_from_buffer(bytes: Buffer[u8], len: usize) -> string:
+    if bytes.capacity() == 0:
+        return ""
+    take_buffer_text(bytes, len)
 
 # Consumes initialized string room from new_string, exposing only the selected initialized bytes.
 # Like raw Buffer transfer, this changes ownership metadata, not the bytes.

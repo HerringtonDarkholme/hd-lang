@@ -4042,12 +4042,6 @@ impl Em<'_, '_, '_> {
                 // builds too. Move that same allocation into the string.
                 self.take(args[0]);
                 self.comp(args[0], 0)?;
-                // A zero-capacity Buffer has a null address. Strings use
-                // null as Option's None niche, so transfer that empty room
-                // as the existing non-null empty string, without allocating.
-                self.f.u32(crate::module::EMPTY);
-                self.comp(args[0], 0)?;
-                self.f.op(I::Select);
                 self.push(args[1])?;
                 self.store(i)
             }
