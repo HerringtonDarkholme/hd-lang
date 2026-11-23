@@ -69,8 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 451,
-      "explanation": "Map key/value cursors now retain a COW snapshot in the existing step environment: log-stats newly links rt:retain_fields to keep that map alive, rt:map_step to give each yielded key its own count (formerly the eager list store), and rt:drop to release the environment snapshot. These three runtime boundary sites are required; consuming Option.map removes the two avoidable projection copy/drop pairs per key."
+      "sites": 448,
+      "explanation": "Combined #2298/#2299: #2298 retains its three required log-stats Map cursor boundary sites (snapshot retain_fields, owned-key map_step, environment drop). #2299 makes Iterator.any/all/find generic FnMut methods; its combined output removes three dyn_iter rt:dyn_read retain sites. Measured combined total is 448 (448 before both, +3 Map cursors, -3 generic callbacks); all other conservative operation tuples are unchanged from the 451-site #2298 report."
     },
     {
       "reason": "conservative: unique",
