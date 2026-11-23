@@ -1,0 +1,20 @@
+# A decorator before a trait's derivation block is unread too.
+use std.structure.Structure
+
+struct Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }
+
+struct Loud:
+    id: i64
+
+@style(prefix="x")
+impl Debug for Loud by Structure:
+    pass
+
+# A decorator before a data declaration is a fact of the type: no finding.
+@style(prefix="p_")
+struct Plain:
+    id: i64

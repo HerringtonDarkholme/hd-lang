@@ -1,0 +1,4 @@
+# A site allow that names no lint is an error at its line.
+fn condition(a: u32) -> bool:
+    # lint-allow: not-a-lint
+    a == 0

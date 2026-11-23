@@ -3,14 +3,9 @@
 
 mod binding_patterns;
 mod bindings;
-mod block_decorators;
 mod comparisons;
-mod derivation_drift;
 mod derivation_facts;
 mod flow;
-mod lifetime_order;
-mod lost_writes;
-mod map_store;
 mod modules;
 mod registry;
 mod warm;

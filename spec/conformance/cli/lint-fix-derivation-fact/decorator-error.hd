@@ -1,0 +1,8 @@
+# A decorator that is already an error before a derivation block is reported
+# once, as that error, by `hd check` and by `hd lint`.
+use std.structure.Structure
+struct Item:
+    id: i64
+@derive(Structure)
+impl Item by Structure:
+    id += ["key"]

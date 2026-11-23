@@ -1,0 +1,43 @@
+# A closure argument is checked once per candidate `parse`. The trials that are
+# rejected leave no finding: each site below is reported once.
+trait Parse[T]:
+    fn parse(f: fn() -> T) -> bool
+struct Item: pass
+impl Parse[i32] for Item:
+    fn parse(f: fn() -> i32) -> bool:
+        f() >= +0
+impl Parse[bool] for Item:
+    fn parse(f: fn() -> bool) -> bool:
+        f()
+
+enum Pair:
+    Values(left: i32, right: i32)
+
+# Statement and discard facts.
+fn choose_statements(value: u32) -> bool:
+    Item::parse(fn():
+        debug(value)
+        return value >= 0
+        debug(value)
+        true
+    )
+
+# An unread binding.
+fn choose_binding(value: u32) -> bool:
+    Item::parse(fn():
+        extra := +1
+        value >= 0
+    )
+
+# Mutability and payload pattern facts.
+fn choose_pattern(value: Pair) -> bool:
+    Item::parse(fn():
+        let mut extra = +1
+        extra += +1
+        match value:
+            .Values(right, left) => right + extra >= left
+    )
+
+# A comparison fact.
+fn choose_comparison(value: u32) -> bool:
+    Item::parse(fn(): value >= 0)

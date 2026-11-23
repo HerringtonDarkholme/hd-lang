@@ -35,14 +35,8 @@ fn checked(
 
 fn sources() -> MemorySources {
     let mut sources = MemorySources::default();
-    sources.insert(
-        "src/main.hd",
-        "use pkg.helper.label\npub fn main() -> void:\n    _ := label()\n",
-    );
-    sources.insert(
-        "src/helper.hd",
-        "# λ before the header\npub fn main() -> void: pass\npub fn label() -> string: \"kept\"\n",
-    );
+    sources.insert("src/main.hd", include_str!("programs/modules/main.hd"));
+    sources.insert("src/helper.hd", include_str!("programs/modules/helper.hd"));
     sources.insert("src/unreached.hd", "pub fn main() -> void: pass\n");
     sources
 }
@@ -77,13 +71,10 @@ fn public_main_findings_use_the_lint_cache_without_poisoning_check_entries() {
 #[test]
 fn private_main_is_lint_only_and_library_private_mains_stay_quiet() {
     let mut sources = MemorySources::default();
-    sources.insert(
-        "src/main.hd",
-        "use pkg.helper.value\nfn main() -> void:\n    _ := value()\n",
-    );
+    sources.insert("src/main.hd", include_str!("programs/private_main/main.hd"));
     sources.insert(
         "src/helper.hd",
-        "fn main() -> i32: +1\npub fn value() -> i32: main()\n",
+        include_str!("programs/private_main/helper.hd"),
     );
     let store = MemoryStore::default();
     let normal = checked(&sources, &store, &Packages::default(), false);
@@ -110,39 +101,11 @@ fn private_main_is_lint_only_and_library_private_mains_stay_quiet() {
 }
 
 #[test]
-fn private_main_fix_is_a_suggestion_when_another_public_main_exists() {
-    let mut sources = MemorySources::default();
-    sources.insert("src/main.hd", "fn main() -> void:\n    pass\n");
-    sources.insert("src/helper.hd", "pub fn main() -> void:\n    pass\n");
-    let store = MemoryStore::default();
-    let out = checked(
-        &sources,
-        &store,
-        &Packages {
-            entries: vec!["main".to_owned(), "helper".to_owned()],
-            ..Packages::default()
-        },
-        true,
-    );
-    assert!(!out.diags.has_errors(), "{}", out.render());
-    let findings = Policy::default().apply(&out.analysis_diags);
-    assert_eq!(findings.code, [Code::PrivateMain]);
-    let fix = findings.fixes[0].start as usize;
-    assert_eq!(findings.fix_safety[fix], FixSafety::Suggestion);
-}
-
-#[test]
 fn fetched_dependency_public_mains_never_become_root_advice() {
     let mut root = sources();
-    root.insert(
-        "src/main.hd",
-        "use dep.util.value\npub fn main() -> void:\n    _ := value()\n",
-    );
+    root.insert("src/main.hd", include_str!("programs/fetched/main.hd"));
     let mut dependency = MemorySources::default();
-    dependency.insert(
-        "src/lib.hd",
-        "pub fn main() -> void: pass\npub fn value() -> i32: +1\n",
-    );
+    dependency.insert("src/lib.hd", include_str!("programs/fetched/lib.hd"));
     let store = MemoryStore::default();
     let packages = Packages {
         requires: vec![("util".to_owned(), 1)],

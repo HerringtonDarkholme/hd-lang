@@ -1,0 +1,5 @@
+# λ before the header
+pub fn main() -> void:
+    pass
+pub fn label() -> string:
+    "kept"

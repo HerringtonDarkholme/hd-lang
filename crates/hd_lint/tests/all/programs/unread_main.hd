@@ -1,0 +1,3 @@
+pub fn main() -> void:
+    unread := +1
+    pass

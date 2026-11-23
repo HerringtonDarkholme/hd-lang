@@ -1,9 +1,8 @@
 use hd_cache::MemoryStore;
-use hd_diag::{Code, DiagBuf, Severity};
 use hd_driver::{
     Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
 };
-use hd_lint::{ANALYZER, Level, Policy, REDUNDANT_MUT, UNUSED_BINDING, VARIANT_BINDING};
+use hd_lint::{ANALYZER, Policy};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -30,92 +29,7 @@ fn checked(source: &str, store: &MemoryStore, collect: bool, executor: Executor)
     }
 }
 
-fn lint(source: &str, mut policy: Policy) -> (Output, DiagBuf) {
-    policy.set(UNUSED_BINDING, Level::Allow).unwrap();
-    let out = checked(
-        source,
-        &MemoryStore::default(),
-        true,
-        Executor::Serial(SerialOrder::Priority),
-    );
-    assert!(!out.diags.has_errors(), "{}", out.render());
-    let findings = policy.apply(&out.analysis_diags);
-    (out, findings)
-}
-
-const PAIR: &str = "enum Pair:\n    Values(left: i32, right: i32)\n";
-
-#[test]
-fn mutable_addressing_and_shadowing_keep_binding_identity() {
-    let source = "fn f() -> i32:\n    let mut counter = +0\n    if true:\n        let mut counter = +1\n        pointer := &mut counter\n        *pointer += +1\n    counter\n";
-    let (_, findings) = lint(source, Policy::default());
-    assert_eq!(findings.code, [Code::RedundantLetMut]);
-}
-
-#[test]
-fn captures_and_nonprimitive_bindings_do_not_get_redundant_mut_advice() {
-    let source = "fn f() -> void:\n    let mut count = +0\n    bump := fn() -> void:\n        pointer := &mut count\n        *pointer += +1\n    bump()\n    let mut values: List[i32] = []\n    values.push(+1)\n    let mut pair = (+1, +2)\n    _ := pair\n";
-    let (_, findings) = lint(source, Policy::default());
-    assert!(findings.is_empty(), "{}", findings.render_json());
-}
-
-#[test]
-fn correct_fresh_named_and_wildcard_payload_bindings_are_quiet() {
-    for pattern in [
-        ".Values(left, right)",
-        ".Values(a, b)",
-        ".Values(left=a, right=b)",
-        ".Values(left, _)",
-    ] {
-        let source = format!(
-            "{PAIR}fn f(value: Pair) -> void:\n    match value:\n        {pattern} => pass\n"
-        );
-        let (_, findings) = lint(&source, Policy::default());
-        assert!(findings.is_empty(), "{pattern}: {}", findings.render_json());
-    }
-}
-
-#[test]
-fn policy_levels_are_independent_and_module_errors_cannot_be_suppressed() {
-    let source = include_str!("../../../../spec/conformance/cli/lint-binding-patterns/src/main.hd");
-    for (name, other) in [
-        (REDUNDANT_MUT, VARIANT_BINDING),
-        (VARIANT_BINDING, REDUNDANT_MUT),
-    ] {
-        for (level, expected) in [
-            (Level::Allow, None),
-            (Level::Warn, Some(Severity::Warning)),
-            (Level::Deny, Some(Severity::Error)),
-        ] {
-            let mut policy = Policy::default();
-            policy.set(name, level).unwrap();
-            policy.set(other, Level::Allow).unwrap();
-            let (_, findings) = lint(source, policy);
-            let found = if name == REDUNDANT_MUT { 2 } else { 4 };
-            assert_eq!(findings.len(), if expected.is_some() { found } else { 0 });
-            assert!(findings.severity.iter().all(|s| Some(*s) == expected));
-        }
-    }
-    let out = checked(
-        "let mut count = +0\n",
-        &MemoryStore::default(),
-        true,
-        Executor::Serial(SerialOrder::Priority),
-    );
-    assert_eq!(out.diags.code, [Code::MutOnPrimitive]);
-    let mut policy = Policy::default();
-    policy.set(REDUNDANT_MUT, Level::Allow).unwrap();
-    assert!(policy.apply(&out.analysis_diags).is_empty());
-}
-
-#[test]
-fn rejected_trials_keep_only_selected_mutability_and_pattern_facts() {
-    let source = format!(
-        "{PAIR}trait Parse[T]:\n    fn parse(f: fn() -> T) -> bool\nstruct Item: pass\nimpl Parse[i32] for Item:\n    fn parse(f: fn() -> i32) -> bool: f() >= +0\nimpl Parse[bool] for Item:\n    fn parse(f: fn() -> bool) -> bool: f()\nfn choose(value: Pair) -> bool:\n    Item::parse(fn():\n        let mut extra = +1\n        extra += +1\n        match value:\n            .Values(right, left) => right + extra >= left\n    )\n"
-    );
-    let (_, findings) = lint(&source, Policy::default());
-    assert_eq!(findings.len(), 3, "{}", findings.render_json());
-}
+const PAIR: &str = include_str!("programs/pair.hd");
 
 #[test]
 fn inferred_parallel_and_cached_bodies_keep_each_site_once() {

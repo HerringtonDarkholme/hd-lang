@@ -1,0 +1,23 @@
+# Lint never turns a checker error into advice. A name that doesn't resolve,
+# after a `return`:
+fn unknown_after_return() -> void:
+    return
+    missing
+
+# A suspension that is discarded, or bound and never awaited, whatever the
+# binding's name:
+fn work!() -> void:
+    pass
+fn discarded() -> void:
+    work()
+fn bound() -> void:
+    pending := work()
+fn bound_underscore() -> void:
+    _pending := work()
+
+# A value statement where `void` is required:
+fn value_statement() -> void:
+    +1
+
+# `let mut` on a primitive at module level:
+let mut count = +0

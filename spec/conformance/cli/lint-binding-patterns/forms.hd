@@ -1,0 +1,39 @@
+# A shadowing binding is its own binding: only the outer `counter`, whose address
+# is never taken, gets the advice.
+fn shadowed() -> i32:
+    let mut counter = +0
+    if true:
+        let mut counter = +1
+        pointer := &mut counter
+        *pointer += +1
+    counter
+
+# A captured binding whose address a closure takes, and a `let mut` of a list or
+# a tuple, are quiet.
+fn captured_and_nonprimitive() -> void:
+    let mut count = +0
+    bump := fn() -> void:
+        pointer := &mut count
+        *pointer += +1
+    bump()
+    let mut values: List[i32] = []
+    values.push(+1)
+    let mut pair = (+1, +2)
+    _ := pair
+
+# Payload bindings named as the fields, freshly named, written by name, or
+# discarded are quiet.
+enum Pair:
+    Values(left: i32, right: i32)
+fn field_names(value: Pair) -> void:
+    match value:
+        .Values(left, right) => pass
+fn fresh_names(value: Pair) -> void:
+    match value:
+        .Values(a, b) => pass
+fn named_fields(value: Pair) -> void:
+    match value:
+        .Values(left=a, right=b) => pass
+fn wildcard(value: Pair) -> void:
+    match value:
+        .Values(left, _) => pass
