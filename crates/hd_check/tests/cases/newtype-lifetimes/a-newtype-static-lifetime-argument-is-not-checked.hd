@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# 'static does not give a newtype a lifetime parameter.
+type UserId(i64)
+
+fn invalid(value: UserId['static]) -> void:
+    pass
