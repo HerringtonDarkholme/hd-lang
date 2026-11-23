@@ -71,3 +71,40 @@ test("a line the branch adds is still the branch's", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// An hd program a test uses is a fixture, not a Rust string (#2312).
+const quiet = '#[test]\nfn parses() {\n    check(include_str!("parses.hd"));\n}\n';
+const planted =
+  '#[test]\nfn parses() {\n    check(include_str!("parses.hd"));\n}\n\n#[test]\nfn prints() {\n    run("pub fn main() -> void:\\n    pass\\n");\n}\n';
+
+test("an hd program added to a Rust string of a test fails, by file, line and test", () => {
+  const { dir, git } = repository(quiet);
+  try {
+    git("checkout", "-qb", "lane");
+    writeFileSync(join(dir, "crates/hd_wasm/src/a.rs"), planted);
+    git("commit", "-qam", "lane adds a program");
+    const { status, out } = check(dir);
+    assert.equal(status, 1, out);
+    assert.match(out, /HD PROGRAM IN A RUST STRING/);
+    assert.match(out, /crates\/hd_wasm\/src\/a\.rs:8: prints$/m);
+    assert.doesNotMatch(out, /: parses$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("removing an hd program from a Rust string, or editing one, passes", () => {
+  const { dir, git } = repository(planted);
+  try {
+    git("checkout", "-qb", "lane");
+    writeFileSync(join(dir, "crates/hd_wasm/src/a.rs"), planted.replace("    pass", "    return"));
+    git("commit", "-qam", "lane edits the program");
+    assert.equal(check(dir).status, 0, check(dir).out);
+    writeFileSync(join(dir, "crates/hd_wasm/src/a.rs"), quiet);
+    git("commit", "-qam", "lane removes the program");
+    const { status, out } = check(dir);
+    assert.equal(status, 0, out);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
