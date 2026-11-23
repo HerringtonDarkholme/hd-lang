@@ -1,14 +1,6 @@
-export interface SiteLimit {
-  reason: string;
-  sites: number;
-  explanation?: string;
-}
-export interface SiteBudget {
-  version: 1;
-  pipeline: "optimized-release";
-  target: "v8";
-  reasons: SiteLimit[];
-}
+import { judge } from "./baseline.ts";
+import type { Comparison } from "./baseline.ts";
+
 export interface ReasonSites {
   reason: string;
   app: number;
@@ -24,33 +16,6 @@ export interface SiteReport {
 const conservative = (reason: string) => reason.startsWith("conservative: ");
 const natural = (value: unknown): value is number =>
   Number.isSafeInteger(value) && Number(value) >= 0;
-
-export function readSiteBudget(text: string): SiteBudget {
-  const value = JSON.parse(text) as SiteBudget;
-  if (
-    value.version !== 1 ||
-    value.pipeline !== "optimized-release" ||
-    value.target !== "v8" ||
-    !Array.isArray(value.reasons)
-  ) {
-    throw new Error("unsupported conservative count-site budget");
-  }
-  const seen = new Set<string>();
-  for (const row of value.reasons) {
-    if (
-      typeof row.reason !== "string" ||
-      !conservative(row.reason) ||
-      row.reason === "conservative: " ||
-      seen.has(row.reason) ||
-      !natural(row.sites) ||
-      (row.explanation !== undefined && typeof row.explanation !== "string")
-    ) {
-      throw new Error("invalid or duplicate conservative reason budget");
-    }
-    seen.add(row.reason);
-  }
-  return value;
-}
 
 function readPrograms(digestsTsv: string, expectedPrograms: readonly string[]): string[] {
   const programs: string[] = [];
@@ -142,98 +107,50 @@ export function readSiteReport(
   };
 }
 
-function compareIncreases(
-  measured: Map<string, number>,
-  budget: SiteBudget,
-  previous: SiteBudget,
-): string[] {
-  const failures: string[] = [];
-  const before = new Map(previous.reasons.map((row) => [row.reason, row]));
-  for (const row of budget.reasons) {
-    const old = before.get(row.reason);
-    if (old && row.sites <= old.sites) {
-      continue;
-    }
-    if (!row.explanation?.trim() || row.explanation === old?.explanation) {
-      failures.push(`${row.reason}: a new/increased budget needs a fresh explanation`);
-    }
-    if (row.sites !== (measured.get(row.reason) ?? 0)) {
-      failures.push(`${row.reason}: an increased budget must equal the measured site count`);
-    }
+/** A stored `actual.json`; a malformed one is refused. */
+export function readSites(text: string): SiteReport {
+  const value = JSON.parse(text) as SiteReport;
+  if (!Array.isArray(value.programs) || !Array.isArray(value.reasons)) {
+    throw new Error("not a conservative-site measurement");
   }
-  return failures;
+  const seen = new Set<string>();
+  for (const row of value.reasons) {
+    if (typeof row.reason !== "string" || seen.has(row.reason) || !natural(row.sites)) {
+      throw new Error(`invalid or duplicate count-site reason: ${row.reason}`);
+    }
+    seen.add(row.reason);
+  }
+  return value;
 }
 
-export function compareSites(
-  report: SiteReport,
-  budget: SiteBudget,
-  previous?: SiteBudget,
-): string[] {
-  const failures: string[] = [];
-  const measured = new Map(
-    report.reasons.filter((row) => conservative(row.reason)).map((row) => [row.reason, row.sites]),
-  );
-  const wanted = new Map(budget.reasons.map((row) => [row.reason, row]));
-  for (const [reason, sites] of measured) {
-    const limit = wanted.get(reason);
-    if (!limit || sites > limit.sites) {
-      failures.push(
-        `${reason}: conservative sites ${limit?.sites ?? 0} -> ${sites}; record the measured increase and its explanation`,
-      );
-    }
-  }
-  if (previous) {
-    failures.push(...compareIncreases(measured, budget, previous));
-  }
-  return failures;
-}
-
-export function recordSites(
-  report: SiteReport,
-  previous?: SiteBudget,
-  explanation?: string,
-): SiteBudget {
-  const before = new Map(previous?.reasons.map((row) => [row.reason, row]));
-  const measured = new Map(
-    report.reasons.filter((row) => conservative(row.reason)).map((row) => [row.reason, row.sites]),
-  );
-  const keys = new Set([...before.keys(), ...measured.keys()]);
-  const reasons = [...keys].sort().map((reason) => {
-    const old = before.get(reason);
-    const sites = measured.get(reason) ?? 0;
-    const increased = previous && (!old || sites > old.sites);
-    if (increased && !explanation?.trim()) {
-      throw new Error(`${reason}: --reason is required for a new/increased budget`);
-    }
-    let note = old?.sites === sites ? old.explanation : undefined;
-    if (increased) {
-      note = explanation;
-    }
-    return { reason, sites, ...(note ? { explanation: note } : {}) };
-  });
-  return { version: 1, pipeline: "optimized-release", target: "v8", reasons };
-}
-
-export function siteTable(report: SiteReport, budget?: SiteBudget): string {
-  const limits = new Map(budget?.reasons.map((row) => [row.reason, row.sites]));
+/**
+ * Each conservative reason is judged on its own: a fall under one can't hide a
+ * rise under another, and a reason the base lacks starts from zero. Named
+ * reasons are deliberate and only reported.
+ */
+export function compareSites(report: SiteReport, base?: SiteReport): Comparison {
+  const before = new Map(base?.reasons.map((row) => [row.reason, row.sites]));
   const measured = new Map(report.reasons.map((row) => [row.reason, row]));
-  const keys = new Set([...measured.keys(), ...limits.keys()]);
+  const result: Comparison = { table: "", increases: [], decreases: [] };
   const lines = [
     "### Conservative count sites",
     "",
     `${report.programs.length} benchmarks; static emitted sites, including std and generated runtime bodies.`,
     "",
-    "| Reason | App | Std | Runtime | Sites | Budget/base | Change |",
+    "| Reason | App | Std | Runtime | Sites | Base | Change |",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
   ];
   let total = 0;
   let fallback = 0;
-  for (const reason of [...keys].sort()) {
+  for (const reason of [...new Set([...measured.keys(), ...before.keys()])].sort()) {
     const row = measured.get(reason) ?? { reason, app: 0, std: 0, runtime: 0, sites: 0 };
-    const limit = limits.get(reason);
-    const change = limit === undefined ? "—" : String(row.sites - limit);
+    const old = before.get(reason);
+    let change = old === undefined ? "—" : String(row.sites - old);
+    if (base && conservative(reason)) {
+      change = judge(result, `${reason}: conservative sites`, BigInt(old ?? 0), BigInt(row.sites));
+    }
     lines.push(
-      `| ${reason} | ${row.app} | ${row.std} | ${row.runtime} | ${row.sites} | ${limit ?? "—"} | ${change} |`,
+      `| ${reason} | ${row.app} | ${row.std} | ${row.runtime} | ${row.sites} | ${old ?? "—"} | ${change} |`,
     );
     total += row.sites;
     if (conservative(reason)) {
@@ -241,5 +158,6 @@ export function siteTable(report: SiteReport, budget?: SiteBudget): string {
     }
   }
   lines.push("", `**${fallback} conservative / ${total} total sites.**`, "");
-  return lines.join("\n");
+  result.table = lines.join("\n");
+  return result;
 }

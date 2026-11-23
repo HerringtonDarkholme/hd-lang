@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { compareCounts, countTable, readBaseline, recordCounts } from "./baseline.ts";
+import { compareCounts, gate, readCounts } from "./baseline.ts";
 import type { Entry } from "./baseline.ts";
 import { readResult, resultKey, runnerDigest, writeResult } from "./results.ts";
 
@@ -13,12 +13,10 @@ const flags = new Set<string>();
 const arguments_ = process.argv.slice(2);
 for (let index = 0; index < arguments_.length; index++) {
   const argument = arguments_[index];
-  if (["--record", "--refresh", "--no-cache"].includes(argument)) {
+  if (argument === "--no-cache") {
     flags.add(argument);
   } else if (
-    ["--compiler", "--baseline", "--previous", "--output", "--only", "--reason"].includes(
-      argument,
-    ) &&
+    ["--compiler", "--base", "--cost-ok", "--output", "--only"].includes(argument) &&
     arguments_[index + 1]
   ) {
     options.set(argument, arguments_[++index]);
@@ -26,15 +24,6 @@ for (let index = 0; index < arguments_.length; index++) {
     throw new Error(`unknown/missing count gate argument: ${argument}`);
   }
 }
-const baselinePath = resolve(options.get("--baseline") ?? `${root}/bench/counts/baseline.json`);
-const recorded = existsSync(baselinePath)
-  ? readBaseline(readFileSync(baselinePath, "utf8"))
-  : undefined;
-const previousPath = options.get("--previous");
-const previous =
-  previousPath && existsSync(previousPath)
-    ? readBaseline(readFileSync(previousPath, "utf8"))
-    : undefined;
 const output = resolve(options.get("--output") ?? `${root}/target/count-ops`);
 mkdirSync(output, { recursive: true });
 const all = ["bench/study", "bench/runtime/progs"]
@@ -47,9 +36,6 @@ const all = ["bench/study", "bench/runtime/progs"]
 const selected = options.get("--only")?.split(",");
 if (selected?.some((path) => !all.includes(path))) {
   throw new Error("--only must name complete benchmark paths");
-}
-if (selected && (flags.has("--record") || flags.has("--refresh"))) {
-  throw new Error("baseline updates require all benchmark programs");
 }
 const programs = selected ? all.filter((path) => selected.includes(path)) : all;
 const tool = resolve(
@@ -65,7 +51,7 @@ const manifest = execFileSync(tool, [`${output}/modules`, ...programs], {
   timeout: 600_000,
   env: { ...process.env, HD_CACHE: `${output}/cache` },
 });
-const reuse = !["--no-cache", "--record", "--refresh"].some((flag) => flags.has(flag));
+const reuse = !flags.has("--no-cache");
 const results = `${root}/target/count-ops/results`;
 const runner = runnerDigest(root);
 const actual: Entry[] = [];
@@ -92,29 +78,11 @@ for (const line of manifest.trim().split("\n")) {
   actual.push(row);
 }
 process.stderr.write(`count operations: ran ${executed} of ${actual.length} programs\n`);
-const measured = recordCounts(actual);
-writeFileSync(`${output}/actual.json`, JSON.stringify(measured, null, 2) + "\n");
-const limits =
-  selected && recorded
-    ? { ...recorded, programs: recorded.programs.filter((row) => selected.includes(row.program)) }
-    : recorded;
-const table = countTable(actual, previous ?? limits);
-writeFileSync(`${output}/summary.md`, table);
-process.stdout.write(table);
-if (flags.has("--record")) {
-  writeFileSync(
-    baselinePath,
-    JSON.stringify(recordCounts(actual, recorded, options.get("--reason")), null, 2) + "\n",
-  );
-} else {
-  if (!limits) {
-    throw new Error("missing baseline; seed it with --record");
-  }
-  const failures = compareCounts(actual, limits, previous);
-  if (failures.length) {
-    throw new Error(failures.join("\n"));
-  }
-  if (flags.has("--refresh")) {
-    writeFileSync(baselinePath, JSON.stringify(recordCounts(actual, recorded), null, 2) + "\n");
-  }
-}
+writeFileSync(`${output}/actual.json`, JSON.stringify({ programs: actual }, null, 2) + "\n");
+gate(
+  output,
+  options.get("--base"),
+  readCounts,
+  (base) => compareCounts(actual, base),
+  options.get("--cost-ok"),
+);

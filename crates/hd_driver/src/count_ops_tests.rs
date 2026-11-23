@@ -44,7 +44,7 @@ fn an_extra_owner_in_a_hot_loop_is_a_gate_regression() {
       import {{pathToFileURL}} from 'node:url';
       const root=pathToFileURL({:?}+'/');
       const {{createHost}}=await import(new URL('host/node.ts',root));
-      const {{countEntry,compareCounts,recordCounts}}=await import(new URL('bench/counts/baseline.ts',root));
+      const {{countEntry,compareCounts}}=await import(new URL('bench/counts/baseline.ts',root));
       const rows=[];
       for (const bytes of {modules:?}) {{
         const module=await WebAssembly.compile(new Uint8Array(bytes));
@@ -58,7 +58,7 @@ fn an_extra_owner_in_a_hot_loop_is_a_gate_regression() {
       }}
       assert.equal(BigInt(rows[1].retained)-BigInt(rows[0].retained),1000n,JSON.stringify(rows));
       assert.equal(BigInt(rows[1].released)-BigInt(rows[0].released),1000n,JSON.stringify(rows));
-      assert.ok(compareCounts([rows[1]],recordCounts([rows[0]])).length>0);
+      assert.equal(compareCounts([rows[1]],[rows[0]]).increases.length,1);
     ",
         root.to_str().unwrap()
     );

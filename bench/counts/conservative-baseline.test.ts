@@ -5,13 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import {
-  compareSites,
-  readSiteBudget,
-  readSiteReport,
-  recordSites,
-  siteTable,
-} from "./conservative-baseline.ts";
+import { compareSites, readSiteReport, readSites } from "./conservative-baseline.ts";
 import type { SiteReport } from "./conservative-baseline.ts";
 
 const header = "part\tside\treason\taction\tcount\n";
@@ -24,45 +18,32 @@ const report = (entry = 2, call = 3): SiteReport =>
     ["loop.hd"],
   );
 
-test("one extra conservative site fails even when another reason falls", () => {
-  const before = recordSites(report());
+test("one extra conservative site is an increase even when another reason falls", () => {
   const actual = report(3, 0);
-  assert.match(compareSites(actual, before).join("\n"), /conservative: entry.*2 -> 3/);
-  assert.deepEqual(compareSites(report(1, 2), before), []);
-  assert.match(siteTable(actual, before), /3 conservative \/ 10 total sites/);
-  // Deliberate named counts are reported but do not spend a conservative budget.
+  const comparison = compareSites(actual, report());
+  assert.deepEqual(comparison.increases, ["conservative: entry: conservative sites 2 -> 3 (+1)"]);
+  assert.deepEqual(comparison.decreases, ["conservative: Call: conservative sites 3 -> 0 (-3)"]);
+  assert.match(comparison.table, /3 conservative \/ 10 total sites/);
+  // Deliberate named counts are reported but never judged.
   actual.reasons.find((row) => row.reason === "by design")!.sites += 100;
-  assert.equal(compareSites(actual, before).length, 1);
+  assert.equal(compareSites(actual, report()).increases.length, 1);
+  // Without a base, nothing is judged.
+  assert.deepEqual(compareSites(actual).increases, []);
 });
 
-test("raising a reason budget needs a fresh explanation and exact measurement", () => {
-  const before = recordSites(report());
-  const actual = report(3);
-  assert.throws(() => recordSites(actual, before), /--reason/);
-  const raised = recordSites(actual, before, "The new pending path keeps one argument.");
-  assert.deepEqual(compareSites(actual, raised, before), []);
-  const again = recordSites(
-    report(4),
-    raised,
-    raised.reasons.find((row) => row.reason.endsWith("entry"))!.explanation,
-  );
-  assert.match(compareSites(report(4), again, raised).join("\n"), /fresh explanation/);
-  const inflated = recordSites(report(99), before, "New pending path.");
-  assert.match(compareSites(actual, inflated, before).join("\n"), /must equal/);
-  assert.match(compareSites(actual, recordSites(actual), before).join("\n"), /fresh explanation/);
-});
-
-test("new reasons cannot borrow another reason's budget; eliminated reasons stay zero", () => {
-  const before = recordSites(report());
+test("a new reason starts from zero; an eliminated reason is a decrease", () => {
   const actual = report();
   actual.reasons.push({ reason: "conservative: new glue", app: 1, std: 0, runtime: 0, sites: 1 });
-  assert.match(compareSites(actual, before).join("\n"), /new glue.*0 -> 1/);
-  assert.throws(() => recordSites(actual, before), /--reason/);
+  assert.match(
+    compareSites(actual, report()).increases.join(),
+    /new glue: conservative sites 0 -> 1/,
+  );
   const eliminated = report();
   eliminated.reasons = eliminated.reasons.filter((row) => row.reason !== "conservative: entry");
-  const lower = recordSites(eliminated, before);
-  assert.equal(lower.reasons.find((row) => row.reason.endsWith("entry"))!.sites, 0);
-  assert.match(compareSites(report(1), lower).join("\n"), /entry.*0 -> 1/);
+  assert.match(
+    compareSites(eliminated, report()).decreases.join(),
+    /entry: conservative sites 2 -> 0/,
+  );
 });
 
 test("every benchmark must build and report a complete, unambiguous tally", () => {
@@ -91,20 +72,20 @@ test("every benchmark must build and report a complete, unambiguous tally", () =
   }
 });
 
-test("invalid and duplicate budgets cannot waive a regression", () => {
-  const budget = recordSites(report());
-  assert.deepEqual(readSiteBudget(JSON.stringify(budget)), budget);
+test("a malformed stored measurement is refused", () => {
+  const stored = report();
+  assert.deepEqual(readSites(JSON.stringify(stored)), stored);
   for (const reasons of [
-    [...budget.reasons, budget.reasons[0]],
-    [{ reason: "stored", sites: 100 }],
+    [...stored.reasons, stored.reasons[0]],
     [{ reason: "conservative: entry", sites: -1 }],
     [{ reason: "conservative: entry", sites: Number.MAX_SAFE_INTEGER + 1 }],
+    undefined,
   ]) {
-    assert.throws(() => readSiteBudget(JSON.stringify({ ...budget, reasons })));
+    assert.throws(() => readSites(JSON.stringify({ ...stored, reasons })));
   }
 });
 
-test("CI command sabotage: adding one reported conservative site exits nonzero", (context) => {
+test("CI command sabotage: one more site than the base exits nonzero without Cost-OK", (context) => {
   const root = fileURLToPath(new URL("../../", import.meta.url));
   const dir = mkdtempSync(resolve(tmpdir(), "hd-conservative-sites-"));
   context.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -118,9 +99,9 @@ test("CI command sabotage: adding one reported conservative site exits nonzero",
   const digests = programs.map((program) => `bench\t${program}\t1234567890abcdef\n`).join("");
   writeFileSync(resolve(dir, "reasons.tsv"), rows);
   writeFileSync(resolve(dir, "digests.tsv"), digests);
-  const budget = resolve(dir, "budget.json");
-  writeFileSync(budget, JSON.stringify(recordSites(readSiteReport(rows, digests, programs))));
-  const run = () =>
+  const base = resolve(dir, "base.json");
+  writeFileSync(base, JSON.stringify(readSiteReport(rows, digests, programs)));
+  const run = (...extra: string[]) =>
     spawnSync(
       process.execPath,
       [
@@ -129,14 +110,16 @@ test("CI command sabotage: adding one reported conservative site exits nonzero",
         dir,
         "--output",
         resolve(dir, "out"),
-        "--baseline",
-        budget,
+        ...extra,
       ],
       { encoding: "utf8" },
     );
-  assert.equal(run().status, 0);
+  assert.equal(run("--base", base).status, 0);
   writeFileSync(resolve(dir, "reasons.tsv"), rows.replace("\tretain\t1\n", "\tretain\t2\n"));
-  const sabotaged = run();
+  const sabotaged = run("--base", base);
   assert.equal(sabotaged.status, 1);
-  assert.match(sabotaged.stderr, /conservative sites 1 -> 2/);
+  assert.match(sabotaged.stderr, /conservative sites 1 -> 2 \(\+1\)/);
+  assert.equal(run("--base", base, "--cost-ok", "One new pending path.").status, 0);
+  assert.equal(run("--base", resolve(dir, "missing.json")).status, 0);
+  assert.equal(run().status, 0);
 });
