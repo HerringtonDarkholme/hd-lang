@@ -21,6 +21,9 @@ fi
 pattern=$1
 shift
 root=$PWD
+# cargo makes the directory test binaries know as CARGO_TARGET_TMPDIR
+# before it runs them; tests write their scratch files there.
+mkdir -p target/tmp
 status=0
 ran=0
 while IFS=$'\t' read -r -u 3 dir name exe; do
