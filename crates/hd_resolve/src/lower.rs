@@ -9283,18 +9283,6 @@ impl TopBindings {
             init: src.parse.tree.node(init),
         })
     }
-
-    /// How many names the module binds at its top level.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Whether the module binds no name at its top level.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }
 
 /// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
@@ -10303,7 +10291,7 @@ mod top_binding_tests {
             file: hd_base::FileId::from_raw(0),
         };
         let index = TopBindings::of(&src);
-        assert_eq!(index.len(), 4002);
+        assert_eq!(index.0.len(), 4002);
         assert_eq!(init_text(&src, &index, "N3999"), Some("3999"));
         assert_eq!(init_text(&src, &index, "N2000"), Some("2000"));
         // A chain binds each name to its last initializer; the first
