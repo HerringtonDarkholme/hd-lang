@@ -7,7 +7,7 @@ pub fn main() -> void:
     let i: usize = 0
     while i < 4000000:
         # subject
-        present := xs.contains(+8)
+        present := xs.contains(&+8)
         if present:
             found += 1
         i += 1

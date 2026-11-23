@@ -284,7 +284,7 @@ fn store_value(
 ) -> Result[void, CliError]:
     if !arg.repeated && values.get(arg.name).is_some():
         return .Err(CliError.InvalidValue(arg.name, "argument cannot be repeated"))
-    if !arg.choices.is_empty() && !arg.choices.contains(value):
+    if !arg.choices.is_empty() && !arg.choices.contains(&value):
         return .Err(
             CliError.InvalidValue(arg.name, "expected ${arg.choices.join(" or ")}, got $value"),
         )

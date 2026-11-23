@@ -4,41 +4,40 @@
 # Feature: `Set`, `Deque` and `Heap` with counted elements
 # (spec/std/collections.md, #1364).
 # expected: `insert`, `push_back` and `push` move the string in;
-# `contains` hashes in place with no count; `pop_front` and `pop`
-# move the element out with no count.
+# `contains` borrows the needle; its owning caller releases it at last use.
+# `pop_front` and `pop` move the element out with no count.
 use std.collections.{Deque, Heap, Set}
 
 fn seen(s: &mut Set[string], a: string, b: string) -> bool:
-    _ := s.insert(a)
 > app/main/seen
 >   local $0 s: &mut Set[string] [param read] value
->     uses $0: entry -> %0 lend, %4 consume last
+>     uses $0: entry -> %2 lend, %6 consume last
 >   local $1 a: string [param read] value
->     uses $1: entry -> %1 lend last
->   local $2 b: string [param read] value
->     uses $2: entry -> %6 lend last
->   %0 = Read borrow [$0] : &mut Set[string]
->   %1 = Read borrow [$1] : string
->   %2 = Call std/collections/impl[T < Eq & Hash] Set[T].insert[string] (%0, %1) : bool
->   %3 = Retain %2 Operation operand 1 #0 : ()
->   %9 = Intrinsic ParamOwned [1:i32] : bool
->   %10 = Drop [$1] : ()
->   %11 = Block - : ()
->   %12 = If %9 [%11 -] : ()
->   %13 = Release %19 Exit local $1 #2 : ()
->   %14 = Intrinsic ParamOwned [2:i32] : bool
->   %15 = Drop [$2] : ()
->   %16 = Block - : ()
->   %17 = If %14 [%16 -] : ()
->   %18 = Release %19 Exit local $2 #2 : ()
->   %19 = Block %7 : bool
-    s.contains(b)
->   %4 = Read borrow [$0] : &mut Set[string]
->   %5 = Coerce %4 [Weaken -] : &Set[string]
->   %6 = Read borrow [$2] : string
->   %7 = Call std/collections/impl[T < Eq & Hash] Set[T].contains[string] (%5, %6) : bool
->   %8 = Retain %7 Operation operand 1 #0 : ()
->   summary kept [] borrows [$1 $2] writes
+>     uses $1: entry -> %3 lend last
+>   local $2 b: string [param read captured] place
+>   %0 = Retain %18 Entry local $2 #0 : ()
+    _ := s.insert(a)
+>   %1 = Box #2 #255 : ()
+>   %2 = Read borrow [$0] : &mut Set[string]
+>   %3 = Read borrow [$1] : string
+>   %4 = Call std/collections/impl[T < Eq & Hash] Set[T].insert[string] (%2, %3) : bool
+>   %5 = Retain %4 Operation operand 1 #0 : ()
+>   %12 = Drop [$2] : ()
+>   %13 = Intrinsic ParamOwned [1:i32] : bool
+>   %14 = Drop [$1] : ()
+>   %15 = Block - : ()
+>   %16 = If %13 [%15 -] : ()
+>   %17 = Release %18 Exit local $1 #2 : ()
+>   %18 = Block %9 : bool
+    s.contains(&b)
+>   %6 = Read borrow [$0] : &mut Set[string]
+>   %7 = Coerce %6 [Weaken -] : &Set[string]
+>   %8 = Ref local frame promoted [$2] : &string
+>   %9 = Call std/collections/impl[T < Eq & Hash] Set[T].contains[string] (%7, %8) : bool
+>   %10 = LoanEnd [%8] : ()
+>   %11 = Drop [$2] : ()
+>   exit sub 0 drops [$2]
+>   summary kept [$2] borrows [$1] writes
 
 fn queue(q: &mut Deque[string], a: string) -> usize:
 > app/main/queue
