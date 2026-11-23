@@ -2433,11 +2433,11 @@ fn import_hints_probe_one_index_per_interface() {
 }
 
 // #1876: the index answers for a module's last segment too: an unknown
-// `json` is std's module, an unknown `min` has several homes.
+// `json` is std's module, `min` has one home, and `max` has several.
 #[test]
 fn import_hints_name_a_module_and_several_homes_from_the_index() {
     let out = compile(
-        "pub fn main() -> void:\n    a := json\n    b := min\n",
+        "pub fn main() -> void:\n    a := json\n    b := min\n    c := max\n",
         &Goal::Analyze,
     );
     let shown = out.render();
@@ -2446,7 +2446,11 @@ fn import_hints_name_a_module_and_several_homes_from_the_index() {
         "{shown}"
     );
     assert!(
-        shown.contains("`min` has several public std homes"),
+        shown.contains("`min` is not defined; add `use std.cmp.min`"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("`max` has several public std homes: `std.cmp`, `std.validate`"),
         "{shown}"
     );
 }

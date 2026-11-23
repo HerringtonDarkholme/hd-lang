@@ -425,7 +425,7 @@ fn delay() -> void:
 1. r[types.literal.duration.fixed] A duration literal has type `std.time.Duration`, independent of its expected type and names in scope.
 2. r[types.literal.duration.units] Units `ms`, `s`, `min`, and `h` multiply their integer counts by 1, 1000, 60000, and 3600000 milliseconds, respectively.
 3. r[types.literal.duration.range] A duration literal must represent between zero and 9223372036854775807 milliseconds, inclusive. Error: `integer-literal-range`.
-4. r[types.literal.duration.call] A duration literal evaluates as the corresponding qualified `std.time` unit function applied to its integer count.
+4. r[types.literal.duration.unit-call] Units `ms`, `s`, `min`, and `h` call the qualified `std.time` functions `ms`, `s`, `minutes`, and `h`, respectively, with their integer count.
 5. r[types.literal.duration.negative] Unary `-` does not apply to a duration literal. Error: `type-mismatch`.
 
 The functions and named constructors remain available; a duration literal is the preferred spelling for a literal duration.

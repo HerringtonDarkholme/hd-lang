@@ -1,7 +1,7 @@
 # test: Duration and Timestamp implement Parse, so a generic reader, string.parse, and a round trip with Display all work
 # Spec std/time Duration Parsing and Parsing RFC 3339: std-time.duration.parse, std-time.rfc3339.parse.
 use std.text.Parse
-use std.time.{Duration, ParseTimeError, Timestamp, ms, min}
+use std.time.{Duration, ParseTimeError, Timestamp, ms, minutes}
 
 fn read_as[T < Parse](text: string) -> Result[T, T::Error]:
     T::parse(text)
