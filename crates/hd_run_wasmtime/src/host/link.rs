@@ -83,6 +83,9 @@ fn define_with<'m>(
         let Some(kind) = kind_of(m, n) else {
             return Err(unsupported_message(m, n));
         };
+        if matches!(kind, Kind::Rt(super::kind::Rt::Heap)) {
+            continue;
+        }
         let Some(ty) = import.ty().func().cloned() else {
             return Err(format!("the import `{m}` `{n}` is not a function"));
         };

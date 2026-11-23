@@ -600,6 +600,10 @@ pub const RUNTIME_IMPORTS: &[(&str, &str)] = &[
     ("hd:rt", "panic"),
     ("hd:rt", "fact"),
     ("hd:rt", "hash_seed"),
+    // A program that starts threads (`module.rt.thread.heap`): its shared
+    // heap, a memory, and the start of each thread.
+    ("hd:rt", "heap"),
+    ("hd:rt", "thread_spawn"),
 ];
 
 /// The host primitives, imports of module `hd:prim`: the std intrinsics

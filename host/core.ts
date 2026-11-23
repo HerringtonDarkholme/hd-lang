@@ -150,6 +150,8 @@ export interface CoreEnv extends DynamicRecord {
   runner?: Dynamic;
   providers?: ((io: DynamicRecord) => DynamicRecord) | null;
   countAudit?: (rows: import("./checked-report.ts").CountPairRow[]) => void;
+  // A thread's instance: the heap its program shares (module.rt.thread.heap).
+  heap?: WebAssembly.Memory;
 }
 
 export interface Grant {
@@ -1155,6 +1157,15 @@ function buildCoreImports(options: Dynamic): Dynamic {
     }),
     "hd:prim": primImports({ put, text, env }),
   };
+  // A program that starts threads imports its heap, shared with each
+  // thread's instance (module.rt.thread.heap), and asks the platform for
+  // threads; a platform without them refuses each (module.rt.thread.spawn).
+  let heap: WebAssembly.Memory | null = env.heap ?? null;
+  Object.defineProperty(imports["hd:rt"], "heap", {
+    get: () => (heap ??= new WebAssembly.Memory({ initial: 1, maximum: 65536, shared: true })),
+  });
+  imports["hd:rt"].thread_spawn = (block: number): number =>
+    Number(layer?.startThread?.(env.module, heap, block) === true);
   const io: DynamicRecord = {
     view,
     text,

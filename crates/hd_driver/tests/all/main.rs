@@ -71,6 +71,7 @@ mod same_name_packages;
 mod scenario_cancel;
 mod scenario_cleanup;
 mod session_store;
+mod shared_heap;
 mod std_drop_invariant;
 mod std_interfaces;
 mod std_stages;

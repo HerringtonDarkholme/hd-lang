@@ -669,6 +669,7 @@ fn link(
     }
     m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
     m.init_insts.clone_from(&input.collected.inits);
+    m.threads = input.collected.threads;
     m.release = input.release;
     m.optimized = input.optimized;
     m.inline_counts = input.inline_counts;
@@ -681,6 +682,9 @@ fn link(
         }
         if (input.path)(item).starts_with("std/rt.cycle/") {
             m.cycle_insts.insert(key);
+        }
+        if runtime_item(&(input.path)(item)) {
+            m.rt_insts.insert(key);
         }
         if input.env.cold(item) {
             m.cold_insts.insert(key);
@@ -875,21 +879,29 @@ fn address_globals(
             .or_insert_with(|| emit::StorageRoots::new(b));
         let receivers = emit::lent_receiver_reads(input, *id, b);
         for i in 0..b.len() {
-            let global =
-                if session && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store) {
-                    b.decode_place(b.data[i][0]).and_then(|p| match p.root {
-                        hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
-                        _ => None,
-                    })
-                } else if receivers.contains(&i) {
-                    // A receiver read lends the pointer it reads from a
-                    // written binding, which its call loan then holds.
-                    b.decode_place(b.data[i][0])
-                        .and_then(|p| emit::global_root(roots, &p))
-                        .filter(|(def, _)| written.contains(&input.env.path_hash(*def)))
-                } else {
-                    referenced_global(input.env, b, roots, i, &written)
-                };
+            // Every thread reads the program's bindings, so a program that
+            // starts threads keeps them on its shared heap; the runtime's
+            // are each instance's own (`fn.crossing.global.runtime`).
+            let global = if (session || input.collected.threads)
+                && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store)
+            {
+                b.decode_place(b.data[i][0]).and_then(|p| match p.root {
+                    hd_tir::ir::PlaceRoot::Global(def, ty)
+                        if session || !runtime_item(&(input.path)(def)) =>
+                    {
+                        Some((def, ty))
+                    }
+                    _ => None,
+                })
+            } else if receivers.contains(&i) {
+                // A receiver read lends the pointer it reads from a
+                // written binding, which its call loan then holds.
+                b.decode_place(b.data[i][0])
+                    .and_then(|p| emit::global_root(roots, &p))
+                    .filter(|(def, _)| written.contains(&input.env.path_hash(*def)))
+            } else {
+                referenced_global(input.env, b, roots, i, &written)
+            };
             let Some((def, ty)) = global else {
                 continue;
             };
@@ -930,6 +942,12 @@ fn address_globals(
         }
     }
     Ok(())
+}
+
+/// Whether the item at `path` is in a runtime module, `std.rt` or one
+/// under it (`module.rt.std-only`).
+fn runtime_item(path: &str) -> bool {
+    ["std/rt/", "std/rt."].iter().any(|p| path.starts_with(p))
 }
 
 /// The top-level binding, with its type, that reference `i` of body `b`

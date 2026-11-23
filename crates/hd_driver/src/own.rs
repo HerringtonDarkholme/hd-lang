@@ -367,7 +367,8 @@ impl Env<'_> {
                 | "mem_fill"
                 | "mem_atomic_add_u32"
                 | "mem_atomic_sub_u32"
-                | "mem_atomic_cmpxchg_u32",
+                | "mem_atomic_cmpxchg_u32"
+                | "thread_spawn",
             ) => CallMemory::Write(0),
             Some("format_int") => CallMemory::Write(1),
             _ => CallMemory::None,

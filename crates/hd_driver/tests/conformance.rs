@@ -2000,6 +2000,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ),
     ("rt_tests/ptr_tests.hd", include_str!("std_rt/ptr_tests.hd")),
     (
+        "rt_tests/thread_tests.hd",
+        include_str!("std_rt/thread_tests.hd"),
+    ),
+    (
         "rt_tests/alloc_tests.hd",
         include_str!("std_rt/alloc_tests.hd"),
     ),
@@ -2131,6 +2135,8 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
                 "std/regex.md#r-std-regex.time.linear"
             } else if *path == "remote.hd" {
                 "lang/10-modules.md#r-module.remote.codec"
+            } else if *path == "rt_tests/thread_tests.hd" {
+                "lang/10-modules.md#thread-intrinsics"
             } else {
                 "lang/10-modules.md#memory-intrinsics"
             }

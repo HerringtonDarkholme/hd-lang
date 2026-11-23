@@ -1,0 +1,54 @@
+# The hd tests of std.rt.thread and the wait intrinsics
+# (spec/lang/10-modules.md#thread-intrinsics). Only std may use a runtime
+# module, so the conformance runner adds this file to std as
+# `std.rt_tests.thread_tests` (crates/hd_driver/tests/conformance.rs,
+# `STD_RT_TESTS`). A program that starts threads shares its heap with them.
+use std.rt.alloc.alloc
+use std.rt.memory.{atomic_add_u32, atomic_load_u32, atomic_notify, atomic_wait_u32, store_u32}
+use std.rt.thread.{join, spawn}
+use std.testing.{assert, assert_equal}
+
+# A word on the shared heap: the program's own bindings are there too, so
+# each thread reads the address the first one stored.
+COUNTER := alloc(16)
+
+fn add_one() -> void:
+    _ := atomic_add_u32(COUNTER, 1)
+
+fn stop() -> void:
+    panic("a thread stops")
+
+fn started(work: fn() -> void) -> usize:
+    match spawn(work):
+        .Some(thread) => thread
+        .None => panic("the host starts no threads")
+
+tests:
+    it("a thread's work has run when join returns"):
+        store_u32(COUNTER, 0)
+        thread := started(add_one)
+        assert(join(thread))
+        assert_equal(atomic_load_u32(COUNTER), 1u32)
+
+    it("four threads add to one word at once"):
+        store_u32(COUNTER, 0)
+        first := started(add_one)
+        second := started(add_one)
+        third := started(add_one)
+        fourth := started(add_one)
+        assert(join(first) && join(second) && join(third) && join(fourth))
+        assert_equal(atomic_load_u32(COUNTER), 4u32)
+
+    it("join of a thread that stopped gives false"):
+        assert(!join(started(stop)))
+
+    it("a wait for a value the word does not hold returns 1"):
+        store_u32(COUNTER, 3)
+        assert_equal(atomic_wait_u32(COUNTER, 7, -1), 1u32)
+
+    it("a wait past its time returns 2"):
+        store_u32(COUNTER, 3)
+        assert_equal(atomic_wait_u32(COUNTER, 3, 1000), 2u32)
+
+    it("a notify with no waits wakes none"):
+        assert_equal(atomic_notify(COUNTER, 1), 0u32)

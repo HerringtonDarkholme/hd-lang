@@ -587,6 +587,9 @@ pub struct Collected {
     /// A program that sends a crossing to a worker: `std.remote.worker_serve`
     /// and its instance, which a worker instance runs (`hd.worker`).
     pub worker: Option<(DefId, Hash128)>,
+    /// A program that starts threads (`thread_spawn`): its heap is shared
+    /// (`module.rt.thread.heap`).
+    pub threads: bool,
 }
 
 impl Collected {
@@ -2113,6 +2116,7 @@ impl Cx<'_> {
         // a placeholder: compiling it would turn an unlowered intrinsic into
         // a run-time `panic("intrinsic")` instead of a build error.
         if let Some(key) = self.env.intrinsic(def) {
+            self.out.threads |= key == "thread_spawn";
             return Ok(CallTarget {
                 key: Hash128(0),
                 item: def,

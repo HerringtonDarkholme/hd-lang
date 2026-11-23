@@ -1,5 +1,6 @@
 //! The runtime imports, which no host trait owns: `hd:rt`'s `block`,
-//! `abort`, `stderr`, `stdout`, `panic`, `fact` and `hash_seed`, and the `hd:prim` primitives,
+//! `abort`, `stderr`, `stdout`, `panic`, `fact`, `hash_seed` and
+//! `thread_spawn`, and the `hd:prim` primitives,
 //! whose text and float work is `prim.rs`.
 
 use wasmtime::{Caller, Val};
@@ -69,6 +70,16 @@ pub(super) fn rt(
             seed.copy_from_slice(&bytes);
             Ret::int(i64::from_le_bytes(seed))
         }
+        Rt::ThreadSpawn => {
+            let block = int_arg(params, 0)?;
+            let host = caller.data();
+            let started = (host.workers.spawn.as_ref())
+                .zip(host.workers.heap.clone())
+                .is_some_and(|(spawn, heap)| crate::workers::start_thread(spawn, heap, block));
+            Ret::int(i64::from(started))
+        }
+        // ruled out: the heap is a memory, never called (`link.rs`).
+        Rt::Heap => return Err(Stop::Internal("the heap is not a function".into()).into()),
     })
 }
 

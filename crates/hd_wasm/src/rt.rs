@@ -711,6 +711,9 @@ pub enum Helper {
     /// `()`: runs the idle hook, if one is installed; the drivers call it
     /// where they would wait for the host.
     IdleWake,
+    /// `hd.thread(block, stopped)`, the export a thread's instance runs
+    /// (`module.rt.thread.spawn`); see [`thread_start`].
+    ThreadStart,
     /// `() -> completions`: `block_on`'s wait: [`Helper::IdleWake`] first,
     /// and no host completion when the hook readied something, else the
     /// host's `block`.
@@ -1141,6 +1144,10 @@ pub enum PrimArg {
 
 /// Defines the entry exports of `input.entry` in `m`.
 pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
+    // A new thread's instance runs `hd.thread` (`module.rt.thread.spawn`).
+    if m.threads {
+        m.export("hd.thread", Sym::Helper(Helper::ThreadStart));
+    }
     let (main, key, before, after, report) = match &input.entry {
         Entry::Fixture { roots } => {
             m.retain_instances(roots);
@@ -1305,6 +1312,59 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         );
     }
     Ok(())
+}
+
+/// [`Helper::ThreadStart`]: `hd.thread(block, stopped)`, which the host
+/// calls in a new thread's instance with `stopped` 0. The thread's frames
+/// take the region whose top and limit are the block's first two words;
+/// the runtime modules' inits give the instance its own runtime storage
+/// (`fn.crossing.global.runtime`); then it calls the function value in the
+/// next two words, `thread_spawn`'s `work`. Then the block's fifth word gets 1, and its waiters wake.
+/// When the instance stopped instead (a panic or a trap), the host calls
+/// it again with `stopped` 2, which only sets the word and wakes them
+/// (`module.rt.thread.join`). Cost: O(1) besides `work`.
+fn thread_start(m: &Module) -> Func {
+    let mut f = m.func("rt:thread_start", vec![Val::I32, Val::I32], vec![]);
+    f.get(1);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    for (offset, g) in [(0, Global::Stack), (4, Global::StackLimit)] {
+        f.get(0);
+        f.op(Instruction::I32Load(mem(HEAP, offset, 2)));
+        f.global_set(g);
+    }
+    // The runtime's inits, each a forbidden context as in `hd.init`.
+    let inits: Vec<Hash128> = (m.init_insts.iter())
+        .filter(|k| m.rt_insts.contains(k) && !m.quiet_inits.contains(k))
+        .filter(|k| !(m.acyclic && m.cycle_insts.contains(k)))
+        .copied()
+        .collect();
+    if !inits.is_empty() {
+        forbid_by(&mut f, 1);
+        for k in inits {
+            f.call(Sym::Inst(k));
+        }
+        forbid_by(&mut f, -1);
+    }
+    // A function value's call: its environment, the context of its empty
+    // row, then its code's table slot (`emit/closure.rs`).
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.i32(0);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.call_indirect(vec![Val::I32, Val::I32], vec![]);
+    f.i32(1);
+    f.set(1);
+    f.op(Instruction::End);
+    f.get(0);
+    f.get(1);
+    f.op(Instruction::I32AtomicStore(mem(HEAP, 16, 2)));
+    f.get(0);
+    f.i32(-1);
+    f.op(Instruction::MemoryAtomicNotify(mem(HEAP, 16, 2)));
+    f.op(Instruction::Drop);
+    f
 }
 
 /// The poll of a root: item `main`'s instance `key` with its host
@@ -2315,6 +2375,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::CopyElems { .. }
         | H::CancelLeave
         | H::IdleHook
+        | H::ThreadStart
         | H::WakeSignal
         | H::All { part: 4, .. } => (2, 0),
         H::PanicWith => (4, 0),
@@ -2415,6 +2476,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CancellationRoot => m.func("rt:cancellation_root", vec![], vec![]),
+        Helper::ThreadStart => thread_start(m),
         Helper::Frame(_)
         | Helper::FrameEnsure(_)
         | Helper::PollCheck

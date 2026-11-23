@@ -3882,6 +3882,24 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::WaitSignal);
                 Ok(())
             }
+            // `module.rt.thread.spawn`: the code and environment of `work`
+            // go to the block's third and fourth words, and the host starts
+            // a thread whose instance runs `hd.thread` on the block.
+            "thread_spawn" => {
+                for (part, offset) in [(0, 8), (1, 12)] {
+                    self.push(args[0])?;
+                    self.comp(args[1], part)?;
+                    self.f.op(I::I32Store(mem(HEAP, offset, 2)));
+                }
+                self.push(args[0])?;
+                self.f.call(Sym::Import(Import::new(
+                    "hd:rt",
+                    "thread_spawn",
+                    &[Val::I32],
+                    &[Val::I32],
+                )));
+                self.store(i)
+            }
             // `race!`'s frame over its list of tasks (§14.5).
             "task_race_frame" => {
                 let inner = self.susp_inner(self.ty_of(i));
@@ -4156,6 +4174,10 @@ impl Em<'_, '_, '_> {
             "mem_atomic_sub_u32" => I::I32AtomicRmwSub(mem(HEAP, 0, 2)),
             "mem_atomic_cmpxchg_u32" => I::I32AtomicRmwCmpxchg(mem(HEAP, 0, 2)),
             "mem_atomic_fence" => I::AtomicFence,
+            // `module.rt.memory.atomic.wait`: a wait traps on a heap no
+            // thread shares, and a notify there wakes none.
+            "mem_atomic_wait_u32" => I::MemoryAtomicWait32(mem(HEAP, 0, 2)),
+            "mem_atomic_notify" => I::MemoryAtomicNotify(mem(HEAP, 0, 2)),
             // ruled out: any other key. The intrinsic table
             // (`hd_resolve::intrinsics`) has no `mem_` key but the ones above.
             _ => I::I64Store(mem(HEAP, 0, 3)),

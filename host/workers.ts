@@ -102,3 +102,51 @@ async function serve(worker: {
 if (workerData?.hdWorker) {
   void serve(workerData.hdWorker);
 }
+
+// A thread of a program on a shared heap (module.rt.thread.spawn): a
+// `worker_threads` thread with an instance of `module` on `heap`, which
+// runs `hd.thread` on `block`. Whether the thread started.
+// Cost: one thread and one instance per thread the program starts.
+export function startThread(
+  module: WebAssembly.Module | undefined,
+  heap: WebAssembly.Memory | null,
+  block: number,
+): boolean {
+  if (!module || !heap) {
+    return false;
+  }
+  new Worker(new URL(import.meta.url), { workerData: { hdThread: { module, heap, block } } });
+  return true;
+}
+
+// The thread: `hd.thread(block, 0)` runs its work; an instance that stopped
+// gets `hd.thread(block, 2)`, which tells the threads that wait for it.
+// Its output goes to the process's streams at once, since the thread that
+// started it may be waiting.
+async function runThread(thread: {
+  module: WebAssembly.Module;
+  heap: WebAssembly.Memory;
+  block: number;
+}): Promise<void> {
+  const { module, heap, block } = thread;
+  const { createHost } = await import("./node.ts");
+  const { writeSync } = process.getBuiltinModule("node:fs");
+  const sink = {
+    out: (text: string) => writeSync(1, text),
+    err: (text: string) => writeSync(2, text),
+  };
+  const host = createHost(sink, { module, heap });
+  const instance = await WebAssembly.instantiate(module, host.imports);
+  host.prime(instance);
+  const start = instance.exports["hd.thread"] as (block: number, stopped: number) => void;
+  try {
+    start(block, 0);
+  } catch {
+    start(block, 2);
+  } finally {
+    host.close();
+  }
+}
+if (workerData?.hdThread) {
+  void runThread(workerData.hdThread);
+}
