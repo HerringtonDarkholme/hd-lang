@@ -139,7 +139,10 @@ impl<'a> ProjectionCycles<'a> {
             &mut |t| {
                 let mut children = Vec::new();
                 match pool.get(t) {
-                    TyData::Adt(ANON_SUM | AdtId::Product { .. }, args) => {
+                    TyData::Adt(AdtId::Product { .. }, _) => {
+                        children.extend(pool.product_parts(t).into_iter().flat_map(|(es, _)| es));
+                    }
+                    TyData::Adt(ANON_SUM, args) => {
                         children.extend(pool.list_items(args));
                     }
                     TyData::Adt(AdtId::Declared(def), _)
@@ -703,7 +706,10 @@ fn inline_tys(data: &hd_resolve::ItemData, out: &mut Vec<Ty>) {
 /// instance decides, and a goal in error or still open.
 fn inline_kids(pool: hd_types::Types<'_>, t: Ty, repr: Option<&[bool]>, out: &mut Vec<Ty>) {
     match pool.get(t) {
-        TyData::Adt(AdtId::Sum | AdtId::Product { .. }, args) => {
+        TyData::Adt(AdtId::Product { .. }, _) if let Some((elems, _)) = pool.product_parts(t) => {
+            out.extend_from_slice(elems);
+        }
+        TyData::Adt(AdtId::Sum, args) => {
             out.extend_from_slice(pool.list_items(args));
         }
         TyData::Adt(_, args) => {
@@ -1102,6 +1108,28 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
 #[cfg(test)]
 mod containment_tests {
     use super::*;
+
+    #[test]
+    fn inline_containment_preserves_product_rest_boundary() {
+        let pool = hd_types::InternPool::new();
+        let fixed = pool.list(&[Ty::I32]);
+        for (ty, expected) in [
+            (pool.product(fixed, Some(Ty::STRING)), vec![Ty::I32]),
+            (pool.product(fixed, None), vec![Ty::I32]),
+            (
+                pool.product(hd_types::TyList::EMPTY, Some(Ty::STRING)),
+                vec![],
+            ),
+            (
+                pool.intern_ty(&TyData::Adt(AdtId::Sum, pool.list(&[Ty::I32, Ty::STRING]))),
+                vec![Ty::I32, Ty::STRING],
+            ),
+        ] {
+            let mut out = Vec::new();
+            inline_kids(pool.types(), ty, None, &mut out);
+            assert_eq!(out, expected);
+        }
+    }
 
     #[test]
     fn projection_graph_work_depends_only_on_reachable_width_and_depth() {

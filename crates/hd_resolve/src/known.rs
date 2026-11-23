@@ -314,7 +314,7 @@ impl KnownItems {
     /// runs the literal here; for `true` it gives the literal's frame.
     #[must_use]
     pub fn crossing_code(&self, pool: hd_types::Types<'_>, f: hd_types::Ty) -> hd_types::Ty {
-        use hd_types::{Ty, TyData};
+        use hd_types::{AdtId, Ty, TyData};
         let TyData::Fn {
             result, suspends, ..
         } = pool.get(f)
@@ -327,10 +327,10 @@ impl KnownItems {
             result
         };
         let bytes = pool.applied(self.list, Ty::prim(hd_types::Prim::U8));
-        let result = pool.intern_ty(&TyData::Adt {
-            def: self.result,
-            args: pool.list(&[value, bytes]),
-        });
+        let result = pool.intern_ty(&TyData::Adt(
+            AdtId::Declared(self.result),
+            pool.list(&[value, bytes]),
+        ));
         pool.fn_led(f, Ty::BOOL, Some((result, false))).unwrap_or(f)
     }
 
