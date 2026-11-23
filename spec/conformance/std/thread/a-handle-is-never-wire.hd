@@ -8,5 +8,5 @@ fn post[T < ?Copy & Wire](value: T) -> void:
 
 fn send() -> void:
     scope(fn(s: &mut Scope) -> void:
-        post(s.spawn(fn() -> i32: 1))
-    ) # diagnostic: unsatisfied-trait-bound
+        post(s.spawn(fn() -> i32: 1)) # diagnostic: unsatisfied-trait-bound
+    )
