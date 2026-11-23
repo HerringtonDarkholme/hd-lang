@@ -143,9 +143,9 @@ pub struct RowId(pub u32);
 
 pub enum TyData {              // the decoded view; owned
     Prim(Prim), Never, Poison, // void is the empty tuple, `Ty::VOID`
-    Adt { def: DefId, args: TyList },
-    Tuple { elems: TyList, rest: Option<Ty> },
-    Option(Ty),                // T? is Option[T]; kept apart for speed only
+    Adt(AdtId, TyList),        // a declared struct/enum (Option and Result
+                               // included), or an anonymous product (tuple,
+                               // with its rest flag) or sum (union) (#1306)
     Fn { params: TyList, result: Ty, row: RowId, suspends: bool, inputs: Inputs },
     TraitValue { def: DefId, args: TyList, bindings: Vec<(DefId, Ty)> },
     Param(ParamRef),           // declared, rigid; never inferred

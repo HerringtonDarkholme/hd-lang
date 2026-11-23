@@ -144,12 +144,13 @@ owned for simplicity; `Types` reads and builds through the global pool
 and, inside a body, the body's local pool.
 
 `TyData` forms: `Prim` (`i8` to `u64`, `usize`, `f32`, `f64`, `bool`,
-`char`, `string`), `Never`, `Poison`, `Adt { def, args }`,
-`Tuple { elems, rest }`, `Option`, `Fn { params, result, row, suspends,
-inputs }`, `TraitValue { def, args, bindings }`, `Param`,
+`char`, `string`), `Never`, `Poison`, `Adt(id, args)`, where `id` is a
+declared struct or enum (`Option` and `Result` included) or an anonymous
+product (a tuple, with its rest flag) or sum (a union), `Fn { params, result,
+row, suspends, inputs }`, `TraitValue { def, args, bindings }`, `Param`,
 `Assoc { assoc, trait_, self_ty, args }`, `Mut`, `Infer`, `Canon` (a
 solver placeholder), `Row` (a row in a row-argument slot) and `Context`.
-`void` is the empty tuple.
+`void` is the empty anonymous product.
 
 - **Projections name their item.** `Assoc` holds the associated type's
   `DefId` and the full trait reference, so `<S as Add[i32]>::Out` and
