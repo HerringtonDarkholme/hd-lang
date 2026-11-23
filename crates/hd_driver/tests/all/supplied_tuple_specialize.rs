@@ -202,7 +202,9 @@ fn tuple_comparisons_keep_owners_walker_effects_and_unordered_results()
 #[test]
 fn tuple_effect_summaries_borrow_small_and_shared_wide_operands() {
     let store = MemoryStore::default();
-    for width in [2, 32, 128, 2048, 4096] {
+    // 2,048 fields take the shared wide instance, as 4,096 did (4.6 s of
+    // the test's 7.2 s).
+    for width in [2, 32, 128, 2048] {
         let fields = std::iter::repeat_n("string", width)
             .collect::<Vec<_>>()
             .join(", ");
