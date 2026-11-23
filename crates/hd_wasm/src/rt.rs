@@ -1319,10 +1319,10 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
 /// take the region whose top and limit are the block's first two words;
 /// the runtime modules' inits give the instance its own runtime storage
 /// (`fn.crossing.global.runtime`); then it calls the function value in the
-/// next two words, `thread_spawn`'s `work`. Then the block's fifth word gets 1, and its waiters wake.
+/// next two words, `thread_spawn`'s `run`, on the block. Then the block's fifth word gets 1, and its waiters wake.
 /// When the instance stopped instead (a panic or a trap), the host calls
 /// it again with `stopped` 2, which only sets the word and wakes them
-/// (`module.rt.thread.join`). Cost: O(1) besides `work`.
+/// (`module.rt.thread.join`). Cost: O(1) besides `run`.
 fn thread_start(m: &Module) -> Func {
     let mut f = m.func("rt:thread_start", vec![Val::I32, Val::I32], vec![]);
     f.get(1);
@@ -1346,14 +1346,15 @@ fn thread_start(m: &Module) -> Func {
         }
         forbid_by(&mut f, -1);
     }
-    // A function value's call: its environment, the context of its empty
-    // row, then its code's table slot (`emit/closure.rs`).
+    // A function value's call: its environment, the block, the context of
+    // its empty row, then its code's table slot (`emit/closure.rs`).
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.get(0);
     f.i32(0);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
-    f.call_indirect(vec![Val::I32, Val::I32], vec![]);
+    f.call_indirect(vec![Val::I32, Val::I32, Val::I32], vec![]);
     f.i32(1);
     f.set(1);
     f.op(Instruction::End);

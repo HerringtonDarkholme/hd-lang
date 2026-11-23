@@ -3882,13 +3882,19 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::WaitSignal);
                 Ok(())
             }
-            // `module.rt.thread.spawn`: the code and environment of `work`
-            // go to the block's third and fourth words, and the host starts
+            // `module.rt.thread.spawn`: the code and environment of `run`
+            // go to the block's third and fourth words, `work`'s to its
+            // sixth and seventh, and the host starts
             // a thread whose instance runs `hd.thread` on the block.
+            // `module.rt.thread.reachable`: a whole-program constant.
+            "threads_reachable" => {
+                self.f.i32(i32::from(self.m.threads));
+                self.store(i)
+            }
             "thread_spawn" => {
-                for (part, offset) in [(0, 8), (1, 12)] {
+                for (arg, part, offset) in [(1, 0, 8), (1, 1, 12), (2, 0, 20), (2, 1, 24)] {
                     self.push(args[0])?;
-                    self.comp(args[1], part)?;
+                    self.comp(args[arg], part)?;
                     self.f.op(I::I32Store(mem(HEAP, offset, 2)));
                 }
                 self.push(args[0])?;
@@ -4170,6 +4176,7 @@ impl Em<'_, '_, '_> {
             // `module.rt.memory.atomic`: sequentially consistent, as every
             // Wasm atomic is; a misaligned address traps.
             "mem_atomic_load_u32" => I::I32AtomicLoad(mem(HEAP, 0, 2)),
+            "mem_atomic_store_u32" => I::I32AtomicStore(mem(HEAP, 0, 2)),
             "mem_atomic_add_u32" => I::I32AtomicRmwAdd(mem(HEAP, 0, 2)),
             "mem_atomic_sub_u32" => I::I32AtomicRmwSub(mem(HEAP, 0, 2)),
             "mem_atomic_cmpxchg_u32" => I::I32AtomicRmwCmpxchg(mem(HEAP, 0, 2)),

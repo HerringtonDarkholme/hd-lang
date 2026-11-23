@@ -291,6 +291,7 @@ thread_local! {
 /// passes read that write from `may_write` alone.
 const PURE_INTRINSICS: &[&str] = &[
     "sqrt",
+    "threads_reachable",
     "int_wrapping_add",
     "int_wrapping_sub",
     "int_wrapping_mul",
@@ -368,6 +369,7 @@ impl Env<'_> {
                 | "mem_atomic_add_u32"
                 | "mem_atomic_sub_u32"
                 | "mem_atomic_cmpxchg_u32"
+                | "mem_atomic_store_u32"
                 | "thread_spawn",
             ) => CallMemory::Write(0),
             Some("format_int") => CallMemory::Write(1),

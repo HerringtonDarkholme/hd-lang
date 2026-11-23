@@ -398,6 +398,18 @@ The allocator is hd in `std.rt.alloc`, the refcount study's §6 (git history at 
   requests at least that large reuse it until any page returns to the pool.
   Smaller requests retain access to earlier holes. Table relocation also
   invalidates the proof, since it frees the old table's pages.
+- **Threads** (`module.rt.thread.alloc`). The allocator's state is
+  runtime storage, so each thread's instance has a heap of its own over
+  the pages it grew, with no lock on any path. A registry, made by the
+  first allocation, records each page's owning heap (a `u16` per page)
+  and one record per heap. A block freed from another heap goes on that
+  heap's list, a lock-free push, and the owner gives the list back before
+  it takes a page (`reclaim`). `block_of` and `block_bytes` read another
+  heap's blocks through its published table, whose old copies a move
+  leaves in place. A thread's heap retires when its work returns, and the
+  next thread to start adopts it. Every such branch is under the build
+  constant `threads_reachable()`, so a program that starts no thread
+  builds to the same code and data.
 - **No zeroing.** Every object is initialized by its constructor before
   anything reads it, and only the collector scans, and only initialized
   objects.

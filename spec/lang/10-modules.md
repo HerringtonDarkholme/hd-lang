@@ -1776,6 +1776,7 @@ pub fn atomic_add_u32(address: usize, value: u32) -> u32
 pub fn atomic_sub_u32(address: usize, value: u32) -> u32
 pub fn atomic_compare_exchange_u32(address: usize, expected: u32, new: u32) -> u32
 pub fn atomic_fence() -> void
+pub fn atomic_store_u32(address: usize, value: u32) -> void
 pub fn atomic_wait_u32(address: usize, expected: u32, timeout: i64) -> u32
 pub fn atomic_notify(address: usize, count: u32) -> u32
 ```
@@ -1793,7 +1794,7 @@ pub fn atomic_notify(address: usize, count: u32) -> u32
 11. r[module.rt.memory.fill] `fill(to, byte, count)` sets each of the `count` bytes from `to` to `byte`.
 12. r[module.rt.memory.store.shared] While a shared reference is live, no store, `copy`, or `fill` that std makes writes a byte of its referent, as [`ref.excl.shared`](13-values-and-references.md#r-ref.excl.shared) forbids for a place.
 13. r[module.rt.memory.bounds] A call that reaches a byte outside the heap stops the program instance with no panic category. Only the standard library makes these calls, and it never makes one that reaches outside.
-14. r[module.rt.memory.atomic] `atomic_load_u32(address)` returns the 4 bytes from `address` as one step: no other thread's write to them is seen in part. Every atomic call is sequentially consistent: all threads see all atomic calls in one order.
+14. r[module.rt.memory.atomic] `atomic_load_u32(address)` returns the 4 bytes from `address` as one step: no other thread's write to them is seen in part. `atomic_store_u32(address, value)` writes them as one step. Every atomic call is sequentially consistent: all threads see all atomic calls in one order.
 15. r[module.rt.memory.atomic.add] `atomic_add_u32` and `atomic_sub_u32` add `value` to the 4 bytes, or subtract it, wrapping, as one step, and return what the bytes held before.
 16. r[module.rt.memory.atomic.exchange] `atomic_compare_exchange_u32(address, expected, new)` writes `new` when the 4 bytes hold `expected`, as one step, and returns what they held before.
 17. r[module.rt.memory.atomic.fence] `atomic_fence()` orders the calling thread's heap accesses before it against the ones after it, as seen by every thread.
@@ -1819,11 +1820,12 @@ pub fn join(thread: usize) -> bool
 2. r[module.rt.thread.spawn] `spawn(work)` starts a thread that runs `work`, a top-level function, and returns `.Some(handle)`. The new instance's runtime modules run their inits first. Its frames take a region of 1 MiB of the heap. When the host starts no threads, `spawn` returns `.None`.
 3. r[module.rt.thread.join] `join(handle)` waits until the thread of `handle` ends, and frees its region. It returns `true` when `work` returned, and `false` when the thread's instance stopped first, by a panic or any other stop. Each handle is joined once.
 4. r[module.rt.thread.stop] A thread that stops ends only its own instance. Its panic report goes to the process's standard error at once.
+5. r[module.rt.thread.alloc] Each instance allocates from a heap of its own: the allocator's state is runtime storage, over the pages that instance grew. A block may be freed, retained or released on any thread. A block that a thread frees from another instance's heap returns to that heap, which can give it out again before it grows.
+6. r[module.rt.thread.alloc.adopt] When a thread's work returns, its heap is retired with every block in it. The next thread to start adopts a retired heap, and makes a new one only when none is retired. At most 1,023 heaps exist at once; an allocation in an instance past that panics `heap-exhausted`.
+7. r[module.rt.thread.reachable] The runtime's private intrinsic `threads_reachable()` is `true` in a program that may start a thread, by rule 1, and `false` in any other. It is a constant of the build, so code under a `false` one is not built.
 
-> **Note.** The allocator's state is runtime storage, so each instance
-> allocates from pages of its own. Until the allocator has a free list
-> across threads, a block that one thread allocates and another frees is
-> not given back. Std is the only caller.
+> **Note.** A thread that stops keeps its heap: nothing adopts it, and
+> nothing gives back its blocks. Std is the only caller.
 
 ### Typed Memory
 

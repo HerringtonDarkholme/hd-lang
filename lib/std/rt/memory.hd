@@ -263,3 +263,9 @@ pub fn atomic_wait_u32(address: usize, expected: u32, timeout: i64) -> u32:
 ## See [module.rt.memory.atomic.wait](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.wait).
 pub fn atomic_notify(address: usize, count: u32) -> u32:
     panic("intrinsic")
+
+@intrinsic("mem_atomic_store_u32")
+## Writes `value` to the 4 bytes from `address` as one atomic step; `address` is a multiple of 4.
+## See [module.rt.memory.atomic](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic).
+pub fn atomic_store_u32(address: usize, value: u32) -> void:
+    panic("intrinsic")

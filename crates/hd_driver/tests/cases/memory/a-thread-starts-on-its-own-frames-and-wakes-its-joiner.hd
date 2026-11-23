@@ -3,12 +3,14 @@
 # @helpers: thread_start
 # @helper: std/rt.thread/spawn
 # @helper: std/rt.thread/join
-# `thread_spawn` stores the work's code and environment in the block and
-# calls the host's `thread_spawn`. A thread's instance enters through
-# `hd.thread`: it takes the block's frame region, runs the runtime modules'
-# inits, calls the work, then stores the state word atomically and wakes
-# every wait on it; a stopped instance only stores and wakes. `join` waits
-# with `memory.atomic.wait32` while the word is 0.
+# @helper: std/rt.thread/run
+# `thread_spawn` stores the code and environment of `run` and of the work
+# in the block and calls the host's `thread_spawn`. A thread's instance
+# enters through `hd.thread`: it takes the block's frame region, runs the
+# runtime modules' inits, calls `run(block)`, which calls the work and
+# retires the thread's heap, then stores the state word atomically and
+# wakes every wait on it; a stopped instance only stores and wakes. `join`
+# waits with `memory.atomic.wait32` while the word is 0.
 use std.rt.thread.{join, spawn}
 
 fn work() -> void:

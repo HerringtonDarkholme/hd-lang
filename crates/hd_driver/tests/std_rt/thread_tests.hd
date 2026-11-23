@@ -3,14 +3,70 @@
 # module, so the conformance runner adds this file to std as
 # `std.rt_tests.thread_tests` (crates/hd_driver/tests/conformance.rs,
 # `STD_RT_TESTS`). A program that starts threads shares its heap with them.
-use std.rt.alloc.alloc
-use std.rt.memory.{atomic_add_u32, atomic_load_u32, atomic_notify, atomic_wait_u32, store_u32}
+use std.rt.alloc.{alloc, free_block}
+use std.rt.memory.{
+    atomic_add_u32,
+    atomic_load_u32,
+    atomic_notify,
+    atomic_wait_u32,
+    load_u32,
+    pages,
+    store_u32,
+}
 use std.rt.thread.{join, spawn}
 use std.testing.{assert, assert_equal}
 
 # A word on the shared heap: the program's own bindings are there too, so
 # each thread reads the address the first one stored.
 COUNTER := alloc(16)
+
+# How many blocks each side allocates, and the addresses of the main
+# thread's blocks and of a thread's.
+COUNT := 20000
+MINE := alloc(4 * COUNT)
+THEIRS := alloc(4 * COUNT)
+
+# Allocates COUNT blocks, each holding `first` plus its number, and keeps
+# their addresses at `list`.
+fn allocate(list: usize, first: usize) -> void:
+    let i: usize = 0
+    while i < COUNT:
+        block := alloc(48)
+        store_u32(block, u32(first + i))
+        store_u32(list + 4 * i, u32(block))
+        i = i + 1
+
+# Whether every block at `list` still holds `first` plus its number.
+fn intact(list: usize, first: usize) -> bool:
+    let i: usize = 0
+    while i < COUNT:
+        if load_u32(usize(load_u32(list + 4 * i))) != u32(first + i):
+            return false
+        i = i + 1
+    true
+
+fn release(list: usize) -> void:
+    let i: usize = 0
+    while i < COUNT:
+        free_block(usize(load_u32(list + 4 * i)))
+        i = i + 1
+
+fn allocate_theirs() -> void:
+    allocate(THEIRS, 0)
+
+# Waits until both threads arrive, so that what follows runs at once.
+fn arrive() -> void:
+    _ := atomic_add_u32(COUNTER, 1)
+    _ := atomic_notify(COUNTER, u32(0xffffffff))
+    while atomic_load_u32(COUNTER) < 2:
+        _ := atomic_wait_u32(COUNTER, 1, -1)
+
+fn allocate_theirs_at_once() -> void:
+    arrive()
+    allocate(THEIRS, 0)
+
+fn release_mine() -> void:
+    release(MINE)
 
 fn add_one() -> void:
     _ := atomic_add_u32(COUNTER, 1)
@@ -52,3 +108,34 @@ tests:
 
     it("a notify with no waits wakes none"):
         assert_equal(atomic_notify(COUNTER, 1), 0u32)
+
+    it("two threads allocate at once and their blocks never overlap"):
+        store_u32(COUNTER, 0)
+        thread := started(allocate_theirs_at_once)
+        arrive()
+        allocate(MINE, COUNT)
+        assert(join(thread))
+        assert(intact(THEIRS, 0) && intact(MINE, COUNT))
+
+    it("blocks a thread frees go back to the heap that allocated them"):
+        allocate(MINE, 0)
+        assert(join(started(release_mine)))
+        before := pages()
+        first := load_u32(MINE)
+        allocate(MINE, COUNT)
+        assert_equal(pages(), before)
+        assert(intact(MINE, COUNT))
+        let reused = false
+        let i: usize = 0
+        while i < COUNT:
+            reused = reused || load_u32(MINE + 4 * i) == first
+            i = i + 1
+        assert(reused)
+
+    it("a thread that starts after one ended adopts its heap and reuses its freed blocks"):
+        assert(join(started(allocate_theirs)))
+        release(THEIRS)
+        before := pages()
+        assert(join(started(allocate_theirs)))
+        assert_equal(pages(), before)
+        assert(intact(THEIRS, 0))
