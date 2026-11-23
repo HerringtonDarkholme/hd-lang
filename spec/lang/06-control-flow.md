@@ -594,9 +594,10 @@ message := match status:
 7. r[flow.match.guard.borrow.move] A guard that moves such a binding is an error. Error: `move-out-of-place`.
 8. r[flow.match.guard.borrow.change] While the guard runs, assigning, mutably borrowing or moving a place that overlaps the value such a binding reads is an error. Error: `conflicting-access`.
 9. r[flow.match.guard.borrow.capture] A closure that the guard makes may not capture such a binding, though it may capture a reference to it. Error: `move-out-of-place`.
-10. r[flow.match.body] Only the selected arm's body is evaluated.
-11. r[flow.match.result] All arm results must have one compatible type when the match value is used.
-12. r[flow.match.result.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the arm results.
+10. r[flow.match.guard.borrow.matched] While any guard runs, assigning or mutably borrowing a place that overlaps the place the match reads is an error, whether or not its value is copied. Passing on a `&mut` reference to that place borrows it mutably. A value the match makes itself, such as a tuple or a call's result, is not such a place. Error: `conflicting-access`.
+11. r[flow.match.body] Only the selected arm's body is evaluated.
+12. r[flow.match.result] All arm results must have one compatible type when the match value is used.
+13. r[flow.match.result.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the arm results.
 
 ```hd
 fn grade(score: i32) -> string:
@@ -629,8 +630,9 @@ fn moved(small: Photo?) -> u32:
 ```
 
 > **Why.** When the guard is false, the next arm matches the same value, so
-> the guard cannot have taken it. Rust's guards likewise bind by reference
-> and borrow the matched place; the arm binds by value once the guard holds.
+> the guard cannot have taken or changed it. Rust's guards likewise bind by
+> reference and borrow the matched place (E0510); the arm binds by value
+> once the guard holds.
 
 ### Exhaustiveness
 

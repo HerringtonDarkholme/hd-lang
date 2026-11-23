@@ -205,12 +205,13 @@ impl Ck<'_, '_> {
     /// would share it in a cell (`fn.capture.cell`): `move-out-of-place`.
     /// Cost: per twin, its guard's instructions.
     pub(crate) fn check_guard_views(&mut self, cx: &mut Uses) {
-        if self.guard_bindings.is_empty() {
+        if self.guard_bindings.is_empty() && self.match_guards.is_empty() {
             return;
         }
-        let views = self.guard_bindings.clone();
         cx.follow(self.b.body(), true);
-        let mut found: Vec<(usize, &str)> = Vec::new();
+        let mut found = self.guard_changes(cx);
+        let matched = found.len();
+        let views = self.guard_bindings.clone();
         let mut captured: Vec<(usize, LocalId)> = Vec::new();
         for g in views {
             let b = self.b.body();
@@ -243,19 +244,28 @@ impl Ck<'_, '_> {
                     && m == l
                     && overlaps(&p, &viewed)
                 {
-                    found.push((i, what));
+                    // `flow.match.guard.borrow.matched` reported it.
+                    if !found.iter().any(|f| f.0 == i) {
+                        found.push((i, what));
+                    }
                     break;
                 }
             }
         }
-        for (i, what) in found {
+        for (k, (i, what)) in found.into_iter().enumerate() {
             let at = self.b.body().syn[i];
             if at == hd_base::NodeIdx::NONE {
                 continue;
             }
-            let msg = format!(
-                "this {what} the value the match tests while its guard reads a binding of it in place; the arm takes the binding once the guard holds. Change the value in the arm, or before the match"
-            );
+            let msg = if k < matched {
+                format!(
+                    "this {what} the value the match reads while its guard runs; when the guard is false, the next arm matches that same value. Change it in the arm, or before the match"
+                )
+            } else {
+                format!(
+                    "this {what} the value the match tests while its guard reads a binding of it in place; the arm takes the binding once the guard holds. Change the value in the arm, or before the match"
+                )
+            };
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::ConflictingAccess, node, &msg);
         }
@@ -275,6 +285,71 @@ impl Ck<'_, '_> {
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::MoveOutOfPlace, node, &msg);
         }
+    }
+
+    /// `flow.match.guard.borrow.matched`: while a guard runs, the match
+    /// still reads its place, so the guard may not mutably borrow a place
+    /// that overlaps it, whether or not its value is copied (Rust's fake
+    /// borrows, E0510). The first such borrow of each guard, as
+    /// (instruction, what it does). A guard is an expression, so it
+    /// assigns only through such a borrow. A match of a value it made
+    /// itself, a tuple or a call's result, reads no place the guard can
+    /// name. A move of the place is `use-of-moved-value` at the arm that
+    /// reads it. Cost: per guard, its instructions.
+    fn guard_changes(&self, cx: &Uses) -> Vec<(usize, &'static str)> {
+        let b = self.b.body();
+        let mut found = Vec::new();
+        for g in &self.match_guards {
+            let read = g.matched.as_inst().map(|m| m.0 as usize);
+            let Some((l, matched)) = read
+                .filter(|&m| b.tags[m] == Tag::Read)
+                .and_then(|m| local_place(b, b.data[m][0]))
+            else {
+                continue;
+            };
+            for i in g.start as usize..=g.end as usize {
+                // A `&mut` reference read whole is passed on: what it
+                // reaches is borrowed again, as `bump(r)` borrows `*r`.
+                let (what, reached) = match b.tags[i] {
+                    Tag::Ref if b.data[i][1] & hd_tir::ir::ref_word::MUT != 0 => {
+                        ("mutably borrows", false)
+                    }
+                    Tag::Read
+                        if self.ref_of(b.ty[i]).is_some_and(|(_, m)| m)
+                            && !self.only_weakened(cx, i) =>
+                    {
+                        ("mutably borrows", true)
+                    }
+                    _ => continue,
+                };
+                if let Some((m, mut p)) = local_place(b, b.data[i][0])
+                    && m == l
+                    && {
+                        if reached {
+                            p.push(Proj::Deref);
+                        }
+                        overlaps(&p, &matched)
+                    }
+                {
+                    found.push((i, what));
+                    break;
+                }
+            }
+        }
+        found
+    }
+
+    /// Whether every use of value `i` makes a shared reference of it, as
+    /// `peek(r)` passes a `&mut T` to a `&T` parameter: what it reaches is
+    /// only read.
+    fn only_weakened(&self, cx: &Uses, i: usize) -> bool {
+        let b = self.b.body();
+        let users = &cx.users[i];
+        !users.is_empty()
+            && users.iter().all(|&(u, _)| {
+                let u = u as usize;
+                b.tags[u] == Tag::Coerce && self.ref_of(b.ty[u]).is_some_and(|(_, m)| !m)
+            })
     }
 
     /// `ref.move.out-of-place`: each read that moves a value that is not

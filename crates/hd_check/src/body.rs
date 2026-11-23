@@ -319,6 +319,16 @@ pub(crate) struct GuardView {
     pub end: u32,
 }
 
+/// A guard of a match (`flow.match.guard.borrow.matched`): the read the
+/// match matches, and the guard's instructions, from `start` to its
+/// block `end`.
+#[derive(Clone, Copy)]
+pub(crate) struct MatchGuard {
+    pub matched: Ref,
+    pub start: u32,
+    pub end: u32,
+}
+
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
     /// Body-local append-only facts for tooling, recorded only when a tool
@@ -661,6 +671,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// The twin each guarded arm's binding has while its guard runs
     /// (`flow.match.guard.borrow`).
     pub guard_bindings: Vec<GuardView>,
+    /// Each match guard and the value its match reads
+    /// (`flow.match.guard.borrow.matched`).
+    pub match_guards: Vec<MatchGuard>,
     /// The first instruction of the decision tree being built.
     pub decision_start: usize,
     /// Whether a guard of that decision views a binding
@@ -975,6 +988,7 @@ pub(crate) fn new_ck<'a, 'c>(
         pattern_below_ref: None,
         ref_bound: HashMap::default(),
         guard_bindings: Vec::new(),
+        match_guards: Vec::new(),
         decision_start: 0,
         decision_views: false,
         decision_root: Ref(NONE),

@@ -19,7 +19,7 @@ use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     BlockMark, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, PrimOp, Proj, ReadMode, Ref, Slot,
-    Tag, TirSink, local_flags,
+    Tag, TirSink, local_flags, u32_of,
 };
 use hd_types::{Prim, Ty, TyData, VarKind};
 
@@ -1394,12 +1394,18 @@ impl Ck<'_, '_> {
                 let mut twins = Vec::new();
                 let guard = if second.kind() == SyntaxKind::MatchGuard {
                     let [ge] = second.parts();
+                    let start = u32_of(this.b.body().len());
                     let gb = this.b.open_block();
                     twins = this.guard_twins(&binds);
                     let (gr, gt) = this.expr(ge, Some(Ty::BOOL))?;
                     this.expect_ty(gt, Ty::BOOL, ge, "guard", ExpectPosition::General);
                     let g = this.b.close_block(gb, Some(gr), Ty::BOOL, second.index());
                     this.end_guard_twins(&twins, g);
+                    this.match_guards.push(crate::body::MatchGuard {
+                        matched: sr,
+                        start,
+                        end: g.0,
+                    });
                     Some(g)
                 } else {
                     None

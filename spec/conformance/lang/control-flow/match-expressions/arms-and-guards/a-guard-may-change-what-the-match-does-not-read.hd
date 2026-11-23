@@ -1,0 +1,52 @@
+# test: a guard may read the matched place, borrow it shared, and change a place the match does not read: another field, another local, or a local a tuple subject copied
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.matched, flow.match.guard.result.
+# expect-stdout: 2 3 7 2 9 5
+struct Counter:
+    n: i32
+    seen: i32
+
+impl Counter:
+    fn big(&self) -> bool:
+        self.n > 3
+
+    fn step(&mut self) -> i32:
+        match self.n:
+            7 if self.big() => 7
+            other => other
+
+fn bump(x: &mut i32) -> bool:
+    *x = *x + 1
+    false
+
+fn peek(x: &i32) -> bool:
+    *x > 0
+
+fn other_field(start: Counter) -> i32:
+    let mut counter = start
+    match counter.n:
+        1 if bump(&mut counter.seen) => 0
+        other => other + counter.seen
+
+fn shared(r: &mut i32) -> i32:
+    match *r:
+        2 if peek(r) => 2
+        other => other
+
+fn other_local(n: i32) -> i32:
+    let mut tries = 0
+    match n:
+        9 if bump(&mut tries) => 0
+        other => other + tries - 1
+
+fn copied_tuple(n: i32) -> i32:
+    let mut x = n
+    match (x, 1):
+        (5, _) if bump(&mut x) => 0
+        other => other._0 + x - 6
+
+pub fn main() -> void $ Console:
+    let mut c = Counter { n: 7, seen: 0 }
+    let mut two = 2
+    println(
+        "${other_field(Counter { n: 1, seen: 0 })} ${other_field(Counter { n: 3, seen: 0 })} ${c.step()} ${shared(&mut two)} ${other_local(9)} ${copied_tuple(5)}",
+    )

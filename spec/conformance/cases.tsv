@@ -5443,6 +5443,11 @@ lang/control-flow/match-expressions/arms-and-guards/a-failing-guard-leaves-a-non
 lang/control-flow/match-expressions/arms-and-guards/a-guard-cannot-move-a-non-copy-binding.hd	type	reject:move-out-of-place	lang/06-control-flow.md#r-flow.match.guard.borrow.move
 lang/control-flow/match-expressions/arms-and-guards/a-guard-cannot-change-the-value-its-bindings-read.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.match.guard.borrow.change
 lang/control-flow/match-expressions/arms-and-guards/a-guard-closure-cannot-capture-a-non-copy-binding.hd	type	reject:move-out-of-place	lang/06-control-flow.md#r-flow.match.guard.borrow.capture
+lang/control-flow/match-expressions/arms-and-guards/a-guard-cannot-mutably-borrow-a-non-copy-matched-local.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.match.guard.borrow.matched
+lang/control-flow/match-expressions/arms-and-guards/a-guard-cannot-mutably-borrow-a-copied-matched-value.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.match.guard.borrow.matched
+lang/control-flow/match-expressions/arms-and-guards/a-guard-cannot-call-a-mutating-method-on-the-matched-place.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.match.guard.borrow.matched
+lang/control-flow/match-expressions/arms-and-guards/a-guard-cannot-pass-on-the-reference-the-match-reads-through.hd	type	reject:conflicting-access	lang/06-control-flow.md#r-flow.match.guard.borrow.matched
+lang/control-flow/match-expressions/arms-and-guards/a-guard-may-change-what-the-match-does-not-read.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.guard.borrow.matched
 lang/annotations/typed-derivation/derivation-blocks/member-line-lists-block-with-no-trait-takes-a-name-a-call-and-a-concatenation.hd	runtime	accept	lang/14-annotations.md#member-lines
 lang/annotations/typed-derivation/derivation-blocks/member-line-lists-derivation-block-takes-a-name-a-call-and-a-concatenation.hd	runtime	accept	lang/14-annotations.md#member-lines
 lang/annotations/typed-derivation/derivation-blocks/member-line-lists-replace-and-extend-apply-to-a-list-expression.hd	runtime	accept	lang/14-annotations.md#member-lines
