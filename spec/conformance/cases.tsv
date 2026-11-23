@@ -468,9 +468,9 @@ lang/requirements/requirement-rows/requirement-keys/type-name-forms-a-requiremen
 lang/names/name-categories/type-name-forms-map-called-bare-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
 lang/names/name-categories/type-name-forms-map-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
 lang/names/name-categories/type-name-forms-map-called-with-colon-type-arguments-under-an-annotation-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
-std/collections/set/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
-std/collections/set/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
-std/collections/set/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.decl
+std/collections/set/type-name-forms-set-called-bare-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.operation-surface
+std/collections/set/type-name-forms-set-called-with-colon-type-arguments-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.operation-surface
+std/collections/set/type-name-forms-set-called-with-type-arguments-is-a-type-used-as-a-value.hd	type	reject:type-used-as-value	std/collections.md#r-std-collections.set.operation-surface
 lang/names/module-scope/type-name-forms-an-undeclared-type-in-a-local-annotation-is-unknown.hd	type	reject:unknown-type	lang/03-names-and-scopes.md#r-names.module.other-module.type
 lang/types/generics/generic-arguments/generic-arity-a-struct-local-binding-with-too-many-arguments-reports-once.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
 lang/types/generics/generic-arguments/generic-arity-an-enum-local-binding-with-too-many-arguments-reports-once.hd	type	reject:argument-count	lang/04-type-system.md#r-types.generic.too-long
@@ -7259,6 +7259,8 @@ std/iter/text-collection-and-list-enumeration/noncopy-char-cursor.hd	runtime	acc
 std/iter/text-collection-and-list-enumeration/collection-target-required.hd	type	reject:cannot-infer-type	std/iter.md#r-std-iter.collect.no-default
 lang/traits/numeric-traits/integer-limit-methods.hd	runtime	accept	lang/09-traits.md#r-trait.num.integer.max-value
 lang/traits/numeric-traits/integer-limit-function-values.hd	runtime	accept	lang/09-traits.md#r-trait.num.integer.min-value
+std/collections/set-operations/set-operations.hd	runtime	accept	std/collections.md#set-operations
+std/collections/set-operations/set-membership-work.hd	runtime	accept	std/collections.md#set-operations
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

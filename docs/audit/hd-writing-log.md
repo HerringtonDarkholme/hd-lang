@@ -1352,3 +1352,5 @@ says that the check covered syntax only.
 | 2026-11-22 | #2283 option-or-else API probe | API | discard an Option/Result-returning call as an expression statement | ``discarded-must-use-value: a i32? value is discarded; handle it or write `_ := ...``` | yes | Explicitly discard with `_ := call(...)` when checking API availability | GPT-6 (Codex) |
 | 2026-11-22 | #2283 result-or-else API probe | API | discard an Option/Result-returning call as an expression statement | ``discarded-must-use-value: a Result[i32, bool] value is discarded; handle it or write `_ := ...``` | yes | Explicitly discard with `_ := call(...)` when checking API availability | GPT-6 (Codex) |
 | 2026-11-22 | #2289 integer limits | CLI API | `hd fmt FILE1 FILE2` | ``error: `hd fmt` takes at most one FILE`` | yes | run `hd fmt FILE` separately for each picked file | GPT-6 (Codex) |
+
+| 2026-11-22 | #2283 Set API probe | tooling | Checked new std methods with a frozen compiler embedding the old std | ``unknown-import: module 'std.collections' declares no 'Union'`` | No; inspected the binary/source setup | Rebuild the dev compiler with the edited embedded std before probing | GPT-6 (Codex) |

@@ -1,0 +1,44 @@
+# test: lazy set operations preserve membership and both snapshots
+use std.collections.{Set, Union, Intersection}
+
+fn combined(left: &Set[i32], right: &Set[i32]) -> Set[i32]:
+    left.union(right).collect()
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("union and intersection work for empty, equal, overlapping and disjoint inputs"):
+        let empty: Set[i32] = Set::new()
+        let left: Set[i32] = [+1, 2, 3].iter().collect()
+        let right: Set[i32] = [+3, 4].iter().collect()
+        let disjoint: Set[i32] = [+8, 9].iter().collect()
+        let all: Set[i32] = [+1, 2, 3, 4].iter().collect()
+        assert_equal(combined(&left, &right), all)
+        assert_equal(combined(&right, &left), all)
+        assert_equal(combined(&left, &empty), left)
+        assert_equal(combined(&empty, &left), left)
+        assert_equal(combined(&empty, &empty), empty)
+        assert_equal(combined(&left, &left), left)
+        let common: Set[i32] = left.intersection(&right).collect()
+        let reversed: Set[i32] = right.intersection(&left).collect()
+        assert_equal(common, [+3].iter().collect::[Set[i32]]())
+        assert_equal(reversed, common)
+        assert_equal(left.intersection(&disjoint).count(), 0)
+        assert_equal(empty.intersection(&left).count(), 0)
+        assert_equal(left.intersection(&left).count(), 3)
+
+    it("returned named iterators retain snapshots after inputs change"):
+        let mut left: Set[string] = ["a", "b"].iter().collect()
+        let mut right: Set[string] = ["b", "c"].iter().collect()
+        let mut union: Union[string] = left.union(&right)
+        let mut common: Intersection[string] = left.intersection(&right)
+        _ := left.remove("a")
+        _ := left.insert("new")
+        _ := right.remove("b")
+        _ := right.insert("later")
+        let values: List[string] = Iterator::[string]::collect::[List[string]](&mut union)
+        let shared: List[string] = Iterator::[string]::collect::[List[string]](&mut common)
+        assert_equal(values, ["a", "b", "c"])
+        assert_equal(shared, ["b"])
+        assert(union.next().is_none())
+        assert(common.next().is_none())
