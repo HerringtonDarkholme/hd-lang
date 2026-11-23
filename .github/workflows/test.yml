@@ -31,20 +31,102 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Every Rust command builds the whole workspace with all features, so CI
-  # covers the wasmtime engine that a plain `cargo build` leaves out (the
-  # `wasmtime` feature is off by default; crates/README.md).
+  # One release build per run. Every Rust command used to build the whole
+  # workspace again in each of eight jobs, about 5.5 min each (run
+  # 45113552161); now this job builds every test binary, the examples and
+  # `hd` once, with all features, so CI covers the wasmtime engine that a
+  # plain `cargo build` leaves out (crates/README.md). The other Linux jobs
+  # download the build and only run it (scripts/ci-tests.sh). Paths stay
+  # valid: every runner checks out to the same directory, which the test
+  # binaries hold from `env!("CARGO_MANIFEST_DIR")`.
   #
-  # The Rust jobs run side by side, so the check takes as long as the
-  # slowest one. Each restores third-party build output only (the
-  # workspace's own crates and test binaries are not cached; they were
-  # most of a 7 GB cache).
-  #
-  # Format, lint, the web build, the specification and the count budgets share
-  # one setup. Each check runs whatever an earlier one did, so one failure hides
-  # no other, and any failure fails the job.
+  # The build restores third-party build output only (the workspace's own
+  # crates and test binaries are not cached; they were most of a 7 GB cache).
+  build:
+    name: Build
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      # hd_command's build script strips the Node host.
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: package.json
+          package-manager-cache: false
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
+      # sccache caches each workspace crate's compiled output, so a run
+      # rebuilds only the crates a change touches (and those above them).
+      # rust-cache keeps third-party crates; the workspace's own were left
+      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      # Use it only once its server is up: on Windows it once timed out
+      # starting, and then every compile failed (run 45182764260).
+      - name: Use sccache
+        shell: bash
+        run: |
+          export SCCACHE_GHA_ENABLED=true
+          if sccache --start-server; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without it"
+          fi
+
+      # The scale check and the count budgets measure what default features
+      # emit: `checked-report`, which the tests turn on, changes plain builds
+      # too (count_ops: int-loop.hd's no-op calls 0 -> 9, run 45194113785).
+      # So they get an `hd` and count_ops of their own, kept in target/tools
+      # (the test build then writes target/release/hd again). Its `hd` has the
+      # planted quadratic loop, off unless HD_PLANT_QUADRATIC is set.
+      #
+      # `cargo test --no-run` also builds every example and binary. The list
+      # of test binaries (package directory, target, executable) goes with
+      # them, for scripts/ci-tests.sh.
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --release -p hd_command --features hd_command/plant-quadratic -p hd_driver --bin hd --example count_ops
+          mkdir -p target/tools
+          cp target/release/hd target/release/examples/count_ops target/tools/
+          cargo test --release --all-features --workspace --no-run --message-format=json-render-diagnostics > target/ci-build.json
+          jq -r --arg root "$PWD/" 'select(.reason == "compiler-artifact" and .executable != null)
+            | [(.manifest_path | ltrimstr($root) | rtrimstr("/Cargo.toml")), .target.name,
+               (.executable | ltrimstr($root)), .profile.test] | @tsv' target/ci-build.json > target/ci-build.tsv
+          awk -F'\t' -v OFS='\t' '$4 == "true" { print $1, $2, $3 }' target/ci-build.tsv > target/ci-tests.tsv
+          { cut -f3 target/ci-build.tsv | sort -u; echo target/ci-tests.tsv; echo target/tools; } > target/ci-files.txt
+          tar -cf - -T target/ci-files.txt | zstd -T0 -3 -q -o target/ci-build.tar.zst
+          echo "$(wc -l < target/ci-tests.tsv) test binaries, $(du -h target/ci-build.tar.zst | cut -f1) packed"
+
+      - name: Store the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-build
+          path: target/ci-build.tar.zst
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
+      # Doc tests compile at test time, against the libraries just built.
+      - name: Doc tests
+        run: cargo test --release --all-features --workspace --doc
+
+  # Format, lint, the web build, the specification, the scale check and the
+  # count budgets share one setup. Each check runs whatever an earlier one
+  # did, so one failure hides no other, and any failure fails the job. The
+  # scale check and the counts run the Build job's tools.
   checks:
     name: Checks
+    needs: build
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -69,13 +151,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Fetch the build
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build
+          path: target
+
+      - name: Unpack the build
+        run: zstd -dc target/ci-build.tar.zst | tar -xf -
+
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
 
       # sccache caches each workspace crate's compiled output, so a run
       # rebuilds only the crates a change touches (and those above them).
-      # rust-cache keeps third-party crates; the workspace's own were left
-      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
@@ -180,9 +269,25 @@ jobs:
         if: ${{ !cancelled() }}
         run: node scripts/check-budget.ts spec/check.sh -- bash spec/check.sh
 
-      - name: Build count compiler
+      # The generated scale check (#1880, bench/metrics/scripts/scale.ts): its
+      # own correct programs, holding every syntax node kind, at n and 4n,
+      # judged by the compiler's deterministic work counters.
+      - name: Scale check
         if: ${{ !cancelled() }}
-        run: cargo build -p hd_driver --example count_ops
+        run: pnpm run metrics -- --hd target/tools/hd --only scale
+
+      # Its self-test: the same `hd` with its planted quadratic loop turned
+      # on. The check must fail, naming the counter that grew.
+      - name: A planted quadratic loop fails the scale check
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          status=0
+          HD_PLANT_QUADRATIC=1 HD_SCALE_SHAPES=fn-items pnpm run metrics -- --hd target/tools/hd --only scale > planted.log 2>&1 || status=$?
+          cat planted.log
+          test "$status" -eq 1
+          grep -q "FAIL scale: fn-items check: .*hashes" planted.log
 
       - name: Test count comparator
         id: comparator
@@ -219,7 +324,8 @@ jobs:
           if [ "$GITHUB_REF" = refs/heads/main ]; then
             site_flags+=(--refresh)
           fi
-          node bench/counts/conservative-sites.ts --previous target/count-ops/previous-conservative.json "${site_flags[@]}"
+          runner="$(awk -F'\t' '$1 == "crates/hd_driver" && $2 == "count_reasons" { print $3 }' target/ci-tests.tsv)"
+          node bench/counts/conservative-sites.ts --runner "$runner" --previous target/count-ops/previous-conservative.json "${site_flags[@]}"
 
       - name: Measure and enforce per-program totals
         id: totals
@@ -233,7 +339,7 @@ jobs:
           if [ "$GITHUB_REF" = refs/heads/main ]; then
             count_flags+=(--refresh)
           fi
-          node bench/counts/run.ts --previous target/count-ops/previous.json "${count_flags[@]}"
+          node bench/counts/run.ts --compiler target/tools/count_ops --previous target/count-ops/previous.json "${count_flags[@]}"
 
       - name: Show measured counts
         if: always()
@@ -275,6 +381,11 @@ jobs:
             bench/counts/baseline.json
             bench/counts/conservative-sites.json
           if-no-files-found: error
+
+      # The Build job's binaries are not this job's to cache.
+      - name: Keep the build out of the Rust cache
+        if: always()
+        run: rm -rf target/release target/tools
 
   # Only this job holds a write token, and it runs nothing from the repository.
   refresh-budgets:
@@ -325,12 +436,11 @@ jobs:
   # release 6). Local gates stay in the dev profile, where debug
   # assertions and overflow checks are on.
   #
-  # cargo test runs test binaries one after another, so the suite is split
-  # into two shards that run side by side: hd_command, and every other crate. The cli
-  # shard's cargo test builds the release `hd` its tests run. On Linux nothing
-  # in the other shard runs it.
+  # Two jobs run the Build job's test binaries side by side: hd_command's,
+  # and every other crate's. Conformance's suite runs in its own jobs below.
   test:
     name: Rust tests (${{ matrix.shard }})
+    needs: build
     if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -339,9 +449,9 @@ jobs:
       matrix:
         include:
           - shard: cli
-            args: -p hd_command
+            invert: ""
           - shard: workspace
-            args: --workspace --exclude hd_command
+            invert: "-v"
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -352,99 +462,17 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
 
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
+      - name: Fetch the build
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build
+          path: target
 
-      # sccache caches each workspace crate's compiled output, so a run
-      # rebuilds only the crates a change touches (and those above them).
-      # rust-cache keeps third-party crates; the workspace's own were left
-      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      # Use it only once its server is up: on Windows it once timed out
-      # starting, and then every compile failed (run 45182764260).
-      - name: Use sccache
-        shell: bash
-        run: |
-          export SCCACHE_GHA_ENABLED=true
-          if sccache --start-server; then
-            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-          else
-            echo "::warning::sccache did not start; building without it"
-          fi
+      - name: Unpack the build
+        run: zstd -dc target/ci-build.tar.zst | tar -xf -
 
       - name: Test
-        run: cargo test --release --all-features ${{ matrix.args }} -- --skip specification_conformance_passes_except_known_failures
-
-  # The generated scale check (#1880, bench/metrics/scripts/scale.ts): its
-  # own correct programs, holding every syntax node kind, at n and 4n,
-  # judged by the compiler's deterministic work counters. Then its
-  # self-test: an `hd` built with a planted quadratic loop must fail it,
-  # naming the counter that grew.
-  scale:
-    name: Scale check
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out
-        uses: actions/checkout@v5
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: package.json
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
-
-      # sccache caches each workspace crate's compiled output, so a run
-      # rebuilds only the crates a change touches (and those above them).
-      # rust-cache keeps third-party crates; the workspace's own were left
-      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      # Use it only once its server is up: on Windows it once timed out
-      # starting, and then every compile failed (run 45182764260).
-      - name: Use sccache
-        shell: bash
-        run: |
-          export SCCACHE_GHA_ENABLED=true
-          if sccache --start-server; then
-            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-          else
-            echo "::warning::sccache did not start; building without it"
-          fi
-
-      - name: Build release compiler and parser dump
-        run: |
-          cargo build --release -p hd_command
-          cargo build --release -p hd_syntax --example parse_check
-
-      - name: Scale check
-        run: pnpm run metrics -- --only scale
-
-      - name: A planted quadratic loop fails the check
-        shell: bash
-        run: |
-          set -uo pipefail
-          cargo build --release -p hd_command --features plant-quadratic
-          status=0
-          HD_SCALE_SHAPES=fn-items pnpm run metrics -- --only scale > planted.log 2>&1 || status=$?
-          cat planted.log
-          test "$status" -eq 1
-          grep -q "FAIL scale: fn-items check: .*hashes" planted.log
+        run: scripts/ci-tests.sh ${{ matrix.invert }} '^crates/hd_command/' --skip specification_conformance_passes_except_known_failures
 
   # `cargo install hd-lang` builds the published packages, and a package
   # holds only its own directory (crates/README.md, "Publishing"). The dry
@@ -608,11 +636,11 @@ jobs:
         if: matrix.shard != 'cli conformance'
         run: cargo test --release --no-fail-fast --features hd_command/wasmtime -p hd_command --lib --test all
 
-  # Split from the tests so the longest suite overlaps with the rest. Default and
-  # checked runs share a binary, so they share a job; a mode that builds or runs on
-  # something else has its own.
+  # Split from the tests so the longest suite overlaps with the rest. Each
+  # mode runs the Build job's conformance binary.
   conformance:
     name: Driver conformance (${{ matrix.mode }})
+    needs: build
     env:
       HD_VERIFY: "1"
     if: github.event_name != 'schedule'
@@ -669,41 +697,26 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
 
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
+      - name: Fetch the build
+        uses: actions/download-artifact@v4
+        with:
+          name: release-build
+          path: target
 
-      # sccache caches each workspace crate's compiled output, so a run
-      # rebuilds only the crates a change touches (and those above them).
-      # rust-cache keeps third-party crates; the workspace's own were left
-      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
-
-      # Use it only once its server is up: on Windows it once timed out
-      # starting, and then every compile failed (run 45182764260).
-      - name: Use sccache
-        shell: bash
-        run: |
-          export SCCACHE_GHA_ENABLED=true
-          if sccache --start-server; then
-            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-          else
-            echo "::warning::sccache did not start; building without it"
-          fi
+      - name: Unpack the build
+        run: zstd -dc target/ci-build.tar.zst | tar -xf -
 
       # Only the suite that depends on the engine and the pipeline: the
       # binary's other tests (the formatter pass over every fixture, the std
       # runtime modules, the spec and doc examples, the harness's own) run
       # once, in the Rust tests job.
-      # Each run fails the job by itself, and the first failing doesn't skip the second.
       - name: Conformance
         env:
           HD_CONFORMANCE_ENGINE: ${{ matrix.engine }}
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
           HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
           HD_CONFORMANCE_PHASE: ${{ matrix.phase }}
-        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
+        run: scripts/ci-tests.sh '^crates/hd_driver/conformance$' --exact specification_conformance_passes_except_known_failures
 
       # Runs std's runtime modules with the checked runtime's asserts too; the
       # Rust tests job runs them plain.
@@ -711,4 +724,4 @@ jobs:
         if: ${{ !cancelled() && matrix.mode == 'checked' }}
         env:
           HD_CONFORMANCE_CHECKED: "1"
-        run: cargo test --release --workspace --all-features --test conformance -- --exact std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
+        run: scripts/ci-tests.sh '^crates/hd_driver/conformance$' --exact std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
