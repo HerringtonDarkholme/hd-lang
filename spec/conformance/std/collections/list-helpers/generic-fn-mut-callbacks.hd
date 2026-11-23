@@ -1,6 +1,7 @@
 # test: collection and iterator consumers accept mutable generic callbacks and borrowed List elements
 # Spec std/collections List Helpers: std-collections.helper.callback-generic-ref.
 # Spec std/iter Iterator Adapters: std-iter.adapter.fold.fn-mut, std-iter.adapter.any.fn-mut, std-iter.adapter.all.fn-mut, std-iter.adapter.find.fn-mut.
+# Spec std/iter List And Optional Map: std-iter.option.map.fn-mut.
 # expect: test
 use std.collections.{UniqList, UniqMap}
 use std.function.FnMut
@@ -10,6 +11,9 @@ fn generic_any[F < ?Copy & FnMut(&i32) -> bool](values: &List[i32], predicate: F
 
 fn positive(value: &i32) -> bool:
     *value > 0
+
+fn optional_map[F < ?Copy & FnMut(i32) -> i32](value: i32?, transform: F) -> i32?:
+    value.map(transform)
 
 tests:
     it("mutating predicates and key/comparison functions stay generic"):
@@ -250,3 +254,26 @@ tests:
         assert_equal(values.unique(), values)
         let indexed: List[(usize, i32)] = values.enumerate().collect()
         assert_equal(indexed, [(0, +1), (1, +2), (2, +3)])
+
+    it("Map cursor projection helper accepts a generic mutable callback"):
+        let calls = 0
+        assert_equal(
+            optional_map(.Some(+3), fn(value: i32) -> i32:
+                calls += 1
+                value + 1
+            ),
+            .Some(+4),
+        )
+        assert_equal(
+            optional_map(.None, fn(value: i32) -> i32:
+                calls += 1
+                value + 1
+            ),
+            .None,
+        )
+        assert_equal(calls, 1)
+
+    it("generic optional mapping moves a noncopyable payload"):
+        owner := UniqList::[i32].from_list([+1, 2, 3])
+        let present: UniqList[i32]? = .Some(owner)
+        assert_equal(present.map(fn(value: UniqList[i32]) -> usize: value.len()), .Some(3))

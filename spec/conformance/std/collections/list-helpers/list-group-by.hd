@@ -12,7 +12,7 @@ tests:
         assert_equal(groups.get("b"), .Some(["bean", "beet"]), reason="group b")
     it("has one key per distinct result"):
         assert_equal(
-            by_initial(["bean", "apple", "beet"]).keys().sorted(),
+            by_initial(["bean", "apple", "beet"]).keys().collect::[List[string]]().sorted(),
             ["a", "b"],
             reason="a and b",
         )

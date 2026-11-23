@@ -7298,6 +7298,7 @@ std/iter/double-ended-cursors/noncopy-rev-without-trait-import.hd	runtime	accept
 std/collections/list-helpers/contains-borrows-value.hd	runtime	accept	std/collections.md#list-helpers
 std/collections/list-helpers/dedup-in-place.hd	runtime	accept	std/collections.md#r-std-collections.helper.dedup-in-place
 std/collections/list-helpers/generic-fn-mut-callbacks.hd	runtime	accept	std/collections.md#r-std-collections.helper.callback-generic-ref
+std/collections/map-methods/map-key-value-cursors.hd	runtime	accept	std/collections.md#map-methods
 std/num/float-math/both-widths-and-special-values.hd	runtime	accept	std/num.md#float-math
 std/num/float-math/exp-ln-power.hd	runtime	accept	std/num.md#float-math
 std/num/float-math/full-range-trig.hd	runtime	accept	std/num.md#float-math

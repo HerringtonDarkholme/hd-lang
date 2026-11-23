@@ -69,7 +69,8 @@ ship 2 write,test,ship 2 [1, 2, 5] 8
 | `m.get(key)` | the value as `V?` |
 | `m[key]` | the value; panics when the key is missing |
 | `m.contains_key(key)` | `bool` |
-| `m.keys()`, `m.values()`, `m.entries()` | lists of copies |
+| `m.keys()`, `m.values()` | lazy snapshot cursors; use `.collect()` for a list |
+| `m.entries()` | a list of copied pairs |
 | `for (key, value) in m` | each entry, as `(&K, &V)` |
 | `m[key] = v` | insert or replace (needs `let mut`) |
 | `m.get_or_insert(key, default)` | `&mut V`, inserting the default when missing |
@@ -87,7 +88,7 @@ tally := counts(words)
 let mut lengths: Map[usize, List[string]] = {}
 for word in words:
     lengths.get_or_insert(word.len(), []).push(word)
-println("${tally["the"]} ${tally.most_common(1)[0]._0} ${lengths[3].len()} ${lengths.keys().sorted().len()}")
+println("${tally["the"]} ${tally.most_common(1)[0]._0} ${lengths[3].len()} ${lengths.keys().collect::[List[usize]]().sorted().len()}")
 ```
 
 ```output

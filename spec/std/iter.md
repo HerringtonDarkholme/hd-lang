@@ -334,9 +334,10 @@ fn total(values: List[i32]) -> i32:
 | Receiver | Method |
 | --- | --- |
 | `List[T]` | `map[U, F < ?Copy & FnMut(&T) -> U](&self, transform: F) -> List[U]` |
-| `T?` | `map[U](self, transform: fn(T) -> U) -> U?` |
+| `T?` | `map[U, F < ?Copy & FnMut(T) -> U](self, transform: F) -> U?` |
 
 1. r[std-iter.method.map] `List.map` and optional `map` are non-suspending and evaluate the transform in source order.
+2. r[std-iter.option.map.fn-mut] Optional `map` accepts a generic mutable callback and moves a present payload into it exactly once; `.None` never invokes it.
 
 ```text
 tests:

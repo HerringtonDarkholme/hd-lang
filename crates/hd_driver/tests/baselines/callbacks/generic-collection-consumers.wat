@@ -9,6 +9,23 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
+  (func $projected (param $value.0 i32) (param $value.1 i32) (param $value.2 i32) (result i32 i32)
+    ;; 17 |     value.map(fn(entry: (i32, i32)) -> i32: entry._0)
+    block
+      block
+        local.get $value.0
+        i32.eqz
+        br_if 1
+        br 0
+        unreachable
+      end
+      i32.const 1
+      local.get $value.1
+      return
+    end
+    i32.const 0
+    i32.const 0
+  )
   (func $"drift_insertion_sort[i32, std.collections.DriftByOrd]" (param $t5 i32) (param $t1 i32) (param $t0 i32) (param $t2 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32) (local $t7 i32)
     ;; (no span)
     local.get $t0

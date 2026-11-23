@@ -2302,28 +2302,38 @@ impl[K < Eq & Hash, V] Map[K, V]:
             .Some(_) => true
             .None => false
 
-    ## A new list of the keys, in the map's iteration order.
-    ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
-    pub fn keys(&self) -> List[K]:
-        let mut found: List[K] = []
-        list_reserve(&mut found, self.len())
-        for (key, _) in self:
-            found.push(*key)
-        found
+    ## A lazy cursor over a snapshot of the map's keys, in iteration order.
+    ## See [std-collections.map.keys.cursor](../../spec/std/collections.md#r-std-collections.map.keys.cursor).
+    pub fn keys(&self) -> MapKeys[K, V]:
+        MapKeys { entries: self.iter() }
 
-    ## A new list of the values, in the map's iteration order.
-    ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
-    pub fn values(&self) -> List[V]:
-        let mut found: List[V] = []
-        list_reserve(&mut found, self.len())
-        for (_, value) in self:
-            found.push(*value)
-        found
+    ## A lazy cursor over a snapshot of the map's values, in iteration order.
+    ## See [std-collections.map.values.cursor](../../spec/std/collections.md#r-std-collections.map.values.cursor).
+    pub fn values(&self) -> MapValues[K, V]:
+        MapValues { entries: self.iter() }
 
     ## True exactly when the map has no entries.
     ## See [std-collections.map.is-empty](../../spec/std/collections.md#r-std-collections.map.is-empty).
     pub fn is_empty(&self) -> bool:
         self.len() == 0
+
+## A snapshot cursor over a map's keys.
+## See [std-collections.map.keys.cursor-type](../../spec/std/collections.md#r-std-collections.map.keys.cursor-type).
+pub struct MapKeys[K < Eq & Hash, V]:
+    entries: MapEntries[K, V]
+
+impl[K < Eq & Hash, V] Iterator[K] for MapKeys[K, V]:
+    fn next(&mut self) -> K?:
+        self.entries.next().map(fn(entry: (K, V)) -> K: entry._0)
+
+## A snapshot cursor over a map's values.
+## See [std-collections.map.values.cursor-type](../../spec/std/collections.md#r-std-collections.map.values.cursor-type).
+pub struct MapValues[K < Eq & Hash, V]:
+    entries: MapEntries[K, V]
+
+impl[K < Eq & Hash, V] Iterator[V] for MapValues[K, V]:
+    fn next(&mut self) -> V?:
+        self.entries.next().map(fn(entry: (K, V)) -> V: entry._1)
 
 # The entries of a map, and the most frequent ones of a tally
 # (spec/std/collections.md#map-methods).

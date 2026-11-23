@@ -45,7 +45,7 @@ pub fn main() -> void $ Console:
                 fields[2],
                 amount,
             )
-    let mut keys = aggregates.keys()
+    let mut keys = aggregates.keys().collect::[List[string]]()
     keys.sort()
     report := StringBuilder::new()
     for key in keys:

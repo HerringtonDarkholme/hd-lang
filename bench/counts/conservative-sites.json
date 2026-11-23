@@ -69,8 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 448,
-      "explanation": "#1805 regex lazy DFA contributes the 24 sites already recorded on main (f81358632). #2283 Iterator.last adds one receiver retain in the read-through vtable adapter in bench/study/dyn_iter.hd to preserve its owned snapshot. Complete 35-program controls measure main447 and API448; regex-scan conservative operations and emitted digest are unchanged."
+      "sites": 451,
+      "explanation": "Map key/value cursors now retain a COW snapshot in the existing step environment: log-stats newly links rt:retain_fields to keep that map alive, rt:map_step to give each yielded key its own count (formerly the eager list store), and rt:drop to release the environment snapshot. These three runtime boundary sites are required; consuming Option.map removes the two avoidable projection copy/drop pairs per key."
     },
     {
       "reason": "conservative: unique",

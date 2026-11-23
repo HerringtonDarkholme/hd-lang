@@ -1,0 +1,70 @@
+# test: map keys and values are lazy, independently advancing snapshot cursors
+# Spec std/collections Map Methods: std-collections.map.keys.cursor, .values.cursor, .cursor.snapshot, .keys.cursor-type, .values.cursor-type.
+use std.collections.{MapKeys, MapValues}
+
+fn keys_after_return() -> MapKeys[string, List[string]]:
+    source := { "only": ["value"] }
+    source.keys()
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("yields keys and values in the same entry order and stays exhausted"):
+        source := { "first": ["one"], "second": ["two"], "third": ["three"] }
+        let mut keys = source.keys()
+        let mut values = source.values()
+        for pair in source.entries():
+            assert_equal(keys.next(), .Some(pair._0))
+            assert_equal(values.next(), .Some(pair._1))
+        assert_equal(keys.next(), .None)
+        assert_equal(keys.next(), .None)
+        assert_equal(values.next(), .None)
+        assert_equal(values.next(), .None)
+
+    it("keeps snapshots alive across source changes and return"):
+        let mut source = { "only": ["before"] }
+        keys := source.keys()
+        values := source.values()
+        source["only"] = ["after"]
+        _ := source.remove("only")
+        source["new"] = ["later"]
+        let key_list: List[string] = keys.collect()
+        let value_list: List[List[string]] = values.collect()
+        assert_equal(key_list, ["only"])
+        assert_equal(value_list, [["before"]])
+        let mut returned = keys_after_return()
+        assert_equal(returned.next(), .Some("only"))
+        assert_equal(returned.next(), .None)
+
+    it("supports ordinary adapters, cursor copies, function values and empty maps"):
+        let keys_fn: fn(&Map[string, i32]) -> MapKeys[string, i32] = Map::[string, i32]::keys
+        let values_fn: fn(&Map[string, i32]) -> MapValues[string, i32] = Map::[string, i32]::values
+        source := { "one": +1, "two": +2 }
+        let mut cursor = keys_fn(&source)
+        let mut copied = cursor
+        assert_equal(cursor.next(), copied.next())
+        assert_equal(cursor.count(), 1)
+        assert_equal(copied.count(), 1)
+        let first: List[string] = source.keys().take(1).collect()
+        assert_equal(first.len(), 1)
+        let doubled: List[i32] = values_fn(&source).map(fn(value: i32) -> i32: value * 2).collect()
+        assert_equal(doubled.sorted(), [+2, 4])
+        let empty: Map[string, List[string]] = {}
+        let mut keys = empty.keys()
+        let mut values = empty.values()
+        assert_equal(keys.next(), .None)
+        assert_equal(values.next(), .None)
+        for _ in 0..16:
+            let mut early = source.values()
+            assert(early.next().is_some())
+
+    it("ordinary entry cursors forward counted pairs after source clearing"):
+        for round in 0..16:
+            name := "key$round"
+            text := "value$round"
+            let mut source = { name: [text] }
+            let mut cursor = source.iter()
+            source.clear()
+            assert_equal(cursor.next(), .Some((name, [text])))
+            assert_equal(cursor.next(), .None)
+            assert_equal(cursor.next(), .None)
