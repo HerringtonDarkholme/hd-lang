@@ -69,8 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 448,
-      "explanation": "Combined #2298/#2299: #2298 retains its three required log-stats Map cursor boundary sites (snapshot retain_fields, owned-key map_step, environment drop). #2299 makes Iterator.any/all/find generic FnMut methods; its combined output removes three dyn_iter rt:dyn_read retain sites. Measured combined total is 448 (448 before both, +3 Map cursors, -3 generic callbacks); all other conservative operation tuples are unchanged from the 451-site #2298 report."
+      "sites": 449,
+      "explanation": "Main #2298/#2299 measures 448 conservative sites: three required Map cursor boundary sites offset three removed dyn_iter dyn_read retain sites. #2295 Display join adds Buffer.grow free and Buffer.drop free in function-value-inputs, replacing its rt:list_grow release (net +1, measured 449). Those frees release uniquely owned raw byte room during streaming-buffer growth and cleanup; removing them leaks room. No other conservative operation tuple changes from the saved #2299 main report. Static emitted sites only; no new timing claim."
     },
     {
       "reason": "conservative: unique",

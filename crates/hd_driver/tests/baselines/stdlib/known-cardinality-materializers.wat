@@ -1795,7 +1795,7 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 949 ;; &"windows: size must be positive"
+      i32.const 1005 ;; &"windows: size must be positive"
       i32.const 30
       i32.const 7
       call_indirect $table0 (param i32 i32)
@@ -3842,7 +3842,7 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 1285 ;; &"windows: size must be positive"
+      i32.const 1341 ;; &"windows: size must be positive"
       i32.const 30
       i32.const 7
       call_indirect $table0 (param i32 i32)

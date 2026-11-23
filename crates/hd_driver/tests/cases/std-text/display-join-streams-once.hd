@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/text/impl[T < Display] List[T].join
+# expected: one borrowed element traversal writes to a growing byte buffer; no List[string] of formatted pieces or second Display pass
+fn joined(values: List[i32], separator: string) -> string:
+    values.join(separator)

@@ -1323,7 +1323,7 @@ std/text.md	5	complete	std/text/parsing-text/text-parse-trait.hd
 std/text.md	6	type-fragment	-
 std/text.md	7	complete	std/text/raw-text-prefix/string-prefix-std-r.hd
 std/text.md	8	complete	std/text/more-string-methods/string-more-methods.hd|std/text/more-string-methods/string-rfind-splitn.hd
-std/text.md	9	complete	std/text/joining-and-building/text-join-builder.hd
+std/text.md	9	complete	std/text/joining-and-building/text-join-builder.hd|std/text/joining-and-building/display-list-join.hd
 std/text.md	10	complete	std/text/prefix-helpers/text-prefix-helpers.hd
 std/time.md	1	complete	std/time/duration/duration-sub.hd|std/time/duration-suffixes/literal-suffix-duration.hd
 std/time.md	2	complete	std/time/duration/duration-arithmetic.hd

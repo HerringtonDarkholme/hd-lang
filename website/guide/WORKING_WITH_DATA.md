@@ -768,7 +768,7 @@ clock. A test binds `ManualClock`, so waiting costs no real time; see
 ## Building Text
 
 `trim` and `split` take text apart. The other direction has three tools:
-`join` for a list with a separator, `StringBuilder` for a loop that
+`join` for the `Display` text of list elements with a separator, `StringBuilder` for a loop that
 appends, and `repeat` for padding. `chars` and `bytes` walk a string by
 character or by byte. The exact rules are in [Text](../../spec/std/text.md):
 

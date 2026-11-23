@@ -66,7 +66,6 @@ std/structure/impl Facts.find#0 [std.serde.SkipNone[i64]]
 std/structure/impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF].fact#0 [app.main.Pair, i64, std.serde.Skip]
 std/rt.alloc/retain#0
 std/rt.cycle/sweep#0
-std/text/impl List[string].join#0
 std/rt.hash/hash_string#0
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
@@ -150,6 +149,7 @@ std/rt.cycle/init.init#0
 std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
+std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]

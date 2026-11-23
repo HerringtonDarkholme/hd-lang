@@ -1,0 +1,9 @@
+# @dump: wat
+# @build: std checked
+# expected: std checks the room capacity before constructing Some, returning
+# the existing empty string for no room and transferring allocated room unchanged.
+use std.rt.memory.Buffer
+use std.rt.bytes.string_from_buffer
+
+fn transfer(room: Buffer[u8], size: usize) -> string?:
+    .Some(string_from_buffer(room, size))
