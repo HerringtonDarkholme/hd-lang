@@ -132,9 +132,16 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 | --- | --- |
 | `map(f)`, `filter(f)`, `flat_map(f)` | changed or kept items |
 | `filter_map(f)` | the present results of `f(item)` |
+| `rev()` | the remaining items in reverse order, for double ended cursors |
 | `enumerate()` | `(index, item)` pairs; lists also offer `xs.enumerate()` |
 | `zip(other)`, `chain(other)` | paired or appended items |
 | `take(n)`, `skip(n)`, `take_while(f)` | part of the items |
+
+`text.chars().rev().collect::[string]()` reverses Unicode scalars.
+Import `std.iter.DoubleEndedIterator` for `next_back`, and
+`std.iter.ExactSizeIterator` for constant-time remaining `len`. The ends
+share progress; `take`, `skip`, `zip`, and `enumerate` need exact source
+lengths to reverse. Map entries and arbitrary `from_fn` cursors are forward only.
 
 | Draining call | Gives |
 | --- | --- |

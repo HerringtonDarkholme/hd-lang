@@ -1,3 +1,4 @@
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # std.text: the `string` methods, `join`, and `StringBuilder`
 # (spec/lang/10-modules.md#string-methods for the intrinsics, spec/std/text.md for
 # the methods above them).
@@ -252,20 +253,20 @@ impl string:
     ## Iterates the string's characters, one Unicode scalar value at a time.
     ## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).
     pub fn chars(self) -> Chars:
-        Chars { text: self, at: 0 }
+        Chars { text: self, at: 0, end: bytes_len(self) }
 
     # Each scalar value with the byte offset where its encoding starts
     # (spec/lang/10-modules.md#r-module.string.char-indices).
     ## Iterates `(byte offset, character)` pairs, one per character.
     ## See [module.string.char-indices](../../spec/lang/10-modules.md#r-module.string.char-indices).
     pub fn char_indices(self) -> CharIndices:
-        CharIndices { text: self, at: 0 }
+        CharIndices { text: self, at: 0, end: bytes_len(self) }
 
     # The bytes in order (spec/lang/10-modules.md#r-module.string.bytes).
     ## Iterates the string's bytes, one `u8` at a time.
     ## See [module.string.bytes](../../spec/lang/10-modules.md#r-module.string.bytes).
     pub fn bytes(self) -> Bytes:
-        Bytes { text: self, at: 0 }
+        Bytes { text: self, at: 0, end: bytes_len(self) }
 
     # The bytes from offset `start` up to `end`. Both must be scalar
     # boundaries with `start <= end`, or it panics with `index-out-of-bounds`
@@ -1386,10 +1387,11 @@ impl Debug for StringBuilder:
 pub struct Chars:
     text: string
     at: usize
+    end: usize
 
 impl Iterator[char] for Chars:
     fn next(&mut self) -> char?:
-        if self.at >= bytes_len(self.text):
+        if self.at >= self.end:
             return .None
         point := scalar_at(self.text, self.at)
         self.at = scalar_end(self.text, self.at)
@@ -1400,10 +1402,11 @@ impl Iterator[char] for Chars:
 pub struct CharIndices:
     text: string
     at: usize
+    end: usize
 
 impl Iterator[(usize, char)] for CharIndices:
     fn next(&mut self) -> (usize, char)?:
-        if self.at >= bytes_len(self.text):
+        if self.at >= self.end:
             return .None
         start := self.at
         self.at = scalar_end(self.text, start)
@@ -1416,10 +1419,11 @@ impl Iterator[(usize, char)] for CharIndices:
 pub struct Bytes:
     text: string
     at: usize
+    end: usize
 
 impl Iterator[u8] for Bytes:
     fn next(&mut self) -> u8?:
-        if self.at >= bytes_len(self.text):
+        if self.at >= self.end:
             return .None
         self.at = self.at + 1
         .Some(bytes_at(self.text, self.at - 1))
@@ -1527,3 +1531,48 @@ fn ascii_case(text: string, upper: bool) -> string:
             store_u8(address + at, mapped)
         at = at + 1
     result
+
+impl DoubleEndedIterator[char] for Chars:
+    fn next_back(&mut self) -> char?:
+        if self.at >= self.end:
+            return .None
+        self.end = scalar_start(self.text, self.end)
+        char_from_scalar(u32(scalar_at(self.text, self.end)))
+
+impl Chars:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, char]:
+        DoubleEndedIterator::[char]::rev(self)
+
+impl DoubleEndedIterator[(usize, char)] for CharIndices:
+    fn next_back(&mut self) -> (usize, char)?:
+        if self.at >= self.end:
+            return .None
+        self.end = scalar_start(self.text, self.end)
+        match char_from_scalar(u32(scalar_at(self.text, self.end))):
+            .Some(scalar) => .Some((self.end, scalar))
+            .None => .None
+
+impl CharIndices:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, (usize, char)]:
+        DoubleEndedIterator::[(usize, char)]::rev(self)
+
+impl DoubleEndedIterator[u8] for Bytes:
+    fn next_back(&mut self) -> u8?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(bytes_at(self.text, self.end))
+
+impl ExactSizeIterator[u8] for Bytes:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl Bytes:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, u8]:
+        DoubleEndedIterator::[u8]::rev(self)

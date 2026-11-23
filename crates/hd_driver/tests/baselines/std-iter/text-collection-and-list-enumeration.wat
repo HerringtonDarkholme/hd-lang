@@ -12,25 +12,29 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $text (param $values i32) (result i32 i32)
+  (func $text (param $values i32) (result i32 i32) (local $t0 i32)
     ;; 6 |     values.iter().collect()
     local.get $values
+    i32.load $heap offset=4
+    local.set $t0
+    local.get $values
     i32.const 0
+    local.get $t0
     call $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]"
   )
-  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (result i32 i32) (local $t4 i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 64
+    i32.const 72
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 64
+    i32.const 72
     i32.sub
     local.tee $t0
     global.set $stack
@@ -47,15 +51,18 @@
       local.get $t1
       local.get $t3
       i32.store $heap offset=4
+      local.get $t1
+      local.get $t4
+      i32.store $heap offset=8
       i32.const 0
       i32.const 1
       call $room
       local.set $t2
       local.get $t0
       i64.const 0
-      i64.store $heap offset=16
+      i64.store $heap offset=24
       local.get $t0
-      i32.const 24
+      i32.const 32
       i32.add
       local.tee $t3
       local.get $t2
@@ -106,8 +113,8 @@
           end
           local.get $t3
           call $"impl StringBuilder.build"
-          local.set $t2
           local.set $t4
+          local.set $t2
           local.get $t1
           if
             local.get $t1
@@ -191,14 +198,14 @@
       end
       unreachable
     end
-    local.get $t4
     local.get $t2
+    local.get $t4
     local.get $t0
-    i32.const 64
+    i32.const 72
     i32.add
     global.set $stack
   )
-  (func $indexed (param $values i32) (result i32 i32) (local $cursor i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $pair.0 i32)
+  (func $indexed (param $values i32) (result i32 i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $t2 i32) (local $pair.0 i32)
     ;; 9 |     let mut cursor = values.enumerate()
     global.get $stack
     global.get $stack_limit
@@ -214,6 +221,9 @@
     i32.sub
     local.tee $t0
     global.set $stack
+    local.get $values
+    i32.load $heap offset=4
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -227,8 +237,11 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $cursor
-    i32.const 0
+    local.get $t1
     i32.store $heap offset=8
+    local.get $cursor
+    i32.const 0
+    i32.store $heap offset=12
     ;; 10 |     match cursor.next():
     local.get $cursor
     call $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]"
@@ -294,25 +307,29 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $text (param $values i32) (result i32 i32)
+  (func $text (param $values i32) (result i32 i32) (local $t0 i32)
     ;; 6 |     values.iter().collect()
     local.get $values
+    i32.load $heap offset=4
+    local.set $t0
+    local.get $values
     i32.const 0
+    local.get $t0
     call $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]"
   )
-  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (result i32 i32) (local $t4 i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 64
+    i32.const 72
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 64
+    i32.const 72
     i32.sub
     local.tee $t0
     global.set $stack
@@ -329,15 +346,18 @@
       local.get $t1
       local.get $t3
       i32.store $heap offset=4
+      local.get $t1
+      local.get $t4
+      i32.store $heap offset=8
       i32.const 0
       i32.const 1
       call $room
       local.set $t2
       local.get $t0
       i64.const 0
-      i64.store $heap offset=16
+      i64.store $heap offset=24
       local.get $t0
-      i32.const 24
+      i32.const 32
       i32.add
       local.tee $t3
       local.get $t2
@@ -388,8 +408,8 @@
           end
           local.get $t3
           call $"impl StringBuilder.build"
-          local.set $t2
           local.set $t4
+          local.set $t2
           local.get $t1
           if
             local.get $t1
@@ -489,14 +509,14 @@
       end
       unreachable
     end
-    local.get $t4
     local.get $t2
+    local.get $t4
     local.get $t0
-    i32.const 64
+    i32.const 72
     i32.add
     global.set $stack
   )
-  (func $indexed (param $values i32) (result i32 i32) (local $cursor i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $pair.0 i32)
+  (func $indexed (param $values i32) (result i32 i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $t2 i32) (local $pair.0 i32)
     ;; 9 |     let mut cursor = values.enumerate()
     global.get $stack
     global.get $stack_limit
@@ -512,6 +532,9 @@
     i32.sub
     local.tee $t0
     global.set $stack
+    local.get $values
+    i32.load $heap offset=4
+    local.set $t1
     local.get $t0
     i64.const 0
     i64.store $heap
@@ -525,8 +548,11 @@
     i32.const 0
     i32.store $heap offset=4
     local.get $cursor
-    i32.const 0
+    local.get $t1
     i32.store $heap offset=8
+    local.get $cursor
+    i32.const 0
+    i32.store $heap offset=12
     ;; 10 |     match cursor.next():
     local.get $cursor
     call $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]"

@@ -1,3 +1,4 @@
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # std.collections: inherent `List` methods, `UniqList`, `UniqMap`,
 # `ListView`, `Deque`, and `Heap` (spec/std/collections.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
@@ -501,6 +502,8 @@ impl TextRoom:
 
     # The float writer appends ASCII backward, then reverses that suffix.
     @inline(.Never)
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn reverse_bytes(&mut self, start: usize) -> void:
         _ := self.spare(0)
         address := string_bytes(self.room).address
@@ -654,6 +657,8 @@ impl[T < ?Copy] UniqList[T]:
 
     ## Reverses the order of the elements in place.
     ## See [std-collections.uniq-list.reverse](../../spec/std/collections.md#r-std-collections.uniq-list.reverse).
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn reverse(&mut self) -> void:
         let left: usize = 0
         let right = self.len
@@ -701,7 +706,7 @@ impl[T < ?Copy] UniqList[T]:
             panic_with("index-out-of-bounds", "uniq list drain range out of bounds")
         tail := self.len - end
         self.len = range.start
-        UniqListDrain { items: .Some(self), at: range.start, end: end, tail: tail }
+        UniqListDrain { items: .Some(self), at: range.start, end: end, tail: tail, tail_start: end }
 
     ## Returns a shared reference to the element at `index`, or `.None` outside the list.
     ## See [std-collections.uniq-list.get-ref](../../spec/std/collections.md#r-std-collections.uniq-list.get-ref).
@@ -740,7 +745,7 @@ impl[T < ?Copy] UniqList[T]:
     ## Returns a cursor that borrows and yields the list's elements in order.
     ## See [std-collections.uniq-list.iter](../../spec/std/collections.md#r-std-collections.uniq-list.iter).
     pub fn iter['a](&'a self) -> UniqListIter[T, 'a]:
-        UniqListIter { items: self, at: 0 }
+        UniqListIter { items: self, at: 0, end: self.len }
 
     ## Returns a reference to the first element for which `test` is true, or `.None`.
     ## See [std-collections.uniq-list.find-ref](../../spec/std/collections.md#r-std-collections.uniq-list.find-ref).
@@ -1519,9 +1524,12 @@ impl[T < ?Copy & Ord] UniqList[T]:
 pub struct UniqListIter[T < ?Copy, 'a]:
     items: &'a UniqList[T]
     at: usize
+    end: usize
 
 impl[T < ?Copy, 'a] Iterator[&'a T] for UniqListIter[T, 'a]:
     fn next(&mut self) -> (&'a T)?:
+        if self.at >= self.end:
+            return .None
         item := self.items.get_ref(self.at)
         if item.is_some():
             self.at += 1
@@ -1534,6 +1542,7 @@ pub struct UniqListDrain[T < ?Copy, 'a]:
     at: usize
     end: usize
     tail: usize
+    tail_start: usize
 
 impl[T < ?Copy, 'a] !Copy for UniqListDrain[T, 'a]
 
@@ -1558,7 +1567,7 @@ impl[T < ?Copy, 'a] Drop for UniqListDrain[T, 'a]:
                 if self.tail > 0:
                     copy_bytes(
                         items.buffer.at(items.len).address,
-                        items.buffer.at(self.end).address,
+                        items.buffer.at(self.tail_start).address,
                         self.tail * size_of::[T](),
                     )
                 items.len += self.tail
@@ -1681,7 +1690,13 @@ impl[T] List[T]:
             panic_with("index-out-of-bounds", "list drain range out of bounds")
         snapshot := *self
         self.truncate(range.start)
-        ListDrain { items: .Some(self), snapshot: snapshot, at: range.start, end: end }
+        ListDrain {
+            items: .Some(self),
+            snapshot: snapshot,
+            at: range.start,
+            end: end,
+            tail_start: end,
+        }
 
     ## Changes the length to `len`, copying `value` into new elements.
     ## See [std-collections.list.resize](../../spec/std/collections.md#r-std-collections.list.resize).
@@ -1703,6 +1718,8 @@ impl[T] List[T]:
 
     ## Reverses the elements in place.
     ## See [std-collections.list.reverse](../../spec/std/collections.md#r-std-collections.list.reverse).
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn reverse(&mut self) -> void:
         let left: usize = 0
         let right = self.len()
@@ -1862,6 +1879,8 @@ impl[T] List[T]:
 
     ## Returns a new list of the elements in reverse order.
     ## See [std-collections.access.reversed](../../spec/std/collections.md#r-std-collections.access.reversed).
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn reversed(self) -> List[T]:
         let mut backwards: List[T] = []
         list_reserve(&mut backwards, self.len())
@@ -2310,6 +2329,7 @@ pub struct ListDrain[T, 'a]:
     snapshot: List[T]
     at: usize
     end: usize
+    tail_start: usize
 
 impl[T, 'a] !Copy for ListDrain[T, 'a]
 
@@ -2325,7 +2345,7 @@ impl[T, 'a] Drop for ListDrain[T, 'a]:
     fn drop(&mut self) -> void:
         match self.items:
             .Some(items) =>
-                let index = self.end
+                let index = self.tail_start
                 items.reserve(self.snapshot.len() - index)
                 while index < self.snapshot.len():
                     items.push(self.snapshot[index])
@@ -2388,17 +2408,18 @@ impl[T] Index[usize] for ListView[T]:
 impl[T] Iterable[T] for ListView[T]:
     type IntoIter = ListViewIter[T]
     fn iter(self) -> ListViewIter[T]:
-        ListViewIter { view: self, at: self.start }
+        ListViewIter { view: self, at: self.start, end: self.end }
 
 ## The cursor of a view's `iter`: the view's elements in order, each read from the snapshot.
 ## See [std-collections.view.iter](../../spec/std/collections.md#r-std-collections.view.iter).
 pub struct ListViewIter[T]:
     view: ListView[T]
     at: usize
+    end: usize
 
 impl[T] Iterator[T] for ListViewIter[T]:
     fn next(&mut self) -> T?:
-        if self.at >= self.view.end:
+        if self.at >= self.end:
             return .None
         self.at = self.at + 1
         .Some(self.view.items[self.at - 1])
@@ -2426,7 +2447,7 @@ impl[T, 'a] Span[T, 'a]:
     ## Returns a cursor that yields the span's elements by reference, in order.
     ## See [std-collections.span.iter](../../spec/std/collections.md#r-std-collections.span.iter).
     pub fn iter(self) -> SpanIter[T, 'a]:
-        SpanIter { span: self, at: 0 }
+        SpanIter { span: self, at: 0, end: self.len() }
 
     ## Returns the part of this span selected by `range`, without copying elements.
     ## See [std-collections.span.slice](../../spec/std/collections.md#r-std-collections.span.slice).
@@ -2613,10 +2634,11 @@ impl[T, 'a] IndexSet[usize, T] for SpanMut[T, 'a]:
 pub struct SpanIter[T, 'a]:
     span: Span[T, 'a]
     at: usize
+    end: usize
 
 impl[T, 'a] Iterator[&'a T] for SpanIter[T, 'a]:
     fn next(&mut self) -> (&'a T)?:
-        if self.at >= self.span.len():
+        if self.at >= self.end:
             return .None
         let at = self.at
         self.at = self.at + 1
@@ -2733,17 +2755,18 @@ impl[T] Deque[T]:
 impl[T] Iterable[T] for Deque[T]:
     type IntoIter = DequeIter[T]
     fn iter(self) -> DequeIter[T]:
-        DequeIter { deque: self, at: 0 }
+        DequeIter { deque: self, at: 0, end: self.count }
 
 ## The cursor of a deque's `iter`: its elements front to back.
 ## See [std-collections.deque.iter](../../spec/std/collections.md#r-std-collections.deque.iter).
 pub struct DequeIter[T]:
     deque: Deque[T]
     at: usize
+    end: usize
 
 impl[T] Iterator[T] for DequeIter[T]:
     fn next(&mut self) -> T?:
-        if self.at >= self.deque.count:
+        if self.at >= self.end:
             return .None
         self.at = self.at + 1
         self.deque.get(self.at - 1)
@@ -3079,3 +3102,125 @@ impl[K < Eq & Hash, V] Map[K, V]:
     pub fn clear(&mut self) -> void:
         if self.len() != 0:
             *self = {}
+
+impl[T < ?Copy, 'a] DoubleEndedIterator[(&'a T)] for UniqListIter[T, 'a]:
+    fn next_back(&mut self) -> (&'a T)?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        self.items.get_ref(self.end)
+
+impl[T < ?Copy, 'a] ExactSizeIterator[(&'a T)] for UniqListIter[T, 'a]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T < ?Copy, 'a] UniqListIter[T, 'a]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, (&'a T)]:
+        DoubleEndedIterator::[_]::rev(self)
+
+impl[T < ?Copy, 'a] DoubleEndedIterator[T] for UniqListDrain[T, 'a]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        match self.items:
+            .Some(items) =>
+                self.end -= 1
+                .Some(items.buffer.at(self.end).read())
+            .None => .None
+
+impl[T < ?Copy, 'a] ExactSizeIterator[T] for UniqListDrain[T, 'a]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T < ?Copy, 'a] UniqListDrain[T, 'a]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+
+impl[T < ?Copy] DoubleEndedIterator[T] for UniqListIntoIter[T]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(self.buffer.at(self.end).read())
+
+impl[T < ?Copy] ExactSizeIterator[T] for UniqListIntoIter[T]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T < ?Copy] UniqListIntoIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+
+impl[T, 'a] DoubleEndedIterator[T] for ListDrain[T, 'a]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(self.snapshot[self.end])
+
+impl[T, 'a] ExactSizeIterator[T] for ListDrain[T, 'a]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T, 'a] ListDrain[T, 'a]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+
+impl[T] DoubleEndedIterator[T] for ListViewIter[T]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(self.view.items[self.end])
+
+impl[T] ExactSizeIterator[T] for ListViewIter[T]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T] ListViewIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)
+
+impl[T, 'a] DoubleEndedIterator[(&'a T)] for SpanIter[T, 'a]:
+    fn next_back(&mut self) -> (&'a T)?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        self.span.get(self.end)
+
+impl[T, 'a] ExactSizeIterator[(&'a T)] for SpanIter[T, 'a]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T, 'a] SpanIter[T, 'a]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, (&'a T)]:
+        DoubleEndedIterator::[_]::rev(self)
+
+impl[T] DoubleEndedIterator[T] for DequeIter[T]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        self.deque.get(self.end)
+
+impl[T] ExactSizeIterator[T] for DequeIter[T]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T] DequeIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)

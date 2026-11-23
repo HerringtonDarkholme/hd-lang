@@ -10,23 +10,26 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $twice (param $xs i32) (result i32) (local $n i32) (local $t1 i32) (local $t0 i32) (local $t2 i32) (local $x.1 i32)
+  (func $twice (param $xs i32) (result i32) (local $n i32) (local $x.1 i32) (local $t1 i32) (local $t0 i32) (local $t2 i32)
     ;; 26 |     let n: usize = 0
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 32
+    i32.const 48
     i32.lt_u
     if
       call $rt:panic'1
       unreachable
     end
     global.get $stack
-    i32.const 32
+    i32.const 48
     i32.sub
     local.tee $t0
     global.set $stack
     ;; 27 |     for x in xs.iter():
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $x.1
     local.get $xs
     call $rt:retain_coll
     ;; 26 |     let n: usize = 0
@@ -43,6 +46,9 @@
     local.get $t1
     i32.const 0
     i32.store $heap offset=4
+    local.get $t1
+    local.get $x.1
+    i32.store $heap offset=8
     block
       loop
         local.get $t1
@@ -81,24 +87,27 @@
     if
       local.get $t1
       i32.load $heap
-      local.tee $t1
+      local.tee $x.1
       if
-        local.get $t1
+        local.get $x.1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $t1
+          local.get $x.1
           call $rt:release_ref'2
         end
       end
     end
+    local.get $xs
+    i32.load $heap offset=4
+    local.set $x.1
     ;; 26 |     let n: usize = 0
     local.get $t0
     i64.const 0
-    i64.store $heap offset=16
+    i64.store $heap offset=24
     local.get $t0
-    i32.const 24
+    i32.const 32
     i32.add
     local.tee $t1
     ;; 29 |     for x in xs.iter():
@@ -107,6 +116,9 @@
     local.get $t1
     i32.const 0
     i32.store $heap offset=4
+    local.get $t1
+    local.get $x.1
+    i32.store $heap offset=8
     block
       loop
         local.get $t1
@@ -160,7 +172,7 @@
     local.get $n
     ;; 26 |     let n: usize = 0
     local.get $t0
-    i32.const 32
+    i32.const 48
     i32.add
     global.set $stack
   )

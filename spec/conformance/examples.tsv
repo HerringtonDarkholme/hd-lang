@@ -1344,3 +1344,4 @@ std/validate.md	1	fragment	std/validate/rule-facts/validation-rules.hd
 cli/command-line.md	1	complete	-
 cli/command-line.md	2	fragment	-
 cli/command-line.md	3	fragment	-
+std/iter.md	15	complete	std/iter/double-ended-cursors/roots.hd

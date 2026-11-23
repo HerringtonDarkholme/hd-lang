@@ -1,3 +1,4 @@
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 use std.annotation.inline
@@ -130,3 +131,17 @@ impl[T < ?Copy] T?:
             .Some(value) =>
                 if predicate(&value): .Some(value) else: .None
             .None => .None
+
+impl[T] DoubleEndedIterator[T] for OptionIter[T]:
+    fn next_back(&mut self) -> T?:
+        self.next()
+
+impl[T] ExactSizeIterator[T] for OptionIter[T]:
+    fn len(&self) -> usize:
+        if self.value.is_some(): 1 else: 0
+
+impl[T] OptionIter[T]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)

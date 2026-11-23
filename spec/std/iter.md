@@ -414,3 +414,55 @@ fn indexed(items: List[i32]) -> List[(usize, i32)]:
 > **Why.** String collection follows Rust's `FromIterator<char>` and writes through the existing UTF-8 builder without per-character strings.
 > The protocol has no size hint; its output buffer therefore grows amortized.
 > `List.enumerate` is the owner's requested convenience spelling for the existing iterator adapter, with identical laziness and snapshot costs.
+
+## Double Ended Cursors
+
+A **double ended cursor** yields from either end of one remaining sequence.
+
+```text
+fn reversed(text: string) -> string:
+    text.chars().rev().collect()
+```
+
+1. r[std-iter.double-ended.trait] `std.iter.DoubleEndedIterator[T < ?Copy] < ?Copy & Iterator[T]` declares `fn next_back(&mut self) -> T?`.
+2. r[std-iter.double-ended.shared] `next` and `next_back` remove opposite ends of the same remaining sequence, without crossing or yielding an item twice.
+3. r[std-iter.double-ended.empty] `next_back` returns `.None` when no remaining item exists.
+4. r[std-iter.double-ended.rev] `DoubleEndedIterator.rev(self) -> Rev[Self, T]` stores its source without advancing, allocating, or buffering items.
+5. r[std-iter.double-ended.rev-next] `Rev[I, T].next` delegates to `I.next_back`, and `Rev[I, T].next_back` delegates to `I.next`.
+6. r[std-iter.double-ended.concrete-rev] Each standard double ended cursor has an inherent `rev` with the same behavior, requiring no trait import.
+7. r[std-iter.double-ended.exact] `std.iter.ExactSizeIterator[T < ?Copy] < ?Copy & Iterator[T]` declares `fn len(&self) -> usize`, returning the exact remaining count in constant time.
+8. r[std-iter.double-ended.roots] The following standard cursors implement `DoubleEndedIterator`, and implement `ExactSizeIterator` where the table states.
+
+| Cursor | Exact remaining count |
+| --- | --- |
+| `ListIter`, `OptionIter`, `Bytes` | yes |
+| `UniqListIter`, `UniqListIntoIter`, `UniqListDrain`, `ListDrain` | yes |
+| `ListViewIter`, `SpanIter`, `DequeIter` | yes |
+| `Chars`, `CharIndices` | no |
+| `RangeIter[T]` for every integer type | only `i8`, `u8`, `i16`, `u16` |
+
+9. r[std-iter.double-ended.range] Range reversal preserves inclusive bounds, handles empty and full-domain ranges, and never steps past a type's minimum or maximum.
+10. r[std-iter.double-ended.text] Text reversal yields Unicode scalars rather than bytes, and `CharIndices` retains offsets in the original string.
+11. r[std-iter.double-ended.drains] A partially consumed drain removes its entire selected range, drops unread owned items, and restores the original unselected tail.
+12. r[std-iter.double-ended.forwarding] `&mut I`, `*mut I`, and `ByRef[I]` forward both traits when `I` implements them, sharing its progress.
+13. r[std-iter.double-ended.erased] `DynDoubleEndedIterator[T]` forwards a mutable erased double ended cursor, whose inherent `by_ref` and `rev` preserve shared progress.
+14. r[std-iter.double-ended.adapters] Adapter implementations follow the table, preserving callback order in the requested direction and never buffering the sequence.
+
+| Adapter | Double ended when | Exact when |
+| --- | --- | --- |
+| `Rev`, `MapIter` | source is double ended | source is exact |
+| `Filter`, `FilterMap` | source is double ended | never |
+| `Enumerate`, `Skip`, `Take` | source is double ended and exact | source is exact |
+| `Zip` | both cursors are double ended and exact | both cursors are exact |
+| `Chain` | both cursors are double ended | never |
+| `FlatMap` | outer and produced cursors are double ended | never |
+
+15. r[std-iter.double-ended.enumerate] Reverse enumeration yields each item's original forward index, including after mixed front and back advancement.
+16. r[std-iter.double-ended.selection] Reversing `Skip`, `Take`, or `Zip` reverses the selected forward sequence, discarding unselected prefixes or tails only when advancement requires it.
+17. r[std-iter.double-ended.flat-map] `FlatMap` retains partially consumed front and back inner cursors, joining them when the outer cursor ends.
+18. r[std-iter.double-ended.cost] Reversal construction uses constant space and time; traversal work is proportional to advanced or discarded source items, with at most four bytes per scalar.
+
+> **Why.** Rust's `DoubleEndedIterator` shares front and back progress without
+> buffering. Exact counts let `take`, `skip`, and `zip` select the same
+> sequence from either end. A wide inclusive range can exceed `usize`, so
+> it cannot promise an exact representable count.
