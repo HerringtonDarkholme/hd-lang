@@ -1,6 +1,6 @@
 # test: a Duration displays as Go's time.Duration does, in h, min, s, and ms, with zero 0s
 # Spec std/time Duration Display: std-time.duration.text, std-time.duration.text.components, std-time.duration.text.first, std-time.duration.text.lower, std-time.duration.text.fraction, std-time.duration.text.sub-second, std-time.duration.text.zero (DURATION-DISPLAY; task #223).
-use std.time.{Duration, h, min, ms, s}
+use std.time.{Duration, h, minutes, ms, s}
 
 tests:
     use std.testing.assert_equal

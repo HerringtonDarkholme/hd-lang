@@ -55,7 +55,7 @@ logic.
 | Rule | Builder and fact | Rejection |
 | --- | --- | --- |
 | r[std-validate.rule.range] `range` | `range[F < PartialOrd](low: F, high: F, message: string? = .None) -> Range[F]` | outside the inclusive bounds; code `range` |
-| r[std-validate.rule.min] `min` | `min[F < PartialOrd](bound: F, message: string? = .None) -> Min[F]` | below the inclusive bound; code `min` |
+| r[std-validate.rule.at-least] `at_least` | `at_least[F < PartialOrd](bound: F, message: string? = .None) -> Min[F]` | below the inclusive bound; code `min` |
 | r[std-validate.rule.max] `max` | `max[F < PartialOrd](bound: F, message: string? = .None) -> Max[F]` | above the inclusive bound; code `max` |
 | r[std-validate.rule.length] `length` | `length[F < HasLength](minimum: usize, maximum: usize, message: string? = .None) -> Length[F]` | outside the inclusive length range; code `length` |
 | r[std-validate.rule.min-length] `min_length` | `min_length[F < HasLength](minimum: usize, message: string? = .None) -> MinLength[F]` | shorter than the minimum; code `min-length` |

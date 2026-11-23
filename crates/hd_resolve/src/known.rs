@@ -548,7 +548,7 @@ impl KnownItems {
             duration_suffix: [
                 item("std.time", "ms"),
                 item("std.time", "s"),
-                item("std.time", "min"),
+                item("std.time", "minutes"),
                 item("std.time", "h"),
             ],
             iterator: item("std.iter", "Iterator"),
