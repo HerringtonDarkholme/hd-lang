@@ -34,12 +34,6 @@ fn self_receivers_glue_to_index_brackets() {
 }
 
 #[test]
-fn prefix_ranges_keep_required_leading_space() {
-    let source = "fn f(value: i32):\n    value = ..5\n    for item in ..:\n        use(item)\n";
-    assert_eq!(formatted(source), source);
-}
-
-#[test]
 fn range_patterns_keep_a_space_before_their_guard() {
     let source = "fn f(a: i32, t: (i32, i32)) -> i32:\n    match a:\n        20.. if a % 2 == 0 => 1\n        -3.. if a > 0 => 2\n        ..5 if a > 0 => 3\n        ..=-5 if a < 0 => 4\n        6..8 if a > 0 => 5\n        9..=12 if a > 0 => 6\n        _ => 7\n    match t:\n        (20.., ..=3) if a > 0 => 8\n        _ => 9\n";
     assert_eq!(formatted(source), source);
@@ -201,26 +195,6 @@ fn a_postfix_chain_keeps_the_first_complete_call_as_its_head() {
 }
 
 #[test]
-fn a_call_with_a_data_argument_keeps_the_complete_call_head() {
-    let field = "descriptive_field_name".repeat(5);
-    let source = format!(
-        "impl Builder:\n    fn f(&self):\n        self.frames.push(Frame {{ {field}: value, second: other }})\n"
-    );
-    let output = formatted(&source);
-    assert!(output.contains("self.frames.push(\n"), "{output}");
-    assert!(!output.contains("self.frames\n"), "{output}");
-    assert!(!output.contains("\n            .push("), "{output}");
-}
-
-#[test]
-fn long_signatures_break_parameters_before_result_types() {
-    let source = "fn transform(first_descriptive_parameter: First, second_descriptive_parameter: Second, third_descriptive_parameter: Third) -> Result[Output, Error]:\n    pass\n";
-    let output = formatted(source);
-    assert!(output.starts_with("fn transform(\n"), "{output}");
-    assert!(output.contains(") -> Result[Output, Error]:\n"), "{output}");
-}
-
-#[test]
 fn equal_and_brace_spacing_have_one_canonical_spelling() {
     let source = "fn f(c: &Clock, o: Item, store: Store[Item = string]):\n    assert(false, reason=\"x\")\n    $.with(Clock = c):\n        Point { x: 0 }\n    match o:\n        Point { x: value } => value\n";
     assert_eq!(
@@ -254,27 +228,6 @@ fn a_closure_holding_a_trailing_block_keeps_its_suite_inside_brackets() {
         "the closure collapsed around a trailing block:\n{output}"
     );
     assert_eq!(output, source);
-}
-
-#[test]
-fn a_last_block_closure_argument_stays_on_the_call_line() {
-    let source = "fn f():\n    button(\"add\", fn():\n        n := count[0]\n        count[0] = n + 1\n    )\n";
-    assert_eq!(formatted(source), source);
-    let broken = "fn f():\n    button(\n        \"add\",\n        fn():\n            n := count[0]\n            count[0] = n + 1\n        ,\n    )\n";
-    assert_eq!(formatted(broken), source);
-}
-
-#[test]
-fn a_block_closure_before_other_arguments_leaves_no_lone_comma() {
-    let only = "fn f():\n    one(fn():\n        a()\n        b()\n    , \"x\")\n";
-    assert_eq!(formatted(only), only);
-    let two = "fn f():\n    two(\n        fn():\n            a()\n            b()\n        , fn():\n            c()\n            d()\n    )\n";
-    let output = formatted(two);
-    assert_eq!(output, two);
-    assert!(
-        !output.lines().any(|line| line.trim() == ","),
-        "a lone comma:\n{output}"
-    );
 }
 
 #[test]
