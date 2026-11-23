@@ -15,10 +15,11 @@ once, none outlives the arena, and `reset` is rejected while any is live.
 `&mut` loan of the arena, so the second `alloc` is `conflicting-access`.
 It needs one missing primitive and two missing intrinsics:
 
-- **`@disjoint`**, a std-only decorator: each call's `&mut` result holds
-  the receiver's `&` as a shared loan, as Rust's borrow checker treats
-  `&'a self -> &'a mut T`. It is hd's name for the `unsafe` promise that
-  bumpalo and typed-arena make. About 25 checker lines.
+- **`@interior`**, a std-only marker on `Arena`'s declaration: a `&` of
+  such a value stays a shared loan when a `&mut` result holds it, as
+  Rust's borrow checker treats `&'a Bump -> &'a mut T`. It is hd's name
+  for the `UnsafeCell` that bumpalo and typed-arena build on. About 35
+  checker lines.
 - **`needs_drop[T]()`** and **`align_of[T]()`** in `std.rt.memory`, as
   Rust's `core::mem` has them. About 30 backend lines.
 
@@ -43,7 +44,7 @@ fn settle(bank: &Arena) -> i64:
 
 ## Open Questions
 
-1. Add `@disjoint` (std-only, in `std.rt.memory`) to close the gap?
+1. Add `@interior` (std-only, in `std.rt.memory`) to close the gap?
    **Recommended: yes**; the other primitives are compared below.
 2. Add `needs_drop[T]()` and `align_of[T]()` to `std.rt.memory`?
    **Recommended: yes**; without `needs_drop` a glue-free value pays a drop
@@ -84,19 +85,23 @@ values a count, the cost an arena exists to remove.
 
 | Primitive | Sound because | Checker price | Stress cases | Counts back |
 | --- | --- | --- | --- | --- |
-| **`@disjoint` on `alloc`** (recommended) | std's `alloc` hands out fresh bytes (`module.rt.ptr.as-ref`); std-only by `module.rt.std-only`; the result still holds `&arena`, so `reset`, a move and a drop wait | about 25 lines: read the flag in `mut_result`, carry it in `CallAttrs`; one spec sentence | 5 of 5 check; the graph keeps a `*mut` edge list and shared bindings, as Rust needs `Cell` | graph edge lists only |
-| `UnsafeCell`-like type marker (`impl Interior for Arena`) | as above, but for every `&self -> &mut` method of the type | about 25 lines | same as `@disjoint` | same |
-| Inert receiver (no name: a type of only scalars keeps the `&` shared) | an inert value reaches no `&mut`; std-only `Ptr` is the only other source | 29 lines, prototyped; passed `lang/references` and `lang/functions` (3,024 cases, three modes) | same as `@disjoint` | same |
+| **`@interior` on `Arena`, an `UnsafeCell`-like type marker** (recommended) | every `&self -> &mut` method of a marked std type hands out fresh bytes (`module.rt.ptr.as-ref`); std-only by `module.rt.std-only`; the result still holds `&arena`, so `reset`, a move and a drop wait | about 35 lines (estimate): a `TypeAttrs` flag and its wire bit, the inert prototype's test in `mut_result` | as the inert prototype: 5 of 5 check; the graph keeps a `*mut` edge list and shared bindings, as Rust needs `Cell` | graph edge lists only |
+| Inert receiver (no name: a type of only scalars keeps the `&` shared) | an inert value reaches no `&mut`; std-only `Ptr` is the only other source | 29 lines, prototyped; passed `lang/references` and `lang/functions` (3,024 cases, three modes) | 5 of 5, as above; the package checks | same |
+| `@disjoint` on the `alloc` method | as the marker, for one method's results | 32 lines, prototyped (`CallAttrs` flag, wire bit, decorator, `mut_result`); passed the same 3,024 cases | 4 of 5: the parser's `parse(arena, ..) -> &'a mut Expr` is no `@disjoint` call, so its result locks the arena again; the package's `open(bank, ..)` helper does too | same, where it checks |
 | Region or provider-scope lifetime | results tied to a scope, not to a borrow | a new lifetime kind through `dep_results`; hundreds of lines (left to the effect brainstorm) | parse only | none |
 | Counted handles (`alloc` returns `*mut T`) | today's rules | 0 | 5 of 5 after every type becomes `*mut` | all: `binary_trees` stays at today's 297 ms |
 | (first draft) `&T` results | today's rules | 0 | 2 of 5; tree, graph and parser need `*mut` fields | every field that changes |
 
-`@disjoint` wins over the type marker because the promise is about one
-method's results, not the type: a later `&self -> &mut` method on `Arena`
-would need its own. It wins over the inert rule because it is explicit
-and cannot widen by accident: a future scalar-only `Cell` type would turn
-the inert rule unsound. The prototype of the inert rule stands in for both
-named forms in the probes, since all three give the caller the same loan.
+The method attribute fails where the owner's API is most useful: a
+helper that returns what it allocated (`fn open(bank: &Arena, ..) -> &mut
+Account`) is an ordinary function, so its result locks `bank` again.
+Rust has the same signature, and its borrow checker holds `&'a Arena`
+shared for any function, which a type-level rule reproduces. The marker
+wins over the inert rule because it is explicit and cannot widen by
+accident: a future scalar-only `Cell` type would turn the inert rule
+unsound. For `Arena`, whose one field is `state: usize`, the marker and
+the inert rule give every caller the same loan, so the inert prototype's
+results stand for the marker's; the marker itself is not prototyped.
 
 ## Problems It Solves
 
@@ -160,13 +165,13 @@ with the list, and reports 600 leaked blocks without it.
 | capture a value in a closure that outlives the call | `ref.local.escape.capture-stored` | `local-reference-escapes` |
 | `alloc` from another thread | `&Arena` is not `Send` | `unsatisfied-trait-bound` |
 | write a value from a scoped thread | `&mut T` is not `Send` | `unsatisfied-trait-bound` |
-| two `&mut` from a `&self` method without `@disjoint` | `ref.excl.call`, unchanged | `conflicting-access` |
+| two `&mut` from a `&self` method of an unmarked type | `ref.excl.call`, unchanged | `conflicting-access` |
 
 ## Cost
 
 | Component | Price |
 | --- | --- |
-| Checker | about 25 lines: `@disjoint` in `CallAttrs`, read by `mut_result`; nothing deleted |
+| Checker | about 35 lines: `@interior` in `TypeAttrs` and its wire bit, read by `mut_result`; nothing deleted |
 | Backend | about 30 lines: `ptr_needs_drop` and `ptr_align_of` beside `ptr_size_of` in `hd_wasm`'s `ptr` |
 | `lib/std/arena.hd` | about 140 lines; the probe is 120 |
 | Spec | one sentence in `ref.excl.call`, three `module.rt` rules, `spec/std/arena.md` (about 70 lines) |
@@ -215,7 +220,8 @@ Its `alloc(&self, value: T) -> &mut T` takes `self.chunks.borrow_mut()`
 (a `RefCell<ChunkList<T>>`), pushes only below capacity so no value
 moves, and returns `unsafe { &mut *chunks.current.as_mut_ptr().add(len) }`
 ([source](https://github.com/thomcc/rust-typed-arena/blob/master/src/lib.rs)).
-hd takes its drop of values; `@disjoint` is hd's name for that `unsafe`.
+hd takes its drop of values; `@interior` is hd's name for that `RefCell`
+and `unsafe`.
 
 ```rust
 struct Node<'a> { left: Option<&'a Node<'a>>, right: Option<&'a Node<'a>> }
@@ -326,8 +332,6 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 }
 ```
 
-## Appendix C. Alternatives Considered
-
 ## Appendix D. Alternatives Considered
 
 - **Delete the last sentence of `ref.excl.call`.** Unsound, by the
@@ -360,13 +364,11 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 - **Counts are never atomic** (`module.marker.send.counts`). The arena
   counts nothing, is `Send` only by a move, and is never `Sync`.
 
-## Appendix E. Details
-
 ## Appendix F. Details
 
 - **Typing.** No new type rule; `alloc[T]` is an ordinary generic method.
-- **Ownership.** `@disjoint` changes only `mut_result`: the receiver's
-  loan stays shared; everything else of `ref.excl` holds.
+- **Ownership.** `@interior` changes only `mut_result`: a `&` of a
+  marked value stays shared; everything else of `ref.excl` holds.
 - **Soundness.** Each `alloc` writes bytes no earlier result covers; std
   keeps that (`module.rt.ptr.as-ref`). Results hold `&arena`, so `reset`
   (`&mut self`), a move and a drop wait for them.
@@ -375,8 +377,9 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 
 **Phases**, each about one hour with its test:
 
-1. `@disjoint` in spec 13 and `hd_check`, with a valid stage case (two
-   live results) and an invalid one (the `&mut *self.r` getter).
+1. `@interior` in spec 13 and `hd_check`, with a valid stage case (two
+   live results, and a helper returning one) and an invalid one (the
+   `&mut *self.r` getter of an unmarked type).
 2. `needs_drop` and `align_of` intrinsics with conformance cases.
 3. `lib/std/arena.hd`, `spec/std/arena.md`, runtime fixtures in checked
    builds: mixed types, glue values, zero-sized, nested arenas.

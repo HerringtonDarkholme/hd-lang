@@ -39,9 +39,11 @@ impl Arena:
 
 Variants, by `alloc`'s result and the checker:
 
-- **M+**: `&mut T` with the proposed shared hold (`@disjoint`, or the
-  type marker, or the inert rule: all give the caller the same loan; the
-  inert-rule prototype ran the checks).
+- **M+**: `&mut T` with the proposed shared hold of a `&Arena` (the
+  `@interior` type marker, or the inert rule, which give every caller the
+  same loan; the inert-rule prototype ran the checks). A `@disjoint`
+  method attribute, also prototyped, checks cases 1, 2, 4 and 5 alike and
+  fails case 3: `parse`'s own `&mut` result locks the arena again.
 - **M0**: `&mut T` on today's checker (main at 363420be2).
 - **R**: `&T` (the first draft).
 - **H**: `*mut T`, a counted handle; `alloc` is `box(val)`.
@@ -315,8 +317,9 @@ fn check(node: *mut Node) -> i64:
 **Effect.** Cases 1 to 3 fail on today's checker at the second `alloc`
 (`ref.excl.call`'s last sentence).
 
-**Candidates.** Should std mark `alloc` `@disjoint`? Or should the type be
-marked instead, as `UnsafeCell` marks a field? Or should every inert
+**Candidates.** Should std mark the `Arena` type `@interior`, as
+`UnsafeCell` marks a field? Or mark only `alloc` `@disjoint`, which case 3
+shows is not enough? Or should every inert
 receiver keep its loan shared, with no name?
 
 ### AR2. `&T` results move counts into every written field
