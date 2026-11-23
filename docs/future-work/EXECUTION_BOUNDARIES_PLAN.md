@@ -677,6 +677,13 @@ and option A in
 [`fn.crossing.mode.unique`](../../spec/lang/07-functions.md#r-fn.crossing.mode.unique).
 The threads slices remaining are priced at +1,650.
 
+Built (2026-11-22): S1's walk. `Sync` is a kind of the stage 1 parts walk
+(`hd_types` `sealed.rs`); a `Send` walk that meets `&T` walks `T` for
+`Sync` too, and leaves `Sync` subgoals for its parameters, so `&T` with
+`T < Send` alone is not `Send`. A top-level binding a `Send` crossing
+reaches must be `Sync` too (owner, 2026-11-22; `fn.crossing.global.send`).
+The threads slices left are +1,500.
+
 **Per-run cost.** No compiler pass scales with the program for counts.
 The crossing walk of option A is linear in the shared part of each
 captured value. A count change stays one plain add, on every thread.

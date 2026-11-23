@@ -3392,8 +3392,9 @@ impl<'s, 'a> Search<'s, 'a> {
     }
 
     /// A compiler-supplied row's answer (§3.9): its subgoals, each on the
-    /// same trait one level deeper, in order; the first that does not hold
-    /// decides, as a committed impl's bound plan does (§3.6).
+    /// same trait one level deeper, then a `Send` row's on `Sync`, in
+    /// order; the first that does not hold decides, as a committed impl's
+    /// bound plan does (§3.6).
     fn supplied(
         &mut self,
         key: &MemoKey,
@@ -3414,13 +3415,21 @@ impl<'s, 'a> Search<'s, 'a> {
                 }));
                 return Ok(self.leaf(key, root, fails));
             }
-            Row::Holds(b, subs) => (b, subs),
+            Row::Holds(b, subs) => (b, subs.into_iter().map(|t| (trait_, t)).collect::<Vec<_>>()),
+            Row::HoldsWithSync(b, subs, syncs) => {
+                let sync = self.cx.decls.sealed().sync;
+                let subs = subs.into_iter().map(|t| (trait_, t));
+                (
+                    b,
+                    subs.chain(syncs.into_iter().map(|t| (sync, t))).collect(),
+                )
+            }
         };
         if !self.charge(key, 0, root) {
             return Ok((Outcome::leaf(Answer::OutOfFuel), 0));
         }
         let mut height = 1;
-        for self_ty in subs {
+        for (trait_, self_ty) in subs {
             let sub = TraitRef {
                 trait_,
                 self_ty,

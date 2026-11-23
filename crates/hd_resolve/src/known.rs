@@ -220,10 +220,11 @@ pub struct KnownItems {
     /// The `Copy` marker (`ref.copy.marker`), a sealed trait the compiler
     /// answers from a type's structure.
     pub copy: DefId,
-    /// `Marker`, `Send`, `Wire` (`module.marker.std`) and `Remote`
-    /// (`module.remote.std`).
+    /// `Marker`, `Send`, `Sync`, `Wire` (`module.marker.std`,
+    /// `module.marker.sync`) and `Remote` (`module.remote.std`).
     pub marker: DefId,
     pub send: DefId,
+    pub sync: DefId,
     pub wire: DefId,
     pub remote: DefId,
     /// `std.remote.CrossError` (`module.cross.decl`).
@@ -304,7 +305,7 @@ pub struct KnownItems {
     pub property_runner: DefId,
     /// The sealed traits, in the order of the table in spec/lang/09-traits.md
     /// "Sealed Traits" (`trait.sealed.list`).
-    sealed: [DefId; 19],
+    sealed: [DefId; 20],
 }
 
 impl KnownItems {
@@ -361,6 +362,7 @@ impl KnownItems {
             suspend: self.suspend,
             marker: self.marker,
             send: self.send,
+            sync: self.sync,
             wire: self.wire,
             remote: self.remote,
         }
@@ -409,6 +411,7 @@ impl KnownItems {
         let copy = item(CORE_MODULE, "Copy");
         let marker = item(MARKER_MODULE, "Marker");
         let send = item(MARKER_MODULE, "Send");
+        let sync = item(MARKER_MODULE, "Sync");
         let wire = item(MARKER_MODULE, "Wire");
         let remote = item(REMOTE_MODULE, "Remote");
         let drop_trait = item(RUNTIME_MODULE, "Drop");
@@ -584,11 +587,13 @@ impl KnownItems {
                 copy,
                 marker,
                 send,
+                sync,
                 wire,
                 remote,
             ],
             marker,
             send,
+            sync,
             wire,
             remote,
             cross_error: item(REMOTE_MODULE, "CrossError"),

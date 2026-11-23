@@ -1,0 +1,15 @@
+# test: a shared reference to a type parameter is Send only when the parameter's bound makes it Send and Sync
+# Spec 10 Markers: module.marker.table.shared-sync, module.marker.parameter.
+use std.marker.{Send, Sync}
+
+fn share[T < ?Copy & Send](value: T) -> void:
+    pass
+
+fn both[T < ?Copy & Send & Sync](value: &T) -> void:
+    share(value)
+
+fn send_only[T < ?Copy & Send](value: &T) -> void:
+    share(value) # diagnostic: unsatisfied-trait-bound
+
+fn nested[T < ?Copy & Send & Sync](value: &(T, i32)) -> void:
+    share(value)
