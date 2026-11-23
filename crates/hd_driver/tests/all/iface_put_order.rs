@@ -37,10 +37,7 @@ impl CacheStore for Recording {
 #[test]
 fn a_folder_writes_its_interface_before_the_read_list_that_keys_it() {
     let mut src = MemorySources::default();
-    src.insert(
-        "main.hd",
-        "pub fn main() -> void $ Console:\n    println(\"hi\")\n",
-    );
+    src.insert("main.hd", include_str!("programs/iface_put_order/main.hd"));
     let store = Recording::default();
     let host = Host {
         render_tir: &[],
