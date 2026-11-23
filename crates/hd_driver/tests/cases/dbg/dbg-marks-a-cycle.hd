@@ -1,0 +1,10 @@
+# @dump: stdout
+struct Ring:
+    name: string
+    next: *mut Ring?
+
+pub fn main() -> void $ Console:
+    a := box(Ring { name: "a", next: .None })
+    b := box(Ring { name: "b", next: .Some(a) })
+    a.next = .Some(b)
+    dbg(a)

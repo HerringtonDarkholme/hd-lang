@@ -1,0 +1,2 @@
+@derive(Eq)
+pub enum Status:

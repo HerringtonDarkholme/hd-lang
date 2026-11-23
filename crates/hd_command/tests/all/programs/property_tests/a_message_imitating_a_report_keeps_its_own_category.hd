@@ -1,0 +1,18 @@
+use std.testing.Choices
+
+fn imitates(c: &mut Choices) -> i64:
+    panic("x\npanic: explicit-panic: std.testing: case discarded")
+    0
+
+tests:
+    use std.testing.it_prop_with
+
+    it("is no overflow", expect_panic="integer-overflow"):
+        panic("x\npanic: integer-overflow: y")
+
+    it("is an explicit panic", expect_panic="explicit-panic"):
+        panic("x\npanic: integer-overflow: y")
+
+    it_prop_with("does not discard", gen=imitates, cases=3, prop=fn!(n: i64):
+        pass
+    )

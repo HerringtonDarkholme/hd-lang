@@ -6,12 +6,22 @@ stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd run
 exit: 101
 stdout-json: []
+stderr: error: denied-capability: the program needs Console, which `Console = false` in hd.toml denies, so it does not start
 run: hd run --cap Console=true
 exit: 101
 stdout-json: []
+stderr: error: denied-capability: the program needs Console, which `Console = false` in hd.toml denies, so it does not start
 # Under --format json the refusal is one denied-capability diagnostic with
 # no source position, then the summary, on standard error.
 run: hd run --format json
 exit: 101
 stdout-json: []
 stderr-json: [{"kind":"diagnostic","code":"denied-capability","severity":"error","message":null,"file":null,"line":null,"column":null},{"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}]
+# A grant names a host capability trait and fits its kind
+# (`cli.cap.flag.unknown.with-package-host`, `cli.cap.flag.unscoped`).
+run: hd run --cap Time=true
+exit: 101
+stderr: error: `--cap Time=true`: `Time` is no host capability trait; a grant names one of Console, ConsoleInput, Args, Env, Clock, Random, FsRead, FsWrite, Process, Http, Net, Sys, Workers
+run: hd run --cap Console=a,b
+exit: 101
+stderr: error: `--cap Console=a,b`: `Console` has no scope entries, so its grant is `true` or `false`, not a list

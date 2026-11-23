@@ -1,0 +1,7 @@
+## ```hd
+## use pkg.parse_version
+## pass
+## ```
+pub fn parse_version() -> i32: +1
+
+pub fn main() -> void: pass

@@ -17,7 +17,7 @@ use crate::{Pipeline, take_built};
 const SCRATCH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp");
 
 /// A program that builds to a type error.
-const BROKEN: &str = "pub fn main() -> void:\n    nope()\n";
+const BROKEN: &str = include_str!("tests/programs/pipeline_tests/broken.hd");
 
 fn args(words: &[&str]) -> Vec<OsString> {
     words.iter().map(OsString::from).collect()
@@ -155,10 +155,9 @@ fn a_test_run_and_its_executables_build_for_its_engine() {
             ("tasks/seed.hd", BROKEN),
             (
                 "tests/seed.hd",
-                "use std.process.Command\nuse std.testing.{assert_equal, hd_run}\n\n\
-                 it(\"runs the seed task\"):\n    \
-                 out := hd_run!(*Command::new(\"seed\"))\n    \
-                 assert_equal(out.status, 0, reason=\"a clean exit\")\n",
+                include_str!(
+                    "tests/programs/pipeline_tests/a_test_run_and_its_executables_build_for_its_engine.hd"
+                ),
             ),
         ],
     );

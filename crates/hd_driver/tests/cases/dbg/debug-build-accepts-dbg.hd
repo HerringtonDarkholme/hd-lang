@@ -1,0 +1,6 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    dbg(1)
+    let show: fn((i32,)) -> void = dbg
+    show((2,))
+    println(3)

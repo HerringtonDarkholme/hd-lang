@@ -1,0 +1,8 @@
+# One combined insertion lists every missing capability, more than the
+# command's round bound, and leaves the denial `Process=false` as written.
+run: hd check --fix
+stderr: fixed: hd.toml:4:1: missing-capability: list the missing capabilities in hd.toml
+stderr: check result: ok. fixed: 1; errors: 0; warnings: 0
+same-text: hd.toml want/hd.toml
+run: hd check
+stderr: check result: ok. errors: 0; warnings: 0

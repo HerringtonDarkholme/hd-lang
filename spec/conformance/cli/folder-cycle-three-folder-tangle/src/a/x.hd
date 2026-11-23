@@ -1,0 +1,4 @@
+use pkg.b.y.{two}
+
+pub fn one() -> i32:
+    1

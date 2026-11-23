@@ -1,0 +1,8 @@
+use std.testing.assert_equal
+
+pub fn stock() -> i32:
+    5
+
+tests:
+    it("stocks"):
+        assert_equal(stock(), 5, reason="s")

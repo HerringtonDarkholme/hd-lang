@@ -1,0 +1,2 @@
+fn spare(x: i32) -> i32:
+    x

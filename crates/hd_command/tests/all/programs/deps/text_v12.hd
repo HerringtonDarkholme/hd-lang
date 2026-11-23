@@ -1,0 +1,5 @@
+pub fn greeting() -> string:
+    "hello from 1.2"
+
+pub fn shout(s: string) -> string:
+    s + "!"

@@ -1,0 +1,4 @@
+use pkg.testkit.kit.{twice}
+
+fn six() -> i32:
+    twice()

@@ -1,0 +1,8 @@
+use std.testing.assert_equal
+
+pub fn price() -> i32:
+    3
+
+tests:
+    it("prices"):
+        assert_equal(price(), 3, reason="p")

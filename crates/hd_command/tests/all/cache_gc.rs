@@ -16,10 +16,9 @@ fn scratch(name: &str) -> Scratch {
     Scratch::new(env!("CARGO_TARGET_TMPDIR"), name)
 }
 
-const CART: &str = "use pkg.tax\n\npub fn total(price: i32) -> i32:\n    price + tax.of(price)\n";
-const TAX: &str = "pub fn of(price: i32) -> i32:\n    price / 10\n";
-const MAIN: &str =
-    "use pkg.cart\n\npub fn main() -> void $ Console:\n    println(\"{cart.total(+100)}\")\n";
+const CART: &str = include_str!("programs/cache_gc/cart.hd");
+const TAX: &str = include_str!("programs/cache_gc/tax.hd");
+const MAIN: &str = include_str!("programs/cache_gc/main.hd");
 
 /// A package `shop` of three modules in `src`.
 fn package(name: &str) -> Scratch {
@@ -308,7 +307,7 @@ fn a_recently_hit_entry_outlives_older_ones() {
     // which mark their entries used.
     std::fs::write(
         pkg.join("src/tax.hd"),
-        "pub fn of(price: i32) -> i32:\n    price / 5\n",
+        include_str!("programs/cache_gc/a_recently_hit_entry_outlives_older_ones.hd"),
     )
     .expect("write");
     let r = hd(&pkg, &cache, None, &["check"]);
@@ -521,7 +520,7 @@ fn together(dir: &Path, cache: &Path, files: &[String]) -> Vec<(u64, u64)> {
 fn processes_checking_one_program_together_compute_each_entry_once() {
     for n in [4, 16] {
         let dir = scratch(&format!("compute-once-{n}"));
-        std::fs::write(dir.join("a.hd"), "fn f() -> i32:\n    1\n").expect("write");
+        std::fs::write(dir.join("a.hd"), include_str!("programs/cache_gc/processes_checking_one_program_together_compute_each_entry_once.hd")).expect("write");
         let alone = together(&dir, &dir.join("alone"), &["a.hd".to_owned()]);
         let runs = together(&dir, &dir.join("cache"), &vec!["a.hd".to_owned(); n]);
         let sum = |pick: fn(&(u64, u64)) -> u64| runs.iter().map(pick).sum::<u64>();

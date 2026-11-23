@@ -1,0 +1,8 @@
+[package]
+name = "shop"
+
+[capabilities]
+Console = true
+
+[source]
+root = "code"

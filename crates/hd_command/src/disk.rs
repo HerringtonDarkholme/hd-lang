@@ -1565,7 +1565,7 @@ mod host_declaration_tests {
         ).unwrap();
         std::fs::write(
             app.join("src/main.hd"),
-            "pub fn main() -> void:\n    pass\n",
+            include_str!("tests/programs/disk/same_named_packages_keep_separate_host_declarations_without_overriding_grants.hd"),
         )
         .unwrap();
         for name in ["left", "right"] {
@@ -1573,7 +1573,7 @@ mod host_declaration_tests {
                 "[package]\nname = \"same-sdk\"\n[host]\nServer = \"provider.mjs\"\n[capabilities]\nProcess = true\n").unwrap();
             std::fs::write(
                 root.0.join(name).join("src/lib.hd"),
-                "@host\npub trait Server:\n    fn next!(&mut self) -> string\n",
+                include_str!("tests/programs/disk/same_named_packages_keep_separate_host_declarations_without_overriding_grants_2.hd"),
             )
             .unwrap();
         }
@@ -1690,7 +1690,9 @@ mod stamp_tests {
             .expect("toml");
             std::fs::write(
                 root.join("src/main.hd"),
-                "use std.console.Console\n\npub fn main() -> void $ Console:\n    println(\"hi\")\n",
+                include_str!(
+                    "tests/programs/disk/a_settled_package_is_read_only_where_it_changed.hd"
+                ),
             )
             .expect("main");
             for i in 0..n {
@@ -1703,7 +1705,9 @@ mod stamp_tests {
             }
             std::fs::write(
                 root.join("tests/t.hd"),
-                "use pkg.f0.m.{value}\nuse std.testing.{assert_equal}\n\nit(\"value\"):\n    assert_equal(value(), 0)\n",
+                include_str!(
+                    "tests/programs/disk/a_settled_package_is_read_only_where_it_changed_2.hd"
+                ),
             )
             .expect("test");
             std::thread::sleep(SETTLE + std::time::Duration::from_millis(200));
@@ -1714,7 +1718,9 @@ mod stamp_tests {
             assert_eq!(reads(&root, &store), (0, 0), "warm, {n} modules");
             std::fs::write(
                 root.join("src/f1/m.hd"),
-                "## Doc.\npub fn value() -> i32: 99\n",
+                include_str!(
+                    "tests/programs/disk/a_settled_package_is_read_only_where_it_changed_3.hd"
+                ),
             )
             .expect("edit");
             // A recent edit is not settled: read on every run until it is.

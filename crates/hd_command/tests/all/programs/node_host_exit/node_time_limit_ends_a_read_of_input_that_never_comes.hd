@@ -1,0 +1,7 @@
+use std.console.{ConsoleInput, read_line}
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    println("prompt")
+    match read_line!():
+        .Ok(_) => println("read")
+        .Err(_) => println("closed")

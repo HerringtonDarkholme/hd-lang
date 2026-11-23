@@ -1,0 +1,6 @@
+fn pick(items: List[i32], at: usize) -> i32:
+    items[at]
+
+pub fn main() -> void $ Console:
+    println("start")
+    println(pick([1, 2], 5))

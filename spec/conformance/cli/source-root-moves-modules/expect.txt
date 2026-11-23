@@ -1,0 +1,16 @@
+# `[source] root` moves the source root: its files are modules as `src`'s
+# would be, and every path `hd` prints is the one on disk.
+run: hd check
+exit: 101
+stderr: error: code/broken.hd:2:5: unknown-name: `missing` is not defined
+stderr: check result: FAILED. errors: 1; warnings: 0
+run: hd check code/util.hd
+stderr: check result: ok. errors: 0; warnings: 0
+run: hd run
+stdout: 42
+run: hd test --format json code/util.hd
+exit: 1
+stdout-json: [{"kind":"test","name":"doubles","outcome":"failed"},{"kind":"summary","status":1}]
+run: hd fmt --check
+exit: 1
+stdout: code/broken.hd

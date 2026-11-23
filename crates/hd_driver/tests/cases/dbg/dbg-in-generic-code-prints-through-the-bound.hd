@@ -1,0 +1,7 @@
+# @dump: stdout
+fn show[T < Debug](value: T) -> T:
+    dbg(value)
+    value
+
+pub fn main() -> void $ Console:
+    println(show(7))

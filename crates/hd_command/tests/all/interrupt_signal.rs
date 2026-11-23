@@ -17,24 +17,7 @@ use nix::unistd::Pid;
 /// The entry waits on a timer that never ends, and its dispose waits
 /// 300 ms: a cancel that waits for the dispose ends `cancelled`, and one
 /// that abandons it ends `cancelled, cleanup abandoned`.
-const PROGRAM: &str = "use std.ops.AsyncDisposable
-use std.time.{Clock, ms, sleep}
-
-struct Conn:
-    closing: Suspend[void]
-
-impl AsyncDisposable for Conn:
-    fn dispose!(&mut self) -> void:
-        let mut closing = self.closing
-        closing!()
-
-pub fn main!() -> void $ Console + Clock:
-    using! conn = Conn { closing: sleep(ms(300)) }
-    println(\"ready\")
-    let mut forever = sleep(ms(600000))
-    forever!()
-    println(\"never\")
-";
+const PROGRAM: &str = include_str!("programs/interrupt_signal/program.hd");
 
 /// A running `hd`, in a process group of its own, whose program has
 /// printed `ready`.

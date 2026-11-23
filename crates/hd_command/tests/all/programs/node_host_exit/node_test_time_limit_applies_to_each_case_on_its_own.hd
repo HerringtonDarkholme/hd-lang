@@ -1,0 +1,10 @@
+use std.time.{ms, sleep}
+
+it("first"):
+    sleep!(ms(400))
+
+it("second"):
+    sleep!(ms(400))
+
+it("third"):
+    sleep!(ms(400))

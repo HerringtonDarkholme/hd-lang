@@ -1,8 +1,32 @@
+# Outside any package, `hd run` and `hd build` are errors that suggest
+# `hd new`, with a NAME or a FILE too (`cli.run.package-only`); `hd run FILE`
+# suggests `hd run NAME` and `hd FILE` (`cli.run.file`).
 run: hd run
 exit: 101
+stderr: error: `hd run` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`
+run: hd run a
+exit: 101
+stderr: error: `hd run` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`
+run: hd run a.hd
+exit: 101
+stderr: error: `hd run` takes no FILE (`a.hd`); use `hd run` for the package's executable or `hd run NAME` for a named executable or task, and `hd FILE` to run one file
 run: hd build
 exit: 101
+stderr: error: `hd build` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`
+run: hd build a.hd
+exit: 101
+stderr: error: `hd build` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`
+# `hd check` with no FILE suggests a FILE or `hd new`.
 run: hd check
 exit: 101
+stderr: error: `hd check` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`; or pass a FILE to check it as a single-file program
+stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd test
 exit: 101
+# Under `--format json` a command error is a diagnostic with no code and no
+# position, then the summary, on standard output.
+run: hd check --format json
+exit: 101
+stdout: {"kind":"diagnostic","code":null,"severity":"error","message":"`hd check` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`; or pass a FILE to check it as a single-file program","file":null,"line":null,"column":null,"fixes":[]}
+stdout: {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101,"modules_checked":0}
+stderr-json: []

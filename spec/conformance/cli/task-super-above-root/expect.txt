@@ -1,0 +1,11 @@
+# `super` in a task, and in a shared task module above `tasks`, is
+# `unknown-module`.
+# Every shared task module is part of each task, so `build` reports the
+# shared module's path too.
+run: hd run build
+exit: 101
+stderr: error: tasks/build.hd:1:1: unknown-module: the path goes above the root
+stderr: error: tasks/shared/up.hd:1:1: unknown-module: no module named `super.super.x`
+run: hd run above
+exit: 101
+stderr: error: tasks/shared/up.hd:1:1: unknown-module: no module named `super.super.x`

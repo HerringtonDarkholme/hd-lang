@@ -1,1 +1,11 @@
+# A clean package: status 0, the summary line on standard error, nothing on
+# standard output, and no build output.
 run: hd check
+stdout-json: []
+stderr: check result: ok. errors: 0; warnings: 0
+no-file: build
+# The thread count changes no output (`cli.jobs.result`).
+run: hd check --jobs 1
+stderr: check result: ok. errors: 0; warnings: 0
+run: hd check --jobs=8
+stderr: check result: ok. errors: 0; warnings: 0

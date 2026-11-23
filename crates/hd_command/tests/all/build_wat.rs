@@ -7,7 +7,7 @@ use std::path::Path;
 
 use hd_testkit::Scratch;
 
-const MAIN: &str = "pub fn main() -> void $ Console:\n    xs := [for i in 0..10 => \"n$i\"]\n    println(\"${xs.len()} ${xs[3]}\")\n";
+const MAIN: &str = include_str!("programs/build_wat/main.hd");
 
 /// `hd build ARGS` in `root`, with `HD_WAT` when `wat`, and its own cache.
 fn build(root: &Path, wat: bool, args: &[&str]) {

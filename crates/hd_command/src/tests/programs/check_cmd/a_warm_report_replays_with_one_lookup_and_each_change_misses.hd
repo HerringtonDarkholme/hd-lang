@@ -1,0 +1,4 @@
+use pkg.f1.m.{value}
+
+pub fn main() -> void $ Console:
+    println("{value()}")

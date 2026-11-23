@@ -1,0 +1,10 @@
+# @dump: stdout
+pub fn main() -> void:
+    let tail: List[string] = ["a" + "b", "c" + "d"]
+    let values: (string, List[string]...) = ("head", tail...)
+    let show: fn((string, List[string]...)) -> void = dbg
+    show(values)
+    let empty: (string, List[string]...) = ("empty",)
+    show(empty)
+    let none: (List[string]...,) = ()
+    dbg(none...)

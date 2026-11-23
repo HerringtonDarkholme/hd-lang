@@ -1,0 +1,8 @@
+use std.console.{ConsoleInput, read_line}
+
+pub fn main!() -> void $ Console + ConsoleInput:
+    for _ in 0..3:
+        match read_line!():
+            .Ok(.Some(line)) => println("[${line}]")
+            .Ok(.None) => println("end")
+            .Err(_) => println("closed")

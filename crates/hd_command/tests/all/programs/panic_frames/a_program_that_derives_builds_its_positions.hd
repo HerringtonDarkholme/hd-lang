@@ -1,0 +1,13 @@
+use std.hash.hash_of
+
+@derive(Eq, Hash, Debug)
+struct Point:
+    x: i32
+    y: i32
+    name: string
+
+pub fn main() -> void $ Console:
+    a := Point { x: 1, y: 2, name: "a" }
+    println(debug(a))
+    println(a == a)
+    println(hash_of(a) == hash_of(a))

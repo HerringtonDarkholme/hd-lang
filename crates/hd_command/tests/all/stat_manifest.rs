@@ -14,9 +14,9 @@ use hd_testkit::Scratch;
 /// Longer than `disk::SETTLE`, so every stamp of the package is trusted.
 const SETTLED: Duration = Duration::from_millis(2_200);
 
-const MAIN: &str = "use pkg.a.x.{x}\n\npub fn main() -> void:\n    let v: i32 = x() + price()\n";
-const GOOD: &str = "pub fn price() -> i32:\n    return 41\n";
-const BAD: &str = "pub fn price() -> i32:\n    return no\n";
+const MAIN: &str = include_str!("programs/stat_manifest/main.hd");
+const GOOD: &str = include_str!("programs/stat_manifest/good.hd");
+const BAD: &str = include_str!("programs/stat_manifest/bad.hd");
 
 /// `hd check` in `root`; whether it found no error.
 fn check(root: &Path) -> bool {

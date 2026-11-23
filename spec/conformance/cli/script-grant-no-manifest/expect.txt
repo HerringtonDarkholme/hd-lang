@@ -3,3 +3,13 @@
 run: hd scan.hd
 stdout: data/a.txt: from data
 stdout: b.txt: beside
+# A flag that denies a need totally refuses to start the script, and names
+# the flag (`cli.cap.total.refuse`, `cli.cap.total.message`). A grant the
+# script doesn't need, in the `--cap=NAME=VALUE` form, changes nothing.
+run: hd --cap FsRead=false scan.hd
+exit: 101
+stdout-json: []
+stderr: error: denied-capability: the program needs FsRead, which `--cap FsRead=false` denies, so it does not start
+run: hd --cap=Http=example.com scan.hd
+stdout: data/a.txt: from data
+stdout: b.txt: beside

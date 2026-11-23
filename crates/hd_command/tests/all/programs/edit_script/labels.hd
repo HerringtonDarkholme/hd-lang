@@ -1,0 +1,3 @@
+## The label of a total.
+pub fn label(n: i64) -> string:
+    "total ${n}"

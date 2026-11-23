@@ -1,0 +1,20 @@
+fn forever(stop: i32) -> i32:
+    let total: i32 = 0
+    while total != stop:
+        total = (total + 1) % 1000
+    total
+
+tests:
+    use std.testing.{assert, it_each}
+
+    it("spins"):
+        _ := forever(-1)
+
+    it("fast"):
+        assert(true, reason="ok")
+
+    it_each(
+        "rows",
+        [1, -1, 2],
+        body=fn!(value: i32): assert(forever(value) == value, reason="ends")
+    )

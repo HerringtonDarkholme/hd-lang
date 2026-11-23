@@ -788,7 +788,9 @@ mod stored_report_tests {
         write(
             &root,
             "src/m.hd",
-            "pub fn one() -> i32: 1\n\n## ```hd\n## use pkg.m.{nothing}\n## pass\n## ```\npub fn zero() -> i32: 0\n",
+            include_str!(
+                "tests/programs/check_cmd/a_doc_test_diagnostic_ends_in_its_source_file.hd"
+            ),
         );
         settle();
         let o = Options {
@@ -840,18 +842,24 @@ mod stored_report_tests {
         write(
             &root,
             "src/main.hd",
-            "use pkg.f1.m.{value}\n\npub fn main() -> void $ Console:\n    println(\"{value()}\")\n",
+            include_str!(
+                "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses.hd"
+            ),
         );
         // f0's doc test fails to check; f1 holds a lint finding.
         write(
             &root,
             "src/f0/m.hd",
-            "## ```hd\n## use pkg.f0.m.{nothing}\n## pass\n## ```\npub fn zero() -> i32: 0\n",
+            include_str!(
+                "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_2.hd"
+            ),
         );
         write(
             &root,
             "src/f1/m.hd",
-            "pub fn value() -> i32:\n    unread := +1\n    1\n",
+            include_str!(
+                "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_3.hd"
+            ),
         );
         for i in 2..12 {
             write(
@@ -921,7 +929,13 @@ mod stored_report_tests {
         let lint = &runs[2];
         let changes: [(&str, &dyn Fn()); 4] = [
             ("an edit", &|| {
-                write(&root, "src/f1/m.hd", "pub fn value() -> i32:\n    1\n");
+                write(
+                    &root,
+                    "src/f1/m.hd",
+                    include_str!(
+                        "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_4.hd"
+                    ),
+                );
             }),
             ("an added file", &|| {
                 write(&root, "src/g/x.hd", "pub fn x() -> i32: y\n");

@@ -1,0 +1,9 @@
+[package]
+name="shop"
+[capabilities]
+Args = true
+Clock = true
+Console = true
+Http = true
+Random = true
+Process=false

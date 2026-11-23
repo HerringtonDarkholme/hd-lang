@@ -1,0 +1,5 @@
+use pkg.stock.stock
+use std.testing.assert_equal
+
+it("counts"):
+    assert_equal(stock(), 5, reason="c")

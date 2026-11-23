@@ -1,0 +1,6 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    let mut items: List[i32] = []
+    for n in 0..102:
+        items.push(n)
+    dbg(items)

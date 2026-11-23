@@ -1,0 +1,14 @@
+use std.net.Net
+
+fn wait_conn!() -> string $ Net:
+    let mut net = $.use(Net)
+    let mut server = match net.listen!("127.0.0.1", 0):
+        .Ok(l) => l
+        .Err(e) => return "${e}"
+    match server.accept!():
+        .Ok(_) => "accepted"
+        .Err(e) => "${e}"
+
+pub fn main!() -> void $ Console + Net:
+    println("before")
+    println(wait_conn!())

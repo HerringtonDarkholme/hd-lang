@@ -1,0 +1,7 @@
+# @dump: stdout
+# A program that touches no host import still instantiates: the module declares
+# its memory whatever it links.
+pub fn main() -> void:
+    total := (6 * 7) - (1 << 3)
+    if total < 0:
+        return

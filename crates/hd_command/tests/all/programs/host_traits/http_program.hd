@@ -1,0 +1,21 @@
+use std.http.{Http, HttpError, Method, Request, Response, Url, get}
+use std.host.{Args, args}
+
+fn show!(r: Result[Response, HttpError]) -> string:
+    match r:
+        .Ok(response) => "${response.status.code()} ${response.text().expect("body")} ${debug(response.header(.SetCookie))} ${response.headers.entries().len()}"
+        .Err(.Status(response)) => "status error ${response.status.code()} ${response.text().expect("body")}"
+        .Err(e) => "${debug(e)}"
+
+pub fn main!() -> void $ Console + Http + Args:
+    base := args()[0]
+    println(show!(get!("${base}/ok")))
+    println(show!(get!("${base}/redirect")))
+    println(show!(Request::get(Url::parse("${base}/redirect").expect("URL")).send!(0)))
+    println(show!(get!("${base}/nothing")))
+    println(show!(get!("${base}/loop")))
+    println(show!(Request::post(Url::parse("${base}/echo").expect("URL")).set_text("abc").send!()))
+    println(show!(get!("http://example.com/")))
+    println(show!(get!("ftp://127.0.0.1/")))
+    println(show!(get!("http://bücher.example/")))
+    println(show!(get!("http://xn--bcher-kva.EXAMPLE/")))

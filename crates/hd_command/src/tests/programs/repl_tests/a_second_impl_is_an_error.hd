@@ -1,0 +1,8 @@
+trait Named:
+    fn name(self) -> string
+
+struct Tag:
+    pub x: i32
+
+impl Named for Tag:
+    fn name(self) -> string: "lib"

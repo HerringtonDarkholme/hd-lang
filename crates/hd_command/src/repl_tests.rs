@@ -316,7 +316,7 @@ fn unused_binding_advice_is_absent_across_rebuilds() {
 
 #[test]
 fn a_second_impl_is_an_error() {
-    let named = "trait Named:\n    fn name(self) -> string\n\nstruct Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
+    let named = include_str!("tests/programs/repl_tests/a_second_impl_is_an_error.hd");
     let dir = package("repl-impl", &[("src/lib.hd", named)]);
     let script = Script::of(&[
         "impl Named for Tag:",
@@ -379,39 +379,7 @@ fn a_later_input_derives_for_an_earlier_type() {
 /// `src/lib.hd` for the member-line tests: a `Column` fact and a
 /// `Columns` template whose walker writes each member's column name (its
 /// `Column` fact or else its own name) and how many facts it has.
-const COLUMNS_LIB: &str = r#"use std.structure.{Structure, Field, Variant, Walker}
-
-struct Column:
-    name: string
-
-fn column(name: string) -> Column:
-    Column { name: name }
-
-trait Columns:
-    fn columns(self) -> string
-
-struct Header:
-    out: string
-
-impl[S] Walker[S] for Header:
-    type Error = never
-
-    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
-        .Ok(())
-
-    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
-        name := match h.info.facts.find::[Column]():
-            .Some(c) => c.name
-            .None => h.info.name
-        self.out = "${self.out}${name}/${h.info.facts.items.len()};"
-        .Ok(())
-
-impl[T] Columns for T by Structure:
-    fn columns(self) -> string:
-        let mut w = Header { out: "" }
-        _ := Structure::walk(&self, &mut w)
-        w.out
-"#;
+const COLUMNS_LIB: &str = include_str!("tests/programs/repl_tests/columns_lib.hd");
 
 /// The member-line session: input 1 declares `Row`, input 3 is a block
 /// with no trait for it, input 4 a derivation block with member lines.
@@ -537,7 +505,9 @@ fn member_lines_survive_a_rebuild() {
 /// type, and a generic function of the library finds that implementation.
 #[test]
 fn a_library_function_finds_an_input_s_implementation() {
-    let lib = "trait Named:\n    fn name(self) -> string\n\nfn greet[T < Named](x: T) -> string:\n    \"hi ${x.name()}\"\n";
+    let lib = include_str!(
+        "tests/programs/repl_tests/a_library_function_finds_an_input_s_implementation.hd"
+    );
     let dir = package("repl-impl-lib", &[("src/lib.hd", lib)]);
     let script = Script::of(&[
         "struct Cat:",
@@ -661,7 +631,9 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     // 1 once the waiting input is sent, 2 once the next input is read.
     let phase = Arc::new(AtomicU8::new(0));
     let mut script = Script::of(&[
-        "use std.time.{sleep, Duration}\nuse std.ops.defer",
+        include_str!(
+            "tests/programs/repl_tests/a_waiting_input_is_cancelled_and_the_session_goes_on.hd"
+        ),
         "let mut log: List[string] = []",
         "fn nap!() -> void:",
         "    defer(fn() -> void: log.push(\"cleanup\"))",
@@ -822,7 +794,9 @@ fn a_package_without_lib_uses_its_modules_but_not_main() {
         &[
             (
                 "src/main.hd",
-                "pub fn main() -> void $ Console:\n    println(42)\n",
+                include_str!(
+                    "tests/programs/repl_tests/a_package_without_lib_uses_its_modules_but_not_main.hd"
+                ),
             ),
             ("src/util.hd", "pub fn double(x: i32) -> i32: x * +2\n"),
         ],
@@ -846,12 +820,16 @@ fn a_broken_file_the_session_never_reaches_stops_no_input() {
         &[
             (
                 "src/lib.hd",
-                "use self.util.{double}\n\nfn bonus() -> i32: double(+7)\n",
+                include_str!(
+                    "tests/programs/repl_tests/a_broken_file_the_session_never_reaches_stops_no_input.hd"
+                ),
             ),
             ("src/util.hd", "pub fn double(x: i32) -> i32: x * +2\n"),
             (
                 "src/main.hd",
-                "pub fn main() -> void $ Console:\n    let n: i32 = \"no\"\n",
+                include_str!(
+                    "tests/programs/repl_tests/a_broken_file_the_session_never_reaches_stops_no_input_2.hd"
+                ),
             ),
             ("src/junk.hd", "pub fn junk() -> i32: \"no\"\n"),
             ("src/broken/mod.hd", "fn (\n"),
@@ -1396,10 +1374,16 @@ fn a_saved_provider_supports_later_blocking_async_and_stored_calls() {
         let script = Script::of(&[
             "use std.task.block_on",
             "use std.time.{Clock, ms}",
-            "let clock: *mut dyn Clock = if true:\n    let provider: *mut dyn Clock = $.use(Clock)\n    _ := block_on(provider.sleep(ms(1)))\n    println(\"first\")\n    provider\nelse:\n    $.use(Clock)",
-            "clock.sleep!(ms(1))\nprintln(\"second\")",
+            include_str!(
+                "tests/programs/repl_tests/a_saved_provider_supports_later_blocking_async_and_stored_calls.hd"
+            ),
+            include_str!(
+                "tests/programs/repl_tests/a_saved_provider_supports_later_blocking_async_and_stored_calls_2.hd"
+            ),
             "let pending: Suspend[void] = clock.sleep(ms(1))",
-            "_ := block_on(pending)\nprintln(\"third\")",
+            include_str!(
+                "tests/programs/repl_tests/a_saved_provider_supports_later_blocking_async_and_stored_calls_3.hd"
+            ),
         ]);
         let t = session_on(engine, &dir, script, |_| {}, None, Bounds::default(), None);
         assert_eq!(t.out, "first\nsecond\nthird\n");

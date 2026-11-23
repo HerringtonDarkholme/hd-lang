@@ -8,3 +8,9 @@ pub fn main() -> void $ Console:
     show((+1,))
 
 # Spec 10 Release Builds And Dependencies: module.dbg.release, module.dbg.release.debug-build, module.dbg.own-code; Debug Lines: module.dbg.stream. The path dependency money is the user's own code.
+
+tests:
+    use std.testing.assert_equal
+
+    it("the test profile accepts dbg"):
+        assert_equal(cents(12), 1200, reason="cents")

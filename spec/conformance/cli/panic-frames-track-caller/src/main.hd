@@ -1,0 +1,16 @@
+@track_caller
+fn must_be_positive(value: i32) -> i32:
+    if value <= 0:
+        panic("not positive")
+    value
+
+@track_caller
+fn relay(value: i32) -> i32:
+    must_be_positive(value)
+
+fn total(value: i32) -> i32:
+    relay(value) + 1
+
+pub fn main() -> void $ Console:
+    let n = +0
+    println(total(n))

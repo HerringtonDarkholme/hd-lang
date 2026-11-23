@@ -1,0 +1,5 @@
+fn first() -> impl Display:
+    second()
+
+fn second() -> impl Display:
+    first()

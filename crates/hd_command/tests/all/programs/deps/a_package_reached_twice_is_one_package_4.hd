@@ -1,0 +1,5 @@
+use dep.mint
+use dep.bank
+
+pub fn main() -> void $ Console:
+    println(bank.take(mint.make()))

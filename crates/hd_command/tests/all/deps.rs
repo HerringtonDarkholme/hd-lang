@@ -235,14 +235,10 @@ const TEXT_V12: &[(&str, &str)] = &[
         "hd.toml",
         "[package]\nname = \"text\"\n\n[capabilities]\nConsole = true\n",
     ),
-    (
-        "src/lib.hd",
-        "pub fn greeting() -> string: \"hello from 1.2\"\n\npub fn shout(s: string) -> string: s + \"!\"\n",
-    ),
+    ("src/lib.hd", include_str!("programs/deps/text_v12.hd")),
 ];
 
-const APP_MAIN: &str =
-    "use dep.text.{greeting}\n\npub fn main() -> void $ Console:\n    println(greeting())\n";
+const APP_MAIN: &str = include_str!("programs/deps/app_main.hd");
 
 fn app(world: &World, name: &str, deps: &str, main: &str) -> PathBuf {
     world.package(
@@ -424,7 +420,7 @@ fn selection_takes_the_largest_minimum() {
         ),
         (
             "src/lib.hd",
-            "use dep.text.{shout}\n\npub fn hint(word: string) -> string: shout(word)\n",
+            include_str!("programs/deps/selection_takes_the_largest_minimum.hd"),
         ),
     ];
     world.remote(
@@ -447,7 +443,7 @@ fn selection_takes_the_largest_minimum() {
         &world,
         "app",
         "text = \"github.com/acme/text@1.0.0\"\nlint = \"github.com/acme/tools/lint@0.3.0\"\n",
-        "use dep.lint.{hint}\nuse dep.text.{greeting}\n\npub fn main() -> void $ Console:\n    println(hint(greeting()))\n",
+        include_str!("programs/deps/selection_takes_the_largest_minimum_2.hd"),
     );
     ok(&world.hd(&dir, &["fetch"]));
     // text 1.2.0 is selected; selection still read 1.0.0's manifest
@@ -1218,11 +1214,7 @@ fn two_lines_and_a_member_of_one_name_are_three_packages() {
         "text = \"github.com/acme/text@1.0.0\"\n\
          text_v2 = \"github.com/acme/text@2.0.0\"\n\
          mine = { path = \"../text\" }\n",
-        "use dep.text\nuse dep.text_v2\nuse dep.mine\n\n\
-         pub fn main() -> void $ Console:\n\
-         \x20   println(text.greeting())\n\
-         \x20   println(text_v2.greeting())\n\
-         \x20   println(mine.greeting())\n",
+        include_str!("programs/deps/two_lines_and_a_member_of_one_name_are_three_packages.hd"),
     );
     ok(&world.hd(&ws, &["fetch"]));
     let (stdout, _) = ok(&world.hd(&ws.join("app"), &["run"]));
@@ -1253,11 +1245,7 @@ fn same_named_path_dependencies_are_two_packages() {
             ],
         );
     }
-    let main = "use dep.euro\nuse dep.yen\nuse dep.euro.{Coin as Euro}\nuse dep.yen.{Coin as Yen}\n\
-                use std.inspect.TypeId\n\n\
-                pub fn main() -> void $ Console:\n\
-                \x20   println(euro.make(1).cents + yen.make(1).cents)\n\
-                \x20   println(TypeId::of::[Euro]() == TypeId::of::[Yen]())\n";
+    let main = include_str!("programs/deps/same_named_path_dependencies_are_two_packages.hd");
     let dir = app(
         &world,
         "app",
@@ -1269,7 +1257,7 @@ fn same_named_path_dependencies_are_two_packages() {
     // A mistake names the package by its manifest name.
     std::fs::write(
         dir.join("src/main.hd"),
-        "use dep.yen\n\npub fn main() -> void $ Console:\n    println(yen.nothing())\n",
+        include_str!("programs/deps/same_named_path_dependencies_are_two_packages_2.hd"),
     )
     .expect("write");
     let (stdout, stderr) = fails(&world.hd(&dir, &["check"]));
@@ -1285,8 +1273,7 @@ fn same_named_path_dependencies_are_two_packages() {
     .expect("write");
     std::fs::write(
         dir.join("src/main.hd"),
-        "use dep.euro\nuse dep.my_yen.{Coin as Yen}\n\n\
-         pub fn main() -> void $ Console:\n    let y: Yen = euro.make(1)\n    println(y.cents)\n",
+        include_str!("programs/deps/same_named_path_dependencies_are_two_packages_3.hd"),
     )
     .expect("write");
     let (stdout, stderr) = fails(&world.hd(&dir, &["check"]));
@@ -1309,7 +1296,10 @@ fn a_package_reached_twice_is_one_package() {
                 "hd.toml",
                 "[package]\nname = \"money\"\n\n[capabilities]\nConsole = true\n",
             ),
-            ("src/lib.hd", "pub struct Coin:\n    pub cents: i32\n"),
+            (
+                "src/lib.hd",
+                include_str!("programs/deps/a_package_reached_twice_is_one_package.hd"),
+            ),
         ],
     );
     world.package(
@@ -1321,7 +1311,7 @@ fn a_package_reached_twice_is_one_package() {
             ),
             (
                 "src/lib.hd",
-                "use dep.money.{Coin}\n\npub fn make() -> Coin: Coin { cents: 5 }\n",
+                include_str!("programs/deps/a_package_reached_twice_is_one_package_2.hd"),
             ),
         ],
     );
@@ -1334,7 +1324,7 @@ fn a_package_reached_twice_is_one_package() {
             ),
             (
                 "src/lib.hd",
-                "use dep.cash.{Coin}\n\npub fn take(c: Coin) -> i32: c.cents\n",
+                include_str!("programs/deps/a_package_reached_twice_is_one_package_3.hd"),
             ),
         ],
     );
@@ -1342,7 +1332,7 @@ fn a_package_reached_twice_is_one_package() {
         &world,
         "app",
         "mint = { path = \"../mint\" }\nbank = { path = \"../bank\" }\n",
-        "use dep.mint\nuse dep.bank\n\npub fn main() -> void $ Console:\n    println(bank.take(mint.make()))\n",
+        include_str!("programs/deps/a_package_reached_twice_is_one_package_4.hd"),
     );
     let (stdout, _) = ok(&world.hd(&dir, &["run"]));
     assert_eq!(stdout, "5\n");

@@ -1,0 +1,5 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    s := "héllo"
+    println(s.slice(1, 3))
+    println(s.slice(2, 3))

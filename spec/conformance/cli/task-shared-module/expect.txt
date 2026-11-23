@@ -1,0 +1,14 @@
+# A task uses a shared task module through `self`, and the library module
+# src/tasks/zip.hd coexists with tasks/shared/zip.hd.
+run: hd run build
+stdout: zip
+run: hd run
+stdout: main
+# Each task has its own copy of a shared module: its top-level statements run
+# once per task, and a declaration only one task uses gets no warning.
+run: hd run first
+stdout: 2
+run: hd run second
+stdout: 1
+run: hd check --all
+stderr: check result: ok. errors: 0; warnings: 0

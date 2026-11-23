@@ -1,0 +1,11 @@
+[package]
+name = "shop"
+
+[capabilities]
+Args = true
+Console = true
+ConsoleInput = true
+FsRead = true
+
+[dev-capabilities]
+Process = true

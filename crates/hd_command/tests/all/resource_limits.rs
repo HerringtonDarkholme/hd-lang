@@ -89,7 +89,7 @@ fn heap_and_memory_flags_are_usage_errors() {
     let dir = work("no-memory-flags");
     std::fs::write(
         dir.join("x.hd"),
-        "pub fn main() -> void $ Console:\n    println(\"hi\")\n",
+        include_str!("programs/resource_limits/heap_and_memory_flags_are_usage_errors.hd"),
     )
     .unwrap();
     let mut command = hd(&dir);

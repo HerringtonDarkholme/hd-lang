@@ -1,0 +1,32 @@
+use std.error.{Error, message}
+use std.process.ExitCode
+use std.testing.TestRunner
+use std.time.s
+
+fn check_port(port: i32) -> Result[void, *dyn Error]:
+    if port > 0: .Ok(()) else: .Err(message("bad port: ${port}"))
+
+fn exit_zero() -> ExitCode:
+    ExitCode(0)
+
+fn first_row(rows: List[string]) -> string $ TestRunner:
+    rows[$.use(TestRunner).row(rows.len())]
+
+tests:
+    use std.testing.assert_equal
+
+    it("passes with code zero", body=fn!() -> ExitCode: ExitCode(0))
+
+    it("fails with code three", body=fn!() -> ExitCode: ExitCode(3))
+
+    it("passes an ok port", fn!() -> Result[void, *dyn Error]: check_port(80))
+
+    it("fails a bad port", body=fn!() -> Result[void, *dyn Error]: check_port(0))
+
+    it("takes a function", body=exit_zero)
+
+    it("takes a plain closure", body=fn(): assert_equal(1 + 1, 2, reason="sums"))
+
+    it("takes a timeout", timeout=5s, body=fn!(): assert_equal(2 + 2, 4, reason="sums"))
+
+    it("uses the runner", body=fn!() -> void $ TestRunner: _ := first_row(["a"]))

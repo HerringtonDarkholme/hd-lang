@@ -1,5 +1,6 @@
 run: hd check --no-such-flag
 exit: 101
+stderr: error: `hd check` has no option `--no-such-flag`
 run: hd bogus
 exit: 101
 run: hd trace src/util.hd
@@ -12,3 +13,28 @@ run: hd explain-requirements src/util.hd
 exit: 101
 run: hd dump-hir src/util.hd
 exit: 101
+# `--jobs` takes a whole number of at least 1: the same usage error in every command.
+run: hd check --jobs 0
+exit: 101
+stderr: error: `--jobs 0`: N is a whole number of at least 1
+run: hd build --jobs 0
+exit: 101
+stderr: error: `--jobs 0`: N is a whole number of at least 1
+run: hd test --jobs 0
+exit: 101
+stderr: error: `--jobs 0`: N is a whole number of at least 1
+run: hd fmt --jobs 0
+exit: 101
+stderr: error: `--jobs 0`: N is a whole number of at least 1
+run: hd check --jobs many
+exit: 101
+stderr: error: `--jobs many`: N is a whole number of at least 1
+run: hd build --jobs many
+exit: 101
+stderr: error: `--jobs many`: N is a whole number of at least 1
+run: hd test --jobs many
+exit: 101
+stderr: error: `--jobs many`: N is a whole number of at least 1
+run: hd fmt --jobs many
+exit: 101
+stderr: error: `--jobs many`: N is a whole number of at least 1

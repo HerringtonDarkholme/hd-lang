@@ -1,0 +1,4 @@
+# @dump: stdout
+# @single-file: true
+# A script that touches no host import still instantiates.
+result := 1 << 3
