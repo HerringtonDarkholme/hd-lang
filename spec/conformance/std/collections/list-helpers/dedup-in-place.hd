@@ -1,0 +1,79 @@
+# test: List and UniqList each expose one in-place dedup returning void
+# Spec std/collections List Helpers: std-collections.helper.dedup-in-place; UniqList: std-collections.uniq-list.dedup.
+use std.collections.UniqList
+
+struct Item:
+    key: i32
+    label: string
+
+impl Eq for Item:
+    fn eq(&self, other: &Item) -> bool:
+        self.key == other.key
+
+struct Counter:
+    calls: usize
+
+struct Probe:
+    key: usize
+    counter: *mut Counter
+
+impl Eq for Probe:
+    fn eq(&self, other: &Probe) -> bool:
+        self.counter.calls += 1
+        self.key == other.key
+
+fn compact[T < Eq](items: &mut List[T]) -> void:
+    items.dedup()
+
+tests:
+    use std.testing.assert_equal
+
+    it("keeps the first representatives and leaves earlier copies intact"):
+        let mut items = [
+            Item { key: +1, label: "first" },
+            Item { key: +1, label: "discard" },
+            Item { key: +2, label: "second" },
+            Item { key: +2, label: "discard too" },
+            Item { key: +1, label: "last" },
+        ]
+        before := items
+        compact(&mut items)
+        assert_equal(items.len(), 3)
+        assert_equal(items[0].label, "first")
+        assert_equal(items[1].label, "second")
+        assert_equal(items[2].label, "last")
+        assert_equal(before.len(), 5)
+        assert_equal(before[1].label, "discard")
+        items.dedup()
+        assert_equal(items.len(), 3)
+
+    it("works through a void-returning mutable function value"):
+        let dedup: fn(&mut List[string]) -> void = List::[string]::dedup
+        let unique_dedup: fn(&mut UniqList[string]) -> void = UniqList::[string]::dedup
+        let mut words = ["same", "same", "same"]
+        assert_equal(dedup(&mut words), ())
+        assert_equal(words, ["same"])
+        let mut unique = UniqList::[string].from_list(["same", "same", "next"])
+        assert_equal(unique_dedup(&mut unique), ())
+        assert_equal(unique.to_list(), ["same", "next"])
+
+    it("compacts nested values and handles single and empty lists"):
+        let mut nested = [[+1, 2], [+1, 2], [+3], [+1, 2]]
+        nested.dedup()
+        assert_equal(nested, [[+1, 2], [+3], [+1, 2]])
+        let mut single = ["one"]
+        single.dedup()
+        assert_equal(single, ["one"])
+        let mut empty: List[string] = []
+        empty.dedup()
+        assert_equal(empty, [])
+
+    it("does exactly one comparison for each element after the first"):
+        for size in [0, 1, 2, 1_000, 10_000]:
+            counter := box(Counter { calls: 0 })
+            let mut values: List[Probe] = []
+            for index in 0..size:
+                values.push(Probe { key: index / 3, counter: counter })
+            values.dedup()
+            assert_equal(counter.calls, if size == 0: 0 else: size - 1)
+            assert_equal(values.len(), (size + 2) / 3)

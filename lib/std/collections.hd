@@ -2088,18 +2088,24 @@ impl[T < Eq] List[T]:
             index = index + 1
         .None
 
-    # Drops each element equal to the one just before it, as Rust's `Vec::dedup`.
-    ## Returns the list with each run of equal neighbours cut to its first element.
-    ## See [std-collections.helper.dedup](../../spec/std/collections.md#r-std-collections.helper.dedup).
-    pub fn dedup(self) -> List[T]:
-        let mut kept: List[T] = []
-        for item in self:
-            match kept.last():
-                .Some(previous) =>
-                    if previous != item:
-                        kept.push(item)
-                .None => kept.push(item)
-        kept
+    # Compact forward as Rust's Vec::dedup does, keeping the first of each run.
+    # No write precedes the first gap; ordinary list stores preserve snapshots.
+    ## Removes consecutive equal elements in place, keeping the first in each run.
+    ## See [std-collections.helper.dedup-in-place](../../spec/std/collections.md#r-std-collections.helper.dedup-in-place).
+    pub fn dedup(&mut self) -> void:
+        size := self.len()
+        if size < 2:
+            return
+        let kept: usize = 1
+        let index: usize = 1
+        while index < size:
+            if self[kept - 1] != self[index]:
+                if kept != index:
+                    self[kept] = self[index]
+                kept += 1
+            index += 1
+        if kept < size:
+            self.truncate(kept)
 
 # The total of the elements, in order (r-std-collections.helper.sum).
 impl[T < Num] List[T]:

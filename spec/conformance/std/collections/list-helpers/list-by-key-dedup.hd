@@ -1,5 +1,5 @@
 # test: min_by_key keeps the first of equal keys and max_by_key the last, dedup cuts runs of equal neighbours, and unique keeps first occurrences
-# Spec std/collections List Helpers: std-collections.helper.by-key.copy-ties, .dedup, and .unique.
+# Spec std/collections List Helpers: std-collections.helper.by-key.copy-ties, .dedup-in-place, and .unique.
 struct Order:
     customer: string
     cents: i64
@@ -43,14 +43,15 @@ tests:
         assert_equal(longest, .Some("ccc"), reason="the longest")
         assert_equal(calls, 3, reason="once each")
     it("dedup cuts only adjacent duplicates"):
-        assert_equal(
-            ["a", "a", "b", "a", "a", "a"].dedup(),
-            ["a", "b", "a"],
-            reason="runs, not the whole list",
-        )
-        assert_equal([1, 2, 3].dedup(), [1, 2, 3], reason="no duplicates")
-        let empty: List[i32] = []
-        assert_equal(empty.dedup(), [], reason="empty")
+        let mut words = ["a", "a", "b", "a", "a", "a"]
+        words.dedup()
+        assert_equal(words, ["a", "b", "a"], reason="runs, not the whole list")
+        let mut distinct = [1, 2, 3]
+        distinct.dedup()
+        assert_equal(distinct, [1, 2, 3], reason="no duplicates")
+        let mut empty: List[i32] = []
+        empty.dedup()
+        assert_equal(empty, [], reason="empty")
     it("unique keeps first occurrences"):
         assert_equal(
             ["b", "a", "b", "c", "a"].unique(),
