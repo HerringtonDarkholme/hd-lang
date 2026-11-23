@@ -1,0 +1,10 @@
+# A misspelt field, type, name, variant and method, each closest to one
+# name in scope, carries the exact fix-it that writes that name; hd check
+# --fix applies all five, and the check after it finds nothing.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-field","message":"no field `yvl` on Point; did you mean `yval`?","line":12,"fixes":[{"message":"write `yval`","guess":false,"edits":[{"file":"src/lib.hd","start":176,"end":179,"text":"yval"}]}]},{"kind":"diagnostic","code":"unknown-type","line":14,"fixes":[{"message":"write `Point`","guess":false}]},{"kind":"diagnostic","code":"unknown-name","line":15,"fixes":[{"message":"write `count`","guess":false}]},{"kind":"diagnostic","code":"unknown-variant","line":20,"fixes":[{"message":"write `Empty`","guess":false}]},{"kind":"diagnostic","code":"unknown-method","line":23,"fixes":[{"message":"write `len`","guess":false}]},{"kind":"summary","errors":5,"warnings":0,"status":101}]
+run: hd check --fix
+same-text: src/lib.hd want/lib.hd
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

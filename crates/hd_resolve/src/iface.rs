@@ -1140,6 +1140,57 @@ impl ImportIndex {
     }
 }
 
+/// The type a misspelt `name` most likely meant (#2332,
+/// [`hd_diag::suggest::best_match`]): a struct, enum, alias or newtype
+/// that `locals` binds at byte `at` or `scope` binds, `kind` telling an
+/// item's kind, or, given `params`, one of those type parameters or a
+/// builtin type; without them, a struct only, as a literal names. A near candidate is looked up in `scope`, so a scope that
+/// notes its lookups (#248) keys on it. Cost: one pass over the names in
+/// scope, on an error only.
+pub fn type_typo<'n>(
+    names: &'n Names<'_>,
+    (scope, locals, at): (&crate::ModuleScope, &crate::Locals, u32),
+    params: Option<&[Symbol]>,
+    name: &str,
+    kind: impl Fn(DefId) -> Option<HeadKind>,
+) -> Option<&'n str> {
+    let typed = params.is_some();
+    let builtins = ["never", "void"]
+        .into_iter()
+        .chain(Prim::ALL.iter().map(|p| p.name()))
+        .filter(|_| typed);
+    let params = params.unwrap_or_default();
+    let visible = locals
+        .items()
+        .iter()
+        .filter(|l| l.covers(at))
+        .map(|l| l.name);
+    let syms = params.iter().chain(&scope.name).copied().chain(visible);
+    let candidates: Vec<&str> = syms.map(|s| names.text(s)).chain(builtins).collect();
+    let builtin =
+        |c: &str| typed && (c == "never" || c == "void" || Prim::ALL.iter().any(|p| p.name() == c));
+    let fits = |k: HeadKind| {
+        if typed {
+            k.is_type()
+        } else {
+            k == HeadKind::Struct
+        }
+    };
+    hd_diag::suggest::best_match(name, candidates.iter().copied(), |c| {
+        let Some(s) = names.syms.find(c) else {
+            return builtin(c);
+        };
+        let item = match locals.at(s, at) {
+            Some(l) => Some(l.kind),
+            None => scope
+                .lookup(s)
+                .filter(|b| b.kind == crate::BindingKind::Item)
+                .and_then(|b| kind(DefId::from_raw(b.value))),
+        };
+        params.contains(&s) || builtin(c) || item.is_some_and(fits)
+    })
+}
+
 /// An import hint from the public std exports of `ifaces`, including the
 /// modules that contain them. Re-exports of one declaration count as one
 /// item, with its declaring module preferred over a re-export's path,

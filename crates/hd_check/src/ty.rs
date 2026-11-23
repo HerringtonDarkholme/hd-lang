@@ -350,6 +350,17 @@ impl Ck<'_, '_> {
             .map(|(_, t)| *t)
     }
 
+    /// [`hd_resolve::iface::type_typo`] in this body's scope.
+    pub(crate) fn type_typo(
+        &self,
+        params: Option<&[hd_base::Symbol]>,
+        name: &str,
+    ) -> Option<String> {
+        let scope = (self.cx.scope_at(self.at), self.cx.locals, self.at);
+        let kind = |d| self.kind_of_item(d);
+        hd_resolve::iface::type_typo(&self.cx.names, scope, params, name, kind).map(str::to_owned)
+    }
+
     pub(crate) fn kind_of_item(&self, d: DefId) -> Option<HeadKind> {
         self.cx.lookup.item(d).and_then(hd_resolve::Item::kind)
     }
@@ -698,8 +709,22 @@ impl Ck<'_, '_> {
                     NameRole::Trait => (Code::UnknownTrait, "trait"),
                 };
                 let hint = self.import_hint(name);
-                self.err(code, n, &format!("no {what} named `{name}`{}", hint.text));
+                let best = if hint.text.is_empty() && role != NameRole::Trait {
+                    let params: Vec<hd_base::Symbol> = self.gens.iter().map(|g| g.0).collect();
+                    self.type_typo(Some(&params), name)
+                } else {
+                    None
+                };
+                let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                self.err(
+                    code,
+                    n,
+                    &format!("no {what} named `{name}`{}{did}", hint.text),
+                );
                 hint.add_fix(&self.cx.src, self.diags);
+                let first = self.cx.src.first(n);
+                self.diags
+                    .add_typo_fix(self.cx.src.token_span(first), best.as_deref());
                 return Ok(Ty::POISON);
             }
             // `names.type.qualified`: through a module in scope, a missing

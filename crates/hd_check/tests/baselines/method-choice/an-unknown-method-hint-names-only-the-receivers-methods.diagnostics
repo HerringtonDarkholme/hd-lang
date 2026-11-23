@@ -5,7 +5,15 @@ error: main.hd:16:5: unknown-method: no method `tag` on (i32, i32); `Tagged` sup
 error: main.hd:19:5: unknown-method: no method `tag` on List[i32]; `Tagged` supplies it but is not available here, add a `use` for it
 error: main.hd:22:5: unknown-method: no method `tag` on Box2[i32]; `Tagged` supplies it but is not available here, add a `use` for it
 error: main.hd:25:5: unknown-method: no method `totl` on Item; did you mean `total`?
+  fix (exact): write `total`
+    edit main.hd:25:10 637..641: "total"
 error: main.hd:28:5: unknown-method: no method `mapp` on i32?; did you mean `map`?
+  fix (exact): write `map`
+    edit main.hd:28:7 683..687: "map"
 error: main.hd:31:5: unknown-method: no method `tag` on A
 error: main.hd:34:5: unknown-method: no method `labl` on A; did you mean `label`?
+  fix (exact): write `label`
+    edit main.hd:34:7 775..779: "label"
 error: main.hd:37:5: unknown-method: no method `labl` on Named; did you mean `label`?
+  fix (exact): write `label`
+    edit main.hd:37:7 827..831: "label"

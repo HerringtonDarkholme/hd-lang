@@ -281,6 +281,7 @@ check-fix-legacy-syntax	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v
 check-fix-reassigned-bindings	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.check.fix.whole-package,cli.check.fix.safe,cli.check.fix.status
 check-fix-std-import	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.check.fix.overlap,cli.check.fix.whole-package,cli.check.fix.safe,cli.check.fix.status
 check-fix-std-import-crlf	cli.json.fix.edit,cli.json.fix.offsets,cli.check.fix.overlap
+check-fix-typos	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.check.fix.whole-package,cli.check.fix.safe,cli.check.fix.status
 lint-fix-private-main	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.lint.fix.report-only
 lint-fix-private-main-bang	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.lint.fix.report-only
 lint-fix-private-main-clash	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.lint.fix.report-only

@@ -6,6 +6,7 @@ pub mod buf;
 pub use buf::{CauseKind, DiagBuf, DiagMark, FixEdit, FixSafety, INTERNAL_ERROR, RootKey};
 
 mod codes;
+pub mod suggest;
 pub use codes::{Code, Phase};
 
 impl Code {

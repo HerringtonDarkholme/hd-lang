@@ -3817,9 +3817,24 @@ impl Lower<'_, '_, '_> {
             }
             if segs.len() == 1 {
                 let hint = self.import_hint(&first);
-                let msg = format!("no type named `{first}`{}", hint.text);
+                let params: Vec<Symbol> = gn.tys.iter().map(|p| p.name).collect();
+                let best = hint.text.is_empty().then(|| {
+                    let kind = |d| {
+                        self.kinds
+                            .get(&d)
+                            .copied()
+                            .or_else(|| self.r.item(d)?.kind())
+                    };
+                    let scope = (&*self.scope, &*self.locals, self.at);
+                    crate::iface::type_typo(&self.names, scope, Some(&params), &first, kind)
+                });
+                let best = best.flatten().map(str::to_owned);
+                let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                let msg = format!("no type named `{first}`{}{did}", hint.text);
                 self.diags.error(Code::UnknownType, span, &msg);
                 hint.add_fix(&self.src, self.diags);
+                self.diags
+                    .add_typo_fix(self.src.token_span(ft), best.as_deref());
             }
             return Ty::POISON;
         };

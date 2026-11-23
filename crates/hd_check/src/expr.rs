@@ -696,8 +696,21 @@ impl Ck<'_, '_> {
                         };
                         let Some((r, ty, held)) = read else {
                             if !self.is_poison_name(&name) {
-                                let msg = format!("`{name}` is not defined");
-                                self.err(Code::UnknownName, n, &msg);
+                                let best = self.value_typo(&name, crate::call::NameUse::Binding);
+                                let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                                self.err(
+                                    Code::UnknownName,
+                                    n,
+                                    &format!("`{name}` is not defined{did}"),
+                                );
+                                // `$name`: the name follows the `$`.
+                                if let (Ok(lo), Ok(hi)) = (
+                                    u32::try_from(token.lo as usize + prefix + range.start + 1),
+                                    u32::try_from(token.lo as usize + prefix + range.end),
+                                ) {
+                                    let span = hd_base::Span { lo, hi, ..token };
+                                    self.diags.add_typo_fix(span, best.as_deref());
+                                }
                             }
                             continue;
                         };
@@ -2796,8 +2809,7 @@ impl Ck<'_, '_> {
             let msg = format!("no method `{name}` on {}", self.show(bt));
             self.err(Code::UnknownMethod, n, &msg);
         } else {
-            let msg = format!("no field `{name}` on {}", self.show(bt));
-            self.err(Code::UnknownField, n, &msg);
+            self.unknown_field(bt, &name, n);
         }
         Ok((Ref(NONE), Ty::POISON))
     }
@@ -3541,6 +3553,30 @@ impl Ck<'_, '_> {
         })
     }
 
+    /// `unknown-field` for the field `fname` that the literal field `a` of
+    /// struct `def` names, with the visible field it misspells. A shorthand
+    /// field also names the value, so only a `name: value` takes the fix.
+    fn unknown_literal_field(
+        &mut self,
+        def: hd_base::DefId,
+        fields: &[hd_resolve::Field],
+        fname: hd_base::Symbol,
+        a: NodeRef<'_>,
+    ) {
+        let name = self.cx.names.text(fname);
+        let visible = fields
+            .iter()
+            .filter(|f| self.member_visible(def, f.public || f.embedded))
+            .map(|f| self.cx.names.text(f.name));
+        let best = hd_diag::suggest::best_match(name, visible, |_| true);
+        let did = hd_diag::suggest::did_you_mean(best);
+        self.err(Code::UnknownField, a, &format!("no field `{name}`{did}"));
+        if a.children().next().is_some() {
+            let first = self.cx.src.first(a);
+            self.diags.add_typo_fix(self.cx.src.token_span(first), best);
+        }
+    }
+
     /// `Name { field: value, ... }`, with `Name::[T]` or inferred arguments.
     fn data_expr(
         &mut self,
@@ -3574,9 +3610,17 @@ impl Ck<'_, '_> {
                 [name] => self.import_hint(name),
                 _ => hd_resolve::iface::ImportHint::default(),
             };
-            let msg = format!("no type named `{}`{}", segs.join("."), hint.text);
+            let best = match segs.as_slice() {
+                [name] if hint.text.is_empty() => self.type_typo(None, name),
+                _ => None,
+            };
+            let did = hd_diag::suggest::did_you_mean(best.as_deref());
+            let msg = format!("no type named `{}`{}{did}", segs.join("."), hint.text);
             self.err(Code::UnknownType, name_node, &msg);
             hint.add_fix(&self.cx.src, self.diags);
+            let first = self.cx.src.first(path_node);
+            self.diags
+                .add_typo_fix(self.cx.src.token_span(first), best.as_deref());
             return Ok((Ref(NONE), Ty::POISON));
         };
         let item = self.cx.lookup.item(def);
@@ -3683,8 +3727,7 @@ impl Ck<'_, '_> {
             }
             let fname = self.sym_of(*a);
             let Some(i) = index.get(&fname).map(|&i| i as usize) else {
-                let msg = format!("no field `{}`", self.cx.names.text(fname));
-                self.err(Code::UnknownField, *a, &msg);
+                self.unknown_literal_field(def, &fields, fname, *a);
                 failed = true;
                 continue;
             };

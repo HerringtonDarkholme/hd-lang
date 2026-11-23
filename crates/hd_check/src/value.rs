@@ -365,8 +365,7 @@ impl Ck<'_, '_> {
         // A tuple element is a place as a field is (`expr.place.tuple-field`).
         let elem = self.tuple_elem_of(bt, name);
         let Some((idx, ft)) = self.field_of(bt, name).or(elem) else {
-            let msg = format!("no field `{name}` on {}", self.show(bt));
-            self.err(Code::UnknownField, lhs, &msg);
+            self.unknown_field(bt, name, lhs);
             return Ok(());
         };
         if elem.is_none() {

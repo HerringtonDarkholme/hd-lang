@@ -498,8 +498,8 @@ struct RangeBounds {
 /// A variant pattern's sub-patterns by field position (`None` for an
 /// omitted named field), with the named fields the variant does not
 /// declare, and the named fields that repeat a field already matched:
-/// their names and sub-patterns, and whether the field is a repeat, for the
-/// caller to report and bind to the poison type.
+/// their names and named patterns, and whether the field is a repeat, for
+/// the caller to report and bind to the poison type.
 type VariantSubs<'t> = (Vec<Option<NodeRef<'t>>>, Vec<(String, NodeRef<'t>, bool)>);
 
 impl Ck<'_, '_> {
@@ -759,21 +759,46 @@ impl Ck<'_, '_> {
                     // nor hides later arms, and its names bind to poison. An
                     // unknown variant reports once per subject type.
                     if self.first_unknown_variant(t) {
-                        let msg = self.unknown_variant_msg(&name, t);
+                        let variants = self.variant_names(t);
+                        let best =
+                            hd_diag::suggest::best_match(&name, variants.iter().copied(), |_| true);
+                        let msg = self.unknown_variant_msg(&name, t, &variants, best);
+                        let best = best.map(str::to_owned);
                         self.err(Code::UnknownVariant, p, &msg);
+                        if let Some(last) = p
+                            .direct_tokens()
+                            .filter(|&tk| self.cx.src.text(tk) == name)
+                            .last()
+                        {
+                            self.diags
+                                .add_typo_fix(self.cx.src.token_span(last), best.as_deref());
+                        }
                         self.result_pattern_fixes(t, p);
                     }
                     self.pattern_rejected = true;
                     return self.declare_poisoned_fields(p, binds);
                 };
                 let (subs, unknown) = self.variant_subpatterns(p, t, &name);
-                for (fname, sub, repeated) in unknown {
+                for (fname, k, repeated) in unknown {
+                    let sub = k.children().next().unwrap_or(k);
                     if repeated {
                         let msg = format!("`{fname}` appears twice in this pattern");
                         self.err(Code::DuplicateDataPatternField, sub, &msg);
                     } else {
-                        let msg = format!("no field `{fname}` of variant `{name}`");
+                        let fields = self.variant_field_names(t, &name);
+                        let best = hd_diag::suggest::best_match(
+                            &fname,
+                            fields.iter().map(String::as_str),
+                            |_| true,
+                        );
+                        let did = hd_diag::suggest::did_you_mean(best);
+                        let msg = format!("no field `{fname}` of variant `{name}`{did}");
                         self.err(Code::UnknownField, sub, &msg);
+                        // A shorthand field also binds the name: no fix.
+                        if sub.index() != k.index() {
+                            let first = self.cx.src.token_span(self.cx.src.first(k));
+                            self.diags.add_typo_fix(first, best);
+                        }
                     }
                     self.pattern_rejected = true;
                     self.declare_pattern(sub, Ty::POISON, binds)?;
@@ -821,8 +846,16 @@ impl Ck<'_, '_> {
                     }
                     seen.push(fname.clone());
                     let Some((_, ft)) = self.field_of(t, &fname) else {
-                        let msg = format!("no field `{fname}` on {}", self.show(t));
+                        let best = self.field_typo(t, &fname);
+                        let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                        let msg = format!("no field `{fname}` on {}{did}", self.show(t));
                         self.err(Code::UnknownField, f, &msg);
+                        // A shorthand field also binds the name: no fix.
+                        if f.children().next().is_some() {
+                            let first = self.cx.src.first(f);
+                            self.diags
+                                .add_typo_fix(self.cx.src.token_span(first), best.as_deref());
+                        }
                         self.pattern_rejected = true;
                         self.declare_poisoned_field(f, binds)?;
                         continue;
@@ -1003,7 +1036,7 @@ impl Ck<'_, '_> {
                 // by the caller; its sub-pattern binds to the poison type
                 // so its uses stay silent.
                 if slot.is_none() {
-                    unknown.push((fname.to_owned(), k.children().next().unwrap_or(k), false));
+                    unknown.push((fname.to_owned(), k, false));
                 }
                 (slot, k.children().next().or(Some(k)))
             } else {
@@ -1015,9 +1048,9 @@ impl Ck<'_, '_> {
             if std::mem::replace(&mut filled[slot], true) {
                 // `flow.match.data.fields.duplicate`: the repeat reports
                 // and binds to the poison type.
-                if let Some(sub) = sub {
+                if sub.is_some() {
                     let fname = self.cx.src.text(self.cx.src.first(k));
-                    unknown.push((fname.to_owned(), sub, true));
+                    unknown.push((fname.to_owned(), k, true));
                 }
                 continue;
             }
@@ -3094,7 +3127,7 @@ impl Ck<'_, '_> {
     /// `t` with its references taken off: the type whose values
     /// the exhaustiveness and reachability checks split, which a test
     /// reads through any reference (`ref.match.read`).
-    fn strip(&self, t: Ty) -> Ty {
+    pub(crate) fn strip(&self, t: Ty) -> Ty {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
@@ -3529,30 +3562,25 @@ impl Ck<'_, '_> {
         true
     }
 
-    /// `unknown-variant` on a pattern naming `.{name}` of `t`, listing the
-    /// variants `t` has when it is an enum: the fix is one of them.
-    fn unknown_variant_msg(&self, name: &str, t: Ty) -> String {
+    /// `unknown-variant` on a pattern naming `.{name}` of `t`, whose
+    /// `variants` it misspells as `best`, else lists: the fix is one of them.
+    fn unknown_variant_msg(
+        &self,
+        name: &str,
+        t: Ty,
+        variants: &[&str],
+        best: Option<&str>,
+    ) -> String {
         let shown = self.show(t);
-        let pool = self.pool();
-        let st = self.strip(t);
-        let variants = match pool.get(st) {
-            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
-                match self.cx.lookup.item(def).map(|i| &i.data) {
-                    Some(ItemData::Enum { variants, .. }) => variants
-                        .iter()
-                        .map(|v| self.cx.names.text(v.name))
-                        .collect::<Vec<_>>(),
-                    _ => Vec::new(),
-                }
-            }
-            _ => Vec::new(),
-        };
+        if let Some(best) = best {
+            return format!("no variant `.{name}` of {shown}; did you mean `.{best}`?");
+        }
         if variants.is_empty() {
             return format!("no variant `.{name}` of {shown}");
         }
         format!(
             "no variant `.{name}` of {shown}; {}",
-            variant_list(&variants)
+            variant_list(variants)
         )
     }
 

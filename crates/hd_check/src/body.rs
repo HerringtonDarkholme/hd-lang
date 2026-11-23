@@ -4777,8 +4777,7 @@ impl Ck<'_, '_> {
                 let Some((l, depth)) = self.find_local(name) else {
                     let text = self.cx.names.text(name).to_owned();
                     if !self.is_poison_name(&text) {
-                        let msg = format!("`{text}` is not defined");
-                        self.err(Code::UnknownName, lhs, &msg);
+                        self.unknown_name(&text, lhs, crate::call::NameUse::Binding);
                     }
                     return Ok(());
                 };
@@ -4874,8 +4873,7 @@ impl Ck<'_, '_> {
                 if self.is_struct_ty(bt) {
                     let (_, bt) = self.promote_base(br, bt, &fname, lhs);
                     if self.field_of(bt, &fname).is_none() {
-                        let msg = format!("no field `{fname}` on {}", self.show(bt));
-                        self.err(Code::UnknownField, lhs, &msg);
+                        self.unknown_field(bt, &fname, lhs);
                         return Ok(());
                     }
                     self.check_field_visible(bt, &fname, lhs);
@@ -4908,8 +4906,7 @@ impl Ck<'_, '_> {
                     self.err(Code::InvalidAssignmentTarget, lhs, &msg);
                     return Ok(());
                 }
-                let msg = format!("no field `{fname}` on {}", self.show(bt));
-                self.err(Code::UnknownField, lhs, &msg);
+                self.unknown_field(bt, &fname, lhs);
             }
             SyntaxKind::IndexExpr => {
                 let [base, key] = lhs.parts();
