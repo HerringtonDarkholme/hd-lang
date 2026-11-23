@@ -14,10 +14,10 @@ app/main/main
   %15 = Break L6 %14 : never
   %16 = Block - : &Flat
   %17 = Scope %16 [] : &Flat
-  %18 = LoanEnd [$19] : ()
-  %19 = Drop [$1] : ()
-  %20 = Call app/main/run[] (%17) : ()
-  %21 = LoanEnd [%17] : ()
+  %18 = Call app/main/run[] (%17) : ()
+  %19 = LoanEnd [%17] : ()
+  %20 = LoanEnd [$19] : ()
+  %21 = Drop [$1] : ()
   storage sub 0: $0 cell, $1 slot, $2 cell, $3 slot, $4 cell, $5 slot, $6 cell, $7 slot
 == @build: checked
 app/main/main
@@ -34,10 +34,10 @@ app/main/main
   %15 = Break L6 %14 : never
   %16 = Block - : &Flat
   %17 = Scope %16 [] : &Flat
-  %18 = LoanEnd [$19] : ()
-  %19 = Drop [$1] : ()
-  %20 = Call app/main/run[] (%17) : ()
-  %21 = LoanEnd [%17] : ()
+  %18 = Call app/main/run[] (%17) : ()
+  %19 = LoanEnd [%17] : ()
+  %20 = LoanEnd [$19] : ()
+  %21 = Drop [$1] : ()
   storage sub 0: $0 cell, $1 slot, $2 cell, $3 slot, $4 cell, $5 slot, $6 cell, $7 slot
 == @build: release
 app/main/main
@@ -54,9 +54,9 @@ app/main/main
   %15 = Break L6 %14 : never
   %16 = Block - : &Flat
   %17 = Scope %16 [] : &Flat
-  %18 = LoanEnd [$19] : ()
-  %19 = Drop [$1] : ()
-  %20 = Call app/main/run[] (%17) : ()
-  %21 = LoanEnd [%17] : ()
+  %18 = Call app/main/run[] (%17) : ()
+  %19 = LoanEnd [%17] : ()
+  %20 = LoanEnd [$19] : ()
+  %21 = Drop [$1] : ()
   storage sub 0: $0 cell, $1 slot, $2 cell, $3 slot, $4 cell, $5 slot, $6 cell, $7 slot
   summary kept [] writes

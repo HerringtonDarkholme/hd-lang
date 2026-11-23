@@ -98,6 +98,10 @@ pub(crate) struct Tables {
     /// and `held`'s uses: these only extend a local's life).
     dep: Vec<Origins>,
     ldep: Vec<Origins>,
+    /// Per value and per local: whether it may become an address
+    /// ([`addresses`]).
+    addr: Vec<bool>,
+    laddr: Vec<bool>,
     /// The candidates a use lets escape.
     out: Origins,
     /// The candidates the last run found frame locals.
@@ -448,6 +452,7 @@ fn analyze(
     fill(&mut t.held, locals, Origins::default());
     fill(&mut t.dep, n, Origins::default());
     fill(&mut t.ldep, locals, Origins::default());
+    addresses(b, cx, t);
     let mut ops = std::mem::take(&mut t.ops);
     let mut changed = true;
     while changed {
@@ -584,6 +589,7 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> Orig
     fill(&mut t.held, locals, Origins::default());
     fill(&mut t.dep, n, Origins::default());
     fill(&mut t.ldep, locals, Origins::default());
+    addresses(b, cx, t);
     let mut ops = std::mem::take(&mut t.ops);
     let mut changed = true;
     while changed {
@@ -981,6 +987,7 @@ fn origin_uses(
     fill(&mut t.held, locals, Origins::default());
     fill(&mut t.dep, n, Origins::default());
     fill(&mut t.ldep, locals, Origins::default());
+    addresses(b, cx, t);
     let mut ops = std::mem::take(&mut t.ops);
     t.work = Some(std::cell::RefCell::new(Worklist::new(n, locals)));
     loop {
@@ -1032,6 +1039,72 @@ fn grow(set: &mut Origins, m: Origins) -> bool {
     true
 }
 
+/// Marks in `t.addr` each value that may become an address, and in
+/// `t.laddr` each local: a field of a value built that may hold a
+/// reference (`Ptr { address: .. }`, where an integer gains a referent),
+/// and, backward, an operand of a `Prim` or a call that is one
+/// (`address_of(&x) + 8`), the tail of a block and the blocks of a
+/// branch that is one, the value a `Break` gives one, and the value
+/// stored into a local a read of which is one. [`step`] carries origins
+/// through these values only: other integers point nowhere. Cost: one
+/// backward pass over the body, and one more where a local becomes an
+/// address.
+fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
+    fill(&mut t.addr, b.len(), false);
+    fill(&mut t.laddr, b.local_ty.len(), false);
+    let (mut ops, mut found) = (Vec::new(), std::mem::take(&mut t.ops));
+    let mut value_operands = |i: usize, ops: &mut Vec<u32>| {
+        operands(b, i, &mut found);
+        ops.extend(found.iter().map(|o| o.value));
+    };
+    let mut again = true;
+    while std::mem::take(&mut again) {
+        for i in (0..b.len()).rev() {
+            let ([a, w], tag) = (b.data[i], b.tags[i]);
+            ops.clear();
+            match tag {
+                Tag::Break
+                    if b.label_inst
+                        .get(a as usize)
+                        .is_some_and(|&x| t.addr.get(x as usize) == Some(&true)) =>
+                {
+                    ops.push(w);
+                }
+                Tag::Store if b.view(a).local().is_some_and(|l| t.laddr[l as usize]) => ops.push(w),
+                Tag::Read if t.addr[i] => {
+                    if let Some(l) = b.view(a).local() {
+                        again |= !std::mem::replace(&mut t.laddr[l as usize], true);
+                    }
+                }
+                Tag::NewStruct if cx.holds_ref(b.ty[i]) => value_operands(i, &mut ops),
+                Tag::Prim
+                | Tag::Block
+                | Tag::Call
+                | Tag::CallValue
+                | Tag::CallHost
+                | Tag::Intrinsic
+                    if t.addr[i] =>
+                {
+                    value_operands(i, &mut ops);
+                }
+                _ if !t.addr[i] => continue,
+                // A branch's value is its blocks'.
+                _ => slots(b, i, |_, x, word| {
+                    if word == Word::Block {
+                        ops.push(x);
+                    }
+                }),
+            }
+            for &v in &ops {
+                if Ref(v).as_inst().is_some() && (v as usize) < b.len() {
+                    t.addr[v as usize] = true;
+                }
+            }
+        }
+    }
+    t.ops = found;
+}
+
 /// One instruction's constraints: whether any set grew. A read through a
 /// reference may become a borrow, which lives on the place it reads, so
 /// its value's uses and a local it is stored into keep the place's
@@ -1069,9 +1142,10 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
         Tag::Coerce => dep(t, a) | lent_from(b, cx, t, i),
         // A value that may hold a reference, a `Ptr` too, made from
         // others lives on what they live on: `Ptr.as_ref` of an address
-        // read out of a borrowed buffer points into its owner.
+        // read out of a borrowed buffer points into its owner. So does
+        // arithmetic on an address (`Ptr { address: self.block + VALUE }`).
         Tag::Store | Tag::Break => Origins::default(),
-        _ if cx.holds_ref(b.ty[i]) => {
+        _ if cx.holds_ref(b.ty[i]) || t.addr[i] => {
             operands(b, i, ops);
             let mut m = ops
                 .iter()

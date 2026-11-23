@@ -1,6 +1,6 @@
 # @dump: stdout own
 # @build: dev | checked | release
-# expected: each `Arc` drops after the call its `get()` reference is passed to; today it drops before, and `run` traps out of bounds (#2327)
+# An `Arc` drops after the call its `get()` reference is passed to: the address `block + VALUE` keeps `a` as its origin (#2327)
 use std.sync.Arc
 
 struct Flat:

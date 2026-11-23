@@ -7294,6 +7294,7 @@ std/iter/double-ended-cursors/adapters.hd	runtime	accept	std/iter.md#double-ende
 std/iter/double-ended-cursors/drains-and-moves.hd	runtime	accept	std/iter.md#double-ended-cursors
 std/iter/double-ended-cursors/cost.hd	runtime	accept	std/iter.md#double-ended-cursors
 std/iter/double-ended-cursors/forward-only.hd	type	reject:unknown-method	std/iter.md#double-ended-cursors
+std/sync/arc/a-reference-from-get-keeps-its-arc-alive-while-used.hd	runtime	accept	std/sync.md#r-std-sync.arc.get
 std/sync/arc/arc-shares-a-value-across-clones-drops-and-weak-references.hd	runtime	accept	std/sync.md#r-std-sync.arc.clone
 std/sync/arc/an-arc-of-a-value-that-is-not-sync-is-not-send.hd	type	reject:unsatisfied-trait-bound	std/sync.md#r-std-sync.arc.send
 std/sync/arc/an-arc-is-never-wire.hd	type	reject:unsatisfied-trait-bound	std/sync.md#r-std-sync.arc.send

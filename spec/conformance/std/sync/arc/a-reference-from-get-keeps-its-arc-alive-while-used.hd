@@ -1,0 +1,70 @@
+# test: a reference that get() lends keeps its Arc alive while it is used: through a field, a copied *mut field, a nested part, a closure and a suspending function
+# Spec std/sync: std-sync.arc.get.
+# expect-stdout: arc 0 then 1
+# expect-stdout: quiet 3
+# expect-stdout: nested 0 in then 1
+# expect-stdout: kept 1 then 2
+# expect-stdout: closure 0 then 1
+# expect-stdout: closure 1 then 2
+# expect-stdout: arc 0 then 1
+use std.sync.Arc
+use std.time.{Clock, ms, sleep}
+
+struct Flat:
+    edges: *mut List[i32]
+
+struct Inner:
+    flat: Flat
+    name: string
+
+struct Outer:
+    inner: Inner
+
+fn run(f: &Flat) -> void $ Console:
+    first := "arc ${f.edges.len()}"
+    e := f.edges
+    e.push(8)
+    println("${first} then ${e.len()}")
+
+fn quiet(f: &Flat) -> usize:
+    n := f.edges.len()
+    e := f.edges
+    e.push(4)
+    n + e.len()
+
+fn nested(o: &Outer) -> void $ Console:
+    first := "nested ${o.inner.flat.edges.len()} ${o.inner.name}"
+    e := o.inner.flat.edges
+    e.push(2)
+    println("${first} then ${e.len()}")
+
+fn closure() -> void $ Console:
+    a := Arc::new(Flat { edges: box([]) })
+    go := fn() -> void $ Console:
+        f := a.get()
+        first := "closure ${f.edges.len()}"
+        e := f.edges
+        e.push(1)
+        println("${first} then ${e.len()}")
+    go()
+    go()
+
+fn waits!() -> void $ Console + Clock:
+    a := Arc::new(Flat { edges: box([]) })
+    sleep!(ms(1))
+    run(a.get())
+
+pub fn main!() -> void $ Console + Clock:
+    a := Arc::new(Flat { edges: box([]) })
+    run(a.get())
+    println("quiet ${quiet(Arc::new(Flat { edges: box([5]) }).get())}")
+    o := Arc::new(Outer { inner: Inner { flat: Flat { edges: box([]) }, name: "in" } })
+    nested(o.get())
+    b := Arc::new(Flat { edges: box([0]) })
+    kept := b.get()
+    before := "kept ${kept.edges.len()}"
+    e := kept.edges
+    e.push(9)
+    println("${before} then ${kept.edges.len()}")
+    closure()
+    waits!()
