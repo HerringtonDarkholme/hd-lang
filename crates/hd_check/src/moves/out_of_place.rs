@@ -81,6 +81,8 @@ enum From {
     Capture,
     /// A binding a closure shares through a cell, read in its scope.
     Cell,
+    /// A guard's twin of its arm's binding (`flow.match.guard.borrow`).
+    Guard,
 }
 
 /// The reference a place is behind: `&T`, `&mut T`, or a counted `*T`
@@ -184,6 +186,97 @@ impl Ck<'_, '_> {
             .collect()
     }
 
+    /// Which locals are a guard's twins of its arm's bindings
+    /// (`flow.match.guard.borrow`).
+    pub(super) fn guard_twins_of(&self, b: &Body) -> Vec<bool> {
+        let mut twin = vec![false; b.local_ty.len()];
+        for g in &self.guard_bindings {
+            twin[g.twin.idx()] = true;
+        }
+        twin
+    }
+
+    /// `flow.match.guard.borrow`: while a guard runs, each twin reads its
+    /// payload in place, so the guard may not assign, mutably borrow or
+    /// move a place that overlaps it (Rust's fake borrows): such an access
+    /// is `conflicting-access`, reported once per twin. A twin of a value
+    /// the match itself made, a call's result, reads a place nothing else
+    /// names. A closure the guard makes may not capture a twin, which
+    /// would share it in a cell (`fn.capture.cell`): `move-out-of-place`.
+    /// Cost: per twin, its guard's instructions.
+    pub(crate) fn check_guard_views(&mut self, cx: &mut Uses) {
+        if self.guard_bindings.is_empty() {
+            return;
+        }
+        let views = self.guard_bindings.clone();
+        cx.follow(self.b.body(), true);
+        let mut found: Vec<(usize, &str)> = Vec::new();
+        let mut captured: Vec<(usize, LocalId)> = Vec::new();
+        for g in views {
+            let b = self.b.body();
+            let r = g.read.0 as usize;
+            if let Some(i) = (r + 1..=g.end as usize).find(|&i| {
+                b.tags[i] == Tag::Closure
+                    && !b.is_instantiation(i)
+                    && b.record(b.data[i][1])
+                        .first()
+                        .zip(b.record(b.data[i][1]).get(1))
+                        .is_some_and(|(&start, &len)| {
+                            (start..start + len)
+                                .any(|c| b.cap_local.get(c as usize) == Some(&g.twin))
+                        })
+            }) {
+                captured.push((i, g.twin));
+            }
+            let viewed = (b.tags[r] == Tag::Read)
+                .then(|| local_place(b, b.data[r][0]))
+                .flatten();
+            let Some((l, viewed)) = viewed else { continue };
+            for i in r + 1..=g.end as usize {
+                let what = match b.tags[i] {
+                    Tag::Store => "assigns",
+                    Tag::Ref if b.data[i][1] & hd_tir::ir::ref_word::MUT != 0 => "mutably borrows",
+                    Tag::Read if !cx.copied[i] && self.moves(cx, w(i)) => "moves",
+                    _ => continue,
+                };
+                if let Some((m, p)) = local_place(b, b.data[i][0])
+                    && m == l
+                    && overlaps(&p, &viewed)
+                {
+                    found.push((i, what));
+                    break;
+                }
+            }
+        }
+        for (i, what) in found {
+            let at = self.b.body().syn[i];
+            if at == hd_base::NodeIdx::NONE {
+                continue;
+            }
+            let msg = format!(
+                "this {what} the value the match tests while its guard reads a binding of it in place; the arm takes the binding once the guard holds. Change the value in the arm, or before the match"
+            );
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::ConflictingAccess, node, &msg);
+        }
+        for (i, twin) in captured {
+            let at = self.b.body().syn[i];
+            if at == hd_base::NodeIdx::NONE {
+                continue;
+            }
+            let name = self
+                .cx
+                .names
+                .text(self.b.body().local_name[twin.idx()])
+                .to_owned();
+            let msg = format!(
+                "this closure captures `{name}`, a binding of its match guard whose value is not copied and which the guard reads in place; a capture would share it. Capture a reference, as `(r := &{name})` in the guard makes, or make the closure in the arm"
+            );
+            let node = self.cx.src.parse.tree.node(at);
+            self.err(Code::MoveOutOfPlace, node, &msg);
+        }
+    }
+
     /// `ref.move.out-of-place`: each read that moves a value that is not
     /// copied out of a place behind a reference, or out of a binding its
     /// closure captures, is `move-out-of-place`.
@@ -204,6 +297,7 @@ impl Ck<'_, '_> {
                 let root = root_of(b, p.root);
                 let from = match self.behind_ref(b, &p) {
                     Some(kind) => From::Reference(kind),
+                    None if matches!(root, Root::Local(l) if cx.twin[l.idx()]) => From::Guard,
                     None => captured(&captures, &shared, cx.topo.sub[i], root, &p)?,
                 };
                 Some((w(i), from, root))
@@ -247,6 +341,9 @@ impl Ck<'_, '_> {
                 ),
                 From::Cell => format!(
                     "this moves a value out of a binding a closure shares, which the closure may still read; {why}. Borrow it with `&`"
+                ),
+                From::Guard => format!(
+                    "a match guard reads its bindings in place, and the next arm matches the same value when the guard is false, so the guard cannot move one; {why}. Borrow it with `&`, or move it in the arm"
                 ),
             };
             let node = self.cx.src.parse.tree.node(at);
@@ -366,4 +463,37 @@ impl Ck<'_, '_> {
             _ => None,
         }
     }
+}
+
+/// The local a place word reaches and its path from it, through each
+/// value that reads a place (`[%r .0]` of `%r = Read [$l .p]` is
+/// `[$l .p .0]`); `None` for a place rooted at anything else.
+fn local_place(b: &Body, word: u32) -> Option<(LocalId, Vec<Proj>)> {
+    let mut p = b.decode_place(word)?;
+    loop {
+        match p.root {
+            PlaceRoot::Local(l) => return Some((l, p.proj)),
+            PlaceRoot::Value(r)
+                if (r.0 as usize) < b.len() && b.tags[r.0 as usize] == Tag::Read =>
+            {
+                let inner = b.decode_place(b.data[r.0 as usize][0])?;
+                let mut proj = inner.proj;
+                proj.extend(p.proj);
+                p = Place {
+                    root: inner.root,
+                    proj,
+                };
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// Whether two paths from one local overlap: one is a prefix of the
+/// other. Two elements of a list may be the same one.
+fn overlaps(a: &[Proj], c: &[Proj]) -> bool {
+    a.iter().zip(c).all(|(x, y)| match (x, y) {
+        (Proj::Elem(_), Proj::Elem(_)) => true,
+        _ => x == y,
+    })
 }

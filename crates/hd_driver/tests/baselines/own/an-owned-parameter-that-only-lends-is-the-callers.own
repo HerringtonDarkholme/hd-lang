@@ -3,7 +3,7 @@ app/main/label
   local $0 shape: Shape [param read] value
     uses $0: entry -> %0 lend last
   local $1 n: string [read assigned] value
-    uses $1: %12 -> %1 lend last
+    uses $1: %11 -> %1 lend last
   local $2 k: string [read assigned] value
     uses $2: %13 -> %3 lend last
   local $3 r: string [read assigned] value
@@ -19,9 +19,9 @@ app/main/label
   %8 = Intrinsic StrConcat ["radius " %7] : string
   %9 = Block %8 : string
   %10 = Read borrow [%0 as #1 .0] : string
-  %11 = Read borrow [%0 as #1 .1] : string
-  %12 = Store [$1] %10 : ()
-  %13 = Store [$2] %11 : ()
+  %11 = Store [$1] %10 : ()
+  %12 = Read borrow [%0 as #1 .1] : string
+  %13 = Store [$2] %12 : ()
   %15 = Block - : never
   %16 = Read borrow [%0 as #0 .0] : string
   %17 = Store [$3] %16 : ()

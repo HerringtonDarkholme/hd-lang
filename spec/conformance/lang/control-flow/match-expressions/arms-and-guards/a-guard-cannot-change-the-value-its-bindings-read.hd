@@ -1,0 +1,26 @@
+# test: while a guard reads a binding whose value is not copied in place, it cannot change the matched place: the arm takes the binding once the guard holds
+# Spec lang/06 Match Expressions: flow.match.guard.borrow.change.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+struct Holder:
+    photo: Photo?
+
+impl !Copy for Holder
+
+fn keep(photo: Photo) -> u32:
+    photo.width
+
+fn reset(holder: &mut Holder) -> bool:
+    holder.photo = .None
+    true
+
+fn pick(start: Holder) -> u32:
+    let mut holder = start
+    match holder.photo:
+        .Some(photo) if reset(&mut holder) => keep(photo) # diagnostic: conflicting-access
+        .Some(photo) => keep(photo)
+        _ => 0

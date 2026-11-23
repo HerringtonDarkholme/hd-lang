@@ -18,7 +18,7 @@ app/main/holds
   %12 = Block %9 : bool
   %13 = Read borrow [*%4] : Slot[K, V]
   %15 = Block - : never
-  %16 = Read copy [%13 as #1 .0] : K
+  %16 = Read copy [*%4 as #1 .0] : K
   %17 = Retain %16 Value #0 : ()
   %18 = Store [$2] %16 : ()
   %21 = SwitchTag %13 [#0 %15 %20] : never

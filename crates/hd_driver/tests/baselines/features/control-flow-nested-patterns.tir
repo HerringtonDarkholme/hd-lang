@@ -21,29 +21,30 @@ fn read_nested(s: Shape) -> usize:
 >   local $3 a: string [read assigned captured]
 >   local $4 b: string [read assigned captured]
 >   %0 = Read [$0] : Shape
->   %35 = Block - : never
->   %36 = Match %0 [%35 %3 %7 %13] : usize
->   %37 = Block %36 : usize
+>   %36 = Block - : never
+>   %37 = Match %0 [%36 %3 %7 %13] : usize
+>   %38 = Block %37 : usize
         .Dot(User { name, age: 0 }) => name.len()
 >   %1 = Ref local [$1] : &string
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
 >   %14 = Read [%0 as #0 .0] : User
->   %15 = Read [%14 .name] : string
->   %16 = Read [%14 .age] : i32
->   %17 = Prim Eq [%16 0:i32] : bool
->   %18 = Store [$1] %15 : ()
+>   %15 = Read [%14 .age] : i32
+>   %16 = Prim Eq [%15 0:i32] : bool
+>   %17 = Read [%14 .name] : string
+>   %18 = Store [$1] %17 : ()
 >   %20 = Block - : never
->   %23 = Block - : never
->   %24 = If %17 [%20 %23] : never
->   %25 = Block - : never
->   %34 = SwitchTag %0 [#0 %25 %33] : never
+>   %24 = Block - : never
+>   %25 = If %16 [%20 %24] : never
+>   %26 = Block - : never
+>   %35 = SwitchTag %0 [#0 %26 %34] : never
         .Dot(User { name: n }) => n.len() + 1
 >   %4 = Ref local [$2] : &string
 >   %5 = Call std/text/impl string.len[] (%4) : usize
 >   %6 = Prim Add [%5 1:usize] : usize
 >   %7 = Block %6 : usize
->   %21 = Store [$2] %15 : ()
+>   %21 = Read [%14 .name] : string
+>   %22 = Store [$2] %21 : ()
         .Line(start=User { name: a }, end=User { name: b }) => a.len() + b.len()
 >   %8 = Ref local [$3] : &string
 >   %9 = Call std/text/impl string.len[] (%8) : usize
@@ -51,12 +52,12 @@ fn read_nested(s: Shape) -> usize:
 >   %11 = Call std/text/impl string.len[] (%10) : usize
 >   %12 = Prim Add [%9 %11] : usize
 >   %13 = Block %12 : usize
->   %26 = Read [%0 as #1 .0] : User
->   %27 = Read [%0 as #1 .1] : User
->   %28 = Read [%26 .name] : string
+>   %27 = Read [%0 as #1 .0] : User
+>   %28 = Read [%0 as #1 .1] : User
 >   %29 = Read [%27 .name] : string
->   %30 = Store [$3] %28 : ()
->   %31 = Store [$4] %29 : ()
+>   %30 = Store [$3] %29 : ()
+>   %31 = Read [%28 .name] : string
+>   %32 = Store [$4] %31 : ()
 
 fn owner(s: Shape) -> string:
     match s:

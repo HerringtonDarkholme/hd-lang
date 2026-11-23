@@ -36,9 +36,9 @@ fn read_match(s: Shape) -> usize:
 >   %8 = Prim Add [%5 %7] : usize
 >   %9 = Block %8 : usize
 >   %15 = Read [%0 as #1 .0] : string
->   %16 = Read [%0 as #1 .1] : string
->   %17 = Store [$2] %15 : ()
->   %18 = Store [$3] %16 : ()
+>   %16 = Store [$2] %15 : ()
+>   %17 = Read [%0 as #1 .1] : string
+>   %18 = Store [$3] %17 : ()
 >   %20 = Block - : never
         .Empty => 0
 >   %10 = Block 0:usize : usize
@@ -85,7 +85,7 @@ fn ref_match(s: &Shape) -> usize:
 >   %2 = Call std/text/impl string.len[] (%1) : usize
 >   %3 = Block %2 : usize
 >   %11 = Read [*%0] : Shape
->   %12 = Read [%11 as #0 .0] : string
+>   %12 = Read [*%0 as #0 .0] : string
 >   %13 = Store [$1] %12 : ()
 >   %15 = Block - : never
 >   %24 = SwitchTag %11 [#0 %15 #1 %21 %23] : never
@@ -96,10 +96,10 @@ fn ref_match(s: &Shape) -> usize:
 >   %7 = Call std/text/impl string.len[] (%6) : usize
 >   %8 = Prim Add [%5 %7] : usize
 >   %9 = Block %8 : usize
->   %16 = Read [%11 as #1 .0] : string
->   %17 = Read [%11 as #1 .1] : string
->   %18 = Store [$2] %16 : ()
->   %19 = Store [$3] %17 : ()
+>   %16 = Read [*%0 as #1 .0] : string
+>   %17 = Store [$2] %16 : ()
+>   %18 = Read [*%0 as #1 .1] : string
+>   %19 = Store [$3] %18 : ()
 >   %21 = Block - : never
         .Empty => 0
 >   %10 = Block 0:usize : usize

@@ -64,6 +64,8 @@
       return
     end
     i32.const 65 ;; &"short"
+    local.set $t.0
+    local.get $t.0
     i32.const 5
   )
   (func $whole (param $o.0 i32) (param $o.1 i32) (result i32) (local $t0 i32) (local $t1 i32)

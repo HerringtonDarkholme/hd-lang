@@ -309,6 +309,16 @@ pub(crate) enum ExpectPosition {
     General,
 }
 
+/// A guard's twin of its arm's binding (`flow.match.guard.borrow`): the
+/// twin, the read that fills it, which starts the guard's block, and that
+/// block, the guard's last instruction.
+#[derive(Clone, Copy)]
+pub(crate) struct GuardView {
+    pub twin: LocalId,
+    pub read: Ref,
+    pub end: u32,
+}
+
 pub(crate) struct Ck<'a, 'c> {
     pub cx: &'c BodyCx<'a>,
     /// Body-local append-only facts for tooling, recorded only when a tool
@@ -648,6 +658,14 @@ pub(crate) struct Ck<'a, 'c> {
     /// The pattern bindings that take a reference to their payload rather
     /// than a copy, and whether it is `&mut` (`ref.match.borrow`).
     pub ref_bound: HashMap<LocalId, bool>,
+    /// The twin each guarded arm's binding has while its guard runs
+    /// (`flow.match.guard.borrow`).
+    pub guard_bindings: Vec<GuardView>,
+    /// The first instruction of the decision tree being built.
+    pub decision_start: usize,
+    /// Whether a guard of that decision views a binding
+    /// (`flow.match.guard.borrow`).
+    pub decision_views: bool,
     /// Source bindings for unread-suspension checks and optional tooling
     /// facts, each with the node whose first identifier names it: its
     /// declaring node, or a recursive closure's binding pattern.
@@ -952,6 +970,9 @@ pub(crate) fn new_ck<'a, 'c>(
         unknown_variant_tys: None,
         pattern_below_ref: None,
         ref_bound: HashMap::default(),
+        guard_bindings: Vec::new(),
+        decision_start: 0,
+        decision_views: false,
         user_locals: Vec::new(),
         norm_stack: Vec::new(),
         norm_reported: HashSet::default(),
@@ -5700,6 +5721,7 @@ impl Ck<'_, '_> {
         if let Some(mut cx) = self.move_base() {
             move_facts = self.check_moves(root, &mut cx);
             self.check_moves_out_of_place(&mut cx);
+            self.check_guard_views(&mut cx);
         }
         if !self.too_many_slots && !slots.over(pool, ret) {
             self.check_dependent_results(root, ret, fun, &move_facts)?;

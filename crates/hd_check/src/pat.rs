@@ -18,7 +18,8 @@ use hd_diag::Code;
 use hd_resolve::{ItemData, Src};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
-    BlockMark, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, PrimOp, Proj, Ref, Tag, TirSink,
+    BlockMark, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, PrimOp, Proj, ReadMode, Ref, Slot,
+    Tag, TirSink, local_flags,
 };
 use hd_types::{Prim, Ty, TyData, VarKind};
 
@@ -32,7 +33,22 @@ pub(crate) struct Row<'t> {
     pub wrap_some: bool,
     pub binds: Vec<(NodeIdx, LocalId)>,
     pub guard: Option<Ref>,
+    /// The twin of each binding its guard reads in place
+    /// (`flow.match.guard.borrow`).
+    pub twins: Vec<Twin>,
     pub arm: u32,
+}
+
+/// A guard's twin of an arm's binding (`flow.match.guard.borrow`): the
+/// local the guard names, and the two reserved statements that start the
+/// guard's block, filled at the row's first leaf with the read of the
+/// binding's place and its store into the twin.
+#[derive(Clone, Copy)]
+pub(crate) struct Twin {
+    bind: LocalId,
+    view: LocalId,
+    read: Slot,
+    store: Slot,
 }
 
 impl<'t> Row<'t> {
@@ -42,6 +58,7 @@ impl<'t> Row<'t> {
             wrap_some: true,
             binds,
             guard: None,
+            twins: Vec::new(),
             arm: 0,
         }
     }
@@ -51,6 +68,7 @@ impl<'t> Row<'t> {
             wrap_some: false,
             binds: vec![],
             guard: None,
+            twins: Vec::new(),
             arm: 1,
         }
     }
@@ -255,12 +273,25 @@ struct Tags {
     wild: Vec<usize>,
 }
 
+/// A column of a decision matrix: the value its tests read, its type,
+/// and whether that type moves (is not copied). A column no row tests
+/// has no value (`v` is `NONE`): `place` names it, its parts project from
+/// that place, and each binding reads it at its leaf ([`Ck::reread`]),
+/// as MIR tests and binds places of the matched value.
+#[derive(Clone, Copy)]
+struct Occ {
+    v: Ref,
+    t: Ty,
+    place: u32,
+    moves: bool,
+}
+
 /// A row of a decision matrix: a cell per column, the stores its
 /// bindings need at its leaf, and its index in the [`Row`]s.
 #[derive(Clone)]
 struct DRow<'t> {
     cells: Vec<Cell<'t>>,
-    sets: Vec<(LocalId, Ref, NodeIdx)>,
+    sets: Vec<(LocalId, Occ, NodeIdx)>,
     row: usize,
 }
 
@@ -275,7 +306,7 @@ impl<'t> DRow<'t> {
 /// A step left on [`Ck::tree`]'s work stack.
 enum Step<'t> {
     /// The tree of a matrix over its columns, into the open block.
-    Tree(Vec<(Ref, Ty)>, Vec<DRow<'t>>),
+    Tree(Vec<Occ>, Vec<DRow<'t>>),
     /// A guarded leaf whose fail side is built: close that side and emit
     /// the `Guard` choosing between the arm's block `to` and it.
     Guard { g: Ref, to: Ref, fail: BlockMark },
@@ -292,7 +323,7 @@ struct Chain<'t> {
     /// The cases left.
     links: Links<'t>,
     /// The columns of the matrix the chain splits.
-    occs: Vec<(Ref, Ty)>,
+    occs: Vec<Occ>,
     /// The case whose tree is being built: its test, its block, its
     /// syntax.
     open: Option<(Head, BlockMark, NodeIdx)>,
@@ -331,7 +362,7 @@ enum Head {
 /// What a [`Chain`]'s last fail block holds.
 enum Rest<'t> {
     /// The tree of these rows over these columns.
-    Tree(Vec<(Ref, Ty)>, Vec<DRow<'t>>),
+    Tree(Vec<Occ>, Vec<DRow<'t>>),
     /// `Unreachable`: the cases cover every value.
     Unreachable,
     /// Already built; a tag table's default block is still open.
@@ -385,7 +416,7 @@ fn literal_cell(c: Cell<'_>) -> Option<NodeRef<'_>> {
 }
 
 /// Records the store into the local that the pattern node `at` binds.
-fn bind(row: &Row<'_>, sets: &mut Vec<(LocalId, Ref, NodeIdx)>, at: NodeIdx, v: Ref) {
+fn bind(row: &Row<'_>, sets: &mut Vec<(LocalId, Occ, NodeIdx)>, at: NodeIdx, v: Occ) {
     if let Some(&(_, l)) = row.binds.iter().find(|(n, _)| *n == at) {
         sets.push((l, v, at));
     }
@@ -404,6 +435,16 @@ fn tests_value(p: NodeRef<'_>) -> bool {
     }
 }
 
+/// Whether a sub-pattern needs its column's value: one that tests it, or
+/// a tuple or data pattern, whose parts read from it. A name, `_` and a
+/// spread only bind or skip it.
+fn tests(p: NodeRef<'_>) -> bool {
+    !matches!(
+        p.kind(),
+        SyntaxKind::WildcardPattern | SyntaxKind::BindingPattern | SyntaxKind::SpreadPattern
+    )
+}
+
 /// Whether a sub-pattern tests or binds its value: all but `_` and `()`.
 fn reads(p: NodeRef<'_>) -> bool {
     match p.kind() {
@@ -414,11 +455,7 @@ fn reads(p: NodeRef<'_>) -> bool {
 }
 
 /// The columns `occs` with column `j` replaced by `new`.
-fn splice(
-    occs: &[(Ref, Ty)],
-    j: usize,
-    new: impl IntoIterator<Item = (Ref, Ty)>,
-) -> Vec<(Ref, Ty)> {
+fn splice(occs: &[Occ], j: usize, new: impl IntoIterator<Item = Occ>) -> Vec<Occ> {
     let mut o = occs.to_vec();
     o.splice(j..=j, new);
     o
@@ -1267,6 +1304,7 @@ impl Ck<'_, '_> {
             wrap_some: false,
             binds,
             guard: None,
+            twins: Vec::new(),
             arm: 0,
         }];
         if let Some(e) = els {
@@ -1291,6 +1329,7 @@ impl Ck<'_, '_> {
                 wrap_some: false,
                 binds: vec![],
                 guard: None,
+                twins: Vec::new(),
                 arm: 1,
             });
         }
@@ -1347,12 +1386,16 @@ impl Ck<'_, '_> {
                 unknown_tys = this.unknown_variant_tys.take().unwrap_or_default();
                 let rejected = std::mem::replace(&mut this.pattern_rejected, outer_rejected);
                 rejected_arms.push(rejected);
+                let mut twins = Vec::new();
                 let guard = if second.kind() == SyntaxKind::MatchGuard {
                     let [ge] = second.parts();
                     let gb = this.b.open_block();
+                    twins = this.guard_twins(&binds);
                     let (gr, gt) = this.expr(ge, Some(Ty::BOOL))?;
                     this.expect_ty(gt, Ty::BOOL, ge, "guard", ExpectPosition::General);
-                    Some(this.b.close_block(gb, Some(gr), Ty::BOOL, second.index()))
+                    let g = this.b.close_block(gb, Some(gr), Ty::BOOL, second.index());
+                    this.end_guard_twins(&twins, g);
+                    Some(g)
                 } else {
                     None
                 };
@@ -1368,6 +1411,7 @@ impl Ck<'_, '_> {
                     wrap_some: false,
                     binds,
                     guard,
+                    twins,
                     arm: u32::try_from(i).unwrap_or(u32::MAX),
                 });
             }
@@ -1382,6 +1426,7 @@ impl Ck<'_, '_> {
             } else {
                 this.decide(&rows, sr, st)?;
             }
+            this.close_unreached_twins(&rows);
             let dec = this.b.close_block(db, None, Ty::NEVER, n.index());
             let mut rec = vec![dec];
             rec.extend(arms);
@@ -1414,7 +1459,44 @@ impl Ck<'_, '_> {
             })
             .collect();
         let mut lits = HashMap::default();
-        self.tree(rows, vec![(v, t)], m, &mut lits)
+        self.decision_start = self.b.body().len();
+        self.decision_views = rows.iter().any(|r| !r.twins.is_empty());
+        let root = self.column((v, t));
+        self.tree(rows, vec![root], m, &mut lits)
+    }
+
+    /// The column of value `v`, of type `t`.
+    fn column(&mut self, (v, t): (Ref, Ty)) -> Occ {
+        let moves = !self.copies(t);
+        Occ {
+            v,
+            t,
+            place: NONE,
+            moves,
+        }
+    }
+
+    /// The column at `place`, of type `t`: a read of it, which its tests,
+    /// its parts and the bindings of a copied value share. A column whose
+    /// rows only bind it reads nothing; each binding reads its place at
+    /// its leaf.
+    fn column_read(&mut self, place: &TirPlace, t: Ty, untested: bool, at: NodeIdx) -> Occ {
+        let word = self.b.place(place);
+        let moves = !self.copies(t);
+        if untested {
+            return Occ {
+                v: Ref(NONE),
+                t,
+                place: word,
+                moves,
+            };
+        }
+        Occ {
+            v: self.b.emit(Tag::Read, word, ReadMode::Use as u32, t, at),
+            t,
+            place: NONE,
+            moves,
+        }
     }
 
     /// The decision tree of matrix `m`, whose columns test the values
@@ -1431,7 +1513,7 @@ impl Ck<'_, '_> {
     fn tree<'t>(
         &mut self,
         rows: &[Row<'t>],
-        occs: Vec<(Ref, Ty)>,
+        occs: Vec<Occ>,
         m: Vec<DRow<'t>>,
         lits: &mut HashMap<NodeIdx, P>,
     ) -> StageResult<()> {
@@ -1457,7 +1539,7 @@ impl Ck<'_, '_> {
     fn matrix<'t>(
         &mut self,
         rows: &[Row<'t>],
-        mut occs: Vec<(Ref, Ty)>,
+        mut occs: Vec<Occ>,
         mut m: Vec<DRow<'t>>,
         lits: &mut HashMap<NodeIdx, P>,
         stack: &mut Vec<Step<'t>>,
@@ -1483,7 +1565,7 @@ impl Ck<'_, '_> {
                 return Ok(());
             };
             let Some(j) = first.cells.iter().position(|c| !matches!(c, Cell::Wild)) else {
-                match self.leaf(rows, first) {
+                match self.leaf(rows, first)? {
                     Some(guard) => {
                         stack.push(guard);
                         start += 1;
@@ -1516,13 +1598,19 @@ impl Ck<'_, '_> {
             }
             // `ref.match.read`: every name bound to this column was set by
             // `settle`, so the test reads the value the reference refers to.
-            if self.ref_of(occs[j].1).is_some() {
+            if self.ref_of(occs[j].t).is_some() {
                 let at = first.cells[j].at();
-                let (mut v, mut t) = occs[j];
+                let (mut v, mut t) = (occs[j].v, occs[j].t);
                 while self.ref_of(t).is_some() {
                     (v, t) = self.emit_deref(v, t, at);
                 }
-                occs[j] = (v, t);
+                let moves = !self.copies(t);
+                occs[j] = Occ {
+                    v,
+                    t,
+                    place: NONE,
+                    moves,
+                };
                 settled = false;
                 continue;
             }
@@ -1548,14 +1636,14 @@ impl Ck<'_, '_> {
 
     /// Turns the cells of `r` that test nothing into `Wild`, recording the
     /// store into each name they bind.
-    fn settle(&self, row: &Row<'_>, occs: &[(Ref, Ty)], r: &mut DRow<'_>) {
+    fn settle(&self, row: &Row<'_>, occs: &[Occ], r: &mut DRow<'_>) {
         for (j, c) in r.cells.iter_mut().enumerate() {
             let Cell::Pat(p) = *c else { continue };
-            let (v, t) = occs[j];
+            let (o, t) = (occs[j], occs[j].t);
             let wild = match p.kind() {
                 SyntaxKind::WildcardPattern => true,
                 SyntaxKind::BindingPattern | SyntaxKind::SpreadPattern => {
-                    bind(row, &mut r.sets, p.index(), v);
+                    bind(row, &mut r.sets, p.index(), o);
                     true
                 }
                 SyntaxKind::TuplePattern => p.children().next().is_none(),
@@ -1576,26 +1664,205 @@ impl Ck<'_, '_> {
     /// guard chooses between its arm and the rows below, whose tree goes
     /// into the fail block this leaves open; the step that closes it is
     /// returned.
-    fn leaf<'t>(&mut self, rows: &[Row<'t>], first: &DRow<'t>) -> Option<Step<'t>> {
-        for &(l, v, at) in &first.sets {
-            let v = match self.ref_bound.get(&l) {
-                Some(&mutable) => self.payload_ref(l, v, mutable, at).unwrap_or(v),
-                None => v,
+    fn leaf<'t>(&mut self, rows: &[Row<'t>], first: &DRow<'t>) -> StageResult<Option<Step<'t>>> {
+        let row = &rows[first.row];
+        let twin = |l: LocalId| row.twins.iter().find(|t| t.bind == l).copied();
+        for &(l, o, at) in &first.sets {
+            let v = match (self.ref_bound.get(&l), twin(l)) {
+                (Some(&mutable), _) => self.payload_ref(l, o, mutable, at).unwrap_or(o.v),
+                // The binding takes its value once the guard holds.
+                (None, Some(t)) => {
+                    self.fill_twin(t, o, at)?;
+                    continue;
+                }
+                (None, None) if o.moves || o.v.0 == NONE => self.reread(o, at),
+                (None, None) => o.v,
             };
             self.set_local(l, v, at);
         }
-        let row = &rows[first.row];
         let Some(g) = row.guard else {
             self.b
                 .emit(Tag::ToArm, row.arm, NONE, Ty::NEVER, NodeIdx::NONE);
-            return None;
+            return Ok(None);
         };
         let to = self.b.open_block();
+        for &(l, o, at) in &first.sets {
+            if twin(l).is_some() && !self.ref_bound.contains_key(&l) {
+                let v = self.reread(o, at);
+                self.set_local(l, v, at);
+            }
+        }
         self.b
             .emit(Tag::ToArm, row.arm, NONE, Ty::NEVER, NodeIdx::NONE);
         let to = self.b.close_block(to, None, Ty::NEVER, NodeIdx::NONE);
         let fail = self.b.open_block();
-        Some(Step::Guard { g, to, fail })
+        Ok(Some(Step::Guard { g, to, fail }))
+    }
+
+    /// A binding's own read of its place, made at its leaf, as a MIR
+    /// binding reads its place (`_x = move ((_1 as Some).0)`), for a
+    /// value that moves: a column is shared by every row, and on many
+    /// paths, so each binding moves out of the place itself, no read has
+    /// two owners, and the column's value only tests.
+    fn reread(&mut self, o: Occ, at: NodeIdx) -> Ref {
+        let Some(place) = self.binding_place(o) else {
+            return o.v;
+        };
+        let word = self.b.place(&place);
+        self.b.emit(Tag::Read, word, ReadMode::Use as u32, o.t, at)
+    }
+
+    /// The place of column `o` ([`Self::flat`]), read through a reference
+    /// as a match through one reads its scrutinee in place; in a match whose
+    /// guards view a binding, rooted at the matched value, so no binding's
+    /// read depends on a column's read that another moves. `None` for a
+    /// value the decision makes without reading it: a spread's rest.
+    fn binding_place(&self, o: Occ) -> Option<TirPlace> {
+        let place = if o.place == NONE {
+            o.v.as_inst()?;
+            TirPlace {
+                root: PlaceRoot::Value(o.v),
+                proj: Vec::new(),
+            }
+        } else {
+            self.b.body().decode_place(o.place)?
+        };
+        self.flat(place, self.decision_views)
+    }
+
+    /// The place of a guard's twin ([`Self::flat`] through every read):
+    /// the guard's block is shared by every path to its row.
+    fn twin_place(&self, o: Occ) -> Option<TirPlace> {
+        let place = if o.place == NONE {
+            o.v.as_inst()?;
+            TirPlace {
+                root: PlaceRoot::Value(o.v),
+                proj: Vec::new(),
+            }
+        } else {
+            self.b.body().decode_place(o.place)?
+        };
+        self.flat(place, true)
+    }
+
+    /// `place`, rebuilt through each read of the decision that is a read
+    /// through a reference, or with `all`, through every read, each a
+    /// projection of the one before: `[%subject .0 as #1 .0]`, the same on
+    /// every path to a row. `None` through a value the decision makes
+    /// without reading it. Cost: the reads it rebuilds through, the
+    /// pattern's depth with `all`, else the run of dereferences above it.
+    fn flat(&self, mut place: TirPlace, all: bool) -> Option<TirPlace> {
+        let b = self.b.body();
+        while let PlaceRoot::Value(x) = place.root
+            && let Some(i) = x.as_inst().map(|i| i.0 as usize)
+            && i >= self.decision_start
+        {
+            if b.tags[i] != Tag::Read {
+                return None;
+            }
+            let inner = b.decode_place(b.data[i][0])?;
+            if !all && !inner.proj.contains(&Proj::Deref) {
+                break;
+            }
+            let mut proj = inner.proj;
+            proj.extend(place.proj);
+            place = TirPlace {
+                root: inner.root,
+                proj,
+            };
+        }
+        Some(place)
+    }
+
+    /// `flow.match.guard.borrow`: a twin for each binding of a guarded
+    /// arm whose value moves, which the guard names instead. Rust's MIR
+    /// gives a guard a by-reference binding and binds by value once the
+    /// guard holds; here the twin holds the payload read in place, a value
+    /// with no count of its own (the ownership passes borrow it), so no
+    /// reference makes the matched value addressable. Its read and store
+    /// start the guard's block, which is open, and every leaf of the row
+    /// shares that block: they are reserved here and filled at the first
+    /// leaf ([`Self::fill_twin`]), with the place every leaf reads. A
+    /// binding that is already a reference, or whose value is copied,
+    /// needs none. The twins' scope lasts for the guard;
+    /// [`Self::end_guard_twins`] closes it.
+    fn guard_twins(&mut self, binds: &[(NodeIdx, LocalId)]) -> Vec<Twin> {
+        let mut twins = Vec::new();
+        let mut scope = HashMap::default();
+        for &(at, l) in binds {
+            let t = self.b.local_ty(l);
+            if self.ref_bound.contains_key(&l) || self.copies(t) {
+                continue;
+            }
+            let name = self.b.body().local_name[l.idx()];
+            let twin = self
+                .b
+                .local(t, name, local_flags::ASSIGNED | local_flags::VIEW, at);
+            scope.insert(name, twin);
+            let (read, store) = (self.b.reserve(), self.b.reserve());
+            twins.push(Twin {
+                bind: l,
+                view: twin,
+                read,
+                store,
+            });
+        }
+        self.scopes.push(scope);
+        twins
+    }
+
+    /// Ends the guard's twin scope; `g` is the guard's block. A read of
+    /// a twin is a read of its binding, for `flow.unused`.
+    fn end_guard_twins(&mut self, twins: &[Twin], g: Ref) {
+        self.scopes.pop();
+        for t in twins {
+            let body = self.b.body_mut();
+            let read = body.local_flags[t.view.idx()] & local_flags::READ;
+            body.local_flags[t.bind.idx()] |= read;
+            self.guard_bindings.push(crate::body::GuardView {
+                twin: t.view,
+                read: t.read.as_ref(),
+                end: g.0,
+            });
+        }
+    }
+
+    /// Fills twin `t`'s reserved statements at its row's first leaf, where
+    /// the column value `v` reads the binding's place, which is the same
+    /// on every path to the row ([`Self::binding_place`]).
+    fn fill_twin(&mut self, t: Twin, o: Occ, at: NodeIdx) -> StageResult<()> {
+        let b = self.b.body();
+        if b.tags[t.read.as_ref().0 as usize] != Tag::Hole {
+            return Ok(());
+        }
+        // ruled out: a binding that moves is a payload, field or
+        // dereference of the matched value, or that value itself.
+        let place = self.twin_place(o).ok_or_else(|| {
+            NotImplemented::bug(Stage::Body, "a guard binding's column reads no place")
+        })?;
+        let ty = self.b.local_ty(t.view);
+        let word = self.b.place(&place);
+        let read = self
+            .b
+            .fill(t.read, Tag::Read, word, ReadMode::Use as u32, ty, at);
+        let local = self.b.place(&TirPlace::local(t.view));
+        self.b
+            .fill(t.store, Tag::Store, local, read.0, Ty::VOID, at);
+        Ok(())
+    }
+
+    /// A twin no leaf filled belongs to a row no value reaches, which a
+    /// diagnostic reports, or to a match past its work limit: its guard
+    /// never runs.
+    fn close_unreached_twins(&mut self, rows: &[Row<'_>]) {
+        for t in rows.iter().flat_map(|r| &r.twins) {
+            if self.b.body().tags[t.read.as_ref().0 as usize] == Tag::Hole {
+                for s in [t.read, t.store] {
+                    self.b
+                        .fill(s, Tag::Unreachable, NONE, NONE, Ty::NEVER, NodeIdx::NONE);
+                }
+            }
+        }
     }
 
     /// `ref.match.borrow`: the reference a binding below a local reference
@@ -1603,13 +1870,17 @@ impl Ck<'_, '_> {
     /// of a read through the reference; the reference is to the same place,
     /// read through the reference itself: `[*r as #1 .0]`. `None` when `v`
     /// reads no such place.
-    fn payload_ref(&mut self, l: LocalId, v: Ref, mutable: bool, at: NodeIdx) -> Option<Ref> {
+    fn payload_ref(&mut self, l: LocalId, o: Occ, mutable: bool, at: NodeIdx) -> Option<Ref> {
         let b = self.b.body();
-        let i = v.as_inst()?.0 as usize;
-        if b.tags[i] != Tag::Read {
-            return None;
-        }
-        let place = b.decode_place(b.data[i][0])?;
+        let place = if o.place == NONE {
+            let i = o.v.as_inst()?.0 as usize;
+            if b.tags[i] != Tag::Read {
+                return None;
+            }
+            b.decode_place(b.data[i][0])?
+        } else {
+            b.decode_place(o.place)?
+        };
         self.pattern_place_ref(place, self.b.local_ty(l), mutable, at)
     }
 
@@ -1671,19 +1942,20 @@ impl Ck<'_, '_> {
 
     /// Project a struct or tuple through references without reading the
     /// whole value first. Individual columns decide whether to read or borrow.
-    fn pattern_fields(&self, v: Ref, mut t: Ty) -> (TirPlace, Ty) {
-        let mut proj = Vec::new();
+    fn pattern_fields(&self, o: Occ) -> (TirPlace, Ty) {
+        let lazy = (o.place != NONE)
+            .then(|| self.b.body().decode_place(o.place))
+            .flatten();
+        let mut place = lazy.unwrap_or(TirPlace {
+            root: PlaceRoot::Value(o.v),
+            proj: Vec::new(),
+        });
+        let mut t = o.t;
         while let Some((inner, _)) = self.ref_of(t) {
-            proj.push(Proj::Deref);
+            place.proj.push(Proj::Deref);
             t = self.deref_ty(inner);
         }
-        (
-            TirPlace {
-                root: PlaceRoot::Value(v),
-                proj,
-            },
-            t,
-        )
+        (place, t)
     }
 
     /// Replaces tuple column `j` by a column per member that some row
@@ -1691,11 +1963,11 @@ impl Ck<'_, '_> {
     fn expand_tuple<'t>(
         &mut self,
         rows: &[Row<'t>],
-        occs: &[(Ref, Ty)],
+        occs: &[Occ],
         m: Vec<DRow<'t>>,
         j: usize,
-    ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
-        let (base, t) = self.pattern_fields(occs[j].0, occs[j].1);
+    ) -> (Vec<Occ>, Vec<DRow<'t>>) {
+        let (base, t) = self.pattern_fields(occs[j]);
         let members = self.tuple_members(t);
         let subs: Vec<Vec<NodeRef<'t>>> = m
             .iter()
@@ -1724,10 +1996,14 @@ impl Ck<'_, '_> {
                 self.pattern_place_ref(place.clone(), ty, mutable, s.index())
                     .map(|r| (r, ty))
             });
-            let value = reference.unwrap_or_else(|| {
-                let word = self.b.place(&place);
-                (self.b.emit(Tag::Read, word, 0, et, s.index()), et)
-            });
+            let untested = subs
+                .iter()
+                .filter_map(|subs| subs.get(k))
+                .all(|s| !tests(*s));
+            let value = match reference {
+                Some(r) => self.column(r),
+                None => self.column_read(&place, et, untested, s.index()),
+            };
             cols.push((k, value));
         }
         let occs = splice(occs, j, cols.iter().map(|c| c.1));
@@ -1750,13 +2026,13 @@ impl Ck<'_, '_> {
     fn expand_data<'t>(
         &mut self,
         rows: &[Row<'t>],
-        occs: &[(Ref, Ty)],
+        occs: &[Occ],
         m: Vec<DRow<'t>>,
         j: usize,
-    ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
+    ) -> (Vec<Occ>, Vec<DRow<'t>>) {
         // Each row's fields: index, type, the field node, its sub-pattern.
         type Fields<'t> = Vec<(u32, Ty, NodeRef<'t>, Option<NodeRef<'t>>)>;
-        let (base, t) = self.pattern_fields(occs[j].0, occs[j].1);
+        let (base, t) = self.pattern_fields(occs[j]);
         let fields: Vec<Fields<'t>> = m
             .iter()
             .map(|r| match r.cells[j] {
@@ -1771,7 +2047,7 @@ impl Ck<'_, '_> {
                 _ => Vec::new(),
             })
             .collect();
-        let mut cols: Vec<(u32, (Ref, Ty))> = Vec::new();
+        let mut cols: Vec<(u32, Occ)> = Vec::new();
         for &(idx, ft, f, sub) in fields.iter().flatten() {
             if cols.iter().any(|c| c.0 == idx) || sub.is_some_and(|s| !reads(s)) {
                 continue;
@@ -1791,10 +2067,15 @@ impl Ck<'_, '_> {
                 self.pattern_place_ref(place.clone(), ty, mutable, f.index())
                     .map(|r| (r, ty))
             });
-            let value = reference.unwrap_or_else(|| {
-                let word = self.b.place(&place);
-                (self.b.emit(Tag::Read, word, 0, ft, f.index()), ft)
-            });
+            // A shorthand field binds it.
+            let untested = fields
+                .iter()
+                .filter_map(|fields| fields.iter().find(|field| field.0 == idx))
+                .all(|&(_, _, _, sub)| sub.is_none_or(|s| !tests(s)));
+            let value = match reference {
+                Some(r) => self.column(r),
+                None => self.column_read(&place, ft, untested, f.index()),
+            };
             cols.push((idx, value));
         }
         let occs = splice(occs, j, cols.iter().map(|c| c.1));
@@ -1803,7 +2084,7 @@ impl Ck<'_, '_> {
             .zip(fields)
             .map(|(mut r, fs)| {
                 let mut cells = Vec::with_capacity(cols.len());
-                for &(idx, (g, _)) in &cols {
+                for &(idx, g) in &cols {
                     cells.push(match fs.iter().find(|f| f.0 == idx) {
                         Some(&(_, _, _, Some(sub))) => Cell::Pat(sub),
                         Some(&(_, _, f, None)) => {
@@ -1822,9 +2103,9 @@ impl Ck<'_, '_> {
     /// A tag switch on column `j`, with each variant's fields as new
     /// columns. An exhaustive table takes its last variant by default;
     /// otherwise the default retains the rows with no test in the column.
-    fn switch<'t>(&mut self, occs: Vec<(Ref, Ty)>, m: Vec<DRow<'t>>, j: usize) -> Chain<'t> {
+    fn switch<'t>(&mut self, occs: Vec<Occ>, m: Vec<DRow<'t>>, j: usize) -> Chain<'t> {
         crate::work::decision_rows(m.len());
-        let (v, t) = occs[j];
+        let (v, t) = (occs[j].v, occs[j].t);
         let mut named: Vec<(u32, Vec<Ty>, NodeIdx)> = Vec::new();
         let mut seen = HashSet::default();
         // Each row's variant, looked up once: by variant, the rows that
@@ -2003,14 +2284,14 @@ impl Ck<'_, '_> {
     fn variant_case<'t>(
         &mut self,
         rows: &[Row<'t>],
-        occs: &[(Ref, Ty)],
+        occs: &[Occ],
         m: &[DRow<'t>],
         j: usize,
         (idx, fs): (u32, &[Ty]),
         tags: &Tags,
         is_option: bool,
-    ) -> (Vec<(Ref, Ty)>, Vec<DRow<'t>>) {
-        let (v, t) = occs[j];
+    ) -> (Vec<Occ>, Vec<DRow<'t>>) {
+        let (v, t) = (occs[j].v, occs[j].t);
         let mut picked = tags.by_tag.get(&idx).cloned().unwrap_or_default();
         picked.extend_from_slice(&tags.wild);
         picked.sort_stable();
@@ -2051,20 +2332,22 @@ impl Ck<'_, '_> {
                         .map(|pattern| (r.row, pattern))
                 }),
             );
+            let place = TirPlace {
+                root: PlaceRoot::Value(v),
+                proj: vec![Proj::Variant(variant), Proj::Field(field)],
+            };
             let reference = borrowed.and_then(|(ty, mutable)| {
-                self.pattern_place_ref(
-                    TirPlace {
-                        root: PlaceRoot::Value(v),
-                        proj: vec![Proj::Variant(variant), Proj::Field(field)],
-                    },
-                    ty,
-                    mutable,
-                    s.index(),
-                )
-                .map(|r| (r, ty))
+                self.pattern_place_ref(place.clone(), ty, mutable, s.index())
+                    .map(|r| (r, ty))
             });
-            let value =
-                reference.unwrap_or_else(|| (self.b.payload(v, variant, field, ft, s.index()), ft));
+            let untested = spec
+                .iter()
+                .filter_map(|(_, subs)| subs.get(f).copied().flatten())
+                .all(|s| !tests(s));
+            let value = match reference {
+                Some(r) => self.column(r),
+                None => self.column_read(&place, ft, untested, s.index()),
+            };
             cols.push((f, value));
         }
         let occs_in = splice(occs, j, cols.iter().map(|c| c.1));
@@ -2100,13 +2383,13 @@ impl Ck<'_, '_> {
     fn literal_chain<'t>(
         &mut self,
         rows: &[Row<'t>],
-        occs: Vec<(Ref, Ty)>,
+        occs: Vec<Occ>,
         m: Vec<DRow<'t>>,
         j: usize,
         p0: NodeRef<'t>,
         lits: &mut HashMap<NodeIdx, P>,
     ) -> Chain<'t> {
-        let (v, t) = occs[j];
+        let (v, t) = (occs[j].v, occs[j].t);
         crate::work::decision_rows(m.len());
         let LitSplit { tests, other, gone } = if self.int_range(t).is_some() {
             self.span_split(rows, &m, j, p0, t, lits)
@@ -3345,7 +3628,12 @@ mod tests {
             let error = ck
                 .matrix(
                     &rows,
-                    vec![(hd_tir::ir::Ref(hd_tir::ir::NONE), hd_types::Ty::I32)],
+                    vec![super::Occ {
+                        v: hd_tir::ir::Ref(hd_tir::ir::NONE),
+                        t: hd_types::Ty::I32,
+                        place: hd_tir::ir::NONE,
+                        moves: false,
+                    }],
                     matrix,
                     &mut hd_base::HashMap::default(),
                     &mut stack,

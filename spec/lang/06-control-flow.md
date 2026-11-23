@@ -590,9 +590,13 @@ message := match status:
 3. r[flow.match.guard.eval] After its pattern matches, the guard is evaluated using that arm's pattern bindings.
 4. r[flow.match.guard.result] If the guard is false, matching continues with the next arm; if it is true, that arm is selected.
 5. r[flow.match.guard.skipped] A guard is not evaluated when its pattern fails.
-6. r[flow.match.body] Only the selected arm's body is evaluated.
-7. r[flow.match.result] All arm results must have one compatible type when the match value is used.
-8. r[flow.match.result.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the arm results.
+6. r[flow.match.guard.borrow] While the guard runs, a binding whose value is not copied reads the matched value in place. The arm's binding takes the value once the guard holds.
+7. r[flow.match.guard.borrow.move] A guard that moves such a binding is an error. Error: `move-out-of-place`.
+8. r[flow.match.guard.borrow.change] While the guard runs, assigning, mutably borrowing or moving a place that overlaps the value such a binding reads is an error. Error: `conflicting-access`.
+9. r[flow.match.guard.borrow.capture] A closure that the guard makes may not capture such a binding, though it may capture a reference to it. Error: `move-out-of-place`.
+10. r[flow.match.body] Only the selected arm's body is evaluated.
+11. r[flow.match.result] All arm results must have one compatible type when the match value is used.
+12. r[flow.match.result.least-common] Without an expected type, that type is the [least common type](04-type-system.md#least-common-type) of the arm results.
 
 ```hd
 fn grade(score: i32) -> string:
@@ -601,6 +605,32 @@ fn grade(score: i32) -> string:
         s if s >= 70 => "passing"
         _ => "needs work"
 ```
+
+```hd
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn keep(photo: Photo) -> u32:
+    photo.width
+
+fn pick(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if photo.width > 5 => keep(photo)
+        .Some(photo) => keep(photo) + 1
+        _ => 0
+
+fn moved(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if keep(photo) > 5 => 1  # error: move-out-of-place
+        _ => 0
+```
+
+> **Why.** When the guard is false, the next arm matches the same value, so
+> the guard cannot have taken it. Rust's guards likewise bind by reference
+> and borrow the matched place; the arm binds by value once the guard holds.
 
 ### Exhaustiveness
 

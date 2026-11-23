@@ -89,10 +89,10 @@ fn both!(a: string, b: string) -> usize:
 >   %17 = Block - : ()
 >   %18 = Read move [%10 .0] : string
 >   %19 = Intrinsic Empty [] : ()
->   %20 = Read move [%10 .1] : string
->   %21 = Intrinsic Empty [] : ()
->   %22 = Store [$2] %18 : ()
->   %23 = Store [$3] %20 : ()
+>   %20 = Store [$2] %18 : ()
+>   %21 = Read move [%10 .1] : string
+>   %22 = Intrinsic Empty [] : ()
+>   %23 = Store [$3] %21 : ()
 >   %25 = Block - : never
 >   %26 = Match %10 [%25 %17] : ()
 >   %36 = Drop [$0] : ()

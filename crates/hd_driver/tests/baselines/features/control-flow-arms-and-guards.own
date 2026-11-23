@@ -17,20 +17,20 @@ fn pick(t: Tag) -> string:
 >   local $1 n: string [read assigned] value
 >     uses $1: %31 -> %1 lend last, %8 consume last
 >   local $2 l: string [read assigned] value
->     uses $2: %40 -> %11 lend last, %23 consume last
+>     uses $2: %39 -> %11 lend last, %23 consume last
 >   local $3 r: string [read assigned] value
->     uses $3: %42 -> %16 lend last
+>     uses $3: %41 -> %16 lend last
 >   local $4 r: string [read assigned] value
->     uses $4: %46 -> %26 consume last
+>     uses $4: %45 -> %26 consume last
 >   %0 = Read borrow [$0] : Tag
->   %52 = Block - : never
->   %53 = Match %0 [%52 %10 %25 %28 %29] : string
->   %54 = Intrinsic ParamOwned [0:i32] : bool
->   %55 = Drop [$0] : ()
->   %56 = Block - : ()
->   %57 = If %54 [%56 -] : ()
->   %58 = Release %59 Exit local $0 #2 : ()
->   %59 = Block %53 : string
+>   %51 = Block - : never
+>   %52 = Match %0 [%51 %10 %25 %28 %29] : string
+>   %53 = Intrinsic ParamOwned [0:i32] : bool
+>   %54 = Drop [$0] : ()
+>   %55 = Block - : ()
+>   %56 = If %53 [%55 -] : ()
+>   %57 = Release %58 Exit local $0 #2 : ()
+>   %58 = Block %52 : string
         .Named(n) if n.len() > 3 => n
 >   %1 = Read borrow [$1] : string
 >   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
@@ -45,7 +45,7 @@ fn pick(t: Tag) -> string:
 >   %30 = Read borrow [%0 as #0 .0] : string
 >   %31 = Store [$1] %30 : ()
 >   %37 = Block - : never
->   %51 = SwitchTag %0 [#0 %37 %50] : never
+>   %50 = SwitchTag %0 [#0 %37 %49] : never
         .Pair(right=r, left=l) if l.len() > r.len() => l
 >   %11 = Read borrow [$2] : string
 >   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
@@ -63,16 +63,15 @@ fn pick(t: Tag) -> string:
 >   %24 = Retain %23 Value #0 : ()
 >   %25 = Block %23 : string
 >   %38 = Read borrow [%0 as #1 .0] : string
->   %39 = Read borrow [%0 as #1 .1] : string
->   %40 = Store [$2] %38 : ()
->   %41 = Read borrow [%39] : string
->   %42 = Store [$3] %41 : ()
+>   %39 = Store [$2] %38 : ()
+>   %40 = Read borrow [%0 as #1 .1] : string
+>   %41 = Store [$3] %40 : ()
         .Pair(left=_, right=r) => r
 >   %26 = Read copy [$4] : string
 >   %27 = Retain %26 Value #0 : ()
 >   %28 = Block %26 : string
->   %45 = Read borrow [%39] : string
->   %46 = Store [$4] %45 : ()
+>   %44 = Read borrow [%0 as #1 .1] : string
+>   %45 = Store [$4] %44 : ()
         _ => "short"
 >   %29 = Block "short" : string
 >   summary kept [] borrows [$0]

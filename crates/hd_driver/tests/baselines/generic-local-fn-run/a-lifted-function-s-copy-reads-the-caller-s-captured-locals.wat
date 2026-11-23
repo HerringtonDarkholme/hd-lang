@@ -11,17 +11,17 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $l.0 i32) (local $t.1 i32) (local $s i32) (local $value.0 i32) (local $l.1 i32) (local $t.0 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $value.0 i32) (local $t.1 i32) (local $s i32) (local $l.0 i32) (local $l.1 i32) (local $t.0 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i32)
     ;; 20 |     let (s, l, t) = total([1, 2, 3], 10, "t", "l")
     i32.const 3
     call $rt:list_buf
-    local.tee $l.0
+    local.tee $value.0
     i32.const 3
     i32.store $heap offset=4
-    local.get $l.0
+    local.get $value.0
     i32.const 1
     i32.store $heap offset=16
-    local.get $l.0
+    local.get $value.0
     i32.const 4
     i32.add
     local.tee $t.1
@@ -30,7 +30,7 @@
     local.get $t.1
     i32.const 3
     i32.store $heap offset=20
-    local.get $l.0
+    local.get $value.0
     i32.const 10
     i32.const 113 ;; &"t"
     i32.const 1
@@ -40,22 +40,20 @@
     local.set $t.1
     local.set $t.0
     local.set $l.1
-    local.set $value.0
+    local.set $l.0
     local.set $s
-    local.get $l.0
+    local.get $value.0
     if
-      local.get $l.0
+      local.get $value.0
       i32.const 8
       i32.sub
       i32.load $heap
       if
-        local.get $l.0
+        local.get $value.0
         call $rt:release_ref'1
       end
     end
     block
-      local.get $value.0
-      local.set $l.0
       br 0
       unreachable
     end

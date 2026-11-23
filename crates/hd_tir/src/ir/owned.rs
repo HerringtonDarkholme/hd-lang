@@ -1207,7 +1207,8 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             && cx.topo.sub[i] == 0
             && b.data[i][1] & (ref_word::LOCAL | ref_word::FRAME)
                 == ref_word::LOCAL | ref_word::FRAME
-            && (binding[l.idx()] && cx.frame_lends[l.idx()]
+            && (binding[l.idx()]
+                && (cx.frame_lends[l.idx()] || b.local_flags[l.idx()] & local_flags::VIEW != 0)
                 || !binding[l.idx()]
                     && b.data[i][1] & ref_word::MUT == 0
                     && (no_external_write

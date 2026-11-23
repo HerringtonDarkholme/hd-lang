@@ -390,6 +390,9 @@ pub(crate) struct Uses {
     users: Vec<Vec<(u32, Role)>>,
     hidden: Vec<bool>,
     hidden_reads: HashMap<LocalId, Vec<u32>>,
+    /// A guard's twins: the store into one moves nothing, and a guard
+    /// that moves one is `move-out-of-place` (`flow.match.guard.borrow`).
+    twin: Vec<bool>,
     /// Whether a sub-body's result moves its value: the caller takes it.
     /// Use-after-move needs no such move, since nothing runs after it.
     root_result_moves: bool,
@@ -780,6 +783,7 @@ impl Ck<'_, '_> {
             users: Vec::new(),
             hidden: self.hidden_locals(self.b.body()),
             hidden_reads: HashMap::default(),
+            twin: self.guard_twins_of(self.b.body()),
             root_result_moves: false,
         })
     }
@@ -1091,6 +1095,9 @@ impl Ck<'_, '_> {
                 // A hidden local passes the value on to its reads.
                 if cx.hidden[h.idx()] {
                     return Consumed::Hidden(h);
+                }
+                if cx.twin[h.idx()] {
+                    return Consumed::Stays;
                 }
                 // An assignment, or a `let` that writes the type, expects
                 // the binding's `&mut` type; `:=` and a bare `let` do not.

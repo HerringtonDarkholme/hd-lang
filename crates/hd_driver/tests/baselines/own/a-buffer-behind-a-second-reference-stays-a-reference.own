@@ -79,7 +79,7 @@ impl['a] Cursor['a]:
 >   %25 = Return %23 : never
 >   %26 = Block - : never
 >   %28 = Read borrow [*%21] : Slot
->   %29 = Read copy [%28 as #1 .0] : usize
+>   %29 = Read copy [*%21 as #1 .0] : usize
 >   %30 = Store [$2] %29 : ()
 >   %32 = Block - : never
 >   %35 = SwitchTag %28 [#1 %32 %34] : never

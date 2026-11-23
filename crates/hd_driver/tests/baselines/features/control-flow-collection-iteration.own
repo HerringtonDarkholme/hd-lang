@@ -16,7 +16,7 @@ fn by_value(m: Map[string, string]) -> usize:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %6 -> %10 lend, %14 lend
 >   local $6 k: &string [read assigned] value
->     uses $6: %33 -> %23 lend last
+>     uses $6: %32 -> %23 lend last
 >   local $7 v: &string [read assigned] value
 >     uses $7: %34 -> %25 lend last
 >   %0 = Store [$1] 0:usize : ()
@@ -50,9 +50,9 @@ fn by_value(m: Map[string, string]) -> usize:
 >   %21 = Store [$4] %20 : ()
 >   %30 = Block - : ()
 >   %31 = Read borrow [%18 .0] : &string
->   %32 = Read borrow [%18 .1] : &string
->   %33 = Store [$6] %31 : ()
->   %34 = Store [$7] %32 : ()
+>   %32 = Store [$6] %31 : ()
+>   %33 = Read borrow [%18 .1] : &string
+>   %34 = Store [$7] %33 : ()
 >   %36 = Block - : never
 >   %37 = Match %18 [%36 %30] : ()
 >   %38 = Drop [%18] : ()

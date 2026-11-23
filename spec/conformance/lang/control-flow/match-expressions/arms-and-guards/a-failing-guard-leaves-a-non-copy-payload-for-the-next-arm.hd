@@ -1,0 +1,113 @@
+# fixture-runtime-profile: pending-tick
+# test: a guard reads a binding whose value is not copied in place, and the arm takes it only once the guard holds, so a failing guard leaves the payload for the next arm; single and tuple subjects, before and after an await
+# Spec lang/06 Match Expressions: flow.match.guard.eval, flow.match.guard.result, flow.match.guard.borrow.
+# expect-stdout: 8 103
+# expect-stdout: 8 108 102
+# expect-stdout: 11 6 1010
+# expect-stdout: 8 108
+# expect-stdout: 8 103
+# expect-stdout: 8 103 8 102
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
+
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+impl Photo:
+    fn size(&self) -> u32:
+        self.width + u32(self.pixels.len())
+
+struct Frame:
+    photo: Photo
+    tag: i32
+
+impl !Copy for Frame
+
+fn photo(width: u32) -> Photo:
+    Photo { width: width, pixels: [1] }
+
+fn keep(photo: Photo) -> u32:
+    photo.width + u32(photo.pixels.len())
+
+fn wide(photo: &Photo) -> bool:
+    photo.width > 3
+
+fn single(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if photo.size() > 5 => keep(photo)
+        .Some(photo) => keep(photo) + 100
+        _ => 0
+
+fn tupled(pair: (Photo?, i32)) -> u32:
+    match pair:
+        (.Some(a), n) if n > 1 && wide(&a) => keep(a)
+        (.Some(b), _) => keep(b) + 100
+        _ => 0
+
+fn both(pair: (Photo?, Photo?)) -> u32:
+    match pair:
+        (.Some(a), .Some(b)) if a.width > b.width => keep(a) + keep(b)
+        (.Some(a), _) if a.width > 3 => keep(a)
+        (_, .Some(b)) => keep(b) + 1000
+        _ => 0
+
+fn framed(frame: Frame?) -> u32:
+    match frame:
+        .Some(Frame { photo, tag }) if tag > 1 && photo.width > 1 => keep(photo)
+        .Some(Frame { photo, tag: _ }) => keep(photo) + 100
+        _ => 0
+
+fn captured(small: Photo?) -> u32:
+    match small:
+        .Some(photo) if (r := &photo).width > 3 && [u32(1)].any(fn(x): *x < r.width) => keep(photo)
+        .Some(photo) => keep(photo) + 100
+        _ => 0
+
+fn generic[T < ?Copy](item: T?, ok: fn(&T) -> bool, take: fn(T) -> u32) -> u32:
+    match item:
+        .Some(x) if ok(&x) => take(x)
+        .Some(x) => take(x) + 100
+        _ => 0
+
+fn waiting!(pair: (Photo?, i32)) -> u32 $ Tick:
+    host_wait!()
+    let total = match pair:
+        (.Some(a), n) if n > 1 && a.width > 3 =>
+            host_wait!()
+            keep(a)
+        (.Some(b), _) =>
+            host_wait!()
+            keep(b) + 100
+        _ => 0
+    host_wait!()
+    total
+
+fn waiting_guard!(small: Photo?) -> u32 $ Tick:
+    match small:
+        .Some(photo) if wait_then!(photo.width > 5) => keep(photo)
+        .Some(photo) => keep(photo) + 100
+        _ => 0
+
+fn wait_then!(answer: bool) -> bool $ Tick:
+    host_wait!()
+    answer
+
+pub fn main!() -> void $ Console + Tick:
+    println("${single(.Some(photo(7)))} ${single(.Some(photo(2)))}")
+    println(
+        "${tupled((.Some(photo(7)), 2))} ${tupled((.Some(photo(7)), 0))} ${tupled((.Some(photo(1)), 2))}",
+    )
+    println(
+        "${both((.Some(photo(7)), .Some(photo(2))))} ${both((.Some(photo(5)), .Some(photo(9))))} ${both((.Some(photo(1)), .Some(photo(9))))}",
+    )
+    println("${waiting!((.Some(photo(7)), 2))} ${waiting!((.Some(photo(7)), 0))}")
+    println("${waiting_guard!(.Some(photo(7)))} ${waiting_guard!(.Some(photo(2)))}")
+    println(
+        "${captured(.Some(photo(7)))} ${captured(.Some(photo(2)))} ${generic(.Some(photo(7)), wide, keep)} ${generic(.Some(photo(1)), wide, keep)}",
+    )

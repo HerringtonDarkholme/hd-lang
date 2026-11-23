@@ -16,16 +16,16 @@ fn f(shape: Shape) -> i32:
         .Rect(w, height=true) => w
 >   %1 = Read [$1] : i32
 >   %2 = Block %1 : i32
->   %4 = Read [%0 as #0 .0] : i32
->   %5 = Read [%0 as #0 .1] : bool
->   %6 = Prim Eq [%5 1:bool] : bool
->   %7 = Store [$1] %4 : ()
+>   %4 = Read [%0 as #0 .1] : bool
+>   %5 = Prim Eq [%4 1:bool] : bool
+>   %6 = Read [%0 as #0 .0] : i32
+>   %7 = Store [$1] %6 : ()
 >   %9 = Block - : never
 >   %16 = Block - : never
->   %17 = If %6 [%9 %16] : never
+>   %17 = If %5 [%9 %16] : never
         .Rect(_, height=false) => 0
 >   %3 = Block 0:i32 : i32
->   %10 = Prim Eq [%5 0:bool] : bool
+>   %10 = Prim Eq [%4 0:bool] : bool
 >   %12 = Block - : never
 >   %14 = Block - : never
 >   %15 = If %10 [%12 %14] : never

@@ -25,7 +25,7 @@ use crate::call::{Args, TraitTarget, subst_owner};
 /// value, or what was added.
 pub(crate) enum BodyUndo {
     /// A local's flags before bits were set in them.
-    Flags(LocalId, u8),
+    Flags(LocalId, u16),
     /// A global read added to the init facts.
     Read(DefId),
     /// A function call added to the init facts.
@@ -119,7 +119,7 @@ impl Ck<'_, '_> {
     }
 
     /// Sets `bits` in a local's flags.
-    pub(crate) fn add_flags(&mut self, l: LocalId, bits: u8) {
+    pub(crate) fn add_flags(&mut self, l: LocalId, bits: u16) {
         let old = self.b.body_mut().local_flags[l.idx()];
         if old | bits != old {
             self.b.body_mut().local_flags[l.idx()] = old | bits;
