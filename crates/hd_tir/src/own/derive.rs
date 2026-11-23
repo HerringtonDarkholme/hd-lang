@@ -1321,7 +1321,30 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
                 at = t.bits[bit as usize];
             }
             let moves = needed && root_owned && b.view(b.data[r][0]).in_place(b);
+            // A value no instance copies cannot borrow where a count is
+            // needed, nor be copied there later: it keeps its count, and so
+            // does each borrowing read it is a part of, down to one that can
+            // move out of what owns it (the scan's rule for parts, applied
+            // to a binding the solve keeps). A tuple match's payload is such
+            // a chain: `[%payload]` of `[%elem as .Some .0]` of
+            // `[%tuple .0]`. Each read leaves the chain once, so the walks
+            // of a whole solve cost at most one step per read.
+            let owns = needed && !moves && cx.copies(b.ty[r]) != Tri::Yes;
+            if owns {
+                t.v[r].keeps = true;
+                let mut word = b.data[r][0];
+                while let Root::Value(v) = b.view(word).root
+                    && b.tags[v as usize] == Tag::Read
+                    && t.v[v as usize].borrows
+                    && b.view(word).in_place(b)
+                {
+                    t.v[v as usize].borrows = false;
+                    t.v[v as usize].keeps = true;
+                    word = b.data[v as usize][0];
+                }
+            }
             if moves
+                || owns
                 || get(&t.changed, bit)
                 || !crossed_ok(b, t, bit)
                 || (t.probe && at.relied != 0)

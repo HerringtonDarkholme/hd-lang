@@ -1890,6 +1890,7 @@ lang/control-flow/match-expressions/nested-and-data-patterns/tuple-binding-non-t
 lang/control-flow/match-expressions/nested-and-data-patterns/tuple-binding-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
 lang/control-flow/match-expressions/nested-and-data-patterns/match-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
 lang/control-flow/match-expressions/nested-and-data-patterns/match-tuple-moves-payload-after-await.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.pattern
+lang/control-flow/match-expressions/nested-and-data-patterns/match-tuple-moves-payload-cross-forms.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.pattern
 lang/control-flow/match-expressions/nested-and-data-patterns/for-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
 lang/control-flow/match-expressions/nested-and-data-patterns/comprehension-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity
 lang/control-flow/match-expressions/nested-and-data-patterns/nested-tuple-pattern-arity.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.tuple.arity

@@ -1,0 +1,102 @@
+# test: tuple, single and nested matches move payloads that are not Copy before and after an await
+# Spec 13 Moves: ref.move.pattern.
+# Spec 06 Match Expressions: flow.match.subject, flow.match.body.
+# expect-stdout: after keep 66 1
+# expect-stdout: after field 64 none
+# expect-stdout: after none
+# expect-stdout: after closure 64 2
+# expect-stdout: before keep 34 3
+# expect-stdout: single keep 18
+# expect-stdout: copy hello 4
+# expect-stdout: nested 10 5
+# expect-stdout: struct 12 frame 6
+# expect-stdout: bare 8 7
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+struct Frame:
+    photo: Photo?
+    label: string
+
+fn make!(side: u32) -> Result[Photo, i32]:
+    if side == 0: .Err(0) else: .Ok(Photo { width: side, pixels: [u8(1), u8(2)] })
+
+fn keep(photo: Photo) -> u32:
+    photo.width + u32(photo.pixels.len())
+
+fn after!(side: u32, count: i32?) -> string:
+    small := make!(side).ok()
+    match (small, count):
+        (.Some(photo), .Some(n)) => "keep ${keep(photo)} $n"
+        (.Some(photo), .None) => "field ${photo.width} none"
+        _ => "none"
+
+fn after_none!(count: i32?) -> string:
+    small := make!(u32(0)).ok()
+    match (small, count):
+        (.Some(photo), .Some(n)) => "keep ${keep(photo)} $n"
+        _ => "none"
+
+fn after_closure!(side: u32, count: i32?) -> string:
+    small := make!(side).ok()
+    match (small, count):
+        (.Some(photo), .Some(n)) =>
+            width := fn() -> u32: photo.width
+            "closure ${width()} $n"
+        _ => "none"
+
+fn before!(side: u32, count: i32?) -> string:
+    let small: Photo? = .Some(Photo { width: side, pixels: [u8(3), u8(4)] })
+    text := match (small, count):
+        (.Some(photo), .Some(n)) => "keep ${keep(photo)} $n"
+        _ => "none"
+    later := make!(side).ok()
+    if later.is_some(): text else: "$text missing"
+
+fn single!(side: u32) -> string:
+    small := make!(side).ok()
+    match small:
+        .Some(photo) => "keep ${keep(photo)}"
+        .None => "none"
+
+fn copied!(count: i32?) -> string:
+    _ := make!(u32(1))
+    let word: string? = .Some("hello")
+    match (word, count):
+        (.Some(text), .Some(n)) => "$text $n"
+        _ => "none"
+
+fn nested!(side: u32, flag: bool) -> string:
+    let pair: (Photo, i32)? = match make!(side):
+        .Ok(photo) => .Some((photo, 5))
+        .Err(_) => .None
+    match (pair, flag):
+        (.Some((photo, n)), true) => "${keep(photo)} $n"
+        _ => "none"
+
+fn framed!(side: u32, count: i32) -> string:
+    frame := Frame { photo: make!(side).ok(), label: "frame" }
+    match (frame, count):
+        (Frame { photo: .Some(photo), label }, n) => "${keep(photo)} $label $n"
+        _ => "none"
+
+fn bare!(side: u32, count: i32) -> string:
+    photo := make!(side).ok().unwrap()
+    match (photo, count):
+        (p, 7) => "${keep(p)} 7"
+        _ => "none"
+
+pub fn main!() -> void $ Console:
+    println("after ${after!(u32(64), .Some(1))}")
+    println("after ${after!(u32(64), .None)}")
+    println("after ${after_none!(.Some(1))}")
+    println("after ${after_closure!(u32(64), .Some(2))}")
+    println("before ${before!(u32(32), .Some(3))}")
+    println("single ${single!(u32(16))}")
+    println("copy ${copied!(.Some(4))}")
+    println("nested ${nested!(u32(8), true)}")
+    println("struct ${framed!(u32(10), 6)}")
+    println("bare ${bare!(u32(6), 7)}")

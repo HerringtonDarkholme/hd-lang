@@ -1,3 +1,2 @@
 path	issue	engine	reason
 std/iter/value-consuming-methods/local-reference-dot-last-progress.hd	#2286		Dot lookup selects the referent value iterator instead of the local mutable reference iterator, so the source cursor does not advance.
-lang/control-flow/match-expressions/nested-and-data-patterns/match-tuple-moves-payload-after-await.hd	#2290		A tuple match after an await reads the moved non-Copy payload as a copy, so collection stops with an internal error.
