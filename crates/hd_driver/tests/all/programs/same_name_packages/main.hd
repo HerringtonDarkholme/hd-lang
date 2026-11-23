@@ -1,0 +1,9 @@
+use dep.euro
+use dep.yen
+use dep.euro.{Coin as Euro}
+use dep.yen.{Coin as Yen}
+
+pub fn main() -> void $ Console:
+    let e: Euro = euro.make(1)
+    let y: Yen = yen.make(1)
+    println(e.cents + y.cents + euro.value() + yen.value())
