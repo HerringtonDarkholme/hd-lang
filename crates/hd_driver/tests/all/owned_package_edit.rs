@@ -70,8 +70,9 @@ fn build(store: &MemoryStore, files: &[(String, String)]) -> Output {
 }
 
 /// After an edit to `m0.run`'s body, a warm build owns `m0.run` and
-/// `main`, whose inliner reads it, and no other body: the same two at
-/// `k` = 25 and 100. Its module is the cold build's.
+/// `main`, whose inliner reads it, and no other body of the 525. The set
+/// is exact, so a body owned per module shows at any `k`; #2028's 100
+/// modules proved nothing more (3.5 s). Its module is the cold build's.
 fn edit_owns_only_the_edit(k: usize) {
     let store = MemoryStore::default();
     let cold = build(&store, &program(k, 1));
@@ -92,11 +93,6 @@ fn edit_owns_only_the_edit(k: usize) {
 #[test]
 fn a_body_edit_owns_its_module_and_inliners_at_25_modules() {
     edit_owns_only_the_edit(25);
-}
-
-#[test]
-fn a_body_edit_owns_its_module_and_inliners_at_100_modules() {
-    edit_owns_only_the_edit(100);
 }
 
 /// A field type changed in `m1` changes how `m0.keep`, whose TIR names
