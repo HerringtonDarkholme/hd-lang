@@ -8,7 +8,7 @@ pub struct Tree['a]:
     pub left: (&'a Tree['a])?
     pub right: (&'a Tree['a])?
 
-pub fn build['a](arena: &'a Arena[Tree['a]], depth: i32) -> &'a Tree['a]:
+pub fn build['a](arena: &'a Arena, depth: i32) -> &'a Tree['a]:
     if depth == 0:
         return arena.alloc(Tree { left: .None, right: .None })
     left := build(arena, depth - 1)
@@ -21,7 +21,7 @@ pub fn nodes(tree: &Tree) -> i64:
         _ => 1
 
 pub fn checksum(depth: i32, rounds: usize) -> i64:
-    let mut scratch = Arena::[Tree]::new()
+    let mut scratch = Arena::new()
     let total: i64 = 0
     for _ in 0..rounds:
         total += nodes(build(&scratch, depth))
@@ -35,7 +35,7 @@ pub enum Expr['a]:
     Add(left: &'a Expr['a], right: &'a Expr['a])
 
 pub struct Parser['a]:
-    arena: &'a Arena[Expr['a]]
+    arena: &'a Arena
     words: List[string]
     at: usize
 
@@ -60,7 +60,7 @@ pub fn eval(e: &Expr) -> i64:
         .Add(l, r) => eval(l) + eval(r)
 
 pub fn run(source: string) -> Result[i64, string]:
-    arena := Arena::[Expr]::with_capacity(64)
+    arena := Arena::with_capacity(4096)
     let mut parser = Parser { arena: &arena, words: source.split(" "), at: 0 }
     tree := parser.expr()?
     .Ok(eval(tree))
@@ -73,7 +73,7 @@ pub struct Element['a]:
     pub text: string
     pub children: List[&'a Element['a]]
 
-pub fn render['a](frame: &'a Arena[Element['a]], items: &List[string]) -> &'a Element['a]:
+pub fn render['a](frame: &'a Arena, items: &List[string]) -> &'a Element['a]:
     let mut rows: List[&Element] = []
     for item in items:
         rows.push(frame.alloc(Element { tag: "li", text: item, children: [] }))
@@ -86,15 +86,16 @@ pub fn html(e: &Element) -> string:
     "<${e.tag}>$inner</${e.tag}>"
 
 pub fn serve(requests: List[List[string]]) -> void $ Console:
-    let mut frame = Arena::[Element]::with_capacity(256)
+    let mut frame = Arena::with_capacity(16384)
     for items in requests:
         page := html(render(&frame, &items))
-        println("${frame.len()} elements, ${page.len()} bytes")
+        println("${frame.allocated_bytes()} arena bytes, ${page.len()} page bytes")
         frame.reset()
 
-# 4. A graph whose edges change after its nodes exist. An arena value is
-# lent shared, so the part that changes is a `*mut` field. Edges are `&'a`
-# references and count nothing, so the cycle a -> b -> a is no count cycle.
+# 4. A graph whose edges change after its nodes exist. A city linked from
+# another is lent shared there, so the part that changes after linking is
+# a `*mut` field. Edges are `&'a` references and count nothing, so the
+# cycle a -> b -> a is no count cycle.
 pub struct City['a]:
     pub name: string
     pub roads: *mut List[&'a City['a]]
@@ -115,7 +116,7 @@ pub fn reachable(from: &City, limit: usize) -> usize:
     seen.len()
 
 pub fn map_size() -> usize:
-    cities := Arena::[City]::new()
+    cities := Arena::new()
     a := cities.alloc(City { name: "Ames", roads: box([]) })
     b := cities.alloc(City { name: "Boone", roads: box([]) })
     c := cities.alloc(City { name: "Cedar", roads: box([]) })
@@ -126,10 +127,44 @@ pub fn map_size() -> usize:
 # 5. Threads read a finished tree at once. `&Tree` is `Send` because a
 # `Tree` holds no counted part; `&Arena` is not, so no thread allocates.
 pub fn parallel_nodes(depth: i32) -> i64:
-    arena := Arena::[Tree]::new()
+    arena := Arena::new()
     tree := build(&arena, depth)
     scope(fn(s: &mut Scope) -> i64:
         left := s.spawn(fn() -> i64: nodes(tree))
         right := s.spawn(fn() -> i64: nodes(tree))
         left.join() + right.join()
     )
+
+# 6. Values written at once: each `alloc` lends a new `&mut`, so a helper
+# returns one and two of them change together, and values of two types
+# share one arena, as with bumpalo.
+pub struct Account:
+    pub owner: string
+    pub balance: i64
+
+pub fn open(bank: &Arena, owner: string, balance: i64) -> &mut Account:
+    bank.alloc(Account { owner: owner, balance: balance })
+
+pub struct Entry['a]:
+    pub from: &'a Account
+    pub amount: i64
+
+pub fn transfer['a](
+    bank: &'a Arena,
+    from: &'a mut Account,
+    to: &mut Account,
+    amount: i64,
+) -> Result[&'a Entry['a], string]:
+    if from.balance < amount:
+        return .Err("${from.owner} has ${from.balance}, not $amount")
+    from.balance -= amount
+    to.balance += amount
+    .Ok(bank.alloc(Entry { from: from, amount: amount }))
+
+pub fn settle_day() -> Result[i64, string]:
+    bank := Arena::with_capacity(512)
+    alice := open(&bank, "alice", 100)
+    bob := open(&bank, "bob", 5)
+    sent := transfer(&bank, bob, alice, 3)?
+    alice.balance += 1
+    .Ok(alice.balance + sent.amount + sent.from.balance)

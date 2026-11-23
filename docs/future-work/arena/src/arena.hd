@@ -1,35 +1,37 @@
-# Proposal (docs/future-work/ARENA.md, #1410): `std.arena`, a typed arena.
-# Bodies are `panic("todo")`; std writes them over `std.rt.memory.Ptr` and
-# `std.rt.alloc`, as `std.sync.Arc` is written.
+# Proposal (docs/future-work/ARENA.md, #1410): `std.arena`, an untyped
+# arena, as bumpalo's `Bump`. Bodies are `panic("todo")`; std writes them
+# over `std.rt.memory.Ptr` and `std.rt.alloc`, as `std.sync.Arc` is written.
 
-## Values of one type that live and die together. `alloc` moves a value
-## in and lends it for as long as the arena is borrowed; no value is
-## counted, and `reset` or the arena's drop frees them all at once.
-## Proposal: std also writes `impl[T < ?Copy & Send] Send for Arena[T]`
-## (a package cannot: `Send` is sealed) and no `Sync`.
-pub struct Arena[T < ?Copy]:
+## Values of any types that live and die together. `alloc` moves a value
+## in and lends it writable for as long as the arena is borrowed; no value
+## is counted, and `reset` or the arena's drop drops them all at once.
+## Proposal: in std, `alloc` carries `@disjoint` (`std.rt.memory`), so each
+## result holds the arena shared and many are written at once. The arena
+## is neither `Send` nor `Sync`.
+pub struct Arena:
     state: usize
 
-impl[T < ?Copy] !Copy for Arena[T]
+impl !Copy for Arena
 
-impl[T < ?Copy] Arena[T]:
+impl Arena:
     ## An empty arena; its first chunk is taken by the first `alloc`.
-    pub fn new() -> Arena[T]:
+    pub fn new() -> Arena:
         panic("todo")
 
-    ## An empty arena whose first chunk has room for `n` values.
-    pub fn with_capacity(n: usize) -> Arena[T]:
+    ## An empty arena whose first chunk holds `bytes` bytes.
+    pub fn with_capacity(bytes: usize) -> Arena:
         panic("todo")
 
-    ## Moves `value` into the arena and lends it for as long as the arena
-    ## is borrowed. It is dropped by `reset` or by the arena's drop.
-    pub fn alloc(&self, value: T) -> &T:
+    ## Moves `val` into the arena at `T`'s alignment and lends it writable
+    ## while the arena is borrowed. Each call lends a new value. A value
+    ## whose type has drop work is dropped by `reset` or the arena's drop.
+    pub fn alloc[T < ?Copy](&self, val: T) -> &mut T:
         panic("todo")
 
-    ## How many values the arena holds.
-    pub fn len(&self) -> usize:
+    ## How many bytes the arena's values and padding take.
+    pub fn allocated_bytes(&self) -> usize:
         panic("todo")
 
-    ## Drops every value and keeps the newest chunk for the next `alloc`.
+    ## Drops every value, newest first, and keeps the newest chunk.
     pub fn reset(&mut self) -> void:
         panic("todo")

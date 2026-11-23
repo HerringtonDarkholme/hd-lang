@@ -1,210 +1,221 @@
 # Std Arena Allocator
 
-**Status:** proposal, 2026-11-23; domain: std memory and lifetimes
+**Status:** proposal, 2026-11-23, rewritten the same day for the owner's
+API (untyped, `&mut T` results); domain: std memory and lifetimes
 ([#1410](https://github.com/HerringtonDarkholme/hd-lang/issues/1410)); not
-accepted. It builds on spec chapter 13
-([Local References](../../spec/lang/13-values-and-references.md#local-references),
-[Dependent Results](../../spec/lang/13-values-and-references.md#dependent-results),
-[Lifetime Structs](../../spec/lang/13-values-and-references.md#lifetime-structs)),
-the [markers](../../spec/lang/10-modules.md#markers) and
-[ownership.md](../compiler/ownership.md). The signatures and examples are
-the checked package [arena/](arena/).
+accepted. The signatures and examples are the package [arena/](arena/);
+the stress test is [ARENA_STRESS_TEST.md](ARENA_STRESS_TEST.md).
 
 ## The Proposal
 
-Add `std.arena.Arena[T]`, a typed arena written in std over `Ptr` and
-`std.rt.alloc`, as `std.sync.Arc` is. `alloc(&self, value)` moves a value
-in and lends it back as `&T`, tied to the arena's borrow. Arena values
-carry no header and no count. `reset` or the arena's drop frees them all
-at once. Escapes, use after `reset` and races are compile errors under
-today's lifetime and marker rules. End state: **0 compiler lines**, about
-150 std lines, and 2.2x to 2.3x less work on node-churn programs.
+The owner's API, bumpalo's `Bump`: one untyped `std.arena.Arena`, and
+`alloc[T](&self, val: T) -> &mut T`. Results are disjoint and live at
+once, none outlives the arena, and `reset` is rejected while any is live.
+**hd cannot express it today**: the checker makes each `&mut` result a
+`&mut` loan of the arena, so the second `alloc` is `conflicting-access`.
+It needs one missing primitive and two missing intrinsics:
+
+- **`@disjoint`**, a std-only decorator: each call's `&mut` result holds
+  the receiver's `&` as a shared loan, as Rust's borrow checker treats
+  `&'a self -> &'a mut T`. It is hd's name for the `unsafe` promise that
+  bumpalo and typed-arena make. About 25 checker lines.
+- **`needs_drop[T]()`** and **`align_of[T]()`** in `std.rt.memory`, as
+  Rust's `core::mem` has them. About 30 backend lines.
 
 ```text
 use std.arena.Arena
 
-struct Tree['a]:
-    left: (&'a Tree['a])?
-    right: (&'a Tree['a])?
+struct Account:
+    owner: string
+    balance: i64
 
-fn build['a](arena: &'a Arena[Tree['a]], depth: i32) -> &'a Tree['a]:
-    if depth == 0:
-        return arena.alloc(Tree { left: .None, right: .None })
-    left := build(arena, depth - 1)
-    right := build(arena, depth - 1)
-    arena.alloc(Tree { left: .Some(left), right: .Some(right) })
+fn open(bank: &Arena, owner: string, balance: i64) -> &mut Account:
+    bank.alloc(Account { owner: owner, balance: balance })
 
-fn nodes(t: &Tree) -> i64:
-    match (t.left, t.right):
-        (.Some(l), .Some(r)) => 1 + nodes(l) + nodes(r)
-        _ => 1
-
-fn rounds(depth: i32, n: usize) -> i64:
-    let mut scratch = Arena::[Tree]::new()
-    let total: i64 = 0
-    for _ in 0..n:
-        total += nodes(build(&scratch, depth))  # no count, no free per node
-        scratch.reset()                         # one walk of the chunks
-    total
+fn settle(bank: &Arena) -> i64:
+    alice := open(bank, "alice", 100)
+    bob := open(bank, "bob", 5)        # `alice` is still live
+    alice.balance -= 30                # both written at once
+    bob.balance += 30
+    note := bank.alloc("moved 30")     # another type, same arena
+    alice.balance + bob.balance + i64(note.len())
 ```
 
 ## Open Questions
 
-1. Ship `std.arena.Arena[T]` as above? **Recommended: yes.**
-2. `alloc` lends `&T`, not Rust's `&mut T`: a `&mut` result locks the whole
-   arena (`ref.excl.mut`), so a second `alloc` is `conflicting-access`.
-   Parts that change are `*mut` fields. **Recommended: `&T`.**
-3. Typed arenas only, no mixed-type `Bump`: a `Bump` needs a no-glue bound
-   or a drop list per value. **Recommended: typed only.**
-4. `reset` keeps the newest chunk, as bumpalo does, not all capacity, as
-   Zig's `retain_capacity` does. **Recommended: newest chunk.**
-5. Module name `std.arena`, apart from `std.collections`, as Rust's
-   `typed_arena` and Zig's `std.heap` are. **Recommended: `std.arena`.**
-6. A top-level `let` arena lends `&'static T` (an interner), and no thread
-   can reach it. **Recommended: allow it, once bug 3 below is fixed.**
-7. A count cycle through arena values is not collected: it leaks, as a
-   cycle through `Arc` does today. Collecting it needs the collector's
-   type walk to see `T`. **Recommended: leak, and say so in the spec.**
+1. Add `@disjoint` (std-only, in `std.rt.memory`) to close the gap?
+   **Recommended: yes**; the other primitives are compared below.
+2. Add `needs_drop[T]()` and `align_of[T]()` to `std.rt.memory`?
+   **Recommended: yes**; without `needs_drop` a glue-free value pays a drop
+   entry, which gave back all of `binary_trees`' gain (297 to 296 ms).
+3. `Arena` neither `Send` nor `Sync`? Its values may hold non-atomic
+   counts of any type. **Recommended: neither**; one arena per thread.
+4. `reset` keeps the newest chunk, as bumpalo does. **Recommended: yes.**
+5. Drop order: newest first (`reset` and drop). **Recommended: yes.**
+
+## The Gap, Exactly
+
+[`ref.excl.call`](../../spec/lang/13-values-and-references.md#r-ref.excl.call)
+ends: "A result of type `&mut T` holds that reference as a `&mut` one
+after the call, whatever the receiver or parameter kind". The checker does
+it in `mut_result`
+([`exclusive.rs:386`](../../crates/hd_check/src/dep_results/constraints/exclusive.rs#L386)),
+which turns the call's shared receiver loan exclusive (`:793`). So
+`a := arena.alloc(x)` holds `&mut arena`, and `arena.alloc(y)` while `a`
+is used is `conflicting-access` ([`ref.excl.mut`](../../spec/lang/13-values-and-references.md#r-ref.excl.mut)).
+Writing the lifetime changes nothing: `alloc['s, T](&'s self, v: T) ->
+&'s mut T` gives the same error. A free `'a` (`-> &'a mut T`) checks, but
+is unsound: nothing ties the result to the arena, so it outlives `reset`
+and drop. `Ptr.as_mut` inside `alloc` does not help; the caller reads only
+the signature. A user package cannot try any of this: `std.rt.memory` is
+`std-only-use`.
+
+The sentence is there for a reason: hd lets a `&self` method reborrow a
+`&mut` field, `fn get(&self) -> &mut i32: &mut *self.r` with
+`r: &'a mut i32` checks today, and two such results would alias with no
+run-time loan to catch it. So the fix cannot delete it.
+
+## The Primitives Compared
+
+Each was checked on the five stress cases (tree linked after allocation,
+graph with cycles, parser patching nodes, interner, `binary_trees`) with
+a prototype where one exists. "Counts back" means the case had to give
+values a count, the cost an arena exists to remove.
+
+| Primitive | Sound because | Checker price | Stress cases | Counts back |
+| --- | --- | --- | --- | --- |
+| **`@disjoint` on `alloc`** (recommended) | std's `alloc` hands out fresh bytes (`module.rt.ptr.as-ref`); std-only by `module.rt.std-only`; the result still holds `&arena`, so `reset`, a move and a drop wait | about 25 lines: read the flag in `mut_result`, carry it in `CallAttrs`; one spec sentence | 5 of 5 check; the graph keeps a `*mut` edge list and shared bindings, as Rust needs `Cell` | graph edge lists only |
+| `UnsafeCell`-like type marker (`impl Interior for Arena`) | as above, but for every `&self -> &mut` method of the type | about 25 lines | same as `@disjoint` | same |
+| Inert receiver (no name: a type of only scalars keeps the `&` shared) | an inert value reaches no `&mut`; std-only `Ptr` is the only other source | 29 lines, prototyped; passed `lang/references` and `lang/functions` (3,024 cases, three modes) | same as `@disjoint` | same |
+| Region or provider-scope lifetime | results tied to a scope, not to a borrow | a new lifetime kind through `dep_results`; hundreds of lines (left to the effect brainstorm) | parse only | none |
+| Counted handles (`alloc` returns `*mut T`) | today's rules | 0 | 5 of 5 after every type becomes `*mut` | all: `binary_trees` stays at today's 297 ms |
+| (first draft) `&T` results | today's rules | 0 | 2 of 5; tree, graph and parser need `*mut` fields | every field that changes |
+
+`@disjoint` wins over the type marker because the promise is about one
+method's results, not the type: a later `&self -> &mut` method on `Arena`
+would need its own. It wins over the inert rule because it is explicit
+and cannot widen by accident: a future scalar-only `Cell` type would turn
+the inert rule unsound. The prototype of the inert rule stands in for both
+named forms in the probes, since all three give the caller the same loan.
 
 ## Problems It Solves
 
-Each program ran in a release build on V8's default tier, as the median
-of 21 fresh processes (machine load 11 to 17). An empty program takes
-88 ms, so the work is the wall time minus 88 ms. Counts come from the
-checked runtime (`bench/counts/measure.ts`); arena allocations follow
-from its growth rule.
+`bench/study/binary_trees.hd` at depth 17, release build, V8 default
+tier, median of 21 fresh processes (machine load about 9); an empty
+program takes 87 ms, so the work is the wall time minus 87 ms.
 
-| Program | Today | With `Arena` |
-| --- | --- | --- |
-| `bench/study/binary_trees.hd`, depth 17 | 293 ms; 29,971,806 allocations and frees, one per node; 29,971,824 releases | 178 ms (work 2.3x less); 24 allocations (chunks and state); 18 releases |
-| #1407's `alloc` shape, depth 16, 60 rounds | 155 ms; 7,864,260 allocations; 7,864,262 releases | 118 ms (work 2.2x less); 69 allocations; 2 releases |
-| `bench/runtime/progs/expr-eval.hd` | 357 ms; 3,650,726 releases | 367 ms, within noise; 1,259,246 releases |
+| Build | Wall | Work | Wasm |
+| --- | --- | --- | --- |
+| today | 297 ms | 210 ms | 10,981 bytes |
+| untyped arena, `needs_drop` false for `Node` | 197 ms | 110 ms (1.9x less) | 8,407 bytes |
+| untyped arena, a drop entry per value | 296 ms | 209 ms | — |
 
-**Trees built and dropped in rounds.** Today each node costs one
-allocation, one release, one glue visit and one free (#932). The arena
-costs a bump: two loads, a compare and a store, inlined. `reset` frees
-chunks, not nodes. This matches #932's region ceiling (about 2.2x)
-without a region runtime.
+The untyped arena gives the same output. Its `alloc` and the bump are not
+force-inlined (bug 2 of the first draft still blocks `@inline(.Always)` on
+`alloc`); the first draft's typed arena measured 178 ms with it. The probe
+fixed `needs_drop` per build, since the intrinsic does not exist yet.
 
-**A parser's syntax tree.** `expr-eval` keeps its tree in an arena held
-by a lifetime struct `Parser['a]`, as rustc and swc do. The port gives
-the same output and removes 2.39M of 3.65M releases, but saves no
-measurable time. An arena pays only where allocation dominates.
-
-**A frame rebuilt per request** ([example 3](arena/src/examples.hd)), as
-dodrio renders into bumpalo. Values with counted parts (a `string`, a
-`List`) are released by `reset`, so nothing leaks. A checked build of
-5,300 such values made 15,904 releases and no leak.
+**Trees, parsers and frames.** The stress test's tree linked after
+allocation, its parser patching every node after the parse, and the
+package's frame builder all write through `&mut` results while others are
+live; with `&T` each needed a `*mut` field, a count per value.
 
 ## How It Works
 
 | Item | What it is for |
 | --- | --- |
-| `Arena[T]` | values of one type that live and die together; `!Copy`; `Send` when `T` is; never `Sync` |
-| `new()`, `with_capacity(n)` | an empty arena; the second sizes its first chunk |
-| `alloc(&self, value: T) -> &T` | moves `value` in; lends it while the arena is borrowed |
-| `len(&self)` | how many values it holds |
-| `reset(&mut self)` | drops every value; keeps the newest chunk |
+| `Arena` | values of any types that live and die together; `!Copy`; neither `Send` nor `Sync` |
+| `new()`, `with_capacity(bytes)` | an empty arena; the second sizes its first chunk |
+| `alloc[T](&self, val: T) -> &mut T` | moves `val` in at `T`'s alignment; lends it writable while the arena is borrowed |
+| `allocated_bytes(&self)` | bytes of values and padding, as bumpalo's |
+| `reset(&mut self)` | drops every value, newest first; keeps the newest chunk |
 
-**Layout.** An `Arena` holds the address of a 16-byte state block: the
-bump pointer, the chunk end, the newest chunk and its capacity. A chunk
-is one `std.rt.alloc` block: the previous chunk, its used end, then the
-values at `size_of::[T]()` apart. Chunks double from 4 KiB to 1 MiB.
+**Layout.** A 16-byte state block: the bump pointer, the chunk end, the
+newest chunk, and the drop list's head. A chunk is one `std.rt.alloc`
+block: the previous chunk, its byte size, then values. Chunks double from
+4 KiB to 1 MiB, or fit one larger value.
 
-**Counts.** A value in an arena is not an object: no header, no count.
-Code reaches it only through `&'a T`, which counts nothing
-(`ref.type.local-uncounted`). No `*T` can point into a chunk, since every
-counted reference starts at a whole object (`ref.box.object`). A counted
-part of a value, such as a `List` field, holds its usual count, which the
-arena releases at `reset` or drop.
+**Alignment.** `align_of` is missing from `std.rt.memory`. The probe
+derives it from `size_of`: hd lays a type out at a multiple of its
+alignment, which is at most 8 (`hd_layout`), so the lowest set bit of the
+size, capped at 8, always suffices. It over-aligns some types (a
+`(u32, u32)` at 8), so the intrinsic is proposed.
 
-**Lifetimes.** `alloc`'s result depends on `self` (`ref.dep.elide`), so
-`'a` is the arena's borrow. Values link to each other through `&'a`
-fields of lifetime structs and enums. The checker already rejects every
-misuse; the probes gave these diagnostics:
+**Drop.** A value whose type has drop work (`needs_drop[T]()`, a
+compile-time constant) gets a 12-byte entry in the arena: the previous
+entry, its address, and `drop_at::[T]`, which reads the value out so its
+glue runs. `reset` and drop walk the list newest first. A glue-free type
+writes nothing, as the folded branch above shows. The checked count audit
+of a probe with `string` and `List` values in three rounds of 100 is clean
+with the list, and reports 600 leaked blocks without it.
+
+**What stays rejected** (probes on the prototype):
 
 | Misuse | Rule | Error |
 | --- | --- | --- |
 | use a value after `reset` | `ref.excl.shared` | `conflicting-access` |
 | move or drop the arena while a value is used | `ref.excl.move` | `conflicting-access` |
 | return a value past the arena's function | `ref.dep.return` | `local-reference-escapes` |
-| keep a value in a `*T`, a field without `'a`, or a `'static` bound | `ref.local.escape.*`, `ref.generic.static.error` | `local-reference-escapes` |
+| store a value in a field without `'a`, or a `'static` bound | `ref.local.escape.*` | `local-reference-escapes` |
 | capture a value in a closure that outlives the call | `ref.local.escape.capture-stored` | `local-reference-escapes` |
-| `alloc` from another thread | `module.marker.table.shared-sync` | `unsatisfied-trait-bound` |
-
-A `&T` crosses to a scoped thread when `T` is `Send` and `Sync`: a tree
-of `&'a` links and numbers does, a value with a `List` does not.
-
-**Drop.** `Arena` implements `std.rt.Drop`, as `UniqList` does. Its hook
-reads every value out of each chunk, so each value's glue runs, then
-frees the chunks. When `T` has no glue, the walk's loop folds away (the
-measured build has no item loop), so `reset` costs one step per chunk.
-Glue never reads through a local reference, so the order values die in
-does not matter. An arena dropped inside a traced object's glue frees
-its chunks through `hold_room`, as `Buffer`'s room does.
+| `alloc` from another thread | `&Arena` is not `Send` | `unsatisfied-trait-bound` |
+| write a value from a scoped thread | `&mut T` is not `Send` | `unsatisfied-trait-bound` |
+| two `&mut` from a `&self` method without `@disjoint` | `ref.excl.call`, unchanged | `conflicting-access` |
 
 ## Cost
 
 | Component | Price |
 | --- | --- |
-| Compiler, end state | 0 lines added, 0 deleted: `Ptr`, `alloc`, `Drop`, explicit `Send` and the lifetime solver exist |
-| Compiler bugs the probes hit | bug 2 blocks the inlined `alloc`; bug 3 blocks a top-level arena with threads; sizes found in phase 1 |
-| `lib/std/arena.hd` | about 150 lines; the probe was 118 lines of code |
-| `spec/std/arena.md` and fixtures | about 70 spec lines; about 12 conformance cases |
-| Runtime, per call | `alloc` O(1) amortized; `reset` and drop O(values) when `T` has glue, else O(chunks); `len` O(chunks) |
-| Runtime, measured | 2.3x and 2.2x less work above; no change on `expr-eval` |
-| Memory | a 12-byte node takes 12 bytes against a 32-byte block today; at most half of the newest chunk unused; peak RSS 104 to 100 MiB on binary_trees |
-| Wasm size | binary_trees 10,981 to 8,297 bytes; a program that names no `Arena` compiles none of it |
-| Web compiler gzip | about +1.1 KB against the 2 MB cap |
+| Checker | about 25 lines: `@disjoint` in `CallAttrs`, read by `mut_result`; nothing deleted |
+| Backend | about 30 lines: `ptr_needs_drop` and `ptr_align_of` beside `ptr_size_of` in `hd_wasm`'s `ptr` |
+| `lib/std/arena.hd` | about 140 lines; the probe is 120 |
+| Spec | one sentence in `ref.excl.call`, three `module.rt` rules, `spec/std/arena.md` (about 70 lines) |
+| Compile time | none on a program that names no `Arena`; one flag test per `&mut` result |
+| Runtime, per call | `alloc` O(1) amortized, plus one 12-byte entry for a value with drop work; `reset` O(values with drop work + chunks) |
+| Wasm size | binary_trees 10,981 to 8,407 bytes |
 
-**Diff against today's std.** Nothing changes; `std.arena` is new.
+## What The First Version Got Wrong
 
-**Not supported, with reasons.** `&mut T` results (question 2). A mixed
-`Bump` (question 3). Arena-backed `List`, `Map` or `string`: they are
-counted compiler built-ins (owner, 2026-11-12), and an allocator
-parameter would reach every collection's glue. A `Sync` arena shared by
-threads: it needs an atomic bump; use one arena per thread. Rust's
-`alloc_extend`, `into_vec` and `iter_mut`: no measured program needs them.
+It recommended `&T` results and said "0 compiler lines", calling the
+`&mut` lock a reason to change the API. That moved the cost to users:
+every part that changes after allocation became a `*mut` field, a count
+per value, in the tree, graph and parser cases alike. It was typed only,
+so a parser needed one arena per node type. And it ran no stress test of
+code that links or patches values after allocation, which is most arena
+code.
 
 ## Appendix A. Stress Test
 
-The probe std module and programs are in scratch, not in this PR. Each
-was run against the probe built into a local `hd`.
+In [ARENA_STRESS_TEST.md](ARENA_STRESS_TEST.md): five cases, each checked
+against `&mut` results with and without the rule, `&T` results, and
+counted handles.
 
-| Case | What happened | What the design does |
-| --- | --- | --- |
-| binary_trees (benchmarks game) | same output; 2.3x less work | the main case |
-| #1407 `alloc` | same checksum; 2.2x less work | same |
-| `expr-eval` parser with `Parser['a]` holding `&'a Arena[Expr['a]]` | same output, same time; 251,748 retains appear, all turned away as static data | arena only where allocation dominates; the retains are a lead for phase 2 |
-| dodrio-style frame with `string` and `List` parts | checked build: no leak | `reset` runs glue |
-| A first probe walked values at a rounded stride | the checked leak audit reported 7,950 leaked blocks | the stride is `size_of`, as `Ptr.offset` steps; fixtures run checked builds |
-| typed-arena's "safe cycles": cities with `roads: *mut List[&'a City['a]]` | runs; edges count nothing, so the cycle is no count cycle | parts that change are `*mut` fields |
-| the same with `@inline(.Always)` on `alloc` | a push through `x.roads` is lost (`len` 0); nested arenas report a wrong `len` | **bug 2**: fix before inlining `alloc`, which buys 223 to 186 ms on binary_trees |
-| `alloc_mut(&self) -> &mut T` | the second call is `conflicting-access` | question 2 |
-| `&Arena` captured by `s.spawn` | `unsatisfied-trait-bound` | not `Sync` |
-| `&City` with a `*mut` field to `s.spawn` | `unsatisfied-trait-bound` | a counted part is not `Sync` |
-| `&Tree` to two scoped threads | runs, 30 nodes | read-only sharing works |
-| moving an `Arena` into `s.spawn` | `move-out-of-place` | the crossing-closure rule, not the arena |
-| zero-sized `T`, 10,000 values | `len` 10,000, then 0 after `reset` | a zero-sized value takes one byte |
-| `Arena[Arena[Entry]]` with `Arc` fields | counts right without forced inlining | drop order is free |
-| a count cycle box -> `Arena` value -> box, 200 times | the checked audit reports 600 leaked blocks; the same cycle through `Arc` leaks 400 | question 7 |
-| the same with an empty `Buffer[T]` field, so the type walk sees `T` | the audit reports 400 blocks freed twice | collecting needs a trace-safe hook; not in this design |
-| a top-level `let` arena | `&'static T` values; a thread that reaches it gets `crossing-top-level-binding` | question 6 |
-| the same in a program that starts a thread | init panics `integer-overflow` in `Arena.drop` | **bug 3**, not bisected |
-| keeping a value in a `*Plain` result | `local-reference-escapes`, worded "escapes to a function value's result" | a diagnostic wording lead |
+## Appendix B. Probes
 
-**Bug 1, found on the way, without the arena.** Through `Arc.get()`,
-`println("${f.edges.len()}")` and then `e := f.edges; e.push(8)` fail
-with "memory access out of bounds" in dev and release. Through a plain
-`&Flat` it runs. It needs its own ticket.
+The probe std module, the prototype patch and the programs are in
+scratch, not in this PR.
 
-## Appendix B. Prior Art
+| Probe | Result |
+| --- | --- |
+| two live `alloc` results on main, in std (`&'s self -> &'s mut T`) | `conflicting-access` at the second |
+| the same with a free `'a` result | checks; unsound, it survives `reset` |
+| untyped `alloc` of `Node`, `i64`, `u8` and a `Label` with a `string` and `List`, three rounds with `reset` | right output, 128 bytes per round |
+| checked count audit of 300 values with counted parts | clean with the drop list; 600 leaked blocks without |
+| `binary_trees` | same output as today |
+| bug 1 (first draft, no arena) | through `Arc.get()`, `println("${f.edges.len()}")` then `e := f.edges; e.push(8)` fails "memory access out of bounds" |
+| bug 2 (first draft) | `@inline(.Always)` on an `alloc` of `Ptr.write` then `as_ref` loses a later push through a field |
+| bug 3 (first draft) | a top-level `let` arena in a program that starts a thread panics `integer-overflow` in the arena's drop |
+
+## Appendix C. Prior Art
 
 **Rust `typed-arena`.** "A fast (but limited) allocation arena for values
 of a single type"; values are "destroyed all at once"; "you can safely
 create cycles" ([docs](https://docs.rs/typed-arena/latest/typed_arena/)).
-hd takes the typed shape and the drop of values; it lends `&T`, not
-`&mut T`.
+Its `alloc(&self, value: T) -> &mut T` takes `self.chunks.borrow_mut()`
+(a `RefCell<ChunkList<T>>`), pushes only below capacity so no value
+moves, and returns `unsafe { &mut *chunks.current.as_mut_ptr().add(len) }`
+([source](https://github.com/thomcc/rust-typed-arena/blob/master/src/lib.rs)).
+hd takes its drop of values; `@disjoint` is hd's name for that `unsafe`.
 
 ```rust
 struct Node<'a> { left: Option<&'a Node<'a>>, right: Option<&'a Node<'a>> }
@@ -216,12 +227,17 @@ fn make<'a>(arena: &'a Arena<Node<'a>>, d: u32) -> &'a Node<'a> {
 ```
 
 **Rust `bumpalo`.** `alloc<T>(&self, val: T) -> &mut T` for any `T`;
-`reset(&mut self)`; `Send` and `!Sync`; on mass deallocation "allocated objects' Drop
-implementations are not invoked"
-([Bump](https://docs.rs/bumpalo/latest/bumpalo/struct.Bump.html),
-[crate](https://docs.rs/bumpalo/latest/bumpalo/)). hd takes `reset`'s
-policy and the markers. It rejects skipping drops: an hd value's counted
-parts would leak.
+its fields are `Cell`s (`current_chunk_footer: Cell<NonNull<ChunkFooter>>`),
+`alloc`'s body is `self.emplace().write(val)`, and `reset(&mut self)`
+needs "self must be unique and there can't be any borrows active";
+`unsafe impl Send`, no `Sync`; "Objects that are bump-allocated will
+never have their Drop implementation called"
+([source](https://github.com/fitzgen/bumpalo/blob/main/src/lib.rs)). It
+is sound because each `alloc` hands out bytes no earlier result covers,
+and Rust's borrow checker holds `&'a self` shared while each `&'a mut T`
+lives, so `reset` waits. hd takes the API, `reset`'s policy and that
+argument. It rejects skipping drops: an hd value's counted parts would
+leak (the probe below leaks 600 blocks without the drop list).
 
 ```rust
 let mut bump = Bump::new();
@@ -229,6 +245,23 @@ for frame in frames {
     let page = render(&bump, frame);   // allocations of any type
     send(page);
     bump.reset();                      // no Drop runs
+}
+```
+
+**Rust `UnsafeCell`.** "The core primitive for interior mutability in
+Rust"; "`UnsafeCell<T>` opts-out of the immutability guarantee for
+`&T`"; and "if you create a `&mut T` reference, then you must not access
+the data within the `UnsafeCell` with any other pointer/reference until
+that reference expires"
+([docs](https://doc.rust-lang.org/std/cell/struct.UnsafeCell.html)).
+Rust's checker never sees disjointness: `unsafe` code promises it. hd has
+no `unsafe`, so the promise needs a std-only name the checker reads.
+
+```rust
+pub struct Cell<T: ?Sized> { value: UnsafeCell<T> }
+impl<T> Cell<T> {
+    pub fn get_mut(&mut self) -> &mut T { self.value.get_mut() }
+    // `&self` methods write through `self.value.get()`, a `*mut T`
 }
 ```
 
@@ -295,23 +328,19 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 
 ## Appendix C. Alternatives Considered
 
-- **A counted region** (#932's "region, full header"). Objects keep
-  their header, so `*T` can point in. It needs a current-region provider
-  across nesting and suspension, a region bit on every retain and release
-  path, and an outside-reference check at region end with a fallback.
-  Every program pays the bit test, and misuse fails at run time.
-- **An allocator parameter on `List` and `Map`** (Rust's `Vec<T, A>`,
-  Zig). Both are counted copy-on-write built-ins. A buffer that may be
-  shared cannot be freed by a reset, so the parameter would need a second
-  ownership mode in every collection's glue.
-- **Go-style regions.** Implicit: memory "fades" out of a region when it
-  escapes, which needs a write barrier. hd has counts, not a tracer.
-- **Young-object deferral.** Rejected by the owner on #932.
-- **Only a faster allocator.** hd's allocator already beats Zig's
-  general-purpose one on `alloc` (44 against 61 ms, #1407, 2026-11-12).
-  What remains is count and free work that no allocator removes.
+## Appendix D. Alternatives Considered
 
-## Appendix D. Today In hd
+- **Delete the last sentence of `ref.excl.call`.** Unsound, by the
+  `&mut *self.r` example above.
+- **A written lifetime meaning a shared hold.** A written lifetime would
+  mean something its elided form does not, and the hole reopens for
+  anyone who writes one.
+- **A typed arena with `&T` results** (the first draft): see above.
+- **An allocator parameter on `List` and `Map`**, **a counted region**,
+  **Go-style regions**: as in the first draft; each adds work to every
+  program or every collection.
+
+## Appendix E. Today In hd
 
 - **Runtime.** `std.rt.alloc` serves 16-byte to 32 KiB blocks from size
   classes, and larger ones as page runs. Each thread allocates from its own
@@ -333,33 +362,28 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 
 ## Appendix E. Details
 
-- **Typing.** No new rule; `Arena[Node['a]]` is a type argument that holds
-  a local reference (`ref.lifetime.store.argument`).
-- **Ownership and the inliner.** Values written by `Ptr.write` and lent by
-  `Ptr.as_ref`, as in `Arc.get`; bug 2 is the inliner's.
-- **Soundness.** A value lives while the arena is borrowed; `reset` and
-  drop need the arena unborrowed. Glue never reads through `&'a`.
-- **Collector.** Values are not objects. A value's count on an object
-  is an outside reference to trial deletion, so the object is never
-  freed early. Links between values count nothing and form no cycle. An
-  `Arena` holds only an address, so the type walk never marks a type
-  cycle-capable through it, as with `Arc` (question 7).
-- **Threads.** `Send` by move; `&Arena` never crosses; `&T` crosses when
-  `T` is `Send` and `Sync`. A moved arena frees on another thread through
-  the owner heap's list.
-- **Suspension.** A value held across a bang call is a local reference
-  in the frame (`ref.dep.suspension`); the probe compiled.
+## Appendix F. Details
+
+- **Typing.** No new type rule; `alloc[T]` is an ordinary generic method.
+- **Ownership.** `@disjoint` changes only `mut_result`: the receiver's
+  loan stays shared; everything else of `ref.excl` holds.
+- **Soundness.** Each `alloc` writes bytes no earlier result covers; std
+  keeps that (`module.rt.ptr.as-ref`). Results hold `&arena`, so `reset`
+  (`&mut self`), a move and a drop wait for them.
+- **Threads.** Neither `Send` nor `Sync` (question 3).
 - **Diagnostics.** None new.
 
 **Phases**, each about one hour with its test:
 
-1. Bisect and fix bug 2 with a stage case; file bugs 1 and 3 with
-   known-failure fixtures.
-2. `lib/std/arena.hd` and `spec/std/arena.md`; runtime fixtures in
-   checked builds: glue values, zero-sized, nested, cycle, threads.
-3. Invalid fixtures, one per row of the misuse table.
-4. Bisect bug 3; rerun the #1407 race with an hd arena row.
+1. `@disjoint` in spec 13 and `hd_check`, with a valid stage case (two
+   live results) and an invalid one (the `&mut *self.r` getter).
+2. `needs_drop` and `align_of` intrinsics with conformance cases.
+3. `lib/std/arena.hd`, `spec/std/arena.md`, runtime fixtures in checked
+   builds: mixed types, glue values, zero-sized, nested arenas.
+4. Invalid fixtures, one per misuse row.
+5. Bugs 1 to 3 of the first draft: bisect and fix.
 
-**Checks.** In `docs/future-work/arena/`: `hd check` and
-`hd fmt --check`. Parse log: every `text` block above parses
-(`scripts/hd-conformance.sh parse`); parsing checks syntax only.
+**Checks.** In `docs/future-work/arena/`: `hd fmt --check` passes;
+`hd check` passes with phase 1's rule (verified on the prototype) and on
+today's checker reports the five `conflicting-access` errors the rule
+removes.
