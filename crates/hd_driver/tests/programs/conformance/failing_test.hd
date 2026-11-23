@@ -1,0 +1,3 @@
+tests:
+    it("must run"):
+        assert_equal(1, 2)

@@ -1,0 +1,7 @@
+use std.rt.memory.{Buffer, copy, size_of}
+pub fn main() -> void:
+    slots := Buffer::[Buffer[u8]].new(2)
+    slots.at(0).write(Buffer::[u8].new(8))
+    copy(slots.at(1).address, slots.at(0).address, size_of::[Buffer[u8]]())
+    _ := slots.at(0).read()
+    _ := slots.at(1).read()
