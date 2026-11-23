@@ -1354,3 +1354,4 @@ says that the check covered syntax only.
 | 2026-11-22 | #2289 integer limits | CLI API | `hd fmt FILE1 FILE2` | ``error: `hd fmt` takes at most one FILE`` | yes | run `hd fmt FILE` separately for each picked file | GPT-6 (Codex) |
 
 | 2026-11-22 | #1306 warm product cache test | syntax | `((7, "fixed"), ...["kept"])` | `error: main.hd:88..91: syntax-error: a spread is written after its value: write 'value...'` | Yes | `((7, "fixed"), ["kept"]...)` | GPT-6 |
+| 2026-11-22 | #2283 Set API probe | tooling | Checked new std methods with a frozen compiler embedding the old std | ``unknown-import: module 'std.collections' declares no 'Union'`` | No; inspected the binary/source setup | Rebuild the dev compiler with the edited embedded std before probing | GPT-6 (Codex) |

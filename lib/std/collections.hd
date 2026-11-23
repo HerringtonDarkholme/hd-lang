@@ -2789,7 +2789,7 @@ impl[T < Debug] Debug for Deque[T]:
 # (spec/std/collections.md#set), plain hd over a `Map` whose values say
 # nothing.
 ## A set holds distinct elements, in the order they were inserted.
-## See [std-collections.set.decl](../../spec/std/collections.md#r-std-collections.set.decl).
+## See [std-collections.set.operation-surface](../../spec/std/collections.md#r-std-collections.set.operation-surface).
 pub struct Set[T < Eq & Hash]:
     entries: Map[T, bool]
 
@@ -2798,6 +2798,22 @@ impl[T < Eq & Hash] Set[T]:
     ## See [std-collections.set.distinct](../../spec/std/collections.md#r-std-collections.set.distinct).
     pub fn new() -> Set[T]:
         Set::[T] { entries: {} }
+
+    ## A lazy snapshot of the distinct elements in either set.
+    ## See [std-collections.set.union.value](../../spec/std/collections.md#r-std-collections.set.union.value).
+    pub fn union(&self, other: &Set[T]) -> Union[T]:
+        if self.len() >= other.len():
+            Union { first: self.iter(), rest: other.iter(), seen: *self, first_open: true }
+        else:
+            Union { first: other.iter(), rest: self.iter(), seen: *other, first_open: true }
+
+    ## A lazy snapshot of the elements common to both sets.
+    ## See [std-collections.set.intersection.value](../../spec/std/collections.md#r-std-collections.set.intersection.value).
+    pub fn intersection(&self, other: &Set[T]) -> Intersection[T]:
+        if self.len() <= other.len():
+            Intersection { source: self.iter(), other: *other }
+        else:
+            Intersection { source: other.iter(), other: *self }
 
     ## Returns the number of elements.
     ## See [std-collections.set.len](../../spec/std/collections.md#r-std-collections.set.len).
@@ -2848,6 +2864,42 @@ impl[T < Eq & Hash] Iterator[T] for SetIter[T]:
         match self.entries.next():
             .Some(entry) => .Some(entry._0)
             .None => .None
+
+## The lazy union of two set snapshots.
+## See [std-collections.set.union.type](../../spec/std/collections.md#r-std-collections.set.union.type).
+pub struct Union[T < Eq & Hash]:
+    first: SetIter[T]
+    rest: SetIter[T]
+    seen: Set[T]
+    first_open: bool
+
+impl[T < Eq & Hash] Iterator[T] for Union[T]:
+    fn next(&mut self) -> T?:
+        if self.first_open:
+            match self.first.next():
+                .Some(value) => return .Some(value)
+                .None => self.first_open = false
+        while true:
+            match self.rest.next():
+                .Some(value) =>
+                    if !self.seen.contains(value):
+                        return .Some(value)
+                .None => return .None
+
+## The lazy intersection of two set snapshots.
+## See [std-collections.set.intersection.type](../../spec/std/collections.md#r-std-collections.set.intersection.type).
+pub struct Intersection[T < Eq & Hash]:
+    source: SetIter[T]
+    other: Set[T]
+
+impl[T < Eq & Hash] Iterator[T] for Intersection[T]:
+    fn next(&mut self) -> T?:
+        while true:
+            match self.source.next():
+                .Some(value) =>
+                    if self.other.contains(value):
+                        return .Some(value)
+                .None => return .None
 
 # A set of the distinct items (r-std-collections.set.collect-distinct).
 impl[T < Eq & Hash] FromIterator[T] for Set[T]:

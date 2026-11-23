@@ -1,0 +1,56 @@
+# test: lazy union and intersection probe the smaller set, including equal keys with different payloads
+use std.collections.Set
+use std.hash.Hasher
+
+struct Calls:
+    hashes: usize
+
+struct Key:
+    id: usize
+    label: string
+    calls: *mut Calls
+
+impl Eq for Key:
+    fn eq(&self, other: &Key) -> bool:
+        self.id == other.id
+
+impl Hash for Key:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        self.calls.hashes += 1
+        state.write_usize(self.id)
+
+fn keys(size: usize, label: string, calls: *mut Calls) -> Set[Key]:
+    let mut result: Set[Key] = Set::new()
+    for id in 0..size:
+        _ := result.insert(Key { id: id, label: label, calls: calls })
+    result
+
+tests:
+    use std.testing.assert_equal
+
+    it("construction is lazy and the probe count stays flat when the larger set grows tenfold"):
+        calls := box(Calls { hashes: 0 })
+        for size in [100, 1000]:
+            large := keys(size, "large", calls)
+            small := keys(10, "small", calls)
+            calls.hashes = 0
+            union := small.union(&large)
+            assert_equal(calls.hashes, 0)
+            assert_equal(union.count(), size)
+            assert_equal(calls.hashes, 10)
+            calls.hashes = 0
+            common := large.intersection(&small)
+            assert_equal(calls.hashes, 0)
+            assert_equal(common.count(), 10)
+            assert_equal(calls.hashes, 10)
+
+    it("equal keys need no equal non-key payload"):
+        calls := box(Calls { hashes: 0 })
+        large := keys(3, "large", calls)
+        small := keys(1, "small", calls)
+        let union: List[Key] = small.union(&large).collect()
+        assert_equal(union.len(), 3)
+        assert_equal(union[0].label, "large")
+        let common: List[Key] = large.intersection(&small).collect()
+        assert_equal(common.len(), 1)
+        assert_equal(common[0].label, "small")

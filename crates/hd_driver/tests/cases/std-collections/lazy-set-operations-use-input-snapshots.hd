@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/collections/impl[T < Eq & Hash] Iterator[T] for Union[T].next
+# @helper: std/collections/impl[T < Eq & Hash] Iterator[T] for Intersection[T].next
+# expected: next walks existing cursors and tests membership without building a result set.
+use std.collections.Set
+
+fn union_count(left: &Set[i32], right: &Set[i32]) -> usize:
+    left.union(right).count()
+
+fn shared_count(left: &Set[i32], right: &Set[i32]) -> usize:
+    left.intersection(right).count()

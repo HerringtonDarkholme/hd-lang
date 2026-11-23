@@ -709,12 +709,13 @@ fn distinct(words: List[string]) -> Set[string]:
 | `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
 | `contains` | `contains(&self, value: T) -> bool` |
 | `insert`, `remove` | `insert(&mut self, value: T) -> bool`, and the same for `remove` |
+| `union`, `intersection` | `union(&self, other: &Set[T]) -> Union[T]`; `intersection(&self, other: &Set[T]) -> Intersection[T]` |
 | iteration | `Iterable[T]` |
 | `collect` | `FromIterator[T]` |
 | equality | `Eq` |
 | `Debug` | when `T < Debug` |
 
-1. r[std-collections.set.decl] `std.collections` declares `Set[T < Eq & Hash]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Set`.
+1. r[std-collections.set.operation-surface] `std.collections` declares `Set[T < Eq & Hash]` with private fields and exactly the listed surface; programs import it with `use std.collections.Set`.
 2. r[std-collections.set.distinct] A set holds elements no two of which are equal by `Eq`. `new` returns an empty set.
 3. r[std-collections.set.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
 4. r[std-collections.set.contains] `contains(value)` is true exactly when the set has an element equal to `value`.
@@ -941,3 +942,28 @@ fn visits() -> Map[string, usize]:
 
 > **Why.** The insertion result and retained stored key follow Rust's `HashMap::insert`.
 > `Map` has copy-on-write value semantics and exposes no capacity reservation, so clearing replaces this value with an empty map.
+
+## Set Operations
+
+Both methods return lazy cursors over snapshots rather than building a result set.
+
+```text
+use std.collections.Set
+
+fn combined(left: &Set[i32], right: &Set[i32]) -> Set[i32]:
+    left.union(right).collect()
+```
+
+1. r[std-collections.set.union.value] `Set[T].union(&self, other: &Set[T]) -> Union[T]` yields each element present in either input, without duplicates.
+2. r[std-collections.set.intersection.value] `Set[T].intersection(&self, other: &Set[T]) -> Intersection[T]` yields each element common to both inputs.
+3. r[std-collections.set.union.type] `std.collections` declares `Union[T < Eq & Hash]`, with private fields, implementing `Iterator[T]`.
+4. r[std-collections.set.intersection.type] `std.collections` declares `Intersection[T < Eq & Hash]`, with private fields, implementing `Iterator[T]`.
+5. r[std-collections.set.operations.snapshot] Both returned cursors hold the inputs as they were at the call; later input mutations leave these snapshots unchanged.
+6. r[std-collections.set.operations.lazy] Construction advances no cursor and performs no membership lookup.
+7. r[std-collections.set.union.order] Union visits the larger snapshot first, left on ties, then the smaller's unseen elements, preserving each snapshot's iteration order.
+8. r[std-collections.set.intersection.order] Intersection visits the smaller snapshot, left on ties, and yields that snapshot's representative of each common element, in its iteration order.
+9. r[std-collections.set.operations.cost] Construction stores constant cursor state; traversal reuses map iteration costs and performs at most `min(n, m)` membership lookups for input sizes `n`, `m`.
+
+> **Why.** Names, lazy cursors, and size-biased membership probing follow Rust's `HashSet` operations.
+> The cursors yield snapshot values rather than borrowed elements, matching hd's existing `Set.iter` contract.
+> The chosen source retains its deterministic order; neither method materializes a collection before the caller consumes it.

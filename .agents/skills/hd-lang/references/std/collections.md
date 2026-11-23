@@ -122,6 +122,7 @@ println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${hea
 ```
 
 `Heap.pop()` returns the largest element.
+`left.union(&right)` and `left.intersection(&right)` return lazy snapshot iterators; collect them when you need a new set.
 
 ## Iterators
 
