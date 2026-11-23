@@ -107,15 +107,19 @@ pub(crate) fn finish(file: Option<std::ffi::OsString>) {
     }
 }
 
-/// The scale check's self-test (`cargo build --release -p hd_command
-/// --features plant-quadratic`): a quadratic loop over the lines of the
-/// package's sources, hashing every pair, which the check must flag on
-/// any shape. It runs only with `HD_WORK` set.
+/// The scale check's self-test (a build with `--features plant-quadratic`):
+/// a quadratic loop over the lines of the package's sources, hashing every
+/// pair, which the check must flag on any shape. It runs only with both
+/// `HD_WORK` and `HD_PLANT_QUADRATIC` set, so CI's one all-features build
+/// runs the scale check and its self-test.
 #[cfg(feature = "plant-quadratic")]
 mod plant {
     use std::hash::{BuildHasher as _, Hash as _, Hasher as _};
 
     pub(super) fn run() {
+        if std::env::var_os("HD_PLANT_QUADRATIC").is_none() {
+            return;
+        }
         let mut lines = Vec::new();
         let mut dirs = vec![std::path::PathBuf::from("src")];
         while let Some(dir) = dirs.pop() {
