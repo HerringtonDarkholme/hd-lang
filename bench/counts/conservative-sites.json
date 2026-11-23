@@ -69,8 +69,8 @@
     },
     {
       "reason": "conservative: source call",
-      "sites": 448,
-      "explanation": "#1805 regex lazy DFA contributes the 24 sites already recorded on main (f81358632). #2283 Iterator.last adds one receiver retain in the read-through vtable adapter in bench/study/dyn_iter.hd to preserve its owned snapshot. Complete 35-program controls measure main447 and API448; regex-scan conservative operations and emitted digest are unchanged."
+      "sites": 449,
+      "explanation": "#1805 regex lazy DFA contributes the 24 sites already recorded on main (f81358632). #2283 Iterator.last adds one receiver retain in the read-through vtable adapter in bench/study/dyn_iter.hd to preserve its owned snapshot. Complete 35-program controls measure main447 and API448; regex-scan conservative operations and emitted digest are unchanged. #2295 Display join: exact main774453bea/head a7bd1f39f CI reports for all35 programs show only function-value-inputs changes conservative sites: Buffer[u8].grow free +1 and Buffer[u8].drop free +1 replace rt:list_grow release -1, net448->449. These frees release uniquely owned raw byte room during growth and cleanup of the general streaming output buffer; removing them would leak room. No callback retain or hot-loop site is added: the join runs once before the 20M callback loop. Counts are static emitted sites; the completed checked runtime counter reports have identical operations for every program. Other reasons do not increase."
     },
     {
       "reason": "conservative: unique",
