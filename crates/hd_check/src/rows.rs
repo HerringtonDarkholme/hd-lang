@@ -697,6 +697,14 @@ impl Ck<'_, '_> {
                 stack.extend(a.iter().zip(b).rev().map(|(&x, &y)| (x, y, d)));
             };
             match (pool.get(g), pool.get(w)) {
+                (
+                    TyData::Adt(hd_types::AdtId::Product { .. }, _),
+                    TyData::Adt(hd_types::AdtId::Product { .. }, _),
+                ) if let (Some((a, _)), Some((b, _))) =
+                    (pool.product_parts(g), pool.product_parts(w)) =>
+                {
+                    stack.extend(a.iter().zip(b).rev().map(|(&x, &y)| (x, y, d)));
+                }
                 (TyData::Adt(def, a), TyData::Adt(e, b)) if def == e => {
                     pairs(stack, a, b);
                 }
@@ -1492,6 +1500,46 @@ impl Ck<'_, '_> {
 
 #[cfg(test)]
 mod index_tests {
+    #[test]
+    fn nested_rows_pair_fixed_members_without_rewriting_rests() {
+        crate::body::with_checker(|ck| {
+            let pool = ck.pool();
+            for (fixed, rest) in [(true, false), (false, true), (true, true)] {
+                let var = ck.infer.fresh(pool, hd_types::unify::VarKind::General);
+                let row = pool.row(&hd_types::RowData {
+                    keys: vec![var],
+                    params: vec![],
+                });
+                let function = |row| {
+                    pool.intern_ty(&TyData::Fn {
+                        params: TyList::EMPTY,
+                        result: Ty::I32,
+                        row,
+                        suspends: false,
+                        inputs: hd_types::Inputs::Fixed,
+                        deps: hd_types::FnDeps::NONE,
+                    })
+                };
+                let left = function(row);
+                let right = function(hd_types::RowId::EMPTY);
+                let (left_members, right_members) = ([left], [right]);
+                let got = pool.product(
+                    pool.list(if fixed { &left_members } else { &[] }),
+                    rest.then_some(left),
+                );
+                let want = pool.product(
+                    pool.list(if fixed { &right_members } else { &[] }),
+                    Some(right),
+                );
+                ck.solve_nested_rows(got, want, 0);
+                assert_eq!(
+                    ck.infer.resolve_row(pool, row) == hd_types::RowId::EMPTY,
+                    fixed
+                );
+            }
+        });
+    }
+
     use super::{KeyCandidates, key_is};
     use hd_base::DefId;
     use hd_types::{InternPool, Ty, TyData, TyList};

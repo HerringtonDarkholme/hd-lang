@@ -1387,8 +1387,8 @@ impl<'a> Layouts<'a> {
         let len = |t: Ty| self.of(t).slots.len();
         let run = |start: usize, t: Ty| Some((start..start + len(t)).collect());
         match (pool.get(t), variant) {
-            (TyData::Adt(AdtId::Product { .. }, elems), None) => {
-                let es = pool.list_items(elems);
+            (TyData::Adt(AdtId::Product { .. }, _), None) => {
+                let (es, _) = pool.product_parts(t)?;
                 let e = *es.get(j as usize)?;
                 let start = es[..j as usize].iter().map(|&x| len(x)).sum();
                 Some(FieldMap {
@@ -2403,13 +2403,13 @@ fn line_up_goal(ls: &Layouts<'_>, declared: Ty, actual: Ty) -> Vec<Key> {
 /// order; a function's or suspension's slot writes none.
 fn written_slots(ls: &Layouts<'_>, t: Ty, lists: &[&[u16]]) -> Vec<u16> {
     let pool = ls.pool;
-    let TyData::Adt(AdtId::Product { .. }, elems) = pool.get(t) else {
+    let Some((elems, _)) = pool.product_parts(t) else {
         return Vec::new();
     };
     let mut out = Vec::new();
     let mut list = lists.iter().map(|l| l.iter());
     let (mut first, mut rest) = (list.next(), list.next());
-    for (k, &e) in pool.list_items(elems).iter().enumerate() {
+    for (k, &e) in elems.iter().enumerate() {
         let ids = if k == 0 { &mut first } else { &mut rest };
         for slot in &ls.of(e).slots {
             let id = match ids {
@@ -2451,7 +2451,9 @@ pub(crate) fn written_escapes(
     };
     // The subject's lifetime at each of its layout slots.
     let first = match pool.get(goal) {
-        TyData::Adt(AdtId::Product { .. }, elems) => pool.list_items(elems).first().copied(),
+        TyData::Adt(AdtId::Product { .. }, _) => pool
+            .product_parts(goal)
+            .and_then(|(es, _)| es.first().copied()),
         _ => None,
     };
     let own: Vec<u32> = first.map_or_else(Vec::new, |t| {
@@ -2473,9 +2475,10 @@ pub(crate) fn written_escapes(
     // The declared subject's slots, which its written lifetimes key
     // before the trait arguments'.
     let n = match pool.get(declared) {
-        TyData::Adt(AdtId::Product { .. }, elems) => {
-            (pool.list_items(elems).first()).map_or(0, |&t| ls.of(t).slots.len())
-        }
+        TyData::Adt(AdtId::Product { .. }, _) => pool
+            .product_parts(declared)
+            .and_then(|(es, _)| es.first())
+            .map_or(0, |&t| ls.of(t).slots.len()),
         _ => 0,
     };
     let origins = (keys.into_iter().enumerate()).map(|(k, key)| {
@@ -3051,10 +3054,9 @@ impl Ck<'_, '_> {
         cache: &mut BoundOrigins,
     ) -> ProofSlots<Var> {
         let pool = ls.pool;
-        let TyData::Adt(AdtId::Product { .. }, elems) = pool.get(goal) else {
+        let Some((elems, _)) = pool.product_parts(goal) else {
             return subject.cloned().unwrap_or_default();
         };
-        let elems = pool.list_items(elems);
         let generics = self.cx.lookup.item(param.owner).map(|it| match &it.data {
             ItemData::Fn(sig, _) | ItemData::Method { sig, .. } => &sig.generics,
             _ => &it.generics,

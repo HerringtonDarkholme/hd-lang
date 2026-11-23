@@ -2558,6 +2558,11 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
             // Preserve this substitution's boundaries: tuple rests and
             // function rows stay as written, as do opaque/trait-value types.
             match pool.get(t) {
+                TyData::Adt(AdtId::Product { rest: true }, _)
+                    if let Some((elems, _)) = pool.product_parts(t) =>
+                {
+                    children.extend_from_slice(elems);
+                }
                 TyData::Fn { params, result, .. } => {
                     children.extend_from_slice(pool.list_items(params));
                     children.push(result);
@@ -2574,12 +2579,14 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
         }
         crate::work::type_node();
         let mapped = |t| memo.get(&t).copied().unwrap_or(t);
-        let list = |l| {
+        let list = |l, keep_rest| {
+            let items = pool.list_items(l);
+            let end = items.len().saturating_sub(usize::from(keep_rest));
             pool.list(
-                &pool
-                    .list_items(l)
+                &items[..end]
                     .iter()
                     .map(|&t| mapped(t))
+                    .chain(items[end..].iter().copied())
                     .collect::<Vec<_>>(),
             )
         };
@@ -2596,10 +2603,12 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
                 args: if tr == trait_ && a == TyList::EMPTY {
                     args
                 } else {
-                    list(a)
+                    list(a, false)
                 },
             },
-            TyData::Adt(def, a) => TyData::Adt(def, list(a)),
+            TyData::Adt(def, a) => {
+                TyData::Adt(def, list(a, matches!(def, AdtId::Product { rest: true })))
+            }
 
             TyData::Ref {
                 inner,
@@ -2618,7 +2627,7 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
                 inputs,
                 deps,
             } => TyData::Fn {
-                params: list(params),
+                params: list(params, false),
                 result: mapped(result),
                 row,
                 suspends,
@@ -3782,6 +3791,17 @@ mod tests {
                         chain[0]
                     );
                 }
+                // The same node may be mapped through a fixed member, but
+                // that memo entry must not rewrite the preserved rest.
+                assert_eq!(
+                    super::with_assoc_args(
+                        types,
+                        pool.product(pool.list(&[original]), Some(original)),
+                        owner,
+                        args,
+                    ),
+                    pool.product(pool.list(&[filled]), Some(original)),
+                );
                 let other = projection(DefId::from_raw(3), TyList::EMPTY);
                 assert_eq!(super::with_assoc_args(types, other, owner, args), other);
                 assert_eq!(

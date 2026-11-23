@@ -341,8 +341,8 @@ impl Ck<'_, '_> {
     fn field_ty(&self, t: Ty, variant: Option<u32>, j: u32) -> Option<Ty> {
         let pool = self.pool();
         match pool.get(t) {
-            TyData::Adt(AdtId::Product { .. }, elems) => {
-                pool.list_items(elems).get(j as usize).copied()
+            TyData::Adt(AdtId::Product { .. }, _) => {
+                pool.product_parts(t)?.0.get(j as usize).copied()
             }
             TyData::Adt(AdtId::Declared(def), args) if def.get().is_some() => {
                 let fields = match (&self.cx.lookup.item(def)?.data, variant) {

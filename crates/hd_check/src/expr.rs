@@ -4324,6 +4324,11 @@ impl Ck<'_, '_> {
                     None => false,
                 };
             }
+            TyData::Adt(AdtId::Product { .. }, _)
+                if let Some((elems, _)) = pool.product_parts(t) =>
+            {
+                elems.to_vec()
+            }
             TyData::Adt(_, args) => pool.list_items(args).to_vec(),
             TyData::Ref { inner: i, .. } => vec![i],
             _ => vec![],
