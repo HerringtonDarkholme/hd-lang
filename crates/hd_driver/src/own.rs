@@ -359,8 +359,15 @@ impl Env<'_> {
             Some("mem_new_string") => CallMemory::Allocate,
             Some("mem_string_bytes" | "ptr_offset") => CallMemory::Derive(0),
             Some(
-                "mem_store_u8" | "mem_store_u16" | "mem_store_u32" | "mem_store_u64" | "mem_copy"
-                | "mem_fill",
+                "mem_store_u8"
+                | "mem_store_u16"
+                | "mem_store_u32"
+                | "mem_store_u64"
+                | "mem_copy"
+                | "mem_fill"
+                | "mem_atomic_add_u32"
+                | "mem_atomic_sub_u32"
+                | "mem_atomic_cmpxchg_u32",
             ) => CallMemory::Write(0),
             Some("format_int") => CallMemory::Write(1),
             _ => CallMemory::None,

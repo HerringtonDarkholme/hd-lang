@@ -85,6 +85,36 @@ pub fn copy_bytes(to: usize, from: usize, count: usize) -> void:
 pub fn fill(to: usize, byte: u8, count: usize) -> void:
     panic("intrinsic")
 
+@intrinsic("mem_atomic_load_u32")
+## The 4 bytes from `address`, read as one atomic step; `address` is a multiple of 4.
+## See [module.rt.memory.atomic](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic).
+pub fn atomic_load_u32(address: usize) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_add_u32")
+## Adds `value` to the 4 bytes from `address`, wrapping, as one atomic step, and returns what they held before.
+## See [module.rt.memory.atomic.add](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.add).
+pub fn atomic_add_u32(address: usize, value: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_sub_u32")
+## Subtracts `value` from the 4 bytes from `address`, wrapping, as one atomic step, and returns what they held before.
+## See [module.rt.memory.atomic.add](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.add).
+pub fn atomic_sub_u32(address: usize, value: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_cmpxchg_u32")
+## Writes `new` to the 4 bytes from `address` when they hold `expected`, as one atomic step, and returns what they held before.
+## See [module.rt.memory.atomic.exchange](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.exchange).
+pub fn atomic_compare_exchange_u32(address: usize, expected: u32, new: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_fence")
+## Orders this thread's heap accesses before it against those after it, for every thread.
+## See [module.rt.memory.atomic.fence](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.fence).
+pub fn atomic_fence() -> void:
+    panic("intrinsic")
+
 ## The address of a value of type `T` in the heap. A copy of a `Ptr[T]` copies the address, never the value.
 ## See [module.rt.ptr.type](../../../spec/lang/10-modules.md#r-module.rt.ptr.type).
 pub struct Ptr[T < ?Copy]:

@@ -1266,6 +1266,8 @@ std/serde.md	3	complete	std/serde/derived-implementations/serde-derive-call-orde
 std/serde.md	4	complete	std/serde/map-keys/serde-map-key-round-trip.hd
 std/serde.md	5	mixed	std/serde/map-keys/serde-regular-answers-per-type.hd
 std/serde.md	6	mixed	std/serde/standard-implementations/serde-map-key-not-implemented.hd
+std/sync.md	1	complete	-
+std/sync.md	2	complete	-
 std/task.md	1	type-fragment	-
 std/task.md	2	complete	std/task/retry/task-retry.hd
 std/task.md	3	complete	std/task/retry/task-retry-when.hd

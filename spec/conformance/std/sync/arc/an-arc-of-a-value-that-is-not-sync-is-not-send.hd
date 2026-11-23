@@ -1,0 +1,10 @@
+# test: Arc's explicit Send implementation needs its value to be Send and Sync, and a list is not Sync
+# Spec std/sync: std-sync.arc.send. Spec lang/10 Markers: module.marker.explicit.only.
+use std.marker.Send
+use std.sync.Arc
+
+fn share[T < ?Copy & Send](value: T) -> void:
+    pass
+
+fn main() -> void:
+    share(Arc::new([1, 2])) # diagnostic: unsatisfied-trait-bound

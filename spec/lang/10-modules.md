@@ -1771,6 +1771,11 @@ pub fn store_u32(address: usize, value: u32) -> void
 pub fn store_u64(address: usize, value: u64) -> void
 pub fn copy(to: usize, from: usize, count: usize) -> void
 pub fn fill(to: usize, byte: u8, count: usize) -> void
+pub fn atomic_load_u32(address: usize) -> u32
+pub fn atomic_add_u32(address: usize, value: u32) -> u32
+pub fn atomic_sub_u32(address: usize, value: u32) -> u32
+pub fn atomic_compare_exchange_u32(address: usize, expected: u32, new: u32) -> u32
+pub fn atomic_fence() -> void
 ```
 
 1. r[module.rt.memory.decl] Each function of the block is an ordinary hd declaration marked `@intrinsic`, and the compiler supplies only its body, as for [`dbg_printer`](#r-module.dbg.printer.declaration).
@@ -1786,6 +1791,11 @@ pub fn fill(to: usize, byte: u8, count: usize) -> void
 11. r[module.rt.memory.fill] `fill(to, byte, count)` sets each of the `count` bytes from `to` to `byte`.
 12. r[module.rt.memory.store.shared] While a shared reference is live, no store, `copy`, or `fill` that std makes writes a byte of its referent, as [`ref.excl.shared`](13-values-and-references.md#r-ref.excl.shared) forbids for a place.
 13. r[module.rt.memory.bounds] A call that reaches a byte outside the heap stops the program instance with no panic category. Only the standard library makes these calls, and it never makes one that reaches outside.
+14. r[module.rt.memory.atomic] `atomic_load_u32(address)` returns the 4 bytes from `address` as one step: no other thread's write to them is seen in part. Every atomic call is sequentially consistent: all threads see all atomic calls in one order.
+15. r[module.rt.memory.atomic.add] `atomic_add_u32` and `atomic_sub_u32` add `value` to the 4 bytes, or subtract it, wrapping, as one step, and return what the bytes held before.
+16. r[module.rt.memory.atomic.exchange] `atomic_compare_exchange_u32(address, expected, new)` writes `new` when the 4 bytes hold `expected`, as one step, and returns what they held before.
+17. r[module.rt.memory.atomic.fence] `atomic_fence()` orders the calling thread's heap accesses before it against the ones after it, as seen by every thread.
+18. r[module.rt.memory.atomic.aligned] The `address` of an atomic call is a multiple of 4. A call with another address stops the program instance with no panic category, as rule 13's does.
 
 > **Note.** The heap is the memory of a linear-memory implementation. The
 > bytes below the size the heap starts with hold what the implementation
@@ -2734,18 +2744,19 @@ fn demo(p: Point) -> void:
 5. r[module.marker.structural] A struct, enum, tuple, union, optional, `Result`, `List`, `Map`, `Set` or newtype has a marker when every field, payload, member, element, key and base type has it.
 6. r[module.marker.supplied] The compiler supplies those implementations, as it supplies `Copy`'s, by [`trait.sealed.supplied`](09-traits.md#r-trait.sealed.supplied). A generic type has a marker at each instance whose parts have it.
 7. r[module.marker.explicit] A type has a marker that rule 5 does not give it only through an explicit implementation. [Implementation Ownership](09-traits.md#implementation-ownership) places it beside the marker or beside the type.
-8. r[module.marker.sealed] `Send` and `Wire` are sealed: only the compiler and the standard library supply their implementations, by [`trait.sealed.send`](09-traits.md#r-trait.sealed.send) and [`trait.sealed.wire`](09-traits.md#r-trait.sealed.wire).
-9. r[module.marker.parameter] A type parameter has a marker only through its bound, as in `T < Wire`.
-10. r[module.marker.unsatisfied] A type argument that lacks a marker its bound names is an error. Error: `unsatisfied-trait-bound`.
-11. r[module.marker.kind] A marker names a kind of domain, never one domain. Which device or worker holds a value is known only at run time.
-12. r[module.marker.wire] A `Wire` value crosses into separate memory as a self-contained tree, by [`module.boundary.tree`](#r-module.boundary.tree).
-13. r[module.marker.send] A `Send` value may be copied, moved or lent to another thread of the same memory.
-14. r[module.marker.sync] `std.marker` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
-15. r[module.marker.sync.meaning] A `Sync` value holds no counted buffer, so threads that read it at once change no count.
-16. r[module.marker.sync.leaf] Numbers, `bool`, `char` and `never` are `Sync`. `string`, `List`, `Map` and `Set` hold counted buffers and are not `Sync`.
-17. r[module.marker.sync.structural] A struct, enum, tuple, union, optional, `Result` or newtype is `Sync` when every field, payload, member and base type is.
-18. r[module.marker.sync.refs] `&T` and `&mut T` are `Sync` when `T` is. A counted reference, a trait value reference, a provider and a function value are not `Sync`.
-19. r[module.marker.send.counts] Counts are never atomic: a copy or a drop changes a buffer's count with a plain add, on every thread. A value that several threads own at once is held by a standard library type over atomic operations.
+8. r[module.marker.explicit.only] A type with an explicit implementation of `Send`, `Sync` or `Wire` has each of the three only through an explicit implementation: rule 5 gives it none. Where such a type is a part of another type, its implementations answer for it. So [`std.sync.Arc`](../std/sync.md#arc), which holds only an address, is `Send` and `Sync` when its implementations say so, and never `Wire`.
+9. r[module.marker.sealed] `Send` and `Wire` are sealed: only the compiler and the standard library supply their implementations, by [`trait.sealed.send`](09-traits.md#r-trait.sealed.send) and [`trait.sealed.wire`](09-traits.md#r-trait.sealed.wire).
+10. r[module.marker.parameter] A type parameter has a marker only through its bound, as in `T < Wire`.
+11. r[module.marker.unsatisfied] A type argument that lacks a marker its bound names is an error. Error: `unsatisfied-trait-bound`.
+12. r[module.marker.kind] A marker names a kind of domain, never one domain. Which device or worker holds a value is known only at run time.
+13. r[module.marker.wire] A `Wire` value crosses into separate memory as a self-contained tree, by [`module.boundary.tree`](#r-module.boundary.tree).
+14. r[module.marker.send] A `Send` value may be copied, moved or lent to another thread of the same memory.
+15. r[module.marker.sync] `std.marker` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
+16. r[module.marker.sync.meaning] A `Sync` value holds no counted buffer, so threads that read it at once change no count.
+17. r[module.marker.sync.leaf] Numbers, `bool`, `char` and `never` are `Sync`. `string`, `List`, `Map` and `Set` hold counted buffers and are not `Sync`.
+18. r[module.marker.sync.structural] A struct, enum, tuple, union, optional, `Result` or newtype is `Sync` when every field, payload, member and base type is.
+19. r[module.marker.sync.refs] `&T` and `&mut T` are `Sync` when `T` is. A counted reference, a trait value reference, a provider and a function value are not `Sync`.
+20. r[module.marker.send.counts] Counts are never atomic: a copy or a drop changes a buffer's count with a plain add, on every thread. A value that several threads own at once is held by a standard library type over atomic operations.
 
 `Wire` and `Send` are checked separately, so a value may have one and not
 the other:

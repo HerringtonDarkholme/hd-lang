@@ -1,0 +1,61 @@
+# test: an Arc shares one value across clones, counts them, drops the value with its last strong reference, and a Weak upgrades only while one remains
+# Spec std/sync: std-sync.arc.new, std-sync.arc.clone, std-sync.arc.drop, std-sync.arc.get, std-sync.arc.counts, std-sync.arc.ptr-eq, std-sync.arc.get-mut, std-sync.arc.try-unwrap, std-sync.weak.downgrade, std-sync.weak.upgrade, std-sync.weak.clone.
+# expect-stdout: get 41 strong 1 2 3 same true
+# expect-stdout: dropped strong 1
+# expect-stdout: weak 2 upgrade true strong 2
+# expect-stdout: last gone true weak true
+# expect-stdout: unique none then 9
+# expect-stdout: unwrap shared then 9 2
+use std.sync.{Arc, Weak}
+
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn upgrades(weak: &Weak[Photo]) -> bool:
+    weak.upgrade().is_some()
+
+pub fn main() -> void $ Console:
+    first := Arc::new(41)
+    one := Arc::strong_count(&first)
+    second := first.clone()
+    two := Arc::strong_count(&first)
+    third := second.clone()
+    println(
+        "get ${*third.get()} strong $one $two ${Arc::strong_count(&first)} same ${Arc::ptr_eq(&first, &third)}",
+    )
+    _ := third
+    _ := second
+    println("dropped strong ${Arc::strong_count(&first)}")
+
+    photo := Arc::new(Photo { width: 7, pixels: [1, 2] })
+    weak := Arc::downgrade(&photo)
+    other := weak.clone()
+    upgraded := weak.upgrade()
+    println(
+        "weak ${Arc::weak_count(&photo)} upgrade ${upgraded.is_some()} strong ${Arc::strong_count(&photo)}",
+    )
+    _ := upgraded
+    _ := photo
+    println("last gone ${!upgrades(&weak)} weak ${other.upgrade().is_none()}")
+
+    let mut only = Arc::new(Photo { width: 3, pixels: [] })
+    held := Arc::downgrade(&only)
+    unique := Arc::get_mut(&mut only).is_some()
+    _ := held
+    match Arc::get_mut(&mut only):
+        .Some(p) => p.width = 9
+        .None => pass
+    println("unique ${if unique: "some" else: "none"} then ${only.get().width}")
+
+    shared := only.clone()
+    back := match Arc::try_unwrap(only):
+        .Ok(_) => "taken"
+        .Err(arc) =>
+            _ := arc
+            "shared"
+    match Arc::try_unwrap(shared):
+        .Ok(p) => println("unwrap $back then ${p.width} ${p.pixels.len() + 2}")
+        .Err(_) => println("unwrap $back then kept")

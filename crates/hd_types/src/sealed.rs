@@ -114,6 +114,21 @@ impl SealedTraits {
         ]
     }
 
+    /// The parts walk of marker `trait_`: a std marker's own, else a
+    /// library marker's.
+    #[must_use]
+    pub(crate) fn walk_of(&self, trait_: DefId) -> Walk {
+        if trait_ == self.send {
+            Walk::Send
+        } else if trait_ == self.sync {
+            Walk::Sync
+        } else if trait_ == self.wire {
+            Walk::Wire
+        } else {
+            Walk::Library(trait_)
+        }
+    }
+
     /// Whether `trait_` is a marker: it names `Marker` among its direct
     /// supertraits (`module.marker.definition`).
     #[must_use]
@@ -303,7 +318,7 @@ pub(crate) fn row(
                 self_ty,
                 (&mut subs, &mut Vec::new()),
                 copies,
-                &|_| false,
+                &|_, _| None,
             ) {
                 Row::Holds(BuiltinImpl::Copy, subs)
             } else {
@@ -311,18 +326,10 @@ pub(crate) fn row(
             },
         );
     }
+    // `Send`, `Sync` and `Wire` are answered beside their explicit
+    // impls, as a library marker is (`module.marker.explicit.only`).
     if trait_ == s.send || trait_ == s.sync || trait_ == s.wire {
-        if matches!(t, TyData::Param(_)) {
-            return Some(Row::Fails(FailReason::NoImpl));
-        }
-        let walk = if trait_ == s.send {
-            Walk::Send
-        } else if trait_ == s.sync {
-            Walk::Sync
-        } else {
-            Walk::Wire
-        };
-        return Some(marker_row(pool, decls, walk, self_ty, copies, &|_| false));
+        return None;
     }
     // A variable stalled above, before the `'static` and `Copy` rows.
     if matches!(
@@ -438,7 +445,7 @@ pub(crate) fn row(
 /// environment, in walk order. A type's answer is a function of its
 /// interned content and the run's declarations alone, so an entry stays
 /// valid for as long as the type's pool does (a body's, `BodyMemo`). A
-/// library marker's answer also reads which heads have an explicit impl,
+/// marker's answer also reads which heads have an explicit impl,
 /// which are the same in every context of a run.
 pub(crate) type CopyMemo = HashMap<(Walk, Ty), Option<TyList>>;
 
@@ -463,7 +470,7 @@ pub(crate) fn marker_row(
     walk: Walk,
     self_ty: Ty,
     memo: &mut CopyMemo,
-    explicit: &dyn Fn(Ty) -> bool,
+    explicit: &dyn Fn(Walk, Ty) -> Option<bool>,
 ) -> Row {
     let (mut subs, mut syncs) = (Vec::new(), Vec::new());
     if copy_parts(
@@ -583,7 +590,7 @@ fn copy_parts(
     root: Ty,
     (subs, syncs): (&mut Vec<Ty>, &mut Vec<Ty>),
     memo: &mut CopyMemo,
-    explicit: &dyn Fn(Ty) -> bool,
+    explicit: &dyn Fn(Walk, Ty) -> Option<bool>,
 ) -> bool {
     /// What a node leaves for the environment, as far as the walk knows.
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -648,9 +655,18 @@ fn copy_parts(
             }
         };
         let data = pool.get(t);
-        // A library marker's part with an explicit impl is left for that
-        // impl to answer (`module.marker.explicit`).
-        let answered = t != root && matches!(walk, Walk::Library(_)) && explicit(t);
+        // A type with an explicit impl of a std marker has each std marker
+        // only through its impl (`module.marker.explicit.only`): a part
+        // with one is left for that impl to answer, and a type without
+        // one fails. The goal's own type was matched against its impls.
+        let answered = match walk {
+            Walk::Copy => false,
+            _ => match explicit(walk, t) {
+                Some(true) => t != root,
+                Some(false) => return fails(memo, walk, root),
+                None => false,
+            },
+        };
         match data {
             _ if answered => {
                 if !marks.contains_key(&t) {
@@ -689,12 +705,9 @@ fn copy_parts(
                         take(&mut open, left);
                         continue;
                     }
-                    // A library marker's walk may leave a part an
-                    // explicit impl answers, so its nodes are not closed.
-                    None if !pool.has_param(t)
-                        && !pool.has_infer(t)
-                        && !matches!(walk, Walk::Library(_)) =>
-                    {
+                    // A marker's walk may leave a part an explicit impl
+                    // answers, so its nodes are not closed.
+                    None if !pool.has_param(t) && !pool.has_infer(t) && walk == Walk::Copy => {
                         closed.push(t);
                     }
                     None => {}
@@ -781,7 +794,7 @@ fn copy_parts(
                     inner,
                     (&mut left, &mut Vec::new()),
                     memo,
-                    &|_| false,
+                    explicit,
                 );
                 if !sync {
                     return fails(memo, walk, root);
@@ -841,21 +854,36 @@ pub fn may_copy(pool: Types<'_>, decls: &dyn Declarations, identity: Ty) -> bool
         identity,
         (&mut Vec::new(), &mut Vec::new()),
         &mut CopyMemo::default(),
-        &|_| false,
+        &|_, _| None,
     )
 }
 
-/// Whether `t` may be `Send` (`module.marker.structural`), or with
-/// `sync`, `Send` and `Sync`: the walks, which leave each parameter for an
-/// environment and judge none. Cost: the type's distinct nodes.
-#[must_use]
-pub fn may_send(pool: Types<'_>, decls: &dyn Declarations, t: Ty, sync: bool) -> bool {
-    let mut memo = CopyMemo::default();
-    let walk = |w, memo: &mut CopyMemo| {
-        let parts = (&mut Vec::new(), &mut Vec::new());
-        copy_parts(pool, decls, w, t, parts, memo, &|_| false)
+/// What the explicit impls answer for part `t` of marker walk `w`
+/// (`module.marker.explicit.only`): `Some(true)` for a type with an impl
+/// of the walk's marker; for a std marker, `Some(false)` for one with an
+/// impl of another std marker only; `None` for one the walk judges by its
+/// parts. `has` probes the impls of one trait at one head.
+pub(crate) fn explicit_answer(
+    s: &SealedTraits,
+    w: Walk,
+    t: Ty,
+    has: &mut dyn FnMut(DefId, Ty) -> bool,
+) -> Option<bool> {
+    let own = match w {
+        Walk::Library(d) => return has(d, t).then_some(true),
+        // ruled out: `Copy`'s walk asks for no explicit impl.
+        Walk::Copy => return None,
+        Walk::Send => s.send,
+        Walk::Sync => s.sync,
+        Walk::Wire => s.wire,
     };
-    walk(Walk::Send, &mut memo) && (!sync || walk(Walk::Sync, &mut memo))
+    if has(own, t) {
+        return Some(true);
+    }
+    [s.send, s.sync, s.wire]
+        .into_iter()
+        .any(|m| m != DefId::NONE && has(m, t))
+        .then_some(false)
 }
 
 /// [`copy_parts`]'s answer for a type with a part that does not copy:

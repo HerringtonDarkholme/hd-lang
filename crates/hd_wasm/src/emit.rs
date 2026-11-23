@@ -4149,6 +4149,13 @@ impl Em<'_, '_, '_> {
             "mem_store_u8" => I::I32Store8(mem(HEAP, 0, 0)),
             "mem_store_u16" => I::I32Store16(mem(HEAP, 0, 1)),
             "mem_store_u32" => I::I32Store(mem(HEAP, 0, 2)),
+            // `module.rt.memory.atomic`: sequentially consistent, as every
+            // Wasm atomic is; a misaligned address traps.
+            "mem_atomic_load_u32" => I::I32AtomicLoad(mem(HEAP, 0, 2)),
+            "mem_atomic_add_u32" => I::I32AtomicRmwAdd(mem(HEAP, 0, 2)),
+            "mem_atomic_sub_u32" => I::I32AtomicRmwSub(mem(HEAP, 0, 2)),
+            "mem_atomic_cmpxchg_u32" => I::I32AtomicRmwCmpxchg(mem(HEAP, 0, 2)),
+            "mem_atomic_fence" => I::AtomicFence,
             // ruled out: any other key. The intrinsic table
             // (`hd_resolve::intrinsics`) has no `mem_` key but the ones above.
             _ => I::I64Store(mem(HEAP, 0, 3)),

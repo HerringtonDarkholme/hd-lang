@@ -227,6 +227,8 @@ pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
     c.wasm_gc(false)
         .wasm_multi_value(true)
         .wasm_bulk_memory(true)
+        // The atomics of `std.rt.memory` on its unshared heap.
+        .wasm_threads(true)
         .wasm_extended_const(true)
         .wasm_tail_call(false)
         .epoch_interruption(true)

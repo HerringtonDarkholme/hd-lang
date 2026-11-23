@@ -3255,34 +3255,35 @@ impl<'s, 'a> Search<'s, 'a> {
         // match a goal with no open variable exist only beside an overlap
         // error (§5.4): the first in content order is taken.
         let open_goal = pool.has_infer(self_ty) || goal_args.iter().any(|a| pool.has_infer(*a));
-        // A library marker with no explicit impl for this head answers from
-        // the type's parts (`module.marker.structural`); a part with an
-        // explicit impl is left to it (`module.marker.explicit`).
+        // A marker with no explicit impl for this head answers from the
+        // type's parts (`module.marker.structural`); a part with an
+        // explicit impl is left to it (`module.marker.explicit.only`).
+        let sealed = *self.cx.decls.sealed();
+        let walk = sealed.walk_of(tref.trait_);
         if yes.is_empty()
             && maybes == 0
             && goal_args.is_empty()
-            && self
-                .cx
-                .decls
-                .sealed()
-                .is_marker(self.cx.decls, pool, tref.trait_)
-            && !matches!(
-                pool.get(self_ty),
-                TyData::Param(_) | TyData::Infer(_) | TyData::Opaque { .. } | TyData::Assoc { .. }
-            )
+            && sealed.is_marker(self.cx.decls, pool, tref.trait_)
+            && !matches!(pool.get(self_ty), TyData::Param(_) | TyData::Infer(_))
+            // A std marker judges an opaque or projected type by its leaf
+            // rule; a library marker has no answer for one.
+            && (!matches!(walk, crate::sealed::Walk::Library(_))
+                || !matches!(pool.get(self_ty), TyData::Opaque { .. } | TyData::Assoc { .. }))
         {
             let reads = std::cell::RefCell::new(Reads::default());
-            let explicit = |t: Ty| {
-                !reads
-                    .borrow_mut()
-                    .candidates(impls, pool, tref.trait_, t, &[], false)
-                    .is_empty()
+            let explicit = |w: crate::sealed::Walk, t: Ty| {
+                crate::sealed::explicit_answer(&sealed, w, t, &mut |m, t| {
+                    !reads
+                        .borrow_mut()
+                        .candidates(impls, pool, m, t, &[], false)
+                        .is_empty()
+                })
             };
             let cx = &mut *self.cx;
             let row = crate::sealed::marker_row(
                 pool,
                 cx.decls,
-                crate::sealed::Walk::Library(tref.trait_),
+                walk,
                 self_ty,
                 &mut cx.body_memo.copies,
                 &explicit,

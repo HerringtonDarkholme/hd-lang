@@ -114,6 +114,47 @@ pub struct ReachRoot {
     pub span: Span,
 }
 
+/// Whether a top-level binding's type `ty`, which has no parameter,
+/// implements marker `trait_`. A proof past the body fuel holds not. The
+/// goal's memos are its module's own (`memo`), so no other module's
+/// order of checks changes them. Cost: one solver goal.
+fn global_holds(
+    cx: &BodyCx<'_>,
+    decls: &crate::value::SolverDecls<'_, '_>,
+    (memo, global): (
+        &mut hd_types::solver::BodyMemo,
+        &hd_types::solver::GlobalMemo,
+    ),
+    ty: hd_types::Ty,
+    trait_: DefId,
+) -> bool {
+    use hd_types::solver::{Answer, Goal, Impls, ParamEnv, SolveCx, TraitRef};
+    let env = ParamEnv::default();
+    let mut scx = SolveCx {
+        pool: cx.names.pool.types(),
+        env: &env,
+        universe: cx.impls.universe,
+        impls: Impls::Owned(cx.impls),
+        decls,
+        body_memo: memo,
+        global,
+    };
+    let goal = Goal::Implements {
+        tref: TraitRef {
+            trait_,
+            self_ty: ty,
+            args: hd_types::TyList::EMPTY,
+        },
+        bindings: vec![],
+        mut_: false,
+    };
+    let mut fuel = hd_base::Fuel::new(hd_base::Fuel::BODY_DEFAULT);
+    matches!(
+        cx.solver.solve(&mut scx, &goal, &mut fuel),
+        Ok(Answer::Holds { .. })
+    )
+}
+
 /// The module's [`Reach`]. A call through a dispatch key reaches the
 /// key's default and the module's implementations of it. Cost: the
 /// module's facts once, and one probe per dispatch key.
@@ -123,8 +164,8 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
     let send_trait = cx.names.known.send;
     let mut decls_local = crate::value::InlineDecls::default();
     let decls = cx.decls(&mut decls_local);
-    let pool = cx.names.pool.types();
     let hash = |d: DefId| cx.names.path_hash(d);
+    let (mut memo, global) = Default::default();
     // Runtime modules' storage is the instance's own
     // (`fn.crossing.global.runtime`).
     let mut bad: Vec<(Hash128, u8)> = init
@@ -137,9 +178,12 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
                 .is_some_and(|(module, _)| hd_resolve::runtime_module(module))
         })
         .map(|g| {
-            // `fn.crossing.global.send`: shared by every thread, so `Sync`.
-            let sync = cx.names.known.sync != DefId::NONE;
-            let send = send_trait == DefId::NONE || hd_types::may_send(pool, &decls, g.ty, sync);
+            // `fn.crossing.global.send`: shared by every thread, so `Send`
+            // and `Sync`, as the solver answers them, explicit impls among
+            // them (`module.marker.explicit.only`).
+            let send = [send_trait, cx.names.known.sync].into_iter().all(|m| {
+                m == DefId::NONE || global_holds(cx, &decls, (&mut memo, &global), g.ty, m)
+            });
             (hash(g.def), u8::from(!g.short) | (u8::from(!send) << 1))
         })
         .filter(|&(_, v)| v != 0)

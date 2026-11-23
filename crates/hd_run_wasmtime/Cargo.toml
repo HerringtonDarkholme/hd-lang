@@ -42,12 +42,14 @@ tokio = { version = "=1.53.2", default-features = false, features = [
 # The engine of docs/compiler/engines-and-test-runner.md §18.1: Cranelift and linear memory, with nothing the CLI does not use (no component
 # model, no async, no WASI). Pooling is selected only by the test engine.
 # `incremental-cache` keeps compiled functions across runs (`code_cache.rs`).
+# `threads` validates the atomic instructions of `std.rt.memory` (`module.rt.memory.atomic`).
 wasmtime = { version = "=49.0.2", default-features = false, features = [
     "cranelift",
     "incremental-cache",
     "pooling-allocator",
     "runtime",
     "std",
+    "threads",
 ] }
 
 [lints]
