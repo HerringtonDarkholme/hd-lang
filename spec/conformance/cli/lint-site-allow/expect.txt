@@ -1,2 +1,6 @@
 run: hd lint --deny unsigned-comparison-always --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+# A site allow that names no lint.
+run: hd lint --format json unknown-name.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","severity":"error","message":"unknown lint `not-a-lint`","line":3},{"kind":"summary","status":101}]

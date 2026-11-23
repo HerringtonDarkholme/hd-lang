@@ -1,0 +1,44 @@
+use std.ops.defer
+
+# Every direct change to a parameter copy that nothing reads afterwards is
+# reported once: `self`, a primitive, a field, a nested element.
+struct Box:
+    value: i32
+
+impl Box:
+    fn set(&mut self, value: i32) -> void:
+        self.value = value
+
+    fn discard_change(mut self) -> void:
+        self.value = +1
+
+fn assign(mut value: i32) -> void:
+    value = +1
+
+fn write_field(mut value: Box) -> void:
+    value.value = +1
+
+fn push(mut values: List[i32]) -> void:
+    values.push(+1)
+
+fn push_nested(mut values: List[List[i32]]) -> void:
+    values[0].push(+1)
+
+fn store_element(mut values: List[i32]) -> void:
+    values[0] = +1
+
+fn store_map(mut values: Map[string, i32]) -> void:
+    values["one"] = +1
+
+fn call_mut_receiver(mut value: Box) -> void:
+    value.set(+1)
+
+# A deferred read observes the changed copy.
+fn defer_read(mut values: List[i32]) -> void:
+    defer(fn() -> void: _ := values.len())
+    values.push(+1)
+
+# A change inside a loop with no other use is still lost.
+fn push_each(mut values: List[i32], items: List[i32]) -> void:
+    for item in items:
+        values.push(item)

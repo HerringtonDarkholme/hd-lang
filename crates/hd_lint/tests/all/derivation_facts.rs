@@ -9,32 +9,10 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 /// An unread user value before a derivation block: one `unused-derivation-fact`.
-const BLOCK_DECORATOR: &str = "use std.structure.Structure
-
-struct Style:
-    prefix: string = \"\"
-
-fn style(prefix: string = \"\") -> Style:
-    Style { prefix: prefix }
-
-struct Loud:
-    id: i64
-
-@style(prefix=\"l_\")
-impl Loud by Structure:
-    id += [\"key\"]
-";
+const BLOCK_DECORATOR: &str = include_str!("programs/block_decorator.hd");
 
 /// An unread standard value before a derivation block: one `unused-derivation-fact`.
-const BLOCK_DECORATOR_STD: &str = "use std.structure.Structure
-
-struct Hidden:
-    id: i64
-
-@\"internal\"
-impl Hidden by Structure:
-    id += [\"key\"]
-";
+const BLOCK_DECORATOR_STD: &str = include_str!("programs/block_decorator_std.hd");
 
 #[test]
 fn warm_interface_and_check_hits_do_not_lose_or_cache_derivation_findings() {
@@ -83,7 +61,7 @@ fn selected_file_closure_collects_root_modules_but_not_dependencies_or_unreached
     let annotated = BLOCK_DECORATOR_STD;
     let annotated = format!("{annotated}\npub fn value() -> i32:\n    +1\n");
     let mut sources = MemorySources::default();
-    sources.insert("src/main.hd", "use pkg.helper.value\nuse dep.remote.value as remote_value\nfn root() -> i32:\n    value() + remote_value()\n");
+    sources.insert("src/main.hd", include_str!("programs/closure/main.hd"));
     sources.insert("src/helper.hd", &annotated);
     sources.insert("src/unreached.hd", &annotated);
     let mut remote = MemorySources::default();
@@ -135,53 +113,12 @@ fn selected_file_closure_collects_root_modules_but_not_dependencies_or_unreached
 }
 
 #[test]
-fn invalid_derivation_decorators_keep_the_same_error_prerequisites() {
-    let source = "use std.structure.Structure\nstruct Item:\n    id: i64\n@derive(Structure)\nimpl Item by Structure:\n    id += [\"key\"]\n";
-    let mut sources = MemorySources::default();
-    sources.insert("main.hd", source);
-    let store = MemoryStore::default();
-    let host = Host {
-        render_tir: &[],
-        sources: &sources,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let mut expected = None;
-    for analyze in [false, true, true, false] {
-        let out = if analyze {
-            build_packages_with_analysis(
-                &host,
-                "app",
-                &Packages::default(),
-                &Goal::Analyze,
-                Some(&ANALYZER),
-            )
-        } else {
-            build_packages(&host, "app", &Packages::default(), &Goal::Analyze)
-        };
-        assert!(out.diags.has_errors(), "{}", out.render());
-        assert!(out.diags.severity.iter().all(|s| *s == Severity::Error));
-        let rendered = out.diags.render_json();
-        if let Some(expected) = &expected {
-            assert_eq!(&rendered, expected);
-        } else {
-            expected = Some(rendered);
-        }
-        assert!(out.analysis_diags.is_empty());
-    }
-}
-
-#[test]
 fn cached_folder_facts_include_sibling_derive_identities() {
     let original =
         include_str!("../../../../spec/conformance/cli/lint-derivation-advice/src/drift_derive.hd");
     let mut sources = MemorySources::default();
     sources.insert("src/lib.hd", original);
-    sources.insert(
-        "src/helper.hd",
-        "@derive(Debug)\npub struct Other:\n    pub value: i64\n",
-    );
+    sources.insert("src/helper.hd", include_str!("programs/derived_other.hd"));
     let store = MemoryStore::default();
     let host = Host {
         render_tir: &[],

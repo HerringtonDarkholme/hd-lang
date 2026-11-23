@@ -1,0 +1,52 @@
+use std.format
+
+# Every statement after `break`, `continue` and an infinite loop is reported:
+# the discarded `debug` and the `pass`.
+fn after_break() -> void:
+    while true:
+        break
+        debug(+2)
+        pass
+
+fn after_continue() -> void:
+    while true:
+        continue
+        debug(+2)
+        pass
+
+fn after_infinite_loop() -> void:
+    while true:
+        pass
+    debug(+2)
+    pass
+
+# A statement after a loop that `break` leaves, and one after `panic`, are quiet.
+fn after_left_loop() -> void:
+    while true:
+        break
+    pass
+
+fn after_panic() -> void:
+    panic("stop")
+    pass
+
+# Each discarded `debug` statement is reported, with no fix-it unless it is the
+# plain call. A `debug` whose text is bound or returned is quiet.
+fn debug_forms() -> void:
+    debug::[i32](+1)
+    debug(value=+2)
+    format.debug(+3)
+    debug((+4,)...)
+    `debug`(+5)
+    _ := debug(+6)
+    let shown = debug(+7)
+    _ := shown
+    pass
+fn returned() -> string:
+    debug(+8)
+
+# A function value of `debug` is not the statement form.
+fn debug_value() -> void:
+    shown := debug::[i32]
+    shown(+1)
+    pass

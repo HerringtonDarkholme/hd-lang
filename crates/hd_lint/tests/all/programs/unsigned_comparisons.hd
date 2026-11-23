@@ -1,0 +1,4 @@
+fn f(a: u32) -> bool:
+    a >= 0
+fn inferred(a: u32):
+    a < 0

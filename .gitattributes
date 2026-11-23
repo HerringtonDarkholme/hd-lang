@@ -30,3 +30,6 @@ spec/conformance/lang/lexical/literals/prefixed-string-crlf-raw-parts.hd -text w
 spec/conformance/cli/fmt-width/inputs/* -whitespace
 spec/conformance/cli/fmt-width/want/* -whitespace
 spec/conformance/cli/fmt-width/inputs/comments.input -text
+
+# A lint fix-it in a CRLF file keeps the line ends: stored with CRLF bytes.
+spec/conformance/cli/lint-map-get-store-back/crlf.hd -text whitespace=cr-at-eol

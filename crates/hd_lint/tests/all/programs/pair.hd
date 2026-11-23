@@ -1,0 +1,2 @@
+enum Pair:
+    Values(left: i32, right: i32)
