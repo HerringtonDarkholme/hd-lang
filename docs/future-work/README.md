@@ -28,6 +28,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 - [Execution Boundaries](EXECUTION_BOUNDARIES.md): accepted by the owner 2026-11-21 (proposed 2026-11-02): moving code and data between execution domains on four parts: `Send` and `Wire` bounds, `Remote` interfaces whose objects are reached as `*mut dyn T`, `CrossError` kept apart as `E | CrossError`, and one build per target; every domain runs the same program; domains are run-time values and their kinds are std library; with an 18-case stress test (#166, PR #1139).
 - [Execution Boundaries Plan](EXECUTION_BOUNDARIES_PLAN.md): the staged compiler plan for #2288, stages 1 to 6 with sites, line prices and per-run costs, and the readings stage 0 wrote into the spec for the owner to confirm.
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
+- [Arena As An Effect](ARENA_EFFECT.md): design exploration (#1410): five ways to reach an arena through the requirement row instead of a parameter (provider-scope lifetime, implicit borrow parameter, counted handles, callback-scoped `&mut`, explicit parameter), with a survey and the measured `dyn` cost; recommends the parameter now and a borrow key later.
 
 ### Tooling
 
