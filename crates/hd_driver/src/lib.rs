@@ -6181,7 +6181,7 @@ impl Run<'_> {
     }
 
     /// [`Self::coherence`]'s findings as the part's bytes; `None` when it
-    /// is blocked.
+    /// is blocked or its findings cannot be cached.
     fn coherence_part(&self) -> Option<Vec<u8>> {
         let Some((all, _)) = self.coherence_inputs() else {
             self.blocked(Stage::Coherence);
@@ -6379,7 +6379,7 @@ impl Run<'_> {
         }
         lock(&self.report).ok(Stage::Coherence);
         let bytes = if found.is_empty() {
-            Vec::new()
+            Some(Vec::new())
         } else {
             encode_overlaps(&found, &all)
         };
@@ -6388,7 +6388,7 @@ impl Run<'_> {
             d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
             d.add_label(self.item_span(other, 0), "conflicting implementation");
         }
-        Some(bytes)
+        bytes
     }
 
     /// The key of the package's coherence rows: one `graph` entry per
@@ -6588,28 +6588,24 @@ impl Run<'_> {
             lo: 0,
             hi: 0,
         };
-        let traits: HashMap<_, _> = u
-            .impls
-            .iter()
-            .flat_map(|(&trait_, impls)| impls.iter().map(move |impl_| (impl_.def, trait_)))
-            .collect();
-        for (a, b, witness) in u.overlaps(&order) {
-            if !test_only.contains(&b) {
-                continue;
+        for tr in u.traits() {
+            for (a, b, witness) in u.trait_overlaps(tr, &order).0 {
+                if !test_only.contains(&b) {
+                    continue;
+                }
+                let span = anchor(b)
+                    .and_then(|at| positions.resolve(src, &at))
+                    .unwrap_or(fallback);
+                let trait_name = names.display_name(tr);
+                let msg = format!(
+                    "conflicting `{trait_name}` implementations for {witness}; remove one implementation"
+                );
+                diags.error(Code::OverlappingImpl, span, &msg);
+                let other = anchor(a)
+                    .and_then(|at| positions.resolve(src, &at))
+                    .unwrap_or_else(|| self.item_span(a, 0));
+                diags.add_label(other, "conflicting implementation");
             }
-            let span = anchor(b)
-                .and_then(|at| positions.resolve(src, &at))
-                .unwrap_or(fallback);
-            // ruled out: the universe produced this overlap from its impl groups.
-            let trait_name = names.display_name(*traits.get(&b).expect("overlap trait"));
-            let msg = format!(
-                "conflicting `{trait_name}` implementations for {witness}; remove one implementation"
-            );
-            diags.error(Code::OverlappingImpl, span, &msg);
-            let other = anchor(a)
-                .and_then(|at| positions.resolve(src, &at))
-                .unwrap_or_else(|| self.item_span(a, 0));
-            diags.add_label(other, "conflicting implementation");
         }
     }
 
@@ -12837,7 +12833,7 @@ fn decode_coh_rows(b: &[u8]) -> Option<CohRows> {
 
 /// The overlaps of a coherence run, each reported impl as its folder's
 /// index and its item's index in that folder's interface.
-fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<FolderIface>]) -> Vec<u8> {
+fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<FolderIface>]) -> Option<Vec<u8>> {
     // One index for both endpoints of every overlap, O(items + findings),
     // rather than scanning every interface for each endpoint.
     let locations: HashMap<_, _> = all
@@ -12855,14 +12851,15 @@ fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<FolderIface>]) -
     w.len_of(found);
     for (item, other, msg) in found {
         for def in [item, other] {
-            // ruled out: overlap endpoints come from these same interfaces.
-            let &(f, i) = locations.get(def).expect("overlap endpoint");
+            // An absent endpoint leaves the graph uncached; the caller still
+            // reports every finding from this run.
+            let &(f, i) = locations.get(def)?;
             w.u32(u32_of(f));
             w.u32(u32_of(i));
         }
         w.str(msg);
     }
-    w.bytes
+    Some(w.bytes)
 }
 
 fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, DefId, String)>> {
@@ -15798,6 +15795,12 @@ mod secondary_label_codec_tests {
         assert_eq!(got[0].module, labels[0].module);
         assert_eq!(got[0].anchor, labels[0].anchor);
         assert_eq!(got[0].message, labels[0].message);
+    }
+
+    #[test]
+    fn missing_overlap_endpoint_leaves_graph_uncached() {
+        let found = [(DefId::from_raw(1), DefId::from_raw(2), "overlap".into())];
+        assert!(encode_overlaps(&found, &[]).is_none());
     }
 
     #[test]

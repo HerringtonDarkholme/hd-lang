@@ -326,13 +326,20 @@ fn a_second_impl_is_an_error() {
     ]);
     let t = session_in(&dir, script, |_| {});
     let lines: Vec<&str> = t.out.lines().collect();
-    assert_eq!(lines.len(), 2, "{}", t.out);
+    assert_eq!(lines.len(), 3, "{}", t.out);
     assert!(
-        lines[0].starts_with("error: repl#1:1:1: overlapping-impl: "),
+        lines[0].starts_with(
+            "error: repl#1:1:1: overlapping-impl: conflicting `Named` implementations for "
+        ),
         "{}",
         t.out
     );
-    assert_eq!(lines[1], "\"lib\" : string");
+    assert!(
+        lines[1].ends_with(": conflicting implementation"),
+        "{}",
+        t.out
+    );
+    assert_eq!(lines[2], "\"lib\" : string");
     let t = session(&[
         "trait Named:",
         "    fn name(self) -> string",
@@ -347,13 +354,16 @@ fn a_second_impl_is_an_error() {
         "Tag { x: +1 }.name()",
     ]);
     let lines: Vec<&str> = t.out.lines().collect();
-    assert_eq!(lines.len(), 2, "{}", t.out);
+    assert_eq!(lines.len(), 3, "{}", t.out);
     assert!(
-        lines[0].starts_with("error: repl#2:1:1: overlapping-impl: "),
+        lines[0].starts_with(
+            "error: repl#2:1:1: overlapping-impl: conflicting `Named` implementations for "
+        ),
         "{}",
         t.out
     );
-    assert_eq!(lines[1], "\"first\" : string");
+    assert_eq!(lines[1], "    note: repl#1:5:1: conflicting implementation");
+    assert_eq!(lines[2], "\"first\" : string");
 }
 
 /// A session is one module for derivation blocks too
