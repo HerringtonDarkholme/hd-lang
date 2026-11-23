@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# @build: std
+# A build that depends on std skips std's `@inline(.Always)` functions, so
+# std's own build is the one that checks them: a suspending function can't
+# be copied into its callers.
+use std.annotation.inline
+
+@inline(.Always)
+pub fn bad!() -> void:
+    pass
