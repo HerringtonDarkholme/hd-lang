@@ -1,6 +1,6 @@
 # test: unique map capacity, retention, extension, values and drain move non-copyable values
 # expect: test
-# Spec std/collections UniqMap: std-collections.uniq-map.with-capacity, std-collections.uniq-map.reserve, std-collections.uniq-map.retain, std-collections.uniq-map.values, std-collections.uniq-map.extend, std-collections.uniq-map.drain.
+# Spec std/collections UniqMap: std-collections.uniq-map.with-capacity, std-collections.uniq-map.reserve, std-collections.uniq-map.retain.fn-mut, std-collections.uniq-map.values, std-collections.uniq-map.extend, std-collections.uniq-map.drain.
 use std.collections.{UniqList, UniqMap}
 use std.testing.assert_equal
 
