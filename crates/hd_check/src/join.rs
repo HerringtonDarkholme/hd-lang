@@ -896,7 +896,7 @@ impl Ck<'_, '_> {
         };
         let shown = self.show(descriptor);
         let msg = format!(
-            "this argument would solve a type parameter to the bare trait descriptor `dyn {shown}`, which is never a type argument; pass a concrete type's reference, or write the type argument as a reference type, as in `f::[&dyn {shown}](...)`"
+            "pass a concrete reference, or write the reference type argument: `f::[&dyn {shown}](...)`"
         );
         self.err(Code::CannotInferType, n, &msg);
     }
@@ -984,11 +984,9 @@ impl Ck<'_, '_> {
         if self.infer_join_compatible(want, got) {
             return false;
         }
-        let msg = format!(
-            "in {what}: expected {}, found {}; the arguments for one type parameter may differ only by outer permission: write a conversion, as in `max(i64(small), large)`",
-            self.show(want),
-            self.show(got)
-        );
+        let (want, got) = self.show_pair(want, got);
+        let msg =
+            format!("in {what}: expected {want}, found {got}; convert the argument explicitly");
         self.err(Code::TypeMismatch, n, &msg);
         true
     }

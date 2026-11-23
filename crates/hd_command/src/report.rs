@@ -13,6 +13,11 @@ pub(crate) fn relocate(diags: &mut [Diag], display: impl Fn(&str) -> String) {
         if let Some(f) = &mut d.file {
             *f = display(f);
         }
+        for label in &mut d.labels {
+            if let Some(file) = &mut label.file {
+                *file = display(file);
+            }
+        }
         for e in d.fixes.iter_mut().flat_map(|f| &mut f.edits) {
             e.file = display(&e.file);
         }
@@ -198,4 +203,27 @@ pub(crate) fn format_flag(
         "text" => Ok((false, used)),
         _ => Err(format!("`--format` takes `text` or `json`, not `{value}`")),
     })
+}
+
+#[cfg(test)]
+mod label_tests {
+    use super::*;
+
+    #[test]
+    fn relocation_updates_secondary_source_paths() {
+        let mut diag = Diag::error(None, "overlap").at("src/a.hd", Some(1));
+        diag.labels.push(hd_driver::diagnostics::Label {
+            message: "other implementation".into(),
+            file: Some("src/b.hd".into()),
+            line: Some(3),
+            column: Some(1),
+            end_line: Some(4),
+            end_column: Some(1),
+        });
+        let mut diags = vec![diag];
+        relocate(&mut diags, |file| format!("member/{file}"));
+        assert_eq!(diags[0].file.as_deref(), Some("member/src/a.hd"));
+        assert_eq!(diags[0].labels[0].file.as_deref(), Some("member/src/b.hd"));
+        assert_eq!(diags[0].labels[0].line, Some(3));
+    }
 }

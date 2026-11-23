@@ -1869,7 +1869,7 @@ impl Ck<'_, '_> {
         let o = outs.iter().find(|&&o| o != 0)?;
         let k = ins.iter().position(|x| x == o)?;
         Some(format!(
-            "; the found result borrows from input reference {}, which the expected result may not borrow from",
+            "; result borrows from input {}; change the result lifetime annotation",
             k + 1
         ))
     }
@@ -1887,7 +1887,7 @@ impl Ck<'_, '_> {
         };
         if w.trim_start_matches("mut ") == g.trim_start_matches("mut ") {
             let qualified = |t| {
-                hd_resolve::iface::show_ty_qualified_in(
+                hd_resolve::iface::show_ty_diagnostic_in(
                     &self.cx.names,
                     pool,
                     self.infer.resolve(pool, t),
@@ -1896,6 +1896,20 @@ impl Ck<'_, '_> {
             };
             let (qw, qg) = (qualified(want), qualified(got));
             // A view of the same item still has the same qualified name.
+            if qw.trim_start_matches("mut ") != qg.trim_start_matches("mut ") {
+                return (qw, qg);
+            }
+            // Homonymous owners/types still need distinct paths. There are
+            // exactly two qualified forms, never a retry/fixpoint over types.
+            let full = |t| {
+                hd_resolve::iface::show_ty_qualified_in(
+                    &self.cx.names,
+                    pool,
+                    self.infer.resolve(pool, t),
+                    with_rows,
+                )
+            };
+            let (qw, qg) = (full(want), full(got));
             if qw.trim_start_matches("mut ") != qg.trim_start_matches("mut ") {
                 return (qw, qg);
             }
@@ -2649,7 +2663,7 @@ impl Ck<'_, '_> {
         if self.diags.len() == before && !joined && !self.perm_fits(got, want, true, 0) {
             let (want_s, got_s) = self.show_pair(want, got);
             let msg = format!(
-                "in {what}: expected {want_s}, found {got_s}; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row"
+                "in {what}: expected {want_s}, found {got_s}; convert the value explicitly"
             );
             self.err(Code::TypeMismatch, n, &msg);
         }

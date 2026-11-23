@@ -781,7 +781,15 @@ type IfaceDiags = Vec<(
     hd_resolve::anchor::Anchor,
     String,
     Vec<IfaceFix>,
+    Vec<IfaceLabel>,
 )>;
+
+/// A secondary location anchored to its declaration, including other modules.
+struct IfaceLabel {
+    module: String,
+    anchor: hd_resolve::anchor::Anchor,
+    message: String,
+}
 
 /// A stage-A fix-it as an interface entry keeps it: no byte offsets, as
 /// for its diagnostic. Each edit is its module, an anchor of the token at
@@ -1651,6 +1659,7 @@ struct Run<'a> {
     /// `PathId` and `ModuleId`: the tables have unrelated insertion orders.
     module_nodes: HashMap<PathId, ModuleId>,
     texts: Texts<'a>,
+    span_indexes: Vec<OnceLock<hd_resolve::anchor::SpanIndex>>,
     pool: Arc<InternPool>,
     paths: Arc<PathTable>,
     /// The compiler-known std items, resolved once for the run.
@@ -2833,6 +2842,7 @@ fn build_packages_inner(
         single_file: packages.single_file,
         goal: goal.clone(),
         texts,
+        span_indexes: (0..n).map(|_| OnceLock::new()).collect(),
         pool,
         paths,
         known,
@@ -4667,10 +4677,11 @@ impl Run<'_> {
         // (`folder_iface`), so each anchor names a declaration of this run.
         let place = |m: usize, anchor: &hd_resolve::anchor::Anchor| {
             let mid = folder.modules.get(m)?;
-            hd_resolve::anchor::resolve(&self.src(mid.idx()), anchor)
+            self.span_index(mid.idx())
+                .resolve(&self.src(mid.idx()), anchor)
         };
         let mut d = lock(&self.diags);
-        for (m, code, severity, anchor, msg, fixes) in diags {
+        for (m, code, severity, anchor, msg, fixes, labels) in diags {
             let Some(mid) = folder.modules.get(*m) else {
                 continue;
             };
@@ -4680,6 +4691,11 @@ impl Run<'_> {
                 hi: 0,
             });
             d.push(*code, *severity, span, msg, None);
+            for label in labels {
+                if let Some(span) = self.place_label(label) {
+                    d.add_label(span, &label.message);
+                }
+            }
             for fix in fixes {
                 // A fix-it with an edit this run cannot place is left out.
                 let edits: Option<Vec<(Span, &str)>> = fix
@@ -5044,12 +5060,43 @@ impl Run<'_> {
                     m,
                     diags.code[i],
                     diags.severity[i],
-                    hd_resolve::anchor::of_span(&self.src(folder.modules[m].idx()), sp.lo, sp.hi),
+                    self.span_index(folder.modules[m].idx()).of_span(
+                        &self.src(folder.modules[m].idx()),
+                        sp.lo,
+                        sp.hi,
+                    ),
                     diags.get_text(diags.message[i]).to_owned(),
                     fixes,
+                    self.anchor_labels(diags, i),
                 )
             })
             .collect()
+    }
+
+    fn span_index(&self, m: usize) -> &hd_resolve::anchor::SpanIndex {
+        self.span_indexes[m].get_or_init(|| hd_resolve::anchor::SpanIndex::new(&self.src(m)))
+    }
+
+    fn anchor_labels(&self, diags: &DiagBuf, row: usize) -> Vec<IfaceLabel> {
+        diags
+            .labels(row)
+            .iter()
+            .map(|(span, message)| IfaceLabel {
+                module: self.table.modules[span.file.idx()].path.clone(),
+                anchor: self.span_index(span.file.idx()).of_span(
+                    &self.src(span.file.idx()),
+                    span.lo,
+                    span.hi,
+                ),
+                message: message.clone(),
+            })
+            .collect()
+    }
+
+    fn place_label(&self, label: &IfaceLabel) -> Option<Span> {
+        let module = self.table.module(&label.module)?;
+        self.span_index(module.idx())
+            .resolve(&self.src(module.idx()), &label.anchor)
     }
 
     /// The modules and folders a header lowering of folder `fid` read, as
@@ -5710,7 +5757,9 @@ impl Run<'_> {
         };
         // The anchors of a folder with a broken module are this run's:
         // its interface is never stored (`folder_iface`).
-        hd_resolve::anchor::resolve(&self.src(target.idx()), anchor).unwrap_or(fallback)
+        self.span_index(target.idx())
+            .resolve(&self.src(target.idx()), anchor)
+            .unwrap_or(fallback)
     }
 
     /// Strict lookup: an older/missing anchor never falls back to deleting
@@ -5726,14 +5775,14 @@ impl Run<'_> {
             .modules
             .get(*m as usize)?;
         let src = self.src(target.idx());
-        let first = hd_resolve::anchor::resolve(&src, anchor)?;
+        let first = self.span_index(target.idx()).resolve(&src, anchor)?;
         let (end_module, end_anchor) = iface
             .spans
             .get(&(def, hd_resolve::anchor::VISIBILITY_END_SLOT))?;
         if end_module != m {
             return None;
         }
-        let keyword = hd_resolve::anchor::resolve(&src, end_anchor)?;
+        let keyword = self.span_index(target.idx()).resolve(&src, end_anchor)?;
         Some(Span {
             hi: keyword.lo,
             ..first
@@ -6267,15 +6316,21 @@ impl Run<'_> {
             // The key holds each impl's stable path, so a stored path names
             // the same impl of `tr`.
             let reused = key.and_then(|k| old_traits.get(&k)).and_then(|row| {
+                if row.found.is_empty() {
+                    return Some(Vec::new());
+                }
+                let by_path: HashMap<_, _> = u.impls[&tr]
+                    .iter()
+                    .map(|i| (names.path(i.def), i.def))
+                    .collect();
                 row.found
                     .iter()
-                    .map(|(path, msg)| {
-                        let at = u.impls[&tr].iter().find(|i| names.path(i.def) == *path)?;
-                        Some((at.def, msg.clone()))
+                    .map(|(path, other, msg)| {
+                        Some((*by_path.get(path)?, *by_path.get(other)?, msg.clone()))
                     })
                     .collect::<Option<Vec<_>>>()
             });
-            let part: Vec<(DefId, String)> = if let Some(part) = reused {
+            let part: Vec<(DefId, DefId, String)> = if let Some(part) = reused {
                 read += 1;
                 part
             } else {
@@ -6285,12 +6340,11 @@ impl Run<'_> {
                 overlaps
                     .into_iter()
                     .map(|(a, b, witness)| {
+                        let trait_name = names.display_name(tr);
                         let msg = format!(
-                            "implementations {} and {} both apply to {witness}",
-                            names.path(a),
-                            names.path(b)
+                            "conflicting `{trait_name}` implementations for {witness}; remove one implementation"
                         );
-                        (b, msg)
+                        (b, a, msg)
                     })
                     .collect()
             };
@@ -6300,7 +6354,7 @@ impl Run<'_> {
                     trait_: names.path(tr),
                     found: part
                         .iter()
-                        .map(|(b, msg)| (names.path(*b), msg.clone()))
+                        .map(|(b, a, msg)| (names.path(*b), names.path(*a), msg.clone()))
                         .collect(),
                 });
             }
@@ -6330,8 +6384,9 @@ impl Run<'_> {
             encode_overlaps(&found, &all)
         };
         let mut d = lock(&self.diags);
-        for (item, msg) in found {
+        for (item, other, msg) in found {
             d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
+            d.add_label(self.item_span(other, 0), "conflicting implementation");
         }
         Some(bytes)
     }
@@ -6459,8 +6514,9 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::Coherence);
         {
             let mut d = lock(&self.diags);
-            for (item, msg) in found {
+            for (item, other, msg) in found {
                 d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
+                d.add_label(self.item_span(other, 0), "conflicting implementation");
             }
         }
         for (&f, r) in folders.iter().zip(runs) {
@@ -6505,12 +6561,14 @@ impl Run<'_> {
                 .flat_map(|i| i.items.iter())
                 .chain(test_impls.iter().copied()),
         );
-        let anchor = |d: DefId| {
-            anchors
-                .iter()
-                .find(|(def, slot, _)| *def == d && *slot == 0)
-                .map(|(_, _, a)| *a)
-        };
+        let mut by_def = HashMap::default();
+        for &(def, slot, anchor) in anchors {
+            if slot == 0 {
+                by_def.entry(def).or_insert(anchor);
+            }
+        }
+        let anchor = |d: DefId| by_def.get(&d).copied();
+        let positions = hd_resolve::anchor::SpanIndex::new(src);
         // Content order: the block's impls come after every impl the test
         // code sees, in source order, so the later impl reported is the
         // block's.
@@ -6530,19 +6588,28 @@ impl Run<'_> {
             lo: 0,
             hi: 0,
         };
+        let traits: HashMap<_, _> = u
+            .impls
+            .iter()
+            .flat_map(|(&trait_, impls)| impls.iter().map(move |impl_| (impl_.def, trait_)))
+            .collect();
         for (a, b, witness) in u.overlaps(&order) {
             if !test_only.contains(&b) {
                 continue;
             }
             let span = anchor(b)
-                .and_then(|at| hd_resolve::anchor::resolve(src, &at))
+                .and_then(|at| positions.resolve(src, &at))
                 .unwrap_or(fallback);
+            // ruled out: the universe produced this overlap from its impl groups.
+            let trait_name = names.display_name(*traits.get(&b).expect("overlap trait"));
             let msg = format!(
-                "implementations {} and {} both apply to {witness}",
-                names.path(a),
-                names.path(b)
+                "conflicting `{trait_name}` implementations for {witness}; remove one implementation"
             );
             diags.error(Code::OverlappingImpl, span, &msg);
+            let other = anchor(a)
+                .and_then(|at| positions.resolve(src, &at))
+                .unwrap_or_else(|| self.item_span(a, 0));
+            diags.add_label(other, "conflicting implementation");
         }
     }
 
@@ -8805,6 +8872,7 @@ impl Run<'_> {
                     dw.str(diags.get_text(e.text));
                 }
             }
+            write_labels(&mut dw, &self.anchor_labels(&diags, i));
         }
         // Invariant 3 (`crates/hd_tir/DESIGN.md` §4.13.11): `Hole` and
         // `Poison` only where something reported an error. A header's
@@ -9166,6 +9234,11 @@ impl Run<'_> {
                     ));
                 }
                 buf.add_fix(title, safety, &edits);
+            }
+            for label in read_labels(&mut r) {
+                if let Some(span) = self.place_label(&label) {
+                    buf.add_label(span, &label.message);
+                }
             }
         }
         // A module that does not parse has its parse errors besides.
@@ -12604,7 +12677,7 @@ struct CohRows {
 struct CohRow {
     key: Hash128,
     trait_: String,
-    found: Vec<(String, String)>,
+    found: Vec<(String, String, String)>,
 }
 
 /// One folder's row: its key, its path, and per trait it implements (by
@@ -12722,8 +12795,9 @@ fn encode_coh_rows(rows: &CohRows) -> Vec<u8> {
         w.hash(r.key);
         w.str(&r.trait_);
         w.len_of(&r.found);
-        for (path, msg) in &r.found {
+        for (path, other, msg) in &r.found {
             w.str(path);
+            w.str(other);
             w.str(msg);
         }
     }
@@ -12747,7 +12821,7 @@ fn decode_coh_rows(b: &[u8]) -> Option<CohRows> {
             key: r.hash(),
             trait_: r.str().to_owned(),
             found: (0..r.count())
-                .map(|_| (r.str().to_owned(), r.str().to_owned()))
+                .map(|_| (r.str().to_owned(), r.str().to_owned(), r.str().to_owned()))
                 .collect(),
         })
         .collect();
@@ -12763,38 +12837,47 @@ fn decode_coh_rows(b: &[u8]) -> Option<CohRows> {
 
 /// The overlaps of a coherence run, each reported impl as its folder's
 /// index and its item's index in that folder's interface.
-fn encode_overlaps(found: &[(DefId, String)], all: &[Arc<FolderIface>]) -> Vec<u8> {
+fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<FolderIface>]) -> Vec<u8> {
+    // One index for both endpoints of every overlap, O(items + findings),
+    // rather than scanning every interface for each endpoint.
+    let locations: HashMap<_, _> = all
+        .iter()
+        .enumerate()
+        .flat_map(|(f, iface)| {
+            iface
+                .items
+                .iter()
+                .enumerate()
+                .map(move |(i, item)| (item.def, (f, i)))
+        })
+        .collect();
     let mut w = Writer::default();
     w.len_of(found);
-    for (item, msg) in found {
-        let (f, i) = all
-            .iter()
-            .enumerate()
-            .find_map(|(f, iface)| {
-                iface
-                    .items
-                    .iter()
-                    .position(|it| it.def == *item)
-                    .map(|i| (f, i))
-            })
-            .unwrap_or((0, 0));
-        w.u32(u32_of(f));
-        w.u32(u32_of(i));
+    for (item, other, msg) in found {
+        for def in [item, other] {
+            // ruled out: overlap endpoints come from these same interfaces.
+            let &(f, i) = locations.get(def).expect("overlap endpoint");
+            w.u32(u32_of(f));
+            w.u32(u32_of(i));
+        }
         w.str(msg);
     }
     w.bytes
 }
 
-fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, String)>> {
+fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, DefId, String)>> {
     let mut r = Reader::new(b);
     let mut out = Vec::new();
     for _ in 0..r.count() {
         let f = r.u32() as usize;
         let i = r.u32() as usize;
         let item = all.get(f)?.items.get(i)?.def;
-        out.push((item, r.str().to_owned()));
+        let f = r.u32() as usize;
+        let i = r.u32() as usize;
+        let other = all.get(f)?.items.get(i)?.def;
+        out.push((item, other, r.str().to_owned()));
     }
-    Some(out)
+    (r.ok() && r.at_end()).then_some(out)
 }
 
 /// Stage-B findings by item index in the folder's interface.
@@ -12942,10 +13025,29 @@ fn decode_anchor(r: &mut Reader<'_>) -> hd_resolve::anchor::Anchor {
     }
 }
 
+fn write_labels(w: &mut Writer, labels: &[IfaceLabel]) {
+    w.len_of(labels);
+    for label in labels {
+        w.str(&label.module);
+        encode_anchor(w, &label.anchor);
+        w.str(&label.message);
+    }
+}
+
+fn read_labels(r: &mut Reader<'_>) -> Vec<IfaceLabel> {
+    (0..r.count())
+        .map(|_| IfaceLabel {
+            module: r.str().to_owned(),
+            anchor: decode_anchor(r),
+            message: r.str().to_owned(),
+        })
+        .collect()
+}
+
 fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(d);
-    for (m, code, severity, a, msg, fixes) in d {
+    for (m, code, severity, a, msg, fixes, labels) in d {
         w.u32(u32_of(*m));
         w.str(code.as_str());
         w.u8(u8::from(*severity == Severity::Warning));
@@ -12964,6 +13066,7 @@ fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
                 w.str(text);
             }
         }
+        write_labels(&mut w, labels);
     }
     w.bytes
 }
@@ -12998,7 +13101,8 @@ fn decode_iface_diags(b: &[u8]) -> Option<IfaceDiags> {
                 edits,
             });
         }
-        out.push((m, code, severity, a, msg, fixes));
+        let labels = read_labels(&mut r);
+        out.push((m, code, severity, a, msg, fixes, labels));
     }
     r.ok().then_some(out)
 }
@@ -15668,3 +15772,48 @@ mod instantiation_chain_tests {
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod program_ir_tests;
+
+#[cfg(test)]
+mod secondary_label_codec_tests {
+    use super::*;
+
+    #[test]
+    fn header_and_module_label_transport_keeps_anchors() {
+        let labels = vec![IfaceLabel {
+            module: "app.other".into(),
+            anchor: hd_resolve::anchor::Anchor {
+                decl: 2,
+                member: 1,
+                tok: 3,
+                count: 4,
+            },
+            message: "other implementation".into(),
+        }];
+        let mut w = Writer::default();
+        write_labels(&mut w, &labels);
+        let mut r = Reader::new(&w.bytes);
+        let got = read_labels(&mut r);
+        assert!(r.ok() && r.at_end());
+        assert_eq!(got.len(), labels.len());
+        assert_eq!(got[0].module, labels[0].module);
+        assert_eq!(got[0].anchor, labels[0].anchor);
+        assert_eq!(got[0].message, labels[0].message);
+    }
+
+    #[test]
+    fn coherence_rows_keep_both_impl_identities() {
+        let found = vec![("app/first".into(), "app/second".into(), "overlap".into())];
+        let rows = CohRows {
+            traits: vec![CohRow {
+                key: Hash128(1),
+                trait_: "app.Show".into(),
+                found: found.clone(),
+            }],
+            folders: vec![],
+        };
+        let bytes = encode_coh_rows(&rows);
+        let got = decode_coh_rows(&bytes).expect("coherence rows");
+        assert_eq!(got.traits[0].found, found);
+        assert!(decode_coh_rows(&bytes[..bytes.len() - 1]).is_none());
+    }
+}

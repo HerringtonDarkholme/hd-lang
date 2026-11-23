@@ -72,6 +72,10 @@ pub struct DiagBuf {
     pub fix_edits: Vec<Range32>,
     pub edits: Vec<FixEdit>,
     pub text: String,
+    /// Secondary source locations, sparse because most diagnostics have none.
+    /// Like rustc's `MultiSpan`, labels are distinct from the primary location.
+    /// One hash probe per lookup; storage grows only with labelled diagnostics.
+    labels: hd_base::HashMap<usize, Vec<(Span, String)>>,
     /// The row that reports each root (§4.14), for the rows below
     /// `rooted`: one hash probe per push instead of a scan of the `root`
     /// column. A row a decoder pushes onto the columns directly is
@@ -167,6 +171,21 @@ impl DiagBuf {
         }
     }
 
+    /// Labels the last diagnostic's secondary source location.
+    pub fn add_label(&mut self, span: Span, message: &str) {
+        if let Some(row) = self.len().checked_sub(1) {
+            self.labels
+                .entry(row)
+                .or_default()
+                .push((span, message.to_owned()));
+        }
+    }
+
+    #[must_use]
+    pub fn labels(&self, row: usize) -> &[(Span, String)] {
+        self.labels.get(&row).map_or(&[], Vec::as_slice)
+    }
+
     /// Error-severity diagnostic with no root key.
     pub fn error(&mut self, code: Code, primary: Span, message: &str) {
         self.push(code, Severity::Error, primary, message, None);
@@ -222,6 +241,9 @@ impl DiagBuf {
         ) {
             return;
         }
+        for (span, message) in other.labels(i) {
+            self.add_label(*span, message);
+        }
         let fixes = other.fixes[i];
         for f in fixes.start..fixes.start + fixes.len {
             let f = f as usize;
@@ -244,18 +266,34 @@ impl DiagBuf {
     /// header, report it once. One hash probe per row; only rows that
     /// share a code, span and message are compared further.
     pub fn dedup_exact(&mut self) {
-        let mut kept: hd_base::HashMap<(u16, u32, u32, u32, &str), Vec<usize>> =
-            hd_base::HashMap::default();
+        use std::hash::{BuildHasher as _, Hash as _, Hasher as _};
+        type Key<'a> = (u16, u32, u32, u32, &'a str, u64);
+        let mut kept: hd_base::HashMap<Key<'_>, Vec<usize>> = hd_base::HashMap::default();
         let mut dup = vec![false; self.len()];
         let mut any = false;
         for (i, d) in dup.iter_mut().enumerate() {
             let p = self.primary[i];
+            // Hash secondary content once, rather than comparing a new label
+            // against every earlier row with the same primary/message.
+            let labels = if self.labels(i).is_empty() {
+                0
+            } else {
+                let mut h = hd_base::hash::FixedState::default().build_hasher();
+                for (span, message) in self.labels(i) {
+                    span.file.raw().hash(&mut h);
+                    span.lo.hash(&mut h);
+                    span.hi.hash(&mut h);
+                    message.hash(&mut h);
+                }
+                h.finish()
+            };
             let key = (
                 self.code[i] as u16,
                 p.file.raw(),
                 p.lo,
                 p.hi,
                 self.get_text(self.message[i]),
+                labels,
             );
             let rows = kept.entry(key).or_default();
             if rows.iter().any(|&j| self.same_parts(i, j)) {
@@ -277,7 +315,7 @@ impl DiagBuf {
     }
 
     /// Whether rows `i` and `j`, of one code, span and message, have the
-    /// same severity and fix-its.
+    /// same severity, secondary labels and fix-its.
     fn same_parts(&self, i: usize, j: usize) -> bool {
         let fixes = |r: usize| {
             let f = self.fixes[r];
@@ -295,6 +333,7 @@ impl DiagBuf {
         };
         self.severity[i] == self.severity[j]
             && self.root[i] == self.root[j]
+            && self.labels(i) == self.labels(j)
             && fixes(i).eq(fixes(j))
     }
 
@@ -325,6 +364,9 @@ impl DiagBuf {
             }
         }
         self.rooted = self.rooted.min(m.rows);
+        for row in rows..self.len() {
+            self.labels.remove(&row);
+        }
         self.code.truncate(rows);
         self.severity.truncate(rows);
         self.primary.truncate(rows);
@@ -404,15 +446,18 @@ impl DiagBuf {
             Severity::Warning => "warning",
         };
         let text = self.get_text(self.message[i]);
-        let Some(code) = self.shown_code(i).map(Code::as_str) else {
+        if let Some(code) = self.shown_code(i).map(Code::as_str) {
+            let message = text
+                .strip_prefix(code)
+                .and_then(|rest| rest.strip_prefix(": "))
+                .unwrap_or(text);
+            let _ = writeln!(out, "{sev}: {}: {code}: {message}", location(p));
+        } else {
             let _ = writeln!(out, "{sev}: {}: {text}", location(p));
-            return;
-        };
-        let message = text
-            .strip_prefix(code)
-            .and_then(|rest| rest.strip_prefix(": "))
-            .unwrap_or(text);
-        let _ = writeln!(out, "{sev}: {}: {code}: {message}", location(p));
+        }
+        for (span, message) in self.labels(i) {
+            let _ = writeln!(out, "  note: {}: {message}", location(*span));
+        }
     }
 
     /// JSON form: one object per diagnostic, in content order.
@@ -426,16 +471,32 @@ impl DiagBuf {
             let p = self.primary[i];
             let _ = write!(
                 out,
-                "{{\"code\":{},\"file\":{},\"lo\":{},\"hi\":{},\"message\":\"{}\"}}",
+                "{{\"code\":{},\"file\":{},\"lo\":{},\"hi\":{},\"message\":{}",
                 self.shown_code(i)
                     .map_or_else(|| "null".to_owned(), |c| format!("\"{}\"", c.as_str())),
                 p.file.raw(),
                 p.lo,
                 p.hi,
-                self.get_text(self.message[i])
-                    .replace('\\', "\\\\")
-                    .replace('"', "\\\"")
+                crate::quote(self.get_text(self.message[i]))
             );
+            if !self.labels(i).is_empty() {
+                out.push_str(",\"labels\":[");
+                for (n, (span, message)) in self.labels(i).iter().enumerate() {
+                    if n > 0 {
+                        out.push(',');
+                    }
+                    let _ = write!(
+                        out,
+                        "{{\"file\":{},\"lo\":{},\"hi\":{},\"message\":{}}}",
+                        span.file.raw(),
+                        span.lo,
+                        span.hi,
+                        crate::quote(message)
+                    );
+                }
+                out.push(']');
+            }
+            out.push('}');
         }
         out.push(']');
         out
@@ -447,6 +508,48 @@ mod tests {
     use super::{CauseKind, DiagBuf, DiagMark, RootKey};
     use crate::{Code, Severity};
     use hd_base::{DefId, FileId, Span};
+
+    #[test]
+    fn secondary_labels_follow_rows_through_append_dedup_and_rollback() {
+        let span = Span {
+            file: FileId::from_raw(2),
+            lo: 5,
+            hi: 9,
+        };
+        let mut a = DiagBuf::default();
+        a.error(Code::OverlappingImpl, span, "overlap");
+        a.add_label(span, "other implementation");
+        let mut b = DiagBuf::default();
+        b.append(&a);
+        b.append(&a);
+        b.dedup_exact();
+        assert_eq!(b.len(), 1);
+        assert_eq!(b.labels(0), a.labels(0));
+        let mark = b.mark();
+        b.error(Code::OverlappingImpl, span, "overlap");
+        b.add_label(span, "different implementation");
+        b.dedup_exact();
+        assert_eq!(
+            b.len(),
+            2,
+            "different secondary spans/labels are not duplicates"
+        );
+        b.truncate(mark);
+        assert_eq!(b.labels(0), a.labels(0));
+        assert!(b.labels(1).is_empty());
+        assert!(
+            b.render_compact(&|_| "x.hd:2:1".into())
+                .contains("note: x.hd:2:1: other implementation")
+        );
+        assert!(
+            b.render_json()
+                .contains("\"labels\":[{\"file\":2,\"lo\":5,\"hi\":9")
+        );
+        let mut filtered = DiagBuf::default();
+        filtered.append_if(&b, &|_| false);
+        assert!(filtered.is_empty());
+        assert!(filtered.labels(0).is_empty());
+    }
 
     #[test]
     fn one_diagnostic_per_root_and_content_order() {

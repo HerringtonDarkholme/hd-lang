@@ -151,6 +151,10 @@ fn opaque_bounds_keep_their_names_and_references_keep_dyn() {
                 hd_resolve::iface::show_ty_qualified_in(names, pool.types(), opaque, false),
                 format!("impl {qualified} returned by app.make.create[string]")
             );
+            assert_eq!(
+                hd_resolve::iface::show_ty_diagnostic_in(names, pool.types(), opaque, false),
+                format!("impl {short} returned by create[string]")
+            );
             for (counted, prefix) in [(false, "&"), (true, "*")] {
                 let reference = pool.intern_ty(&TyData::Ref {
                     inner: bound,
