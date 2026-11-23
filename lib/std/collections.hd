@@ -2305,9 +2305,7 @@ pub struct MapKeys[K < Eq & Hash, V]:
 
 impl[K < Eq & Hash, V] Iterator[K] for MapKeys[K, V]:
     fn next(&mut self) -> K?:
-        match self.entries.next():
-            .Some((key, _)) => .Some(key)
-            .None => .None
+        self.entries.next().map(fn(entry: (K, V)) -> K: entry._0)
 
 ## A snapshot cursor over a map's values.
 ## See [std-collections.map.values.cursor-type](../../spec/std/collections.md#r-std-collections.map.values.cursor-type).
@@ -2316,9 +2314,7 @@ pub struct MapValues[K < Eq & Hash, V]:
 
 impl[K < Eq & Hash, V] Iterator[V] for MapValues[K, V]:
     fn next(&mut self) -> V?:
-        match self.entries.next():
-            .Some((_, value)) => .Some(value)
-            .None => .None
+        self.entries.next().map(fn(entry: (K, V)) -> V: entry._1)
 
 # The entries of a map, and the most frequent ones of a tally
 # (spec/std/collections.md#map-methods).

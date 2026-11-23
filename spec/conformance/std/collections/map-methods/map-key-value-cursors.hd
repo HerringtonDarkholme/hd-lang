@@ -57,3 +57,14 @@ tests:
         for _ in 0..16:
             let mut early = source.values()
             assert(early.next().is_some())
+
+    it("ordinary entry cursors forward counted pairs after source clearing"):
+        for round in 0..16:
+            name := "key$round"
+            text := "value$round"
+            let mut source = { name: [text] }
+            let mut cursor = source.iter()
+            source.clear()
+            assert_equal(cursor.next(), .Some((name, [text])))
+            assert_equal(cursor.next(), .None)
+            assert_equal(cursor.next(), .None)

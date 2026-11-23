@@ -65,11 +65,12 @@
     },
     {
       "program": "bench/runtime/progs/log-stats.hd",
-      "retained": "5760129",
-      "released": "6660275",
-      "uniques": "10",
-      "total": "12420414",
-      "noOpsAndSkipped": "1440025"
+      "retained": "5760130",
+      "released": "6660279",
+      "uniques": "9",
+      "total": "12420418",
+      "noOpsAndSkipped": "1440025",
+      "reason": "Lazy Map key/value cursors keep the source COW snapshot and an existing step environment alive. All 128 per-key projection copy/drop operations were removed with consuming Option.map. The remaining four net log-stats operations are fixed cursor ownership: +1 retain, +4 releases, -1 uniqueness test; no-ops/skipped unchanged. This preserves snapshots across source mutation and cursor return."
     },
     {
       "program": "bench/runtime/progs/map-count-long.hd",

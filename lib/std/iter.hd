@@ -630,11 +630,11 @@ pub struct MapEntries[K < Eq & Hash, V]:
 
 impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
     fn next(&mut self) -> (K, V)?:
-        match (self.step)(self.at):
-            .Some((slot, entry)) =>
-                self.at = slot + 1
-                .Some(entry)
-            .None => .None
+        found := (self.step)(self.at)
+        found.map(fn(item: (usize, (K, V))) -> (K, V):
+            self.at = item._0 + 1
+            item._1
+        )
 
 impl[T] Iterable[T] for List[T]:
     type IntoIter = ListIter[T]
