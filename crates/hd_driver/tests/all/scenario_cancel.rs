@@ -43,7 +43,7 @@ fn program() -> Goal {
 /// The fixture shape the scenario runner drives: a suspending entry over
 /// an empty row.
 fn main() -> String {
-    "fn ready!() -> i32: 42\n\npub fn main!() -> void $ Console:\n    value := ready!()\n    println(\"value=$value\")\n".to_owned()
+    include_str!("programs/scenario_cancel/suspending.hd").to_owned()
 }
 
 /// A module's export names; validates it first.
@@ -86,7 +86,7 @@ fn a_program_build_of_a_suspending_entry_carries_hd_cancel_and_hd_abandon() {
 
 #[test]
 fn a_program_build_of_a_plain_entry_carries_no_hd_cancel() {
-    let plain = "pub fn main() -> void $ Console:\n    println(\"hi\")\n";
+    let plain = include_str!("programs/scenario_cancel/plain.hd");
     let out = built(plain, &program());
     assert!(out.diags.is_empty(), "{}", out.render());
     let wasm = out.wasm.expect("wasm");
