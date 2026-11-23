@@ -8,9 +8,11 @@
 # closure's into the block, and calls the host's `thread_spawn`. A thread's instance
 # enters through `hd.thread`: it takes the block's frame region, runs the
 # runtime modules' inits, calls `run(block)`, which calls the closure,
-# writes its value into the block and retires the thread's heap, then stores the state word atomically and
-# wakes every wait on it; a stopped instance only stores and wakes. `wait`
-# waits with `memory.atomic.wait32` while the word is 0.
+# writes its value into the block, ends the thread (one atomic step sets
+# the state word's ended bit and ends the thread's owner, then wakes every
+# wait on it) and retires the thread's heap; a stopped instance only sets
+# the ended and stopped bits and wakes. `wait` waits with
+# `memory.atomic.wait32` while the ended bit is clear.
 use std.thread.{Scope, scope}
 
 fn run() -> bool:

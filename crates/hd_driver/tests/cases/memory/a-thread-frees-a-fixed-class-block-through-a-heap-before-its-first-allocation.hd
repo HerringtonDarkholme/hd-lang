@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: std release
+# @helpers: free_class_loaded
+# A thread's instance has no allocator table until its first allocation,
+# so in a program that starts threads the fixed-class free takes
+# `std.rt.alloc.free` while `metadata()` is 0: `free_block` gives the
+# thread its heap first. Pushing onto `0 + FREED + 4 * class` wrote the
+# block's address into static data (lane 254's finding).
+use std.thread.{Scope, scope}
+
+# The thread frees its closure's environment, a fixed-class block of
+# this heap, through the release drain's free.
+fn run(n: i32) -> bool:
+    scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: n > 0).join())

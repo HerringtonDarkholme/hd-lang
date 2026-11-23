@@ -755,7 +755,7 @@ pub struct Elem {
 
 /// Count ownership of a host slot's argument record. Value indices refer
 /// to the shared area layout, so the slot stores that layout only once.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct HostCounts {
     pub borrowed: Vec<(u32, Counted)>,
     pub owned: Vec<(u32, Counted)>,
@@ -1317,9 +1317,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
 /// take the region whose top and limit are the block's first two words;
 /// the runtime modules' inits give the instance its own runtime storage
 /// (`fn.crossing.global.runtime`); then it calls the function value in the
-/// next two words, `thread_spawn`'s `run`, on the block. Then the block's fifth word gets 1, and its waiters wake.
+/// next two words, `thread_spawn`'s `run`, on the block, which ends the
+/// thread in the block's fifth word, its state (`std.rt.thread`).
 /// When the instance stopped instead (a panic or a trap), the host calls
-/// it again with `stopped` 2, which only sets the word and wakes them
+/// it again with `stopped` 2, which only sets the state's ended and
+/// stopped bits and wakes its waiters; the stopped thread keeps its owner
 /// (`module.rt.thread.wait`). Cost: O(1) besides `run`.
 fn thread_start(m: &Module) -> Func {
     let mut f = m.func("rt:thread_start", vec![Val::I32, Val::I32], vec![]);
@@ -1353,16 +1355,17 @@ fn thread_start(m: &Module) -> Func {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
     f.call_indirect(vec![Val::I32, Val::I32, Val::I32], vec![]);
-    f.i32(1);
-    f.set(1);
-    f.op(Instruction::End);
+    f.op(Instruction::Else);
+    // A thread that stopped never ended, so its two low bits are clear.
     f.get(0);
-    f.get(1);
-    f.op(Instruction::I32AtomicStore(mem(HEAP, 16, 2)));
+    f.i32(3);
+    f.op(Instruction::I32AtomicRmwAdd(mem(HEAP, 16, 2)));
+    f.op(Instruction::Drop);
     f.get(0);
     f.i32(-1);
     f.op(Instruction::MemoryAtomicNotify(mem(HEAP, 16, 2)));
     f.op(Instruction::Drop);
+    f.op(Instruction::End);
     f
 }
 
@@ -3606,6 +3609,14 @@ fn free_class_body(f: &mut Func, m: &Module, block: u32, desc: u32, class: u32) 
     f.op(Instruction::I32And);
     f.op(Instruction::I32Eqz);
     f.op(Instruction::I32And);
+    if m.threads {
+        // A thread's instance has no table before its first allocation
+        // (`module.rt.thread.alloc`): `free` gives it its heap first.
+        f.call(Sym::Inst(r.small.metadata));
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::I32And);
+    }
     f.op(Instruction::If(BlockType::Empty));
     f.call(Sym::Inst(r.small.metadata));
     f.get(class);

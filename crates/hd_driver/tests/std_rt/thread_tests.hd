@@ -19,8 +19,9 @@ use std.rt.memory.{
     string_bytes,
 }
 use std.rt.unique
+use std.task.{join, race}
 use std.testing.{assert, assert_equal}
-use std.thread.{Handle, Scope, scope}
+use std.thread.{Handle, Scope, background, scope}
 
 # A word on the shared heap: the program's own bindings are there too, so
 # each thread reads the address the first one stored.
@@ -69,6 +70,37 @@ fn add_one() -> void:
 
 fn stop() -> i32:
     panic("a thread stops")
+    0
+
+# The gates that background threads wait at until a task opens them.
+GATE := alloc(4)
+LATE := alloc(4)
+
+fn opened(gate: usize) -> void:
+    while atomic_load_u32(gate) == 0:
+        _ := atomic_wait_u32(gate, 0, -1)
+
+fn gated(gate: usize, text: string) -> string:
+    opened(gate)
+    text.repeat(2)
+
+# Opens `gate` from a task, which runs only while the task that awaits
+# the gated thread is suspended, not its thread.
+fn open!(gate: usize) -> string:
+    store_u32(gate, 1)
+    _ := atomic_notify(gate, u32(0xffffffff))
+    "open"
+
+fn now!(text: string) -> string:
+    text
+
+# Waits at `gate`, then counts its end in COUNTER.
+fn counted(gate: usize) -> u32:
+    opened(gate)
+    add_one()
+    1
+
+fn none!() -> u32:
     0
 
 # A `Send` crossing that runs its closure here and gives its value: the
@@ -363,3 +395,24 @@ tests:
                 && first_key(&keyed) != here
             ),
         )
+
+    it("background gives the value its thread's closure returned"):
+        word := "ab".repeat(2)
+        assert_equal(background!(fn() -> string: word + "c"), "ababc")
+
+    it("a task runs on while background waits for its thread"):
+        store_u32(GATE, 0)
+        let (text, opened) = join!(background(fn() -> string: gated(GATE, "ab")), open(GATE))
+        assert_equal(text + opened, "ababopen")
+
+    it("a cancelled background returns at once, and its thread runs on"):
+        store_u32(LATE, 0)
+        store_u32(COUNTER, 0)
+        won := race!(background(fn() -> u32: counted(LATE)), none())
+        assert_equal((won, atomic_load_u32(COUNTER)), (0u32, 0u32))
+        _ := open!(LATE)
+        while atomic_load_u32(COUNTER) == 0:
+            _ := atomic_wait_u32(COUNTER, 0, 1000000)
+
+    it("background of a thread that stopped panics", expect_panic="thread-stopped"):
+        _ := background!(fn() -> i32: stop())

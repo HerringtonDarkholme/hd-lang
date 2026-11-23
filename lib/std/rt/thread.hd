@@ -10,6 +10,7 @@ use std.rt.memory.{
     atomic_add_u32,
     atomic_compare_exchange_u32,
     atomic_load_u32,
+    atomic_notify,
     atomic_sub_u32,
     atomic_wait_u32,
     load_u32,
@@ -19,21 +20,25 @@ use std.rt.memory.{
 
 # A thread's block, as `start_thread` reads it: the top and the limit of
 # its frame region, `run`'s code and environment, the state word, the
-# work's code and environment; then the block's owners, the hand-off word
-# and, 16-aligned, the value the work returns.
+# work's code and environment; then the hand-off word and, 16-aligned,
+# the value the work returns.
 LIMIT := 4
 STATE := 16
 WORK := 20
-OWNERS := 28
-HANDOFF := 32
+HANDOFF := 28
 RESULT := 48
 
 # Each thread's frame region: 1 MiB, as the first thread's.
 FRAMES := 1048576
 
-# The state word while the thread runs, and once its work returned.
-RUNNING := u32(0)
-FINISHED := u32(1)
+# The state word: OWNER for each of the block's owners, the thread one of
+# them until it ends; ENDED once it ended, and STOPPED too when it stopped
+# before its work returned. One word, so the step that ends the thread
+# also gives up its owner, and whoever waits for ENDED sees a thread that
+# no longer touches the block.
+OWNER := u32(4)
+ENDED := u32(1)
+STOPPED := u32(2)
 
 # The hand-off word: no value yet, the value is in the block, its owner
 # gave it up, so the thread drops it, and its owner took it.
@@ -42,15 +47,14 @@ STORED := u32(1)
 ABANDONED := u32(2)
 TAKEN := u32(3)
 
-## A new thread's block, with one owner, for work that returns a `T`; `std.thread` moves the work into it and starts the thread, or runs it here with `run_here`.
+## A new thread's block, with two owners, its caller and its thread, for work that returns a `T`; `std.thread` moves the work into it and starts the thread, or runs it here with `run_here`.
 ## See [module.rt.thread.spawn](../../../spec/lang/10-modules.md#r-module.rt.thread.spawn).
 pub fn new_block[T < ?Copy]() -> usize:
     frames := alloc(FRAMES)
     block := alloc(RESULT + size_of::[T]())
     store_u32(block, u32(frames + FRAMES))
     store_u32(block + LIMIT, u32(frames))
-    store_u32(block + STATE, RUNNING)
-    store_u32(block + OWNERS, 1)
+    store_u32(block + STATE, 2 * OWNER)
     store_u32(block + HANDOFF, PENDING)
     block
 
@@ -58,14 +62,22 @@ pub fn new_block[T < ?Copy]() -> usize:
 ## See [module.rt.thread.spawn](../../../spec/lang/10-modules.md#r-module.rt.thread.spawn).
 pub fn run_here[T < ?Copy](block: usize) -> void:
     work::[T](block)
-    store_u32(block + STATE, FINISHED)
+    end(block)
 
 ## Waits until the thread of `thread` ends: `true` when its work returned, `false` when the thread stopped first.
 ## See [module.rt.thread.wait](../../../spec/lang/10-modules.md#r-module.rt.thread.wait).
 pub fn wait(thread: usize) -> bool:
-    while atomic_load_u32(thread + STATE) == RUNNING:
-        _ := atomic_wait_u32(thread + STATE, RUNNING, -1)
-    atomic_load_u32(thread + STATE) == FINISHED
+    let state = atomic_load_u32(thread + STATE)
+    while state & ENDED == 0:
+        _ := atomic_wait_u32(thread + STATE, state, -1)
+        state = atomic_load_u32(thread + STATE)
+    state & STOPPED == 0
+
+## The state word of `thread`'s block while its thread runs, which `std.thread` waits to see change; 0 once the thread ended.
+## See [module.rt.thread.running](../../../spec/lang/10-modules.md#r-module.rt.thread.running).
+pub fn running(thread: usize) -> u32:
+    state := atomic_load_u32(thread + STATE)
+    if state & ENDED == 0: state else: 0
 
 ## The value the work of `thread` returned, once `wait` gave `true`; it is taken once.
 ## See [module.rt.thread.wait](../../../spec/lang/10-modules.md#r-module.rt.thread.wait).
@@ -79,23 +91,38 @@ pub fn abandon[T < ?Copy](thread: usize) -> void:
     if atomic_compare_exchange_u32(thread + HANDOFF, PENDING, ABANDONED) == STORED:
         _ := Ptr::[T] { address: thread + RESULT }.read()
 
-## Adds an owner to the handle `thread`.
+## Adds an owner to the block of `thread`.
 ## See [module.rt.thread.release](../../../spec/lang/10-modules.md#r-module.rt.thread.release).
 pub fn share(thread: usize) -> void:
-    _ := atomic_add_u32(thread + OWNERS, 1)
+    _ := atomic_add_u32(thread + STATE, OWNER)
 
-## Ends one owner of the handle `thread`; the last, after the thread ended, frees its block and frame region.
+## Ends one owner of the block of `thread`; the last frees the block and its frame region.
 ## See [module.rt.thread.release](../../../spec/lang/10-modules.md#r-module.rt.thread.release).
 pub fn release(thread: usize) -> void:
-    if atomic_sub_u32(thread + OWNERS, 1) == 1:
-        free_block(usize(load_u32(thread + LIMIT)))
-        free_block(thread)
+    if atomic_sub_u32(thread + STATE, OWNER) == OWNER + ENDED:
+        free(thread)
 
-## A new thread's code, which its instance runs on `block`: the work, then its heap retires for the next thread to adopt.
+## A new thread's code, which its instance runs on `block`: the work, the thread's end, then its heap retires for the next thread to adopt.
 ## See [module.rt.thread.heap](../../../spec/lang/10-modules.md#r-module.rt.thread.heap).
 pub fn run[T < ?Copy](block: usize) -> void:
     work::[T](block)
+    end(block)
     retire()
+
+# The thread's end, in one step with its owner's: when it was the last
+# owner, nothing waits for it, and it frees the block. Its heap is not yet
+# retired, so no other thread uses that heap while this one frees. Then
+# it touches neither the block nor the frame region, which may be freed.
+fn end(block: usize) -> void:
+    # ENDED is clear, so taking OWNER - ENDED sets it as it ends the owner.
+    before := atomic_sub_u32(block + STATE, OWNER - ENDED)
+    _ := atomic_notify(block + STATE, u32(0xffffffff))
+    if before == OWNER:
+        free(block)
+
+fn free(block: usize) -> void:
+    free_block(usize(load_u32(block + LIMIT)))
+    free_block(block)
 
 # Runs the work in `block`, which the block owns: the call takes its
 # captures (fn.crossing.once), and the value goes to the block unless its

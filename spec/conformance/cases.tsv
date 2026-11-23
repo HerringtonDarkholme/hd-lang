@@ -7303,6 +7303,7 @@ std/thread/a-thread-borrows-a-reference-that-outlives-its-scope.hd	type	accept	s
 std/thread/a-thread-may-not-borrow-a-local-of-its-scopes-closure.hd	type	reject:local-reference-escapes	std/thread.md#r-std-thread.spawn.borrow
 std/thread/a-place-a-thread-borrows-is-not-written-before-its-scope-returns.hd	type	reject:conflicting-access	std/thread.md#r-std-thread.spawn.borrow
 std/thread/a-handle-is-never-wire.hd	type	reject:unsatisfied-trait-bound	std/thread.md#r-std-thread.handle.send
+std/thread/a-background-closure-may-not-borrow.hd	type	reject:local-reference-escapes	std/thread.md#r-std-thread.background
 std/iter/double-ended-cursors/noncopy-rev-without-trait-import.hd	runtime	accept	std/iter.md#r-std-iter.double-ended.concrete-rev
 std/text/joining-and-building/display-list-join.hd	runtime	accept	std/text.md#r-std-text.join.display-list
 std/text/joining-and-building/non-display-list-join.hd	type	reject:unsatisfied-trait-bound	std/text.md#r-std-text.join.display-list
