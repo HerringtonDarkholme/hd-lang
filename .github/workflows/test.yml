@@ -79,11 +79,18 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      # Use it only once its server is up: on Windows it once timed out
+      # starting, and then every compile failed (run 45182764260).
       - name: Use sccache
         shell: bash
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          export SCCACHE_GHA_ENABLED=true
+          if sccache --start-server; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without it"
+          fi
 
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
@@ -355,11 +362,18 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      # Use it only once its server is up: on Windows it once timed out
+      # starting, and then every compile failed (run 45182764260).
       - name: Use sccache
         shell: bash
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          export SCCACHE_GHA_ENABLED=true
+          if sccache --start-server; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without it"
+          fi
 
       - name: Test
         run: cargo test --release --all-features ${{ matrix.args }} -- --skip specification_conformance_passes_except_known_failures
@@ -400,11 +414,18 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      # Use it only once its server is up: on Windows it once timed out
+      # starting, and then every compile failed (run 45182764260).
       - name: Use sccache
         shell: bash
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          export SCCACHE_GHA_ENABLED=true
+          if sccache --start-server; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without it"
+          fi
 
       - name: Build release compiler and parser dump
         run: |
@@ -544,11 +565,18 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      # Use it only once its server is up: on Windows it once timed out
+      # starting, and then every compile failed (run 45182764260).
       - name: Use sccache
         shell: bash
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          export SCCACHE_GHA_ENABLED=true
+          if sccache --start-server; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without it"
+          fi
 
       - name: Lint host crates
         if: matrix.shard != 'cli conformance'
@@ -651,11 +679,18 @@ jobs:
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      # Use it only once its server is up: on Windows it once timed out
+      # starting, and then every compile failed (run 45182764260).
       - name: Use sccache
         shell: bash
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          export SCCACHE_GHA_ENABLED=true
+          if sccache --start-server; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without it"
+          fi
 
       # Only the suite that depends on the engine and the pipeline: the
       # binary's other tests (the formatter pass over every fixture, the std
