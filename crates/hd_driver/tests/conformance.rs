@@ -936,6 +936,19 @@ fn engine_mode() -> EngineMode {
     EngineMode::from_value(selection_env("HD_CONFORMANCE_ENGINE").as_deref())
 }
 
+/// `HD_CONFORMANCE_SHARD=k/n` (CI): run every n-th case, starting at the k-th
+/// (1-based), so n jobs split one mode's suite. Each shard judges the
+/// `KNOWN_FAILURES.tsv` rows of the cases it ran.
+fn shard_of(value: &str) -> (usize, usize) {
+    let parsed = value.split_once('/').and_then(|(k, n)| {
+        let (k, n) = (k.parse::<usize>().ok()?, n.parse::<usize>().ok()?);
+        (1..=n).contains(&k).then_some((k - 1, n))
+    });
+    parsed.unwrap_or_else(|| {
+        panic!("HD_CONFORMANCE_SHARD must be k/n with 1 <= k <= n, not {value:?}")
+    })
+}
+
 fn selection_env(name: &str) -> Option<String> {
     match std::env::var(name) {
         Ok(value) => Some(value),
@@ -2803,6 +2816,17 @@ fn specification_conformance_passes_except_known_failures() {
         );
         cases.retain(|case| case.phase == Phase::Runtime && tier(case) == name);
     }
+    let shard = selection_env("HD_CONFORMANCE_SHARD")
+        .filter(|value| !value.is_empty())
+        .map(|value| shard_of(&value));
+    if let Some((index, count)) = shard {
+        cases = cases
+            .into_iter()
+            .enumerate()
+            .filter(|(at, _)| at % count == index)
+            .map(|(_, case)| case)
+            .collect();
+    }
     let store = new_store();
     let started = Instant::now();
     let results = {
@@ -2859,7 +2883,7 @@ fn specification_conformance_passes_except_known_failures() {
             },
         })
         .collect();
-    let (summary, errors) = if only.is_some() || selected_tier.is_some() {
+    let (summary, errors) = if only.is_some() || selected_tier.is_some() || shard.is_some() {
         known_failures::judge_selection("driver", engine, Some(pipeline_name()), &known, &outcomes)
     } else {
         known_failures::judge(
