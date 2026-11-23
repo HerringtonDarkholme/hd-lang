@@ -1209,6 +1209,26 @@ impl Backward for Tables {
     }
 }
 
+/// Whether place `word` reaches, in place and through reads that borrow
+/// only, a value or local that owns: what a chain of part reads can move
+/// out of ([`solve`]). Cost: one step per read of the chain.
+fn owned_chain(b: &Body, t: &Tables, mut word: u32) -> bool {
+    loop {
+        let place = b.view(word);
+        if !place.in_place(b) {
+            return false;
+        }
+        match place.root {
+            Root::Value(v) if b.tags[v as usize] == Tag::Read && t.v[v as usize].borrows => {
+                word = b.data[v as usize][0];
+            }
+            Root::Value(v) => return !t.v[v as usize].borrows,
+            Root::Local(l) => return !t.l[l as usize].unowned,
+            _ => return false,
+        }
+    }
+}
+
 /// Whether every `Drop` bit `bit` crossed empties what owns nothing.
 fn crossed_ok(b: &Body, t: &Tables, bit: u32) -> bool {
     let lo = t.crossed.partition_point(|c| c.0 < bit);
@@ -1327,9 +1347,15 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             // move out of what owns it (the scan's rule for parts, applied
             // to a binding the solve keeps). A tuple match's payload is such
             // a chain: `[%payload]` of `[%elem as .Some .0]` of
-            // `[%tuple .0]`. Each read leaves the chain once, so the walks
-            // of a whole solve cost at most one step per read.
-            let owns = needed && !moves && cx.copies(b.ty[r]) != Tri::Yes;
+            // `[%tuple .0]`. A chain that goes behind a reference, as a
+            // match through `place.as_mut()` does, has nothing to move out
+            // of and keeps its borrow. Cost: the chain's length per needed
+            // read of such a type, and the marking walk takes each read
+            // once per solve.
+            let owns = needed
+                && !moves
+                && cx.copies(b.ty[r]) != Tri::Yes
+                && owned_chain(b, t, b.data[r][0]);
             if owns {
                 t.v[r].keeps = true;
                 let mut word = b.data[r][0];
