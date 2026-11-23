@@ -1,0 +1,53 @@
+struct Step:
+    name: string
+    weight: i32
+    then: fn(Step) -> i32
+
+fn weigh(step: Step) -> i32:
+    (step.then)(step)
+
+trait Link:
+    fn label(&self) -> string
+    fn next(&self) -> *dyn Link?
+
+struct Stop:
+    name: string
+    after: *dyn Link?
+
+impl Link for Stop:
+    fn label(&self) -> string:
+        self.name
+    fn next(&self) -> *dyn Link?:
+        self.after
+
+fn walk(link: &dyn Link) -> string:
+    let out = link.label()
+    let at = link.next()
+    while true:
+        match at:
+            .Some(l) =>
+                out = out + ">" + l.label()
+                at = l.next()
+            .None => return out
+
+struct Pair:
+    left: (*Pair?, *Pair?, string, i32)
+
+fn depth(p: *Pair?) -> i32:
+    match p:
+        .Some(x) =>
+            a := depth(x.left._0)
+            b := depth(x.left._1)
+            1 + (if a > b: a else: b)
+        .None => 0
+
+pub fn main() -> void $ Console:
+    s := Step { name: "s", weight: 7, then: fn(x: Step) -> i32: x.weight * 6 }
+    println(weigh(s))
+    let c: *dyn Link = box(Stop { name: "c", after: .None })
+    let b: *dyn Link = box(Stop { name: "b", after: .Some(c) })
+    let a: &dyn Link = &Stop { name: "a", after: .Some(b) }
+    println(walk(a))
+    leaf := box(Pair { left: (.None, .None, "leaf", 0) })
+    mid := box(Pair { left: (.Some(leaf), .None, "mid", 1) })
+    println(depth(.Some(box(Pair { left: (.Some(mid), .Some(leaf), "top", 2) }))))

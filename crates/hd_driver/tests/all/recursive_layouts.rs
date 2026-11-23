@@ -66,45 +66,7 @@ fn output_of(name: &str, main: &str) -> String {
 
 #[test]
 fn a_generic_binary_tree_inserts_walks_and_derives() {
-    let main = "\
-@derive(Eq, Debug)
-enum Tree[T]:
-    Leaf
-    Node(left: *Tree[T], value: T, right: *Tree[T])
-
-fn insert[T < Ord & 'static](tree: Tree[T], x: T) -> Tree[T]:
-    match tree:
-        .Leaf => Tree.Node(left=box(Tree.Leaf), value=x, right=box(Tree.Leaf))
-        .Node(left, value, right) =>
-            if x < value: Tree.Node(left=box(insert(*left, x)), value=value, right=right)
-            else: Tree.Node(left=left, value=value, right=box(insert(*right, x)))
-
-fn walk[T](tree: Tree[T], out: &mut List[T]) -> void:
-    match tree:
-        .Leaf => pass
-        .Node(left, value, right) =>
-            walk(*left, out)
-            out.push(value)
-            walk(*right, out)
-
-fn build(xs: List[i32]) -> Tree[i32]:
-    let t: Tree[i32] = Tree.Leaf
-    for x in xs:
-        t = insert(t, x)
-    t
-
-pub fn main() -> void $ Console:
-    t := build([5, 2, 8, 1, 9, 3])
-    let mut out: List[i32] = []
-    walk(t, &mut out)
-    println(debug(out))
-    println(t == build([5, 2, 8, 1, 9, 3]))
-    println(t == build([5, 2, 8, 1, 9]))
-    println(debug(build([2, 1])))
-    let mut names: List[string] = []
-    walk(insert(insert(insert(Tree.Leaf, \"m\"), \"a\"), \"z\"), &mut names)
-    println(debug(names))
-";
+    let main = include_str!("programs/recursive_layouts/tree.hd");
     assert_eq!(
         output_of("tree", main),
         "[1, 2, 3, 5, 8, 9]\ntrue\nfalse\n\
@@ -116,64 +78,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_json_like_value_holds_lists_and_maps_of_itself() {
     // Five payload fields: the box is a base and one subtype per variant.
-    let main = "\
-enum Value:
-    Null
-    Flag(on: bool)
-    Num(n: i64)
-    Text(s: string)
-    Items(items: List[Value])
-    Fields(fields: Map[string, Value])
-
-fn keys() -> List[string]: [\"name\", \"tags\", \"nested\"]
-
-fn count(v: Value) -> i32:
-    match v:
-        .Items(items) =>
-            let n = +1
-            for item in items:
-                n = n + count(item)
-            n
-        .Fields(fields) =>
-            let n = +1
-            for key in keys():
-                match fields.get(key):
-                    .Some(inner) => n = n + count(inner)
-                    .None => pass
-            n
-        _ => 1
-
-fn render(v: Value) -> string:
-    match v:
-        .Null => \"null\"
-        .Flag(on) => if on: \"true\" else: \"false\"
-        .Num(n) => \"$n\"
-        .Text(s) => \"'$s'\"
-        .Items(items) =>
-            let mut parts: List[string] = []
-            for item in items:
-                parts.push(render(item))
-            \"[\" + parts.join(\",\") + \"]\"
-        .Fields(fields) =>
-            let mut parts: List[string] = []
-            for key in keys():
-                match fields.get(key):
-                    .Some(inner) => parts.push(key + \":\" + render(inner))
-                    .None => pass
-            \"{\" + parts.join(\",\") + \"}\"
-
-pub fn main() -> void $ Console:
-    let mut inner: Map[string, Value] = {}
-    inner[\"name\"] = Value.Null
-    let mut fields: Map[string, Value] = {}
-    fields[\"name\"] = Value.Text(\"hd\")
-    fields[\"tags\"] = Value.Items([Value.Flag(true), Value.Null, Value.Num(25)])
-    fields[\"nested\"] = Value.Fields(inner)
-    doc := Value.Fields(fields)
-    println(count(doc))
-    println(render(doc))
-    println(render(Value.Items([])))
-";
+    let main = include_str!("programs/recursive_layouts/value.hd");
     assert_eq!(
         output_of("value", main),
         "8\n{name:'hd',tags:[true,null,25],nested:{name:null}}\n[]\n"
@@ -182,97 +87,13 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_linked_list_through_an_optional_field() {
-    let main = "\
-struct Node:
-    value: i32
-    next: *Node?
-
-fn push(list: *Node?, value: i32) -> *Node:
-    box(Node { value: value, next: list })
-
-fn total(list: *Node?) -> i32:
-    match list:
-        .Some(node) => node.value + total(node.next)
-        .None => 0
-
-fn reverse(list: *Node?) -> *Node?:
-    let out: *Node? = .None
-    let at = list
-    while true:
-        match at:
-            .Some(node) =>
-                out = .Some(box(Node { value: node.value, next: out }))
-                at = node.next
-            .None => return out
-
-fn first(list: *Node?) -> i32:
-    match list:
-        .Some(node) => node.value
-        .None => -1
-
-pub fn main() -> void $ Console:
-    let list: *Node? = .None
-    list = push(list, 1)
-    list = push(list, 2)
-    list = push(list, 3)
-    println(total(list))
-    println(first(list))
-    println(first(reverse(list)))
-";
+    let main = include_str!("programs/recursive_layouts/list.hd");
     assert_eq!(output_of("list", main), "6\n3\n1\n");
 }
 
 #[test]
 fn mutually_recursive_expressions_and_statements() {
-    let main = "\
-@derive(Eq, Debug)
-enum Expr:
-    Lit(value: i64)
-    Var(name: string)
-    Add(left: *Expr, right: *Expr)
-    Block(body: *Stmt, result: *Expr)
-
-@derive(Eq, Debug)
-enum Stmt:
-    Let(name: string, value: Expr)
-    Seq(first: *Stmt, second: *Stmt)
-
-fn lookup(env: List[(string, i64)], name: string) -> i64:
-    let found: i64 = 0
-    for entry in env:
-        if entry._0 == name:
-            found = entry._1
-    found
-
-fn eval(e: Expr, env: &mut List[(string, i64)]) -> i64:
-    match e:
-        .Lit(value) => value
-        .Var(name) => lookup(*env, name)
-        .Add(left, right) => eval(*left, env) + eval(*right, env)
-        .Block(body, result) =>
-            run(*body, env)
-            eval(*result, env)
-
-fn run(s: Stmt, env: &mut List[(string, i64)]) -> void:
-    match s:
-        .Let(name, value) =>
-            v := eval(value, env)
-            env.push((name, v))
-        .Seq(first, second) =>
-            run(*first, env)
-            run(*second, env)
-
-pub fn main() -> void $ Console:
-    program := Expr.Block(
-        body=box(Stmt.Seq(first=box(Stmt.Let(name=\"x\", value=Expr.Lit(40))), second=box(Stmt.Let(name=\"y\", value=Expr.Lit(2))))),
-        result=box(Expr.Add(left=box(Expr.Var(\"x\")), right=box(Expr.Var(\"y\")))),
-    )
-    let mut env: List[(string, i64)] = []
-    println(eval(program, &mut env))
-    println(Expr.Add(left=box(Expr.Lit(1)), right=box(Expr.Var(\"z\"))) == Expr.Add(left=box(Expr.Lit(1)), right=box(Expr.Var(\"z\"))))
-    println(Stmt.Let(name=\"a\", value=Expr.Lit(1)) == Stmt.Let(name=\"a\", value=Expr.Lit(2)))
-    println(debug(Expr.Block(body=box(Stmt.Let(name=\"a\", value=Expr.Lit(1))), result=box(Expr.Var(\"a\")))))
-";
+    let main = include_str!("programs/recursive_layouts/expr.hd");
     assert_eq!(
         output_of("expr", main),
         "42\ntrue\nfalse\n\
@@ -284,81 +105,14 @@ pub fn main() -> void $ Console:
 fn closures_trait_values_and_boxed_tuples_that_name_their_data() {
     // Each recursion runs through a type that is not data: a closure's
     // code type, a vtable's slot type, a tuple's box.
-    let main = "\
-struct Step:
-    name: string
-    weight: i32
-    then: fn(Step) -> i32
-
-fn weigh(step: Step) -> i32:
-    (step.then)(step)
-
-trait Link:
-    fn label(&self) -> string
-    fn next(&self) -> *dyn Link?
-
-struct Stop:
-    name: string
-    after: *dyn Link?
-
-impl Link for Stop:
-    fn label(&self) -> string: self.name
-    fn next(&self) -> *dyn Link?: self.after
-
-fn walk(link: &dyn Link) -> string:
-    let out = link.label()
-    let at = link.next()
-    while true:
-        match at:
-            .Some(l) =>
-                out = out + \">\" + l.label()
-                at = l.next()
-            .None => return out
-
-struct Pair:
-    left: (*Pair?, *Pair?, string, i32)
-
-fn depth(p: *Pair?) -> i32:
-    match p:
-        .Some(x) =>
-            a := depth(x.left._0)
-            b := depth(x.left._1)
-            1 + (if a > b: a else: b)
-        .None => 0
-
-pub fn main() -> void $ Console:
-    s := Step { name: \"s\", weight: 7, then: fn(x: Step) -> i32: x.weight * 6 }
-    println(weigh(s))
-    let c: *dyn Link = box(Stop { name: \"c\", after: .None })
-    let b: *dyn Link = box(Stop { name: \"b\", after: .Some(c) })
-    let a: &dyn Link = &Stop { name: \"a\", after: .Some(b) }
-    println(walk(a))
-    leaf := box(Pair { left: (.None, .None, \"leaf\", 0) })
-    mid := box(Pair { left: (.Some(leaf), .None, \"mid\", 1) })
-    println(depth(.Some(box(Pair { left: (.Some(mid), .Some(leaf), \"top\", 2) }))))
-";
+    let main = include_str!("programs/recursive_layouts/groups.hd");
     assert_eq!(output_of("groups", main), "42\na>b>c\n3\n");
 }
 
 #[test]
 fn an_enum_reference_at_growing_arguments() {
     // `E[T]` holds `&E[T?]`: the reference ends every value layout.
-    let main = "\
-enum Grow[T]:
-    More(inner: *Grow[T?])
-    Done(value: T)
-
-fn depth[T](g: Grow[T]) -> i32:
-    match g:
-        .More(_inner) => 1
-        .Done(_value) => 0
-
-pub fn main() -> void $ Console:
-    let g: Grow[i32] = Grow.More(box(Grow.Done(.Some(+3))))
-    println(depth(g))
-    let d: Grow[i32] = Grow.Done(+3)
-    println(depth(d))
-";
+    let main = include_str!("programs/recursive_layouts/grow.hd");
     assert_eq!(output_of("grow", main), "1\n0\n");
 }
 
