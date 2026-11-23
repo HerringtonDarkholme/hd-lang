@@ -1,1 +1,1 @@
-throw new Error('checking must not load this provider');
+throw new Error("checking must not load this provider");
