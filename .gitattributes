@@ -21,3 +21,12 @@ spec/conformance/lang/lexical/processing-model/utf8-bom.hd -text
 # Prefixed string raw parts exercise physical CRLF before interpolation.
 crates/hd_driver/tests/cases/literal-lines/*-crlf.hd -text whitespace=cr-at-eol
 spec/conformance/lang/lexical/literals/prefixed-string-crlf-raw-parts.hd -text whitespace=cr-at-eol
+
+# `hd fmt`'s inputs and expected texts hold trailing spaces and blank lines
+# at the file end on purpose (`cli.fmt.comments`, `cli.fmt.blank-lines`), so
+# `git diff --check` skips them. The formatter turns each CRLF into LF
+# (`cli.fmt.line-endings`): comments.input keeps its CRLF bytes on every
+# platform.
+spec/conformance/cli/fmt-width/inputs/* -whitespace
+spec/conformance/cli/fmt-width/want/* -whitespace
+spec/conformance/cli/fmt-width/inputs/comments.input -text
