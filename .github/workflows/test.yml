@@ -593,30 +593,44 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Four runs, no repeats (2026-11-23):
+        # - Parse and type cases (4,533 of 8,875) only check, so their verdict
+        #   is the same in every mode. Only `node and wasmtime` runs them; the
+        #   others run the runtime cases (HD_CONFORMANCE_PHASE=runtime).
+        # - `node and wasmtime` runs every case on Node too, so there is no
+        #   separate Node-only run.
         include:
-          # The checked run is the count audit, leak report and buffer traps, so
-          # an ownership bug fails CI instead of a local run.
-          - mode: default and checked
-            engine: ""
-            pipeline: ""
           # Every engine: each runs a build tuned for its own target and the
           # outputs are compared (crates/hd_opt/DESIGN.md (optimization
           # pipelines) §5, Q3). Local runs test the V8 target on Node only.
           - mode: node and wasmtime
             engine: wasmtime
             pipeline: ""
+            checked: ""
+            phase: ""
+          # The checked run is the count audit, leak report and buffer traps, so
+          # an ownership bug fails CI instead of a local run.
+          - mode: checked
+            engine: ""
+            pipeline: ""
+            checked: "1"
+            phase: runtime
           # Every runtime fixture also runs through the optimized pipeline on
           # both engines, so a miscompile in an optimization pass fails CI
           # (docs/compiler/tiering.md §4.3).
           - mode: optimized
             engine: wasmtime
             pipeline: optimized
+            checked: ""
+            phase: runtime
           # The optimized pipeline with the checked runtime. An optimization that
           # removes a uniqueness check trips an assert here, even when the program's
           # output happens to stay right in plain optimized.
           - mode: checked optimized
             engine: ""
             pipeline: optimized
+            checked: "1"
+            phase: runtime
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -649,29 +663,17 @@ jobs:
       # once, in the Rust tests job.
       # Each run fails the job by itself, and the first failing doesn't skip the second.
       - name: Conformance
-        if: ${{ !cancelled() && matrix.mode != 'checked optimized' }}
         env:
           HD_CONFORMANCE_ENGINE: ${{ matrix.engine }}
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
-        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
-
-      - name: Conformance (checked)
-        if: ${{ !cancelled() && matrix.mode == 'default and checked' }}
-        env:
-          HD_CONFORMANCE_CHECKED: "1"
+          HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
+          HD_CONFORMANCE_PHASE: ${{ matrix.phase }}
         run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
 
       # Runs std's runtime modules with the checked runtime's asserts too; the
       # Rust tests job runs them plain.
       - name: Std runtime modules (checked)
-        if: ${{ !cancelled() && matrix.mode == 'default and checked' }}
+        if: ${{ !cancelled() && matrix.mode == 'checked' }}
         env:
           HD_CONFORMANCE_CHECKED: "1"
         run: cargo test --release --workspace --all-features --test conformance -- --exact std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
-
-      - name: Conformance (checked optimized)
-        if: ${{ !cancelled() && matrix.mode == 'checked optimized' }}
-        env:
-          HD_CONFORMANCE_CHECKED: "1"
-          HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
-        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures

@@ -122,8 +122,10 @@ struct Fixture {
     reuse: Reuse,
 }
 
-fn formatted_sources(sources: &MemorySources) -> MemorySources {
+/// The sources with every `.hd` file formatted, and whether any changed.
+fn formatted_sources(sources: &MemorySources) -> (MemorySources, bool) {
     let mut formatted = MemorySources::default();
+    let mut changed = false;
     for entry in hd_project::SourceSet::list(sources) {
         let bytes = hd_project::SourceSet::read(sources, &entry.path).expect("fixture source");
         let text = String::from_utf8_lossy(&bytes);
@@ -135,31 +137,42 @@ fn formatted_sources(sources: &MemorySources) -> MemorySources {
         } else {
             text.into_owned()
         };
+        changed |= output.as_bytes() != &bytes[..];
         formatted.insert(&entry.path, &output);
     }
-    formatted
+    (formatted, changed)
 }
 
-fn formatted_fixture(fixture: &Fixture) -> Fixture {
-    let sources = formatted_sources(&fixture.sources);
+/// The fixture formatted, or `None` when formatting changes none of its
+/// sources (its check would repeat the original's exactly).
+fn formatted_fixture(fixture: &Fixture) -> Option<Fixture> {
+    let (sources, mut changed) = formatted_sources(&fixture.sources);
+    let deps: Vec<_> = fixture
+        .deps
+        .iter()
+        .map(|(name, sources)| {
+            let (formatted, dep_changed) = formatted_sources(sources);
+            changed |= dep_changed;
+            (name.clone(), formatted)
+        })
+        .collect();
+    if !changed {
+        return None;
+    }
     let text = hd_project::SourceSet::read(&sources, &fixture.primary).map_or_else(
         || fixture.text.clone(),
         |bytes| String::from_utf8_lossy(&bytes).into_owned(),
     );
-    Fixture {
+    Some(Fixture {
         sources,
         primary: fixture.primary.clone(),
         text,
         tree: fixture.tree,
-        deps: fixture
-            .deps
-            .iter()
-            .map(|(name, sources)| (name.clone(), formatted_sources(sources)))
-            .collect(),
+        deps,
         checked: fixture.checked,
         package: fixture.package,
         reuse: Reuse::default(),
-    }
+    })
 }
 
 fn diagnostic_signature(output: &Output) -> Vec<(Severity, String)> {
@@ -2803,6 +2816,18 @@ fn specification_conformance_passes_except_known_failures() {
         );
         cases.retain(|case| case.phase == Phase::Runtime && tier(case) == name);
     }
+    // `HD_CONFORMANCE_PHASE=runtime` (CI): only the cases that run. A parse
+    // or type case only checks, so its verdict is the same in every engine,
+    // pipeline and checked mode; CI runs those in one mode only.
+    let runtime_only = selection_env("HD_CONFORMANCE_PHASE")
+        .filter(|phase| !phase.is_empty())
+        .is_some_and(|phase| {
+            assert_eq!(phase, "runtime", "HD_CONFORMANCE_PHASE must be runtime");
+            true
+        });
+    if runtime_only {
+        cases.retain(|case| case.phase == Phase::Runtime);
+    }
     let store = new_store();
     let started = Instant::now();
     let results = {
@@ -2859,7 +2884,7 @@ fn specification_conformance_passes_except_known_failures() {
             },
         })
         .collect();
-    let (summary, errors) = if only.is_some() || selected_tier.is_some() {
+    let (summary, errors) = if only.is_some() || selected_tier.is_some() || runtime_only {
         known_failures::judge_selection("driver", engine, Some(pipeline_name()), &known, &outcomes)
     } else {
         known_failures::judge(
@@ -2901,7 +2926,11 @@ fn formatter_preserves_every_parseable_conformance_check_verdict_and_code() {
         if !parse(fixture.text.as_bytes()).is_ok() {
             continue;
         }
-        let formatted = formatted_fixture(&fixture);
+        // Most fixtures are already formatted: formatting them changes no
+        // byte, so both checks would be the same work (about 2 min on CI).
+        let Some(formatted) = formatted_fixture(&fixture) else {
+            continue;
+        };
         let before = check_fixture(&fixture, &store);
         let after = check_fixture(&formatted, &store);
         assert_eq!(
