@@ -448,3 +448,98 @@ fn scope_overlay_rebases_modules_and_ambiguities_and_hides_unreadable_names() {
             .all(|(label, _)| label != "choice" && label != "broken")
     );
 }
+
+/// `module.rt.std-only`: neither a runtime module nor a public re-export
+/// of its declaration is a usable import repair in another package.
+#[test]
+fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
+    use hd_resolve::HeadKind;
+    use hd_resolve::iface::{Export, ImportHint, std_import_hint};
+    use hd_resolve::work::count_hint_work;
+
+    let mut warm_work = Vec::new();
+    for width in [100u64, 1000] {
+        let run = Run::new();
+        let names = run.names();
+        let visible = names.item("std.text", "Shared");
+        let hidden = names.item("std.rt.memory", "Shared");
+        let tree = names.item("std.rtree", "Node");
+        let export = |module: &str, label: &str, def| Export {
+            module: module.into(),
+            name: run.syms.intern(label),
+            def,
+            kind: HeadKind::Struct,
+        };
+        let mut exports = vec![
+            export("std.text", "Shared", visible),
+            export("std.facade", "Shared", visible),
+            export("std.other_facade", "Shared", hidden),
+            export("std.rt.memory", "Shared", hidden),
+            export("std.leaky", "RuntimeOnly", hidden),
+            export("std.rt", "RootOnly", visible),
+            export("std.rt.memory", "NestedOnly", visible),
+            export("std.rtree", "Node", tree),
+        ];
+        for i in 0..width {
+            let label = format!("Filler{i}");
+            exports.push(export("std.misc", &label, names.item("std.misc", &label)));
+        }
+        // A complete declaration table accompanies the aliases: a runtime
+        // declaration is ordinary interface data, not malformed metadata.
+        let mut declared = hd_base::HashSet::default();
+        let items = exports
+            .iter()
+            .filter(|e| declared.insert(e.def))
+            .map(|e| {
+                Item::new(
+                    e.def,
+                    run.syms.intern(names.display_name(e.def)),
+                    true,
+                    ItemData::Struct(Vec::new(), TypeAttrs::default()),
+                )
+            })
+            .collect();
+        let iface = folder_iface(
+            "std",
+            Items::new(items),
+            exports,
+            Arc::from([]),
+            None,
+            &[],
+            Vec::new(),
+        );
+        let (hint, cold) = count_hint_work(|| std_import_hint(&names, [&iface], "Shared"));
+        assert_eq!(hint.path.as_deref(), Some("std.text.Shared"));
+        assert_eq!(hint.text, "; add `use std.text.Shared`");
+        assert!(cold >= width, "the first hint indexes all exports");
+        for label in [
+            "RuntimeOnly",
+            "RootOnly",
+            "NestedOnly",
+            "leaky",
+            "rt",
+            "memory",
+        ] {
+            let (hint, work) = count_hint_work(|| std_import_hint(&names, [&iface], label));
+            assert_eq!(hint, ImportHint::default(), "{width}: {label}");
+            assert_eq!(work, 1, "an absent name probes the built interface once");
+        }
+        for (label, path) in [
+            ("Node", "std.rtree.Node"),
+            ("rtree", "std.rtree"),
+            ("text", "std.text"),
+        ] {
+            assert_eq!(
+                std_import_hint(&names, [&iface], label).path.as_deref(),
+                Some(path)
+            );
+        }
+        let (again, work) = count_hint_work(|| std_import_hint(&names, [&iface], "Shared"));
+        assert_eq!(again, hint);
+        warm_work.push(work);
+    }
+    assert_eq!(
+        warm_work[0], warm_work[1],
+        "tenfold unrelated exports must not increase a warm lookup's work"
+    );
+}
