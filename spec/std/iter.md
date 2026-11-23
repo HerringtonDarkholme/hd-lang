@@ -461,6 +461,8 @@ fn reversed(text: string) -> string:
 16. r[std-iter.double-ended.selection] Reversing `Skip`, `Take`, or `Zip` reverses the selected forward sequence, discarding unselected prefixes or tails only when advancement requires it.
 17. r[std-iter.double-ended.flat-map] `FlatMap` retains partially consumed front and back inner cursors, joining them when the outer cursor ends.
 18. r[std-iter.double-ended.cost] Reversal construction uses constant space and time; traversal work is proportional to advanced or discarded source items, with at most four bytes per scalar.
+19. r[std-iter.double-ended.zip-advance] After aligning lengths, `Zip.next_back` calls `next_back` once on each cursor, left before right, even when exhausted.
+20. r[std-iter.double-ended.noncopy-produced] Conditional adapter implementations accept non-copyable source and produced cursor types when they meet the required traits.
 
 > **Why.** Rust's `DoubleEndedIterator` shares front and back progress without
 > buffering. Exact counts let `take`, `skip`, and `zip` select the same

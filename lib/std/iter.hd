@@ -486,27 +486,24 @@ impl[
 ] Iterator[U] for FlatMap[I, T, U, J, F]:
     fn next(&mut self) -> U?:
         while true:
-            match self.part:
-                .Some(cursor) =>
-                    let mut inner = cursor
-                    found := inner.next()
-                    self.part = if found.is_some(): .Some(inner) else: .None
-                    if found.is_some():
-                        return found
-                .None => pass
+            front_item := match self.part.as_mut():
+                .Some(inner) => inner.next()
+                .None => .None
+            if front_item.is_some():
+                return front_item
+            self.part = .None
             if !self.done:
                 match self.source.next():
                     .Some(item) =>
                         self.part = .Some((self.transform)(item).iter())
                         continue
                     .None => self.done = true
-            match self.back:
-                .Some(cursor) =>
-                    let mut inner = cursor
-                    found := inner.next()
-                    self.back = if found.is_some(): .Some(inner) else: .None
-                    return found
-                .None => return .None
+            back_item := match self.back.as_mut():
+                .Some(inner) => inner.next()
+                .None => .None
+            if back_item.is_none():
+                self.back = .None
+            return back_item
 
 # A collection built from the items of an iterator. It is not a prelude name.
 ## What `collect` builds: a target that gathers items of `T`.
@@ -830,7 +827,7 @@ impl[
     I < ?Copy & DoubleEndedIterator[T],
     T < ?Copy,
     J < ?Copy & Iterable[T, IntoIter = R],
-    R < DoubleEndedIterator[T],
+    R < ?Copy & DoubleEndedIterator[T],
 ] DoubleEndedIterator[T] for Chain[I, T, J]:
     fn next_back(&mut self) -> T?:
         if self.last:
@@ -844,7 +841,7 @@ impl[
     T < ?Copy,
     U < ?Copy,
     J < ?Copy & Iterable[U, IntoIter = R],
-    R < DoubleEndedIterator[U] & ExactSizeIterator[U],
+    R < ?Copy & DoubleEndedIterator[U] & ExactSizeIterator[U],
 ] DoubleEndedIterator[(T, U)] for Zip[I, T, U, J]:
     fn next_back(&mut self) -> (T, U)?:
         let left = self.source.len()
@@ -855,19 +852,16 @@ impl[
         while right > left:
             _ := self.rest.next_back()
             right -= 1
-        match self.source.next_back():
-            .Some(a) =>
-                match self.rest.next_back():
-                    .Some(b) => .Some((a, b))
-                    .None => .None
-            .None => .None
+        match (self.source.next_back(), self.rest.next_back()):
+            (.Some(a), .Some(b)) => .Some((a, b))
+            _ => .None
 
 impl[
     I < ?Copy & ExactSizeIterator[T],
     T < ?Copy,
     U < ?Copy,
     J < ?Copy & Iterable[U, IntoIter = R],
-    R < ExactSizeIterator[U],
+    R < ?Copy & ExactSizeIterator[U],
 ] ExactSizeIterator[(T, U)] for Zip[I, T, U, J]:
     fn len(&self) -> usize:
         left := self.source.len()
@@ -879,32 +873,29 @@ impl[
     T < ?Copy,
     U < ?Copy,
     J < ?Copy & Iterable[U, IntoIter = R],
-    R < DoubleEndedIterator[U],
+    R < ?Copy & DoubleEndedIterator[U],
     F < FnMut(T) -> J,
 ] DoubleEndedIterator[U] for FlatMap[I, T, U, J, F]:
     fn next_back(&mut self) -> U?:
         while true:
-            match self.back:
-                .Some(cursor) =>
-                    let mut inner = cursor
-                    found := inner.next_back()
-                    self.back = if found.is_some(): .Some(inner) else: .None
-                    if found.is_some():
-                        return found
-                .None => pass
+            back_item := match self.back.as_mut():
+                .Some(inner) => inner.next_back()
+                .None => .None
+            if back_item.is_some():
+                return back_item
+            self.back = .None
             if !self.done:
                 match self.source.next_back():
                     .Some(item) =>
                         self.back = .Some((self.transform)(item).iter())
                         continue
                     .None => self.done = true
-            match self.part:
-                .Some(cursor) =>
-                    let mut inner = cursor
-                    found := inner.next_back()
-                    self.part = if found.is_some(): .Some(inner) else: .None
-                    return found
-                .None => return .None
+            front_item := match self.part.as_mut():
+                .Some(inner) => inner.next_back()
+                .None => .None
+            if front_item.is_none():
+                self.part = .None
+            return front_item
 
 impl[T] ListIter[T]:
     ## Reverses the remaining sequence without advancing or buffering it.
@@ -980,7 +971,7 @@ impl[
     I < ?Copy & DoubleEndedIterator[T],
     T < ?Copy,
     J < ?Copy & Iterable[T, IntoIter = R],
-    R < DoubleEndedIterator[T],
+    R < ?Copy & DoubleEndedIterator[T],
 ] Chain[I, T, J]:
     ## Reverses the remaining sequence without advancing or buffering it.
     ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
@@ -992,7 +983,7 @@ impl[
     T < ?Copy,
     U < ?Copy,
     J < ?Copy & Iterable[U, IntoIter = R],
-    R < DoubleEndedIterator[U] & ExactSizeIterator[U],
+    R < ?Copy & DoubleEndedIterator[U] & ExactSizeIterator[U],
 ] Zip[I, T, U, J]:
     ## Reverses the remaining sequence without advancing or buffering it.
     ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
@@ -1004,7 +995,7 @@ impl[
     T < ?Copy,
     U < ?Copy,
     J < ?Copy & Iterable[U, IntoIter = R],
-    R < DoubleEndedIterator[U],
+    R < ?Copy & DoubleEndedIterator[U],
     F < FnMut(T) -> J,
 ] FlatMap[I, T, U, J, F]:
     ## Reverses the remaining sequence without advancing or buffering it.
