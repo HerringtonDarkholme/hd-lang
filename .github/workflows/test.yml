@@ -440,8 +440,10 @@ jobs:
   # release 6). Local gates stay in the dev profile, where debug
   # assertions and overflow checks are on.
   #
-  # Two jobs run the Build job's test binaries side by side: hd_command's,
-  # and every other crate's. Conformance's suite runs in its own jobs below.
+  # Two jobs run the Build job's test binaries side by side: the CLI's and
+  # the wasmtime host's, and every other crate's. The host's binaries ran
+  # with the others (424 s against the CLI's 162 s, run 45198757197).
+  # Conformance's suite runs in its own jobs below.
   test:
     name: Rust tests (${{ matrix.shard }})
     needs: build
@@ -452,7 +454,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - shard: cli
+          - shard: cli and host
             invert: ""
           - shard: workspace
             invert: "-v"
@@ -476,7 +478,7 @@ jobs:
         run: zstd -dc target/ci-build.tar.zst | tar -xf -
 
       - name: Test
-        run: scripts/ci-tests.sh ${{ matrix.invert }} '^crates/hd_command/' --skip specification_conformance_passes_except_known_failures
+        run: scripts/ci-tests.sh ${{ matrix.invert }} '^crates/(hd_command|hd_run_wasmtime)/' --skip specification_conformance_passes_except_known_failures
 
   # `cargo install hd-lang` builds the published packages, and a package
   # holds only its own directory (crates/README.md, "Publishing"). The dry
