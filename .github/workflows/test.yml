@@ -81,6 +81,13 @@ jobs:
             echo "::warning::sccache did not start; building without it"
           fi
 
+      # The scale check and the count budgets measure what default features
+      # emit: `checked-report`, which the tests turn on, changes plain builds
+      # too (count_ops: int-loop.hd's no-op calls 0 -> 9, run 45194113785).
+      # So they get an `hd` and count_ops of their own, kept in target/tools
+      # (the test build then writes target/release/hd again). Its `hd` has the
+      # planted quadratic loop, off unless HD_PLANT_QUADRATIC is set.
+      #
       # `cargo test --no-run` also builds every example and binary. The list
       # of test binaries (package directory, target, executable) goes with
       # them, for scripts/ci-tests.sh.
@@ -88,12 +95,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cargo build --release -p hd_command --features hd_command/plant-quadratic -p hd_driver --example count_ops
+          mkdir -p target/tools
+          cp target/release/hd target/release/examples/count_ops target/tools/
           cargo test --release --all-features --workspace --no-run --message-format=json-render-diagnostics > target/ci-build.json
           jq -r --arg root "$PWD/" 'select(.reason == "compiler-artifact" and .executable != null)
             | [(.manifest_path | ltrimstr($root) | rtrimstr("/Cargo.toml")), .target.name,
                (.executable | ltrimstr($root)), .profile.test] | @tsv' target/ci-build.json > target/ci-build.tsv
           awk -F'\t' -v OFS='\t' '$4 == "true" { print $1, $2, $3 }' target/ci-build.tsv > target/ci-tests.tsv
-          { cut -f3 target/ci-build.tsv | sort -u; echo target/ci-tests.tsv; } > target/ci-files.txt
+          { cut -f3 target/ci-build.tsv | sort -u; echo target/ci-tests.tsv; echo target/tools; } > target/ci-files.txt
           tar -cf - -T target/ci-files.txt | zstd -T0 -3 -q -o target/ci-build.tar.zst
           echo "$(wc -l < target/ci-tests.tsv) test binaries, $(du -h target/ci-build.tar.zst | cut -f1) packed"
 
@@ -113,7 +123,7 @@ jobs:
   # Format, lint, the web build, the specification, the scale check and the
   # count budgets share one setup. Each check runs whatever an earlier one
   # did, so one failure hides no other, and any failure fails the job. The
-  # scale check and the counts run the Build job's `hd` and examples.
+  # scale check and the counts run the Build job's tools.
   checks:
     name: Checks
     needs: build
@@ -264,18 +274,17 @@ jobs:
       # judged by the compiler's deterministic work counters.
       - name: Scale check
         if: ${{ !cancelled() }}
-        run: pnpm run metrics -- --only scale
+        run: pnpm run metrics -- --hd target/tools/hd --only scale
 
-      # Its self-test: the build's `hd` has the planted quadratic loop
-      # (feature plant-quadratic), which HD_PLANT_QUADRATIC turns on. The
-      # check must fail, naming the counter that grew.
+      # Its self-test: the same `hd` with its planted quadratic loop turned
+      # on. The check must fail, naming the counter that grew.
       - name: A planted quadratic loop fails the scale check
         if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -uo pipefail
           status=0
-          HD_PLANT_QUADRATIC=1 HD_SCALE_SHAPES=fn-items pnpm run metrics -- --only scale > planted.log 2>&1 || status=$?
+          HD_PLANT_QUADRATIC=1 HD_SCALE_SHAPES=fn-items pnpm run metrics -- --hd target/tools/hd --only scale > planted.log 2>&1 || status=$?
           cat planted.log
           test "$status" -eq 1
           grep -q "FAIL scale: fn-items check: .*hashes" planted.log
@@ -330,7 +339,7 @@ jobs:
           if [ "$GITHUB_REF" = refs/heads/main ]; then
             count_flags+=(--refresh)
           fi
-          node bench/counts/run.ts --compiler target/release/examples/count_ops --previous target/count-ops/previous.json "${count_flags[@]}"
+          node bench/counts/run.ts --compiler target/tools/count_ops --previous target/count-ops/previous.json "${count_flags[@]}"
 
       - name: Show measured counts
         if: always()
@@ -376,7 +385,7 @@ jobs:
       # The Build job's binaries are not this job's to cache.
       - name: Keep the build out of the Rust cache
         if: always()
-        run: rm -rf target/release
+        run: rm -rf target/release target/tools
 
   # Only this job holds a write token, and it runs nothing from the repository.
   refresh-budgets:
