@@ -167,7 +167,7 @@ fn is_before(a: string, b: string) -> bool:
 
 ```text
 fn has_value(items: List[*i32], value: *i32) -> bool:
-    items.contains(value)  # compares the values the references refer to
+    items.contains(&value)  # compares the values the references refer to
 ```
 
 1. r[std-cmp.ref.eq-noncopy] `std.cmp` implements `Eq` for each reference type, `*T`, `*mut T`, `&T`, and `&mut T`, when `T < ?Copy & Eq`. Two references are equal when the values they refer to are, so `r.eq(&s)` is `*r == *s`.

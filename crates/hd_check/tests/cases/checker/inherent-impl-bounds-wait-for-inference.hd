@@ -26,7 +26,7 @@ pub fn queue() -> void:
 
 pub fn seen() -> bool:
     let set = Set::new()
-    set.contains(1.5)
+    set.contains(&1.5)
 
 pub fn keys() -> List[f64]:
     let mut m = {}

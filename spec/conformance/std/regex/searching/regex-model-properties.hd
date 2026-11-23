@@ -78,7 +78,7 @@ fn verify_match(found: Match, text: string) -> void:
     )
     positions := boundaries(text)
     assert(
-        positions.contains(found.start) && positions.contains(found.end),
+        positions.contains(&found.start) && positions.contains(&found.end),
         reason="match offsets are Unicode scalar boundaries",
     )
     assert_equal(

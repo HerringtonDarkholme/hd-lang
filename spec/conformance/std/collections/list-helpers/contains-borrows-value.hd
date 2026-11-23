@@ -1,0 +1,48 @@
+# test: every collection contains borrows its needle in direct, generic and function-value calls
+# Spec std/collections List Helpers: std-collections.helper.contains-borrowed; Set: std-collections.set.contains-borrowed; UniqList: std-collections.uniq-list.contains.
+use std.collections.{Set, UniqList}
+
+struct Item:
+    text: string
+
+impl Eq for Item:
+    fn eq(&self, other: &Item) -> bool:
+        self.text == other.text
+
+fn list_has[T < Eq](items: &List[T], value: &T) -> bool:
+    items.contains(value)
+
+fn unique_has[T < ?Copy & Eq](items: &UniqList[T], value: &T) -> bool:
+    items.contains(value)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("borrows counted needles without changing them"):
+        needle := "needle"
+        words := ["hay", needle]
+        assert(words.contains(&needle))
+        assert(!words.contains(&"missing"))
+        assert(list_has(&words, &needle))
+        assert_equal(needle, "needle")
+        let empty: List[string] = []
+        assert(!empty.contains(&needle))
+        nested := [["a"], ["b", "c"]]
+        assert(nested.contains(&["b", "c"]))
+        assert([Item { text: "value" }].contains(&Item { text: "value" }))
+
+    it("has borrowed function-value signatures for all three collections"):
+        let list: fn(&List[string], &string) -> bool = List::[string]::contains
+        let unique: fn(&UniqList[string], &string) -> bool = UniqList::[string]::contains
+        let set_has: fn(&Set[string], &string) -> bool = Set::[string]::contains
+        needle := "value"
+        assert(list(&[needle], &needle))
+        items := UniqList::[string].from_list([needle])
+        assert(unique(&items, &needle))
+        assert(unique_has(&items, &needle))
+        let mut set = Set::[string].new()
+        assert(!set_has(&set, &needle))
+        _ := set.insert(needle)
+        assert(set_has(&set, &needle))
+        assert(!set.contains(&"absent"))
+        assert_equal(needle, "value")

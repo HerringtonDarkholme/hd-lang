@@ -10,7 +10,7 @@ from `std.collections`.
 | `xs.len()`, `xs.is_empty()` | size |
 | `xs[i]` | the element; panics when out of range |
 | `xs.get(i)`, `xs.first()`, `xs.last()` | the element as `T?` |
-| `xs.contains(v)`, `xs.index_of(v)` | search by value; `index_of` gives `usize?` |
+| `xs.contains(&v)`, `xs.index_of(v)` | search by value; `index_of` gives `usize?` |
 | `xs.slice(start, end)`, `xs.take(n)` | a new list |
 | `xs.sorted()`, `xs.reversed()`, `xs.unique()` | a new list |
 | `xs.sorted_by_key(f)`, `xs.min()`, `xs.max()`, `xs.sum()` | ordering and totals |
@@ -115,7 +115,7 @@ let mut heap: Heap[i32] = Heap::new()
 heap.push(5)
 heap.push(9)
 heap.push(1)
-println("$fresh ${seen.contains("b")} ${debug(front)} ${debug(heap.pop())} ${heap.len()}")
+println("$fresh ${seen.contains(&"b")} ${debug(front)} ${debug(heap.pop())} ${heap.len()}")
 ```
 
 ```output

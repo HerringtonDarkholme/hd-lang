@@ -12,6 +12,7 @@
 # whose type arguments are the caller's parameters of the same names.
 use std.annotation.annotate
 use std.inspect.Inspectable
+use std.rt.memory.address_of
 
 # A member's or variant's facts. The prototype holds `Inspectable` values
 # rather than `Any`.
@@ -168,10 +169,6 @@ impl[HdS < ?Copy] VariantRecord[HdS]:
 
 # The compiler builds each directory's record once, in static data, so
 # its address is its id, as a `TypeId` is its descriptor's address.
-@intrinsic("mem_ref_address")
-fn address_of[T < ?Copy](target: &T) -> usize:
-    panic("intrinsic")
-
 ## A found member's key: a reference to its `KeyRecord`.
 ## See [annot.structure.members.key-entry](../../spec/lang/14-annotations.md#r-annot.structure.members.key-entry).
 pub type Key[HdS < ?Copy] = *KeyRecord[HdS]

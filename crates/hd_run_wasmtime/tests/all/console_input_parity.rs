@@ -1,5 +1,5 @@
 //! Observe real pipe output before releasing input to either host engine.
-mod support;
+use crate::support;
 
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -14,7 +14,8 @@ use support::{MEM, Program, Scratch};
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 const CHILD_PROGRAM: &str = "HD_M20_CONSOLE_CHILD_PROGRAM";
-const TEST_NAME: &str = "console_input_flushes_each_prompt_before_waiting_for_input";
+const TEST_NAME: &str =
+    "console_input_parity::console_input_flushes_each_prompt_before_waiting_for_input";
 const DEADLINE: Duration = Duration::from_secs(10);
 
 fn write(p: &mut Program, line: &[u8]) {
@@ -233,7 +234,8 @@ fn console_input_flushes_each_prompt_before_waiting_for_input() {
     check_child(rust, "wasmtime", true);
 }
 
-const SIBLING_TEST: &str = "console_input_keeps_siblings_running_in_both_node_profiles";
+const SIBLING_TEST: &str =
+    "console_input_parity::console_input_keeps_siblings_running_in_both_node_profiles";
 const SIBLING_PROGRAM: &str = "HD_813_CONSOLE_SIBLING_PROGRAM";
 
 fn compile_fixture(source: &str) -> Vec<u8> {

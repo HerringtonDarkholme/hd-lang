@@ -487,7 +487,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 | --- | --- |
 | `List[T]` | `sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]`; `group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]`; `partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T])`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool`; `find(&self, test: fn(&T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
 | `List[T]` | `min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?`; `max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?` |
-| `List[T]`, when `T < Eq` | `contains(&self, value: T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(&mut self) -> void` |
+| `List[T]`, when `T < Eq` | `contains(&self, value: &T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(&mut self) -> void` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
 | `List[T]`, when `T < Ord` | `sorted(&self) -> List[T]`; `sort(&mut self) -> void`; `min(&self) -> T?`; `max(&self) -> T?` |
 | `List[T]`, when `T < Num` | `sum(self) -> T` |
@@ -507,7 +507,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 13. r[std-collections.helper.windows.views] `windows(size)` returns overlapping `ListView[T]` values of `size` elements, in starting-index order.
 14. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
 15. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
-16. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
+16. r[std-collections.helper.contains-borrowed] `contains(value: &T)` is true when an element equals the borrowed value by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
 17. r[std-collections.helper.min-max.copy-ties] `min` returns a copy of the first smallest element and `max` one of the last largest by `Ord`, each in `.Some`, as Rust's `Iterator::min` and `Iterator::max` do. An empty list gives `.None`.
 18. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
 19. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
@@ -713,7 +713,7 @@ fn distinct(words: List[string]) -> Set[string]:
 | --- | --- |
 | `new` | `Set::new() -> Set[T]` |
 | `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
-| `contains` | `contains(&self, value: T) -> bool` |
+| `contains` | `contains(&self, value: &T) -> bool` |
 | `insert`, `remove` | `insert(&mut self, value: T) -> bool`, and the same for `remove` |
 | `union`, `intersection` | `union(&self, other: &Set[T]) -> Union[T]`; `intersection(&self, other: &Set[T]) -> Intersection[T]` |
 | iteration | `Iterable[T]` |
@@ -724,7 +724,7 @@ fn distinct(words: List[string]) -> Set[string]:
 1. r[std-collections.set.operation-surface] `std.collections` declares `Set[T < Eq & Hash]` with private fields and exactly the listed surface; programs import it with `use std.collections.Set`.
 2. r[std-collections.set.distinct] A set holds elements no two of which are equal by `Eq`. `new` returns an empty set.
 3. r[std-collections.set.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
-4. r[std-collections.set.contains] `contains(value)` is true exactly when the set has an element equal to `value`.
+4. r[std-collections.set.contains-borrowed] `contains(value: &T)` is true exactly when the set has an element equal to the borrowed value.
 5. r[std-collections.set.insert] `insert(value)` adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
 6. r[std-collections.set.remove] `remove(value)` removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
 7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic).

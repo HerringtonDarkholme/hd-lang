@@ -20,7 +20,7 @@ for (let i = 0; i < args.length; i++) {
   if (["--record", "--refresh"].includes(arg)) {
     flags.add(arg);
   } else if (
-    ["--baseline", "--previous", "--output", "--input", "--reason"].includes(arg) &&
+    ["--baseline", "--previous", "--output", "--input", "--reason", "--runner"].includes(arg) &&
     args[i + 1]
   ) {
     options.set(arg, args[++i]);
@@ -54,25 +54,16 @@ if (!options.has("--input")) {
   env.RUST_TEST_THREADS = "2";
   env.HD_TEST_JOBS = "2";
   try {
+    // `--runner` names a count_reasons test binary built already (CI's one
+    // build); it runs from hd_driver's directory, as cargo runs it.
+    const runner = options.get("--runner");
+    const filter = ["count_reasons", "--exact", "--ignored", "--nocapture"];
+    const cargo = ["test", "-q", "-j", "2", "-p", "hd_driver", "--test", "count_reasons", "--"];
     const log = execFileSync(
-      "cargo",
-      [
-        "test",
-        "-q",
-        "-j",
-        "2",
-        "-p",
-        "hd_driver",
-        "--test",
-        "count_reasons",
-        "count_reasons",
-        "--",
-        "--exact",
-        "--ignored",
-        "--nocapture",
-      ],
+      runner ? resolve(runner) : "cargo",
+      runner ? filter : [...cargo, ...filter],
       {
-        cwd: root,
+        cwd: runner ? `${root}/crates/hd_driver` : root,
         env,
         encoding: "utf8",
         timeout: 600_000,

@@ -2073,13 +2073,16 @@ impl[T] List[T]:
 
 impl[T < Eq] List[T]:
     ## True exactly when the list has an element equal to `value`.
-    ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
-    pub fn contains(&self, value: T) -> bool:
-        self.index_of(value).is_some()
+    ## See [std-collections.helper.contains-borrowed](../../spec/std/collections.md#r-std-collections.helper.contains-borrowed).
+    pub fn contains(&self, value: &T) -> bool:
+        for item in self:
+            if item.eq(value):
+                return true
+        false
 
     # The index of the first element equal to `value`.
     ## Returns the index of the first element equal to `value` by `Eq`, in `.Some`, or `.None`.
-    ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
+    ## See [std-collections.helper.contains-borrowed](../../spec/std/collections.md#r-std-collections.helper.contains-borrowed).
     pub fn index_of(&self, value: T) -> usize?:
         let index: usize = 0
         for item in self:
@@ -2865,9 +2868,9 @@ impl[T < Eq & Hash] Set[T]:
         self.entries.len() == 0
 
     ## True exactly when the set has an element equal to `value`.
-    ## See [std-collections.set.contains](../../spec/std/collections.md#r-std-collections.set.contains).
-    pub fn contains(&self, value: T) -> bool:
-        self.entries.get(value).is_some()
+    ## See [std-collections.set.contains-borrowed](../../spec/std/collections.md#r-std-collections.set.contains-borrowed).
+    pub fn contains(&self, value: &T) -> bool:
+        self.entries.get(*value).is_some()
 
     # Adds `value`, and is true when it was not already there.
     ## Adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
@@ -2921,7 +2924,7 @@ impl[T < Eq & Hash] Iterator[T] for Union[T]:
         while true:
             match self.rest.next():
                 .Some(value) =>
-                    if !self.seen.contains(value):
+                    if !self.seen.contains(&value):
                         return .Some(value)
                 .None => return .None
 
@@ -2936,7 +2939,7 @@ impl[T < Eq & Hash] Iterator[T] for Intersection[T]:
         while true:
             match self.source.next():
                 .Some(value) =>
-                    if self.other.contains(value):
+                    if self.other.contains(&value):
                         return .Some(value)
                 .None => return .None
 
@@ -2958,7 +2961,7 @@ impl[T < Eq & Hash] Eq for Set[T]:
         if self.len() != other.len():
             return false
         for (item, _) in self.entries:
-            if !other.contains(*item):
+            if !other.contains(item):
                 return false
         true
 

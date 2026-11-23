@@ -7295,8 +7295,15 @@ std/sync/arc/an-arc-is-never-wire.hd	type	reject:unsatisfied-trait-bound	std/syn
 std/sync/arc/an-arc-of-a-sync-value-is-send-and-sync-as-a-part.hd	type	accept	std/sync.md#r-std-sync.arc.send
 std/sync/arc/a-crossing-reaches-a-top-level-arc-only-of-a-sync-value.hd	type	reject:crossing-top-level-binding	std/sync.md#r-std-sync.arc.send
 std/iter/double-ended-cursors/noncopy-rev-without-trait-import.hd	runtime	accept	std/iter.md#r-std-iter.double-ended.concrete-rev
+std/collections/list-helpers/contains-borrows-value.hd	runtime	accept	std/collections.md#list-helpers
 std/collections/list-helpers/dedup-in-place.hd	runtime	accept	std/collections.md#r-std-collections.helper.dedup-in-place
 std/collections/map-methods/map-key-value-cursors.hd	runtime	accept	std/collections.md#map-methods
+std/num/float-math/both-widths-and-special-values.hd	runtime	accept	std/num.md#float-math
+std/num/float-math/exp-ln-power.hd	runtime	accept	std/num.md#float-math
+std/num/float-math/full-range-trig.hd	runtime	accept	std/num.md#float-math
+std/num/float-math/function-values.hd	runtime	accept	std/num.md#float-math
+std/num/float-math/inverse-and-scaled-logs.hd	runtime	accept	std/num.md#float-math
+std/num/float-math/module-constants.hd	runtime	accept	std/num.md#float-math
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

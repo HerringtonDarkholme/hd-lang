@@ -25,5 +25,5 @@ tests:
         assert(empty.all(fn(n: &i32) -> bool: false), reason="all is true")
         assert_equal(empty.index_of(1), .None, reason="index_of")
     it("contains and index_of"):
-        assert([5, 7].contains(7) && ![5, 7].contains(6), reason="contains")
+        assert([5, 7].contains(&7) && ![5, 7].contains(&6), reason="contains")
         assert_equal([5, 7, 5].index_of(5), .Some(0), reason="the first index")

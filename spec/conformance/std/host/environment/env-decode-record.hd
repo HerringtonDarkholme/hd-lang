@@ -48,7 +48,7 @@ impl Env for DeclaredEnv:
             "APP_OPTIONAL_LABEL",
             "APP_FALLBACK_REGIONS",
             "APP_TOKEN",
-        ].contains(name):
+        ].contains(&name):
             panic("unexpected environment name: $name")
         self.values.get(name)
     fn names(self) -> List[string]:

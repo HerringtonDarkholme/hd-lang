@@ -1,6 +1,6 @@
 //! Held Console output reaches the stream before the program waits on the
 //! host (`std-console.host.visible-text-sync`), and once it grows past a bound.
-mod support;
+use crate::support;
 
 use std::io::Write;
 use std::sync::{Arc, Mutex};

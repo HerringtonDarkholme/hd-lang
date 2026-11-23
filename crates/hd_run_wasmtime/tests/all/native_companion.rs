@@ -6,7 +6,7 @@
 //! The checked-in companions under `tests/native/` are the generator's
 //! snapshots and are also compiled here, so a generator change that breaks
 //! the embedder API fails this test. `HD_BLESS=1` rewrites them.
-mod support;
+use crate::support;
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -23,27 +23,27 @@ use hd_run_wasmtime::{EngineConfig, HostIo, WasmtimeEngine};
 
 #[allow(dead_code, clippy::all, clippy::pedantic)]
 mod surface {
-    include!("native/surface.host.rs");
+    include!("../native/surface.host.rs");
 }
 
 #[allow(dead_code, clippy::all, clippy::pedantic)]
 mod forms {
-    include!("native/forms.host.rs");
+    include!("../native/forms.host.rs");
 }
 
 #[allow(dead_code, clippy::all, clippy::pedantic)]
 mod values {
-    include!("native/values.host.rs");
+    include!("../native/values.host.rs");
 }
 
 #[allow(dead_code, clippy::all, clippy::pedantic)]
 mod handles {
-    include!("native/handles.host.rs");
+    include!("../native/handles.host.rs");
 }
 
 #[allow(dead_code, clippy::all, clippy::pedantic)]
 mod deep {
-    include!("native/deep.host.rs");
+    include!("../native/deep.host.rs");
 }
 
 fn int(bits: u8, signed: bool) -> Value {
