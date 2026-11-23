@@ -1222,23 +1222,51 @@ impl Backward for Tables {
     }
 }
 
-/// Whether place `word` reaches, in place and through reads that borrow
-/// only, a value or local that owns: what a chain of part reads can move
-/// out of ([`solve`]). Cost: one step per read of the chain.
-fn owned_chain(b: &Body, t: &Tables, mut word: u32) -> bool {
+/// The read a binding local `l` holds while that read borrows: the
+/// binding owns nothing, and a read of it reads what that read reads.
+fn held(t: &Tables, l: u32) -> Option<usize> {
+    let bit = t.l[l as usize].bit;
+    (bit != NONE)
+        .then(|| t.bits[bit as usize].read as usize)
+        .filter(|&r| t.v[r].borrows)
+}
+
+/// The read a place's root is, when the place is in place and that read
+/// borrows: a borrowing read of a value, or the read a borrowing binding
+/// holds ([`held`]). What a chain of borrowing reads steps to.
+fn borrowed_root(b: &Body, t: &Tables, word: u32) -> Option<usize> {
+    let place = b.view(word);
+    if !place.in_place(b) {
+        return None;
+    }
+    match place.root {
+        Root::Value(v) if b.tags[v as usize] == Tag::Read && t.v[v as usize].borrows => {
+            Some(v as usize)
+        }
+        Root::Local(l) => held(t, l),
+        _ => None,
+    }
+}
+
+/// Whether place `word` reaches, in place and through reads and bindings
+/// that borrow only, a value or local that owns or may own ([`solve`]'s
+/// `owns_local`): what a chain of reads can move out of. Cost: one step
+/// per read of the chain.
+fn owned_chain(b: &Body, t: &Tables, mut word: u32, owns_local: impl Fn(u32) -> bool) -> bool {
     loop {
+        if let Some(r) = borrowed_root(b, t, word) {
+            word = b.data[r][0];
+            continue;
+        }
         let place = b.view(word);
         if !place.in_place(b) {
             return false;
         }
-        match place.root {
-            Root::Value(v) if b.tags[v as usize] == Tag::Read && t.v[v as usize].borrows => {
-                word = b.data[v as usize][0];
-            }
-            Root::Value(v) => return !t.v[v as usize].borrows,
-            Root::Local(l) => return !t.l[l as usize].unowned,
-            _ => return false,
-        }
+        return match place.root {
+            Root::Value(v) => !t.v[v as usize].borrows,
+            Root::Local(l) => owns_local(l),
+            _ => false,
+        };
     }
 }
 
@@ -1332,16 +1360,20 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             let needed = taken[r]
                 || (f.alias != NONE && taken[f.alias as usize])
                 || (bind != NONE && t.l[bind as usize].kept > 0);
+            // A local owns, or may: a parameter its caller gives the body
+            // is unowned only while no read of it keeps a count.
+            let owns_local = |m: u32| {
+                !t.l[m as usize].unowned
+                    || list
+                        .iter()
+                        .position(|&p| p == m)
+                        .is_some_and(|at| !suspends && cx.received(b.item, at, n) == Pass::Owned)
+            };
             // It could move only out of what can own, by a place a move
             // takes: not a value that borrows, nor a parameter its caller
             // keeps, nor what lies behind a reference or in a buffer.
             let root_owned = match b.view(b.data[r][0]).root {
-                Root::Local(m) => {
-                    !t.l[m as usize].unowned
-                        || list.iter().position(|&p| p == m).is_some_and(|at| {
-                            !suspends && cx.received(b.item, at, n) == Pass::Owned
-                        })
-                }
+                Root::Local(m) => owns_local(m),
                 Root::Value(v) => !t.v[v as usize].borrows,
                 _ => true,
             };
@@ -1360,26 +1392,24 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
             // move out of what owns it (the scan's rule for parts, applied
             // to a binding the solve keeps). A tuple match's payload is such
             // a chain: `[%payload]` of `[%elem as .Some .0]` of
-            // `[%tuple .0]`. A chain that goes behind a reference, as a
-            // match through `place.as_mut()` does, has nothing to move out
-            // of and keeps its borrow. Cost: the chain's length per needed
-            // read of such a type, and the marking walk takes each read
-            // once per solve.
+            // `[%tuple .0]`; so is a binding of a binding, as an inlined
+            // callee's parameter bound to a match's binding, whose held read
+            // then keeps the count and the binding owns it. A chain that
+            // goes behind a reference, as a match through `place.as_mut()`
+            // does, has nothing to move out of and keeps its borrow. Cost:
+            // the chain's length per needed read of such a type, and the
+            // marking walk takes each read once per solve.
             let owns = needed
                 && !moves
                 && cx.copies(b.ty[r]) != Tri::Yes
-                && owned_chain(b, t, b.data[r][0]);
+                && owned_chain(b, t, b.data[r][0], owns_local);
             if owns {
                 t.v[r].keeps = true;
                 let mut word = b.data[r][0];
-                while let Root::Value(v) = b.view(word).root
-                    && b.tags[v as usize] == Tag::Read
-                    && t.v[v as usize].borrows
-                    && b.view(word).in_place(b)
-                {
-                    t.v[v as usize].borrows = false;
-                    t.v[v as usize].keeps = true;
-                    word = b.data[v as usize][0];
+                while let Some(v) = borrowed_root(b, t, word) {
+                    t.v[v].borrows = false;
+                    t.v[v].keeps = true;
+                    word = b.data[v][0];
                 }
             }
             if moves

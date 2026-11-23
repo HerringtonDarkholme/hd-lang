@@ -1,0 +1,21 @@
+# @dump: own
+# @build: release
+# expected: no `Release` after either store of `x`: the two leaves that
+# bind it are on disjoint paths, so each store finds the local empty.
+# Today only the first store in body order is known to find it empty
+# (own/overwrites.rs `finds_empty`), so the second releases a zero.
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+fn width(photo: Photo?) -> u32:
+    match photo:
+        .Some(p) => p.width
+        .None => u32(0)
+
+fn part_bind(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.Some(p), 1) => p.width
+        (x, _) => width(x)

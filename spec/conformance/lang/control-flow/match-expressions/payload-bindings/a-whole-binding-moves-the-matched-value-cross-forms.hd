@@ -1,0 +1,168 @@
+# fixture-runtime-profile: pending-tick
+# test: an arm that binds the whole matched value, which is not copied, moves it at each leaf that reaches it; a tuple, a call, a parameter, a field and a generic subject, on one path or two, with and without a guard, against a binding of a part, before, inside and after awaits
+# Spec 13 Moves: ref.move.pattern.
+# Spec 06 Match Expressions: flow.match.subject, flow.match.guard.borrow.
+# expect-stdout: tuple 8 8 0 one 8 0 guard 8 103 100
+# expect-stdout: single 108 100 one 108 0 guard 8 103 100 literal 8 108 100
+# expect-stdout: field 9 103 100 call 8 103 generic 1 8 0
+# expect-stdout: part 8 8 0 nested 18 1010 0 loop 309 closure 8 12 11
+# expect-stdout: before 108 after 8 103 inside 108 guard 8 103
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+fn host_wait!() -> void $ Tick:
+    $.use(Tick).tick!("")
+
+struct Photo:
+    width: u32
+    pixels: List[u8]
+
+impl !Copy for Photo
+
+struct Holder:
+    photo: Photo?
+    tag: i32
+
+impl !Copy for Holder
+
+fn photo(width: u32) -> Photo:
+    Photo { width: width, pixels: [1] }
+
+fn keep(photo: Photo) -> u32:
+    photo.width + u32(photo.pixels.len())
+
+fn width(photo: Photo?) -> u32:
+    match photo:
+        .Some(p) => keep(p)
+        .None => u32(0)
+
+fn make(w: u32) -> Photo?:
+    .Some(photo(w))
+
+fn tuple_two(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.Some(p), 1) => keep(p)
+        other => width(other._0)
+
+fn tuple_one(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.None, _) => 0
+        other => width(other._0)
+
+fn tuple_guard(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.Some(p), _) if p.width > 3 => keep(p)
+        other => width(other._0) + 100
+
+fn single(small: Photo?) -> u32:
+    match small:
+        other => width(other) + 100
+
+fn single_one(small: Photo?) -> u32:
+    match small:
+        .None => 0
+        other => width(other) + 100
+
+fn single_guard(small: Photo?) -> u32:
+    match small:
+        .Some(p) if p.width > 3 => keep(p)
+        other => width(other) + 100
+
+fn single_literal(small: Photo?, n: i32) -> u32:
+    match small:
+        .Some(p) if n == 1 => keep(p)
+        .None if n == 2 => 5
+        other => width(other) + 100
+
+fn field(h: Holder) -> u32:
+    match h.photo:
+        .Some(p) if p.width > 3 => keep(p) + u32(h.tag)
+        other => width(other) + 100
+
+fn call(w: u32) -> u32:
+    match make(w):
+        .Some(p) if p.width > 3 => keep(p)
+        other => width(other) + 100
+
+fn generic[T < ?Copy](item: T?, n: i32, take: fn(T?) -> u32) -> u32:
+    match item:
+        .Some(_) if n == 1 => 1
+        other => take(other)
+
+fn part(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.Some(p), 1) => keep(p)
+        (x, _) => width(x)
+
+fn nested(a: Photo?, b: Photo?) -> u32:
+    match a:
+        .None => 0
+        x =>
+            match b:
+                .Some(q) if q.width > 3 => keep(q) + width(x)
+                y => width(y) + width(x) + 1000
+
+fn looped(n: i32) -> u32:
+    let total = u32(0)
+    for i in 0..n:
+        let cur: Photo? = if i % 2 == 0: .Some(photo(u32(i))) else: .None
+        step := match cur:
+            .Some(p) if p.width > 1 => keep(p)
+            other => width(other) + 100
+        total = total + step
+    total
+
+fn captured(small: Photo?, n: i32) -> u32:
+    match (small, n):
+        (.Some(p), 1) => keep(p)
+        other =>
+            run := fn() -> u32: u32(other._1) + u32(10)
+            run()
+
+fn before!(small: Photo?) -> u32 $ Tick:
+    total := match small:
+        .None => 0
+        other => width(other) + 100
+    host_wait!()
+    total
+
+fn after!(w: u32) -> u32 $ Tick:
+    host_wait!()
+    match make(w):
+        .Some(p) if p.width > 3 => keep(p)
+        other =>
+            host_wait!()
+            width(other) + 100
+
+fn inside!(small: Photo?) -> u32 $ Tick:
+    match small:
+        .None => 0
+        other =>
+            host_wait!()
+            width(other) + 100
+
+fn waiting_guard!(small: Photo?, n: i32) -> u32 $ Tick:
+    match (small, n):
+        (.Some(p), _) if wait_then!(p.width > 3) => keep(p)
+        other => width(other._0) + 100
+
+fn wait_then!(answer: bool) -> bool $ Tick:
+    host_wait!()
+    answer
+
+pub fn main!() -> void $ Console + Tick:
+    println(
+        "tuple ${tuple_two(.Some(photo(7)), 1)} ${tuple_two(.Some(photo(7)), 2)} ${tuple_two(.None, 1)} one ${tuple_one(.Some(photo(7)), 1)} ${tuple_one(.None, 1)} guard ${tuple_guard(.Some(photo(7)), 1)} ${tuple_guard(.Some(photo(2)), 2)} ${tuple_guard(.None, 1)}",
+    )
+    println(
+        "single ${single(.Some(photo(7)))} ${single(.None)} one ${single_one(.Some(photo(7)))} ${single_one(.None)} guard ${single_guard(.Some(photo(7)))} ${single_guard(.Some(photo(2)))} ${single_guard(.None)} literal ${single_literal(.Some(photo(7)), 1)} ${single_literal(.Some(photo(7)), 2)} ${single_literal(.None, 1)}",
+    )
+    println(
+        "field ${field(Holder { photo: .Some(photo(7)), tag: 1 })} ${field(Holder { photo: .Some(photo(2)), tag: 1 })} ${field(Holder { photo: .None, tag: 1 })} call ${call(7)} ${call(2)} generic ${generic(.Some(photo(7)), 1, width)} ${generic(.Some(photo(7)), 2, width)} ${generic(.None, 2, width)}",
+    )
+    println(
+        "part ${part(.Some(photo(7)), 1)} ${part(.Some(photo(7)), 2)} ${part(.None, 1)} nested ${nested(.Some(photo(7)), .Some(photo(9)))} ${nested(.Some(photo(7)), .Some(photo(1)))} ${nested(.None, .None)} loop ${looped(5)} closure ${captured(.Some(photo(7)), 1)} ${captured(.Some(photo(7)), 2)} ${captured(.None, 1)}",
+    )
+    println(
+        "before ${before!(.Some(photo(7)))} after ${after!(7)} ${after!(2)} inside ${inside!(.Some(photo(7)))} guard ${waiting_guard!(.Some(photo(7)), 1)} ${waiting_guard!(.Some(photo(2)), 1)}",
+    )

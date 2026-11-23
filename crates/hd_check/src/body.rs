@@ -666,6 +666,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether a guard of that decision views a binding
     /// (`flow.match.guard.borrow`).
     pub decision_views: bool,
+    /// The read of a local's place that decision matches, which its
+    /// bindings read through to that place (`ref.move.pattern`), or
+    /// `NONE`.
+    pub decision_root: Ref,
     /// Source bindings for unread-suspension checks and optional tooling
     /// facts, each with the node whose first identifier names it: its
     /// declaring node, or a recursive closure's binding pattern.
@@ -973,6 +977,7 @@ pub(crate) fn new_ck<'a, 'c>(
         guard_bindings: Vec::new(),
         decision_start: 0,
         decision_views: false,
+        decision_root: Ref(NONE),
         user_locals: Vec::new(),
         norm_stack: Vec::new(),
         norm_reported: HashSet::default(),

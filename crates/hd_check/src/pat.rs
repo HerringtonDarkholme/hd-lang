@@ -1358,6 +1358,11 @@ impl Ck<'_, '_> {
         // failed expression is one diagnostic.
         let failed = sr.0 == NONE || self.infer.resolve(self.pool(), st) == Ty::POISON;
         let st = if failed { Ty::POISON } else { st };
+        let sr = if failed {
+            sr
+        } else {
+            self.matched_place(n, sr, st)
+        };
         self.join_site(want, |this, result| {
             let mut rows = Vec::new();
             let mut arms = Vec::new();
@@ -1461,8 +1466,82 @@ impl Ck<'_, '_> {
         let mut lits = HashMap::default();
         self.decision_start = self.b.body().len();
         self.decision_views = rows.iter().any(|r| !r.twins.is_empty());
+        // `ref.move.pattern`: a whole binding reads the local's place the
+        // match reads ([`Self::matched_place`]).
+        self.decision_root = if self.whole_binding(rows, t) && self.local_place_read(v) {
+            v
+        } else {
+            Ref(NONE)
+        };
         let root = self.column((v, t));
         self.tree(rows, vec![root], m, &mut lits)
+    }
+
+    /// `ref.move.pattern`: a row that binds the whole matched value, of a
+    /// type that moves, moves it out of a place, as a MIR binding moves
+    /// out of the scrutinee's place (`_x = move _1`), and drop flags end
+    /// that place on the paths that moved it. A value is no place: a
+    /// whole value moves only where its drop follows the move in its block
+    /// (`hd_tir` own/moves.rs, rule 2), and a leaf of the decision is in
+    /// no such block. So a matched read of a local's place, in place, is
+    /// the place each binding of the decision reads through to
+    /// ([`Self::decide`]), and any other matched value of match `n` is
+    /// stored in a hidden local first, whose read the match then matches,
+    /// as MIR stores a scrutinee in a temporary.
+    /// The store comes before the arms, so it precedes each guard's read
+    /// of the place in the body as in its flow. A match whose bindings
+    /// take parts only, or copied values, matches its value: a part moves
+    /// out of a value on its path (`ref.move.field`). Cost: one look at
+    /// each arm's pattern node, and at most one store.
+    fn matched_place(&mut self, n: NodeRef<'_>, v: Ref, t: Ty) -> Ref {
+        let whole = n
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::MatchArm)
+            .map(|arm| arm.parts::<1>()[0])
+            .find(|p| p.kind() == SyntaxKind::BindingPattern);
+        let Some(pat) = whole else {
+            return v;
+        };
+        if self.copies(t) || self.ref_of(t).is_some() || self.local_place_read(v) {
+            return v;
+        }
+        let at = pat.index();
+        let name = self.cx.names.syms.intern("$matched");
+        let l = self.b.local(t, name, local_flags::ASSIGNED, at);
+        self.set_local(l, v, at);
+        self.b.get(l, t, at)
+    }
+
+    /// Whether a row binds all of a matched value of type `t` by value,
+    /// when `t` moves.
+    fn whole_binding(&mut self, rows: &[Row<'_>], t: Ty) -> bool {
+        if self.copies(t) || self.ref_of(t).is_some() {
+            return false;
+        }
+        rows.iter().any(|r| {
+            !r.wrap_some
+                && r.pat
+                    .is_some_and(|p| p.kind() == SyntaxKind::BindingPattern)
+                && r.binds.iter().any(|(_, l)| !self.ref_bound.contains_key(l))
+        })
+    }
+
+    /// Whether `v` reads a local or a part of one in place: a read
+    /// through a reference or of an element moves nothing out, and
+    /// `move-out-of-place` reports a binding that would.
+    fn local_place_read(&self, v: Ref) -> bool {
+        let b = self.b.body();
+        v.as_inst().is_some_and(|i| {
+            let i = i.0 as usize;
+            b.tags[i] == Tag::Read
+                && b.decode_place(b.data[i][0]).is_some_and(|place| {
+                    matches!(place.root, PlaceRoot::Local(_))
+                        && !place
+                            .proj
+                            .iter()
+                            .any(|s| matches!(s, Proj::Deref | Proj::Elem(_)))
+                })
+        })
     }
 
     /// The column of value `v`, of type `t`.
@@ -1727,7 +1806,7 @@ impl Ck<'_, '_> {
         } else {
             self.b.body().decode_place(o.place)?
         };
-        self.flat(place, self.decision_views)
+        self.flat(place, self.decision_views || self.decision_root.0 != NONE)
     }
 
     /// The place of a guard's twin ([`Self::flat`] through every read):
@@ -1755,7 +1834,7 @@ impl Ck<'_, '_> {
         let b = self.b.body();
         while let PlaceRoot::Value(x) = place.root
             && let Some(i) = x.as_inst().map(|i| i.0 as usize)
-            && i >= self.decision_start
+            && (i >= self.decision_start || x == self.decision_root)
         {
             if b.tags[i] != Tag::Read {
                 return None;

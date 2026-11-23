@@ -4738,6 +4738,7 @@ lang/control-flow/match-expressions/payload-patterns/match-bare-variant-with-pay
 lang/control-flow/match-expressions/payload-patterns/match-payload-unknown-field.hd	type	reject:unknown-field	lang/06-control-flow.md#r-flow.match.payload.unknown
 lang/control-flow/match-expressions/payload-patterns/match-literal-pattern.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.literal
 lang/control-flow/match-expressions/payload-patterns/match-variant-shorthand.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.variant.shorthand
+lang/control-flow/match-expressions/payload-bindings/a-whole-binding-moves-the-matched-value-cross-forms.hd	runtime	accept	lang/13-values-and-references.md#r-ref.move.pattern
 lang/control-flow/match-expressions/payload-bindings/match-keeps-subject.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.no-ownership-copied
 lang/control-flow/match-expressions/payload-bindings/match-moves-not-copied-payload-only.hd	type	accept	lang/06-control-flow.md#r-flow.match.no-ownership-copied
 lang/control-flow/match-expressions/payload-bindings/match-not-copied-payload-reuse-after-move.hd	type	reject:use-of-moved-value	lang/06-control-flow.md#r-flow.match.no-ownership-copied
