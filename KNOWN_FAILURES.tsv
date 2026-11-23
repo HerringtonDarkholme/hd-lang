@@ -1,1 +1,2 @@
 path	issue	engine	reason
+lang/requirements/provider-access/use-result-escapes-through-a-free-lifetime.hd	#2337		A `$.use(K)` result has no local origin, so it is returned through a free result lifetime.
