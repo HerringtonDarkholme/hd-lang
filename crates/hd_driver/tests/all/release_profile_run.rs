@@ -88,13 +88,7 @@ fn one_file(text: &str) -> MemorySources {
     src
 }
 
-const NEXT: &str = "\
-fn next(value: i32) -> i32:
-    value + 1
-
-pub fn main() -> void $ Console:
-    println(next(2147483647))
-";
+const NEXT: &str = include_str!("programs/release_profile_run/next.hd");
 
 /// Debug, then release, then debug again from one store: each build runs
 /// its own profile's code, and the second debug build reads the first's.
@@ -138,8 +132,8 @@ fn debug_and_release_builds_never_share_code() {
 /// checked build's program key.
 #[test]
 fn a_test_run_keeps_the_test_profile() {
-    let text = format!("{NEXT}\ntests:\n    it(\"adds one\"):\n        next(2147483647)\n");
-    let src = one_file(&text);
+    let text = include_str!("programs/release_profile_run/next_with_a_test.hd");
+    let src = one_file(text);
     let store = MemoryStore::default();
     let goal = Goal::Tests {
         module: None,
