@@ -1,0 +1,6 @@
+use pkg.base.defs.{Pick, Receiver}
+use pkg.prod.defs.{Product}
+
+pub fn first(r: Receiver) -> i32:
+    let p: Product = r.pick()
+    p.id

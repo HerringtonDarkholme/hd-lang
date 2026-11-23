@@ -11,40 +11,13 @@ use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const BASE: &str = "\
-pub trait Pick[T]:
-    fn pick(self) -> T
+const BASE: &str = include_str!("programs/impl_universe/base.hd");
 
-pub struct Receiver:
-    pub n: i32
-";
+const PROD: &str = include_str!("programs/impl_universe/prod.hd");
 
-const PROD: &str = "\
-use pkg.base.defs.{Pick, Receiver}
+const A: &str = include_str!("programs/impl_universe/a.hd");
 
-pub struct Product:
-    pub id: i32
-
-impl Pick[Product] for Receiver:
-    fn pick(self) -> Product:
-        Product { id: self.n }
-";
-
-const A: &str = "\
-use pkg.base.defs.{Pick, Receiver}
-use pkg.prod.defs.{Product}
-
-pub fn first(r: Receiver) -> i32:
-    let p: Product = r.pick()
-    p.id
-";
-
-const B: &str = "\
-use pkg.base.defs.{Pick, Receiver}
-
-pub fn second(r: Receiver) -> i32:
-    r.pick()
-";
+const B: &str = include_str!("programs/impl_universe/b.hd");
 
 /// The rendered diagnostics of one analysis.
 fn analyze(executor: Executor, a_first: bool) -> String {
