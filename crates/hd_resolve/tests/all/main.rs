@@ -6,3 +6,4 @@ mod iface_codec;
 mod known_items;
 mod show_ty;
 mod source_queries;
+mod trait_queries;
