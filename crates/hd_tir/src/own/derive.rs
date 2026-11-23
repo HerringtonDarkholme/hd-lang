@@ -2291,17 +2291,24 @@ pub(crate) fn frame_reference_origins(
 }
 
 /// Stores whose new value changes no count, reference dependency or Drop
-/// obligation. One instruction census and one query per distinct stored type.
+/// obligation: neither the stored value's type nor the type of the place's
+/// root holds a `Drop` value, since that root's hook reads the part the
+/// store writes. One instruction census and one query per distinct pair of
+/// stored type and root type.
 pub(crate) fn count_neutral_stores(b: &Body, cx: &dyn OwnCx) -> Vec<bool> {
-    count_neutral_stores_with(b, |ty| {
+    count_neutral_stores_with(b, |ty, root| {
         !cx.counted(ty)
             && !cx.holds_ref(ty)
             && cx.holds_drop(ty) == Tri::No
             && cx.copies(ty) == Tri::Yes
+            && root.is_none_or(|root| cx.holds_drop(root) == Tri::No)
     })
 }
 
-fn count_neutral_stores_with(b: &Body, mut neutral: impl FnMut(hd_types::Ty) -> bool) -> Vec<bool> {
+fn count_neutral_stores_with(
+    b: &Body,
+    mut neutral: impl FnMut(hd_types::Ty, Option<hd_types::Ty>) -> bool,
+) -> Vec<bool> {
     let mut types = hd_base::HashMap::default();
     b.tags
         .iter()
@@ -2318,7 +2325,12 @@ fn count_neutral_stores_with(b: &Body, mut neutral: impl FnMut(hd_types::Ty) -> 
                     .get((value.0 & !Ref::CONST_BIT) as usize)
                     .map(|c| c.0),
             };
-            ty.is_some_and(|ty| *types.entry(ty).or_insert_with(|| neutral(ty)))
+            let root = match b.view(b.data[i][0]).root {
+                Root::Local(l) => b.local_ty.get(l as usize).copied(),
+                Root::Value(v) => b.ty.get(v as usize).copied(),
+                _ => None,
+            };
+            ty.is_some_and(|ty| *types.entry((ty, root)).or_insert_with(|| neutral(ty, root)))
         })
         .collect()
 }
@@ -3284,7 +3296,7 @@ mod lending_tests {
                 let roots = origins.roots;
                 assert!(work <= 5 * body.len() + 4 * body.local_ty.len());
                 let mut queries = 0;
-                let neutral = count_neutral_stores_with(&body, |ty| {
+                let neutral = count_neutral_stores_with(&body, |ty, _| {
                     queries += 1;
                     ty == Ty::I32
                 });

@@ -1,14 +1,11 @@
 # @dump: wat
 # @build: std
 # @helper: std/rt_tests.stage_case/Token.take
-# Known failure (finding, lane 253; the baseline records the wrong code):
 # `take` moves `this`, whose type has a `Drop` hook, into `let mut held`
-# and sets `held.id = 0`, so the drop at `take`'s end should give the
-# hook 0. The build releases the parameter instead
-# (`rt:release_spilled` of `$this`), so the hook sees 5 and the write is
-# lost. The same body without the write is right. std.thread's
-# `Handle.join` met it (std runtime test `thread_tests.hd`, checked); it
-# now leaves the hook's work to the handle's drop.
+# and writes a field of it, so the drop at `take`'s end gives the hook
+# the written value: `held` owns what it holds. A field write into a
+# value whose hook reads it is no count-neutral store, so `held` is no
+# binding that borrows `this` (#2320).
 use std.rt.Drop
 
 let drops: usize = 0
