@@ -1,0 +1,14 @@
+## Money helpers.
+
+## Turns euros into cents.
+pub fn cents(euros: i32) -> i32:
+    euros * 100
+
+## A sum.
+pub struct Sum:
+    pub n: i32
+
+impl Sum:
+    ## Doubles.
+    pub fn double(self) -> Sum:
+        self

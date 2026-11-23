@@ -1,0 +1,8 @@
+use pkg.main.{seed, main_value}
+
+let h = seed() * 2
+let done = main_value()
+panic("zed after ${done}")
+
+pub fn zed_value() -> i32:
+    h

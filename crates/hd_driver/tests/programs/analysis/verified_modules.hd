@@ -1,0 +1,5 @@
+pub fn alpha(value: i32) -> i32:
+    value
+
+fn beta() -> void:
+    _ := alpha(+1)

@@ -1,0 +1,4 @@
+# @dump: tree
+# A function with a `dyn` parameter type and a result type.
+fn show(value: dyn Display) -> string:
+    value.to_string()

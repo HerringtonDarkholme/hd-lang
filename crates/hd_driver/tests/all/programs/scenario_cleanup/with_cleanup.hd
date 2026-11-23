@@ -1,0 +1,11 @@
+let cleaned: bool = false
+
+fn ready!() -> i32:
+    42
+
+pub fn main!() -> void:
+    _ := ready!()
+    cleaned = true
+
+pub fn cleanup_ran() -> bool:
+    cleaned

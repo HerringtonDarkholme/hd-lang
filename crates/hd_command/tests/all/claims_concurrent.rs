@@ -36,7 +36,7 @@ fn write_package(dir: &Path, round: usize) {
         std::fs::write(dir.join(format!("src/m{m}.hd")), text).expect("module");
         let _ = writeln!(lib, "use pkg.m{m}.f{m}_0");
     }
-    lib.push_str("\npub fn total() -> i32:\n    return ");
+    lib.push_str(include_str!("programs/claims_concurrent/write_package.hd"));
     let calls: Vec<String> = (0..MODULES).map(|m| format!("f{m}_0({m})")).collect();
     lib.push_str(&calls.join(" + "));
     lib.push('\n');

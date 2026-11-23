@@ -28,9 +28,9 @@ fn check(store: &MemoryStore, main: &str) -> Output {
 #[test]
 fn a_warm_check_decodes_few_interface_records() {
     let store = MemoryStore::default();
-    let main = "pub fn main() -> void $ Console:\n    println(\"hi\")\n";
+    let main = include_str!("programs/lazy_ifaces/main.hd");
     check(&store, main);
-    let edited = "pub fn main() -> void $ Console:\n    println(\"hello\")\n";
+    let edited = include_str!("programs/lazy_ifaces/edited.hd");
     let warm = check(&store, edited);
     let c = &warm.counters;
     // `println` and the little it names, out of std's hundreds of items.

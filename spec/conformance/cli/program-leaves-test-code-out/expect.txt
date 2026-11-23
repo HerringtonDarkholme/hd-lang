@@ -1,0 +1,8 @@
+# `hd run` and `hd build` build the executable without the package's test
+# code or its other tasks: tests/broken.hd and tasks/broken.hd don't compile.
+run: hd run
+stdout: main
+run: hd run seed
+stdout: seeded
+run: hd build
+file: build/debug/shop.wasm

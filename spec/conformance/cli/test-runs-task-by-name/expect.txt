@@ -1,0 +1,6 @@
+# An integration test runs a task by name with `hd_run!`: its arguments,
+# standard input and the package directory reach it. A name that is no
+# executable or task fails the case with a message that says so.
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"runs the seed task","outcome":"passed"},{"kind":"test","name":"names no program","outcome":"failed","message":"panic: explicit-panic: hd_run!: the package has no executable or task named 'nothing'"},{"kind":"summary","status":1}]

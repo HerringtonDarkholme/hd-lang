@@ -1,0 +1,5 @@
+use pkg.billing.price
+use std.testing.assert_equal
+
+it("bills"):
+    assert_equal(price(), 3, reason="b")

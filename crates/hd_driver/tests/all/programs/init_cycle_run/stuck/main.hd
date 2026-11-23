@@ -1,0 +1,4 @@
+use pkg.shop.a.{read_a}
+
+pub fn main() -> void $ Console:
+    println(read_a())

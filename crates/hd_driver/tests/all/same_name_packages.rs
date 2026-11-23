@@ -9,17 +9,7 @@ use hd_driver::{Dependency, Executor, Goal, Host, NoClock, Output, Packages, bui
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const MAIN: &str = "\
-use dep.euro
-use dep.yen
-use dep.euro.{Coin as Euro}
-use dep.yen.{Coin as Yen}
-
-pub fn main() -> void $ Console:
-    let e: Euro = euro.make(1)
-    let y: Yen = yen.make(1)
-    println(e.cents + y.cents + euro.value() + yen.value())
-";
+const MAIN: &str = include_str!("programs/same_name_packages/main.hd");
 
 /// A library named `money` whose declarations are spelled like the other
 /// one's, with different bodies.
@@ -128,8 +118,7 @@ fn same_named_dependencies_are_two_packages() {
 fn same_named_packages_never_share_entries() {
     let store = MemoryStore::default();
     let a = money(100, 1);
-    let main =
-        root("use dep.euro\n\npub fn main() -> void $ Console:\n    println(euro.value())\n");
+    let main = root(include_str!("programs/same_name_packages/euro_value.hd"));
     let first = ok(run(&store, &main, &[("euro", "/w/a", &a)]));
     assert!(first.counters.ifaces_built.contains(&"money".to_owned()));
     let again = ok(run(&store, &main, &[("euro", "/w/a", &a)]));

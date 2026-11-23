@@ -16,7 +16,7 @@ fn build_std(store: &MemoryStore, ret: &str, own: &[&str]) -> Output {
     sources.insert("inlined.hd", &callee);
     sources.insert(
         "main.hd",
-        "use std.inlined.bump\n\npub fn main() -> void $ Console:\n    println(bump(41))\n",
+        include_str!("programs/inlined_callee_edit/main_bump.hd"),
     );
     let host = Host {
         render_tir: own,

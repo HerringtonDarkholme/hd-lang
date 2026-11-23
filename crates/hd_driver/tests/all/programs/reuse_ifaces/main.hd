@@ -1,0 +1,5 @@
+pub fn helper() -> i32:
+    41
+
+pub fn main() -> void $ Console:
+    println("{helper() + 1}")

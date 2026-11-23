@@ -1,0 +1,7 @@
+# @dump: stdout
+fn line_total(price: i32, qty: i32) -> i32:
+    dbg(price * qty)
+    price * qty + 50
+
+pub fn main() -> void $ Console:
+    println(line_total(125, 10))

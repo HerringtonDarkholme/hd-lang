@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# An impl whose trait does not resolve is one error: its methods add none.
+struct Counter:
+    current: i32
+
+impl Missing for Counter:
+    fn next(self) -> i32: self.current
+
+pub fn main() -> void:
+    pass

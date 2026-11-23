@@ -1,22 +1,18 @@
 //! The float and case primitives (`format_f64`, `format_f32`,
 //! `format_f64_fixed`, `parse_f64`, `string_lower`, `string_upper`; spec 04 `types.display.*`, std `num` fixed-point
 //! text): the host's text against Rust's own float printing, which is an
-//! independent shortest round-trip and an exact fixed-point writer, then
-//! the same texts through compiled programs. With the `wasmtime` feature,
-//! the wasmtime host's text (`hd_run_wasmtime::prim`) must equal the Node
-//! host's on every sample.
+//! independent shortest round-trip and an exact fixed-point writer. With
+//! the `wasmtime` feature, the wasmtime host's text
+//! (`hd_run_wasmtime::prim`) must equal the Node host's on every sample.
+//! The same texts through compiled programs are stage cases
+//! (`tests/cases/std-num/`, `tests/cases/std-text/case-mapping-*`).
 
 use std::io::Write as _;
 use std::path::Path;
 use std::process::Stdio;
 
-use hd_testkit::Scratch;
-
-use hd_driver::{Executor, Goal, Host, NoClock, build};
-use hd_project::MemorySources;
 #[cfg(feature = "wasmtime")]
 use hd_run_wasmtime::prim;
-use hd_sched::SerialOrder;
 
 /// A xorshift generator, so the samples are the same on every run.
 struct Rng(u64);
@@ -359,161 +355,6 @@ fn fixed_text_matches_rust() {
     }
 }
 
-/// Runs the program's `tests:` block on the Node host and returns one
-/// result line per test.
-fn run_tests(name: &str, src: &str) -> Vec<String> {
-    let mut sources = MemorySources::default();
-    sources.insert("main.hd", src);
-    let store = crate::warm_store();
-    let host = Host {
-        render_tir: &[],
-        sources: &sources,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let goal = Goal::Tests {
-        module: None,
-        filter: None,
-    };
-    let out = build(&host, "app", &goal);
-    assert!(!out.diags.has_errors(), "{}", out.render());
-    let runs: Vec<String> = out
-        .tests
-        .iter()
-        .map(|t| {
-            let (test, init) = t.run.expect("a runnable test");
-            format!("{test}:{init}")
-        })
-        .collect();
-    assert!(!runs.is_empty(), "no tests ran");
-    let wasm = out.wasm.expect("wasm");
-    let path: Scratch = Scratch::unmade(
-        env!("CARGO_TARGET_TMPDIR"),
-        &format!("float-text-{name}.wasm"),
-    );
-    std::fs::write(&path, wasm).expect("write wasm");
-    let result = hd_testkit::node::command()
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/test.ts"))
-        .arg(&path)
-        .arg(runs.join(","))
-        .output()
-        .expect("node");
-    let _ = std::fs::remove_file(path);
-    let stdout = String::from_utf8_lossy(&result.stdout);
-    let lines: Vec<String> = stdout.lines().map(str::to_owned).collect();
-    assert_eq!(
-        lines.len(),
-        runs.len(),
-        "{stdout}\n{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    lines
-}
-
-fn all_pass(name: &str, src: &str) {
-    for line in run_tests(name, src) {
-        assert!(line.contains("\"status\":0,"), "{line}");
-        assert!(!line.contains("\"trapped\":true"), "{line}");
-    }
-}
-
-#[test]
-fn display_of_floats_through_programs() {
-    all_pass(
-        "display",
-        r#"use std.testing.assert_equal
-
-fn text[T < Display](value: T) -> string:
-    "$value"
-
-tests:
-    it("f64 digits and notation"):
-        assert_equal(text(1.5), "1.5", reason="plain")
-        assert_equal(text(1.0), "1.0", reason="whole")
-        assert_equal(text(0.1), "0.1", reason="shortest")
-        assert_equal(text(0.30000000000000004), "0.30000000000000004", reason="seventeen digits")
-        assert_equal(text(1e20), "100000000000000000000.0", reason="last fixed exponent")
-        assert_equal(text(1e21), "1e+21", reason="first scientific exponent")
-        assert_equal(text(1.5e300), "1.5e+300", reason="large")
-        assert_equal(text(1e-6), "0.000001", reason="last fixed small")
-        assert_equal(text(1.5e-7), "1.5e-7", reason="first scientific small")
-        assert_equal(text(5e-324), "5e-324", reason="smallest subnormal")
-        assert_equal(text(1.7976931348623157e308), "1.7976931348623157e+308", reason="largest")
-        assert_equal(text(-2.5), "-2.5", reason="negative")
-    it("f32 digits are the f32 digits"):
-        let tenth: f32 = 0.1
-        let big: f32 = 16777216.0
-        let max: f32 = 3.4028235e38
-        let tiny: f32 = 1e-45
-        let third: f32 = 0.33333334
-        assert_equal(text(tenth), "0.1", reason="f32 0.1")
-        let wide_tenth: f64 = 0.10000000149011612
-        assert_equal(text(wide_tenth), "0.10000000149011612", reason="the same value as f64")
-        assert_equal(text(big), "16777216.0", reason="whole")
-        assert_equal(text(max), "3.4028235e+38", reason="largest")
-        assert_equal(text(tiny), "1e-45", reason="smallest subnormal")
-        assert_equal(text(third), "0.33333334", reason="eight digits")
-        let wide_third: f64 = 0.3333333432674408
-        assert_equal(text(wide_third), "0.3333333432674408", reason="the same value as f64")
-    it("interpolation and to_string at the float type"):
-        let tenth: f32 = 0.1
-        wide := 0.1 + 0.2
-        assert_equal("${1.5}", "1.5", reason="literal")
-        assert_equal("$tenth", "0.1", reason="f32 value")
-        assert_equal("$wide", "0.30000000000000004", reason="f64 value")
-        assert_equal(tenth.to_string(), "0.1", reason="f32 to_string")
-        assert_equal(wide.to_string(), "0.30000000000000004", reason="f64 to_string")
-    it("specials"):
-        zero := 0.0
-        let nan = zero / zero
-        assert_equal(text(nan), "NaN", reason="NaN")
-        assert_equal(text(-nan), "NaN", reason="NaN has no sign")
-        assert_equal(text(1.0 / zero), "inf", reason="infinity")
-        assert_equal(text(-1.0 / zero), "-inf", reason="negative infinity")
-        assert_equal(text(-zero), "-0.0", reason="negative zero")
-        assert_equal(text(zero), "0.0", reason="zero")
-        let small: f32 = -0.0
-        assert_equal(text(small), "-0.0", reason="f32 negative zero")
-"#,
-    );
-}
-
-#[test]
-fn to_fixed_through_programs() {
-    all_pass(
-        "fixed",
-        r#"use std.testing.assert_equal
-
-tests:
-    it("rounds the exact binary value, a tie to even"):
-        assert_equal(0.125.to_fixed(2), "0.12", reason="tie to even, down")
-        assert_equal(0.375.to_fixed(2), "0.38", reason="tie to even, up")
-        assert_equal(2.5.to_fixed(0), "2", reason="tie")
-        assert_equal(3.5.to_fixed(0), "4", reason="tie")
-        assert_equal(0.5.to_fixed(0), "0", reason="tie to zero")
-        assert_equal((-0.5).to_fixed(0), "-0", reason="tie to negative zero")
-        assert_equal(1.005.to_fixed(2), "1.00", reason="1.005 is below the tie")
-        assert_equal(0.1.to_fixed(20), "0.10000000000000000555", reason="exact digits")
-        assert_equal(3.14159.to_fixed(2), "3.14", reason="plain")
-    it("never uses an exponent"):
-        assert_equal(1e21.to_fixed(1), "1000000000000000000000.0", reason="large")
-        assert_equal(1e-7.to_fixed(3), "0.000", reason="small")
-        assert_equal(1e-7.to_fixed(10), "0.0000001000", reason="small, more digits")
-        assert_equal(5e-324.to_fixed(2), "0.00", reason="subnormal")
-    it("one hundred digits"):
-        assert_equal(1.0.to_fixed(100).len(), 102, reason="the point and the digits")
-    it("signs and specials"):
-        zero := 0.0
-        assert_equal((-zero).to_fixed(1), "-0.0", reason="negative zero")
-        assert_equal((-0.001).to_fixed(2), "-0.00", reason="rounds to a negative zero")
-        assert_equal((zero / zero).to_fixed(2), "NaN", reason="NaN")
-        assert_equal((1.0 / zero).to_fixed(2), "inf", reason="infinity")
-        assert_equal((-1.0 / zero).to_fixed(2), "-inf", reason="negative infinity")
-"#,
-    );
-}
-
 /// `parse_f64`'s unsigned decimal number texts against Rust's own
 /// correctly rounded `str::parse`.
 #[test]
@@ -838,89 +679,4 @@ fn case_mapping_of_host_matches_unicode() {
             assert_eq!(prim::upper(text), *upper, "wasmtime upper, case {k}");
         }
     }
-}
-
-#[test]
-fn case_mapping_through_programs() {
-    all_pass(
-        "case",
-        r#"use std.testing.assert_equal
-
-tests:
-    it("maps ASCII"):
-        assert_equal("Hello, World 42".lower(), "hello, world 42", reason="lower")
-        assert_equal("Hello, World 42".upper(), "HELLO, WORLD 42", reason="upper")
-        assert_equal("".lower(), "", reason="empty")
-    it("maps beyond ASCII"):
-        assert_equal("\u{c9}COLE".lower(), "\u{e9}cole", reason="e acute")
-        assert_equal("\u{e9}cole".upper(), "\u{c9}COLE", reason="e acute up")
-        assert_equal("\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}".upper(), "\u{41f}\u{420}\u{418}\u{412}\u{415}\u{422}", reason="Cyrillic")
-        assert_equal("\u{1f600}".upper(), "\u{1f600}", reason="no case")
-    it("changes the length with full mappings"):
-        assert_equal("stra\u{df}e".upper(), "STRASSE", reason="sharp s")
-        assert_equal("stra\u{df}e".upper().len(), 7, reason="seven bytes")
-        assert_equal("\u{fb01}".upper(), "FI", reason="ligature")
-        assert_equal("\u{130}".lower(), "i\u{307}", reason="dotted capital I")
-        assert_equal("\u{3a3}A\u{3a3}".lower(), "\u{3c3}a\u{3c2}", reason="final sigma")
-        assert_equal("\u{3a3}".lower(), "\u{3c3}", reason="lone sigma")
-"#,
-    );
-}
-
-#[test]
-fn parse_f64_through_programs() {
-    all_pass(
-        "parse",
-        r#"use std.num.{ParseNumberError}
-use std.testing.assert_equal
-
-fn bits(text: string) -> string:
-    match text.parse::[f64]():
-        .Ok(value) => "${value}"
-        .Err(.InvalidDigit(position)) => "invalid ${position}"
-        .Err(_) => "error"
-
-tests:
-    it("accepts the grammar"):
-        assert_equal(bits("1.5"), "1.5", reason="plain")
-        assert_equal(bits("+1.5"), "1.5", reason="plus")
-        assert_equal(bits("15e-1"), "1.5", reason="exponent")
-        assert_equal(bits("15E+0"), "15.0", reason="upper E")
-        assert_equal(bits(".5"), "0.5", reason="no whole part")
-        assert_equal(bits("-.5"), "-0.5", reason="negative")
-        assert_equal(bits("5."), "5.0", reason="no fraction")
-        assert_equal(bits("007"), "7.0", reason="leading zeros")
-        assert_equal(bits("-0"), "-0.0", reason="negative zero")
-    it("rejects the rest"):
-        assert_equal(bits(""), "error", reason="empty")
-        assert_equal(bits(" 1.5"), "invalid 0", reason="space")
-        assert_equal(bits("1_000"), "invalid 1", reason="underscore")
-        assert_equal(bits("0x10"), "invalid 1", reason="hex")
-        assert_equal(bits("1,5"), "invalid 1", reason="comma")
-        assert_equal(bits("1e"), "invalid 2", reason="bare exponent")
-        assert_equal(bits("1.5f"), "invalid 3", reason="suffix")
-        assert_equal(bits("."), "invalid 1", reason="lone point")
-    it("reads the specials"):
-        assert_equal(bits("nan"), "NaN", reason="nan")
-        assert_equal(bits("-Infinity"), "-inf", reason="negative infinity")
-        assert_equal(bits("+INF"), "inf", reason="inf")
-    it("rounds correctly"):
-        assert_equal(bits("9007199254740993"), "9007199254740992.0", reason="tie to even, down")
-        assert_equal(bits("9007199254740995"), "9007199254740996.0", reason="tie to even, up")
-        assert_equal(bits("1e400"), "inf", reason="past the range")
-        assert_equal(bits("-1e400"), "-inf", reason="negative past the range")
-        assert_equal(bits("1e-400"), "0.0", reason="below the subnormals")
-        assert_equal(bits("-1e-400"), "-0.0", reason="negative below")
-        assert_equal(bits("5e-324"), "5e-324", reason="smallest subnormal")
-        assert_equal(bits("2.4703282292062327e-324"), "0.0", reason="below half the smallest")
-        assert_equal(bits("2.4703282292062328e-324"), "5e-324", reason="above half the smallest")
-        assert_equal(bits("1.7976931348623157e308"), "1.7976931348623157e+308", reason="largest")
-        assert_equal(bits("0.30000000000000004"), "0.30000000000000004", reason="seventeen digits")
-    it("round-trips float text"):
-        x := 0.1 + 0.2
-        assert_equal(bits(x.to_string()), "0.30000000000000004", reason="sum")
-        assert_equal(bits(1e300.to_string()), "1e+300", reason="large")
-        assert_equal(bits(5e-324.to_string()), "5e-324", reason="subnormal")
-"#,
-    );
 }

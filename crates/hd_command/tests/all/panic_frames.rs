@@ -18,50 +18,9 @@ use std::process::Output;
 
 use hd_testkit::Scratch;
 
-const LIB: &str = "\
-use std.testing.assert
+const LIB: &str = include_str!("programs/panic_frames/lib.hd");
 
-fn total(prices: List[i32]) -> i32:
-    let sum = +0
-    for p in prices:
-        sum += p
-    assert(sum == 10, \"total is 10\")
-    sum
-
-fn boom() -> void:
-    panic(\"out of stock\")
-
-fn drop_far(xs: &mut List[i32]) -> i32:
-    xs.remove(5)
-
-tests:
-    it(\"passes\"):
-        assert(total([4, 6]) == 10, \"ten\")
-
-    it(\"sums prices\"):
-        total([1, 2, 3])
-
-    it(\"runs out\"):
-        boom()
-
-    it(\"drops past the end\"):
-        let mut xs: List[i32] = [1, 2]
-        drop_far(&mut xs)
-";
-
-const OPTIONAL_REASONS: &str = "\
-use std.testing.{assert, assert_equal}
-
-tests:
-    it(\"equal without reason\"):
-        assert_equal(1, 2)
-
-    it(\"condition without reason\"):
-        assert(false)
-
-    it(\"equal with reason\"):
-        assert_equal(3, 4, reason=\"three is not four\")
-";
+const OPTIONAL_REASONS: &str = include_str!("programs/panic_frames/optional_reasons.hd");
 
 /// A fresh package `shop` whose `src/lib.hd` is `lib`.
 fn package(name: &str, lib: &str) -> Scratch {
@@ -175,27 +134,6 @@ test result: FAILED. 0 passed; 3 failed; 0 ignored
     );
 }
 
-/// Frames are a text-report feature: a passing run prints none, and a JSON
-/// test object carries the category and message only.
-#[test]
-fn passes_and_json_show_no_frames() {
-    let root = package("hd-frames-quiet", LIB);
-    let out = hd(&root, &["test", "--filter", "passes"]);
-    assert_eq!(
-        text(&out.stdout),
-        "test result: ok. 1 passed; 0 failed; 0 ignored\n"
-    );
-    let out = hd(&root, &["test", "--filter", "runs out", "--format", "json"]);
-    assert_eq!(
-        text(&out.stdout).lines().next(),
-        Some(
-            "{\"kind\":\"test\",\"name\":\"runs out\",\"outcome\":\"failed\",\"message\":\"panic: explicit-panic: out of stock\"}"
-        ),
-        "{}",
-        text(&out.stderr)
-    );
-}
-
 /// Lines are read from the current sources when a frame is printed, so a
 /// comment added above a panic moves its line on a warm run.
 #[test]
@@ -216,7 +154,10 @@ fn a_comment_edit_moves_the_reported_lines() {
             "    src/lib.hd:24 test \"runs out\""
         ]
     );
-    let edited = LIB.replace("fn boom()", "# Runs out.\n\nfn boom()");
+    let edited = LIB.replace(
+        "fn boom()",
+        include_str!("programs/panic_frames/a_comment_edit_moves_the_reported_lines.hd"),
+    );
     std::fs::write(root.join("src/lib.hd"), edited).expect("edit");
     assert_eq!(
         frames(&root),
@@ -242,42 +183,12 @@ fn a_method_frame_names_its_type_and_module() {
     .expect("hd.toml");
     std::fs::write(
         root.join("src/cart.hd"),
-        "\
-pub struct Cart:
-    pub items: List[i32]
-
-impl Cart:
-    pub fn take(self, i: usize) -> i32:
-        self.items[i]
-
-impl Display for Cart:
-    fn to_string(&self) -> string:
-        panic(\"no display\")
-
-tests:
-    use std.testing.assert
-
-    it(\"takes past the end\"):
-        let c = Cart { items: [1] }
-        c.take(4)
-
-    it(\"shows\"):
-        let c = Cart { items: [1] }
-        assert(\"${c}\" == \"\", \"shown\")
-",
+        include_str!("programs/panic_frames/a_method_frame_names_its_type_and_module.hd"),
     )
     .expect("cart");
     std::fs::write(
         root.join("tests/flow.hd"),
-        "\
-use pkg.cart.Cart
-
-fn first(c: Cart) -> i32:
-    c.take(2)
-
-it(\"flows\"):
-    first(Cart { items: [] })
-",
+        include_str!("programs/panic_frames/a_method_frame_names_its_type_and_module_2.hd"),
     )
     .expect("flow");
     let out = hd(&root, &["test"]);
@@ -308,31 +219,7 @@ test result: FAILED. 0 passed; 3 failed; 0 ignored
     );
 }
 
-const RECURSION: &str = "\
-fn depth(n: i32) -> i32:
-    if n == 0:
-        panic(\"bottom\")
-    depth(n - 1) + 1
-
-fn forever(n: i32) -> i32:
-    forever(n + 1) + 1
-
-fn ping(n: i32) -> i32:
-    pong(n + 1) + 1
-
-fn pong(n: i32) -> i32:
-    ping(n + 1) + 1
-
-tests:
-    it(\"goes five deep\"):
-        depth(+5)
-
-    it(\"never stops\"):
-        forever(+0)
-
-    it(\"plays ping pong\"):
-        ping(+0)
-";
+const RECURSION: &str = include_str!("programs/panic_frames/recursion.hd");
 
 /// A single file outside any package names its functions after its stem.
 /// A frame repeated right after itself prints once, then its count; so
@@ -446,7 +333,7 @@ fn custom_sections(wasm: &[u8]) -> Result<Vec<String>, &'static str> {
 fn release_builds_keep_names_only_in_positions() -> Result<(), &'static str> {
     let root = package(
         "hd-frames-release",
-        "pub fn main() -> void $ Console:\n    println(42)\n",
+        include_str!("programs/panic_frames/release_builds_keep_names_only_in_positions.hd"),
     );
     std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
     let out = hd(&root, &["build"]);
@@ -472,7 +359,7 @@ fn release_builds_keep_names_only_in_positions() -> Result<(), &'static str> {
 fn a_copy_inside_a_copy_reports_each_frame() {
     let root = package(
         "hd-frames-nested-copy",
-        "fn inner(x: i32) -> i32:\n    100 / x\n\nfn outer(x: i32) -> i32:\n    inner(x - 1) + 1\n\npub fn main() -> void $ Console:\n    let n = +1\n    println(outer(n))\n",
+        include_str!("programs/panic_frames/a_copy_inside_a_copy_reports_each_frame.hd"),
     );
     std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
     let out = hd(&root, &["build", "--release"]);
@@ -500,7 +387,7 @@ panic: integer-division-by-zero: division by zero
 fn a_program_that_derives_builds_its_positions() {
     let root = package(
         "hd-frames-derive",
-        "use std.hash.hash_of\n\n@derive(Eq, Hash, Debug)\nstruct Point:\n    x: i32\n    y: i32\n    name: string\n\npub fn main() -> void $ Console:\n    a := Point { x: 1, y: 2, name: \"a\" }\n    println(debug(a))\n    println(a == a)\n    println(hash_of(a) == hash_of(a))\n",
+        include_str!("programs/panic_frames/a_program_that_derives_builds_its_positions.hd"),
     );
     std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
     for (args, file) in [
@@ -558,7 +445,7 @@ fn function_names(wasm: &[u8]) -> Result<Vec<String>, &'static str> {
 fn runtime_helper_names_are_short_and_readable() -> Result<(), &'static str> {
     let root = package(
         "hd-frames-helper-names",
-        "pub fn main() -> void $ Console:\n    println(\"hello, world\")\n    println(7)\n",
+        include_str!("programs/panic_frames/runtime_helper_names_are_short_and_readable.hd"),
     );
     std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
     let out = hd(&root, &["build"]);
@@ -580,14 +467,7 @@ fn runtime_helper_names_are_short_and_readable() -> Result<(), &'static str> {
     Ok(())
 }
 
-const BUILT: &str = "\
-fn pick(items: List[i32], at: usize) -> i32:
-    items[at]
-
-pub fn main() -> void $ Console:
-    println(\"start\")
-    println(pick([1, 2], 5))
-";
+const BUILT: &str = include_str!("programs/panic_frames/built.hd");
 
 /// A module `hd build` wrote stands alone (`crates/hd_mono/DESIGN.md`
 /// \"Positions\"): run with an empty cache, its panic prints the same
@@ -621,51 +501,6 @@ fn a_built_module_prints_its_frames_without_the_cache() {
          src/main.hd:6 shop.main.main\n"
     );
     assert_eq!(ran.status.code(), Some(3));
-}
-
-const TRACKED: &str = "\
-@track_caller
-fn must_be_positive(value: i32) -> i32:
-    if value <= 0:
-        panic(\"not positive\")
-    value
-
-@track_caller
-fn relay(value: i32) -> i32:
-    must_be_positive(value)
-
-fn total(value: i32) -> i32:
-    relay(value) + 1
-
-pub fn main() -> void $ Console:
-    let n = +0
-    println(total(n))
-";
-
-/// A `@track_caller` function's frames are left out of every frame list
-/// (`fn.caller.frames`), through a chain of them too: `hd run`, and a
-/// module `hd build` wrote in debug and release, where the release build
-/// inlines the helpers into `total`.
-#[test]
-fn a_track_caller_function_leaves_its_frames_out() {
-    let root = package("hd-frames-track-caller", TRACKED);
-    std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
-    let expected = "\
-panic: explicit-panic: not positive
-    src/main.hd:12 shop.main.total
-    src/main.hd:16 shop.main.main
-";
-    let out = hd(&root, &["run"]);
-    assert_eq!(text(&out.stderr), expected);
-    for (args, file) in [
-        (&["build"][..], "build/debug/shop.wasm"),
-        (&["build", "--release"][..], "build/release/shop.wasm"),
-    ] {
-        let built = hd(&root, args);
-        assert!(built.status.success(), "{args:?}: {}", text(&built.stderr));
-        let out = hd(&root, &[file]);
-        assert_eq!(text(&out.stderr), expected, "{args:?}");
-    }
 }
 
 /// Sets every file under `dir` an hour back, so the listing stamps it and

@@ -50,29 +50,6 @@ fn output_in(store: &MemoryStore, name: &str, main: &str) -> String {
     String::from_utf8(ran.stdout).expect("UTF-8")
 }
 
-const TAGS: &str = "
-pub trait Tag:
-    fn name(self) -> string
-
-pub trait Log:
-    fn tag(self) -> string
-
-struct Named:
-    label: string
-
-impl Tag for Named:
-    fn name(self) -> string: self.label
-
-impl Log for Named:
-    fn tag(self) -> string: \"log:\" + self.label
-
-fn current() -> string $ Tag:
-    $.use(Tag).name()
-
-fn both() -> string $ Tag + Log:
-    $.use(Tag).name() + \",\" + $.use(Log).tag()
-";
-
 /// One item path with one body under two rows takes two code entries: a
 /// body's code key covers its own signature, whose row keys are its
 /// provider parameters (`crates/hd_mono/DESIGN.md` §12.4). A program whose `read` needs
@@ -80,30 +57,8 @@ fn both() -> string $ Tag + Log:
 #[test]
 fn one_body_under_two_rows_shares_no_code() {
     let store = crate::warm_store();
-    let first = format!(
-        "{TAGS}
-fn read() -> i32 $ Tag: 42
-
-fn call(job: fn() -> i32 $ Tag) -> i32 $ Tag:
-    job()
-
-pub fn main() -> void $ Console:
-    $.with($.context(Tag=Named {{ label: \"a\" }})...):
-        println(call(read))
-"
-    );
-    assert_eq!(output_in(&store, "row-first", &first), "42\n");
-    let second = format!(
-        "{TAGS}
-fn read() -> i32 $ Tag + Log: 42
-
-fn call(job: fn() -> i32 $ Tag + Log) -> i32 $ Tag + Log:
-    job()
-
-pub fn main() -> void $ Console:
-    $.with(Tag=Named {{ label: \"a\" }}, Log=Named {{ label: \"b\" }}):
-        println(call(read))
-"
-    );
-    assert_eq!(output_in(&store, "row-second", &second), "42\n");
+    let first = include_str!("programs/context_values/first.hd");
+    assert_eq!(output_in(&store, "row-first", first), "42\n");
+    let second = include_str!("programs/context_values/second.hd");
+    assert_eq!(output_in(&store, "row-second", second), "42\n");
 }

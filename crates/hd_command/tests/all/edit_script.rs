@@ -52,25 +52,13 @@ fn check(dir: &Path, cache: &Path) -> [Outcome; 2] {
     [&[][..], &["--tests"]].map(|args| check_with(dir, cache, args))
 }
 
-const MAIN: &str = "use pkg.api.{total}\nuse pkg.shop.items.{Item}\nuse pkg.shop.labels.{label}\n\n\
-pub fn main() -> void $ Console:\n    \
-println(label(total([Item { name: \"a\", price: 2, count: 3, status: .Pending }])))\n";
+const MAIN: &str = include_str!("programs/edit_script/main.hd");
 
-const ITEMS: &str = "## The state of an order.\n@derive(Eq)\npub enum Status:\n    Pending\n    \
-Paid(amount: i64)\n\n## A line item.\npub struct Item:\n    pub name: string\n    pub price: i64\n    \
-pub count: i32\n    pub status: Status\n\n## Something with a cost.\npub trait Costed:\n    \
-fn cost(self) -> i64\n\nimpl Costed for Item:\n    fn cost(self) -> i64:\n        \
-self.price * i64(self.count)\n\n## The total cost of the items.\n\
-pub fn total(items: List[Item]) -> i64:\n    let sum: i64 = 0\n    for item in items:\n        \
-sum = sum + item.cost() + bump()\n    sum\n\n## Twice the total.\n\
-pub fn double(items: List[Item]) -> i64:\n    total(items) * 2\n\nfn bump() -> i64:\n    0\n";
+const ITEMS: &str = include_str!("programs/edit_script/items.hd");
 
-const LABELS: &str =
-    "## The label of a total.\npub fn label(n: i64) -> string:\n    \"total ${n}\"\n";
+const LABELS: &str = include_str!("programs/edit_script/labels.hd");
 
-const SUMMARY: &str = "use pkg.shop.items.{Item, Status}\n\n## The first item's name.\n\
-pub fn first_name(item: Item) -> string:\n    item.name\n\n## Whether the item is paid.\n\
-pub fn paid(item: Item) -> bool:\n    item.status != .Pending\n";
+const SUMMARY: &str = include_str!("programs/edit_script/summary.hd");
 
 /// The package's files, written fresh.
 fn package(root: &Path) {
@@ -82,14 +70,14 @@ fn package(root: &Path) {
         ("src/main.hd", MAIN),
         (
             "src/api.hd",
-            "## The package's front door.\npub use pkg.shop.items.{total}\n",
+            include_str!("programs/edit_script/package.hd"),
         ),
         ("src/shop/items.hd", ITEMS),
         ("src/shop/labels.hd", LABELS),
         ("src/report/summary.hd", SUMMARY),
         (
             "tests/smoke.hd",
-            "use pkg.shop.labels.{label}\n\nit(\"labels\"):\n    println(label(1))\n",
+            include_str!("programs/edit_script/package_2.hd"),
         ),
     ];
     for (path, text) in files {
@@ -115,37 +103,36 @@ fn append(root: &Path, path: &str, more: &str) {
 
 type Edit = (&'static str, fn(&Path));
 
-const HIDDEN: &str = "\nuse pkg.shop.items.{Costed}\n\nstruct Hidden:\n    n: i64\n\n\
-impl Costed for Hidden:\n    fn cost(self) -> i64:\n        self.n\n";
-const BROKEN: &str = "\npub fn broken(x: Missing) -> i32:\n    1\n";
+const HIDDEN: &str = include_str!("programs/edit_script/hidden.hd");
+const BROKEN: &str = include_str!("programs/edit_script/broken.hd");
 
 /// Files whose findings the run makes across modules, after the module
 /// checks: a growing generic call cycle, an `@inline(.Always)` cycle,
 /// recursive hidden results and an initialization cycle; and a body error.
 const WHOLE: &[(&str, &str)] = &[
-    ("src/more/bad.hd", "pub fn bad() -> i32:\n    true\n"),
+    (
+        "src/more/bad.hd",
+        include_str!("programs/edit_script/whole.hd"),
+    ),
     (
         "src/more/grow.hd",
-        "fn even[T](value: T, n: i32) -> i32:\n    if n == 0: 0 else: odd(value, n - 1)\n\n\
-         fn odd[T](value: T, n: i32) -> i32:\n    if n == 0: 1 else: even(.Some(value), n - 1)\n\n\
-         pub fn grow() -> i32:\n    even(+1, +3)\n",
+        include_str!("programs/edit_script/whole_2.hd"),
     ),
     (
         "src/more/inline.hd",
-        "use std.annotation.inline\n\n@inline(.Always)\nfn depth(n: i32) -> i32:\n    \
-         if n == 0:\n        return +0\n    depth(n - 1) + 1\n\npub fn deep() -> i32:\n    depth(2)\n",
+        include_str!("programs/edit_script/whole_3.hd"),
     ),
     (
         "src/more/hidden.hd",
-        "fn first() -> impl Display:\n    second()\n\nfn second() -> impl Display:\n    first()\n",
+        include_str!("programs/edit_script/whole_4.hd"),
     ),
     (
         "src/cycle/a.hd",
-        "use pkg.cycle.b.{read_b}\n\nlet a = read_b()\n\npub fn read_a() -> i32:\n    a\n",
+        include_str!("programs/edit_script/whole_5.hd"),
     ),
     (
         "src/cycle/b.hd",
-        "use pkg.cycle.a.{read_a}\n\nlet b = read_a()\n\npub fn read_b() -> i32:\n    b\n",
+        include_str!("programs/edit_script/whole_6.hd"),
     ),
 ];
 
@@ -156,8 +143,8 @@ const EDITS: &[Edit] = &[
         replace(
             r,
             "src/shop/items.hd",
-            "fn bump() -> i64:\n    0",
-            "fn bump() -> i64:\n    1",
+            include_str!("programs/edit_script/edits.hd"),
+            include_str!("programs/edit_script/edits_2.hd"),
         );
     }),
     ("a save of the same bytes", |r| {
@@ -168,23 +155,23 @@ const EDITS: &[Edit] = &[
         replace(
             r,
             "src/shop/items.hd",
-            "fn bump() -> i64:\n    1",
-            "fn bump() -> i64:\n    2",
+            include_str!("programs/edit_script/edits_3.hd"),
+            include_str!("programs/edit_script/edits_4.hd"),
         );
     }),
     ("a new private item", |r| {
         append(
             r,
             "src/shop/items.hd",
-            "\nfn spare(x: i32) -> i32:\n    x\n",
+            include_str!("programs/edit_script/edits_5.hd"),
         );
     }),
     ("a private signature and its call", |r| {
         replace(
             r,
             "src/shop/items.hd",
-            "fn bump() -> i64:\n    2",
-            "fn bump(n: i64) -> i64:\n    n",
+            include_str!("programs/edit_script/edits_6.hd"),
+            include_str!("programs/edit_script/edits_7.hd"),
         );
         replace(r, "src/shop/items.hd", "bump()", "bump(1)");
     }),
@@ -222,7 +209,7 @@ const EDITS: &[Edit] = &[
             r,
             "src/shop/items.hd",
             "pub enum Status:",
-            "@derive(Eq)\npub enum Status:",
+            include_str!("programs/edit_script/edits_8.hd"),
         );
     }),
     ("an impl for a private type added", |r| {
@@ -235,8 +222,7 @@ const EDITS: &[Edit] = &[
         append(
             r,
             "src/shop/labels.hd",
-            "\nuse pkg.shop.items.{Costed, Item}\n\nimpl Costed for Item:\n    \
-             fn cost(self) -> i64:\n        0\n",
+            include_str!("programs/edit_script/edits_9.hd"),
         );
     }),
     ("the overlapping impl removed", |r| {
@@ -268,7 +254,7 @@ const EDITS: &[Edit] = &[
         replace(
             r,
             "src/shop/labels.hd",
-            "\n\n\n\npub fn broken(x: Missing) -> i32:\n    1\n",
+            include_str!("programs/edit_script/edits_10.hd"),
             "",
         );
     }),
@@ -283,8 +269,8 @@ const EDITS: &[Edit] = &[
         replace(
             r,
             "src/shop/items.hd",
-            "fn bump(n: i64) -> i64:\n    n",
-            "fn bump(n: i64) -> i64:\n    n * 1",
+            include_str!("programs/edit_script/edits_11.hd"),
+            include_str!("programs/edit_script/edits_12.hd"),
         );
     }),
     ("the files with findings across modules removed", |r| {

@@ -56,22 +56,7 @@ fn output_in(store: &MemoryStore, name: &str, main: &str) -> String {
     String::from_utf8(ran.stdout).expect("UTF-8")
 }
 
-const TAGS: &str = "
-pub trait Tag:
-    fn name(self) -> string
-
-pub trait Log:
-    fn tag(self) -> string
-
-struct Named:
-    label: string
-
-impl Tag for Named:
-    fn name(self) -> string: self.label
-
-impl Log for Named:
-    fn tag(self) -> string: self.label
-";
+const TAGS: &str = include_str!("programs/inferred_rows_run/tags.hd");
 
 /// An edit that changes a private function's inferred row changes the
 /// code of every caller that passes it providers: `read`'s text and

@@ -1,0 +1,6 @@
+use pkg.geo.records.{Pair, Shape}
+
+pub fn main() -> void $ Console:
+    a := Shape.Square(Pair { left: +1, right: +2 })
+    b := Shape.Circle(+3)
+    println("${a == b} ${Pair { left: "x", right: "y" } == Pair { left: "x", right: "y" }}")

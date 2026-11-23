@@ -1,0 +1,4 @@
+use std.testing.assert_equal
+
+it("ok"):
+    assert_equal(1, 1, reason="one")

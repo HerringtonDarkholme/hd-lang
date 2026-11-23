@@ -1,0 +1,7 @@
+use std.task.block_on
+use std.time.{Clock, ms}
+fn cold() -> Suspend[void] $ Clock:
+    let clock: *mut dyn Clock = $.use(Clock)
+    clock.sleep(ms(1))
+pub fn main() -> void $ Clock:
+    _ := block_on(cold())

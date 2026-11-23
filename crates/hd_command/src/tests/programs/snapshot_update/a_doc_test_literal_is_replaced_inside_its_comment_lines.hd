@@ -1,0 +1,10 @@
+## Doc.
+##
+## ```hd
+## snapshot(f(),
+##     expect="""
+##     a
+##     """)
+## ```
+fn f(): 1
+    ## snapshot(g())

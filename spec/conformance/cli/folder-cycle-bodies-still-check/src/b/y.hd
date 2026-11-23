@@ -1,0 +1,4 @@
+use pkg.a.x.{one}
+
+pub fn two() -> i32:
+    one() + missing

@@ -1,0 +1,6 @@
+fn length(value: string, unused: string) -> usize:
+    text := "$value!"
+    text.len()
+
+pub fn main() -> void $ Console:
+    println(length("work", "still owned"))

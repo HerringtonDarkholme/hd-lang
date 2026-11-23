@@ -598,7 +598,7 @@ mod tests {
 
     #[test]
     fn a_file_skim_round_trips() {
-        let text = "use std.text\n\npub fn main() -> void:\n    # note\n    println(\"hi\")\n\ntests:\n    use pkg.other as o\n    test \"a\":\n        assert(true)\n";
+        let text = include_str!("tests/programs/skims/file_skim.hd");
         let s = FileSkim::of(text);
         assert!(s.has_tests_block && s.public_main.is_some() && s.private_main.is_none());
         assert_eq!(s.test_uses, ["pkg.other"]);
@@ -626,7 +626,7 @@ mod tests {
     /// rename, a trailing comment.
     #[test]
     fn use_paths_are_the_written_paths() {
-        let lf = "pub use std.a.{b} # c\nuse self.d as e\n\ntests:\n    use pkg.f # g\n    use std.h.{i, j}\n";
+        let lf = include_str!("tests/programs/skims/use_forms.hd");
         for text in [lf.to_owned(), lf.replace('\n', "\r\n")] {
             let s = FileSkim::of(&text);
             assert_eq!(s.use_paths, ["std.a", "self.d"]);

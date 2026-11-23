@@ -2214,7 +2214,7 @@ mod stored_build_tests {
         );
         std::fs::write(
             dir.join("alone.hd"),
-            "fn v() -> i32: 1\n\ntests:\n    it(\"v is 1\"):\n        assert(v() == 1, \"v\")\n",
+            include_str!("tests/programs/test_cmd/a_warm_single_file_test_build_is_one_lookup.hd"),
         )
         .expect("file");
         std::thread::sleep(disk::SETTLE + std::time::Duration::from_millis(200));

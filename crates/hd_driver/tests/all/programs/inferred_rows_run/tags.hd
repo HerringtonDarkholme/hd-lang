@@ -1,0 +1,16 @@
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string:
+        self.label
+
+impl Log for Named:
+    fn tag(self) -> string:
+        self.label

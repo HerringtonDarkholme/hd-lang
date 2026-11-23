@@ -1,0 +1,5 @@
+[package]
+name = "api"
+
+[capabilities]
+Console = true

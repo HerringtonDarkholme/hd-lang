@@ -1,0 +1,10 @@
+use std.text
+
+pub fn main() -> void:
+    # note
+    println("hi")
+
+tests:
+    use pkg.other as o
+    it("a"):
+        assert(true)

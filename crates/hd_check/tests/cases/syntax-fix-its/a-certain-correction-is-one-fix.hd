@@ -1,0 +1,64 @@
+# @dump: diagnostics fixed
+# Each parser fix-it below is its diagnostic's only one, keeps the names as
+# written, and leaves a module that checks. café and τιμή put two-byte
+# characters before and inside the edits, which are in UTF-8 bytes.
+use std.fs.{read_text!, FsRead}
+
+const LIMIT: i32 = 10
+
+/// Public value.
+pub struct Value: pass
+
+enum Cell[T]:
+    Full(value: T)
+    Empty
+
+fn thirteenth(pair: (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32)) -> i32: pair.12
+
+fn empty() -> Map[string, i32]: {:}
+
+fn nested(pair: (i32, (i32, i32))) -> i32:
+    (low, (high, _)) := pair
+    high - low
+
+fn seven!() -> i32: +7
+
+fn identity![T](value: T) -> T: value
+
+fn plain!() -> i32: seven()!
+
+fn generic!() -> i32: identity::[i32](+1)!
+
+fn append(xs: List[i32]) -> List[i32]: [...xs, 1]
+
+fn copied(xs: List[i32]) -> List[i32]: [...`xs`]
+
+/// Returns a value.
+fn value() -> i32: +1
+
+fn narrow(number: i32) -> u8: (number as u8)
+
+fn narrow_named(τιμή: i32) -> u8: (τιμή as u8)
+
+fn read(x: Cell[List[i32]]) -> List[i32]:
+    match x:
+        Cell[List[i32]].Full(v) => v
+        Cell.Empty => []
+
+fn suites(n: i32) -> i32:
+    if n > 100:
+        3
+    elif n > 10:
+        2
+    else:
+        1
+
+fn inline(n: i32) -> i32:
+    if n > 100: 3
+    elif n > 10: 2
+    else: 1
+
+fn keyword(n: bool) -> i32:
+    if n: 3
+    elif false: 2
+    else: 1

@@ -1,0 +1,31 @@
+# At a workspace root `hd run NAME` runs the one member executable or task of
+# that name. Several members with NAME, no member with it, and a bare
+# `hd run` are errors that list what there is. `-p NAME` picks the member.
+run: hd run serve
+stdout: serving
+run: hd run audit
+stdout: audited
+run: hd run seed
+exit: 101
+stderr: error: several members have an executable or task named `seed`: web, api; run it from inside one
+run: hd run nope
+exit: 101
+stderr: error: no member of this workspace has an executable or task named `nope`
+run: hd run
+exit: 101
+stderr: error: this is a workspace; run one member's executable or task with `hd run NAME`: web: serve, seed; api: audit, seed
+run: hd run -p api seed
+stdout: seeded api
+run: hd run --package api seed
+stdout: seeded api
+run: hd run -p web -p api serve
+stdout: serving
+run: hd run -p web -p api seed
+exit: 101
+stderr: error: several members have an executable or task named `seed`: web, api; run it from inside one
+run: hd run -p api serve
+exit: 101
+stderr: error: package `api` has no executable or task named `serve`
+# The message names the workspace by its absolute path, so only the status is judged.
+run: hd run -p nope seed
+exit: 101

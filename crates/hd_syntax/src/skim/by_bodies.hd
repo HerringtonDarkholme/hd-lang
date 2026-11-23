@@ -1,0 +1,17 @@
+fn a() -> i32 $ Console:
+    1
+impl Show for P by Structure:
+    fn b() -> i32 $ Console:
+        2
+fn c() -> i32 $ Console:
+    3
+impl Show for Q:
+    fn d() -> i32 $ Console:
+        4
+impl Show for R by Structure:
+    fn e() -> i32 $ Console:
+        5
+    fn f() -> i32 $ Console:
+        6
+fn g() -> i32 $ Console:
+    7

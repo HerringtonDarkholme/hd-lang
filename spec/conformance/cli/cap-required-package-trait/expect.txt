@@ -1,0 +1,9 @@
+# A package's own host trait is missing from `[capabilities]`: the fix lists
+# it by its nominal path, and checking never loads the provider.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-capability","message":"`main` requires `pkg.main.Server` in `$ Server`, but `[capabilities]` in hd.toml does not list it","file":"src/main.hd"},{"kind":"summary","status":101}]
+run: hd check --fix
+stderr: fixed: hd.toml:5:1: missing-capability: list the missing capabilities in hd.toml
+stderr: check result: ok. fixed: 1; errors: 0; warnings: 0
+same-text: hd.toml want/hd.toml

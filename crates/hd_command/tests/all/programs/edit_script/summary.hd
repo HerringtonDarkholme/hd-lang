@@ -1,0 +1,9 @@
+use pkg.shop.items.{Item, Status}
+
+## The first item's name.
+pub fn first_name(item: Item) -> string:
+    item.name
+
+## Whether the item is paid.
+pub fn paid(item: Item) -> bool:
+    item.status != .Pending

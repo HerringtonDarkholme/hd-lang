@@ -1,2 +1,5 @@
 pub fn rate() -> i32:
     missing_rate
+
+pub fn surcharge() -> i32:
+    percent

@@ -1,0 +1,8 @@
+use pkg.lib.show.Show
+
+@derive(Show)
+struct Label:
+    text: string
+
+pub fn main() -> void:
+    pass

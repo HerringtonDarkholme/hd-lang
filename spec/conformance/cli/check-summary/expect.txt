@@ -1,11 +1,53 @@
 # Text output of hd check --summary: one line per severity, file and code,
-# in file then code order, then the summary line, all on standard error.
+# in file then code order, each with its count, then the summary line, all
+# on standard error.
 run: hd check --summary
 exit: 101
 stdout-json: []
 stderr: error: src/cart.hd: type-mismatch: 1
-stderr: error: src/tax.hd: unknown-name: 1
-stderr: check result: FAILED. errors: 2; warnings: 0
+stderr: error: src/tax.hd: unknown-name: 2
+stderr: check result: FAILED. errors: 3; warnings: 0
 run: hd check --summary src/util.hd
 stdout-json: []
 stderr: check result: ok. errors: 0; warnings: 0
+# `--max-errors N` stops printing after N errors. The summary line still
+# counts them all and the status is the same; an N past the count prints
+# them all.
+run: hd check
+exit: 101
+stderr: error: src/cart.hd:3:5: type-mismatch: in result: expected i32, found string
+stderr: error: src/tax.hd:2:5: unknown-name: `missing_rate` is not defined
+stderr: error: src/tax.hd:5:5: unknown-name: `percent` is not defined
+stderr: check result: FAILED. errors: 3; warnings: 0
+run: hd check --max-errors 1
+exit: 101
+stderr: error: src/cart.hd:3:5: type-mismatch: in result: expected i32, found string
+stderr: check result: FAILED. errors: 3; warnings: 0
+run: hd check --max-errors=1
+exit: 101
+stderr: error: src/cart.hd:3:5: type-mismatch: in result: expected i32, found string
+stderr: check result: FAILED. errors: 3; warnings: 0
+run: hd check --max-errors 9
+exit: 101
+stderr: error: src/cart.hd:3:5: type-mismatch: in result: expected i32, found string
+stderr: error: src/tax.hd:2:5: unknown-name: `missing_rate` is not defined
+stderr: error: src/tax.hd:5:5: unknown-name: `percent` is not defined
+stderr: check result: FAILED. errors: 3; warnings: 0
+# N is a whole number of at least 1.
+run: hd check --max-errors 0
+exit: 101
+stderr: error: `--max-errors` takes a whole number of at least 1, not `0`
+run: hd check --max-errors many
+exit: 101
+stderr: error: `--max-errors` takes a whole number of at least 1, not `many`
+# JSON output ignores both options: every diagnostic is a line.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","file":"src/cart.hd","line":3},{"kind":"diagnostic","code":"unknown-name","file":"src/tax.hd","line":2},{"kind":"diagnostic","code":"unknown-name","file":"src/tax.hd","line":5},{"kind":"summary","status":101}]
+run: hd check --format json --summary --max-errors 1
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","file":"src/cart.hd","line":3},{"kind":"diagnostic","code":"unknown-name","file":"src/tax.hd","line":2},{"kind":"diagnostic","code":"unknown-name","file":"src/tax.hd","line":5},{"kind":"summary","status":101}]
+# `hd test FILE` links FILE's module and what it uses, not the siblings that
+# don't check.
+run: hd test src/util.hd
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored

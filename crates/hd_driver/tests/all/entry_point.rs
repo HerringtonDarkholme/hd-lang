@@ -35,7 +35,7 @@ fn errors(out: &Output) -> Vec<(Code, usize, usize)> {
 fn a_warm_cache_reports_the_same_errors() {
     let store = MemoryStore::default();
     let mut src = MemorySources::default();
-    src.insert("main.hd", "pub fn main() -> i32:\n    7\n");
+    src.insert("main.hd", include_str!("programs/entry_point/main_i32.hd"));
     let run = |store: &MemoryStore| {
         let host = Host {
             render_tir: &[],
@@ -56,8 +56,8 @@ fn a_warm_cache_reports_the_same_errors() {
 fn naming_an_executable_changes_the_cached_check() {
     let store = MemoryStore::default();
     let mut src = MemorySources::default();
-    src.insert("src/lib.hd", "pub fn one() -> i32:\n    1\n");
-    src.insert("src/tool.hd", "pub fn main() -> i32:\n    1\n");
+    src.insert("src/lib.hd", include_str!("programs/entry_point/lib.hd"));
+    src.insert("src/tool.hd", include_str!("programs/entry_point/tool.hd"));
     let run = |entries: Vec<String>| {
         let host = Host {
             render_tir: &[],

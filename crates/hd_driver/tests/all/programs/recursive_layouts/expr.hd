@@ -1,0 +1,61 @@
+@derive(Eq, Debug)
+enum Expr:
+    Lit(value: i64)
+    Var(name: string)
+    Add(left: *Expr, right: *Expr)
+    Block(body: *Stmt, result: *Expr)
+
+@derive(Eq, Debug)
+enum Stmt:
+    Let(name: string, value: Expr)
+    Seq(first: *Stmt, second: *Stmt)
+
+fn lookup(env: List[(string, i64)], name: string) -> i64:
+    let found: i64 = 0
+    for entry in env:
+        if entry._0 == name:
+            found = entry._1
+    found
+
+fn eval(e: Expr, env: &mut List[(string, i64)]) -> i64:
+    match e:
+        .Lit(value) => value
+        .Var(name) => lookup(*env, name)
+        .Add(left, right) => eval(*left, env) + eval(*right, env)
+        .Block(body, result) =>
+            run(*body, env)
+            eval(*result, env)
+
+fn run(s: Stmt, env: &mut List[(string, i64)]) -> void:
+    match s:
+        .Let(name, value) =>
+            v := eval(value, env)
+            env.push((name, v))
+        .Seq(first, second) =>
+            run(*first, env)
+            run(*second, env)
+
+pub fn main() -> void $ Console:
+    program := Expr.Block(
+        body=box(
+            Stmt.Seq(
+                first=box(Stmt.Let(name="x", value=Expr.Lit(40))),
+                second=box(Stmt.Let(name="y", value=Expr.Lit(2))),
+            ),
+        ),
+        result=box(Expr.Add(left=box(Expr.Var("x")), right=box(Expr.Var("y")))),
+    )
+    let mut env: List[(string, i64)] = []
+    println(eval(program, &mut env))
+    println(
+        (
+            Expr.Add(left=box(Expr.Lit(1)), right=box(Expr.Var("z")))
+            == Expr.Add(left=box(Expr.Lit(1)), right=box(Expr.Var("z")))
+        ),
+    )
+    println(Stmt.Let(name="a", value=Expr.Lit(1)) == Stmt.Let(name="a", value=Expr.Lit(2)))
+    println(
+        debug(
+            Expr.Block(body=box(Stmt.Let(name="a", value=Expr.Lit(1))), result=box(Expr.Var("a"))),
+        ),
+    )

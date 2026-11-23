@@ -113,17 +113,7 @@ fn bodies(out: &Output) -> BTreeMap<String, Vec<String>> {
 
 #[test]
 fn uncalled_functions_and_methods_have_real_code_without_an_entry() {
-    let text = "\
-pub struct Point:
-    x: i32
-
-impl Point:
-    fn next(self) -> i32: self.x + 1
-
-fn f(x: i32) -> i32: x + 7
-
-pub fn main(x: i32) -> Point: Point { x: x }
-";
+    let text = include_str!("programs/fixture_roots/uncalled.hd");
     for level in [OptLevel::Dev, OptLevel::Optimized] {
         let out = fixture(text, level);
         let bodies = bodies(&out);
@@ -145,18 +135,7 @@ pub fn main(x: i32) -> Point: Point { x: x }
 
 #[test]
 fn unused_closures_and_named_generic_instances_survive_folding() {
-    let text = "\
-fn identity[T](value: T, n: i32) -> T:
-    if n > 0: identity(value, n - 1) else: value
-fn unused[T](value: T) -> T: value
-
-fn f(x: i32) -> i32:
-    add := fn(y: i32) -> i32: x + y
-    fn local[T](value: T) -> T: value
-    if false:
-        identity(local(+3), 0)
-    x
-";
+    let text = include_str!("programs/fixture_roots/closures_and_instances.hd");
     for level in [OptLevel::Dev, OptLevel::Optimized] {
         let out = fixture(text, level);
         let bodies = bodies(&out);
@@ -180,8 +159,8 @@ fn f(x: i32) -> i32:
 fn empty_and_uninstantiated_generic_cases_emit_with_sorted_notes() {
     for text in [
         "",
-        "struct Point:\n    x: i32\n",
-        "fn z[T](x: T) -> T: x\nfn a[T](x: T) -> T: x\n",
+        include_str!("programs/fixture_roots/point.hd"),
+        include_str!("programs/fixture_roots/uninstantiated.hd"),
     ] {
         let out = fixture(text, OptLevel::Dev);
         let _ = bodies(&out);
@@ -205,14 +184,7 @@ fn empty_and_uninstantiated_generic_cases_emit_with_sorted_notes() {
 #[test]
 fn declared_capabilities_are_parameters_without_host_boundary_codecs() {
     let out = fixture(
-        "\
-struct Token:
-    value: i32
-trait Service:
-    fn query(self, value: Token) -> Token
-fn get(value: Token) -> Token $ Service:
-    $.use(Service).query(value)
-",
+        include_str!("programs/fixture_roots/capabilities.hd"),
         OptLevel::Dev,
     );
     assert!(bodies(&out).contains_key("app/main/get#0"));
@@ -269,15 +241,7 @@ fn uncalled_suspending_functions_keep_every_generated_part() {
 #[test]
 fn generic_impl_methods_and_local_functions_are_not_rooted_without_types() {
     let out = fixture(
-        "\
-struct Box[T]:
-    value: T
-impl[T] Box[T]:
-    fn read(self) -> T: self.value
-fn wrapper(x: i32) -> i32:
-    fn unused[T](value: T) -> T: value
-    x
-",
+        include_str!("programs/fixture_roots/generic_impl.hd"),
         OptLevel::Dev,
     );
     let bodies = bodies(&out);
@@ -299,7 +263,7 @@ fn wrapper(x: i32) -> i32:
 
 #[test]
 fn uncalled_fixture_bodies_keep_origins_and_notes_on_warm_builds() {
-    let source = "fn f(x: i32) -> i32: x + 7\nfn unused[T](x: T) -> T: x\n";
+    let source = include_str!("programs/fixture_roots/origins.hd");
     let goal = Goal::Fixture {
         module: "main".into(),
     };

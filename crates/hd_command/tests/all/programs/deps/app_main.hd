@@ -1,0 +1,4 @@
+use dep.text.{greeting}
+
+pub fn main() -> void $ Console:
+    println(greeting())

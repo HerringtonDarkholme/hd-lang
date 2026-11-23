@@ -1,0 +1,2 @@
+## Doc.
+pub fn value() -> i32: 99

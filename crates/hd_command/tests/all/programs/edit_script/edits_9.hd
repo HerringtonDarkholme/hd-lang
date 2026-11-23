@@ -1,0 +1,5 @@
+use pkg.shop.items.{Costed, Item}
+
+impl Costed for Item:
+    fn cost(self) -> i64:
+        0

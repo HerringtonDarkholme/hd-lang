@@ -500,7 +500,7 @@ mod tests {
 
     #[test]
     fn emits_depth_zero_layout() {
-        let layouts = layouts("fn f():\n    +1\nnext := +2\n");
+        let layouts = layouts(include_str!("layout_suite.hd"));
         assert_eq!(
             layouts,
             [
@@ -515,7 +515,7 @@ mod tests {
 
     #[test]
     fn bracket_continuation_suppresses_layout() {
-        let layouts = layouts("values := [\n    +1,\n    +2,\n]\nnext := +3\n");
+        let layouts = layouts(include_str!("layout_brackets.hd"));
         assert_eq!(layouts, [Layout::Newline, Layout::Newline]);
     }
 }

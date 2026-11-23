@@ -1,0 +1,71 @@
+use std.net.{Net, NetError}
+use std.host.{Args, args}
+
+fn port(i: usize) -> u16 $ Args:
+    match (args()[i]).parse::[u32]():
+        .Ok(p) => u16(p)
+        .Err(_) => 0
+
+pub fn main!() -> void $ Console + Net + Args:
+    let mut net = $.use(Net)
+    tcp := port(0)
+    udp := port(1)
+    match net.lookup!("127.0.0.1"):
+        .Ok(found) => println("lookup ${debug(found)}")
+        .Err(e) => println("${e}")
+    let mut server = match net.listen!("127.0.0.1", tcp):
+        .Ok(l) => l
+        .Err(e) => return println("${e}")
+    let mut client = match net.connect!("127.0.0.1", tcp):
+        .Ok(s) => s
+        .Err(e) => return println("${e}")
+    let mut peer = match server.accept!():
+        .Ok(s) => s
+        .Err(e) => return println("${e}")
+    _ := client.write!("ping".to_utf8())
+    match peer.read!(2):
+        .Ok(bytes) => println("read ${debug(bytes)}")
+        .Err(e) => println("${e}")
+    _ := peer.write!("pong".to_utf8())
+    match client.read!(100):
+        .Ok(bytes) => println("reply ${bytes.len()}")
+        .Err(e) => println("${e}")
+    _ := client.close()
+    match peer.read!(100):
+        .Ok(bytes) => println("rest ${bytes.len()}")
+        .Err(e) => println("${e}")
+    match peer.read!(100):
+        .Ok(bytes) => println("at end ${bytes.len()}")
+        .Err(e) => println("${e}")
+    match client.read!(1):
+        .Ok(_) => println("read after close")
+        .Err(e) => println("${debug(e)}")
+    match client.close():
+        .Ok(_) => println("closed twice")
+        .Err(e) => println("${e}")
+    _ := server.close()
+    match net.listen!("127.0.0.1", tcp):
+        .Ok(_) => println("listening again")
+        .Err(e) => println("${e}")
+    match net.connect!("example.com", 80):
+        .Ok(_) => println("connected")
+        .Err(e) => println("${debug(e)}")
+    match net.lookup!("example.com"):
+        .Ok(_) => println("looked up")
+        .Err(e) => println("${debug(e)}")
+    match net.connect!("bad host", 80):
+        .Ok(_) => println("connected")
+        .Err(e) => println("${debug(e)}")
+    let mut b = match net.bind_udp!("127.0.0.1", udp):
+        .Ok(s) => s
+        .Err(e) => return println("${e}")
+    let mut a = match net.bind_udp!("127.0.0.1", 0):
+        .Ok(s) => s
+        .Err(e) => return println("${e}")
+    _ := a.send_to!("127.0.0.1", udp, "hey".to_utf8())
+    match b.receive!(2):
+        .Ok(d) => println("datagram ${debug(d.bytes)} from ${d.host}")
+        .Err(e) => println("${e}")
+    match a.send_to!("example.com", 53, [1]):
+        .Ok(_) => println("sent")
+        .Err(e) => println("${e}")

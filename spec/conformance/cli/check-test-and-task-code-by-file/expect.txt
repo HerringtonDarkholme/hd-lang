@@ -1,0 +1,13 @@
+# Test and task code has no module path, so no message names one: a `use`
+# that misses names the path as written, in text and in JSON.
+run: hd check --all --format text
+exit: 101
+stderr: error: src/lib.hd:6:14: unknown-name: `in_block` is not defined
+stderr: error: src/lib_test.hd:2:5: unknown-name: `in_unit` is not defined
+stderr: error: tasks/seed.hd:1:1: unknown-module: no module named `self.nothing`
+stderr: error: tests/common/mod.hd:1:1: unknown-module: no module named `super.up`
+stderr: error: tests/flow.hd:2:10: unknown-name: `in_integration` is not defined
+stderr: check result: FAILED. errors: 5; warnings: 0
+run: hd check --all --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","file":"src/lib.hd","line":6,"column":14},{"kind":"diagnostic","code":"unknown-name","file":"src/lib_test.hd","line":2,"column":5},{"kind":"diagnostic","code":"unknown-module","file":"tasks/seed.hd","line":1,"column":1},{"kind":"diagnostic","code":"unknown-module","file":"tests/common/mod.hd","line":1,"column":1},{"kind":"diagnostic","code":"unknown-name","file":"tests/flow.hd","line":2,"column":10},{"kind":"summary","status":101}]

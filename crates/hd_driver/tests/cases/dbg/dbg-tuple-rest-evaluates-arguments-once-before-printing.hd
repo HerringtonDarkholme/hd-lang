@@ -1,0 +1,19 @@
+# @dump: stdout
+let fixed_calls = +0
+let rest_calls = +0
+
+fn fixed() -> i32:
+    fixed_calls += 1
+    dbg("fixed")
+    +7
+
+fn tail() -> List[string]:
+    rest_calls += 1
+    dbg("rest")
+    ["a" + "b", "c" + "d"]
+
+pub fn main() -> void $ Console:
+    dbg::[(i32, List[string]...)](fixed(), tail()...)
+    let show: fn((i32, List[string]...)) -> void = dbg
+    show((fixed(), tail()...))
+    println("$fixed_calls $rest_calls")

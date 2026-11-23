@@ -868,6 +868,15 @@ pub fn diagnostics(p: &Program, build: Build) -> String {
     diagnostics::render(&check(p, build, &p.sources()))
 }
 
+/// The embedded std's sources with the case of `p` added as the std module
+/// [`own::STD_CASE`]: what a `std` build compiles, so the case may use the
+/// runtime modules (`module.rt.std-only`).
+fn std_with_case(p: &Program) -> hd_project::MemorySources {
+    let mut std = hd_driver::std_sources();
+    std.insert(own::STD_CASE, &p.text);
+    std
+}
+
 /// The `diagnostics` view's build of `p` as `build`, from `src`: the
 /// case's own sources, or the `fixed` view's edited ones.
 /// A `std` build checks the case as std's module `rt_tests.stage_case`,
@@ -876,9 +885,7 @@ pub fn diagnostics(p: &Program, build: Build) -> String {
 fn check(p: &Program, build: Build, src: &hd_project::MemorySources) -> hd_driver::Output {
     let in_std;
     let (sources, package) = if build.std {
-        let mut std = hd_driver::std_sources();
-        std.insert(own::STD_CASE, &p.text);
-        in_std = std;
+        in_std = std_with_case(p);
         (&in_std, "std")
     } else {
         (src, p.package_name())
@@ -1017,27 +1024,42 @@ const RUN_LIMIT: std::time::Duration = std::time::Duration::from_mins(1);
 /// # Errors
 /// The build reports diagnostics or writes no Wasm.
 pub fn program_wasm(p: &Program, at: Build) -> Result<Vec<u8>, String> {
-    let built = link(p, &packages(p, at))?;
+    let built = link(p, at, packages(p, at))?;
     Ok(built.wasm.expect("a linked program has Wasm"))
 }
 
-/// The program of `p` linked from `main` with `packages`, or the
-/// `stdout` view's text for a build that fails.
-fn link(p: &Program, packages: &hd_driver::Packages<'_>) -> Result<hd_driver::Output, String> {
-    let src = p.sources();
+/// The program of `p` linked from its `main` with `packages`, or the
+/// `stdout` view's text for a build that fails. A `std` build links the
+/// `main` of the std module [`own::STD_CASE`] in the `std` package, as the
+/// `diagnostics` view checks it.
+fn link(
+    p: &Program,
+    at: Build,
+    mut packages: hd_driver::Packages<'_>,
+) -> Result<hd_driver::Output, String> {
+    let in_std;
+    let src;
+    let (sources, package) = if at.std {
+        in_std = std_with_case(p);
+        packages.std_leaf = Some(own::STD_CASE);
+        (&in_std, "std")
+    } else {
+        src = p.sources();
+        (&src, p.package_name())
+    };
     let host = Host {
         render_tir: &[],
-        sources: &src,
+        sources,
         store: shared_store(),
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let built = hd_driver::build_packages(
         &host,
-        p.package_name(),
-        packages,
+        package,
+        &packages,
         &Goal::Program {
-            entry: "main".into(),
+            entry: at.module().into(),
         },
     );
     if built.wasm.is_some() && built.diags.is_empty() {
@@ -1056,7 +1078,7 @@ fn link(p: &Program, packages: &hd_driver::Packages<'_>) -> Result<hd_driver::Ou
 pub fn functions(p: &Program, at: Build) -> String {
     let mut packages = packages(p, at);
     packages.instruction_origins = true;
-    let built = match link(p, &packages) {
+    let built = match link(p, at, packages) {
         Ok(built) => built,
         Err(failed) => return failed,
     };
@@ -1159,7 +1181,7 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
 /// `release`: the optimized pipeline and the release profile, as
 /// `--release` builds). `std` builds the case as module `std.rt_tests.stage_case`
 /// of the standard library, which may use the runtime modules
-/// (`module.rt.std-only`); the semantic and Wasm views read it.
+/// (`module.rt.std-only`); every view but `tests` reads it.
 /// `checked` links the checked runtime (`crates/hd_wasm/DESIGN.md`
 /// §23.24), whose walks mark buffers, as checked conformance runs do.
 /// `program` links from `pub fn main`, including the runtime helpers a
@@ -1179,6 +1201,16 @@ pub struct Build {
 }
 
 impl Build {
+    /// The module the case's `main` is in: [`own::STD_CASE_MODULE`] for a
+    /// `std` build.
+    fn module(self) -> &'static str {
+        if self.std {
+            own::STD_CASE_MODULE
+        } else {
+            "main"
+        }
+    }
+
     fn goal(self) -> Goal {
         if self.tests {
             return Goal::Tests {
@@ -1186,12 +1218,7 @@ impl Build {
                 filter: None,
             };
         }
-        let module = if self.std {
-            "rt_tests.stage_case"
-        } else {
-            "main"
-        }
-        .to_owned();
+        let module = self.module().to_owned();
         if self.program {
             Goal::Program { entry: module }
         } else {
@@ -1453,7 +1480,10 @@ fn run_case(
 
 #[cfg(test)]
 mod tests {
-    use super::{Build, Program, diff, parse, shown_run, tokens, without_cycle_report_in_json};
+    use super::{
+        Build, Program, diff, functions, parse, program_wasm, shown_run, tokens,
+        without_cycle_report_in_json,
+    };
 
     #[test]
     fn a_test_result_shows_the_same_text_with_and_without_the_checked_report() {
@@ -1496,6 +1526,24 @@ mod tests {
             shown_run("0", b"", text),
             "exit: 0\n-- stderr\nno cycles freed: here\n"
         );
+    }
+
+    /// A `std` build links the case as std's module, so a program only std
+    /// may write builds (#2324); the ordinary build refuses it.
+    #[test]
+    fn a_std_build_links_the_case_in_the_std_package() {
+        let case = Program::new(include_str!("stages/programs/std_only_use.hd")).expect("case");
+        let ordinary = Build::default();
+        let std = Build {
+            std: true,
+            ..ordinary
+        };
+        let refused = program_wasm(&case, ordinary).expect_err("only std may use it");
+        assert!(refused.contains("std-only-use"), "{refused}");
+        program_wasm(&case, std).expect("the std build links");
+        let linked = functions(&case, std);
+        assert!(linked.contains("rt_tests.stage_case"), "{linked}");
+        assert!(!functions(&case, ordinary).contains("rt_tests.stage_case"));
     }
 
     #[test]

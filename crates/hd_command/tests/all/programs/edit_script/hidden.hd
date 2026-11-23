@@ -1,0 +1,8 @@
+use pkg.shop.items.{Costed}
+
+struct Hidden:
+    n: i64
+
+impl Costed for Hidden:
+    fn cost(self) -> i64:
+        self.n

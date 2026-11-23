@@ -1,0 +1,32 @@
+# @dump: tests
+# `to_fixed` through a program (`std-num.to-fixed.*`): it rounds the exact
+# binary value with a tie to even, never writes an exponent, writes up to
+# 100 digits, and keeps the sign bit and the special values. Every case
+# passes.
+use std.testing.assert_equal
+
+tests:
+    it("rounds the exact binary value, a tie to even"):
+        assert_equal(0.125.to_fixed(2), "0.12", reason="tie to even, down")
+        assert_equal(0.375.to_fixed(2), "0.38", reason="tie to even, up")
+        assert_equal(2.5.to_fixed(0), "2", reason="tie")
+        assert_equal(3.5.to_fixed(0), "4", reason="tie")
+        assert_equal(0.5.to_fixed(0), "0", reason="tie to zero")
+        assert_equal((-0.5).to_fixed(0), "-0", reason="tie to negative zero")
+        assert_equal(1.005.to_fixed(2), "1.00", reason="1.005 is below the tie")
+        assert_equal(0.1.to_fixed(20), "0.10000000000000000555", reason="exact digits")
+        assert_equal(3.14159.to_fixed(2), "3.14", reason="plain")
+    it("never uses an exponent"):
+        assert_equal(1e21.to_fixed(1), "1000000000000000000000.0", reason="large")
+        assert_equal(1e-7.to_fixed(3), "0.000", reason="small")
+        assert_equal(1e-7.to_fixed(10), "0.0000001000", reason="small, more digits")
+        assert_equal(5e-324.to_fixed(2), "0.00", reason="subnormal")
+    it("one hundred digits"):
+        assert_equal(1.0.to_fixed(100).len(), 102, reason="the point and the digits")
+    it("signs and specials"):
+        zero := 0.0
+        assert_equal((-zero).to_fixed(1), "-0.0", reason="negative zero")
+        assert_equal((-0.001).to_fixed(2), "-0.00", reason="rounds to a negative zero")
+        assert_equal((zero / zero).to_fixed(2), "NaN", reason="NaN")
+        assert_equal((1.0 / zero).to_fixed(2), "inf", reason="infinity")
+        assert_equal((-1.0 / zero).to_fixed(2), "-inf", reason="negative infinity")

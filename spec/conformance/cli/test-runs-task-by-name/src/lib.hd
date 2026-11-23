@@ -1,0 +1,2 @@
+pub fn rows() -> i32:
+    2

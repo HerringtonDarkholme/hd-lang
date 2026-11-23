@@ -1,0 +1,5 @@
+use dep.fixtures.sample
+use std.testing.assert_equal
+
+it("samples"):
+    assert_equal(sample(), 10, reason="dev")

@@ -1,0 +1,18 @@
+## The total.
+##
+## ```hd
+## use pkg.money.coins.{cents}
+## use pkg.ledger.{total}
+## use std.testing.assert_equal
+##
+## assert_equal(total() + cents(), 103, reason="doc")
+## ```
+pub fn total() -> i32:
+    3
+
+tests:
+    use pkg.money.coins.cents
+    use std.testing.assert_equal
+
+    it("adds cents"):
+        assert_equal(total() + cents(), 103, reason="block")

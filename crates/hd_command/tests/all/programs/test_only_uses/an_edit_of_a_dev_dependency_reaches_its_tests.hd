@@ -1,0 +1,9 @@
+pub fn total() -> i32:
+    3
+
+tests:
+    use dep.fixtures.sample
+    use std.testing.assert_equal
+
+    it("adds a sample"):
+        assert_equal(total() + sample(), 13, reason="block")

@@ -1,0 +1,16 @@
+pub enum VaultError:
+    Other(message: string)
+
+pub trait Vault:
+    fn ignored(self) -> Result[void, VaultError]
+    fn observed(self) -> Result[void, VaultError]
+
+pub fn main() -> void $ Vault:
+    _ := $.use(Vault).ignored()
+    let saved = $.use(Vault).observed()
+    _ := $.use(Vault).ignored()
+    match saved:
+        .Err(.Other(message)) =>
+            if message != "kept λ 🦀":
+                panic("observed host error changed")
+        _ => panic("observed host error variant changed")

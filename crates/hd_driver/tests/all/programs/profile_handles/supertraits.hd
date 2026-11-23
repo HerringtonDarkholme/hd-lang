@@ -1,0 +1,16 @@
+use std.task.block_on
+pub trait Parent:
+    fn parent!(&self) -> u32
+pub trait Child < Parent:
+    fn child!(&self) -> u32
+pub fn main!() -> void $ Child:
+    let value: &dyn Child = $.use(Child)
+    if value.parent!() != 35:
+        panic("wrong parent")
+    if value.child!() != 7:
+        panic("wrong child")
+    match block_on(value.child()):
+        .Completed(n) =>
+            if n != 7:
+                panic("wrong blocking child")
+        _ => panic("child did not complete")

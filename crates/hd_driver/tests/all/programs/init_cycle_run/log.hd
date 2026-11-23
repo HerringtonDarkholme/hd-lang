@@ -1,0 +1,7 @@
+let mut lines: List[string] = []
+
+pub fn record(line: string) -> void:
+    lines.push(line)
+
+pub fn recorded() -> List[string]:
+    lines

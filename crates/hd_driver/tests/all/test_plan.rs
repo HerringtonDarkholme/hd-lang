@@ -10,29 +10,9 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 use std::fmt::Write;
 
-const MATH: &str = "\
-use std.testing.{assert, assert_equal}
+const MATH: &str = include_str!("programs/test_plan/math.hd");
 
-fn add(a: i32, b: i32) -> i32: a + b
-
-tests:
-    it(\"adds\"):
-        assert_equal(add(2, 3), 5, reason=\"small sums\")
-
-    it(\"skips\", ignore=\"slow\"):
-        assert(false, reason=\"never runs\")
-
-    it(\"times out\", timeout=.None):
-        assert(true, reason=\"no limit\")
-";
-
-const TEXT: &str = "\
-use std.testing.assert
-
-tests:
-    it(\"compares\"):
-        assert(\"a\" == \"a\", reason=\"equal text\")
-";
+const TEXT: &str = include_str!("programs/test_plan/text.hd");
 
 fn sources() -> MemorySources {
     let mut s = MemorySources::default();

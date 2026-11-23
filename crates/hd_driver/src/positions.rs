@@ -602,7 +602,7 @@ mod tests {
         use hd_project::MemorySources;
         use hd_sched::SerialOrder;
 
-        let original = "fn f() -> usize:\n    let size = 0\n    size - 1\n\npub fn main() -> void $ Console:\n    println(f())\n";
+        let original = include_str!("tests/programs/positions/retained_sources.hd");
         let edited = format!("# λ: current source lines\n\n{original}");
         let store = MemoryStore::default();
         let mut pool = PositionPool::default();

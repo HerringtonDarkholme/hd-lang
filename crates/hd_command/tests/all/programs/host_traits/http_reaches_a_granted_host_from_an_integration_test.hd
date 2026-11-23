@@ -1,0 +1,7 @@
+use std.http.{Http, get}
+use std.task.block_on
+
+pub fn status_of(url: string) -> u16 $ Http:
+    match block_on(get(url)):
+        .Completed(.Ok(response)) => response.status.code()
+        _ => 0

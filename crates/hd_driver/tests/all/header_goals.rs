@@ -30,56 +30,17 @@ fn analyze(files: &[(&str, &str)], executor: Executor, file: &str) -> Vec<String
         .collect()
 }
 
-const LIB: &str = "\
-pub trait Tag:
-    fn tag(self) -> i32
-
-pub trait Pick[T]:
-    fn pick(self) -> T
-
-pub struct Receiver:
-    pub n: i32
-
-pub struct Tagged[T < Tag]:
-    pub v: T
-";
+const LIB: &str = include_str!("programs/header_goals/lib.hd");
 
 /// Owns `Product`, and so `impl Pick[Product] for Receiver` through the
 /// trait argument and `impl Tag for Product` through the target.
-const PROD: &str = "\
-use pkg.lib.defs.{Pick, Receiver, Tag}
-
-pub struct Product:
-    pub id: i32
-
-impl Pick[Product] for Receiver:
-    fn pick(self) -> Product:
-        Product { id: self.n }
-
-impl Tag for Product:
-    fn tag(self) -> i32:
-        self.id
-";
+const PROD: &str = include_str!("programs/header_goals/prod.hd");
 
 /// Sees `prod`: both impls answer its header goals.
-const WITH: &str = "\
-use pkg.lib.defs.{Pick, Receiver, Tagged}
-use pkg.prod.defs.{Product}
-
-pub struct Picks[T < Pick[Product]]:
-    pub v: T
-
-pub fn first(p: Picks[Receiver], t: Tagged[Product]) -> i32:
-    1
-";
+const WITH: &str = include_str!("programs/header_goals/with.hd");
 
 /// Does not see `prod`, and `string: Tag` fails in every closure.
-const WITHOUT: &str = "\
-use pkg.lib.defs.{Tagged}
-
-pub fn second(t: Tagged[string]) -> i32:
-    1
-";
+const WITHOUT: &str = include_str!("programs/header_goals/without.hd");
 
 #[test]
 fn header_answers_follow_the_folder_closure_on_any_executor() {

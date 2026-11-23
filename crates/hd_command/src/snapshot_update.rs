@@ -404,13 +404,15 @@ mod tests {
 
     #[test]
     fn a_doc_test_literal_is_replaced_inside_its_comment_lines() {
-        let text = "## Doc.\n##\n## ```hd\n## snapshot(f(),\n##     expect=\"\"\"\n##     a\n##     \"\"\")\n## ```\nfn f(): 1\n    ## snapshot(g())\n";
+        let text = include_str!(
+            "tests/programs/snapshot_update/a_doc_test_literal_is_replaced_inside_its_comment_lines.hd"
+        );
         let s = site(Kind::Expect, (5, 12), (7, 8), true);
         assert_eq!(
             rewrite(text, &s, "\"new\"").as_deref(),
-            Ok(
-                "## Doc.\n##\n## ```hd\n## snapshot(f(),\n##     expect=\"new\")\n## ```\nfn f(): 1\n    ## snapshot(g())\n"
-            )
+            Ok(include_str!(
+                "tests/programs/snapshot_update/a_doc_test_literal_is_replaced_inside_its_comment_lines_2.hd"
+            ))
         );
         let s = site(Kind::Add, (10, 10), (10, 13), true);
         assert_eq!(

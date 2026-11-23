@@ -1,0 +1,18 @@
+use std.host.{Sys, HostError}
+
+fn show(r: Result[string, HostError]) -> string:
+    match r:
+        .Ok(text) => text
+        .Err(e) => "${e}"
+
+pub fn main() -> void $ Console + Sys:
+    sys := $.use(Sys)
+    println(show(sys.os()))
+    println(show(sys.arch()))
+    println("${sys.hostname().is_ok()}")
+    match sys.cpu_count():
+        .Ok(n) => println("${n > 0}")
+        .Err(e) => println("${e}")
+    match sys.hostname():
+        .Err(.NotGranted(name)) => println("refused ${name}")
+        _ => println("read")

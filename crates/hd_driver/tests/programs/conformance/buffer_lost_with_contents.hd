@@ -1,0 +1,4 @@
+use std.rt.memory.Buffer
+pub fn main() -> void:
+    slots := Buffer::[Buffer[u8]].new(1)
+    slots.at(0).write(Buffer::[u8].new(8))

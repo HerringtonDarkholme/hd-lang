@@ -42,7 +42,7 @@ fn a_dependency_name_finds_only_its_pub_items() {
             ),
             (
                 "src/main.hd",
-                "use dep.money.{cents}\n\npub fn main() -> void $ Console:\n    println(cents(12))\n",
+                include_str!("programs/doc_name/a_dependency_name_finds_only_its_pub_items.hd"),
             ),
             (
                 "money/hd.toml",
@@ -51,18 +51,18 @@ fn a_dependency_name_finds_only_its_pub_items() {
             ("cash/hd.toml", "[package]\nname = \"cash\"\n"),
             (
                 "cash/src/lib.hd",
-                "## Counts coins.\npub fn coins() -> i32: 2\n",
+                include_str!("programs/doc_name/a_dependency_name_finds_only_its_pub_items_2.hd"),
             ),
             (
                 "money/src/lib.hd",
-                "## Money helpers.\n\n## Turns euros into cents.\npub fn cents(euros: i32) -> i32:\n    euros * 100\n\nfn helper() -> i32: 1\n",
+                include_str!("programs/doc_name/a_dependency_name_finds_only_its_pub_items_3.hd"),
             ),
         ],
     );
     let out = hd(&root, &cache, &["doc", "--out", "site", "dep.money.cents"]);
     assert_eq!(
         text(&out.stdout),
-        "## `cents`\n\n```hd\npub fn cents(euros: i32) -> i32\n```\n\nTurns euros into cents.\n",
+        include_str!("programs/doc_name/a_dependency_name_finds_only_its_pub_items_4.hd"),
         "{}",
         text(&out.stderr)
     );
@@ -125,7 +125,7 @@ fn a_std_name_prints_the_lib_std_declaration() {
     let out = hd(&root, &cache, &["doc", "std.text.split"]);
     assert_eq!(
         text(&out.stdout),
-        "```hd\npub fn split(self, separator: string) -> List[string]\n```\n\nSplits the string around each occurrence of `separator`, in order.\n\nReference: [std.text.string.split](spec/std/text.md#r-std-text.string.split)\n",
+        include_str!("programs/doc_name/a_std_name_prints_the_lib_std_declaration.hd"),
         "{}",
         text(&out.stderr)
     );

@@ -1,0 +1,3 @@
+pub fn main() -> void $ Console:
+    println("hello, world")
+    println(7)

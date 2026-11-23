@@ -1,6 +1,10 @@
 //! CRLF line endings (lex.line.physical, lex.line.crlf, lex.line.bare-cr):
 //! a carriage return followed by a line feed is one line ending, and a
 //! bare carriage return is an `invalid-token` error.
+//! These sources stay Rust strings: their `\r` bytes are the subject, and
+//! the assertions read the token arrays. A whole CRLF program that parses
+//! clean and runs is
+//! `spec/conformance/lang/lexical/physical-and-logical-lines/crlf-line-endings.hd`.
 
 use hd_syntax::parse;
 
@@ -16,12 +20,6 @@ fn diagnostics(source: &str) -> Vec<(usize, u32, &'static str)> {
             (line + 1, column + 1, d.code.as_str())
         })
         .collect()
-}
-
-#[test]
-fn crlf_source_has_no_diagnostics() {
-    let source = "fn f() -> i32:\r\n    x := 1\r\n    x\r\n\r\n# note\r\nfn g():\r\n    pass\r\n";
-    assert_eq!(diagnostics(source), []);
 }
 
 #[test]

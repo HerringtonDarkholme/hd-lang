@@ -1,0 +1,5 @@
+# A test module may use a dev dependency too (module.test.dev-dependency).
+use dep.fixtures.{sample_orders}
+
+fn two_orders() -> usize:
+    sample_orders().len()

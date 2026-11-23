@@ -35,19 +35,7 @@ fn text(b: &[u8]) -> String {
 }
 
 /// Errors with a cause, which a `?` in a test body propagates.
-const ERRORS: &str = "\
-@error(\"disk full\")
-pub struct DiskError:
-    free: i64
-
-@error
-pub enum SaveError:
-    @error(\"cannot save $path\")
-    Write(path: string, @source error: DiskError)
-
-pub fn save(free: i64) -> Result[void, SaveError]:
-    if free > 0: .Ok(()) else: .Err(SaveError.Write(\"notes.txt\", DiskError { free: free }))
-";
+const ERRORS: &str = include_str!("programs/test_bodies/errors.hd");
 
 /// `expr.try.test.with-try.reference-values`, `module.testing.err-runner-source-report`: a body that uses
 /// `?` returns `Result[void, dyn Error]`. `.Ok(())` passes; an `.Err` fails,
@@ -114,40 +102,7 @@ test result: FAILED. 2 passed; 2 failed; 0 ignored
 /// `TestRunner` runs in a unit test (`module.testing.unit-row.test-runner`).
 #[test]
 fn an_explicit_body_keeps_its_own_result() {
-    let lib = "\
-use std.error.{Error, message}
-use std.process.ExitCode
-use std.testing.TestRunner
-use std.time.s
-
-fn check_port(port: i32) -> Result[void, *dyn Error]:
-    if port > 0: .Ok(()) else: .Err(message(\"bad port: ${port}\"))
-
-fn exit_zero() -> ExitCode:
-    ExitCode(0)
-
-fn first_row(rows: List[string]) -> string $ TestRunner:
-    rows[$.use(TestRunner).row(rows.len())]
-
-tests:
-    use std.testing.assert_equal
-
-    it(\"passes with code zero\", body=fn!() -> ExitCode: ExitCode(0))
-
-    it(\"fails with code three\", body=fn!() -> ExitCode: ExitCode(3))
-
-    it(\"passes an ok port\", fn!() -> Result[void, *dyn Error]: check_port(80))
-
-    it(\"fails a bad port\", body=fn!() -> Result[void, *dyn Error]: check_port(0))
-
-    it(\"takes a function\", body=exit_zero)
-
-    it(\"takes a plain closure\", body=fn(): assert_equal(1 + 1, 2, reason=\"sums\"))
-
-    it(\"takes a timeout\", timeout=5s, body=fn!(): assert_equal(2 + 2, 4, reason=\"sums\"))
-
-    it(\"uses the runner\", body=fn!() -> void $ TestRunner: _ := first_row([\"a\"]))
-";
+    let lib = include_str!("programs/test_bodies/an_explicit_body_keeps_its_own_result.hd");
     let root = package("test-bodies-explicit", lib);
     let out = hd(&root, &["test"]);
     assert_eq!(

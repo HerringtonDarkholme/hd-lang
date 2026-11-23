@@ -1,0 +1,5 @@
+use pkg.shapes.Point
+use std.ops.Default
+
+pub fn main() -> void $ Console:
+    println(debug(Point::default()))

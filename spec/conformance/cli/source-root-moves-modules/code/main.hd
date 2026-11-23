@@ -1,0 +1,4 @@
+use pkg.util.{double}
+
+pub fn main() -> void $ Console:
+    println(double(21))

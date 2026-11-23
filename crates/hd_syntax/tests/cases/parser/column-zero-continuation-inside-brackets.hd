@@ -1,0 +1,26 @@
+# @dump: tree
+# A column-0 line inside balanced brackets that no item can start still
+# continues them. The layout is the subject, so the lines stay as written.
+values := [
++1,
++2,
+]
+next := +3
+
+fn total() -> i32:
+    add(
+1,
+fn(x): x,
+)
+
+fn total() -> i32:
+    run(
+fn(x: i32) -> i32:
+        x
+,
+)
+
+fn f(
+value: i32,
+) -> i32:
+    value

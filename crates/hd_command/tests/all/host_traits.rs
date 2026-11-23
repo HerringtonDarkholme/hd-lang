@@ -50,8 +50,7 @@ fn args_hold_the_program_and_its_arguments() {
     let dir = work("host-args");
     write(
         &dir.join("main.hd"),
-        "use std.host.{Args, args}\n\npub fn main() -> void $ Console + Args:\n    \
-         println($.use(Args).program())\n    for word in args():\n        println(\"[${word}]\")\n",
+        include_str!("programs/host_traits/args_hold_the_program_and_its_arguments.hd"),
     );
     let out = run(&dir, &["main.hd", "--", "a", "b c", ""]);
     assert_eq!(text(&out.stderr), "");
@@ -59,20 +58,7 @@ fn args_hold_the_program_and_its_arguments() {
     assert!(out.status.success());
 }
 
-const ENV_PROGRAM: &str = "use std.host.{Env, env}
-
-fn show(name: string) -> string $ Env:
-    match env(name):
-        .Some(value) => value
-        .None => \"(none)\"
-
-pub fn main() -> void $ Console + Env:
-    println(show(\"HD_T176_SEEN\"))
-    println(show(\"HD_T176_HIDDEN\"))
-    println(show(\"HD_T176_HIDDEN\"))
-    println(show(\"HD_T176_UNSET\"))
-    println(\"${$.use(Env).names().len()}\")
-";
+const ENV_PROGRAM: &str = include_str!("programs/host_traits/env_program.hd");
 
 /// `Env` (`std-host.env.*`, `cli.cap.env.*`): a granted variable reads its
 /// value, an ungranted one reads as unset with one notice per name, and
@@ -109,81 +95,6 @@ fn env_reads_granted_variables_and_names_the_rest() {
     assert_eq!(text(&out.stderr), "");
 }
 
-const FILES_PROGRAM: &str =
-    "use std.fs.{EntryKind, FsError, FsRead, FsWrite, read_text, write_text}
-use std.path.Path
-
-fn kind(k: EntryKind) -> string:
-    match k:
-        .File => \"file\"
-        .Directory => \"dir\"
-        .Symlink => \"link\"
-
-fn outcome(r: Result[void, FsError]) -> string:
-    match r:
-        .Ok(_) => \"ok\"
-        .Err(e) => \"${e}\"
-
-pub fn main!() -> void $ Console + FsRead + FsWrite:
-    let mut files = $.use(FsWrite)
-    println(outcome(files.create_dir_all!(Path(\"out/sub\"))))
-    println(outcome(write_text!(Path(\"out/sub/a.txt\"), \"h\\u{E9}llo\")))
-    println(outcome(files.append_text!(Path(\"out/sub/a.txt\"), \"!\")))
-    println(outcome(files.write_bytes!(Path(\"out/sub/b.bin\"), [0, 200, 255])))
-    match read_text!(Path(\"out/sub/a.txt\")):
-        .Ok(text) => println(text)
-        .Err(e) => println(\"${e}\")
-    match $.use(FsRead).read_bytes!(Path(\"out/sub/b.bin\")):
-        .Ok(bytes) => println(\"${bytes.len()} ${bytes[1]}\")
-        .Err(e) => println(\"${e}\")
-    match $.use(FsRead).list_dir!(Path(\"out/sub\")):
-        .Ok(entries) =>
-            for entry in entries:
-                println(\"${entry.path} ${kind(entry.kind)} ${entry.size}\")
-        .Err(e) => println(\"${e}\")
-    match $.use(FsRead).stat!(Path(\"out/none\")):
-        .Ok(.None) => println(\"no entry\")
-        .Ok(.Some(_)) => println(\"an entry\")
-        .Err(e) => println(\"${e}\")
-    println(outcome(files.rename!(Path(\"out/sub/a.txt\"), Path(\"out/c.txt\"))))
-    println(outcome(files.remove!(Path(\"out/sub/b.bin\"))))
-    println(outcome(write_text!(Path(\"denied.txt\"), \"x\")))
-    match read_text!(Path(\"secret.txt\")):
-        .Ok(_) => println(\"read\")
-        .Err(.NotGranted(_)) => println(\"read not granted\")
-        .Err(e) => println(\"${e}\")
-    match read_text!(Path(\"out/missing.txt\")):
-        .Ok(_) => println(\"read\")
-        .Err(.NotFound(_)) => println(\"not found\")
-        .Err(e) => println(\"${e}\")
-";
-
-/// `FsRead` and `FsWrite` (`std-fs.read.*`, `std-fs.write.*`,
-/// `cli.cap.partial.refuse`): reads and writes under the granted `out`,
-/// and `NotGranted` outside it, never touching the refused path.
-#[test]
-fn files_are_read_and_written_inside_the_grant() {
-    let dir = work("host-files");
-    write(&dir.join("main.hd"), FILES_PROGRAM);
-    write(&dir.join("secret.txt"), "secret");
-    let out = run(
-        &dir,
-        &["--cap", "FsRead=out", "--cap", "FsWrite=out", "main.hd"],
-    );
-    assert_eq!(text(&out.stderr), "");
-    assert_eq!(
-        text(&out.stdout),
-        "ok\nok\nok\nok\nh\u{e9}llo!\n3 200\nout/sub/a.txt file 7\nout/sub/b.bin file 3\n\
-         no entry\nok\nok\naccess to denied.txt is not granted\nread not granted\nnot found\n"
-    );
-    assert_eq!(
-        std::fs::read_to_string(dir.join("out/c.txt")).expect("renamed"),
-        "h\u{e9}llo!"
-    );
-    assert!(!dir.join("out/sub/b.bin").exists(), "removed");
-    assert!(!dir.join("denied.txt").exists(), "never written");
-}
-
 /// `ConsoleInput` (`std-console.input.*`,
 /// `cli.host.default-profile.input-closed`): each line of standard input
 /// without its ending, then `.None` at the end, and again after it.
@@ -192,12 +103,7 @@ fn console_input_reads_standard_input_by_lines() {
     let dir = work("host-input");
     write(
         &dir.join("main.hd"),
-        "use std.console.{ConsoleInput, read_line}\n\npub fn main!() -> void $ Console + ConsoleInput:\n    \
-         let more = true\n    while more:\n        match read_line!():\n            \
-         .Ok(.Some(line)) => println(\"[${line}]\")\n            .Ok(.None) =>\n                \
-         println(\"end\")\n                more = false\n            .Err(_) =>\n                \
-         println(\"closed\")\n                more = false\n    match read_line!():\n        \
-         .Ok(.None) => println(\"still end\")\n        _ => println(\"not end\")\n",
+        include_str!("programs/host_traits/console_input_reads_standard_input_by_lines.hd"),
     );
     let mut child = hd(&dir, &["main.hd"])
         .stdin(Stdio::piped())
@@ -228,12 +134,7 @@ fn process_runs_a_granted_host_program() {
     let dir = work("host-process");
     write(
         &dir.join("main.hd"),
-        "use std.process.{Command, Process}\n\nfn start!(program: string, args: List[string], input: string) -> string $ Process:\n    \
-         match Command::new(program).args(args).stdin(input).run!():\n        \
-         .Ok(out) => \"${out.status} [${out.stdout}] [${out.stderr}]\"\n        \
-         .Err(e) => \"${e}\"\n\npub fn main!() -> void $ Console + Process:\n    \
-         println(start!(\"sh\", [\"-c\", \"cat; echo oops >&2; exit 3\"], \"fed\"))\n    \
-         println(start!(\"ls\", [], \"\"))\n    println(start!(\"hd-no-such-program-176\", [], \"\"))\n",
+        include_str!("programs/host_traits/process_runs_a_granted_host_program.hd"),
     );
     let out = run(
         &dir,
@@ -259,8 +160,7 @@ fn the_default_test_runner_keeps_snapshot_files() {
     );
     write(
         &dir.join("src/lib.hd"),
-        "pub fn greet(name: string) -> string:\n    \"hello, ${name}\"\n\ntests:\n    \
-         use std.testing.snapshot_file\n\n    it(\"Greets Ada!\"):\n        snapshot_file(greet(\"Ada\"))\n",
+        include_str!("programs/host_traits/the_default_test_runner_keeps_snapshot_files.hd"),
     );
     let snap = dir.join("__snapshots__/pkg/greets-ada--1.snap");
     let out = run(&dir, &["test"]);
@@ -289,77 +189,7 @@ fn the_default_test_runner_keeps_snapshot_files() {
     );
 }
 
-/// The test runner's `Process` (`cli.test.process.tasks`,
-/// `std-testing.hd-run.*`): an integration test runs a task by its name,
-/// with arguments and standard input, in the package directory; a name
-/// that names no executable or task panics.
-#[test]
-fn the_test_runner_runs_a_task_by_name() {
-    let dir = work("host-tasks");
-    write(
-        &dir.join("hd.toml"),
-        "[package]\nname = \"shop\"\n\n[capabilities]\nArgs = true\nConsole = true\nConsoleInput = true\nFsRead = true\n\n[dev-capabilities]\nProcess = true\n",
-    );
-    write(&dir.join("src/lib.hd"), "pub fn rows() -> i32:\n    2\n");
-    write(&dir.join("data.txt"), "from the package");
-    write(
-        &dir.join("tasks/seed.hd"),
-        "use std.host.{Args, args}\nuse std.console.{ConsoleInput, read_line}\n\
-         use std.fs.{FsRead, read_text}\nuse std.path.Path\n\n\
-         pub fn main!() -> void $ Console + Args + ConsoleInput + FsRead:\n    \
-         match read_line!():\n        .Ok(.Some(line)) => println(\"seeded ${args().len()} ${line}\")\n        \
-         _ => println(\"no input\")\n    \
-         match read_text!(Path(\"data.txt\")):\n        .Ok(text) => println(text)\n        \
-         .Err(e) => println(\"${e}\")\n",
-    );
-    write(
-        &dir.join("tests/run.hd"),
-        "use std.process.Command\nuse std.testing.{assert_equal, hd_run}\n\nit(\"runs the seed task\"):\n    \
-         out := hd_run!(*Command::new(\"seed\").arg(\"x\").stdin(\"rows\\n\"))\n    \
-         assert_equal(out.stdout, \"seeded 1 rows\\nfrom the package\\n\", reason=\"the task's report\")\n    \
-         assert_equal(out.status, 0, reason=\"a clean exit\")\n\n\
-         it(\"names no program\"):\n    _ := hd_run!(*Command::new(\"nothing\"))\n",
-    );
-    let out = run(&dir, &["test", "--format", "json"]);
-    let stdout = text(&out.stdout);
-    assert!(
-        stdout.contains(r#"{"kind":"test","name":"runs the seed task","outcome":"passed""#),
-        "{stdout}{}",
-        text(&out.stderr)
-    );
-    assert!(
-        stdout.contains("the package has no executable or task named 'nothing'"),
-        "{stdout}"
-    );
-    assert_eq!(out.status.code(), Some(1), "{stdout}");
-}
-
-const TIMEOUT_TESTS: &str = "use std.time.{Duration, ms, h}
-
-fn budget() -> Duration: 1h
-
-fn forever(stop: i32) -> i32:
-    let total: i32 = 0
-    while total != stop:
-        total = (total + 1) % 1000
-    total
-
-tests:
-    use std.testing.{assert, it_each}
-
-    it(\"spins\", timeout=100ms):
-        _ := forever(-1)
-
-    it_each(\"rows\", [1, -1, 2], timeout=100ms, body=fn!(value: i32):
-        assert(forever(value) == value, reason=\"ends\")
-    )
-
-    it(\"within its budget\", timeout=budget()):
-        assert(forever(7) == 7, reason=\"ends\")
-
-    it(\"no limit\", timeout=.None):
-        assert(true, reason=\"runs\")
-";
+const TIMEOUT_TESTS: &str = include_str!("programs/host_traits/timeout_tests.hd");
 
 /// `TestRunner.report_timeout` (`std-testing.option.timeout-any-duration`,
 /// `.timeout-at-run`, `std-testing.runner.timeout`): a body that never
@@ -394,12 +224,13 @@ fn a_sleep_past_the_timeout_fails_the_case() {
         &dir.join("hd.toml"),
         "[package]\nname = \"naps\"\n\n[dev-capabilities]\nClock = true\nConsole = true\n",
     );
-    write(&dir.join("src/lib.hd"), "pub fn naps() -> i32:\n    2\n");
+    write(
+        &dir.join("src/lib.hd"),
+        include_str!("programs/host_traits/a_sleep_past_the_timeout_fails_the_case.hd"),
+    );
     write(
         &dir.join("tests/naps.hd"),
-        "use std.time.{ms, s, sleep}\n\nit(\"oversleeps\", timeout=50ms):\n    \
-         println(\"falling asleep\")\n    sleep!(10s)\n\n\
-         it(\"naps\", timeout=10s):\n    sleep!(1ms)\n",
+        include_str!("programs/host_traits/a_sleep_past_the_timeout_fails_the_case_2.hd"),
     );
     let out = run(&dir, &["test", "--format", "json"]);
     let stdout = text(&out.stdout);
@@ -417,65 +248,7 @@ fn a_sleep_past_the_timeout_fails_the_case() {
     assert_eq!(out.status.code(), Some(1), "{stdout}");
 }
 
-const RANDOM_PROGRAM: &str = "use std.random.{Random, rng}
-
-pub fn main() -> void $ Console + Random:
-    let mut source = $.use(Random)
-    println(\"${source.fill(16).len()} ${source.fill(100000).len()} ${source.fill(0).len()}\")
-    let distinct = 0
-    let previous = source.next_u64()
-    for _ in 0..8:
-        next := source.next_u64()
-        if next != previous:
-            distinct = distinct + 1
-        previous = next
-    println(\"${distinct}\")
-    let mut r = rng()
-    roll := r.int(1..=6)
-    println(\"${roll >= 1 && roll <= 6}\")
-";
-
-/// `Random` (`std-random.next`, `.fill`, cli.host.default-profile): the
-/// operating system's source fills any count of bytes and draws distinct
-/// values, `rng()` seeds from it, and `--cap Random=false` refuses the
-/// program before it starts (`cli.cap.total.refuse`).
-#[test]
-fn random_draws_from_the_host_source() {
-    let dir = work("host-random");
-    write(&dir.join("main.hd"), RANDOM_PROGRAM);
-    let out = run(&dir, &["main.hd"]);
-    assert_eq!(text(&out.stderr), "");
-    assert_eq!(text(&out.stdout), "16 100000 0\n8\ntrue\n");
-    assert!(out.status.success());
-    let denied = run(&dir, &["--cap", "Random=false", "main.hd"]);
-    assert_eq!(text(&denied.stdout), "");
-    assert!(
-        text(&denied.stderr).contains("needs Random, which `--cap Random=false` denies"),
-        "{}",
-        text(&denied.stderr)
-    );
-    assert_eq!(denied.status.code(), Some(101));
-}
-
-const SYS_PROGRAM: &str = "use std.host.{Sys, HostError}
-
-fn show(r: Result[string, HostError]) -> string:
-    match r:
-        .Ok(text) => text
-        .Err(e) => \"${e}\"
-
-pub fn main() -> void $ Console + Sys:
-    sys := $.use(Sys)
-    println(show(sys.os()))
-    println(show(sys.arch()))
-    println(\"${sys.hostname().is_ok()}\")
-    match sys.cpu_count():
-        .Ok(n) => println(\"${n > 0}\")
-        .Err(e) => println(\"${e}\")
-    match sys.hostname():
-        .Err(.NotGranted(name)) => println(\"refused ${name}\")
-        _ => println(\"read\")
-";
+const SYS_PROGRAM: &str = include_str!("programs/host_traits/sys_program.hd");
 
 /// `Sys` (`std-host.sys.*`, `cli.cap.scope.sys`): the host's operating system
 /// and architecture by std's names, its host name and processor count;
@@ -576,28 +349,7 @@ fn http_server() -> u16 {
     port
 }
 
-const HTTP_PROGRAM: &str = "use std.http.{Http, HttpError, Method, Request, Response, Url, get}
-use std.host.{Args, args}
-
-fn show!(r: Result[Response, HttpError]) -> string:
-    match r:
-        .Ok(response) => \"${response.status.code()} ${response.text().expect(\"body\")} ${debug(response.header(.SetCookie))} ${response.headers.entries().len()}\"
-        .Err(.Status(response)) => \"status error ${response.status.code()} ${response.text().expect(\"body\")}\"
-        .Err(e) => \"${debug(e)}\"
-
-pub fn main!() -> void $ Console + Http + Args:
-    base := args()[0]
-    println(show!(get!(\"${base}/ok\")))
-    println(show!(get!(\"${base}/redirect\")))
-    println(show!(Request::get(Url::parse(\"${base}/redirect\").expect(\"URL\")).send!(0)))
-    println(show!(get!(\"${base}/nothing\")))
-    println(show!(get!(\"${base}/loop\")))
-    println(show!(Request::post(Url::parse(\"${base}/echo\").expect(\"URL\")).set_text(\"abc\").send!()))
-    println(show!(get!(\"http://example.com/\")))
-    println(show!(get!(\"ftp://127.0.0.1/\")))
-    println(show!(get!(\"http://bücher.example/\")))
-    println(show!(get!(\"http://xn--bcher-kva.EXAMPLE/\")))
-";
+const HTTP_PROGRAM: &str = include_str!("programs/host_traits/http_program.hd");
 
 /// `Http` (`std-http.send.*`, `cli.cap.scope.host`, `.redirect`): a
 /// request to a granted host completes with every status as a response,
@@ -679,9 +431,9 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
     );
     write(
         &dir.join("src/lib.hd"),
-        "use std.http.{Http, get}\nuse std.task.block_on\n\n\
-         pub fn status_of(url: string) -> u16 $ Http:\n    \
-         match block_on(get(url)):\n        .Completed(.Ok(response)) => response.status.code()\n        _ => 0\n",
+        include_str!(
+            "programs/host_traits/http_reaches_a_granted_host_from_an_integration_test.hd"
+        ),
     );
     write(
         &dir.join("tests/fetch.hd"),
@@ -703,78 +455,7 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
     assert!(out.status.success());
 }
 
-const NET_PROGRAM: &str = "use std.net.{Net, NetError}
-use std.host.{Args, args}
-
-fn port(i: usize) -> u16 $ Args:
-    match (args()[i]).parse::[u32]():
-        .Ok(p) => u16(p)
-        .Err(_) => 0
-
-pub fn main!() -> void $ Console + Net + Args:
-    let mut net = $.use(Net)
-    tcp := port(0)
-    udp := port(1)
-    match net.lookup!(\"127.0.0.1\"):
-        .Ok(found) => println(\"lookup ${debug(found)}\")
-        .Err(e) => println(\"${e}\")
-    let mut server = match net.listen!(\"127.0.0.1\", tcp):
-        .Ok(l) => l
-        .Err(e) => return println(\"${e}\")
-    let mut client = match net.connect!(\"127.0.0.1\", tcp):
-        .Ok(s) => s
-        .Err(e) => return println(\"${e}\")
-    let mut peer = match server.accept!():
-        .Ok(s) => s
-        .Err(e) => return println(\"${e}\")
-    _ := client.write!(\"ping\".to_utf8())
-    match peer.read!(2):
-        .Ok(bytes) => println(\"read ${debug(bytes)}\")
-        .Err(e) => println(\"${e}\")
-    _ := peer.write!(\"pong\".to_utf8())
-    match client.read!(100):
-        .Ok(bytes) => println(\"reply ${bytes.len()}\")
-        .Err(e) => println(\"${e}\")
-    _ := client.close()
-    match peer.read!(100):
-        .Ok(bytes) => println(\"rest ${bytes.len()}\")
-        .Err(e) => println(\"${e}\")
-    match peer.read!(100):
-        .Ok(bytes) => println(\"at end ${bytes.len()}\")
-        .Err(e) => println(\"${e}\")
-    match client.read!(1):
-        .Ok(_) => println(\"read after close\")
-        .Err(e) => println(\"${debug(e)}\")
-    match client.close():
-        .Ok(_) => println(\"closed twice\")
-        .Err(e) => println(\"${e}\")
-    _ := server.close()
-    match net.listen!(\"127.0.0.1\", tcp):
-        .Ok(_) => println(\"listening again\")
-        .Err(e) => println(\"${e}\")
-    match net.connect!(\"example.com\", 80):
-        .Ok(_) => println(\"connected\")
-        .Err(e) => println(\"${debug(e)}\")
-    match net.lookup!(\"example.com\"):
-        .Ok(_) => println(\"looked up\")
-        .Err(e) => println(\"${debug(e)}\")
-    match net.connect!(\"bad host\", 80):
-        .Ok(_) => println(\"connected\")
-        .Err(e) => println(\"${debug(e)}\")
-    let mut b = match net.bind_udp!(\"127.0.0.1\", udp):
-        .Ok(s) => s
-        .Err(e) => return println(\"${e}\")
-    let mut a = match net.bind_udp!(\"127.0.0.1\", 0):
-        .Ok(s) => s
-        .Err(e) => return println(\"${e}\")
-    _ := a.send_to!(\"127.0.0.1\", udp, \"hey\".to_utf8())
-    match b.receive!(2):
-        .Ok(d) => println(\"datagram ${debug(d.bytes)} from ${d.host}\")
-        .Err(e) => println(\"${e}\")
-    match a.send_to!(\"example.com\", 53, [1]):
-        .Ok(_) => println(\"sent\")
-        .Err(e) => println(\"${e}\")
-";
+const NET_PROGRAM: &str = include_str!("programs/host_traits/net_program.hd");
 
 /// A free loopback TCP port.
 fn free_port() -> u16 {
@@ -850,18 +531,7 @@ fn http_requests_carry_a_host_header() {
     let dir = work("host-http-host");
     write(
         &dir.join("main.hd"),
-        "use std.http.{Http, Request, Url, get}
-use std.host.{Args, args}
-
-pub fn main!() -> void $ Console + Http + Args:
-    base := args()[0]
-    match get!(\"${base}/host\"):
-        .Ok(r) => println(r.text().expect(\"body\"))
-        .Err(e) => println(debug(e))
-    match Request::get(Url::parse(\"${base}/host\").expect(\"URL\")).set_header(.Host, \"example.test\").send!():
-        .Ok(r) => println(r.text().expect(\"body\"))
-        .Err(e) => println(debug(e))
-",
+        include_str!("programs/host_traits/http_requests_carry_a_host_header.hd"),
     );
     let base = format!("http://127.0.0.1:{port}");
     let out = run(&dir, &["--cap", "Http=127.0.0.1", "main.hd", "--", &base]);

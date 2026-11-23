@@ -1,0 +1,8 @@
+use std.time.{ms, s, sleep}
+
+it("oversleeps", timeout=50ms):
+    println("falling asleep")
+    sleep!(10s)
+
+it("naps", timeout=10s):
+    sleep!(1ms)

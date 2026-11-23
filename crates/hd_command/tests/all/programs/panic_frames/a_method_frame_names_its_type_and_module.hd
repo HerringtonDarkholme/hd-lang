@@ -1,0 +1,21 @@
+pub struct Cart:
+    pub items: List[i32]
+
+impl Cart:
+    pub fn take(self, i: usize) -> i32:
+        self.items[i]
+
+impl Display for Cart:
+    fn to_string(&self) -> string:
+        panic("no display")
+
+tests:
+    use std.testing.assert
+
+    it("takes past the end"):
+        let c = Cart { items: [1] }
+        c.take(4)
+
+    it("shows"):
+        let c = Cart { items: [1] }
+        assert("${c}" == "", "shown")

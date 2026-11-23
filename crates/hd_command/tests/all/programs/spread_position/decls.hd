@@ -1,0 +1,4 @@
+fn f(a: i32, b: i32) -> i32:
+    a + b
+fn g(xs...: List[i32]) -> i32:
+    0

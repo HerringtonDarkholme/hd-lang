@@ -9,8 +9,8 @@ use std::path::Path;
 use hd_testkit::Scratch;
 
 const MANIFEST: &str = "[package]\nname = \"probe\"\n\n[host]\n\"main.Server\" = \"provider.ts\"\n\n[capabilities]\nConsole = true\n\"pkg.main.Server\" = true\n";
-const MAIN: &str = "@host\npub trait Server:\n    fn read(&self) -> i32\n    fn wait!(&mut self) -> i32\n\npub fn main!() -> void $ Console + Server:\n    println(\"${$.use(Server).read()}\")\n    println(\"${$.use(Server).wait!()}\")\n";
-const PLAIN: &str = "pub fn main() -> void $ Console:\n    println(\"plain\")\n";
+const MAIN: &str = include_str!("programs/native_companion/main.hd");
+const PLAIN: &str = include_str!("programs/native_companion/plain.hd");
 
 /// `hd build ARGS` in `root`, with its own cache.
 fn build(root: &Path, args: &[&str]) {

@@ -8,5 +8,29 @@ stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 # release build too: one error in money, and two in shop: the call and the function value.
 run: hd build --release --format json
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"diagnostic","code":"dbg-in-release"},{"kind":"summary","errors":3,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-release","file":"src/main.hd","line":5,"column":5},{"kind":"diagnostic","code":"dbg-in-release","file":"src/main.hd","line":7,"column":36},{"kind":"diagnostic","code":"dbg-in-release","file":"<money>/src/lib.hd","line":2,"column":5},{"kind":"summary","status":101}]
 no-file: build/release/shop.wasm
+# `hd run --release` rejects the same calls and runs nothing.
+run: hd run --release
+exit: 101
+stdout-json: []
+stderr: error: src/main.hd:5:5: dbg-in-release: `dbg` is for debug builds; a release build rejects this call of it
+stderr:     fix: delete the `dbg` statement
+stderr: error: src/main.hd:7:36: dbg-in-release: `dbg` is for debug builds; a release build rejects this use of it
+stderr: error: <money>/src/lib.hd:2:5: dbg-in-release: `dbg` is for debug builds; a release build rejects this call of it
+stderr:     fix: delete the `dbg` statement
+# A second build reads the cached check and gives the same answer.
+run: hd build --release --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"dbg-in-release","file":"src/main.hd","line":5,"column":5},{"kind":"diagnostic","code":"dbg-in-release","file":"src/main.hd","line":7,"column":36},{"kind":"diagnostic","code":"dbg-in-release","file":"<money>/src/lib.hd","line":2,"column":5},{"kind":"summary","status":101}]
+# `hd --release FILE` rejects the call and runs nothing (`cli.dbg.release.file`).
+run: hd --release one.hd
+exit: 101
+stdout-json: []
+stderr: error: one.hd:2:5: dbg-in-release: `dbg` is for debug builds; a release build rejects this call of it
+stderr:     fix: delete the `dbg` statement
+stderr: error: one.hd:3:36: dbg-in-release: `dbg` is for debug builds; a release build rejects this use of it
+# `hd test --release` builds in the test profile, which accepts `dbg`
+# (`cli.dbg.test-release`): the test calls `cents`, which calls it.
+run: hd test --release
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored

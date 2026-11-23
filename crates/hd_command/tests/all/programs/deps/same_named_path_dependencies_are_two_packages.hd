@@ -1,0 +1,9 @@
+use dep.euro
+use dep.yen
+use dep.euro.{Coin as Euro}
+use dep.yen.{Coin as Yen}
+use std.inspect.TypeId
+
+pub fn main() -> void $ Console:
+    println(euro.make(1).cents + yen.make(1).cents)
+    println(TypeId::of::[Euro]() == TypeId::of::[Yen]())

@@ -1,0 +1,15 @@
+use std.host.Sys
+use std.task.block_on
+use std.time.{Clock, ms}
+fn first!() -> i32:
+    1
+fn second!() -> i32:
+    2
+fn invoke(make: fn() -> Suspend[i32], count: i32) -> Suspend[i32]:
+    if count == 0: make() else: invoke(make, count - 1)
+pub fn main() -> void $ Sys + Clock:
+    let system: &dyn Sys = $.use(Sys)
+    let make: fn() -> Suspend[i32] = if system.os().expect("os").len() == 0: first else: second
+    let clock: &mut dyn Clock = $.use(Clock)
+    _ := block_on(clock.sleep(ms(1)))
+    _ := block_on(invoke(make, +1))

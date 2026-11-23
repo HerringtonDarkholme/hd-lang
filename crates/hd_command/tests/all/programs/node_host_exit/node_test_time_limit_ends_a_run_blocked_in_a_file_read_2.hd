@@ -1,0 +1,10 @@
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+it("reads"):
+    match read_text!(Path("../ff")):
+        .Ok(t) => println(t)
+        .Err(e) => println("${e}")
+
+it("fast"):
+    println("fast")

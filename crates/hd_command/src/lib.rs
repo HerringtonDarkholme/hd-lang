@@ -1830,14 +1830,14 @@ mod stored_artifact_tests {
         std::fs::write(dir.join("hd.toml"), "[package]\nname = \"shop\"\n").expect("toml");
         std::fs::write(
             dir.join("src/main.hd"),
-            "use pkg.f0.m.{pick}\n\npub fn main() -> void:\n    let _ = pick([1, 2], 5)\n",
+            include_str!("tests/programs/lib/panicking.hd"),
         )
         .expect("main");
         for i in 0..n {
             let path = dir.join(format!("src/f{i}/m.hd"));
             std::fs::create_dir_all(path.parent().expect("dir")).expect("dir");
             let text = if i == 0 {
-                "pub fn pick(items: List[i32], at: usize) -> i32:\n    items[at]\n".to_owned()
+                include_str!("tests/programs/lib/panicking_2.hd").to_owned()
             } else {
                 format!("pub fn v() -> i32: {i}\n")
             };
@@ -1916,7 +1916,7 @@ mod stored_artifact_tests {
             // same, its frames are the edited file's.
             std::fs::write(
                 dir.join("src/f0/m.hd"),
-                "# Picks.\npub fn pick(items: List[i32], at: usize) -> i32:\n    items[at]\n",
+                include_str!("tests/programs/lib/a_warm_run_takes_the_stored_module_and_its_panic_names_its_lines.hd"),
             )
             .expect("edit");
             settle();

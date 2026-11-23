@@ -36,13 +36,7 @@ fn iface_reads(out: &Output) -> usize {
         + out.counters.misses.get("iface").copied().unwrap_or(0)
 }
 
-const MAIN: &str = "\
-pub fn helper() -> i32:
-    41
-
-pub fn main() -> void $ Console:
-    println(\"{helper() + 1}\")
-";
+const MAIN: &str = include_str!("programs/reuse_ifaces/main.hd");
 
 #[test]
 fn a_program_build_takes_the_interfaces_its_check_build_left() {
@@ -83,16 +77,7 @@ fn a_folder_whose_key_moved_is_read_again() {
 
 #[test]
 fn a_reused_interface_reports_its_header_findings_again() {
-    let text = "\
-pub fn twice() -> i32:
-    1
-
-pub fn twice() -> i32:
-    2
-
-pub fn main() -> void $ Console:
-    println(\"{twice()}\")
-";
+    let text = include_str!("programs/reuse_ifaces/header_findings.hd");
     let store = MemoryStore::default();
     let reuse = Reuse::default();
     let check = build(text, &store, &Goal::CheckTests, Some(&reuse));
@@ -108,36 +93,14 @@ pub fn main() -> void $ Console:
 /// preserving nested positional identities through checking and collection.
 #[test]
 fn anonymous_sums_survive_warm_interface_and_body_reads() {
-    let text = r#"type Choice = (i32 | string) | bool
-
-pub fn make() -> Choice:
-    ._0(._1("kept"))
-
-pub fn describe(value: Choice) -> string:
-    match value:
-        ._0(inner) => inner.to_string()
-        ._1(flag) => flag.to_string()
-
-pub fn main() -> void $ Console:
-    println(describe(make()))
-"#;
+    let text = include_str!("programs/reuse_ifaces/anonymous_sums.hd");
     assert_anonymous_warm_reads(text);
 }
 
 /// Fixed, nested and rest products keep their shape through both cache layers.
 #[test]
 fn anonymous_products_survive_warm_interface_and_body_reads() {
-    let text = r#"type Pair = ((i32, string), List[string]...)
-
-pub fn make() -> Pair:
-    ((7, "fixed"), ["kept"]...)
-
-pub fn describe(value: Pair) -> string:
-    value._0._1 + value._1[0]
-
-pub fn main() -> void $ Console:
-    println(describe(make()))
-"#;
+    let text = include_str!("programs/reuse_ifaces/anonymous_products.hd");
     assert_anonymous_warm_reads(text);
 }
 

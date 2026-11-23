@@ -11,57 +11,11 @@ use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const SHAPES: &str = "\
-pub trait Supplier:
-    type Item
-    fn get(self) -> Self::Item
+const SHAPES: &str = include_str!("programs/generics_determinism/shapes.hd");
 
-pub struct Ints:
-    pub value: i32
+const MAIN: &str = include_str!("programs/generics_determinism/main.hd");
 
-pub struct Words:
-    pub value: string
-
-impl Supplier for Ints:
-    type Item = i32
-    fn get(self) -> i32: self.value
-
-impl Supplier for Words:
-    type Item = string
-    fn get(self) -> string: self.value
-
-pub trait Named:
-    fn name(self) -> string
-
-impl Named for Ints:
-    fn name(self) -> string: \"ints\"
-
-impl Named for Words:
-    fn name(self) -> string: self.value
-";
-
-const MAIN: &str = "\
-use pkg.geo.shapes.{Supplier, Named, Ints, Words}
-
-
-fn second[A, B](a: A, b: B) -> B:
-    b
-
-fn label[T < Named](t: T) -> string:
-    t.name()
-
-pub fn main() -> void $ Console:
-    println(label(Ints { value: 3 }))
-    words := Words { value: \"w\" }
-    println(label(words))
-    println(second(+1, \"x\"))
-    println(\"${Ints { value: 4 }.get()}\")
-";
-
-const UNRELATED: &str = "\
-pub fn unrelated(a: i32) -> i32:
-    a + 1
-";
+const UNRELATED: &str = include_str!("programs/generics_determinism/unrelated.hd");
 
 type Entries = BTreeMap<(EntryKind, u128), Vec<u8>>;
 
@@ -195,26 +149,9 @@ fn an_unrelated_edit_keeps_generic_instances() {
 // Derived `Eq` and `Debug` instances: their bodies rewrite the template's
 // `Structure` calls, and no word of the template's call may stay behind
 // with a run's pool ID in it (#610).
-const RECORDS: &str = "\
-@derive(Eq, Debug)
-pub struct Pair[T]:
-    pub left: T
-    pub right: T
+const RECORDS: &str = include_str!("programs/generics_determinism/records.hd");
 
-@derive(Eq, Debug)
-pub enum Shape:
-    Circle(i32)
-    Square(Pair[i32])
-";
-
-const RECORDS_MAIN: &str = "\
-use pkg.geo.records.{Pair, Shape}
-
-pub fn main() -> void $ Console:
-    a := Shape.Square(Pair { left: +1, right: +2 })
-    b := Shape.Circle(+3)
-    println(\"${a == b} ${Pair { left: \"x\", right: \"y\" } == Pair { left: \"x\", right: \"y\" }}\")
-";
+const RECORDS_MAIN: &str = include_str!("programs/generics_determinism/records_main.hd");
 
 fn records() -> MemorySources {
     sources(&[("app/main.hd", RECORDS_MAIN), ("geo/records.hd", RECORDS)])

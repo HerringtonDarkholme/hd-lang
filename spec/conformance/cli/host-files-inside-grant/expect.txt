@@ -1,0 +1,20 @@
+# Files are read and written inside the grant `out`: a write outside it is
+# "not granted", and so is the read of secret.txt.
+run: hd --cap FsRead=out --cap FsWrite=out main.hd
+stdout: ok
+stdout: ok
+stdout: ok
+stdout: ok
+stdout: héllo!
+stdout: 3 200
+stdout: out/sub/a.txt file 7
+stdout: out/sub/b.bin file 3
+stdout: no entry
+stdout: ok
+stdout: ok
+stdout: access to denied.txt is not granted
+stdout: read not granted
+stdout: not found
+file: out/c.txt
+no-file: out/sub/b.bin
+no-file: denied.txt

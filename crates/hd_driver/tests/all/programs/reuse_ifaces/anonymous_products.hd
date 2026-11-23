@@ -1,0 +1,10 @@
+type Pair = ((i32, string), List[string]...)
+
+pub fn make() -> Pair:
+    ((7, "fixed"), ["kept"]...)
+
+pub fn describe(value: Pair) -> string:
+    value._0._1 + value._1[0]
+
+pub fn main() -> void $ Console:
+    println(describe(make()))

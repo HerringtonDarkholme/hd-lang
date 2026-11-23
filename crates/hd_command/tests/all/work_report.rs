@@ -4,7 +4,7 @@
 
 use hd_testkit::Scratch;
 
-const MAIN: &str = "pub fn main() -> void $ Console:\n    println(\"ok\")\n";
+const MAIN: &str = include_str!("programs/work_report/main.hd");
 
 fn package(name: &str) -> Scratch {
     let dir = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
@@ -318,7 +318,7 @@ fn a_check_discovers_each_module_once() {
     let discovered = |n: usize| -> [u64; 2] {
         let dir = package(&format!("work-discover-{n}"));
         std::fs::create_dir_all(dir.join("tests")).expect("tests");
-        let smoke = "it(\"runs\"):\n    assert(true)\n";
+        let smoke = include_str!("programs/work_report/a_check_discovers_each_module_once.hd");
         std::fs::write(dir.join("tests/smoke.hd"), smoke).expect("write");
         let module = |k: usize, add: usize| format!("pub fn f{k}(x: i32) -> i32:\n    x + {add}\n");
         for k in 0..n {

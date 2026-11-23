@@ -1,0 +1,2 @@
+pub fn broken(x: Missing) -> i32:
+    1

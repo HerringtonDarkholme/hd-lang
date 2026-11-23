@@ -1,0 +1,4 @@
+[package]
+name="shop"
+[host]
+"main.Server"="provider.ts"

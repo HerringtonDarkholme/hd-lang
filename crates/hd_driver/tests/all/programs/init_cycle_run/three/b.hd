@@ -1,0 +1,4 @@
+use pkg.ring.c.{from_c}
+
+pub fn from_b() -> i32:
+    from_c() * 10

@@ -1,0 +1,6 @@
+use pkg.billing.price
+use std.testing.assert_equal
+
+tests:
+    it("invoices"):
+        assert_equal(price() * 2, 6, reason="i")

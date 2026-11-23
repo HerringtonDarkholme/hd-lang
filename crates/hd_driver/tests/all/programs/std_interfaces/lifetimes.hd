@@ -1,0 +1,18 @@
+struct User:
+    name: string
+
+pub fn choose['a](a: &'a User, b: &User, c: (&'a User, &User)) -> &'a User:
+    a
+
+pub fn plain(a: &User) -> &User:
+    a
+
+struct Pair[T]:
+    left: T
+
+impl[T, 's] Pair[T]:
+    pub fn left_or['f](&'s self, x: &'f T, y: List[&'s T]) -> &'f T:
+        x
+
+pub fn main() -> void:
+    pass

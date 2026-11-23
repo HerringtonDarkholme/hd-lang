@@ -1,0 +1,5 @@
+pub fn cents(n: i32) -> i32:
+    dbg(n)
+    let show: fn((i32,)) -> void = dbg
+    show((n,))
+    n * 100

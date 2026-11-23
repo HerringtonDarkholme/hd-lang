@@ -1,0 +1,8 @@
+# @dump: stdout
+# @build: std
+# A `std` build compiles the case as a std module, so it may import the
+# runtime modules (`module.rt.std-only`).
+use std.rt.memory.size_of
+
+pub fn main() -> void $ Console:
+    println(size_of::[u64]())

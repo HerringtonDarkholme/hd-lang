@@ -1,0 +1,8 @@
+use dep.text
+use dep.text_v2
+use dep.mine
+
+pub fn main() -> void $ Console:
+    println(text.greeting())
+    println(text_v2.greeting())
+    println(mine.greeting())

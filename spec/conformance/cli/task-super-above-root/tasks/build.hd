@@ -1,0 +1,4 @@
+use super.shared.zip.{zip}
+
+pub fn main() -> void $ Console:
+    println(zip())

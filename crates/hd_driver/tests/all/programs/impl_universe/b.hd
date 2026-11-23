@@ -1,0 +1,4 @@
+use pkg.base.defs.{Pick, Receiver}
+
+pub fn second(r: Receiver) -> i32:
+    r.pick()

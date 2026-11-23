@@ -1,0 +1,8 @@
+use std.fs.{FsRead, read_text}
+use std.path.Path
+use std.host.{Args, args}
+
+pub fn main!() -> void $ Args + Console + FsRead:
+    match read_text!(Path(args()[0])):
+        .Ok(text) => println(text)
+        .Err(_) => println("denied")

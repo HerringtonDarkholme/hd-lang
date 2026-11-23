@@ -1,0 +1,2 @@
+pub fn of(price: i32) -> i32:
+    price / 5

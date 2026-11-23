@@ -1,0 +1,6 @@
+use std.rt.Drop as Release
+struct Resource:
+    target: * mut Counter
+impl Release for Resource:
+    fn drop(&mut self) -> void:
+        self.target.value += 1

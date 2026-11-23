@@ -1,0 +1,7 @@
+use pkg.gen.keep
+
+pub struct A:
+    pub v: i64
+
+pub fn main() -> void $ Console:
+    println(keep(A { v: 1 }).len() + keep("s").len())

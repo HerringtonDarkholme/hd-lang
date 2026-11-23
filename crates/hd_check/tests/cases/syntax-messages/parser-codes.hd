@@ -1,0 +1,66 @@
+# @dump: diagnostics
+# Each parser code other than `syntax-error`, with the message of each of its sites.
+fn f():
+    resize(width=640, 480)
+
+fn f():
+    x := 0 < value < 10
+
+fn f():
+    @inline
+    fn g():
+        pass
+
+use pkg.status.{Status.Queued}
+
+fn f():
+    ## orphan
+    x := +1
+
+fn f():
+    display_name: string = "Ada"
+
+fn f():
+    (a, b) := pair
+
+struct P:
+    mut x: i32
+
+struct P:
+    mut Base
+
+fn f():
+    Pair.Values(left=l, r)
+
+fn f():
+    match x:
+        .A(a=l, r) => 1
+
+fn f():
+    x := value.tag"item"
+
+fn f():
+    if x:
+        a
+    : 1 else: 2
+
+fn f():
+    g([x:
+        y
+    ])
+
+trait T:
+    pub fn f()
+
+impl A for B:
+    pub fn f():
+        pass
+
+enum E:
+    IntLit(v: i64) -> Expr[i64]
+
+enum E:
+    Pair[U](a: i32)
+
+enum E:
+    Bad -> Other

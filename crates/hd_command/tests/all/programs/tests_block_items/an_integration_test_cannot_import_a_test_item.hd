@@ -1,0 +1,5 @@
+use pkg.overdue
+use std.testing.assert
+
+it("sees no test item"):
+    assert(overdue().days > 0, reason="a test item")
