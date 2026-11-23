@@ -5,7 +5,7 @@ the specification. The question comes from the owner on
 [#2326](https://github.com/HerringtonDarkholme/hd-lang/pull/2326) ("is it
 possible to make Arena an Effect instead? so it does not need pass stuff
 around"). It builds on [ARENA.md](https://github.com/HerringtonDarkholme/hd-lang/blob/design/1410-arena/docs/future-work/ARENA.md) (PR #2326) (the untyped `Arena` and its
-`@disjoint` primitive) and on spec chapter 11
+`@interior` primitive) and on spec chapter 11
 ([Requirements](../../spec/lang/11-requirements-and-suspension.md)).
 
 ## Contents
@@ -322,7 +322,7 @@ fn make['a](arena: &'a Arena, depth: i32) -> &'a Node['a]:
     arena.alloc(Node { left: .Some(l), right: .Some(r) })
 ```
 
-**Rules.** None beyond ARENA.md's `@disjoint`. **Costs.** None at run
+**Rules.** None beyond ARENA.md's `@interior`. **Costs.** None at run
 time; one parameter or one context struct per call chain.
 
 ## Comparison
@@ -339,7 +339,7 @@ time; one parameter or one context struct per call chain.
 | `binary_trees` | 209 ms (`dyn`) | 192 ms | about today's 297 ms (counts back) | not expressible | 192 ms |
 | Agent-writability | row plus lifetime argument | row borrow | plain | callback nesting | one more parameter |
 | Readability | lifetimes appear in rows | lifetimes appear in rows | plain | nested blocks | explicit |
-| Checker price | several hundred lines | about half of 1 | 0 | 0 | 0 (plus `@disjoint`) |
+| Checker price | several hundred lines | about half of 1 | 0 | 0 | 0 (plus `@interior`) |
 | Evolution | other region-like providers | any borrowed context | none | none | a later effect stays possible |
 
 ## Recommendation
@@ -348,7 +348,7 @@ time; one parameter or one context struct per call chain.
 passing proves costly in real programs, add option 2, not option 1.
 
 - Option 5 costs no new rule and matches Rust and Zig, the industry
-  practice; ARENA.md's `@disjoint` is needed by every option anyway.
+  practice; ARENA.md's `@interior` is needed by every option anyway.
 - Option 2 is the provider-scope lifetime the owner leans toward, with
   a concrete key: the borrow's lifetime is the `$.with` block, the
   checker reuses today's local-reference rules, and calls stay static.
