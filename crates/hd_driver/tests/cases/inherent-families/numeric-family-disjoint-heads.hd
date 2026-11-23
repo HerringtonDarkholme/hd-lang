@@ -1,0 +1,231 @@
+# @dump: diagnostics
+# @build: std
+# Spec: trait.target.numeric-family.each, trait.inherent.unique-unifying.
+# The sealed numeric family membership is independent of the declaration folder.
+use std.num.{Integer, Float, Num}
+
+struct Local: pass
+
+impl[N < Integer] N:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl f32:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl f64:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl Local:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl Local:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl f64:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl f32:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl i8:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl i16:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl i32:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl i64:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl u8:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl u16:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl u32:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl u64:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl usize:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl Local:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl Local:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl usize:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl u64:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl u32:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl u16:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl u8:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl i64:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl i32:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl i16:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl i8:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl Local:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl Local:
+    fn disjoint_num_1(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_num_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_num_1(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_num_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn disjoint_num_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn disjoint_families_0(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn disjoint_families_0(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn disjoint_families_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn disjoint_families_1(self) -> string:
+        "member"
