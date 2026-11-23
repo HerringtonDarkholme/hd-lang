@@ -1,10 +1,9 @@
 # @dump: stdout
-# @build: release
+# @build: release | checked
 # A `Send` crossing closure runs at most once, so it may move a capture
-# out (`fn.crossing.move-out`). A `UniqList` has a `Drop` hook: it should
-# move from the closure's environment to the body, and be freed once.
-# expected: prints `1`. The release build stops at the copy verifier, and
-# a checked build at a count with no TIR statement (gap: #2288).
+# out (`fn.crossing.move-out`). A `UniqList` has a `Drop` hook: it moves
+# from the closure's environment to the body, which takes it on entry
+# (`sub_flags::ONCE`), and is freed once.
 use std.collections.UniqList
 use std.marker.Send
 

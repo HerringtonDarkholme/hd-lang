@@ -1,0 +1,50 @@
+# test: a Wire crossing closure run here takes the captures that are not Copy from its environment, so each has one owner: moved out, only read, or never run
+# Spec 07 Crossing Closures: fn.crossing.mode.move, fn.crossing.move-out, fn.crossing.once, fn.crossing.lift.
+# expect-stdout: 2 3
+# expect-stdout: 8 2 1
+# expect-stdout: 2 5 4 true
+# expect-stdout: 0
+use std.collections.UniqList
+use std.marker.Wire
+
+fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
+    code()
+
+fn skip(code: fn() -> usize + Wire) -> usize:
+    0
+
+fn names(n: usize) -> UniqList[string]:
+    let mut out: UniqList[string] = UniqList::new()
+    for i in 0..n:
+        out.push("n".repeat(i + 1))
+    out
+
+struct Bag:
+    items: UniqList[string]
+    n: usize
+
+pub fn main() -> void $ Console:
+    list := names(2)
+    moved := run(fn() -> UniqList[string]: list)
+    read_only := names(3)
+    count := run(fn() -> usize: read_only.len())
+    println("${moved.len()} $count")
+    bag := Bag { items: names(1), n: 7 }
+    total := run(fn() -> usize: bag.n + bag.items.len())
+    other := Bag { items: names(2), n: 1 }
+    back := run(fn() -> Bag: other)
+    println("$total ${back.items.len()} ${back.n}")
+    pair := (names(2), 5)
+    let (items, k) = run(fn() -> (UniqList[string], i32): pair)
+    let maybe: UniqList[string]? = .Some(names(4))
+    size := run(fn() -> usize:
+        match &maybe:
+            .Some(found) => found.len()
+            .None => 0
+    )
+    let kept: UniqList[string]? = .Some(names(1))
+    taken := run(fn() -> UniqList[string]?: kept)
+    println("${items.len()} $k $size ${taken.is_some()}")
+    words := names(3)
+    none := skip(fn() -> usize: words.len())
+    println("$none")

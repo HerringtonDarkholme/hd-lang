@@ -522,6 +522,8 @@ fn body_func<'i>(
     // The TIR boundary pass decided each parameter's entry and which
     // captures and reads lend here (`own::boundary`).
     let rows = &em.boundary.subs[usize::from(sub)];
+    // A body that runs once took its environment's counts.
+    let takes = b.sub_flags[usize::from(sub)] & hd_tir::ir::sub_flags::ONCE != 0;
     let lent_here: hd_base::HashSet<_> = rows.borrowed.iter().copied().collect();
     let entries: HashMap<usize, Entry> = rows.entry.iter().copied().collect();
     if em.counting {
@@ -551,7 +553,7 @@ fn body_func<'i>(
                 }
             } else if em.borrowed.contains(l) || lent_here.contains(l) {
                 em.borrowed.insert(*l);
-            } else {
+            } else if !takes {
                 let copy = em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures);
                 // ruled out: own::capture_entry states the shared/counted
                 // captures' entry retain. Read its actual reason below.

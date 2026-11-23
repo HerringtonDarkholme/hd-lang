@@ -5,7 +5,6 @@
   (import "fixture" "crossing_number[fn((u32, Image)) -> Image]" (func $"crossing_number[fn((u32, Image)) -> Image]" (param i64 i32 i32) (result i64)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "crossing_frame[(u32, Image)]" (func $"crossing_frame[(u32, Image)]" (param i64 i32 i32 i32) (result i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -123,23 +122,21 @@
     local.set $t2
     local.get $env
     i32.load $heap offset=8
-    local.tee $t3
+    local.set $t3
     local.get $env
     i64.load $heap offset=24
     local.set $t4
+    local.get $env
+    i32.const 4
+    i32.sub
     local.tee $env
-    if
-      local.get $env
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $env
-        call $rt:retain_known
-      end
-    end
+    local.get $env
+    i32.load $heap
+    i32.const -65536
+    i32.and
+    i32.store $heap
     local.get $t5
-    if (result i32)
+    if
       i32.const 0
       local.get $t4
       local.get $t1
@@ -147,6 +144,7 @@
       local.get $t3
       call $"crossing_frame[(u32, Image)]"
       local.set $env
+      local.set $t5
     else
       local.get $t0
       local.get $t1
@@ -157,8 +155,21 @@
       call_indirect $table0 (param i32 i32 i32 i32 i32) (result i32 i32)
       local.set $t5
       local.set $env
-      local.get $t5
     end
+    local.get $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    local.get $t5
     local.get $env
   )
 )

@@ -342,7 +342,9 @@ pub fn plan(
                 rows.loans.extend(loans);
             }
         }
+        // A body that runs once owns its captures (`sub_flags::ONCE`).
         if !input.suspending
+            && b.sub_flags[input.sub as usize] & crate::ir::sub_flags::ONCE == 0
             && let Some(ci) = input.closure
         {
             for (l, shared) in super::closure_captures(b, ci, &recursive) {

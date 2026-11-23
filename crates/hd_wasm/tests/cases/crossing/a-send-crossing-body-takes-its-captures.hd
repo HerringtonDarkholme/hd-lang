@@ -1,0 +1,14 @@
+# @dump: wat
+# A `Send` crossing closure runs at most once (`fn.crossing.once`), so its
+# body takes its captures on entry, as Rust's `FnOnce` takes its closure:
+# no retain of `word` or `items`, and the environment's descriptor loses
+# its release glue (the `-65536` mask), so the environment's last release
+# frees its block alone. The body drops what it took at its exit.
+use std.collections.UniqList
+use std.marker.Send
+
+fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+fn send(items: UniqList[i32], word: string) -> usize:
+    run(fn() -> usize: items.len() + word.len())
