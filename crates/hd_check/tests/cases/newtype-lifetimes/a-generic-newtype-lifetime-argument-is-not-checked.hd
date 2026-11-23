@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# Ordinary type arguments stay valid; adding a named lifetime is diagnosed.
+type Key[T](T)
+
+fn plain(value: Key[i32]) -> Key[i32]:
+    value
+
+fn invalid['a](value: Key[i32, 'a]) -> void:
+    pass
