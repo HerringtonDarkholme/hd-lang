@@ -1,0 +1,27 @@
+# @dump: tests
+# `lower` and `upper` through a program: ASCII, letters beyond ASCII, and
+# the full mappings that change the length (sharp s, a ligature, dotted
+# capital I, final sigma). Every case passes.
+use std.testing.assert_equal
+
+tests:
+    it("maps ASCII"):
+        assert_equal("Hello, World 42".lower(), "hello, world 42", reason="lower")
+        assert_equal("Hello, World 42".upper(), "HELLO, WORLD 42", reason="upper")
+        assert_equal("".lower(), "", reason="empty")
+    it("maps beyond ASCII"):
+        assert_equal("\u{c9}COLE".lower(), "\u{e9}cole", reason="e acute")
+        assert_equal("\u{e9}cole".upper(), "\u{c9}COLE", reason="e acute up")
+        assert_equal(
+            "\u{41f}\u{440}\u{438}\u{432}\u{435}\u{442}".upper(),
+            "\u{41f}\u{420}\u{418}\u{412}\u{415}\u{422}",
+            reason="Cyrillic",
+        )
+        assert_equal("\u{1f600}".upper(), "\u{1f600}", reason="no case")
+    it("changes the length with full mappings"):
+        assert_equal("stra\u{df}e".upper(), "STRASSE", reason="sharp s")
+        assert_equal("stra\u{df}e".upper().len(), 7, reason="seven bytes")
+        assert_equal("\u{fb01}".upper(), "FI", reason="ligature")
+        assert_equal("\u{130}".lower(), "i\u{307}", reason="dotted capital I")
+        assert_equal("\u{3a3}A\u{3a3}".lower(), "\u{3c3}a\u{3c2}", reason="final sigma")
+        assert_equal("\u{3a3}".lower(), "\u{3c3}", reason="lone sigma")
