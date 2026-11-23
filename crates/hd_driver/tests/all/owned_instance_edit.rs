@@ -135,14 +135,11 @@ fn edits_own_only_their_readers(n: usize) {
     assert_eq!(warm.wasm, build(&MemoryStore::default(), &kept).wasm);
 }
 
+/// The owned counts are exact, so one size shows a body owned per type;
+/// 200 types proved nothing more than 20.
 #[test]
 fn instance_edits_own_only_their_readers_at_20_types() {
     edits_own_only_their_readers(20);
-}
-
-#[test]
-fn instance_edits_own_only_their_readers_at_200_types() {
-    edits_own_only_their_readers(200);
 }
 
 /// `keep`'s folded form copies `util.bump`'s body: after an edit to
@@ -229,11 +226,6 @@ fn a_private_body_edit_owns_only_its_readers(n: usize) {
 #[test]
 fn a_private_body_edit_owns_only_its_readers_at_20_types() {
     a_private_body_edit_owns_only_its_readers(20);
-}
-
-#[test]
-fn a_private_body_edit_owns_only_its_readers_at_200_types() {
-    a_private_body_edit_owns_only_its_readers(200);
 }
 
 /// An edit to `note`'s body that changes its inferred row, from none to

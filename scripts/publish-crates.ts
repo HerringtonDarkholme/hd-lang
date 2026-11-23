@@ -11,9 +11,9 @@
 // its staged directory when it has one. The source tree is never written, so
 // a checkout never builds from a stale staged copy.
 //
-// cargo then packages every publishable crate and builds each package
-// against the others' packages, not against the workspace paths. A crate
-// that still reads outside its directory fails here. Last, the `hd` built
+// cargo then packages every publishable crate and builds the hd-lang
+// package with every other crate taken from its package, not from the
+// workspace paths. A crate that still reads outside its directory fails here. Last, the `hd` built
 // from the hd-lang package runs a program on Wasmtime, with no `node` on
 // PATH.
 //
@@ -23,15 +23,24 @@
 // of about 26 crates meets; the script waits and retries.
 //
 // Cost per run: one copy of each source file under crates/ (about 5,600),
-// one download and one build from nothing of the publishable crates and
-// their dependencies (a run keeps no cargo state, see `cargoHome`), and
+// one download and one dev build from nothing of the publishable crates and
+// their dependencies, each compiled once (a run keeps no cargo state, see
+// `cargoHome`), and
 // with --publish one index request and one upload per crate.
 //
 // Usage: node scripts/publish-crates.ts             stage, package, verify
 //        node scripts/publish-crates.ts --publish   the same, then upload
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -169,27 +178,71 @@ function publishOrder(): Package[] {
   return order;
 }
 
-/** Packages every crate and builds each package against the others'. */
-function verify(order: Package[]): void {
-  const args = ["publish", "--dry-run", "--manifest-path", manifest, "--target-dir", targetDir];
-  // cost: one cargo process for every crate together, once per publish run.
-  const result = spawnSync("cargo", [...args, ...order.flatMap((crate) => ["-p", crate.name])], {
-    cwd: stage,
+/** Where each package is unpacked, as `<name>-<version>/`, to be built. */
+const unpacked = join(work, "unpacked");
+
+function cargo(args: string[], cwd: string): void {
+  // cost: one cargo process; `verify` makes two per publish run.
+  const result = spawnSync("cargo", args, {
+    cwd,
     stdio: "inherit",
     // cargo still reads the user's configuration, from the .cargo
     // directories above the stage.
     env: { ...process.env, CARGO_HOME: cargoHome },
   });
   if (result.status !== 0) {
-    throw new Error("cargo publish --dry-run failed");
+    throw new Error(`cargo ${args[0]} failed`);
   }
 }
 
 /**
- * Where cargo leaves the `hd` it builds while verifying. hd_command's package
- * builds one there too; hd-lang's is built last, and only it has Wasmtime,
- * which the smoke run asks for by name.
+ * Packages every crate, then builds the hd-lang package with every other
+ * crate taken from its own package. hd-lang depends on all of them, so
+ * this one build compiles each package once; a crate it leaves out fails
+ * the run.
+ * `cargo publish --dry-run` built each package by itself and then again as
+ * the next one's dependency, so every crate, and Wasmtime, compiled twice
+ * (5 min, run 45186991942).
  */
+function verify(order: Package[], installed: Package): void {
+  const selected = order.flatMap((crate) => ["-p", crate.name]);
+  // cost: one cargo process packaging every crate together.
+  cargo(
+    ["package", "--no-verify", "--manifest-path", manifest, "--target-dir", targetDir, ...selected],
+    stage,
+  );
+  const directory = (crate: Package) => join(unpacked, `${crate.name}-${crate.version}`);
+  mkdirSync(unpacked, { recursive: true });
+  for (const crate of order) {
+    const file = join(targetDir, "package", `${crate.name}-${crate.version}.crate`);
+    // cost: one tar process per crate, about 26.
+    execFileSync("tar", ["-xzf", file, "-C", unpacked]);
+  }
+  // A package is its own workspace, not a member of the checkout's above it.
+  const top = join(directory(installed), "Cargo.toml");
+  writeFileSync(top, readFileSync(top, "utf8") + "\n[workspace]\n");
+  const patches = order
+    .filter((crate) => crate !== installed)
+    .flatMap((crate) => [
+      "--config",
+      `patch.crates-io.${crate.name}.path=${JSON.stringify(directory(crate))}`,
+    ]);
+  // cost: one build of every package and its dependencies.
+  cargo(["build", "--manifest-path", top, "--target-dir", targetDir, ...patches], unpacked);
+  // The target directory is new each run, so a fingerprint is this build's.
+  // cost: one listing of about 200 entries, one per compiled crate.
+  const built = new Set(
+    readdirSync(join(targetDir, "debug", ".fingerprint")).map((entry) =>
+      entry.slice(0, entry.lastIndexOf("-")),
+    ),
+  );
+  const missed = order.filter((crate) => !built.has(crate.name)).map((crate) => crate.name);
+  if (missed.length > 0) {
+    throw new Error(`${INSTALLED} does not build ${missed.join(", ")}; verify it another way`);
+  }
+}
+
+/** Where cargo leaves the `hd` it builds from the hd-lang package. */
 const packagedHd = join(targetDir, "debug", process.platform === "win32" ? "hd.exe" : "hd");
 
 /** Runs the `hd` that cargo built from the hd-lang package, with no Node. */
@@ -282,7 +335,7 @@ if (!installed) {
   throw new Error(`${INSTALLED} is not a publishable crate of the workspace`);
 }
 process.stdout.write(`${order.length} crates: ${order.map((crate) => crate.name).join(" ")}\n`);
-verify(order);
+verify(order, installed);
 smoke();
 if (publish) {
   await upload(order);

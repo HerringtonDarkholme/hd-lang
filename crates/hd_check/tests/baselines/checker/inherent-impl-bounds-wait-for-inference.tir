@@ -26,7 +26,7 @@ pub fn queue() -> void:
 
 pub fn seen() -> bool:
     let set = Set::new()
-    set.contains(1.5)
+    set.contains(&1.5)
 
 pub fn keys() -> List[f64]:
     let mut m = {}
@@ -41,6 +41,6 @@ pub fn fine() -> List[i32]:
 > error: main.hd:792..803: unsatisfied-trait-bound: f64 does not implement Ord
 > error: main.hd:808..822: unsatisfied-trait-bound: f64 does not implement Ord
 > error: main.hd:861..871: unsatisfied-trait-bound: f64 does not implement Hash
-> error: main.hd:876..893: unsatisfied-trait-bound: f64 does not implement Hash
-> error: main.hd:939..941: unsatisfied-trait-bound: f64 does not implement Hash
-> error: main.hd:961..969: unsatisfied-trait-bound: f64 does not implement Hash
+> error: main.hd:876..894: unsatisfied-trait-bound: f64 does not implement Hash
+> error: main.hd:940..942: unsatisfied-trait-bound: f64 does not implement Hash
+> error: main.hd:962..970: unsatisfied-trait-bound: f64 does not implement Hash

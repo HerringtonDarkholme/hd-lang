@@ -290,7 +290,7 @@ fn rounds(n: usize) -> usize:
 >   %188 = Block %185 : string
 >   %189 = Closure #1 : fn(&string) -> string
 >   %190 = Retain %189 Operation captures #0 : ()
->   %191 = Call std/collections/impl[T] List[T].map[string, string] (%77, %189) : List[string]
+>   %191 = Call std/collections/impl[T] List[T].map[string, string, fn(&string) -> string] (%77, %189) : List[string]
 >   %191 keeps %189
 >   %192 = LoanEnd [%77] : ()
 >   %193 = Store [$1] %191 : ()

@@ -1,0 +1,12 @@
+# @dump: counts wat
+# @build: std release
+# @helper: std/collections/impl[T < Eq] List[T].contains
+# expected: both membership APIs borrow the needle; List scans until its
+# first equal element and Set reuses its single existing map lookup.
+use std.collections.Set
+
+fn list_has(items: &List[string], needle: &string) -> bool:
+    items.contains(needle)
+
+fn set_has(items: &Set[string], needle: &string) -> bool:
+    items.contains(needle)

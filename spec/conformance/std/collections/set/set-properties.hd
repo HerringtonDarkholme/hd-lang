@@ -1,6 +1,6 @@
 # test: Set operation sequences agree with a linear model under constant hash collisions
 # Spec std/collections: std-collections.set.distinct, std-collections.set.len,
-# std-collections.set.contains, std-collections.set.insert, std-collections.set.remove,
+# std-collections.set.contains-borrowed, std-collections.set.insert, std-collections.set.remove,
 # std-collections.set.iter, std-collections.set.snapshot, std-collections.set.eq,
 # std-collections.set.collect-distinct; types.map.order.deterministic.
 # General iteration has the map's deterministic but unspecified order.
@@ -69,7 +69,7 @@ fn verify[K < Eq & Hash & Debug](set: Set[K], replay: Set[K], model: List[K]) ->
         )
         seen.push(key)
     for key in model:
-        assert_equal(set.contains(key), true, reason="every model element can be found")
+        assert_equal(set.contains(&key), true, reason="every model element can be found")
     assert_equal(
         listed(replay),
         actual,
@@ -137,8 +137,8 @@ fn run_sequence[K < Eq & Hash & Debug](operations: List[u8], make: fn(i32, usize
                 assert_equal(replay.insert(key), true, reason="replayed reinsertion succeeds")
                 model.push(key)
         else:
-            assert_equal(set.contains(key), present, reason="membership agrees with the model")
-            assert_equal(replay.contains(key), present, reason="replayed membership agrees")
+            assert_equal(set.contains(&key), present, reason="membership agrees with the model")
+            assert_equal(replay.contains(&key), present, reason="replayed membership agrees")
         verify(set, replay, model)
         index += 1
 
@@ -200,9 +200,9 @@ tests:
             [1000],
             reason="mutating the copy leaves the original unchanged",
         )
-        assert_equal(copy.contains(2000), true, reason="the copy receives its own new element")
+        assert_equal(copy.contains(&2000), true, reason="the copy receives its own new element")
         assert_equal(
-            copy.contains(1000),
+            copy.contains(&1000),
             false,
             reason="the copy never received the original's later insertion",
         )

@@ -18,7 +18,7 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
-  (import "fixture" "impl[T] List[T].map[string, string]" (func $"impl[T] List[T].map[string, string]" (param i32 i32 i32) (result i32)))
+  (import "fixture" "impl[T] List[T].map[string, string, fn(&string) -> string]" (func $"impl[T] List[T].map[string, string, fn(&string) -> string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "tracing" (global $tracing (mut i32)))
@@ -78,7 +78,7 @@
     i32.eq
     if
       local.get $ctx
-      i32.const 5
+      i32.const 4
       call_indirect $table0 (param i32) (result i32)
       local.set $ctx
       local.get $env
@@ -91,7 +91,7 @@
     i32.mul
     i32.add
     local.tee $env
-    i32.const 65 ;; &"b"
+    i32.const 97 ;; &"b"
     i32.store $heap offset=16
     local.get $env
     i32.const 1
@@ -290,7 +290,7 @@
     i32.const 1
     i32.store $heap offset=4
     local.get $i
-    i32.const 144 ;; &"a"
+    i32.const 176 ;; &"a"
     i32.store $heap offset=16
     local.get $i
     i32.const 1
@@ -400,7 +400,7 @@
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
         i32.store $heap offset=4
         local.get $i
-        call $"impl[T] List[T].map[string, string]"
+        call $"impl[T] List[T].map[string, string, fn(&string) -> string]"
         local.set $i
         local.get $xs
         i32.load $heap
@@ -538,7 +538,7 @@
     i32.const 1
     i32.store $heap offset=4
     local.get $add.1
-    i32.const 144 ;; &"a"
+    i32.const 176 ;; &"a"
     i32.store $heap offset=16
     local.get $add.1
     i32.const 1
