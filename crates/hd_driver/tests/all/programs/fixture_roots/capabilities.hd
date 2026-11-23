@@ -1,0 +1,6 @@
+struct Token:
+    value: i32
+trait Service:
+    fn query(self, value: Token) -> Token
+fn get(value: Token) -> Token $ Service:
+    $.use(Service).query(value)
