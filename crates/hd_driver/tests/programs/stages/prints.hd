@@ -1,0 +1,5 @@
+use std.console.eprintln
+
+pub fn main() -> void $ Console:
+    println("one")
+    eprintln("two")

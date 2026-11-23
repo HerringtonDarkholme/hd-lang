@@ -1,0 +1,3 @@
+pub fn main() -> void $ Console:
+    println("before")
+    panic("stopped here")
