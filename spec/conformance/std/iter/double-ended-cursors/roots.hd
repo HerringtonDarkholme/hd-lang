@@ -1,0 +1,114 @@
+# test: standard double ended roots share their front and back progress
+use std.num.Integer
+use std.iter.{DoubleEndedIterator, ExactSizeIterator}
+use std.collections.{Deque, UniqList}
+
+fn reversed(text: string) -> string:
+    text.chars().rev().collect()
+
+tests:
+    use std.testing.assert_equal
+
+    it("list snapshots and options share their remaining interval"):
+        let mut list = ["a", "b", "c", "d"]
+        let mut cursor = list.iter()
+        list[0] = "changed"
+        assert_equal(cursor.len(), 4)
+        assert_equal(cursor.next_back(), .Some("d"))
+        assert_equal(cursor.next(), .Some("a"))
+        assert_equal(cursor.len(), 2)
+        assert_equal(cursor.rev().collect::[List[string]](), ["c", "b"])
+        let value: i32? = .Some(+7)
+        let mut some = value.iter()
+        assert_equal(some.next_back(), .Some(+7))
+        assert_equal(some.next(), .None)
+        assert_equal(some.len(), 0)
+        let absent: i32? = .None
+        assert_equal(absent.iter().rev().next(), .None)
+        let empty: List[i32] = []
+        assert_equal(empty.iter().rev().collect::[List[i32]](), [])
+
+    it("bounded integer ranges handle both directions at their limits"):
+        let mut signed = (i8::min_value()..=i8::max_value()).iter()
+        assert_equal(signed.len(), 256)
+        assert_equal(signed.next(), .Some(i8::min_value()))
+        assert_equal(signed.next_back(), .Some(i8::max_value()))
+        assert_equal(signed.len(), 254)
+        assert_equal(
+            (u64::max_value()..=u64::max_value()).iter().rev().next(),
+            .Some(u64::max_value()),
+        )
+        assert_equal(
+            (i64::min_value()..=i64::min_value()).iter().rev().next(),
+            .Some(i64::min_value()),
+        )
+        assert_equal((u8::min_value()..=u8::max_value()).iter().len(), 256)
+        assert_equal((i16::min_value()..=i16::max_value()).iter().len(), 65536)
+        assert_equal((u16::min_value()..=u16::max_value()).iter().len(), 65536)
+        assert_equal(
+            (u8::min_value()..=u8::min_value()).iter().rev().next(),
+            .Some(u8::min_value()),
+        )
+        assert_equal(
+            (i16::min_value()..=i16::min_value()).iter().rev().next(),
+            .Some(i16::min_value()),
+        )
+        assert_equal(
+            (u16::max_value()..=u16::max_value()).iter().rev().next(),
+            .Some(u16::max_value()),
+        )
+        assert_equal(
+            (i32::min_value()..=i32::min_value()).iter().rev().next(),
+            .Some(i32::min_value()),
+        )
+        assert_equal(
+            (u32::max_value()..=u32::max_value()).iter().rev().next(),
+            .Some(u32::max_value()),
+        )
+        assert_equal((3..3).iter().rev().count(), 0)
+        assert_equal((4..2).iter().rev().count(), 0)
+        assert_equal((1..4).iter().rev().collect::[List[usize]](), [3, 2, 1])
+        assert_equal((1..=4).iter().rev().collect::[List[usize]](), [4, 3, 2, 1])
+
+    it("text reversal preserves scalars and original byte indices"):
+        assert_equal(reversed("aé中🦀\0z"), "z\0🦀中éa")
+        assert_equal(reversed(""), "")
+        let mut chars = "aé🦀".chars()
+        assert_equal(chars.next(), .Some('a'))
+        assert_equal(chars.next_back(), .Some('🦀'))
+        assert_equal(chars.next_back(), .Some('é'))
+        assert_equal(chars.next(), .None)
+        assert_equal(
+            "aé🦀".char_indices().rev().collect::[List[(usize, char)]](),
+            [(3, '🦀'), (1, 'é'), (0, 'a')],
+        )
+        let mut bytes = "aé".bytes()
+        assert_equal(bytes.len(), 3)
+        assert_equal(bytes.next_back(), .Some(169u8))
+        assert_equal(bytes.next(), .Some(97u8))
+        assert_equal(bytes.len(), 1)
+        assert_equal(bytes.next_back(), .Some(195u8))
+        assert_equal(bytes.next(), .None)
+
+    it("views spans and deques share front and back boundaries"):
+        values := [+0, 1, 2, 3, 4]
+        assert_equal(values.view(1, 4).iter().rev().collect::[List[i32]](), [+3, 2, 1])
+        let mut span = values.span().iter()
+        assert_equal(*span.next_back().unwrap(), +4)
+        assert_equal(*span.next().unwrap(), +0)
+        assert_equal(span.len(), 3)
+        let mut deque = Deque::[i32].new()
+        deque.push_back(+1)
+        deque.push_back(+2)
+        deque.push_front(+0)
+        assert_equal(deque.iter().rev().collect::[List[i32]](), [+2, 1, 0])
+
+    it("borrowed unique lists reverse references without copying elements"):
+        let mut values = UniqList::[string].new()
+        values.push("first")
+        values.push("last")
+        let mut cursor = values.iter()
+        assert_equal(*cursor.next_back().unwrap(), "last")
+        assert_equal(cursor.len(), 1)
+        assert_equal(*cursor.next().unwrap(), "first")
+        assert_equal(cursor.next_back().is_none(), true)

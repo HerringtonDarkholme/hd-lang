@@ -102,25 +102,28 @@
     ;; 12 |     out
     local.get $values
   )
-  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $cursor i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
+  (func $cursor_then_push (param $values i32) (param $s.0 i32) (param $s.1 i32) (result i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $t2 i32) (local $t3 i32)
     ;; 15 |     let mut items = values
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 16
+    i32.const 24
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 16
+    i32.const 24
     i32.sub
     local.tee $t0
     global.set $stack
     local.get $values
     ;; 16 |     let mut cursor = items.iter()
     call $rt:retain_coll
+    local.get $values
+    i32.load $heap offset=4
+    local.set $t1
     ;; 15 |     let mut items = values
     local.get $t0
     i64.const 0
@@ -129,12 +132,15 @@
     i32.const 8
     i32.add
     local.tee $cursor
-    local.get $values
     ;; 16 |     let mut cursor = items.iter()
+    local.get $values
     i32.store $heap
     local.get $cursor
     i32.const 0
     i32.store $heap offset=4
+    local.get $cursor
+    local.get $t1
+    i32.store $heap offset=8
     ;; 15 |     let mut items = values
     local.get $values
     ;; 17 |     items.push(s)
@@ -178,14 +184,14 @@
     if
       local.get $cursor
       i32.load $heap
-      local.tee $cursor
+      local.tee $t1
       if
-        local.get $cursor
+        local.get $t1
         i32.const 8
         i32.sub
         i32.load $heap
         if
-          local.get $cursor
+          local.get $t1
           call $rt:release_ref'1
         end
       end
@@ -235,7 +241,7 @@
     end
     local.get $s.0
     local.get $t0
-    i32.const 16
+    i32.const 24
     i32.add
     global.set $stack
   )

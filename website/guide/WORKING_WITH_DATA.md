@@ -724,6 +724,11 @@ tests:
         assert_equal(kept, ["fruit", "fresh", "bakery", "dairy"], reason="first occurrences, in item order")
 ```
 
+For lazy reversal, use `items.iter().rev()`; no intermediate list is built.
+Use `text.chars().rev().collect::[string]()` to reverse Unicode scalars.
+Front and back advancement share one remaining sequence; see
+[Double Ended Cursors](../../spec/std/iter.md#double-ended-cursors).
+
 A `Set` keeps each value once, in the order it first appeared. `Deque`
 and `Heap` serve a queue and a priority queue; see
 [Collections](../../spec/std/collections.md).

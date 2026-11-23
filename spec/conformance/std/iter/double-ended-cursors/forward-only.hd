@@ -1,0 +1,4 @@
+# test: arbitrary forward-only factories do not gain buffered reverse iteration
+use std.iter.from_fn
+fn invalid() -> void:
+    _ := from_fn(fn() -> usize?: .Some(1)).rev() # diagnostic: unknown-method

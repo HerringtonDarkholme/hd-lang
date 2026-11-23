@@ -1,0 +1,119 @@
+# test: width 1000 and depth 20 reversal stays lazy and visits each map once per yielded item
+
+use std.iter.DoubleEndedIterator
+
+struct Cursor:
+    front: usize
+    back: usize
+
+impl Iterator[usize] for Cursor:
+    fn next(&mut self) -> usize?:
+        if self.front >= self.back:
+            return .None
+        item := self.front
+        self.front += 1
+        .Some(item)
+
+impl DoubleEndedIterator[usize] for Cursor:
+    fn next_back(&mut self) -> usize?:
+        if self.front >= self.back:
+            return .None
+        self.back -= 1
+        .Some(self.back)
+
+fn reverse[I < ?Copy & DoubleEndedIterator[usize]](items: I) -> List[usize]:
+    items.rev().collect()
+
+tests:
+    use std.testing.assert_equal
+
+    it("construction does no callbacks and traversal does width times depth work"):
+        let calls: usize = 0
+        cursor := [for index in 0..1000 => index].iter()
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .map(fn(x: usize) -> usize:
+                calls += 1
+                x
+            )
+            .rev()
+        assert_equal(calls, 0)
+        assert_equal(cursor.count(), 1000)
+        assert_equal(calls, 20000)
+
+    it("generic reversal uses a user supplied double ended implementation"):
+        assert_equal(reverse(Cursor { front: 2, back: 5 }), [4, 3, 2])
