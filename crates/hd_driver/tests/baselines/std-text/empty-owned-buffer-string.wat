@@ -45,15 +45,12 @@
     i32.store $heap offset=16
     i32.const 1
     local.set $room.address
-    block
-      local.get $bytes
-      call $"impl[T < ?Copy] Buffer[T].capacity[u8]"
-      i32.eqz
-      if
-        i32.const 16 ;; &"heap-exhausted"
-        local.set $room.capacity
-        br 1
-      end
+    local.get $bytes
+    call $"impl[T < ?Copy] Buffer[T].capacity[u8]"
+    i32.eqz
+    if (result i32)
+      i32.const 16 ;; &"heap-exhausted"
+    else
       i32.const 0
       local.set $room.address
       local.get $bytes
@@ -66,8 +63,8 @@
       i32.store $heap offset=4
       local.get $size
       local.set $t1
-      local.set $room.capacity
     end
+    local.set $room.capacity
     local.get $room.address
     if
       local.get $bytes

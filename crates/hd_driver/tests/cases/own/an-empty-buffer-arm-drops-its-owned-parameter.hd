@@ -1,0 +1,17 @@
+# @dump: own
+# @build: std checked | std release
+# expected: the empty-capacity arm drops its owned Buffer before leaving;
+# the other arm transfers it. Known: cached std take_text fails invariant23
+# for this inlined shape (#2306); the core lane owns the missing drop.
+use std.rt.memory.Buffer
+use std.rt.bytes.string_from_buffer
+
+struct Bytes:
+    room: Buffer[u8]
+    size: usize
+
+impl Bytes:
+    fn take_text(&mut self) -> string:
+        size := self.size
+        self.size = 0
+        string_from_buffer(self.room.take(), size)
