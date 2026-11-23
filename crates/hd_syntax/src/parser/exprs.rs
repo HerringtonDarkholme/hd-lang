@@ -1057,6 +1057,7 @@ impl Parser<'_> {
                 TokenKind::Bang
                     if same_line
                         && self.nth_glued(0)
+                        && self.nth_glued(1)
                         && matches!(
                             self.nth(1),
                             Some(TokenKind::LParen | TokenKind::ColonColon)

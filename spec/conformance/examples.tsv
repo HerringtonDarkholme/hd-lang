@@ -1272,6 +1272,7 @@ std/sync.md	1	complete	-
 std/sync.md	2	complete	-
 std/thread.md	1	complete	-
 std/thread.md	2	complete	-
+std/thread.md	3	complete	-
 std/task.md	1	type-fragment	-
 std/task.md	2	complete	std/task/retry/task-retry.hd
 std/task.md	3	complete	std/task/retry/task-retry-when.hd

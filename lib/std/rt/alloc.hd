@@ -210,9 +210,9 @@ pub fn free_block(address: usize) -> void:
 
 # Compiler-private ABI, which the backend inlines: address is a live block
 # of class, with no buffered candidate bit. It goes on its class's freed
-# list; its page keeps counting it until `reclaim`.
+# list, counted by its page until `reclaim`; a thread with no table frees it.
 pub fn free_class(address: usize, class: usize) -> void:
-    if class == 0:
+    if class == 0 || (threaded() && table == 0):
         free_block(address)
         return
     at := table + FREED + 4 * class

@@ -213,6 +213,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("task_idle_hook", &[s(0, &[Fn], VOID)]),
     ("task_pending_frame", &[s(1, &[], SUSPEND)]),
     ("task_race_frame", &[s(1, &[LIST], SUSPEND)]),
+    ("task_thread_frame", &[s(0, &[USIZE, U32], SUSPEND)]),
     ("task_wait_cell", &[s(0, &[], COUNTED_MUT)]),
     ("task_wait_frame", &[s(0, &[COUNTED_MUT], SUSPEND)]),
     ("task_wait_signal", &[s(0, &[COUNTED_MUT], VOID)]),

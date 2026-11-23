@@ -3893,6 +3893,18 @@ impl Em<'_, '_, '_> {
                 self.f.i32(i32::from(self.m.threads));
                 self.store(i)
             }
+            // `module.rt.thread.running`: a host leaf frame (`task.rs`)
+            // whose `hd:rt` `thread_watch` waits, off this thread, for the
+            // state word of the block, its fifth, to change from `seen`.
+            "task_thread_frame" => {
+                self.f.i32(0);
+                self.push(args[0])?;
+                self.f.i32(16);
+                self.f.op(I::I32Add);
+                self.push(args[1])?;
+                self.f.helper(crate::task::thread_watch());
+                self.store(i)
+            }
             "thread_spawn" => {
                 for (arg, part, offset) in [(1, 0, 8), (1, 1, 12), (2, 0, 20), (2, 1, 24)] {
                     self.push(args[0])?;

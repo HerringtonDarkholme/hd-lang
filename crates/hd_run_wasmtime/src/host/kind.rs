@@ -35,6 +35,10 @@ pub(crate) enum Rt {
     /// the instance's engine links itself.
     Heap,
     ThreadSpawn,
+    /// A task's wait for a thread's end: its `.start`, or its `.finish`.
+    ThreadWatch {
+        finish: bool,
+    },
 }
 
 /// An `hd:prim` import (`rt.rs`, over `prim.rs`).
@@ -65,7 +69,10 @@ pub(crate) enum Record {
 impl Kind {
     pub(crate) fn record(self) -> Record {
         match self {
-            Self::Prim(_) | Self::Rt(Rt::Fact | Rt::Heap | Rt::ThreadSpawn) => Record::Skip,
+            Self::Prim(_)
+            | Self::Rt(Rt::Fact | Rt::Heap | Rt::ThreadSpawn | Rt::ThreadWatch { .. }) => {
+                Record::Skip
+            }
             Self::Rt(Rt::Block) => Record::Block,
             Self::Rt(Rt::Abort) => Record::Abort,
             Self::Fixture { finish: true, .. } | Self::Host { finish: true, .. } => Record::Finish,
@@ -122,6 +129,7 @@ impl Kind {
                 results.is_empty()
             }
             Self::Prim(Prim::ParseF64) => matches!(results, [ValType::F64]),
+            Self::Rt(Rt::ThreadWatch { finish: false }) => pair(),
             Self::Fixture { method, finish } if !finish && method.is_waiting() => pair(),
             _ => matches!(results, [value] if integer(value)),
         }
@@ -201,6 +209,8 @@ impl Kind {
             ("hd:rt", "hash_seed") => Kind::Rt(Rt::HashSeed),
             ("hd:rt", "heap") => Kind::Rt(Rt::Heap),
             ("hd:rt", "thread_spawn") => Kind::Rt(Rt::ThreadSpawn),
+            ("hd:rt", "thread_watch.start") => Kind::Rt(Rt::ThreadWatch { finish: false }),
+            ("hd:rt", "thread_watch.finish") => Kind::Rt(Rt::ThreadWatch { finish: true }),
             ("hd:prim", "format_f64") => Kind::Prim(Prim::FormatF64),
             ("hd:prim", "format_f32") => Kind::Prim(Prim::FormatF32),
             ("hd:prim", "format_f64_fixed") => Kind::Prim(Prim::FormatFixed),

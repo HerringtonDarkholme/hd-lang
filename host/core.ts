@@ -1166,6 +1166,24 @@ function buildCoreImports(options: Dynamic): Dynamic {
   });
   imports["hd:rt"].thread_spawn = (block: number): number =>
     Number(layer?.startThread?.(env.module, heap, block) === true);
+  // A task's wait for a thread to end (module.rt.thread.running): done at
+  // once when the word at `address` no longer holds `seen`, else pending
+  // until a notify there. `Atomics.waitAsync` registers the wait now, so
+  // it hears the notify whenever it comes, and a cancel only drops it.
+  // A Promise, so a synchronous `block` resumes the event loop for it.
+  const watch = "hd:rt thread_watch";
+  imports["hd:rt"]["thread_watch.start"] = (address: number, seen: number): number[] => {
+    const wait = Atomics.waitAsync(new Int32Array(heap!.buffer), address >> 2, seen);
+    if (!wait.async) {
+      return [0, 0];
+    }
+    const subscribe = (ready: () => void): void => void wait.value.then(ready);
+    return pending({ at: performance.now(), done: null, method: watch, promise: true, subscribe });
+  };
+  imports["hd:rt"]["thread_watch.finish"] = (handle: number): number => {
+    finished(handle, watch);
+    return 0;
+  };
   const io: DynamicRecord = {
     view,
     text,

@@ -3,11 +3,12 @@
 # same heap (spec/lang/10-modules.md#thread-intrinsics); `scope` waits for
 # every thread it started before it returns, so a closure may borrow what
 # outlives the scope (ref.frozen.lifetime). This is Rust's
-# `std::thread::scope`.
+# `std::thread::scope`; `background!` is Kotlin's `withContext` and
+# Swift's detached task, a thread whose end a task awaits.
 use std.marker.Send
 use std.rt.Drop
 use std.rt.bytes.panic_with
-use std.rt.thread.{abandon, new_block, release, run, run_here, share, take, wait}
+use std.rt.thread.{abandon, new_block, release, run, run_here, running, share, take, wait}
 
 ## The threads of one `scope` call, whose closures may borrow for `'s`.
 ## See [std-thread.scope](../../spec/std/thread.md#r-std-thread.scope).
@@ -45,12 +46,35 @@ impl['s] Scope['s]:
     ## Starts a thread that runs `code`, which may borrow for `'s`, and gives its handle.
     ## See [std-thread.spawn](../../spec/std/thread.md#r-std-thread.spawn).
     pub fn spawn[T < ?Copy & Send](&mut self, code: fn() -> T + Send & 's) -> Handle[T]:
-        thread := new_block::[T]()
-        if !start_thread(thread, run::[T], code):
-            run_here::[T](thread)
+        thread := started(code)
         share(thread)
         self.threads.push(thread)
         Handle::[T] { thread: thread }
+
+## Runs `code` on a new thread and gives the value it returned: the task waits for the thread, not the thread it runs on. A cancel returns at once, and the thread drops the value when it ends.
+## See [std-thread.background](../../spec/std/thread.md#r-std-thread.background).
+pub fn background![T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    # The handle is the task's owner of the block, which a cancel drops.
+    handle := Handle::[T] { thread: started(code) }
+    ended!(handle.thread)
+    handle.join()
+
+# Waits until the thread of `thread` ended, as `wait` does, but suspends
+# the task instead of its thread: the host completes each wait when the
+# block's state word changes (module.rt.thread.running).
+fn ended!(thread: usize) -> void:
+    let seen = running(thread)
+    while seen != 0:
+        let changed: Suspend[void] = watch(thread, seen)
+        changed!()
+        seen = running(thread)
+
+# A new thread's block, whose thread runs `code`, or which ran it here.
+fn started['s, T < ?Copy & Send](code: fn() -> T + Send & 's) -> usize:
+    thread := new_block::[T]()
+    if !start_thread(thread, run::[T], code):
+        run_here::[T](thread)
+    thread
 
 impl[T < ?Copy & Send] Handle[T]:
     ## Waits for the thread to end and gives the value its closure returned.
@@ -77,4 +101,11 @@ fn start_thread[T < ?Copy & Send](
     run: fn(usize) -> void,
     code: fn() -> T + Send,
 ) -> bool:
+    panic("intrinsic")
+
+@intrinsic("task_thread_frame")
+# A suspension that completes at once when the state word of `thread`'s
+# block no longer holds `seen`, and else once a notify there wakes the
+# host's wait for it; a cancel ends that wait (module.rt.thread.running).
+fn watch(thread: usize, seen: u32) -> Suspend[void]:
     panic("intrinsic")
