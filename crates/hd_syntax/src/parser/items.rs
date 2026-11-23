@@ -101,10 +101,12 @@ impl Parser<'_> {
             && !self.nth_line_first(1)
             && self.at_word("newtype")
         {
-            self.error_at(
-                Code::SyntaxError,
-                self.pos() + 1,
-                "a newtype is declared with 'type': write 'type Name(Base)'",
+            let (lo, hi) = self.token_span(self.pos());
+            let message = "a newtype is declared with 'type': write 'type Name(Base)'";
+            self.error_fixed(
+                (Code::SyntaxError, self.pos() + 1, message),
+                "replace `newtype` with `type`",
+                &[(lo, hi, "type")],
             );
         }
         if self.at(TokenKind::KwTests) {
@@ -267,12 +269,22 @@ impl Parser<'_> {
             self.expect_name("an import alias");
         }
         if public && !grouped {
-            // grammar: `pub use` takes a group.
+            // grammar: `pub use` takes a group: `pub use m.Name` is `pub use m.{Name}`.
             let at = self.pos().saturating_sub(1);
-            self.error_at(
-                Code::SyntaxError,
-                at,
-                "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'",
+            let (lo, hi) = self.token_span(at);
+            let named = at > 0
+                && self.toks.kind[at - 1] == TokenKind::Dot
+                && matches!(self.toks.kind[at], TokenKind::Ident | TokenKind::RawIdent);
+            let edits: &[(u32, u32, &str)] = if named {
+                &[(lo, lo, "{"), (hi, hi, "}")]
+            } else {
+                &[]
+            };
+            let message = "only the grouped use form accepts 'pub'; write 'pub use module.{Name}'";
+            self.error_fixed(
+                (Code::SyntaxError, at, message),
+                "group the imported name",
+                edits,
             );
         }
         self.complete(marker, SyntaxKind::UseDecl);

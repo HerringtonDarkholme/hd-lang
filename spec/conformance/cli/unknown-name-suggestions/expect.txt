@@ -47,7 +47,7 @@ exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `unwarp` on string?; did you mean `unwrap`?","line":2,"column":5,"fixes":[{"message":"write `unwrap`","edits":[{"file":"optional.hd","start":44,"end":50,"text":"unwrap"}]}],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json print.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`print` is not defined; did you mean `println`?","line":2,"column":5,"file":"print.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`print` is not defined; add `use std.console.print`","line":2,"column":5,"fixes":[{"message":"add `use std.console.print`","edits":[{"file":"print.hd","start":0,"end":0,"text":"use std.console.print\n\n"}]}],"file":"print.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json --tests tests-fixed.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json --tests tests.hd

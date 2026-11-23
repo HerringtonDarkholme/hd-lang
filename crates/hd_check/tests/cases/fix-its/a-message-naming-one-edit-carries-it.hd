@@ -1,0 +1,48 @@
+# @dump: diagnostics fixed
+# A checker message that names one edit carries it as a fix-it: `.` before
+# a bare variant, `mut` on a reassigned parameter, `_` in an empty call
+# step, `!(_)` on a suspending bare step, a fractional duration in `ms`,
+# and the `use` of std's `print`. A field write through a parameter gets
+# the `mut` it names as a suggestion; through a `:=` binding, none, since
+# the author may want a copy. The fixed module checks clean but for that.
+use std.time.Duration
+
+enum Shape:
+    Dot
+    Line(len: i32)
+
+struct Point:
+    x: i32
+
+fn bare(s: Shape) -> i32:
+    match s:
+        Dot => 0
+        Line(n) => n
+
+fn reassigned(n: i32) -> i32:
+    n = n + 1
+    n
+
+fn moved(p: Point) -> i32:
+    p.x = 3
+    p.x
+
+fn built() -> i32:
+    p := Point { x: 1 }
+    p.x = 2
+    p.x
+
+fn double(x: i32) -> i32: x * 2
+
+fn piped(x: i32) -> i32:
+    x |> double()
+
+fn fetch!(id: i32) -> i32: id
+
+fn loaded!(n: i32) -> i32:
+    n |> fetch
+
+fn pause() -> Duration: 1.5s
+
+fn greet() -> void $ Console:
+    print("hi")

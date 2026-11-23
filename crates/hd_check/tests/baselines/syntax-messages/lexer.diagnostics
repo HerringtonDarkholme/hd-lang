@@ -15,6 +15,10 @@ error: main.hd:31:7: unmatched-delimiter: unexpected ']' delimiter
 error: main.hd:34:11: syntax-error: an unescaped '$' must be followed by an identifier, 'self', or '{'
 error: main.hd:36:6: syntax-error: invalid integer literal '0x'
 error: main.hd:38:6: syntax-error: 'else' is a reserved word, so '5else' needs a space: write '5 else'
+  fix (exact): insert a space
+    edit main.hd:38:7 472..472: " "
 error: main.hd:40:6: syntax-error: 'return' is a reserved word, so it cannot prefix a string: write 'return "...'
+  fix (exact): insert a space
+    edit main.hd:40:12 489..489: " "
 error: main.hd:43:10: unterminated-string: unterminated '${...}' interpolation
 error: main.hd:45:6: unclosed-delimiter: unclosed '(' delimiter

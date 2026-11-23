@@ -145,10 +145,15 @@ impl Parser<'_> {
                     && matches!(self.nth(1), Some(TokenKind::Ident | TokenKind::RawIdent))
                     && self.nth(2) == Some(TokenKind::ColonEq)
                 {
-                    // grammar.stmt.let-mut.only-let
-                    self.error(
-                        Code::SyntaxError,
-                        "'mut' is only accepted by 'let': write 'let mut name = ...'",
+                    // grammar.stmt.let-mut.only-let: `mut x := e` is `let mut x = e`.
+                    let at = self.pos();
+                    let (lo, _) = self.token_span(at);
+                    let (op_lo, op_hi) = self.token_span(at + 2);
+                    let message = "'mut' is only accepted by 'let': write 'let mut name = ...'";
+                    self.error_fixed(
+                        (Code::SyntaxError, at, message),
+                        "bind with `let mut`",
+                        &[(lo, lo, "let "), (op_lo, op_hi, "=")],
                     );
                     self.junk();
                 }
@@ -258,9 +263,27 @@ impl Parser<'_> {
         if !matches!(self.current(), Some(TokenKind::Colon | TokenKind::Eq)) {
             // grammar.stmt.let-list.bare and friends.
             if self.at(TokenKind::Comma) {
-                self.error(
-                    Code::SyntaxError,
-                    "several names after 'let' need parentheses: write 'let (a, b) = ...'",
+                // `let a, b = e` is `let (a, b) = e` when only names and commas reach the `=`.
+                let mut end = self.pos();
+                while matches!(
+                    self.toks.kind.get(end),
+                    Some(TokenKind::Comma | TokenKind::Ident | TokenKind::RawIdent)
+                ) {
+                    end += 1;
+                }
+                let edits: &[(u32, u32, &str)] = if self.toks.kind.get(end) == Some(&TokenKind::Eq)
+                {
+                    let (lo, hi) = (self.token_span(binding).0, self.token_span(end - 1).1);
+                    &[(lo, lo, "("), (hi, hi, ")")]
+                } else {
+                    &[]
+                };
+                let message =
+                    "several names after 'let' need parentheses: write 'let (a, b) = ...'";
+                self.error_fixed(
+                    (Code::SyntaxError, self.pos(), message),
+                    "wrap the names in parentheses",
+                    edits,
                 );
             } else {
                 self.expected("':' or '=' after the pattern");

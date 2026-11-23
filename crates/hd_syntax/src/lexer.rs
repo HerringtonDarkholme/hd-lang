@@ -654,6 +654,7 @@ impl<'s> Lexer<'s> {
                 "'{text}' is a reserved word, so it cannot prefix a string: write '{text} \"...'"
             );
             self.error(Code::SyntaxError, start, self.pos, message);
+            self.fix_last("insert a space", self.pos, " ");
         }
         let kind = keyword(text).unwrap_or_else(|| {
             if text == "_" {
@@ -787,6 +788,7 @@ impl<'s> Lexer<'s> {
                         "'{word}' is a reserved word, so '{number}{word}' needs a space: write '{number} {word}'"
                     );
                     self.error(Code::SyntaxError, start, self.pos, message);
+                    self.fix_last("insert a space", suffix, " ");
                 }
             }
         } else if self.pos == start + 2 {
@@ -1154,6 +1156,23 @@ impl<'s> Lexer<'s> {
 
     fn error(&mut self, code: Code, start: usize, end: usize, message: impl Into<String>) {
         self.diagnostics.push(diagnostic(code, start, end, message));
+    }
+
+    /// Gives the diagnostic pushed last the one certain fix-it `title`:
+    /// `text` inserted at byte `at`.
+    fn fix_last(&mut self, title: &str, at: usize, text: &str) {
+        if let Some(d) = self.diagnostics.last_mut() {
+            let span = Span {
+                lo: to_u32(at),
+                hi: to_u32(at),
+                ..d.primary
+            };
+            d.fixes.push(hd_diag::DiagnosticFix {
+                message: title.to_owned(),
+                safety: hd_diag::FixSafety::Exact,
+                edits: vec![(span, text.to_owned())],
+            });
+        }
     }
 
     /// Whether only spaces and tabs precede the cursor on its line.

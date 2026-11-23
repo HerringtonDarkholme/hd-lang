@@ -6,3 +6,5 @@ error: main.hd:13:6: syntax-error: expected a line ending before ')' after a clo
 error: main.hd:17:3: syntax-error: expected a closure body line at column 5, found a line at column 3
 error: main.hd:21:5: syntax-error: a leading-dot line cannot continue a line whose same-line suite is still open
 error: main.hd:25:5: syntax-error: a leading-dot line cannot continue a pipe chain; write the call as a step, such as '|> _.name()'
+  fix (exact): write `|> _.`
+    edit main.hd:25:5 252..253: "|> _."

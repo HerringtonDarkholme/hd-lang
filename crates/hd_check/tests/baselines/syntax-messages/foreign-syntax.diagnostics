@@ -4,6 +4,8 @@ error: main.hd:6:1: syntax-error: documentation comments start with '##', not '/
     edit main.hd:6:1 330..333: "##"
 error: main.hd:10:9: syntax-error: 'use' goes at the top of the file or a 'tests:' block, not inside a function
 error: main.hd:12:9: syntax-error: a newtype is declared with 'type': write 'type Name(Base)'
+  fix (exact): replace `newtype` with `type`
+    edit main.hd:12:1 378..385: "type"
 error: main.hd:16:11: syntax-error: match patterns do not use '|'; write a separate arm for each pattern
 error: main.hd:18:3: trailing-block-position: casts are calls: write 'i64(1)'
 error: main.hd:20:3: trailing-block-position: casts are calls: write 'f64(x)'

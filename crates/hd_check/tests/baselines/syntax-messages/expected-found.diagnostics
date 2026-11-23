@@ -10,6 +10,9 @@ error: main.hd:23:12: syntax-error: expected ',' or '}', found '3'
 error: main.hd:25:11: syntax-error: expected a line ending, found 'b'
 error: main.hd:27:7: syntax-error: expected ':' or '=' after the pattern, found '1'
 error: main.hd:29:6: syntax-error: several names after 'let' need parentheses: write 'let (a, b) = ...'
+  fix (exact): wrap the names in parentheses
+    edit main.hd:29:5 397..397: "("
+    edit main.hd:29:9 401..401: ")"
 error: main.hd:31:8: syntax-error: expected a member name after '.', found '0'
   fix (exact): prefix the tuple index with `_`
     edit main.hd:31:8 417..417: "_"

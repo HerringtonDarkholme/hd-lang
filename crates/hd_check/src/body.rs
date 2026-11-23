@@ -1825,6 +1825,19 @@ impl Ck<'_, '_> {
         self.diags.error(code, span, msg);
     }
 
+    /// Attaches to the diagnostic pushed last the exact fix-it `title`
+    /// that inserts `text` at byte `at` of this file.
+    pub(crate) fn insert_fix(&mut self, title: &str, at: u32, text: &str) {
+        let file = self.cx.src.file;
+        let span = hd_base::Span {
+            file,
+            lo: at,
+            hi: at,
+        };
+        self.diags
+            .add_fix(title, hd_diag::FixSafety::Exact, &[(span, text)]);
+    }
+
     /// `trait-resolution-depth` once per use, a span: a type past a depth
     /// limit fails each proof and each projection that reaches it, and
     /// the first of them tells the cause. A projection chain of n
@@ -4798,11 +4811,14 @@ impl Ck<'_, '_> {
                 } else if flags & local_flags::PARAM != 0
                     && !self.mut_params.iter().any(|(p, _)| *p == l)
                 {
-                    let msg = format!(
-                        "parameter `{}` cannot be reassigned",
-                        self.cx.names.text(name)
-                    );
+                    let text = self.cx.names.text(name).to_owned();
+                    let msg = format!("parameter `{text}` cannot be reassigned");
                     self.err(Code::NonReassignableParameterBinding, lhs, &msg);
+                    // A parameter is the function's own copy: `mut` is the
+                    // one way to reassign it.
+                    let syn = self.b.body_mut().local_syn[l.idx()];
+                    self.writable_binding_fix(&text, false, true, syn);
+                    self.diags.exact_last_fix();
                 }
                 let lt = self.b.local_ty(l);
                 let v = match compound {

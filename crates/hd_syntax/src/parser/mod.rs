@@ -408,10 +408,18 @@ impl<'t> Parser<'t> {
     /// ([`broken_items`]).
     fn finish_diagnostics(&mut self) -> (Vec<Diagnostic>, Vec<u32>) {
         let mut out = Vec::new();
-        for (code, at, message) in &self.cur.errors {
+        for (code, at, message, fix) in &self.cur.errors {
             let (lo, hi) = self.token_span(*at);
             if !self.lexed_covers(lo) {
-                out.push(diag(*code, lo, hi, message.clone()));
+                let mut d = diag(*code, lo, hi, message.clone());
+                if let Some(text) = fix {
+                    d.fixes.push(DiagnosticFix {
+                        message: format!("write `{text}`"),
+                        safety: FixSafety::Exact,
+                        edits: vec![(d.primary, (*text).to_owned())],
+                    });
+                }
+                out.push(d);
             }
         }
         let mut placed: Vec<u32> = out.iter().map(|d| d.primary.lo).collect();
@@ -704,6 +712,22 @@ impl<'t> Parser<'t> {
 
     /// Attaches to the just-reported error only; suppressed errors have
     /// no row at `index`, so never borrow another statement's fix.
+    /// [`Self::error_at`] with the one certain fix-it `title`, whose
+    /// `edits` are byte ranges and their new text; none when the edit is
+    /// not certain, so `edits` is empty.
+    pub(crate) fn error_fixed(
+        &mut self,
+        (code, at, message): (Code, usize, &str),
+        title: &str,
+        edits: &[(u32, u32, &str)],
+    ) {
+        let index = self.errors.len();
+        self.error_at(code, at, message);
+        if !edits.is_empty() {
+            self.fix_error(index, title, edits);
+        }
+    }
+
     pub(crate) fn fix_error(&mut self, index: usize, message: &str, edits: &[(u32, u32, &str)]) {
         self.error_fix(index, message, FixSafety::Exact, edits);
     }

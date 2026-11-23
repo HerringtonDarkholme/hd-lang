@@ -167,6 +167,15 @@ impl DiagBuf {
         }
     }
 
+    /// Marks the fix-it attached last as exact: the caller has proved it
+    /// is the one correction.
+    pub fn exact_last_fix(&mut self) {
+        let has = self.fixes.last().is_some_and(|row| row.len > 0);
+        if let (true, Some(safety)) = (has, self.fix_safety.last_mut()) {
+            *safety = FixSafety::Exact;
+        }
+    }
+
     /// Error-severity diagnostic with no root key.
     pub fn error(&mut self, code: Code, primary: Span, message: &str) {
         self.push(code, Severity::Error, primary, message, None);

@@ -1,0 +1,20 @@
+# @dump: diagnostics
+# Each message below names an edit whose place or text is not certain, so
+# it carries no fix-it: the piped value's argument among several, `mut`
+# with no `&` before `dyn`, an aliased `pub use`, and a `let` list that
+# holds more than names.
+trait Shape:
+    fn area(&self) -> i32
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+fn piped(x: i32) -> i32:
+    x |> add(1)
+
+fn owned(s: Box[dyn mut Shape]) -> i32: 0
+
+pub use std.cmp.max as largest
+
+fn parts(p: (i32, i32)) -> i32:
+    let a, b.c = p
+    a

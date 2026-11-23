@@ -558,6 +558,11 @@ impl Ck<'_, '_> {
                 {
                     let msg = format!("write `.{}` or a qualified name", self.cx.src.text(nt));
                     self.err(Code::BareVariantPattern, p, &msg);
+                    self.insert_fix(
+                        "write `.` before the variant",
+                        self.cx.src.token_span(nt).lo,
+                        ".",
+                    );
                     self.pattern_rejected = true;
                     return Ok(());
                 }
@@ -732,6 +737,8 @@ impl Ck<'_, '_> {
                 {
                     let msg = format!("write `.{name}` or a qualified name");
                     self.err(Code::BareVariantPattern, p, &msg);
+                    let lo = self.cx.src.span(p).lo;
+                    self.insert_fix("write `.` before the variant", lo, ".");
                     self.pattern_rejected = true;
                     return self.declare_poisoned_fields(p, binds);
                 }

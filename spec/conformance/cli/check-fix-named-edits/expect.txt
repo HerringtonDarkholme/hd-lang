@@ -1,0 +1,10 @@
+# Each parser, lexer and checker message below names one edit and carries
+# it as an exact fix-it: hd check --fix applies all 21, and the check after
+# it finds nothing.
+run: hd check --format json --summary
+exit: 101
+run: hd check --fix
+same-text: src/syntax.hd want/syntax.hd
+same-text: src/lib.hd want/lib.hd
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

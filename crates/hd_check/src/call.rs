@@ -682,22 +682,11 @@ impl Ck<'_, '_> {
         )
     }
 
-    fn name_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
-        if name == "print" {
-            hd_resolve::iface::ImportHint {
-                text: "; did you mean `println`?".to_owned(),
-                path: None,
-            }
-        } else {
-            self.import_hint(name)
-        }
-    }
-
     /// `unknown-name` at `n` for `text`, with its import hint and the
     /// fix-it that adds the `use` it names, else the value in scope it
     /// misspells for `role`.
     pub(crate) fn unknown_name(&mut self, text: &str, n: NodeRef<'_>, role: NameUse) {
-        let hint = self.name_hint(text);
+        let hint = self.import_hint(text);
         let best = if hint.text.is_empty() {
             self.value_typo(text, role)
         } else {
@@ -3609,6 +3598,11 @@ impl Ck<'_, '_> {
             n,
             "a bare pipe step cannot suspend; write `_` and `!`",
         );
+        // A named step `f` becomes the call `f!(_)`.
+        if matches!(n.kind(), SyntaxKind::NameExpr | SyntaxKind::PathExpr) {
+            let hi = self.cx.src.span(n).hi;
+            self.insert_fix("call the step with `!(_)`", hi, "!(_)");
+        }
         (Ref(NONE), Ty::POISON)
     }
 

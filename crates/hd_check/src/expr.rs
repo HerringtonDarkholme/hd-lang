@@ -4869,6 +4869,14 @@ impl Ck<'_, '_> {
                 step,
                 "write `_` where the piped value goes",
             );
+            // A call with no argument has one place for it: `f()` is `f(_)`.
+            if step.kind() == SyntaxKind::CallExpr
+                && let Some(list) = Src::child(step, SyntaxKind::ArgumentList)
+                && list.children().next().is_none()
+            {
+                let at = self.cx.src.token_span(list.last_token()).lo;
+                self.insert_fix("pass the piped value as `_`", at, "_");
+            }
             return Ok((Ref(NONE), Ty::POISON));
         }
         let saved = self.placeholder.replace(v);

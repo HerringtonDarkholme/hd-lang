@@ -460,10 +460,12 @@ impl Ck<'_, '_> {
         let short = flags & local_flags::SHORT != 0 || self.using_locals.contains(&l);
         let param = flags & local_flags::PARAM != 0;
         self.not_writable(&name, short, param, at);
-        // `fn.method.self-struct-write`: the fix takes `&mut self`.
-        if param && name == "self" {
+        // `fn.method.self-struct-write`: the fix takes `&mut self`; a
+        // parameter or a `let` becomes `mut` (`ref.place.not-writable.fix`).
+        // A `:=` binding is left to the author, who may want a copy.
+        if !short {
             let syn = self.b.body_mut().local_syn[l.idx()];
-            self.writable_binding_fix("self", false, true, syn);
+            self.writable_binding_fix(&name, short, param, syn);
         }
         false
     }

@@ -1331,10 +1331,12 @@ impl Parser<'_> {
                 if self.nth(1) == Some(TokenKind::Number) && self.nth_glued(1) {
                     // lex.float.no-bare-point
                     let at = self.pos();
-                    self.error_at(
-                        Code::InvalidToken,
-                        at,
-                        "a number needs a digit before '.': write '0.5'",
+                    let lo = self.token_span(at).0;
+                    let message = "a number needs a digit before '.': write '0.5'";
+                    self.error_fixed(
+                        (Code::InvalidToken, at, message),
+                        "write `0` before the `.`",
+                        &[(lo, lo, "0")],
                     );
                     self.bump();
                     self.bump();
@@ -1496,9 +1498,18 @@ impl Parser<'_> {
             comma = true;
         }
         if spread_seen && !comma {
-            self.error(
-                Code::SyntaxError,
-                "a lone spread in a tuple keeps its trailing comma: write '(xs...,)'",
+            let at = self.pos();
+            let lo = self.token_span(at).0;
+            let message = "a lone spread in a tuple keeps its trailing comma: write '(xs...,)'";
+            let edits: &[(u32, u32, &str)] = if self.at(TokenKind::RParen) {
+                &[(lo, lo, ",")]
+            } else {
+                &[]
+            };
+            self.error_fixed(
+                (Code::SyntaxError, at, message),
+                "add the trailing comma",
+                edits,
             );
         }
         self.expect_token(TokenKind::RParen, "')'");
