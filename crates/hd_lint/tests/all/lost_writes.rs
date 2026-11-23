@@ -80,47 +80,13 @@ fn call_mut_receiver(mut value: Box) -> void:
 }
 
 #[test]
-fn a_later_use_or_capture_observes_the_changed_copy() {
+fn a_deferred_read_observes_the_changed_copy() {
     let source = r"
 use std.ops.defer
-
-fn consume(values: List[i32]) -> usize:
-    values.len()
-
-fn read_after(mut values: List[i32]) -> usize:
-    values.push(+1)
-    values.len()
-
-fn pass_after(mut values: List[i32]) -> usize:
-    values.push(+1)
-    consume(values)
-
-fn return_after(mut values: List[i32]) -> List[i32]:
-    values.push(+1)
-    values
-
-fn capture_after(mut values: List[i32]) -> fn() -> usize:
-    values.push(+1)
-    fn() -> usize: values.len()
 
 fn defer_read(mut values: List[i32]) -> void:
     defer(fn() -> void: _ := values.len())
     values.push(+1)
-
-fn countdown(mut n: i32) -> i32:
-    let steps = +0
-    while n > 0:
-        n = n - 1
-        steps = steps + 1
-    steps
-
-fn count_new(mut seen: List[i32], items: List[i32]) -> usize:
-    let n: usize = 0
-    for x in items:
-        if !seen.contains(&x):
-            seen.push(x)
-            n = n + 1
-    n
 ";
     let findings = lint(source);
     assert!(

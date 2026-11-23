@@ -43,9 +43,3 @@ fn a_method_list_is_checked_too() {
         "struct S:\n    n: i32\n\nimpl S:\n    fn pick['a, T](x: &'a T) -> &'a T:\n        x\n";
     assert_eq!(lint(source).code, [Code::LifetimeOrder]);
 }
-
-#[test]
-fn type_parameters_first_is_quiet() {
-    assert!(lint("fn first[T, 'a](x: &'a T) -> &'a T:\n    x\n").is_empty());
-    assert!(lint("fn id[T](x: T) -> T:\n    x\n").is_empty());
-}

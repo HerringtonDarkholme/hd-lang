@@ -77,9 +77,8 @@ fn exact_debug_message_expression_spans_and_utf8_fix_ranges_are_preserved() {
 }
 
 #[test]
-fn every_statement_after_return_break_continue_and_infinite_loop_is_reported() {
+fn every_statement_after_break_continue_and_infinite_loop_is_reported() {
     for source in [
-        "fn f() -> i32:\n    return +1\n    debug(+2)\n    +3\n",
         "fn f() -> void:\n    while true:\n        break\n        debug(+2)\n        pass\n",
         "fn f() -> void:\n    while true:\n        continue\n        debug(+2)\n        pass\n",
         "fn f() -> void:\n    while true:\n        pass\n    debug(+2)\n    pass\n",

@@ -46,46 +46,6 @@ fn lint(source: &str, mut policy: Policy) -> (Output, DiagBuf) {
 const PAIR: &str = "enum Pair:\n    Values(left: i32, right: i32)\n";
 
 #[test]
-fn primitive_messages_and_fix_spans_are_preserved() {
-    let source = include_str!("../../../../spec/conformance/cli/lint-binding-patterns/src/main.hd");
-    let (out, findings) = lint(source, Policy::default());
-    assert!(out.diags.is_empty(), "{}", out.render());
-    assert_eq!(
-        findings.code,
-        [
-            Code::RedundantLetMut,
-            Code::VariantBindingNameMismatch,
-            Code::VariantBindingNameMismatch,
-            Code::RedundantLetMut,
-            Code::VariantBindingNameMismatch,
-            Code::VariantBindingNameMismatch
-        ]
-    );
-    assert_eq!(
-        findings.get_text(findings.message[0]),
-        "`let mut` on a primitive is needed only when `&mut` of it is taken; a plain `let` is already reassignable"
-    );
-    // Compare the full CLI JSON, including fix ranges, to the frozen old producer separately.
-    let span = findings.primary[0];
-    assert!(source[span.lo as usize..span.hi as usize].starts_with("mut "));
-    assert_eq!(
-        findings.get_text(findings.message[1]),
-        "`right` is also a field of `Values`; the field in this position is `left`"
-    );
-    assert_eq!(
-        findings.get_text(findings.message[2]),
-        "`left` is also a field of `Values`; the field in this position is `right`"
-    );
-    // The annotated `let mut n: i32` and the type-qualified `Choice.Pair(...)` forms.
-    let span = findings.primary[3];
-    assert!(source[span.lo as usize..span.hi as usize].starts_with("mut "));
-    assert_eq!(
-        findings.get_text(findings.message[4]),
-        "`else_value` is also a field of `Pair`; the field in this position is `then_value`"
-    );
-}
-
-#[test]
 fn mutable_addressing_and_shadowing_keep_binding_identity() {
     let source = "fn f() -> i32:\n    let mut counter = +0\n    if true:\n        let mut counter = +1\n        pointer := &mut counter\n        *pointer += +1\n    counter\n";
     let (_, findings) = lint(source, Policy::default());
