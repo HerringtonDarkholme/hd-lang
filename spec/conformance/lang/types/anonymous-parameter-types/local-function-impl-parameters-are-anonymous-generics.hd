@@ -38,7 +38,7 @@ pub fn main() -> void $ Console:
         fn inner(y: impl Number) -> i32:
             y.number() * 2
         inner(x) + inner(x.number() + 1)
-    fn kept(x: impl Number&'static) -> i32:
+    fn kept(x: impl Number & 'static) -> i32:
         x.number()
     println(
         "$first $second $s $k ${deflt(true)} ${deflt(+2, y=1)} ${f(+1, +2)} ${outer(+1)} ${kept(+9)}",
