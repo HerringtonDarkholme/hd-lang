@@ -1001,13 +1001,16 @@ mod coverage_contracts {
             (4, BuiltinImpl::Union),
             (5, BuiltinImpl::Structure),
             (6, BuiltinImpl::Copy),
-            (7, BuiltinImpl::Marker),
-            (8, BuiltinImpl::Marker),
         ] {
             assert_eq!(
                 row(p, &decls, id(trait_), sum, &mut memo),
                 Some(Row::Holds(builtin, Vec::new())),
             );
+        }
+        // `Send` and `Wire` are answered by the solver beside their impls
+        // (module.marker.explicit.only), so the sealed table has no row.
+        for trait_ in [7, 8] {
+            assert_eq!(row(p, &decls, id(trait_), sum, &mut memo), None);
         }
         assert_eq!(
             row(p, &decls, id(2), sum, &mut memo),
