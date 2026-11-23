@@ -1,7 +1,6 @@
 # @dump: diagnostics
 # Each form below is rejected with no fix-it: the parser offers an edit only
 # where one correction is certain.
-# expected: for `value!()!`, a message that does not spell the call 'value!!(...)'.
 # A member, map or import form the migration fixes do not cover.
 fn f(pair: P): pair.0xA
 
@@ -22,8 +21,6 @@ fn f(pair: P):
     (low, (high)) := pair
 
 # A bang, a spread or a `///` comment that has no single place to move to.
-fn f!(): value!()!
-
 fn f!(): value() !
 
 fn f(): [...]

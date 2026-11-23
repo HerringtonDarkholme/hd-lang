@@ -1,0 +1,6 @@
+# @dump: diagnostics fixed
+fn value!() -> void:
+    pass
+
+fn f!() -> void:
+    value!()!

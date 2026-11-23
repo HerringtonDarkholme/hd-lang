@@ -3463,12 +3463,10 @@ impl<'s, 'n> Shower<'s, 'n> {
                 owner, args, bound, ..
             } => {
                 self.put("impl ");
-                let (shown, cut) = self.render(bound, d, self.rows);
-                let shown = match shown.strip_prefix("dyn ") {
-                    Some(rest) => rest.to_owned(),
-                    None => shown,
-                };
-                self.put_rendered((shown, cut));
+                // A bound renders as a trait name. `dyn` is emitted only
+                // by a reference, after its `&` or `*` prefix.
+                let shown = self.render(bound, d, self.rows);
+                self.put_rendered(shown);
                 if self.qualified {
                     self.put(" returned by ");
                     self.seg(owner);

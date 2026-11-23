@@ -448,3 +448,180 @@ fn scope_overlay_rebases_modules_and_ambiguities_and_hides_unreadable_names() {
             .all(|(label, _)| label != "choice" && label != "broken")
     );
 }
+
+/// Worlds may expose their already-owned module text; the recorder must
+/// preserve that fast path without making the path-text query a dependency.
+#[test]
+fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
+    use hd_base::PathId;
+    use hd_resolve::{FolderIface, Reads, Recorded, World};
+    use std::cell::RefCell;
+
+    struct IndexedWorld {
+        node: PathId,
+        calls: RefCell<Vec<String>>,
+    }
+    impl World for IndexedWorld {
+        fn module_path_node(&self, module: PathId) -> Option<&str> {
+            (module == self.node).then_some("app.data")
+        }
+        fn module_folder(&self, module: &str) -> Option<u32> {
+            self.calls.borrow_mut().push(module.to_owned());
+            (module == "app.data").then_some(7)
+        }
+        fn usable(&self, module: &str) -> bool {
+            module == "app.data"
+        }
+        fn test_only(&self, _module: &str) -> bool {
+            false
+        }
+        fn iface(&self, _folder: u32) -> Option<Arc<FolderIface>> {
+            None
+        }
+    }
+
+    let run = Run::new();
+    let names = run.names();
+    let data = names.module("app.data");
+    let missing = names.module("app.missing");
+    let world = IndexedWorld {
+        node: data,
+        calls: RefCell::default(),
+    };
+    let recorded = Recorded::new(&world);
+    assert_eq!(recorded.module_path_node(data), Some("app.data"));
+    assert_eq!(recorded.module_path_node(missing), None);
+    assert_eq!(recorded.reads(), Reads::default());
+    assert!(world.calls.borrow().is_empty());
+
+    // The default node lookup takes owned text for data and renders the
+    // missing node's text. Every lookup reaches the world exactly once.
+    assert_eq!(recorded.module_folder_node(&names, missing), None);
+    assert_eq!(recorded.module_folder_node(&names, data), Some(7));
+    assert_eq!(recorded.module_folder_node(&names, data), Some(7));
+    assert_eq!(
+        *world.calls.borrow(),
+        ["app.missing", "app.data", "app.data"]
+    );
+    let expected = Reads {
+        modules: vec!["app.data".into(), "app.missing".into()],
+        folders: Vec::new(),
+    };
+    assert_eq!(recorded.reads(), expected);
+
+    // Holding dependency reads must not suppress the underlying lookup.
+    recorded.hold_reads(true);
+    assert_eq!(
+        recorded.module_folder_node(&names, names.module("app.held")),
+        None
+    );
+    assert_eq!(
+        world.calls.borrow().last().map(String::as_str),
+        Some("app.held")
+    );
+    assert_eq!(recorded.reads(), expected);
+    recorded.hold_reads(false);
+    assert_eq!(
+        recorded.module_folder_node(&names, names.module("app.held")),
+        None
+    );
+    assert_eq!(
+        recorded.reads().modules,
+        ["app.data", "app.held", "app.missing"]
+    );
+}
+
+/// `module.rt.std-only`: neither a runtime module nor a public re-export
+/// of its declaration is a usable import repair in another package.
+#[test]
+fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
+    use hd_resolve::HeadKind;
+    use hd_resolve::iface::{Export, ImportHint, std_import_hint};
+    use hd_resolve::work::count_hint_work;
+
+    let mut warm_work = Vec::new();
+    for width in [100u64, 1000] {
+        let run = Run::new();
+        let names = run.names();
+        let visible = names.item("std.text", "Shared");
+        let hidden = names.item("std.rt.memory", "Shared");
+        let tree = names.item("std.rtree", "Node");
+        let export = |module: &str, label: &str, def| Export {
+            module: module.into(),
+            name: run.syms.intern(label),
+            def,
+            kind: HeadKind::Struct,
+        };
+        let mut exports = vec![
+            export("std.text", "Shared", visible),
+            export("std.facade", "Shared", visible),
+            export("std.other_facade", "Shared", hidden),
+            export("std.rt.memory", "Shared", hidden),
+            export("std.leaky", "RuntimeOnly", hidden),
+            export("std.rt", "RootOnly", visible),
+            export("std.rt.memory", "NestedOnly", visible),
+            export("std.rtree", "Node", tree),
+        ];
+        for i in 0..width {
+            let label = format!("Filler{i}");
+            exports.push(export("std.misc", &label, names.item("std.misc", &label)));
+        }
+        // A complete declaration table accompanies the aliases: a runtime
+        // declaration is ordinary interface data, not malformed metadata.
+        let mut declared = hd_base::HashSet::default();
+        let items = exports
+            .iter()
+            .filter(|e| declared.insert(e.def))
+            .map(|e| {
+                Item::new(
+                    e.def,
+                    run.syms.intern(names.display_name(e.def)),
+                    true,
+                    ItemData::Struct(Vec::new(), TypeAttrs::default()),
+                )
+            })
+            .collect();
+        let iface = folder_iface(
+            "std",
+            Items::new(items),
+            exports,
+            Arc::from([]),
+            None,
+            &[],
+            Vec::new(),
+        );
+        let (hint, cold) = count_hint_work(|| std_import_hint(&names, [&iface], "Shared"));
+        assert_eq!(hint.path.as_deref(), Some("std.text.Shared"));
+        assert_eq!(hint.text, "; add `use std.text.Shared`");
+        assert!(cold >= width, "the first hint indexes all exports");
+        for label in [
+            "RuntimeOnly",
+            "RootOnly",
+            "NestedOnly",
+            "leaky",
+            "rt",
+            "memory",
+        ] {
+            let (hint, work) = count_hint_work(|| std_import_hint(&names, [&iface], label));
+            assert_eq!(hint, ImportHint::default(), "{width}: {label}");
+            assert_eq!(work, 1, "an absent name probes the built interface once");
+        }
+        for (label, path) in [
+            ("Node", "std.rtree.Node"),
+            ("rtree", "std.rtree"),
+            ("text", "std.text"),
+        ] {
+            assert_eq!(
+                std_import_hint(&names, [&iface], label).path.as_deref(),
+                Some(path)
+            );
+        }
+        let (again, work) = count_hint_work(|| std_import_hint(&names, [&iface], "Shared"));
+        assert_eq!(again, hint);
+        warm_work.push(work);
+    }
+    assert_eq!(
+        warm_work[0], warm_work[1],
+        "tenfold unrelated exports must not increase a warm lookup's work"
+    );
+}

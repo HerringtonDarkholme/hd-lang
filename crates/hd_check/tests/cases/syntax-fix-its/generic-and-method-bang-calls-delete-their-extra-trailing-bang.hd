@@ -1,0 +1,13 @@
+# @dump: diagnostics fixed
+struct Calls:
+    number: i32
+
+impl Calls:
+    fn run![T](self, value: T) -> T: value
+
+fn value![T](value: T) -> T: value
+
+fn calls!() -> void:
+    n := value!::[i32](1)!
+    c := Calls { number: n }
+    _ := c.run!::[i32](n)!
