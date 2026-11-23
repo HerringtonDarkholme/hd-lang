@@ -98,7 +98,7 @@ pub struct HostMethod {
     pub resource: Option<ResourceArg>,  // which argument the grant checks: Path | Host | Addr | EnvName | Program | SysName
 }
 pub static TABLE: &[HostTrait];         // capability traits
-pub static RUNNERS: &[HostTrait];       // TestRunner, PropertyRunner
+pub static RUNNERS: &[HostTrait];       // WorkerPort, TestRunner, PropertyRunner
 pub static HANDLES: &[HostTrait];       // Net's TcpStream, TcpListener, UdpSocket
 pub const PRIMITIVES: &[&str];          // the hd:prim imports
 ```

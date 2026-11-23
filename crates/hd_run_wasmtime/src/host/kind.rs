@@ -143,12 +143,12 @@ impl Kind {
         })
     }
 
-    /// Whether `module` is a test runner's (`hd_host_abi::RUNNERS`), which
-    /// only a test binds.
+    /// Whether `module` is a test runner's (`hd_host_abi::RUNNERS` of
+    /// `std.testing`), which only a test binds.
     fn runner(module: &str) -> bool {
-        hd_host_abi::RUNNERS
-            .iter()
-            .any(|t| module.strip_prefix("hd:") == Some(t.key))
+        hd_host_abi::RUNNERS.iter().any(|t| {
+            t.std_path.starts_with("std.testing.") && module.strip_prefix("hd:") == Some(t.key)
+        })
     }
 
     pub(crate) fn with_test(

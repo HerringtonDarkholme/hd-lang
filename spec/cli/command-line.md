@@ -312,6 +312,7 @@ profile**, which binds these traits:
 | `Http` | `std.http` | sends each request from the host |
 | `Net` | `std.net` | the host's DNS resolver, and its TCP and UDP sockets |
 | `Sys` | `std.host` | the host's operating system, architecture, host name, and processor count |
+| `Workers` | `std.remote` | runs each crossing in a worker, a second instance of the program's module on a thread of its own |
 
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
 3. r[cli.host.script-binding] When `hd` runs a script, it binds every trait of the default profile, as the [REPL](#repl) does, so the script's top level may use each of them. The script's [capability grant](#capability-grants) still limits the resources they touch.
@@ -378,7 +379,7 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 | `Env` | `std.host.Env` | variable names, or a prefix followed by `*` |
 | `Process` | `std.process.Process` | program names |
 | `Sys` | `std.host.Sys` | method names of `Sys` |
-| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args` | none: only `true` or `false` |
+| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args`, `std.remote.Workers` | none: only `true` or `false` |
 
 1. r[cli.cap.table] The `[capabilities]` table of `hd.toml` sets the grant of each host capability trait that it names.
 2. r[cli.cap.table.keys.with-package-host] Its keys are built-in capability names or quoted package capability paths beginning with `pkg.` or `dep.`.

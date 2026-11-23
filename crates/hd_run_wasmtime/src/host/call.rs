@@ -10,7 +10,7 @@ use super::kind::Kind;
 use super::reply::Ret;
 use super::{Host, rt};
 use crate::abi::{HostMethod, Id};
-use crate::{console, fs, http, net, process, profiles, sys, testing};
+use crate::{console, fs, http, net, process, profiles, sys, testing, workers};
 
 pub(crate) fn call(
     kind: Kind,
@@ -66,6 +66,9 @@ fn host(
         | Id::FsWriteRename
         | Id::FsWriteCopy => fs::call(method, finish, caller, params),
         Id::ProcessRun => process::call(method, finish, caller, params),
+        Id::WorkersSend | Id::WorkerPortNext | Id::WorkerPortReply => {
+            workers::call(method, finish, caller, params)
+        }
         Id::HttpSend => http::call(method, finish, caller, params),
         Id::NetLookup
         | Id::NetConnect

@@ -584,6 +584,32 @@ second form always, with sharing left to `Arc`.)
   are `WrongHome`, as for `handle_call!`; a reply that does not decode is
   `Unknown`. `LoopbackWorkers` answers in the same instance, for tests.
 
+**Hosts, as built (2026-11-22).** Readings, each also in its commit:
+
+- `Workers` is a host capability trait (`@host`, the `Workers` grant
+  key, no scopes), and the default profile binds it. A worker runs a
+  second root of the same module, `std.remote.worker_serve` (row
+  `$ WorkerPort`), exported as `hd.worker` when the program reaches
+  `crossing_sent`; collection roots it then, so a program that never
+  sends carries no worker code. `WorkerPort` (`next`, `reply`) is a
+  runner trait: no grant names it, and in an instance that is no worker
+  `next` is `.None`.
+- Node (`host/workers.ts`): the first send starts one `worker_threads`
+  thread with the module; it runs `hd.init`, then `hd.worker`, and
+  `next` blocks on its port. Reading: a send waits for its reply on the
+  calling thread, so two sends do not overlap yet; a pending operation
+  (as `Http.send` uses) is the follow-up when overlap is needed.
+- Wasmtime (`hd_run_wasmtime` `workers.rs`): the first send starts an OS
+  thread with a second instance on the parent's engine and module; a
+  send is a pending operation on the `hd-io` runtime, so the program's
+  other operations go on meanwhile.
+- A worker whose instance ended, a panic included, makes its sends
+  `Unreachable`, and the next send starts another. A host without
+  workers (the browser today) answers `Unreachable`. A browser `Worker`
+  follows the Node design and is deferred.
+- One runtime case runs on both engines:
+  `spec/conformance/std/remote/workers/a-crossing-runs-in-the-hosts-worker-instance.hd`.
+
 **Workers first, then threads.**
 
 | Slice | Where | What | Price |

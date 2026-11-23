@@ -37,6 +37,7 @@ import {
   validHost,
 } from "./node-files.ts";
 import { Err, Ok, variant } from "./wire.ts";
+import { workersProvider } from "./workers.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 type DynamicRecord = Record<string, Dynamic>;
@@ -1104,6 +1105,7 @@ const NODE_PROVIDER_MODULES = [
   "hd:FsWrite",
   "hd:Process",
   "hd:TestRunner",
+  "hd:Workers",
 ];
 
 // The Node layer for `createCoreHost`: the providers that touch the
@@ -1183,6 +1185,7 @@ export const nodeLayer = {
             processClient: client(child),
           }),
           "hd:TestRunner": testRunner.provider,
+          "hd:Workers": workersProvider(env.module),
         },
         tempDir: testRunner.tempDir,
         keepAlive,

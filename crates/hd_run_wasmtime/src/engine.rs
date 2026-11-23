@@ -116,7 +116,7 @@ impl WasmtimeEngine {
         io: HostIo,
         bindings: crate::native::Bindings,
     ) -> Result<WasmtimeInstance, StartError> {
-        self.instantiate_native(m, host_of(setup, io), Some(bindings))
+        self.instantiate_native(m, host_of(setup, io), Some(bindings), "hd.poll")
     }
 
     /// [`WasmtimeEngine::instantiate_with`], for a run the host may cancel
@@ -153,7 +153,17 @@ impl WasmtimeEngine {
         m: &Module,
         host: Host,
     ) -> Result<WasmtimeInstance, StartError> {
-        self.instantiate_native(m, host, None)
+        self.instantiate_native(m, host, None, "hd.poll")
+    }
+
+    /// A worker instance of `m` (`std-remote.workers.serve`): `hd.init`,
+    /// then `hd.worker`.
+    pub(crate) fn instantiate_worker(
+        &self,
+        m: &Module,
+        host: Host,
+    ) -> Result<WasmtimeInstance, StartError> {
+        self.instantiate_native(m, host, None, "hd.worker")
     }
 
     fn instantiate_native(
@@ -161,7 +171,15 @@ impl WasmtimeEngine {
         m: &Module,
         mut host: Host,
         bindings: Option<crate::native::Bindings>,
+        poll: &str,
     ) -> Result<WasmtimeInstance, StartError> {
+        // A send starts a worker on this module (`std-remote.workers.host`).
+        host.workers.spawn = Some(crate::workers::Spawn {
+            config: self.config,
+            engine: Arc::clone(&self.engine),
+            profile: self.profile,
+            module: Arc::clone(&m.0),
+        });
         let package = m.2.as_deref();
         host.natives = package::preflight(package, bindings, &host.grants.consent)?;
         let mut store = new_store(&self.engine, host)?;
@@ -186,7 +204,7 @@ impl WasmtimeEngine {
             Arc::clone(&self.engine),
             instance,
             "hd.init",
-            "hd.poll",
+            poll,
         )?;
         run.report.clone_from(&m.1);
         Ok(run)

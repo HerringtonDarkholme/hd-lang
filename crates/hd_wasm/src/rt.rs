@@ -1150,7 +1150,16 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             key,
             inits,
             report,
-        } => (*main, *key, inits.clone(), Vec::new(), *report),
+            worker,
+        } => {
+            // A worker instance runs `hd.init`, then this root
+            // (`std-remote.workers.serve`).
+            if let Some((serve, k)) = worker {
+                let serve = poll(input, m, *serve, *k, None, Vec::new())?;
+                m.export("hd.worker", Sym::Helper(collecting(serve)));
+            }
+            (*main, *key, inits.clone(), Vec::new(), *report)
+        }
         Entry::Scenario {
             main,
             key,

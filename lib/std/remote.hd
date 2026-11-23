@@ -170,8 +170,10 @@ pub fn http_handler![S](request: Request, home: &mut Home[S, Request]) -> Respon
 
 ## Separate instances of this program's module: each crossing runs a
 ## closure in another memory, so its captures and its result are `Wire`.
-## A host supplies one; `LoopbackWorkers` answers in this instance.
+## The host supplies one, whose workers run `worker_serve`;
+## `LoopbackWorkers` answers in this instance.
 ## See [std-remote.workers.trait](../../spec/std/remote.md#r-std-remote.workers.trait).
+@host
 pub trait Workers:
     ## Sends one crossing's frame to a worker and returns its encoded reply.
     fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]
@@ -210,6 +212,25 @@ pub fn worker_answer(frame: List[u8]) -> List[u8]:
     match crossing_run(number, input.bytes.slice(input.at, input.bytes.len())):
         .Some(result) => wire_encode(&Reply.Ran(result))
         .None => serve_wrong_home()
+
+## A worker instance's side of its host: the frames its parent sends,
+## and their replies. Only `worker_serve` uses it.
+## See [std-remote.workers.port](../../spec/std/remote.md#r-std-remote.workers.port).
+@host
+pub trait WorkerPort:
+    ## Waits for the next frame, or `.None` once the parent sends no more.
+    fn next(&mut self) -> List[u8]?
+    ## Sends the reply to the frame `next` gave.
+    fn reply(&mut self, frame: List[u8]) -> void
+
+## A worker instance's root, which its host runs from the export
+## `hd.worker`: answers each frame its parent sends, in order.
+## See [std-remote.workers.serve](../../spec/std/remote.md#r-std-remote.workers.serve).
+pub fn worker_serve() -> void $ WorkerPort:
+    while true:
+        match $.use(WorkerPort).next():
+            .Some(frame) => $.use(WorkerPort).reply(worker_answer(frame))
+            .None => return
 
 ## Workers that answer in this instance, for tests: each crossing still
 ## encodes its captures, finds its closure by number and decodes its

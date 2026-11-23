@@ -46,7 +46,7 @@
 import { OperationQueue } from "./operation-queue.ts";
 import { shortest, fixed, lower, upper, parse } from "./float.ts";
 import { bindPackageRuntime } from "./core-package.ts";
-import { WireHttpError as HttpError, METHODS } from "./gen/abi.ts";
+import { CrossError, WireHttpError as HttpError, METHODS } from "./gen/abi.ts";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.ts";
 export {
   CANCEL_STATUS,
@@ -1124,6 +1124,10 @@ function buildCoreImports(options: Dynamic): Dynamic {
     "hd:Args": argsProvider({ program, args }),
     "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
     "hd:PropertyRunner": propertyRunnerProvider({ env }),
+    // A host without workers refuses each crossing; an instance that is
+    // no worker has no frame (std-remote.workers.host).
+    "hd:Workers": { send: () => Err(variant(CrossError, "Unreachable")) },
+    "hd:WorkerPort": env.workerPort ?? { next: () => null, reply: () => undefined },
   };
   // The platform layer's providers; a module it names extends the core's
   // provider for that module rather than replacing it.

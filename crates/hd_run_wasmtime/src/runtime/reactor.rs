@@ -48,6 +48,8 @@ pub enum Done {
     Http(crate::http::client::Sent),
     /// An `Fs` call on a special file: its encoded result.
     Fs(crate::codec::Enc),
+    /// `Workers.send!`: the encoded reply or `CrossError`.
+    Workers(crate::codec::Enc),
     /// The reactor tests' offloaded operation.
     #[cfg(test)]
     Test(u32),

@@ -292,9 +292,9 @@ pub trait ProgramEnv: LayoutEnv {
     fn stub_answers(&self, trait_: DefId, self_ty: Ty) -> bool;
     /// `std.format.Debug`, whose printer is preferred by `dbg_printer`.
     fn debug_trait(&self) -> DefId;
-    /// `std.remote`'s `crossing_number` and `crossing_run`, and `Wire`
-    /// (`fn.crossing.lift`); `None` without `std.remote`.
-    fn crossing_items(&self) -> Option<(DefId, DefId, DefId)> {
+    /// `std.remote`'s `crossing_number`, `crossing_run` and `worker_serve`,
+    /// and `Wire` (`fn.crossing.lift`); `None` without `std.remote`.
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)> {
         None
     }
     /// The canonical digest of `ty`, as `type_number[ty]` returns it.
@@ -582,6 +582,9 @@ pub struct Collected {
     /// Concrete data types whose release glue first calls their
     /// `std.rt.Drop.drop` implementation, by type and instance key.
     pub drop_glue: HashMap<Ty, Hash128>,
+    /// A program that sends a crossing to a worker: `std.remote.worker_serve`
+    /// and its instance, which a worker instance runs (`hd.worker`).
+    pub worker: Option<(DefId, Hash128)>,
 }
 
 impl Collected {
@@ -1400,6 +1403,8 @@ struct Cx<'a> {
     crossing_run: Option<DefId>,
     /// The dispatcher's arms: the code instance each calls, in order.
     crossing_arms: Vec<Hash128>,
+    /// Whether a body sends a crossing to a worker (`crossing_sent`).
+    worker_sends: bool,
 }
 
 /// A call its body's plan gives argument sources (`BodyPlan::spec_args`),
@@ -2099,6 +2104,7 @@ impl Cx<'_> {
                     | "build_id"
             )
         }) {
+            self.worker_sends |= key == "crossing_sent";
             return self.dbg_target(def, &key, args, parent);
         }
         // The worker's dispatcher: generated once every literal is numbered.
@@ -3988,6 +3994,7 @@ fn collect_roots(
         crossings: Vec::new(),
         crossing_run: None,
         crossing_arms: Vec::new(),
+        worker_sends: false,
     };
     if let Err(e) = cx.run(root, inits, extra, refs) {
         return match cx.too_deep.take() {
@@ -4067,12 +4074,31 @@ impl Cx<'_> {
             next += 1;
             self.scan(id)?;
         }
+        // A program that sends to a worker holds the worker's root, which a
+        // second instance runs (`std-remote.workers.serve`).
+        if self.worker_sends
+            && let Some((.., serve, _)) = self.env.crossing_items()
+        {
+            let key = self.push(
+                serve,
+                Sub::Body(0),
+                TyList::EMPTY,
+                TyList::EMPTY,
+                InstId::NONE,
+            )?;
+            self.out.worker = Some((serve, key));
+            while next < self.work.len() {
+                let id = self.work[next];
+                next += 1;
+                self.scan(id)?;
+            }
+        }
         // The worker's dispatcher (`fn.crossing.lift`): every literal is
         // numbered now, and its arms reach no new one.
         if let Some(def) = self.crossing_run.take() {
             // A worker runs a closure that does not suspend and whose result
             // crosses back; no domain sends another.
-            let wire = self.env.crossing_items().map_or(DefId::NONE, |c| c.2);
+            let wire = self.env.crossing_items().map_or(DefId::NONE, |c| c.3);
             let mut arms = Vec::new();
             for &(number, key, f) in &self.crossings.clone() {
                 if let TyData::Fn {

@@ -11587,6 +11587,7 @@ impl Run<'_> {
                         .map(|k| (*k, !entry_inits.contains(k)))
                         .collect(),
                     report: *report,
+                    worker: c.collected.worker,
                 },
                 // This whole-history build runs every
                 // init, so the first own body is among them.
@@ -13947,12 +13948,13 @@ impl ProgramEnv for Env<'_> {
     fn debug_trait(&self) -> DefId {
         self.run.known.debug
     }
-    fn crossing_items(&self) -> Option<(DefId, DefId, DefId)> {
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)> {
         let names = self.run.names();
         let item = |name| names.item(hd_resolve::known::REMOTE_MODULE, name);
         let items = (
             item("crossing_number"),
             item("crossing_run"),
+            item("worker_serve"),
             self.run.known.wire,
         );
         (items.0 != DefId::NONE).then_some(items)

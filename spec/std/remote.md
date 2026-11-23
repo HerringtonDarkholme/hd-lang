@@ -112,11 +112,14 @@ fn widths!(workers: *mut dyn Workers, photo: Image) -> Result[u32, CrossError]:
     workers.run!(fn() -> u32: photo.width * 2)   # photo moves to the worker
 ```
 
-1. r[std-remote.workers.trait] `std.remote` declares `pub trait Workers` with one method, `fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]`, which carries one crossing's frame to a worker and returns its encoded `Reply`.
+1. r[std-remote.workers.trait] `std.remote` declares the host capability trait `@host pub trait Workers` with one method, `fn send!(&mut self, frame: List[u8]) -> Result[List[u8], CrossError]`, which carries one crossing's frame to a worker and returns its encoded `Reply`.
 2. r[std-remote.workers.run] `workers.run!(code)`, an inherent method of `dyn Workers` taking `code: fn() -> T + Wire` for `T < ?Copy & Wire`, sends `code` with the build ID and returns its result: `.Ok` with the value the worker's run of `code` returned.
 3. r[std-remote.workers.run.cross] A failure of `send!` is its `CrossError`; a refusal is the refused `CrossError`; a reply or a result that does not decode is `CrossError.Unknown`.
 4. r[std-remote.workers.answer] `worker_answer(frame)` answers one frame in the current instance with an encoded `Reply`: another build is `Refused(OtherBuild)`, a frame that names no closure of this build or whose captures do not decode is `Refused(WrongHome)`, and otherwise the closure runs and its encoded result is `Ran`.
 5. r[std-remote.workers.loopback] `LoopbackWorkers` is a `Workers` whose `send!` answers with `worker_answer` in the current instance, for tests.
+6. r[std-remote.workers.host] The host's `Workers` sends each frame to a worker of its own, which it starts at the first send. A worker whose instance ended, or a host without workers, makes that send `CrossError.Unreachable`; the next send starts another worker.
+7. r[std-remote.workers.port] `std.remote` declares `@host pub trait WorkerPort` with `fn next(&mut self) -> List[u8]?`, which waits for the next frame sent to this instance, `.None` once none is left, and `fn reply(&mut self, frame: List[u8]) -> void`, which answers it. In an instance that is no worker, `next` returns `.None`.
+8. r[std-remote.workers.serve] `worker_serve()`, with the row `$ WorkerPort`, replies to each frame that `next` gives with `worker_answer` of it, and returns at `.None`. A program that sends a crossing to a worker exports it as `hd.worker`, which a worker runs after `hd.init`.
 
 > **Why.** A worker runs the same build, so a closure crosses as a
 > number and its captures, never as code, and a deploy is one refusal.

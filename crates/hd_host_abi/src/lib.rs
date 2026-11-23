@@ -281,6 +281,17 @@ pub static TABLE: &[HostTrait] = &[
         )],
     },
     HostTrait {
+        key: "Workers",
+        std_path: "std.remote.Workers",
+        methods: &[m(
+            "send",
+            &[B("List[u8]")],
+            B("Result[List[u8], CrossError]"),
+            Wait::May,
+            None,
+        )],
+    },
+    HostTrait {
         key: "Net",
         std_path: "std.net.Net",
         methods: &[
@@ -384,9 +395,18 @@ pub static TABLE: &[HostTrait] = &[
 ];
 
 /// The test runner's host traits (§16.4, `docs/compiler/engines-and-test-runner.md` §19;
-/// `std-testing.runner.declares-ref.reference-values`): imported from `hd:<Key>` like a
-/// capability, but no grant names them.
+/// `std-testing.runner.declares-ref.reference-values`), and a worker instance's
+/// (`std-remote.workers.port`): imported from `hd:<Key>` like a capability,
+/// but no grant names them.
 pub static RUNNERS: &[HostTrait] = &[
+    HostTrait {
+        key: "WorkerPort",
+        std_path: "std.remote.WorkerPort",
+        methods: &[
+            m("next", &[], B("List[u8]?"), Wait::Never, None),
+            m("reply", &[B("List[u8]")], V, Wait::Never, None),
+        ],
+    },
     HostTrait {
         key: "TestRunner",
         std_path: "std.testing.TestRunner",

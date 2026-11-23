@@ -93,6 +93,10 @@ pub enum Entry {
         key: Hash128,
         inits: Vec<(Hash128, bool)>,
         report: Option<Hash128>,
+        /// A program that sends crossings to workers: `worker_serve` and its
+        /// instance, which `hd.worker` runs in a worker instance after
+        /// `hd.init` (`std-remote.workers.serve`).
+        worker: Option<(DefId, Hash128)>,
     },
     /// A script (`module.init.script`): `hd.init` runs `before`, and
     /// `hd.poll` runs the script's first own init body `key`, then
