@@ -1,0 +1,9 @@
+@derive(Eq, Debug)
+pub struct Pair[T]:
+    pub left: T
+    pub right: T
+
+@derive(Eq, Debug)
+pub enum Shape:
+    Circle(i32)
+    Square(Pair[i32])
