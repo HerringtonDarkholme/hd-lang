@@ -1,0 +1,13 @@
+# test: a scope's thread may not borrow a local of the scope's closure, which ends before the scope waits for the thread
+# Spec std/thread: std-thread.spawn.borrow. Spec lang/07: fn.closure.lifetime.call.
+use std.thread.{Scope, scope}
+
+struct Point:
+    x: i32
+
+fn read() -> i32:
+    scope(fn(s: &mut Scope) -> i32:
+        mine := Point { x: 1 }
+        at := &mine
+        s.spawn(fn() -> i32: at.x).join() # diagnostic: local-reference-escapes
+    )

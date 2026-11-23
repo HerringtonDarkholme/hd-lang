@@ -1809,20 +1809,29 @@ pub fn atomic_notify(address: usize, count: u32) -> u32
 
 ### Thread Intrinsics
 
-`std.rt.thread` starts threads on the heap and waits for them to end:
+`std.rt.thread` keeps the blocks of threads on the heap, which
+[`std.thread`](../std/thread.md) starts and waits for:
 
 ```text
-pub fn spawn(work: fn() -> void) -> usize?
-pub fn join(thread: usize) -> bool
+pub fn new_block[T < ?Copy]() -> usize
+pub fn run[T < ?Copy](block: usize) -> void
+pub fn run_here[T < ?Copy](block: usize) -> void
+pub fn wait(thread: usize) -> bool
+pub fn take[T < ?Copy](thread: usize) -> T
+pub fn abandon[T < ?Copy](thread: usize) -> void
+pub fn share(thread: usize) -> void
+pub fn release(thread: usize) -> void
 ```
 
-1. r[module.rt.thread.heap] A program that may start a thread has one heap, which every thread reads and writes. Each thread runs its own program instance. Its top-level bindings are on that heap, so every thread sees the values the first thread's inits gave them. The storage of the runtime modules is each instance's own, as [`fn.crossing.global.runtime`](07-functions.md#r-fn.crossing.global.runtime) states. A program whose reachable code never calls `spawn` keeps a heap of its own, and its build is the same as without this rule.
-2. r[module.rt.thread.spawn] `spawn(work)` starts a thread that runs `work`, a top-level function, and returns `.Some(handle)`. The new instance's runtime modules run their inits first. Its frames take a region of 1 MiB of the heap. When the host starts no threads, `spawn` returns `.None`.
-3. r[module.rt.thread.join] `join(handle)` waits until the thread of `handle` ends, and frees its region. It returns `true` when `work` returned, and `false` when the thread's instance stopped first, by a panic or any other stop. Each handle is joined once.
-4. r[module.rt.thread.stop] A thread that stops ends only its own instance. Its panic report goes to the process's standard error at once.
-5. r[module.rt.thread.alloc] Each instance allocates from a heap of its own: the allocator's state is runtime storage, over the pages that instance grew. A block may be freed, retained or released on any thread. A block that a thread frees from another instance's heap returns to that heap, which can give it out again before it grows.
-6. r[module.rt.thread.alloc.adopt] When a thread's work returns, its heap is retired with every block in it. The next thread to start adopts a retired heap, and makes a new one only when none is retired. At most 1,023 heaps exist at once; an allocation in an instance past that panics `heap-exhausted`.
-7. r[module.rt.thread.reachable] The runtime's private intrinsic `threads_reachable()` is `true` in a program that may start a thread, by rule 1, and `false` in any other. It is a constant of the build, so code under a `false` one is not built.
+1. r[module.rt.thread.heap] A program that may start a thread has one heap, which every thread reads and writes. Each thread runs its own program instance. Its top-level bindings are on that heap, so every thread sees the values the first thread's inits gave them. The storage of the runtime modules is each instance's own, as [`fn.crossing.global.runtime`](07-functions.md#r-fn.crossing.global.runtime) states. A program whose reachable code never starts a thread keeps a heap of its own, and its build is the same as without this rule.
+2. r[module.rt.thread.spawn] `new_block[T]()` returns a thread's block, with one owner, for work that returns a `T`. `std.thread` moves a `Send` closure into it and asks the host for a thread whose instance runs `run[T](block)`. That instance's runtime modules run their inits first, then the closure, which gives its value to the block. Then its heap retires. Its frames take a region of 1 MiB of the heap. When the host starts no threads, `run_here[T](block)` runs the closure on the calling thread, which then is a thread that ended.
+3. r[module.rt.thread.wait] `wait(thread)` waits until the thread of `thread` ends. It returns `true` when its closure returned, and `false` when the thread's instance stopped first, by a panic or any other stop. After `true`, `take[T](thread)` gives the closure's value, once.
+4. r[module.rt.thread.abandon] `abandon[T](thread)` gives up the closure's value unless `take` took it: the caller drops it when the closure already returned, and else the thread drops it when the closure returns.
+5. r[module.rt.thread.release] `share(thread)` adds an owner to the block, and `release(thread)` ends one. The last owner's `release`, which comes after the thread ended, frees the block and its frame region.
+6. r[module.rt.thread.stop] A thread that stops ends only its own instance. Its panic report goes to the process's standard error at once.
+7. r[module.rt.thread.alloc] Each instance allocates from a heap of its own: the allocator's state is runtime storage, over the pages that instance grew. A block may be freed, retained or released on any thread. A block that a thread frees from another instance's heap returns to that heap, which can give it out again before it grows.
+8. r[module.rt.thread.alloc.adopt] When a thread's work returns, its heap is retired with every block in it. The next thread to start adopts a retired heap, and makes a new one only when none is retired. At most 1,023 heaps exist at once; an allocation in an instance past that panics `heap-exhausted`.
+9. r[module.rt.thread.reachable] The runtime's private intrinsic `threads_reachable()` is `true` in a program that may start a thread, by rule 1, and `false` in any other. It is a constant of the build, so code under a `false` one is not built.
 
 > **Note.** A thread that stops keeps its heap: nothing adopts it, and
 > nothing gives back its blocks. Std is the only caller.

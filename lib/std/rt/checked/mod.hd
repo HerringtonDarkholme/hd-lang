@@ -18,9 +18,17 @@
 # folder of its own (rt/checked), above the root std folder, and the
 # runtime folder rt stays a leaf (spec/lang/10-modules.md#r-module.rt.leaf).
 use std.format.{Display}
-use std.rt.alloc.{alloc, block_bytes, block_of}
+use std.rt.alloc.{alloc, block_bytes, block_of, shared_held}
 use std.rt.cycle.{keep, suspect}
-use std.rt.memory.{fill, load_u32, pages, store_u32}
+use std.rt.memory.{
+    atomic_add_u32,
+    atomic_load_u32,
+    atomic_sub_u32,
+    fill,
+    load_u32,
+    pages,
+    store_u32,
+}
 
 POISON := 0xdededede
 FRESH := 0xa5a5a5a5
@@ -29,7 +37,9 @@ FRESH := 0xa5a5a5a5
 CYCLIC := 0x80000000
 BUFFERED := 0x40000000
 
-# How many blocks `allocate` has given and `free` has not taken back.
+# How many blocks `allocate` has given and `free` has not taken back: in
+# a program with threads, the registry's word, since one thread may free
+# what another allocated (module.rt.thread.alloc).
 let held: usize = 0
 # How many blocks `allocate` has given over the program's run.
 let given: usize = 0
@@ -89,7 +99,7 @@ pub fn skipped_tests() -> u64:
 
 ## Allocates a block of at least `size` bytes, as `std.rt.alloc.alloc` does, and fills it with FRESH bytes.
 pub fn allocate(size: usize) -> usize:
-    held = held + 1
+    hold(true)
     given = given + 1
     block := alloc(size)
     fill(block, 0xa5, block_bytes(block))
@@ -117,7 +127,7 @@ fn freeable(block: usize) -> void:
 
 fn poison(block: usize) -> void:
     fill(block, 0xde, block_bytes(block))
-    held = held - 1
+    hold(false)
 
 ## Adds one to the count of the block that holds `address`, as `std.rt.alloc.retain` does, after checking the block holds a live count.
 pub fn retain(address: usize) -> void:
@@ -180,7 +190,16 @@ pub fn release_known_acyclic(address: usize) -> usize:
 
 ## How many blocks are allocated and not yet freed.
 pub fn live() -> usize:
-    held
+    if threaded(): usize(atomic_load_u32(shared_held())) else: held
+
+# Counts a block into the held blocks, or out of them.
+fn hold(into: bool) -> void:
+    if !threaded():
+        held = if into: held + 1 else: held - 1
+    else if into:
+        _ := atomic_add_u32(shared_held(), 1)
+    else:
+        _ := atomic_sub_u32(shared_held(), 1)
 
 ## How many blocks `allocate` has given since the program started, so a test can see that some code allocates nothing; std.rt.alloc keeps no such total.
 pub fn allocated() -> usize:
@@ -196,6 +215,7 @@ pub fn released() -> u64:
 
 ## Panics unless exactly `expected` blocks are allocated and not yet freed: the audit at a program's or a test case's end.
 pub fn audit(expected: usize) -> void:
+    held := live()
     if held > expected:
         first := first_live()
         fail(
@@ -233,4 +253,8 @@ fn fail(message: string) -> never:
 
 @intrinsic("panic")
 fn panic_with(category: string, message: string) -> never:
+    panic("intrinsic")
+
+@intrinsic("threads_reachable")
+fn threaded() -> bool:
     panic("intrinsic")

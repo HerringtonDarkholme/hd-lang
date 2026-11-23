@@ -171,12 +171,7 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
     let mut bad: Vec<(Hash128, u8)> = init
         .globals
         .values()
-        .filter(|g| {
-            let path = cx.names.path(g.def);
-            !path
-                .rsplit_once('.')
-                .is_some_and(|(module, _)| hd_resolve::runtime_module(module))
-        })
+        .filter(|g| !hd_resolve::runtime_module(&cx.names.module_of(g.def)))
         .map(|g| {
             // `fn.crossing.global.send`: shared by every thread, so `Send`
             // and `Sync`, as the solver answers them, explicit impls among

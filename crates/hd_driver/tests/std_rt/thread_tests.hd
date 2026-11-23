@@ -1,7 +1,7 @@
-# The hd tests of std.rt.thread and the wait intrinsics
-# (spec/lang/10-modules.md#thread-intrinsics). Only std may use a runtime
-# module, so the conformance runner adds this file to std as
-# `std.rt_tests.thread_tests` (crates/hd_driver/tests/conformance.rs,
+# The hd tests of std.thread, std.rt.thread and the wait intrinsics
+# (spec/lang/10-modules.md#thread-intrinsics, spec/std/thread.md). Only
+# std may use a runtime module, so the conformance runner adds this file
+# to std as `std.rt_tests.thread_tests` (crates/hd_driver/tests/conformance.rs,
 # `STD_RT_TESTS`). A program that starts threads shares its heap with them.
 use std.collections.{UniqList, UniqMap}
 use std.core.{Eq, Hash}
@@ -18,9 +18,9 @@ use std.rt.memory.{
     store_u32,
     string_bytes,
 }
-use std.rt.thread.{join, spawn}
 use std.rt.unique
 use std.testing.{assert, assert_equal}
+use std.thread.{Handle, Scope, scope}
 
 # A word on the shared heap: the program's own bindings are there too, so
 # each thread reads the address the first one stored.
@@ -57,9 +57,6 @@ fn release(list: usize) -> void:
         free_block(usize(load_u32(list + 4 * i)))
         i = i + 1
 
-fn allocate_theirs() -> void:
-    allocate(THEIRS, 0)
-
 # Waits until both threads arrive, so that what follows runs at once.
 fn arrive() -> void:
     _ := atomic_add_u32(COUNTER, 1)
@@ -67,18 +64,12 @@ fn arrive() -> void:
     while atomic_load_u32(COUNTER) < 2:
         _ := atomic_wait_u32(COUNTER, 1, -1)
 
-fn allocate_theirs_at_once() -> void:
-    arrive()
-    allocate(THEIRS, 0)
-
-fn release_mine() -> void:
-    release(MINE)
-
 fn add_one() -> void:
     _ := atomic_add_u32(COUNTER, 1)
 
-fn stop() -> void:
+fn stop() -> i32:
     panic("a thread stops")
+    0
 
 # A `Send` crossing that runs its closure here and gives its value: the
 # captures cross as they would into a thread (fn.crossing.mode.unique).
@@ -127,53 +118,91 @@ enum Shape:
 
 type Label(string)
 
+# A value with no buffer, which a thread may borrow (module.marker.sync).
+struct Point:
+    x: i32
+    y: i32
+
 fn crossed_generic[T < Send & 'static](value: T) -> T:
     crossed(fn() -> T: value)
 
 # How often each side changes its own list at once with the other.
 ROUNDS := 20000
 
-# A list that crossed, which a thread takes from the shared heap, changes
-# and gives back: each round counts its elements up and down again.
-HANDOFF := alloc(16)
-
-fn change_theirs() -> void:
+# `items` with its first element pushed and popped ROUNDS times, which
+# counts it up and down, and then `mark`; once both threads arrived.
+fn changed(items: List[string], mark: string) -> List[string]:
     arrive()
-    let mut theirs = Ptr::[List[string]] { address: HANDOFF }.read()
-    churn(&mut theirs, "t")
-    Ptr::[List[string]] { address: HANDOFF }.write(theirs)
-
-fn churn(items: &mut List[string], mark: string) -> void:
+    let mut items = items
     let i: usize = 0
     while i < ROUNDS:
         items.push(items[0])
         _ := items.pop()
         i = i + 1
     items.push(mark)
+    items
 
-fn started(work: fn() -> void) -> usize:
-    match spawn(work):
-        .Some(thread) => thread
-        .None => panic("the host starts no threads")
+# `value + 1`, from a thread of the scope `s`, which a function takes.
+fn on_thread(s: &mut Scope, value: i32) -> i32:
+    s.spawn(fn() -> i32: value + 1).join()
 
 tests:
     it("a thread's work has run when join returns"):
         store_u32(COUNTER, 0)
-        thread := started(add_one)
-        assert(join(thread))
+        scope(fn(s: &mut Scope) -> void:
+            s.spawn(fn() -> void: add_one()).join()
+        )
         assert_equal(atomic_load_u32(COUNTER), 1u32)
 
-    it("four threads add to one word at once"):
+    it("a scope waits for the threads whose handles it dropped"):
         store_u32(COUNTER, 0)
-        first := started(add_one)
-        second := started(add_one)
-        third := started(add_one)
-        fourth := started(add_one)
-        assert(join(first) && join(second) && join(third) && join(fourth))
+        scope(fn(s: &mut Scope) -> void:
+            for _ in 0..4:
+                _ := s.spawn(fn() -> void: add_one())
+        )
         assert_equal(atomic_load_u32(COUNTER), 4u32)
 
-    it("join of a thread that stopped gives false"):
-        assert(!join(started(stop)))
+    it("handles give their values in any order, and a scope passes on whole"):
+        word := "ab".repeat(2)
+        total := scope(fn(s: &mut Scope) -> usize:
+            first := s.spawn(fn() -> usize: word.len())
+            second := s.spawn(fn() -> List[string]: ["x".repeat(3)])
+            second.join()[0].len() + first.join() + usize(on_thread(s, 1))
+        )
+        assert_equal(total, word.len() + 5)
+
+    it("a dropped handle's value is dropped where its thread ends"):
+        lengths := scope(fn(s: &mut Scope) -> usize:
+            _ := s.spawn(fn() -> List[string]: ["x".repeat(3)])
+            s.spawn(fn() -> List[string]: ["y".repeat(2)]).join()[0].len()
+        )
+        assert_equal(lengths, 2)
+
+    it("a handle that leaves its scope still gives its value"):
+        handle := scope(fn(s: &mut Scope) -> Handle[string]:
+            s.spawn(fn() -> string: "z".repeat(2))
+        )
+        assert_equal(handle.join(), "zz")
+
+    it("a thread borrows a frozen reference until its scope ends"):
+        point := Point { x: 3, y: 4 }
+        at := &point
+        sum := scope(fn(s: &mut Scope) -> i32:
+            s.spawn(fn() -> i32: at.x + at.y).join() + at.x
+        )
+        assert_equal(sum, 10)
+
+    it("join of a thread that stopped panics", expect_panic="thread-stopped"):
+        _ := scope(fn(s: &mut Scope) -> i32:
+            s.spawn(fn() -> i32: stop()).join()
+        )
+
+    it("a scope panics once every thread ended when one stopped", expect_panic="thread-stopped"):
+        store_u32(COUNTER, 0)
+        scope(fn(s: &mut Scope) -> void:
+            _ := s.spawn(fn() -> i32: stop())
+            _ := s.spawn(fn() -> void: add_one())
+        )
 
     it("a wait for a value the word does not hold returns 1"):
         store_u32(COUNTER, 3)
@@ -188,15 +217,22 @@ tests:
 
     it("two threads allocate at once and their blocks never overlap"):
         store_u32(COUNTER, 0)
-        thread := started(allocate_theirs_at_once)
-        arrive()
-        allocate(MINE, COUNT)
-        assert(join(thread))
+        scope(fn(s: &mut Scope) -> void:
+            thread := s.spawn(fn() -> void:
+                arrive()
+                allocate(THEIRS, 0)
+            )
+            arrive()
+            allocate(MINE, COUNT)
+            thread.join()
+        )
         assert(intact(THEIRS, 0) && intact(MINE, COUNT))
 
     it("blocks a thread frees go back to the heap that allocated them"):
         allocate(MINE, 0)
-        assert(join(started(release_mine)))
+        scope(fn(s: &mut Scope) -> void:
+            s.spawn(fn() -> void: release(MINE)).join()
+        )
         before := pages()
         first := load_u32(MINE)
         allocate(MINE, COUNT)
@@ -210,32 +246,34 @@ tests:
         assert(reused)
 
     it("a thread that starts after one ended adopts its heap and reuses its freed blocks"):
-        assert(join(started(allocate_theirs)))
+        scope(fn(s: &mut Scope) -> void:
+            s.spawn(fn() -> void: allocate(THEIRS, 0)).join()
+        )
         release(THEIRS)
         before := pages()
-        assert(join(started(allocate_theirs)))
+        scope(fn(s: &mut Scope) -> void:
+            s.spawn(fn() -> void: allocate(THEIRS, 0)).join()
+        )
         assert_equal(pages(), before)
         assert(intact(THEIRS, 0))
 
     it("a crossing copies a shared list and its strings; each thread changes its own"):
         word := "ab".repeat(3)
-        let mut mine = [word, "cd".repeat(2)]
+        mine := [word, "cd".repeat(2)]
         theirs := crossed(fn() -> List[string]: mine)
         assert(buffer(&theirs) != buffer(&mine))
         assert_equal(count_at(buffer(&theirs)), 1u32)
         assert(bytes_of(&theirs[0]) != bytes_of(&word))
         assert_equal(count_at(bytes_of(&theirs[0])), 1u32)
-        assert_equal(count_at(bytes_of(&word)), 2u32)
         store_u32(COUNTER, 0)
-        Ptr::[List[string]] { address: HANDOFF }.write(theirs)
-        thread := started(change_theirs)
-        arrive()
-        churn(&mut mine, "m")
-        assert(join(thread))
-        back := Ptr::[List[string]] { address: HANDOFF }.read()
-        assert_equal(count_at(bytes_of(&word)), 2u32)
+        let (back, own) = scope(fn(s: &mut Scope) -> (List[string], List[string]):
+            thread := s.spawn(fn() -> List[string]: changed(theirs, "t"))
+            own := changed(mine, "m")
+            (thread.join(), own)
+        )
         assert_equal(back, ["ababab", "cdcd", "t"])
-        assert_equal(mine, ["ababab", "cdcd", "m"])
+        assert_equal(own, ["ababab", "cdcd", "m"])
+        assert_equal(mine, ["ababab", "cdcd"])
         assert_equal(word, "ababab")
 
     it("a crossing moves a buffer that no one else holds, as it is"):

@@ -217,6 +217,7 @@ file of its own.
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `ParseTimeError`; the serialization opt-in of the time types |
 | [`sync.md`](sync.md) | `std.sync` | `std-sync` | `Arc` and `Weak`, shared ownership across threads over atomic counts |
+| [`thread.md`](thread.md) | `std.thread` | `std-thread` | `scope`, `Scope` and `Handle`: scoped threads on one heap |
 | [`task.md`](task.md) | `std.task` | `std-task` | `Layer` and `apply!`; retry, timeout, fallback, breaker and hedge policies; `TimedOut` and `CircuitOpen`; `map_join!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |

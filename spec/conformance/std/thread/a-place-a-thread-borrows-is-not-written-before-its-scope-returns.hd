@@ -1,0 +1,16 @@
+# test: the place a scope's thread borrows is frozen until scope returns, so the scope's closure may not write it after the spawn
+# Spec std/thread: std-thread.spawn.borrow. Spec lang/07: fn.closure.lifetime.call.loan.
+use std.thread.{Scope, scope}
+
+struct Point:
+    x: i32
+
+fn read(start: Point) -> i32:
+    let mut point = start
+    whole := &mut point
+    scope(fn(s: &mut Scope) -> i32:
+        at := &*whole
+        handle := s.spawn(fn() -> i32: at.x)
+        whole.x = 2 # diagnostic: conflicting-access
+        handle.join()
+    )

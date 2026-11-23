@@ -3,15 +3,30 @@
 # the host; a program that starts one shares its heap with every thread
 # (r-module.rt.thread.heap). A runtime module, so only std may use it
 # (spec/lang/10-modules.md#r-module.rt.std-only).
+use std.core.Copy
 use std.rt.alloc.{alloc, free_block, retire}
-use std.rt.memory.{Ptr, atomic_load_u32, atomic_wait_u32, load_u32, store_u32}
+use std.rt.memory.{
+    Ptr,
+    atomic_add_u32,
+    atomic_compare_exchange_u32,
+    atomic_load_u32,
+    atomic_sub_u32,
+    atomic_wait_u32,
+    load_u32,
+    size_of,
+    store_u32,
+}
 
 # A thread's block, as `start_thread` reads it: the top and the limit of
-# its frame region, `run`'s code and environment, the state word, then the
-# work's code and environment.
+# its frame region, `run`'s code and environment, the state word, the
+# work's code and environment; then the block's owners, the hand-off word
+# and, 16-aligned, the value the work returns.
 LIMIT := 4
 STATE := 16
 WORK := 20
+OWNERS := 28
+HANDOFF := 32
+RESULT := 48
 
 # Each thread's frame region: 1 MiB, as the first thread's.
 FRAMES := 1048576
@@ -20,45 +35,73 @@ FRAMES := 1048576
 RUNNING := u32(0)
 FINISHED := u32(1)
 
-## Starts a thread that runs `work`, a top-level function, and gives the handle that `join` takes; `.None` when the host starts no threads.
+# The hand-off word: no value yet, the value is in the block, its owner
+# gave it up, so the thread drops it, and its owner took it.
+PENDING := u32(0)
+STORED := u32(1)
+ABANDONED := u32(2)
+TAKEN := u32(3)
+
+## A new thread's block, with one owner, for work that returns a `T`; `std.thread` moves the work into it and starts the thread, or runs it here with `run_here`.
 ## See [module.rt.thread.spawn](../../../spec/lang/10-modules.md#r-module.rt.thread.spawn).
-pub fn spawn(work: fn() -> void) -> usize?:
+pub fn new_block[T < ?Copy]() -> usize:
     frames := alloc(FRAMES)
-    block := alloc(28)
+    block := alloc(RESULT + size_of::[T]())
     store_u32(block, u32(frames + FRAMES))
     store_u32(block + LIMIT, u32(frames))
     store_u32(block + STATE, RUNNING)
-    if start_thread(block, run, work):
-        return .Some(block)
-    release(block)
-    .None
+    store_u32(block + OWNERS, 1)
+    store_u32(block + HANDOFF, PENDING)
+    block
 
-## Waits until the thread of `thread`, a handle `spawn` gave, ends, and frees what it held: `true` when its work returned, `false` when the thread stopped first.
-## See [module.rt.thread.join](../../../spec/lang/10-modules.md#r-module.rt.thread.join).
-pub fn join(thread: usize) -> bool:
+## Runs the work in `block` on this thread, as a thread that ended at once, for a host that starts no threads.
+## See [module.rt.thread.spawn](../../../spec/lang/10-modules.md#r-module.rt.thread.spawn).
+pub fn run_here[T < ?Copy](block: usize) -> void:
+    work::[T](block)
+    store_u32(block + STATE, FINISHED)
+
+## Waits until the thread of `thread` ends: `true` when its work returned, `false` when the thread stopped first.
+## See [module.rt.thread.wait](../../../spec/lang/10-modules.md#r-module.rt.thread.wait).
+pub fn wait(thread: usize) -> bool:
     while atomic_load_u32(thread + STATE) == RUNNING:
         _ := atomic_wait_u32(thread + STATE, RUNNING, -1)
-    finished := atomic_load_u32(thread + STATE) == FINISHED
-    release(thread)
-    finished
+    atomic_load_u32(thread + STATE) == FINISHED
 
-# A new thread's code: its work, then its heap retires for the next
-# thread to adopt (module.rt.thread.heap).
-fn run(block: usize) -> void:
-    work := Ptr::[fn() -> void] { address: block + WORK }.as_ref()
-    work()
+## The value the work of `thread` returned, once `wait` gave `true`; it is taken once.
+## See [module.rt.thread.wait](../../../spec/lang/10-modules.md#r-module.rt.thread.wait).
+pub fn take[T < ?Copy](thread: usize) -> T:
+    store_u32(thread + HANDOFF, TAKEN)
+    Ptr::[T] { address: thread + RESULT }.read()
+
+## Gives up the value of `thread`'s work unless it was taken: it is dropped here when the work returned, else on its thread.
+## See [module.rt.thread.abandon](../../../spec/lang/10-modules.md#r-module.rt.thread.abandon).
+pub fn abandon[T < ?Copy](thread: usize) -> void:
+    if atomic_compare_exchange_u32(thread + HANDOFF, PENDING, ABANDONED) == STORED:
+        _ := Ptr::[T] { address: thread + RESULT }.read()
+
+## Adds an owner to the handle `thread`.
+## See [module.rt.thread.release](../../../spec/lang/10-modules.md#r-module.rt.thread.release).
+pub fn share(thread: usize) -> void:
+    _ := atomic_add_u32(thread + OWNERS, 1)
+
+## Ends one owner of the handle `thread`; the last, after the thread ended, frees its block and frame region.
+## See [module.rt.thread.release](../../../spec/lang/10-modules.md#r-module.rt.thread.release).
+pub fn release(thread: usize) -> void:
+    if atomic_sub_u32(thread + OWNERS, 1) == 1:
+        free_block(usize(load_u32(thread + LIMIT)))
+        free_block(thread)
+
+## A new thread's code, which its instance runs on `block`: the work, then its heap retires for the next thread to adopt.
+## See [module.rt.thread.heap](../../../spec/lang/10-modules.md#r-module.rt.thread.heap).
+pub fn run[T < ?Copy](block: usize) -> void:
+    work::[T](block)
     retire()
 
-# Frees `block` and its frame region.
-fn release(block: usize) -> void:
-    free_block(usize(load_u32(block + LIMIT)))
-    free_block(block)
-
-@intrinsic("thread_spawn")
-# Writes `run` into `block`'s third and fourth words and `work` into its
-# sixth and seventh, and asks the host for a thread whose instance runs
-# `run(block)` on the frame region of the block's first two
-# (module.rt.thread.spawn); whether the host started it. Both are
-# top-level functions: the block keeps no count of an environment.
-fn start_thread(block: usize, run: fn(usize) -> void, work: fn() -> void) -> bool:
-    panic("intrinsic")
+# Runs the work in `block`, which the block owns: the call takes its
+# captures (fn.crossing.once), and the value goes to the block unless its
+# owner gave it up first.
+fn work[T < ?Copy](block: usize) -> void:
+    code := Ptr::[fn() -> T] { address: block + WORK }.read()
+    Ptr::[T] { address: block + RESULT }.write(code())
+    if atomic_compare_exchange_u32(block + HANDOFF, PENDING, STORED) != PENDING:
+        _ := Ptr::[T] { address: block + RESULT }.read()

@@ -1,0 +1,24 @@
+# test: a loan a closure stores at its parameter's call lifetime lasts until the call returns, so a later write in its body conflicts
+# Spec 07 Closure Annotations: fn.closure.lifetime.call.loan.
+struct Point:
+    x: i32
+
+struct Shelf['s]:
+    count: i32
+
+impl['s] Shelf['s]:
+    fn keep(&mut self, point: &'s Point) -> void:
+        self.count += point.x
+
+fn fill['s](code: fn(&mut Shelf['s]) -> i32) -> i32:
+    let mut shelf = Shelf { count: 0 }
+    code(&mut shelf)
+
+fn demo(start: Point) -> i32:
+    let mut point = start
+    whole := &mut point
+    fill(fn(shelf: &mut Shelf) -> i32:
+        shelf.keep(&*whole)
+        whole.x = 2 # diagnostic: conflicting-access
+        0
+    )

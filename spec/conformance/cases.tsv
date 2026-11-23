@@ -5918,6 +5918,9 @@ lang/functions/function-types-and-values/lifetimes-in-function-types/lifetime-fu
 lang/functions/function-types-and-values/lifetimes-in-function-types/lifetime-function-value-outlives.hd	type	reject:local-reference-outlives-local	lang/07-functions.md#r-fn.type.lifetime.call
 lang/functions/closures/lifetime-closure-function-type.hd	type	accept	lang/07-functions.md#r-fn.closure.lifetime
 lang/functions/closures/lifetime-closure-other-source.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.closure.lifetime.return
+lang/functions/closures/lifetime-closure-call-stores-a-capture.hd	type	accept	lang/07-functions.md#r-fn.closure.lifetime.call
+lang/functions/closures/lifetime-closure-call-stores-no-own-local.hd	type	reject:local-reference-escapes	lang/07-functions.md#r-fn.closure.lifetime.call
+lang/functions/closures/lifetime-closure-call-loan-lasts-the-call.hd	type	reject:conflicting-access	lang/07-functions.md#r-fn.closure.lifetime.call.loan
 lang/traits/trait-implementations/implementation-declarations/lifetime-trait-method-renamed.hd	type	accept	lang/09-traits.md#r-trait.impl.lifetime.subtype
 lang/traits/trait-implementations/implementation-declarations/lifetime-trait-impl-more-general.hd	type	accept	lang/09-traits.md#r-trait.impl.lifetime.subtype
 lang/traits/trait-implementations/implementation-declarations/lifetime-trait-impl-sharing.hd	type	reject:trait-method-signature	lang/09-traits.md#r-trait.impl.lifetime.subtype.error
@@ -7296,6 +7299,10 @@ std/sync/arc/an-arc-of-a-value-that-is-not-sync-is-not-send.hd	type	reject:unsat
 std/sync/arc/an-arc-is-never-wire.hd	type	reject:unsatisfied-trait-bound	std/sync.md#r-std-sync.arc.send
 std/sync/arc/an-arc-of-a-sync-value-is-send-and-sync-as-a-part.hd	type	accept	std/sync.md#r-std-sync.arc.send
 std/sync/arc/a-crossing-reaches-a-top-level-arc-only-of-a-sync-value.hd	type	reject:crossing-top-level-binding	std/sync.md#r-std-sync.arc.send
+std/thread/a-thread-borrows-a-reference-that-outlives-its-scope.hd	type	accept	std/thread.md#r-std-thread.spawn.borrow
+std/thread/a-thread-may-not-borrow-a-local-of-its-scopes-closure.hd	type	reject:local-reference-escapes	std/thread.md#r-std-thread.spawn.borrow
+std/thread/a-place-a-thread-borrows-is-not-written-before-its-scope-returns.hd	type	reject:conflicting-access	std/thread.md#r-std-thread.spawn.borrow
+std/thread/a-handle-is-never-wire.hd	type	reject:unsatisfied-trait-bound	std/thread.md#r-std-thread.handle.send
 std/iter/double-ended-cursors/noncopy-rev-without-trait-import.hd	runtime	accept	std/iter.md#r-std-iter.double-ended.concrete-rev
 std/collections/list-helpers/contains-borrows-value.hd	runtime	accept	std/collections.md#list-helpers
 std/collections/list-helpers/dedup-in-place.hd	runtime	accept	std/collections.md#r-std-collections.helper.dedup-in-place

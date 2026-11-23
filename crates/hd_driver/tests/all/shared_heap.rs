@@ -8,7 +8,7 @@ use hd_sched::SerialOrder;
 
 const THREADS: &str = "use std.rt.alloc.alloc
 use std.rt.memory.{atomic_add_u32, atomic_load_u32, store_u32}
-use std.rt.thread.{join, spawn}
+use std.thread.{Scope, scope}
 
 COUNTER := alloc(16)
 
@@ -17,9 +17,8 @@ fn add_one() -> void:
 
 pub fn main() -> void $ Console:
     store_u32(COUNTER, 0)
-    match spawn(add_one):
-        .Some(thread) => println(\"joined ${join(thread)} ${atomic_load_u32(COUNTER)}\")
-        .None => println(\"no threads\")
+    scope(fn(s: &mut Scope) -> void: s.spawn(fn() -> void: add_one()).join())
+    println(\"joined ${atomic_load_u32(COUNTER)}\")
 ";
 
 /// `source` as std's `rt_tests.stage_case`, built at `level`.
@@ -103,8 +102,8 @@ fn a_program_that_starts_threads_imports_a_shared_heap_it_fills_once() {
 #[test]
 fn a_program_that_never_starts_one_keeps_its_own_heap() {
     let single = THREADS.replace(
-        "    match spawn(add_one):\n        .Some(thread) => println(\"joined ${join(thread)} ${atomic_load_u32(COUNTER)}\")\n        .None => println(\"no threads\")\n",
-        "    add_one()\n    println(\"${atomic_load_u32(COUNTER)}\")\n",
+        "    scope(fn(s: &mut Scope) -> void: s.spawn(fn() -> void: add_one()).join())\n",
+        "    add_one()\n",
     );
     assert_ne!(single, THREADS);
     let (shared, defined, start, passive, active, thread) =
@@ -127,7 +126,7 @@ fn a_thread_runs_its_work_on_node_before_join_returns() -> Result<(), String> {
     let stdout = String::from_utf8_lossy(&ran.stdout);
     assert_eq!(
         stdout,
-        "joined true 1\n",
+        "joined 1\n",
         "{}",
         String::from_utf8_lossy(&ran.stderr)
     );
