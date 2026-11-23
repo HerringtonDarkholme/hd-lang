@@ -1,0 +1,6 @@
+pub use std.a.{b} # c
+use self.d as e
+
+tests:
+    use pkg.f # g
+    use std.h.{i, j}
