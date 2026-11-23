@@ -18,9 +18,9 @@ fn read_user(u: User) -> usize:
 >   %0 = Read [$0] : User
 >   %1 = Block - : ()
 >   %2 = Read [%0 .name] : string
->   %3 = Read [%0 .tags] : List[string]
->   %4 = Store [$1] %2 : ()
->   %5 = Store [$2] %3 : ()
+>   %3 = Store [$1] %2 : ()
+>   %4 = Read [%0 .tags] : List[string]
+>   %5 = Store [$2] %4 : ()
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %1] : ()
 >   %14 = Block %13 : usize
@@ -55,9 +55,9 @@ fn pair(p: (string, string)) -> usize:
 >   %0 = Read [$0] : (string, string)
 >   %1 = Block - : ()
 >   %2 = Read [%0 .0] : string
->   %3 = Read [%0 .1] : string
->   %4 = Store [$1] %2 : ()
->   %5 = Store [$2] %3 : ()
+>   %3 = Store [$1] %2 : ()
+>   %4 = Read [%0 .1] : string
+>   %5 = Store [$2] %4 : ()
 >   %7 = Block - : never
 >   %8 = Match %0 [%7 %1] : ()
 >   %14 = Block %13 : usize

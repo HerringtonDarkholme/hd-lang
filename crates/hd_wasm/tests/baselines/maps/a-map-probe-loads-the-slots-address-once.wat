@@ -167,10 +167,10 @@
                   br_if 0
                   local.get $t13
                   i32.load $heap offset=4
+                  local.set $t14
                   local.get $t13
                   i32.load $heap offset=8
                   local.set $t13
-                  local.set $t14
                   br 1
                   unreachable
                 end

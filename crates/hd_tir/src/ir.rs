@@ -970,20 +970,24 @@ impl ReadMode {
     }
 }
 
-/// Local flags (u8): READ | ASSIGNED | MUTATED | CAPTURED | `CAPTURED_ASSIGNED` | PARAM.
+/// Local flags (u16): READ | ASSIGNED | MUTATED | CAPTURED | `CAPTURED_ASSIGNED` | PARAM.
 pub mod local_flags {
-    pub const READ: u8 = 1;
-    pub const ASSIGNED: u8 = 2;
-    pub const MUTATED: u8 = 4;
-    pub const CAPTURED: u8 = 8;
-    pub const CAPTURED_ASSIGNED: u8 = 16;
-    pub const PARAM: u8 = 32;
+    pub const READ: u16 = 1;
+    pub const ASSIGNED: u16 = 2;
+    pub const MUTATED: u16 = 4;
+    pub const CAPTURED: u16 = 8;
+    pub const CAPTURED_ASSIGNED: u16 = 16;
+    pub const PARAM: u16 = 32;
     /// A `:=` binding, which `=` cannot reassign.
-    pub const SHORT: u8 = 64;
+    pub const SHORT: u16 = 64;
     /// A parameter of the function whose default is being checked, at or
     /// after the default's own: named, but not yet visible
     /// (`fn.default.later-parameter`). A read is an error.
-    pub const NOT_YET: u8 = 128;
+    pub const NOT_YET: u16 = 128;
+    /// A view: a binding that holds a part of a value in place, with no
+    /// count of its own, and that nothing takes out of. A match guard's
+    /// twin of its arm's binding is one (`flow.match.guard.borrow`).
+    pub const VIEW: u16 = 256;
 }
 
 /// Sub-body flags (u8).
@@ -1108,7 +1112,7 @@ pub struct Body {
     pub local_ty: Vec<Ty>,
     pub local_name: Vec<Symbol>,
     pub local_syn: Vec<NodeIdx>,
-    pub local_flags: Vec<u8>,
+    pub local_flags: Vec<u16>,
     pub sub_root: Vec<u32>,
     /// Parameter locals per sub-body: `start` points at a length prefix in
     /// `extra`, and `len` is the number of following local IDs. An empty
@@ -2099,7 +2103,7 @@ impl SubMark {
 /// implements it; a discarding sink implements it for no-emit mode.
 pub trait TirSink {
     fn konst(&mut self, index: u32) -> Ref;
-    fn local(&mut self, ty: Ty, name: Symbol, flags: u8, syn: NodeIdx) -> LocalId;
+    fn local(&mut self, ty: Ty, name: Symbol, flags: u16, syn: NodeIdx) -> LocalId;
     fn get(&mut self, l: LocalId, ty: Ty, syn: NodeIdx) -> Ref;
     fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx);
     fn prim(&mut self, op: u32, args: &[Ref], ty: Ty, syn: NodeIdx) -> Ref;
@@ -2440,7 +2444,7 @@ impl TirSink for TirBuilder {
     fn konst(&mut self, index: u32) -> Ref {
         Ref::konst(index)
     }
-    fn local(&mut self, ty: Ty, name: Symbol, flags: u8, syn: NodeIdx) -> LocalId {
+    fn local(&mut self, ty: Ty, name: Symbol, flags: u16, syn: NodeIdx) -> LocalId {
         let l = LocalId::from_raw(u32::try_from(self.body.local_ty.len()).expect("locals"));
         self.body.local_ty.push(ty);
         self.body.local_name.push(name);
@@ -3600,7 +3604,7 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 b.local_name.push(Symbol::from_raw(v[1]));
                 b.local_syn.push(NodeIdx::from_raw(v[2]));
                 b.local_flags
-                    .push(u8::try_from(v[3]).map_err(|_| e("flags".into()))?);
+                    .push(u16::try_from(v[3]).map_err(|_| e("flags".into()))?);
             }
             "sub" => {
                 let v = nums(1)?;

@@ -195,7 +195,7 @@ impl Ck<'_, '_> {
     }
 
     /// A hidden local of the literal's.
-    fn wire_local(&mut self, ty: Ty, name: &str, flags: u8, syn: NodeIdx) -> LocalId {
+    fn wire_local(&mut self, ty: Ty, name: &str, flags: u16, syn: NodeIdx) -> LocalId {
         let name = self.cx.names.syms.intern(name);
         self.b.local(ty, name, flags, syn)
     }

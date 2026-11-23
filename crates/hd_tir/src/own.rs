@@ -2241,7 +2241,7 @@ pub(crate) mod tests {
         out
     }
 
-    fn local(b: &mut TirBuilder, flags: u8) -> LocalId {
+    fn local(b: &mut TirBuilder, flags: u16) -> LocalId {
         b.local(Ty::STRING, Symbol::from_raw(0), flags, NodeIdx::from_raw(1))
     }
 

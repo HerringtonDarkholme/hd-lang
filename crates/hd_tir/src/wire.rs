@@ -805,7 +805,7 @@ pub fn read_body(
         .collect::<Option<Vec<Symbol>>>()?;
     b.local_flags = col(&mut r)
         .into_iter()
-        .map(|x| u8::try_from(x).ok())
+        .map(|x| u16::try_from(x).ok())
         .collect::<Option<_>>()?;
     b.sub_root = col(&mut r);
     b.sub_params = col(&mut r)

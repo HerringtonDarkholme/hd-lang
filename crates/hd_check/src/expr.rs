@@ -4755,6 +4755,7 @@ impl Ck<'_, '_> {
             wrap_some: false,
             binds,
             guard: None,
+            twins: Vec::new(),
             arm: 0,
         }];
         let db = self.b.open_block();

@@ -750,7 +750,11 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
             // references held in local aggregates and dependent results.
             let lends = call != NONE || t.v[i].read_through || b.data[i][1] & ref_word::FRAME != 0;
             t.l[l.idx()].shared_lends_only &= b.data[i][1] & ref_word::MUT == 0 && lends;
-            t.l[l.idx()].binding_lends_only &= t.reference_roots[i] != NONE && frame_lends[l.idx()];
+            // A view's address stays in the guard that reads it, which
+            // keeps what it views unchanged (`flow.match.guard.borrow`).
+            let view = b.local_flags[l.idx()] & local_flags::VIEW != 0;
+            t.l[l.idx()].binding_lends_only &=
+                view || t.reference_roots[i] != NONE && frame_lends[l.idx()];
             if b.data[i][1] & ref_word::FRAME == 0 && !lends {
                 t.l[l.idx()].escapes = true;
             }
@@ -769,7 +773,16 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
     collapse_aliases(&mut t.v, || {});
     // A value no instance may copy needs a count wherever a use keeps it or a
     // store takes a part of it, which only a move gives; so does the read the
-    // part leaves.
+    // part leaves. A view takes no count (`local_flags::VIEW`): its part
+    // stays where it is, as a match guard's twin of its arm's binding leaves
+    // the payload for the arm (`flow.match.guard.borrow`).
+    let viewed = |t: &Tables, i: usize| {
+        let s = t.store_of(i);
+        s != NONE
+            && b.view(b.data[s as usize][0])
+                .local()
+                .is_some_and(|l| b.local_flags[l as usize] & local_flags::VIEW != 0)
+    };
     for i in (0..n).rev() {
         if b.tags[i] != Tag::Read
             || b.data[i][1] != ReadMode::Copy as u32
@@ -780,7 +793,7 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables, constructors: &[u32]) {
         }
         let p = b.view(b.data[i][0]);
         let part = !p.whole() && p.in_place(b);
-        if t.v[i].keeps || (part && t.store_of(i) != NONE) {
+        if t.v[i].keeps || (part && t.store_of(i) != NONE && !viewed(t, i)) {
             t.v[i].keeps = true;
             if let Root::Value(v) = p.root
                 && p.in_place(b)
@@ -1408,14 +1421,17 @@ fn solve(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     // A value no instance copies is never copied: a match decides through
-    // its scrutinee by borrowing it. There is no count to end or drop.
+    // its scrutinee by borrowing it, and a match column that only names
+    // its bindings' place, which they read again, has no use at all.
+    // There is no count to end or drop.
     for r in 0..b.len() {
         if b.tags[r] == Tag::Read
             && b.data[r][1] == ReadMode::Copy as u32
             && !t.v[r].keeps
-            && !cx.counted(b.ty[r])
             && cx.copies(b.ty[r]) != Tri::Yes
-            && match_reference_read(b, topo, r, |value| t.v[value].borrows)
+            && (t.v[r].uses == 0
+                || !cx.counted(b.ty[r])
+                    && match_reference_read(b, topo, r, |value| t.v[value].borrows))
         {
             t.v[r].borrows = true;
         }
