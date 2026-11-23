@@ -1983,7 +1983,7 @@ mod tests {
 
     #[test]
     fn tree_oracle_keeps_call_target_parentheses() {
-        let source = "fn f(handler: Handler, event: Event):\n    (handler.callback)(event)\n";
+        let source = include_str!("call_target_parens.hd");
         let parsed = hd_syntax::parse(source.as_bytes());
         assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
         let analysis = Analysis::new(source, &parsed);

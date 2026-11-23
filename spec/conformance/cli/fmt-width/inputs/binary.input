@@ -1,2 +1,10 @@
 fn f():
     the_first_descriptive_parameter_name + the_second_descriptive_parameter_name + the_third_descriptive_parameter_name
+# binary chains use transparent parentheses and preserve precedence
+fn f():
+    the_first_descriptive_parameter_name + the_second_descriptive_parameter_name * third + the_third_descriptive_parameter_name
+fn f():
+    (the_first_descriptive_parameter_name + the_second_descriptive_parameter_name + the_third_descriptive_parameter_name)
+fn f():
+    if the_first_descriptive_parameter_name && the_second_descriptive_parameter_name && the_third_descriptive_parameter_name:
+        pass
