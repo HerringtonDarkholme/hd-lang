@@ -28,7 +28,7 @@ is closed. The execution-boundaries design (serializable closures, formerly #166
 
 - [Compile-Time Values](CONST_VALUES.md): typed const parameters and explicit `const fn`, staged; direction accepted 2026-10-28, not scheduled (#875).
 - [Decimal](DECIMAL.md): parked by the owner on 2026-11-11 until after the ticket push and reference-counting work; the earlier fixed 128-bit package proposal is retained as a dated record (#840).
-- [Function Values](FUNCTION_VALUES.md): proposal 2026-11-21, not accepted: a capture-free one-word `fn(..)`, a type per closure taken by `F < FnMut(..)`, and counted `*mut dyn FnMut(..)` for stored capturing closures (#1436 Route A, #1449 on top).
+- [Function Values](FUNCTION_VALUES.md): proposal 2026-11-21, revised 2026-11-23, not accepted: `fn(..)` keeps its meaning, and two opt-in forms: a type per closure through `F < FnMut(..)`, and a capture-free one-word `FnPtr[(A,), O]` (#1436 Route A, #1449 on top).
 - [Execution Boundaries](EXECUTION_BOUNDARIES.md): accepted by the owner 2026-11-21 (proposed 2026-11-02): moving code and data between execution domains on four parts: `Send` and `Wire` bounds, `Remote` interfaces whose objects are reached as `*mut dyn T`, `CrossError` kept apart as `E | CrossError`, and one build per target; every domain runs the same program; domains are run-time values and their kinds are std library; with an 18-case stress test (#166, PR #1139).
 - [Execution Boundaries Plan](EXECUTION_BOUNDARIES_PLAN.md): the staged compiler plan for #2288, stages 1 to 6 with sites, line prices and per-run costs, and the readings stage 0 wrote into the spec for the owner to confirm.
 - [Standard Library](STDLIB.md): the #350 bar and shared module convention, and the std decisions not yet in `lib/std`.
