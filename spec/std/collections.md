@@ -580,13 +580,14 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> List[K]`; `values(&self) -> List[V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
+| `Map[K, V]` | `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> MapKeys[K, V]`; `values(&self) -> MapValues[K, V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(&self, n: usize) -> List[(K, usize)]` |
 
 > **Note.** Built-in map loops borrow entry slots: shared loops bind
 > `(&K, &V)`, and mutable loops bind `(&K, &mut V)`
 > ([Element Reference Loops](../lang/06-control-flow.md#element-reference-loops)).
-> `keys`, `values` and `entries` return lists of copied values.
+> `keys` and `values` return lazy cursors of copied values; `.collect()` materializes a list.
+> `entries` returns a list of copied pairs.
 
 ```text
 use std.collections.counts
@@ -598,7 +599,7 @@ fn shelf_count(stock: &Map[string, List[string]], item: string) -> usize:
 
 fn summary(stock: Map[string, i32]) -> string:
     if stock.contains_key("tea"):
-        return "${stock.keys().len()} items"
+        return "${stock.keys().count()} items"
     "no tea"
 
 fn top_words(words: List[string]) -> List[(string, usize)]:
@@ -620,16 +621,19 @@ fn tally(words: List[string]) -> Map[string, usize]:
 4. r[std-collections.map.get-or-insert.reference] The reference that `get_or_insert` returns is dependent on its receiver by [`ref.dep.elide`](../lang/13-values-and-references.md#r-ref.dep.elide).
 5. r[std-collections.map.get-or-insert.probe-once] Each `get_or_insert` call invokes the key's `Hash` implementation once and performs one map search, reusing a missing search position for insertion.
 6. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
-7. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
-8. r[std-collections.map.values] `values` returns the map's values in the same order.
-9. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
+7. r[std-collections.map.keys.cursor] `keys()` returns a `MapKeys[K, V]` cursor yielding the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
+8. r[std-collections.map.values.cursor] `values()` returns a `MapValues[K, V]` cursor yielding the map's values in the same order.
+9. r[std-collections.map.cursor.snapshot] Each returned cursor holds a snapshot: a later change to the map does not change its remaining sequence.
 10. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
 11. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
 12. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
 13. r[std-collections.map.most-common.tie-order] Pairs with equal values keep the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the same in every run.
 
-> **Why.** `entries` is a list snapshot like `keys` and `values`, since a
-> loop that sorts or indexes the pairs needs a list. `most_common` is
+14. r[std-collections.map.keys.cursor-type] `std.collections` declares `MapKeys[K < Eq & Hash, V]` with private fields and implementing `Iterator[K]`.
+15. r[std-collections.map.values.cursor-type] `std.collections` declares `MapValues[K < Eq & Hash, V]` with private fields and implementing `Iterator[V]`.
+
+> **Why.** `keys` and `values` follow Rust's lazy cursor shape, preserving hd's copying snapshot iteration.
+> `entries` remains a list for sorting or indexing. `most_common` is
 > Python's `Counter.most_common`; a stable sort over the map's order gives
 > its tie rule with no extra bookkeeping. `get_or_insert` is Rust's
 > `HashMap::entry(key).or_insert(default)` operation without exposing an

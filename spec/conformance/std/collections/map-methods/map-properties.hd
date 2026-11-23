@@ -1,8 +1,8 @@
 # test: map operation sequences agree with a list model and replay deterministically
 # Spec lang/04-type-system: types.map.eq-hash, types.map.order.deterministic,
 # types.map.order.unspecified, types.map.replace.in-place, types.map.semantics.
-# Spec std/collections: std-collections.map.contains-key, std-collections.map.keys.order,
-# std-collections.map.values, std-collections.map.snapshot, std-collections.map.entries.
+# Spec std/collections: std-collections.map.contains-key, std-collections.map.keys.cursor,
+# std-collections.map.values.cursor, std-collections.map.cursor.snapshot, std-collections.map.entries.
 use std.hash.Hasher
 use std.testing.{Arbitrary, Choices, assert, assert_equal, it_each, it_prop}
 
@@ -147,7 +147,7 @@ fn check_map(values: Map[CollisionKey, i32], model: List[(i32, i32)]) -> void:
             reason="membership agrees for present and absent keys",
         )
     assert_equal(
-        values.values(),
+        values.values().collect::[List[i32]](),
         [for pair in actual => pair._1],
         reason="values follows actual iteration order",
     )
@@ -269,9 +269,13 @@ fn removal_churn(size: usize) -> void:
         assert_equal(actual.get(i32(index)), .None, reason="an old removed key stays absent")
     actual[0] = 42
     assert_equal(actual.get(0), .Some(42), reason="an old key can be reinserted after the churn")
-    before := actual.keys()
+    before := actual.keys().collect::[List[i32]]()
     actual[0] = 43
-    assert_equal(actual.keys(), before, reason="replacement after a rebuild retains order")
+    assert_equal(
+        actual.keys().collect::[List[i32]](),
+        before,
+        reason="replacement after a rebuild retains order",
+    )
     assert_equal(actual.get(0), .Some(43), reason="replacement after a rebuild has the new value")
 
 tests:
