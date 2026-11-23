@@ -280,7 +280,7 @@ impl Ck<'_, '_> {
                 .text(self.b.body().local_name[twin.idx()])
                 .to_owned();
             let msg = format!(
-                "this closure captures `{name}`, a binding of its match guard whose value is not copied and which the guard reads in place; a capture would share it. Capture a reference, as `(r := &{name})` in the guard makes, or make the closure in the arm"
+                "closure captures guard binding `{name}` by value; capture `(r := &{name})`, or create the closure in the arm"
             );
             let node = self.cx.src.parse.tree.node(at);
             self.err(Code::MoveOutOfPlace, node, &msg);
@@ -402,23 +402,19 @@ impl Ck<'_, '_> {
                     let r = kind.spelling();
                     let borrow = if kind.mutable { "&mut" } else { "&" };
                     format!(
-                        "this moves a value out of an object behind a `{r}` reference, which other references to the object still read; {why}. Borrow it with `{borrow}`, or build a copy"
+                        "cannot move through `{r}`; {why}. Borrow with `{borrow}`, or build a copy"
                     )
                 }
                 From::Reference(kind) => {
                     let r = kind.spelling();
                     format!(
-                        "this moves a value out of a place behind a `{r}` reference, which does not own it; {why}. Borrow it with `{r}`, or pass the reference on"
+                        "cannot move through `{r}`; {why}. Borrow with `{r}`, or pass the reference on"
                     )
                 }
-                From::Capture => format!(
-                    "this moves a value out of a binding the closure captures, and a closure may run any number of times; {why}. Borrow it with `&`"
-                ),
-                From::Cell => format!(
-                    "this moves a value out of a binding a closure shares, which the closure may still read; {why}. Borrow it with `&`"
-                ),
+                From::Capture => format!("cannot move a closure capture; {why}. Borrow with `&`"),
+                From::Cell => format!("cannot move a shared capture; {why}. Borrow with `&`"),
                 From::Guard => format!(
-                    "a match guard reads its bindings in place, and the next arm matches the same value when the guard is false, so the guard cannot move one; {why}. Borrow it with `&`, or move it in the arm"
+                    "cannot move a match-guard binding; {why}. Borrow with `&`, or move it in the arm"
                 ),
             };
             let node = self.cx.src.parse.tree.node(at);

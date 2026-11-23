@@ -53,3 +53,25 @@ impl Diagnostic {
         }
     }
 }
+
+/// A JSON string literal.
+#[must_use]
+pub fn quote(s: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if u32::from(c) < 0x20 => {
+                let _ = write!(out, "\\u{:04x}", u32::from(c));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}

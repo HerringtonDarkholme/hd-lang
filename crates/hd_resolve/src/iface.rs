@@ -3162,6 +3162,26 @@ pub fn show_ty_qualified_in(
     show_ty_opts(names, pool, t, rows, true)
 }
 
+/// Qualified diagnostic rendering with short opaque bounds, owners and arguments.
+/// A caller comparing two types may fall back to full paths if these still clash.
+#[must_use]
+pub fn show_ty_diagnostic_in(
+    names: &Names<'_>,
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    rows: bool,
+) -> String {
+    let mut shower = Shower::new(
+        names,
+        pool,
+        (rows, true),
+        SHOWN_TYPE_BYTES,
+        SHOWN_TYPE_DEPTH,
+    );
+    shower.short_opaque_paths = true;
+    shower.show(t)
+}
+
 fn show_ty_opts(
     names: &Names<'_>,
     pool: hd_types::Types<'_>,
@@ -3221,6 +3241,7 @@ struct Shower<'s, 'n> {
     pool: hd_types::Types<'s>,
     rows: bool,
     qualified: bool,
+    short_opaque_paths: bool,
     out: String,
     limit: usize,
     max_depth: u32,
@@ -3241,6 +3262,7 @@ impl<'s, 'n> Shower<'s, 'n> {
             pool,
             rows,
             qualified,
+            short_opaque_paths: false,
             out: String::new(),
             limit,
             max_depth,
@@ -3291,6 +3313,7 @@ impl<'s, 'n> Shower<'s, 'n> {
             self.limit.saturating_sub(self.out.len()),
             self.max_depth,
         );
+        sub.short_opaque_paths = self.short_opaque_paths;
         sub.ty(t, depth, None);
         (sub.out, sub.cut)
     }
@@ -3516,15 +3539,20 @@ impl<'s, 'n> Shower<'s, 'n> {
                 self.put("impl ");
                 // A bound renders as a trait name. `dyn` is emitted only
                 // by a reference, after its `&` or `*` prefix.
+                let qualified = self.qualified;
+                if self.short_opaque_paths {
+                    self.qualified = false;
+                }
                 let shown = self.render(bound, d, self.rows);
                 self.put_rendered(shown);
-                if self.qualified {
+                if qualified {
                     self.put(" returned by ");
                     self.seg(owner);
                     self.put("[");
                     self.list(pool.list_items(args), ", ", d, marks);
                     self.close("]");
                 }
+                self.qualified = qualified;
             }
             TyData::Param(p) => self.put(&self.names.param_name(p.owner, p.index)),
             TyData::Assoc { assoc, self_ty, .. } => {

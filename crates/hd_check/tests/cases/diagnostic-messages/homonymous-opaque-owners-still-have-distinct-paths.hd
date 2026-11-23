@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# A path is still needed when short opaque owner names collide.
+use pkg.a.{create as first}
+use pkg.b.{create as second}
+
+fn bad(flag: bool) -> impl Display:
+    if flag:
+        return first()
+    second() # diagnostic: type-mismatch
+
+# @file: a.hd
+pub fn create() -> impl Display:
+    +7
+
+# @file: b.hd
+pub fn create() -> impl Display:
+    +7

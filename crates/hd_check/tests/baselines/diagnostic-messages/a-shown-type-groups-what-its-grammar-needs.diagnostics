@@ -8,4 +8,4 @@ error: main.hd:29:5: type-mismatch: in result: expected i32, found &*Point
 error: main.hd:32:5: type-mismatch: in result: expected i32, found &(&Point)
 error: main.hd:35:5: type-mismatch: in result: expected i32, found &Point?
 error: main.hd:38:5: type-mismatch: in result: expected i32, found fn() -> i32?
-error: main.hd:41:37: type-mismatch: in binding: expected (fn() -> fn() -> i32)?, found (fn() -> (fn() -> i32) $ Db)?; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row
+error: main.hd:41:37: type-mismatch: in binding: expected (fn() -> fn() -> i32)?, found (fn() -> (fn() -> i32) $ Db)?; convert the value explicitly

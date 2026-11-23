@@ -1295,6 +1295,8 @@ hd check shape.hd
 
 1. r[cli.text.fix-line] In text output, each fix-it of a diagnostic prints on its own line after the diagnostic's line: four spaces, `fix: `, and the fix-it's message, as [`cli.json.fix.object.v2`](#r-cli.json.fix.object.v2) gives it.
 
+2. r[cli.text.secondary-label] In text output, a secondary source label follows its diagnostic as an indented `note:` line naming its file and position.
+
 > **Note.** The rest of a text diagnostic's layout is the implementation's.
 > [Machine Output](#machine-output) is the stable form, and it also holds
 > each fix-it's edits.
@@ -1321,15 +1323,20 @@ hd check --format json
 12. r[cli.json.summary.common-fields] Every summary object has `errors`, `warnings`, and `status`, the command's exit status.
 13. r[cli.json.summary.check-counters] The summary of `hd check` and `hd lint` omits `passed`, `failed`, and `ignored`.
 14. r[cli.json.summary.test-counters] Other commands' summary objects also have `passed`, `failed`, and `ignored` counts.
-13. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
+15. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
 16. r[cli.json.diagnostic.nonempty-fixes] A diagnostic with fix-its has a nonempty `fixes` list; a diagnostic without fix-its omits `fixes`.
-15. r[cli.json.fix.object.v2] A fix-it is an object with fields `message` (what it does), `guess` (a boolean), and `edits` (its edits).
-16. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
-17. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.diagnostic.file`](#r-cli.diagnostic.file) gives it.
-18. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
-19. r[cli.json.fix.ranked] When a diagnostic has two or more plausible repairs, `fixes` lists them in order, likeliest first.
-20. r[cli.json.fix.guess] `guess` is `true` for an uncertain repair, including the first alternative when several repairs are plausible.
-21. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
+17. r[cli.json.fix.object.v2] A fix-it is an object with fields `message` (what it does), `guess` (a boolean), and `edits` (its edits).
+18. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
+19. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.diagnostic.file`](#r-cli.diagnostic.file) gives it.
+20. r[cli.json.fix.disjoint] The edits of one fix-it never overlap, so applying them together applies the fix-it.
+21. r[cli.json.fix.ranked] When a diagnostic has two or more plausible repairs, `fixes` lists them in order, likeliest first.
+22. r[cli.json.fix.guess] `guess` is `true` for an uncertain repair, including the first alternative when several repairs are plausible.
+23. r[cli.json.diagnostic.no-position] A diagnostic that no source text causes, such as `denied-capability`, has `null` for `file`, `line`, and `column`.
+
+24. r[cli.json.diagnostic.labels] A diagnostic with secondary source labels has a nonempty `labels` array; a diagnostic without labels omits it.
+25. r[cli.json.label.fields] A label has `message`, `file`, `line`, `column`, `end_line`, and `end_column` fields.
+26. r[cli.json.label.position] A label's lines and character columns are 1-based, and its end position is exclusive.
+27. r[cli.json.label.file] A label's `file` follows [`cli.diagnostic.file`](#r-cli.diagnostic.file).
 
 > **Note.** A diagnostic object's `file` names its file by
 > [`cli.diagnostic.file`](#r-cli.diagnostic.file), as text output does.

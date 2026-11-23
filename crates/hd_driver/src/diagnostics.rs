@@ -32,6 +32,17 @@ pub struct Fix {
     pub exact: bool,
 }
 
+/// A secondary source span and its short label, separate from the message.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Label {
+    pub message: String,
+    pub file: Option<String>,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub end_line: Option<usize>,
+    pub end_column: Option<usize>,
+}
+
 /// One diagnostic. A command-line error has no code; a diagnostic that no
 /// source text causes has no file (`cli.json.diagnostic.no-position`).
 /// Lines and columns are 1-based; a column counts characters. The end is
@@ -48,6 +59,7 @@ pub struct Diag {
     pub end_line: Option<usize>,
     pub end_column: Option<usize>,
     pub fixes: Vec<Fix>,
+    pub labels: Vec<Label>,
 }
 
 impl Diag {
@@ -68,6 +80,7 @@ impl Diag {
             end_line: None,
             end_column: None,
             fixes: Vec::new(),
+            labels: Vec::new(),
         }
     }
 
@@ -110,6 +123,17 @@ impl Diag {
             let _ = write!(s, "{}: ", code.as_str());
         }
         s.push_str(&self.message);
+        for label in &self.labels {
+            let _ = write!(s, "\n    note: ");
+            if let Some(file) = &label.file {
+                s.push_str(file);
+                if let Some(line) = label.line {
+                    let _ = write!(s, ":{line}:{}", label.column.unwrap_or(1));
+                }
+                s.push_str(": ");
+            }
+            s.push_str(&label.message);
+        }
         for f in &self.fixes {
             let _ = write!(s, "\n    fix: {}", f.message);
         }
@@ -132,37 +156,58 @@ impl Diag {
             opt_num(self.line),
             opt_num(self.column),
         );
-        if self.fixes.is_empty() {
-            s.push('}');
-            return s;
-        }
-        s.push_str(",\"fixes\":[");
-        for (n, f) in self.fixes.iter().enumerate() {
-            if n > 0 {
-                s.push(',');
+        if !self.fixes.is_empty() {
+            s.push_str(",\"fixes\":[");
+            for (n, f) in self.fixes.iter().enumerate() {
+                if n > 0 {
+                    s.push(',');
+                }
+                let guess = !f.exact || self.fixes.len() > 1;
+                let _ = write!(
+                    s,
+                    "{{\"message\":{},\"guess\":{guess},\"edits\":[",
+                    quote(&f.message)
+                );
+                for (m, e) in f.edits.iter().enumerate() {
+                    if m > 0 {
+                        s.push(',');
+                    }
+                    let _ = write!(
+                        s,
+                        "{{\"file\":{},\"start\":{},\"end\":{},\"text\":{}}}",
+                        quote(&e.file),
+                        e.start,
+                        e.end,
+                        quote(&e.text)
+                    );
+                }
+                s.push_str("]}");
             }
-            let guess = !f.exact || self.fixes.len() > 1;
-            let _ = write!(
-                s,
-                "{{\"message\":{},\"guess\":{guess},\"edits\":[",
-                quote(&f.message)
-            );
-            for (m, e) in f.edits.iter().enumerate() {
-                if m > 0 {
+            s.push(']');
+        }
+        if !self.labels.is_empty() {
+            s.push_str(",\"labels\":[");
+            for (n, label) in self.labels.iter().enumerate() {
+                if n > 0 {
                     s.push(',');
                 }
                 let _ = write!(
                     s,
-                    "{{\"file\":{},\"start\":{},\"end\":{},\"text\":{}}}",
-                    quote(&e.file),
-                    e.start,
-                    e.end,
-                    quote(&e.text)
+                    "{{\"message\":{},\"file\":{},\"line\":{},\"column\":{},\"end_line\":{},\"end_column\":{}}}",
+                    quote(&label.message),
+                    label
+                        .file
+                        .as_deref()
+                        .map_or_else(|| "null".to_owned(), quote),
+                    opt_num(label.line),
+                    opt_num(label.column),
+                    opt_num(label.end_line),
+                    opt_num(label.end_column)
                 );
             }
-            s.push_str("]}");
+            s.push(']');
         }
-        s.push_str("]}");
+        s.push('}');
         s
     }
 }
@@ -238,6 +283,26 @@ pub fn from_output(out: &Output, as_written: Option<&str>) -> Vec<Diag> {
                 end_line: end.map(|p| p.0),
                 end_column: end.map(|p| p.1),
                 fixes,
+                labels: d
+                    .labels(i)
+                    .iter()
+                    .map(|(span, message)| {
+                        let file = file_of(*span);
+                        let (_, line, column) = out.locate(*span);
+                        let (_, end_line, end_column) = out.locate(Span {
+                            lo: span.hi,
+                            ..*span
+                        });
+                        Label {
+                            message: out.user_text(message),
+                            line: file.as_ref().map(|_| line),
+                            column: file.as_ref().map(|_| column),
+                            end_line: file.as_ref().map(|_| end_line),
+                            end_column: file.as_ref().map(|_| end_column),
+                            file,
+                        }
+                    })
+                    .collect(),
             }
         })
         .collect()
@@ -270,26 +335,7 @@ pub(crate) fn report_stop(diags: &mut DiagBuf, s: Stage, e: &NotImplemented) {
     }
 }
 
-/// A JSON string literal.
-#[must_use]
-pub fn quote(s: &str) -> String {
-    let mut out = String::from("\"");
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if u32::from(c) < 0x20 => {
-                let _ = write!(out, "\\u{:04x}", u32::from(c));
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
-}
+pub use hd_diag::quote;
 
 /// `diags` as bytes that [`decode`] reads back equal, for a caller that
 /// stores a report under a [`crate::ResultKey`].
@@ -329,6 +375,20 @@ pub fn encode(diags: &[Diag]) -> Vec<u8> {
                 w.u32(e.start);
                 w.u32(e.end);
                 w.str(&e.text);
+            }
+        }
+        w.len_of(&d.labels);
+        for label in &d.labels {
+            w.str(&label.message);
+            match &label.file {
+                None => w.u8(0),
+                Some(file) => {
+                    w.u8(1);
+                    w.str(file);
+                }
+            }
+            for value in [label.line, label.column, label.end_line, label.end_column] {
+                opt(&mut w, value);
             }
         }
     }
@@ -373,6 +433,16 @@ pub fn decode(bytes: &[u8]) -> Option<Vec<Diag>> {
                     .collect(),
             })
             .collect();
+        let labels = (0..r.count())
+            .map(|_| Label {
+                message: r.str().to_owned(),
+                file: (r.u8() != 0).then(|| r.str().to_owned()),
+                line: opt(&mut r),
+                column: opt(&mut r),
+                end_line: opt(&mut r),
+                end_column: opt(&mut r),
+            })
+            .collect();
         out.push(Diag {
             code,
             severity,
@@ -383,6 +453,7 @@ pub fn decode(bytes: &[u8]) -> Option<Vec<Diag>> {
             end_line,
             end_column,
             fixes,
+            labels,
         });
     }
     (r.ok() && r.at_end()).then_some(out)
@@ -412,6 +483,24 @@ mod tests {
                 text: "é".to_owned(),
             }],
         });
+        warned.labels.push(super::Label {
+            message: "previous implementation".into(),
+            file: Some("src/b.hd".into()),
+            line: Some(2),
+            column: Some(3),
+            end_line: Some(2),
+            end_column: Some(8),
+        });
+        assert!(
+            warned
+                .text()
+                .contains("note: src/b.hd:2:3: previous implementation")
+        );
+        assert!(
+            warned
+                .json()
+                .contains("\"labels\":[{\"message\":\"previous implementation\"")
+        );
         let diags = vec![warned, Diag::error(None, "no code")];
         assert_eq!(super::decode(&super::encode(&diags)), Some(diags));
         assert_eq!(super::decode(&[1, 0, 0]), None);

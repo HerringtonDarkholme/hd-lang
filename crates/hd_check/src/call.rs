@@ -1179,9 +1179,7 @@ impl Ck<'_, '_> {
         for (i, g) in generics.iter().enumerate().skip(explicit) {
             if g.const_type.is_some() && !named[i] {
                 let name = self.cx.names.text(g.name);
-                let msg = format!(
-                    "no argument's type names const parameter `{name}`, so it cannot be inferred: write it in the call, as in `f::[4](...)`"
-                );
+                let msg = format!("write const argument `{name}` explicitly, as in `f::[4](...)`");
                 self.err(Code::CannotInferType, n, &msg);
                 if let Some(v) = vars.get_mut(i) {
                     *v = Ty::POISON;

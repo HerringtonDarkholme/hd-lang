@@ -268,7 +268,7 @@ bound-message-hints	cli.json.diagnostic.fields,cli.json.diagnostic.nonempty-fixe
 hint-and-fix-texts	cli.json.diagnostic.fields,cli.json.diagnostic.nonempty-fixes,cli.exit.hd-failure,cli.exit.program
 generic-kind-messages	cli.json.diagnostic.fields,cli.exit.hd-failure
 const-unary-operator-messages	cli.json.diagnostic.fields,cli.exit.hd-failure
-overlapping-impl-spelling	cli.json.diagnostic.fields,cli.exit.hd-failure
+overlapping-impl-spelling	cli.text.secondary-label,cli.json.diagnostic.labels,cli.json.label.fields,cli.json.label.position,cli.json.label.file,cli.json.diagnostic.fields,cli.exit.hd-failure
 unknown-name-suggestions	cli.json.diagnostic.fields,cli.json.diagnostic.nonempty-fixes,cli.json.summary.common-fields,cli.exit.hd-failure,cli.exit.success
 check-fix-parser-byte-edits	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.check.fix.whole-package,cli.check.fix.safe,cli.check.fix.status
 check-fix-parser-migrations	cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.check.fix.whole-package,cli.check.fix.safe,cli.check.fix.status

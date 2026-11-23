@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# The diagnostic states the edit; the guide explains the rule.
+struct Photo:
+    name: string
+
+impl !Copy for Photo
+
+fn name_len(p: Photo) -> usize:
+    p.name.len()
+
+fn moved_shared() -> usize:
+    let photo = Photo { name: "a" }
+    rename := fn() -> void: photo = Photo { name: "b" }
+    rename()
+    name_len(photo) # diagnostic: move-out-of-place
+
+fn borrowed_shared() -> usize:
+    let photo = Photo { name: "a" }
+    rename := fn() -> void: photo = Photo { name: "b" }
+    rename()
+    photo.name.len()
