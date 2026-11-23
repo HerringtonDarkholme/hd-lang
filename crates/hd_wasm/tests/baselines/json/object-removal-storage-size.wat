@@ -6,7 +6,7 @@
   )
   (func $cursor_bytes (result i32)
     ;; 14 |     size_of::[JsonObjectIter]()
-    i32.const 8
+    i32.const 12
   )
   (func $object_bytes (result i32)
     ;; 11 |     size_of::[JsonObject]()
