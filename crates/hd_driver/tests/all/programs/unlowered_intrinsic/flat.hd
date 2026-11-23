@@ -1,0 +1,7 @@
+@intrinsic("task_all_frame")
+pub fn frame[T](tasks: List[Suspend[T]]) -> Suspend[List[T]]:
+    panic("intrinsic")
+
+@intrinsic("task_pending_frame")
+pub fn pending[T]() -> Suspend[T]:
+    panic("intrinsic")
