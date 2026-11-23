@@ -16,6 +16,7 @@ use crate::abi::{CrossError, HostMethod, Id};
 use crate::codec::{Enc, encode};
 use crate::host::offload::{finished, not_completed, pending};
 use crate::host::{Host, HostIo, Ret, bytes, int_arg};
+use crate::native::Suspension;
 use crate::runtime::reactor::Done;
 
 /// A frame for the worker, and where its reply goes.
@@ -229,4 +230,48 @@ pub(crate) fn start_thread(spawn: &Spawn, heap: wasmtime::SharedMemory, block: i
             }
         });
     started.is_ok() && rx.recv() == Ok(true)
+}
+
+/// A task's wait for a thread of the program to end
+/// (`module.rt.thread.running`): a pending call that one waiter thread
+/// completes once the word at `address` of `heap` no longer holds `seen`,
+/// or a notify there wakes it. The call's abort wakes the waiter until it
+/// has left the wait, so it never sleeps on a word whose block, which the
+/// task owns until the abort returns, was freed. An error when no thread
+/// starts. Cost: one OS thread per pending wait, asleep in the wait.
+pub(crate) fn watch(
+    heap: wasmtime::SharedMemory,
+    address: u64,
+    seen: u32,
+) -> std::io::Result<Suspension> {
+    use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
+    let (stop, left) = (
+        Arc::new(AtomicBool::new(false)),
+        Arc::new(AtomicBool::new(false)),
+    );
+    let (call, done) = crate::native::pending::<()>({
+        let (heap, stop, left) = (heap.clone(), Arc::clone(&stop), Arc::clone(&left));
+        move || {
+            stop.store(true, SeqCst);
+            while !left.load(SeqCst) {
+                let _ = heap.atomic_notify(address, u32::MAX);
+                std::thread::yield_now();
+            }
+        }
+    });
+    let waiter = std::thread::Builder::new().name("hd-watch".into());
+    // cost: one OS thread per pending wait for a thread's end
+    let waiting = Arc::clone(&left);
+    if let Err(error) = waiter.spawn(move || {
+        if !stop.load(SeqCst) {
+            let _ = heap.atomic_wait32(address, seen, None);
+        }
+        done.complete(Ok(()));
+        waiting.store(true, SeqCst);
+    }) {
+        // No waiter: the call's abort, as it drops, has none to wake.
+        left.store(true, SeqCst);
+        return Err(error);
+    }
+    Ok(Suspension::new(call, |(), _| Ok(Vec::new())))
 }

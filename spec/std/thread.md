@@ -59,3 +59,34 @@ fn later() -> usize:
 2. r[std-thread.handle.drop] Dropping a handle that was not joined drops the closure's value where the thread ends, and its scope still waits for the thread.
 3. r[std-thread.handle.outlives] A handle may outlive its scope: the thread has then ended, and `join` returns its value at once.
 4. r[std-thread.handle.send] `Handle[T]` is `Send`, by an explicit implementation ([`module.marker.explicit.only`](../lang/10-modules.md#r-module.marker.explicit.only)), and neither `Sync` nor `Wire`: it names a block of the shared heap, which another memory does not have.
+
+## Background
+
+`background!` runs a closure on a new thread and gives its value to the
+task that awaits it, which suspends while the thread works, so the
+task's own thread goes on with its other tasks:
+
+```hd
+use std.thread.background
+
+fn total!(items: List[i64]) -> i64:
+    background!(fn() -> i64:
+        let sum: i64 = 0
+        for item in items:
+            sum = sum + item
+        sum
+    )
+```
+
+1. r[std-thread.background] `background!(code)` starts a thread that runs `code` and suspends until the thread ends, then returns the value `code` returned. `code` is a crossing closure whose marker is `Send`, and `T` is `Send`. Its captures move into the thread, so it borrows nothing.
+2. r[std-thread.background.suspends] While the thread runs, the awaiting task is suspended, not its thread: the thread's other tasks run, and the host wakes the task when the thread ends, with no polling.
+3. r[std-thread.background.stopped] When the thread stopped before `code` returned, by a panic or any other stop, `background!` panics. Panic: `thread-stopped`.
+4. r[std-thread.background.cancel] Cancelling the task that awaits `background!` returns at once, without waiting for the thread. The thread runs on, and drops the value `code` returns when it ends.
+5. r[std-thread.background.here] On a host that starts no threads, `background!` runs `code` on the calling thread, as `spawn` does ([`std-thread.spawn.here`](#r-std-thread.spawn.here)).
+
+> **Why.** This is Kotlin's `withContext(Dispatchers.Default)` and
+> Swift's `Task.detached` awaited: work that would block an event loop
+> goes to a thread, and the loop runs on. Unlike `scope`, nothing waits
+> for the thread when the task is cancelled, so the closure may not
+> borrow: the thread outlives any place it could borrow from.
+

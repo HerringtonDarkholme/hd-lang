@@ -68,17 +68,17 @@ fn other_bind(small: Photo?, n: i32) -> u32:
 >     uses $5: %12 -> %13 lend last
 >   local $6 p: Photo [read assigned] value
 >     uses $6: %21 -> %15 consume last
->   %0 = Retain %58 Entry local $0 #0 : ()
+>   %0 = Retain %57 Entry local $0 #0 : ()
     match (small, n):
 >   %1 = Read move [$0] : Photo?
 >   %2 = Intrinsic Empty [] : ()
 >   %3 = Read copy [$1] : i32
 >   %4 = NewTuple - [%1 %3] : (Photo?, i32)
 >   %8 = Drop [$3] : ()
->   %55 = Block - : never
->   %56 = Match %6 [%55 %9 %32] : u32
->   %57 = Drop [$0] : ()
->   %58 = Block %56 : u32
+>   %54 = Block - : never
+>   %55 = Match %6 [%54 %9 %32] : u32
+>   %56 = Drop [$0] : ()
+>   %57 = Block %55 : u32
         (.Some(p), 1) => p.width
 >   %7 = Read copy [$3 .width] : u32
 >   %9 = Block %7 : u32
@@ -92,7 +92,7 @@ fn other_bind(small: Photo?, n: i32) -> u32:
 >   %45 = Block - : never
 >   %46 = If %35 [%40 %45] : never
 >   %47 = Block - : never
->   %54 = SwitchTag %33 [#1 %47 %53] : never
+>   %53 = SwitchTag %33 [#1 %47 %52] : never
         other => width(other._0)
 >   %5 = Store [$2] %4 : ()
 >   %6 = Read borrow [$2] : (Photo?, i32)
@@ -122,7 +122,6 @@ fn other_bind(small: Photo?, n: i32) -> u32:
 >   %48 = Read move [$2] : (Photo?, i32)
 >   %49 = Intrinsic Empty [] : ()
 >   %50 = Store [$4] %48 : ()
->   %51 = Release %50 Operation #3 : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -139,14 +138,14 @@ fn guarded(small: Photo?) -> u32:
 >     uses $4: %12 -> %13 lend last
 >   local $5 p: Photo [read assigned] value
 >     uses $5: %21 -> %15 consume last
->   %0 = Retain %56 Entry local $0 #0 : ()
+>   %0 = Retain %55 Entry local $0 #0 : ()
     match small:
 >   %1 = Read borrow [$0] : Photo?
 >   %8 = Drop [$1] : ()
->   %53 = Block - : never
->   %54 = Match %1 [%53 %9 %33] : u32
->   %55 = Drop [$0] : ()
->   %56 = Block %54 : u32
+>   %52 = Block - : never
+>   %53 = Match %1 [%52 %9 %33] : u32
+>   %54 = Drop [$0] : ()
+>   %55 = Block %53 : u32
         .Some(p) if p.width > 3 => p.width
 >   %2 = Read borrow [$0 as #1 .0] : Photo
 >   %3 = Store [$2] %2 : ()
@@ -159,7 +158,7 @@ fn guarded(small: Photo?) -> u32:
 >   %35 = Intrinsic Empty [] : ()
 >   %36 = Store [$1] %34 : ()
 >   %45 = Block - : never
->   %52 = SwitchTag %1 [#1 %45 %51] : never
+>   %51 = SwitchTag %1 [#1 %45 %50] : never
         other => width(other) + 100
 >   %10 = Read move [$3] : Photo?
 >   %11 = Intrinsic Empty [] : ()
@@ -188,7 +187,6 @@ fn guarded(small: Photo?) -> u32:
 >   %46 = Read move [$0] : Photo?
 >   %47 = Intrinsic Empty [] : ()
 >   %48 = Store [$3] %46 : ()
->   %49 = Release %48 Operation #3 : ()
 >   exit sub 0 drops [$0]
 >   summary kept [$0]
 
@@ -220,9 +218,9 @@ fn made(w: u32) -> u32:
 >   %7 = Block - : Photo?
 >   %8 = Scope %7 [] : Photo?
 >   %17 = Drop [$2] : ()
->   %62 = Block - : never
->   %63 = Match %10 [%62 %18 %42] : u32
->   %64 = Block %63 : u32
+>   %61 = Block - : never
+>   %62 = Match %10 [%61 %18 %42] : u32
+>   %63 = Block %62 : u32
         .Some(p) if p.width > 3 => p.width
 >   %11 = Read borrow [$1 as #1 .0] : Photo
 >   %12 = Store [$3] %11 : ()
@@ -235,7 +233,7 @@ fn made(w: u32) -> u32:
 >   %44 = Intrinsic Empty [] : ()
 >   %45 = Store [$2] %43 : ()
 >   %54 = Block - : never
->   %61 = SwitchTag %10 [#1 %54 %60] : never
+>   %60 = SwitchTag %10 [#1 %54 %59] : never
         other => width(other) + 100
 >   %9 = Store [$1] %8 : ()
 >   %10 = Read borrow [$1] : Photo?
@@ -266,5 +264,4 @@ fn made(w: u32) -> u32:
 >   %55 = Read move [$1] : Photo?
 >   %56 = Intrinsic Empty [] : ()
 >   %57 = Store [$4] %55 : ()
->   %58 = Release %57 Operation #3 : ()
 >   summary kept []

@@ -1,0 +1,18 @@
+# @dump: stdout
+# @build: dev | release
+# Known local-address provenance must preserve a real pointer crossing.
+struct Cell:
+    value: string
+
+fn stack(value: i32) -> i32:
+    *&*&value
+
+fn probe(pointer: *mut Cell, alias: *mut Cell) -> string:
+    view := &*&*&pointer.value
+    alias.value = "changed"
+    *view
+
+pub fn main() -> void $ Console:
+    println(stack(+42))
+    pointer := box(Cell { value: "original" })
+    println(probe(pointer, pointer))

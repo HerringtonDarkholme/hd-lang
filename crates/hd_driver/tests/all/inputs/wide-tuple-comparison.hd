@@ -1,0 +1,10 @@
+use std.annotation.cold
+
+type Words = (FIELDS,)
+
+@cold
+fn ordered(left: Words, right: Words) -> bool:
+    left < right
+
+pub fn main() -> void:
+    pass

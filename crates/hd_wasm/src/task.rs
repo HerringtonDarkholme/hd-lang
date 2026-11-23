@@ -1344,6 +1344,33 @@ fn host_cold(m: &Module, leaf: &HostLeaf<'_>) -> Func {
     f
 }
 
+/// `std.thread`'s wait for its thread's end (`module.rt.thread.running`):
+/// a leaf of `hd:rt` `thread_watch(address, seen)`, whose host waits off
+/// this thread until the word at `address` no longer holds `seen`, and
+/// whose cancel ends that wait. Cost: one frame and one host operation.
+pub fn thread_watch() -> Helper {
+    let word = |offset| Leaf {
+        offset,
+        val: Val::I32,
+        bytes: 4,
+        signed: false,
+    };
+    Helper::HostCold {
+        module: "hd:rt".to_owned(),
+        method: "thread_watch".to_owned(),
+        args: vec![HostArg::Scalar(Val::I32); 2],
+        area: Elem {
+            size: 8,
+            leaves: vec![word(0), word(4)],
+            counted: crate::rt::Counted::None,
+            parts: Vec::new(),
+            cyclic: false,
+        },
+        counts: Box::default(),
+        res: HostRes::Void,
+    }
+}
+
 struct HostLeaf<'a> {
     module: &'a str,
     method: &'a str,

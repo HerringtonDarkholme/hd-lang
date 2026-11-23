@@ -264,6 +264,43 @@ fn every_truncated_item_blob_is_a_cache_miss() -> Result<(), &'static str> {
     Ok(())
 }
 
+/// A corrupt item record is an ordinary cache miss, including on lazy reads.
+/// The builtin control also has none of a callable's or declared type's attrs.
+#[test]
+fn builtin_records_round_trip_and_unknown_item_tags_are_memoized_cache_misses() {
+    let run = Run::new();
+    let names = run.names();
+    let mut builtin = hd_resolve::seed::items(&names, "std.core")
+        .into_iter()
+        .find(|item| item.def == run.known.list)
+        .expect("the real builtin List declaration");
+    assert!(builtin.call_mut().is_none());
+    assert!(builtin.type_attrs().is_none());
+    assert_eq!(builtin.type_decl(), hd_types::sealed::TypeDecl::Builtin);
+    let mut bytes = encode_items(&names, &[builtin.clone()], &[]).expect("encode builtin");
+    assert_eq!(
+        decode_items(&names, &bytes),
+        Some((vec![builtin.clone()], vec![]))
+    );
+    let (good, _) = decode_lazy(&names, Arc::from(bytes.clone())).expect("valid index");
+    assert_eq!(good.get(0), Some(&builtin));
+
+    // put_item's builtin discriminator is followed only by the empty export
+    // count. Check that boundary explicitly before corrupting its kind byte.
+    let tag = bytes.len() - size_of::<u32>() - 1;
+    assert_eq!(bytes[tag], 9);
+    assert_eq!(&bytes[tag + 1..], &[0; size_of::<u32>()]);
+    bytes[tag] = u8::MAX;
+    assert!(decode_items(&names, &bytes).is_none());
+    let (bad, _) =
+        decode_lazy(&names, Arc::from(bytes)).expect("record corruption leaves index valid");
+    assert_eq!(bad.decoded(), 0);
+    assert!(bad.get(0).is_none());
+    assert_eq!(bad.decoded(), 1);
+    assert!(bad.get(0).is_none());
+    assert_eq!(bad.decoded(), 1, "a cached failure is not decoded again");
+}
+
 #[test]
 fn damaged_exports_are_cache_misses() -> Result<(), &'static str> {
     let run = Run::new();

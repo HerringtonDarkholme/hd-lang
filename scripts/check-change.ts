@@ -209,7 +209,11 @@ report(
 const fixWords =
   /\b(fix(es)?|revert|leak|double free|miscompil\w*|wrong answer|use after free)\b|^fixed\b/im;
 const untested: string[] = [];
-for (const commit of git("rev-list", "--reverse", `${base}..${head}`).split("\n").filter(Boolean)) {
+// A merge commit brings in other commits' changes; each of them is judged on
+// its own, so a merge's title ("Merge main into formatter fix") is not a fix.
+for (const commit of git("rev-list", "--reverse", "--no-merges", `${base}..${head}`)
+  .split("\n")
+  .filter(Boolean)) {
   const numstat = git(
     "show",
     "--numstat",

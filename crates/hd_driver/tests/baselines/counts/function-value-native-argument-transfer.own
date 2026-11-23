@@ -1294,7 +1294,7 @@ pub fn main!() -> void $ Clock:
 > std/rt_tests.stage_case/main
 >   local $0 $ref: i32 [read assigned captured captured-assigned] place
 >   local $1 seen: *mut i32 [:= read assigned] value
->     uses $1: %11 -> %29 lend, %34 consume, %39 lend, %85 lend, %108 consume, %112 lend, %154 lend last
+>     uses $1: %11 -> %29 lend, %34 consume, %38 lend, %81 lend, %103 consume, %107 lend, %147 lend last
 >   local $2 $coll: List[bool] [assigned] value
 >     uses $2: %14 -> %15 lend, %25 lend
 >   local $3 $len: usize [assigned] value
@@ -1303,64 +1303,64 @@ pub fn main!() -> void $ Clock:
 >   local $5 $end: usize [assigned] value
 >     uses $5: %19 -> %22 lend
 >   local $6 literal: bool [read assigned] value
->     uses $6: %143 -> %33 lend, %107 lend last
+>     uses $6: %136 -> %33 lend, %102 lend last
 >   local $7 before: i32 [:= read assigned] value
->     uses $7: %30 -> %40 consume, %86 lend, %113 lend last
+>     uses $7: %30 -> %39 consume, %82 lend, %108 lend last
 >   local $8 started: usize [:= read assigned] value
->     uses $8: %32 -> %54 consume, %101 lend, %128 lend last
+>     uses $8: %32 -> %52 consume, %96 lend, %122 lend last
 >   local $9 pending: Suspend[usize] [:= read assigned] value
->     uses $9: %37 -> %67 lend last
+>     uses $9: %37 -> %64 lend last
 >   local $10 actual: i32 [read] value
->     uses $10: %155 -> %158 lend last
+>     uses $10: %148 -> %151 lend last
 >   local $11 expected: i32 [read] value
->     uses $11: %156 -> %159 lend last
+>     uses $11: %149 -> %152 lend last
 >   local $12 reason: string [read] value
->     uses $12: %157 -> %160 consume last
+>     uses $12: %150 -> %153 consume last
 >   local $13 actual: usize [read] value
->     uses $13: %130 -> %134 lend last
+>     uses $13: %124 -> %127 lend last
 >   local $14 expected: usize [read] value
->     uses $14: %131 -> %135 lend last
+>     uses $14: %125 -> %128 lend last
 >   local $15 reason: string [read] value
->     uses $15: %132 -> %136 consume last
+>     uses $15: %126 -> %129 consume last
 >   local $16 actual: i32 [read] value
->     uses $16: %115 -> %119 lend last
+>     uses $16: %110 -> %113 lend last
 >   local $17 expected: i32 [read] value
->     uses $17: %116 -> %120 lend last
+>     uses $17: %111 -> %114 lend last
 >   local $18 reason: string [read] value
->     uses $18: %117 -> %121 consume last
+>     uses $18: %112 -> %115 consume last
 >   local $22 actual: i32 [read] value
->     uses $22: %88 -> %92 lend last
+>     uses $22: %84 -> %87 lend last
 >   local $23 expected: i32 [read] value
->     uses $23: %89 -> %93 lend last
+>     uses $23: %85 -> %88 lend last
 >   local $24 reason: string [read] value
->     uses $24: %90 -> %94 consume last
+>     uses $24: %86 -> %89 consume last
 >   local $25 actual: usize [read] value
->     uses $25: %73 -> %77 lend last
+>     uses $25: %70 -> %73 lend last
 >   local $26 expected: usize [read] value
->     uses $26: %74 -> %78 lend last
+>     uses $26: %71 -> %74 lend last
 >   local $27 reason: string [read] value
->     uses $27: %75 -> %79 consume last
+>     uses $27: %72 -> %75 consume last
 >   local $28 actual: usize [read] value
->     uses $28: %55 -> %59 lend last
+>     uses $28: %53 -> %56 lend last
 >   local $29 expected: usize [read] value
->     uses $29: %56 -> %60 lend last
+>     uses $29: %54 -> %57 lend last
 >   local $30 reason: string [read] value
->     uses $30: %57 -> %61 consume last
+>     uses $30: %55 -> %58 consume last
 >   local $31 actual: i32 [read] value
->     uses $31: %41 -> %45 lend last
+>     uses $31: %40 -> %43 lend last
 >   local $32 expected: i32 [read] value
->     uses $32: %42 -> %46 lend last
+>     uses $32: %41 -> %44 lend last
 >   local $33 reason: string [read] value
->     uses $33: %43 -> %47 consume last
->   %0 = Retain %169 Cold row #0 : ()
->   %1 = Retain %169 Materialize row #0 : ()
->   %2 = Release %169 FrameDrop row #2 : ()
->   %3 = Release %169 FrameDrop child #2 : ()
+>     uses $33: %42 -> %45 consume last
+>   %0 = Retain %162 Cold row #0 : ()
+>   %1 = Retain %162 Materialize row #0 : ()
+>   %2 = Release %162 FrameDrop row #2 : ()
+>   %3 = Release %162 FrameDrop child #2 : ()
 >   %4 = Call std/rt_tests.stage_case/plain_controls[] () : ()
 >   %6 = Box #0 #1 : ()
->   %167 = Drop [$1] : ()
->   %168 = Drop [$2] : ()
->   %169 = Block - : ()
+>   %160 = Drop [$1] : ()
+>   %161 = Drop [$2] : ()
+>   %162 = Block - : ()
     empty_controls()
 >   %5 = Call std/rt_tests.stage_case/empty_controls[] () : ()
     seen := box(+0)
@@ -1387,17 +1387,17 @@ pub fn main!() -> void $ Clock:
 >   %26 = Read copy [$4] : usize
 >   %27 = Prim Add [%26 1:usize] : usize
 >   %28 = Store [$4] %27 : ()
+>   %135 = Block - : ()
+>   %136 = Store [$6] %25 : ()
+>   %138 = Block - : never
+>   %139 = Match %25 [%138 %135] : ()
+>   %140 = Block - : ()
+>   %141 = Break L0 - : never
 >   %142 = Block - : ()
->   %143 = Store [$6] %25 : ()
->   %145 = Block - : never
->   %146 = Match %25 [%145 %142] : ()
->   %147 = Block - : ()
->   %148 = Break L0 - : never
->   %149 = Block - : ()
->   %150 = If %23 [%147 %149] : ()
->   %151 = Block - : ()
->   %152 = Loop %151 - : ()
->   %153 = Drop [$2] : ()
+>   %143 = If %23 [%140 %142] : ()
+>   %144 = Block - : ()
+>   %145 = Loop %144 - : ()
+>   %146 = Drop [$2] : ()
         before := *seen
 >   %29 = Read copy [*$1] : i32
 >   %30 = Store [$7] %29 : ()
@@ -1410,143 +1410,136 @@ pub fn main!() -> void $ Clock:
 >   %35 = Retain %34 Value #0 : ()
 >   %36 = Call std/rt_tests.stage_case/prepared_native[] (%33, %34) : Suspend[usize]
 >   %37 = Store [$9] %36 : ()
->   %38 = Release %37 Operation #3 : ()
         assert_equal(*seen, before, reason="an unpolled frame keeps its native input alive")
->   %39 = Read copy [*$1] : i32
->   %40 = Read copy [$7] : i32
->   %41 = Store [$31] %39 : ()
->   %42 = Store [$32] %40 : ()
->   %43 = Store [$33] "an unpolled frame keeps its native input alive" : ()
->   %44 = Release %43 Operation #3 : ()
->   %45 = Read copy [$31] : i32
->   %46 = Read copy [$32] : i32
->   %47 = Read move [$33] : string
->   %48 = Intrinsic Empty [] : ()
->   %49 = Call std/testing/check_equal[i32] (%45, %46, %47) : ()
->   %50 = Break L8 - : never
->   %51 = Block - : ()
->   %52 = Scope %51 [] : ()
+>   %38 = Read copy [*$1] : i32
+>   %39 = Read copy [$7] : i32
+>   %40 = Store [$31] %38 : ()
+>   %41 = Store [$32] %39 : ()
+>   %42 = Store [$33] "an unpolled frame keeps its native input alive" : ()
+>   %43 = Read copy [$31] : i32
+>   %44 = Read copy [$32] : i32
+>   %45 = Read move [$33] : string
+>   %46 = Intrinsic Empty [] : ()
+>   %47 = Call std/testing/check_equal[i32] (%43, %44, %45) : ()
+>   %48 = Break L8 - : never
+>   %49 = Block - : ()
+>   %50 = Scope %49 [] : ()
         assert_equal(cold_starts, started, reason="constructing a native callback does not poll it")
->   %53 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
->   %54 = Read copy [$8] : usize
->   %55 = Store [$28] %53 : ()
->   %56 = Store [$29] %54 : ()
->   %57 = Store [$30] "constructing a native callback does not poll it" : ()
->   %58 = Release %57 Operation #3 : ()
->   %59 = Read copy [$28] : usize
->   %60 = Read copy [$29] : usize
->   %61 = Read move [$30] : string
->   %62 = Intrinsic Empty [] : ()
->   %63 = Call std/testing/check_equal[usize] (%59, %60, %61) : ()
->   %64 = Break L7 - : never
->   %65 = Block - : ()
->   %66 = Scope %65 [] : ()
+>   %51 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
+>   %52 = Read copy [$8] : usize
+>   %53 = Store [$28] %51 : ()
+>   %54 = Store [$29] %52 : ()
+>   %55 = Store [$30] "constructing a native callback does not poll it" : ()
+>   %56 = Read copy [$28] : usize
+>   %57 = Read copy [$29] : usize
+>   %58 = Read move [$30] : string
+>   %59 = Intrinsic Empty [] : ()
+>   %60 = Call std/testing/check_equal[usize] (%56, %57, %58) : ()
+>   %61 = Break L7 - : never
+>   %62 = Block - : ()
+>   %63 = Scope %62 [] : ()
         assert_equal(
->   %73 = Store [$25] %69 : ()
->   %74 = Store [$26] 1:usize : ()
->   %75 = Store [$27] "the suspended callback reads its unique input after awaiting" : ()
->   %76 = Release %75 Operation #3 : ()
->   %77 = Read copy [$25] : usize
->   %78 = Read copy [$26] : usize
->   %79 = Read move [$27] : string
->   %80 = Intrinsic Empty [] : ()
->   %81 = Call std/testing/check_equal[usize] (%77, %78, %79) : ()
->   %82 = Break L6 - : never
->   %83 = Block - : ()
->   %84 = Scope %83 [] : ()
+>   %70 = Store [$25] %66 : ()
+>   %71 = Store [$26] 1:usize : ()
+>   %72 = Store [$27] "the suspended callback reads its unique input after awaiting" : ()
+>   %73 = Read copy [$25] : usize
+>   %74 = Read copy [$26] : usize
+>   %75 = Read move [$27] : string
+>   %76 = Intrinsic Empty [] : ()
+>   %77 = Call std/testing/check_equal[usize] (%73, %74, %75) : ()
+>   %78 = Break L6 - : never
+>   %79 = Block - : ()
+>   %80 = Scope %79 [] : ()
             pending!(),
->   %67 = Read move [$9] : Suspend[usize]
->   %68 = Intrinsic Empty [] : ()
->   %69 = AwaitValue %67 : usize
->   %70 = Release %69 Operation child #2 : ()
->   %71 = Retain %69 Operation child #0 : ()
->   %72 = Drop [%67] : ()
->   %171 = Drop [$1] : ()
->   %172 = Drop [$2] : ()
->   %173 = Return - #2 : never
+>   %64 = Read move [$9] : Suspend[usize]
+>   %65 = Intrinsic Empty [] : ()
+>   %66 = AwaitValue %64 : usize
+>   %67 = Release %66 Operation child #2 : ()
+>   %68 = Retain %66 Operation child #0 : ()
+>   %69 = Drop [%64] : ()
+>   %164 = Drop [$1] : ()
+>   %165 = Drop [$2] : ()
+>   %166 = Return - #2 : never
             1,
             reason="the suspended callback reads its unique input after awaiting",
         )
         assert_equal(*seen, before + 1, reason="awaiting drops the mixed native owner once")
->   %85 = Read copy [*$1] : i32
->   %86 = Read copy [$7] : i32
->   %87 = Prim Add [%86 1:i32] : i32
->   %88 = Store [$22] %85 : ()
->   %89 = Store [$23] %87 : ()
->   %90 = Store [$24] "awaiting drops the mixed native owner once" : ()
->   %91 = Release %90 Operation #3 : ()
->   %92 = Read copy [$22] : i32
->   %93 = Read copy [$23] : i32
->   %94 = Read move [$24] : string
->   %95 = Intrinsic Empty [] : ()
->   %96 = Call std/testing/check_equal[i32] (%92, %93, %94) : ()
->   %97 = Break L5 - : never
->   %98 = Block - : ()
->   %99 = Scope %98 [] : ()
+>   %81 = Read copy [*$1] : i32
+>   %82 = Read copy [$7] : i32
+>   %83 = Prim Add [%82 1:i32] : i32
+>   %84 = Store [$22] %81 : ()
+>   %85 = Store [$23] %83 : ()
+>   %86 = Store [$24] "awaiting drops the mixed native owner once" : ()
+>   %87 = Read copy [$22] : i32
+>   %88 = Read copy [$23] : i32
+>   %89 = Read move [$24] : string
+>   %90 = Intrinsic Empty [] : ()
+>   %91 = Call std/testing/check_equal[i32] (%87, %88, %89) : ()
+>   %92 = Break L5 - : never
+>   %93 = Block - : ()
+>   %94 = Scope %93 [] : ()
         assert_equal(cold_starts, started + 1)
->   %100 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
->   %101 = Read copy [$8] : usize
->   %102 = Prim Add [%101 1:usize] : usize
->   %103 = Break L4 "" : never
->   %104 = Block - : string
->   %105 = Scope %104 [] : string
->   %106 = Call std/testing/assert_equal[usize] (%100, %102, %105) : ()
+>   %95 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
+>   %96 = Read copy [$8] : usize
+>   %97 = Prim Add [%96 1:usize] : usize
+>   %98 = Break L4 "" : never
+>   %99 = Block - : string
+>   %100 = Scope %99 [] : string
+>   %101 = Call std/testing/assert_equal[usize] (%95, %97, %100) : ()
         _ := prepared_native(literal, seen)
->   %107 = Read copy [$6] : bool
->   %108 = Read copy [$1] : *mut i32
->   %109 = Retain %108 Value #0 : ()
->   %110 = Call std/rt_tests.stage_case/prepared_native[] (%107, %108) : Suspend[usize]
->   %111 = Drop [%110] : ()
+>   %102 = Read copy [$6] : bool
+>   %103 = Read copy [$1] : *mut i32
+>   %104 = Retain %103 Value #0 : ()
+>   %105 = Call std/rt_tests.stage_case/prepared_native[] (%102, %103) : Suspend[usize]
+>   %106 = Drop [%105] : ()
         assert_equal(
->   %115 = Store [$16] %112 : ()
->   %116 = Store [$17] %114 : ()
->   %117 = Store [$18] "abandoning an unpolled frame drops its mixed owner once" : ()
->   %118 = Release %117 Operation #3 : ()
->   %119 = Read copy [$16] : i32
->   %120 = Read copy [$17] : i32
->   %121 = Read move [$18] : string
->   %122 = Intrinsic Empty [] : ()
->   %123 = Call std/testing/check_equal[i32] (%119, %120, %121) : ()
->   %124 = Break L3 - : never
->   %125 = Block - : ()
->   %126 = Scope %125 [] : ()
+>   %110 = Store [$16] %107 : ()
+>   %111 = Store [$17] %109 : ()
+>   %112 = Store [$18] "abandoning an unpolled frame drops its mixed owner once" : ()
+>   %113 = Read copy [$16] : i32
+>   %114 = Read copy [$17] : i32
+>   %115 = Read move [$18] : string
+>   %116 = Intrinsic Empty [] : ()
+>   %117 = Call std/testing/check_equal[i32] (%113, %114, %115) : ()
+>   %118 = Break L3 - : never
+>   %119 = Block - : ()
+>   %120 = Scope %119 [] : ()
             *seen,
->   %112 = Read copy [*$1] : i32
+>   %107 = Read copy [*$1] : i32
             before + 2,
->   %113 = Read copy [$7] : i32
->   %114 = Prim Add [%113 2:i32] : i32
+>   %108 = Read copy [$7] : i32
+>   %109 = Prim Add [%108 2:i32] : i32
             reason="abandoning an unpolled frame drops its mixed owner once",
         )
         assert_equal(cold_starts, started + 1, reason="abandonment never starts the callback body")
->   %127 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
->   %128 = Read copy [$8] : usize
->   %129 = Prim Add [%128 1:usize] : usize
->   %130 = Store [$13] %127 : ()
->   %131 = Store [$14] %129 : ()
->   %132 = Store [$15] "abandonment never starts the callback body" : ()
->   %133 = Release %132 Operation #3 : ()
->   %134 = Read copy [$13] : usize
->   %135 = Read copy [$14] : usize
->   %136 = Read move [$15] : string
->   %137 = Intrinsic Empty [] : ()
->   %138 = Call std/testing/check_equal[usize] (%134, %135, %136) : ()
->   %139 = Break L2 - : never
->   %140 = Block - : ()
->   %141 = Scope %140 [] : ()
+>   %121 = Read copy [@std/rt_tests.stage_case/cold_starts] : usize
+>   %122 = Read copy [$8] : usize
+>   %123 = Prim Add [%122 1:usize] : usize
+>   %124 = Store [$13] %121 : ()
+>   %125 = Store [$14] %123 : ()
+>   %126 = Store [$15] "abandonment never starts the callback body" : ()
+>   %127 = Read copy [$13] : usize
+>   %128 = Read copy [$14] : usize
+>   %129 = Read move [$15] : string
+>   %130 = Intrinsic Empty [] : ()
+>   %131 = Call std/testing/check_equal[usize] (%127, %128, %129) : ()
+>   %132 = Break L2 - : never
+>   %133 = Block - : ()
+>   %134 = Scope %133 [] : ()
     assert_equal(*seen, +4, reason="named and literal cold frames each transfer both owners once")
->   %154 = Read copy [*$1] : i32
->   %155 = Store [$10] %154 : ()
->   %156 = Store [$11] 4:i32 : ()
->   %157 = Store [$12] "named and literal cold frames each transfer both owners once" : ()
->   %158 = Read copy [$10] : i32
->   %159 = Read copy [$11] : i32
->   %160 = Read move [$12] : string
->   %161 = Intrinsic Empty [] : ()
->   %162 = Call std/testing/check_equal[i32] (%158, %159, %160) : ()
->   %163 = Break L1 - : never
->   %164 = Block - : ()
->   %165 = Scope %164 [] : ()
->   %166 = Drop [$1] : ()
+>   %147 = Read copy [*$1] : i32
+>   %148 = Store [$10] %147 : ()
+>   %149 = Store [$11] 4:i32 : ()
+>   %150 = Store [$12] "named and literal cold frames each transfer both owners once" : ()
+>   %151 = Read copy [$10] : i32
+>   %152 = Read copy [$11] : i32
+>   %153 = Read move [$12] : string
+>   %154 = Intrinsic Empty [] : ()
+>   %155 = Call std/testing/check_equal[i32] (%151, %152, %153) : ()
+>   %156 = Break L1 - : never
+>   %157 = Block - : ()
+>   %158 = Scope %157 [] : ()
+>   %159 = Drop [$1] : ()
 >   exit sub 0 drops [$1 $2]
 >   storage sub 0: $0 cell
->   cancel %69 releases [%67 %2147483649 %2147483650 %4294967295]
+>   cancel %66 releases [%64 %2147483649 %2147483650 %4294967295]

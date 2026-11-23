@@ -2588,9 +2588,11 @@ pub(crate) type RunLoans = (
 /// one, whose place may cross an object a pointer, a shared variable's cell
 /// or a top-level binding's slot holds: a dereference on its path or on the
 /// path of the read its root value is, a global root, or a captured local's
-/// root. The backend takes the loans of the crossings that hold a counted
-/// object. Cost: one pass in instruction order, as a root comes before the
-/// place on it.
+/// root. A dereference of a known local Ref reuses that address's crossing
+/// fact; it does not introduce another object. Unknown references and later
+/// dereferences remain conservative. The backend takes loans of counted
+/// crossings. Cost: O(instructions + place projections + captures), one
+/// forward pass, as a root comes before the place on it.
 pub(crate) fn runtime_sites(b: &Body, pool: Types<'_>) -> Vec<bool> {
     let mut captured = vec![false; b.local_ty.len()];
     for l in &b.cap_local {
@@ -2599,19 +2601,46 @@ pub(crate) fn runtime_sites(b: &Body, pool: Types<'_>) -> Vec<bool> {
     let mut crosses = vec![false; b.len()];
     let mut sites = vec![false; b.len()];
     for i in 0..b.len() {
+        crate::work::scan_work(1);
         if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
             continue;
         }
         let p = b.view(b.data[i][0]);
-        crosses[i] = p.steps(b).any(|s| matches!(s, Proj::Deref))
-            || match p.root {
-                hd_tir::ir::Root::Global(..) => true,
-                hd_tir::ir::Root::Local(l) => captured[l as usize],
-                hd_tir::ir::Root::Value(r) => {
-                    (r as usize) < i && b.tags[r as usize] == Tag::Read && crosses[r as usize]
-                }
-                _ => false,
-            };
+        // A local reference made by Ref keeps its place's provenance.
+        // Dereferencing that known address adds no new counted crossing
+        // (rustc instsimplify's &*a identity). Further dereferences, or an
+        // unknown/loaded reference, still need the conservative loan.
+        let mut steps = p.steps(b);
+        let known = match p.root {
+            hd_tir::ir::Root::Value(r)
+                if (r as usize) < i
+                    && b.tags[r as usize] == Tag::Ref
+                    && matches!(
+                        pool.get(b.ty[r as usize]),
+                        TyData::Ref { counted: false, .. }
+                    )
+                    && steps.next() == Some(Proj::Deref) =>
+            {
+                Some(r as usize)
+            }
+            _ => None,
+        };
+        crosses[i] = match known {
+            Some(r) => crosses[r] || steps.any(|s| matches!(s, Proj::Deref)),
+            None => {
+                p.steps(b).any(|s| matches!(s, Proj::Deref))
+                    || match p.root {
+                        hd_tir::ir::Root::Global(..) => true,
+                        hd_tir::ir::Root::Local(l) => captured[l as usize],
+                        hd_tir::ir::Root::Value(r) => {
+                            (r as usize) < i
+                                && b.tags[r as usize] == Tag::Read
+                                && crosses[r as usize]
+                        }
+                        _ => false,
+                    }
+            }
+        };
         sites[i] = crosses[i]
             || b.tags[i] == Tag::Read
                 && matches!(pool.get(b.ty[i]), TyData::Ref { counted: true, .. });

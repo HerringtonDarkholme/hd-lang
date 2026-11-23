@@ -223,3 +223,40 @@ fn a_prefix_or_power_chain_one_past_the_limit_is_too_deep() {
         assert_eq!(codes, ["nesting-too-deep"], "{}", out.render());
     }
 }
+
+/// #2309: count runtime-site and holder-row work, which used to materialize
+/// a growing loan set at each reference in a chain into one stack place.
+#[test]
+fn prefix_chain_checking_work_is_linear() {
+    std::thread::Builder::new()
+        .stack_size(hd_sched::pool::WORKER_STACK)
+        .spawn(|| {
+            let mut measured = Vec::new();
+            for n in [2_500, 10_000] {
+                let text = include_str!("inputs/prefix-operators.hd")
+                    .replace("PREFIX", &"* & ".repeat(n / 2));
+                let mut src = MemorySources::default();
+                src.insert("main.hd", &text);
+                let store = crate::warm_store();
+                let host = Host {
+                    render_tir: &[],
+                    sources: &src,
+                    store: &store,
+                    clock: &NoClock,
+                    executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+                };
+                let (out, work) =
+                    hd_check::work::count_scan_work(|| build(&host, "app", &Goal::Analyze));
+                assert!(!out.diags.has_errors(), "{}", out.render());
+                eprintln!("prefix operators {n}: checking work {work}");
+                measured.push(work);
+            }
+            assert!(
+                measured[0] > 0 && measured[1] <= measured[0] * 5,
+                "{measured:?}"
+            );
+        })
+        .expect("worker")
+        .join()
+        .expect("checking");
+}

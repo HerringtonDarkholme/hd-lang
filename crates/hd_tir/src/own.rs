@@ -1167,11 +1167,13 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     hoist::run(b, topo, cx, &mut scratch.hoist, edits);
     known::place_arm_drops(b, &scratch.known, edits);
     splice::apply(b, topo, edits)?;
+    edits.remap(&mut scratch.known.empty_stores);
     if self_store::applies(b) {
         scratch.topo.build(b);
         scratch.splice.clear();
         self_store::run(b, cx, &scratch.topo, &mut scratch.splice);
         splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+        scratch.splice.remap(&mut scratch.known.empty_stores);
     }
     scratch.topo.build(b);
     scratch.splice.clear();
@@ -1183,11 +1185,18 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         &mut scratch.splice,
     ) {
         splice::apply(b, &scratch.topo, &mut scratch.splice)?;
+        scratch.splice.remap(&mut scratch.known.empty_stores);
         scratch.topo.build(b);
     }
     plain::loan_ends(b, cx);
     scratch.splice.clear();
-    overwrites::plan(b, cx, &scratch.topo, &mut scratch.splice);
+    overwrites::plan(
+        b,
+        cx,
+        &scratch.topo,
+        &scratch.known.empty_stores,
+        &mut scratch.splice,
+    );
     retains::plan(b, cx, &scratch.topo, &mut scratch.splice)?;
     counts::run(b, cx, &scratch.topo, &mut scratch.splice)?;
     overwrites::anchor(b);
@@ -2664,9 +2673,9 @@ pub(crate) mod tests {
         assert_eq!(
             text,
             "%0 Call\n%1 Store [$0] %0\n%2 Read borrow [$0]\n%3 Call %2\n\
-             %4 Read move [$0]\n%5 Call\n%6 Store [$0] %5\n%7 Release\n%8 Call %4\n\
-             %9 Drop [%4]\n%10 Read move [$0]\n%11 Call %10\n\
-             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
+             %4 Read move [$0]\n%5 Call\n%6 Store [$0] %5\n%7 Call %4\n\
+             %8 Drop [%4]\n%9 Read move [$0]\n%10 Call %9\n\
+             %11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\n"
         );
     }
 

@@ -1,9 +1,6 @@
 # @dump: own
 # @build: release
-# expected: no `Release` after either store of `x`: the two leaves that
-# bind it are on disjoint paths, so each store finds the local empty.
-# Today only the first store in body order is known to find it empty
-# (own/overwrites.rs `finds_empty`), so the second releases a zero.
+# Both stores of x find it empty: they lie on disjoint match leaves.
 struct Photo:
     width: u32
     pixels: List[u8]
