@@ -20,13 +20,12 @@ stderr: error: `hd build` works on a package, and no `hd.toml` is at or above he
 run: hd check
 exit: 101
 stderr: error: `hd check` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`; or pass a FILE to check it as a single-file program
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd test
 exit: 101
 # Under `--format json` a command error is a diagnostic with no code and no
 # position, then the summary, on standard output.
 run: hd check --format json
 exit: 101
-stdout: {"kind":"diagnostic","code":null,"severity":"error","message":"`hd check` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`; or pass a FILE to check it as a single-file program","file":null,"line":null,"column":null,"fixes":[]}
-stdout: {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101,"modules_checked":0}
+stdout: {"kind":"diagnostic","code":null,"severity":"error","message":"`hd check` works on a package, and no `hd.toml` is at or above here; create a package with `hd new`; or pass a FILE to check it as a single-file program","file":null,"line":null,"column":null}
+stdout: {"kind":"summary","errors":1,"warnings":0,"status":101,"modules_checked":0}
 stderr-json: []

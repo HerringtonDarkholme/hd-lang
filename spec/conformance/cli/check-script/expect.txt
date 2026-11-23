@@ -20,6 +20,6 @@ stdout: hello, Ada
 run: hd empty.hd
 stdout-json: []
 run: hd check empty.hd
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 run: hd empty.hd
 stdout-json: []

@@ -1,7 +1,7 @@
 # Public export hints, unknown test callees and receiver-specific near names.
 run: hd check --format json ambiguous.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`max` is not defined; `max` has several public std homes: `std.cmp`, `std.validate`; add a `use` from the intended module","line":2,"column":5,"fixes":[],"file":"ambiguous.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`max` is not defined; `max` has several public std homes: `std.cmp`, `std.validate`; add a `use` from the intended module","line":2,"column":5,"file":"ambiguous.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json arbitrary-fixed.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json arbitrary.hd
@@ -35,21 +35,21 @@ run: hd check --format json imports-fixed.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json map.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `new` on Map[?, ?]; write `{}` for an empty map","line":2,"column":5,"fixes":[],"file":"map.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `new` on Map[?, ?]; write `{}` for an empty map","line":2,"column":5,"file":"map.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json methods.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected &mut List[i32], found an integer literal","line":2,"column":15,"fixes":[{"message":"push one element instead of appending a list","guess":true,"edits":[{"file":"methods.hd","start":57,"end":63,"text":"push"}]},{"message":"append a writable singleton list","guess":true,"edits":[{"file":"methods.hd","start":64,"end":64,"text":"&mut ["},{"file":"methods.hd","start":66,"end":66,"text":"]"}]}],"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `copy` on List[i32]; did you mean `cmp`?","line":3,"column":5,"fixes":[],"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `into` on List[i32]; did you mean `any`?","line":4,"column":5,"fixes":[],"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `is_ascii_alphabetic` on char; did you mean `is_alphabetic`?","line":5,"column":5,"fixes":[],"file":"methods.hd"},{"kind":"summary","errors":4,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected &mut List[i32], found an integer literal","line":2,"column":15,"fixes":[{"message":"push one element instead of appending a list","guess":true,"edits":[{"file":"methods.hd","start":57,"end":63,"text":"push"}]},{"message":"append a writable singleton list","guess":true,"edits":[{"file":"methods.hd","start":64,"end":64,"text":"&mut ["},{"file":"methods.hd","start":66,"end":66,"text":"]"}]}],"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `copy` on List[i32]; did you mean `cmp`?","line":3,"column":5,"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `into` on List[i32]; did you mean `any`?","line":4,"column":5,"file":"methods.hd"},{"kind":"diagnostic","code":"unknown-method","message":"no method `is_ascii_alphabetic` on char; did you mean `is_alphabetic`?","line":5,"column":5,"file":"methods.hd"},{"kind":"summary","errors":4,"warnings":0,"status":101}]
 run: hd check --format json nearest-receiver.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `roate` on Knob; did you mean `rotate`?","line":12,"column":5,"fixes":[],"file":"nearest-receiver.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `roate` on Knob; did you mean `rotate`?","line":12,"column":5,"file":"nearest-receiver.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json optional.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `unwarp` on string?; did you mean `unwrap`?","line":2,"column":5,"fixes":[],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `unwarp` on string?; did you mean `unwrap`?","line":2,"column":5,"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json print.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`print` is not defined; did you mean `println`?","line":2,"column":5,"fixes":[],"file":"print.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`print` is not defined; did you mean `println`?","line":2,"column":5,"file":"print.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json --tests tests-fixed.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json --tests tests.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"invalid-test-statement","message":"a `tests:` block holds only test registrations; `it_prop` is unknown or not imported; add `use std.testing.it_prop`","line":2,"column":5,"fixes":[{"message":"add `use std.testing.it_prop`","edits":[{"file":"tests.hd","start":0,"end":0,"text":"use std.testing.it_prop\n\n"}]}],"file":"tests.hd"},{"kind":"diagnostic","code":"invalid-test-statement","message":"a `tests:` block holds only test registrations; `itt` is unknown or not imported","line":4,"column":5,"fixes":[],"file":"tests.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"invalid-test-statement","message":"a `tests:` block holds only test registrations; `it_prop` is unknown or not imported; add `use std.testing.it_prop`","line":2,"column":5,"fixes":[{"message":"add `use std.testing.it_prop`","edits":[{"file":"tests.hd","start":0,"end":0,"text":"use std.testing.it_prop\n\n"}]}],"file":"tests.hd"},{"kind":"diagnostic","code":"invalid-test-statement","message":"a `tests:` block holds only test registrations; `itt` is unknown or not imported","line":4,"column":5,"file":"tests.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]

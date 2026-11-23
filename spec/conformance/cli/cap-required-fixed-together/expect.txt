@@ -5,4 +5,4 @@ stderr: fixed: hd.toml:4:1: missing-capability: list the missing capabilities in
 stderr: check result: ok. fixed: 1; errors: 0; warnings: 0
 same-text: hd.toml want/hd.toml
 run: hd check
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.

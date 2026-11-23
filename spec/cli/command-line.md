@@ -631,9 +631,10 @@ hd check --summary         # a count per code and file, in place of each diagnos
 3. r[cli.check.summary-mode] In text output, `hd check --summary` prints, in place of each diagnostic, one line for each pair of a code and a file, with its count. The summary follows.
 4. r[cli.check.output-options] `--max-errors` and `--summary` change only what is printed. They change no diagnostic, count, or exit status.
 5. r[cli.check.report.stream] In text output, `hd check` writes its diagnostics and its summary to standard error, and nothing to standard output.
-6. r[cli.check.report.summary] The last line is the summary: `check result: ok.` when the run reported no error, or `check result: FAILED.` when it did, then `errors: E; warnings: W` with both counts, zero counts included.
-7. r[cli.check.summary-mode.line] A `--summary` line is the severity, the file, the code, and the count, each followed by `: ` except the count, as in `error: src/cart.hd: type-mismatch: 2`. The file is written as in a diagnostic, by [`cli.diagnostic.file`](#r-cli.diagnostic.file).
-8. r[cli.check.summary-mode.order] `--summary` lines are in file-path order, then in code order.
+6. r[cli.check.report.compact-summary] A check with no diagnostics prints `check result: ok.`; a default check with diagnostics prints no summary.
+7. r[cli.check.report.explicit-totals] With diagnostics, `--summary` and `--max-errors` append `check result: ok|FAILED. errors: E; warnings: W`, counting every diagnostic.
+8. r[cli.check.summary-mode.line] A `--summary` line is the severity, the file, the code, and the count, each followed by `: ` except the count, as in `error: src/cart.hd: type-mismatch: 2`. The file is written as in a diagnostic, by [`cli.diagnostic.file`](#r-cli.diagnostic.file).
+9. r[cli.check.summary-mode.order] `--summary` lines are in file-path order, then in code order.
 
 ```sh
 hd check --summary
@@ -1303,7 +1304,7 @@ hd check shape.hd
 ```sh
 hd check --format json
 # {"kind":"diagnostic","code":"type-mismatch","severity":"error","message":"...","file":"src/cart.hd","line":3,"column":5}
-# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101}
+# {"kind":"summary","errors":1,"warnings":0,"status":101}
 ```
 
 1. r[cli.json.commands] `hd build`, `hd check`, `hd test`, `hd run`, `hd doc`, `hd FILE`, and the [dependency commands](#dependency-commands) take `--format json`.
@@ -1316,10 +1317,12 @@ hd check --format json
 8. r[cli.json.test.result] Each test case's result is one object, with the test case's name and its outcome: passed, failed, or ignored.
 9. r[cli.json.test.result.fields] A test object has the fields `name`, `outcome`, and `message`. `outcome` is `"passed"`, `"failed"`, or `"ignored"`, and `message` holds the failure or ignore reason, or `""` when there is none.
 10. r[cli.json.test.order] `hd test` lists the test objects in the order of the files' paths, and within one file in declaration order.
-11. r[cli.json.summary.result] The last object is a summary, with the count of errors, warnings, and each test outcome, and the command's exit status. It is written on success too.
-12. r[cli.json.summary.result.fields] A summary object has the counts `errors`, `warnings`, `passed`, `failed`, and `ignored`, and `status`, the command's exit status.
+11. r[cli.json.summary.command-result] The last object is a summary, with error and warning counts and the command's exit status, on success too.
+12. r[cli.json.summary.common-fields] Every summary object has `errors`, `warnings`, and `status`, the command's exit status.
+13. r[cli.json.summary.check-counters] The summary of `hd check` and `hd lint` omits `passed`, `failed`, and `ignored`.
+14. r[cli.json.summary.test-counters] Other commands' summary objects also have `passed`, `failed`, and `ignored` counts.
 13. r[cli.json.summary.modules-checked] The summary object of `hd check` also has the count `modules_checked`: the modules whose bodies this run checked, rather than loaded from the [compiled cache](#compiled-cache).
-14. r[cli.json.diagnostic.fixes] A diagnostic object also has the field `fixes`: a list of the diagnostic's fix-its. It is `[]` when the diagnostic has no fix-it.
+16. r[cli.json.diagnostic.nonempty-fixes] A diagnostic with fix-its has a nonempty `fixes` list; a diagnostic without fix-its omits `fixes`.
 15. r[cli.json.fix.object.v2] A fix-it is an object with fields `message` (what it does), `guess` (a boolean), and `edits` (its edits).
 16. r[cli.json.fix.edit] An edit is an object with the fields `file`, `start`, `end`, and `text`. It replaces the bytes of `file` from offset `start` up to offset `end` with `text`.
 17. r[cli.json.fix.offsets] `start` and `end` count bytes of the file's UTF-8 text from 0, and the byte at `end` is not replaced. `file` is a path as [`cli.diagnostic.file`](#r-cli.diagnostic.file) gives it.
@@ -1335,13 +1338,16 @@ hd check --format json
 hd check --format json
 # {"kind":"diagnostic","code":"unknown-name","severity":"error","message":"...","file":"src/cart.hd","line":4,"column":12,
 #  "fixes":[{"message":"replace 'totl' with 'total'","guess":true,"edits":[{"file":"src/cart.hd","start":61,"end":65,"text":"total"}]}]}
-# {"kind":"summary","errors":1,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":101,"modules_checked":1}
+# {"kind":"summary","errors":1,"warnings":0,"status":101,"modules_checked":1}
 ```
 
 > **Note.** `modules_checked` counts work, not results. A second run
 > with no edit can load every module from the cache, and count 0.
 
-> **Why.** A stream lets an agent act on the first error. The summary
+> **Why.** Empty repairs and check-only test counters convey no action.
+> Omitting them keeps diagnostic output compact.
+>
+> A stream lets an agent act on the first error. The summary
 > makes a clean run explicit, as Cargo's
 > [`build-finished` message](https://doc.rust-lang.org/cargo/reference/external-tools.html#json-messages)
 > does, and a missing summary means that `hd` did not finish.

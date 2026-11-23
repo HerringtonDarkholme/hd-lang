@@ -1,7 +1,7 @@
 # Both folders on the loop already have a `mod.hd`, so there is no file to move and no fix-it.
 run: hd check --format json
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"folder-cycle","severity":"error","message":null,"file":"src/cart/mod.hd","line":1,"column":1,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"folder-cycle","severity":"error","message":null,"file":"src/cart/mod.hd","line":1,"column":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 # The text shows one shortest loop, the `use` that makes each edge, and the
 # size of the tangle.
 run: hd check
@@ -10,4 +10,3 @@ stderr: error: src/cart/mod.hd:1:1: folder-cycle: src/cart -> src/shop -> src/ca
 stderr:   src/cart/mod.hd:1:1: use pkg.shop.{shop}
 stderr:   src/shop/mod.hd:1:1: use pkg.cart.{cart}
 stderr: tangle of 2 folders
-stderr: check result: FAILED. errors: 1; warnings: 0

@@ -65,6 +65,7 @@ import {
   unitPackage,
 } from "./lib/gen.ts";
 import { parseHdCommand, parsePsRss, parseTimeReport, splitCommand } from "./lib/hd.ts";
+import { diagnosticRows } from "./lib/mistake-run.ts";
 import { formatValue, judge } from "./lib/metric.ts";
 import {
   estimateTokens,
@@ -1123,5 +1124,23 @@ describe("scale", () => {
     const dump =
       'Root Some(0)..Some(3) "x"\n  FnDecl Some(0)..Some(3) "fn f"\n    Block None..None ""\n';
     assert.deepEqual([...kindsOfTree(dump)], ["Root", "FnDecl", "Block"]);
+  });
+});
+
+describe("diagnostic JSON size", () => {
+  it("counts actual UTF-8 wire bytes per diagnostic, excluding summaries", () => {
+    const first = ' {"kind":"diagnostic","message":"é"}';
+    const second = '{"kind":"diagnostic","message":"two","fixes":[]}';
+    const summary = '{"kind":"summary","errors":2}';
+    const result = diagnosticRows(`${first}\n${second}\n${summary}\n`);
+    assert.deepEqual(
+      result.diagnostics.map((row) => row.message),
+      ["é", "two"],
+    );
+    assert.deepEqual(result.diagnosticJsonBytes, [
+      Buffer.byteLength(first),
+      Buffer.byteLength(second),
+    ]);
+    assert.deepEqual(diagnosticRows(`${summary}\n`).diagnosticJsonBytes, []);
   });
 });

@@ -11,6 +11,6 @@ run: hd check --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json controls.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":6,"fixes":[]},{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":11,"fixes":[]},{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":12,"fixes":[]},{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":17,"fixes":[]},{"kind":"diagnostic","code":"non-reassignable-parameter-binding","file":"controls.hd","line":21,"fixes":[]},{"kind":"summary","errors":5,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":6},{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":11},{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":12},{"kind":"diagnostic","code":"non-reassignable-binding","file":"controls.hd","line":17},{"kind":"diagnostic","code":"non-reassignable-parameter-binding","file":"controls.hd","line":21},{"kind":"summary","errors":5,"warnings":0,"status":101}]
 run: hd check --format json valid.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]

@@ -123,7 +123,7 @@ fn a_symlink_cycle_under_src_is_skipped() {
     std::os::unix::fs::symlink("..", dir.join("src/loop")).expect("symlink");
     let r = check(&dir, &[]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    assert_eq!(r.err, "check result: ok. errors: 0; warnings: 0\n");
+    assert_eq!(r.err, "check result: ok.\n");
     assert_eq!(r.out, "");
 }
 
@@ -206,4 +206,33 @@ fn a_warm_check_prints_before_it_publishes() {
     assert!(rest.len() > 100_000, "the report outgrows the pipe");
     assert_eq!(child.wait().expect("wait").code(), Some(101));
     assert!(entries(&dir.cache()) > before, "the edit's entries follow");
+}
+
+/// Compact JSON keeps actual repairs, but omits empty fixes and check-only
+/// test counters. Counts describe diagnostics, independently of cache work.
+#[test]
+fn compact_check_json_omits_empty_fields() {
+    let dir = package("hd-check-compact", BROKEN);
+    let r = check(&dir, &["--format", "json"]);
+    assert_eq!(r.code, Some(101), "{}", r.err);
+    let rows: Vec<serde_json::Value> = r
+        .out
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("JSON line"))
+        .collect();
+    let diagnostics: Vec<_> = rows
+        .iter()
+        .filter(|row| row["kind"] == "diagnostic")
+        .collect();
+    assert!(!diagnostics.is_empty());
+    for row in &diagnostics {
+        assert!(row.get("fixes").is_none(), "{row}");
+    }
+    let summary = rows.last().expect("summary");
+    assert_eq!(summary["kind"], "summary");
+    assert_eq!(summary["errors"].as_u64(), Some(diagnostics.len() as u64));
+    assert!(summary["modules_checked"].is_number());
+    for key in ["passed", "failed", "ignored"] {
+        assert!(summary.get(key).is_none(), "{summary}");
+    }
 }

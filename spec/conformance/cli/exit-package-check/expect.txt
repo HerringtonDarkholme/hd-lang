@@ -2,10 +2,10 @@
 # standard output, and no build output.
 run: hd check
 stdout-json: []
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 no-file: build
 # The thread count changes no output (`cli.jobs.result`).
 run: hd check --jobs 1
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 run: hd check --jobs=8
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.

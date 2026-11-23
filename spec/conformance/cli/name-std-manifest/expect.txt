@@ -6,7 +6,6 @@ stdout-json: [{"kind":"diagnostic","code":"invalid-manifest","severity":"error",
 run: hd check
 exit: 101
 stderr: error: hd.toml:2:1: invalid-manifest: no package is named `std`, the standard library's name; rename the package
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd run
 exit: 101
 run: hd test
