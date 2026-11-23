@@ -498,7 +498,25 @@ jobs:
 
       # No Rust cache: the script builds from nothing in its own cargo home,
       # because cargo would reuse an earlier run's packages of the same
-      # version (scripts/publish-crates.ts, `cargoHome`).
+      # version (scripts/publish-crates.ts, `cargoHome`). sccache is safe
+      # there: it keys each compile by its inputs' contents, and the cargo
+      # home's path is the same every run.
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      # Use it only once its server is up: on Windows it once timed out
+      # starting, and then every compile failed (run 45182764260).
+      - name: Use sccache
+        shell: bash
+        run: |
+          export SCCACHE_GHA_ENABLED=true
+          if sccache --start-server; then
+            echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          else
+            echo "::warning::sccache did not start; building without it"
+          fi
+
       - name: Package and verify the crates
         run: node scripts/publish-crates.ts
 
