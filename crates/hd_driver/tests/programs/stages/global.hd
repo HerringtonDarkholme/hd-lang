@@ -1,0 +1,5 @@
+let mut xs = [1, 2]
+
+pub fn main() -> void $ Console:
+    xs.push(3)
+    println(xs.len())

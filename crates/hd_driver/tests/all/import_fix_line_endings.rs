@@ -38,7 +38,7 @@ fn import_edits(d: &DiagBuf) -> Vec<(u32, String)> {
 
 #[test]
 fn a_crlf_file_after_its_lf_twin_gets_its_own_import_fix() {
-    let lf = "use std.error.Error # for later\n\npub fn smallest[N < Integer](a: N, b: N) -> N:\n    if a < b: a else: b\n\npub fn main() -> void:\n    pass\n";
+    let lf = include_str!("programs/import_fix_line_endings/lf.hd");
     let crlf = lf.replace('\n', "\r\n");
     let use_end =
         |text: &str| u32::try_from(text.find("later").expect("the use line") + 5).unwrap();

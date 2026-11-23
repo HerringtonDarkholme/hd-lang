@@ -1,0 +1,4 @@
+use std.rt.memory.size_of
+
+pub fn main() -> void $ Console:
+    println(size_of::[u64]())

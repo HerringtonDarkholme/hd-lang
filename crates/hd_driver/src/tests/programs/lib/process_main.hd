@@ -1,0 +1,3 @@
+use std.process.Process
+pub fn main() -> void $ Process:
+    pass

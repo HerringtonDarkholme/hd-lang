@@ -1,0 +1,8 @@
+# @dump: functions
+# @build: std
+# A `std` build links the case's `main` from the std module, so the
+# functions it defines carry that module's name.
+use std.rt.memory.size_of
+
+pub fn main() -> void $ Console:
+    println(size_of::[u64]())

@@ -35,10 +35,9 @@ fn lone_run(wasm: &[u8], name: &str) -> String {
     shown_run(&exit, &ran.stdout, &ran.stderr)
 }
 
-const PANICS: &str =
-    "pub fn main() -> void $ Console:\n    println(\"before\")\n    panic(\"stopped here\")\n";
-const PRINTS: &str = "use std.console.eprintln\n\npub fn main() -> void $ Console:\n    println(\"one\")\n    eprintln(\"two\")\n";
-const GLOBAL: &str = "let mut xs = [1, 2]\n\npub fn main() -> void $ Console:\n    xs.push(3)\n    println(xs.len())\n";
+const PANICS: &str = include_str!("programs/stages/panics.hd");
+const PRINTS: &str = include_str!("programs/stages/prints.hd");
+const GLOBAL: &str = include_str!("programs/stages/global.hd");
 
 #[test]
 fn the_shared_host_answers_as_a_lone_run_and_keeps_no_state_between_runs() {
@@ -64,9 +63,7 @@ fn the_shared_host_answers_as_a_lone_run_and_keeps_no_state_between_runs() {
 
 #[test]
 fn a_run_that_overruns_fails_alone_and_the_next_gets_a_new_host() {
-    let spin =
-        Program::new("pub fn main() -> void $ Console:\n    while true:\n        println(\"\")\n")
-            .expect("program");
+    let spin = Program::new(include_str!("programs/stages/spin.hd")).expect("program");
     let failed = node_host::run(
         &program_wasm(&spin, Build::default()).expect("builds"),
         &[],

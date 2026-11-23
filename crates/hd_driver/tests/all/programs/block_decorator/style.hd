@@ -1,0 +1,5 @@
+struct Style:
+    prefix: string = ""
+
+fn style(prefix: string = "") -> Style:
+    Style { prefix: prefix }

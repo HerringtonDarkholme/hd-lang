@@ -1,0 +1,7 @@
+use std.error.Error # for later
+
+pub fn smallest[N < Integer](a: N, b: N) -> N:
+    if a < b: a else: b
+
+pub fn main() -> void:
+    pass

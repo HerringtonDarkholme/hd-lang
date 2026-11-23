@@ -1016,7 +1016,7 @@ fn each_engine_runs_a_build_for_its_own_target() {
         EngineMode::WasmtimeOnly.judged_target(),
         EngineTarget::Wasmtime
     );
-    let fixture = unit_fixture("pub fn main() -> void $ Console:\n    println(\"open\")\n");
+    let fixture = unit_fixture(include_str!("programs/conformance/open_main.hd"));
     let built = build_runnable(
         &fixture,
         &fixture.sources,
@@ -2239,19 +2239,23 @@ fn unit_runtime(text: &str, expectation: &str, serial: usize) -> Verdict {
 fn runtime_requires_an_entry_or_registered_tests() {
     assert_eq!(
         unit_runtime(
-            "fn main() -> void:\n    panic(\"must run\")\n",
+            include_str!("programs/conformance/private_main_panics.hd"),
             "accept",
             90
         ),
         Verdict::Fail("missing-entry-point".to_owned())
     );
     assert_eq!(
-        unit_runtime("pub fn main() -> void:\n    pass\n", "accept", 91),
+        unit_runtime(
+            include_str!("programs/conformance/main_pass.hd"),
+            "accept",
+            91
+        ),
         Verdict::Pass
     );
     assert_eq!(
         unit_runtime(
-            "tests:\n    it(\"registered\"):\n        assert_equal(1, 1)\n",
+            include_str!("programs/conformance/registered_test.hd"),
             "accept",
             92
         ),
@@ -2259,7 +2263,7 @@ fn runtime_requires_an_entry_or_registered_tests() {
     );
     assert_eq!(
         unit_runtime(
-            "pub fn main() -> void:\n    panic(\"must run\")\n",
+            include_str!("programs/conformance/main_panics.hd"),
             "accept",
             93
         ),
@@ -2267,7 +2271,7 @@ fn runtime_requires_an_entry_or_registered_tests() {
     );
     assert_ne!(
         unit_runtime(
-            "tests:\n    it(\"must run\"):\n        assert_equal(1, 2)\n",
+            include_str!("programs/conformance/failing_test.hd"),
             "accept",
             94
         ),
@@ -2280,21 +2284,10 @@ fn checked_rooms_reject_leaks_and_double_frees() {
     let probes = [
         // Raw Buffer frees its storage, not values written into it. Losing
         // the inner Buffer must leave one audited room live.
-        r"use std.rt.memory.Buffer
-pub fn main() -> void:
-    slots := Buffer::[Buffer[u8]].new(1)
-    slots.at(0).write(Buffer::[u8].new(8))
-",
+        include_str!("programs/conformance/buffer_lost_with_contents.hd"),
         // Deliberately duplicate raw ownership bits: freeing one alias must
         // poison the room and make the other alias's free fail.
-        r"use std.rt.memory.{Buffer, copy, size_of}
-pub fn main() -> void:
-    slots := Buffer::[Buffer[u8]].new(2)
-    slots.at(0).write(Buffer::[u8].new(8))
-    copy(slots.at(1).address, slots.at(0).address, size_of::[Buffer[u8]]())
-    _ := slots.at(0).read()
-    _ := slots.at(1).read()
-",
+        include_str!("programs/conformance/two_alias_free.hd"),
     ];
     for (i, text) in probes.into_iter().enumerate() {
         let path = "main.hd";
@@ -2335,14 +2328,7 @@ pub fn main() -> void:
 
 #[test]
 fn room_body_cache_keeps_checked_and_unchecked_profiles_separate() {
-    let text = r"use std.rt.memory.Buffer
-use std.rt.checked.allocated
-pub fn main() -> void $ Console:
-    before := allocated()
-    _ := Buffer::[u8].new(8)
-    count := allocated() - before
-    println(count)
-";
+    let text = include_str!("programs/conformance/room_cache.hd");
     let store = new_store();
     for (i, checked) in [false, true, false, true].into_iter().enumerate() {
         let mut sources = hd_driver::std_sources();
@@ -2378,34 +2364,14 @@ pub fn main() -> void $ Console:
     }
 }
 
-const PENDING_TICKS: &str = "\
-# fixture-runtime-profile: tick
-# fixture-runtime-scenario: pending-first-poll
-use std.testing.assert_equal
-
-pub trait Tick:
-    fn tick!(&mut self, note: string) -> void
-
-let calls = +0
-
-fn note!(text: string) -> void $ Console + Tick:
-    $.use(Tick).tick!(text)
-    println(\"${text} ${calls}\")
-    calls = calls + 1
-
-pub fn main!() -> void $ Console + Tick:
-    note!(\"first\")
-    note!(\"second\")
-    assert_equal(calls, EXPECTED, reason=\"each call resumed after its pending tick\")
-";
+const PENDING_TICKS: &str = include_str!("programs/conformance/pending_ticks.hd");
 
 #[test]
 fn pending_first_poll_runs_the_entry_again_with_pending_ticks() {
-    let passing = PENDING_TICKS.replace("EXPECTED", "2");
-    assert_eq!(unit_runtime(&passing, "accept", 0), Verdict::Pass);
+    assert_eq!(unit_runtime(PENDING_TICKS, "accept", 0), Verdict::Pass);
     // The scenario run is the entry under `pending-tick`: each tick is
     // pending once, then the calls resume in order, and the run succeeds.
-    let fixture = unit_fixture(&passing);
+    let fixture = unit_fixture(PENDING_TICKS);
     let built = build_runnable(
         &fixture,
         &fixture.sources,
@@ -2426,7 +2392,7 @@ fn pending_first_poll_runs_the_entry_again_with_pending_ticks() {
     assert!(ran.success(), "{}", String::from_utf8_lossy(&ran.stderr));
     assert_eq!(String::from_utf8_lossy(&ran.stdout), "first 0\nsecond 1\n");
     // A program whose result differs fails the case.
-    let failing = PENDING_TICKS.replace("EXPECTED", "3");
+    let failing = PENDING_TICKS.replace("assert_equal(calls, 2", "assert_equal(calls, 3");
     assert_eq!(
         unit_runtime(&failing, "accept", 2),
         Verdict::Fail("runtime-exit".to_owned())
@@ -2457,10 +2423,7 @@ fn scenarios_that_replace_execution_drive_or_stay_unsupported() {
     }
     // The test hosts take no runtime profile, so the scenario's run of
     // test cases cannot hold a tick pending.
-    let with_tests = format!(
-        "{}\ntests:\n    it(\"runs\"):\n        pass\n",
-        PENDING_TICKS.replace("EXPECTED", "2")
-    );
+    let with_tests = format!("{PENDING_TICKS}\ntests:\n    it(\"runs\"):\n        pass\n");
     assert_eq!(
         unit_runtime(&with_tests, "accept", 4),
         Verdict::Unsupported("RunCase".to_owned())
@@ -2497,7 +2460,7 @@ fn a_fixture_target_case_runs_only_on_its_target() {
 /// whatever the harness's target.
 #[test]
 fn an_unknown_fixture_target_is_a_harness_error() {
-    let text = "# fixture-target: wasm64\npub fn main() -> void:\n    pass\n";
+    let text = include_str!("programs/conformance/unknown_target.hd");
     for target in [HARNESS_TARGET, "wasm64"] {
         assert_eq!(
             runs_on(text, target),
@@ -2505,7 +2468,7 @@ fn an_unknown_fixture_target_is_a_harness_error() {
         );
     }
     assert_eq!(
-        runs_on("pub fn main() -> void:\n    pass\n", "wasm64"),
+        runs_on(include_str!("programs/conformance/main_pass.hd"), "wasm64"),
         Ok(true)
     );
     let missing = suite_case("lang/no-such-fixture.hd", 0);

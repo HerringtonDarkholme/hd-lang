@@ -1,0 +1,9 @@
+use std.time.{Clock, Timestamp, now}
+trait Observe:
+    fn read(self) -> Timestamp $ Clock
+struct Observer: pass
+impl Observe for Observer:
+    fn read(self) -> Timestamp $ Clock:
+        now()
+let observer: *dyn Observe = box(Observer {})
+_ := observer.read()
