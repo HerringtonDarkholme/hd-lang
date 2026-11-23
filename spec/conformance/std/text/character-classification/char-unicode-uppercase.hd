@@ -1,0 +1,28 @@
+# test: is_uppercase follows Unicode17 Uppercase, including non-Lu and supplementary scalars
+# Spec std/text Character Classification: std-text.char.uppercase, std-text.char.uppercase.cost, std-text.char.unicode-version.
+tests:
+    use std.testing.assert
+
+    it("ASCII capitals and the fast-prefix boundaries"):
+        for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars():
+            assert(c.is_uppercase())
+        for c in "@[_abcdefghijklmnopqrstuvwxyz0123456789 \u{0}\u{7f}\u{bf}".chars():
+            assert(!c.is_uppercase())
+        assert('À'.is_uppercase() && 'Ö'.is_uppercase() && 'Ø'.is_uppercase())
+        assert(!'×'.is_uppercase() && !'à'.is_uppercase())
+
+    it("derived uppercase includes letter numbers and symbols"):
+        assert('Ⅻ'.is_uppercase() && 'Ⓐ'.is_uppercase())
+        assert(!'ⅻ'.is_uppercase() && !'ⓐ'.is_uppercase())
+        assert('Ǆ'.is_uppercase() && !'ǅ'.is_uppercase() && !'ǆ'.is_uppercase())
+
+    it("other scripts and supplementary characters"):
+        assert('Δ'.is_uppercase() && 'Ж'.is_uppercase() && 'İ'.is_uppercase())
+        assert(!'δ'.is_uppercase() && !'ж'.is_uppercase() && !'ß'.is_uppercase())
+        assert('\u{10400}'.is_uppercase() && !'\u{10428}'.is_uppercase())
+        assert('\u{1e900}'.is_uppercase() && !'\u{1e922}'.is_uppercase())
+        assert('\u{16ea0}'.is_uppercase() && !'\u{16ebb}'.is_uppercase())
+
+    it("uncased scalars are not uppercase"):
+        for c in "中🙂。€\u{301}\u{10ffff}".chars():
+            assert(!c.is_uppercase())

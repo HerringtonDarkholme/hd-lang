@@ -68,7 +68,7 @@ for (offset, c) in "aé".char_indices():
 1 é
 ```
 
-`char` methods: `is_alphabetic()`, `is_alphanumeric()`, `is_ascii_digit()`,
+`char` methods: `is_alphabetic()`, `is_alphanumeric()`, `is_uppercase()`, `is_ascii_digit()`,
 `is_whitespace()`, `to_digit(radix)`, `to_u32()`.
 
 ## Parsing

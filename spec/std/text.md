@@ -122,7 +122,7 @@ fn word_count(text: string) -> usize:
 
 ## Character Classification
 
-`std` gives `char` four classification methods, `to_digit` and `to_u32`,
+`std` gives `char` five classification methods, `to_digit` and `to_u32`,
 as Rust does:
 
 ```text
@@ -131,12 +131,16 @@ fn word_start(c: char) -> bool:
 
 fn hex_value(c: char) -> u32?:
     c.to_digit(16)  # .Some(15) for 'f' and for 'F'
+
+fn uppercase(c: char) -> bool:
+    c.is_uppercase()
 ```
 
 | Rule | Method | Result |
 | --- | --- | --- |
 | r[std-text.char.ascii-digit] ASCII digit | `is_ascii_digit(self) -> bool` | `true` for `'0'` to `'9'` only |
 | r[std-text.char.alphabetic] Alphabetic | `is_alphabetic(self) -> bool` | `true` for a scalar value with the Unicode `Alphabetic` property |
+| r[std-text.char.uppercase] Uppercase | `is_uppercase(self) -> bool` | `true` exactly for a scalar value with the Unicode `Uppercase` property |
 | r[std-text.char.alphanumeric] Alphanumeric | `is_alphanumeric(self) -> bool` | `true` for an `Alphabetic` scalar value, or one whose general category is `Nd`, `Nl`, or `No` |
 | r[std-text.char.whitespace] Whitespace | `is_whitespace(self) -> bool` | `true` for a scalar value with the Unicode `White_Space` property, the set that `trim` removes |
 | r[std-text.char.to-digit] To digit | `to_digit(self, radix: u32) -> u32?` | the digit's value in `radix`, by the rules below |
@@ -147,10 +151,12 @@ fn hex_value(c: char) -> u32?:
 3. r[std-text.char.to-digit.result] It returns `.Some` of that value when the value is less than `radix`, and `.None` otherwise.
 4. r[std-text.char.to-digit.ascii-only] Every other `char` gives `.None`, so `'٣'.to_digit(10)` is `.None`, though `'٣'.is_alphanumeric()` is `true`.
 5. r[std-text.char.to-digit.radix] A `radix` below 2 or above 36 panics. Panic: `explicit-panic`.
+6. r[std-text.char.uppercase.cost] `is_uppercase` allocates nothing, uses constant temporary state, and takes at most logarithmic time in the Unicode property range count.
 
 > **Why.** The names and results are Rust's, so agents and readers
 > already know them. `to_digit` reads ASCII only, so a number parser
 > built on it accepts no digit of another script by accident.
+> `is_uppercase` uses the derived `Uppercase` property, including uppercase Roman numerals and circled letters beyond the `Lu` category.
 
 ## UTF-8 Conversion
 

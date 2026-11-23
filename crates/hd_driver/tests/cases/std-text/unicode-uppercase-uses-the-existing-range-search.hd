@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+# @helper: std/text/impl char.is_uppercase
+# @helper: std/text/in_ranges
+# @helper: std/text/uppercase_ranges
+# expected: a direct fast-prefix test then the existing allocation-free binary search.
+fn uppercase(value: char) -> bool:
+    value.is_uppercase()
