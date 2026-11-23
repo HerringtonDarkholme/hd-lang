@@ -1,0 +1,13 @@
+use pkg.geo.shapes.{Db, Cache, load}
+
+struct Store: pass
+
+impl Db for Store:
+    fn id(self) -> i32:
+        7
+
+impl Cache for Store
+
+pub fn main() -> void $ Console:
+    $.with(Db=Store {}, Cache=Store {}):
+        println(load())

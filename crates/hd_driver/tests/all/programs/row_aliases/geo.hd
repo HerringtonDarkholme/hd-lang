@@ -1,0 +1,9 @@
+pub trait Db:
+    fn id(self) -> i32
+
+pub trait Cache
+
+pub type AppRow = $ Db + Cache
+
+pub fn load() -> i32 $ AppRow:
+    $.use(Db).id()
