@@ -3,17 +3,14 @@
 run: hd check
 exit: 101
 stderr: error: lib/src/lib.hd:2:5: unknown-name: `missing` is not defined
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd check --package app
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 run: hd check -p lib
 exit: 101
 stderr: error: lib/src/lib.hd:2:5: unknown-name: `missing` is not defined
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd check -p app -p lib
 exit: 101
 stderr: error: lib/src/lib.hd:2:5: unknown-name: `missing` is not defined
-stderr: check result: FAILED. errors: 1; warnings: 0
 # `hd run NAME` finds the one member with NAME, and builds only what it runs.
 run: hd run -p app
 stdout: hello

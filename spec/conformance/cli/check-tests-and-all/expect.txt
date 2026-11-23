@@ -2,25 +2,21 @@
 # `tests:` blocks, test modules and integration tests; `--all` adds the
 # tasks. A FILE of test code or a task is checked as that kind.
 run: hd check
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 run: hd check --tests
 exit: 101
 stderr: error: src/lib.hd:6:14: unknown-name: `in_block` is not defined
 stderr: error: src/lib_test.hd:2:5: unknown-name: `in_unit` is not defined
 stderr: error: tests/flow.hd:2:10: unknown-name: `in_integration` is not defined
-stderr: check result: FAILED. errors: 3; warnings: 0
 run: hd check --all
 exit: 101
 stderr: error: src/lib.hd:6:14: unknown-name: `in_block` is not defined
 stderr: error: src/lib_test.hd:2:5: unknown-name: `in_unit` is not defined
 stderr: error: tasks/seed.hd:2:10: unknown-name: `in_task` is not defined
 stderr: error: tests/flow.hd:2:10: unknown-name: `in_integration` is not defined
-stderr: check result: FAILED. errors: 4; warnings: 0
 run: hd check tasks/seed.hd
 exit: 101
 stderr: error: tasks/seed.hd:2:10: unknown-name: `in_task` is not defined
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd check tests/flow.hd
 exit: 101
 stderr: error: tests/flow.hd:2:10: unknown-name: `in_integration` is not defined
-stderr: check result: FAILED. errors: 1; warnings: 0

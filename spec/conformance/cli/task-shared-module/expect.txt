@@ -11,4 +11,4 @@ stdout: 2
 run: hd run second
 stdout: 1
 run: hd check --all
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.

@@ -19,7 +19,7 @@ pub(crate) fn relocate(diags: &mut [Diag], display: impl Fn(&str) -> String) {
     }
 }
 
-/// The counts of a JSON summary (`cli.json.summary.result.fields`).
+/// The counts of a JSON summary (`cli.json.summary.common-fields`).
 #[derive(Default)]
 pub(crate) struct Summary {
     pub(crate) errors: usize,
@@ -28,7 +28,8 @@ pub(crate) struct Summary {
     pub(crate) failed: usize,
     pub(crate) ignored: usize,
     pub(crate) status: u8,
-    /// `hd check` only (`cli.json.summary.modules-checked`).
+    /// Check/lint work count (`cli.json.summary.modules-checked`); its presence
+    /// also identifies summaries without test outcomes.
     pub(crate) modules_checked: Option<usize>,
 }
 
@@ -45,9 +46,17 @@ impl Summary {
 
     pub(crate) fn json(&self) -> String {
         let mut s = format!(
-            "{{\"kind\":\"summary\",\"errors\":{},\"warnings\":{},\"passed\":{},\"failed\":{},\"ignored\":{},\"status\":{}",
-            self.errors, self.warnings, self.passed, self.failed, self.ignored, self.status
+            "{{\"kind\":\"summary\",\"errors\":{},\"warnings\":{}",
+            self.errors, self.warnings
         );
+        if self.modules_checked.is_none() {
+            let _ = write!(
+                s,
+                ",\"passed\":{},\"failed\":{},\"ignored\":{}",
+                self.passed, self.failed, self.ignored
+            );
+        }
+        let _ = write!(s, ",\"status\":{}", self.status);
         if let Some(n) = self.modules_checked {
             let _ = write!(s, ",\"modules_checked\":{n}");
         }
@@ -142,7 +151,7 @@ impl Reporter {
     }
 
     /// The end of the command: in JSON mode its summary
-    /// (`cli.json.summary.result`), then `status`.
+    /// (`cli.json.summary.command-result`), then `status`.
     pub(crate) fn finish(&mut self, status: u8) -> std::process::ExitCode {
         self.finish_tests(status, 0, 0, 0)
     }

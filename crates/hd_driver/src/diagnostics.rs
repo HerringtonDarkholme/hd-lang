@@ -116,12 +116,12 @@ impl Diag {
         s
     }
 
-    /// The JSON line (`cli.json.diagnostic.fields`, `cli.json.diagnostic.fixes`).
+    /// The JSON line (`cli.json.diagnostic.fields`, `cli.json.diagnostic.nonempty-fixes`).
     #[must_use]
     pub fn json(&self) -> String {
         let opt_num = |n: Option<usize>| n.map_or_else(|| "null".to_owned(), |n| n.to_string());
         let mut s = format!(
-            "{{\"kind\":\"diagnostic\",\"code\":{},\"severity\":\"{}\",\"message\":{},\"file\":{},\"line\":{},\"column\":{},\"fixes\":[",
+            "{{\"kind\":\"diagnostic\",\"code\":{},\"severity\":\"{}\",\"message\":{},\"file\":{},\"line\":{},\"column\":{}",
             self.code
                 .map_or_else(|| "null".to_owned(), |c| quote(c.as_str())),
             self.severity_word(),
@@ -132,6 +132,11 @@ impl Diag {
             opt_num(self.line),
             opt_num(self.column),
         );
+        if self.fixes.is_empty() {
+            s.push('}');
+            return s;
+        }
+        s.push_str(",\"fixes\":[");
         for (n, f) in self.fixes.iter().enumerate() {
             if n > 0 {
                 s.push(',');

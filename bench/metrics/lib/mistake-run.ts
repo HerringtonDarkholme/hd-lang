@@ -13,7 +13,7 @@ import { join } from "node:path";
 
 import { loadMistakes, type Mistake } from "./corpus.ts";
 import { fixOf, applyEdits, hasFixField } from "./fixit.ts";
-import { diagnosticsOf, runHd, type HdCommand } from "./hd.ts";
+import { jsonLines, runHd, type HdCommand } from "./hd.ts";
 import { errorText, type MetricContext } from "./metric.ts";
 import { withTempDir } from "./tmp.ts";
 
@@ -21,6 +21,8 @@ export interface MistakeOutcome {
   readonly mistake: Mistake;
   /** Diagnostic objects, warnings included. */
   readonly diagnostics: readonly Record<string, unknown>[];
+  /** UTF-8 sizes of the actual JSON diagnostic lines, excluding line endings. */
+  readonly diagnosticJsonBytes: readonly number[];
   /** stdout and stderr of the text-format check. */
   readonly text: string;
   /** The diagnostic judged to report the mistake: the expected code's, else the first. */
@@ -40,6 +42,20 @@ const POOL = 4;
 
 const cache = new Map<string, Promise<MistakeOutcome[]>>();
 
+/** Keep diagnostic rows and their wire sizes together; summaries never count. */
+export function diagnosticRows(text: string) {
+  const diagnostics: Record<string, unknown>[] = [];
+  const diagnosticJsonBytes: number[] = [];
+  for (const line of text.split("\n")) {
+    const record = jsonLines(line)[0];
+    if (record?.kind === "diagnostic") {
+      diagnostics.push(record);
+      diagnosticJsonBytes.push(Buffer.byteLength(line, "utf8"));
+    }
+  }
+  return { diagnostics, diagnosticJsonBytes };
+}
+
 async function checkJson(hd: HdCommand, dir: string, file: string, tool: Mistake["tool"]) {
   const result = await runHd(hd, [tool, "--tests", "--format", "json", file], {
     cwd: dir,
@@ -48,7 +64,7 @@ async function checkJson(hd: HdCommand, dir: string, file: string, tool: Mistake
   if (result.timedOut) {
     throw new Error(`hd ${tool} timed out after ${TIMEOUT_MS / 1000} s`);
   }
-  return diagnosticsOf(result.stdout + result.stderr);
+  return diagnosticRows(result.stdout + result.stderr);
 }
 
 async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> {
@@ -56,7 +72,7 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
     const file = `${mistake.name}.hd`;
     writeFileSync(join(dir, file), mistake.text);
     try {
-      const diagnostics = await checkJson(hd, dir, file, mistake.tool);
+      const { diagnostics, diagnosticJsonBytes } = await checkJson(hd, dir, file, mistake.tool);
       const textRun = await runHd(hd, [mistake.tool, "--tests", file], {
         cwd: dir,
         timeoutMs: TIMEOUT_MS,
@@ -67,6 +83,7 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
       const base = {
         mistake,
         diagnostics,
+        diagnosticJsonBytes,
         text: textRun.stdout + textRun.stderr,
         ...(reported ? { reported } : {}),
         fixFieldSeen,
@@ -75,11 +92,16 @@ async function runOne(hd: HdCommand, mistake: Mistake): Promise<MistakeOutcome> 
         return { ...base, fixApplied: false };
       }
       writeFileSync(join(dir, file), applyEdits(mistake.text, edits));
-      return { ...base, fixApplied: true, afterFix: await checkJson(hd, dir, file, mistake.tool) };
+      return {
+        ...base,
+        fixApplied: true,
+        afterFix: (await checkJson(hd, dir, file, mistake.tool)).diagnostics,
+      };
     } catch (error) {
       return {
         mistake,
         diagnostics: [],
+        diagnosticJsonBytes: [],
         text: "",
         fixFieldSeen: false,
         fixApplied: false,

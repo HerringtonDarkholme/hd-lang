@@ -8,4 +8,3 @@ stderr:   src/b/y.hd:1:1: use pkg.a.x.{one}
 stderr: tangle of 2 folders; move src/a/x.hd to src/a/x/mod.hd
 stderr:     fix: move src/a/x.hd to src/a/x/mod.hd
 stderr: error: src/b/y.hd:4:13: unknown-name: `missing` is not defined
-stderr: check result: FAILED. errors: 2; warnings: 0

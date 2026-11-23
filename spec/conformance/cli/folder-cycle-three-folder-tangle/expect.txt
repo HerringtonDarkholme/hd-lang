@@ -7,4 +7,3 @@ stderr:   src/a/x.hd:1:1: use pkg.b.y.{two}
 stderr:   src/b/y.hd:1:1: use pkg.a.x.{one}
 stderr: tangle of 3 folders; move src/a/x.hd to src/a/x/mod.hd
 stderr:     fix: move src/a/x.hd to src/a/x/mod.hd
-stderr: check result: FAILED. errors: 1; warnings: 0

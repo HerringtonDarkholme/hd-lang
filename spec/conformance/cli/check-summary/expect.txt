@@ -9,7 +9,7 @@ stderr: error: src/tax.hd: unknown-name: 2
 stderr: check result: FAILED. errors: 3; warnings: 0
 run: hd check --summary src/util.hd
 stdout-json: []
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 # `--max-errors N` stops printing after N errors. The summary line still
 # counts them all and the status is the same; an N past the count prints
 # them all.
@@ -18,7 +18,6 @@ exit: 101
 stderr: error: src/cart.hd:3:5: type-mismatch: in result: expected i32, found string
 stderr: error: src/tax.hd:2:5: unknown-name: `missing_rate` is not defined
 stderr: error: src/tax.hd:5:5: unknown-name: `percent` is not defined
-stderr: check result: FAILED. errors: 3; warnings: 0
 run: hd check --max-errors 1
 exit: 101
 stderr: error: src/cart.hd:3:5: type-mismatch: in result: expected i32, found string

@@ -683,7 +683,7 @@ fn reached_files(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Opt
 }
 
 /// The text report of `cli.check.*`: each diagnostic, or with `--summary` one
-/// line per severity, file, and code, then the `check result` line.
+/// line per severity, file, and code. Explicit output limits retain totals.
 fn text_report(diags: &[Diag], o: &Options) -> String {
     let mut text = String::new();
     let (mut errors, mut warnings) = (0, 0);
@@ -711,11 +711,15 @@ fn text_report(diags: &[Diag], o: &Options) -> String {
     for ((file, code, severity), n) in &counts {
         let _ = writeln!(text, "{severity}: {file}: {code}: {n}");
     }
-    let result = if errors > 0 { "FAILED" } else { "ok" };
-    let _ = writeln!(
-        text,
-        "check result: {result}. errors: {errors}; warnings: {warnings}"
-    );
+    if diags.is_empty() {
+        text.push_str("check result: ok.\n");
+    } else if o.summary || o.max_errors.is_some() {
+        let result = if errors > 0 { "FAILED" } else { "ok" };
+        let _ = writeln!(
+            text,
+            "check result: {result}. errors: {errors}; warnings: {warnings}"
+        );
+    }
     text
 }
 

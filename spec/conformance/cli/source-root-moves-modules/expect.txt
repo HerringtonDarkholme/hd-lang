@@ -3,9 +3,8 @@
 run: hd check
 exit: 101
 stderr: error: code/broken.hd:2:5: unknown-name: `missing` is not defined
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd check code/util.hd
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 run: hd run
 stdout: 42
 run: hd test --format json code/util.hd

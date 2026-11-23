@@ -26,8 +26,8 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 6. Run `HeaderCheck` per folder, `Coherence` once and `InitOrder` per
    folder, each looked up by its key first.
 7. Print diagnostics in content order once every task that can add one
-   is done (§6.5), then the summary. Text output ends with
-   `check result: ok|FAILED. errors: E; warnings: W`. `--summary`
+   is done (§6.5). A clean check prints `check result: ok.`; a default
+   check with diagnostics needs no summary. `--summary`
    prints one line per severity, file and code instead, in path then
    code order. `--max-errors N` stops printing after the Nth error;
    the counts and the exit status still cover everything. Eviction, if a

@@ -101,6 +101,27 @@ export const mistakes: Metric = {
           : "no program printed a diagnostic",
       ),
     );
+    const json = outcomes.flatMap((item) =>
+      item.diagnosticJsonBytes.map((bytes) => ({ name: item.mistake.name, bytes })),
+    );
+    const jsonTokens = json.map((item) => Math.ceil(item.bytes / 4));
+    const largestJson = json.reduce<(typeof json)[number] | undefined>(
+      (best, item) => (!best || item.bytes > best.bytes ? item : best),
+      undefined,
+    );
+    results.push(
+      judge(
+        NAME,
+        "largest diagnostic JSON (bytes / 4)",
+        largestJson ? Math.ceil(largestJson.bytes / 4) : Number.NaN,
+        TOKEN_LIMIT,
+        "tokens",
+        "at-most",
+        largestJson
+          ? `largest: ${largestJson.name}, ${largestJson.bytes} B; median ${p50(jsonTokens)} tokens, ${p50(json.map((item) => item.bytes))} B; ${json.length} diagnostics`
+          : "no JSON diagnostic",
+      ),
+    );
     return results;
   },
 };
