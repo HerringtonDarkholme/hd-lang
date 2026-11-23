@@ -1,0 +1,9 @@
+# @dump: wat
+# @build: std checked
+# expected: transfer selects the existing non-null empty string for a null
+# Buffer address before constructing Some; no allocation or wrapper call.
+use std.rt.memory.Buffer
+use std.rt.bytes.string_from_buffer
+
+fn transfer(room: Buffer[u8], size: usize) -> string?:
+    .Some(string_from_buffer(room, size))
