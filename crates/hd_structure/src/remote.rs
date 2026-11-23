@@ -208,10 +208,10 @@ pub fn crossing_parts_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty) -> StageResult<
     let code =
         g.b.local(ty, cx.names.syms.intern("code"), local_flags::PARAM, SYN);
     let blk = g.b.open_block();
-    let TyData::Tuple { elems, .. } = pool.get(sig.ret) else {
+    let Some((elems, _)) = pool.product_parts(sig.ret) else {
         return Err(hd_base::NotImplemented::bug(cx.stage, "crossing parts"));
     };
-    let [number, captures] = *pool.list_items(elems) else {
+    let [number, captures] = *elems else {
         return Err(hd_base::NotImplemented::bug(cx.stage, "crossing parts"));
     };
     let number = g.read_field(code, 1, number);

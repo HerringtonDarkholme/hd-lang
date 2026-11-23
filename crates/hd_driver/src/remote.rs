@@ -185,13 +185,12 @@ impl Env<'_> {
             return ty;
         }
         let pool = &self.run.pool;
-        pool.intern_ty(&TyData::Adt {
-            def: self
-                .run
+        pool.applied(
+            self.run
                 .names()
                 .item(hd_resolve::known::REMOTE_MODULE, "Crossing"),
-            args: pool.list(&[ty]),
-        })
+            ty,
+        )
     }
 
     /// The family of one generated method of the std `Stub` at a remote

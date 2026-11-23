@@ -48,10 +48,7 @@ impl Ck<'_, '_> {
         let syn = n.index();
         let caps = self.b.open_captures(m);
         let tys: Vec<Ty> = caps.iter().map(|&l| self.b.local_ty(l)).collect();
-        let tuple_ty = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&tys),
-            rest: None,
-        });
+        let tuple_ty = pool.product(pool.list(&tys), None);
         let p = self.wire_local(tuple_ty, "$captures", syn);
         self.b.body_mut().local_flags[p.idx()] |= local_flags::PARAM;
         self.b.lift_captures(m, from, &caps, p);
@@ -61,10 +58,7 @@ impl Ck<'_, '_> {
         let rec = self.b.refs_record(&reads);
         let tuple = self.b.emit(Tag::NewTuple, NONE, rec, tuple_ty, syn);
         let bytes = self.bytes_ty();
-        let pair_ty = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&[tuple_ty, bytes]),
-            rest: None,
-        });
+        let pair_ty = pool.product(pool.list(&[tuple_ty, bytes]), None);
         let pair = self.remote_call("crossing_frame", &[tuple_ty], &[tuple], pair_ty, syn);
         let pair_local = self.wire_local(pair_ty, "$crossing", syn);
         self.b.set(pair_local, pair, syn);
@@ -210,28 +204,19 @@ impl Ck<'_, '_> {
     /// `std.remote.Crossing[F]`.
     fn crossing_ty(&self, f: Ty) -> Ty {
         let pool = self.pool();
-        pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.item(REMOTE_MODULE, "Crossing"),
-            args: pool.list(&[f]),
-        })
+        pool.applied(self.cx.names.item(REMOTE_MODULE, "Crossing"), f)
     }
 
     /// `List[u8]`.
     fn bytes_ty(&self) -> Ty {
         let pool = self.pool();
-        pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.list,
-            args: pool.list(&[Ty::prim(hd_types::Prim::U8)]),
-        })
+        pool.applied(self.cx.names.known.list, Ty::prim(hd_types::Prim::U8))
     }
 
     /// `Suspend[T]`.
     fn suspend_ty(&self, t: Ty) -> Ty {
         let pool = self.pool();
-        pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.suspend,
-            args: pool.list(&[t]),
-        })
+        pool.applied(self.cx.names.known.suspend, t)
     }
 
     /// A hidden local of the literal's.
