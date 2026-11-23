@@ -1,0 +1,12 @@
+type Choice = (i32 | string) | bool
+
+pub fn make() -> Choice:
+    ._0(._1("kept"))
+
+pub fn describe(value: Choice) -> string:
+    match value:
+        ._0(inner) => inner.to_string()
+        ._1(flag) => flag.to_string()
+
+pub fn main() -> void $ Console:
+    println(describe(make()))
