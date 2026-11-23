@@ -1,0 +1,20 @@
+pub trait Base[T]:
+    type Item
+    fn make() -> i32
+
+pub trait Left[T] < Base[T]
+
+pub trait Right[T] < Base[T]
+
+pub trait Diamond[T] < Left[T] & Right[T]
+
+pub trait Empty
+
+pub trait ReadOnly:
+    fn read(&self) -> i32
+
+pub trait Edit:
+    fn edit(&mut self) -> void
+
+pub struct Record:
+    value: i32
