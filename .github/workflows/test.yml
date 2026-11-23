@@ -319,11 +319,9 @@ jobs:
   # assertions and overflow checks are on.
   #
   # cargo test runs test binaries one after another, so the suite is split
-  # into shards that run side by side. hd_driver's `all` (about 195 s) and
-  # `conformance` (about 175 s) binaries each get a shard; in one shard they
-  # ran in series after a 7.5 min build, so that job took 17 min (2026-11-23).
-  # The cli shard's cargo test builds the release `hd` its tests run. On Linux
-  # nothing in the other shards runs it.
+  # into two shards that run side by side: hd_command, and every other crate. The cli
+  # shard's cargo test builds the release `hd` its tests run. On Linux nothing
+  # in the other shard runs it.
   test:
     name: Rust tests (${{ matrix.shard }})
     if: github.event_name != 'schedule'
@@ -335,14 +333,8 @@ jobs:
         include:
           - shard: cli
             args: -p hd_command
-          - shard: driver all
-            args: -p hd_driver --test all
-          - shard: driver conformance
-            args: -p hd_driver --test conformance
-          - shard: driver rest
-            args: -p hd_driver --lib --test stages --test analysis --test count_reasons --test helper_call_shapes --test outlives_work
           - shard: workspace
-            args: --workspace --exclude hd_command --exclude hd_driver
+            args: --workspace --exclude hd_command
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -518,21 +510,13 @@ jobs:
         # On Windows the CLI conformance cases are half the time, so they
         # run beside the rest of the host tests. macOS runners are the
         # scarcest, so macOS runs everything in one job.
-        # Three shards per system, side by side: in two (macOS ran all
-        # three in one), the slowest took 18 min (2026-11-23).
         include:
           - os: windows-latest
             shard: cli conformance
           - os: windows-latest
-            shard: wasmtime host
-          - os: windows-latest
-            shard: cli
+            shard: rest
           - os: macos-latest
-            shard: cli conformance
-          - os: macos-latest
-            shard: wasmtime host
-          - os: macos-latest
-            shard: cli
+            shard: all
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -551,7 +535,7 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
         with:
-          key: ${{ matrix.shard == 'cli conformance' && 'cli-conformance' || matrix.shard == 'wasmtime host' && 'wasmtime-host' || matrix.shard }}
+          key: ${{ matrix.shard == 'cli conformance' && 'cli-conformance' || matrix.shard }}
 
       # sccache caches each workspace crate's compiled output, so a run
       # rebuilds only the crates a change touches (and those above them).
@@ -567,7 +551,7 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Lint host crates
-        if: matrix.shard == 'cli'
+        if: matrix.shard != 'cli conformance'
         run: cargo clippy -p hd_run_wasmtime -p hd_command --features hd_command/wasmtime --all-targets -- -D warnings
 
       # --no-fail-fast: one run reports every failing test binary, not just
@@ -575,25 +559,25 @@ jobs:
       # Exercise the shipping feature on the optimized profile already cached
       # by these host tests, without HD_ENGINE masking default selection.
       - name: Test the shipped CLI conformance cases
-        if: matrix.shard == 'cli conformance'
+        if: matrix.shard != 'rest'
         run: cargo test --release --no-fail-fast --features hd_command/dist -p hd_command --test cli_conformance
 
       # The wasmtime host's process parity tests run the release CLI.
       - name: Build the CLI
-        if: matrix.shard == 'cli'
+        if: matrix.shard != 'cli conformance'
         run: cargo build --release -p hd_command --features hd_command/wasmtime
 
       # File locks and rejected-query handoff are platform dependent too.
       - name: Test the disk cache
-        if: matrix.shard == 'wasmtime host'
+        if: matrix.shard != 'cli conformance'
         run: cargo test --release -p hd_cache --features disk --lib
 
       - name: Test the wasmtime host
-        if: matrix.shard == 'wasmtime host'
+        if: matrix.shard != 'cli conformance'
         run: cargo test --release --no-fail-fast -p hd_run_wasmtime
 
       - name: Test the CLI
-        if: matrix.shard == 'cli'
+        if: matrix.shard != 'cli conformance'
         run: cargo test --release --no-fail-fast --features hd_command/wasmtime -p hd_command --lib --test all
 
   # Split from the tests so the longest suite overlaps with the rest. Default and
@@ -609,56 +593,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Each mode runs the whole suite (about 8,900 cases); the slow modes
-        # split it into shards (HD_CONFORMANCE_SHARD=k/n), so no job runs
-        # past about 5 min (2026-11-23: optimized alone took 10 min).
         include:
-          - mode: default
-            engine: ""
-            pipeline: ""
-            checked: ""
-            shard: ""
           # The checked run is the count audit, leak report and buffer traps, so
           # an ownership bug fails CI instead of a local run.
-          - mode: checked
+          - mode: default and checked
             engine: ""
             pipeline: ""
-            checked: "1"
-            shard: ""
           # Every engine: each runs a build tuned for its own target and the
           # outputs are compared (crates/hd_opt/DESIGN.md (optimization
           # pipelines) §5, Q3). Local runs test the V8 target on Node only.
           - mode: node and wasmtime
-            engine: "wasmtime"
+            engine: wasmtime
             pipeline: ""
-            checked: ""
-            shard: ""
           # Every runtime fixture also runs through the optimized pipeline on
           # both engines, so a miscompile in an optimization pass fails CI
           # (docs/compiler/tiering.md §4.3).
-          - mode: optimized 1/2
-            engine: "wasmtime"
-            pipeline: "optimized"
-            checked: ""
-            shard: "1/2"
-          - mode: optimized 2/2
-            engine: "wasmtime"
-            pipeline: "optimized"
-            checked: ""
-            shard: "2/2"
+          - mode: optimized
+            engine: wasmtime
+            pipeline: optimized
           # The optimized pipeline with the checked runtime. An optimization that
           # removes a uniqueness check trips an assert here, even when the program's
           # output happens to stay right in plain optimized.
-          - mode: checked optimized 1/2
+          - mode: checked optimized
             engine: ""
-            pipeline: "optimized"
-            checked: "1"
-            shard: "1/2"
-          - mode: checked optimized 2/2
-            engine: ""
-            pipeline: "optimized"
-            checked: "1"
-            shard: "2/2"
+            pipeline: optimized
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -691,17 +649,29 @@ jobs:
       # once, in the Rust tests job.
       # Each run fails the job by itself, and the first failing doesn't skip the second.
       - name: Conformance
+        if: ${{ !cancelled() && matrix.mode != 'checked optimized' }}
         env:
           HD_CONFORMANCE_ENGINE: ${{ matrix.engine }}
           HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
-          HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
-          HD_CONFORMANCE_SHARD: ${{ matrix.shard }}
+        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
+
+      - name: Conformance (checked)
+        if: ${{ !cancelled() && matrix.mode == 'default and checked' }}
+        env:
+          HD_CONFORMANCE_CHECKED: "1"
         run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
 
       # Runs std's runtime modules with the checked runtime's asserts too; the
       # Rust tests job runs them plain.
       - name: Std runtime modules (checked)
-        if: ${{ !cancelled() && matrix.mode == 'checked' }}
+        if: ${{ !cancelled() && matrix.mode == 'default and checked' }}
         env:
           HD_CONFORMANCE_CHECKED: "1"
         run: cargo test --release --workspace --all-features --test conformance -- --exact std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
+
+      - name: Conformance (checked optimized)
+        if: ${{ !cancelled() && matrix.mode == 'checked optimized' }}
+        env:
+          HD_CONFORMANCE_CHECKED: "1"
+          HD_CONFORMANCE_PIPELINE: ${{ matrix.pipeline }}
+        run: cargo test --release --workspace --all-features --test conformance -- --exact specification_conformance_passes_except_known_failures
