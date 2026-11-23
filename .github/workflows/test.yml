@@ -72,6 +72,19 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
 
+      # sccache caches each workspace crate's compiled output, so a run
+      # rebuilds only the crates a change touches (and those above them).
+      # rust-cache keeps third-party crates; the workspace's own were left
+      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Use sccache
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
       - name: Install browser target
         run: rustup target add wasm32-unknown-unknown
 
@@ -306,9 +319,11 @@ jobs:
   # assertions and overflow checks are on.
   #
   # cargo test runs test binaries one after another, so the suite is split
-  # into two shards that run side by side: hd_command, and every other crate. The cli
-  # shard's cargo test builds the release `hd` its tests run. On Linux nothing
-  # in the other shard runs it.
+  # into shards that run side by side. hd_driver's `all` (about 195 s) and
+  # `conformance` (about 175 s) binaries each get a shard; in one shard they
+  # ran in series after a 7.5 min build, so that job took 17 min (2026-11-23).
+  # The cli shard's cargo test builds the release `hd` its tests run. On Linux
+  # nothing in the other shards runs it.
   test:
     name: Rust tests (${{ matrix.shard }})
     if: github.event_name != 'schedule'
@@ -320,8 +335,14 @@ jobs:
         include:
           - shard: cli
             args: -p hd_command
+          - shard: driver all
+            args: -p hd_driver --test all
+          - shard: driver conformance
+            args: -p hd_driver --test conformance
+          - shard: driver rest
+            args: -p hd_driver --lib --test stages --test analysis --test count_reasons --test helper_call_shapes --test outlives_work
           - shard: workspace
-            args: --workspace --exclude hd_command
+            args: --workspace --exclude hd_command --exclude hd_driver
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -334,6 +355,19 @@ jobs:
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
+
+      # sccache caches each workspace crate's compiled output, so a run
+      # rebuilds only the crates a change touches (and those above them).
+      # rust-cache keeps third-party crates; the workspace's own were left
+      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Use sccache
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Test
         run: cargo test --release --all-features ${{ matrix.args }} -- --skip specification_conformance_passes_except_known_failures
@@ -366,6 +400,19 @@ jobs:
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
+
+      # sccache caches each workspace crate's compiled output, so a run
+      # rebuilds only the crates a change touches (and those above them).
+      # rust-cache keeps third-party crates; the workspace's own were left
+      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Use sccache
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       - name: Build release compiler and parser dump
         run: |
@@ -498,6 +545,19 @@ jobs:
         with:
           key: ${{ matrix.shard == 'cli conformance' && 'cli-conformance' || matrix.shard }}
 
+      # sccache caches each workspace crate's compiled output, so a run
+      # rebuilds only the crates a change touches (and those above them).
+      # rust-cache keeps third-party crates; the workspace's own were left
+      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Use sccache
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
       - name: Lint host crates
         if: matrix.shard != 'cli conformance'
         run: cargo clippy -p hd_run_wasmtime -p hd_command --features hd_command/wasmtime --all-targets -- -D warnings
@@ -577,6 +637,19 @@ jobs:
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
+
+      # sccache caches each workspace crate's compiled output, so a run
+      # rebuilds only the crates a change touches (and those above them).
+      # rust-cache keeps third-party crates; the workspace's own were left
+      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Use sccache
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
       # Only the suite that depends on the engine and the pipeline: the
       # binary's other tests (the formatter pass over every fixture, the std
