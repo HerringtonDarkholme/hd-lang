@@ -1,0 +1,390 @@
+# @dump: diagnostics
+# @build: std
+# Spec: trait.target.numeric-family.each, trait.inherent.unique-unifying.
+# The sealed numeric family membership is independent of the declaration folder.
+use std.num.{Integer, Float, Num}
+
+# Each pair below overlaps at its concrete member, in either declaration order.
+impl[N < Integer] N:
+    fn overlap_integer_i8_0(self) -> string:
+        "member"
+
+impl i8:
+    fn overlap_integer_i8_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_i16_0(self) -> string:
+        "member"
+
+impl i16:
+    fn overlap_integer_i16_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_i32_0(self) -> string:
+        "member"
+
+impl i32:
+    fn overlap_integer_i32_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_i64_0(self) -> string:
+        "member"
+
+impl i64:
+    fn overlap_integer_i64_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u8_0(self) -> string:
+        "member"
+
+impl u8:
+    fn overlap_integer_u8_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u16_0(self) -> string:
+        "member"
+
+impl u16:
+    fn overlap_integer_u16_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u32_0(self) -> string:
+        "member"
+
+impl u32:
+    fn overlap_integer_u32_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u64_0(self) -> string:
+        "member"
+
+impl u64:
+    fn overlap_integer_u64_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_usize_0(self) -> string:
+        "member"
+
+impl usize:
+    fn overlap_integer_usize_0(self) -> string:
+        "member"
+
+impl i8:
+    fn overlap_integer_i8_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_i8_1(self) -> string:
+        "member"
+
+impl i16:
+    fn overlap_integer_i16_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_i16_1(self) -> string:
+        "member"
+
+impl i32:
+    fn overlap_integer_i32_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_i32_1(self) -> string:
+        "member"
+
+impl i64:
+    fn overlap_integer_i64_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_i64_1(self) -> string:
+        "member"
+
+impl u8:
+    fn overlap_integer_u8_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u8_1(self) -> string:
+        "member"
+
+impl u16:
+    fn overlap_integer_u16_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u16_1(self) -> string:
+        "member"
+
+impl u32:
+    fn overlap_integer_u32_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u32_1(self) -> string:
+        "member"
+
+impl u64:
+    fn overlap_integer_u64_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_u64_1(self) -> string:
+        "member"
+
+impl usize:
+    fn overlap_integer_usize_1(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn overlap_integer_usize_1(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn overlap_float_f32_0(self) -> string:
+        "member"
+
+impl f32:
+    fn overlap_float_f32_0(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn overlap_float_f64_0(self) -> string:
+        "member"
+
+impl f64:
+    fn overlap_float_f64_0(self) -> string:
+        "member"
+
+impl f32:
+    fn overlap_float_f32_1(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn overlap_float_f32_1(self) -> string:
+        "member"
+
+impl f64:
+    fn overlap_float_f64_1(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn overlap_float_f64_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i8_0(self) -> string:
+        "member"
+
+impl i8:
+    fn overlap_num_i8_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i16_0(self) -> string:
+        "member"
+
+impl i16:
+    fn overlap_num_i16_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i32_0(self) -> string:
+        "member"
+
+impl i32:
+    fn overlap_num_i32_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i64_0(self) -> string:
+        "member"
+
+impl i64:
+    fn overlap_num_i64_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u8_0(self) -> string:
+        "member"
+
+impl u8:
+    fn overlap_num_u8_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u16_0(self) -> string:
+        "member"
+
+impl u16:
+    fn overlap_num_u16_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u32_0(self) -> string:
+        "member"
+
+impl u32:
+    fn overlap_num_u32_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u64_0(self) -> string:
+        "member"
+
+impl u64:
+    fn overlap_num_u64_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_usize_0(self) -> string:
+        "member"
+
+impl usize:
+    fn overlap_num_usize_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_f32_0(self) -> string:
+        "member"
+
+impl f32:
+    fn overlap_num_f32_0(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_f64_0(self) -> string:
+        "member"
+
+impl f64:
+    fn overlap_num_f64_0(self) -> string:
+        "member"
+
+impl i8:
+    fn overlap_num_i8_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i8_1(self) -> string:
+        "member"
+
+impl i16:
+    fn overlap_num_i16_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i16_1(self) -> string:
+        "member"
+
+impl i32:
+    fn overlap_num_i32_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i32_1(self) -> string:
+        "member"
+
+impl i64:
+    fn overlap_num_i64_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_i64_1(self) -> string:
+        "member"
+
+impl u8:
+    fn overlap_num_u8_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u8_1(self) -> string:
+        "member"
+
+impl u16:
+    fn overlap_num_u16_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u16_1(self) -> string:
+        "member"
+
+impl u32:
+    fn overlap_num_u32_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u32_1(self) -> string:
+        "member"
+
+impl u64:
+    fn overlap_num_u64_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_u64_1(self) -> string:
+        "member"
+
+impl usize:
+    fn overlap_num_usize_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_usize_1(self) -> string:
+        "member"
+
+impl f32:
+    fn overlap_num_f32_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_f32_1(self) -> string:
+        "member"
+
+impl f64:
+    fn overlap_num_f64_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn overlap_num_f64_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn intersect_num_integer_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn intersect_num_integer_0(self) -> string:
+        "member"
+
+impl[N < Integer] N:
+    fn intersect_num_integer_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn intersect_num_integer_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn intersect_num_float_0(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn intersect_num_float_0(self) -> string:
+        "member"
+
+impl[N < Float] N:
+    fn intersect_num_float_1(self) -> string:
+        "member"
+
+impl[N < Num] N:
+    fn intersect_num_float_1(self) -> string:
+        "member"
