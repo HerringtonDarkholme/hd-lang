@@ -1,0 +1,4 @@
+use pkg.lib.defs.{Tagged}
+
+pub fn second(t: Tagged[string]) -> i32:
+    1

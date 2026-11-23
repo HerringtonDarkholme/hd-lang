@@ -1,0 +1,12 @@
+use pkg.lib.defs.{Pick, Receiver, Tag}
+
+pub struct Product:
+    pub id: i32
+
+impl Pick[Product] for Receiver:
+    fn pick(self) -> Product:
+        Product { id: self.n }
+
+impl Tag for Product:
+    fn tag(self) -> i32:
+        self.id
