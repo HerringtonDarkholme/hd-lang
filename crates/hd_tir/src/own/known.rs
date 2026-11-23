@@ -33,7 +33,8 @@
 //!   the cleanup suites and the cancelled `Return`.
 //!
 //! The plan's rule 2 (a store into an empty place) is
-//! `own::overwrites`; rule 4 (a move with no zeroing) is not built
+//! `own::overwrites`, using this walk's empty-store observations;
+//! rule 4 (a move with no zeroing) is not built
 //! (`docs/compiler/tir-v2.md`, "Known-null").
 //!
 //! An owned body has no cleanup suites: `own::scopes` copied each one to
@@ -124,8 +125,8 @@ pub(crate) struct Tables {
     flow: Flow,
     /// The sub-body's exit state, while it is walked.
     exit: usize,
-    /// Per instruction: a `Drop` the walk reached, and one it reached where
-    /// its place may hold a count.
+    /// Per instruction: a Drop or whole-local Store the walk reached,
+    /// and one it reached where its place may hold a count.
     seen: Vec<bool>,
     needed: Vec<bool>,
     /// The cleanup plan of each instruction with a branch, or `NONE`.
@@ -141,6 +142,8 @@ pub(crate) struct Tables {
     keep: Vec<bool>,
     ops: Vec<Operand>,
     empty_variants: std::cell::OnceCell<super::parts::EmptyVariants>,
+    /// Whole-local stores reached only with an empty, unboxed, unaliased place.
+    pub(super) empty_stores: Vec<u32>,
     /// Each local a `Ref` of its own storage or a shared capture puts in
     /// a cell: an arm never takes its drop.
     addressed: Vec<bool>,
@@ -158,6 +161,7 @@ pub(crate) fn run(
 ) {
     let n = b.len();
     t.empty_variants.take();
+    t.empty_stores.clear();
     fill(&mut t.susp_at, n, NONE);
     t.susp.clear();
     t.points.clear();
@@ -218,7 +222,11 @@ pub(crate) fn run(
     // Rule 1: the drops no path reaches with a count.
     for x in 0..n {
         if t.seen[x] && !t.needed[x] {
-            edits.remove(u32_of(x));
+            if b.tags[x] == Tag::Store {
+                t.empty_stores.push(u32_of(x));
+            } else {
+                edits.remove(u32_of(x));
+            }
         }
     }
     // Rule 3: the exit rows of locals empty at every way out.
@@ -594,6 +602,22 @@ impl Tables {
         let i = x as usize;
         let [a, w] = b.data[i];
         let tag = b.tags[i];
+        // Observe before the store refills the place. Observations join
+        // over all loop rounds, just like drop observations, and never
+        // affect the transfer or add a convergence round.
+        if tag == Tag::Store
+            && b.view(a).whole()
+            && let Some(l) = b.view(a).local()
+            && !self.boxed[l as usize]
+            // A call can change a place reached through a reference. Its
+            // storage keeps the existing conservative overwrite proof.
+            && !self.addressed[l as usize]
+            && let Some((bit, _)) = self.root_bit(b, a)
+        {
+            super::flow::charge(1);
+            self.seen[i] = true;
+            self.needed[i] |= s.get(st, bit) || self.sticky[bit as usize];
+        }
         // The cell exists even on a path that skips its payload's first
         // store. Its Drop/exit owns that allocation until it is released.
         if tag == Tag::Box {
@@ -775,5 +799,101 @@ impl Forward for Walk<'_> {
 
     fn skip(&self, x: u32) -> bool {
         self.t.pending.dead[x as usize]
+    }
+}
+
+#[cfg(test)]
+mod empty_store_tests {
+    use super::*;
+    use crate::ir::{BodyKind, TirBuilder, TirSink};
+    use hd_base::{DefId, SubId, Symbol};
+
+    fn branch_stores(width: u32, depth: usize) -> Body {
+        let at = NodeIdx::from_raw(1);
+        let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        let root = builder.open_block();
+        let local = builder.local(Ty::STRING, Symbol::NONE, 0, at);
+        builder
+            .body_mut()
+            .consts
+            .extend([(Ty::STRING, 0), (Ty::I32, 0), (Ty::BOOL, 1)]);
+        let value = builder.konst(0);
+        let key = builder.konst(1);
+        let condition = builder.konst(2);
+        let mut enclosing = Vec::new();
+        for _ in 0..depth {
+            enclosing.push(builder.open_block());
+        }
+        let mut cases = Vec::new();
+        for k in 0..width {
+            let arm = builder.open_block();
+            builder.set(local, value, at);
+            let arm = builder.close_block(arm, None, Ty::VOID, at);
+            if k + 1 < width {
+                cases.extend([k, arm.0]);
+            } else {
+                cases.push(arm.0);
+            }
+        }
+        let record = u32_of(builder.body_mut().extra.len());
+        builder.body_mut().extra.push(u32_of(cases.len()));
+        builder.body_mut().extra.extend(cases);
+        builder.emit(Tag::SwitchInt, key.0, record, Ty::VOID, at);
+        for block in enclosing.into_iter().rev() {
+            let block = builder.close_block(block, None, Ty::VOID, at);
+            let arms = builder.refs_record(&[block, Ref(NONE)]);
+            builder.emit(Tag::If, condition.0, arms, Ty::VOID, at);
+        }
+        // A store at the join really overwrites whichever leaf ran.
+        builder.set(local, value, at);
+        let root = builder.close_block(root, None, Ty::VOID, at);
+        let mut body = builder.finish(root, &[]).expect("valid generated TIR");
+        body.exit_drops.push((SubId::from_raw(0), local));
+        body
+    }
+
+    fn measure(width: u32, depth: usize) -> usize {
+        let mut body = branch_stores(width, depth);
+        let topo = Topology::new(&body);
+        let mut tables = Tables::default();
+        let mut edits = splice::Tables::default();
+        let ((), work) = super::super::flow::work::measure(|| {
+            run(
+                &mut body,
+                &topo,
+                &super::super::tests::Cx,
+                &mut tables,
+                &mut edits,
+            );
+            assert_eq!(tables.empty_stores.len(), width as usize);
+            splice::apply(&mut body, &topo, &mut edits).expect("splice");
+            edits.remap(&mut tables.empty_stores);
+            let topo = Topology::new(&body);
+            edits.clear();
+            super::super::overwrites::plan(
+                &mut body,
+                &super::super::tests::Cx,
+                &topo,
+                &tables.empty_stores,
+                &mut edits,
+            );
+            splice::apply(&mut body, &topo, &mut edits).expect("releases");
+        });
+        assert_eq!(
+            body.tags.iter().filter(|&&tag| tag == Tag::Release).count(),
+            1
+        );
+        work
+    }
+
+    #[test]
+    fn disjoint_store_proofs_reuse_one_walk_at_width_one_thousand_and_depth_twenty() {
+        let shallow = (measure(100, 1), measure(1_000, 1));
+        let deep = (measure(100, 20), measure(1_000, 20));
+        eprintln!("empty-store work: shallow {shallow:?}, deep {deep:?}");
+        for (small, large) in [shallow, deep] {
+            assert!(small > 0 && large <= small * 12, "{small} -> {large}");
+        }
+        assert!(deep.0 <= shallow.0 * 2 && deep.1 <= shallow.1 * 2);
     }
 }

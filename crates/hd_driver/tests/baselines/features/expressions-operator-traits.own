@@ -111,19 +111,19 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   local $6 $end: usize [assigned] value
 >     uses $6: %6 -> %9 lend
 >   local $7 item: T [read assigned] value
->     uses $7: %25 -> %18 consume last
->   %0 = Retain %43 Entry local $1 #0 : ()
+>     uses $7: %24 -> %18 consume last
+>   %0 = Retain %42 Entry local $1 #0 : ()
     let total = zero
 >   %1 = Read move [$1] : T
 >   %2 = Intrinsic Empty [] : ()
 >   %3 = Store [$2] %1 : ()
->   %37 = Drop [$1] : ()
->   %38 = Intrinsic ParamOwned [0:i32] : bool
->   %39 = Drop [$0] : ()
->   %40 = Block - : ()
->   %41 = If %38 [%40 -] : ()
->   %42 = Release %43 Exit local $0 #2 : ()
->   %43 = Block %35 : T
+>   %36 = Drop [$1] : ()
+>   %37 = Intrinsic ParamOwned [0:i32] : bool
+>   %38 = Drop [$0] : ()
+>   %39 = Block - : ()
+>   %40 = If %37 [%39 -] : ()
+>   %41 = Release %42 Exit local $0 #2 : ()
+>   %42 = Block %34 : T
     for item in items:
 >   %4 = Read borrow [$0] : List[T]
 >   %5 = Intrinsic ListLen [%4] : usize
@@ -137,17 +137,17 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %13 = Read copy [$5] : usize
 >   %14 = Prim Add [%13 1:usize] : usize
 >   %15 = Store [$5] %14 : ()
->   %23 = Block - : ()
->   %24 = Read borrow [%12] : T
->   %25 = Store [$7] %24 : ()
->   %27 = Block - : never
->   %28 = Match %12 [%27 %23] : ()
->   %29 = Block - : ()
->   %30 = Break L0 - : never
->   %31 = Block - : ()
->   %32 = If %10 [%29 %31] : ()
->   %33 = Block - : ()
->   %34 = Loop %33 - : ()
+>   %22 = Block - : ()
+>   %23 = Read borrow [%12] : T
+>   %24 = Store [$7] %23 : ()
+>   %26 = Block - : never
+>   %27 = Match %12 [%26 %22] : ()
+>   %28 = Block - : ()
+>   %29 = Break L0 - : never
+>   %30 = Block - : ()
+>   %31 = If %10 [%28 %30] : ()
+>   %32 = Block - : ()
+>   %33 = Loop %32 - : ()
         total = total + item
 >   %16 = Read move [$2] : T
 >   %17 = Intrinsic Empty [] : ()
@@ -155,13 +155,12 @@ fn sum[T < Add[Out = T]](items: List[T], zero: T) -> T:
 >   %19 = Retain %18 Value #0 : ()
 >   %20 = Call std/ops/Add.add for T [T] via Bound (%16, %18) : T
 >   %21 = Store [$2] %20 : ()
->   %22 = Release %21 Operation #3 : ()
     total
->   %35 = Read move [$2] : T
->   %36 = Intrinsic Empty [] : ()
+>   %34 = Read move [$2] : T
+>   %35 = Intrinsic Empty [] : ()
 >   exit sub 0 drops [$1]
 >   summary kept [$1] borrows [$0] writes
->   loop %34 keeps len [$0] (-..-)
+>   loop %33 keeps len [$0] (-..-)
 
 fn sum_strings(xs: List[string]) -> string:
     sum(xs, "")
