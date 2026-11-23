@@ -1,0 +1,8 @@
+use pkg.shop.catalog.{base_price}
+use pkg.log.{record}
+
+let markup = +5
+record("prices")
+
+pub fn price_of(sku: string) -> i32:
+    base_price(sku) + markup

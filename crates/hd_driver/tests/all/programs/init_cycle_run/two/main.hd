@@ -1,0 +1,7 @@
+use pkg.shop.catalog.{featured_price}
+use pkg.log.{recorded}
+
+pub fn main() -> void $ Console:
+    println(featured_price())
+    for line in recorded():
+        println(line)

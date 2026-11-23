@@ -1,0 +1,11 @@
+use pkg.zed.{zed_value}
+
+println("main first")
+let m = zed_value() + 1
+println("main m ${m}")
+
+pub fn seed() -> i32:
+    +10
+
+pub fn main_value() -> i32:
+    m

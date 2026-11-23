@@ -1,0 +1,11 @@
+use pkg.shop.prices.{price_of}
+use pkg.log.{record}
+
+let featured = price_of("tea")
+record("catalog ${featured}")
+
+pub fn base_price(sku: string) -> i32:
+    if sku == "tea": 10 else: 20
+
+pub fn featured_price() -> i32:
+    featured
