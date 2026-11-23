@@ -164,7 +164,12 @@ fn bounded(test: &str, expected_error: &[u8], body: impl FnOnce()) {
     }
     let mut child = ChildGuard(
         Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", test, "--nocapture", "--quiet"])
+            .args([
+                "--exact",
+                &format!("time_limits::{test}"),
+                "--nocapture",
+                "--quiet",
+            ])
             .env(CHILD, "1")
             // Keep the write end open and empty until the child exits. An EOF
             // would make the ConsoleInput test finish without exercising a wait.
