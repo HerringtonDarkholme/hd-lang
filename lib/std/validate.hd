@@ -933,7 +933,7 @@ pub fn range[F < PartialOrd](low: F, high: F, message: string? = .None) -> Range
     Range::[F] { low: low, high: high, message: message }
 
 ## An inclusive lower bound.
-pub fn min[F < PartialOrd](bound: F, message: string? = .None) -> Min[F]:
+pub fn at_least[F < PartialOrd](bound: F, message: string? = .None) -> Min[F]:
     Min::[F] { bound: bound, message: message }
 
 ## An inclusive upper bound.

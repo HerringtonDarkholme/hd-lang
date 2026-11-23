@@ -95,7 +95,7 @@ pub fn main!() -> Result[void, FsError] $ Console + FsRead + FsWrite:
 
 `Timestamp` is a point in UTC time, `Duration` a length of time, and
 `Instant` a reading for measuring intervals. Duration literals use the
-suffixes `ms`, `s`, `min`, `h`, imported from `std.time`.
+units `ms`, `s`, `min`, `h`; ordinary calls import `ms`, `s`, `minutes`, `h` from `std.time`.
 
 ```hd
 use std.time.{Clock, Timestamp, elapsed, monotonic, ms, now, s, sleep}
