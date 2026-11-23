@@ -96,7 +96,7 @@ pub(crate) fn root_facts(b: &Body, topo: &Topology, i: usize) -> InitFacts {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Reach {
     /// Each such binding by path hash: 1 when it is reassignable, 2 when
-    /// its type is not `Send`.
+    /// its type is not `Send` and `Sync`.
     pub bad: Vec<(Hash128, u8)>,
     /// Each body that reads a binding or calls a body of the package: its
     /// path hash, those bindings and those callees; and each dispatch key
@@ -137,7 +137,9 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
                 .is_some_and(|(module, _)| hd_resolve::runtime_module(module))
         })
         .map(|g| {
-            let send = send_trait == DefId::NONE || hd_types::may_send(pool, &decls, g.ty);
+            // `fn.crossing.global.send`: shared by every thread, so `Sync`.
+            let sync = cx.names.known.sync != DefId::NONE;
+            let send = send_trait == DefId::NONE || hd_types::may_send(pool, &decls, g.ty, sync);
             (hash(g.def), u8::from(!g.short) | (u8::from(!send) << 1))
         })
         .filter(|&(_, v)| v != 0)
@@ -211,7 +213,8 @@ pub fn summary(cx: &BodyCx<'_>) -> Reach {
 
 /// Reports each crossing closure of the joined `parts` that reaches a
 /// reassignable top-level binding of the package, or, for `Send`, one
-/// whose type is not `Send`, directly or through calls across modules.
+/// whose type is not `Send` and `Sync`, directly or through calls across
+/// modules.
 /// Each body's verdict is pushed to its callers once per new bit.
 /// Cost: nothing past the parts when no part has a crossing closure;
 /// else the parts' bindings, bodies and call edges once.
@@ -260,7 +263,7 @@ pub fn join(parts: &[&Reach], diags: &mut DiagBuf) {
         let msg = if v & 1 != 0 {
             "this crossing closure reaches a top-level `let` binding, directly or through a callee; another domain would change only its own copy, so bind it with `:=` or pass the value in"
         } else {
-            "this crossing closure reaches a top-level binding whose type is not `Send`, directly or through a callee; another thread must not share it"
+            "this crossing closure reaches a top-level binding whose type is not `Send` and `Sync`, directly or through a callee; another thread must not share it"
         };
         diags.error(Code::CrossingTopLevelBinding, r.span, msg);
     }

@@ -10,7 +10,7 @@
 
 use hd_base::{DefId, HashMap, InferVar};
 
-use crate::pool::{ParamRef, Ty, TyData, TyList, Types};
+use crate::pool::{ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::solver::{BuiltinImpl, FailReason};
 
 /// The sealed traits the rows answer, by `DefId` (`DefId::NONE` for one
@@ -45,9 +45,11 @@ pub struct SealedTraits {
     /// `Marker` (`module.marker.definition`): a trait that names it as a
     /// supertrait is a marker, which the structural walk answers.
     pub marker: DefId,
-    /// `Send` and `Wire` (`module.marker.std`), answered from the type's
-    /// parts (`module.marker.structural`).
+    /// `Send`, `Sync` and `Wire` (`module.marker.std`,
+    /// `module.marker.sync`), answered from the type's parts
+    /// (`module.marker.structural`).
     pub send: DefId,
+    pub sync: DefId,
     pub wire: DefId,
     /// `Remote` (`module.remote.std`): a counted trait value of a trait
     /// that extends it is `Wire` (`module.marker.table.remote`).
@@ -73,6 +75,7 @@ impl Default for SealedTraits {
             suspend: DefId::NONE,
             marker: DefId::NONE,
             send: DefId::NONE,
+            sync: DefId::NONE,
             wire: DefId::NONE,
             remote: DefId::NONE,
         }
@@ -89,7 +92,7 @@ impl SealedTraits {
     /// The traits a row of this module answers goals on
     /// ([`Self::supplies`]); `DefId::NONE` for one std does not declare.
     #[must_use]
-    pub fn supplied(&self) -> [DefId; 15] {
+    pub fn supplied(&self) -> [DefId; 16] {
         [
             self.any,
             self.any_val,
@@ -103,6 +106,7 @@ impl SealedTraits {
             self.static_bound,
             self.copy,
             self.send,
+            self.sync,
             self.wire,
             self.marker,
             self.remote,
@@ -182,9 +186,12 @@ pub enum CopyDecl {
 
 /// A row's answer: it holds when every subgoal does (each on the same
 /// trait, one level deeper), or it fails, or it waits for inference.
+/// `Send`'s row also has subgoals on `Sync`: a shared reference is `Send`
+/// when its referent is `Send` and `Sync` (`module.marker.table.shared-sync`).
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Row {
     Holds(BuiltinImpl, Vec<Ty>),
+    HoldsWithSync(BuiltinImpl, Vec<Ty>, Vec<Ty>),
     Fails(FailReason),
     Stalled(InferVar),
 }
@@ -284,21 +291,29 @@ pub(crate) fn row(
         }
         let mut subs = Vec::new();
         return Some(
-            if copy_parts(pool, decls, Walk::Copy, self_ty, &mut subs, copies, &|_| {
-                false
-            }) {
+            if copy_parts(
+                pool,
+                decls,
+                Walk::Copy,
+                self_ty,
+                (&mut subs, &mut Vec::new()),
+                copies,
+                &|_| false,
+            ) {
                 Row::Holds(BuiltinImpl::Copy, subs)
             } else {
                 Row::Fails(FailReason::NoImpl)
             },
         );
     }
-    if trait_ == s.send || trait_ == s.wire {
+    if trait_ == s.send || trait_ == s.sync || trait_ == s.wire {
         if matches!(t, TyData::Param(_)) {
             return Some(Row::Fails(FailReason::NoImpl));
         }
         let walk = if trait_ == s.send {
             Walk::Send
+        } else if trait_ == s.sync {
+            Walk::Sync
         } else {
             Walk::Wire
         };
@@ -424,6 +439,7 @@ pub(crate) type CopyMemo = HashMap<(Walk, Ty), Option<TyList>>;
 pub(crate) enum Walk {
     Copy,
     Send,
+    Sync,
     Wire,
     Library(DefId),
 }
@@ -439,9 +455,21 @@ pub(crate) fn marker_row(
     memo: &mut CopyMemo,
     explicit: &dyn Fn(Ty) -> bool,
 ) -> Row {
-    let mut subs = Vec::new();
-    if copy_parts(pool, decls, walk, self_ty, &mut subs, memo, explicit) {
-        Row::Holds(BuiltinImpl::Marker, subs)
+    let (mut subs, mut syncs) = (Vec::new(), Vec::new());
+    if copy_parts(
+        pool,
+        decls,
+        walk,
+        self_ty,
+        (&mut subs, &mut syncs),
+        memo,
+        explicit,
+    ) {
+        if syncs.is_empty() {
+            Row::Holds(BuiltinImpl::Marker, subs)
+        } else {
+            Row::HoldsWithSync(BuiltinImpl::Marker, subs, syncs)
+        }
     } else {
         Row::Fails(FailReason::NoImpl)
     }
@@ -459,17 +487,15 @@ fn marker_leaf(
 ) -> bool {
     let s = decls.sealed();
     match *data {
+        // A string holds a counted buffer (`module.marker.sync.leaf`).
+        TyData::Prim(Prim::String) if walk == Walk::Sync => false,
         TyData::Prim(_) | TyData::Never | TyData::Poison => !matches!(walk, Walk::Library(_)),
-        // `&T` is `Send` when `T` is (`module.marker.table.shared-sync`,
-        // whose `Sync` test is #2288's next slice); a remote reference is
-        // `Wire` (`module.marker.table.remote`).
-        TyData::Ref {
-            mutable,
-            counted,
-            inner,
-            ..
-        } => match walk {
-            Walk::Send if !mutable && !counted => {
+        // `&T` and `&mut T` are `Sync` when `T` is
+        // (`module.marker.sync.refs`); [`copy_parts`] asks a shared
+        // reference's `Send`; a remote reference is `Wire`
+        // (`module.marker.table.remote`).
+        TyData::Ref { counted, inner, .. } => match walk {
+            Walk::Sync if !counted => {
                 stack.push(inner);
                 true
             }
@@ -545,7 +571,7 @@ fn copy_parts(
     decls: &dyn Declarations,
     walk: Walk,
     root: Ty,
-    subs: &mut Vec<Ty>,
+    (subs, syncs): (&mut Vec<Ty>, &mut Vec<Ty>),
     memo: &mut CopyMemo,
     explicit: &dyn Fn(Ty) -> bool,
 ) -> bool {
@@ -588,6 +614,7 @@ fn copy_parts(
         left
     }
     let start = subs.len();
+    let synced = syncs.len();
     let mut stack: Vec<Step> = vec![Step::Enter(root)];
     // What each entered node leaves. A node on the open path reads
     // `Unknown` until it closes, so a cycle back to it is not kept. A
@@ -695,6 +722,11 @@ fn copy_parts(
                 // any other built-in crosses nowhere.
                 CopyDecl::Copies if walk != Walk::Copy => {
                     let s = decls.sealed();
+                    // A list or map holds a counted buffer
+                    // (`module.marker.sync.leaf`).
+                    if walk == Walk::Sync && (def == s.list || def == s.map) {
+                        return fails(memo, walk, root);
+                    }
                     if def == s.list || def == s.map {
                         let argv = pool.list_items(args);
                         stack.extend(argv.iter().rev().map(|&a| Step::Enter(a)));
@@ -725,6 +757,32 @@ fn copy_parts(
             }
             TyData::Param(_) | TyData::Infer(_) => {}
             _ if walk == Walk::Copy => {}
+            // A shared reference is `Send` when its referent is `Sync` as
+            // well (`module.marker.table.shared-sync`): that walk's own,
+            // whose parameters are left as `Sync` subgoals. Its memo
+            // keeps the referent's answer, so each referent is walked once.
+            TyData::Ref {
+                mutable: false,
+                counted: false,
+                inner,
+                ..
+            } if walk == Walk::Send => {
+                let mut left = Vec::new();
+                let sync = copy_parts(
+                    pool,
+                    decls,
+                    Walk::Sync,
+                    inner,
+                    (&mut left, &mut Vec::new()),
+                    memo,
+                    &|_| false,
+                );
+                if !sync {
+                    return fails(memo, walk, root);
+                }
+                syncs.extend(left);
+                stack.push(Step::Enter(inner));
+            }
             // A marker judges every other node by its leaf rule.
             _ => {
                 let mut parts = Vec::new();
@@ -734,6 +792,11 @@ fn copy_parts(
                 stack.extend(parts.into_iter().map(Step::Enter));
             }
         }
+    }
+    // A walk that left `Sync` subgoals keeps no answer: the memo holds
+    // a node's subgoals on its own trait alone.
+    if syncs.len() != synced {
+        return true;
     }
     for t in closed {
         memo.insert((walk, t), Some(TyList::EMPTY));
@@ -770,26 +833,23 @@ pub fn may_copy(pool: Types<'_>, decls: &dyn Declarations, identity: Ty) -> bool
         decls,
         Walk::Copy,
         identity,
-        &mut Vec::new(),
+        (&mut Vec::new(), &mut Vec::new()),
         &mut CopyMemo::default(),
         &|_| false,
     )
 }
 
-/// Whether `t` may be `Send` (`module.marker.structural`): the `Send`
-/// walk, which leaves each parameter for an environment and judges none.
-/// Cost: the type's distinct nodes.
+/// Whether `t` may be `Send` (`module.marker.structural`), or with
+/// `sync`, `Send` and `Sync`: the walks, which leave each parameter for an
+/// environment and judge none. Cost: the type's distinct nodes.
 #[must_use]
-pub fn may_send(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> bool {
-    copy_parts(
-        pool,
-        decls,
-        Walk::Send,
-        t,
-        &mut Vec::new(),
-        &mut CopyMemo::default(),
-        &|_| false,
-    )
+pub fn may_send(pool: Types<'_>, decls: &dyn Declarations, t: Ty, sync: bool) -> bool {
+    let mut memo = CopyMemo::default();
+    let walk = |w, memo: &mut CopyMemo| {
+        let parts = (&mut Vec::new(), &mut Vec::new());
+        copy_parts(pool, decls, w, t, parts, memo, &|_| false)
+    };
+    walk(Walk::Send, &mut memo) && (!sync || walk(Walk::Sync, &mut memo))
 }
 
 /// [`copy_parts`]'s answer for a type with a part that does not copy:
