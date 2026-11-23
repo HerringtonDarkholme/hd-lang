@@ -481,7 +481,10 @@ mod tests {
         use hd_base::{FileId, Span};
         use hd_project::MemorySources;
         let mut sources = MemorySources::default();
-        sources.insert("param.hd", "pub fn main() -> void:\n    pass\n");
+        sources.insert(
+            "param.hd",
+            include_str!("tests/programs/diagnostics/param.hd"),
+        );
         let store = crate::warm_std_store();
         let host = crate::Host {
             render_tir: &[],
