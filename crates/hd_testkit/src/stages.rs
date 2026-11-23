@@ -1532,10 +1532,7 @@ mod tests {
     /// may write builds (#2324); the ordinary build refuses it.
     #[test]
     fn a_std_build_links_the_case_in_the_std_package() {
-        let case = Program::new(
-            "use std.rt.memory.size_of\n\npub fn main() -> void $ Console:\n    println(size_of::[u64]())\n",
-        )
-        .expect("case");
+        let case = Program::new(include_str!("stages/programs/std_only_use.hd")).expect("case");
         let ordinary = Build::default();
         let std = Build {
             std: true,
