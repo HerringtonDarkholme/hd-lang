@@ -551,13 +551,13 @@ impl<'a> StructureDecl<'a> {
     }
 }
 
-/// Arguments extracted from a selected ADT, checked before member generation.
+/// Arguments of a selected nominal declaration, checked before member generation.
 struct AdtArgs(TyList);
 
 impl AdtArgs {
     fn new(ty: &TyData) -> StageResult<Self> {
         match ty {
-            TyData::Adt(_, args) => Ok(Self(*args)),
+            TyData::Adt(AdtId::Declared(def), args) if def.get().is_some() => Ok(Self(*args)),
             _ => Err(invalid_structure_input()),
         }
     }
@@ -1092,8 +1092,21 @@ mod structure_input_tests {
                 args,
             ));
             assert_eq!(AdtArgs::new(&pool.get(ty)).expect("ADT arguments").0, args);
-            for other in [Ty::I32, Ty::VOID, Ty::POISON] {
-                internal_error(&AdtArgs::new(&pool.get(other)).err().expect("non-ADT"));
+            let rest = pool.applied(ck.cx.names.known.list, Ty::I32);
+            for other in [
+                Ty::I32,
+                Ty::VOID,
+                Ty::POISON,
+                pool.intern_ty(&TyData::sum(args)),
+                pool.product(args, None),
+                pool.product(args, Some(rest)),
+                pool.intern_ty(&TyData::Adt(hd_types::AdtId::Declared(DefId::NONE), args)),
+            ] {
+                internal_error(
+                    &AdtArgs::new(&pool.get(other))
+                        .err()
+                        .expect("non-nominal ADT"),
+                );
             }
         });
     }

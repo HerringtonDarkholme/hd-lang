@@ -211,6 +211,7 @@ enum UnifyWork {
     Pair(Ty, Ty, Option<(Ty, Ty, bool)>),
     Join(Ty, Ty, Option<(Ty, Ty, bool)>),
     Done((Ty, Ty, bool)),
+    Mismatch(Ty, Ty),
     List(crate::TyList, crate::TyList, Ty, Ty),
     FunctionRows(crate::RowId, crate::RowId, Ty, Ty),
     ContextDone(crate::RowId, crate::RowId, Ty, Ty),
@@ -642,7 +643,7 @@ impl InferTable {
     fn unify_in(&mut self, pool: Types<'_>, a: Ty, b: Ty, join: bool) -> Result<(), UnifyError> {
         enum Shape {
             Reference(Ty, Ty),
-            Product(crate::TyList, crate::TyList),
+            Product,
         }
         let (a, b) = (self.shallow(pool, a), self.shallow(pool, b));
         if a == b {
@@ -680,9 +681,9 @@ impl InferTable {
                                     Some(Shape::Reference(x, y))
                                 }
                                 (
-                                    TyData::Adt(AdtId::Product { rest: xr }, x),
-                                    TyData::Adt(AdtId::Product { rest: yr }, y),
-                                ) if xr == yr => Some(Shape::Product(x, y)),
+                                    TyData::Adt(AdtId::Product { .. }, _),
+                                    TyData::Adt(AdtId::Product { .. }, _),
+                                ) => Some(Shape::Product),
                                 _ => None,
                             }
                         } else {
@@ -702,26 +703,39 @@ impl InferTable {
                                 stack.push(UnifyWork::Pair(x, y, Some(pair)));
                                 Ok(())
                             }
-                            Some(Shape::Product(x, y)) => {
-                                let (x, y) = (pool.list_items(x), pool.list_items(y));
-                                if x.len() == y.len() {
-                                    stack.extend(
-                                        x.iter()
-                                            .zip(y)
-                                            .rev()
-                                            .map(|(&x, &y)| UnifyWork::Join(x, y, Some(pair))),
-                                    );
-                                    Ok(())
-                                } else {
-                                    Err(UnifyError::Mismatch {
+                            Some(Shape::Product) => {
+                                match (pool.product_parts(a), pool.product_parts(b)) {
+                                    (Some((left, left_rest)), Some((right, right_rest)))
+                                        if left.len() == right.len() =>
+                                    {
+                                        // Fixed members bind before a rest-presence mismatch.
+                                        match (left_rest, right_rest) {
+                                            (Some(x), Some(y)) => {
+                                                stack.push(UnifyWork::Join(x, y, Some(pair)));
+                                            }
+                                            (None, None) => {}
+                                            _ => stack.push(UnifyWork::Mismatch(a, b)),
+                                        }
+                                        stack.extend(
+                                            left.iter()
+                                                .zip(right)
+                                                .rev()
+                                                .map(|(&x, &y)| UnifyWork::Join(x, y, Some(pair))),
+                                        );
+                                        Ok(())
+                                    }
+                                    _ => Err(UnifyError::Mismatch {
                                         expected: a,
                                         found: b,
-                                    })
+                                    }),
                                 }
                             }
                             None => self.unify_step(pool, a, b, stack),
                         }
                     }
+                }
+                UnifyWork::Mismatch(expected, found) => {
+                    Err(UnifyError::Mismatch { expected, found })
                 }
                 UnifyWork::Done(pair) => {
                     // A row read earlier in this match may have changed

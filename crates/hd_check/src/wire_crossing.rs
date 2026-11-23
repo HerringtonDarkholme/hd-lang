@@ -43,10 +43,7 @@ impl Ck<'_, '_> {
         let syn = n.index();
         let caps = self.b.open_captures(m);
         let tys: Vec<Ty> = caps.iter().map(|&l| self.b.local_ty(l)).collect();
-        let tuple_ty = pool.intern_ty(&TyData::Tuple {
-            elems: pool.list(&tys),
-            rest: None,
-        });
+        let tuple_ty = pool.product(pool.list(&tys), None);
         let p = self.wire_local(tuple_ty, "$captures", local_flags::PARAM, syn);
         self.b.lift_captures(m, from, &caps, p);
         let reads: Vec<Ref> = (caps.iter().zip(&tys))
