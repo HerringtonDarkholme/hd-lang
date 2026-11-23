@@ -1,5 +1,5 @@
 # test: a Set keeps distinct elements in a deterministic order; insert and remove report a change
-# Spec std/collections Set: std-collections.set.decl, .distinct, .len, .contains, .insert, .remove, .iter, and .eq.
+# Spec std/collections Set: std-collections.set.operation-surface, .distinct, .len, .contains, .insert, .remove, .iter, and .eq.
 use std.collections.Set
 fn unique(words: List[string]) -> List[string]:
     let mut seen: Set[string] = Set::new()

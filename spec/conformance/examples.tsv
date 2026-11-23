@@ -1048,6 +1048,7 @@ std/collections.md	17	complete	std/collections/heap/heap-order.hd|std/collection
 std/collections.md	18	complete	std/collections/list-access-and-building/list-access-building.hd
 std/collections.md	19	complete	std/collections/map-methods/collection-in-place-element-accessors.hd
 std/collections.md	20	complete	std/collections/map-insertion-and-clearing/map-insert-clear.hd
+std/collections.md	21	complete	std/collections/set-operations/set-operations.hd
 std/console.md	1	complete	std/console/printing-without-a-newline/console-raw-writes.hd
 std/console.md	2	complete	std/console/standard-error/eprintln-error-line.hd
 std/console.md	3	mixed	std/console/standard-error/eprintln-without-console.hd
