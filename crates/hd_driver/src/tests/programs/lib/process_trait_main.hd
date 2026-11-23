@@ -1,0 +1,5 @@
+@host
+pub trait Process:
+    fn read(&self) -> string
+pub fn main() -> void $ Process:
+    pass

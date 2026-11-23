@@ -1,0 +1,7 @@
+@host
+pub trait `type`:
+    fn read(&self) -> string
+
+@host
+pub trait Σurface:
+    fn read(&self) -> string

@@ -1,0 +1,2 @@
+use std.time.Clock
+_ := $.use(Clock)
