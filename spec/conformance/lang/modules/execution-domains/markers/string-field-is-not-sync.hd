@@ -1,0 +1,12 @@
+# test: a struct with a string field is not Sync, since the string holds a counted buffer
+# Spec 10 Markers: module.marker.sync.leaf, module.marker.sync.structural.
+use std.marker.Sync
+
+struct Named:
+    name: string
+
+fn read_at_once[T < ?Copy & Sync](value: T) -> void:
+    pass
+
+fn demo(n: Named) -> void:
+    read_at_once(n) # diagnostic: unsatisfied-trait-bound

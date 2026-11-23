@@ -6893,8 +6893,12 @@ lang/modules/execution-domains/markers/wire-implementation-is-sealed.hd	type	rej
 lang/modules/execution-domains/markers/send-implementation-is-sealed.hd	type	reject:sealed-trait-implementation	lang/09-traits.md#r-trait.sealed.send
 lang/modules/execution-domains/markers/box-field-is-not-wire.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.table.counted
 lang/modules/execution-domains/markers/box-field-is-not-send.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.table.counted
-lang/modules/execution-domains/markers/shared-reference-is-send.hd	type	accept	lang/10-modules.md#r-module.marker.table.shared
-lang/modules/execution-domains/markers/shared-reference-is-not-wire.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.table.shared
+lang/modules/execution-domains/markers/shared-reference-is-send.hd	type	accept	lang/10-modules.md#r-module.marker.table.shared-sync
+lang/modules/execution-domains/markers/shared-reference-is-not-wire.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.table.shared-sync
+lang/modules/execution-domains/markers/shared-reference-to-a-counted-buffer-is-not-send.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.table.shared-sync
+lang/modules/execution-domains/markers/sync-holds-without-counted-buffers.hd	type	accept	lang/10-modules.md#r-module.marker.sync.structural
+lang/modules/execution-domains/markers/string-field-is-not-sync.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.sync.leaf
+lang/modules/execution-domains/markers/counted-reference-is-not-sync.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.sync.refs
 lang/modules/execution-domains/markers/writable-reference-is-not-send.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.table.writable
 lang/modules/execution-domains/markers/type-parameter-needs-marker-bound.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.marker.parameter
 lang/modules/execution-domains/markers/library-marker-explicit-implementation.hd	type	accept	lang/10-modules.md#r-module.marker.explicit

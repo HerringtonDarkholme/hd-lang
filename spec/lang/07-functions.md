@@ -1116,8 +1116,9 @@ the closure. The mode is never written:
 3. r[fn.crossing.mode.move] A capture whose type is not `Copy` moves into the closure, and its source binding ends there. A later use of that binding is an error. Error: `use-of-moved-value`.
 4. r[fn.crossing.mode.lend] A captured `&T` is lent as a [frozen loan](13-values-and-references.md#frozen-loans).
 5. r[fn.crossing.mode.apart] So a later write by the caller never reaches the closure, and the closure's changes never reach the caller.
-6. r[fn.crossing.no-write] A crossing closure that assigns a captured binding, or changes one in place, is an error. Error: `crossing-capture-written`.
-7. r[fn.crossing.move-out] A crossing closure runs at most once, so it may move a capture out, unlike [`ref.move.out-of-place.capture`](13-values-and-references.md#r-ref.move.out-of-place.capture).
+6. r[fn.crossing.mode.unique] A closure that crosses a `Send` crossing makes each counted buffer its captures hold unique as it crosses: a buffer whose count is above 1 is copied, and the buffers inside it in turn. So the other thread owns all it got, and a unique buffer crosses as it is.
+7. r[fn.crossing.no-write] A crossing closure that assigns a captured binding, or changes one in place, is an error. Error: `crossing-capture-written`.
+8. r[fn.crossing.move-out] A crossing closure runs at most once, so it may move a capture out, unlike [`ref.move.out-of-place.capture`](13-values-and-references.md#r-ref.move.out-of-place.capture).
 
 ### Only The Literal Crosses
 

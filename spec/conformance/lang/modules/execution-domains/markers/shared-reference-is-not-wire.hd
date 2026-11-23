@@ -1,5 +1,5 @@
 # test: a shared local reference is not Wire, since separate memory gets only a copy
-# Spec 10 Markers: module.marker.table.shared.
+# Spec 10 Markers: module.marker.table.shared-sync.
 use std.marker.Wire
 
 struct Point:

@@ -1,0 +1,12 @@
+# test: a counted reference is not Sync, even to a type that is
+# Spec 10 Markers: module.marker.sync.refs.
+use std.marker.Sync
+
+struct Point:
+    x: i32
+
+fn read_at_once[T < ?Copy & Sync](value: T) -> void:
+    pass
+
+fn demo(p: *Point) -> void:
+    read_at_once(p) # diagnostic: unsatisfied-trait-bound

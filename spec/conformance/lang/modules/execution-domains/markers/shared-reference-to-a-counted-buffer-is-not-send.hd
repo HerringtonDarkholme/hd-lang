@@ -1,0 +1,12 @@
+# test: a shared local reference to a type that holds a counted buffer is not Send
+# Spec 10 Markers: module.marker.table.shared-sync, module.marker.sync.leaf.
+use std.marker.Send
+
+struct Named:
+    name: string
+
+fn share[T < Send](value: T) -> void:
+    pass
+
+fn demo(n: &Named) -> void:
+    share(n) # diagnostic: unsatisfied-trait-bound

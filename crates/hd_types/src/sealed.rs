@@ -460,8 +460,9 @@ fn marker_leaf(
     let s = decls.sealed();
     match *data {
         TyData::Prim(_) | TyData::Never | TyData::Poison => !matches!(walk, Walk::Library(_)),
-        // `&T` is `Send` when `T` is (`module.marker.table.shared`); a
-        // remote reference is `Wire` (`module.marker.table.remote`).
+        // `&T` is `Send` when `T` is (`module.marker.table.shared-sync`,
+        // whose `Sync` test is #2288's next slice); a remote reference is
+        // `Wire` (`module.marker.table.remote`).
         TyData::Ref {
             mutable,
             counted,

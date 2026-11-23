@@ -649,7 +649,7 @@ at once has the same race through any copy out of it. Rust rules this out
 with `Sync`: `&T` is `Send` only when `T: Sync`, and `Rc` is not
 `Sync`. hd's counted buffers behave like `Rc`. Two places hit it:
 
-- A frozen loan: `module.marker.table.shared` makes `&T` `Send` when `T`
+- A frozen loan: the old shared-reference row made `&T` `Send` when `T`
   is. A closure on another thread that copies a `string` out of a lent
   `List[string]` retains its buffer, while the lending thread may retain
   or release the same buffer.
@@ -666,6 +666,16 @@ Reading: S1. It is the rule that holds when counts are never atomic, and
 it changes the Why of Markers in chapter 10 ("hd needs no `Sync`"). This
 needs the owner, since it narrows a stage 0 rule. With it, stage 6 is
 +2,450.
+
+Decided (owner, 2026-11-22): S1 and option A. Applied in the spec:
+[`module.marker.sync`](../../spec/lang/10-modules.md#r-module.marker.sync)
+and its rules, `&T` in
+[`module.marker.table.shared-sync`](../../spec/lang/10-modules.md#r-module.marker.table.shared-sync),
+counts in
+[`module.marker.send.counts`](../../spec/lang/10-modules.md#r-module.marker.send.counts),
+and option A in
+[`fn.crossing.mode.unique`](../../spec/lang/07-functions.md#r-fn.crossing.mode.unique).
+The threads slices remaining are priced at +1,650.
 
 **Per-run cost.** No compiler pass scales with the program for counts.
 The crossing walk of option A is linear in the shared part of each

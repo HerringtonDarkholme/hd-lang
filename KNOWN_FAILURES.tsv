@@ -1,1 +1,5 @@
 path	issue	engine	reason
+lang/modules/execution-domains/markers/shared-reference-to-a-counted-buffer-is-not-send.hd	#2288		The marker walk still makes a shared reference Send when its referent is Send, without the Sync test.
+lang/modules/execution-domains/markers/sync-holds-without-counted-buffers.hd	#2288		std.marker declares no Sync yet, and the marker walk has no Sync kind.
+lang/modules/execution-domains/markers/string-field-is-not-sync.hd	#2288		std.marker declares no Sync yet, and the marker walk has no Sync kind.
+lang/modules/execution-domains/markers/counted-reference-is-not-sync.hd	#2288		std.marker declares no Sync yet, and the marker walk has no Sync kind.

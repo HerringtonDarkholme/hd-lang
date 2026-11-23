@@ -2738,6 +2738,12 @@ fn demo(p: Point) -> void:
 11. r[module.marker.kind] A marker names a kind of domain, never one domain. Which device or worker holds a value is known only at run time.
 12. r[module.marker.wire] A `Wire` value crosses into separate memory as a self-contained tree, by [`module.boundary.tree`](#r-module.boundary.tree).
 13. r[module.marker.send] A `Send` value may be copied, moved or lent to another thread of the same memory.
+14. r[module.marker.sync] `std.marker` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
+15. r[module.marker.sync.meaning] A `Sync` value holds no counted buffer, so threads that read it at once change no count.
+16. r[module.marker.sync.leaf] Numbers, `bool`, `char` and `never` are `Sync`. `string`, `List`, `Map` and `Set` hold counted buffers and are not `Sync`.
+17. r[module.marker.sync.structural] A struct, enum, tuple, union, optional, `Result` or newtype is `Sync` when every field, payload, member and base type is.
+18. r[module.marker.sync.refs] `&T` and `&mut T` are `Sync` when `T` is. A counted reference, a trait value reference, a provider and a function value are not `Sync`.
+19. r[module.marker.send.counts] Counts are never atomic: a copy or a drop changes a buffer's count with a plain add, on every thread. A value that several threads own at once is held by a standard library type over atomic operations.
 
 `Wire` and `Send` are checked separately, so a value may have one and not
 the other:
@@ -2747,7 +2753,7 @@ the other:
 | r[module.marker.table.scalar] Scalars | numbers, `bool`, `char` and `string` | yes | yes |
 | r[module.marker.table.composite] Composites | the types of rule 5 | when every part is | when every part is |
 | r[module.marker.table.remote] Remote references | `*mut dyn T` with `T < Remote` | yes, as its home, interface, object number and token | no |
-| r[module.marker.table.shared] Shared local references | `&T` | no | when `T` is `Send` |
+| r[module.marker.table.shared-sync] Shared local references | `&T` | no | when `T` is `Send` and `Sync` |
 | r[module.marker.table.writable] Writable local references | `&mut T` | no | no |
 | r[module.marker.table.counted] Counted references | `*T`, `*mut T`, and every other trait value reference | no | no |
 | r[module.marker.table.provider] Providers | a provider value, and a provider context | no | no |
@@ -2775,11 +2781,13 @@ fn demo(h: Holder) -> void:
     post(h)  # error: unsatisfied-trait-bound
 ```
 
-> **Why.** A thread that shares memory may borrow, so `&T` is `Send`; a
-> separate memory gets only a copy, so no reference is `Wire`. A box is
+> **Why.** A thread that shares memory may borrow, so `&T` may be `Send`;
+> a separate memory gets only a copy, so no reference is `Wire`. A box is
 > neither, since its count and loan state are not atomic. A copy would
-> split one object into two. hd needs no `Sync`, since it writes through
-> `&` only via a box.
+> split one object into two. Counts are never atomic, so two threads that
+> read one buffer at once, and copy out of it, race on its count. `Sync`
+> rules that out as Rust's does: `&T` is `Send` only for a `Sync` `T`,
+> one with no counted buffer.
 
 > **Note.** `Wire` is not the host boundary's boundary-safe set
 > ([Boundary-Safe Values](#boundary-safe-values)). A box is boundary-safe
