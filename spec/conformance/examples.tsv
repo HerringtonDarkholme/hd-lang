@@ -1348,3 +1348,4 @@ cli/command-line.md	1	complete	-
 cli/command-line.md	2	fragment	-
 cli/command-line.md	3	fragment	-
 std/iter.md	15	complete	std/iter/double-ended-cursors/roots.hd
+std/num.md	23	complete	std/num/float-math/module-constants.hd|std/num/float-math/full-range-trig.hd|std/num/float-math/exp-ln-power.hd

@@ -1,0 +1,7 @@
+# @dump: wat
+# @build: std release
+# @helper: std/num/float_two_over_pi
+# expected: the 66-limb immutable lookup uses 264 static ASCII bytes;
+# decoding reads four bytes, with no heap list or allocation helper.
+fn sine(value: f64) -> f64:
+    value.sin()
