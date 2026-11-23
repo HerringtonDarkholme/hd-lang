@@ -553,23 +553,20 @@ jobs:
   # The wasmtime host and disk cache depend on OS behavior (process
   # groups, Job objects, pipes and file locks), so their crates are also
   # checked and tested on Windows and macOS. Linux is covered above.
+  #
+  # One job per system, and one feature set, the shipped one (`dist`), so
+  # every crate builds once. Run 45186991942 split Windows in two jobs and
+  # built with three feature sets (`wasmtime` for the CLI, `dist` for its
+  # conformance cases, none for the wasmtime host's tests): 470 s of
+  # Windows' 765 and 263 s of its other job were builds.
   hosts:
-    name: Host crates on ${{ matrix.os }} (${{ matrix.shard }})
+    name: Host crates on ${{ matrix.os }}
     needs: host-scope
     if: needs.host-scope.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
-        # On Windows the CLI conformance cases are half the time, so they
-        # run beside the rest of the host tests. macOS runners are the
-        # scarcest, so macOS runs everything in one job.
-        include:
-          - os: windows-latest
-            shard: cli conformance
-          - os: windows-latest
-            shard: rest
-          - os: macos-latest
-            shard: all
+        os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -583,17 +580,11 @@ jobs:
           node-version-file: package.json
           package-manager-cache: false
 
-      # A cache per shard: they build third-party crates with different features, and
-      # one shared key holds only the features of the shard that saved it first.
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2.9.2
-        with:
-          key: ${{ matrix.shard == 'cli conformance' && 'cli-conformance' || matrix.shard }}
 
       # sccache caches each workspace crate's compiled output, so a run
       # rebuilds only the crates a change touches (and those above them).
-      # rust-cache keeps third-party crates; the workspace's own were left
-      # out of it, so every job rebuilt all of them (7.5 min, 2026-11-23).
       - name: Set up sccache
         uses: mozilla-actions/sccache-action@v0.0.9
 
@@ -611,34 +602,14 @@ jobs:
           fi
 
       - name: Lint host crates
-        if: matrix.shard != 'cli conformance'
-        run: cargo clippy -p hd_run_wasmtime -p hd_command --features hd_command/wasmtime --all-targets -- -D warnings
+        run: cargo clippy -p hd_run_wasmtime -p hd_command --features hd_command/dist --all-targets -- -D warnings
 
-      # --no-fail-fast: one run reports every failing test binary, not just
-      # the first.
-      # Exercise the shipping feature on the optimized profile already cached
-      # by these host tests, without HD_ENGINE masking default selection.
-      - name: Test the shipped CLI conformance cases
-        if: matrix.shard != 'rest'
-        run: cargo test --release --no-fail-fast --features hd_command/dist -p hd_command --test cli_conformance
-
-      # The wasmtime host's process parity tests run the release CLI.
-      - name: Build the CLI
-        if: matrix.shard != 'cli conformance'
-        run: cargo build --release -p hd_command --features hd_command/wasmtime
-
-      # File locks and rejected-query handoff are platform dependent too.
-      - name: Test the disk cache
-        if: matrix.shard != 'cli conformance'
-        run: cargo test --release -p hd_cache --features disk --lib
-
-      - name: Test the wasmtime host
-        if: matrix.shard != 'cli conformance'
-        run: cargo test --release --no-fail-fast -p hd_run_wasmtime
-
-      - name: Test the CLI
-        if: matrix.shard != 'cli conformance'
-        run: cargo test --release --no-fail-fast --features hd_command/wasmtime -p hd_command --lib --test all
+      # The disk cache's file locks and rejected-query handoff, the wasmtime
+      # host (whose process parity tests run the release `hd` this builds),
+      # and the CLI with its conformance cases, in one cargo run.
+      # --no-fail-fast: one run reports every failing test binary.
+      - name: Test
+        run: cargo test --release --no-fail-fast --features hd_command/dist -p hd_cache -p hd_run_wasmtime -p hd_command
 
   # Split from the tests so the longest suite overlaps with the rest. Each
   # mode runs the Build job's conformance binary.
