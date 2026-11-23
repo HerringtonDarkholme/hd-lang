@@ -428,6 +428,7 @@ impl Program {
             instruction_origins: crate::wat::requested(),
             std_leaf: None,
             checked: false,
+            report: false,
             verify_own: false,
             verify_tir: std::env::var_os("HD_VERIFY").is_some(),
             requires: self.requires.clone(),

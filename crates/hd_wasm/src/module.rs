@@ -2328,7 +2328,7 @@ impl Module {
         #[cfg(feature = "checked-report")]
         let mut count_sites = hd_base::wire::Writer::default();
         #[cfg(feature = "checked-report")]
-        if let Some(c) = self.runtime.checked
+        if let Some(c) = self.runtime.report()
             && self.count_audit
         {
             let r = self.runtime;
@@ -2505,7 +2505,7 @@ impl Module {
         // rest of the table is unbounded. A checked build gives each
         // descriptor its own alias slot, which names its allocation kind.
         #[cfg(feature = "checked-report")]
-        let checked = self.runtime.checked.is_some() && self.allocation_kind_reporting;
+        let checked = self.runtime.report().is_some() && self.allocation_kind_reporting;
         #[cfg(not(feature = "checked-report"))]
         let checked = false;
         // The largest glue field value a descriptor word holds.
@@ -3010,7 +3010,7 @@ impl Module {
         }
         exports.export("hd.x", ExportKind::Memory, BUF);
         #[cfg(feature = "checked-report")]
-        if self.runtime.checked.is_some() {
+        if self.runtime.report().is_some() {
             exports.export("hd.heap", ExportKind::Memory, HEAP);
         }
         let mut manifest = previous.cloned().unwrap_or_default();
@@ -3169,7 +3169,7 @@ impl Module {
             module.section(&name_sec);
         }
         #[cfg(feature = "checked-report")]
-        if self.runtime.checked.is_some() {
+        if self.runtime.report().is_some() {
             let mut data = vec![1];
             let mut descriptors: Vec<_> = descriptors.iter().collect();
             descriptors.sort_stable_by(|((a, ka), _), ((b, kb), _)| {
