@@ -1,0 +1,42 @@
+# @dump: stdout own
+# @build: dev | checked | release
+# expected: each `Arc` drops after the call its `get()` reference is passed to; today it drops before, and `run` traps out of bounds (#2327)
+use std.sync.Arc
+
+struct Flat:
+    edges: *mut List[i32]
+
+struct Inner:
+    flat: Flat
+    name: string
+
+struct Outer:
+    inner: Inner
+
+fn run(f: &Flat) -> void $ Console:
+    println("arc ${f.edges.len()}")
+    e := f.edges
+    e.push(8)
+    println("${e.len()}")
+
+fn quiet(f: &Flat) -> usize:
+    n := f.edges.len()
+    e := f.edges
+    e.push(4)
+    n + e.len()
+
+fn nested(o: &Outer) -> void $ Console:
+    println("nested ${o.inner.flat.edges.len()} ${o.inner.name}")
+    e := o.inner.flat.edges
+    e.push(2)
+    println("nested ${e.len()}")
+
+pub fn main() -> void $ Console:
+    a := Arc::new(Flat { edges: box([]) })
+    # subject
+    run(a.get())
+    println("quiet ${quiet(Arc::new(Flat { edges: box([5]) }).get())}")
+    o := Arc::new(Outer { inner: Inner { flat: Flat { edges: box([]) }, name: "in" } })
+    nested(o.get())
+    plain := Flat { edges: box([1]) }
+    run(&plain)
