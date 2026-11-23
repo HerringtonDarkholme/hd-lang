@@ -9,6 +9,12 @@ use std.rt.Drop
 use std.rt.alloc.{alloc, free_block}
 use std.rt.cycle.hold_room
 
+# The address is used only while the original place remains alive. Std uses
+# it for static member IDs and borrowed, stack-resident scalar scratch.
+@intrinsic("mem_ref_address")
+pub fn address_of[T < ?Copy](target: &T) -> usize:
+    panic("intrinsic")
+
 @intrinsic("mem_pages")
 ## The heap's size in pages of 65,536 bytes.
 ## See [module.rt.memory.pages](../../../spec/lang/10-modules.md#r-module.rt.memory.pages).
