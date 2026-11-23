@@ -3,111 +3,75 @@ import test from "node:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { compareCounts, countEntry, countTable, readBaseline, recordCounts } from "./baseline.ts";
+import { compareCounts, countEntry, readCounts, verdict } from "./baseline.ts";
 import { readResult, resultKey, writeResult } from "./results.ts";
 
-test("each program blocks on its own total, with exact full-width counters", () => {
+test("each program is judged on its own total, with exact full-width counters", () => {
   const base = countEntry("hot-loop", [1n << 60n, 4n, 2n]);
   const head = countEntry("hot-loop", [(1n << 60n) + 1000n, 1004n, 2n]);
-  const baseline = recordCounts([base]);
-  assert.equal(compareCounts([head], baseline).length, 1);
+  const cheaper = countEntry("other", [1n, 1n, 0n]);
+  const comparison = compareCounts([head, cheaper], [base, countEntry("other", [5n, 5n, 0n])]);
   assert.equal(head.total, "1152921504606848982");
-  assert.match(countTable([head], baseline), /\+2000/);
+  assert.deepEqual(comparison.increases, [
+    "hot-loop: count operations 1152921504606846982 -> 1152921504606848982 (+2000)",
+  ]);
+  assert.deepEqual(comparison.decreases, ["other: count operations 10 -> 2 (-8)"]);
+  assert.match(comparison.table, /\| \+2000 \|/);
   assert.equal(countEntry("unsigned", [-1n, 0n, 0n]).retained, "18446744073709551615");
-  assert.deepEqual(readBaseline(JSON.stringify(baseline)), baseline);
-  assert.deepEqual(compareCounts([base], baseline), []);
+  assert.deepEqual(compareCounts([base], [base]).increases, []);
 });
-test("raising a limit needs a fresh checked-in reason and the measured total", () => {
-  const base = countEntry("hot-loop", [1n, 1n, 0n]);
-  const head = countEntry("hot-loop", [1001n, 1001n, 0n]);
-  const before = recordCounts([base]);
-  assert.throws(() => recordCounts([head], before), /--reason/);
-  const explained = recordCounts(
-    [head],
-    before,
-    "The loop now returns an additional owned result.",
-  );
-  assert.deepEqual(compareCounts([head], explained, before), []);
-  assert.match(compareCounts([head], recordCounts([head]), before).join("\n"), /explanation/);
-  const increasedAgain = recordCounts(
-    [countEntry("hot-loop", [1002n, 1002n, 0n])],
-    explained,
-    explained.programs[0].reason,
-  );
-  assert.match(
-    compareCounts([countEntry("hot-loop", [1002n, 1002n, 0n])], increasedAgain, explained).join(
-      "\n",
-    ),
-    /new explanation/,
-  );
-  const inflated = recordCounts([countEntry("hot-loop", [9999n, 9999n, 0n])], before, "increased");
-  assert.match(compareCounts([head], inflated, before).join("\n"), /must equal/);
-  assert.match(compareCounts([head], explained, explained).join("\n"), /^$/);
-});
-test("each program blocks on its no-op and skipped calls, with total unchanged", () => {
+
+test("no-op and skipped calls are judged as one sum beside the total", () => {
   const base = countEntry("loop", [5n, 5n, 0n], 100n, 20n);
-  const before = recordCounts([base]);
-  assert.equal(before.programs[0].noOpsAndSkipped, "120");
-  assert.deepEqual(compareCounts([base], before), []);
-  // The two move in opposite directions: only the sum is limited.
-  assert.deepEqual(compareCounts([countEntry("loop", [5n, 5n, 0n], 90n, 30n)], before), []);
+  // The two move in opposite directions: only the sum counts.
+  assert.deepEqual(
+    compareCounts([countEntry("loop", [5n, 5n, 0n], 90n, 30n)], [base]).increases,
+    [],
+  );
   for (const raised of [
     countEntry("loop", [5n, 5n, 0n], 101n, 20n),
-    countEntry("loop", [5n, 5n, 0n], 100n, 21n),
+    countEntry("loop", [1n, 1n, 0n], 100n, 21n),
   ]) {
-    assert.match(compareCounts([raised], before).join("\n"), /no-op and skipped calls 120 -> 121/);
-    assert.throws(() => recordCounts([raised], before), /--reason/);
-    const explained = recordCounts([raised], before, "A new count site that finds no count.");
-    assert.deepEqual(compareCounts([raised], explained, before), []);
-    assert.match(compareCounts([raised], recordCounts([raised]), before).join("\n"), /explanation/);
+    assert.match(
+      compareCounts([raised], [base]).increases.join("\n"),
+      /no-op and skipped calls 120 -> 121/,
+    );
   }
-  // A limit above what was measured can't make room for a later rise.
-  const inflated = recordCounts([countEntry("loop", [5n, 5n, 0n], 900n, 0n)], before, "increased");
-  assert.match(compareCounts([base], inflated, before).join("\n"), /must equal/);
-  // Lower sums refresh without a reason, and a reason for the old sum goes with it.
-  const explained = recordCounts([countEntry("loop", [5n, 5n, 0n], 200n, 0n)], before, "why");
-  const lower = recordCounts([base], explained);
-  assert.equal(lower.programs[0].noOpsAndSkipped, "120");
-  assert.equal(lower.programs[0].reason, undefined);
-  // A raised sum beside a lower total still needs the reason.
-  const cheaper = countEntry("loop", [1n, 1n, 0n], 121n, 0n);
-  assert.throws(() => recordCounts([cheaper], before), /--reason/);
 });
-test("a baseline older than the no-op limit seeds it, and can't skip the check", () => {
-  const base = countEntry("loop", [5n, 5n, 0n], 100n, 20n);
-  const older = recordCounts([base], undefined);
-  const { noOpsAndSkipped: _limit, ...row } = older.programs[0];
-  const unlimited = { ...older, programs: [{ ...row, reason: "kept" }] };
-  assert.deepEqual(readBaseline(JSON.stringify(unlimited)), unlimited);
-  assert.match(compareCounts([base], unlimited).join("\n"), /no limit for no-op/);
-  const seeded = recordCounts([base], unlimited);
-  assert.equal(seeded.programs[0].reason, "kept");
-  assert.deepEqual(compareCounts([base], seeded, unlimited), []);
+
+test("an increase fails unless the change says Cost-OK; no base only reports", () => {
+  const base = [countEntry("loop", [1n, 1n, 0n])];
+  const up = compareCounts([countEntry("loop", [2n, 1n, 0n])], base);
+  assert.equal(verdict(up, true).failed, true);
+  assert.match(verdict(up, true).text, /Cost-OK: <reason>.*\n\n- loop: count operations 2 -> 3/);
+  const accepted = verdict(up, true, "The loop returns an owned result.");
+  assert.equal(accepted.failed, false);
+  assert.match(accepted.text, /accepted by `Cost-OK: The loop returns/);
+  assert.equal(verdict(up, true, "  ").failed, true);
+  assert.equal(verdict(compareCounts([countEntry("loop", [2n, 1n, 0n])]), false).failed, false);
+  const down = verdict(compareCounts([countEntry("loop", [0n, 1n, 0n])], base), true);
+  assert.equal(down.failed, false);
+  assert.match(down.text, /Decreases from the base:\n\n- loop: count operations 2 -> 1 \(-1\)/);
+  // A benchmark the base lacks is new, not an increase.
+  const added = compareCounts([countEntry("new", [9n, 9n, 0n])], base);
+  assert.deepEqual(added.increases, []);
+  assert.match(added.table, /\| new \|/);
 });
-test("lower totals refresh without a waiver and program sets stay exact", () => {
-  const base = countEntry("loop", [10n, 10n, 1n]);
-  const head = countEntry("loop", [9n, 9n, 1n]);
-  const before = recordCounts([base]);
-  assert.deepEqual(compareCounts([head], before), []);
-  assert.equal(recordCounts([head], before).programs[0].total, "19");
-  assert.match(compareCounts([], before).join("\n"), /no measured/);
-  assert.match(
-    compareCounts([countEntry("new", [0n, 0n, 0n])], before).join("\n"),
-    /missing baseline/,
-  );
-});
-test("malformed and duplicate baselines cannot waive a regression", () => {
-  const row = countEntry("loop", [1n, 1n, 0n]);
-  const base = recordCounts([row]);
+
+test("a stored measurement that does not add up is refused", () => {
+  const row = countEntry("loop", [1n, 1n, 0n], 3n, 4n);
+  assert.deepEqual(readCounts(JSON.stringify({ programs: [row] })), [row]);
   for (const programs of [
     [row, row],
     [{ ...row, total: "1" }],
     [{ ...row, retained: "-1" }],
-    [{ ...base.programs[0], noOpsAndSkipped: "many" }],
+    [{ ...row, noOps: undefined }],
+    undefined,
   ]) {
-    assert.throws(() => readBaseline(JSON.stringify({ ...base, programs })));
+    assert.throws(() => readCounts(JSON.stringify({ programs })));
   }
 });
+
 test("a stored result answers only for the same bytes, program and runner", () => {
   const bytes = new Uint8Array([0, 97, 115, 109]);
   const key = resultKey("runner", "loop", bytes);
