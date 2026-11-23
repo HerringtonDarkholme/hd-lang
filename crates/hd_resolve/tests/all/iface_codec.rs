@@ -299,19 +299,7 @@ fn damaged_exports_are_cache_misses() -> Result<(), &'static str> {
 /// different session so matching numeric symbol IDs cannot mask a lost path.
 #[test]
 fn result_paths_survive_eager_and_lazy_interfaces_in_a_fresh_session() {
-    let source = r"struct Name:
-    first: string
-    last: string
-
-struct User:
-    name: Name
-
-fn parts(left: &User, right: &User) -> (&'right.name.first string, &'left.name.last string):
-    (&right.name.first, &left.name.last)
-
-fn tuple(entry: &(i32, User)) -> &'entry._1.name.first string:
-    &entry._1.name.first
-";
+    let source = include_str!("inputs/result_paths.hd");
     let writer = Run::new();
     let (items, exports) = super::const_generics::resolve_in(writer.names(), source);
     let bytes = encode_items(&writer.names(), &items, &exports).expect("encode result paths");

@@ -1,0 +1,12 @@
+struct Name:
+    first: string
+    last: string
+
+struct User:
+    name: Name
+
+fn parts(left: &User, right: &User) -> (&'right.name.first string, &'left.name.last string):
+    (&right.name.first, &left.name.last)
+
+fn tuple(entry: &(i32, User)) -> &'entry._1.name.first string:
+    &entry._1.name.first
