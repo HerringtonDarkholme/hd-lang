@@ -1,0 +1,11 @@
+use std.debug.Location
+
+@track_caller
+pub fn report() -> string:
+    if Location::caller().in_root_package(): "root" else: "fetched"
+
+pub fn from_inside() -> string:
+    report()
+
+pub fn shown() -> fn() -> string:
+    report

@@ -14,30 +14,9 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 use hd_testkit::Scratch;
 
-const MAIN: &str = "\
-use dep.place.{report, from_inside, shown}
+const MAIN: &str = include_str!("programs/track_caller_dependency/main.hd");
 
-pub fn main() -> void $ Console:
-    println(report())
-    println(from_inside())
-    show := report
-    println(show())
-    println(shown()())
-";
-
-const PLACE: &str = "\
-use std.debug.Location
-
-@track_caller
-pub fn report() -> string:
-    if Location::caller().in_root_package(): \"root\" else: \"fetched\"
-
-pub fn from_inside() -> string:
-    report()
-
-pub fn shown() -> fn() -> string:
-    report
-";
+const PLACE: &str = include_str!("programs/track_caller_dependency/place.hd");
 
 fn sources(path: &str, text: &str) -> MemorySources {
     let mut s = MemorySources::default();
