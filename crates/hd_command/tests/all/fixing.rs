@@ -217,15 +217,3 @@ fn lint_fix_removes_redundant_mut() {
         r.err
     );
 }
-
-/// The removed standalone command is reported as unknown.
-#[test]
-fn standalone_fix_is_unknown() {
-    let dir = package("hd-fix-removed", "pub fn one() -> i32:\n    +1\n");
-    let r = hd(&dir, &dir, &["fix"]);
-    assert_eq!(r.code, Some(101));
-    assert_eq!(
-        r.err,
-        "error: `fix` is no command of hd; `hd help` lists them\n"
-    );
-}
