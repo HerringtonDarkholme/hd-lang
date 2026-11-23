@@ -22,3 +22,10 @@ pub trait Drop < ?Copy:
 @intrinsic("map_hash_seed")
 pub fn map_hash_seed() -> u64:
     panic("intrinsic")
+
+# The `Send` crossing's walk; std.rt.crossing holds its leaves.
+## Makes each counted buffer `value` holds its own: one that another holder counts is copied, and the buffers in it in turn. The compiler supplies each instance's body, which calls the functions below on each part that may hold one.
+## See [fn.crossing.mode.unique](../../../spec/lang/07-functions.md#r-fn.crossing.mode.unique).
+@intrinsic("crossing_unique")
+pub fn unique[T < ?Copy](value: &mut T) -> void:
+    panic("intrinsic")

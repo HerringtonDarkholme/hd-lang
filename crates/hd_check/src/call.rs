@@ -2215,8 +2215,9 @@ impl Ck<'_, '_> {
                     .iter()
                     .any(|&(p, m)| p == l && m == c.marker)
             });
-        if c.marker == self.cx.names.known.wire && e.kind() == SyntaxKind::ClosureExpr {
-            self.wire_literal = Some(e.index());
+        let known = &self.cx.names.known;
+        if [known.wire, known.send].contains(&c.marker) && e.kind() == SyntaxKind::ClosureExpr {
+            self.crossing_literals.push((e.index(), c.marker));
         }
         if forwarded {
             self.crossing_uses.insert(e.index());

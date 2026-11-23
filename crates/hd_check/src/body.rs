@@ -638,9 +638,10 @@ pub(crate) struct Ck<'a, 'c> {
     /// The `Closure` instructions written for a crossing parameter: their
     /// captures are copied or moved, never shared (`fn.crossing.mode`).
     pub crossing_closures: Vec<(u32, DefId)>,
-    /// The closure literal being written for a `Wire` crossing parameter,
-    /// and what lifting it left for the call (`fn.crossing.lift`).
-    pub wire_literal: Option<hd_base::NodeIdx>,
+    /// The closure literals being written for a `Wire` or `Send` crossing
+    /// parameter, with their markers, innermost last, and what lifting a
+    /// `Wire` one left for the call (`fn.crossing.lift`).
+    pub crossing_literals: Vec<(hd_base::NodeIdx, DefId)>,
     pub wire_lifted: Option<crate::wire_crossing::WireLift>,
     /// The tail expression of the function body block, when it is an `if`
     /// without `else`: that `if` is `missing-return-value`, not a value
@@ -978,7 +979,7 @@ pub(crate) fn new_ck<'a, 'c>(
         crossing_params: Vec::new(),
         crossing_uses: HashSet::default(),
         crossing_closures: Vec::new(),
-        wire_literal: None,
+        crossing_literals: Vec::new(),
         wire_lifted: None,
         fn_body_tail: None,
         written_row: None,

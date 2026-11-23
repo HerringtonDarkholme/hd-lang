@@ -26,6 +26,10 @@ pub const RUNTIME_MODULE: &str = "std.rt";
 pub const FORMAT_MODULE: &str = "std.format";
 pub const BYTES_MODULE: &str = "std.rt.bytes";
 pub const HASH_RUNTIME_MODULE: &str = "std.rt.hash";
+/// The walks a `Send` crossing's `std.rt.unique` calls, and the
+/// collections whose raw buffers std walks (`fn.crossing.mode.unique`).
+pub const CROSSING_MODULE: &str = "std.rt.crossing";
+pub const COLLECTIONS_MODULE: &str = "std.collections";
 
 /// The modules with compiler-supplied declarations, in seed order.
 pub const SEEDED_MODULES: &[&str] = &[

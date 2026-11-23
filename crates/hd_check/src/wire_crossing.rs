@@ -7,11 +7,16 @@
 //! here never encodes, and only a domain that sends pays for the frame.
 //! Swift lifts a closure's captures to parameters the same way; Rust's
 //! closure is a struct of its captures that `serde` would walk.
+//!
+//! A `Send` crossing closure takes the captures that may hold a counted
+//! buffer unique as it is passed (`fn.crossing.mode.unique`).
 
-use hd_base::{LocalId, NodeIdx};
+use hd_base::{DefId, LocalId, NodeIdx};
 use hd_resolve::known::REMOTE_MODULE;
 use hd_syntax::NodeRef;
-use hd_tir::ir::{Callee, NONE, Providers, Ref, SubMark, Tag, TirSink as _, local_flags, place};
+use hd_tir::ir::{
+    Callee, NONE, Place, Providers, Ref, SubMark, Tag, TirSink as _, local_flags, place, ref_word,
+};
 use hd_types::{Prim, Ty, TyData};
 
 use crate::body::Ck;
@@ -35,10 +40,9 @@ impl Ck<'_, '_> {
         ft: Ty,
         n: NodeRef<'_>,
     ) -> Option<Ty> {
-        if self.wire_literal != Some(n.index()) {
+        if !self.crossing_literal(n, self.cx.names.known.wire) {
             return None;
         }
-        self.wire_literal = None;
         let pool = self.pool();
         let syn = n.index();
         let caps = self.b.open_captures(m);
@@ -55,6 +59,59 @@ impl Ck<'_, '_> {
         self.b.set(held, tuple, syn);
         self.wire_lifted = Some(WireLift { held, tys });
         pool.fn_led(ft, tuple_ty, None)
+    }
+
+    /// Before the literal `n`'s sub-body `m` closes, when it is written for
+    /// a `Send` crossing parameter (`fn.crossing.mode.unique`): each
+    /// capture that may hold a counted buffer is read into a local, which
+    /// `std.rt.unique` makes unique in place, and moved to the one `m`
+    /// captures instead. The read moves at the capture's last use, so a
+    /// buffer nothing else holds crosses as it is; a copy counts it, so
+    /// the call copies it. Both locals keep the source's name, so the move
+    /// rules see the binding's. Cost: one call per such capture.
+    pub(crate) fn send_unique(&mut self, m: SubMark, from: usize, n: NodeRef<'_>) {
+        if !self.crossing_literal(n, self.cx.names.known.send) {
+            return;
+        }
+        let (pool, syn) = (self.pool(), n.index());
+        let mut to = Vec::new();
+        for l in self.b.open_captures(m) {
+            let t = self.b.local_ty(l);
+            let z = self.zonk(t);
+            if !(matches!(pool.get(z), TyData::Ref { .. } | TyData::Never)
+                || matches!(pool.get(z), TyData::Prim(p) if p != Prim::String))
+            {
+                let name = self.b.body().local_name[l.idx()];
+                to.push((l, self.b.local(t, name, local_flags::CAPTURED, syn)));
+            }
+        }
+        // The literal's own places only: the reads below stay the source's.
+        self.b.rename_captures(m, from, &to);
+        for (l, own) in to {
+            let t = self.b.local_ty(l);
+            let v = self.b.get(l, t, syn);
+            // Not `own`: an address taken of it would make it a cell.
+            let held = self.b.local(t, self.b.body().local_name[l.idx()], 0, syn);
+            self.b.set(held, v, syn);
+            let at = self.b.place(&Place::local(held));
+            let r_ty = pool.intern_ty(&TyData::Ref {
+                inner: t,
+                mutable: true,
+                counted: false,
+            });
+            let r = self.b.emit(Tag::Ref, at, ref_word::MUT, r_ty, syn);
+            let unique = self
+                .cx
+                .names
+                .item(hd_resolve::known::RUNTIME_MODULE, "unique");
+            let callee = Callee::Item {
+                def: unique,
+                targs: pool.list(&[t]),
+            };
+            self.b.call(&callee, &[r], Providers::None, Ty::VOID, syn);
+            let v = self.b.get(held, t, syn);
+            self.b.set(own, v, syn);
+        }
     }
 
     /// After the lifted literal `lifted` closed, at the call: the code the
@@ -189,6 +246,14 @@ impl Ck<'_, '_> {
                 }
             }
         }
+    }
+
+    /// Whether `n` is a literal written for a crossing parameter of
+    /// `marker`, which it then stops being: a literal inside another
+    /// closes first.
+    fn crossing_literal(&mut self, n: NodeRef<'_>, marker: DefId) -> bool {
+        let at = (self.crossing_literals.iter()).rposition(|&l| l == (n.index(), marker));
+        at.map(|at| self.crossing_literals.remove(at)).is_some()
     }
 
     /// A hidden local of the literal's.

@@ -30,7 +30,7 @@ use std.rt.bytes.{
     string_prefix,
 }
 use std.annotation.inline
-use std.rt.Drop
+use std.rt.{Drop, unique}
 use std.rt.memory.{
     Buffer,
     Ptr,
@@ -3224,3 +3224,18 @@ impl[T] DequeIter[T]:
     ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn rev(self) -> Rev[Self, T]:
         DoubleEndedIterator::[T]::rev(self)
+
+# A `Send` crossing makes each element or slot in use unique
+# (fn.crossing.mode.unique): the buffer is raw memory, which the type's
+# fields do not show.
+fn unique_uniq_list[T < ?Copy](items: &mut UniqList[T]) -> void:
+    let index: usize = 0
+    while index < items.len:
+        unique(items.buffer.at(index).as_mut())
+        index += 1
+
+fn unique_uniq_map[K < Eq & Hash, V < ?Copy](entries: &mut UniqMap[K, V]) -> void:
+    let index: usize = 0
+    while index < entries.used:
+        unique(entries.slots.at(index).as_mut())
+        index += 1

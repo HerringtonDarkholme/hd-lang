@@ -116,6 +116,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("count_retain", &[s(1, &[Any], VOID)]),
     ("crossing_run", &[s(0, &[U64, LIST], Opt)]),
     ("crossing_sent", &[s(1, &[Any], LIST)]),
+    ("crossing_unique", &[s(1, &[REF_MUT], VOID)]),
     ("dbg_printer", &[s(1, &[], Fn)]),
     ("dbg_write", &[s(0, &[STR], VOID)]),
     ("debug_texts", &[s(1, &[Any, LIST], LIST)]),

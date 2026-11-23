@@ -13905,6 +13905,7 @@ impl ProgramEnv for Env<'_> {
             "wire_put" | "wire_take" => {
                 hd_structure::wire_codec_body(&cx, item, ty, key == "wire_take")
             }
+            "crossing_unique" => hd_structure::unique_body(&cx, item, ty),
             "stub_as" => hd_structure::remote::stub_as_body(&cx, item, ty),
             "interface_of" => {
                 // ruled out: std instantiates `interface_of` only at the

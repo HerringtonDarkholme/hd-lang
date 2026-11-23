@@ -2291,7 +2291,43 @@ impl TirBuilder {
     /// captures `p` in their place, and `m` captures nothing. Cost: the
     /// instructions since `from`, once.
     pub fn lift_captures(&mut self, m: SubMark, from: usize, caps: &[LocalId], p: LocalId) {
-        let field = |l: u32| caps.iter().position(|c| c.raw() == l).map(u32_of);
+        self.reroot(from, &|l| {
+            let f = caps.iter().position(|c| c.raw() == l)?;
+            Some((p, Some(u32_of(f))))
+        });
+        let words: Vec<u32> = std::iter::once(p.raw())
+            .chain(self.body.sub_param_locals(m.0.idx()).iter().copied())
+            .collect();
+        let at = self.record(&words);
+        self.body.sub_params[m.0.idx()] = Range32::new(at, u32_of(words.len()));
+        let mut at = 0;
+        self.open_caps.retain(|c| {
+            at += 1;
+            at <= m.1 as usize || c.0 != m.0
+        });
+    }
+
+    /// The open sub-body `m` captures `to[i].1` in place of `to[i].0`:
+    /// each place emitted since instruction `from` rooted at the one is
+    /// rooted at the other, and a nested closure captures it instead.
+    /// Cost: the instructions since `from`, once.
+    pub fn rename_captures(&mut self, m: SubMark, from: usize, to: &[(LocalId, LocalId)]) {
+        self.reroot(from, &|l| {
+            let &(_, new) = to.iter().find(|(old, _)| old.raw() == l)?;
+            Some((new, None))
+        });
+        for c in self.open_caps.get_mut(m.1 as usize..).unwrap_or(&mut []) {
+            if let Some(&(_, new)) = to.iter().find(|(old, _)| c.0 == m.0 && *old == c.1) {
+                c.1 = new;
+            }
+        }
+    }
+
+    /// Each place emitted since instruction `from` rooted at a local `l`
+    /// for which `to(l)` is `(p, f)` is rooted at `p`, field `f` first if
+    /// given, and a closure among them captures each such `p`, after its
+    /// other captures, in place of those locals.
+    fn reroot(&mut self, from: usize, to: &dyn Fn(u32) -> Option<(LocalId, Option<u32>)>) {
         for i in from..self.body.tags.len() {
             let (oa, ob) = self.body.tags[i].operands();
             for (k, op) in [(0, oa), (1, ob)] {
@@ -2310,9 +2346,10 @@ impl TirBuilder {
                 } else {
                     continue;
                 };
-                let Some(f) = field(l) else { continue };
-                let words: Vec<u32> = [place::ROOT_LOCAL, p.raw(), place::PROJ_FIELD | f]
+                let Some((p, f)) = to(l) else { continue };
+                let words: Vec<u32> = [place::ROOT_LOCAL, p.raw()]
                     .into_iter()
+                    .chain(f.map(|f| place::PROJ_FIELD | f))
                     .chain(rest.iter().copied())
                     .collect();
                 self.body.data[i][k] = self.record(&words);
@@ -2324,29 +2361,25 @@ impl TirBuilder {
                     self.body.extra[r + 2] as usize,
                 );
                 let old = &self.body.cap_local[start..start + n];
-                if old.iter().any(|c| field(c.raw()).is_some()) {
-                    let mut kept: Vec<LocalId> = old
-                        .iter()
-                        .copied()
-                        .filter(|c| field(c.raw()).is_none())
-                        .collect();
-                    kept.push(p);
+                if old.iter().any(|c| to(c.raw()).is_some()) {
+                    // The callers map each old local to its own new one,
+                    // or all of them to one tuple: equal roots are adjacent.
+                    let mut kept: Vec<LocalId> = Vec::with_capacity(n);
+                    let mut roots: Vec<LocalId> = Vec::new();
+                    for &c in old {
+                        match to(c.raw()) {
+                            Some((p, _)) if roots.last() != Some(&p) => roots.push(p),
+                            Some(_) => {}
+                            None => kept.push(c),
+                        }
+                    }
+                    kept.extend(roots);
                     self.body.extra[r + 1] = u32_of(self.body.cap_local.len());
                     self.body.extra[r + 2] = u32_of(kept.len());
                     self.body.cap_local.extend(kept);
                 }
             }
         }
-        let words: Vec<u32> = std::iter::once(p.raw())
-            .chain(self.body.sub_param_locals(m.0.idx()).iter().copied())
-            .collect();
-        let at = self.record(&words);
-        self.body.sub_params[m.0.idx()] = Range32::new(at, u32_of(words.len()));
-        let mut at = 0;
-        self.open_caps.retain(|c| {
-            at += 1;
-            at <= m.1 as usize || c.0 != m.0
-        });
     }
 
     /// A constant of the body's own column.

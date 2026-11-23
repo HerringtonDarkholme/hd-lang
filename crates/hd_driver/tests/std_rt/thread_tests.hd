@@ -3,7 +3,10 @@
 # module, so the conformance runner adds this file to std as
 # `std.rt_tests.thread_tests` (crates/hd_driver/tests/conformance.rs,
 # `STD_RT_TESTS`). A program that starts threads shares its heap with them.
-use std.rt.alloc.{alloc, free_block}
+use std.collections.{UniqList, UniqMap}
+use std.core.{Eq, Hash}
+use std.marker.Send
+use std.rt.alloc.{alloc, block_of, free_block}
 use std.rt.memory.{
     atomic_add_u32,
     atomic_load_u32,
@@ -11,9 +14,12 @@ use std.rt.memory.{
     atomic_wait_u32,
     load_u32,
     pages,
+    Ptr,
     store_u32,
+    string_bytes,
 }
 use std.rt.thread.{join, spawn}
+use std.rt.unique
 use std.testing.{assert, assert_equal}
 
 # A word on the shared heap: the program's own bindings are there too, so
@@ -73,6 +79,77 @@ fn add_one() -> void:
 
 fn stop() -> void:
     panic("a thread stops")
+
+# A `Send` crossing that runs its closure here and gives its value: the
+# captures cross as they would into a thread (fn.crossing.mode.unique).
+fn crossed[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+# The count of the block that holds `address`, 0 in static data.
+fn count_at(address: usize) -> u32:
+    block := block_of(address)
+    if block == 0: 0 else: load_u32(block)
+
+# The buffer a list holds, and the bytes a string views.
+fn buffer[T](items: &List[T]) -> usize:
+    usize(load_u32(address_of(items)))
+
+fn bytes_of(text: &string) -> usize:
+    string_bytes(*text).address
+
+@intrinsic("mem_ref_address")
+fn address_of[T < ?Copy](target: &T) -> usize:
+    panic("intrinsic")
+
+# Whether two strings view different bytes.
+fn apart(text: &string, other: &string) -> bool:
+    bytes_of(text) != bytes_of(other)
+
+# Where a map's first key's bytes are.
+fn first_key(entries: &UniqMap[string, string]) -> usize:
+    for key in entries.keys():
+        return bytes_of(&key)
+    0
+
+# The table a map holds.
+fn table[K < Eq & Hash, V](entries: &Map[K, V]) -> usize:
+    usize(load_u32(address_of(entries)))
+
+# The forms a capture may hold a buffer in.
+struct Held:
+    items: List[string]
+    name: string
+    n: i32
+
+enum Shape:
+    Dot
+    Words(List[string])
+
+type Label(string)
+
+fn crossed_generic[T < Send & 'static](value: T) -> T:
+    crossed(fn() -> T: value)
+
+# How often each side changes its own list at once with the other.
+ROUNDS := 20000
+
+# A list that crossed, which a thread takes from the shared heap, changes
+# and gives back: each round counts its elements up and down again.
+HANDOFF := alloc(16)
+
+fn change_theirs() -> void:
+    arrive()
+    let mut theirs = Ptr::[List[string]] { address: HANDOFF }.read()
+    churn(&mut theirs, "t")
+    Ptr::[List[string]] { address: HANDOFF }.write(theirs)
+
+fn churn(items: &mut List[string], mark: string) -> void:
+    let i: usize = 0
+    while i < ROUNDS:
+        items.push(items[0])
+        _ := items.pop()
+        i = i + 1
+    items.push(mark)
 
 fn started(work: fn() -> void) -> usize:
     match spawn(work):
@@ -139,3 +216,112 @@ tests:
         assert(join(started(allocate_theirs)))
         assert_equal(pages(), before)
         assert(intact(THEIRS, 0))
+
+    it("a crossing copies a shared list and its strings; each thread changes its own"):
+        word := "ab".repeat(3)
+        let mut mine = [word, "cd".repeat(2)]
+        theirs := crossed(fn() -> List[string]: mine)
+        assert(buffer(&theirs) != buffer(&mine))
+        assert_equal(count_at(buffer(&theirs)), 1u32)
+        assert(bytes_of(&theirs[0]) != bytes_of(&word))
+        assert_equal(count_at(bytes_of(&theirs[0])), 1u32)
+        assert_equal(count_at(bytes_of(&word)), 2u32)
+        store_u32(COUNTER, 0)
+        Ptr::[List[string]] { address: HANDOFF }.write(theirs)
+        thread := started(change_theirs)
+        arrive()
+        churn(&mut mine, "m")
+        assert(join(thread))
+        back := Ptr::[List[string]] { address: HANDOFF }.read()
+        assert_equal(count_at(bytes_of(&word)), 2u32)
+        assert_equal(back, ["ababab", "cdcd", "t"])
+        assert_equal(mine, ["ababab", "cdcd", "m"])
+        assert_equal(word, "ababab")
+
+    it("a crossing moves a buffer that no one else holds, as it is"):
+        let mine = ["ab".repeat(3), "cd".repeat(2)]
+        list := buffer(&mine)
+        text := bytes_of(&mine[0])
+        theirs := crossed(fn() -> List[string]: mine)
+        assert_equal(count_at(list), 1u32)
+        assert_equal(bytes_of(&theirs[0]), text)
+        assert_equal(buffer(&theirs), list)
+
+    it("a crossing makes a map's table, its keys and its values unique"):
+        key := "k".repeat(2)
+        values := ["v".repeat(2)]
+        entries := { key: values }
+        theirs := crossed(fn() -> Map[string, List[string]]: entries)
+        for (k, v) in &theirs:
+            assert(bytes_of(k) != bytes_of(&key))
+            assert(buffer(v) != buffer(&values))
+            assert_equal(count_at(bytes_of(k)), 1u32)
+        assert(table(&theirs) != table(&entries))
+        assert_equal(count_at(bytes_of(&key)), 2u32)
+        assert_equal(entries, { key: values })
+        counts := { 1: 2 }
+        own := crossed(fn() -> Map[i32, i32]: counts)
+        assert(table(&own) != table(&counts))
+        assert_equal(count_at(table(&own)), 1u32)
+        assert_equal(own, counts)
+
+    it("a struct crosses with buffers of its own"):
+        word := "ab".repeat(3)
+        held := Held { items: [word], name: word, n: 1 }
+        got := crossed(fn() -> Held: held)
+        assert(apart(&got.items[0], &word) && apart(&got.name, &word))
+        assert_equal(held.name, word)
+
+    it("a tuple, a newtype, an option, an enum and a union cross with buffers of their own"):
+        word := "ab".repeat(3)
+        pair := (word, Label(word))
+        let maybe: string? = .Some(word)
+        shape := Shape.Words([word])
+        let either: string | i32 = ._0(word)
+        let (both, one, words, member) = crossed(
+            fn() -> ((string, Label), string?, Shape, string | i32): (pair, maybe, shape, either)
+        )
+        let (text, label) = both
+        unwrapped := string(label)
+        assert(apart(&text, &word) && apart(&unwrapped, &word))
+        match one:
+            .Some(text) => assert(apart(&text, &word))
+            .None => assert(false)
+        match words:
+            .Words(items) => assert(apart(&items[0], &word))
+            .Dot => assert(false)
+        match member:
+            ._0(text) => assert(apart(&text, &word))
+            ._1(_) => assert(false)
+        let (kept, _) = pair
+        assert_equal(kept, word)
+
+    it("a generic value and a nested closure's capture cross with buffers of their own"):
+        word := "ab".repeat(3)
+        deep := crossed_generic([[word]])
+        assert(apart(&deep[0][0], &word))
+        outer := crossed(fn() -> usize:
+            crossed(fn() -> usize: 0) + bytes_of(&word)
+        )
+        assert(outer != bytes_of(&word))
+        inner := crossed(fn() -> string:
+            (fn() -> string: word)()
+        )
+        assert(apart(&inner, &word))
+
+    it("unique copies the shared strings a UniqList and a UniqMap hold"):
+        word := "ab".repeat(3)
+        let mut owned: UniqList[string] = UniqList::new()
+        owned.push(word)
+        let mut keyed: UniqMap[string, string] = UniqMap::new()
+        keyed[word] = word
+        unique(&mut owned)
+        unique(&mut keyed)
+        here := bytes_of(&word)
+        assert(
+            (
+                bytes_of(&owned[0]) != here
+                && bytes_of(&keyed[word]) != here
+                && first_key(&keyed) != here
+            ),
+        )

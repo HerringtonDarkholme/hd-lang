@@ -628,7 +628,7 @@ second form always, with sharing left to `Arc`.)
 | threads | `std.rt` | the allocator: a heap per thread and a cross-thread free list, since a value that crossed is freed on the receiving thread | +400 |
 | threads | `lib/std`, `host/` | `Scope` joins its threads; `Background` wakes the caller on its own event loop | +250 |
 | threads | `lib/std` | `Arc[T]` and `Weak[T]` over the intrinsics, with `impl Send for Arc[T]` | +180 |
-| threads | compiler and `lib/std` | the crossing rule for counted buffers, option A below | +200 |
+| threads | compiler and `lib/std` | the crossing rule for counted buffers, option A below (built) | +200 |
 | | | **total** | **+2,300** |
 
 Workers alone come to +800, of which +180 is compiler code. They need
@@ -690,6 +690,27 @@ Built (2026-11-22): S1's walk. `Sync` is a kind of the stage 1 parts walk
 `T < Send` alone is not `Send`. A top-level binding a `Send` crossing
 reaches must be `Sync` too (owner, 2026-11-22; `fn.crossing.global.send`).
 The threads slices left are +1,500.
+
+Built (2026-11-23): option A, before `Scope` is public. At a `Send`
+crossing literal the checker reads each capture whose type may hold a
+counted buffer into a local of its own, calls `std.rt.unique` on
+it in place, and the literal captures that local instead
+(`hd_check` `send_unique`, `TirBuilder::rename_captures`). The read is
+the ownership pass's: a move at the capture's last use, so a buffer
+nothing else holds keeps its count of 1 and crosses as it is; a copy
+counts it, so the call copies it. `unique[T]`'s body is supplied per
+type (`hd_structure` `unique_body`): `string`, `List`, `Map`, `UniqList`
+and `UniqMap` call std's walk, which tests each buffer's count and
+copies a shared one, then its elements in turn; a struct, enum, tuple,
+union or newtype calls `unique` on each member that may hold a buffer;
+any other type's body is empty, and a scalar or reference capture gets
+no call. Readings: a map key is lent only shared, so std makes it unique
+through its address once its loan ends (its bytes and hash stay equal);
+a capture with a `Drop` hook that the closure moves out was already
+broken in release and checked builds, and stays a finding
+(`hd_driver` stage case `crossing/a-send-crossing-moves-out-a-capture-with-a-drop-hook`).
+Cost: one call per capture that may hold a buffer; at run time a count
+test per buffer and a copy of each shared one.
 
 **Per-run cost.** No compiler pass scales with the program for counts.
 The crossing walk of option A is linear in the shared part of each

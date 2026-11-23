@@ -7098,6 +7098,7 @@ lang/functions/crossing-closures/crossing-reaches-mutable-top-level-in-another-m
 lang/functions/crossing-closures/crossing-reaches-immutable-top-level.hd	type	accept	lang/07-functions.md#r-fn.crossing.global
 lang/functions/crossing-closures/crossing-send-reaches-box-top-level.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global.send
 lang/functions/crossing-closures/crossing-send-reaches-a-string-top-level.hd	type	reject:crossing-top-level-binding	lang/07-functions.md#r-fn.crossing.global.send
+lang/functions/crossing-closures/crossing-send-captures-cross-unique.hd	runtime	accept	lang/07-functions.md#r-fn.crossing.mode.unique
 lang/references/dependent-results/conflicts-through-aliases/known-closure-consumer-keeps-captured-root-loan.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.shared-variable
 lang/functions/function-types-and-values/function-type-constructors/known-consumer-mixed-loop-contexts.hd	runtime	accept	lang/07-functions.md#r-fn.trait.mut.call
 lang/control-flow/for-loops/zero-iteration-callback-preserves-dependent-read.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.range.half-open
