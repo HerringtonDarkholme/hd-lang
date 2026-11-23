@@ -1236,7 +1236,7 @@ The following built-in methods are normative:
 | --- | --- |
 | `string` | `len(&self) -> usize`; `chars(self) -> Chars`; `char_indices(self) -> CharIndices`; `bytes(self) -> Bytes`; `slice(self, start: usize, end: usize) -> string` |
 | `List[T]` | `len(self) -> usize`; `iter(self) -> ListIter[T]` |
-| `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
+| `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
 | `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> MapEntries[K, V]` |
 | `Map[K, V]`, changing | `remove(&mut self, key: K) -> V?` |
 | `Display` | `to_string(&self) -> string`; `write(&self, out: &mut StringBuilder) -> void`, whose default pushes `to_string()` |
@@ -1251,18 +1251,20 @@ The following built-in methods are normative:
 8. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
 9. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
 10. r[module.method.list-insert.range] An `insert` index greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
-11. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
-12. r[module.method.list-remove-at.range] A `remove_at` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+11. r[module.method.list-remove-indexed] `remove(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
+12. r[module.method.list-remove-indexed.range] A `remove` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
 13. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
 
 | Call on `[1, 2, 3]` | List after |
 | --- | --- |
 | `insert(1, 9)` | `[1, 9, 2, 3]` |
 | `insert(3, 9)` | `[1, 2, 3, 9]` |
-| `remove_at(0)`, which returns `1` | `[2, 3]` |
+| `remove(0)`, which returns `1` | `[2, 3]` |
 | `clear()` | `[]` |
 
-> **Note.** `push`, `insert`, `remove_at`, `pop` and `clear` change the
+> **Why.** The name follows Rust's `Vec::remove`: indexed removal returns the removed element and preserves the remaining order.
+
+> **Note.** `push`, `insert`, `remove`, `pop` and `clear` change the
 > list, not an iterator taken from it before the change, which iterates
 > the list as `iter()` found it
 > ([`flow.for.cursor.snapshot`](06-control-flow.md#r-flow.for.cursor.snapshot)).

@@ -11,7 +11,7 @@ way, and the code `hd check` reports. When a name is not here, run
 | --- | --- | --- |
 | `xs.append(x)` for one element | `type-mismatch` | `xs.push(x)` |
 | `xs.length`, `xs.size()` | `unknown-field`, `unknown-method` | `xs.len()` |
-| `xs.remove(i)` | `unknown-method` | `xs.remove_at(i)` |
+| `xs.remove_at(i)` | `unknown-method` | `xs.remove(i)` |
 | `for (i, x) in xs.enumerate():` | `unknown-method` | `xs.iter().enumerate()` |
 | `for i in range(3):` | `unknown-name` | `for i in 0..3:` |
 | `m.insert(key, value)` | `unknown-method` | `m[key] = value` |

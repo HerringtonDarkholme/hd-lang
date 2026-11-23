@@ -878,7 +878,7 @@ fn broken_text(c: &mut Choices) -> string:
         return c.choose(INSERTS)
     at := c.int(usize(0)..=chars.len() - 1)
     match c.int(0..=4):
-        0 => _ := chars.remove_at(at)
+        0 => _ := chars.remove(at)
         1 => chars.insert(at, c.choose(INSERTS))
         2 => chars[at] = c.choose(INSERTS)
         3 =>

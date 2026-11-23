@@ -1180,7 +1180,7 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   constructing nor stepping it needs a closure. `Map.iter()`'s
   `MapEntries` uses `map_steps`: its step closure keeps the map's table
   and its written entry count at creation, while the cursor keeps its own
-  position. `list_truncate`, used by `pop`, `insert`, `remove_at` and
+  position. `list_truncate`, used by `pop`, `insert`, `remove` and
   `clear`, reads the list through its reference, truncates it, and stores
   the buffer back.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`

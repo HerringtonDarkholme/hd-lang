@@ -28,7 +28,7 @@ These change the list, so they need `let mut xs` (or a `&mut List[T]`):
 | `xs.push(v)` | add one element at the end |
 | `xs.extend(ys)` | add every element of another list |
 | `xs.pop()` | remove and return the last, as `T?` |
-| `xs.insert(i, v)`, `xs.remove_at(i)` | at an index; `remove_at` returns the element |
+| `xs.insert(i, v)`, `xs.remove(i)` | at an index; `remove` returns the element |
 | `xs[i] = v`, `xs.swap(i, j)` | replace or exchange |
 | `xs.sort()`, `xs.sort_by_key(f)`, `xs.reverse()`, `xs.dedup()` | reorder in place |
 | `xs.retain(f)`, `xs.truncate(n)`, `xs.clear()` | drop elements |

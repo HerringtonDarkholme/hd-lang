@@ -25,7 +25,7 @@ The language tier keeps what the compiler knows about a list
 
 | Item | Why it stays in the language tier |
 | --- | --- |
-| `items[i]`, `len`, `iter`, `push`, `pop`, `insert`, `remove_at`, `clear` | built-in indexing and intrinsics over the list's representation |
+| `items[i]`, `len`, `iter`, `push`, `pop`, `insert`, `remove`, `clear` | built-in indexing and intrinsics over the list's representation |
 
 ## UniqList
 
@@ -53,7 +53,7 @@ Its surface is:
 | construction | `new() -> UniqList[T]`; `with_capacity(capacity: usize) -> UniqList[T]` |
 | size | `len(&self) -> usize`; `is_empty(&self) -> bool` |
 | append/remove | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?` |
-| indexed change | `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `swap(&mut self, left: usize, right: usize) -> void` |
+| indexed change | `insert(&mut self, index: usize, value: T) -> void`; `remove(&mut self, index: usize) -> T`; `swap(&mut self, left: usize, right: usize) -> void` |
 | shortening | `truncate(&mut self, len: usize) -> void`; `clear(&mut self) -> void` |
 | copyable access, `T < Copy` | `get(&self, index: usize) -> T?`; `first(&self) -> T?`; `last(&self) -> T?` |
 | element places | `Index[usize]` with `Out = T`; `IndexMut[usize]`; `IndexSet[usize, T]` |
@@ -75,12 +75,12 @@ Its surface is:
 3. r[std-collections.uniq-list.len] `len()` returns the number of elements, and `is_empty()` is true exactly when that number is zero.
 4. r[std-collections.uniq-list.push] `push(value)` moves `value` after the former last element. `pop()` moves the last element out and returns it in `.Some`, or returns `.None` when the list is empty.
 5. r[std-collections.uniq-list.insert] `insert(index, value)` moves `value` to `index` and moves each element formerly at or after `index` one place toward the end. `index` may equal `len()`; a greater index panics. Panic: `index-out-of-bounds`.
-6. r[std-collections.uniq-list.remove-at] `remove_at(index)` moves the indexed element out, moves each later element one place toward the start, and returns the removed element. An index outside the list panics. Panic: `index-out-of-bounds`.
+6. r[std-collections.uniq-list.remove-indexed] `remove(index)` moves the indexed element out, moves each later element one place toward the start, and returns the removed element. An index outside the list panics. Panic: `index-out-of-bounds`.
 7. r[std-collections.uniq-list.swap] `swap(left, right)` exchanges the two elements without copying either one. An index outside the list panics. Panic: `index-out-of-bounds`.
 8. r[std-collections.uniq-list.truncate] `truncate(len)` drops every element at `len` and after. A `len` at least the current length has no effect. `clear()` is `truncate(0)`.
 9. r[std-collections.uniq-list.get] For `T < Copy`, `get(index)` returns `.Some` of a copy of the indexed element, or `.None` outside the list.
 10. r[std-collections.uniq-list.first-last] For `T < Copy`, `first()` and `last()` return `.Some` of a copy of the first or last element, or `.None` when the list is empty.
-11. r[std-collections.uniq-list.bulk-moves] Growth moves the buffer's room into a larger one with `Buffer.grow`, one `memory.copy`. `insert` and `remove_at` shift a contiguous byte range with one overlapping `memory.copy`. Each source range then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
+11. r[std-collections.uniq-list.bulk-moves] Growth moves the buffer's room into a larger one with `Buffer.grow`, one `memory.copy`. `insert` and `remove` shift a contiguous byte range with one overlapping `memory.copy`. Each source range then counts as empty. No operation tests uniqueness or makes a copy-on-write clone.
 12. r[std-collections.uniq-list.get-ref] `get_ref(index)` returns a shared reference to the indexed element in `.Some`, or `.None` outside the list. `first_ref()` and `last_ref()` return the first or last element by shared reference, or `.None` when the list is empty. Each reference lives for the receiver borrow and is the element's place in the buffer's room ([`module.rt.ptr.as-ref`](../lang/10-modules.md#r-module.rt.ptr.as-ref)).
 13. r[std-collections.uniq-list.get-mut] `get_mut(index)` returns a mutable reference to the indexed element in `.Some`, or `.None` outside the list. `first_mut()` and `last_mut()` return the first or last element by mutable reference, or `.None` when the list is empty. Each reference lives for the mutable receiver borrow.
 14. r[std-collections.uniq-list.index-places] `UniqList[T]` implements `Index[usize]`, `IndexMut[usize]`, and `IndexSet[usize, T]` for every `T`, with `Out = T`; an index outside the list panics. Panic: `index-out-of-bounds`.
@@ -123,6 +123,8 @@ Its surface is:
 > `Ord` keeps its existing copyable bound ([`ref.copy.trait.default`](../lang/13-values-and-references.md#r-ref.copy.trait.default)); equality queries and deduplication also accept non-copyable elements.
 
 This surface has no literal construction.
+
+> **Why.** Indexed removal uses Rust's `Vec::remove` name and moves the removed element without copying it.
 
 ## UniqMap
 

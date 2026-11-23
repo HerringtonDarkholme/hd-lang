@@ -9,5 +9,5 @@ pub fn main() -> void $ Console:
     let mut v: List[i32] = [1, 2, 3]
     for x in v:
         println(x)
-        _ := v.remove_at(0)
+        _ := v.remove(0)
     println(v.len())
