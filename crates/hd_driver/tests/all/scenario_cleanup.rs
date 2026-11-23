@@ -46,12 +46,11 @@ fn exports(wasm: &[u8]) -> Vec<String> {
 }
 
 fn with_cleanup() -> String {
-    "let cleaned: bool = false\n\nfn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n    cleaned = true\n\npub fn cleanup_ran() -> bool:\n    cleaned\n"
-        .to_owned()
+    include_str!("programs/scenario_cleanup/with_cleanup.hd").to_owned()
 }
 
 fn without_cleanup() -> String {
-    "fn ready!() -> i32: 42\n\npub fn main!() -> void:\n    _ := ready!()\n".to_owned()
+    include_str!("programs/scenario_cleanup/without_cleanup.hd").to_owned()
 }
 
 #[test]
