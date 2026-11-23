@@ -76,6 +76,9 @@ struct Gen<'s, 'a> {
     /// Per binding, the bindings a whole read of it is stored into, so a
     /// binding found [`Gen::fresh`] marks them in one pass.
     receivers: HashMap<u32, Vec<u32>>,
+    /// Each closure parameter slot a call gives one of its lifetimes, and
+    /// the closure literal's node range (`fn.closure.lifetime.call`).
+    bound: Vec<(u32, usize, (u32, u32))>,
 }
 
 /// What the result checks need: the function's map with what each
@@ -820,6 +823,28 @@ impl Gen<'_, '_> {
         for &(x, y) in &sig.links {
             let (x, y) = (var(&mut self.t, x), var(&mut self.t, y));
             self.c.equal(x, y, self.at);
+        }
+        // A closure literal's parameter slot that the callee's function
+        // type gives one of its lifetimes is at the call's lifetime: what
+        // the closure stores there flows into it (`fn.closure.lifetime.call`).
+        for (c, lts) in &sig.closures {
+            let node = self.s.cx.src.parse.tree.node(b.syn[*c as usize]);
+            let mut lts = lts.iter();
+            for &p in b.sub_param_locals(b.data[*c as usize][0] as usize) {
+                let rs = self.local(p).0;
+                for (j, x) in ls.of(b.local_ty[p as usize]).slots.iter().enumerate() {
+                    let l = if x.fun || x.whole || x.hold {
+                        0
+                    } else {
+                        *lts.next().unwrap_or(&0)
+                    };
+                    if let (true, Some(&r)) = (l != 0, rs.get(j)) {
+                        let v = var(&mut self.t, Var::Life(u32::from(l)));
+                        self.flow(r, v);
+                        self.bound.push((p, j, super::range(node)));
+                    }
+                }
+            }
         }
         let has = |v: Var| sig.result && sig.outs.iter().any(|o| o.contains(&v));
         let (any, held) = (has(Var::Life(ANY)), has(Var::Held));
@@ -1625,6 +1650,7 @@ pub(super) fn solve(s: &Inputs<'_>, r: &Returns<'_>) -> Verdicts {
         lent_by: HashMap::default(),
         fresh: HashSet::default(),
         receivers: HashMap::default(),
+        bound: Vec::new(),
     };
     let widths: Vec<u32> = (b.local_ty.iter().map(|&t| g.width(t)))
         .chain((0..b.tags.len()).map(|i| g.width(b.ty[i]).max(u32::from(b.tags[i] == Tag::Ref))))
@@ -1747,6 +1773,23 @@ impl Gen<'_, '_> {
     /// lifetime, and a result of that lifetime may depend on `o`
     /// (`ref.lifetime.store`). A capture slot takes nothing
     /// (`fn.capture.local-store`).
+    /// Whether slot `j` of closure parameter `q` is at a call's lifetime
+    /// and `o` outlives that call: a place or temporary the closure's own
+    /// body does not declare, which its call keeps alive as a capture
+    /// (`fn.closure.lifetime.call`).
+    fn outlives_call(&self, q: u32, j: usize, o: Origin) -> bool {
+        let b = self.s.b;
+        let Some(&(_, _, (lo, hi))) = self.bound.iter().find(|x| x.0 == q && x.1 == j) else {
+            return false;
+        };
+        let at = match o {
+            Origin::Param(l, _) | Origin::Local(l) => b.local_syn[l as usize],
+            Origin::Hidden(h) => b.syn[h as usize],
+            _ => return false,
+        };
+        at != NodeIdx::NONE && !(lo..hi).contains(&at.raw())
+    }
+
     fn takes(&self, q: u32, j: usize, o: Origin) -> bool {
         let (pool, ls) = (self.s.pool, self.s.ls);
         let Some(own) = self.s.own else { return false };
@@ -2161,7 +2204,9 @@ impl Gen<'_, '_> {
                     // (`ref.generic.store`).
                     let call = !matches!(b.tags[e.inst as usize], Tag::Store | Tag::Intrinsic);
                     (caller.iter().filter(|c| sol.same(e.to, c.0))).all(|&(_, q, j)| {
-                        call && matches!(o, Origin::Param(p, _) if p == q) || self.takes(q, j, o)
+                        call && matches!(o, Origin::Param(p, _) if p == q)
+                            || self.takes(q, j, o)
+                            || self.outlives_call(q, j, o)
                     }) && (self.owns.iter().filter(|x| sol.same(e.to, x.1)))
                         .all(|&(l, _)| global || self.s.allows(o, l))
                 }

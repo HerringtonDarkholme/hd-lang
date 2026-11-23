@@ -1,22 +1,17 @@
 # @dump: wat
 # @build: std release
 # @helpers: thread_start
-# @helper: std/rt.thread/spawn
-# @helper: std/rt.thread/join
+# @helper: std/thread/Scope.spawn
+# @helper: std/rt.thread/wait
 # @helper: std/rt.thread/run
-# `thread_spawn` stores the code and environment of `run` and of the work
-# in the block and calls the host's `thread_spawn`. A thread's instance
+# `thread_spawn` stores the code and environment of `run` and moves the
+# closure's into the block, and calls the host's `thread_spawn`. A thread's instance
 # enters through `hd.thread`: it takes the block's frame region, runs the
-# runtime modules' inits, calls `run(block)`, which calls the work and
-# retires the thread's heap, then stores the state word atomically and
-# wakes every wait on it; a stopped instance only stores and wakes. `join`
+# runtime modules' inits, calls `run(block)`, which calls the closure,
+# writes its value into the block and retires the thread's heap, then stores the state word atomically and
+# wakes every wait on it; a stopped instance only stores and wakes. `wait`
 # waits with `memory.atomic.wait32` while the word is 0.
-use std.rt.thread.{join, spawn}
-
-fn work() -> void:
-    pass
+use std.thread.{Scope, scope}
 
 fn run() -> bool:
-    match spawn(work):
-        .Some(thread) => join(thread)
-        .None => false
+    scope(fn(s: &mut Scope) -> bool: s.spawn(fn() -> bool: true).join())

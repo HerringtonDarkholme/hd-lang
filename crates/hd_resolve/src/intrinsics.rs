@@ -216,7 +216,7 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("task_wait_cell", &[s(0, &[], COUNTED_MUT)]),
     ("task_wait_frame", &[s(0, &[COUNTED_MUT], SUSPEND)]),
     ("task_wait_signal", &[s(0, &[COUNTED_MUT], VOID)]),
-    ("thread_spawn", &[s(0, &[USIZE, Fn, Fn], BOOL)]),
+    ("thread_spawn", &[s(1, &[USIZE, Fn, Fn], BOOL)]),
     ("threads_reachable", &[s(0, &[], BOOL)]),
     ("type_id_of", &[s(1, &[], Named("TypeId"))]),
     ("type_number", &[s(1, &[], U64)]),

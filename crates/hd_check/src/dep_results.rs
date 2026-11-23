@@ -2031,6 +2031,10 @@ struct CallSig {
     /// of a function value, or a call passing one
     /// (`fn.type.lifetime.call.written`).
     by_value: bool,
+    /// Each closure literal argument whose parameter's function type
+    /// writes some of the callee's lifetimes at its inputs, and the
+    /// lifetime of each input slot, 0 where none (`fn.closure.lifetime.call`).
+    closures: Vec<(u32, Vec<u16>)>,
 }
 
 fn canonical_impl_head(pool: Types<'_>, t: Ty, declaration: &hd_resolve::Item) -> Ty {
@@ -3593,7 +3597,7 @@ impl Ck<'_, '_> {
         // caller's or a call's, wherever `f` comes from; a call passing
         // `f` for a parameter whose type writes `'b` makes `'b` that one
         // (`fn.type.lifetime.call.written`).
-        let mut by_value = false;
+        let (mut by_value, mut closures) = (false, Vec::new());
         if tag == Tag::CallValue {
             let ins: Vec<u32> = (dep.params.iter())
                 .flat_map(|(t, ids)| ref_ids_of(ls, *t, ids))
@@ -3616,6 +3620,9 @@ impl Ck<'_, '_> {
                 else {
                     continue;
                 };
+                if b.tags[a as usize] == Tag::Closure && !b.is_instantiation(a as usize) {
+                    closures.push((a, lts.to_vec()));
+                }
                 for (k, var) in self.written_inputs(ls, b, (a, Vec::new()), values) {
                     if let Some(&l) = lts.get(k).filter(|&&l| l != 0) {
                         links.push((Var::Life(u32::from(l)), var));
@@ -3679,6 +3686,7 @@ impl Ck<'_, '_> {
             CallSig {
                 links,
                 by_value,
+                closures,
                 paths,
                 store: matches!(tag, Tag::Call | Tag::Await) && held && writes && shared,
                 result: ls.holds(b.ty[i]) && (tag == Tag::CallValue || depends),

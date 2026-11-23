@@ -1320,7 +1320,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
 /// next two words, `thread_spawn`'s `run`, on the block. Then the block's fifth word gets 1, and its waiters wake.
 /// When the instance stopped instead (a panic or a trap), the host calls
 /// it again with `stopped` 2, which only sets the word and wakes them
-/// (`module.rt.thread.join`). Cost: O(1) besides `run`.
+/// (`module.rt.thread.wait`). Cost: O(1) besides `run`.
 fn thread_start(m: &Module) -> Func {
     let mut f = m.func("rt:thread_start", vec![Val::I32, Val::I32], vec![]);
     f.get(1);

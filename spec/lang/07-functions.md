@@ -916,6 +916,8 @@ doubled := apply_all(counts, fn(count): count * 2)
 6. r[fn.closure.recursive-result] A recursive local closure must always write its result type explicitly, even if an expected function type could supply it. Error: `recursive-function-needs-result-type`.
 7. r[fn.closure.lifetime] A closure's result position depends on the expected function type's input positions, or without one, on what its parameters' types elide as a [function type](#lifetimes-in-function-types) would.
 8. r[fn.closure.lifetime.return] Each value a closure returns may depend only on the closure's parameter positions of each result position's lifetime. Error: `local-reference-escapes`.
+9. r[fn.closure.lifetime.call] A closure literal written as a call's argument, for a parameter whose function type writes a lifetime of the callee at an input position, gives its parameter there the call's lifetime. What the closure stores there through a `&mut` may hold the references it captured, which outlive the call, but no place or temporary of its own body. Error: `local-reference-escapes`.
+10. r[fn.closure.lifetime.call.loan] A loan the closure stores there lasts until the call returns: for the rest of the closure's body, a write to its place is an error. Error: `conflicting-access`.
 
 ```text
 struct User:
@@ -930,6 +932,38 @@ fn other_name(u: &User) -> usize:
     f := fn(v: &User) -> &string: &local.name  # error: local-reference-escapes
     f(u).len()
 ```
+
+```text
+struct Point:
+    x: i32
+
+struct Shelf['s]:
+    count: i32
+
+impl['s] Shelf['s]:
+    fn keep(&mut self, point: &'s Point) -> void:
+        self.count += point.x
+
+fn fill['s](code: fn(&mut Shelf['s]) -> i32) -> i32:
+    let mut shelf = Shelf { count: 0 }
+    code(&mut shelf)
+
+fn demo(start: Point) -> i32:
+    let mut point = start
+    first := &point
+    fill(fn(shelf: &mut Shelf) -> i32:
+        shelf.keep(first)                 # valid: first outlives the call of fill
+        mine := Point { x: 1 }
+        shelf.keep(&mine)                 # error: local-reference-escapes
+        point = Point { x: 2 }            # error: conflicting-access
+        0
+    )
+```
+
+> **Why.** Rust gives such a parameter a lifetime of the closure's own,
+> as in `thread::scope`'s `for<'scope>`. hd writes no lifetime binder on
+> a function type, so the call's lifetime stands for it. The closure runs
+> during the call, and everything it captured outlives the call.
 
 ### Captures
 
