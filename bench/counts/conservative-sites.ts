@@ -1,28 +1,17 @@
-// Static conservative-site budget. The Rust corpus reader compiles only benchmarks.
+// Static conservative sites by reason. The Rust corpus reader compiles only benchmarks.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  compareSites,
-  readSiteBudget,
-  readSiteReport,
-  recordSites,
-  siteTable,
-} from "./conservative-baseline.ts";
+import { gate } from "./baseline.ts";
+import { compareSites, readSiteReport, readSites } from "./conservative-baseline.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const options = new Map<string, string>();
-const flags = new Set<string>();
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
-  if (["--record", "--refresh"].includes(arg)) {
-    flags.add(arg);
-  } else if (
-    ["--baseline", "--previous", "--output", "--input", "--reason", "--runner"].includes(arg) &&
-    args[i + 1]
-  ) {
+  if (["--base", "--cost-ok", "--output", "--input", "--runner"].includes(arg) && args[i + 1]) {
     options.set(arg, args[++i]);
   } else {
     throw new Error(`unknown/missing conservative-site argument: ${arg}`);
@@ -30,17 +19,6 @@ for (let i = 0; i < args.length; i++) {
 }
 const output = resolve(options.get("--output") ?? `${root}/target/conservative-sites`);
 const input = resolve(options.get("--input") ?? `${output}/reports`);
-const baselinePath = resolve(
-  options.get("--baseline") ?? `${root}/bench/counts/conservative-sites.json`,
-);
-const previousPath = options.get("--previous");
-const budget = existsSync(baselinePath)
-  ? readSiteBudget(readFileSync(baselinePath, "utf8"))
-  : undefined;
-const previous =
-  previousPath && existsSync(previousPath)
-    ? readSiteBudget(readFileSync(previousPath, "utf8"))
-    : undefined;
 mkdirSync(output, { recursive: true });
 if (!options.has("--input")) {
   // Never inherit a developer's corpus sampling or dev-profile selection.
@@ -90,23 +68,10 @@ const report = readSiteReport(
   programs,
 );
 writeFileSync(`${output}/actual.json`, JSON.stringify(report, null, 2) + "\n");
-const summary = siteTable(report, previous ?? budget);
-writeFileSync(`${output}/summary.md`, summary);
-process.stdout.write(summary);
-if (flags.has("--record")) {
-  writeFileSync(
-    baselinePath,
-    JSON.stringify(recordSites(report, budget, options.get("--reason")), null, 2) + "\n",
-  );
-} else {
-  if (!budget) {
-    throw new Error("missing conservative-site budget; seed it with --record");
-  }
-  const failures = compareSites(report, budget, previous);
-  if (failures.length) {
-    throw new Error(failures.join("\n"));
-  }
-  if (flags.has("--refresh")) {
-    writeFileSync(baselinePath, JSON.stringify(recordSites(report, budget), null, 2) + "\n");
-  }
-}
+gate(
+  output,
+  options.get("--base"),
+  readSites,
+  (base) => compareSites(report, base),
+  options.get("--cost-ok"),
+);
