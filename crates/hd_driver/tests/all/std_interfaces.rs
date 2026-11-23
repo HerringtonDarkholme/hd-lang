@@ -39,10 +39,7 @@ fn run(src: &MemorySources) -> Output {
 
 fn hello() -> MemorySources {
     let mut s = MemorySources::default();
-    s.insert(
-        "main.hd",
-        "pub fn main() -> void $ Console:\n    println(42)\n",
-    );
+    s.insert("main.hd", include_str!("programs/std_interfaces/hello.hd"));
     s
 }
 
@@ -229,8 +226,8 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
 #[test]
 fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
     let types = |field: &str| format!("pub struct User:\n    pub name: {field}\n");
-    let service = "use pkg.user.types.{User}\n\npub fn load() -> User:\n    User { name: 1 }\n";
-    let main = "use pkg.service.load.{load}\n\npub fn main() -> void $ Console:\n    println(load().name)\n";
+    let service = include_str!("programs/std_interfaces/service.hd");
+    let main = include_str!("programs/std_interfaces/service_main.hd");
     let program = |field: &str| {
         let mut s = MemorySources::default();
         s.insert("main.hd", main);
@@ -259,10 +256,7 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
 fn every_program_shares_stds_check_entries_under_one_profile() {
     let run = |package: &str, profile: Option<Vec<String>>| {
         let mut sources = MemorySources::default();
-        sources.insert(
-            "main.hd",
-            "pub fn main() -> void $ Console:\n    println(1)\n",
-        );
+        sources.insert("main.hd", include_str!("programs/std_interfaces/one.hd"));
         let store = MemoryStore::default();
         let host = Host {
             render_tir: &[],
@@ -298,26 +292,7 @@ fn every_program_shares_stds_check_entries_under_one_profile() {
     assert_ne!(std_keys(&a), std_keys(&console));
 }
 
-const STATS: &str = "\
-use std.cmp.Ordering
-
-pub struct Point:
-    pub x: i32
-    pub y: i32
-
-impl Eq for Point:
-    fn eq(&self, other: &Point) -> bool:
-        self.x == other.x
-
-pub fn count(xs: List[i32], fallback: i32?) -> i32:
-    3
-
-pub fn rank(o: Ordering, seen: Map[string, List[i32]]) -> Result[i32, string]?:
-    .None
-
-pub fn total(a: i32, b: i32) -> i32:
-    a + b
-";
+const STATS: &str = include_str!("programs/std_interfaces/stats.hd");
 
 #[test]
 fn std_typed_signatures_compile_through_headers() {
@@ -325,7 +300,7 @@ fn std_typed_signatures_compile_through_headers() {
     s.insert("stats/calc.hd", STATS);
     s.insert(
         "main.hd",
-        "use pkg.stats.calc.{total}\n\npub fn main() -> void $ Console:\n    println(total(3, 4))\n",
+        include_str!("programs/std_interfaces/stats_main.hd"),
     );
     let out = run(&s);
     let t = out.report.tally(Stage::FolderIface);
@@ -348,12 +323,7 @@ fn written_lifetimes_map_reference_slots() {
     let mut s = MemorySources::default();
     s.insert(
         "main.hd",
-        "struct User:\n    name: string\n\n\
-         pub fn choose['a](a: &'a User, b: &User, c: (&'a User, &User)) -> &'a User:\n    a\n\n\
-         pub fn plain(a: &User) -> &User:\n    a\n\n\
-         struct Pair[T]:\n    left: T\n\n\
-         impl[T, 's] Pair[T]:\n    pub fn left_or['f](&'s self, x: &'f T, y: List[&'s T]) -> &'f T:\n        x\n\n\
-         pub fn main() -> void:\n    pass\n",
+        include_str!("programs/std_interfaces/lifetimes.hd"),
     );
     let out = run(&s);
     assert!(
