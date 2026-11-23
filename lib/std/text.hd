@@ -20,7 +20,6 @@ use std.rt.bytes.{
     bytes_at,
     bytes_slice,
     bytes_concat,
-    concat_all,
     string_from_bytes,
     ByteBuffer,
     TextSink,
@@ -671,21 +670,18 @@ impl char:
     pub fn to_u32(self) -> u32:
         char_scalar(self)
 
-impl List[string]:
-    # The parts in order with `separator` between each two
-    # (r-std-text.join.list-method).
-    ## Joins the list's elements with `separator` between each two.
-    ## See [std-text.join.list-method](../../spec/std/text.md#r-std-text.join.list-method).
+impl[T < Display] List[T]:
+    ## Joins each element's Display text with `separator` between elements.
+    ## See [std-text.join.display-list](../../spec/std/text.md#r-std-text.join.display-list).
     pub fn join(&self, separator: string) -> string:
-        if bytes_len(separator) == 0:
-            return concat_all(*self)
-        # The parts with a separator between each two, then one copy of all.
-        let mut pieces: List[string] = []
+        let mut output = StringBuilder { bytes: UniqList::[u8].new() }
+        let first = true
         for part in self:
-            if pieces.len() > 0:
-                pieces.push(separator)
-            pieces.push(part)
-        concat_all(pieces)
+            if !first:
+                output.push(separator)
+            first = false
+            part.write(&mut output)
+        output.build()
 
 ## Joins many pieces of text by pushing them, cheaper than repeated concatenation.
 ## See [std-text.builder.decl-struct](../../spec/std/text.md#r-std-text.builder.decl-struct).

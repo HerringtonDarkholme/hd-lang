@@ -66,7 +66,6 @@ std/structure/impl Facts.find#0 [std.serde.SkipNone[i64]]
 std/structure/impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF].fact#0 [app.main.Pair, i64, std.serde.Skip]
 std/rt.alloc/retain#0
 std/rt.cycle/sweep#0
-std/text/impl List[string].join#0
 std/rt.hash/hash_string#0
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
@@ -100,6 +99,7 @@ std/json/impl TextWriter.give_up#0
 std/rt.alloc/start#0
 std/rt.hash/add_wrapping#0
 std/rt.alloc/free_block#0
+std/format/impl Display for string.write#0
 std/json/impl Serializer for JsonWriter.end_map#0
 std/json/encode#0 [app.main.Pair]
 app/main/Pair.structure member facts 0 0#0
@@ -114,7 +114,6 @@ std/rt.alloc/init.init#0
 app/main/Pair.structure member facts 0 1#0
 std/collections/impl[T] List[T].pop#0 [std.json.OpenFrame]
 std/json/line_break#0
-std/rt.bytes/concat_all#0
 std/collections/impl[T] List[T].pop#0 [std.json.Json]
 std/rt.cycle/collection_due#0
 std/format/impl Display for f64.to_string#0
@@ -134,6 +133,7 @@ std/text/impl string.replace#0
 std/rt.hash/hash_bytes#0
 std/collections/impl ByteBuffer for UniqList[u8].take_text#0
 app/main/Pair.structure handle 0 1#1
+std/text/impl[T < Display] List[T].join#0 [string]
 std/rt.cycle/visit#0
 std/serde/impl Serialize for i64.serialize#0 [std.json.JsonWriter]
 std/json/impl TextWriter.add_key#0
@@ -150,10 +150,10 @@ std/rt.cycle/init.init#0
 std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
-std/rt.alloc/release_value#0 [std.text.StringBuilder]
-std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]
 std/rt.alloc/release_value#0 [(std.json.OpenFrame, List[string], List[std.json.Json])]
+std/rt.alloc/release_value#0 [std.text.StringBuilder]
+std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.json.Json?]
 std/rt.alloc/release_value#0 [std.json.JsonWriter]
 std/rt.alloc/release_value#0 [std.json.OpenFrame]

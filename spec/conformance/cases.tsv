@@ -7277,6 +7277,8 @@ lang/traits/numeric-traits/integer-limit-function-values.hd	runtime	accept	lang/
 std/collections/set-operations/set-operations.hd	runtime	accept	std/collections.md#set-operations
 std/collections/set-operations/set-membership-work.hd	runtime	accept	std/collections.md#set-operations
 std/text/character-classification/char-unicode-uppercase.hd	runtime	accept	std/text.md#r-std-text.char.uppercase
+std/text/joining-and-building/display-list-join.hd	runtime	accept	std/text.md#r-std-text.join.display-list
+std/text/joining-and-building/non-display-list-join.hd	type	reject:unsatisfied-trait-bound	std/text.md#r-std-text.join.display-list
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

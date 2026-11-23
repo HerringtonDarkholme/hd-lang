@@ -1,5 +1,5 @@
 # test: the List[string] join method puts the separator between parts, and StringBuilder joins pushed text in order
-# Spec std/text Joining And Building: std-text.join.list-result, std-text.join.list-method, std-text.builder.new-ref, .push-local, .push-char-local, .build-empties.
+# Spec std/text Joining And Building: std-text.join.display-result, std-text.join.display-list, std-text.builder.new-ref, .push-local, .push-char-local, .build-empties.
 use std.text.StringBuilder
 fn csv(cells: List[string]) -> string:
     cells.join(",")
