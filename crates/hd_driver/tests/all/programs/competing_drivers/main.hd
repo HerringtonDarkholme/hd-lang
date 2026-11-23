@@ -1,0 +1,4 @@
+use std.time.{Clock, Duration, sleep}
+
+pub fn main!() -> void $ Clock:
+    sleep!(Duration::milliseconds(60000))

@@ -33,7 +33,7 @@ fn built(main: &str) -> Output {
 
 /// A root that stays pending past its first poll: a sleep under way.
 fn main() -> String {
-    "use std.time.{Clock, Duration, sleep}\n\npub fn main!() -> void $ Clock:\n    sleep!(Duration::milliseconds(60000))\n".to_owned()
+    include_str!("programs/competing_drivers/main.hd").to_owned()
 }
 
 /// Drives one scenario against `wasm`: init, one poll as driver 0 (which
