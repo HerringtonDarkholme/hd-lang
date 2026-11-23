@@ -24,7 +24,7 @@ tests:
         let mut set: Set[string] = Set::new()
         assert(set.is_empty() && set.len() == 0, reason="new is empty")
         assert(set.insert("x") && !set.insert("x"), reason="insert reports a change")
-        assert(set.contains("x") && !set.contains("y"), reason="contains")
+        assert(set.contains(&"x") && !set.contains(&"y"), reason="contains")
         assert(set.remove("x") && !set.remove("x"), reason="remove reports a change")
         assert_equal(set.len(), 0, reason="empty again")
     it("iterates each element once, in the same order every time"):

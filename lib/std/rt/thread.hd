@@ -1,0 +1,64 @@
+# std.rt.thread: threads on one heap (spec/lang/10-modules.md#thread-intrinsics).
+# A thread is another instance of the program's module, on a thread of
+# the host; a program that starts one shares its heap with every thread
+# (r-module.rt.thread.heap). A runtime module, so only std may use it
+# (spec/lang/10-modules.md#r-module.rt.std-only).
+use std.rt.alloc.{alloc, free_block, retire}
+use std.rt.memory.{Ptr, atomic_load_u32, atomic_wait_u32, load_u32, store_u32}
+
+# A thread's block, as `start_thread` reads it: the top and the limit of
+# its frame region, `run`'s code and environment, the state word, then the
+# work's code and environment.
+LIMIT := 4
+STATE := 16
+WORK := 20
+
+# Each thread's frame region: 1 MiB, as the first thread's.
+FRAMES := 1048576
+
+# The state word while the thread runs, and once its work returned.
+RUNNING := u32(0)
+FINISHED := u32(1)
+
+## Starts a thread that runs `work`, a top-level function, and gives the handle that `join` takes; `.None` when the host starts no threads.
+## See [module.rt.thread.spawn](../../../spec/lang/10-modules.md#r-module.rt.thread.spawn).
+pub fn spawn(work: fn() -> void) -> usize?:
+    frames := alloc(FRAMES)
+    block := alloc(28)
+    store_u32(block, u32(frames + FRAMES))
+    store_u32(block + LIMIT, u32(frames))
+    store_u32(block + STATE, RUNNING)
+    if start_thread(block, run, work):
+        return .Some(block)
+    release(block)
+    .None
+
+## Waits until the thread of `thread`, a handle `spawn` gave, ends, and frees what it held: `true` when its work returned, `false` when the thread stopped first.
+## See [module.rt.thread.join](../../../spec/lang/10-modules.md#r-module.rt.thread.join).
+pub fn join(thread: usize) -> bool:
+    while atomic_load_u32(thread + STATE) == RUNNING:
+        _ := atomic_wait_u32(thread + STATE, RUNNING, -1)
+    finished := atomic_load_u32(thread + STATE) == FINISHED
+    release(thread)
+    finished
+
+# A new thread's code: its work, then its heap retires for the next
+# thread to adopt (module.rt.thread.heap).
+fn run(block: usize) -> void:
+    work := Ptr::[fn() -> void] { address: block + WORK }.as_ref()
+    work()
+    retire()
+
+# Frees `block` and its frame region.
+fn release(block: usize) -> void:
+    free_block(usize(load_u32(block + LIMIT)))
+    free_block(block)
+
+@intrinsic("thread_spawn")
+# Writes `run` into `block`'s third and fourth words and `work` into its
+# sixth and seventh, and asks the host for a thread whose instance runs
+# `run(block)` on the frame region of the block's first two
+# (module.rt.thread.spawn); whether the host started it. Both are
+# top-level functions: the block keeps no count of an environment.
+fn start_thread(block: usize, run: fn(usize) -> void, work: fn() -> void) -> bool:
+    panic("intrinsic")

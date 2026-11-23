@@ -41,6 +41,61 @@ pub const STATIC_BASE: u32 = 16;
 /// is this view, whose bytes are never read.
 pub const EMPTY: u32 = STATIC_BASE;
 
+/// A shared heap, the import of a program that starts threads
+/// (`module.rt.thread.heap`): one page at first, the host's, and at most the
+/// 4 GiB an unshared heap may grow to.
+const SHARED_HEAP: MemoryType = MemoryType {
+    minimum: 1,
+    maximum: Some(1 << 16),
+    memory64: false,
+    shared: true,
+    page_size_log2: None,
+};
+
+/// The word below static data that the first instance on a shared heap
+/// sets (`heap_start`).
+const HEAP_READY: u32 = 8;
+
+/// The start function of a program on a shared heap: the first instance to
+/// run it (the word at [`HEAP_READY`] was 0) grows the heap to `pages` and
+/// copies the passive segments of `ranges` to their addresses; a thread's
+/// instance finds the word set and leaves the heap alone. Cost: one atomic
+/// step per instance, and one `memory.init` per segment once.
+fn heap_start(ranges: &[std::ops::Range<usize>], pages: u32) -> wasm_encoder::Function {
+    use wasm_encoder::{Instruction as I, MemArg};
+    let word = MemArg {
+        offset: 0,
+        align: 2,
+        memory_index: HEAP,
+    };
+    let mut f = wasm_encoder::Function::new([]);
+    f.instruction(&I::I32Const(HEAP_READY.cast_signed()))
+        .instruction(&I::I32Const(0))
+        .instruction(&I::I32Const(1))
+        .instruction(&I::I32AtomicRmwCmpxchg(word))
+        .instruction(&I::I32Eqz)
+        .instruction(&I::If(wasm_encoder::BlockType::Empty));
+    if pages > 1 {
+        f.instruction(&I::I32Const((pages - 1).cast_signed()))
+            .instruction(&I::MemoryGrow(HEAP))
+            .instruction(&I::Drop);
+    }
+    for (segment, range) in (0..).zip(ranges.iter().filter(|r| !r.is_empty())) {
+        // ruled out: static data fits the 32-bit heap (`Module::static_end`).
+        let fits = |n: usize| crate::emit::required(u32::try_from(n).ok(), "static data fits");
+        let (at, len) = (fits(range.start) + STATIC_BASE, fits(range.len()));
+        f.instruction(&I::I32Const(at.cast_signed()))
+            .instruction(&I::I32Const(0))
+            .instruction(&I::I32Const(len.cast_signed()))
+            .instruction(&I::MemoryInit {
+                mem: HEAP,
+                data_index: segment,
+            });
+    }
+    f.instruction(&I::End).instruction(&I::End);
+    f
+}
+
 /// The size of a counted object's header, before its payload (§23.4).
 pub const HEADER: u32 = 8;
 /// The descriptor word's bit that marks an object of a cycle-capable type,
@@ -1220,6 +1275,9 @@ pub struct Module {
     /// The instances of `std.rt.cycle`, whose module init an acyclic
     /// program does not run.
     pub cycle_insts: BTreeSet<Hash128>,
+    /// The instances of the runtime modules, whose inits a thread's
+    /// instance runs too (`module.rt.thread.spawn`).
+    pub rt_insts: BTreeSet<Hash128>,
     /// Every `std.*` instance, the runtime's included: the inits whose
     /// releases of a binding's constant link drops before it looks for
     /// quiet inits.
@@ -1258,6 +1316,9 @@ pub struct Module {
     pub wakers: bool,
     /// A reachable idle hook: the drivers run it before they wait.
     pub idle: bool,
+    /// A reachable `thread_spawn`, which exports `hd.thread`: the heap is
+    /// then a shared memory the host gives (`module.rt.thread.heap`).
+    pub threads: bool,
     /// The types whose objects a pointer loan may hold (model A,
     /// `emit/borrow.rs`), true where the loan may be exclusive; empty, no
     /// access through a `*T` checks a borrow state.
@@ -1340,6 +1401,7 @@ impl Module {
             optimized: Default::default(),
             acyclic: Default::default(),
             cycle_insts: BTreeSet::default(),
+            rt_insts: BTreeSet::default(),
             std_insts: BTreeSet::default(),
             quiet_inits: BTreeSet::default(),
             cold_insts: BTreeSet::default(),
@@ -1350,6 +1412,7 @@ impl Module {
             drain_glues: Vec::default(),
             wakers: Default::default(),
             idle: Default::default(),
+            threads: false,
             lent: hd_base::HashMap::default(),
             kept: hd_base::HashSet::default(),
             kept_sites: hd_base::HashSet::default(),
@@ -1898,6 +1961,13 @@ impl Module {
         session: bool,
         previous: Option<&Session>,
     ) -> StageResult<(crate::MappedModule, Session)> {
+        if self.threads && session {
+            // gap: #2288. A REPL session's inputs share one unshared heap.
+            return Err(NotImplemented::new(
+                Stage::Link,
+                "threads in a REPL session",
+            ));
+        }
         // Discover cancellation roots without following the cancel slots of
         // every cold frame. Once a root exists, expand those slots before
         // choosing physical layouts and cycle-collection support.
@@ -2258,7 +2328,7 @@ impl Module {
         #[cfg(feature = "checked-report")]
         let mut count_sites = hd_base::wire::Writer::default();
         #[cfg(feature = "checked-report")]
-        if let Some(c) = self.runtime.checked
+        if let Some(c) = self.runtime.report()
             && self.count_audit
         {
             let r = self.runtime;
@@ -2373,6 +2443,8 @@ impl Module {
             index.insert(s, next);
             next += 1;
         }
+        // A shared heap's start function follows every other function.
+        let heap_init = next;
         // The function table: every function a slot or a vtable names,
         // release glues first, then the rest in the order first named.
         let mut slots: Vec<u32> = Vec::new();
@@ -2433,7 +2505,7 @@ impl Module {
         // rest of the table is unbounded. A checked build gives each
         // descriptor its own alias slot, which names its allocation kind.
         #[cfg(feature = "checked-report")]
-        let checked = self.runtime.checked.is_some() && self.allocation_kind_reporting;
+        let checked = self.runtime.report().is_some() && self.allocation_kind_reporting;
         #[cfg(not(feature = "checked-report"))]
         let checked = false;
         // The largest glue field value a descriptor word holds.
@@ -2557,6 +2629,9 @@ impl Module {
         for im in &imports {
             let t = ty(&im.params, &im.results, &mut types);
             import_sec.import(&im.module, &im.name, EntityType::Function(t));
+        }
+        if self.threads {
+            import_sec.import("hd:rt", "heap", EntityType::Memory(SHARED_HEAP));
         }
         if let Some(previous) = previous {
             for g in ordered_globals.iter().filter(|g| imported_global(g)) {
@@ -2866,15 +2941,18 @@ impl Module {
             );
         }
         let mut memories = MemorySection::new();
-        // Memory 0: the heap, whose first pages hold static data.
+        // Memory 0: the heap, whose first pages hold static data. A shared
+        // one is the import, which its start function grows.
         let heap_pages = heap_base.div_ceil(1 << 16).max(1);
-        memories.memory(MemoryType {
-            minimum: u64::from(heap_pages),
-            maximum: None,
-            memory64: false,
-            shared: false,
-            page_size_log2: None,
-        });
+        if !self.threads {
+            memories.memory(MemoryType {
+                minimum: u64::from(heap_pages),
+                maximum: None,
+                memory64: false,
+                shared: false,
+                page_size_log2: None,
+            });
+        }
         // Memory 1: the exchange buffer, grown by the host's results.
         memories.memory(MemoryType {
             minimum: 1,
@@ -2932,7 +3010,7 @@ impl Module {
         }
         exports.export("hd.x", ExportKind::Memory, BUF);
         #[cfg(feature = "checked-report")]
-        if self.runtime.checked.is_some() {
+        if self.runtime.report().is_some() {
             exports.export("hd.heap", ExportKind::Memory, HEAP);
         }
         let mut manifest = previous.cloned().unwrap_or_default();
@@ -3006,6 +3084,12 @@ impl Module {
                 );
             }
             data
+        } else if self.threads {
+            let ranges = crate::static_data::segments(&self.data, &self.data_chunks, &mut || {});
+            funcs.function(ty(&[], &[], &mut types));
+            code.function(&heap_start(&ranges, heap_pages));
+            own.push((heap_init, "rt:heap_init".to_owned()));
+            crate::static_data::write(&self.data, &ranges, true)
         } else {
             crate::static_data::section(&self.data, &self.data_chunks, &mut || {})
         };
@@ -3042,7 +3126,7 @@ impl Module {
             });
         }
         module.section(&types);
-        if !imports.is_empty() || previous.is_some() {
+        if !imports.is_empty() || previous.is_some() || self.threads {
             module.section(&import_sec);
         }
         module.section(&funcs);
@@ -3056,8 +3140,16 @@ impl Module {
             module.section(&global_sec);
         }
         module.section(&exports);
+        if self.threads {
+            module.section(&wasm_encoder::StartSection {
+                function_index: heap_init,
+            });
+        }
         if !slots.is_empty() {
             module.section(&elements);
+        }
+        if self.threads {
+            module.section(&wasm_encoder::DataCountSection { count: data.len() });
         }
         module.section(&code);
         if !data.is_empty() {
@@ -3077,7 +3169,7 @@ impl Module {
             module.section(&name_sec);
         }
         #[cfg(feature = "checked-report")]
-        if self.runtime.checked.is_some() {
+        if self.runtime.report().is_some() {
             let mut data = vec![1];
             let mut descriptors: Vec<_> = descriptors.iter().collect();
             descriptors.sort_stable_by(|((a, ka), _), ((b, kb), _)| {

@@ -31,6 +31,10 @@ pub(crate) enum Rt {
     Panic,
     Fact,
     HashSeed,
+    /// A program's shared heap (`module.rt.thread.heap`): a memory, which
+    /// the instance's engine links itself.
+    Heap,
+    ThreadSpawn,
 }
 
 /// An `hd:prim` import (`rt.rs`, over `prim.rs`).
@@ -61,7 +65,7 @@ pub(crate) enum Record {
 impl Kind {
     pub(crate) fn record(self) -> Record {
         match self {
-            Self::Prim(_) | Self::Rt(Rt::Fact) => Record::Skip,
+            Self::Prim(_) | Self::Rt(Rt::Fact | Rt::Heap | Rt::ThreadSpawn) => Record::Skip,
             Self::Rt(Rt::Block) => Record::Block,
             Self::Rt(Rt::Abort) => Record::Abort,
             Self::Fixture { finish: true, .. } | Self::Host { finish: true, .. } => Record::Finish,
@@ -195,6 +199,8 @@ impl Kind {
             ("hd:rt", "panic") => Kind::Rt(Rt::Panic),
             ("hd:rt", "fact") => Kind::Rt(Rt::Fact),
             ("hd:rt", "hash_seed") => Kind::Rt(Rt::HashSeed),
+            ("hd:rt", "heap") => Kind::Rt(Rt::Heap),
+            ("hd:rt", "thread_spawn") => Kind::Rt(Rt::ThreadSpawn),
             ("hd:prim", "format_f64") => Kind::Prim(Prim::FormatF64),
             ("hd:prim", "format_f32") => Kind::Prim(Prim::FormatF32),
             ("hd:prim", "format_f64_fixed") => Kind::Prim(Prim::FormatFixed),

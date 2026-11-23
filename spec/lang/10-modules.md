@@ -1776,6 +1776,9 @@ pub fn atomic_add_u32(address: usize, value: u32) -> u32
 pub fn atomic_sub_u32(address: usize, value: u32) -> u32
 pub fn atomic_compare_exchange_u32(address: usize, expected: u32, new: u32) -> u32
 pub fn atomic_fence() -> void
+pub fn atomic_store_u32(address: usize, value: u32) -> void
+pub fn atomic_wait_u32(address: usize, expected: u32, timeout: i64) -> u32
+pub fn atomic_notify(address: usize, count: u32) -> u32
 ```
 
 1. r[module.rt.memory.decl] Each function of the block is an ordinary hd declaration marked `@intrinsic`, and the compiler supplies only its body, as for [`dbg_printer`](#r-module.dbg.printer.declaration).
@@ -1791,16 +1794,38 @@ pub fn atomic_fence() -> void
 11. r[module.rt.memory.fill] `fill(to, byte, count)` sets each of the `count` bytes from `to` to `byte`.
 12. r[module.rt.memory.store.shared] While a shared reference is live, no store, `copy`, or `fill` that std makes writes a byte of its referent, as [`ref.excl.shared`](13-values-and-references.md#r-ref.excl.shared) forbids for a place.
 13. r[module.rt.memory.bounds] A call that reaches a byte outside the heap stops the program instance with no panic category. Only the standard library makes these calls, and it never makes one that reaches outside.
-14. r[module.rt.memory.atomic] `atomic_load_u32(address)` returns the 4 bytes from `address` as one step: no other thread's write to them is seen in part. Every atomic call is sequentially consistent: all threads see all atomic calls in one order.
+14. r[module.rt.memory.atomic] `atomic_load_u32(address)` returns the 4 bytes from `address` as one step: no other thread's write to them is seen in part. `atomic_store_u32(address, value)` writes them as one step. Every atomic call is sequentially consistent: all threads see all atomic calls in one order.
 15. r[module.rt.memory.atomic.add] `atomic_add_u32` and `atomic_sub_u32` add `value` to the 4 bytes, or subtract it, wrapping, as one step, and return what the bytes held before.
 16. r[module.rt.memory.atomic.exchange] `atomic_compare_exchange_u32(address, expected, new)` writes `new` when the 4 bytes hold `expected`, as one step, and returns what they held before.
 17. r[module.rt.memory.atomic.fence] `atomic_fence()` orders the calling thread's heap accesses before it against the ones after it, as seen by every thread.
 18. r[module.rt.memory.atomic.aligned] The `address` of an atomic call is a multiple of 4. A call with another address stops the program instance with no panic category, as rule 13's does.
+19. r[module.rt.memory.atomic.wait] `atomic_wait_u32(address, expected, timeout)` returns 1 at once when the 4 bytes from `address` do not hold `expected`. Otherwise the calling thread waits until an `atomic_notify` at `address` wakes it, which returns 0, or until `timeout` nanoseconds pass, which returns 2. A negative `timeout` never passes. `atomic_notify(address, count)` wakes at most `count` of the threads waiting at `address`, those that started waiting first, and returns how many it woke. Both are atomic calls.
+20. r[module.rt.memory.atomic.wait.shared] Only a heap that threads share, by [`module.rt.thread.heap`](#r-module.rt.thread.heap), may wait. A wait on another heap stops the program instance with no panic category, and a notify there wakes none.
 
 > **Note.** The heap is the memory of a linear-memory implementation. The
 > bytes below the size the heap starts with hold what the implementation
 > places there, such as static data, so std code reads and writes only the
 > pages it grew.
+
+### Thread Intrinsics
+
+`std.rt.thread` starts threads on the heap and waits for them to end:
+
+```text
+pub fn spawn(work: fn() -> void) -> usize?
+pub fn join(thread: usize) -> bool
+```
+
+1. r[module.rt.thread.heap] A program that may start a thread has one heap, which every thread reads and writes. Each thread runs its own program instance. Its top-level bindings are on that heap, so every thread sees the values the first thread's inits gave them. The storage of the runtime modules is each instance's own, as [`fn.crossing.global.runtime`](07-functions.md#r-fn.crossing.global.runtime) states. A program whose reachable code never calls `spawn` keeps a heap of its own, and its build is the same as without this rule.
+2. r[module.rt.thread.spawn] `spawn(work)` starts a thread that runs `work`, a top-level function, and returns `.Some(handle)`. The new instance's runtime modules run their inits first. Its frames take a region of 1 MiB of the heap. When the host starts no threads, `spawn` returns `.None`.
+3. r[module.rt.thread.join] `join(handle)` waits until the thread of `handle` ends, and frees its region. It returns `true` when `work` returned, and `false` when the thread's instance stopped first, by a panic or any other stop. Each handle is joined once.
+4. r[module.rt.thread.stop] A thread that stops ends only its own instance. Its panic report goes to the process's standard error at once.
+5. r[module.rt.thread.alloc] Each instance allocates from a heap of its own: the allocator's state is runtime storage, over the pages that instance grew. A block may be freed, retained or released on any thread. A block that a thread frees from another instance's heap returns to that heap, which can give it out again before it grows.
+6. r[module.rt.thread.alloc.adopt] When a thread's work returns, its heap is retired with every block in it. The next thread to start adopts a retired heap, and makes a new one only when none is retired. At most 1,023 heaps exist at once; an allocation in an instance past that panics `heap-exhausted`.
+7. r[module.rt.thread.reachable] The runtime's private intrinsic `threads_reachable()` is `true` in a program that may start a thread, by rule 1, and `false` in any other. It is a constant of the build, so code under a `false` one is not built.
+
+> **Note.** A thread that stops keeps its heap: nothing adopts it, and
+> nothing gives back its blocks. Std is the only caller.
 
 ### Typed Memory
 

@@ -2,68 +2,40 @@
 (module
   (import "fixture" "rt:new/class-2" (func $rt:new/class-2 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "peek" (func $peek (param i32) (result i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "first" (func $first (param i32) (result i32 i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $make (param $t0 i32) (param $t1 i32) (param $t2 i32) (result i32 i32) (local $p i32) (local $t3 i32)
+  (func $make (param $p.x i32) (param $p.name.0 i32) (param $p.name.1 i32) (result i32 i32) (local $t0 i32)
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
-    i32.const 12
-    i32.const 1
-    call $rt:new/class-2
-    local.tee $p
-    local.get $t0
-    i32.store $heap offset=8
-    local.get $p
-    local.get $t1
-    i32.store $heap
-    local.get $p
-    local.get $t2
-    i32.store $heap offset=4
     i32.const 2
-    local.get $p
-    i32.load $heap offset=8
-    local.set $t0
-    local.get $p
-    i32.load $heap
-    local.set $t1
-    local.get $p
-    i32.load $heap offset=4
-    local.set $t2
     i32.const 12
     i32.const 1
     call $rt:new/class-2
-    local.tee $t3
-    local.get $t0
+    local.tee $t0
+    local.get $p.x
     i32.store $heap offset=8
-    local.get $t3
-    local.get $t1
+    local.get $t0
+    local.get $p.name.0
     i32.store $heap
-    local.get $t3
-    local.get $t2
+    local.get $t0
+    local.get $p.name.1
     i32.store $heap offset=4
-    local.get $t3
+    local.get $t0
     call $rt:retain_fields
-    local.get $p
+    local.get $p.name.0
     if
-      local.get $p
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $p
-        call $rt:release_ref'1
-      end
+      local.get $p.name.0
+      call $rt:release_ref
     end
-    local.get $t3
+    local.get $t0
   )
   (func $make#1 (param $env i32) (param $ctx i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $text.0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 18 |     fn() -> string: "${peek(&p)} ${first(&p.name)}"
@@ -111,7 +83,7 @@
     local.get $ctx
     if
       local.get $ctx
-      call $rt:release_ref'2
+      call $rt:release_ref
     end
     drop
     local.get $t1
@@ -187,7 +159,7 @@
     local.get $text.0
     if
       local.get $text.0
-      call $rt:release_ref'2
+      call $rt:release_ref
     end
     local.get $t3
     local.get $t2

@@ -1,0 +1,7 @@
+# @dump: counts wat
+# @build: std release
+# @helper: std/collections/impl[T < Eq] List[T].dedup
+# expected: two forward cursors compact in place and truncate once;
+# no new list or append loop, and no write when all elements are distinct.
+fn compact(items: &mut List[i32]) -> void:
+    items.dedup()

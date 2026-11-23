@@ -146,13 +146,13 @@ fn replace_model(text: string, old: string, replacement: string) -> string:
 
 fn left_edge(chars: List[char]) -> usize:
     let at: usize = 0
-    while at < chars.len() && white_space().contains(chars[at]):
+    while at < chars.len() && white_space().contains(&chars[at]):
         at += 1
     at
 
 fn right_edge(chars: List[char]) -> usize:
     let at = chars.len()
-    while at > 0 && white_space().contains(chars[at - 1]):
+    while at > 0 && white_space().contains(&chars[at - 1]):
         at -= 1
     at
 

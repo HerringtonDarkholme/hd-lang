@@ -62,8 +62,8 @@ Its surface is:
 | borrowing cursor | `iter['a](&'a self) -> UniqListIter[T, 'a]`, whose item is `&'a T` |
 | consuming cursor | `Iterable[T]` with `UniqListIntoIter[T]`, whose item is `T`; `FromIterator[T]` |
 | copyable conversion, `T < Copy` | `from_list(items: List[T]) -> UniqList[T]`; `to_list(&self) -> List[T]` |
-| looking | `find_ref['a](&'a self, test: fn(&T) -> bool) -> (&'a T)?`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool` |
-| changing | `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void` |
+| looking | `find_ref[F < ?Copy & FnMut(&T) -> bool, 'a](&'a self, test: F) -> (&'a T)?`; `any[F < ?Copy & FnMut(&T) -> bool](&self, test: F) -> bool`; `all[F < ?Copy & FnMut(&T) -> bool](&self, test: F) -> bool` |
+| changing | `retain[F < ?Copy & FnMut(&T) -> bool](&mut self, keep: F) -> void`; `sort_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&mut self, compare: F) -> void`; `sort_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&mut self, key: F) -> void` |
 | capacity | `capacity(&self) -> usize`; `reserve(&mut self, additional: usize) -> void` |
 | bulk changes | `extend[I < ?Copy & Iterable[T]](&mut self, other: I) -> void`; `append(&mut self, other: &mut UniqList[T]) -> void`; `split_off(&mut self, at: usize) -> UniqList[T]`; `reverse(&mut self) -> void`; `drain(&mut self, range: Range[usize]) -> UniqListDrain[T, '_]` |
 | equality, `T < ?Copy & Eq` | `contains(&self, value: &T) -> bool`; `index_of(&self, value: &T) -> usize?`; `dedup(&mut self) -> void` |
@@ -86,7 +86,7 @@ Its surface is:
 14. r[std-collections.uniq-list.index-places] `UniqList[T]` implements `Index[usize]`, `IndexMut[usize]`, and `IndexSet[usize, T]` for every `T`, with `Out = T`; an index outside the list panics. Panic: `index-out-of-bounds`.
 15. r[std-collections.uniq-list.iter] `iter()` borrows the list and yields shared references to its elements in order. Its cursor is `UniqListIter[T, 'a]`, with private fields. The cursor and each yielded reference live for the list borrow.
 16. r[std-collections.uniq-list.find-ref] `find_ref(test)` returns a shared reference to the first element for which `test` is true in `.Some`, or `.None` when there is none.
-17. r[std-collections.uniq-list.any-all] `any(test)` and `all(test)` have the behavior of [`std-collections.helper.any-all`](#r-std-collections.helper.any-all) and [`std-collections.helper.short-circuit`](#r-std-collections.helper.short-circuit), with `fn(&T)` callbacks.
+17. r[std-collections.uniq-list.any-all.fn-mut] `any(test)` and `all(test)` have the behavior of [`std-collections.helper.any-all`](#r-std-collections.helper.any-all) and [`std-collections.helper.short-circuit`](#r-std-collections.helper.short-circuit), with generic `FnMut(&T) -> bool` callbacks.
 18. r[std-collections.uniq-list.retain] `retain(keep)` drops each rejected element in place and preserves the order of those accepted.
 19. r[std-collections.uniq-list.sort] `sort`, `sort_by`, and `sort_by_key` sort in place and are stable. They order as [`std-collections.helper.sort`](#r-std-collections.helper.sort), [`std-collections.helper.sort-by`](#r-std-collections.helper.sort-by), and [`std-collections.helper.sort-by-key`](#r-std-collections.helper.sort-by-key) do.
 20. r[std-collections.uniq-list.sort-complexity] Each `UniqList` sort uses at most O(n log n) comparisons in the worst case.
@@ -152,7 +152,7 @@ fn positive_stock() -> UniqMap[string, i32]:
 | element places | `Index[K]` with `Out = V`; `IndexMut[K]`; `IndexSet[K, V]` |
 | reference access | `get_ref(&self, key: K) -> (&V)?`; `get_mut(&mut self, key: K) -> (&mut V)?`; `get_or_insert(&mut self, key: K, default: V) -> &mut V` |
 | borrowed iteration | `iter(&self) -> UniqMapIter[K, V, '_]`; `keys(&self) -> UniqMapKeys[K, V, '_]`; `values(&self) -> UniqMapValues[K, V, '_]` |
-| bulk changes | `reserve(&mut self, additional: usize) -> void`; `retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void`; `extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void`; `drain(&mut self) -> UniqMapDrain[K, V, '_]` |
+| bulk changes | `reserve(&mut self, additional: usize) -> void`; `retain[F < ?Copy & FnMut(&K, &mut V) -> bool](&mut self, keep: F) -> void`; `extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void`; `drain(&mut self) -> UniqMapDrain[K, V, '_]` |
 
 1. r[std-collections.uniq-map.type] `std.collections` declares `UniqMap[K < Eq & Hash, V < ?Copy]` with private fields and `impl[K < Eq & Hash, V < ?Copy] !Copy for UniqMap[K, V]`. It is not a prelude name, so code that names it imports it.
 2. r[std-collections.uniq-map.new] `new()` returns an empty map.
@@ -174,7 +174,7 @@ fn positive_stock() -> UniqMap[string, i32]:
 
 17. r[std-collections.uniq-map.with-capacity] `with_capacity(capacity)` returns an empty map whose first `capacity` new entries need no growth; zero capacity allocates no room.
 18. r[std-collections.uniq-map.reserve] `reserve(additional)` preserves every entry and reserves room for at least `additional` new entries without growth, including after removals.
-19. r[std-collections.uniq-map.retain] `retain(keep: fn(&K, &mut V) -> bool)` calls `keep` once per entry in table order, permits value changes, and drops rejected entries.
+19. r[std-collections.uniq-map.retain.fn-mut] `retain[F < ?Copy & FnMut(&K, &mut V) -> bool](keep: F)` calls `keep` once per entry in table order, permits value changes, and drops rejected entries.
 20. r[std-collections.uniq-map.values] `values()` returns `UniqMapValues[K, V, 'a]`, borrowing the map and yielding shared value references in the same order as `iter()`.
 21. r[std-collections.uniq-map.extend] `extend[I < ?Copy & Iterable[(K, V)]](other: I)` consumes and inserts each pair in iteration order, replacing and dropping former values for equal keys.
 22. r[std-collections.uniq-map.drain] `drain()` returns a non-copyable `UniqMapDrain[K, V, 'a]` that holds the mutable receiver borrow and moves every entry out in table order.
@@ -485,12 +485,12 @@ fn owners(tasks: List[Task]) -> List[string]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]`; `group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]`; `partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T])`; `any(&self, test: fn(&T) -> bool) -> bool`; `all(&self, test: fn(&T) -> bool) -> bool`; `find(&self, test: fn(&T) -> bool) -> T?`; `flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]`; `windows(self, size: usize) -> List[ListView[T]]` |
-| `List[T]` | `min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?`; `max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?` |
-| `List[T]`, when `T < Eq` | `contains(&self, value: T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(self) -> List[T]` |
-| `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
+| `List[T]` | `sorted_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, key: F) -> List[T]`; `group_by[K < Eq & Hash, F < ?Copy & FnMut(&T) -> K](&self, key: F) -> Map[K, List[T]]`; `partition[F < ?Copy & FnMut(&T) -> bool](&self, keep: F) -> (List[T], List[T])`; `any[F < ?Copy & FnMut(&T) -> bool](&self, test: F) -> bool`; `all[F < ?Copy & FnMut(&T) -> bool](&self, test: F) -> bool`; `find[F < ?Copy & FnMut(&T) -> bool](&self, test: F) -> T?`; `flat_map[U, I < Iterable[U], F < ?Copy & FnMut(&T) -> I](&self, transform: F) -> List[U]`; `windows(&self, size: usize) -> List[ListView[T]]` |
+| `List[T]` | `min_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, key: F) -> T?`; `max_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, key: F) -> T?` |
+| `List[T]`, when `T < Eq` | `contains(&self, value: &T) -> bool`; `index_of(&self, value: T) -> usize?`; `dedup(&mut self) -> void` |
+| `List[T]`, when `T < Eq & Hash` | `unique(&self) -> List[T]` |
 | `List[T]`, when `T < Ord` | `sorted(&self) -> List[T]`; `sort(&mut self) -> void`; `min(&self) -> T?`; `max(&self) -> T?` |
-| `List[T]`, when `T < Num` | `sum(self) -> T` |
+| `List[T]`, when `T < Num` | `sum(&self) -> T` |
 
 1. r[std-collections.helper.unchanged] Each helper but `retain`, `sort`, `sort_by`, `sort_by_key`, and `swap` leaves its receiver unchanged, and each one that returns a list returns a new list.
 2. r[std-collections.helper.callback-order] A helper calls its callback on the elements in list order, at most once each.
@@ -503,19 +503,19 @@ fn owners(tasks: List[Task]) -> List[string]:
 9. r[std-collections.helper.any-all] `any(test)` is true when `test` is true for some element, and `all(test)` when it is true for every element. So on an empty list `any` is false and `all` is true.
 10. r[std-collections.helper.find-copy] `find(test)` returns a copy of the first element for which `test` is true in `.Some`, or `.None` when there is none.
 11. r[std-collections.helper.short-circuit] `any`, `all`, and `find` call `test` on no element after the first one that decides the result.
-12. r[std-collections.helper.flat-map.iterable-owned] `flat_map(transform)` appends every item from each returned `Iterable` into one result list, in source order.
+12. r[std-collections.helper.flat-map.iterable-borrow] `flat_map(transform)` borrows each source element for `transform` and appends every returned iterable's item into one result list, in source order.
 13. r[std-collections.helper.windows.views] `windows(size)` returns overlapping `ListView[T]` values of `size` elements, in starting-index order.
 14. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
 15. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
-16. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
+16. r[std-collections.helper.contains-borrowed] `contains(value: &T)` is true when an element equals the borrowed value by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
 17. r[std-collections.helper.min-max.copy-ties] `min` returns a copy of the first smallest element and `max` one of the last largest by `Ord`, each in `.Some`, as Rust's `Iterator::min` and `Iterator::max` do. An empty list gives `.None`.
 18. r[std-collections.helper.sum] `sum` returns the total of the elements, added with `+` in list order from 0 of type `T`, so an empty list gives 0.
 19. r[std-collections.helper.sum.overflow] An integer total that leaves the range of `T` panics, as `+` does. Panic: `integer-overflow`.
 20. r[std-collections.helper.sum.iterator] `items.sum()` returns what `items.iter().sum()` returns.
 21. r[std-collections.helper.by-key.copy-ties] `min_by_key(key)` returns a copy of the first element whose `key` is smallest by `Ord`. `max_by_key(key)` returns a copy of the last whose `key` is largest. Each returns `.Some`, so equal keys give the earlier element for `min_by_key` and the later one for `max_by_key`, as `min` and `max` do and as Rust's `Iterator::min_by_key` and `Iterator::max_by_key` do. An empty list gives `.None`.
-22. r[std-collections.helper.dedup] `dedup` returns the list without each element that equals the element just before it in the receiver, as Rust's `Vec::dedup` does, so only adjacent duplicates go and `[1, 2, 1]` is unchanged.
+22. r[std-collections.helper.dedup-in-place] `dedup(&mut self) -> void` removes consecutive equal elements in place, keeping the first in each run, as Rust's `Vec::dedup` does.
 23. r[std-collections.helper.unique] `unique` returns the list without each element that equals an earlier element, so every distinct element stays once, at its first position.
-24. r[std-collections.helper.callback-ref] Each callback looks at an element by reference: `fn(&T)`, and `fn(&T, &T)` for `sorted_by` and `sort_by`. Each receiver is `&self`, or `&mut self` for a method that changes the list.
+24. r[std-collections.helper.callback-generic-ref] Each List closure parameter is generic over `F < ?Copy & FnMut(...)`, with borrowed `&T` elements and two borrowed elements for comparators. Each receiver is `&self`, or `&mut self` for a method that changes the list.
 25. r[std-collections.helper.retain] `retain(keep)` keeps the elements for which `keep` is true, in list order, and drops the rest, in place.
 26. r[std-collections.helper.sort] `sort` puts the elements in ascending order by `Ord`, in place.
 27. r[std-collections.helper.sort-by] `sort_by(compare)` puts the elements in ascending order by `compare`, in place.
@@ -526,13 +526,13 @@ fn owners(tasks: List[Task]) -> List[string]:
 | Call | Result |
 | --- | --- |
 | `[3, 1, 2].partition(fn(n: &i32) -> bool: n > 1)` | `([3, 2], [1])` |
-| `[1, 2].flat_map(fn(n: i32) -> List[i32]: [n, n])` | `[1, 1, 2, 2]` |
+| `[1, 2].flat_map(fn(n: &i32) -> List[i32]: [*n, *n])` | `[1, 1, 2, 2]` |
 | `[1, 2, 3].windows(2)` | views of `[1, 2]` and `[2, 3]` |
 | `[1, 2].windows(3)` | `[]` |
 | `[5, 7, 5].index_of(5)` | `.Some(0)` |
 | `[2, 9, 4].max()` | `.Some(9)` |
 | `["bb", "a", "cc"].max_by_key(fn(w: &string) -> usize: w.len())` | `.Some("cc")` |
-| `[1, 1, 2, 1].dedup()` | `[1, 2, 1]` |
+| `xs.dedup()` on mutable `xs = [1, 1, 2, 1]` | `()`; `xs` becomes `[1, 2, 1]` |
 | `[1, 1, 2, 1].unique()` | `[1, 2]` |
 | `[1, 2, 3].sum()` | `6` |
 | `[0.5, 0.25].sum()` | `0.75` |
@@ -580,13 +580,14 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> List[K]`; `values(&self) -> List[V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
+| `Map[K, V]` | `get_or_insert(&mut self, key: K, default: V) -> &mut V`; `contains_key(&self, key: K) -> bool`; `keys(&self) -> MapKeys[K, V]`; `values(&self) -> MapValues[K, V]`; `is_empty(&self) -> bool`; `entries(&self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(&self, n: usize) -> List[(K, usize)]` |
 
 > **Note.** Built-in map loops borrow entry slots: shared loops bind
 > `(&K, &V)`, and mutable loops bind `(&K, &mut V)`
 > ([Element Reference Loops](../lang/06-control-flow.md#element-reference-loops)).
-> `keys`, `values` and `entries` return lists of copied values.
+> `keys` and `values` return lazy cursors of copied values; `.collect()` materializes a list.
+> `entries` returns a list of copied pairs.
 
 ```text
 use std.collections.counts
@@ -598,7 +599,7 @@ fn shelf_count(stock: &Map[string, List[string]], item: string) -> usize:
 
 fn summary(stock: Map[string, i32]) -> string:
     if stock.contains_key("tea"):
-        return "${stock.keys().len()} items"
+        return "${stock.keys().count()} items"
     "no tea"
 
 fn top_words(words: List[string]) -> List[(string, usize)]:
@@ -620,16 +621,19 @@ fn tally(words: List[string]) -> Map[string, usize]:
 4. r[std-collections.map.get-or-insert.reference] The reference that `get_or_insert` returns is dependent on its receiver by [`ref.dep.elide`](../lang/13-values-and-references.md#r-ref.dep.elide).
 5. r[std-collections.map.get-or-insert.probe-once] Each `get_or_insert` call invokes the key's `Hash` implementation once and performs one map search, reusing a missing search position for insertion.
 6. r[std-collections.map.contains-key] `contains_key(key)` is true exactly when the map has an entry whose key equals `key`.
-7. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
-8. r[std-collections.map.values] `values` returns the map's values in the same order.
-9. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
+7. r[std-collections.map.keys.cursor] `keys()` returns a `MapKeys[K, V]` cursor yielding the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
+8. r[std-collections.map.values.cursor] `values()` returns a `MapValues[K, V]` cursor yielding the map's values in the same order.
+9. r[std-collections.map.cursor.snapshot] Each returned cursor holds a snapshot: a later change to the map does not change its remaining sequence.
 10. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
 11. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
 12. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
 13. r[std-collections.map.most-common.tie-order] Pairs with equal values keep the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the same in every run.
 
-> **Why.** `entries` is a list snapshot like `keys` and `values`, since a
-> loop that sorts or indexes the pairs needs a list. `most_common` is
+14. r[std-collections.map.keys.cursor-type] `std.collections` declares `MapKeys[K < Eq & Hash, V]` with private fields and implementing `Iterator[K]`.
+15. r[std-collections.map.values.cursor-type] `std.collections` declares `MapValues[K < Eq & Hash, V]` with private fields and implementing `Iterator[V]`.
+
+> **Why.** `keys` and `values` follow Rust's lazy cursor shape, preserving hd's copying snapshot iteration.
+> `entries` remains a list for sorting or indexing. `most_common` is
 > Python's `Counter.most_common`; a stable sort over the map's order gives
 > its tie rule with no extra bookkeeping. `get_or_insert` is Rust's
 > `HashMap::entry(key).or_insert(default)` operation without exposing an
@@ -639,7 +643,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Item | Signature |
 | --- | --- |
-| retaining | `retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void` |
+| retaining | `retain[F < ?Copy & FnMut(&K, &mut V) -> bool](&mut self, keep: F) -> void` |
 | extending | `extend[I < ?Copy & Iterable[(K, V)]](&mut self, other: I) -> void` |
 | draining | `drain['a](&'a mut self) -> MapDrain[K, V, 'a]` |
 
@@ -709,7 +713,7 @@ fn distinct(words: List[string]) -> Set[string]:
 | --- | --- |
 | `new` | `Set::new() -> Set[T]` |
 | `len`, `is_empty` | `len(&self) -> usize`; `is_empty(&self) -> bool` |
-| `contains` | `contains(&self, value: T) -> bool` |
+| `contains` | `contains(&self, value: &T) -> bool` |
 | `insert`, `remove` | `insert(&mut self, value: T) -> bool`, and the same for `remove` |
 | `union`, `intersection` | `union(&self, other: &Set[T]) -> Union[T]`; `intersection(&self, other: &Set[T]) -> Intersection[T]` |
 | iteration | `Iterable[T]` |
@@ -720,7 +724,7 @@ fn distinct(words: List[string]) -> Set[string]:
 1. r[std-collections.set.operation-surface] `std.collections` declares `Set[T < Eq & Hash]` with private fields and exactly the listed surface; programs import it with `use std.collections.Set`.
 2. r[std-collections.set.distinct] A set holds elements no two of which are equal by `Eq`. `new` returns an empty set.
 3. r[std-collections.set.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
-4. r[std-collections.set.contains] `contains(value)` is true exactly when the set has an element equal to `value`.
+4. r[std-collections.set.contains-borrowed] `contains(value: &T)` is true exactly when the set has an element equal to the borrowed value.
 5. r[std-collections.set.insert] `insert(value)` adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
 6. r[std-collections.set.remove] `remove(value)` removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
 7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic).
@@ -885,8 +889,8 @@ fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `get(&self, index: usize) -> T?`; `is_empty(&self) -> bool`; `first(&self) -> T?`; `last(&self) -> T?`; `take(self, count: usize) -> List[T]`; `filter(&self, keep: fn(&T) -> bool) -> List[T]`; `reversed(self) -> List[T]`; `sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]`; `zip[U](self, other: List[U]) -> List[(T, U)]` |
-| `List[T]`, changing | `extend(&mut self, other: List[T]) -> void`; `retain(&mut self, keep: fn(&T) -> bool) -> void`; `sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void`; `sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void`; `swap(&mut self, a: usize, b: usize) -> void` |
+| `List[T]` | `get(&self, index: usize) -> T?`; `is_empty(&self) -> bool`; `first(&self) -> T?`; `last(&self) -> T?`; `take(&self, count: usize) -> List[T]`; `filter[F < ?Copy & FnMut(&T) -> bool](&self, keep: F) -> List[T]`; `reversed(&self) -> List[T]`; `sorted_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&self, compare: F) -> List[T]`; `zip[U](&self, other: List[U]) -> List[(T, U)]` |
+| `List[T]`, changing | `extend(&mut self, other: List[T]) -> void`; `retain[F < ?Copy & FnMut(&T) -> bool](&mut self, keep: F) -> void`; `sort_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&mut self, compare: F) -> void`; `sort_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&mut self, key: F) -> void`; `swap(&mut self, a: usize, b: usize) -> void` |
 
 1. r[std-collections.access.get-copy] `get(index)` returns `.Some` of a copy of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
 2. r[std-collections.access.is-empty] `is_empty` is true exactly when `len()` is 0.

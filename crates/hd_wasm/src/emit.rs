@@ -522,6 +522,8 @@ fn body_func<'i>(
     // The TIR boundary pass decided each parameter's entry and which
     // captures and reads lend here (`own::boundary`).
     let rows = &em.boundary.subs[usize::from(sub)];
+    // A body that runs once took its environment's counts.
+    let takes = b.sub_flags[usize::from(sub)] & hd_tir::ir::sub_flags::ONCE != 0;
     let lent_here: hd_base::HashSet<_> = rows.borrowed.iter().copied().collect();
     let entries: HashMap<usize, Entry> = rows.entry.iter().copied().collect();
     if em.counting {
@@ -551,7 +553,7 @@ fn body_func<'i>(
                 }
             } else if em.borrowed.contains(l) || lent_here.contains(l) {
                 em.borrowed.insert(*l);
-            } else {
+            } else if !takes {
                 let copy = em.stated_count(Tag::Retain, CountAt::Entry, CountPart::Captures);
                 // ruled out: own::capture_entry states the shared/counted
                 // captures' entry retain. Read its actual reason below.
@@ -3882,6 +3884,30 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::WaitSignal);
                 Ok(())
             }
+            // `module.rt.thread.spawn`: the code and environment of `run`
+            // go to the block's third and fourth words, `work`'s to its
+            // sixth and seventh, and the host starts
+            // a thread whose instance runs `hd.thread` on the block.
+            // `module.rt.thread.reachable`: a whole-program constant.
+            "threads_reachable" => {
+                self.f.i32(i32::from(self.m.threads));
+                self.store(i)
+            }
+            "thread_spawn" => {
+                for (arg, part, offset) in [(1, 0, 8), (1, 1, 12), (2, 0, 20), (2, 1, 24)] {
+                    self.push(args[0])?;
+                    self.comp(args[arg], part)?;
+                    self.f.op(I::I32Store(mem(HEAP, offset, 2)));
+                }
+                self.push(args[0])?;
+                self.f.call(Sym::Import(Import::new(
+                    "hd:rt",
+                    "thread_spawn",
+                    &[Val::I32],
+                    &[Val::I32],
+                )));
+                self.store(i)
+            }
             // `race!`'s frame over its list of tasks (§14.5).
             "task_race_frame" => {
                 let inner = self.susp_inner(self.ty_of(i));
@@ -4152,10 +4178,15 @@ impl Em<'_, '_, '_> {
             // `module.rt.memory.atomic`: sequentially consistent, as every
             // Wasm atomic is; a misaligned address traps.
             "mem_atomic_load_u32" => I::I32AtomicLoad(mem(HEAP, 0, 2)),
+            "mem_atomic_store_u32" => I::I32AtomicStore(mem(HEAP, 0, 2)),
             "mem_atomic_add_u32" => I::I32AtomicRmwAdd(mem(HEAP, 0, 2)),
             "mem_atomic_sub_u32" => I::I32AtomicRmwSub(mem(HEAP, 0, 2)),
             "mem_atomic_cmpxchg_u32" => I::I32AtomicRmwCmpxchg(mem(HEAP, 0, 2)),
             "mem_atomic_fence" => I::AtomicFence,
+            // `module.rt.memory.atomic.wait`: a wait traps on a heap no
+            // thread shares, and a notify there wakes none.
+            "mem_atomic_wait_u32" => I::MemoryAtomicWait32(mem(HEAP, 0, 2)),
+            "mem_atomic_notify" => I::MemoryAtomicNotify(mem(HEAP, 0, 2)),
             // ruled out: any other key. The intrinsic table
             // (`hd_resolve::intrinsics`) has no `mem_` key but the ones above.
             _ => I::I64Store(mem(HEAP, 0, 3)),

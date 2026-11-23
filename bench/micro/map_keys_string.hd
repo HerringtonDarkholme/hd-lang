@@ -7,7 +7,7 @@ pub fn main() -> void:
     let i: usize = 0
     while i < 1000000:
         # subject
-        keys := values.keys()
+        keys := values.keys().collect::[List[string]]()
         total += keys.len()
         i += 1
     if total != 4000000:

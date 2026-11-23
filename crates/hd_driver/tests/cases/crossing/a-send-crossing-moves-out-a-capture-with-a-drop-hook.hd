@@ -1,0 +1,17 @@
+# @dump: stdout
+# @build: release | checked
+# A `Send` crossing closure runs at most once, so it may move a capture
+# out (`fn.crossing.move-out`). A `UniqList` has a `Drop` hook: it moves
+# from the closure's environment to the body, which takes it on entry
+# (`sub_flags::ONCE`), and is freed once.
+use std.collections.UniqList
+use std.marker.Send
+
+fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
+    code()
+
+pub fn main() -> void $ Console:
+    let mut owned: UniqList[string] = UniqList::new()
+    owned.push("a".repeat(2))
+    moved := run(fn() -> UniqList[string]: owned)
+    println("${moved.len()}")

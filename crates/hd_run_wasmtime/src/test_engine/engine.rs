@@ -35,6 +35,7 @@ pub struct TestPoolConfig {
 
 pub(crate) struct Inner {
     pub(crate) engine: Arc<wasmtime::Engine>,
+    pub(crate) config: EngineConfig,
     cache: crate::cache::ModuleCache,
 }
 
@@ -45,7 +46,17 @@ pub(crate) struct Compiled {
     report: Option<crate::checked_report::Report>,
     pub(crate) module: Arc<wasmtime::Module>,
     pub(crate) engine: Arc<Inner>,
-    pub(crate) prepared: Mutex<HashMap<TestHostKind, InstancePre<Host>>>,
+    pub(crate) prepared: Mutex<HashMap<TestHostKind, Pre>>,
+}
+
+/// A program's imports, resolved once per host kind.
+#[derive(Clone)]
+pub(crate) enum Pre {
+    /// Every import, which the workers' instances share.
+    Shared(InstancePre<Host>),
+    /// A program that starts threads: each instance adds its own heap
+    /// (`module.rt.thread.heap`), and its threads link as it does.
+    Heap(Linker<Host>, Arc<wasmtime::Module>, TestHostKind),
 }
 
 #[derive(Clone)]
@@ -55,7 +66,7 @@ pub struct TestModule(pub(crate) Arc<Compiled>);
 pub struct PreparedTest {
     pub(crate) report: Option<crate::checked_report::Report>,
     pub(crate) engine: Arc<Inner>,
-    pub(crate) pre: InstancePre<Host>,
+    pub(crate) pre: Pre,
 }
 
 impl TestEngine {
@@ -97,6 +108,7 @@ impl TestEngine {
         crate::runtime::epochs::register(&engine)?;
         Ok(Self(Arc::new(Inner {
             cache: crate::cache::ModuleCache::new(&engine, code),
+            config,
             engine,
         })))
     }
@@ -135,9 +147,16 @@ impl TestEngine {
         } else {
             let mut linker = Linker::new(&self.0.engine);
             define_test(&mut linker, &module.0.module, kind)?;
-            let pre = linker
-                .instantiate_pre(&module.0.module)
-                .map_err(|error| format!("{error:#}"))?;
+            let heap = module.0.module.imports().any(|i| i.ty().memory().is_some());
+            let pre = if heap {
+                Pre::Heap(linker, Arc::clone(&module.0.module), kind)
+            } else {
+                Pre::Shared(
+                    linker
+                        .instantiate_pre(&module.0.module)
+                        .map_err(|error| format!("{error:#}"))?,
+                )
+            };
             prepared.insert(kind, pre.clone());
             pre
         };

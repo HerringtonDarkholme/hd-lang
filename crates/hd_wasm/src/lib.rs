@@ -288,10 +288,11 @@ pub const RUNTIME_FNS: [&str; 9] = [
 /// The checked runtime (`crates/hd_wasm/DESIGN.md` §23.24): the same nine
 /// functions over the allocator, then the two the exit audit calls and the
 /// two count totals the entry exports.
-#[cfg(not(feature = "checked-report"))]
 pub const CHECKED_MODULE: &str = "std.rt.checked";
-#[cfg(feature = "checked-report")]
-pub const CHECKED_MODULE: &str = "std.rt.checked_report";
+/// The checked report's hooks, linked only when a checked build asks for
+/// its report (`report`): a build that does not emits what a compiler
+/// without the `checked-report` feature emits (#2308).
+pub const REPORT_MODULE: &str = "std.rt.checked_report";
 pub const CHECKED_FNS: &[&str] = &[
     "allocate",
     "free",
@@ -306,29 +307,25 @@ pub const CHECKED_FNS: &[&str] = &[
     "audit",
     "retained",
     "released",
-    #[cfg(feature = "checked-report")]
+];
+
+/// [`REPORT_MODULE`]'s functions, in [`Report`]'s order.
+#[cfg(feature = "checked-report")]
+const REPORT_FNS: &[&str] = &[
     "collected",
-    #[cfg(feature = "checked-report")]
     "pointer",
-    #[cfg(feature = "checked-report")]
     "length",
-    #[cfg(feature = "checked-report")]
     "count_mark",
-    #[cfg(feature = "checked-report")]
     "count_mark_generated",
-    #[cfg(feature = "checked-report")]
     "count_observe",
-    #[cfg(feature = "checked-report")]
     "count_header",
-    #[cfg(feature = "checked-report")]
     "count_escape",
-    #[cfg(feature = "checked-report")]
     "count_escape_range",
-    #[cfg(feature = "checked-report")]
     "count_pairs_pointer",
-    #[cfg(feature = "checked-report")]
     "count_pairs_length",
 ];
+#[cfg(not(feature = "checked-report"))]
+const REPORT_FNS: &[&str] = &[];
 
 /// Checked-only metrics follow the ordinary checked entry points. Keep
 /// these at the end so optional reporter hooks retain their existing slots.
@@ -384,27 +381,25 @@ pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
 }
 
 /// Every runtime function that emitted code calls, as `(module, name)`:
-/// [`runtime_fns`] of [`runtime_module`], checked metrics when enabled,
-/// then the collector's [`CYCLE_FNS`], then the allocator metadata/class paths, `block_of` and
+/// [`runtime_fns`] of [`runtime_module`], the report's hooks when a
+/// checked build asks for its `report` (and the `checked-report` feature
+/// has them), checked metrics when checked, then the collector's
+/// [`CYCLE_FNS`], then the allocator metadata/class paths, `block_of` and
 /// `block_bytes`.
 /// [`Runtime::from_keys`] reads their keys in this order.
 #[must_use]
-pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
+pub fn runtime_items(checked: bool, report: bool) -> Vec<(&'static str, &'static str)> {
     let module = runtime_module(checked);
     runtime_fns(checked)
         .iter()
-        .map(|n| {
-            #[cfg(feature = "checked-report")]
-            let module = if checked
-                && !n.starts_with("count_")
-                && !matches!(*n, "collected" | "pointer" | "length")
-            {
-                "std.rt.checked"
-            } else {
-                module
-            };
-            (module, *n)
-        })
+        .map(|n| (module, *n))
+        .chain(
+            (checked && report)
+                .then_some(REPORT_FNS)
+                .into_iter()
+                .flatten()
+                .map(|n| (REPORT_MODULE, *n)),
+        )
         .chain(
             checked
                 .then_some(CHECKED_METRICS_FNS)
@@ -490,19 +485,21 @@ pub struct Checked {
     pub no_op_counts: Hash128,
     pub skipped_test: Hash128,
     pub skipped_tests: Hash128,
-    #[cfg(feature = "checked-report")]
+    /// The report's hooks, when the build asked for its report.
+    pub report: Option<Report>,
+}
+
+/// [`REPORT_MODULE`]'s hooks: the collector's report and the count audit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Report {
     pub collected: Hash128,
-    #[cfg(feature = "checked-report")]
     pub pointer: Hash128,
-    #[cfg(feature = "checked-report")]
     pub length: Hash128,
-    #[cfg(feature = "checked-report")]
     pub count_audit: CountAudit,
 }
 
 /// Checked-only runtime hooks. Each address observer returns its address
 /// unchanged, so inserting it preserves the surrounding Wasm stack.
-#[cfg(feature = "checked-report")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CountAudit {
     pub mark: Hash128,
@@ -516,6 +513,12 @@ pub struct CountAudit {
 }
 
 impl Runtime {
+    /// The checked report's hooks, when this checked build links them.
+    #[must_use]
+    pub fn report(&self) -> Option<Report> {
+        self.checked.and_then(|c| c.report)
+    }
+
     /// The runtime from each of [`runtime_items`]' instance keys, in
     /// order, when collection reached them all.
     #[must_use]
@@ -524,10 +527,27 @@ impl Runtime {
         let (keys, [metadata, alloc_class, block_of, block_bytes]) =
             keys.split_last_chunk::<4>()?;
         let (counts, rest) = keys.split_first_chunk::<9>()?;
+        let base = CHECKED_FNS.len() - 9 + CHECKED_METRICS_FNS.len();
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
-            n if n == CYCLE_FNS.len() + CHECKED_FNS.len() - 9 + CHECKED_METRICS_FNS.len() => {
-                let (c, rest) = rest.split_at(CHECKED_FNS.len() - 9 + CHECKED_METRICS_FNS.len());
+            n if n == CYCLE_FNS.len() + base || n == CYCLE_FNS.len() + base + REPORT_FNS.len() => {
+                let (c, rest) = rest.split_at(n - CYCLE_FNS.len());
+                // The report's hooks follow the audit's four.
+                let report = (c.len() > base).then(|| Report {
+                    collected: c[4],
+                    pointer: c[5],
+                    length: c[6],
+                    count_audit: CountAudit {
+                        mark: c[7],
+                        generated: c[8],
+                        observe: c[9],
+                        header: c[10],
+                        escape: c[11],
+                        escape_range: c[12],
+                        pointer: c[13],
+                        length: c[14],
+                    },
+                });
                 (
                     Some(Checked {
                         live: c[0],
@@ -539,23 +559,7 @@ impl Runtime {
                         no_op_counts: c[c.len() - 3],
                         skipped_test: c[c.len() - 2],
                         skipped_tests: c[c.len() - 1],
-                        #[cfg(feature = "checked-report")]
-                        collected: c[4],
-                        #[cfg(feature = "checked-report")]
-                        pointer: c[5],
-                        #[cfg(feature = "checked-report")]
-                        length: c[6],
-                        #[cfg(feature = "checked-report")]
-                        count_audit: CountAudit {
-                            mark: c[7],
-                            generated: c[8],
-                            observe: c[9],
-                            header: c[10],
-                            escape: c[11],
-                            escape_range: c[12],
-                            pointer: c[13],
-                            length: c[14],
-                        },
+                        report,
                     }),
                     rest,
                 )
@@ -656,8 +660,9 @@ fn link(
     let mut m = module::Module::new(&input.runtime);
     #[cfg(feature = "checked-report")]
     {
-        m.allocation_kind_reporting = !matches!(input.entry, Entry::Fixture { .. });
-        m.count_audit = input.runtime.checked.is_some()
+        m.allocation_kind_reporting =
+            input.runtime.report().is_some() && !matches!(input.entry, Entry::Fixture { .. });
+        m.count_audit = input.runtime.report().is_some()
             && !matches!(input.entry, Entry::Fixture { .. } | Entry::Inputs(_))
             && session.is_none()
             && previous.is_none();
@@ -669,6 +674,7 @@ fn link(
     }
     m.open_world = session.is_some() || matches!(input.entry, Entry::Inputs(_));
     m.init_insts.clone_from(&input.collected.inits);
+    m.threads = input.collected.threads;
     m.release = input.release;
     m.optimized = input.optimized;
     m.inline_counts = input.inline_counts;
@@ -681,6 +687,9 @@ fn link(
         }
         if (input.path)(item).starts_with("std/rt.cycle/") {
             m.cycle_insts.insert(key);
+        }
+        if runtime_item(&(input.path)(item)) {
+            m.rt_insts.insert(key);
         }
         if input.env.cold(item) {
             m.cold_insts.insert(key);
@@ -708,10 +717,10 @@ fn link(
     rt::entry(input, &mut m)?;
     emit::shims(input, &mut m)?;
     #[cfg(feature = "checked-report")]
-    if let Some(c) = m.runtime.checked
+    if let Some(r) = m.runtime.report()
         && m.count_audit
     {
-        let h = c.count_audit;
+        let h = r.count_audit;
         m.retain_instances(&[
             h.mark,
             h.generated,
@@ -875,21 +884,29 @@ fn address_globals(
             .or_insert_with(|| emit::StorageRoots::new(b));
         let receivers = emit::lent_receiver_reads(input, *id, b);
         for i in 0..b.len() {
-            let global =
-                if session && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store) {
-                    b.decode_place(b.data[i][0]).and_then(|p| match p.root {
-                        hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
-                        _ => None,
-                    })
-                } else if receivers.contains(&i) {
-                    // A receiver read lends the pointer it reads from a
-                    // written binding, which its call loan then holds.
-                    b.decode_place(b.data[i][0])
-                        .and_then(|p| emit::global_root(roots, &p))
-                        .filter(|(def, _)| written.contains(&input.env.path_hash(*def)))
-                } else {
-                    referenced_global(input.env, b, roots, i, &written)
-                };
+            // Every thread reads the program's bindings, so a program that
+            // starts threads keeps them on its shared heap; the runtime's
+            // are each instance's own (`fn.crossing.global.runtime`).
+            let global = if (session || input.collected.threads)
+                && matches!(b.tags[i], hd_tir::ir::Tag::Read | hd_tir::ir::Tag::Store)
+            {
+                b.decode_place(b.data[i][0]).and_then(|p| match p.root {
+                    hd_tir::ir::PlaceRoot::Global(def, ty)
+                        if session || !runtime_item(&(input.path)(def)) =>
+                    {
+                        Some((def, ty))
+                    }
+                    _ => None,
+                })
+            } else if receivers.contains(&i) {
+                // A receiver read lends the pointer it reads from a
+                // written binding, which its call loan then holds.
+                b.decode_place(b.data[i][0])
+                    .and_then(|p| emit::global_root(roots, &p))
+                    .filter(|(def, _)| written.contains(&input.env.path_hash(*def)))
+            } else {
+                referenced_global(input.env, b, roots, i, &written)
+            };
             let Some((def, ty)) = global else {
                 continue;
             };
@@ -930,6 +947,12 @@ fn address_globals(
         }
     }
     Ok(())
+}
+
+/// Whether the item at `path` is in a runtime module, `std.rt` or one
+/// under it (`module.rt.std-only`).
+fn runtime_item(path: &str) -> bool {
+    ["std/rt/", "std/rt."].iter().any(|p| path.starts_with(p))
 }
 
 /// The top-level binding, with its type, that reference `i` of body `b`

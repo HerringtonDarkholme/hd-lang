@@ -1,8 +1,8 @@
 # @dump: own
 # @build: std checked | std release
 # expected: the empty-capacity arm drops its owned Buffer before leaving;
-# the other arm transfers it. Known: cached std take_text fails invariant23
-# for this inlined shape (#2306); the core lane owns the missing drop.
+# the other arm transfers it. Both paths verify, including cached std take_text
+# after the drop-flag verifier fix (#2306).
 use std.rt.memory.Buffer
 use std.rt.bytes.string_from_buffer
 

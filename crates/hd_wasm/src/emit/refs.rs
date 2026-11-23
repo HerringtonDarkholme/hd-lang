@@ -1593,7 +1593,7 @@ pub(super) fn part_use(b: &hd_tir::ir::Body, k: usize) -> Option<u32> {
 mod tests {
     use super::bare_local;
     use hd_base::{DefId, LocalId};
-    use hd_tir::ir::{BodyKind, Place, PlaceRoot, Proj, Ref, TirBuilder, place};
+    use hd_tir::ir::{BodyKind, Place, TirBuilder};
 
     #[test]
     fn memory_trait_value_projection_loads_both_leaves_and_counts_nothing() {
@@ -1674,6 +1674,9 @@ mod tests {
     #[cfg(debug_assertions)]
     #[test]
     fn bare_local_rejects_other_place_encodings() {
+        // Imported here: the test exists only with debug assertions, so the
+        // release test build would warn about them at module level.
+        use hd_tir::ir::{PlaceRoot, Proj, Ref, place};
         let mut builder = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
         let record_local = builder.words_record(&[place::ROOT_LOCAL, 7]);
         let projected = builder.place(&Place {

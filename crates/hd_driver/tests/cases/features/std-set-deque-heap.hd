@@ -3,13 +3,13 @@
 # Feature: `Set`, `Deque` and `Heap` with counted elements
 # (spec/std/collections.md, #1364).
 # expected: `insert`, `push_back` and `push` move the string in;
-# `contains` hashes in place with no count; `pop_front` and `pop`
-# move the element out with no count.
+# `contains` borrows the needle; its owning caller releases it at last use.
+# `pop_front` and `pop` move the element out with no count.
 use std.collections.{Deque, Heap, Set}
 
 fn seen(s: &mut Set[string], a: string, b: string) -> bool:
     _ := s.insert(a)
-    s.contains(b)
+    s.contains(&b)
 
 fn queue(q: &mut Deque[string], a: string) -> usize:
     q.push_back(a)

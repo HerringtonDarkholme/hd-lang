@@ -95,12 +95,9 @@ fn copied!() -> i64:
 > app/main/copied
 >   release Suspend[i64] (last use)
 >   release fn!() -> i64 (last use)
->   release counted reference (last use)
 > app/main/copied
->   release counted reference (cancelled)
 >   release counted reference (last use)
     run := fn!() -> i64: read!(&tally)
->   release counted reference (last use)
 > app/main/copied
 >   release counted reference (last use)
 >   release counted reference (last use)
@@ -119,4 +116,3 @@ fn copied!() -> i64:
 >   release counted reference (last use)
 >   release fn!() -> i64 (cancelled)
 >   release Suspend[i64] (cancelled)
->   release counted reference (last use)

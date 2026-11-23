@@ -23,7 +23,7 @@ wasmtime = ["dep:hd_run_wasmtime", "dep:rustyline"]
 # Debug builds keep Node even when tooling enables every feature.
 dist = ["wasmtime"]
 # The generated scale check's self-test (#1880): a quadratic loop over the
-# package's source lines, run only with `HD_WORK` set, which the check
+# package's source lines, run only with `HD_WORK` and `HD_PLANT_QUADRATIC` set, which the check
 # must flag (`src/work.rs`). Never in a shipped build.
 plant-quadratic = []
 

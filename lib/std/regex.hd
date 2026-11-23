@@ -2428,7 +2428,7 @@ fn intern(dfa: *mut Dfa, set: &List[usize]) -> usize:
         dfa.trans.push(unknown())
         column += 1
     let flag: usize = if set.len() == 0: 4 else: 0
-    if set.contains(dfa.accept):
+    if set.contains(&dfa.accept):
         flag = flag | 1
     if dfa.tagged && dfa.starts[1] == *set:
         flag = flag | 2
@@ -2531,7 +2531,7 @@ fn ends_matching(dfa: *mut Dfa, id: usize, begin: bool, end: bool) -> bool:
         if node >= dfa.nodes:
             seen = close(dfa, &mut set, seen, node - dfa.nodes, begin, end)
         index += 1
-    set.contains(dfa.accept)
+    set.contains(&dfa.accept)
 
 # The end of the leftmost-first match that starts at byte `from` or later,
 # -1 when there is none, or -2 when the cache gave out; with `earliest`,
@@ -2862,7 +2862,7 @@ tests:
                 while current.len() > 0:
                     node := current[current.len() - 1]
                     current.truncate(current.len() - 1)
-                    if !seen.contains(node):
+                    if !seen.contains(&node):
                         seen.push(node)
                         let edge = graph.at[node]
                         while edge < graph.at[node + 1]:
@@ -2870,7 +2870,7 @@ tests:
                                 current.push(graph.to[edge])
                             edge += 1
                 if at == bytes_len(text):
-                    return seen.contains(done)
+                    return seen.contains(&done)
                 byte := i32(bytes_at(text, at))
                 for node in seen:
                     let edge = graph.at[node]

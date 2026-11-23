@@ -5464,6 +5464,7 @@ impl Ck<'_, '_> {
             }
             let scoped = self.local_capture_argument == Some(n.index());
             self.local_ref_captures(mark, n, scoped);
+            self.send_unique(mark, first, n);
             let lifted = self.wire_lift(mark, first, ft, n).unwrap_or(ft);
             let r = self.b.close_sub(mark, root, lifted, n.index());
             if matches!(

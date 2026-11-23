@@ -109,7 +109,7 @@ tests:
 
     it("a map stops at a failed key"):
         let stock: Map[string, u32] = { "pen": 4, "ink": 0 }
-        keys := stock.keys()
+        keys := stock.keys().collect::[List[string]]()
         assert_equal(
             write(stock, +3),
             (.Err("full at key:${keys[1]}"), "map:2 key:${keys[0]} uint:${stock[keys[0]]}"),

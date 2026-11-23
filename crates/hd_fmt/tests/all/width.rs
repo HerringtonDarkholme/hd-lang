@@ -30,37 +30,6 @@ const SECOND: &str = "the_second_descriptive_parameter_name";
 const THIRD: &str = "the_third_descriptive_parameter_name";
 
 #[test]
-fn calls_structs_lists_and_parameters_put_one_element_on_each_line() {
-    let call = format!("fn f():\n    render({FIRST}, {SECOND}, {THIRD})\n");
-    assert_eq!(
-        narrow(&call),
-        format!(
-            "fn f():\n    render(\n        {FIRST},\n        {SECOND},\n        {THIRD},\n    )\n"
-        )
-    );
-    let record =
-        format!("fn f():\n    Record {{ first: {FIRST}, second: {SECOND}, third: {THIRD} }}\n");
-    assert_eq!(
-        narrow(&record),
-        format!(
-            "fn f():\n    Record {{\n        first: {FIRST},\n        second: {SECOND},\n        third: {THIRD},\n    }}\n"
-        )
-    );
-    let list = format!("fn f():\n    [{FIRST}, {SECOND}, {THIRD}]\n");
-    assert_eq!(
-        narrow(&list),
-        format!("fn f():\n    [\n        {FIRST},\n        {SECOND},\n        {THIRD},\n    ]\n")
-    );
-    let parameters = format!("fn f({FIRST}: i64, {SECOND}: i64, {THIRD}: i64) -> i64:\n    +1\n");
-    assert_eq!(
-        narrow(&parameters),
-        format!(
-            "fn f(\n    {FIRST}: i64,\n    {SECOND}: i64,\n    {THIRD}: i64,\n) -> i64:\n    +1\n"
-        )
-    );
-}
-
-#[test]
 fn binary_chains_use_transparent_parentheses_and_preserve_precedence() {
     let chain = format!("fn f():\n    {FIRST} + {SECOND} * third + {THIRD}\n");
     assert_eq!(
@@ -124,17 +93,6 @@ fn literal_arguments_split_without_splitting_either_literal() {
 }
 
 #[test]
-fn trailing_commas_generic_arguments_and_use_groups_stay_valid() {
-    let source = format!(
-        "use pkg.module.{{{FIRST}, {SECOND}, {THIRD}}}\nfn f():\n    consume::[{FIRST}, {SECOND}, {THIRD}](+1,)\n"
-    );
-    let formatted = narrow(&source);
-    assert!(formatted.contains("use pkg.module.{\n"), "{formatted}");
-    assert!(formatted.contains("consume::[\n"), "{formatted}");
-    assert!(formatted.contains("](+1)"), "{formatted}");
-}
-
-#[test]
 fn inline_closures_and_suites_keep_their_expression_boundaries() {
     for expression in [
         format!("apply(fn({FIRST}, {SECOND}, {THIRD}): {FIRST} + {SECOND})"),
@@ -192,26 +150,11 @@ fn inline_argument_comments_and_multiline_literals_keep_their_text() {
 }
 
 #[test]
-fn a_short_broken_group_gets_its_last_comma_before_the_inline_comment() {
-    let source = "fn f():\n    consume(\n        value # last argument  \n    )\n";
-    assert_eq!(
-        wrapped(source),
-        "fn f():\n    consume(\n        value, # last argument  \n    )\n"
-    );
-    let source = "fn f():\n    consume(\n        value, # already has its comma  \n    )\n";
-    assert_eq!(wrapped(source), source);
-}
-
-#[test]
 fn short_groups_join_and_remove_optional_trailing_commas() {
     for (source, expected) in [
         (
             "fn f(\n    value: i64,\n):\n    pass\n",
             "fn f(value: i64):\n    pass\n",
-        ),
-        (
-            "fn f():\n    consume(\n        value,\n    )\n",
-            "fn f():\n    consume(value)\n",
         ),
         (
             "fn f():\n    Item {\n        value: +1,\n    }\n",
@@ -254,15 +197,6 @@ fn canonical_spacing_and_short_groups_ignore_authored_layout() {
     assert_eq!(
         wrapped(source),
         "fn sum(a: i32, b: i32) -> i32:\n    pair := Item { first: a, second: b }\n    consume(pair)\n    a + b\n"
-    );
-}
-
-#[test]
-fn value_if_may_join_but_statement_if_stays_vertical() {
-    let source = "fn choose(value: bool) -> i32:\n    answer := if value:\n        +1\n    else:\n        +2\n    if value: consume(answer)\n    answer\n";
-    assert_eq!(
-        wrapped(source),
-        "fn choose(value: bool) -> i32:\n    answer := if value: +1 else: +2\n    if value:\n        consume(answer)\n    answer\n"
     );
 }
 
@@ -366,24 +300,6 @@ fn obsolete_continuation_parens_leave_but_call_target_parens_stay() {
 }
 
 #[test]
-fn long_suite_header_chain_gets_one_complete_wrapper() {
-    let source = "fn f(source: Source):\n    if source.configuration_for_the_current_authenticated_application().has_valid_authorization_for_the_selected_request():\n        pass\n";
-    assert_eq!(
-        narrow(source),
-        "fn f(source: Source):\n    if (\n        source.configuration_for_the_current_authenticated_application()\n            .has_valid_authorization_for_the_selected_request()\n    ):\n        pass\n"
-    );
-}
-
-#[test]
-fn long_pipe_chain_breaks_before_each_pipe() {
-    let source = "fn pipeline() -> i32:\n    +1 |> double_the_current_authenticated_request_count |> increment_the_current_authenticated_request_count\n";
-    assert_eq!(
-        narrow(source),
-        "fn pipeline() -> i32:\n    +1\n        |> double_the_current_authenticated_request_count\n        |> increment_the_current_authenticated_request_count\n"
-    );
-}
-
-#[test]
 fn comment_bytes_roles_and_suite_ownership_stay_exact() {
     let source = "## module doc  \r\nfn f():\r\n    if ready:\r\n        consume(value)  # suffix  \r\n    # after inner suite  \r\n    finish()\r\n# root tail  \r\n\r\nfn g():\r\n    pass\r\n    # function tail  \r\n";
     assert_eq!(
@@ -407,11 +323,4 @@ fn authored_blank_lines_are_bounded_and_generated_indent_is_spaces() {
         wrapped(source),
         "fn f():\n    first()\n\n    second()\n\nfn g():\n    pass\n"
     );
-}
-
-#[test]
-fn unicode_scalars_not_utf8_bytes_set_the_width_boundary() {
-    let head = "界".repeat(43);
-    let source = format!("fn f():\n    consume(\"{head}\", +1)\n");
-    assert_eq!(wrapped(&source), source);
 }

@@ -37,7 +37,7 @@ import {
   validHost,
 } from "./node-files.ts";
 import { Err, Ok, variant } from "./wire.ts";
-import { workersProvider } from "./workers.ts";
+import { startThread, workersProvider } from "./workers.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 type DynamicRecord = Record<string, Dynamic>;
@@ -1111,6 +1111,7 @@ const NODE_PROVIDER_MODULES = [
 // The Node layer for `createCoreHost`: the providers that touch the
 // machine, and what releases them.
 export const nodeLayer = {
+  startThread,
   randomBytes: process.platform === "win32" ? undefined : urandom,
   resolveTarget,
   sep,

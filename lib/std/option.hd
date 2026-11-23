@@ -22,8 +22,8 @@ impl[T] Iterable[T] for T?:
 
 impl[T < ?Copy] T?:
     ## `.Some` of `transform(value)` for a `.Some`, and `.None` for a `.None`.
-    ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
-    pub fn map[U](self, transform: fn(T) -> U) -> U?:
+    ## See [std-iter.option.map.fn-mut](../../spec/std/iter.md#r-std-iter.option.map.fn-mut).
+    pub fn map[U, F < ?Copy & FnMut(T) -> U](self, mut transform: F) -> U?:
         match self:
             .Some(value) => .Some(transform(value))
             .None => .None

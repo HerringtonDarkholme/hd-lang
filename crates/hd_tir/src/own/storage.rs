@@ -274,22 +274,33 @@ fn awaited_slots(b: &Body, topo: &Topology, roots: &[bool]) -> Vec<bool> {
 
 /// How many roots of `b` take each local, and whether a closure shares
 /// it. One walk of the body and of its captures.
+/// Per local, the references that take its storage and whether a closure
+/// shares it. A reference in a closure's body to a capture it copies takes
+/// the body's copy, in its environment, so it roots no storage of the
+/// local's own (`subs`: each instruction's sub-body).
 fn census(
     b: &Body,
     cx: &dyn OwnCx,
     recursive: &RecursiveBindings,
+    subs: &[u32],
     mut instruction: impl FnMut(usize),
 ) -> (Vec<u32>, Vec<bool>) {
     let (mut refs, mut shared) = (vec![0; b.local_ty.len()], vec![false; b.local_ty.len()]);
-    for i in 0..b.len() {
-        instruction(i);
-        if let Some(l) = root_of(b, cx, i) {
-            refs[l] += 1;
-        }
-        if b.tags[i] == Tag::Closure {
-            for (l, s) in captures(b, i, recursive) {
-                shared[l] |= s;
+    let mut copies = hd_base::HashSet::<(u32, usize)>::default();
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Closure) {
+        for (l, s) in captures(b, i, recursive) {
+            shared[l] |= s;
+            if !s {
+                copies.insert((b.data[i][0], l));
             }
+        }
+    }
+    for (i, &sub) in subs.iter().enumerate() {
+        instruction(i);
+        if let Some(l) = root_of(b, cx, i)
+            && !copies.contains(&(sub, l))
+        {
+            refs[l] += 1;
         }
     }
     for &(_, capture) in &b.inlined_shared {
@@ -342,7 +353,7 @@ fn run_with(
     let recursive = RecursiveBindings::new(b);
     let mut closures = vec![None; b.sub_root.len()];
     work(n + closures.len());
-    let (refs, shared) = census(b, cx, &recursive, |i| {
+    let (refs, shared) = census(b, cx, &recursive, &topo.sub, |i| {
         work(1);
         if b.tags[i] == Tag::Closure {
             closures[b.data[i][0] as usize].get_or_insert(i);
@@ -584,7 +595,7 @@ pub fn settle(b: &Body, args: &[(u16, u32)], counted: &[bool], cx: &dyn OwnCx) -
     if args.is_empty() && rows == b.storage {
         return None;
     }
-    let (refs, shared) = census(b, cx, &RecursiveBindings::new(b), |_| {});
+    let (refs, shared) = census(b, cx, &RecursiveBindings::new(b), &b.inst_subs(), |_| {});
     let mut promoted = hd_base::HashMap::<(usize, usize), u32>::default();
     for &(s, i) in args {
         if let Some(l) = root_of(b, cx, i as usize) {

@@ -28,7 +28,7 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   retain string (stored)
 >   retain counted reference (stored)
->   release counted reference (last use)
+>   release string (last use)
 >   release fn(&mut app.main.Mapper, i32) -> i32 (overwritten)
         s.transform = fn(t, y): y + 100
 >   release counted reference (overwritten)
@@ -66,7 +66,7 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   retain string (stored)
 >   retain counted reference (stored)
->   release counted reference (last use)
+>   release string (last use)
 >   release fn(&mut app.main.Mapper, i32) -> i32 (overwritten)
         s.transform = fn(t, y): y + 100
 >   release counted reference (overwritten)

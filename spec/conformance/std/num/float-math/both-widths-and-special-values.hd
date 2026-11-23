@@ -1,0 +1,1218 @@
+# test: every float math method keeps both widths and IEEE special inputs
+use std.testing.assert
+
+fn near32(value: f32, expected: u32) -> void:
+    if (expected & 0x7fffffff) > 0x7f800000:
+        assert(value.is_nan())
+    else:
+        assert(
+            value.to_bits().abs_diff(expected) <= 1,
+            "binary32 bits ${value.to_bits()} vs $expected",
+        )
+
+fn near64(value: f64, expected: u64) -> void:
+    if (expected & 0x7fffffffffffffff) > 0x7ff0000000000000:
+        assert(value.is_nan())
+    else:
+        assert(
+            value.to_bits().abs_diff(expected) <= 1,
+            "binary64 bits ${value.to_bits()} vs $expected",
+        )
+
+tests:
+    it("sin checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).sin().to_bits(), 0)
+        assert_equal(f32::from_bits(2147483648).sin().to_bits(), 2147483648)
+        assert(f32::from_bits(2139095040).sin().is_nan())
+        assert(f32::from_bits(4286578688).sin().is_nan())
+        assert(f32::from_bits(2143289345).sin().is_nan())
+        assert_equal(f64::from_bits(0).sin().to_bits(), 0)
+        assert_equal(f64::from_bits(9223372036854775808).sin().to_bits(), 9223372036854775808)
+        assert(f64::from_bits(9218868437227405312).sin().is_nan())
+        assert(f64::from_bits(18442240474082181120).sin().is_nan())
+        assert(f64::from_bits(9221120237041090561).sin().is_nan())
+        near32(f32::from_bits(1).sin(), 1)
+        near32(f32::from_bits(2147483649).sin(), 2147483649)
+        near32(f32::from_bits(8388607).sin(), 8388607)
+        near32(f32::from_bits(8388608).sin(), 8388608)
+        near32(f32::from_bits(1065353215).sin(), 1062693540)
+        near32(f32::from_bits(1065353216).sin(), 1062693540)
+        near32(f32::from_bits(1065353217).sin(), 1062693542)
+        near32(f32::from_bits(2139095039).sin(), 3204815283)
+        near32(f32::from_bits(4286578687).sin(), 1057331635)
+        near32(f32::from_bits(844411867).sin(), 844411867)
+        near32(f32::from_bits(859103849).sin(), 859103849)
+        near32(f32::from_bits(221929743).sin(), 221929743)
+        near32(f32::from_bits(976055033).sin(), 976055032)
+        near32(f32::from_bits(1599971809).sin(), 1058294054)
+        near32(f32::from_bits(1200532190).sin(), 3205022395)
+        near32(f32::from_bits(2003258644).sin(), 1046439867)
+        near32(f32::from_bits(1161500942).sin(), 1052380013)
+        near32(f32::from_bits(1667047477).sin(), 1055854935)
+        near32(f32::from_bits(87803670).sin(), 87803670)
+        near32(f32::from_bits(358704528).sin(), 358704528)
+        near32(f32::from_bits(495690580).sin(), 495690580)
+        near32(f32::from_bits(1702205336).sin(), 3205803928)
+        near32(f32::from_bits(1990384397).sin(), 3212765879)
+        near32(f32::from_bits(1285904332).sin(), 3212829770)
+        near32(f32::from_bits(1685383642).sin(), 3201831709)
+        near32(f32::from_bits(2105776360).sin(), 3210474604)
+        near32(f32::from_bits(791595850).sin(), 791595850)
+        near32(f32::from_bits(1493484277).sin(), 3202286200)
+        near32(f32::from_bits(1590459415).sin(), 3188482703)
+        near32(f32::from_bits(1720430354).sin(), 1064841730)
+        near32(f32::from_bits(859999656).sin(), 859999656)
+        near32(f32::from_bits(1323990983).sin(), 1060568542)
+        near32(f32::from_bits(248956043).sin(), 248956043)
+
+    it("cos checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).cos().to_bits(), 1065353216)
+        assert_equal(f32::from_bits(2147483648).cos().to_bits(), 1065353216)
+        assert(f32::from_bits(2139095040).cos().is_nan())
+        assert(f32::from_bits(4286578688).cos().is_nan())
+        assert(f32::from_bits(2143289345).cos().is_nan())
+        assert_equal(f64::from_bits(0).cos().to_bits(), 4607182418800017408)
+        assert_equal(f64::from_bits(9223372036854775808).cos().to_bits(), 4607182418800017408)
+        assert(f64::from_bits(9218868437227405312).cos().is_nan())
+        assert(f64::from_bits(18442240474082181120).cos().is_nan())
+        assert(f64::from_bits(9221120237041090561).cos().is_nan())
+        near32(f32::from_bits(1).cos(), 1065353216)
+        near32(f32::from_bits(2147483649).cos(), 1065353216)
+        near32(f32::from_bits(8388607).cos(), 1065353216)
+        near32(f32::from_bits(8388608).cos(), 1065353216)
+        near32(f32::from_bits(1065353215).cos(), 1057640769)
+        near32(f32::from_bits(1065353216).cos(), 1057640768)
+        near32(f32::from_bits(1065353217).cos(), 1057640767)
+        near32(f32::from_bits(2139095039).cos(), 1062887318)
+        near32(f32::from_bits(4286578687).cos(), 1062887318)
+        near32(f32::from_bits(2049167163).cos(), 1058146024)
+        near32(f32::from_bits(920867529).cos(), 1065353216)
+        near32(f32::from_bits(2066359939).cos(), 3209351393)
+        near32(f32::from_bits(1835084366).cos(), 1060355816)
+        near32(f32::from_bits(678335660).cos(), 1065353216)
+        near32(f32::from_bits(708777696).cos(), 1065353216)
+        near32(f32::from_bits(1406956820).cos(), 3212549495)
+        near32(f32::from_bits(1200246362).cos(), 1052198569)
+        near32(f32::from_bits(1847300469).cos(), 1054880720)
+        near32(f32::from_bits(247120310).cos(), 1065353216)
+        near32(f32::from_bits(2054187910).cos(), 1048780989)
+        near32(f32::from_bits(845027399).cos(), 1065353216)
+        near32(f32::from_bits(2079527061).cos(), 1027182332)
+        near32(f32::from_bits(229076367).cos(), 1065353216)
+        near32(f32::from_bits(1508102061).cos(), 3210519914)
+        near32(f32::from_bits(2011600600).cos(), 1057359476)
+        near32(f32::from_bits(1548619102).cos(), 1041875977)
+        near32(f32::from_bits(282887710).cos(), 1065353216)
+        near32(f32::from_bits(570491270).cos(), 1065353216)
+        near32(f32::from_bits(1891373794).cos(), 1052470789)
+        near32(f32::from_bits(2093832045).cos(), 1061703973)
+        near32(f32::from_bits(139864887).cos(), 1065353216)
+        near32(f32::from_bits(569547770).cos(), 1065353216)
+        near32(f32::from_bits(1792200112).cos(), 1059479917)
+
+    it("tan checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).tan().to_bits(), 0)
+        assert_equal(f32::from_bits(2147483648).tan().to_bits(), 2147483648)
+        assert(f32::from_bits(2139095040).tan().is_nan())
+        assert(f32::from_bits(4286578688).tan().is_nan())
+        assert(f32::from_bits(2143289345).tan().is_nan())
+        assert_equal(f64::from_bits(0).tan().to_bits(), 0)
+        assert_equal(f64::from_bits(9223372036854775808).tan().to_bits(), 9223372036854775808)
+        assert(f64::from_bits(9218868437227405312).tan().is_nan())
+        assert(f64::from_bits(18442240474082181120).tan().is_nan())
+        assert(f64::from_bits(9221120237041090561).tan().is_nan())
+        near32(f32::from_bits(1).tan(), 1)
+        near32(f32::from_bits(2147483649).tan(), 2147483649)
+        near32(f32::from_bits(8388607).tan(), 8388607)
+        near32(f32::from_bits(8388608).tan(), 8388608)
+        near32(f32::from_bits(1065353215).tan(), 1070029089)
+        near32(f32::from_bits(1065353216).tan(), 1070029091)
+        near32(f32::from_bits(1065353217).tan(), 1070029094)
+        near32(f32::from_bits(2139095039).tan(), 3206323914)
+        near32(f32::from_bits(4286578687).tan(), 1058840266)
+        near32(f32::from_bits(1195177095).tan(), 1088049405)
+        near32(f32::from_bits(1162018780).tan(), 1053968573)
+        near32(f32::from_bits(191270204).tan(), 191270204)
+        near32(f32::from_bits(1933646078).tan(), 1072241594)
+        near32(f32::from_bits(1517529968).tan(), 1062993274)
+        near32(f32::from_bits(144158164).tan(), 144158164)
+        near32(f32::from_bits(1486480936).tan(), 3183807982)
+        near32(f32::from_bits(51642351).tan(), 51642351)
+        near32(f32::from_bits(1236030448).tan(), 1065292661)
+        near32(f32::from_bits(1957369174).tan(), 1045011642)
+        near32(f32::from_bits(517805005).tan(), 517805005)
+        near32(f32::from_bits(585675503).tan(), 585675503)
+        near32(f32::from_bits(1758865037).tan(), 3211066314)
+        near32(f32::from_bits(2055437732).tan(), 1072639378)
+        near32(f32::from_bits(1346100005).tan(), 1056594710)
+        near32(f32::from_bits(338434027).tan(), 338434027)
+        near32(f32::from_bits(944895486).tan(), 944895486)
+        near32(f32::from_bits(264645483).tan(), 264645483)
+        near32(f32::from_bits(1844370562).tan(), 1040336964)
+        near32(f32::from_bits(1390369757).tan(), 1061781434)
+        near32(f32::from_bits(21257299).tan(), 21257299)
+        near32(f32::from_bits(419226724).tan(), 419226724)
+        near32(f32::from_bits(713077156).tan(), 713077156)
+        near32(f32::from_bits(992235653).tan(), 992235676)
+
+    it("asin checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).asin().to_bits(), 0)
+        assert_equal(f32::from_bits(2147483648).asin().to_bits(), 2147483648)
+        assert(f32::from_bits(2139095040).asin().is_nan())
+        assert(f32::from_bits(4286578688).asin().is_nan())
+        assert(f32::from_bits(2143289345).asin().is_nan())
+        assert_equal(f64::from_bits(0).asin().to_bits(), 0)
+        assert_equal(f64::from_bits(9223372036854775808).asin().to_bits(), 9223372036854775808)
+        assert(f64::from_bits(9218868437227405312).asin().is_nan())
+        assert(f64::from_bits(18442240474082181120).asin().is_nan())
+        assert(f64::from_bits(9221120237041090561).asin().is_nan())
+        near32(f32::from_bits(1).asin(), 1)
+        near32(f32::from_bits(2147483649).asin(), 2147483649)
+        near32(f32::from_bits(8388607).asin(), 8388607)
+        near32(f32::from_bits(8388608).asin(), 8388608)
+        near32(f32::from_bits(1065353215).asin(), 1070138506)
+        near32(f32::from_bits(1065353216).asin(), 1070141403)
+        near32(f32::from_bits(1065353217).asin(), 2143289344)
+        near32(f32::from_bits(2139095039).asin(), 2143289344)
+        near32(f32::from_bits(4286578687).asin(), 2143289344)
+        near32(f32::from_bits(3193344817).asin(), 3193449817)
+        near32(f32::from_bits(1058697514).asin(), 1059441244)
+        near32(f32::from_bits(1040253945).asin(), 1040276476)
+        near32(f32::from_bits(1057674519).asin(), 1058192513)
+        near32(f32::from_bits(1063338703).asin(), 1065988282)
+        near32(f32::from_bits(1049794384).asin(), 1049930730)
+        near32(f32::from_bits(1064561223).asin(), 1067553612)
+        near32(f32::from_bits(1048834061).asin(), 1048932735)
+        near32(f32::from_bits(3208601438).asin(), 3210225728)
+        near32(f32::from_bits(1046439440).asin(), 1046558137)
+        near32(f32::from_bits(3198155296).asin(), 3198333851)
+        near32(f32::from_bits(1057405979).asin(), 1057874812)
+        near32(f32::from_bits(3211450820).asin(), 3214191292)
+        near32(f32::from_bits(3206445846).asin(), 3207259319)
+        near32(f32::from_bits(1060958313).asin(), 1062503874)
+        near32(f32::from_bits(1008718906).asin(), 1008719072)
+        near32(f32::from_bits(1061376281).asin(), 1063136507)
+        near32(f32::from_bits(3191837272).asin(), 3191911686)
+        near32(f32::from_bits(3208618239).asin(), 3210251044)
+        near32(f32::from_bits(1048196371).asin(), 1048364083)
+        near32(f32::from_bits(3184760365).asin(), 3184785152)
+        near32(f32::from_bits(1028246041).asin(), 1028251396)
+        near32(f32::from_bits(1060012115).asin(), 1061159068)
+        near32(f32::from_bits(3206426763).asin(), 3207235034)
+        near32(f32::from_bits(3212836864).asin(), 3217625051)
+        near32(f32::from_bits(3204448256).asin(), 3204844178)
+        near32(f32::from_bits(1056964608).asin(), 1057360530)
+        near32(f32::from_bits(1065353216).asin(), 1070141403)
+
+    it("acos checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).acos().to_bits(), 1070141403)
+        assert_equal(f32::from_bits(2147483648).acos().to_bits(), 1070141403)
+        assert(f32::from_bits(2139095040).acos().is_nan())
+        assert(f32::from_bits(4286578688).acos().is_nan())
+        assert(f32::from_bits(2143289345).acos().is_nan())
+        assert_equal(f64::from_bits(0).acos().to_bits(), 4609753056924675352)
+        assert_equal(f64::from_bits(9223372036854775808).acos().to_bits(), 4609753056924675352)
+        assert(f64::from_bits(9218868437227405312).acos().is_nan())
+        assert(f64::from_bits(18442240474082181120).acos().is_nan())
+        assert(f64::from_bits(9221120237041090561).acos().is_nan())
+        near32(f32::from_bits(1).acos(), 1070141403)
+        near32(f32::from_bits(2147483649).acos(), 1070141403)
+        near32(f32::from_bits(8388607).acos(), 1070141403)
+        near32(f32::from_bits(8388608).acos(), 1070141403)
+        near32(f32::from_bits(1065353215).acos(), 968164595)
+        near32(f32::from_bits(1065353216).acos(), 0)
+        near32(f32::from_bits(1065353217).acos(), 2143289344)
+        near32(f32::from_bits(2139095039).acos(), 2143289344)
+        near32(f32::from_bits(4286578687).acos(), 2143289344)
+        near32(f32::from_bits(3182564601).acos(), 1070871749)
+        near32(f32::from_bits(3203256348).acos(), 1073967653)
+        near32(f32::from_bits(1060811312).acos(), 1061218055)
+        near32(f32::from_bits(1055985684).acos(), 1066029084)
+        near32(f32::from_bits(1051700493).acos(), 1067203431)
+        near32(f32::from_bits(3208182362).acos(), 1075328568)
+        near32(f32::from_bits(1048351944).acos(), 1068050680)
+        near32(f32::from_bits(3202188278).acos(), 1073818259)
+        near32(f32::from_bits(1062762341).acos(), 1058024273)
+        near32(f32::from_bits(1020429180).acos(), 1069925813)
+        near32(f32::from_bits(1058460301).acos(), 1064359829)
+        near32(f32::from_bits(1064500291).acos(), 1050932670)
+        near32(f32::from_bits(1058756439).acos(), 1063990336)
+        near32(f32::from_bits(3206893152).acos(), 1074885911)
+        near32(f32::from_bits(3209294787).acos(), 1075754141)
+        near32(f32::from_bits(1064230086).acos(), 1052534721)
+        near32(f32::from_bits(1062361540).acos(), 1058750375)
+        near32(f32::from_bits(1060541679).acos(), 1061607353)
+        near32(f32::from_bits(3196829767).acos(), 1072460513)
+        near32(f32::from_bits(1049506104).acos(), 1067780688)
+        near32(f32::from_bits(3211648595).acos(), 1076941941)
+        near32(f32::from_bits(3200760992).acos(), 1073503155)
+        near32(f32::from_bits(1056803653).acos(), 1065795528)
+        near32(f32::from_bits(3212421160).acos(), 1077594373)
+        near32(f32::from_bits(3212836864).acos(), 1078530011)
+        near32(f32::from_bits(3204448256).acos(), 1074137746)
+        near32(f32::from_bits(1056964608).acos(), 1065749138)
+        near32(f32::from_bits(1065353216).acos(), 0)
+
+    it("atan checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).atan().to_bits(), 0)
+        assert_equal(f32::from_bits(2147483648).atan().to_bits(), 2147483648)
+        assert_equal(f32::from_bits(2139095040).atan().to_bits(), 1070141403)
+        assert_equal(f32::from_bits(4286578688).atan().to_bits(), 3217625051)
+        assert(f32::from_bits(2143289345).atan().is_nan())
+        assert_equal(f64::from_bits(0).atan().to_bits(), 0)
+        assert_equal(f64::from_bits(9223372036854775808).atan().to_bits(), 9223372036854775808)
+        assert_equal(f64::from_bits(9218868437227405312).atan().to_bits(), 4609753056924675352)
+        assert_equal(f64::from_bits(18442240474082181120).atan().to_bits(), 13833125093779451160)
+        assert(f64::from_bits(9221120237041090561).atan().is_nan())
+        near32(f32::from_bits(1).atan(), 1)
+        near32(f32::from_bits(2147483649).atan(), 2147483649)
+        near32(f32::from_bits(8388607).atan(), 8388607)
+        near32(f32::from_bits(8388608).atan(), 8388608)
+        near32(f32::from_bits(1065353215).atan(), 1061752794)
+        near32(f32::from_bits(1065353216).atan(), 1061752795)
+        near32(f32::from_bits(1065353217).atan(), 1061752796)
+        near32(f32::from_bits(2139095039).atan(), 1070141403)
+        near32(f32::from_bits(4286578687).atan(), 3217625051)
+        near32(f32::from_bits(1368451709).atan(), 1070141403)
+        near32(f32::from_bits(566496585).atan(), 566496585)
+        near32(f32::from_bits(512917787).atan(), 512917787)
+        near32(f32::from_bits(18320035).atan(), 18320035)
+        near32(f32::from_bits(2123532990).atan(), 1070141403)
+        near32(f32::from_bits(1335125752).atan(), 1070141403)
+        near32(f32::from_bits(416629854).atan(), 416629854)
+        near32(f32::from_bits(537629838).atan(), 537629838)
+        near32(f32::from_bits(977326996).atan(), 977326994)
+        near32(f32::from_bits(833888334).atan(), 833888334)
+        near32(f32::from_bits(641728695).atan(), 641728695)
+        near32(f32::from_bits(1246268512).atan(), 1070141400)
+        near32(f32::from_bits(496192289).atan(), 496192289)
+        near32(f32::from_bits(780745054).atan(), 780745054)
+        near32(f32::from_bits(289063542).atan(), 289063542)
+        near32(f32::from_bits(2038411761).atan(), 1070141403)
+        near32(f32::from_bits(144548035).atan(), 144548035)
+        near32(f32::from_bits(77475391).atan(), 77475391)
+        near32(f32::from_bits(1177863706).atan(), 1070140678)
+        near32(f32::from_bits(680832041).atan(), 680832041)
+        near32(f32::from_bits(1734826312).atan(), 1070141403)
+        near32(f32::from_bits(710190912).atan(), 710190912)
+        near32(f32::from_bits(1312073358).atan(), 1070141403)
+        near32(f32::from_bits(1496817134).atan(), 1070141403)
+
+    it("exp checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).exp().to_bits(), 1065353216)
+        assert_equal(f32::from_bits(2147483648).exp().to_bits(), 1065353216)
+        assert_equal(f32::from_bits(2139095040).exp().to_bits(), 2139095040)
+        assert_equal(f32::from_bits(4286578688).exp().to_bits(), 0)
+        assert(f32::from_bits(2143289345).exp().is_nan())
+        assert_equal(f64::from_bits(0).exp().to_bits(), 4607182418800017408)
+        assert_equal(f64::from_bits(9223372036854775808).exp().to_bits(), 4607182418800017408)
+        assert_equal(f64::from_bits(9218868437227405312).exp().to_bits(), 9218868437227405312)
+        assert_equal(f64::from_bits(18442240474082181120).exp().to_bits(), 0)
+        assert(f64::from_bits(9221120237041090561).exp().is_nan())
+        near32(f32::from_bits(1).exp(), 1065353216)
+        near32(f32::from_bits(2147483649).exp(), 1065353216)
+        near32(f32::from_bits(8388607).exp(), 1065353216)
+        near32(f32::from_bits(8388608).exp(), 1065353216)
+        near32(f32::from_bits(1065353215).exp(), 1076754516)
+        near32(f32::from_bits(1065353216).exp(), 1076754516)
+        near32(f32::from_bits(1065353217).exp(), 1076754518)
+        near32(f32::from_bits(2139095039).exp(), 2139095040)
+        near32(f32::from_bits(4286578687).exp(), 0)
+        near32(f32::from_bits(3265460744).exp(), 78466606)
+        near32(f32::from_bits(3259289244).exp(), 469860626)
+        near32(f32::from_bits(3237177880).exp(), 973230191)
+        near32(f32::from_bits(3264847866).exp(), 135352572)
+        near32(f32::from_bits(3255280355).exp(), 654786987)
+        near32(f32::from_bits(1109634824).exp(), 1560495557)
+        near32(f32::from_bits(1110771411).exp(), 1612491511)
+        near32(f32::from_bits(3257919405).exp(), 532423856)
+        near32(f32::from_bits(3256574510).exp(), 595101246)
+        near32(f32::from_bits(1105789485).exp(), 1417792005)
+        near32(f32::from_bits(3253609036).exp(), 704973048)
+        near32(f32::from_bits(1103726063).exp(), 1369587613)
+        near32(f32::from_bits(3263449652).exp(), 264137598)
+        near32(f32::from_bits(3257425283).exp(), 555410118)
+        near32(f32::from_bits(1111645931).exp(), 1653185553)
+        near32(f32::from_bits(3263566117).exp(), 253533869)
+        near32(f32::from_bits(1098969150).exp(), 1259894696)
+        near32(f32::from_bits(1103892692).exp(), 1373565763)
+        near32(f32::from_bits(1098196716).exp(), 1250535740)
+        near32(f32::from_bits(3268462907).exp(), 0)
+        near32(f32::from_bits(3268503390).exp(), 0)
+        near32(f32::from_bits(3234881670).exp(), 985841699)
+        near32(f32::from_bits(3264617840).exp(), 156375370)
+        near32(f32::from_bits(1116489912).exp(), 1913807059)
+
+    it("ln checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).ln().to_bits(), 4286578688)
+        assert_equal(f32::from_bits(2147483648).ln().to_bits(), 4286578688)
+        assert_equal(f32::from_bits(2139095040).ln().to_bits(), 2139095040)
+        assert(f32::from_bits(4286578688).ln().is_nan())
+        assert(f32::from_bits(2143289345).ln().is_nan())
+        assert_equal(f64::from_bits(0).ln().to_bits(), 18442240474082181120)
+        assert_equal(f64::from_bits(9223372036854775808).ln().to_bits(), 18442240474082181120)
+        assert_equal(f64::from_bits(9218868437227405312).ln().to_bits(), 9218868437227405312)
+        assert(f64::from_bits(18442240474082181120).ln().is_nan())
+        assert(f64::from_bits(9221120237041090561).ln().is_nan())
+        near32(f32::from_bits(1).ln(), 3268316880)
+        near32(f32::from_bits(2147483649).ln(), 2143289344)
+        near32(f32::from_bits(8388607).ln(), 3266227280)
+        near32(f32::from_bits(8388608).ln(), 3266227280)
+        near32(f32::from_bits(1065353215).ln(), 3011510272)
+        near32(f32::from_bits(1065353216).ln(), 0)
+        near32(f32::from_bits(1065353217).ln(), 872415231)
+        near32(f32::from_bits(2139095039).ln(), 1118925336)
+        near32(f32::from_bits(4286578687).ln(), 2143289344)
+        near32(f32::from_bits(436655576).ln(), 3260005486)
+        near32(f32::from_bits(393291419).ln(), 3260943310)
+        near32(f32::from_bits(1768987143).ln(), 1114154553)
+        near32(f32::from_bits(1395942595).ln(), 1104871870)
+        near32(f32::from_bits(906262361).ln(), 3243387649)
+        near32(f32::from_bits(1494656939).ln(), 1108217291)
+        near32(f32::from_bits(1803848727).ln(), 1114906784)
+        near32(f32::from_bits(1441003796).ln(), 1106811642)
+        near32(f32::from_bits(232881491).ln(), 3263790904)
+        near32(f32::from_bits(1410646278).ln(), 1105497580)
+        near32(f32::from_bits(619358346).ln(), 3256044447)
+        near32(f32::from_bits(2103612696).ln(), 1118545927)
+        near32(f32::from_bits(1284943201).ln(), 1100053184)
+        near32(f32::from_bits(1081961323).ln(), 1068508704)
+        near32(f32::from_bits(605672176).ln(), 3256336860)
+        near32(f32::from_bits(1769809980).ln(), 1114167888)
+        near32(f32::from_bits(1324387256).ln(), 1101752065)
+        near32(f32::from_bits(874886318).ln(), 3246060157)
+        near32(f32::from_bits(1333292034).ln(), 1102132366)
+        near32(f32::from_bits(1632723905).ln(), 1111210860)
+        near32(f32::from_bits(2121615765).ln(), 1118738029)
+        near32(f32::from_bits(570550495).ln(), 3257107972)
+        near32(f32::from_bits(1347485483).ln(), 1102768581)
+        near32(f32::from_bits(1421462657).ln(), 1105977575)
+
+    it("log2 checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).log2().to_bits(), 4286578688)
+        assert_equal(f32::from_bits(2147483648).log2().to_bits(), 4286578688)
+        assert_equal(f32::from_bits(2139095040).log2().to_bits(), 2139095040)
+        assert(f32::from_bits(4286578688).log2().is_nan())
+        assert(f32::from_bits(2143289345).log2().is_nan())
+        assert_equal(f64::from_bits(0).log2().to_bits(), 18442240474082181120)
+        assert_equal(f64::from_bits(9223372036854775808).log2().to_bits(), 18442240474082181120)
+        assert_equal(f64::from_bits(9218868437227405312).log2().to_bits(), 9218868437227405312)
+        assert(f64::from_bits(18442240474082181120).log2().is_nan())
+        assert(f64::from_bits(9221120237041090561).log2().is_nan())
+        near32(f32::from_bits(1).log2(), 3272933376)
+        near32(f32::from_bits(2147483649).log2(), 2143289344)
+        near32(f32::from_bits(8388607).log2(), 3271294976)
+        near32(f32::from_bits(8388608).log2(), 3271294976)
+        near32(f32::from_bits(1065353215).log2(), 3015223868)
+        near32(f32::from_bits(1065353216).log2(), 0)
+        near32(f32::from_bits(1065353217).log2(), 876128826)
+        near32(f32::from_bits(2139095039).log2(), 1124073472)
+        near32(f32::from_bits(4286578687).log2(), 2143289344)
+        near32(f32::from_bits(1298554141).log2(), 1105119292)
+        near32(f32::from_bits(1759211073).log2(), 1118146084)
+        near32(f32::from_bits(244409105).log2(), 3267600875)
+        near32(f32::from_bits(731994630).log2(), 3256789483)
+        near32(f32::from_bits(914989236).log2(), 3247385017)
+        near32(f32::from_bits(602253689).log2(), 3260850276)
+        near32(f32::from_bits(159310533).log2(), 3268936505)
+        near32(f32::from_bits(346602854).log2(), 3265999843)
+        near32(f32::from_bits(849672721).log2(), 3251442224)
+        near32(f32::from_bits(960428917).log2(), 3242640231)
+        near32(f32::from_bits(1671704206).log2(), 1116780515)
+        near32(f32::from_bits(789020436).log2(), 3255020523)
+        near32(f32::from_bits(823745801).log2(), 3253070300)
+        near32(f32::from_bits(2018190004).log2(), 1122194725)
+        near32(f32::from_bits(2046565261).log2(), 1122628783)
+        near32(f32::from_bits(1028569795).log2(), 3230260840)
+        near32(f32::from_bits(1591071107).log2(), 1115354626)
+        near32(f32::from_bits(1415056504).log2(), 1109853526)
+        near32(f32::from_bits(1002806165).log2(), 3236688831)
+        near32(f32::from_bits(1628999019).log2(), 1116111262)
+        near32(f32::from_bits(25251504).log2(), 3271030910)
+        near32(f32::from_bits(1415778657).log2(), 1109872340)
+        near32(f32::from_bits(551434237).log2(), 3262435600)
+        near32(f32::from_bits(554371349).log2(), 3262350804)
+
+    it("log10 checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).log10().to_bits(), 4286578688)
+        assert_equal(f32::from_bits(2147483648).log10().to_bits(), 4286578688)
+        assert_equal(f32::from_bits(2139095040).log10().to_bits(), 2139095040)
+        assert(f32::from_bits(4286578688).log10().is_nan())
+        assert(f32::from_bits(2143289345).log10().is_nan())
+        assert_equal(f64::from_bits(0).log10().to_bits(), 18442240474082181120)
+        assert_equal(f64::from_bits(9223372036854775808).log10().to_bits(), 18442240474082181120)
+        assert_equal(f64::from_bits(9218868437227405312).log10().to_bits(), 9218868437227405312)
+        assert(f64::from_bits(18442240474082181120).log10().is_nan())
+        assert(f64::from_bits(9221120237041090561).log10().is_nan())
+        near32(f32::from_bits(1).log10(), 3258149364)
+        near32(f32::from_bits(2147483649).log10(), 2143289344)
+        near32(f32::from_bits(8388607).log10(), 3256334360)
+        near32(f32::from_bits(8388608).log10(), 3256334360)
+        near32(f32::from_bits(1065353215).log10(), 3000916953)
+        near32(f32::from_bits(1065353216).log10(), 0)
+        near32(f32::from_bits(1065353217).log10(), 861821912)
+        near32(f32::from_bits(2139095039).log10(), 1109008539)
+        near32(f32::from_bits(4286578687).log10(), 2143289344)
+        near32(f32::from_bits(2022981385).log10(), 1107920472)
+        near32(f32::from_bits(873022290).log10(), 3235681867)
+        near32(f32::from_bits(913722899).log10(), 3232624136)
+        near32(f32::from_bits(251472473).log10(), 3253314385)
+        near32(f32::from_bits(972500321).log10(), 3226789474)
+        near32(f32::from_bits(1597237826).log10(), 1100539624)
+        near32(f32::from_bits(264301273).log10(), 3253060616)
+        near32(f32::from_bits(965212053).log10(), 3227878209)
+        near32(f32::from_bits(1148695182).log10(), 1077919274)
+        near32(f32::from_bits(855326046).log10(), 3237025209)
+        near32(f32::from_bits(734801393).log10(), 3242027540)
+        near32(f32::from_bits(591577920).log10(), 3246903218)
+        near32(f32::from_bits(1397240816).log10(), 1094644589)
+        near32(f32::from_bits(1211738775).log10(), 1084812759)
+        near32(f32::from_bits(1073108552).log10(), 1049727579)
+        near32(f32::from_bits(1080842787).log10(), 1058095048)
+        near32(f32::from_bits(212336015).log10(), 3254039077)
+        near32(f32::from_bits(617136574).log10(), 3246422837)
+        near32(f32::from_bits(1076121000).log10(), 1053926805)
+        near32(f32::from_bits(2137034584).log10(), 1108993621)
+        near32(f32::from_bits(222866491).log10(), 3253840774)
+        near32(f32::from_bits(670330446).log10(), 3244470822)
+        near32(f32::from_bits(364097096).log10(), 3251182884)
+        near32(f32::from_bits(1897787022).log10(), 1106191701)
+
+    it("abs checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).abs().to_bits(), 0)
+        assert_equal(f32::from_bits(2147483648).abs().to_bits(), 0)
+        assert_equal(f32::from_bits(2139095040).abs().to_bits(), 2139095040)
+        assert_equal(f32::from_bits(4286578688).abs().to_bits(), 2139095040)
+        assert(f32::from_bits(2143289345).abs().is_nan())
+        assert_equal(f64::from_bits(0).abs().to_bits(), 0)
+        assert_equal(f64::from_bits(9223372036854775808).abs().to_bits(), 0)
+        assert_equal(f64::from_bits(9218868437227405312).abs().to_bits(), 9218868437227405312)
+        assert_equal(f64::from_bits(18442240474082181120).abs().to_bits(), 9218868437227405312)
+        assert(f64::from_bits(9221120237041090561).abs().is_nan())
+        near32(f32::from_bits(1).abs(), 1)
+        near32(f32::from_bits(2147483649).abs(), 1)
+        near32(f32::from_bits(8388607).abs(), 8388607)
+        near32(f32::from_bits(8388608).abs(), 8388608)
+        near32(f32::from_bits(1065353215).abs(), 1065353215)
+        near32(f32::from_bits(1065353216).abs(), 1065353216)
+        near32(f32::from_bits(1065353217).abs(), 1065353217)
+        near32(f32::from_bits(2139095039).abs(), 2139095039)
+        near32(f32::from_bits(4286578687).abs(), 2139095039)
+        near32(f32::from_bits(994557086).abs(), 994557086)
+        near32(f32::from_bits(2032568258).abs(), 2032568258)
+        near32(f32::from_bits(471930630).abs(), 471930630)
+        near32(f32::from_bits(1842785829).abs(), 1842785829)
+        near32(f32::from_bits(1869087097).abs(), 1869087097)
+        near32(f32::from_bits(1761579074).abs(), 1761579074)
+        near32(f32::from_bits(1679718461).abs(), 1679718461)
+        near32(f32::from_bits(1880026452).abs(), 1880026452)
+        near32(f32::from_bits(990437303).abs(), 990437303)
+        near32(f32::from_bits(1848862863).abs(), 1848862863)
+        near32(f32::from_bits(1536990120).abs(), 1536990120)
+        near32(f32::from_bits(1909626934).abs(), 1909626934)
+        near32(f32::from_bits(2012662184).abs(), 2012662184)
+        near32(f32::from_bits(1976204300).abs(), 1976204300)
+        near32(f32::from_bits(845151942).abs(), 845151942)
+        near32(f32::from_bits(833128389).abs(), 833128389)
+        near32(f32::from_bits(1298980208).abs(), 1298980208)
+        near32(f32::from_bits(415235602).abs(), 415235602)
+        near32(f32::from_bits(1612931209).abs(), 1612931209)
+        near32(f32::from_bits(1708909530).abs(), 1708909530)
+        near32(f32::from_bits(204143727).abs(), 204143727)
+        near32(f32::from_bits(1654778121).abs(), 1654778121)
+        near32(f32::from_bits(111884658).abs(), 111884658)
+        near32(f32::from_bits(1171097224).abs(), 1171097224)
+
+    it("signum checks binary32 and both-width special values"):
+        assert_equal(f32::from_bits(0).signum().to_bits(), 1065353216)
+        assert_equal(f32::from_bits(2147483648).signum().to_bits(), 3212836864)
+        assert_equal(f32::from_bits(2139095040).signum().to_bits(), 1065353216)
+        assert_equal(f32::from_bits(4286578688).signum().to_bits(), 3212836864)
+        assert(f32::from_bits(2143289345).signum().is_nan())
+        assert_equal(f64::from_bits(0).signum().to_bits(), 4607182418800017408)
+        assert_equal(f64::from_bits(9223372036854775808).signum().to_bits(), 13830554455654793216)
+        assert_equal(f64::from_bits(9218868437227405312).signum().to_bits(), 4607182418800017408)
+        assert_equal(f64::from_bits(18442240474082181120).signum().to_bits(), 13830554455654793216)
+        assert(f64::from_bits(9221120237041090561).signum().is_nan())
+        near32(f32::from_bits(1).signum(), 1065353216)
+        near32(f32::from_bits(2147483649).signum(), 3212836864)
+        near32(f32::from_bits(8388607).signum(), 1065353216)
+        near32(f32::from_bits(8388608).signum(), 1065353216)
+        near32(f32::from_bits(1065353215).signum(), 1065353216)
+        near32(f32::from_bits(1065353216).signum(), 1065353216)
+        near32(f32::from_bits(1065353217).signum(), 1065353216)
+        near32(f32::from_bits(2139095039).signum(), 1065353216)
+        near32(f32::from_bits(4286578687).signum(), 3212836864)
+        near32(f32::from_bits(360933072).signum(), 1065353216)
+        near32(f32::from_bits(225222851).signum(), 1065353216)
+        near32(f32::from_bits(1950396286).signum(), 1065353216)
+        near32(f32::from_bits(1627693810).signum(), 1065353216)
+        near32(f32::from_bits(2122161952).signum(), 1065353216)
+        near32(f32::from_bits(2010825453).signum(), 1065353216)
+        near32(f32::from_bits(1166670764).signum(), 1065353216)
+        near32(f32::from_bits(504971965).signum(), 1065353216)
+        near32(f32::from_bits(947836828).signum(), 1065353216)
+        near32(f32::from_bits(2020729020).signum(), 1065353216)
+        near32(f32::from_bits(641019810).signum(), 1065353216)
+        near32(f32::from_bits(443129536).signum(), 1065353216)
+        near32(f32::from_bits(2002105684).signum(), 1065353216)
+        near32(f32::from_bits(602877996).signum(), 1065353216)
+        near32(f32::from_bits(1935939719).signum(), 1065353216)
+        near32(f32::from_bits(1899912774).signum(), 1065353216)
+        near32(f32::from_bits(1729308273).signum(), 1065353216)
+        near32(f32::from_bits(2069886277).signum(), 1065353216)
+        near32(f32::from_bits(2110490302).signum(), 1065353216)
+        near32(f32::from_bits(1816641384).signum(), 1065353216)
+        near32(f32::from_bits(1495803541).signum(), 1065353216)
+        near32(f32::from_bits(1552389533).signum(), 1065353216)
+        near32(f32::from_bits(1718704389).signum(), 1065353216)
+        near32(f32::from_bits(366051199).signum(), 1065353216)
+
+    it("binary32 floating powers retain IEEE identities"):
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(4286578688)), 0)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(3225419776)), 2147483648)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(3221225472)), 0)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(3204448256)), 0)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(1056964608)), 2139095040)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(1073741824)), 2139095040)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(1077936128)), 4286578688)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(2139095040)), 2139095040)
+        near32(f32::from_bits(4286578688).powf(f32::from_bits(2143289344)), 2143289344)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(4286578688)), 0)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(3225419776)), 3187671040)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(3221225472)), 1048576000)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(3204448256)), 2143289344)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(1056964608)), 2143289344)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(1073741824)), 1082130432)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(1077936128)), 3238002688)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(2139095040)), 2139095040)
+        near32(f32::from_bits(3221225472).powf(f32::from_bits(2143289344)), 2143289344)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(4286578688)), 1065353216)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(3225419776)), 3212836864)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(3221225472)), 1065353216)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(3204448256)), 2143289344)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(1056964608)), 2143289344)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(1073741824)), 1065353216)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(1077936128)), 3212836864)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(2139095040)), 1065353216)
+        near32(f32::from_bits(3212836864).powf(f32::from_bits(2143289344)), 2143289344)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(4286578688)), 2139095040)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(3225419776)), 4286578688)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(3221225472)), 2139095040)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(3204448256)), 2139095040)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(1056964608)), 0)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(1073741824)), 0)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(1077936128)), 2147483648)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(2139095040)), 0)
+        near32(f32::from_bits(2147483648).powf(f32::from_bits(2143289344)), 2143289344)
+        near32(f32::from_bits(0).powf(f32::from_bits(4286578688)), 2139095040)
+        near32(f32::from_bits(0).powf(f32::from_bits(3225419776)), 2139095040)
+        near32(f32::from_bits(0).powf(f32::from_bits(3221225472)), 2139095040)
+        near32(f32::from_bits(0).powf(f32::from_bits(3204448256)), 2139095040)
+        near32(f32::from_bits(0).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(0).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(0).powf(f32::from_bits(1056964608)), 0)
+        near32(f32::from_bits(0).powf(f32::from_bits(1073741824)), 0)
+        near32(f32::from_bits(0).powf(f32::from_bits(1077936128)), 0)
+        near32(f32::from_bits(0).powf(f32::from_bits(2139095040)), 0)
+        near32(f32::from_bits(0).powf(f32::from_bits(2143289344)), 2143289344)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(4286578688)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(3225419776)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(3221225472)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(3204448256)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(1056964608)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(1073741824)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(1077936128)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(2139095040)), 1065353216)
+        near32(f32::from_bits(1065353216).powf(f32::from_bits(2143289344)), 1065353216)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(4286578688)), 0)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(3225419776)), 1040187392)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(3221225472)), 1048576000)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(3204448256)), 1060439283)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(1056964608)), 1068827891)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(1073741824)), 1082130432)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(1077936128)), 1090519040)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(2139095040)), 2139095040)
+        near32(f32::from_bits(1073741824).powf(f32::from_bits(2143289344)), 2143289344)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(4286578688)), 0)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(3225419776)), 0)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(3221225472)), 0)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(3204448256)), 0)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(1056964608)), 2139095040)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(1073741824)), 2139095040)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(1077936128)), 2139095040)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(2139095040)), 2139095040)
+        near32(f32::from_bits(2139095040).powf(f32::from_bits(2143289344)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(4286578688)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(3225419776)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(3221225472)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(3204448256)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(2147483648)), 1065353216)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(0)), 1065353216)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(1056964608)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(1073741824)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(1077936128)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(2139095040)), 2143289344)
+        near32(f32::from_bits(2143289344).powf(f32::from_bits(2143289344)), 2143289344)
+
+    it("binary64 floating powers retain IEEE identities"):
+        near64(f64::from_bits(18442240474082181120).powf(f64::from_bits(18442240474082181120)), 0)
+        near64(
+            f64::from_bits(18442240474082181120).powf(f64::from_bits(13837309855095848960)),
+            9223372036854775808,
+        )
+        near64(f64::from_bits(18442240474082181120).powf(f64::from_bits(13835058055282163712)), 0)
+        near64(f64::from_bits(18442240474082181120).powf(f64::from_bits(13826050856027422720)), 0)
+        near64(
+            f64::from_bits(18442240474082181120).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(18442240474082181120).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(
+            f64::from_bits(18442240474082181120).powf(f64::from_bits(4602678819172646912)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(18442240474082181120).powf(f64::from_bits(4611686018427387904)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(18442240474082181120).powf(f64::from_bits(4613937818241073152)),
+            18442240474082181120,
+        )
+        near64(
+            f64::from_bits(18442240474082181120).powf(f64::from_bits(9218868437227405312)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(18442240474082181120).powf(f64::from_bits(9221120237041090560)),
+            9221120237041090560,
+        )
+        near64(f64::from_bits(13835058055282163712).powf(f64::from_bits(18442240474082181120)), 0)
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(13837309855095848960)),
+            13817043656772681728,
+        )
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(13835058055282163712)),
+            4598175219545276416,
+        )
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(13826050856027422720)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(13835058055282163712).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(4602678819172646912)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(4611686018427387904)),
+            4616189618054758400,
+        )
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(4613937818241073152)),
+            13844065254536904704,
+        )
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(9218868437227405312)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(13835058055282163712).powf(f64::from_bits(9221120237041090560)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(18442240474082181120)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(13837309855095848960)),
+            13830554455654793216,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(13835058055282163712)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(13826050856027422720)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(13830554455654793216).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(4602678819172646912)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(4611686018427387904)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(4613937818241073152)),
+            13830554455654793216,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(9218868437227405312)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(13830554455654793216).powf(f64::from_bits(9221120237041090560)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9223372036854775808).powf(f64::from_bits(18442240474082181120)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(9223372036854775808).powf(f64::from_bits(13837309855095848960)),
+            18442240474082181120,
+        )
+        near64(
+            f64::from_bits(9223372036854775808).powf(f64::from_bits(13835058055282163712)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(9223372036854775808).powf(f64::from_bits(13826050856027422720)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(9223372036854775808).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(9223372036854775808).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(f64::from_bits(9223372036854775808).powf(f64::from_bits(4602678819172646912)), 0)
+        near64(f64::from_bits(9223372036854775808).powf(f64::from_bits(4611686018427387904)), 0)
+        near64(
+            f64::from_bits(9223372036854775808).powf(f64::from_bits(4613937818241073152)),
+            9223372036854775808,
+        )
+        near64(f64::from_bits(9223372036854775808).powf(f64::from_bits(9218868437227405312)), 0)
+        near64(
+            f64::from_bits(9223372036854775808).powf(f64::from_bits(9221120237041090560)),
+            9221120237041090560,
+        )
+        near64(f64::from_bits(0).powf(f64::from_bits(18442240474082181120)), 9218868437227405312)
+        near64(f64::from_bits(0).powf(f64::from_bits(13837309855095848960)), 9218868437227405312)
+        near64(f64::from_bits(0).powf(f64::from_bits(13835058055282163712)), 9218868437227405312)
+        near64(f64::from_bits(0).powf(f64::from_bits(13826050856027422720)), 9218868437227405312)
+        near64(f64::from_bits(0).powf(f64::from_bits(9223372036854775808)), 4607182418800017408)
+        near64(f64::from_bits(0).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(f64::from_bits(0).powf(f64::from_bits(4602678819172646912)), 0)
+        near64(f64::from_bits(0).powf(f64::from_bits(4611686018427387904)), 0)
+        near64(f64::from_bits(0).powf(f64::from_bits(4613937818241073152)), 0)
+        near64(f64::from_bits(0).powf(f64::from_bits(9218868437227405312)), 0)
+        near64(f64::from_bits(0).powf(f64::from_bits(9221120237041090560)), 9221120237041090560)
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(18442240474082181120)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(13837309855095848960)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(13835058055282163712)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(13826050856027422720)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(4607182418800017408).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(4602678819172646912)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(4611686018427387904)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(4613937818241073152)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(9218868437227405312)),
+            4607182418800017408,
+        )
+        near64(
+            f64::from_bits(4607182418800017408).powf(f64::from_bits(9221120237041090560)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(4611686018427387904).powf(f64::from_bits(18442240474082181120)), 0)
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(13837309855095848960)),
+            4593671619917905920,
+        )
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(13835058055282163712)),
+            4598175219545276416,
+        )
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(13826050856027422720)),
+            4604544271217802189,
+        )
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(4611686018427387904).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(4602678819172646912)),
+            4609047870845172685,
+        )
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(4611686018427387904)),
+            4616189618054758400,
+        )
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(4613937818241073152)),
+            4620693217682128896,
+        )
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(9218868437227405312)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(4611686018427387904).powf(f64::from_bits(9221120237041090560)),
+            9221120237041090560,
+        )
+        near64(f64::from_bits(9218868437227405312).powf(f64::from_bits(18442240474082181120)), 0)
+        near64(f64::from_bits(9218868437227405312).powf(f64::from_bits(13837309855095848960)), 0)
+        near64(f64::from_bits(9218868437227405312).powf(f64::from_bits(13835058055282163712)), 0)
+        near64(f64::from_bits(9218868437227405312).powf(f64::from_bits(13826050856027422720)), 0)
+        near64(
+            f64::from_bits(9218868437227405312).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(9218868437227405312).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(
+            f64::from_bits(9218868437227405312).powf(f64::from_bits(4602678819172646912)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(9218868437227405312).powf(f64::from_bits(4611686018427387904)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(9218868437227405312).powf(f64::from_bits(4613937818241073152)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(9218868437227405312).powf(f64::from_bits(9218868437227405312)),
+            9218868437227405312,
+        )
+        near64(
+            f64::from_bits(9218868437227405312).powf(f64::from_bits(9221120237041090560)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(18442240474082181120)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(13837309855095848960)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(13835058055282163712)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(13826050856027422720)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(9223372036854775808)),
+            4607182418800017408,
+        )
+        near64(f64::from_bits(9221120237041090560).powf(f64::from_bits(0)), 4607182418800017408)
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(4602678819172646912)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(4611686018427387904)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(4613937818241073152)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(9218868437227405312)),
+            9221120237041090560,
+        )
+        near64(
+            f64::from_bits(9221120237041090560).powf(f64::from_bits(9221120237041090560)),
+            9221120237041090560,
+        )
+
+    it("binary32 signed powers cover zero infinity NaN and exponent endpoints"):
+        near32(f32::from_bits(4286578688).powi(-2147483648), 0)
+        near32(f32::from_bits(4286578688).powi(-3), 2147483648)
+        near32(f32::from_bits(4286578688).powi(-2), 0)
+        near32(f32::from_bits(4286578688).powi(-1), 2147483648)
+        near32(f32::from_bits(4286578688).powi(+0), 1065353216)
+        near32(f32::from_bits(4286578688).powi(+1), 4286578688)
+        near32(f32::from_bits(4286578688).powi(+2), 2139095040)
+        near32(f32::from_bits(4286578688).powi(+3), 4286578688)
+        near32(f32::from_bits(4286578688).powi(+2147483647), 4286578688)
+        near32(f32::from_bits(3212836864).powi(-2147483648), 1065353216)
+        near32(f32::from_bits(3212836864).powi(-3), 3212836864)
+        near32(f32::from_bits(3212836864).powi(-2), 1065353216)
+        near32(f32::from_bits(3212836864).powi(-1), 3212836864)
+        near32(f32::from_bits(3212836864).powi(+0), 1065353216)
+        near32(f32::from_bits(3212836864).powi(+1), 3212836864)
+        near32(f32::from_bits(3212836864).powi(+2), 1065353216)
+        near32(f32::from_bits(3212836864).powi(+3), 3212836864)
+        near32(f32::from_bits(3212836864).powi(+2147483647), 3212836864)
+        near32(f32::from_bits(2147483648).powi(-2147483648), 2139095040)
+        near32(f32::from_bits(2147483648).powi(-3), 4286578688)
+        near32(f32::from_bits(2147483648).powi(-2), 2139095040)
+        near32(f32::from_bits(2147483648).powi(-1), 4286578688)
+        near32(f32::from_bits(2147483648).powi(+0), 1065353216)
+        near32(f32::from_bits(2147483648).powi(+1), 2147483648)
+        near32(f32::from_bits(2147483648).powi(+2), 0)
+        near32(f32::from_bits(2147483648).powi(+3), 2147483648)
+        near32(f32::from_bits(2147483648).powi(+2147483647), 2147483648)
+        near32(f32::from_bits(0).powi(-2147483648), 2139095040)
+        near32(f32::from_bits(0).powi(-3), 2139095040)
+        near32(f32::from_bits(0).powi(-2), 2139095040)
+        near32(f32::from_bits(0).powi(-1), 2139095040)
+        near32(f32::from_bits(0).powi(+0), 1065353216)
+        near32(f32::from_bits(0).powi(+1), 0)
+        near32(f32::from_bits(0).powi(+2), 0)
+        near32(f32::from_bits(0).powi(+3), 0)
+        near32(f32::from_bits(0).powi(+2147483647), 0)
+        near32(f32::from_bits(1065353216).powi(-2147483648), 1065353216)
+        near32(f32::from_bits(1065353216).powi(-3), 1065353216)
+        near32(f32::from_bits(1065353216).powi(-2), 1065353216)
+        near32(f32::from_bits(1065353216).powi(-1), 1065353216)
+        near32(f32::from_bits(1065353216).powi(+0), 1065353216)
+        near32(f32::from_bits(1065353216).powi(+1), 1065353216)
+        near32(f32::from_bits(1065353216).powi(+2), 1065353216)
+        near32(f32::from_bits(1065353216).powi(+3), 1065353216)
+        near32(f32::from_bits(1065353216).powi(+2147483647), 1065353216)
+        near32(f32::from_bits(2139095040).powi(-2147483648), 0)
+        near32(f32::from_bits(2139095040).powi(-3), 0)
+        near32(f32::from_bits(2139095040).powi(-2), 0)
+        near32(f32::from_bits(2139095040).powi(-1), 0)
+        near32(f32::from_bits(2139095040).powi(+0), 1065353216)
+        near32(f32::from_bits(2139095040).powi(+1), 2139095040)
+        near32(f32::from_bits(2139095040).powi(+2), 2139095040)
+        near32(f32::from_bits(2139095040).powi(+3), 2139095040)
+        near32(f32::from_bits(2139095040).powi(+2147483647), 2139095040)
+        near32(f32::from_bits(2143289344).powi(-2147483648), 2143289344)
+        near32(f32::from_bits(2143289344).powi(-3), 2143289344)
+        near32(f32::from_bits(2143289344).powi(-2), 2143289344)
+        near32(f32::from_bits(2143289344).powi(-1), 2143289344)
+        near32(f32::from_bits(2143289344).powi(+0), 1065353216)
+        near32(f32::from_bits(2143289344).powi(+1), 2143289344)
+        near32(f32::from_bits(2143289344).powi(+2), 2143289344)
+        near32(f32::from_bits(2143289344).powi(+3), 2143289344)
+        near32(f32::from_bits(2143289344).powi(+2147483647), 2143289344)
+
+    it("binary64 signed powers cover zero infinity NaN and exponent endpoints"):
+        near64(f64::from_bits(18442240474082181120).powi(-2147483648), 0)
+        near64(f64::from_bits(18442240474082181120).powi(-3), 9223372036854775808)
+        near64(f64::from_bits(18442240474082181120).powi(-2), 0)
+        near64(f64::from_bits(18442240474082181120).powi(-1), 9223372036854775808)
+        near64(f64::from_bits(18442240474082181120).powi(+0), 4607182418800017408)
+        near64(f64::from_bits(18442240474082181120).powi(+1), 18442240474082181120)
+        near64(f64::from_bits(18442240474082181120).powi(+2), 9218868437227405312)
+        near64(f64::from_bits(18442240474082181120).powi(+3), 18442240474082181120)
+        near64(f64::from_bits(18442240474082181120).powi(+2147483647), 18442240474082181120)
+        near64(f64::from_bits(13830554455654793216).powi(-2147483648), 4607182418800017408)
+        near64(f64::from_bits(13830554455654793216).powi(-3), 13830554455654793216)
+        near64(f64::from_bits(13830554455654793216).powi(-2), 4607182418800017408)
+        near64(f64::from_bits(13830554455654793216).powi(-1), 13830554455654793216)
+        near64(f64::from_bits(13830554455654793216).powi(+0), 4607182418800017408)
+        near64(f64::from_bits(13830554455654793216).powi(+1), 13830554455654793216)
+        near64(f64::from_bits(13830554455654793216).powi(+2), 4607182418800017408)
+        near64(f64::from_bits(13830554455654793216).powi(+3), 13830554455654793216)
+        near64(f64::from_bits(13830554455654793216).powi(+2147483647), 13830554455654793216)
+        near64(f64::from_bits(9223372036854775808).powi(-2147483648), 9218868437227405312)
+        near64(f64::from_bits(9223372036854775808).powi(-3), 18442240474082181120)
+        near64(f64::from_bits(9223372036854775808).powi(-2), 9218868437227405312)
+        near64(f64::from_bits(9223372036854775808).powi(-1), 18442240474082181120)
+        near64(f64::from_bits(9223372036854775808).powi(+0), 4607182418800017408)
+        near64(f64::from_bits(9223372036854775808).powi(+1), 9223372036854775808)
+        near64(f64::from_bits(9223372036854775808).powi(+2), 0)
+        near64(f64::from_bits(9223372036854775808).powi(+3), 9223372036854775808)
+        near64(f64::from_bits(9223372036854775808).powi(+2147483647), 9223372036854775808)
+        near64(f64::from_bits(0).powi(-2147483648), 9218868437227405312)
+        near64(f64::from_bits(0).powi(-3), 9218868437227405312)
+        near64(f64::from_bits(0).powi(-2), 9218868437227405312)
+        near64(f64::from_bits(0).powi(-1), 9218868437227405312)
+        near64(f64::from_bits(0).powi(+0), 4607182418800017408)
+        near64(f64::from_bits(0).powi(+1), 0)
+        near64(f64::from_bits(0).powi(+2), 0)
+        near64(f64::from_bits(0).powi(+3), 0)
+        near64(f64::from_bits(0).powi(+2147483647), 0)
+        near64(f64::from_bits(4607182418800017408).powi(-2147483648), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(-3), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(-2), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(-1), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(+0), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(+1), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(+2), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(+3), 4607182418800017408)
+        near64(f64::from_bits(4607182418800017408).powi(+2147483647), 4607182418800017408)
+        near64(f64::from_bits(9218868437227405312).powi(-2147483648), 0)
+        near64(f64::from_bits(9218868437227405312).powi(-3), 0)
+        near64(f64::from_bits(9218868437227405312).powi(-2), 0)
+        near64(f64::from_bits(9218868437227405312).powi(-1), 0)
+        near64(f64::from_bits(9218868437227405312).powi(+0), 4607182418800017408)
+        near64(f64::from_bits(9218868437227405312).powi(+1), 9218868437227405312)
+        near64(f64::from_bits(9218868437227405312).powi(+2), 9218868437227405312)
+        near64(f64::from_bits(9218868437227405312).powi(+3), 9218868437227405312)
+        near64(f64::from_bits(9218868437227405312).powi(+2147483647), 9218868437227405312)
+        near64(f64::from_bits(9221120237041090560).powi(-2147483648), 9221120237041090560)
+        near64(f64::from_bits(9221120237041090560).powi(-3), 9221120237041090560)
+        near64(f64::from_bits(9221120237041090560).powi(-2), 9221120237041090560)
+        near64(f64::from_bits(9221120237041090560).powi(-1), 9221120237041090560)
+        near64(f64::from_bits(9221120237041090560).powi(+0), 4607182418800017408)
+        near64(f64::from_bits(9221120237041090560).powi(+1), 9221120237041090560)
+        near64(f64::from_bits(9221120237041090560).powi(+2), 9221120237041090560)
+        near64(f64::from_bits(9221120237041090560).powi(+3), 9221120237041090560)
+        near64(f64::from_bits(9221120237041090560).powi(+2147483647), 9221120237041090560)
+
+    it("binary32 atan2 preserves every signed-axis and infinity quadrant"):
+        assert_equal(
+            f32::from_bits(4286578688).atan2(f32::from_bits(4286578688)).to_bits(),
+            3222719460,
+        )
+        assert_equal(
+            f32::from_bits(3212836864).atan2(f32::from_bits(4286578688)).to_bits(),
+            3226013659,
+        )
+        assert_equal(
+            f32::from_bits(2147483648).atan2(f32::from_bits(4286578688)).to_bits(),
+            3226013659,
+        )
+        assert_equal(f32::from_bits(0).atan2(f32::from_bits(4286578688)).to_bits(), 1078530011)
+        assert_equal(
+            f32::from_bits(1065353216).atan2(f32::from_bits(4286578688)).to_bits(),
+            1078530011,
+        )
+        assert_equal(
+            f32::from_bits(2139095040).atan2(f32::from_bits(4286578688)).to_bits(),
+            1075235812,
+        )
+        assert_equal(
+            f32::from_bits(4286578688).atan2(f32::from_bits(3212836864)).to_bits(),
+            3217625051,
+        )
+        assert_equal(
+            f32::from_bits(3212836864).atan2(f32::from_bits(3212836864)).to_bits(),
+            3222719460,
+        )
+        assert_equal(
+            f32::from_bits(2147483648).atan2(f32::from_bits(3212836864)).to_bits(),
+            3226013659,
+        )
+        assert_equal(f32::from_bits(0).atan2(f32::from_bits(3212836864)).to_bits(), 1078530011)
+        assert_equal(
+            f32::from_bits(1065353216).atan2(f32::from_bits(3212836864)).to_bits(),
+            1075235812,
+        )
+        assert_equal(
+            f32::from_bits(2139095040).atan2(f32::from_bits(3212836864)).to_bits(),
+            1070141403,
+        )
+        assert_equal(
+            f32::from_bits(4286578688).atan2(f32::from_bits(2147483648)).to_bits(),
+            3217625051,
+        )
+        assert_equal(
+            f32::from_bits(3212836864).atan2(f32::from_bits(2147483648)).to_bits(),
+            3217625051,
+        )
+        assert_equal(
+            f32::from_bits(2147483648).atan2(f32::from_bits(2147483648)).to_bits(),
+            3226013659,
+        )
+        assert_equal(f32::from_bits(0).atan2(f32::from_bits(2147483648)).to_bits(), 1078530011)
+        assert_equal(
+            f32::from_bits(1065353216).atan2(f32::from_bits(2147483648)).to_bits(),
+            1070141403,
+        )
+        assert_equal(
+            f32::from_bits(2139095040).atan2(f32::from_bits(2147483648)).to_bits(),
+            1070141403,
+        )
+        assert_equal(f32::from_bits(4286578688).atan2(f32::from_bits(0)).to_bits(), 3217625051)
+        assert_equal(f32::from_bits(3212836864).atan2(f32::from_bits(0)).to_bits(), 3217625051)
+        assert_equal(f32::from_bits(2147483648).atan2(f32::from_bits(0)).to_bits(), 2147483648)
+        assert_equal(f32::from_bits(0).atan2(f32::from_bits(0)).to_bits(), 0)
+        assert_equal(f32::from_bits(1065353216).atan2(f32::from_bits(0)).to_bits(), 1070141403)
+        assert_equal(f32::from_bits(2139095040).atan2(f32::from_bits(0)).to_bits(), 1070141403)
+        assert_equal(
+            f32::from_bits(4286578688).atan2(f32::from_bits(1065353216)).to_bits(),
+            3217625051,
+        )
+        assert_equal(
+            f32::from_bits(3212836864).atan2(f32::from_bits(1065353216)).to_bits(),
+            3209236443,
+        )
+        assert_equal(
+            f32::from_bits(2147483648).atan2(f32::from_bits(1065353216)).to_bits(),
+            2147483648,
+        )
+        assert_equal(f32::from_bits(0).atan2(f32::from_bits(1065353216)).to_bits(), 0)
+        assert_equal(
+            f32::from_bits(1065353216).atan2(f32::from_bits(1065353216)).to_bits(),
+            1061752795,
+        )
+        assert_equal(
+            f32::from_bits(2139095040).atan2(f32::from_bits(1065353216)).to_bits(),
+            1070141403,
+        )
+        assert_equal(
+            f32::from_bits(4286578688).atan2(f32::from_bits(2139095040)).to_bits(),
+            3209236443,
+        )
+        assert_equal(
+            f32::from_bits(3212836864).atan2(f32::from_bits(2139095040)).to_bits(),
+            2147483648,
+        )
+        assert_equal(
+            f32::from_bits(2147483648).atan2(f32::from_bits(2139095040)).to_bits(),
+            2147483648,
+        )
+        assert_equal(f32::from_bits(0).atan2(f32::from_bits(2139095040)).to_bits(), 0)
+        assert_equal(f32::from_bits(1065353216).atan2(f32::from_bits(2139095040)).to_bits(), 0)
+        assert_equal(
+            f32::from_bits(2139095040).atan2(f32::from_bits(2139095040)).to_bits(),
+            1061752795,
+        )
+        nan := f32::from_bits(0x7fc00001)
+        assert(nan.atan2(f32(1.0)).is_nan())
+        assert(f32(1.0).atan2(nan).is_nan())

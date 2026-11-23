@@ -56,8 +56,8 @@ pub fn main() -> void $ Console:
         unique.push(value)
     println("unique ${debug(unique.to_list())}")
     let table: Map[string, i32] = { "first": +4, "second": +5 }
-    println("map keys ${debug(table.keys().sorted())}")
-    println("map values ${debug(table.values().sorted())}")
+    println("map keys ${debug(table.keys().collect::[List[string]]().sorted())}")
+    println("map values ${debug(table.values().collect::[List[i32]]().sorted())}")
     println("map entries ${debug(table.entries().sorted())}")
     let empty: List[i32] = []
     println("empty ${debug(empty.map(fn(x: &i32) -> i32: *x))} ${debug(empty.reversed())}")

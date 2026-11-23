@@ -269,7 +269,8 @@ pub trait ProgramEnv: LayoutEnv {
     /// The body of one of the selection functions the compiler supplies per
     /// concrete argument (`dbg_printer[ty]`, `debug_texts[args]`; spec/lang/10-modules.md
     /// "Debug Printing"; `wire_put[ty]`, `wire_take[ty]`, `module.remote.codec`;
-    /// `remote[ty]`, `serve[ty]`, `build_id[]`, `module.remote.stub`).
+    /// `remote[ty]`, `serve[ty]`, `build_id[]`, `module.remote.stub`;
+    /// `unique[ty]`, `fn.crossing.mode.unique`).
     /// `debug`: `ty` implements `Debug`.
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
     /// `body`, which collection built (a function reference's call body,
@@ -587,6 +588,9 @@ pub struct Collected {
     /// A program that sends a crossing to a worker: `std.remote.worker_serve`
     /// and its instance, which a worker instance runs (`hd.worker`).
     pub worker: Option<(DefId, Hash128)>,
+    /// A program that starts threads (`thread_spawn`): its heap is shared
+    /// (`module.rt.thread.heap`).
+    pub threads: bool,
 }
 
 impl Collected {
@@ -2090,6 +2094,7 @@ impl Cx<'_> {
                     | "interface_of"
                     | "type_number"
                     | "crossing_sent"
+                    | "crossing_unique"
                     | "serve"
                     | "build_id"
             )
@@ -2113,6 +2118,7 @@ impl Cx<'_> {
         // a placeholder: compiling it would turn an unlowered intrinsic into
         // a run-time `panic("intrinsic")` instead of a build error.
         if let Some(key) = self.env.intrinsic(def) {
+            self.out.threads |= key == "thread_spawn";
             return Ok(CallTarget {
                 key: Hash128(0),
                 item: def,
@@ -2495,7 +2501,7 @@ impl Cx<'_> {
     }
 
     /// A call of `dbg_printer`, `debug_texts`, `wire_put`, `wire_take`,
-    /// `remote`, `serve` or `build_id`, whose body the compiler writes at
+    /// `remote`, `serve`, `unique` or `build_id`, whose body the compiler writes at
     /// the exact argument (`ProgramEnv::dbg_body`): an instance keyed like
     /// any other, with no A1 class, since the body reads the type's
     /// declaration.

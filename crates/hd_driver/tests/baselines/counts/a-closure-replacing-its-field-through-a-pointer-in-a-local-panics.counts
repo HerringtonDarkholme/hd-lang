@@ -34,7 +34,7 @@ pub fn main() -> void $ Console:
 > app/main/main
 >   retain string (stored)
 >   retain counted reference (stored)
->   release counted reference (last use)
+>   release string (last use)
 >   release counted reference (overwritten)
         l.gate.keep = fn(m): false
 >   release counted reference (overwritten)

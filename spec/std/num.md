@@ -18,6 +18,7 @@ This chapter defines the numeric APIs of `std.num`:
 - `trunc`, `floor`, `ceil`, `round`, `round_ties_even`, and `copysign` on
   the floats;
 - `sqrt` on the floats, an intrinsic method;
+- trigonometric functions, logarithms, exponentials, powers, signs, and the `PI()` and `E()` constant functions;
 - integer parsing through `Parse`, with `ParseNumberError`;
 - radix text: `to_radix` and `parse_radix` on the integers;
 - float parsing through `Parse`;
@@ -724,3 +725,82 @@ In this section, `F` is `f32` or `f64`.
 
 > **Why.** Rust's `f32::min`, `f64::min`, `f32::max`, and `f64::max` ignore a single NaN and permit either equal input.
 > They do not require the total-order `Ord` trait; `std.cmp.min` and `std.cmp.max` retain their total-order contracts.
+
+## Float Math
+
+Both floating-point widths provide the usual mathematical methods. Angles
+are in radians, with Rust's names and argument order:
+
+```text
+use std.f64.consts.{PI, E}
+
+fn wave(turns: f64) -> f64:
+    (turns * 2.0 * PI()).sin()
+
+fn growth(time: f64) -> f64:
+    time.exp() / E()
+```
+
+Here `F` is either `f32` or `f64`:
+
+| Method | Signature | Result |
+| --- | --- | --- |
+| `sin` | `fn sin(self) -> F` | sine |
+| `cos` | `fn cos(self) -> F` | cosine |
+| `tan` | `fn tan(self) -> F` | tangent |
+| `asin` | `fn asin(self) -> F` | arcsine in `[-π/2, π/2]` |
+| `acos` | `fn acos(self) -> F` | arccosine in `[0, π]` |
+| `atan` | `fn atan(self) -> F` | arctangent in `[-π/2, π/2]` |
+| `atan2` | `fn atan2(self, x: F) -> F` | four-quadrant angle of `(x, self)` |
+| `exp` | `fn exp(self) -> F` | natural exponential |
+| `ln` | `fn ln(self) -> F` | natural logarithm |
+| `log2` | `fn log2(self) -> F` | base-two logarithm |
+| `log10` | `fn log10(self) -> F` | base-ten logarithm |
+| `powf` | `fn powf(self, exponent: F) -> F` | floating-point power |
+| `powi` | `fn powi(self, exponent: i32) -> F` | integer power |
+| `signum` | `fn signum(self) -> F` | the sign as `-1.0`, `1.0`, or NaN |
+
+1. r[std-num.float-math.widths] Every table method is inherent on both `f32` and `f64`, needs no import, and returns the receiver's width.
+2. r[std-num.float-math.sin] `sin` returns the sine of its input, preserving either signed zero and returning NaN for either infinity or NaN.
+3. r[std-num.float-math.cos] `cos` returns the cosine of its input, mapping either zero to `1.0` and either infinity or NaN to NaN.
+4. r[std-num.float-math.tan] `tan` returns the tangent of its input, preserving either signed zero and returning NaN for either infinity or NaN.
+5. r[std-num.float-math.asin] `asin` returns the table's principal arcsine, preserves either zero, and returns NaN outside `[-1.0, 1.0]` or for NaN.
+6. r[std-num.float-math.acos] `acos` returns the table's principal arccosine, maps `1.0` to positive zero, and returns NaN outside `[-1.0, 1.0]` or for NaN.
+7. r[std-num.float-math.atan] `atan` returns the principal arctangent, preserving either zero and mapping either infinity to `π/2` with that infinity's sign.
+8. r[std-num.float-math.atan2] `y.atan2(x)` returns the angle of `(x, y)` in `[-π, π]`, using the following signed-axis and infinity table.
+9. r[std-num.float-math.exp] `exp` returns the natural exponential, mapping either zero to `1.0`, positive infinity to itself, and negative infinity to positive zero.
+10. r[std-num.float-math.ln] `ln` returns the natural logarithm of its input.
+11. r[std-num.float-math.log2] `log2` returns the base-two logarithm of its input.
+12. r[std-num.float-math.log10] `log10` returns the base-ten logarithm of its input.
+13. r[std-num.float-math.log-special] Each logarithm maps either zero to negative infinity, positive infinity to itself, and negative inputs to NaN.
+14. r[std-num.float-math.powf] `x.powf(y)` has the value, special cases, and accuracy of floating [`x ** y`](../lang/05-expressions.md#r-expr.power.float.special).
+15. r[std-num.float-math.powi] `x.powi(n)` raises `x` to integer `n`, using the reciprocal for negative `n` and returning `1.0` for zero `n`.
+16. r[std-num.float-math.powi-special] For nonzero `n`, `powi` gives NaN for NaN and applies the exponent's sign and parity to zero and infinity.
+17. r[std-num.float-math.signum] `signum` returns `1.0` for positive values, positive zero, or positive infinity, and `-1.0` for their negative counterparts.
+18. r[std-num.float-math.nan] Except the power identities, each mathematical method returns NaN for a NaN input; either NaN argument makes `atan2` return NaN.
+19. r[std-num.float-math.precision] The last bits of finite transcendental results and integer powers are implementation-dependent, as with Rust's corresponding methods.
+20. r[std-num.float-math.no-panic] None of these methods panics for any floating-point input or `i32` exponent.
+21. r[std-num.float-math.constant.pi] `std.f32.consts.PI() -> f32` and `std.f64.consts.PI() -> f64` return π rounded to the named width.
+22. r[std-num.float-math.constant.e] `std.f32.consts.E() -> f32` and `std.f64.consts.E() -> f64` return Euler's number rounded to the named width.
+
+The signs below are the sign of `y`, including the sign of zero:
+
+| `x` | `y` | `y.atan2(x)` |
+| --- | --- | --- |
+| nonnegative, including positive zero | either zero | that signed zero |
+| negative, including negative zero | either zero | `π` with that zero's sign |
+| either zero | nonzero | `π/2` with `y`'s sign |
+| positive infinity | finite | zero with `y`'s sign |
+| negative infinity | finite | `π` with `y`'s sign |
+| finite | either infinity | `π/2` with `y`'s sign |
+| positive infinity | either infinity | `π/4` with `y`'s sign |
+| negative infinity | either infinity | `3π/4` with `y`'s sign |
+
+> **Note.** [`abs`](#r-std-num.float-abs) already provides floating-point
+> absolute values at both widths. [`powf`](#r-std-num.float-math.powf)
+> retains the language's floating-power accuracy guarantee.
+
+> **Why.** These are Rust's names, domains, signed-zero conventions, and
+> argument order. Rust's [float methods](https://doc.rust-lang.org/std/primitive.f64.html)
+> leave transcendental precision implementation-dependent. Constant
+> functions use ordinary module paths without adding associated constants.

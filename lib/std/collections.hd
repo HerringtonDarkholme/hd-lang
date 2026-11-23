@@ -1,4 +1,5 @@
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
+use std.function.FnMut
 # std.collections: inherent `List` methods, `UniqList`, `UniqMap`,
 # `ListView`, `Deque`, and `Heap` (spec/std/collections.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
@@ -30,7 +31,7 @@ use std.rt.bytes.{
     string_prefix,
 }
 use std.annotation.inline
-use std.rt.Drop
+use std.rt.{Drop, unique}
 use std.rt.memory.{
     Buffer,
     Ptr,
@@ -61,24 +62,26 @@ impl[T < ?Copy] !Copy for UniqList[T]
 # this kernel, moving elements between their room and raw scratch storage.
 # One logical run in driftsort's powersort merge tree. An unsorted run is
 # sorted lazily, only when it meets a natural run or reaches the root.
-# How the sort kernel compares. A sort by `Ord` compiles to a direct call
-# for each element type; a caller's comparison function stays a call
-# through its value. The kernel takes the comparator by reference, so a
-# function value is never counted per comparison.
+# Keep Ord/key comparisons static; a generic mutable callback is stored
+# inline in DriftByFn, borrowed once through the existing sort kernel.
+# No comparator environment is retained per comparison.
 trait DriftOrder[T < ?Copy]:
-    fn order(&self, left: &T, right: &T) -> Ordering
+    fn order(&mut self, left: &T, right: &T) -> Ordering
 
 struct DriftByOrd:
     unused: bool
 
 impl[T < ?Copy & Ord] DriftOrder[T] for DriftByOrd:
     @inline
-    fn order(&self, left: &T, right: &T) -> Ordering:
+    fn order(&mut self, left: &T, right: &T) -> Ordering:
         left.cmp(right)
 
-impl[T < ?Copy] DriftOrder[T] for fn(&T, &T) -> Ordering:
-    fn order(&self, left: &T, right: &T) -> Ordering:
-        (*self)(left, right)
+struct DriftByFn[F < ?Copy]:
+    compare: F
+
+impl[T < ?Copy, F < ?Copy & FnMut(&T, &T) -> Ordering] DriftOrder[T] for DriftByFn[F]:
+    fn order(&mut self, left: &T, right: &T) -> Ordering:
+        (self.compare)(left, right)
 
 # Orders `(key, value)` pairs by key alone, for `sort_by_key`.
 struct DriftByKey:
@@ -86,7 +89,7 @@ struct DriftByKey:
 
 impl[K < Ord, T < ?Copy] DriftOrder[(K, T)] for DriftByKey:
     @inline
-    fn order(&self, left: &(K, T), right: &(K, T)) -> Ordering:
+    fn order(&mut self, left: &(K, T), right: &(K, T)) -> Ordering:
         left._0.cmp(&right._0)
 
 struct DriftRun:
@@ -95,9 +98,9 @@ struct DriftRun:
     sorted: bool
 
 @inline
-fn drift_less[T < ?Copy, O < DriftOrder[T]](
+fn drift_less[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     left: usize,
     right: usize,
 ) -> bool:
@@ -105,9 +108,9 @@ fn drift_less[T < ?Copy, O < DriftOrder[T]](
         .Less => true
         _ => false
 
-fn drift_insertion_sort[T < ?Copy, O < DriftOrder[T]](
+fn drift_insertion_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     start: usize,
     end: usize,
 ) -> void:
@@ -137,9 +140,9 @@ fn drift_reverse[T < ?Copy](items: &Buffer[T], start: usize, end: usize) -> void
 
 # Finds an ascending run, or a strictly descending run which may be reversed
 # without changing the order of equal elements.
-fn drift_natural_run[T < ?Copy, O < DriftOrder[T]](
+fn drift_natural_run[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     start: usize,
     size: usize,
 ) -> (usize, bool):
@@ -158,9 +161,9 @@ fn drift_natural_run[T < ?Copy, O < DriftOrder[T]](
 # Stable physical merge. Equal elements come from the left run. The left
 # run moves to scratch first; a panic is unrecoverable (flow.panic.def), so
 # no step needs to keep both runs whole while the comparator runs.
-fn drift_merge[T < ?Copy, O < DriftOrder[T]](
+fn drift_merge[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     scratch: &Buffer[T],
     start: usize,
     middle: usize,
@@ -188,9 +191,9 @@ fn drift_merge[T < ?Copy, O < DriftOrder[T]](
     # The rest of the right run is already in place.
     copy_bytes(items.at(out).address, scratch.at(left).address, (middle - left) * size_of::[T]())
 
-fn drift_merge_sort[T < ?Copy, O < DriftOrder[T]](
+fn drift_merge_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     scratch: &Buffer[T],
     start: usize,
     end: usize,
@@ -224,9 +227,9 @@ fn drift_log2(value: usize) -> usize:
 
 # Rust 1.81's sampled pivot policy: medians from the first, middle and
 # last eighth, recursively sampled for regions of at least 64 elements.
-fn drift_sample_median[T < ?Copy, O < DriftOrder[T]](
+fn drift_sample_median[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     first: usize,
     middle: usize,
     last: usize,
@@ -253,9 +256,9 @@ fn drift_sample_median[T < ?Copy, O < DriftOrder[T]](
 # Whether the element at `index` goes left of the pivot copied at `slot`:
 # below it, or with `le` also equal to it.
 @inline
-fn drift_goes_left[T < ?Copy, O < DriftOrder[T]](
+fn drift_goes_left[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     pivots: &Buffer[T],
     index: usize,
     slot: usize,
@@ -269,9 +272,9 @@ fn drift_goes_left[T < ?Copy, O < DriftOrder[T]](
 # Rust 1.81's stable partition: one pass sends left values forward and the
 # rest backward in scratch, then both groups move back, the right one
 # reversed so its order is kept. Returns the size of the left group.
-fn drift_partition[T < ?Copy, O < DriftOrder[T]](
+fn drift_partition[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     scratch: &Buffer[T],
     pivots: &Buffer[T],
     start: usize,
@@ -304,9 +307,9 @@ fn drift_partition[T < ?Copy, O < DriftOrder[T]](
 # and a pivot no greater than its ancestor splits off the equal elements,
 # which are then done. `pivots` holds one copy per depth; `remaining` only
 # falls along a recursion chain, so each live copy has its own slot.
-fn drift_quick_sort[T < ?Copy, O < DriftOrder[T]](
+fn drift_quick_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     scratch: &Buffer[T],
     pivots: &Buffer[T],
     start: usize,
@@ -352,9 +355,9 @@ fn drift_quick_sort[T < ?Copy, O < DriftOrder[T]](
         last = first + less
     drift_insertion_sort(items, by, first, last)
 
-fn drift_sort_lazy_run[T < ?Copy, O < DriftOrder[T]](
+fn drift_sort_lazy_run[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     scratch: &Buffer[T],
     pivots: &Buffer[T],
     start: usize,
@@ -362,9 +365,9 @@ fn drift_sort_lazy_run[T < ?Copy, O < DriftOrder[T]](
 ) -> void:
     drift_quick_sort(items, by, scratch, pivots, start, end, 2 * drift_log2(end - start), .None)
 
-fn drift_logical_merge[T < ?Copy, O < DriftOrder[T]](
+fn drift_logical_merge[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     scratch: &Buffer[T],
     pivots: &Buffer[T],
     left: DriftRun,
@@ -391,9 +394,9 @@ fn drift_sqrt_approx(size: usize) -> usize:
     shift := (1 + drift_log2(size | 1)) / 2
     ((1usize << shift) + (size >> shift)) / 2
 
-fn drift_create_run[T < ?Copy, O < DriftOrder[T]](
+fn drift_create_run[T < ?Copy, O < ?Copy & DriftOrder[T]](
     items: &Buffer[T],
-    by: &O,
+    by: &mut O,
     start: usize,
     minimum: usize,
     size: usize,
@@ -409,7 +412,11 @@ fn drift_create_run[T < ?Copy, O < DriftOrder[T]](
 
 # Driftsort's top-level policy: preserve long natural runs, keep the other
 # runs lazy for stable quicksort, and merge them in powersort order.
-fn drift_sort[T < ?Copy, O < DriftOrder[T]](items: &Buffer[T], size: usize, by: &O) -> void:
+fn drift_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    size: usize,
+    by: &mut O,
+) -> void:
     if size < 2:
         return
     if size <= 16:
@@ -749,7 +756,7 @@ impl[T < ?Copy] UniqList[T]:
 
     ## Returns a reference to the first element for which `test` is true, or `.None`.
     ## See [std-collections.uniq-list.find-ref](../../spec/std/collections.md#r-std-collections.uniq-list.find-ref).
-    pub fn find_ref['a](&'a self, test: fn(&T) -> bool) -> (&'a T)?:
+    pub fn find_ref[F < ?Copy & FnMut(&T) -> bool, 'a](&'a self, mut test: F) -> (&'a T)?:
         let index: usize = 0
         while index < self.len():
             item := self.buffer.at(index).as_ref()
@@ -759,8 +766,8 @@ impl[T < ?Copy] UniqList[T]:
         .None
 
     ## True when `test` is true for at least one element, stopping at the first.
-    ## See [std-collections.uniq-list.any-all](../../spec/std/collections.md#r-std-collections.uniq-list.any-all).
-    pub fn any(&self, test: fn(&T) -> bool) -> bool:
+    ## See [std-collections.uniq-list.any-all.fn-mut](../../spec/std/collections.md#r-std-collections.uniq-list.any-all.fn-mut).
+    pub fn any[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> bool:
         let index: usize = 0
         while index < self.len():
             if test(self.buffer.at(index).as_ref()):
@@ -769,8 +776,8 @@ impl[T < ?Copy] UniqList[T]:
         false
 
     ## True when `test` is true for every element, stopping at the first false.
-    ## See [std-collections.uniq-list.any-all](../../spec/std/collections.md#r-std-collections.uniq-list.any-all).
-    pub fn all(&self, test: fn(&T) -> bool) -> bool:
+    ## See [std-collections.uniq-list.any-all.fn-mut](../../spec/std/collections.md#r-std-collections.uniq-list.any-all.fn-mut).
+    pub fn all[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> bool:
         let index: usize = 0
         while index < self.len():
             if !test(self.buffer.at(index).as_ref()):
@@ -878,7 +885,7 @@ impl[T < ?Copy] UniqList[T]:
 
     ## Keeps the elements for which `keep` is true, in order, and drops the rest.
     ## See [std-collections.uniq-list.retain](../../spec/std/collections.md#r-std-collections.uniq-list.retain).
-    pub fn retain(&mut self, keep: fn(&T) -> bool) -> void:
+    pub fn retain[F < ?Copy & FnMut(&T) -> bool](&mut self, mut keep: F) -> void:
         size := self.len()
         let kept: usize = 0
         let index: usize = 0
@@ -895,12 +902,13 @@ impl[T < ?Copy] UniqList[T]:
 
     ## Stably sorts the elements in ascending order by `compare`, in place.
     ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
-    pub fn sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void:
-        drift_sort(&self.buffer, self.len, &compare)
+    pub fn sort_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&mut self, compare: F) -> void:
+        let mut by = DriftByFn { compare: compare }
+        drift_sort(&self.buffer, self.len, &mut by)
 
     ## Stably sorts the elements by `key(element)`, calling `key` once per element.
     ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
-    pub fn sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void:
+    pub fn sort_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&mut self, mut key: F) -> void:
         size := self.len()
         if size == 0:
             return
@@ -915,7 +923,8 @@ impl[T < ?Copy] UniqList[T]:
             keyed.push((keys.at(index).read(), self.buffer.at(index).read()))
             index += 1
         self.len = 0
-        drift_sort(&keyed.buffer, keyed.len, &DriftByKey { unused: false })
+        let mut compare_key = DriftByKey { unused: false }
+        drift_sort(&keyed.buffer, keyed.len, &mut compare_key)
         # Drain by index so each element moves once, with no tail shifts.
         keyed.len = 0
         index = 0
@@ -1136,8 +1145,8 @@ impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V]:
         self.rehash(UniqMap::[K, V].with_capacity_seeded(capacity, self.seed))
 
     ## Keeps the entries accepted by `keep`, which may change their values in place.
-    ## See [std-collections.uniq-map.retain](../../spec/std/collections.md#r-std-collections.uniq-map.retain).
-    pub fn retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void:
+    ## See [std-collections.uniq-map.retain.fn-mut](../../spec/std/collections.md#r-std-collections.uniq-map.retain.fn-mut).
+    pub fn retain[F < ?Copy & FnMut(&K, &mut V) -> bool](&mut self, mut keep: F) -> void:
         was_nonempty := self.size != 0
         let index: usize = 0
         while index < self.used:
@@ -1517,7 +1526,8 @@ impl[T < ?Copy & Ord] UniqList[T]:
     ## Stably sorts the elements in ascending order by `Ord`, in place.
     ## See [std-collections.uniq-list.sort](../../spec/std/collections.md#r-std-collections.uniq-list.sort).
     pub fn sort(&mut self) -> void:
-        drift_sort(&self.buffer, self.len, &DriftByOrd { unused: false })
+        let mut compare = DriftByOrd { unused: false }
+        drift_sort(&self.buffer, self.len, &mut compare)
 
 ## A cursor that borrows a `UniqList` and yields its elements by reference.
 ## See [std-collections.uniq-list.iter](../../spec/std/collections.md#r-std-collections.uniq-list.iter).
@@ -1821,7 +1831,7 @@ impl[T] List[T]:
 
     ## Returns a new list with `transform` applied to each element, in order.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).
-    pub fn map[U](&self, transform: fn(&T) -> U) -> List[U]:
+    pub fn map[U, F < ?Copy & FnMut(&T) -> U](&self, mut transform: F) -> List[U]:
         let mut mapped: List[U] = []
         list_reserve(&mut mapped, self.len())
         for item in self:
@@ -1830,7 +1840,7 @@ impl[T] List[T]:
 
     ## Returns a new list of the elements for which `keep` is true, in list order.
     ## See [std-collections.access.filter](../../spec/std/collections.md#r-std-collections.access.filter).
-    pub fn filter(&self, keep: fn(&T) -> bool) -> List[T]:
+    pub fn filter[F < ?Copy & FnMut(&T) -> bool](&self, mut keep: F) -> List[T]:
         let mut kept: List[T] = []
         for item in self:
             if keep(&item):
@@ -1851,7 +1861,7 @@ impl[T] List[T]:
     # The first `count` items, or all of them (r-std-collections.access.take).
     ## Returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
     ## See [std-collections.access.take](../../spec/std/collections.md#r-std-collections.access.take).
-    pub fn take(self, count: usize) -> List[T]:
+    pub fn take(&self, count: usize) -> List[T]:
         let mut kept: List[T] = []
         list_reserve(&mut kept, if count < self.len(): count else: self.len())
         let index: usize = 0
@@ -1881,7 +1891,7 @@ impl[T] List[T]:
     ## See [std-collections.access.reversed](../../spec/std/collections.md#r-std-collections.access.reversed).
     ## Reverses the remaining sequence without advancing or buffering it.
     ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
-    pub fn reversed(self) -> List[T]:
+    pub fn reversed(&self) -> List[T]:
         let mut backwards: List[T] = []
         list_reserve(&mut backwards, self.len())
         let index = self.len()
@@ -1892,7 +1902,7 @@ impl[T] List[T]:
 
     ## Returns a new list in ascending order by `compare`. The sort is stable.
     ## See [std-collections.access.sorted-by](../../spec/std/collections.md#r-std-collections.access.sorted-by).
-    pub fn sorted_by(&self, compare: fn(&T, &T) -> Ordering) -> List[T]:
+    pub fn sorted_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&self, compare: F) -> List[T]:
         if self.len() <= 1:
             return *self
         let mut sorted = UniqList::[T].from_list(*self)
@@ -1910,19 +1920,19 @@ impl[T] List[T]:
     # In place, by the stable sort `sorted_by` makes.
     ## Sorts the list in ascending order by `compare`, in place. The sort is stable.
     ## See [std-collections.helper.sort-by](../../spec/std/collections.md#r-std-collections.helper.sort-by).
-    pub fn sort_by(&mut self, compare: fn(&T, &T) -> Ordering) -> void:
+    pub fn sort_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&mut self, compare: F) -> void:
         *self = self.sorted_by(compare)
 
     # In place, by `sorted_by_key`: `key` is called once per element.
     ## Sorts the list in ascending order of `key(element)` by `Ord`, in place, calling `key` once per element. The sort is stable.
     ## See [std-collections.helper.sort-by-key](../../spec/std/collections.md#r-std-collections.helper.sort-by-key).
-    pub fn sort_by_key[K < Ord](&mut self, key: fn(&T) -> K) -> void:
+    pub fn sort_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&mut self, key: F) -> void:
         *self = self.sorted_by_key(key)
 
     # Keeps the accepted elements in order, then drops the rest from the end.
     ## Keeps the elements for which `keep` is true, in list order, in place; `keep` runs once per element, in order.
     ## See [std-collections.helper.retain](../../spec/std/collections.md#r-std-collections.helper.retain).
-    pub fn retain(&mut self, keep: fn(&T) -> bool) -> void:
+    pub fn retain[F < ?Copy & FnMut(&T) -> bool](&mut self, mut keep: F) -> void:
         size := self.len()
         let kept: usize = 0
         let index: usize = 0
@@ -1961,7 +1971,7 @@ impl[T] List[T]:
     # Pairs items by position, stopping at the shorter list.
     ## Returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, stopping at the shorter one.
     ## See [std-collections.access.zip](../../spec/std/collections.md#r-std-collections.access.zip).
-    pub fn zip[U](self, other: List[U]) -> List[(T, U)]:
+    pub fn zip[U](&self, other: List[U]) -> List[(T, U)]:
         let mut pairs: List[(T, U)] = []
         list_reserve(&mut pairs, if self.len() < other.len(): self.len() else: other.len())
         let index: usize = 0
@@ -1976,7 +1986,7 @@ impl[T] List[T]:
     # A stable sort by `key(item)`, which is called once per element.
     ## Returns the elements in ascending order of `key(element)` by `Ord`, calling `key` once per element.
     ## See [std-collections.helper.sorted-by-key](../../spec/std/collections.md#r-std-collections.helper.sorted-by-key).
-    pub fn sorted_by_key[K < Ord](&self, key: fn(&T) -> K) -> List[T]:
+    pub fn sorted_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, mut key: F) -> List[T]:
         let mut keyed: List[(K, usize)] = []
         list_reserve(&mut keyed, self.len())
         let index: usize = 0
@@ -1995,7 +2005,10 @@ impl[T] List[T]:
     # The elements under each key.
     ## Groups the elements by `key(element)`, each group in list order.
     ## See [std-collections.helper.group-by](../../spec/std/collections.md#r-std-collections.helper.group-by).
-    pub fn group_by[K < Eq & Hash](&self, key: fn(&T) -> K) -> Map[K, List[T]]:
+    pub fn group_by[K < Eq & Hash, F < ?Copy & FnMut(&T) -> K](
+        &self,
+        mut key: F,
+    ) -> Map[K, List[T]]:
         let mut groups: Map[K, List[T]] = {}
         for item in self:
             group := key(&item)
@@ -2007,7 +2020,7 @@ impl[T] List[T]:
     # The elements `keep` accepts, then the rest, each in order.
     ## Splits the list into the elements for which `keep` is true and the rest, each in list order.
     ## See [std-collections.helper.partition](../../spec/std/collections.md#r-std-collections.helper.partition).
-    pub fn partition(&self, keep: fn(&T) -> bool) -> (List[T], List[T]):
+    pub fn partition[F < ?Copy & FnMut(&T) -> bool](&self, mut keep: F) -> (List[T], List[T]):
         let mut kept: List[T] = []
         let mut rest: List[T] = []
         for item in self:
@@ -2020,7 +2033,7 @@ impl[T] List[T]:
     # Stops at the first element that passes.
     ## True when `test` is true for at least one element, stopping at the first.
     ## See [std-collections.helper.any-all](../../spec/std/collections.md#r-std-collections.helper.any-all).
-    pub fn any(&self, test: fn(&T) -> bool) -> bool:
+    pub fn any[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> bool:
         for item in self:
             if test(&item):
                 return true
@@ -2029,7 +2042,7 @@ impl[T] List[T]:
     # Stops at the first element that fails.
     ## True when `test` is true for every element, stopping at the first false.
     ## See [std-collections.helper.any-all](../../spec/std/collections.md#r-std-collections.helper.any-all).
-    pub fn all(&self, test: fn(&T) -> bool) -> bool:
+    pub fn all[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> bool:
         for item in self:
             if !test(&item):
                 return false
@@ -2037,7 +2050,7 @@ impl[T] List[T]:
 
     ## Returns a copy of the first element for which `test` is true, in `.Some`, or `.None`.
     ## See [std-collections.helper.find-copy](../../spec/std/collections.md#r-std-collections.helper.find-copy).
-    pub fn find(&self, test: fn(&T) -> bool) -> T?:
+    pub fn find[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> T?:
         let index: usize = 0
         while index < self.len():
             if test(&self[index]):
@@ -2046,18 +2059,21 @@ impl[T] List[T]:
         .None
 
     ## Applies `transform` to each element and concatenates the results, in order.
-    ## See [std-collections.helper.flat-map.iterable-owned](../../spec/std/collections.md#r-std-collections.helper.flat-map.iterable-owned).
-    pub fn flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]:
+    ## See [std-collections.helper.flat-map.iterable-borrow](../../spec/std/collections.md#r-std-collections.helper.flat-map.iterable-borrow).
+    pub fn flat_map[U, I < Iterable[U], F < ?Copy & FnMut(&T) -> I](
+        &self,
+        mut transform: F,
+    ) -> List[U]:
         let mut flat: List[U] = []
         for item in self:
-            for part in transform(item):
+            for part in transform(&item):
                 flat.push(part)
         flat
 
     # Every run of `size` consecutive elements, overlapping, in order.
     ## Returns read-only views of every run of `size` consecutive elements, each starting one index later.
     ## See [std-collections.helper.windows.views](../../spec/std/collections.md#r-std-collections.helper.windows.views).
-    pub fn windows(self, size: usize) -> List[ListView[T]]:
+    pub fn windows(&self, size: usize) -> List[ListView[T]]:
         if size == 0:
             panic("windows: size must be positive")
         let mut runs: List[ListView[T]] = []
@@ -2073,13 +2089,16 @@ impl[T] List[T]:
 
 impl[T < Eq] List[T]:
     ## True exactly when the list has an element equal to `value`.
-    ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
-    pub fn contains(&self, value: T) -> bool:
-        self.index_of(value).is_some()
+    ## See [std-collections.helper.contains-borrowed](../../spec/std/collections.md#r-std-collections.helper.contains-borrowed).
+    pub fn contains(&self, value: &T) -> bool:
+        for item in self:
+            if item.eq(value):
+                return true
+        false
 
     # The index of the first element equal to `value`.
     ## Returns the index of the first element equal to `value` by `Eq`, in `.Some`, or `.None`.
-    ## See [std-collections.helper.contains](../../spec/std/collections.md#r-std-collections.helper.contains).
+    ## See [std-collections.helper.contains-borrowed](../../spec/std/collections.md#r-std-collections.helper.contains-borrowed).
     pub fn index_of(&self, value: T) -> usize?:
         let index: usize = 0
         for item in self:
@@ -2088,24 +2107,30 @@ impl[T < Eq] List[T]:
             index = index + 1
         .None
 
-    # Drops each element equal to the one just before it, as Rust's `Vec::dedup`.
-    ## Returns the list with each run of equal neighbours cut to its first element.
-    ## See [std-collections.helper.dedup](../../spec/std/collections.md#r-std-collections.helper.dedup).
-    pub fn dedup(self) -> List[T]:
-        let mut kept: List[T] = []
-        for item in self:
-            match kept.last():
-                .Some(previous) =>
-                    if previous != item:
-                        kept.push(item)
-                .None => kept.push(item)
-        kept
+    # Compact forward as Rust's Vec::dedup does, keeping the first of each run.
+    # No write precedes the first gap; ordinary list stores preserve snapshots.
+    ## Removes consecutive equal elements in place, keeping the first in each run.
+    ## See [std-collections.helper.dedup-in-place](../../spec/std/collections.md#r-std-collections.helper.dedup-in-place).
+    pub fn dedup(&mut self) -> void:
+        size := self.len()
+        if size < 2:
+            return
+        let kept: usize = 1
+        let index: usize = 1
+        while index < size:
+            if self[kept - 1] != self[index]:
+                if kept != index:
+                    self[kept] = self[index]
+                kept += 1
+            index += 1
+        if kept < size:
+            self.truncate(kept)
 
 # The total of the elements, in order (r-std-collections.helper.sum).
 impl[T < Num] List[T]:
     ## Returns the sum of the elements, left to right.
     ## See [std-collections.helper.sum](../../spec/std/collections.md#r-std-collections.helper.sum).
-    pub fn sum(self) -> T:
+    pub fn sum(&self) -> T:
         let total = T::zero()
         for item in self:
             total = total + item
@@ -2180,7 +2205,7 @@ impl[T < Ord] List[T]:
 impl[T < Eq & Hash] List[T]:
     ## Returns the list with each element after its first occurrence dropped, in list order.
     ## See [std-collections.helper.unique](../../spec/std/collections.md#r-std-collections.helper.unique).
-    pub fn unique(self) -> List[T]:
+    pub fn unique(&self) -> List[T]:
         let mut seen: Set[T] = Set::new()
         let mut kept: List[T] = []
         for item in self:
@@ -2193,7 +2218,7 @@ impl[T < Eq & Hash] List[T]:
 impl[T] List[T]:
     ## Returns a copy of the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.by-key.copy-ties](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-ties).
-    pub fn min_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
+    pub fn min_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, mut key: F) -> T?:
         if self.len() == 0:
             return .None
         let best: usize = 0
@@ -2209,7 +2234,7 @@ impl[T] List[T]:
 
     ## Returns a copy of the last element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
     ## See [std-collections.helper.by-key.copy-ties](../../spec/std/collections.md#r-std-collections.helper.by-key.copy-ties).
-    pub fn max_by_key[K < Ord](&self, key: fn(&T) -> K) -> T?:
+    pub fn max_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, mut key: F) -> T?:
         if self.len() == 0:
             return .None
         let best: usize = 0
@@ -2245,7 +2270,7 @@ pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
 impl[K < Eq & Hash, V] Map[K, V]:
     ## Keeps entries selected by `keep`, which may change their values.
     ## See [std-collections.map.retain](../../spec/std/collections.md#r-std-collections.map.retain).
-    pub fn retain(&mut self, keep: fn(&K, &mut V) -> bool) -> void:
+    pub fn retain[F < ?Copy & FnMut(&K, &mut V) -> bool](&mut self, mut keep: F) -> void:
         for (key, _) in *self:
             if !keep(key, &mut self[*key]):
                 _ := self.remove(*key)
@@ -2277,28 +2302,38 @@ impl[K < Eq & Hash, V] Map[K, V]:
             .Some(_) => true
             .None => false
 
-    ## A new list of the keys, in the map's iteration order.
-    ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
-    pub fn keys(&self) -> List[K]:
-        let mut found: List[K] = []
-        list_reserve(&mut found, self.len())
-        for (key, _) in self:
-            found.push(*key)
-        found
+    ## A lazy cursor over a snapshot of the map's keys, in iteration order.
+    ## See [std-collections.map.keys.cursor](../../spec/std/collections.md#r-std-collections.map.keys.cursor).
+    pub fn keys(&self) -> MapKeys[K, V]:
+        MapKeys { entries: self.iter() }
 
-    ## A new list of the values, in the map's iteration order.
-    ## See [std-collections.map.keys.order](../../spec/std/collections.md#r-std-collections.map.keys.order).
-    pub fn values(&self) -> List[V]:
-        let mut found: List[V] = []
-        list_reserve(&mut found, self.len())
-        for (_, value) in self:
-            found.push(*value)
-        found
+    ## A lazy cursor over a snapshot of the map's values, in iteration order.
+    ## See [std-collections.map.values.cursor](../../spec/std/collections.md#r-std-collections.map.values.cursor).
+    pub fn values(&self) -> MapValues[K, V]:
+        MapValues { entries: self.iter() }
 
     ## True exactly when the map has no entries.
     ## See [std-collections.map.is-empty](../../spec/std/collections.md#r-std-collections.map.is-empty).
     pub fn is_empty(&self) -> bool:
         self.len() == 0
+
+## A snapshot cursor over a map's keys.
+## See [std-collections.map.keys.cursor-type](../../spec/std/collections.md#r-std-collections.map.keys.cursor-type).
+pub struct MapKeys[K < Eq & Hash, V]:
+    entries: MapEntries[K, V]
+
+impl[K < Eq & Hash, V] Iterator[K] for MapKeys[K, V]:
+    fn next(&mut self) -> K?:
+        self.entries.next().map(fn(entry: (K, V)) -> K: entry._0)
+
+## A snapshot cursor over a map's values.
+## See [std-collections.map.values.cursor-type](../../spec/std/collections.md#r-std-collections.map.values.cursor-type).
+pub struct MapValues[K < Eq & Hash, V]:
+    entries: MapEntries[K, V]
+
+impl[K < Eq & Hash, V] Iterator[V] for MapValues[K, V]:
+    fn next(&mut self) -> V?:
+        self.entries.next().map(fn(entry: (K, V)) -> V: entry._1)
 
 # The entries of a map, and the most frequent ones of a tally
 # (spec/std/collections.md#map-methods).
@@ -2849,9 +2884,9 @@ impl[T < Eq & Hash] Set[T]:
         self.entries.len() == 0
 
     ## True exactly when the set has an element equal to `value`.
-    ## See [std-collections.set.contains](../../spec/std/collections.md#r-std-collections.set.contains).
-    pub fn contains(&self, value: T) -> bool:
-        self.entries.get(value).is_some()
+    ## See [std-collections.set.contains-borrowed](../../spec/std/collections.md#r-std-collections.set.contains-borrowed).
+    pub fn contains(&self, value: &T) -> bool:
+        self.entries.get(*value).is_some()
 
     # Adds `value`, and is true when it was not already there.
     ## Adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
@@ -2905,7 +2940,7 @@ impl[T < Eq & Hash] Iterator[T] for Union[T]:
         while true:
             match self.rest.next():
                 .Some(value) =>
-                    if !self.seen.contains(value):
+                    if !self.seen.contains(&value):
                         return .Some(value)
                 .None => return .None
 
@@ -2920,7 +2955,7 @@ impl[T < Eq & Hash] Iterator[T] for Intersection[T]:
         while true:
             match self.source.next():
                 .Some(value) =>
-                    if self.other.contains(value):
+                    if self.other.contains(&value):
                         return .Some(value)
                 .None => return .None
 
@@ -2942,7 +2977,7 @@ impl[T < Eq & Hash] Eq for Set[T]:
         if self.len() != other.len():
             return false
         for (item, _) in self.entries:
-            if !other.contains(*item):
+            if !other.contains(item):
                 return false
         true
 
@@ -3224,3 +3259,18 @@ impl[T] DequeIter[T]:
     ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn rev(self) -> Rev[Self, T]:
         DoubleEndedIterator::[T]::rev(self)
+
+# A `Send` crossing makes each element or slot in use unique
+# (fn.crossing.mode.unique): the buffer is raw memory, which the type's
+# fields do not show.
+fn unique_uniq_list[T < ?Copy](items: &mut UniqList[T]) -> void:
+    let index: usize = 0
+    while index < items.len:
+        unique(items.buffer.at(index).as_mut())
+        index += 1
+
+fn unique_uniq_map[K < Eq & Hash, V < ?Copy](entries: &mut UniqMap[K, V]) -> void:
+    let index: usize = 0
+    while index < entries.used:
+        unique(entries.slots.at(index).as_mut())
+        index += 1

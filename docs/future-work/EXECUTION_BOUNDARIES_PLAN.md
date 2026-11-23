@@ -1,13 +1,12 @@
 # Execution Boundaries: The Staged Plan
 
-Status: a plan for owner review, not accepted behavior. It stages the
-compiler work for the accepted record
-[EXECUTION_BOUNDARIES.md](EXECUTION_BOUNDARIES.md) (owner 2026-11-21),
-tracked in #2288. Stage 0, the language rules, is in the specification:
+Status: in progress, tracked in #2288. It stages the compiler work for the
+accepted record [EXECUTION_BOUNDARIES.md](EXECUTION_BOUNDARIES.md) (owner
+2026-11-21). Stages 0 to 5 are built, and stage 6 is part built (see its
+section). The language rules are in the specification:
 [Execution Domains](../../spec/lang/10-modules.md#execution-domains),
 [Crossing Closures](../../spec/lang/07-functions.md#crossing-closures) and
 [Frozen Loans](../../spec/lang/13-values-and-references.md#frozen-loans).
-Their 53 failing conformance cases are rows of `KNOWN_FAILURES.tsv`.
 
 Line counts are estimates from reading the sites named below, rounded to
 tens. Each stage lands as its own lane step and deletes what it replaces
@@ -505,7 +504,15 @@ changed, the walk is cached by the file hashes it read.
 
 ## 8. Stage 6: Runtime
 
-Not built. Re-priced on 2026-11-22 after the owner's decision on counts,
+Part built (2026-11-23):
+- Built:
+  - `std.sync` `Arc`/`Weak` over `std.rt` atomics;
+  - shared memory with `std.rt.thread` spawn and join on Node and Wasmtime;
+  - the per-thread allocator.
+- In progress: the unique-buffer crossing.
+- Then: `Scope`/`Background`.
+
+Re-priced on 2026-11-22 after the owner's decision on counts,
 which this section follows: "ARC should be something a stdlib to ship,
 no builtin language support. that is, *T is not Send, Arc is another
 stdlib stuff". This is Rust's model:
@@ -621,7 +628,7 @@ second form always, with sharing left to `Arc`.)
 | threads | `std.rt` | the allocator: a heap per thread and a cross-thread free list, since a value that crossed is freed on the receiving thread | +400 |
 | threads | `lib/std`, `host/` | `Scope` joins its threads; `Background` wakes the caller on its own event loop | +250 |
 | threads | `lib/std` | `Arc[T]` and `Weak[T]` over the intrinsics, with `impl Send for Arc[T]` | +180 |
-| threads | compiler and `lib/std` | the crossing rule for counted buffers, option A below | +200 |
+| threads | compiler and `lib/std` | the crossing rule for counted buffers, option A below (built) | +200 |
 | | | **total** | **+2,300** |
 
 Workers alone come to +800, of which +180 is compiler code. They need
@@ -683,6 +690,31 @@ Built (2026-11-22): S1's walk. `Sync` is a kind of the stage 1 parts walk
 `T < Send` alone is not `Send`. A top-level binding a `Send` crossing
 reaches must be `Sync` too (owner, 2026-11-22; `fn.crossing.global.send`).
 The threads slices left are +1,500.
+
+Built (2026-11-23): option A, before `Scope` is public. At a `Send`
+crossing literal the checker reads each capture whose type may hold a
+counted buffer into a local of its own, calls `std.rt.unique` on
+it in place, and the literal captures that local instead
+(`hd_check` `send_unique`, `TirBuilder::rename_captures`). The read is
+the ownership pass's: a move at the capture's last use, so a buffer
+nothing else holds keeps its count of 1 and crosses as it is; a copy
+counts it, so the call copies it. `unique[T]`'s body is supplied per
+type (`hd_structure` `unique_body`): `string`, `List`, `Map`, `UniqList`
+and `UniqMap` call std's walk, which tests each buffer's count and
+copies a shared one, then its elements in turn; a struct, enum, tuple,
+union or newtype calls `unique` on each member that may hold a buffer;
+any other type's body is empty, and a scalar or reference capture gets
+no call. Readings: a map key is lent only shared, so std makes it unique
+through its address once its loan ends (its bytes and hash stay equal).
+Built (2026-11-23, #2305): a crossing closure's body runs at most once
+(`fn.crossing.once`), so it takes its captures on entry, as Rust's
+`FnOnce` takes its closure (`sub_flags::ONCE`): no entry count, and its
+environment's descriptor loses its release glue, so the environment's
+last release frees its block alone; a copy inlined at its call keeps no
+environment alive after it. Each capture, a `Drop` one included, has
+one owner: the environment until the body runs, then the body.
+Cost: one call per capture that may hold a buffer; at run time a count
+test per buffer and a copy of each shared one.
 
 **Per-run cost.** No compiler pass scales with the program for counts.
 The crossing walk of option A is linear in the shared part of each

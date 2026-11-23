@@ -25,7 +25,7 @@ fn dijkstra(width: usize) -> (i64, usize):
     while !pending.is_empty():
         entry := pending.pop().expect("pending route")
         node := entry._1
-        if visited.contains(node):
+        if visited.contains(&node):
             continue
         _ := visited.insert(node)
         total -= entry._0
@@ -49,7 +49,7 @@ fn breadth_first(width: usize) -> (i64, usize):
         node := pending.pop_front().expect("pending cell")
         total += distance[node]
         for next in neighbors(node, width):
-            if !visited.contains(next):
+            if !visited.contains(&next):
                 _ := visited.insert(next)
                 distance[next] = distance[node] + 1
                 pending.push_back(next)

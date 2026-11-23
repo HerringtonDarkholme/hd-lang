@@ -130,3 +130,5 @@ std.http.request_from_wire	std/http.md#r-std-http.wire.request-from
 std.http.response_to_wire	std/http.md#r-std-http.wire.response-to
 std.http_wire.Http	std/http.md#r-std-http.wire.host
 std.http_wire.WireHttpError	std/http.md#r-std-http.wire.error
+std.collections.MapKeys	std/collections.md#map-methods
+std.collections.MapValues	std/collections.md#map-methods

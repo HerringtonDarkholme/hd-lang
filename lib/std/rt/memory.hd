@@ -9,6 +9,12 @@ use std.rt.Drop
 use std.rt.alloc.{alloc, free_block}
 use std.rt.cycle.hold_room
 
+# The address is used only while the original place remains alive. Std uses
+# it for static member IDs and borrowed, stack-resident scalar scratch.
+@intrinsic("mem_ref_address")
+pub fn address_of[T < ?Copy](target: &T) -> usize:
+    panic("intrinsic")
+
 @intrinsic("mem_pages")
 ## The heap's size in pages of 65,536 bytes.
 ## See [module.rt.memory.pages](../../../spec/lang/10-modules.md#r-module.rt.memory.pages).
@@ -250,4 +256,22 @@ pub fn new_string(len: usize) -> string:
 
 @intrinsic("panic")
 fn panic_with(category: string, message: string) -> never:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_wait_u32")
+## Waits while the 4 bytes from `address` hold `expected`, until a notify there wakes it or `timeout` nanoseconds pass, never for a negative `timeout`: 0 when woken, 1 when they held another value, 2 when the time passed. Only a heap that threads share may wait.
+## See [module.rt.memory.atomic.wait](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.wait).
+pub fn atomic_wait_u32(address: usize, expected: u32, timeout: i64) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_notify")
+## Wakes at most `count` of the waits at `address`, oldest first, and gives how many it woke.
+## See [module.rt.memory.atomic.wait](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic.wait).
+pub fn atomic_notify(address: usize, count: u32) -> u32:
+    panic("intrinsic")
+
+@intrinsic("mem_atomic_store_u32")
+## Writes `value` to the 4 bytes from `address` as one atomic step; `address` is a multiple of 4.
+## See [module.rt.memory.atomic](../../../spec/lang/10-modules.md#r-module.rt.memory.atomic).
+pub fn atomic_store_u32(address: usize, value: u32) -> void:
     panic("intrinsic")

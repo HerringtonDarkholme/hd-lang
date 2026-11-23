@@ -211,8 +211,7 @@ check keys, so it cannot reuse an unchecked result.
 - Parser corpus, fuzz, and tree snapshots are under
   `crates/hd_syntax/tests/`. `.tree` files pair with `.hd` inputs.
   Checker, runtime, incremental, and standard-library tests are under
-  `crates/hd_driver/tests/`. Golden TIR of a few std bodies is in
-  `crates/hd_driver/tests/tir/`.
+  `crates/hd_driver/tests/`.
 - CLI compile/run samples are in `examples/` and exercised by
   `crates/hd_command/tests/all/run.rs`.
 - The implementation-neutral suite is in `spec/conformance/`. Every
@@ -230,14 +229,12 @@ From the repository root, `cargo test` runs the default members, which
 leave out `hd_run_wasmtime` and the tests that need it. `cargo test --workspace
 --all-features` runs everything (see [Wasmtime Engine](#wasmtime-engine)).
 Only update checked-in output after reviewing the diff. `HD_BLESS=1` is the
-one variable that accepts new output: stage baselines, `.tree` snapshots,
-the golden std TIR
-(`checker::std_bodies_match_golden_tir`) and the generated host ABI files
+one variable that accepts new output: stage baselines, `.tree` snapshots
+and the generated host ABI files
 (`cargo test -p hd_host_abi --test abi_model`).
 
 ```sh
 HD_BLESS=1 cargo test -p hd_check --test stages
-HD_BLESS=1 cargo test -p hd_driver --test all checker::std_bodies_match_golden_tir
 ```
 
 The `checked-report` feature also audits dynamic retain/release pairs. Set

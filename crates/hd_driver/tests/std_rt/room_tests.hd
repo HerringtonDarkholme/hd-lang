@@ -42,6 +42,10 @@ fn check_transfer() -> void:
 fn empty_transfer(capacity: usize) -> string?:
     .Some(string_from_buffer(Buffer::[u8].new(capacity), 0))
 
+@inline(.Never)
+fn large_trig(value: f64) -> (f64, f64, f64):
+    (value.sin(), value.cos(), value.tan())
+
 fn trace_room_owner(block: usize) -> void:
     _ := visit(usize(load_u32(block + 8)))
     _ := Ptr::[Buffer[u8]] { address: block + 16 }.read()
@@ -122,3 +126,14 @@ tests:
                 "measuring the still-inferred integer allocates no temporary",
             )
             assert(text == "w${narrowed}", "a later i32 constraint preserves the formatted value")
+
+    it("full-range trig uses frame scratch without heap workspace"):
+        for value in [1.0, 1.0e10, 1.0e100, 1.0e300, f64::from_bits(0x7fefffffffffffff)]:
+            given := allocated()
+            before := live()
+            result := large_trig(value)
+            assert(allocated() == given, "trig allocates no heap workspace")
+            assert(live() == before, "trig retains no heap workspace")
+            assert(result._0.abs() <= 1.0, "sine remains in range")
+            assert(result._1.abs() <= 1.0, "cosine remains in range")
+            assert(result._2.is_finite(), "finite sampled tangents remain finite")

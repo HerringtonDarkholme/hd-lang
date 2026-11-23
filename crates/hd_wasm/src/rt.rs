@@ -711,6 +711,9 @@ pub enum Helper {
     /// `()`: runs the idle hook, if one is installed; the drivers call it
     /// where they would wait for the host.
     IdleWake,
+    /// `hd.thread(block, stopped)`, the export a thread's instance runs
+    /// (`module.rt.thread.spawn`); see [`thread_start`].
+    ThreadStart,
     /// `() -> completions`: `block_on`'s wait: [`Helper::IdleWake`] first,
     /// and no host completion when the hook readied something, else the
     /// host's `block`.
@@ -1141,6 +1144,10 @@ pub enum PrimArg {
 
 /// Defines the entry exports of `input.entry` in `m`.
 pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
+    // A new thread's instance runs `hd.thread` (`module.rt.thread.spawn`).
+    if m.threads {
+        m.export("hd.thread", Sym::Helper(Helper::ThreadStart));
+    }
     let (main, key, before, after, report) = match &input.entry {
         Entry::Fixture { roots } => {
             m.retain_instances(roots);
@@ -1229,8 +1236,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             if bang {
                 m.export("hd.wake", Sym::Helper(Helper::WakeMark));
             }
-            #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.checked {
+            if let Some(c) = m.runtime.report() {
                 m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
                 m.export("hd.cycles.length", Sym::Inst(c.length));
                 m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
@@ -1285,12 +1291,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         m.export("hd.uniques", Sym::Inst(c.unique_checks));
         m.export("hd.no_ops", Sym::Inst(c.no_op_counts));
         m.export("hd.skipped", Sym::Inst(c.skipped_tests));
-        #[cfg(feature = "checked-report")]
-        {
-            m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
-            m.export("hd.cycles.length", Sym::Inst(c.length));
-            m.export("hd.count.pairs.pointer", Sym::Inst(c.count_audit.pointer));
-            m.export("hd.count.pairs.length", Sym::Inst(c.count_audit.length));
+        if let Some(r) = c.report {
+            m.export("hd.cycles.pointer", Sym::Inst(r.pointer));
+            m.export("hd.cycles.length", Sym::Inst(r.length));
+            m.export("hd.count.pairs.pointer", Sym::Inst(r.count_audit.pointer));
+            m.export("hd.count.pairs.length", Sym::Inst(r.count_audit.length));
         }
     }
     if m.frames.contains_key(&key) {
@@ -1305,6 +1310,60 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         );
     }
     Ok(())
+}
+
+/// [`Helper::ThreadStart`]: `hd.thread(block, stopped)`, which the host
+/// calls in a new thread's instance with `stopped` 0. The thread's frames
+/// take the region whose top and limit are the block's first two words;
+/// the runtime modules' inits give the instance its own runtime storage
+/// (`fn.crossing.global.runtime`); then it calls the function value in the
+/// next two words, `thread_spawn`'s `run`, on the block. Then the block's fifth word gets 1, and its waiters wake.
+/// When the instance stopped instead (a panic or a trap), the host calls
+/// it again with `stopped` 2, which only sets the word and wakes them
+/// (`module.rt.thread.join`). Cost: O(1) besides `run`.
+fn thread_start(m: &Module) -> Func {
+    let mut f = m.func("rt:thread_start", vec![Val::I32, Val::I32], vec![]);
+    f.get(1);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    for (offset, g) in [(0, Global::Stack), (4, Global::StackLimit)] {
+        f.get(0);
+        f.op(Instruction::I32Load(mem(HEAP, offset, 2)));
+        f.global_set(g);
+    }
+    // The runtime's inits, each a forbidden context as in `hd.init`.
+    let inits: Vec<Hash128> = (m.init_insts.iter())
+        .filter(|k| m.rt_insts.contains(k) && !m.quiet_inits.contains(k))
+        .filter(|k| !(m.acyclic && m.cycle_insts.contains(k)))
+        .copied()
+        .collect();
+    if !inits.is_empty() {
+        forbid_by(&mut f, 1);
+        for k in inits {
+            f.call(Sym::Inst(k));
+        }
+        forbid_by(&mut f, -1);
+    }
+    // A function value's call: its environment, the block, the context of
+    // its empty row, then its code's table slot (`emit/closure.rs`).
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.get(0);
+    f.i32(0);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.call_indirect(vec![Val::I32, Val::I32, Val::I32], vec![]);
+    f.i32(1);
+    f.set(1);
+    f.op(Instruction::End);
+    f.get(0);
+    f.get(1);
+    f.op(Instruction::I32AtomicStore(mem(HEAP, 16, 2)));
+    f.get(0);
+    f.i32(-1);
+    f.op(Instruction::MemoryAtomicNotify(mem(HEAP, 16, 2)));
+    f.op(Instruction::Drop);
+    f
 }
 
 /// The poll of a root: item `main`'s instance `key` with its host
@@ -2315,6 +2374,7 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::CopyElems { .. }
         | H::CancelLeave
         | H::IdleHook
+        | H::ThreadStart
         | H::WakeSignal
         | H::All { part: 4, .. } => (2, 0),
         H::PanicWith => (4, 0),
@@ -2415,6 +2475,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CancellationRoot => m.func("rt:cancellation_root", vec![], vec![]),
+        Helper::ThreadStart => thread_start(m),
         Helper::Frame(_)
         | Helper::FrameEnsure(_)
         | Helper::PollCheck
@@ -2601,10 +2662,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CycleFree => {
             let mut f = m.func("rt:cycle_free", vec![Val::I32; 3], vec![]);
-            #[cfg(feature = "checked-report")]
-            if let Some(c) = m.runtime.checked {
+            if let Some(r) = m.runtime.report() {
                 f.get(1);
-                f.call(Sym::Inst(c.collected));
+                f.call(Sym::Inst(r.collected));
             }
             free_object(&mut f, m, 1);
             f
@@ -4683,7 +4743,7 @@ pub(crate) fn ref_store(
 /// added in unchecked builds; the linker aliases the same release glue.
 #[cfg(feature = "checked-report")]
 pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
-    if m.runtime.checked.is_none() || !m.allocation_kind_reporting {
+    if m.runtime.report().is_none() || !m.allocation_kind_reporting {
         return;
     }
     if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::Glue(_) | Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) {
@@ -5042,7 +5102,7 @@ mod checked_fixed_allocation_tests {
 
     #[test]
     fn fixed_requests_use_the_checked_allocator_without_class_bits() -> Result<(), String> {
-        let keys: Vec<_> = crate::runtime_items(true)
+        let keys: Vec<_> = crate::runtime_items(true, false)
             .iter()
             .enumerate()
             .map(|(i, _)| u128::try_from(i).map(|n| Some(Hash128(n + 1))))

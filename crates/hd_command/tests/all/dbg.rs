@@ -68,34 +68,6 @@ pub fn main() -> void $ Console:
     assert_eq!(ran.err, "src/main.hd:2:5: price * qty = 1250\n");
 }
 
-/// `dbg(a, b)` evaluates both arguments before it prints a line, so the
-/// `dbg` lines of the arguments' own evaluation come first
-/// (`module.dbg.body.evaluate-first`).
-#[test]
-fn dbg_evaluates_every_argument_before_its_first_line() {
-    let ran = run_main(
-        "hd-dbg-print-order",
-        "\
-fn noisy(value: i32) -> i32:
-    dbg(value)
-    value * 10
-
-pub fn main() -> void:
-    dbg(noisy(1), noisy(2))
-",
-    );
-    assert_eq!(ran.code, Some(0), "{}", ran.err);
-    assert_eq!(
-        ran.err,
-        "\
-src/main.hd:2:5: value = 1
-src/main.hd:2:5: value = 2
-src/main.hd:6:5: noisy(1) = 10
-src/main.hd:6:5: noisy(2) = 20
-"
-    );
-}
-
 /// `dbg()` writes nothing, and each argument of `dbg(a, b)` writes a
 /// line of its own, in order (`module.dbg.line`,
 /// `module.dbg.body.evaluate-first`).

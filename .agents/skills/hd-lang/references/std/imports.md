@@ -12,7 +12,11 @@
 
 `@derive`, `@error` and `@from` need no import either. The methods of
 strings, lists, maps, optionals and results need none: they come with the
-type.
+type. Floats also provide `sin`, `cos`, `tan`, `asin`, `acos`, `atan`,
+`atan2`, `exp`, `ln`, `log2`, `log10`, `powf`, `powi`, `abs` and `signum`
+without an import. Angles are radians. Import the constant functions with
+`use std.f64.consts.{PI, E}` or `use std.f32.consts.{PI, E}`, and call
+`PI()` or `E()`.
 
 A name may not shadow a prelude name: a function or variable called
 `string`, `f32` or `println` is `prelude-name-shadow`.

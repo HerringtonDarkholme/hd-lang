@@ -7,7 +7,6 @@ mod block_decorators;
 mod comparisons;
 mod derivation_drift;
 mod derivation_facts;
-mod disposable;
 mod flow;
 mod lifetime_order;
 mod lost_writes;

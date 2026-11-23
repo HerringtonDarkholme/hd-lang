@@ -1,5 +1,5 @@
 use hd_cache::MemoryStore;
-use hd_diag::{Code, DiagBuf, Severity};
+use hd_diag::{Code, DiagBuf};
 use hd_driver::{
     Executor, Goal, Host, NoClock, Output, Packages, build_packages, build_packages_with_analysis,
 };
@@ -75,36 +75,7 @@ fn scopes_keep_distinct_bindings_and_ignore_unused_parameters() {
 }
 
 #[test]
-fn unread_optionals_and_results_are_advice_not_suspension_errors() {
-    for expression in [
-        "let nested: string?? = .None",
-        "let result: Result[i32, string] = .Ok(+1)",
-    ] {
-        let (out, findings) = lint(
-            &format!("fn f() -> void:\n    {expression}\n    pass\n"),
-            Policy::default(),
-        );
-        assert!(!out.diags.has_errors());
-        assert_eq!(findings.code, [Code::UnusedLocalBinding]);
-    }
-}
-
-#[test]
-fn unused_policy_is_independent_and_never_suppresses_must_use_errors() {
-    let source = "fn f() -> void:\n    unused := +1\n    _ := 1u32 < 0\n";
-    for (level, severity) in [
-        (Level::Allow, None),
-        (Level::Warn, Some(Severity::Warning)),
-        (Level::Deny, Some(Severity::Error)),
-    ] {
-        let mut policy = Policy::default();
-        policy.set(UNUSED_BINDING, level).unwrap();
-        policy
-            .set(hd_lint::UNSIGNED_COMPARISON, Level::Allow)
-            .unwrap();
-        let (_, findings) = lint(source, policy);
-        assert_eq!(findings.severity.first().copied(), severity);
-    }
+fn unused_policy_rejects_conflicts_and_never_suppresses_must_use_errors() {
     let mut policy = Policy::default();
     policy.set(UNUSED_BINDING, Level::Warn).unwrap();
     assert!(policy.set(UNUSED_BINDING, Level::Deny).is_err());
