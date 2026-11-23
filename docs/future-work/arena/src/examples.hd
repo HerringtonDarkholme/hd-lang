@@ -1,0 +1,135 @@
+# Usage of the proposed `std.arena` (docs/future-work/ARENA.md, #1410).
+use pkg.arena.Arena
+use std.thread.{Scope, scope}
+
+# 1. A tree per request, freed at once: binary-trees from the benchmarks
+# game. Nodes point at nodes with `&'a`, so nothing is counted.
+pub struct Tree['a]:
+    pub left: (&'a Tree['a])?
+    pub right: (&'a Tree['a])?
+
+pub fn build['a](arena: &'a Arena[Tree['a]], depth: i32) -> &'a Tree['a]:
+    if depth == 0:
+        return arena.alloc(Tree { left: .None, right: .None })
+    left := build(arena, depth - 1)
+    right := build(arena, depth - 1)
+    arena.alloc(Tree { left: .Some(left), right: .Some(right) })
+
+pub fn nodes(tree: &Tree) -> i64:
+    match (tree.left, tree.right):
+        (.Some(l), .Some(r)) => 1 + nodes(l) + nodes(r)
+        _ => 1
+
+pub fn checksum(depth: i32, rounds: usize) -> i64:
+    let mut scratch = Arena::[Tree]::new()
+    let total: i64 = 0
+    for _ in 0..rounds:
+        total += nodes(build(&scratch, depth))
+        scratch.reset() # every tree of this round is gone; the chunk stays
+    total
+
+# 2. A parser's syntax tree, as rustc and swc keep theirs in arenas. The
+# parser holds the arena; each node borrows from it.
+pub enum Expr['a]:
+    Number(value: i64)
+    Add(left: &'a Expr['a], right: &'a Expr['a])
+
+pub struct Parser['a]:
+    arena: &'a Arena[Expr['a]]
+    words: List[string]
+    at: usize
+
+impl['a] Parser['a]:
+    # Prefix notation: `+ 1 + 2 3`.
+    pub fn expr(&mut self) -> Result[&'a Expr['a], string]:
+        if self.at >= self.words.len():
+            return .Err("expected a value")
+        word := self.words[self.at]
+        self.at += 1
+        if word == "+":
+            left := self.expr()?
+            right := self.expr()?
+            return .Ok(self.arena.alloc(Expr.Add(left, right)))
+        match word.parse::[i64]():
+            .Ok(n) => .Ok(self.arena.alloc(Expr.Number(n)))
+            .Err(_) => .Err("not a number: $word")
+
+pub fn eval(e: &Expr) -> i64:
+    match e:
+        .Number(n) => n
+        .Add(l, r) => eval(l) + eval(r)
+
+pub fn run(source: string) -> Result[i64, string]:
+    arena := Arena::[Expr]::with_capacity(64)
+    let mut parser = Parser { arena: &arena, words: source.split(" "), at: 0 }
+    tree := parser.expr()?
+    .Ok(eval(tree))
+
+# 3. A frame of a virtual DOM, rebuilt per render and reset after it, as
+# dodrio does with bumpalo. A value with counted parts (a string, a list)
+# is released by `reset`.
+pub struct Element['a]:
+    pub tag: string
+    pub text: string
+    pub children: List[&'a Element['a]]
+
+pub fn render['a](frame: &'a Arena[Element['a]], items: &List[string]) -> &'a Element['a]:
+    let mut rows: List[&Element] = []
+    for item in items:
+        rows.push(frame.alloc(Element { tag: "li", text: item, children: [] }))
+    frame.alloc(Element { tag: "ul", text: "", children: rows })
+
+pub fn html(e: &Element) -> string:
+    let mut inner = e.text
+    for child in e.children:
+        inner = inner + html(child)
+    "<${e.tag}>$inner</${e.tag}>"
+
+pub fn serve(requests: List[List[string]]) -> void $ Console:
+    let mut frame = Arena::[Element]::with_capacity(256)
+    for items in requests:
+        page := html(render(&frame, &items))
+        println("${frame.len()} elements, ${page.len()} bytes")
+        frame.reset()
+
+# 4. A graph whose edges change after its nodes exist. An arena value is
+# lent shared, so the part that changes is a `*mut` field. Edges are `&'a`
+# references and count nothing, so the cycle a -> b -> a is no count cycle.
+pub struct City['a]:
+    pub name: string
+    pub roads: *mut List[&'a City['a]]
+
+pub fn connect['a](a: &'a City['a], b: &'a City['a]) -> void:
+    a.roads.push(b)
+    b.roads.push(a)
+
+pub fn reachable(from: &City, limit: usize) -> usize:
+    let mut seen: List[string] = [from.name]
+    let mut queue: List[&City] = [from]
+    while queue.len() > 0 && seen.len() < limit:
+        next := queue.remove(0)
+        for road in *next.roads:
+            if !seen.contains(&road.name):
+                seen.push(road.name)
+                queue.push(road)
+    seen.len()
+
+pub fn map_size() -> usize:
+    cities := Arena::[City]::new()
+    a := cities.alloc(City { name: "Ames", roads: box([]) })
+    b := cities.alloc(City { name: "Boone", roads: box([]) })
+    c := cities.alloc(City { name: "Cedar", roads: box([]) })
+    connect(a, b)
+    connect(b, c)
+    reachable(a, 10)
+
+# 5. Threads read a finished tree at once. `&Tree` is `Send` because a
+# `Tree` holds no counted part; `&Arena` is not, so no thread allocates.
+pub fn parallel_nodes(depth: i32) -> i64:
+    arena := Arena::[Tree]::new()
+    tree := build(&arena, depth)
+    scope(fn(s: &mut Scope) -> i64:
+        left := s.spawn(fn() -> i64: nodes(tree))
+        right := s.spawn(fn() -> i64: nodes(tree))
+        left.join() + right.join()
+    )

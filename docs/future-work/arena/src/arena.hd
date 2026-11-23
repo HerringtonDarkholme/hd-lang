@@ -1,0 +1,35 @@
+# Proposal (docs/future-work/ARENA.md, #1410): `std.arena`, a typed arena.
+# Bodies are `panic("todo")`; std writes them over `std.rt.memory.Ptr` and
+# `std.rt.alloc`, as `std.sync.Arc` is written.
+
+## Values of one type that live and die together. `alloc` moves a value
+## in and lends it for as long as the arena is borrowed; no value is
+## counted, and `reset` or the arena's drop frees them all at once.
+## Proposal: std also writes `impl[T < ?Copy & Send] Send for Arena[T]`
+## (a package cannot: `Send` is sealed) and no `Sync`.
+pub struct Arena[T < ?Copy]:
+    state: usize
+
+impl[T < ?Copy] !Copy for Arena[T]
+
+impl[T < ?Copy] Arena[T]:
+    ## An empty arena; its first chunk is taken by the first `alloc`.
+    pub fn new() -> Arena[T]:
+        panic("todo")
+
+    ## An empty arena whose first chunk has room for `n` values.
+    pub fn with_capacity(n: usize) -> Arena[T]:
+        panic("todo")
+
+    ## Moves `value` into the arena and lends it for as long as the arena
+    ## is borrowed. It is dropped by `reset` or by the arena's drop.
+    pub fn alloc(&self, value: T) -> &T:
+        panic("todo")
+
+    ## How many values the arena holds.
+    pub fn len(&self) -> usize:
+        panic("todo")
+
+    ## Drops every value and keeps the newest chunk for the next `alloc`.
+    pub fn reset(&mut self) -> void:
+        panic("todo")
