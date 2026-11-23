@@ -1,6 +1,38 @@
 # test: double ended adapters reverse the selected forward sequence lazily
 use std.iter.{DoubleEndedIterator, ExactSizeIterator}
 
+struct TracedCursor:
+    front: usize
+    back: usize
+    tag: usize
+    log: *mut List[usize]
+
+impl Iterator[usize] for TracedCursor:
+    fn next(&mut self) -> usize?:
+        self.log.push(self.tag + 10)
+        if self.front >= self.back:
+            return .None
+        item := self.front
+        self.front += 1
+        .Some(item)
+
+impl DoubleEndedIterator[usize] for TracedCursor:
+    fn next_back(&mut self) -> usize?:
+        self.log.push(self.tag)
+        if self.front >= self.back:
+            return .None
+        self.back -= 1
+        .Some(self.back)
+
+impl ExactSizeIterator[usize] for TracedCursor:
+    fn len(&self) -> usize:
+        self.back - self.front
+
+impl Iterable[usize] for TracedCursor:
+    type IntoIter = TracedCursor
+    fn iter(self) -> TracedCursor:
+        self
+
 tests:
     use std.testing.assert_equal
 
@@ -87,3 +119,25 @@ tests:
         reference := &mut source
         assert_equal(reference.rev().next(), .Some(3))
         assert_equal(source.next_back(), .Some(2))
+
+    it("reverse zip advances both aligned cursors even after exhaustion"):
+        log := box::[List[usize]]([])
+        left := TracedCursor { front: 0, back: 0, tag: 1, log: log }
+        right := TracedCursor { front: 0, back: 0, tag: 2, log: log }
+        let mut cursor = left.zip(right)
+        assert_equal(cursor.next_back(), .None)
+        assert_equal(*log, [1, 2])
+        assert_equal(cursor.next_back(), .None)
+        assert_equal(*log, [1, 2, 1, 2])
+        log.clear()
+        longer := TracedCursor { front: 0, back: 3, tag: 1, log: log }
+        shorter := TracedCursor { front: 0, back: 2, tag: 2, log: log }
+        let mut unequal = longer.zip(shorter)
+        assert_equal(unequal.next_back(), .Some((1, 1)))
+        assert_equal(*log, [1, 1, 2])
+        log.clear()
+        empty := TracedCursor { front: 0, back: 0, tag: 1, log: log }
+        rest := TracedCursor { front: 0, back: 2, tag: 2, log: log }
+        let mut right_longer = empty.zip(rest)
+        assert_equal(right_longer.next_back(), .None)
+        assert_equal(*log, [2, 2, 1, 2])

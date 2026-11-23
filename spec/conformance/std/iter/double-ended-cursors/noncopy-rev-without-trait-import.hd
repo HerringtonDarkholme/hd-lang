@@ -1,0 +1,24 @@
+# test: standard noncopy adapter rev methods need no DoubleEndedIterator import
+use std.collections.UniqList
+
+fn owned(values: List[i32]) -> UniqList[i32]:
+    UniqList::[i32].from_list(values)
+
+tests:
+    use std.testing.assert_equal
+
+    it("conditional inherent rev methods accept noncopy produced cursors"):
+        left := Iterable::[i32]::iter(owned([+1, 2]))
+        chained := left.chain(owned([+3, 4])).rev().collect::[List[i32]]()
+        assert_equal(chained, [+4, 3, 2, 1])
+        first := Iterable::[i32]::iter(owned([+1, 2, 3]))
+        pairs := first.zip(owned([+4, 5])).rev().collect::[List[(i32, i32)]]()
+        assert_equal(pairs, [(+2, +5), (+1, +4)])
+        source := Iterable::[i32]::iter(owned([+1, 2]))
+        flattened := source.flat_map(fn(value: i32) -> UniqList[i32]: owned([value, value + 10]))
+            .rev()
+            .collect::[List[i32]]()
+        assert_equal(flattened, [+12, 2, 11, 1])
+        shared := box(Iterable::[i32]::iter(owned([+1, 2, 3])))
+        assert_equal(shared.by_ref().rev().take(1).collect::[List[i32]](), [+3])
+        assert_equal(shared.next(), .Some(+1))
