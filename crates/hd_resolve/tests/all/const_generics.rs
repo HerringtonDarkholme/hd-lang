@@ -143,7 +143,10 @@ fn resolve_with(
 }
 
 /// [`resolve_with`] for text that reports nothing.
-fn resolve_in(names: Names<'_>, text: &str) -> (Vec<hd_resolve::Item>, Vec<hd_resolve::Export>) {
+pub(super) fn resolve_in(
+    names: Names<'_>,
+    text: &str,
+) -> (Vec<hd_resolve::Item>, Vec<hd_resolve::Export>) {
     let (items, exports, codes) = resolve_with(names, text);
     assert_eq!(codes, []);
     (items, exports)
