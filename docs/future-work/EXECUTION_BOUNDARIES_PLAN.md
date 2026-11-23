@@ -1,13 +1,12 @@
 # Execution Boundaries: The Staged Plan
 
-Status: a plan for owner review, not accepted behavior. It stages the
-compiler work for the accepted record
-[EXECUTION_BOUNDARIES.md](EXECUTION_BOUNDARIES.md) (owner 2026-11-21),
-tracked in #2288. Stage 0, the language rules, is in the specification:
+Status: in progress, tracked in #2288. It stages the compiler work for the
+accepted record [EXECUTION_BOUNDARIES.md](EXECUTION_BOUNDARIES.md) (owner
+2026-11-21). Stages 0 to 5 are built, and stage 6 is part built (see its
+section). The language rules are in the specification:
 [Execution Domains](../../spec/lang/10-modules.md#execution-domains),
 [Crossing Closures](../../spec/lang/07-functions.md#crossing-closures) and
 [Frozen Loans](../../spec/lang/13-values-and-references.md#frozen-loans).
-Their 53 failing conformance cases are rows of `KNOWN_FAILURES.tsv`.
 
 Line counts are estimates from reading the sites named below, rounded to
 tens. Each stage lands as its own lane step and deletes what it replaces
@@ -505,7 +504,15 @@ changed, the walk is cached by the file hashes it read.
 
 ## 8. Stage 6: Runtime
 
-Not built. Re-priced on 2026-11-22 after the owner's decision on counts,
+Part built (2026-11-23):
+- Built:
+  - `std.sync` `Arc`/`Weak` over `std.rt` atomics;
+  - shared memory with `std.rt.thread` spawn and join on Node and Wasmtime;
+  - the per-thread allocator.
+- In progress: the unique-buffer crossing.
+- Then: `Scope`/`Background`.
+
+Re-priced on 2026-11-22 after the owner's decision on counts,
 which this section follows: "ARC should be something a stdlib to ship,
 no builtin language support. that is, *T is not Send, Arc is another
 stdlib stuff". This is Rust's model:
