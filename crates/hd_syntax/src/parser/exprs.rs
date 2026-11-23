@@ -1076,13 +1076,21 @@ impl Parser<'_> {
                 {
                     let prefix = self.src[start..callee_bang].trim_end();
                     let suffix = self.src[callee_bang..callee_end].trim_end();
-                    let message = format!(
-                        "a bang call puts '!' before the arguments: write '{prefix}!{suffix}(...)'"
-                    );
+                    let already_bang = prefix.ends_with('!');
+                    let message = if already_bang {
+                        "a bang call already puts '!' before the arguments; delete the trailing '!'"
+                            .to_owned()
+                    } else {
+                        format!(
+                            "a bang call puts '!' before the arguments: write '{prefix}!{suffix}(...)'"
+                        )
+                    };
                     let error = self.errors.len();
                     self.error(Code::SyntaxError, &message);
-                    if !prefix.ends_with('!') {
-                        let (lo, hi) = self.token_span(self.pos());
+                    let (lo, hi) = self.token_span(self.pos());
+                    if already_bang {
+                        self.fix_error(error, "delete the trailing `!`", &[(lo, hi, "")]);
+                    } else {
                         let before = u32_of(callee_bang);
                         self.fix_error(
                             error,
