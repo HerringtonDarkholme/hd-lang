@@ -94,17 +94,7 @@ impl[T] Show for T by Structure:
 "
         )
     };
-    let main = "\
-use pkg.show.Show
-
-@derive(Show)
-struct Point:
-    x: i32
-    y: i32
-
-pub fn main() -> void $ Console:
-    println(Point { x: 1, y: 2 }.show())
-";
+    let main = include_str!("programs/derive_run/main.hd");
     let store = MemoryStore::default();
     let first = build_with(&store, &[("main.hd", main), ("show.hd", &show("=", ""))]);
     assert_eq!(run(&first, "edit-0"), "x=1 y=2 \n");
