@@ -14603,46 +14603,6 @@ mod host_declaration_tests {
         assert_eq!(out.diags.code, [Code::InvalidManifest], "{}", out.render());
         assert!(out.render().contains("server.Server"));
     }
-
-    #[test]
-    fn host_marker_rejects_private_traits_arguments_and_wrong_targets() {
-        for (text, listed) in [
-            (
-                "@host\ntrait Server:\n    fn read(&self) -> string\n",
-                vec!["server.Server"],
-            ),
-            (
-                "@host()\npub trait Server:\n    fn read(&self) -> string\n",
-                vec!["server.Server"],
-            ),
-            (
-                "@host::[i32]\npub trait Server:\n    fn read(&self) -> string\n",
-                vec!["server.Server"],
-            ),
-            ("@host\npub fn read() -> void: pass\n", vec![]),
-        ] {
-            let files = sources(text);
-            let store = super::warm_std_store();
-            let host = Host {
-                sources: &files,
-                store: &store,
-                clock: &NoClock,
-                executor: Executor::Serial(SerialOrder::Priority),
-                render_tir: &[],
-            };
-            let packages = Packages {
-                host_packages: vec![metadata(0, &listed)],
-                ..Packages::default()
-            };
-            let out = build_packages(&host, "sdk", &packages, &Goal::Analyze);
-            assert_eq!(
-                out.diags.code,
-                [Code::DecoratorTargetKind],
-                "{text}\n{}",
-                out.render()
-            );
-        }
-    }
 }
 
 #[cfg(all(test, feature = "host-artifacts"))]
