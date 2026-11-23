@@ -14,25 +14,9 @@ use hd_driver::{
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const FILES: &str = "\
-pub enum IoError:
-    Failed(message: string)
-    Closed
+const FILES: &str = include_str!("programs/profile_handles/files.hd");
 
-pub trait FileHandle:
-    fn read!(&mut self) -> Result[string, IoError]
-    fn close(&mut self) -> Result[void, IoError]
-";
-
-const MAIN: &str = "
-pub trait Files:
-    fn open!(self) -> *mut dyn FileHandle
-
-pub fn main!() -> void $ Files:
-    let handle: &mut dyn FileHandle = $.use(Files).open!()
-    let _ = handle.close()
-    let _ = handle.read!()
-";
+const MAIN: &str = include_str!("programs/profile_handles/main.hd");
 
 /// Builds `main.hd` with `text` under a profile of the traits `traits`
 /// that it declares, or under the default profile when there are none.
@@ -267,18 +251,12 @@ fn a_handle_trait_edit_relinks() {
 /// calls: `println` alone imports no `write_error`.
 #[test]
 fn an_uncalled_host_method_is_not_imported() {
-    let out = build(
-        "pub fn main() -> void $ Console:\n    println(\"hello\")\n",
-        &[],
-    );
+    let out = build(include_str!("programs/profile_handles/hello.hd"), &[]);
     let Some(wasm) = out.wasm.as_deref() else {
         panic!("{}", out.render());
     };
     assert_eq!(profile_imports(wasm), ["hd:Console write_sync"]);
-    let out = build(
-        "use std.console.eprintln\n\npub fn main() -> void $ Console:\n    eprintln(\"oops\")\n",
-        &[],
-    );
+    let out = build(include_str!("programs/profile_handles/hello_error.hd"), &[]);
     let Some(wasm) = out.wasm.as_deref() else {
         panic!("{}", out.render());
     };
@@ -294,7 +272,7 @@ fn console_error_decoder_has_no_allocator_edge() {
     for profile in [BuildProfile::Checked, BuildProfile::Release] {
         let out = build_in_mode(
             &crate::warm_store(),
-            "pub fn main() -> void $ Console:\n    println(\"hello\")\n",
+            include_str!("programs/profile_handles/hello.hd"),
             &[],
             profile,
             OptLevel::Dev,
@@ -322,23 +300,7 @@ fn discarded_host_error_payloads_do_not_change_an_observing_methods_decoder() {
     ] {
         let out = build_in_mode(
             &crate::warm_store(),
-            r#"
-pub enum VaultError:
-    Other(message: string)
-
-pub trait Vault:
-    fn ignored(self) -> Result[void, VaultError]
-    fn observed(self) -> Result[void, VaultError]
-
-pub fn main() -> void $ Vault:
-    _ := $.use(Vault).ignored()
-    let saved = $.use(Vault).observed()
-    _ := $.use(Vault).ignored()
-    match saved:
-        .Err(.Other(message)) =>
-            if message != "kept λ 🦀": panic("observed host error changed")
-        _ => panic("observed host error variant changed")
-"#,
+            include_str!("programs/profile_handles/vault.hd"),
             &["Vault"],
             build_profile,
             level,
@@ -485,20 +447,7 @@ if (result.trapped || result.status !== 0) throw Error(JSON.stringify(result));
 #[test]
 fn profile_supertraits_keep_async_and_blocking_drive_slots()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = r#"
-use std.task.block_on
-pub trait Parent:
-    fn parent!(&self) -> u32
-pub trait Child < Parent:
-    fn child!(&self) -> u32
-pub fn main!() -> void $ Child:
-    let value: &dyn Child = $.use(Child)
-    if value.parent!() != 35: panic("wrong parent")
-    if value.child!() != 7: panic("wrong child")
-    match block_on(value.child()):
-        .Completed(n) => if n != 7: panic("wrong blocking child")
-        _ => panic("child did not complete")
-"#;
+    let source = include_str!("programs/profile_handles/supertraits.hd");
     let store = crate::warm_store();
     let core = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../host/core.ts")
