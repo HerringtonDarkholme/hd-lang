@@ -1,0 +1,73 @@
+# @dump: diagnostics
+# `syntax-error` sites that say what was expected and what was found. One that
+# is found at a line ending is reported at the next line's first token; the
+# last one is found at the end of the file.
+fn f():
+    if a and b:
+        pass
+
+fn f()
+
+fn f(x: ):
+    pass
+
+fn f(x: i32,, y: i32):
+    pass
+
+x :=
+
+x := [1, 2 3]
+
+x := (1 2)
+
+x := {1: 2 3: 4}
+
+x := f(a) b
+
+let a 1
+
+let a, b = pair
+
+x := t.0
+
+fn f():
+pass
+
+fn f():
+    x := f(a)
+        (b)
+
+fn f():
+    x := match y: z
+
+fn f():
+    x := match y:
+    .A => 1
+
+fn f():
+    x := match y:
+        .A =>
+        1
+
+type T
+
+trait T:
+    x
+
+impl T for U:
+    x
+
+enum E:
+    A:
+        pass
+
+fn f[T U]():
+    pass
+
+fn f() -> $.Foo[i32]:
+    pass
+
+use dep.
+
+fn f():
+    x := a.

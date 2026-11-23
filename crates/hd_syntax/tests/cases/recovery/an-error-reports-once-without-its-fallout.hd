@@ -1,0 +1,96 @@
+# @dump: tree
+# grammar.recovery.statement: each titled snippet below has one error, and its
+# fallout adds no second diagnostic: the body its header would have opened,
+# its `else` lines, or the rest of a line the lexer rejected (a `\`, or a tab
+# in the indentation).
+# A failed `if` header: its body and its `else` clause.
+fn both(a: bool, b: bool) -> bool:
+    if a and b:
+        true
+    else:
+        false
+
+# A second requirement row on a result type: the function's body.
+trait Log
+
+fn make() -> fn() -> i32 $ Log $ Console:
+    fn() -> i32 $ Log: 1
+
+# A `where` clause on an implementation: its members.
+trait Source:
+    type Item
+
+impl[T] Source for Box[T] where T < Any:
+    type Item = T
+
+    fn get(self) -> T: self.value
+
+# `mut` before a result's function type.
+fn counter() -> mut fn() -> i32:
+    fn() -> i32: 1
+
+# `mut` before a closure: the closure's suite.
+fn counter() -> i32:
+    let count = +0
+    next := mut fn() -> i32:
+        count = count + 1
+        count
+    next()
+
+# A number glued to `else`: the rest of the line.
+fn pick(flag: bool) -> i32:
+    if flag: 5else: 3
+
+# A suite after a pipe step: its line.
+fn total(n: i32) -> i32:
+    result := n |> run(_):
+        1
+    result
+
+# A second suite on an inline `if`: its line.
+fn close_all(close: bool) -> void:
+    if close: trailing:
+        pass
+
+# Two loop names without parentheses: the loop's body.
+fn names(scores: Map[string, i32]) -> List[string]:
+    for name, score in scores:
+        pass
+    [for (name, score) in scores => name]
+
+# An inclusive range with no end.
+fn invalid() -> void:
+    d := 1..=
+
+# `tests` as a binding name: its later use in the same item.
+fn count() -> i32:
+    tests := 3
+    tests
+
+# A backslash at a line end: the indented line after it.
+value := 1 + \
+    2
+
+# A leading-dot tuple index on its own line.
+fn first(pair: (i32, i32)) -> i32:
+    value := pair
+        .0
+    value
+
+# A tab indenting `pass`.
+fn invalid() -> void:
+	pass
+
+# A tab indenting a value.
+fn f() -> i32:
+	1
+
+# A tab indenting a body's second line.
+fn f() -> void:
+    x := +1
+	y := +2
+
+# A tab indenting a nested suite.
+fn f(x: bool) -> void:
+    if x:
+	y := +2

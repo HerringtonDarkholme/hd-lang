@@ -1442,7 +1442,7 @@ mod tests {
 
     #[test]
     fn lexes_losslessly() {
-        let source = "## docs\nfn café(x: i32) -> string:\n    r\"hello $x\" # tail\n";
+        let source = include_str!("lexer_lossless.hd");
         let lexed = lex(source.as_bytes());
         assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
         assert_eq!(lexed.tokens.reconstruct(source), source);

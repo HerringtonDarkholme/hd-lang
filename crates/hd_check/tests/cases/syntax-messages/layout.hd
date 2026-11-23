@@ -1,0 +1,25 @@
+# @dump: diagnostics
+# Each layout diagnostic says its situation in words.
+fn f():
+        x := +1
+      y := +2
+
+fn f():
+    y := g(a, if c:
+    1
+    else: 2)
+
+f(fn(x):
+    x)
+
+y := f(fn(x):
+    a
+  b
+)
+
+f := fn(x): x
+    .foo()
+
+x := a
+    |> f
+    .g()

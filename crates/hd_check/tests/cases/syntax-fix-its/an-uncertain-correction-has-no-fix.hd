@@ -1,0 +1,102 @@
+# @dump: diagnostics
+# Each form below is rejected with no fix-it: the parser offers an edit only
+# where one correction is certain.
+# expected: for `value!()!`, a message that does not spell the call 'value!!(...)'.
+# A member, map or import form the migration fixes do not cover.
+fn f(pair: P): pair.0xA
+
+fn f(): { : value }
+
+use std.fs.{read_text!()}
+
+fn f(pair: P):
+    (low, +1) := pair
+
+fn f(pair: P):
+    (low, call()) := pair
+
+fn f(pair: P):
+    (low, self) := pair
+
+fn f(pair: P):
+    (low, (high)) := pair
+
+# A bang, a spread or a `///` comment that has no single place to move to.
+fn f!(): value!()!
+
+fn f!(): value() !
+
+fn f(): [...]
+
+fn f(): [..., value]
+
+fn f(): [...value...]
+
+fn f(): [...value +]
+
+fn f(): [...copy(value)]
+
+fn f(): [...value.]
+
+fn f():
+    /// Not declaration documentation.
+    pass
+
+/// Separated.
+
+fn f(): pass
+
+/// Before a binding.
+value := +1
+
+# A `const`, an `as` or variant type arguments in a form the legacy fixes do not cover.
+const LIMIT: i32
+
+const LIMIT: i32 =
+
+const LIMIT: Box[Item = i32]
+
+fn f(value: i32): (-value as u8)
+
+fn f(value: i32): (value as Other)
+
+fn f(value: i32): (value as u8 + 1)
+
+fn f(x: X):
+    match x:
+        Cell[0].Full(v) => v
+
+fn f(x: X):
+    match x:
+        Cell[choose()].Full(v) => v
+
+# An `elif` that is not a complete continuation of an `if`.
+fn f(n: bool):
+    if n: pass
+    elif ready
+
+fn f(n: bool):
+    if n: pass
+    elif ready(call: X)
+
+fn f():
+    elif ready: pass
+
+# A copy assignment `...=` is not a statement.
+fn f():
+    value ...= other
+
+fn f():
+    object.Part ...= other
+
+fn f():
+    *reference ...= other
+
+fn f():
+    values[0] ...= other
+
+fn f():
+    if true: value ...= other
+
+fn f():
+    value ...= if true: other else: another

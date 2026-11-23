@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn item_and_module_text() {
-        let src = "## The module.\n## Second line.\n\n## Adds one.\n##\n##    indented\npub fn f(x: i32) -> i32: x\n\n# plain\nfn g() -> i32: 1\n";
+        let src = include_str!("docs_item_and_module.hd");
         let p = parse(src.as_bytes());
         assert_eq!(module_doc_text(src, &p.tokens), "The module.\nSecond line.");
         let docs: Vec<String> = p

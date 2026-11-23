@@ -5,8 +5,7 @@ use hd_syntax::parse;
 
 #[test]
 fn each_node_walks_up_to_the_root_through_its_parent() {
-    let parsed =
-        parse(b"fn f() -> i32:\n    x := [1, (2, 3)]\n    x[0]\n\nstruct S:\n    a: i32\n");
+    let parsed = parse(include_bytes!("parents.hd"));
     let tree = &parsed.tree;
     let root = tree.root().index();
     assert_eq!(tree.parent(root), None);
