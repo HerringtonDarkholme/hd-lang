@@ -98,6 +98,19 @@ pub(crate) struct Tables {
 }
 
 impl Tables {
+    /// Carries sparse analysis facts through the last apply. Deleted
+    /// instructions lose their facts; inserted instructions gain none.
+    pub(crate) fn remap(&self, facts: &mut Vec<u32>) {
+        if self.new_of.is_empty() {
+            return;
+        }
+        facts.retain_mut(|x| {
+            super::flow::charge(1);
+            *x = self.new_of[*x as usize];
+            *x != NONE
+        });
+    }
+
     pub(crate) fn clear(&mut self) {
         self.edits.clear();
         self.rewrites.clear();
@@ -167,6 +180,7 @@ fn frame(b: &Body, a: u32) -> Option<u32> {
 /// Splices the edits into `b`, whose block structure is `topo`, and
 /// renumbers it.
 pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(), String> {
+    t.new_of.clear();
     if t.edits.is_empty() && t.removed.is_empty() {
         return Ok(());
     }
@@ -416,6 +430,34 @@ mod tests {
         b.anchors[third] = INLINED;
         b.inlined = vec![[0, 1, 7, 1]];
         b
+    }
+
+    #[test]
+    fn sparse_facts_follow_surviving_instructions_and_an_empty_apply_is_identity() {
+        let mut b = body();
+        let topo = Topology::new(&b);
+        let root = b.sub_root[0];
+        let mut edits = Tables::default();
+        let mut facts = vec![0, 1, 2];
+        edits.remove(1);
+        edits.insert(
+            root,
+            0,
+            Tag::Call,
+            b.data[0],
+            Ty::VOID,
+            NodeIdx::from_raw(40),
+        );
+        apply(&mut b, &topo, &mut edits).unwrap();
+        edits.remap(&mut facts);
+        assert_eq!(facts, [1, 2]);
+        assert_eq!(b.syn[facts[0] as usize], NodeIdx::from_raw(10));
+        assert_eq!(b.syn[facts[1] as usize], NodeIdx::from_raw(10));
+        edits.clear();
+        let topo = Topology::new(&b);
+        apply(&mut b, &topo, &mut edits).unwrap();
+        edits.remap(&mut facts);
+        assert_eq!(facts, [1, 2]);
     }
 
     /// The anchor of the instruction each edit `(position, syntax node)`
