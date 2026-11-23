@@ -125,7 +125,11 @@ impl Ck<'_, '_> {
 
     /// [`Self::ref_receiver_named`] with the receiver's kind
     /// ([`Self::ref_receiver_kind`]).
-    fn ref_receiver_kind_named(&mut self, t: Ty, name: &str) -> StageResult<Option<(bool, bool)>> {
+    pub(crate) fn ref_receiver_kind_named(
+        &mut self,
+        t: Ty,
+        name: &str,
+    ) -> StageResult<Option<(bool, bool)>> {
         let t = self.norm_ty(t);
         if matches!(self.resolved(t), Ty::NEVER | Ty::POISON) {
             return Ok(None);
@@ -143,6 +147,33 @@ impl Ck<'_, '_> {
             ) => self.ref_receiver_kind(method),
             _ => None,
         })
+    }
+
+    /// Whether reference type `t` has a method `name` of its own that
+    /// takes the reference by value, as `impl Iterator for &mut I` gives
+    /// `last(self)` (`ref.read.auto.by-value`). An impl whose head fits
+    /// `t` counts only when no bound of it fails: `*mut dyn Users` fits
+    /// the head of `impl Iterator for *mut I`, but `dyn Users` is no
+    /// iterator. Cost: the method lookup, then per impl candidate one goal
+    /// per bound the head leaves open.
+    pub(crate) fn own_value_method(&mut self, t: Ty, name: &str) -> StageResult<bool> {
+        let (method, cands) = match self.resolve_method(t, name)? {
+            Some(Hit::Inherent { method, .. } | Hit::Trait { method, .. }) => (method, None),
+            Some(Hit::Choice { method, cands, .. }) => (method, Some(cands)),
+            _ => return Ok(false),
+        };
+        if self.ref_receiver_kind(method).is_some() {
+            return Ok(false);
+        }
+        let Some(cands) = cands else {
+            return Ok(true);
+        };
+        for c in &cands.cands {
+            if self.candidate_may_apply(c, t)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// The receiver of `base.name(...)` when the method takes `&self` or

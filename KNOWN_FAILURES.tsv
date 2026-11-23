@@ -1,2 +1,1 @@
 path	issue	engine	reason
-std/iter/value-consuming-methods/local-reference-dot-last-progress.hd	#2286		Dot lookup selects the referent value iterator instead of the local mutable reference iterator, so the source cursor does not advance.

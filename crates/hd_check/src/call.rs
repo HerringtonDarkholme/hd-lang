@@ -4332,6 +4332,19 @@ impl Ck<'_, '_> {
             }
             (recv, rt) = self.emit_deref(recv, rt, base.index());
         }
+        // `ref.read.auto.by-value`, Rust's order: a reference's own
+        // method taking it by value comes before its referent's methods,
+        // unless the referent's method takes exactly this reference.
+        if let Some((inner, mutable)) = self.ref_of(rt) {
+            let vt = self.deref_ty(inner);
+            let counted = self.ref_counted(rt).unwrap_or(true);
+            if self.ref_receiver_kind_named(vt, &name)? != Some((mutable, counted))
+                && self.own_value_method(rt, &name)?
+            {
+                self.method_targs = method_targs;
+                return self.method_on(recv, rt, &name, args, (n, bang), want);
+            }
+        }
         // A method call through a reference calls it on the referenced
         // value (`ref.read.auto`), unless the method takes a reference.
         if let Some(passed) = self.pass_reference_receiver(recv, rt, &name, base)? {

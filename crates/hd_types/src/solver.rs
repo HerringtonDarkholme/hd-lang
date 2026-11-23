@@ -554,6 +554,11 @@ pub enum HeadKey {
     UnionAny,
     Fn,
     SuspendFn,
+    /// A reference by its kind, `mutable | counted << 1`: an impl for
+    /// `&mut I` is a candidate only for a `&mut` receiver, as rustc's
+    /// `SimplifiedType::Ref` and `Ptr` key it (`ref.read.auto.by-value`
+    /// probes a reference's own impls on every call through one).
+    Ref(u8),
     Param,
     Any,
 }
@@ -572,6 +577,9 @@ impl HeadKey {
             TyData::Union(_) => HeadKey::UnionAny,
             TyData::Fn { suspends: true, .. } => HeadKey::SuspendFn,
             TyData::Fn { .. } => HeadKey::Fn,
+            TyData::Ref {
+                mutable, counted, ..
+            } => HeadKey::Ref(u8::from(mutable) | u8::from(counted) << 1),
             TyData::Param(_) | TyData::Opaque { .. } => HeadKey::Param,
             _ => HeadKey::Any,
         }
@@ -592,6 +600,7 @@ impl HeadKey {
             HeadKey::SuspendFn => (7, 0),
             HeadKey::Param => (8, 0),
             HeadKey::Any => (9, 0),
+            HeadKey::Ref(kind) => (10, u32::from(kind)),
         };
         (tag << 32) | u64::from(payload)
     }

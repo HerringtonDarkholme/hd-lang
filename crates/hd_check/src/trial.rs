@@ -690,20 +690,13 @@ impl Ck<'_, '_> {
         format!("{}: {}", self.show(self_ty), shown.join(", "))
     }
 
-    /// Calls one candidate (§6.5's scheme): a fresh variable for each
-    /// impl parameter the receiver left open, the arguments checked
-    /// against its method, then, in a trial, the result against the
-    /// expected type, then its residual bounds as obligations: one that
-    /// fails is an error, one that still waits stays pending.
-    fn call_candidate(
+    /// One candidate's impl, a fresh variable for each impl parameter,
+    /// and its residual bounds at those variables (§6.5's scheme).
+    pub(crate) fn candidate_residual(
         &mut self,
-        (trait_, method, self_ty): (DefId, DefId, Ty),
         c: &Candidate,
-        recv: Option<Ref>,
-        args: &Args<'_>,
-        (n, bang): (NodeRef<'_>, bool),
-        want: Option<Ty>,
-    ) -> StageResult<(Ref, Ty)> {
+        self_ty: Ty,
+    ) -> StageResult<(DefId, Vec<Ty>, Vec<TraitRef>)> {
         let pool = self.pool();
         let row = c.row.row as usize;
         let table = candidate_table(self.cx.impl_table(c.row.module), row)?;
@@ -718,7 +711,6 @@ impl Ck<'_, '_> {
             .iter()
             .map(|x| inst(*x))
             .collect();
-        let targs: Vec<Ty> = pool.list_items(c.args).iter().map(|x| inst(*x)).collect();
         // A tuple template's member steps number on after its bound
         // plan's, at the receiver's tuple type (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
         let mut goals = plan_goals(pool, table, row, &impl_args);
@@ -740,6 +732,40 @@ impl Ck<'_, '_> {
             .filter(|(i, _)| c.residual.contains(i))
             .map(|(_, g)| g)
             .collect();
+        Ok((impl_def, vars, residual))
+    }
+
+    /// Whether candidate `c` of `self_ty` may apply: none of its residual
+    /// bounds fails (`ref.read.auto.by-value` asks it before it takes a
+    /// reference's own method). One goal per residual bound.
+    pub(crate) fn candidate_may_apply(&mut self, c: &Candidate, self_ty: Ty) -> StageResult<bool> {
+        let (_, _, residual) = self.candidate_residual(c, self_ty)?;
+        for goal in residual {
+            if matches!(self.solve(goal)?, hd_types::solver::Answer::Fails(_)) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// Calls one candidate (§6.5's scheme): a fresh variable for each
+    /// impl parameter the receiver left open, the arguments checked
+    /// against its method, then, in a trial, the result against the
+    /// expected type, then its residual bounds as obligations: one that
+    /// fails is an error, one that still waits stays pending.
+    fn call_candidate(
+        &mut self,
+        (trait_, method, self_ty): (DefId, DefId, Ty),
+        c: &Candidate,
+        recv: Option<Ref>,
+        args: &Args<'_>,
+        (n, bang): (NodeRef<'_>, bool),
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let (impl_def, vars, residual) = self.candidate_residual(c, self_ty)?;
+        let inst = |x: Ty| subst_owner(pool, impl_def, &vars, x);
+        let targs: Vec<Ty> = pool.list_items(c.args).iter().map(|x| inst(*x)).collect();
         // A closed residual bound may already determine a trait argument
         // used by a method's own bounds, e.g. I: Iterator[T] for ByRef[I].
         // Learn those facts before checking collect's target bound; bounds

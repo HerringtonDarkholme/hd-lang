@@ -4937,6 +4937,7 @@ lang/references/reading-through-a-reference/reference-read-through.hd	runtime	ac
 lang/references/reading-through-a-reference/field-and-method-access-through-nested-references-reads-and-changes-the-value.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto.levels
 lang/references/reading-through-a-reference/field-and-method-access-reads-through-every-reference-level.hd	type	accept	lang/13-values-and-references.md#r-ref.read.auto.levels
 lang/references/reading-through-a-reference/reference-auto-deref-levels-read-only.hd	type	reject:not-writable	lang/13-values-and-references.md#r-ref.read.auto.write
+lang/references/reading-through-a-reference/a-reference-by-value-method-comes-before-its-referent.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto.by-value
 lang/references/reading-through-a-reference/reference-copy-out.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.shallow
 lang/references/writable-places-of-references/reference-forms.hd	type	accept	lang/13-values-and-references.md#r-ref.place.shared-any
 lang/references/reading-through-a-reference/reference-shallow-values.hd	type	accept	lang/13-values-and-references.md#r-ref.read.shallow
