@@ -20,5 +20,5 @@ pub fn main() -> void $ Console:
     let mut l: List[i32] = []
     l.push(value=7)
     l.insert(value=8, index=0)
-    println(l.remove_at(index=1))
+    println(l.remove(index=1))
     println(l.len())

@@ -31,7 +31,7 @@ fn make() -> *mut Outer:
 
 fn probe(p: *mut Outer, alias: *mut Outer) -> string:
     r := &mut p.items[1]
-    _ := alias.items.remove_at(1) # panic: borrow-conflict
+    _ := alias.items.remove(1) # panic: borrow-conflict
     junk := churn()
     seen := *r
     _ := junk.len()

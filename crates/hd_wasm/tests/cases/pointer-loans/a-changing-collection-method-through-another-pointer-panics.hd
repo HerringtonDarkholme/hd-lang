@@ -24,7 +24,7 @@ fn list_insert(stock: *mut List[i32], first: &mut i32) -> void:
     *first += 1
 
 fn list_remove_at(stock: *mut List[i32], first: &mut i32) -> void:
-    _ := stock.remove_at(2)
+    _ := stock.remove(2)
     *first += 1
 
 fn list_clear(stock: *mut List[i32], first: &mut i32) -> void:
@@ -162,7 +162,7 @@ tests:
         stock := list_box()
         alias := stock
         list_insert(alias, &mut stock[0])
-    it("List.remove_at"):
+    it("List.remove"):
         stock := list_box()
         alias := stock
         list_remove_at(alias, &mut stock[0])

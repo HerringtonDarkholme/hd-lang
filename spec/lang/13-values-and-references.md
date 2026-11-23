@@ -1905,7 +1905,7 @@ fn demo() -> void:
 3. r[ref.elem.access.live-length] While an access lasts, nothing may change the collection, or a place that holds it, other than by a store to one of its elements. Reads of the collection, and stores to its elements, the referenced one included, stay valid.
 4. r[ref.elem.access.length] While a binding that holds an element reference is live ([`ref.excl.live`](#r-ref.excl.live)), a change of its collection or of a place that holds it is an error, and so is a `&mut` of another element of it. Error: `conflicting-access`.
    - The collection is a place that [`ref.excl.place`](#r-ref.excl.place) covers, so it may be reached through a `&mut` parameter.
-   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove_at`, `pop`, `clear` and `reserve` do, or an assignment of a whole value to it, as in `xs = []`.
+   - Such a change is a call that takes `&mut` of the collection or of a place that holds it, as `push`, `insert`, `remove`, `pop`, `clear` and `reserve` do, or an assignment of a whole value to it, as in `xs = []`.
    - A map's `remove` is one, and so is a map store of a key other than the referenced one.
    - Two keys are one key when both are one constant or reads of one `:=` binding.
 5. r[ref.elem.access.mut] While a binding that holds a `&mut` element reference is live, any use of its collection or of a place that holds it is an error: a copy, a `&` of it, a `len()` or another method call. So is any other reference into the collection, `&` or `&mut`, at any index. A read of another element or a store to one stays valid. Error: `conflicting-access`.
@@ -1921,7 +1921,7 @@ following to the collection, or to a place that holds it:
 | Rule | The argument or receiver | Example |
 | --- | --- | --- |
 | r[ref.elem.conflict.reference] Reference | takes `&mut` of it | `record(&mut scores, &mut scores[0])` |
-| r[ref.elem.conflict.method] Method call | calls a `&mut self` method on it | `place(&mut scores[0], scores.remove_at(1))` |
+| r[ref.elem.conflict.method] Method call | calls a `&mut self` method on it | `place(&mut scores[0], scores.remove(1))` |
 
 > **Why.** This is Swift's Law of Exclusivity, and for a `&mut` element
 > reference Rust's borrow rules. A conflict is caught at compile time

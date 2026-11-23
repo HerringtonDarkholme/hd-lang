@@ -2170,7 +2170,7 @@ impl CookieJar:
                     break
             if expires.map(fn(expiry): expiry <= now.unix_milliseconds()).unwrap_or(false):
                 if index < self.cookies.len():
-                    _ := self.cookies.remove_at(index)
+                    _ := self.cookies.remove(index)
                 continue
             stored := StoredCookie {
                 name: cookie.name,

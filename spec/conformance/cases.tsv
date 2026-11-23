@@ -3599,7 +3599,7 @@ lang/modules/prelude/list-insert-remove-clear.hd	runtime	accept	lang/10-modules.
 lang/control-flow/for-loops/list-invalidation-a-loop-that-never-changes-the-list-finishes.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 lang/control-flow/for-loops/list-invalidation-removing-during-a-list-loop-leaves-the-loop-on-its-snapshot.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 lang/modules/prelude/list-insert-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-insert.range
-lang/modules/prelude/list-remove-at-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-remove-at.range
+lang/modules/prelude/list-remove-at-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-remove-indexed.range
 std/task/map-join/task-all-list-order.hd	runtime	accept	std/task.md#r-std-task.map-all.order
 std/task/map-join/task-all-list-empty.hd	runtime	accept	std/task.md#r-std-task.map-all.empty
 std/text/character-classification/char-ascii-classes.hd	runtime	accept	std/text.md#character-classification

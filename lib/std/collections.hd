@@ -824,13 +824,13 @@ impl[T < ?Copy] UniqList[T]:
         self.len = size + 1
 
     ## Moves and returns the element at `index`, shifting later elements one place toward the start.
-    ## See [std-collections.uniq-list.remove-at](../../spec/std/collections.md#r-std-collections.uniq-list.remove-at).
-    pub fn remove_at(&mut self, index: usize) -> T:
+    ## See [std-collections.uniq-list.remove-indexed](../../spec/std/collections.md#r-std-collections.uniq-list.remove-indexed).
+    pub fn remove(&mut self, index: usize) -> T:
         size := self.len()
         if index >= size:
             panic_with(
                 "index-out-of-bounds",
-                "uniq list remove_at index ${index} out of bounds for length ${size}",
+                "uniq list remove index ${index} out of bounds for length ${size}",
             )
         removed := self.buffer.at(index).read()
         if index + 1 < size:
@@ -1756,15 +1756,15 @@ impl[T] List[T]:
         self[index] = value
 
     # Removes and returns the item at `index`, moving the later items down
-    # one place (module.method.list-remove-at).
+    # one place (module.method.list-remove-indexed).
     ## Removes and returns the item at `index`, moving the later items down one place.
-    ## See [module.method.list-remove-at](../../spec/lang/10-modules.md#r-module.method.list-remove-at).
-    pub fn remove_at(&mut self, index: usize) -> T:
+    ## See [module.method.list-remove-indexed](../../spec/lang/10-modules.md#r-module.method.list-remove-indexed).
+    pub fn remove(&mut self, index: usize) -> T:
         size := self.len()
         if index >= size:
             panic_with(
                 "index-out-of-bounds",
-                "list remove_at index ${index} out of bounds for length ${size}",
+                "list remove index ${index} out of bounds for length ${size}",
             )
         removed := self[index]
         let at: usize = index

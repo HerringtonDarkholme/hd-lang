@@ -28,8 +28,8 @@ impl Slots:
     fn push(&mut self, value: string) -> void:
         self.items.push(value)
 
-    fn remove_at(&mut self, index: usize) -> string:
-        self.items.remove_at(index)
+    fn remove(&mut self, index: usize) -> string:
+        self.items.remove(index)
 
     fn swap(&mut self, left: usize, right: usize) -> void:
         self.items.swap(left, right)

@@ -3,7 +3,7 @@
 it "List.push" main.hd:153
 it "List.pop" main.hd:157
 it "List.insert" main.hd:161
-it "List.remove_at" main.hd:165
+it "List.remove" main.hd:165
 it "List.clear" main.hd:169
 it "List.reserve" main.hd:173
 it "List.truncate" main.hd:177
@@ -38,7 +38,7 @@ it "Map.get_or_insert while an earlier get_or_insert's result holds the loan" ma
 List.push: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
 List.pop: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
 List.insert: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
-List.remove_at: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
+List.remove: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
 List.clear: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
 List.reserve: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
 List.truncate: {"status":3,"trapped":true,"stdout":"","stderr":"panic: borrow-conflict: a `List[i32]` a live reference borrows was written through another `*T`\n","category":"borrow-conflict","message":"a `List[i32]` a live reference borrows was written through another `*T`"}
