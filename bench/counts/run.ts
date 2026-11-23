@@ -79,10 +79,4 @@ for (const line of manifest.trim().split("\n")) {
 }
 process.stderr.write(`count operations: ran ${executed} of ${actual.length} programs\n`);
 writeFileSync(`${output}/actual.json`, JSON.stringify({ programs: actual }, null, 2) + "\n");
-gate(
-  output,
-  options.get("--base"),
-  readCounts,
-  (base) => compareCounts(actual, base),
-  options.get("--cost-ok"),
-);
+gate(output, options, readCounts, (base) => compareCounts(actual, base));

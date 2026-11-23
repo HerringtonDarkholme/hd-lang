@@ -68,10 +68,4 @@ const report = readSiteReport(
   programs,
 );
 writeFileSync(`${output}/actual.json`, JSON.stringify(report, null, 2) + "\n");
-gate(
-  output,
-  options.get("--base"),
-  readSites,
-  (base) => compareSites(report, base),
-  options.get("--cost-ok"),
-);
+gate(output, options, readSites, (base) => compareSites(report, base));

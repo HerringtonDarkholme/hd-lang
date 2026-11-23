@@ -137,18 +137,20 @@ export function verdict(
 }
 
 /**
- * The end of both gates: read the base measurement at `basePath` if there is
- * one, compare, write `summary.md` and fail the process on an unexplained
- * increase. A base this code can't read (another format) is reported only.
+ * The end of both gates: read the base measurement at `--base` if there is
+ * one, compare, write `summary.md` and fail the process on an increase that
+ * `--cost-ok` does not explain. A base this code can't read (another format)
+ * is reported only.
  */
-export function gate<T>(
+export function gate<Base>(
   output: string,
-  basePath: string | undefined,
-  read: (text: string) => T,
-  compare: (base?: T) => Comparison,
-  costOk?: string,
+  options: Map<string, string>,
+  read: (text: string) => Base,
+  compare: (base?: Base) => Comparison,
 ): void {
-  let base: T | undefined;
+  const basePath = options.get("--base");
+  const costOk = options.get("--cost-ok");
+  let base: Base | undefined;
   if (basePath && existsSync(basePath)) {
     try {
       base = read(readFileSync(basePath, "utf8"));
