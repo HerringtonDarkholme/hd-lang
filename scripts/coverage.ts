@@ -179,7 +179,12 @@ function selectedSets(): string[] {
     fail("--check needs the whole suite; unset HD_CONFORMANCE_ONLY");
   }
   if (values.only === undefined) {
-    return SET_NAMES.filter((name) => !(CORE as readonly string[]).includes(name));
+    // Run45437978053: checked adds no line beyond these retained sets.
+    // Dropping it saves 424s + 2s reporting; dev must stay (4 shared lines).
+    // Explicit --only still permits a diagnostic measurement of that mode.
+    return SET_NAMES.filter(
+      (name) => !(CORE as readonly string[]).includes(name) && name !== "conformance-checked",
+    );
   }
   const sets = values.only.split(",").filter(Boolean);
   const unknown = sets.filter((set) => !SET_NAMES.includes(set));
