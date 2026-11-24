@@ -131,16 +131,22 @@ const LITERAL: u8 = 2;
 /// reads as unknown, which only loses a fold. A value is a scalar or a
 /// fieldless variant, copied without allocating or repeating an effect;
 /// knowing it never proves the instruction that made it has no effects,
-/// so a fold keeps that instruction.
+/// so a fold keeps that instruction. Pure match decisions are cached in
+/// this same forward pass: each switch reads its selected block's result,
+/// and each block scans its members once, without a depth cutoff.
 ///
 /// It follows inlined results (#1518): an inlined callee is a `Scope`
 /// over a block its `return`s and final value leave with `Break`s, so a
 /// block's value is the one value that its tail and every `Break` to it
 /// agree on. A local stored once (whole) and never lent mutably reads as
 /// the value stored. Cost: one pass over the instructions and one over
-/// the `Break`s, O(n) in the body's size.
+/// the `Break`s and block-member/case records, O(n + r) for n instructions
+/// and r record words. Decision results use another four bytes per instruction.
 struct Values {
     val: Vec<Option<Value>>,
+    /// A pure decision's selected arm, or NONE when unknown. Blocks and
+    /// switches are topological, so each result is available to its users.
+    decision: Vec<u32>,
     /// PURE permits erasure; LITERAL copies construction IR intact.
     /// Constructors keep their ownership effects and cleanup scopes.
     pure: Vec<u8>,
@@ -169,6 +175,15 @@ impl Values {
         body: &Body,
         defaults: &[(usize, Value)],
         calls: &dyn Fn(usize) -> Option<Value>,
+    ) -> Self {
+        Self::compute_with(body, defaults, calls, &mut || {})
+    }
+
+    fn compute_with(
+        body: &Body,
+        defaults: &[(usize, Value)],
+        calls: &dyn Fn(usize) -> Option<Value>,
+        visit: &mut impl FnMut(),
     ) -> Self {
         let n = body.len();
         let locals = body.local_ty.len();
@@ -224,13 +239,16 @@ impl Values {
         }
         let mut out = Self {
             val: vec![None; n],
+            decision: vec![NONE; n],
             pure: vec![0; n],
         };
         let mut arms = Arms::new(body);
         for i in 0..n {
+            visit();
             let [a, b] = body.data[i];
             let v = match body.tags[i] {
                 Tag::Block => {
+                    out.decision[i] = out.block_arm(body, i, visit);
                     let breaks = &breaks[from[i] as usize..from[i + 1] as usize];
                     let tail = (b != NONE).then_some(b);
                     // A `Break` in an arm a decision rules out never runs.
@@ -316,7 +334,11 @@ impl Values {
                     }
                 }
                 Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
-                    arms.decide(i, out.switched(body, i));
+                    let selected = out.switched_with(body, i, visit);
+                    arms.decide(i, selected);
+                    if let Some(block) = selected {
+                        out.decision[i] = out.decision[block as usize];
+                    }
                     None
                 }
                 _ => None,
@@ -399,7 +421,7 @@ impl Values {
     fn chosen(&self, body: &Body, i: usize) -> Option<u32> {
         let blocks = body.record(body.data[i][1]);
         let block = match body.tags[i] {
-            Tag::Match => blocks.get(self.arm(body, blocks[0], 0)? as usize + 1),
+            Tag::Match => blocks.get(self.arm(blocks[0])? as usize + 1),
             Tag::If => blocks.get(self.taken(body, i)?),
             _ => None,
         };
@@ -424,6 +446,10 @@ impl Values {
 
     /// The block switch `i` runs, where its operand's value decides it.
     fn switched(&self, body: &Body, i: usize) -> Option<u32> {
+        self.switched_with(body, i, &mut || {})
+    }
+
+    fn switched_with(&self, body: &Body, i: usize, visit: &mut impl FnMut()) -> Option<u32> {
         let rec = body.record(body.data[i][1]);
         let key = match (body.tags[i], self.word(body, body.data[i][0])?) {
             (Tag::SwitchTag, Value::Variant(tag)) => tag,
@@ -435,32 +461,39 @@ impl Values {
         let (&default, pairs) = rec.split_last()?;
         let block = pairs
             .chunks_exact(2)
-            .find(|case| case[0] == key)
+            .find(|case| {
+                visit();
+                case[0] == key
+            })
             .map_or(default, |case| case[1]);
         (block != NONE).then_some(block)
     }
 
-    /// Follow a pure match decision to its arm. Binding patterns and
-    /// guards with unknown results retain the original match and all its
-    /// effects. The decision tree's depth is the pattern's, capped at 64.
-    fn arm(&self, body: &Body, block: u32, depth: usize) -> Option<u32> {
-        if depth > 64 {
-            return None;
-        }
-        for &i in body.record(body.data[block as usize][0]) {
+    /// A cached pure decision result; unknown conditions and effects stay
+    /// unknown. No query walks a shared decision path again.
+    fn arm(&self, block: u32) -> Option<u32> {
+        let arm = self.decision[block as usize];
+        (arm != NONE).then_some(arm)
+    }
+
+    /// Summarize a block after its members. Each block-member edge is read
+    /// once here, and each switch reads its already computed successor.
+    /// Total work is O(instructions + record words), with no native recursion
+    /// or depth limit; the cache costs one u32 per instruction.
+    fn block_arm(&self, body: &Body, block: usize, visit: &mut impl FnMut()) -> u32 {
+        for &i in body.record(body.data[block][0]) {
+            visit();
             let i = i as usize;
             let a = body.data[i][0];
             match body.tags[i] {
                 Tag::Block => {}
                 Tag::Read if self.pure[i] & PURE != 0 || self.val[i].is_some() => {}
-                Tag::ToArm => return Some(a),
-                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
-                    return self.arm(body, self.switched(body, i)?, depth + 1);
-                }
-                _ => return None,
+                Tag::ToArm => return a,
+                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => return self.decision[i],
+                _ => return NONE,
             }
         }
-        None
+        NONE
     }
 }
 
@@ -1811,6 +1844,83 @@ mod tests {
         );
         assert_eq!(value_given(&body, &|_| None), None);
         assert_eq!(constant(&body), None);
+        Ok(())
+    }
+
+    fn match_decision_chains(width: usize, depth: usize) -> Result<(Body, Vec<u32>), String> {
+        let n = NodeIdx::NONE;
+        let mut b = TirBuilder::new(DefId::from_raw(44), BodyKind::Fn);
+        let root = b.open_block();
+        let selector = b.const_value(Ty::I32, 7);
+        let mut decisions = Vec::new();
+        let mut result = b.const_value(Ty::I32, 0);
+        for _ in 0..width {
+            let marks: Vec<_> = (0..depth).map(|_| b.open_block()).collect();
+            let leaf = b.open_block();
+            b.emit(Tag::ToArm, 0, NONE, Ty::NEVER, n);
+            let mut decision = b.close_block(leaf, None, Ty::NEVER, n);
+            for mark in marks.into_iter().rev() {
+                let fallback = b.open_block();
+                b.emit(Tag::ToArm, 1, NONE, Ty::NEVER, n);
+                let fallback = b.close_block(fallback, None, Ty::NEVER, n);
+                let cases = b.words_record(&[7, decision.0, fallback.0]);
+                b.emit(Tag::SwitchInt, selector.0, cases, Ty::NEVER, n);
+                decision = b.close_block(mark, None, Ty::NEVER, n);
+            }
+            decisions.push(decision.0);
+            let yes = b.open_block();
+            let value = b.const_value(Ty::I32, 11);
+            let yes = b.close_block(yes, Some(value), Ty::I32, n);
+            let no = b.open_block();
+            let value = b.const_value(Ty::I32, 22);
+            let no = b.close_block(no, Some(value), Ty::I32, n);
+            let arms = b.refs_record(&[decision, yes, no]);
+            result = b.emit(Tag::Match, selector.0, arms, Ty::I32, n);
+        }
+        let root = b.close_block(root, Some(result), Ty::I32, n);
+        let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+        Ok((body, decisions))
+    }
+
+    #[test]
+    fn pure_match_decisions_do_not_stop_at_depth_64() -> Result<(), String> {
+        for depth in [20, 65, 20_000] {
+            let (body, decisions) = match_decision_chains(1, depth)?;
+            let values = Values::compute(&body, &[], &|_| None);
+            assert_eq!(values.arm(decisions[0]), Some(0), "depth {depth}");
+            assert_eq!(value_given(&body, &|_| None), Some(Value::Scalar(11)));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn match_decision_work_is_linear_at_width_and_depth() -> Result<(), String> {
+        for (width, depth) in [(1_000, 20), (10_000, 20), (1, 20_000)] {
+            let (body, decisions) = match_decision_chains(width, depth)?;
+            let mut work = 0;
+            let values = Values::compute_with(&body, &[], &|_| None, &mut || work += 1);
+            for decision in decisions {
+                assert_eq!(values.arm(decision), Some(0));
+            }
+            let edges: usize = body
+                .tags
+                .iter()
+                .enumerate()
+                .filter(|(_, tag)| **tag == Tag::Block)
+                .map(|(i, _)| body.record(body.data[i][0]).len())
+                .sum();
+            let cases: usize = body
+                .tags
+                .iter()
+                .enumerate()
+                .filter(|(_, tag)| matches!(tag, Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar))
+                .map(|(i, _)| body.record(body.data[i][1]).len() / 2)
+                .sum();
+            assert!(
+                work <= body.len() + edges + cases,
+                "{width} x {depth}: {work}"
+            );
+        }
         Ok(())
     }
 }
