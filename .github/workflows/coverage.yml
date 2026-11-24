@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # One run at a time; a newer one waits instead of cancelling the running one.
 concurrency:
@@ -25,8 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
-      # The full history, so a drop lists the uncovered lines changed since the
-      # baseline's commit.
+      # Full history maps the previous measured run's uncovered lines.
       - name: Check out
         uses: actions/checkout@v5
         with:
@@ -55,6 +55,8 @@ jobs:
           tool: cargo-llvm-cov@0.6.14
 
       - name: Measure and check
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/coverage.ts --check
 
       - name: Store the report
