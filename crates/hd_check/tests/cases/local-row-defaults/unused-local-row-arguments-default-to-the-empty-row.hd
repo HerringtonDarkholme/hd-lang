@@ -1,0 +1,12 @@
+# @dump: diagnostics tir
+fn outer() -> void:
+    fn pure[$ R]() -> void $ R:
+        pass
+
+    pure()
+
+fn generic() -> i32:
+    fn choose[$ R, T = i32]() -> T $ R:
+        panic("not executed")
+
+    choose()
