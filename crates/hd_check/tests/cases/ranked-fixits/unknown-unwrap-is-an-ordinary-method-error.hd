@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# A different type's missing unwrap remains an ordinary unknown method.
+struct Empty: pass
+
+fn record(value: Empty) -> void:
+    value.unwrap()
+
+fn scalar(value: i32) -> void:
+    value.unwrap()
