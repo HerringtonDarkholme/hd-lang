@@ -294,7 +294,7 @@ pub fn main() -> void $ Console:
 >   %67 = Drop [%63] : ()
 >   %68 = Drop [$3] : ()
     let mut items = UniqList::[i32].new()
->   %69 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[i32] (0:usize) : UniqList[i32]
+>   %69 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[i32] (0:usize) : UniqList[i32]
 >   %70 = Break L5 %69 : never
 >   %71 = Block - : UniqList[i32]
 >   %72 = Scope %71 [] : UniqList[i32]
@@ -324,7 +324,7 @@ pub fn main() -> void $ Console:
 >   %96 = Read borrow [$7] : &mut UniqList[i32]
 >   %97 = Read copy [$9] : usize
 >   %98 = Prim Add [%97 1:usize] : usize
->   %99 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%96, %98) : ()
+>   %99 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%96, %98) : ()
 >   %100 = Block - : ()
 >   %101 = If %95 [%100 -] : ()
 >   %102 = Ref local [*$7 .buffer] : &Buffer[i32]

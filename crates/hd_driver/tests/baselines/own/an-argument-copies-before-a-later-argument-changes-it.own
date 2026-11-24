@@ -5,7 +5,7 @@ app/main/first
   %2 = Read copy [$0] : List[i64]
   %3 = Retain %2 Value #0 : ()
   %4 = Ref mut local frame [$0] : &mut List[i64]
-  %5 = Call std/collections/impl[T] List[T].pop[i64] (%4) : i64?
+  %5 = Call std/collections.list/impl[T] List[T].pop[i64] (%4) : i64?
   %6 = LoanEnd [%4] : ()
   %7 = Drop [$0] : ()
   %8 = Call app/main/before[] (%2, %5) : usize

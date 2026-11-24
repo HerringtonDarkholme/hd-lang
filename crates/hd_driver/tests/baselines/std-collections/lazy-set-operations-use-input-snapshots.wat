@@ -3,9 +3,9 @@
   (import "fixture" "impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]" (func $"impl[T < Eq & Hash] Iterator[T] for SetIter[T].next[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:map_lookup" (func $rt:map_lookup (param i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < Eq & Hash] Set[T].union[i32]" (func $"impl[T < Eq & Hash] Set[T].union[i32]" (param i32 i32) (result i32 i32 i32 i32 i32 i32 i32 i32)))
-  (import "fixture" "Iterator.count[std.collections.Union[i32], i32]" (func $"Iterator.count[std.collections.Union[i32], i32]" (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "Iterator.count[std.collections.set.Union[i32], i32]" (func $"Iterator.count[std.collections.set.Union[i32], i32]" (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < Eq & Hash] Set[T].intersection[i32]" (func $"impl[T < Eq & Hash] Set[T].intersection[i32]" (param i32 i32) (result i32 i32 i32 i32)))
-  (import "fixture" "Iterator.count[std.collections.Intersection[i32], i32]" (func $"Iterator.count[std.collections.Intersection[i32], i32]" (param i32 i32 i32 i32) (result i32)))
+  (import "fixture" "Iterator.count[std.collections.set.Intersection[i32], i32]" (func $"Iterator.count[std.collections.set.Intersection[i32], i32]" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $"impl[T < Eq & Hash] Iterator[T] for Union[T].next[i32]" (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     block
@@ -205,13 +205,13 @@
     local.get $left
     local.get $right
     call $"impl[T < Eq & Hash] Set[T].union[i32]"
-    call $"Iterator.count[std.collections.Union[i32], i32]"
+    call $"Iterator.count[std.collections.set.Union[i32], i32]"
   )
   (func $shared_count (param $left i32) (param $right i32) (result i32)
     ;; 12 |     left.intersection(right).count()
     local.get $left
     local.get $right
     call $"impl[T < Eq & Hash] Set[T].intersection[i32]"
-    call $"Iterator.count[std.collections.Intersection[i32], i32]"
+    call $"Iterator.count[std.collections.set.Intersection[i32], i32]"
   )
 )

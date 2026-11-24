@@ -133,7 +133,7 @@ fn uniq(xs: UniqList[string], s: string) -> UniqList[string]:
 >   %28 = Read borrow [$3] : &mut UniqList[string]
 >   %29 = Read copy [$5] : usize
 >   %30 = Prim Add [%29 1:usize] : usize
->   %31 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[string] (%28, %30) : ()
+>   %31 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[string] (%28, %30) : ()
 >   %32 = Block - : ()
 >   %33 = If %27 [%32 -] : ()
 >   %34 = Ref local [*$3 .buffer] : &Buffer[string]

@@ -1,0 +1,627 @@
+use std.collections.set.Set
+use std.collections.view.ListView
+use std.function.FnMut
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
+use std.num.Num
+use std.ops.Range
+use std.rt.Drop
+use std.rt.bytes.panic_with
+
+impl[T] List[T]:
+    ## Returns an empty list with room for at least `capacity` elements.
+    ## See [std-collections.list.with-capacity](../../../spec/std/collections.md#r-std-collections.list.with-capacity).
+    pub fn with_capacity(capacity: usize) -> List[T]:
+        let mut items: List[T] = []
+        items.reserve(capacity)
+        items
+
+    ## Reserves room for `additional` elements without changing the length.
+    ## See [std-collections.list.reserve](../../../spec/std/collections.md#r-std-collections.list.reserve).
+    pub fn reserve(&mut self, additional: usize) -> void:
+        list_reserve(self, additional)
+
+    ## Removes elements after `len`; a greater length has no effect.
+    ## See [std-collections.list.truncate](../../../spec/std/collections.md#r-std-collections.list.truncate).
+    pub fn truncate(&mut self, len: usize) -> void:
+        if len < self.len():
+            list_truncate(self, len)
+
+    ## Splits off the suffix starting at `at` into a new list.
+    ## See [std-collections.list.split-off](../../../spec/std/collections.md#r-std-collections.list.split-off).
+    pub fn split_off(&mut self, at: usize) -> List[T]:
+        if at > self.len():
+            panic_with("index-out-of-bounds", "list split_off index out of bounds")
+        tail := self.view(at, self.len()).to_list()
+        self.truncate(at)
+        tail
+
+    ## Appends every element of `other`, leaving `other` empty.
+    ## See [std-collections.list.append](../../../spec/std/collections.md#r-std-collections.list.append).
+    pub fn append(&mut self, other: &mut List[T]) -> void:
+        self.extend(*other)
+        other.clear()
+
+    ## Borrows this list and yields the selected range, restoring the tail on drop.
+    ## See [std-collections.list.drain](../../../spec/std/collections.md#r-std-collections.list.drain).
+    pub fn drain['a](&'a mut self, range: Range[usize]) -> ListDrain[T, 'a]:
+        let end = range.end
+        if range.inclusive:
+            if end >= self.len():
+                panic_with("index-out-of-bounds", "list drain range out of bounds")
+            end += 1
+        if range.start > end || end > self.len():
+            panic_with("index-out-of-bounds", "list drain range out of bounds")
+        snapshot := *self
+        self.truncate(range.start)
+        ListDrain {
+            items: .Some(self),
+            snapshot: snapshot,
+            at: range.start,
+            end: end,
+            tail_start: end,
+        }
+
+    ## Changes the length to `len`, copying `value` into new elements.
+    ## See [std-collections.list.resize](../../../spec/std/collections.md#r-std-collections.list.resize).
+    pub fn resize(&mut self, len: usize, value: T) -> void:
+        if len <= self.len():
+            self.truncate(len)
+            return
+        self.reserve(len - self.len())
+        while self.len() < len:
+            self.push(value)
+
+    ## Replaces every element with a copy of `value`.
+    ## See [std-collections.list.fill](../../../spec/std/collections.md#r-std-collections.list.fill).
+    pub fn fill(&mut self, value: T) -> void:
+        let index: usize = 0
+        while index < self.len():
+            self[index] = value
+            index += 1
+
+    ## Reverses the elements in place.
+    ## See [std-collections.list.reverse](../../../spec/std/collections.md#r-std-collections.list.reverse).
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn reverse(&mut self) -> void:
+        let left: usize = 0
+        let right = self.len()
+        while left < right:
+            right -= 1
+            self.swap(left, right)
+            left += 1
+
+    ## Returns a new list containing elements from `start` up to `end`.
+    ## See [std-collections.list.slice](../../../spec/std/collections.md#r-std-collections.list.slice).
+    pub fn slice(&self, start: usize, end: usize) -> List[T]:
+        size := self.len()
+        if start > end || end > size:
+            panic_with("index-out-of-bounds", "list slice out of bounds")
+        if start == 0 && end == size:
+            return *self
+        [for index in start..end => self[index]]
+
+    # `push` is a language-tier intrinsic method of the checker
+    # (spec/lang/10-modules.md#built-in-methods). The other mutators are
+    # plain hd over it, `list_truncate`, the one shrinking primitive, and
+    # `list_extend`, the one bulk append.
+    # Removes the last item, or gives `.None` for an empty list
+    # (module.method.list-pop).
+    ## Removes and returns the last item, or `.None` for an empty list.
+    ## See [module.method.list-pop](../../../spec/lang/10-modules.md#r-module.method.list-pop).
+    pub fn pop(&mut self) -> T?:
+        size := self.len()
+        if size == 0:
+            return .None
+        last := self[size - 1]
+        list_truncate(self, size - 1)
+        .Some(last)
+
+    # Puts `value` at `index` and moves the later items up one place;
+    # `index == len()` appends (module.method.list-insert).
+    ## Puts `value` at `index` and moves the later items up one place; `index == len()` appends.
+    ## See [module.method.list-insert](../../../spec/lang/10-modules.md#r-module.method.list-insert).
+    pub fn insert(&mut self, index: usize, value: T) -> void:
+        size := self.len()
+        if index > size:
+            panic_with(
+                "index-out-of-bounds",
+                "list insert index ${index} out of bounds for length ${size}",
+            )
+        self.push(value)
+        let at: usize = size
+        while at > index:
+            self[at] = self[at - 1]
+            at = at - 1
+        self[index] = value
+
+    # Removes and returns the item at `index`, moving the later items down
+    # one place (module.method.list-remove-indexed).
+    ## Removes and returns the item at `index`, moving the later items down one place.
+    ## See [module.method.list-remove-indexed](../../../spec/lang/10-modules.md#r-module.method.list-remove-indexed).
+    pub fn remove(&mut self, index: usize) -> T:
+        size := self.len()
+        if index >= size:
+            panic_with(
+                "index-out-of-bounds",
+                "list remove index ${index} out of bounds for length ${size}",
+            )
+        removed := self[index]
+        let at: usize = index
+        while at + 1 < size:
+            self[at] = self[at + 1]
+            at = at + 1
+        list_truncate(self, size - 1)
+        removed
+
+    # Removes every item (module.method.list-clear).
+    ## Removes every item, so `len()` is 0 after it.
+    ## See [module.method.list-clear](../../../spec/lang/10-modules.md#r-module.method.list-clear).
+    pub fn clear(&mut self) -> void:
+        list_truncate(self, 0)
+
+    ## Returns a new list with `transform` applied to each element, in order.
+    ## See [std-iter.method.map](../../../spec/std/iter.md#r-std-iter.method.map).
+    pub fn map[U, F < ?Copy & FnMut(&T) -> U](&self, mut transform: F) -> List[U]:
+        let mut mapped: List[U] = []
+        list_reserve(&mut mapped, self.len())
+        for item in self:
+            mapped.push(transform(&item))
+        mapped
+
+    ## Returns a new list of the elements for which `keep` is true, in list order.
+    ## See [std-collections.access.filter](../../../spec/std/collections.md#r-std-collections.access.filter).
+    pub fn filter[F < ?Copy & FnMut(&T) -> bool](&self, mut keep: F) -> List[T]:
+        let mut kept: List[T] = []
+        for item in self:
+            if keep(&item):
+                kept.push(item)
+        kept
+
+    # The checked read beside `items[i]` (r-std-collections.access.get-copy).
+    ## Returns `.Some` of a copy of the element at `index`, or `.None` when `index` is not less than `len()`. It never panics.
+    ## See [std-collections.access.get-copy](../../../spec/std/collections.md#r-std-collections.access.get-copy).
+    pub fn get(&self, index: usize) -> T?:
+        if index >= self.len(): .None else: .Some(self[index])
+
+    ## True exactly when the list has no elements.
+    ## See [std-collections.access.is-empty](../../../spec/std/collections.md#r-std-collections.access.is-empty).
+    pub fn is_empty(&self) -> bool:
+        self.len() == 0
+
+    # The first `count` items, or all of them (r-std-collections.access.take).
+    ## Returns a new list of the first `count` elements, or of every element when `count` is at least `len()`.
+    ## See [std-collections.access.take](../../../spec/std/collections.md#r-std-collections.access.take).
+    pub fn take(&self, count: usize) -> List[T]:
+        let mut kept: List[T] = []
+        list_reserve(&mut kept, if count < self.len(): count else: self.len())
+        let index: usize = 0
+        while index < count && index < self.len():
+            kept.push(self[index])
+            index = index + 1
+        kept
+
+    # Appends `other`'s items as they were at the call, so
+    # `items.extend(items)` doubles the list (r-std-collections.access.extend.self).
+    ## Appends each element of `other` to the list, in order, as `push` does.
+    ## See [std-collections.access.extend](../../../spec/std/collections.md#r-std-collections.access.extend).
+    pub fn extend(&mut self, other: List[T]) -> void:
+        list_extend(self, other)
+
+    ## Returns a copy of the first element in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.access.first-last-copy](../../../spec/std/collections.md#r-std-collections.access.first-last-copy).
+    pub fn first(&self) -> T?:
+        if self.len() == 0: .None else: .Some(self[0])
+
+    ## Returns a copy of the last element in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.access.first-last-copy](../../../spec/std/collections.md#r-std-collections.access.first-last-copy).
+    pub fn last(&self) -> T?:
+        if self.len() == 0: .None else: .Some(self[self.len() - 1])
+
+    ## Returns a new list of the elements in reverse order.
+    ## See [std-collections.access.reversed](../../../spec/std/collections.md#r-std-collections.access.reversed).
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn reversed(&self) -> List[T]:
+        let mut backwards: List[T] = []
+        list_reserve(&mut backwards, self.len())
+        let index = self.len()
+        while index > 0:
+            index = index - 1
+            backwards.push(self[index])
+        backwards
+
+    # In place, by the stable sort `sorted_by` makes.
+    ## Sorts the list in ascending order by `compare`, in place. The sort is stable.
+    ## See [std-collections.helper.sort-by](../../../spec/std/collections.md#r-std-collections.helper.sort-by).
+    pub fn sort_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&mut self, compare: F) -> void:
+        *self = self.sorted_by(compare)
+
+    # In place, by `sorted_by_key`: `key` is called once per element.
+    ## Sorts the list in ascending order of `key(element)` by `Ord`, in place, calling `key` once per element. The sort is stable.
+    ## See [std-collections.helper.sort-by-key](../../../spec/std/collections.md#r-std-collections.helper.sort-by-key).
+    pub fn sort_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&mut self, key: F) -> void:
+        *self = self.sorted_by_key(key)
+
+    # Keeps the accepted elements in order, then drops the rest from the end.
+    ## Keeps the elements for which `keep` is true, in list order, in place; `keep` runs once per element, in order.
+    ## See [std-collections.helper.retain](../../../spec/std/collections.md#r-std-collections.helper.retain).
+    pub fn retain[F < ?Copy & FnMut(&T) -> bool](&mut self, mut keep: F) -> void:
+        size := self.len()
+        let kept: usize = 0
+        let index: usize = 0
+        while index < size:
+            item := self[index]
+            if keep(&item):
+                self[kept] = item
+                kept += 1
+            index += 1
+        while self.len() > kept:
+            _ := self.pop()
+
+    ## Exchanges the elements at `a` and `b`; either index out of range panics with `index-out-of-bounds`.
+    ## See [std-collections.helper.swap](../../../spec/std/collections.md#r-std-collections.helper.swap).
+    pub fn swap(&mut self, a: usize, b: usize) -> void:
+        held := self[a]
+        self[a] = self[b]
+        self[b] = held
+
+    # Consecutive pieces of `size` items; the last may be shorter.
+    ## Returns read-only views in consecutive pieces of `size` elements; only the last may be shorter.
+    ## See [std-collections.list.chunks.views](../../../spec/std/collections.md#r-std-collections.list.chunks.views).
+    pub fn chunks(&self, size: usize) -> List[ListView[T]]:
+        if size == 0:
+            panic("chunks: size must be positive")
+        let mut pieces: List[ListView[T]] = []
+        list_reserve(&mut pieces, if self.len() == 0: 0 else: (self.len() - 1) / size + 1)
+        let start: usize = 0
+        while start < self.len():
+            remaining := self.len() - start
+            width := if size < remaining: size else: remaining
+            pieces.push(self.view(start, start + width))
+            start = start + width
+        pieces
+
+    # Pairs items by position, stopping at the shorter list.
+    ## Returns a new list of pairs `(self[i], other[i])` for each index `i` of both lists, stopping at the shorter one.
+    ## See [std-collections.access.zip](../../../spec/std/collections.md#r-std-collections.access.zip).
+    pub fn zip[U](&self, other: List[U]) -> List[(T, U)]:
+        let mut pairs: List[(T, U)] = []
+        list_reserve(&mut pairs, if self.len() < other.len(): self.len() else: other.len())
+        let index: usize = 0
+        while index < self.len() && index < other.len():
+            pairs.push((self[index], other[index]))
+            index = index + 1
+        pairs
+
+    # The helpers of spec/std/collections.md#list-helpers. Each callback
+    # runs in list order, at most once per element.
+
+    # A stable sort by `key(item)`, which is called once per element.
+    ## Returns the elements in ascending order of `key(element)` by `Ord`, calling `key` once per element.
+    ## See [std-collections.helper.sorted-by-key](../../../spec/std/collections.md#r-std-collections.helper.sorted-by-key).
+    pub fn sorted_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, mut key: F) -> List[T]:
+        let mut keyed: List[(K, usize)] = []
+        list_reserve(&mut keyed, self.len())
+        let index: usize = 0
+        for item in self:
+            keyed.push((key(&item), index))
+            index = index + 1
+        order := keyed.sorted_by(
+            fn(left: &(K, usize), right: &(K, usize)) -> Ordering: left._0.cmp(&right._0)
+        )
+        let mut sorted: List[T] = []
+        list_reserve(&mut sorted, self.len())
+        for (_, at) in order:
+            sorted.push(self[at])
+        sorted
+
+    # The elements under each key.
+    ## Groups the elements by `key(element)`, each group in list order.
+    ## See [std-collections.helper.group-by](../../../spec/std/collections.md#r-std-collections.helper.group-by).
+    pub fn group_by[K < Eq & Hash, F < ?Copy & FnMut(&T) -> K](
+        &self,
+        mut key: F,
+    ) -> Map[K, List[T]]:
+        let mut groups: Map[K, List[T]] = {}
+        for item in self:
+            group := key(&item)
+            match groups.get(group):
+                .Some(_) => groups[group].push(item)
+                .None => groups[group] = [item]
+        groups
+
+    # The elements `keep` accepts, then the rest, each in order.
+    ## Splits the list into the elements for which `keep` is true and the rest, each in list order.
+    ## See [std-collections.helper.partition](../../../spec/std/collections.md#r-std-collections.helper.partition).
+    pub fn partition[F < ?Copy & FnMut(&T) -> bool](&self, mut keep: F) -> (List[T], List[T]):
+        let mut kept: List[T] = []
+        let mut rest: List[T] = []
+        for item in self:
+            if keep(&item):
+                kept.push(item)
+            else:
+                rest.push(item)
+        (kept, rest)
+
+    # Stops at the first element that passes.
+    ## True when `test` is true for at least one element, stopping at the first.
+    ## See [std-collections.helper.any-all](../../../spec/std/collections.md#r-std-collections.helper.any-all).
+    pub fn any[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> bool:
+        for item in self:
+            if test(&item):
+                return true
+        false
+
+    # Stops at the first element that fails.
+    ## True when `test` is true for every element, stopping at the first false.
+    ## See [std-collections.helper.any-all](../../../spec/std/collections.md#r-std-collections.helper.any-all).
+    pub fn all[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> bool:
+        for item in self:
+            if !test(&item):
+                return false
+        true
+
+    ## Returns a copy of the first element for which `test` is true, in `.Some`, or `.None`.
+    ## See [std-collections.helper.find-copy](../../../spec/std/collections.md#r-std-collections.helper.find-copy).
+    pub fn find[F < ?Copy & FnMut(&T) -> bool](&self, mut test: F) -> T?:
+        let index: usize = 0
+        while index < self.len():
+            if test(&self[index]):
+                return .Some(self[index])
+            index = index + 1
+        .None
+
+    ## Applies `transform` to each element and concatenates the results, in order.
+    ## See [std-collections.helper.flat-map.iterable-borrow](../../../spec/std/collections.md#r-std-collections.helper.flat-map.iterable-borrow).
+    pub fn flat_map[U, I < Iterable[U], F < ?Copy & FnMut(&T) -> I](
+        &self,
+        mut transform: F,
+    ) -> List[U]:
+        let mut flat: List[U] = []
+        for item in self:
+            for part in transform(&item):
+                flat.push(part)
+        flat
+
+    # Every run of `size` consecutive elements, overlapping, in order.
+    ## Returns read-only views of every run of `size` consecutive elements, each starting one index later.
+    ## See [std-collections.helper.windows.views](../../../spec/std/collections.md#r-std-collections.helper.windows.views).
+    pub fn windows(&self, size: usize) -> List[ListView[T]]:
+        if size == 0:
+            panic("windows: size must be positive")
+        let mut runs: List[ListView[T]] = []
+        if size > self.len():
+            return runs
+        last := self.len() - size
+        runs.reserve(last + 1)
+        let start: usize = 0
+        while start <= last:
+            runs.push(self.view(start, start + size))
+            start = start + 1
+        runs
+
+impl[T < Eq] List[T]:
+    ## True exactly when the list has an element equal to `value`.
+    ## See [std-collections.helper.contains-borrowed](../../../spec/std/collections.md#r-std-collections.helper.contains-borrowed).
+    pub fn contains(&self, value: &T) -> bool:
+        for item in self:
+            if item.eq(value):
+                return true
+        false
+
+    # The index of the first element equal to `value`.
+    ## Returns the index of the first element equal to `value` by `Eq`, in `.Some`, or `.None`.
+    ## See [std-collections.helper.contains-borrowed](../../../spec/std/collections.md#r-std-collections.helper.contains-borrowed).
+    pub fn index_of(&self, value: T) -> usize?:
+        let index: usize = 0
+        for item in self:
+            if item == value:
+                return .Some(index)
+            index = index + 1
+        .None
+
+    # Compact forward as Rust's Vec::dedup does, keeping the first of each run.
+    # No write precedes the first gap; ordinary list stores preserve snapshots.
+    ## Removes consecutive equal elements in place, keeping the first in each run.
+    ## See [std-collections.helper.dedup-in-place](../../../spec/std/collections.md#r-std-collections.helper.dedup-in-place).
+    pub fn dedup(&mut self) -> void:
+        size := self.len()
+        if size < 2:
+            return
+        let kept: usize = 1
+        let index: usize = 1
+        while index < size:
+            if self[kept - 1] != self[index]:
+                if kept != index:
+                    self[kept] = self[index]
+                kept += 1
+            index += 1
+        if kept < size:
+            self.truncate(kept)
+
+# The total of the elements, in order (r-std-collections.helper.sum).
+impl[T < Num] List[T]:
+    ## Returns the sum of the elements, left to right.
+    ## See [std-collections.helper.sum](../../../spec/std/collections.md#r-std-collections.helper.sum).
+    pub fn sum(&self) -> T:
+        let total = T::zero()
+        for item in self:
+            total = total + item
+        total
+
+impl[T < Ord] List[T]:
+    ## Returns a matching index, or the insertion position when absent.
+    ## See [std-collections.list.binary-search](../../../spec/std/collections.md#r-std-collections.list.binary-search).
+    pub fn binary_search(&self, value: &T) -> Result[usize, usize]:
+        let left: usize = 0
+        let right = self.len()
+        while left < right:
+            middle := left + (right - left) / 2
+            match self[middle].cmp(value):
+                .Less => left = middle + 1
+                .Greater => right = middle
+                .Equal => return .Ok(middle)
+        .Err(left)
+
+    # A stable sort in ascending order, in place.
+    ## Sorts the list in ascending order by `Ord`, in place. The sort is stable.
+    ## See [std-collections.helper.sort](../../../spec/std/collections.md#r-std-collections.helper.sort).
+    pub fn sort(&mut self) -> void:
+        *self = self.sorted()
+
+    # The first of the smallest elements.
+    ## Returns a copy of the first smallest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.min-max.copy-ties](../../../spec/std/collections.md#r-std-collections.helper.min-max.copy-ties).
+    pub fn min(&self) -> T?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let index: usize = 1
+        while index < self.len():
+            if before(self[index], self[best]):
+                best = index
+            index = index + 1
+        .Some(self[best])
+
+    # The last of the largest elements, as Rust's `Iterator::max` gives.
+    ## Returns a copy of the last largest element by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.min-max.copy-ties](../../../spec/std/collections.md#r-std-collections.helper.min-max.copy-ties).
+    pub fn max(&self) -> T?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let index: usize = 1
+        while index < self.len():
+            if !before(self[index], self[best]):
+                best = index
+            index = index + 1
+        .Some(self[best])
+
+impl[T < Eq & Hash] List[T]:
+    ## Returns the list with each element after its first occurrence dropped, in list order.
+    ## See [std-collections.helper.unique](../../../spec/std/collections.md#r-std-collections.helper.unique).
+    pub fn unique(&self) -> List[T]:
+        let mut seen: Set[T] = Set::new()
+        let mut kept: List[T] = []
+        for item in self:
+            if seen.insert(item):
+                kept.push(item)
+        kept
+
+# Of equal keys, `min_by_key` keeps the first and `max_by_key` the last,
+# as `min` and `max` do (r-std-collections.helper.by-key.copy-ties).
+impl[T] List[T]:
+    ## Returns a copy of the first element with the smallest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.by-key.copy-ties](../../../spec/std/collections.md#r-std-collections.helper.by-key.copy-ties).
+    pub fn min_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, mut key: F) -> T?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let best_key = key(&self[0])
+        let index: usize = 1
+        while index < self.len():
+            item_key := key(&self[index])
+            if before(item_key, best_key):
+                best = index
+                best_key = item_key
+            index = index + 1
+        .Some(self[best])
+
+    ## Returns a copy of the last element with the largest `key` by `Ord` in `.Some`, or `.None` for an empty list.
+    ## See [std-collections.helper.by-key.copy-ties](../../../spec/std/collections.md#r-std-collections.helper.by-key.copy-ties).
+    pub fn max_by_key[K < Ord, F < ?Copy & FnMut(&T) -> K](&self, mut key: F) -> T?:
+        if self.len() == 0:
+            return .None
+        let best: usize = 0
+        let best_key = key(&self[0])
+        let index: usize = 1
+        while index < self.len():
+            item_key := key(&self[index])
+            if !before(item_key, best_key):
+                best = index
+                best_key = item_key
+            index = index + 1
+        .Some(self[best])
+
+# Whether `left` orders before `right`.
+pub fn before[T < Ord](left: T, right: T) -> bool:
+    match left.cmp(&right):
+        .Less => true
+        _ => false
+
+# How many times each element occurs
+# (spec/std/collections.md#counts).
+## How many times each element occurs.
+## See [std-collections.counts.decl](../../../spec/std/collections.md#r-std-collections.counts.decl).
+pub fn counts[T < Eq & Hash](items: List[T]) -> Map[T, usize]:
+    let mut tally: Map[T, usize] = {}
+    for item in items:
+        *tally.get_or_insert(item, 0) += 1
+    tally
+
+## A borrowed range drain that restores the unselected tail on drop.
+## See [std-collections.list.drain](../../../spec/std/collections.md#r-std-collections.list.drain).
+pub struct ListDrain[T, 'a]:
+    items: (&'a mut List[T])?
+    snapshot: List[T]
+    at: usize
+    end: usize
+    tail_start: usize
+
+impl[T, 'a] !Copy for ListDrain[T, 'a]
+
+impl[T, 'a] Iterator[T] for ListDrain[T, 'a]:
+    fn next(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        item := self.snapshot[self.at]
+        self.at += 1
+        .Some(item)
+
+impl[T, 'a] Drop for ListDrain[T, 'a]:
+    fn drop(&mut self) -> void:
+        match self.items:
+            .Some(items) =>
+                let index = self.tail_start
+                items.reserve(self.snapshot.len() - index)
+                while index < self.snapshot.len():
+                    items.push(self.snapshot[index])
+                    index += 1
+                self.items = .None
+            .None => pass
+
+# Primitives. The compiler supplies each body (src/README.md,
+# Compiler/library boundary).
+# Shrinks `items` to its first `len` elements; `len` is at most the current length, which
+# every caller in this file checks.
+@intrinsic("list_truncate")
+fn list_truncate[T](items: &mut List[T], len: usize) -> void:
+    panic("intrinsic")
+
+# Appends `other`'s elements to `items` in one copy, each taking its own
+# counts; `other` may be the list `items` refers to.
+@intrinsic("list_extend")
+fn list_extend[T](items: &mut List[T], other: List[T]) -> void:
+    panic("intrinsic")
+
+@intrinsic("list_reserve")
+pub fn list_reserve[T](items: &mut List[T], additional: usize) -> void:
+    panic("intrinsic")
+
+impl[T, 'a] DoubleEndedIterator[T] for ListDrain[T, 'a]:
+    fn next_back(&mut self) -> T?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        .Some(self.snapshot[self.end])
+
+impl[T, 'a] ExactSizeIterator[T] for ListDrain[T, 'a]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T, 'a] ListDrain[T, 'a]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, T]:
+        DoubleEndedIterator::[T]::rev(self)

@@ -4,55 +4,6 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $run (param $xs i32) (param $t1 i32) (result i32) (local $x i32) (local $t0 i32) (local $t2 i32)
-    ;; 12 |     xs.binary_search(&x).is_ok()
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 16
-    i32.lt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    global.get $stack
-    i32.const 16
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $x
-    local.get $t1
-    i32.store $heap
-    local.get $xs
-    local.get $x
-    call $"impl[T < ?Copy & Ord] UniqList[T].binary_search[u32]"
-    drop
-    local.set $xs
-    block
-      block
-        block
-          local.get $xs
-          br_if 1
-          br 0
-          unreachable
-        end
-        i32.const 1
-        local.set $t2
-        br 1
-      end
-    end
-    local.get $t2
-    local.get $t0
-    i32.const 16
-    i32.add
-    global.set $stack
-  )
   (func $"impl[T < ?Copy & Ord] UniqList[T].binary_search[u32]" (param $t0 i32) (param $t5 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32)
     ;; (no span)
     local.get $t0
@@ -121,5 +72,54 @@
     end
     i32.const 1
     local.get $t2
+  )
+  (func $run (param $xs i32) (param $t1 i32) (result i32) (local $x i32) (local $t0 i32) (local $t2 i32)
+    ;; 12 |     xs.binary_search(&x).is_ok()
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 16
+    i32.lt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    global.get $stack
+    i32.const 16
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $x
+    local.get $t1
+    i32.store $heap
+    local.get $xs
+    local.get $x
+    call $"impl[T < ?Copy & Ord] UniqList[T].binary_search[u32]"
+    drop
+    local.set $xs
+    block
+      block
+        block
+          local.get $xs
+          br_if 1
+          br 0
+          unreachable
+        end
+        i32.const 1
+        local.set $t2
+        br 1
+      end
+    end
+    local.get $t2
+    local.get $t0
+    i32.const 16
+    i32.add
+    global.set $stack
   )
 )

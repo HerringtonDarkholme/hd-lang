@@ -1,6 +1,6 @@
 # @dump: wat
 # @build: v8 release std
-# @helper: std/collections/impl[T < ?Copy] Drop for UniqList[T].drop
+# @helper: std/collections.uniq_list/impl[T < ?Copy] Drop for UniqList[T].drop
 # expected: scalar destruction has no counter loop; string destruction
 # keeps releases; a wrapping +2 induction variable keeps its loop.
 use std.collections.UniqList

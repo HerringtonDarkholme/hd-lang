@@ -111,7 +111,7 @@ fn total(c: bool) -> i64:
 >   %58 = Store [$3] %57 : ()
     let _ = xs.pop()
 >   %65 = Ref mut local frame [$1] : &mut List[i64]
->   %66 = Call std/collections/impl[T] List[T].pop[i64] (%65) : i64?
+>   %66 = Call std/collections.list/impl[T] List[T].pop[i64] (%65) : i64?
 >   %67 = LoanEnd [%65] : ()
 >   %68 = Block - : ()
 >   %70 = Block - : ()

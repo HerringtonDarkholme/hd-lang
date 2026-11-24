@@ -5,6 +5,11 @@
   (import "fixture" "rt:retain_fields" (func $rt:retain_fields (param i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
+  (func $values (param $items i32) (result i32 i32 i32)
+    ;; 13 |     items.values()
+    local.get $items
+    call $"impl[K < Eq & Hash, V] Map[K, V].values[string, List[string]]"
+  )
   (func $"impl[K < Eq & Hash, V] Map[K, V].keys[string, List[string]]" (param $t0 i32) (result i32 i32 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0
@@ -34,9 +39,14 @@
         call $rt:release_ref
       end
     end
-    i32.const 1
+    i32.const 2
     local.get $t1
     i32.const 0
+  )
+  (func $keys (param $items i32) (result i32 i32 i32)
+    ;; 10 |     items.keys()
+    local.get $items
+    call $"impl[K < Eq & Hash, V] Map[K, V].keys[string, List[string]]"
   )
   (func $"impl[K < Eq & Hash, V] Map[K, V].values[string, List[string]]" (param $t0 i32) (result i32 i32 i32) (local $t1 i32)
     ;; (no span)
@@ -67,18 +77,8 @@
         call $rt:release_ref
       end
     end
-    i32.const 1
+    i32.const 2
     local.get $t1
     i32.const 0
-  )
-  (func $values (param $items i32) (result i32 i32 i32)
-    ;; 13 |     items.values()
-    local.get $items
-    call $"impl[K < Eq & Hash, V] Map[K, V].values[string, List[string]]"
-  )
-  (func $keys (param $items i32) (result i32 i32 i32)
-    ;; 10 |     items.keys()
-    local.get $items
-    call $"impl[K < Eq & Hash, V] Map[K, V].keys[string, List[string]]"
   )
 )

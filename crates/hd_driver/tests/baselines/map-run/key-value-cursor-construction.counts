@@ -2,8 +2,8 @@
 # @dump: counts wat
 > no count operations
 # @build: std release
-# @helper: std/collections/impl[K < Eq & Hash, V] Map[K, V].keys
-# @helper: std/collections/impl[K < Eq & Hash, V] Map[K, V].values
+# @helper: std/collections.map/impl[K < Eq & Hash, V] Map[K, V].keys
+# @helper: std/collections.map/impl[K < Eq & Hash, V] Map[K, V].values
 # expected: construction wraps the existing snapshot step, with constant
 # state and no iteration, eager result-list allocation, or append loop.
 use std.collections.{MapKeys, MapValues}

@@ -1,0 +1,254 @@
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
+use std.ops.Index
+use std.ops.IndexMut
+use std.ops.IndexSet
+use std.ops.Range
+use std.rt.bytes.panic_with
+
+# A read-only live view of a list (spec/std/collections.md#spans). Its
+# lifetime keeps the list and its elements live for every read.
+## A read-only live view of a list. It borrows the list, so it cannot outlive it.
+## See [std-collections.span.type](../../../spec/std/collections.md#r-std-collections.span.type).
+pub struct Span[T, 'a]:
+    items: &'a List[T]
+    start: usize
+    end: usize
+
+impl[T, 'a] Span[T, 'a]:
+    ## Returns the number of elements in the span.
+    ## See [std-collections.span.len](../../../spec/std/collections.md#r-std-collections.span.len).
+    pub fn len(&self) -> usize:
+        self.end - self.start
+
+    ## Returns the element at `index` by reference, or `.None` when the index is out of range.
+    ## See [std-collections.span.get](../../../spec/std/collections.md#r-std-collections.span.get).
+    pub fn get(self, index: usize) -> (&'a T)?:
+        if index >= self.len(): .None else: .Some(&self.items[self.start + index])
+
+    ## Returns a cursor that yields the span's elements by reference, in order.
+    ## See [std-collections.span.iter](../../../spec/std/collections.md#r-std-collections.span.iter).
+    pub fn iter(self) -> SpanIter[T, 'a]:
+        SpanIter { span: self, at: 0, end: self.len() }
+
+    ## Returns the part of this span selected by `range`, without copying elements.
+    ## See [std-collections.span.slice](../../../spec/std/collections.md#r-std-collections.span.slice).
+    pub fn slice(self, range: Range[usize]) -> Span[T, 'a]:
+        let stop = range.end
+        if range.inclusive:
+            if range.end >= self.len():
+                panic_with("index-out-of-bounds", "span slice out of bounds")
+            stop = stop + 1
+        if stop > self.len() || range.start > stop:
+            panic_with("index-out-of-bounds", "span slice out of bounds")
+        Span { items: self.items, start: self.start + range.start, end: self.start + stop }
+
+impl[T < Eq, 'a] Span[T, 'a]:
+    # Morris-Pratt (r-std-collections.span.index-of-span) with a skip loop:
+    # while nothing is matched, the scan looks for the needle's first
+    # element alone, four elements a round, as Go's `bytes.Index` and
+    # MoonBit's `find` look for the first byte. Each comparison either
+    # advances the scan or shortens the match, so the search makes at most
+    # 2 * len comparisons, plus 2 * needle.len() for the border table.
+    # `border[j]` is the length of the longest proper prefix of
+    # `needle[0..=j]` that is also its suffix. It is built only when a
+    # match of two or more elements fails, so most searches allocate
+    # nothing. Cost per call: no allocation until such a failure, then one
+    # table of `needle.len()` offsets.
+    ## Returns the offset of the first occurrence of `needle` in the span, or `.None`. An empty needle is at 0.
+    ## See [std-collections.span.index-of-span](../../../spec/std/collections.md#r-std-collections.span.index-of-span).
+    pub fn index_of_span['b](&self, needle: Span[T, 'b]) -> usize?:
+        start := self.start
+        end := self.end
+        count := needle.len()
+        if count == 0:
+            return .Some(0)
+        if count > end - start:
+            return .None
+        items := self.items
+        pattern := needle.items
+        from := needle.start
+        first := pattern[from]
+        # A match starts before `last`.
+        last := end - count + 1
+        let mut border: List[usize] = []
+        let at = start
+        let matched: usize = 0
+        while true:
+            if matched == 0:
+                while at + 4 <= last:
+                    if items[at] == first:
+                        break
+                    if items[at + 1] == first:
+                        at += 1
+                        break
+                    if items[at + 2] == first:
+                        at += 2
+                        break
+                    if items[at + 3] == first:
+                        at += 3
+                        break
+                    at += 4
+                while at < last && items[at] != first:
+                    at += 1
+                if at >= last:
+                    return .None
+                matched = 1
+                at += 1
+            else if at - matched >= last:
+                return .None
+            else if items[at] == pattern[from + matched]:
+                matched += 1
+                at += 1
+            else if matched == 1:
+                matched = 0
+                continue
+            else:
+                if border.is_empty():
+                    border = borders(needle)
+                matched = border[matched - 1]
+                continue
+            if matched == count:
+                return .Some(at - count - start)
+        .None
+
+# The Morris-Pratt border table of `needle`: entry `j` is the length of the
+# longest proper prefix of `needle[0..=j]` that is also its suffix. At most
+# 2 * needle.len() comparisons.
+fn borders[T < Eq, 'b](needle: Span[T, 'b]) -> List[usize]:
+    pattern := needle.items
+    from := needle.start
+    count := needle.len()
+    let mut border = List::[usize].with_capacity(count)
+    border.push(0)
+    let matched: usize = 0
+    let j: usize = 1
+    while j < count:
+        value := pattern[from + j]
+        while matched > 0 && value != pattern[from + matched]:
+            matched = border[matched - 1]
+        if value == pattern[from + matched]:
+            matched += 1
+        border.push(matched)
+        j += 1
+    border
+
+impl[T, 'a] Index[usize] for Span[T, 'a]:
+    type Out = T
+    fn index(&self, key: usize) -> &T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "span index out of bounds")
+        &self.items[self.start + key]
+
+## A mutable live view of a list. It borrows the list exclusively, so it cannot outlive it.
+## See [std-collections.span-mut.type](../../../spec/std/collections.md#r-std-collections.span-mut.type).
+pub struct SpanMut[T, 'a]:
+    items: &'a mut List[T]
+    start: usize
+    end: usize
+
+impl[T, 'a] SpanMut[T, 'a]:
+    ## Returns the number of elements in the span.
+    ## See [std-collections.span-mut.len](../../../spec/std/collections.md#r-std-collections.span-mut.len).
+    pub fn len(&self) -> usize:
+        self.end - self.start
+
+    ## Returns a shared reference to the indexed element, or `.None` outside the span.
+    ## See [std-collections.span-mut.get](../../../spec/std/collections.md#r-std-collections.span-mut.get).
+    pub fn get['b](&'b self, index: usize) -> (&'b T)?:
+        if index >= self.len(): .None else: .Some(&self.items[self.start + index])
+
+    ## Returns a mutable reference to the indexed element, or `.None` outside the span.
+    ## See [std-collections.span-mut.get-mut](../../../spec/std/collections.md#r-std-collections.span-mut.get-mut).
+    pub fn get_mut['b](&'b mut self, index: usize) -> (&'b mut T)?:
+        if index >= self.len(): .None else: .Some(&mut self.items[self.start + index])
+
+    ## Returns the part of this span selected by `range`, without copying elements.
+    ## See [std-collections.span-mut.slice](../../../spec/std/collections.md#r-std-collections.span-mut.slice).
+    pub fn slice_mut['b](&'b mut self, range: Range[usize]) -> SpanMut[T, 'b]:
+        let stop = range.end
+        if range.inclusive:
+            if range.end >= self.len():
+                panic_with("index-out-of-bounds", "mutable span slice out of bounds")
+            stop = stop + 1
+        if stop > self.len() || range.start > stop:
+            panic_with("index-out-of-bounds", "mutable span slice out of bounds")
+        SpanMut { items: &mut *self.items, start: self.start + range.start, end: self.start + stop }
+
+    ## Exchanges the elements at `left` and `right`.
+    ## See [std-collections.span-mut.swap](../../../spec/std/collections.md#r-std-collections.span-mut.swap).
+    pub fn swap(&mut self, left: usize, right: usize) -> void:
+        if left >= self.len() || right >= self.len():
+            panic_with("index-out-of-bounds", "mutable span swap index out of bounds")
+        value := self.items[self.start + left]
+        self.items[self.start + left] = self.items[self.start + right]
+        self.items[self.start + right] = value
+
+    ## Replaces every element in the span with `value`.
+    ## See [std-collections.span-mut.fill](../../../spec/std/collections.md#r-std-collections.span-mut.fill).
+    pub fn fill(&mut self, value: T) -> void:
+        let index: usize = 0
+        while index < self.len():
+            self.items[self.start + index] = value
+            index = index + 1
+
+impl[T, 'a] Index[usize] for SpanMut[T, 'a]:
+    type Out = T
+    fn index(&self, key: usize) -> &T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "mutable span index out of bounds")
+        &self.items[self.start + key]
+
+impl[T, 'a] IndexMut[usize] for SpanMut[T, 'a]:
+    fn index_mut(&mut self, key: usize) -> &mut T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "mutable span index out of bounds")
+        &mut self.items[self.start + key]
+
+impl[T, 'a] IndexSet[usize, T] for SpanMut[T, 'a]:
+    fn index_set(&mut self, key: usize, value: T) -> void:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "mutable span index out of bounds")
+        self.items[self.start + key] = value
+
+## The cursor of a span's `iter`: the span's elements in order, each borrowed from its list.
+## See [std-collections.span.cursor](../../../spec/std/collections.md#r-std-collections.span.cursor).
+pub struct SpanIter[T, 'a]:
+    span: Span[T, 'a]
+    at: usize
+    end: usize
+
+impl[T, 'a] Iterator[&'a T] for SpanIter[T, 'a]:
+    fn next(&mut self) -> (&'a T)?:
+        if self.at >= self.end:
+            return .None
+        let at = self.at
+        self.at = self.at + 1
+        self.span.get(at)
+
+impl[T, 'a] DoubleEndedIterator[(&'a T)] for SpanIter[T, 'a]:
+    fn next_back(&mut self) -> (&'a T)?:
+        if self.at >= self.end:
+            return .None
+        self.end -= 1
+        self.span.get(self.end)
+
+impl[T, 'a] ExactSizeIterator[(&'a T)] for SpanIter[T, 'a]:
+    fn len(&self) -> usize:
+        self.end - self.at
+
+impl[T, 'a] SpanIter[T, 'a]:
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn rev(self) -> Rev[Self, (&'a T)]:
+        DoubleEndedIterator::[_]::rev(self)
+
+impl[T] List[T]:
+    ## Returns a read-only live view of this list. The span cannot outlive the list.
+    ## See [std-collections.span.list](../../../spec/std/collections.md#r-std-collections.span.list).
+    pub fn span['a](&'a self) -> Span[T, 'a]:
+        Span { items: self, start: 0, end: self.len() }
+
+    ## Returns a mutable live view of this list. The span cannot outlive the list.
+    ## See [std-collections.span-mut.list](../../../spec/std/collections.md#r-std-collections.span-mut.list).
+    pub fn span_mut['a](&'a mut self) -> SpanMut[T, 'a]:
+        SpanMut { items: self, start: 0, end: self.len() }

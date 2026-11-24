@@ -203,7 +203,7 @@
                 end
               end
               local.get $provider0.vtable
-              i32.const 2328 ;; &vtable[rt:dyn_slot, rt:drive]
+              i32.const 2336 ;; &vtable[rt:dyn_slot, rt:drive]
               local.set $provider0.vtable
               local.get $t1
               local.get $provider0.vtable

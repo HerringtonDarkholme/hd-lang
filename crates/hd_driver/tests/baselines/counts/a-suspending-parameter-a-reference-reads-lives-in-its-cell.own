@@ -33,7 +33,7 @@ fn sized!(u: UniqList[i32]) -> usize $ Clock:
 >   %26 = Block - : ()
     u.len()
 >   %13 = Ref local [$0] : &UniqList[i32]
->   %14 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i32] (%13) : usize
+>   %14 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[i32] (%13) : usize
 >   %15 = LoanEnd [%13] : ()
 >   %16 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
@@ -68,7 +68,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %1 = Retain %90 Materialize row #0 : ()
 >   %2 = Release %90 FrameDrop row #2 : ()
 >   %3 = Release %90 FrameDrop child #2 : ()
->   %4 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[i32] (0:usize) : UniqList[i32]
+>   %4 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[i32] (0:usize) : UniqList[i32]
 >   %5 = Break L4 %4 : never
 >   %6 = Block - : UniqList[i32]
 >   %7 = Scope %6 [] : UniqList[i32]
@@ -83,7 +83,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %13 = Store [$9] 1:i32 : ()
 >   %14 = Read borrow [$8] : &mut UniqList[i32]
 >   %15 = Coerce %14 [Weaken -] : &UniqList[i32]
->   %16 = Call std/collections/impl[T < ?Copy] UniqList[T].len[i32] (%15) : usize
+>   %16 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[i32] (%15) : usize
 >   %17 = Store [$10] %16 : ()
 >   %18 = Ref local [*$8 .buffer] : &Buffer[i32]
 >   %19 = LoanBegin %18 #0 : ()
@@ -95,7 +95,7 @@ pub fn main!() -> void $ Console + Clock:
 >   %25 = Read borrow [$8] : &mut UniqList[i32]
 >   %26 = Read copy [$10] : usize
 >   %27 = Prim Add [%26 1:usize] : usize
->   %28 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%25, %27) : ()
+>   %28 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[i32] (%25, %27) : ()
 >   %29 = Block - : ()
 >   %30 = If %24 [%29 -] : ()
 >   %31 = Ref local [*$8 .buffer] : &Buffer[i32]

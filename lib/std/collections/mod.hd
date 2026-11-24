@@ -1,0 +1,25 @@
+# std.collections: inherent `List` methods, `UniqList`, `UniqMap`,
+# `ListView`, `Deque`, and `Heap` (spec/std/collections.md).
+# `map` is the std method of spec/std/iter.md#list-and-optional-map.
+# Each `List` method that does not change its receiver returns a new list.
+# `ListView`, `Deque`, `Set`, and `Heap` are struct values copied as a list
+# is; a view refers to its list. `UniqList` and `UniqMap` are non-copyable
+# structs with one owner. They are generic, so a program that names none of
+# them compiles none of their code.
+
+pub use std.collections.uniq_list.{UniqList, UniqListIter, UniqListDrain, UniqListIntoIter}
+pub use std.collections.uniq_map.{
+    UniqMap,
+    UniqMapIter,
+    UniqMapKeys,
+    UniqMapValues,
+    UniqMapDrain,
+    UniqMapIntoIter,
+}
+pub use std.collections.list.{counts, ListDrain}
+pub use std.collections.span.{Span, SpanMut, SpanIter}
+pub use std.collections.map.{MapKeys, MapValues, MapDrain}
+pub use std.collections.view.{ListView, ListViewIter}
+pub use std.collections.deque.{Deque, DequeIter}
+pub use std.collections.set.{Set, SetIter, Union, Intersection}
+pub use std.collections.heap.{Heap}

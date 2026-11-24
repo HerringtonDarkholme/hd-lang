@@ -84,7 +84,7 @@ fn group(m: &mut Map[string, List[string]], k: string, v: string) -> void:
 >   %1 = Read borrow [$0] : &mut Map[string, List[string]]
 >   %2 = Read borrow [$1] : string
 >   %3 = NewList - [] : List[string]
->   %4 = Call std/collections/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, List[string]] (%1, %2, %3) : &mut List[string]
+>   %4 = Call std/collections.map/impl[K < Eq & Hash, V] Map[K, V].get_or_insert[string, List[string]] (%1, %2, %3) : &mut List[string]
 >   %5 = MakeUnique %4 Operation operand 0 #5 : ()
 >   %6 = Retain %4 Operation operand 1 #0 : ()
 >   %7 = Retain %4 Operation operand 2 #0 : ()

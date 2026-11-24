@@ -1,0 +1,112 @@
+use std.format.DebugWriter
+use std.iter.FromIterator
+
+# A binary max-heap (spec/std/collections.md#heap), as Rust's `BinaryHeap`.
+# `items` holds only live elements in heap order: each parent is at least
+# as large as its children at `2 * i + 1` and `2 * i + 2`. Sifting moves
+# elements into a hole instead of swapping at every level.
+## A max-heap: `pop` and `peek` see a largest element.
+## See [std-collections.heap.collect-surface](../../../spec/std/collections.md#r-std-collections.heap.collect-surface).
+pub struct Heap[T < Ord]:
+    items: List[T]
+
+impl[T < Ord] Heap[T]:
+    ## Returns an empty heap.
+    ## See [std-collections.heap.len](../../../spec/std/collections.md#r-std-collections.heap.len).
+    pub fn new() -> Heap[T]:
+        Heap::[T] { items: [] }
+
+    ## Returns the number of elements.
+    ## See [std-collections.heap.len](../../../spec/std/collections.md#r-std-collections.heap.len).
+    pub fn len(&self) -> usize:
+        self.items.len()
+
+    ## True exactly when the heap has no elements.
+    ## See [std-collections.heap.len](../../../spec/std/collections.md#r-std-collections.heap.len).
+    pub fn is_empty(&self) -> bool:
+        self.items.len() == 0
+
+    ## Adds `value` to the heap.
+    ## See [std-collections.heap.push](../../../spec/std/collections.md#r-std-collections.heap.push).
+    pub fn push(&mut self, value: T) -> void:
+        self.items.push(value)
+        last := self.items.len() - 1
+        let child = last
+        while child > 0:
+            parent := (child - 1) / 2
+            match self.items[parent].cmp(&value):
+                .Less => pass
+                _ => break
+            self.items[child] = self.items[parent]
+            child = parent
+        if child != last:
+            self.items[child] = value
+
+    # The largest element, removed (r-std-collections.heap.pop).
+    ## Removes a largest element by `Ord` and returns it in `.Some`. On an empty heap, it returns `.None`.
+    ## See [std-collections.heap.pop](../../../spec/std/collections.md#r-std-collections.heap.pop).
+    pub fn pop(&mut self) -> T?:
+        last := self.items.pop()?
+        if self.items.len() == 0:
+            return .Some(last)
+        top := self.items[0]
+        self.sift_down(0, last)
+        .Some(top)
+
+    # Restore heap order by moving each larger child into the hole, then
+    # placing `value` once at its final position.
+    fn sift_down(&mut self, start: usize, value: T) -> void:
+        size := self.items.len()
+        let parent = start
+        while parent < size / 2:
+            left := 2 * parent + 1
+            let larger = left
+            if left + 1 < size:
+                match self.items[left].cmp(&self.items[left + 1]):
+                    .Less => larger = left + 1
+                    _ => pass
+            match value.cmp(&self.items[larger]):
+                .Less => pass
+                _ => break
+            self.items[parent] = self.items[larger]
+            parent = larger
+        self.items[parent] = value
+
+    ## Returns a copy of a largest element without removing it, or `.None` when the heap is empty.
+    ## See [std-collections.heap.peek-copy](../../../spec/std/collections.md#r-std-collections.heap.peek-copy).
+    pub fn peek(&self) -> T?:
+        self.items.first()
+
+    # A new list of the elements in ascending order; the heap is unchanged
+    # (r-std-collections.heap.sorted).
+    ## Returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
+    ## See [std-collections.heap.sorted](../../../spec/std/collections.md#r-std-collections.heap.sorted).
+    pub fn to_sorted_list(&self) -> List[T]:
+        self.items.sorted_by(fn(left: &T, right: &T) -> Ordering: left.cmp(right))
+
+# Build in linear comparisons by sifting each non-leaf bottom-up.
+# See r-std-collections.heap.collect, r-std-collections.heap.collect.linear.
+impl[T < Ord] FromIterator[T] for Heap[T]:
+    fn from_iter[I < ?Copy & Iterator[T]](items: I) -> Heap[T]:
+        let mut cursor = items
+        let mut heap: Heap[T] = Heap::new()
+        while true:
+            match cursor.next():
+                .Some(item) => heap.items.push(item)
+                .None => break
+        let parent = heap.items.len() / 2
+        while parent > 0:
+            parent = parent - 1
+            value := heap.items[parent]
+            heap.sift_down(parent, value)
+        heap
+
+# The elements in heap order, which the spec leaves unspecified
+# (r-std-format.debug.std-types.sequences).
+# Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
+impl[T < Ord & Debug] Debug for Heap[T]:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        let mut list = out.debug_list()
+        for item in self.items:
+            _ := list.entry(item)
+        list.finish()

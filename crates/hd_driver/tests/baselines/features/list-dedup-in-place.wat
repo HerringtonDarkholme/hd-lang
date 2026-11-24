@@ -4,6 +4,11 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "impl[T] List[T].truncate[i32]" (func $"impl[T] List[T].truncate[i32]" (param i32 i32)))
   (import "fixture" "heap" (memory $heap 1))
+  (func $compact (param $items i32)
+    ;; 7 |     items.dedup()
+    local.get $items
+    call $"impl[T < Eq] List[T].dedup[i32]"
+  )
   (func $"impl[T < Eq] List[T].dedup[i32]" (param $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     block
     ;; (no span)
@@ -131,10 +136,5 @@
         call $"impl[T] List[T].truncate[i32]"
       end
     end
-  )
-  (func $compact (param $items i32)
-    ;; 7 |     items.dedup()
-    local.get $items
-    call $"impl[T < Eq] List[T].dedup[i32]"
   )
 )

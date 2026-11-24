@@ -38,7 +38,7 @@ fn size(value: Resource) -> usize:
 >   local $0 value: Resource [param read captured] place
 >   %0 = Box #0 #0 : ()
 >   %1 = Ref local frame [$0 .owned] : &UniqList[usize]
->   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%1) : usize
+>   %2 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%1) : usize
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Drop [$0] : ()
 >   %5 = Drop [$0] : ()
@@ -65,7 +65,7 @@ fn boxed_size(value: *Resource) -> usize:
 >     uses $0: entry -> %0 lend last
 >   %0 = Ref local [*$0 .owned] : &UniqList[usize]
 >   %1 = LoanBegin %0 #0 : ()
->   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%0) : usize
+>   %2 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%0) : usize
 >   %3 = LoanClose %1 : ()
 >   %4 = LoanEnd [%0] : ()
 >   %5 = Intrinsic ParamOwned [0:i32] : bool
@@ -139,7 +139,7 @@ fn conditional_size(value: Conditional) -> usize:
 >   %10 = Box #2 #0 : ()
 >   %11 = Store [$2] %9 : ()
 >   %12 = Ref local frame [$2 .owned] : &UniqList[usize]
->   %13 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%12) : usize
+>   %13 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%12) : usize
 >   %14 = LoanEnd [%12] : ()
 >   %15 = Break L0 %13 : never
 >   %16 = Block - : usize
@@ -344,7 +344,7 @@ fn plain_controls() -> void:
 >   %4 = ItemRef #0 [..] : fn(Resource) -> usize
 >   %5 = Read copy [$1] : *mut i32
 >   %6 = Retain %5 Value #0 : ()
->   %7 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %7 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %8 = Break L22 %7 : never
 >   %9 = Block - : UniqList[usize]
 >   %10 = Scope %9 [] : UniqList[usize]
@@ -372,7 +372,7 @@ fn plain_controls() -> void:
 >   %29 = Retain %36 Entry local $2 #0 : ()
 >   %30 = Box #2 #1 : ()
 >   %31 = Ref local [$2 .owned] : &UniqList[usize]
->   %32 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%31) : usize
+>   %32 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%31) : usize
 >   %33 = LoanEnd [%31] : ()
 >   %34 = Drop [$2] : ()
 >   %35 = Drop [$2] : ()
@@ -384,7 +384,7 @@ fn plain_controls() -> void:
 >   %40 = Intrinsic Empty [] : ()
 >   %41 = Read copy [$1] : *mut i32
 >   %42 = Retain %41 Value #0 : ()
->   %43 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %43 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %44 = Break L19 %43 : never
 >   %45 = Block - : UniqList[usize]
 >   %46 = Scope %45 [] : UniqList[usize]
@@ -412,7 +412,7 @@ fn plain_controls() -> void:
 >   %65 = ItemRef #135 [..] : fn(Resource) -> Resource
 >   %66 = Read copy [$1] : *mut i32
 >   %67 = Retain %66 Value #0 : ()
->   %68 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %68 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %69 = Break L16 %68 : never
 >   %70 = Block - : UniqList[usize]
 >   %71 = Scope %70 [] : UniqList[usize]
@@ -435,7 +435,7 @@ fn plain_controls() -> void:
 >   %87 = Scope %86 [] : ()
     assert_equal(returned.owned.len(), 0)
 >   %88 = Ref local frame [$4 .owned] : &UniqList[usize]
->   %89 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%88) : usize
+>   %89 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%88) : usize
 >   %90 = LoanEnd [%88] : ()
 >   %91 = Drop [$4] : ()
 >   %92 = Break L14 "" : never
@@ -459,7 +459,7 @@ fn plain_controls() -> void:
 >   %108 = ItemRef #223 [..] : fn(Resource) -> usize
 >   %109 = Read copy [$1] : *mut i32
 >   %110 = Retain %109 Value #0 : ()
->   %111 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %111 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %112 = Break L12 %111 : never
 >   %113 = Block - : UniqList[usize]
 >   %114 = Scope %113 [] : UniqList[usize]
@@ -492,7 +492,7 @@ fn plain_controls() -> void:
 >   %133 = ItemRef #283 [..] : fn(Conditional) -> usize
 >   %134 = Read copy [$1] : *mut i32
 >   %135 = Retain %134 Value #0 : ()
->   %136 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %136 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %137 = Break L9 %136 : never
 >   %138 = Block - : UniqList[usize]
 >   %139 = Scope %138 [] : UniqList[usize]
@@ -540,7 +540,7 @@ fn plain_controls() -> void:
     owner := box(Resource { seen: seen, owned: UniqList::new() })
 >   %178 = Read copy [$1] : *mut i32
 >   %179 = Retain %178 Value #0 : ()
->   %180 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %180 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %181 = Break L4 %180 : never
 >   %182 = Block - : UniqList[usize]
 >   %183 = Scope %182 [] : UniqList[usize]
@@ -583,7 +583,7 @@ fn plain_controls() -> void:
     assert_equal(alias.owned.len(), 0)
 >   %213 = Ref local [*$7 .owned] : &UniqList[usize]
 >   %214 = LoanBegin %213 #0 : ()
->   %215 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%213) : usize
+>   %215 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%213) : usize
 >   %216 = LoanClose %214 : ()
 >   %217 = LoanEnd [%213] : ()
 >   %218 = Drop [$7] : ()
@@ -706,7 +706,7 @@ fn mixed_size(
 >     uses $4: none
 >   %0 = Box #1 #0 : ()
 >   %1 = Ref local frame [$1 .owned] : &UniqList[usize]
->   %2 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%1) : usize
+>   %2 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%1) : usize
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Drop [$1] : ()
 >   %5 = Read borrow [$3] : string
@@ -864,7 +864,7 @@ fn empty_controls() -> void:
 >   %66 = Drop [$4] : ()
 >   %67 = Store [$5] %64 : ()
     let mut owned: UniqList[usize] = UniqList::new()
->   %68 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %68 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %69 = Break L5 %68 : never
 >   %70 = Block - : UniqList[usize]
 >   %71 = Scope %70 [] : UniqList[usize]
@@ -876,7 +876,7 @@ fn empty_controls() -> void:
 >   %77 = Store [$20] 23:usize : ()
 >   %78 = Read borrow [$19] : &mut UniqList[usize]
 >   %79 = Coerce %78 [Weaken -] : &UniqList[usize]
->   %80 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%79) : usize
+>   %80 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%79) : usize
 >   %81 = Store [$21] %80 : ()
 >   %82 = Ref local [*$19 .buffer] : &Buffer[usize]
 >   %83 = LoanBegin %82 #0 : ()
@@ -888,7 +888,7 @@ fn empty_controls() -> void:
 >   %89 = Read borrow [$19] : &mut UniqList[usize]
 >   %90 = Read copy [$21] : usize
 >   %91 = Prim Add [%90 1:usize] : usize
->   %92 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%89, %91) : ()
+>   %92 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%89, %91) : ()
 >   %93 = Block - : ()
 >   %94 = If %88 [%93 -] : ()
 >   %95 = Ref local [*$19 .buffer] : &Buffer[usize]
@@ -1007,7 +1007,7 @@ fn delayed_size!(value: Resource) -> usize $ Clock:
 >   %15 = Release %14 Operation child #2 : ()
     value.owned.len()
 >   %16 = Ref local [$0 .owned] : &UniqList[usize]
->   %17 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%16) : usize
+>   %17 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%16) : usize
 >   %18 = LoanEnd [%16] : ()
 >   %19 = Drop [$0] : ()
 >   exit sub 0 drops [$0]
@@ -1077,11 +1077,11 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %21 = Release %20 Operation child #2 : ()
             value.owned.len()
 >   %22 = Ref local [$3 .owned] : &UniqList[usize]
->   %23 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%22) : usize
+>   %23 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%22) : usize
 >   %24 = LoanEnd [%22] : ()
 >   %25 = Drop [$3] : ()
     let mut owned: UniqList[usize] = UniqList::new()
->   %33 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
+>   %33 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[usize] (0:usize) : UniqList[usize]
 >   %34 = Break L1 %33 : never
 >   %35 = Block - : UniqList[usize]
 >   %36 = Scope %35 [] : UniqList[usize]
@@ -1093,7 +1093,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %42 = Store [$6] 23:usize : ()
 >   %43 = Read borrow [$5] : &mut UniqList[usize]
 >   %44 = Coerce %43 [Weaken -] : &UniqList[usize]
->   %45 = Call std/collections/impl[T < ?Copy] UniqList[T].len[usize] (%44) : usize
+>   %45 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[usize] (%44) : usize
 >   %46 = Store [$7] %45 : ()
 >   %47 = Ref local [*$5 .buffer] : &Buffer[usize]
 >   %48 = LoanBegin %47 #0 : ()
@@ -1105,7 +1105,7 @@ fn prepared_native(literal: bool, seen: *mut i32) -> Suspend[usize] $ Clock:
 >   %54 = Read borrow [$5] : &mut UniqList[usize]
 >   %55 = Read copy [$7] : usize
 >   %56 = Prim Add [%55 1:usize] : usize
->   %57 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%54, %56) : ()
+>   %57 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[usize] (%54, %56) : ()
 >   %58 = Block - : ()
 >   %59 = If %53 [%58 -] : ()
 >   %60 = Ref local [*$5 .buffer] : &Buffer[usize]

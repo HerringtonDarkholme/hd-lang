@@ -6,14 +6,14 @@ app/main/reset
     uses $1: %14 -> %20 consume last
   local $2 items: UniqList[string] [read assigned captured captured-assigned] place
   %14 = Store [$1] "a" : ()
-  %15 = Call std/collections/impl[T < ?Copy] UniqList[T].new[string] () : UniqList[string]
+  %15 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].new[string] () : UniqList[string]
   %16 = Box #2 #1 : ()
   %17 = Store [$2] %15 : ()
   %18 = FlagSet [$2] #4 : ()
   %19 = Ref mut local [$2] : &mut UniqList[string]
   %20 = Read move [$1] : string
   %21 = Intrinsic Empty [] : ()
-  %22 = Call std/collections/impl[T < ?Copy] UniqList[T].push[string] (%19, %20) : ()
+  %22 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].push[string] (%19, %20) : ()
   %23 = LoanEnd [%19] : ()
   %24 = FlagClear [$2] #4 : ()
   %25 = Read move [$2] : UniqList[string]

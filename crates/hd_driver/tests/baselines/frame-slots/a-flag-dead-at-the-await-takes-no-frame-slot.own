@@ -52,7 +52,7 @@ std/rt_tests.stage_case/wait
   %21 = FlagSet [$10] #13 : ()
   %22 = Read borrow [$9] : *mut UniqList[Item]
   %23 = Coerce %22 [Weaken -] : &UniqList[Item]
-  %24 = Call std/collections/impl[T < ?Copy] UniqList[T].len[Item] (%23) : usize
+  %24 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[Item] (%23) : usize
   %25 = Store [$11] %24 : ()
   %26 = Ref local [*$9 .buffer] : &Buffer[Item]
   %27 = LoanBegin %26 #0 : ()
@@ -64,7 +64,7 @@ std/rt_tests.stage_case/wait
   %33 = Read borrow [$9] : *mut UniqList[Item]
   %34 = Read copy [$11] : usize
   %35 = Prim Add [%34 1:usize] : usize
-  %36 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[Item] (%33, %35) : ()
+  %36 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[Item] (%33, %35) : ()
   %37 = Block - : ()
   %38 = If %32 [%37 -] : ()
   %39 = Ref local [*$9 .buffer] : &Buffer[Item]
@@ -114,7 +114,7 @@ std/rt_tests.stage_case/wait
   %83 = FlagSet [$6] #15 : ()
   %84 = Read borrow [$5] : *mut UniqList[Item]
   %85 = Coerce %84 [Weaken -] : &UniqList[Item]
-  %86 = Call std/collections/impl[T < ?Copy] UniqList[T].len[Item] (%85) : usize
+  %86 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[Item] (%85) : usize
   %87 = Store [$7] %86 : ()
   %88 = Ref local [*$5 .buffer] : &Buffer[Item]
   %89 = LoanBegin %88 #0 : ()
@@ -126,7 +126,7 @@ std/rt_tests.stage_case/wait
   %95 = Read borrow [$5] : *mut UniqList[Item]
   %96 = Read copy [$7] : usize
   %97 = Prim Add [%96 1:usize] : usize
-  %98 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[Item] (%95, %97) : ()
+  %98 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[Item] (%95, %97) : ()
   %99 = Block - : ()
   %100 = If %94 [%99 -] : ()
   %101 = Ref local [*$5 .buffer] : &Buffer[Item]

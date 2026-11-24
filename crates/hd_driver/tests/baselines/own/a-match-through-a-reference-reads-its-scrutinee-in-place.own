@@ -37,7 +37,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %3 = Store [$3] %2 : ()
 >   %4 = Read borrow [$3] : &mut UniqList[string]
 >   %5 = Coerce %4 [Weaken -] : &UniqList[string]
->   %6 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%5) : usize
+>   %6 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[string] (%5) : usize
 >   %7 = Store [$5] %6 : ()
 >   %8 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %9 = LoanBegin %8 #0 : ()
@@ -49,7 +49,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
 >   %15 = Read borrow [$3] : &mut UniqList[string]
 >   %16 = Read copy [$5] : usize
 >   %17 = Prim Add [%16 1:usize] : usize
->   %18 = Call std/collections/impl[T < ?Copy] UniqList[T].reserve_for[string] (%15, %17) : ()
+>   %18 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].reserve_for[string] (%15, %17) : ()
 >   %19 = Block - : ()
 >   %20 = If %14 [%19 -] : ()
 >   %21 = Ref local [*$3 .buffer] : &Buffer[string]
@@ -72,7 +72,7 @@ fn append(value: &mut Option[UniqList[string]], item: string) -> usize:
             items.len()
 >   %37 = Read borrow [$2] : &mut UniqList[string]
 >   %38 = Coerce %37 [Weaken -] : &UniqList[string]
->   %39 = Call std/collections/impl[T < ?Copy] UniqList[T].len[string] (%38) : usize
+>   %39 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].len[string] (%38) : usize
 >   %40 = LoanClose %47 : ()
         .None => 0
 >   %44 = Block 0:usize : usize

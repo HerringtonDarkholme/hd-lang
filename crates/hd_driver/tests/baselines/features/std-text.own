@@ -22,7 +22,7 @@ fn build(parts: &List[string]) -> string:
 >   local $6 p: string [read assigned] value
 >     uses $6: %41 -> %29 lend last
 >   local $7 $ref: StringBuilder [read assigned captured captured-assigned] place
->   %0 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[u8] (0:usize) : UniqList[u8]
+>   %0 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[u8] (0:usize) : UniqList[u8]
 >   %1 = Break L1 %0 : never
 >   %2 = Block - : UniqList[u8]
 >   %3 = Scope %2 [] : UniqList[u8]

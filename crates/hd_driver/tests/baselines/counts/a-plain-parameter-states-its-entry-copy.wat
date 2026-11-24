@@ -15,7 +15,7 @@
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[i32]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i32]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i32]" (param i32 i32)))
-  (import "fixture" "release_value[std.collections.UniqList[i32]]" (func $"release_value[std.collections.UniqList[i32]]" (param i32)))
+  (import "fixture" "release_value[std.collections.uniq_list.UniqList[i32]]" (func $"release_value[std.collections.uniq_list.UniqList[i32]]" (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -505,7 +505,7 @@
     local.get $items
     if
       local.get $items
-      call $"release_value[std.collections.UniqList[i32]]"
+      call $"release_value[std.collections.uniq_list.UniqList[i32]]"
     end
     local.get $t1
     local.get $provider0
