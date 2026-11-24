@@ -1,0 +1,7 @@
+# test: a private enum that a public struct's field reaches is private import through a module
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    shade := shapes.Shade.Light # diagnostic: private-import
+    pass

@@ -26,7 +26,7 @@ impl<'a> Ck<'a, '_> {
     /// REPL input is any module of its session ([`BodyCx::session`]).
     ///
     /// [`BodyCx::session`]: crate::body::BodyCx::session
-    fn declared_here(&self, d: DefId) -> bool {
+    pub(crate) fn declared_here(&self, d: DefId) -> bool {
         let names = &self.cx.names;
         let session = self.cx.session;
         names.declared_in(d, self.module)
