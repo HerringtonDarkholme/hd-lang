@@ -1,0 +1,23 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A generic implementation's opaque result captures concrete Self and T.
+use std.annotation.inline
+
+trait Hidden:
+    fn hidden(&self) -> impl Display
+
+struct Container[T < Display]:
+    value: T
+
+impl[T < Display] Hidden for Container[T]:
+    @inline(.Never)
+    fn hidden(&self) -> impl Display:
+        self.value
+
+@inline(.Never)
+fn show[S < Hidden](source: S) -> string:
+    source.hidden().to_string()
+
+pub fn main() -> void $ Console:
+    println(show(Container { value: "text" }))
+    println(show(Container { value: +7 }))
