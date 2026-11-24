@@ -1,0 +1,5 @@
+# test: mutable result views cannot outlive the result owner
+# Spec std Result: std-result.as-mut.borrow.
+fn escaped['a]() -> Result[&'a mut i32, &'a mut i32]:
+    let mut value: Result[i32, i32] = .Ok(7)
+    value.as_mut() # diagnostic: local-reference-escapes

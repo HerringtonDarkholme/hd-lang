@@ -5,7 +5,7 @@ Status: standard library specification draft.
 This chapter defines the part of `std.result` that `lib/std` writes in
 ordinary hd over the language tier. That is the inherent methods
 `and_then`, `map_err`, `unwrap_or`, `unwrap_or_else`, `or_else`, `map`,
-`ok`, `err`, `is_ok`, `is_err`, `as_ref`, `unwrap`, and `expect` of `Result[T, E]`.
+`ok`, `err`, `is_ok`, `is_err`, `as_ref`, `as_mut`, `unwrap`, and `expect` of `Result[T, E]`.
 
 The language tier keeps what the compiler knows by name
 ([Result Types](../lang/04-type-system.md#result-types)):
@@ -206,3 +206,23 @@ fn positive(value: &Result[i32, string]) -> bool:
 2. r[std-result.as-ref.borrow] The returned references borrow the receiver, following [Dependent Results](../lang/13-values-and-references.md#dependent-results).
 
 > **Why.** The method follows Rust's `Result::as_ref` and the existing optional borrowing method, [Option `as_ref`](option.md#borrowed-payloads).
+
+## Writable Payloads
+
+`as_mut` lends either payload for writing without moving the result.
+
+```text
+fn increment(value: &mut Result[i32, i32]):
+    match value.as_mut():
+        .Ok(number) => *number += 1
+        .Err(error) => *error += 1
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-result.as-mut] `as_mut` | `fn as_mut(&mut self) -> Result[&mut T, &mut E]` | `.Ok` of a writable reference to the success payload, or `.Err` of a writable reference to the error payload |
+
+1. r[std-result.as-mut.in-place] `as_mut` leaves the original result in place, for payloads that are copied or not.
+2. r[std-result.as-mut.borrow] The returned writable references borrow the receiver, following [Dependent Results](../lang/13-values-and-references.md#dependent-results).
+
+> **Why.** The method follows Rust's `Result::as_mut` and the existing optional borrowing method, [Option `as_mut`](option.md#borrowed-payloads).
