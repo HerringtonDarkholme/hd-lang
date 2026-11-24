@@ -242,7 +242,9 @@ fn header_kind(kind: TokenKind) -> HeaderKind {
 
 /// The byte range of each `use` line, from its `use` to its last token: a
 /// line whose first token, past a leading `pub`, is the word `use` followed
-/// by a path's first segment. One pass over the lines.
+/// by a path's first segment. A group that the line opens and does not
+/// close continues to its `}` on a later line. One pass over the lines,
+/// and one over the tokens of each continued group.
 fn use_ranges(source: &str, tokens: &TokenBuf) -> Vec<(u32, u32)> {
     let mut result = Vec::new();
     let line_end = tokens.line_token_ends();
@@ -262,7 +264,16 @@ fn use_ranges(source: &str, tokens: &TokenBuf) -> Vec<(u32, u32)> {
                 TokenKind::Ident | TokenKind::KwSelfValue
             );
         if is_use {
-            result.push((tokens.start[at], tokens.end[next - 1]));
+            let open = (at..next).any(|i| tokens.kind[i] == TokenKind::LBrace);
+            let closed = (at..next).any(|i| tokens.kind[i] == TokenKind::RBrace);
+            let last = if open && !closed {
+                (next..tokens.kind.len())
+                    .find(|&i| tokens.kind[i] == TokenKind::RBrace)
+                    .unwrap_or(tokens.kind.len() - 1)
+            } else {
+                next - 1
+            };
+            result.push((tokens.start[at], tokens.end[last]));
         }
     }
     result
@@ -720,12 +731,13 @@ mod tests {
     }
 
     /// Only `use` lines are uses (#1881), placed by the `tests:` blocks:
-    /// each form of line that starts with a name, and a `use` inside a
-    /// multiline string, in LF and CRLF text.
+    /// each form of line that starts with a name, a group continued to
+    /// its `}` on later lines, and a `use` inside a multiline string, in
+    /// LF and CRLF text.
     #[test]
     fn uses_are_the_use_lines_placed_by_the_tests_blocks() {
         let lf = include_str!("skim/uses.hd");
-        for text in [lf.to_owned(), lf.replace('\n', "\r\n")] {
+        for (text, nl) in [(lf.to_owned(), "\n"), (lf.replace('\n', "\r\n"), "\r\n")] {
             let sk = skim(text.as_bytes());
             let lines = |ranges: &[(u32, u32)]| -> Vec<String> {
                 ranges
@@ -738,6 +750,7 @@ mod tests {
                 [
                     "use std.a",
                     "use std.b.{c}",
+                    &format!("use std.g.{{{nl}    h,{nl}    i,{nl}}}"),
                     "use self.d as e",
                     "use std.after"
                 ]
