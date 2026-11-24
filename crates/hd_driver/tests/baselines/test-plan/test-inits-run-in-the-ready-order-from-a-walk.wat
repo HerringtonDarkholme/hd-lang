@@ -62,7 +62,7 @@
     i32.const 4
     i32.store $heap offset=20
     local.get $t0
-    i32.const 315 ;; &"identity order among ready cycles"
+    i32.const 365 ;; &"identity order among ready cycles"
     i32.const 33
     call $"check_equal[List[string]]"
     ;; 19 |         assert_equal("${b()}${c()}", "bca", reason="every module is in use")
@@ -139,9 +139,9 @@
     end
     local.get $t4
     local.get $t3
-    i32.const 348 ;; &"bca"
+    i32.const 398 ;; &"bca"
     i32.const 3
-    i32.const 351 ;; &"every module is in use"
+    i32.const 401 ;; &"every module is in use"
     i32.const 22
     call $"check_equal[string]"
   )
