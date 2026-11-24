@@ -1,0 +1,37 @@
+# @dump: functions stdout
+# @build: dev | checked | release | release checked
+# Both generic callback signatures and destination keys keep reference permissions.
+use std.annotation.inline
+
+trait Supply:
+    fn get(&self) -> usize
+
+trait NamedSupply < Supply
+
+trait TypedSupply[T < ?Copy] < Supply
+
+@inline(.Never)
+fn discard[T < ?Copy](value: T) -> usize $ Supply:
+    $.use(Supply).get()
+
+@inline(.Never)
+fn widen[T < ?Copy](value: T, work: fn(T) -> usize $ Supply) -> (fn(T) -> usize $ NamedSupply):
+    work
+
+fn read() -> usize $ Supply:
+    $.use(Supply).get()
+
+@inline(.Never)
+fn adapt_keys[T < ?Copy](
+    value: T,
+    work: fn() -> usize $ Supply,
+) -> (fn() -> usize $ TypedSupply[T]):
+    work
+
+pub fn main() -> void $ Console:
+    let mut value = +7
+    _ := widen(&mut value, discard)
+    _ := widen(&value, discard)
+    _ := adapt_keys(&mut value, read)
+    _ := adapt_keys(&value, read)
+    println("adapted")
