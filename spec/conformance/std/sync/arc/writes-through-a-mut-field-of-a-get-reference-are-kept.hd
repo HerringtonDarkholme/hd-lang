@@ -1,0 +1,32 @@
+# test: writes through a *mut field of a value get() lends are kept, by a direct push, a method, a closure and a whole store
+# Spec std/sync: std-sync.arc.get.
+# expect-stdout: direct 1
+# expect-stdout: method 2
+# expect-stdout: closure 3
+# expect-stdout: stored 2 then 3
+use std.sync.Arc
+
+struct Node:
+    edges: *mut List[i32]
+
+impl Node:
+    fn add(&self, v: i32) -> void:
+        self.edges.push(v)
+
+fn each(values: List[i32], f: fn(i32) -> void) -> void:
+    for v in values:
+        f(v)
+
+pub fn main() -> void $ Console:
+    a := Arc::new(Node { edges: box([]) })
+    x := a.get()
+    x.edges.push(1)
+    println("direct ${x.edges.len()}")
+    x.add(2)
+    println("method ${x.edges.len()}")
+    each([3], fn(v: i32) -> void: x.edges.push(v))
+    println("closure ${x.edges.len()}")
+    *x.edges = [7, 8]
+    first := x.edges.len()
+    x.add(9)
+    println("stored ${first} then ${x.edges.len()}")
