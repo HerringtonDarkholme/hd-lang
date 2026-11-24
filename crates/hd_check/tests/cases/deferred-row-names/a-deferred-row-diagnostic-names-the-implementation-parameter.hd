@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# expected: the deferred recursive call names the implementation's Jobs row parameter
+pub struct Task[$ Work]:
+    callback: fn() -> void $ Work
+
+impl[$ Jobs] Task[$ Jobs]:
+    fn walk(self, n: i32) -> void:
+        if n == 0:
+            return (self.callback)()
+        self.step(n - 1)
+
+    fn step(self, n: i32) $():
+        self.walk(n)
+
+    fn walk_with_row(self, n: i32) -> void:
+        if n == 0:
+            return (self.callback)()
+        self.step_with_row(n - 1)
+
+    fn step_with_row(self, n: i32) $ Jobs:
+        self.walk_with_row(n)
