@@ -18,7 +18,7 @@
 //                     (normal and build edges, transitively), plus the direct
 //                     dev-dependents of a touched crate. Crates outside the default
 //                     members (hd_run_wasmtime) are CI's.
-//   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`; hd_driver's
+//   tests of a crate  hd_driver, hd_check, hd_wasm: unit tests and `--test stages`; hd_driver's
 //                     `--features analysis --test analysis` when an analysis.rs changes; hd_check's
 //                     also run when any compiler crate is selected, since its
 //                     stage baselines dump later stages through hd_testkit, and
@@ -63,6 +63,7 @@ type Change = { status: string; path: string };
 type Workspace = {
   byDir: Map<string, string>;
   defaults: Set<string>;
+  unit: Map<string, string[]>;
   normalRev: Map<string, Set<string>>;
   devRev: Map<string, Set<string>>;
 };
@@ -76,6 +77,7 @@ type Context = {
   cargoRoot: boolean;
   named: string;
   stagesDone: boolean;
+  unit: Map<string, string[]>;
 };
 type Rule = (ctx: Context) => Step[];
 
@@ -120,6 +122,7 @@ function readWorkspace(root: string): Workspace {
       name: string;
       manifest_path: string;
       dependencies: { name: string; kind: string | null }[];
+      targets: { name: string; kind: string[]; test: boolean }[];
     }[];
     workspace_default_members: string[];
   };
@@ -128,8 +131,14 @@ function readWorkspace(root: string): Workspace {
   const idName = new Map<string, string>();
   const normalRev = new Map<string, Set<string>>();
   const devRev = new Map<string, Set<string>>();
+  // A crate whose unit tests moved to `tests/unit` (`[lib] test = false`) runs
+  // that target; `--lib` would build the library in test mode for no test.
+  const unit = new Map<string, string[]>();
   for (const pkg of meta.packages) {
     byDir.set(relative(root, dirname(pkg.manifest_path)), pkg.name);
+    const lib = pkg.targets.find((target) => target.kind.includes("lib"));
+    const moved = lib?.test === false && pkg.targets.some((target) => target.name === "unit");
+    unit.set(pkg.name, moved ? ["--test", "unit"] : ["--lib"]);
     idName.set(pkg.id, pkg.name);
     for (const dep of pkg.dependencies.filter((entry) => names.has(entry.name))) {
       const table = dep.kind === "dev" ? devRev : normalRev;
@@ -137,7 +146,7 @@ function readWorkspace(root: string): Workspace {
     }
   }
   const defaults = new Set(meta.workspace_default_members.map((id) => idName.get(id)!));
-  return { byDir, defaults, normalRev, devRev };
+  return { byDir, defaults, unit, normalRev, devRev };
 }
 
 function selectCrates(ws: Workspace, touched: Set<string>, extra: string[]): Set<string> {
@@ -297,7 +306,8 @@ const stageRule: Rule = (ctx) => {
   const steps: Step[] = [];
   const stages = (crate: string, name: string, why = `${crate} selected`) => {
     if (!ctx.stagesDone) {
-      steps.push(step(name, why, cargoTest("-p", crate, "--lib", "--test", "stages")));
+      const unit = ctx.unit.get(crate) ?? ["--lib"];
+      steps.push(step(name, why, cargoTest("-p", crate, ...unit, "--test", "stages")));
     }
   };
   // hd_check's stage cases dump own, counts and wat through hd_testkit, a
@@ -500,6 +510,7 @@ function context(root: string, changes: Change[], named: string, ws: Workspace):
     cargoRoot,
     named,
     stagesDone: Boolean(process.env.GATE_STAGES_DONE),
+    unit: ws.unit,
   };
 }
 

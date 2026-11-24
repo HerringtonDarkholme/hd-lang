@@ -749,7 +749,7 @@ fn one_id(ids: impl Iterator<Item = u32>) -> Elided {
 
 /// Which slot of a declared type a slot of its instance is ([`line_up`]).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum Key {
+pub enum Key {
     /// The declared type's slot `k`.
     Decl(usize),
     /// Slot `s` of what type parameter `p` stands for, a function type's
@@ -767,7 +767,7 @@ enum Key {
 
 /// Lines the instantiated type `t` up with the declared `d`: the [`Key`]
 /// of each slot of `t`, in [`Layout`] order. `None` where the shapes differ.
-fn line_up(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
+pub fn line_up(ls: &Layouts<'_>, d: Ty, t: Ty) -> Option<Vec<Key>> {
     line_up_in(ls, d, t, false)
 }
 
@@ -786,7 +786,7 @@ fn line_up_in(ls: &Layouts<'_>, d: Ty, t: Ty, call: bool) -> Option<Vec<Key>> {
     line_up_with(ls, d, t, call, || {})
 }
 
-fn line_up_with(
+pub fn line_up_with(
     ls: &Layouts<'_>,
     d: Ty,
     t: Ty,
@@ -1253,7 +1253,7 @@ struct FieldMap {
 
 /// The slot layouts of the types one check meets, and the slot maps of
 /// the fields it projects, each made once.
-pub(crate) struct Layouts<'a> {
+pub struct Layouts<'a> {
     pool: Types<'a>,
     /// `Suspend`'s definition.
     suspend: DefId,
@@ -1269,7 +1269,7 @@ pub(crate) struct Layouts<'a> {
 }
 
 impl<'a> Layouts<'a> {
-    pub(crate) fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
+    pub fn new(pool: Types<'a>, suspend: DefId, lifetimed: Lifetimed<'a>) -> Self {
         Layouts {
             pool,
             suspend,
@@ -1634,7 +1634,7 @@ const CALLER_PLACE_MSG: &str = "a local reference never escapes to a place the c
 /// suspension holds: every argument but a counted reference the call
 /// lends (`ref.dep.suspension`).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum Var {
+pub enum Var {
     Life(u32),
     Param(ParamRef, usize),
     Held,
@@ -1653,13 +1653,13 @@ type ArgSlot = (Var, Option<Category>);
 
 /// Equivalence classes of the existing call-slot variables, indexed once.
 /// Polonius-style origin sets remain distinct unless the checker links them.
-struct CallOrigins {
+pub(crate) struct CallOrigins {
     classes: HashMap<Var, u32>,
-    returned: HashSet<Var>,
+    pub(crate) returned: HashSet<Var>,
 }
 
 /// O(input/output slots + links), with an iterative component worklist.
-fn call_origins(
+pub(crate) fn call_origins(
     inputs: &[Var],
     outs: &[Vec<Var>],
     bare: &[Var],
@@ -1722,280 +1722,6 @@ fn call_origins(
         }
     }
     CallOrigins { classes, returned }
-}
-
-#[cfg(test)]
-mod returned_variable_tests {
-    use super::*;
-
-    #[test]
-    fn linked_origins_are_indexed_in_linear_width_and_depth() {
-        for depth in [1u32, 20] {
-            let mut small = 0;
-            for width in [1_000u32, 10_000] {
-                let mut links = Vec::new();
-                for branch in 0..width {
-                    let mut previous = Var::Life(0);
-                    for level in 0..depth {
-                        let next = Var::Life(1 + branch * depth + level);
-                        links.push((previous, next));
-                        previous = next;
-                    }
-                }
-                let mut work = 0;
-                let result =
-                    call_origins(&[], &[vec![Var::Life(0)]], &[], &links, || work += 1).returned;
-                assert_eq!(result.len(), (width * depth + 1) as usize);
-                assert!(!result.contains(&Var::Held));
-                if width == 1_000 {
-                    small = work;
-                } else {
-                    assert!(work <= 10 * small);
-                }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod line_up_tests {
-    use super::*;
-    use hd_types::{InternPool, ParamRef};
-
-    fn tuple(pool: &InternPool, elems: &[Ty]) -> Ty {
-        pool.product(pool.list(elems), None)
-    }
-
-    #[test]
-    fn doubling_pairs_are_checked_once() {
-        let pool = InternPool::new();
-        let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-        for depth in [13, 26] {
-            let mut pair = [Ty::I32, Ty::BOOL];
-            for _ in 0..depth {
-                pair = pair.map(|t| tuple(&pool, &[t, t]));
-            }
-            for call in [false, true] {
-                let mut work = 0;
-                let keys = line_up_with(&ls, pair[0], pair[1], call, || work += 1);
-                assert_eq!(keys, Some(Vec::new()));
-                assert_eq!(work, depth + 1);
-            }
-            let mismatch = tuple(&pool, &[pair[1], pair[1], Ty::I32]);
-            assert!(line_up(&ls, pair[0], mismatch).is_none());
-        }
-    }
-
-    #[test]
-    fn repeated_pairs_rebase_declared_slots_but_keep_parameter_keys() {
-        let pool = InternPool::new();
-        let p = ParamRef {
-            owner: DefId::from_raw(1),
-            index: 0,
-        };
-        let param = pool.intern_ty(&TyData::Param(p));
-        let r = pool.intern_ty(&TyData::Ref {
-            inner: Ty::I32,
-            mutable: false,
-            counted: false,
-        });
-        let d = tuple(&pool, &[r, param]);
-        let t = tuple(&pool, &[r, r]);
-        let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-        assert_eq!(
-            line_up(&ls, tuple(&pool, &[d, d]), tuple(&pool, &[t, t])),
-            Some(vec![
-                Key::Decl(0),
-                Key::Param(p, 0),
-                Key::Decl(1),
-                Key::Param(p, 0)
-            ])
-        );
-        let wide = tuple(&pool, &vec![r; 1_000]);
-        assert_eq!(
-            line_up(&ls, wide, wide),
-            Some((0..1_000).map(Key::Decl).collect())
-        );
-    }
-
-    #[test]
-    fn a_cached_pair_still_obeys_the_type_depth_limit() {
-        let pool = InternPool::new();
-        let shallow = tuple(&pool, &[Ty::I32]);
-        let mut deep = shallow;
-        for _ in 0..hd_base::limits::TYPE_DEPTH {
-            deep = tuple(&pool, &[deep]);
-        }
-        let root = tuple(&pool, &[shallow, deep]);
-        let lifetimed = |_: DefId| false;
-        let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-        assert!(line_up(&ls, root, root).is_none());
-    }
-
-    /// [`line_up`] keys a type on its own stack: a declared type 1,000
-    /// levels deep, a local reference beside the next level at each, with
-    /// a type parameter at the bottom, lines up with its instance on a
-    /// 96 KiB thread.
-    #[test]
-    fn a_line_up_at_the_type_depth_fits_a_small_stack() {
-        std::thread::Builder::new()
-            // cost: one 96 KiB thread for this test.
-            .stack_size(96 << 10)
-            .spawn(|| {
-                let pool = InternPool::new();
-                let r = pool.intern_ty(&TyData::Ref {
-                    inner: Ty::I32,
-                    mutable: false,
-                    counted: false,
-                });
-                let p = ParamRef {
-                    owner: DefId::from_raw(1),
-                    index: 0,
-                };
-                let mut deep = (pool.intern_ty(&TyData::Param(p)), r);
-                for _ in 1..hd_base::limits::TYPE_DEPTH {
-                    let pair = |x| pool.product(pool.list(&[r, x]), None);
-                    deep = (pair(deep.0), pair(deep.1));
-                }
-                let lifetimed = |_: DefId| false;
-                let ls = Layouts::new(pool.types(), DefId::from_raw(2), &lifetimed);
-                let keys = line_up(&ls, deep.0, deep.1).expect("the two line up");
-                let n = hd_base::limits::TYPE_DEPTH as usize;
-                assert_eq!(keys.len(), n);
-                assert_eq!(keys[n - 2], Key::Decl(n - 2));
-                assert_eq!(keys[n - 1], Key::Param(p, 0));
-            })
-            .expect("thread")
-            .join()
-            .expect("no stack overflow");
-    }
-}
-
-#[cfg(test)]
-mod projection_lifetime_tests {
-    use super::*;
-    use hd_resolve::{Generic, Item, TraitData};
-    use hd_types::{ParamRef, TyList};
-
-    #[test]
-    fn a_thousand_projection_lifetimes_share_bound_queries_on_a_small_stack() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one 96 KiB thread for this generated projection-chain test.
-            .spawn(|| {
-                for lifetime in [0, 7] {
-                    crate::body::with_checker_items(
-                        |names| {
-                            let p = names.pool.types();
-                            let shelf = names.item("app.main", "Shelf");
-                            let out = names.member(shelf, hd_intern::PathKind::Member, "Out");
-                            let holder = names.item("app.main", "Holder");
-                            let bound = p.intern_ty(&TyData::TraitValue {
-                                def: shelf,
-                                args: p.list(&[hd_resolve::lifetime_arg(p)]),
-                                bindings: Vec::new(),
-                            });
-                            let mut life = Generic::plain(names.syms.intern("a"));
-                            life.lifetime = true;
-                            let mut tr = Item::new(
-                                shelf,
-                                names.syms.intern("Shelf"),
-                                true,
-                                ItemData::Trait(TraitData::default()),
-                            );
-                            tr.generics.push(life);
-                            let associated = Item::new(
-                                out,
-                                names.syms.intern("Out"),
-                                true,
-                                ItemData::AssocType {
-                                    owner: shelf,
-                                    bounds: vec![bound],
-                                    bound_lifetimes: vec![vec![1]],
-                                },
-                            );
-                            let mut t = Generic::plain(names.syms.intern("T"));
-                            t.bounds.push(bound);
-                            t.bound_lifetimes.push(vec![lifetime]);
-                            let mut root = Item::new(
-                                holder,
-                                names.syms.intern("Holder"),
-                                true,
-                                ItemData::Builtin,
-                            );
-                            root.generics.push(t);
-                            vec![tr, associated, root]
-                        },
-                        |ck| {
-                            let p = ck.pool();
-                            let shelf = ck.cx.names.item("app.main", "Shelf");
-                            let assoc =
-                                ck.cx
-                                    .names
-                                    .member(shelf, hd_intern::PathKind::Member, "Out");
-                            let owner = ck.cx.names.item("app.main", "Holder");
-                            let other = ck.cx.names.item("app.main", "Other");
-                            let lifetimed = |_: DefId| false;
-                            let ls = Layouts::new(p, ck.cx.names.known.suspend, &lifetimed);
-                            for depth in [100, 1000] {
-                                let mut root =
-                                    p.intern_ty(&TyData::Param(ParamRef { owner, index: 0 }));
-                                for _ in 0..depth {
-                                    root = p.intern_ty(&TyData::Assoc {
-                                        assoc,
-                                        trait_: shelf,
-                                        self_ty: root,
-                                        args: p.list(&[hd_resolve::lifetime_arg(p)]),
-                                    });
-                                }
-                                let wanted = if lifetime == 0 {
-                                    Vec::new()
-                                } else {
-                                    vec![u32::from(lifetime)]
-                                };
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.proj_lifetimes(&ls, root)
-                                    ),
-                                    (wanted, 2 * depth + 1)
-                                );
-                                let mut memo = HashMap::default();
-                                let ids = if lifetime == 0 {
-                                    Vec::new()
-                                } else {
-                                    vec![vec![u32::from(lifetime)]]
-                                };
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.bound_ids_in(&ls, root, shelf, &mut memo)
-                                    ),
-                                    (ids.clone(), depth + 1)
-                                );
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.bound_ids_in(&ls, root, shelf, &mut memo)
-                                    ),
-                                    (ids, 0)
-                                );
-                                assert_eq!(
-                                    hd_types::work::count_type_nodes(
-                                        || ck.bound_ids_in(&ls, root, other, &mut memo)
-                                    ),
-                                    (Vec::<Vec<u32>>::new(), 1)
-                                );
-                                let scalar = p.product(TyList::EMPTY, None);
-                                assert!(ck.proj_lifetimes(&ls, scalar).is_empty());
-                            }
-                        },
-                    );
-                }
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
 }
 
 /// A call's map over the types it instantiates (`ref.generic.call`).
@@ -4287,7 +4013,7 @@ impl Ck<'_, '_> {
     /// trait's arguments, and its base's own when the base is a projection
     /// too. Each slot of what it stands for takes them all, as a type
     /// parameter's slots take its bounds' (`ref.lifetime.trait.bound-argument`).
-    fn proj_lifetimes(&self, ls: &Layouts<'_>, proj: Ty) -> Vec<u32> {
+    pub(crate) fn proj_lifetimes(&self, ls: &Layouts<'_>, proj: Ty) -> Vec<u32> {
         let mut out = Vec::new();
         self.proj_lifetimes_into(ls, proj, &mut out);
         out.retain(|&l| l != 0);
@@ -4407,7 +4133,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    fn bound_ids_in(
+    pub(crate) fn bound_ids_in(
         &self,
         ls: &Layouts<'_>,
         self_ty: Ty,

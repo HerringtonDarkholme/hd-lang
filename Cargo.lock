@@ -675,6 +675,7 @@ name = "hd_check"
 version = "0.0.1"
 dependencies = [
  "hd_base",
+ "hd_check",
  "hd_diag",
  "hd_intern",
  "hd_project",
