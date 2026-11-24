@@ -375,7 +375,7 @@ side columns.
 - **Operands by index.** An operand is a `u32` reference. A list of
   operands is `{start, len}` in `extra`.
 - **Rare data in side columns**, keyed by instruction index, so common
-  instructions stay small: suspension points (`susp`) and literal
+  instructions stay small: cancellation blocks (`cancel`) and literal
   fallbacks.
 - **Order.** Every operand has a lower index than its user, so a loop
   from 0 to n visits operands first. Each block lists its instructions
@@ -412,7 +412,7 @@ a release store; readers acquire `len` and read only slots below it.
 - **Rollback is truncation.** Every column is append-only while a body
   is checked, so a checkpoint is a tuple of lengths. `TirCheckpoint`
   holds the lengths of instructions, `extra`, scratch, locals, captures,
-  sub-bodies, labels, suspension rows, constants and strings. The
+  sub-bodies, labels, constants and strings. The
   checker's `Checkpoint` (`hd_check/src/trial.rs`) adds the inference
   trail, the diagnostics' `DiagMark`, pending goals and its own stacks.
   Undoing a trial truncates them all and unwinds the trail. The local
@@ -732,7 +732,6 @@ The full encoding, instruction catalog and builder are in
 | captures: `cap_local`, `cap_mode` | | emission of closures |
 | `label_inst` | | emission |
 | `consts`, `strings` | `(Ty, u64)`; literal text | emission; indexed by a constant `Ref` |
-| `susp` | `SuspRow`, 16 bytes | suspension lowering |
 | `fallback` | | panic reports for defaulted literals |
 | `exit_drops` | `(SubId, LocalId)` | emission after the ownership passes, which write it; carried by the wire's owned section |
 | `regions` | `(u32, u32)` | tier 2 only (reserved): empty |

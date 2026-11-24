@@ -11,7 +11,7 @@
 //! instruction of the statement it precedes, and the whole body is
 //! renumbered once: every word that names an instruction, by the operand
 //! schema, and the columns that name instructions (labels, sub-body roots,
-//! suspension rows, the fallback rows).
+//! fallback rows).
 
 use hd_base::NodeIdx;
 use hd_base::SliceSort as _;

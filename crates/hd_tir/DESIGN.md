@@ -532,7 +532,6 @@ pub struct Body {
     pub label_inst: Vec<u32>,           // by LabelId: the Loop or Block a Break or Continue targets
     pub cap_local: Vec<LocalId>,        // by CaptureId; one closure's captures are contiguous
     pub cap_mode: Vec<CaptureMode>,     // Copy | Move | Shared; written once, at finish
-    pub susp: Vec<SuspRow>,             // 16 B: inst, scope chain, hook site
     pub consts: Vec<(Ty, u64)>,         // body-local constants, by constant Ref
     pub strings: Vec<Box<str>>,         // string constants' text
     pub label: Box<str>,                // what a Fact body is attached to, for panics
@@ -739,11 +738,9 @@ ownership analysis or caching. `Pending` cannot escape that boundary.
 | `AwaitRace` | a: a `List[Suspend[T]]` | `T`. `race!`: one suspension point |
 | `Hook` | a: the hook's kind, b: the instruction it observes | `void`; normal emission drops it |
 
-Every suspension point has a side record (`SuspRow`): the `Scope`s
-enclosing it from the innermost out, which are the scopes whose suites
-cancellation must run there, and its hook site. Liveness is not
-recorded; emission computes it. Not built yet: no stage writes them
-today, though the wire's owned section carries them (`src/wire.rs`).
+Ownership lowering records each suspension point's cancellation block
+in `Body::cancel` (`own::scopes`). Emission derives suspension states
+from instructions and follows those blocks; it computes liveness.
 
 **Data and closures**
 
@@ -1072,8 +1069,7 @@ The verifier checks each of these:
    failing `?` leaf is inside a `defer` suite. A suspension point is
    only where a `using!` binding's `dispose!` put it; the checker rejects
    one that source writes in a `defer` suite.
-7. Every suspension point's side record lists exactly the `Scope`s that
-   enclose it.
+7. (Reserved; the unused suspension side records were removed.)
 8. Every projected call key has checked borrowed provider evidence.
    Identity entries use exact-key lookup; open tails use the invocation
    context, never a trait search in the emitter.
@@ -1129,8 +1125,8 @@ The verifier checks each of these:
     item's arguments followed by its own; an instance body makes a bound
     one a plain sub-body and empties an open one, so it holds none.
 
-Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
-to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
+Implementation differs: `verify` checks invariants 1 to 6, 8 to 15, 17
+and 20 to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
 same with 23 in place of 22, for a body after the ownership passes.
 On an instance body `verify_owned` checks 24 too, wherever it runs:
 one pass over the columns and the calls, O(1) per type by its flags.
@@ -1323,7 +1319,7 @@ with its per-item interface hash), for code keys.
 | item, kind, phase | the item's path row, the body kind, and `Phase` (checked or instance), hashed so an instance body's hash differs from its item's checked body's |
 | columns | `tags`, `data`, `ty`, `extra`, the local, sub-body, label and capture columns, `consts`, `strings`, `label`; ID words of `extra` remapped by `id_words`, other words copied |
 | locations | `syn`, `local_syn`, `fallback`: after the hashed prefix |
-| owned section | an owned body's pass columns, `susp` to `inlined_capture_origins`, `inlined` callees as path rows; written only when one is non-empty |
+| owned section | an owned body's pass columns, `exit_drops` to `inlined_capture_origins`, `inlined` callees as path rows; written only when one is non-empty |
 
 - **Remap, not copy.** Pool indices, `DefId`s and `Symbol`s are run IDs
   and cannot be written. `id_words` knows the ID-carrying words of each
@@ -1343,9 +1339,8 @@ with its per-item interface hash), for code keys.
   every run and thread count. One enumeration (`references`) lists how
   a word reaches a record: a data word by its `Op`, the `ProviderGet`
   and `ItemRef` meta records, a closure's `sub_params` record (the
-  root's only when it has parameters), `SuspRow::scopes` and
-  `stable_lists`; the ID remapper and the compaction both read it. A
-  debug build decodes every written body and checks that it encodes
+  root's only when it has parameters) and `stable_lists`; the ID
+  remapper and the compaction both read it. A debug build decodes every written body and checks that it encodes
   back to the same bytes.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on

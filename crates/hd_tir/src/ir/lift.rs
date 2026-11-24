@@ -219,9 +219,7 @@ fn stops(b: &Body, enclosing: &[u32], target: &[bool]) -> Vec<u32> {
 #[cfg(test)]
 mod tests {
     use super::{function_template, item_template};
-    use crate::ir::{
-        Body, BodyKind, TirBuilder, TirSink, Topology, sub_flags, u32_of, verify_structure,
-    };
+    use crate::ir::{Body, BodyKind, TirBuilder, TirSink, sub_flags, u32_of, verify_structure};
     use crate::measurements;
     use hd_base::{DefId, NodeIdx};
     use hd_types::Ty;
@@ -261,7 +259,7 @@ mod tests {
         {
             *f |= sub_flags::GENERIC;
         }
-        let errors = verify_structure(&body, &Topology::new(&body));
+        let errors = verify_structure(&body);
         assert!(errors.is_empty(), "{errors:?}");
         body
     }
