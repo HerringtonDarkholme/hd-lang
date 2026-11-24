@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# @build: tests
+# An explicit body is called; a boolean value is not a callable body.
+tests:
+    it("named noncallable", body=false)
+    it("positional noncallable", false)
