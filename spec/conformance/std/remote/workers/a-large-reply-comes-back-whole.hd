@@ -1,0 +1,20 @@
+# test: a crossing whose result is a large Wire value gets it back whole
+# Spec std Remote, Workers: std-remote.workers.run, std-remote.workers.host.
+# expect-stdout: 300000 299999 44999850000
+use std.remote.Workers
+
+fn count(n: u64) -> List[u64]:
+    let mut out: List[u64] = []
+    for i in 0..n:
+        out.push(i)
+    out
+
+pub fn main!() -> void $ Console + Workers:
+    n := u64(300000)
+    match $.use(Workers).run!(fn() -> List[u64]: count(n)):
+        .Ok(values) =>
+            let mut sum = u64(0)
+            for value in values:
+                sum += value
+            println("${values.len()} ${values[values.len() - 1]} $sum")
+        .Err(cross) => println("lost $cross")

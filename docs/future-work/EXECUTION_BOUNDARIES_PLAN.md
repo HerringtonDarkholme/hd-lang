@@ -514,13 +514,14 @@ Part built (2026-11-24):
   - the per-thread allocator (+231);
   - the unique-buffer crossing, option A (4be8f5589);
   - `std.thread` `scope`, `Scope.spawn` and `Handle.join` (cb1e38da9)
-    and `background!` (ff04ebec0): +424 against +350.
+    and `background!` (ff04ebec0): +424 against +350;
+  - workers follow-ups on Node and Wasmtime: overlapping sends on Node
+    (a pending operation) and abort on cancel on both (lane 259).
 - Left:
   - `Mutex[T]`, the std part of S1 (below), about +120 of S1's +150:
     waits on an owner question, how a copy out of a guard stays unique;
-  - workers follow-ups: overlapping sends on Node (a pending operation,
-    as `Http.send` has), abort on cancel, a browser `Worker`; about +150
-    of host code, no owner question;
+  - a browser `Worker` for `Workers`, the rest of the workers
+    follow-ups: about +130 of host code (below), no owner question;
   - the jobs store: unpriced; needs the owner's API and store backend.
 
 Re-priced on 2026-11-22 after the owner's decision on counts,
@@ -614,19 +615,46 @@ second form always, with sharing left to `Arc`.)
   `next` is `.None`.
 - Node (`host/workers.ts`): the first send starts one `worker_threads`
   thread with the module; it runs `hd.init`, then `hd.worker`, and
-  `next` blocks on its port. Reading: a send waits for its reply on the
-  calling thread, so two sends do not overlap yet; a pending operation
-  (as `Http.send` uses) is the follow-up when overlap is needed.
+  `next` blocks on its port. A send is a pending operation, as
+  `Http.send` is (`std-host.op.wait`), so sends from several tasks are in
+  flight together. Each frame carries its send's number; the worker posts
+  the reply with it and wakes the instance's reactor, and the host's
+  `drainReady` (or the port's listener, while the instance awaits a
+  Promise) completes that send alone. No polling: the wait is the
+  reactor's `Atomics.wait`.
 - Wasmtime (`hd_run_wasmtime` `workers.rs`): the first send starts an OS
   thread with a second instance on the parent's engine and module; a
   send is a pending operation on the `hd-io` runtime, so the program's
   other operations go on meanwhile.
+- Cancel (`std-host.op.cancel`): a cancelled send stops waiting, and the
+  worker drops its frame if it has not taken it yet, as tokio's
+  `spawn_blocking` abort drops a task that has not started. A frame
+  already running runs to its end, and its reply finds no send. Node
+  posts a cancel with the send's number, which the worker applies when
+  it next takes a frame; Wasmtime's abort drops the reply's receiver
+  (the reactor's existing task abort), and the worker skips a frame whose
+  receiver is gone. The thread watch's abort (`workers::watch`) is a
+  wait on a heap word, so it is not reused here.
+- Per send: the host's own copies of the frame out of the instance and
+  of the reply into it, as for any host call; on Node one map entry and
+  one message each way, its buffer moved, not copied; one wake of the
+  worker and one of the parent. Nothing scales with the sends in flight, except a crash,
+  which settles each of them once.
 - A worker whose instance ended, a panic included, makes its sends
-  `Unreachable`, and the next send starts another. A host without
-  workers (the browser today) answers `Unreachable`. A browser `Worker`
-  follows the Node design and is deferred.
-- One runtime case runs on both engines:
-  `spec/conformance/std/remote/workers/a-crossing-runs-in-the-hosts-worker-instance.hd`.
+  still in flight `Unreachable`, and the next send starts another. A
+  host without workers (the browser today) answers `Unreachable`.
+- Left: a browser `Worker`, about +130 of host code (a `web.ts`
+  provider, a worker entry and its bundling, a UI test). It follows the
+  Node design, but the playground is not cross-origin isolated, so it has
+  no `SharedArrayBuffer`: the worker's `next` and the program's wait
+  must be Promise waits, which need JSPI. Without JSPI a send stays
+  `Unreachable`.
+- Runtime cases, each on both engines, in
+  `spec/conformance/std/remote/workers/`: the host's worker instance
+  (`a-crossing-runs-in-the-hosts-worker-instance.hd`), two sends from
+  two tasks in flight together, a cancelled send, a crash while an
+  earlier send is in flight, a large reply, and a send waiting beside a
+  `background!` thread.
 
 **Workers first, then threads.**
 

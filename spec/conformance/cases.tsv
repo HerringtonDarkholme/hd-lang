@@ -7202,6 +7202,11 @@ std/text/string-methods/case-conversion-ascii-boundaries.hd	runtime	accept	std/t
 std/text/string-methods/case-conversion-unicode-context.hd	runtime	accept	std/text.md#r-std-text.string.lower
 std/remote/workers/a-crossing-runs-on-a-worker-and-returns-its-result.hd	runtime	accept	std/remote.md#r-std-remote.workers.run
 std/remote/workers/a-crossing-runs-in-the-hosts-worker-instance.hd	runtime	accept	std/remote.md#r-std-remote.workers.host
+std/remote/workers/two-sends-from-two-tasks-overlap.hd	runtime	accept	std/host.md#r-std-host.op.wait
+std/remote/workers/a-cancelled-send-stops-waiting.hd	runtime	accept	std/host.md#r-std-host.op.cancel
+std/remote/workers/a-crash-is-unreachable-while-an-earlier-send-replies.hd	runtime	accept	std/remote.md#r-std-remote.workers.host
+std/remote/workers/a-large-reply-comes-back-whole.hd	runtime	accept	std/remote.md#r-std-remote.workers.run
+std/remote/workers/a-send-and-a-background-thread-wait-together.hd	runtime	accept	std/host.md#r-std-host.op.wait
 std/remote/workers/a-capture-moved-to-a-worker-is-gone.hd	type	reject:use-of-moved-value	std/remote.md#r-std-remote.workers.run
 lang/types/opaque-result-types/opaque-identity-row-arguments.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.opaque.identity-position
 lang/types/opaque-result-types/opaque-identity-same-arguments-run.hd	runtime	accept	lang/04-type-system.md#r-types.opaque.identity-position
