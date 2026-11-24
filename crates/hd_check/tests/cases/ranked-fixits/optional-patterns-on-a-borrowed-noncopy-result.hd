@@ -1,5 +1,5 @@
 # @dump: diagnostics fixed
-# Known #2353: the optional-conversion repair moves through & instead of borrowing.
+# Borrowing keeps the Result payload in its original owner.
 # expected: both alternatives check; conversion must use as_ref().ok().
 struct Item: pass
 

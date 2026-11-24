@@ -544,15 +544,23 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let mut ty = self.resolved(self.infer.resolve(pool, ty));
         let mut borrowed = false;
-        while let Some((inner, _)) = self.ref_of(ty) {
+        let mut writable = true;
+        while let Some((inner, mutable)) = self.ref_of(ty) {
             ty = self.resolved(inner);
             borrowed = true;
+            writable &= mutable;
         }
-        if !matches!(pool.get(ty), TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.result)
-        {
-            return;
-        }
+        let payload = match pool.get(ty) {
+            TyData::Adt(AdtId::Declared(def), args) if def == self.cx.names.known.result => {
+                let &[ok, _] = pool.list_items(args) else {
+                    return;
+                };
+                ok
+            }
+            _ => return,
+        };
         let mut edits = Vec::new();
+        let mut converts_binding = false;
         for arm in matched
             .children()
             .filter(|node| node.kind() == SyntaxKind::MatchArm)
@@ -560,10 +568,12 @@ impl Ck<'_, '_> {
             let Some(pattern) = arm.children().next() else {
                 return;
             };
-            if matches!(
-                pattern.kind(),
-                SyntaxKind::WildcardPattern | SyntaxKind::BindingPattern
-            ) {
+            if pattern.kind() == SyntaxKind::BindingPattern {
+                // A catch-all binds the whole Result; conversion changes its type.
+                converts_binding = true;
+                continue;
+            }
+            if pattern.kind() == SyntaxKind::WildcardPattern {
                 continue;
             }
             if pattern.kind() != SyntaxKind::VariantPattern {
@@ -605,8 +615,21 @@ impl Ck<'_, '_> {
             return;
         }
         self.guess_fix("match the Result's success and error variants", &edits);
+        if converts_binding {
+            return;
+        }
         let [value] = matched.parts();
         let span = src.span(value);
+        let suffix = if !borrowed {
+            ").ok()"
+        } else if self.copies(payload) {
+            // Matching through a reference still copies Copy bindings.
+            ").as_ref().ok().copied()"
+        } else if writable {
+            ").as_mut().ok()"
+        } else {
+            ").as_ref().ok()"
+        };
         self.guess_fix(
             "turn the Result into an optional before matching",
             &[
@@ -622,12 +645,7 @@ impl Ck<'_, '_> {
                         lo: span.hi,
                         ..span
                     },
-                    if borrowed {
-                        ").as_ref().ok()"
-                    } else {
-                        ").ok()"
-                    }
-                    .into(),
+                    suffix.into(),
                 ),
             ],
         );

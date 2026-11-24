@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+# Both repair alternatives keep non-Copy payloads in their original owner.
+struct Item: pass
+
+impl !Copy for Item
+
+fn present(value: &mut Result[Item, string]) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false

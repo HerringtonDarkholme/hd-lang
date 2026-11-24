@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+struct Item:
+    n: i32
+
+impl !Copy for Item
+
+fn read(value: &mut Result[Item, Item]) -> i32:
+    match &value:
+        .Some(item) => item.n
+        .None => 0
