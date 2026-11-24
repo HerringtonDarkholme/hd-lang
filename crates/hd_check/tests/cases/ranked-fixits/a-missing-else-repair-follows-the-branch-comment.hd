@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+# An inserted else must start after the existing branch's trailing comment.
+fn describe(present: bool) -> string:
+    if present:
+        "present" # keep this branch explanation
