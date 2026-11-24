@@ -2846,9 +2846,9 @@ dev builds keep the address at a call; the inliner's by-value binding
   by the mark `defaults::promoted(mask)`), when the target is the plain
   instance and each promoted argument is a read-only `Ref` of a part of a
   local no closure captures, used only by the call and its `Drop`s
-  (`hd_tir::own::promote::promoted_call_in`). Only the parameters whose
-  arguments are such `Ref`s are candidates
-  (`hd_tir::own::promote::promotable_args_in`), so one argument passed on
+  (`hd_tir::own::promote::promotable_args_in`). Collection computes that
+  candidate mask once; the callee returns a nonzero subset, so no caller
+  recheck is needed. Thus one argument passed on
   from a reference keeps the others promoted. A call that may also run
   the callee's exclusive copy (stage 8, #1118) runs the promoted copy of
   that one, which borrows across calls what the plain body counts. The
@@ -2881,7 +2881,7 @@ dev builds keep the address at a call; the inliner's by-value binding
   references when each referent is one a promoted copy takes
   (`lent_referent`, counted parts allowed) and the copy only reads
   through it (`hd_opt/src/inline.rs`, `by_value`), at a call whose
-  argument for each is a `Ref` as above (`promoted_call_in`). The copy is
+  argument for each is a `Ref` as above (`promotable_args_in`). The copy is
   promoted, and the caller's `Ref` becomes a `Read` of its place
   (`hd_tir::inline::Site::by_value`), so the copy's parameter binds the
   value: no reference lives in a local, which keeps the reason such

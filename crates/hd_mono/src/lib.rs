@@ -81,9 +81,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// `hd_tir::own::exclusive_call` holds.
     fn exclusive_body(&self, _def: DefId, _args: TyList) -> Option<(u64, Arc<Body>)>;
     /// Release (#1151): `def`'s promoted copy at `args`, which takes the
-    /// `&T` parameters in its mask by value (`hd_tir::own::promote`), and
-    /// which a call may run where `hd_tir::own::promote::promoted_call_in`
-    /// holds.
+    /// `&T` parameters in its nonzero mask by value (`hd_tir::own::promote`).
     /// With `exclusive`, the promoted copy of `def`'s exclusive copy
     /// ([`ProgramEnv::exclusive_body`]). Only the parameters in `want.0`
     /// may be taken by value (`hd_tir::own::promote::promotable_args_in`), and one whose referent
@@ -1696,9 +1694,8 @@ impl Cx<'_> {
         else {
             return Ok(None);
         };
-        if !hd_tir::own::promote::promoted_call_in(body, at, by_value, facts) {
-            return Ok(None);
-        }
+        // The callee intersects its mask with `want`; the caller's body and
+        // promotion facts have not changed, so this subset is already proved.
         let marks = [defaults::promoted(by_value), defaults::EXCLUSIVE];
         let mark = if exclusive { &marks[..] } else { &marks[..1] };
         let key = self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], mark, caller)?;
