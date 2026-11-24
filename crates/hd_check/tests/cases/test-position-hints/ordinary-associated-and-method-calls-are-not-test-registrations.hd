@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# @build: tests
+# Declaration identity controls registration, including associated/method calls.
+struct Registrar:
+    value: i32
+
+impl Registrar:
+    fn register() -> void:
+        pass
+
+    fn invoke(&self) -> void:
+        pass
+
+fn registrar() -> Registrar:
+    Registrar { value: 0 }
+
+tests:
+    Registrar.register()
+    registrar().invoke()

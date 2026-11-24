@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# @build: tests
+# Only direct calls of registration declarations belong in test position.
+fn factory() -> fn() -> void:
+    fn(): pass
+
+tests:
+    missing_registration("unknown", fn(): pass)
+    1 + 2
+    factory()()
