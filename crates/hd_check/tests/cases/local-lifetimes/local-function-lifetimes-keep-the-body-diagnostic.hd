@@ -1,0 +1,8 @@
+# @dump: diagnostics
+fn outer() -> void:
+    fn inner['a]() -> void:
+        pass
+
+fn anonymous() -> void:
+    fn inner(value: impl Eq & 'a) -> void:
+        pass
