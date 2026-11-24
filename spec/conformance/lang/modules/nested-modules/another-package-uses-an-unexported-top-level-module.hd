@@ -1,0 +1,7 @@
+# fixture-package-role: root-application
+# test: another package may not use a top-level module that its package root does not re-export
+# Spec 10 Nested Modules: module.vis.top-level.
+use dep.vault.sealed.{hidden} # diagnostic: private-module
+
+pub fn peek() -> i32:
+    hidden()

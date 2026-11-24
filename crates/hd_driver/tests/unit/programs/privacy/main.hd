@@ -1,0 +1,4 @@
+use pkg.shop.ledger.{balance}
+
+pub fn main() -> void:
+    _ := balance()

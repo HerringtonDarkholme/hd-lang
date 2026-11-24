@@ -1583,6 +1583,21 @@ fn names_any(text: &str, names: &HashSet<String>) -> bool {
     })
 }
 
+/// The nearest module above module `m`, whose `pub use` lines decide
+/// whether `m` is visible (`module.vis.nested`, `module.vis.top-level`): a
+/// walk that reads `m` reads it too. A directory without `mod.hd` is
+/// passed over. Cost: O(depth) path lookups.
+fn module_above(table: &ModuleTable, m: usize) -> Option<ModuleId> {
+    let mut path = table.modules[m].path.as_str();
+    while let Some((parent, _)) = path.rsplit_once('.') {
+        if let Some(id) = table.module(parent) {
+            return Some(id);
+        }
+        path = parent;
+    }
+    None
+}
+
 /// The module texts of a REPL input's build: the modules the input
 /// reaches from its own module, through its uses and its session's
 /// (`cli.repl.package.lib`, `cli.repl.uses.other`), and from `std.rt.entry`,
@@ -1591,8 +1606,10 @@ fn names_any(text: &str, names: &HashSet<String>) -> bool {
 /// never read, so a root-package unit the input reaches holds only its
 /// reached modules for the run ([`Run::builds_module`]): an implementation
 /// in a module that no reached module uses is not in the session, as one
-/// in a unit outside the input's closure is not. Also each reached
-/// module's skim, which the walk computes anyway. `None` when the run
+/// in a unit outside the input's closure is not. Each reached module's
+/// ancestors are read too, whose `pub use` lines decide its visibility.
+/// Also each reached module's skim, which the walk computes anyway.
+/// `None` when the run
 /// builds no input of `repl`.
 #[inline(never)]
 fn repl_texts(
@@ -1628,6 +1645,9 @@ fn repl_texts(
         // included, so it reaches every module the reached ones depend on:
         // each unit it reaches is whole, as in a full build.
         skims[m] = Some(s);
+        // And the nearest module above it, whose `pub use` lines decide
+        // whether it is visible: so every ancestor's text is read.
+        stack.extend(module_above(table, m).map(ModuleId::idx));
     }
     let reached = Some(skims.iter().map(Option::is_some).collect());
     Some(ModuleTexts {
@@ -3212,6 +3232,8 @@ fn build_packages_inner(
         Vec::new()
     };
     let cases = run.test_cases();
+    // Each module's uses, and the module above each used one, whose
+    // `pub use` lines decide whether it is visible.
     let uses = run
         .skim
         .iter()
@@ -3221,6 +3243,8 @@ fn build_packages_inner(
                     .iter()
                     .chain(&s.test_uses)
                     .filter_map(|u| run.table.module_of_use(u))
+                    .flat_map(|m| [Some(m), module_above(&run.table, m.idx())])
+                    .flatten()
                     .map(|m| run.table.modules[m.idx()].file.idx())
                     .collect()
             })
@@ -3701,6 +3725,8 @@ pub fn use_closure(
                 stack.push(id.idx());
             }
         }
+        // The module above decides whether this one is visible.
+        stack.extend(module_above(&table, m).map(ModuleId::idx));
     }
     files.finish(&table);
     order
@@ -5152,6 +5178,7 @@ impl Run<'_> {
                 }
                 k.u8(u8::from(self.usable(m)));
                 k.u8(u8::from(self.test_only(m)));
+                k.u8(self.published(m).map_or(2, u8::from));
                 (m.clone(), k.finish())
             })
             .collect()
@@ -5212,8 +5239,63 @@ impl Run<'_> {
                 k.u8(u8::from(*back));
             }
             k.u8(r.access as u8);
+            self.hash_publication(m.idx(), &mut k);
         }
         k.finish()
+    }
+
+    /// Hashes the publication facts module `m`'s uses read
+    /// (`module.vis.nested`): for each module of three or more segments
+    /// that a use path passes through, or a grouped use names, whether its
+    /// parent re-exports it. They decide `private-module`, and no
+    /// interface hash holds them: the parent's own text does. Cost:
+    /// O(segments) table lookups per use.
+    fn hash_publication(&self, m: usize, k: &mut hd_base::StableHasher) {
+        let skim = self.skim_of(m);
+        let mut fact = |path: &str| {
+            if let Some(published) = self.table.published(path) {
+                k.str(path);
+                k.u8(u8::from(published));
+            }
+        };
+        let paths = skim.refs.iter().map(|r| r.path.as_str());
+        for path in paths.chain(skim.test_uses.iter().map(String::as_str)) {
+            let ends = path.match_indices('.').map(|(i, _)| i).skip(1);
+            for end in ends.chain([path.len()]) {
+                fact(&path[..end]);
+            }
+        }
+        // A use of another package's root binds a name through which a body
+        // path reaches that package's top-level modules
+        // (`module.vis.nested.path`): each one's fact, O(the package's
+        // modules) per such use.
+        for r in skim
+            .refs
+            .iter()
+            .filter(|r| !r.grouped && !r.path.contains('.'))
+        {
+            let Some(root) = self.table.module(&r.path) else {
+                continue;
+            };
+            if self.table.modules[root.idx()].package == self.table.modules[m].package {
+                continue;
+            }
+            for below in self.table.modules_below(&r.path) {
+                if !below[r.path.len() + 1..].contains('.') {
+                    fact(below);
+                }
+            }
+        }
+        let mut child = String::new();
+        for r in skim.refs.iter().filter(|r| r.grouped) {
+            for (name, _) in &r.names {
+                child.clear();
+                child.push_str(&r.path);
+                child.push('.');
+                child.push_str(name);
+                fact(&child);
+            }
+        }
     }
 
     /// Sets unit `fi`'s interface from the sections of its `iface`
@@ -6673,6 +6755,8 @@ impl Run<'_> {
         let mut key = hd_base::StableHasher::new("check-main-derivation-facts-v1");
         // CI must not reuse an unchecked result from an ordinary compiler run.
         key.u8(u8::from(self.verify_tir));
+        // A body path may name a module another module's text publishes.
+        self.hash_publication(m, &mut key);
         key.hash(check_key(
             self.toolchain,
             package,
@@ -12045,6 +12129,9 @@ impl hd_resolve::World for Run<'_> {
         self.table
             .module(module)
             .is_some_and(|m| self.table.modules[m.idx()].role == hd_project::Role::Test)
+    }
+    fn published(&self, module: &str) -> Option<bool> {
+        self.table.published(module)
     }
     fn iface(&self, unit: u32) -> Option<Arc<UnitIface>> {
         // A use from outside the test unit never reads it: only test code

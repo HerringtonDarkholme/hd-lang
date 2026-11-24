@@ -294,7 +294,9 @@ $.with(Clock=box(FixedClock { at: 42 })):
 ## Modules, Tests, and Packages
 
 Each file is a module named by its path under `src/`, and declarations are
-private unless marked `pub`. `use` roots are `pkg`, `std`, `dep`, `self`, and
+private unless marked `pub`. A folder's modules are private to the folder too:
+its `mod.hd` re-exports what other code may use, as `pub use pkg.user.{types}`
+in `src/user/mod.hd`. `use` roots are `pkg`, `std`, `dep`, `self`, and
 `super` ([tour: modules](../tour/14-modules.md)). A file's tests live in a
 `tests:` block ([tour: tests](../tour/13-tests.md)).
 

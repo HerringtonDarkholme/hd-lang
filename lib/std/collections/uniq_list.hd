@@ -11,7 +11,7 @@ use std.ops.IndexMut
 use std.ops.IndexSet
 use std.ops.Range
 use std.rt.{Drop, unique}
-use std.rt.bytes.{
+use std.rt.{
     ByteBuffer,
     TextSink,
     TextRoom,
@@ -22,7 +22,7 @@ use std.rt.bytes.{
     string_from_buffer,
     string_prefix,
 }
-use std.rt.memory.{
+use std.rt.{
     Buffer,
     Ptr,
     copy_bytes,

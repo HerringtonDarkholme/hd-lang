@@ -90,6 +90,11 @@ fn an_edit_of_a_module_only_test_code_uses_reaches_every_test() {
         &[
             ("hd.toml", "[package]\nname = \"shop\"\n"),
             ("src/money/coins.hd", COINS),
+            // A folder's modules are private to it (`module.vis.nested`).
+            (
+                "src/money/mod.hd",
+                include_str!("programs/facades/money_coins.hd"),
+            ),
             ("src/ledger.hd", LEDGER),
             ("src/ledger_test.hd", LEDGER_TEST),
             ("tests/bill.hd", BILL),

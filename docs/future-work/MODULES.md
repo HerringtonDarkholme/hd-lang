@@ -43,6 +43,17 @@ and 2 and phase 1's folder rules):
    its parent's subtree; other packages reach items only through the
    package root's `pub use`.
 
+**Applied** (lane 268, 2026-11-24): module re-export `pub use M.{child}`
+(`module.use.facade.module`; it publishes the child and binds no name),
+nested-module privacy (`module.vis.nested`, error `private-module`), and
+top-level privacy (`module.vis.top-level`): another package reaches only
+what its root re-exports. #2356 was closed ("not needed"), so std keeps its
+layout and gains a root file, `lib/std/mod.hd`, re-exporting every top-level
+module but `std.rt`. A directory without `mod.hd` re-exports nothing, so its
+modules are visible only inside it (`module.vis.nested.folder`). Outside
+`std.rt`, std names only `std.rt` (#2355), which re-exports the runtime
+names the rest of std uses.
+
 The compiler keeps two graphs. The policy graph above decides
 `module-cycle`, on its strongly connected groups. The dependency graph,
 every use including `pub use`, orders initialization and forms the compile

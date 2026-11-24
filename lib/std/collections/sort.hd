@@ -1,5 +1,5 @@
 use std.annotation.inline
-use std.rt.memory.{Buffer, copy_bytes, size_of}
+use std.rt.{Buffer, copy_bytes, size_of}
 
 # The stable driftsort shape from Rust 1.81: long natural runs scheduled by
 # powersort, lazy stable quicksort runs that split off equal elements only

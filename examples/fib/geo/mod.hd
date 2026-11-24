@@ -1,0 +1,2 @@
+# Re-exports shapes so main.hd may use it (spec/lang/10-modules.md#nested-modules).
+pub use pkg.geo.{shapes}

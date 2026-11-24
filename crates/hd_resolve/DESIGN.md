@@ -45,6 +45,16 @@ and executables never build), `requires` maps each `dep.NAME` to its
 package, and a manifest loop is `package-cycle`. A package with `src/`
 takes files only from `src`, `tests` and `tasks`.
 
+Nested-module privacy (`module.vis.nested`) is a fact of the module table:
+`ModuleGraph::build` marks each module whose parent writes
+`pub use PARENT.{child}`, and the resolver asks the world `published(path)`
+for each segment of a use path past the second (`hd_project::hidden_prefix`),
+O(segments) per use. That fact lives in the parent's text, which the user's
+unit may not depend on, so a unit's reads key hashes the facts its uses read
+(`Run::hash_publication`), and a lowering's read answers hash them too. A
+refused use still binds its names; the diagnostic is reported with the
+interface, as `std-only-use` is.
+
 The module set always comes from this scan, never from cache entries, so a
 deleted file is never served from the cache (Gleam #4320).
 

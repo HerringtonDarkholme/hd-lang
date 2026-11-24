@@ -2,6 +2,80 @@
 # may use it (spec/lang/10-modules.md#r-module.rt.std-only).
 use std.core.Copy
 
+# What the rest of std uses of the runtime (spec/lang/10-modules.md#r-module.use.facade).
+# A std module outside std.rt names only std.rt, never a child of it: a use
+# makes its edge to the module it names (module.cycle.edge), so no module
+# outside the runtime has an edge into rt.memory or rt.bytes, whatever loops
+# the runtime's own modules make.
+pub use std.rt.alloc.{alloc, free_block}
+pub use std.rt.bytes.{
+    ByteBuffer,
+    TextRoom,
+    TextSink,
+    bytes_at,
+    bytes_concat,
+    bytes_index,
+    bytes_index_pair,
+    bytes_index_set,
+    bytes_len,
+    bytes_mismatch,
+    bytes_slice,
+    char_from_scalar,
+    char_scalar,
+    char_width,
+    concat_all,
+    format_signed,
+    format_unsigned,
+    host_lower,
+    host_upper,
+    panic_with,
+    signed_width,
+    string_from_buffer,
+    string_from_bytes,
+    string_prefix,
+    unsigned_width,
+    write_char_sized,
+    write_signed_sized,
+    write_unsigned_sized,
+}
+pub use std.rt.cycle.{marking}
+pub use std.rt.hash.{FoldHasher, hash_key}
+pub use std.rt.memory.{
+    Buffer,
+    Ptr,
+    address_of,
+    align_of,
+    atomic_add_u32,
+    atomic_compare_exchange_u32,
+    atomic_fence,
+    atomic_load_u32,
+    atomic_sub_u32,
+    copy,
+    copy_bytes,
+    fill,
+    free_room,
+    load_u32,
+    load_u64,
+    load_u8,
+    needs_drop,
+    new_string,
+    room,
+    size_of,
+    store_u32,
+    store_u64,
+    store_u8,
+    string_bytes,
+}
+pub use std.rt.thread.{abandon, new_block, release, run, run_here, running, share, take, wait}
+pub use std.rt.wait.{WaitCell, idle_hook, wait_cell, wait_signal}
+# std's runtime tests (crates/hd_driver/tests/std_rt) name these children by
+# path (spec/lang/10-modules.md#r-module.use.facade.module). Here `alloc` and
+# `wait` name the modules; the functions above keep those names for every
+# other `use std.rt.{...}`. The browser build drops the checked runtime's
+# files, and with them the line that names them (crates/hd_driver/build.rs).
+pub use std.rt.{alloc, bytes, cycle, hash, memory, thread, wait}
+pub use std.rt.{checked, checked_report} # not in the browser build
+
 ## The standard library's final-release hook. Release glue calls `drop` before releasing the value's fields.
 ## A hook must not write a place its caller may read later through a by-value snapshot.
 ## The same restriction covers places protected by a live ordinary reference.

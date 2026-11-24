@@ -1,0 +1,4 @@
+pub use pkg.shop.{ledger}
+
+pub fn name() -> string:
+    "shop"

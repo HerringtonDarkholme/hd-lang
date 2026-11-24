@@ -487,6 +487,72 @@ pub struct Module {
     pub floor: String,
     /// Its own program, which no `use` reaches.
     pub entry: bool,
+    /// Its parent re-exports it with `pub use PARENT.{name}`
+    /// (`module.use.facade.module`), so it is visible wherever its parent
+    /// is; set by [`ModuleGraph::build`].
+    pub published: bool,
+}
+
+/// Whether module path `parent` is a root, whose children are top-level
+/// modules: a package root module, or the test, task or REPL root below
+/// one, whose last segment is the compiler's own `$` segment.
+#[must_use]
+pub fn is_root_path(parent: &str) -> bool {
+    parent
+        .rsplit_once('.')
+        .is_none_or(|(_, last)| last.starts_with('$'))
+}
+
+/// Whether module `importer` is `parent` or one of its descendants.
+#[must_use]
+pub fn within(importer: &str, parent: &str) -> bool {
+    importer
+        .strip_prefix(parent)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+}
+
+/// The subtree a child of module path `parent` is visible in without a
+/// re-export (`module.vis.nested`, `module.vis.top-level`): the parent's
+/// own, or for a child of a root, its whole package, whose root module is
+/// the path's first segment.
+#[must_use]
+pub fn private_scope(parent: &str) -> &str {
+    if is_root_path(parent) {
+        parent.split('.').next().unwrap_or(parent)
+    } else {
+        parent
+    }
+}
+
+/// The number of segments of the shortest prefix of `path` that names a
+/// module `importer` may not name: a module outside whose
+/// [`private_scope`] `importer` is, and which its parent does not
+/// re-export (`module.vis.nested`, `module.vis.top-level`). `published`
+/// answers `None` for a path that names no module, else whether its parent
+/// re-exports it. A prefix that names no module, such as a directory
+/// without `mod.hd`, is skipped; its children's parent is still that path,
+/// so no module can re-export them. Cost: one `published` lookup per
+/// segment past the first.
+pub fn hidden_prefix<S: AsRef<str>>(
+    importer: &str,
+    path: &[S],
+    published: impl Fn(&str) -> Option<bool>,
+) -> Option<usize> {
+    let mut prefix = String::new();
+    for (k, seg) in path.iter().enumerate() {
+        let parent_len = prefix.len();
+        if k > 0 {
+            prefix.push('.');
+        }
+        prefix.push_str(seg.as_ref());
+        if k == 0 || within(importer, private_scope(&prefix[..parent_len])) {
+            continue;
+        }
+        if published(&prefix) == Some(false) {
+            return Some(k + 1);
+        }
+    }
+    None
 }
 
 /// What the roots of one module's use paths name (`module.root.*`,
@@ -1343,6 +1409,7 @@ impl ModuleTable {
                     package: pi,
                     floor,
                     entry: is_entry(&e.path) || executable,
+                    published: false,
                 });
             }
         }
@@ -1374,6 +1441,23 @@ impl ModuleTable {
     pub fn usable(&self, path: &str) -> bool {
         self.module(path)
             .is_some_and(|m| !self.modules[m.idx()].entry)
+    }
+
+    /// Whether the module at `path` is one its parent re-exports; `None`
+    /// when no module has that path.
+    #[must_use]
+    pub fn published(&self, path: &str) -> Option<bool> {
+        self.module(path).map(|m| self.modules[m.idx()].published)
+    }
+
+    /// The module paths below `path`, in path order: a range of the path
+    /// index, O(log modules + the modules below).
+    pub fn modules_below<'a>(&'a self, path: &str) -> impl Iterator<Item = &'a str> + 'a {
+        // `/` follows `.` in byte order, so the range holds `path.` and
+        // every longer path that starts with it.
+        let lo = format!("{path}.");
+        let hi = format!("{path}/");
+        self.by_path.range(lo..hi).map(|(p, _)| p.as_str())
     }
 
     /// What the use roots of module `m` name.
@@ -1636,47 +1720,68 @@ impl ModuleGraph {
             policy: vec![Vec::new(); n],
             ..Self::default()
         };
+        let mut child = String::new();
+        let mut published: Vec<ModuleId> = Vec::new();
+        for module in &mut table.modules {
+            module.published = false;
+        }
+        let mut named: Vec<(ModuleId, Option<Vec<String>>)> = Vec::new();
         for (m, list) in uses.iter().enumerate() {
             let module = &table.modules[m];
             let test = module.role == Role::Test;
             let p = &mut g.policy[m];
             let deps = &mut g.deps[m];
             for u in list {
-                // The module the use names, the names it reaches there,
-                // and for a single use of a declaration, its name.
-                let (named, grouped, last): (ModuleId, &[(String, String)], Option<&str>) =
-                    if u.grouped {
-                        let Some(t) = table.module(&u.path) else {
-                            continue;
-                        };
-                        (t, &u.names, None)
-                    } else if let Some(t) = table.module(&u.path) {
-                        (t, &[], None)
-                    } else if let Some((parent, last)) = u.path.rsplit_once('.')
-                        && let Some(t) = table.module(parent)
-                    {
-                        (t, &[], Some(last))
-                    } else {
+                // The module the use names: for a grouped use, its path's;
+                // else the module it names, or the one holding the
+                // declaration it names. With the names its `use` line writes
+                // there, `None` for a namespace.
+                named.clear();
+                if u.grouped {
+                    let Some(t) = table.module(&u.path) else {
                         continue;
                     };
-                g.work += 1;
-                let target = &table.modules[named.idx()];
-                // Only test code may use a test module; another use is an
-                // error of its own and makes no edge.
-                if named.idx() == m || (!test && target.role == Role::Test) {
+                    // A module's own `pub use M.{child}` publishes the child
+                    // (`module.use.facade.module`); it reads nothing of it and
+                    // makes no edge. Every other grouped name is a declaration
+                    // of the group's module (`module.use.grouped`).
+                    let mut decls = Vec::new();
+                    for (name, _) in &u.names {
+                        child.clear();
+                        child.push_str(&u.path);
+                        child.push('.');
+                        child.push_str(name);
+                        match table.module(&child) {
+                            Some(c) if u.public && u.path == module.path => published.push(c),
+                            _ => decls.push(name.clone()),
+                        }
+                    }
+                    named.push((t, Some(decls)));
+                } else if let Some(t) = table.module(&u.path) {
+                    named.push((t, None));
+                } else if let Some((parent, last)) = u.path.rsplit_once('.')
+                    && let Some(t) = table.module(parent)
+                {
+                    named.push((t, Some(vec![last.to_owned()])));
+                } else {
                     continue;
                 }
-                deps.push(named);
-                if let Some(line) = u.line
-                    && !u.public
-                    && !test
-                    && target.package == module.package
-                {
-                    let written = match last {
-                        Some(last) => vec![last.to_owned()],
-                        None => grouped.iter().map(|(n, _)| n.clone()).collect(),
-                    };
-                    p.push((named, line, written));
+                for (named, written) in named.drain(..) {
+                    g.work += 1;
+                    let target = &table.modules[named.idx()];
+                    // Only test code may use a test module; another use is
+                    // an error of its own and makes no edge.
+                    if named.idx() == m || (!test && target.role == Role::Test) {
+                        continue;
+                    }
+                    deps.push(named);
+                    if let Some(line) = u.line
+                        && !u.public
+                        && !test
+                        && target.package == module.package
+                    {
+                        p.push((named, line, written.unwrap_or_default()));
+                    }
                 }
             }
             deps.sort_stable_by_key(|d| d.raw());
@@ -1684,6 +1789,9 @@ impl ModuleGraph {
             // The first line naming each module makes its edge.
             p.sort_stable_by_key(|e| (e.0.raw(), e.1));
             p.dedup_by(|b, a| a.0 == b.0);
+        }
+        for c in published {
+            table.modules[c.idx()].published = true;
         }
         g.group_units(table);
         g.find_loops(table);
@@ -1905,8 +2013,8 @@ impl ModuleGraph {
 #[cfg(test)]
 mod tests {
     use super::{
-        MemorySources, ModuleGraph, ModuleTable, PackageIn, Scope, UseRef, UseRootError,
-        parse_manifest,
+        MemorySources, ModuleGraph, ModuleId, ModuleTable, PackageIn, Scope, UseRef, UseRootError,
+        hidden_prefix, parse_manifest,
     };
 
     fn collisions(files: &[&str]) -> Vec<(String, hd_diag::Code)> {
@@ -2049,6 +2157,120 @@ mod tests {
         assert_eq!(order, ["pkg.b.y", "pkg.a.x", "pkg.app"]);
         let main = t.unit_of_module("pkg.app").expect("main");
         assert_eq!(g.height[main.idx()], 2);
+    }
+
+    /// `module.use.facade.module`: a module's own `pub use M.{child}`
+    /// publishes the child and makes no edge; another module's does not.
+    /// A grouped use makes its edge to its module, whatever its names.
+    #[test]
+    fn module_reexports_publish_own_children() {
+        let public = |path: &str, names: &[&str]| UseRef {
+            public: true,
+            ..grouped(path, names)
+        };
+        let (t, g) = graph_of(&[
+            ("src/shop/mod.hd", vec![public("pkg.shop", &["cart"])]),
+            ("src/shop/cart.hd", Vec::new()),
+            ("src/shop/ledger.hd", Vec::new()),
+            ("src/report.hd", vec![public("pkg.shop", &["ledger"])]),
+            ("src/audit.hd", vec![grouped("pkg.shop", &["cart"])]),
+        ]);
+        assert_eq!(t.published("pkg.shop.cart"), Some(true));
+        assert_eq!(t.published("pkg.shop.ledger"), Some(false));
+        assert_eq!(t.published("pkg.shop.nothing"), None);
+        let id = |p: &str| t.module(p).expect(p);
+        assert!(
+            g.deps[id("pkg.shop").idx()].is_empty(),
+            "a re-export reads nothing"
+        );
+        // Another module's re-export of shop's child publishes nothing; it
+        // reads shop's exports, a dependency edge, and makes no policy edge.
+        assert_eq!(g.deps[id("pkg.report").idx()], [id("pkg.shop")]);
+        assert!(g.policy[id("pkg.report").idx()].is_empty());
+        let audit = id("pkg.audit").idx();
+        let policy: Vec<ModuleId> = g.policy[audit].iter().map(|e| e.0).collect();
+        assert_eq!(policy, [id("pkg.shop")]);
+        assert_eq!(g.deps[audit], [id("pkg.shop")]);
+    }
+
+    /// `module.vis.nested`, `module.vis.top-level`: the first prefix of a
+    /// path that names a module outside whose scope the importer is, and
+    /// which its parent does not re-export. A root's children are visible
+    /// in their package, a nested module in its parent's subtree; a bare
+    /// directory re-exports nothing (`module.vis.nested.folder`).
+    #[test]
+    fn hidden_prefix_finds_the_first_private_module() {
+        let modules = [
+            ("app", false),
+            ("app.top", true),
+            ("app.shop", false),
+            ("app.shop.cart", true),
+            ("app.shop.ledger", false),
+            ("app.shop.ledger.rows", false),
+            ("app.shop.orders.item", false),
+            ("app.$tests.common", false),
+            ("app.$tests.common.x", false),
+        ];
+        let published = |p: &str| modules.iter().find(|(m, _)| *m == p).map(|(_, b)| *b);
+        let hidden = |importer: &str, path: &str| {
+            let segs: Vec<&str> = path.split('.').collect();
+            hidden_prefix(importer, &segs, published)
+        };
+        assert_eq!(hidden("app.report", "app.shop.f"), None, "same package");
+        assert_eq!(
+            hidden("other.main", "app.shop.f"),
+            Some(2),
+            "another package"
+        );
+        assert_eq!(
+            hidden("other.main", "app.top.f"),
+            None,
+            "the root re-exports it"
+        );
+        assert_eq!(
+            hidden("other.main", "app.f"),
+            None,
+            "the root module itself"
+        );
+        assert_eq!(
+            hidden("app.report", "app.shop.cart.total"),
+            None,
+            "re-exported"
+        );
+        assert_eq!(hidden("app.report", "app.shop.ledger.balance"), Some(3));
+        assert_eq!(hidden("app.report", "app.shop.ledger.rows.r"), Some(3));
+        assert_eq!(
+            hidden("app.shop", "app.shop.ledger.balance"),
+            None,
+            "the parent"
+        );
+        assert_eq!(
+            hidden("app.shop.cart", "app.shop.ledger.balance"),
+            None,
+            "a sibling"
+        );
+        assert_eq!(
+            hidden("app.shop.orders.line", "app.shop.ledger.f"),
+            None,
+            "below"
+        );
+        assert_eq!(hidden("app.shop.cart", "app.shop.ledger.rows.r"), Some(4));
+        assert_eq!(
+            hidden("app.report", "app.shop.orders.item.f"),
+            Some(4),
+            "bare dir"
+        );
+        assert_eq!(
+            hidden("app.shopping", "app.shop.ledger.f"),
+            Some(3),
+            "no prefix match"
+        );
+        assert_eq!(
+            hidden("app.$tests.t", "app.$tests.common.f"),
+            None,
+            "test root"
+        );
+        assert_eq!(hidden("app.$tests.t", "app.$tests.common.x.f"), Some(4));
     }
 
     /// `module.cycle.edge`: a use's edge goes to the module it names, and a

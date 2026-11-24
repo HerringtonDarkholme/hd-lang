@@ -8,9 +8,9 @@
 # bytes no earlier result covers (`module.rt.ptr.as-ref`), so a `&self`
 # call's `&mut` result keeps the arena shared (`ref.excl.call`).
 use std.annotation.inline
-use std.rt.Drop
-use std.rt.cycle.marking
-use std.rt.memory.{Ptr, align_of, free_room, needs_drop, room, size_of}
+use std.rt.{Drop}
+use std.rt.{marking}
+use std.rt.{Ptr, align_of, free_room, needs_drop, room, size_of}
 
 # A chunk is one buffer room (`std.rt.memory.room`), so the collector and
 # a checked build's audit treat it as a buffer's: the previous chunk's

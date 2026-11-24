@@ -1,0 +1,4 @@
+# test: only a module itself may re-export its child modules
+# Spec 10 Use Forms: module.use.facade.module.own.
+# fixture-package-tree: nested-privacy/src/report.hd
+pub use pkg.shop.{ledger} # diagnostic: private-module

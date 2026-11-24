@@ -60,3 +60,5 @@ fn local[T](x: T) -> T:
     type Mine = (T, T)
     let p: Mine = (x, x)
     p._0
+# @file: a/mod.hd
+pub use pkg.a.{defs}

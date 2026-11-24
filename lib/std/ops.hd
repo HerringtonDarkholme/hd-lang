@@ -16,8 +16,8 @@ use std.function.{FnMut, Tuple}
 use std.hash.Hash
 use std.num.{Num, Integer, Float}
 use std.structure.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
-use std.rt.bytes.{panic_with}
-use std.rt.memory.string_bytes
+use std.rt.{panic_with}
+use std.rt.{string_bytes}
 
 # `Copy` is declared in std.core, which `List` and `Map` name.
 pub use std.core.{Copy}

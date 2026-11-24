@@ -1,0 +1,8 @@
+# test: code outside the parent reaches a nested module's items through the parent's pub use, and a re-exported child module by its path
+# Spec 10 Nested Modules: module.vis.nested.reexport; Use Forms: module.use.facade.module.
+# fixture-package-tree: nested-privacy/src/report.hd
+use pkg.shop.{balance}
+use pkg.shop.cart.{total}
+
+pub fn report() -> i32:
+    balance() + total()

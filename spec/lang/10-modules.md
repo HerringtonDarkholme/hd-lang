@@ -617,14 +617,28 @@ use dep.billing.types.{UserId as BillingUserId}
 7. r[module.use.missing-name] A use that names a declaration which an existing module of `std`, `pkg`, or a dependency does not declare is an error. Error: `unknown-import`.
 8. r[module.use.private-name] A use that names a declaration which its module declares without `pub` is an error. Error: `private-import`.
 9. r[module.use.pub-grouped] Only the grouped form accepts a `pub` prefix. A `pub` single use is an error. Error: `syntax-error`.
-10. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases.
+10. r[module.use.facade] Public facades expose selected declarations rather than module namespace aliases. The one namespace a facade exposes is a child module of its own ([`module.use.facade.module`](#r-module.use.facade.module)).
 11. r[module.use.whole-module] Use declarations introduce names for the whole module and are resolved before type checking.
 12. r[module.use.ambiguous] A single use that names both a module and a declaration of its parent module, as `use pkg.words`, is an error. Error: `ambiguous-import`.
 13. r[module.use.missing-module] A use path whose module `std`, `pkg`, or a dependency does not have is an error. So is a `dep` path naming no manifest dependency. Error: `unknown-module`.
+14. r[module.use.facade.module] A module may re-export a child module of its own with `pub use M.{child}`, where `M` is the module itself. In this form a name of a child module names the module, even where `M` also binds a declaration of that name. Any other grouped name names a declaration. The child is then visible wherever `M` is ([Nested Modules](#nested-modules)). Unlike a `pub use` of a declaration, it binds no name in `M`.
+15. r[module.use.facade.module.own] A `pub use` that names a child module of another module is an error. Error: `private-module`.
 
 ```text
 # in package pkg: src/words.hd beside a root declaration words
 use pkg.words  # ambiguous-import: rename the module or the declaration
+```
+
+A facade re-exports its own child modules by name:
+
+```text
+# src/shop/mod.hd
+pub use pkg.shop.{cart}         # valid: shop.cart is visible wherever shop is
+
+# src/report.hd
+use pkg.shop.cart               # valid: shop re-exports cart
+use pkg.shop.{cart}             # error: unknown-import, cart is no declaration
+pub use pkg.shop.{cart}         # error: private-module
 ```
 
 ```text
@@ -686,6 +700,9 @@ use pkg.shop.cart.{total}
 
 pub fn bill() -> i32:
     total()
+
+# src/shop/mod.hd
+pub use pkg.shop.{cart}
 
 # src/shop/cart.hd
 use pkg.billing.{bill}  # error: module-cycle
@@ -2186,6 +2203,56 @@ use pkg.shop.a.{Token}  # error: re-export-loop
 
 > **Why.** A `pub use` line makes no edge of the module graph, so a facade
 > and its children may use each other. A name still needs one declaration.
+
+### Nested Modules
+
+A **nested module** is a module whose parent is not a root. Code outside
+its parent reaches it only where the parent re-exports it, as another
+package reaches a top-level module only through its root:
+
+```text
+# src/shop/mod.hd
+pub use pkg.shop.{cart}
+pub use pkg.shop.ledger.{balance}
+
+# src/shop/orders/line.hd: inside shop's subtree
+use pkg.shop.ledger.{balance}   # valid
+
+# src/report.hd: outside shop
+use pkg.shop.{balance}          # valid: through the facade
+use pkg.shop.cart.{total}       # valid: shop re-exports cart
+use pkg.shop.ledger.{balance}   # error: private-module
+```
+
+1. r[module.vis.nested] A module is **nested** when its parent path is not a root: neither a package root module nor the test or task root below one. A use may name a nested module only from its parent or a module below the parent. Any other use of it is an error. Error: `private-module`.
+2. r[module.vis.nested.reexport] A nested module whose parent re-exports it ([`module.use.facade.module`](#r-module.use.facade.module)) is visible wherever its parent is.
+3. r[module.vis.nested.path] The rule holds for every nested module that a use path passes through, and for a path through a dependency's root name in an expression.
+4. r[module.vis.nested.folder] A directory without `mod.hd` is no module, so nothing re-exports the modules in it. They are visible only to each other and to the modules below them.
+5. r[module.vis.top-level] A **top-level module**, one whose parent is a root, is visible to every module of its package. Another package may name it only where its package root module re-exports it. Error: `private-module`.
+6. r[module.vis.nested.binds] A use that this rule rejects still binds its names, so the module's code checks against them.
+7. r[module.vis.nested.fix] When the parent re-exports each declaration that the rejected use names, the diagnostic's fix-it names them through the parent.
+
+```text
+error: src/report.hd:1:1: private-module: `pkg.shop.ledger` is a child module of `pkg.shop`, which does not re-export it, so only `pkg.shop` and the modules below it may use it
+    fix: use `pkg.shop.{balance}`, which `pkg.shop` re-exports
+```
+
+```text
+# money/src/lib.hd
+pub use pkg.{coins}
+
+# app/src/main.hd
+use dep.money.coins.{cents}     # valid: money's root re-exports coins
+use dep.money.ledger.{balance}  # error: private-module
+```
+
+> **Note.** std's root module re-exports every top-level std module but
+> [`std.rt`](#r-module.rt.std-only), so `use std.collections.UniqList`
+> works from every package.
+
+> **Why.** A folder's modules are its implementation, as a Rust module's
+> children are private by default. The parent's `pub use` lines are the one
+> place that says what the rest of the package may name.
 
 ### Member Visibility
 

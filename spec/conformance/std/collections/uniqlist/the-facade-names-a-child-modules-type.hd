@@ -1,0 +1,6 @@
+# test: std.collections names UniqList, which its child module uniq_list declares, so a user module may use it there
+# Spec 10 Nested Modules: module.vis.nested.reexport; Spec std/collections: std-collections.uniq-list.type.
+use std.collections.UniqList
+
+pub fn fresh() -> UniqList[i32]:
+    UniqList::[i32].new()

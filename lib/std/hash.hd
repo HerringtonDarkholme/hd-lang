@@ -11,11 +11,11 @@
 use std.annotation.inline
 use std.function.Tuple
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.bytes.{bytes_len, bytes_at, char_scalar}
+use std.rt.{bytes_len, bytes_at, char_scalar}
 
 # `Hash` and `Hasher` are declared in std.core, which `Map` names.
 pub use std.core.{Hash, Hasher}
-use std.rt.hash.FoldHasher
+use std.rt.{FoldHasher}
 use std.format.DebugWriter
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.

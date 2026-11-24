@@ -1820,7 +1820,7 @@ mod stored_artifact_tests {
     }
 
     /// A package `shop` of `n` modules besides `src/main.hd`, whose `main`
-    /// panics in `pick`, which `src/f0/m.hd` declares.
+    /// panics in `pick`, which `src/f0/mod.hd` declares.
     fn panicking(name: &str, n: usize) -> Scratch {
         let dir = Scratch::new(
             concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp"),
@@ -1834,7 +1834,7 @@ mod stored_artifact_tests {
         )
         .expect("main");
         for i in 0..n {
-            let path = dir.join(format!("src/f{i}/m.hd"));
+            let path = dir.join(format!("src/f{i}/mod.hd"));
             std::fs::create_dir_all(path.parent().expect("dir")).expect("dir");
             let text = if i == 0 {
                 include_str!("tests/programs/lib/panicking_2.hd").to_owned()
@@ -1907,7 +1907,7 @@ mod stored_artifact_tests {
             assert_eq!(
                 lines,
                 [
-                    "src/f0/m.hd:2 shop.f0.m.pick",
+                    "src/f0/mod.hd:2 shop.f0.pick",
                     "src/main.hd:4 shop.main.main"
                 ],
                 "{n}"
@@ -1915,7 +1915,7 @@ mod stored_artifact_tests {
             // A comment moves `pick` down a line; the stored module is the
             // same, its frames are the edited file's.
             std::fs::write(
-                dir.join("src/f0/m.hd"),
+                dir.join("src/f0/mod.hd"),
                 include_str!("tests/programs/lib/a_warm_run_takes_the_stored_module_and_its_panic_names_its_lines.hd"),
             )
             .expect("edit");
@@ -1931,7 +1931,7 @@ mod stored_artifact_tests {
             assert_eq!(
                 warm.frame_lines(&trap_of(&warm.wasm), &store),
                 [
-                    "src/f0/m.hd:3 shop.f0.m.pick",
+                    "src/f0/mod.hd:3 shop.f0.pick",
                     "src/main.hd:4 shop.main.main"
                 ],
                 "{n}"

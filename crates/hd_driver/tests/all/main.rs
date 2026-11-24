@@ -90,6 +90,93 @@ mod unlowered_intrinsic;
 mod validate_pattern;
 mod warm_source_reads;
 
+/// The facade each test package's bare folder needs: `(module, mod.hd,
+/// text)` for a module that a program uses from outside its folder. A
+/// folder without `mod.hd` re-exports nothing (`module.vis.nested.folder`),
+/// so its parent's `mod.hd` names what other modules may use.
+const FACADES: &[(&str, &str, &str)] = &[
+    (
+        "lib/defs.hd",
+        "lib/mod.hd",
+        include_str!("programs/facades/lib_defs.hd"),
+    ),
+    (
+        "prod/defs.hd",
+        "prod/mod.hd",
+        include_str!("programs/facades/prod_defs.hd"),
+    ),
+    (
+        "base/defs.hd",
+        "base/mod.hd",
+        include_str!("programs/facades/base_defs.hd"),
+    ),
+    (
+        "geo/shapes.hd",
+        "geo/mod.hd",
+        include_str!("programs/facades/geo_shapes.hd"),
+    ),
+    (
+        "geo/records.hd",
+        "geo/mod.hd",
+        include_str!("programs/facades/geo_records.hd"),
+    ),
+    (
+        "shop/catalog.hd",
+        "shop/mod.hd",
+        include_str!("programs/facades/shop_catalog.hd"),
+    ),
+    (
+        "ring/a.hd",
+        "ring/mod.hd",
+        include_str!("programs/facades/ring_a.hd"),
+    ),
+    (
+        "mix/b.hd",
+        "mix/mod.hd",
+        include_str!("programs/facades/mix_b.hd"),
+    ),
+    (
+        "shop/a.hd",
+        "shop/mod.hd",
+        include_str!("programs/facades/shop_a.hd"),
+    ),
+    (
+        "geo/keys.hd",
+        "geo/mod.hd",
+        include_str!("programs/facades/geo_keys.hd"),
+    ),
+    (
+        "shapes/options.hd",
+        "shapes/mod.hd",
+        include_str!("programs/facades/shapes_options.hd"),
+    ),
+    (
+        "service/load.hd",
+        "service/mod.hd",
+        include_str!("programs/facades/service_load.hd"),
+    ),
+    (
+        "user/types.hd",
+        "user/mod.hd",
+        include_str!("programs/facades/user_types.hd"),
+    ),
+    (
+        "stats/calc.hd",
+        "stats/mod.hd",
+        include_str!("programs/facades/stats_calc.hd"),
+    ),
+];
+
+/// Adds to `src` the facade of each module of [`FACADES`] it holds.
+pub fn add_facades(src: &mut hd_project::MemorySources) {
+    use hd_project::SourceSet as _;
+    for (module, facade, text) in FACADES {
+        if src.read(module).is_some() {
+            src.insert(facade, text);
+        }
+    }
+}
+
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.
 pub struct Shared(&'static hd_cache::MemoryStore);

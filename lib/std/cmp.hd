@@ -5,7 +5,7 @@ use std.function.Tuple
 use std.hash.Hasher
 use std.num.{Num, Integer}
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.bytes.{bytes_mismatch}
+use std.rt.{bytes_mismatch}
 
 # `Eq` is declared in std.core, which `List` and `Map` name.
 pub use std.core.{Eq}

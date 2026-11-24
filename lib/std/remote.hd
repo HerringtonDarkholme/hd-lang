@@ -9,7 +9,7 @@ use std.http.{Http, HttpError, Request, Response, Url}
 use std.marker.Wire
 use std.num.Integer
 use std.random.Random
-use std.rt.bytes.char_from_scalar
+use std.rt.{char_from_scalar}
 use std.structure.{Field, Key, Members, Source, Structure, Variant, Walker}
 use std.time.Clock
 

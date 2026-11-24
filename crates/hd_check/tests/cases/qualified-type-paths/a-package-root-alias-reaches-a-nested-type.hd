@@ -10,6 +10,7 @@ pub fn main() -> void:
 # @file: src/lib.hd
 pub struct Marker: pass
 # @file: src/models/mod.hd
+pub use pkg.models.{types}
 pub struct Marker: pass
 # @file: src/models/types.hd
 pub struct Token:

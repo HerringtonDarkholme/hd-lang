@@ -15,3 +15,9 @@ use pkg.b.y.{P}
 impl Shape for P:
     fn area(self) -> i32:
         1
+# @file: a/mod.hd
+pub use pkg.a.{x}
+# @file: b/mod.hd
+pub use pkg.b.{y}
+# @file: c/mod.hd
+pub use pkg.c.{z}

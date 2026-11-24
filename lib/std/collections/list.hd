@@ -4,8 +4,8 @@ use std.function.FnMut
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 use std.num.Num
 use std.ops.Range
-use std.rt.Drop
-use std.rt.bytes.panic_with
+use std.rt.{Drop}
+use std.rt.{panic_with}
 
 impl[T] List[T]:
     ## Returns an empty list with room for at least `capacity` elements.

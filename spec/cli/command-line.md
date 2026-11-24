@@ -243,6 +243,11 @@ modules that tasks share:
 15. r[cli.task.not-shipped] A task is never part of the package's library or executables, and a dependent package never builds it.
 16. r[cli.task.name-clash] A task and an executable with the same name are an error when `hd` reads the manifest. Error: `duplicate-executable-name`.
 
+> **Note.** A shared task module such as `tasks/shared/zip.hd` is a
+> [nested module](../lang/10-modules.md#r-module.vis.nested): its parent is
+> `tasks/shared`. Tasks reach it where `tasks/shared/mod.hd` re-exports it, as in
+> `pub use self.{zip}`.
+
 > **Why.** Tasks follow the test root's layout
 > ([Test Modules](../lang/10-modules.md#test-modules)): a top-level file is
 > a program, and a subdirectory holds what programs share. A top-level

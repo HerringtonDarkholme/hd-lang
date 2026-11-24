@@ -27,6 +27,10 @@ impl World for OneUnit {
         false
     }
 
+    fn published(&self, module: &str) -> Option<bool> {
+        self.usable(module).then_some(false)
+    }
+
     fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
         None
     }

@@ -14,9 +14,9 @@ use std.format.DebugWriter
 use std.num.Integer
 use std.collections.UniqList
 use std.iter.FromIterator
-use std.rt.memory.{new_string, string_bytes, copy, load_u64, store_u8}
+use std.rt.{new_string, string_bytes, copy, load_u64, store_u8}
 use std.annotation.inline
-use std.rt.bytes.{
+use std.rt.{
     bytes_len,
     bytes_at,
     bytes_slice,

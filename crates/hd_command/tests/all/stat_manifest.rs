@@ -63,6 +63,12 @@ fn settled_stamps_still_see_same_size_edits_replacements_and_renames() {
     )
     .expect("main");
     std::fs::write(root.join("src/a/x.hd"), "pub fn x() -> i32: 1\n").expect("x");
+    // A folder's modules are private to it (`module.vis.nested`).
+    std::fs::write(
+        root.join("src/a/mod.hd"),
+        include_str!("programs/facades/a_x.hd"),
+    )
+    .expect("facade");
     let price = root.join("src/price.hd");
     std::fs::write(&price, GOOD).expect("price");
     let written = mtime(&price);

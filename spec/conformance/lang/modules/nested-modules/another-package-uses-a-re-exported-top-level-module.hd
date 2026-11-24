@@ -1,0 +1,8 @@
+# fixture-package-role: root-application
+# test: another package may use a top-level module that its package root re-exports
+# Spec 10 Nested Modules: module.vis.top-level, module.vis.nested.reexport.
+use dep.vault.open.{shown}
+use dep.vault.{root_value}
+
+pub fn total() -> i32:
+    shown() + root_value()

@@ -313,6 +313,9 @@ pub trait World {
     /// test module), which non-test code may not use
     /// (`module.test.non-test-use.test-module`).
     fn test_only(&self, module: &str) -> bool;
+    /// Whether the parent of the module at `module` re-exports it
+    /// (`module.use.facade.module`); `None` when no module has that path.
+    fn published(&self, module: &str) -> Option<bool>;
     fn iface(&self, unit: u32) -> Option<Arc<UnitIface>>;
     /// Holds (`true`) or resumes the recording of the reads that follow,
     /// in a world that records them ([`Recorded`]): binding a use reads
@@ -404,6 +407,10 @@ impl World for Recorded<'_> {
         self.module(module);
         self.world.test_only(module)
     }
+    fn published(&self, module: &str) -> Option<bool> {
+        self.module(module);
+        self.world.published(module)
+    }
     fn iface(&self, unit: u32) -> Option<Arc<UnitIface>> {
         if !self.held() {
             let mut r = self.lock();
@@ -443,6 +450,8 @@ pub struct UseDecl {
     /// The path before its roots were rewritten, for a missing module's
     /// message when its absolute path names compiler-owned test code.
     written_path: String,
+    /// Where the written path is, from its first segment to its last.
+    path_span: Span,
     /// A synthetic doc-test module sees only the package's library view.
     doc_test: bool,
     /// Its source holds a parse diagnostic (`grammar.recovery.item`): it
@@ -510,6 +519,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
     let mut public = false;
     let mut after_as = false;
     let mut seen_use = false;
+    let mut path_span: Option<Span> = None;
     for t in item.direct_tokens() {
         match src.tkind(t) {
             Some(TokenKind::KwPub) => public = true,
@@ -523,6 +533,8 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
                     alias = Some(text.to_owned());
                 } else {
                     path.push(text.to_owned());
+                    let at = src.token_span(t);
+                    path_span = Some(path_span.map_or(at, |p| Span { hi: at.hi, ..p }));
                 }
             }
             // ruled out: a match on a token kind; punctuation and the other tokens of a `use` line add nothing to its path.
@@ -580,6 +592,7 @@ fn use_decl(src: &Src<'_>, item: NodeRef<'_>, roots: &UseRoots, tests: bool) -> 
         root_error,
         written_root,
         written_path,
+        path_span: path_span.unwrap_or_else(|| src.span(item)),
         doc_test: roots.doc_test,
         broken: src.parse.is_broken(item.index()),
     }
@@ -1878,7 +1891,7 @@ fn scope_of(
     if r.frozen.is_none() {
         scope.track();
     }
-    bind_uses(r, &mut scope, &mut kinds, uses, diags);
+    bind_uses(r, &m.path, &mut scope, &mut kinds, uses, diags);
     if let Some(outer) = &m.session {
         let seen = scope.looked_up.take();
         scope = outer.scope.overlay(&scope);
@@ -1897,7 +1910,7 @@ fn scope_of(
 /// own names win inside it (`names.tests.shadow`).
 fn test_scope_of(
     r: &Resolver<'_, '_>,
-    src: &Src<'_>,
+    (src, importer): (&Src<'_>, &str),
     heads: &[Head<'_>],
     (scope, kinds): (&ModuleScope, &mut Kinds),
     uses: &[UseDecl],
@@ -1937,7 +1950,7 @@ fn test_scope_of(
         let msg = "a use of a `tests:` block cannot be `pub`";
         diags.error(Code::PublicTestItem, u.span, msg);
     }
-    bind_uses(r, &mut inner, kinds, uses, diags);
+    bind_uses(r, importer, &mut inner, kinds, uses, diags);
     scope.overlay(&inner)
 }
 
@@ -1945,6 +1958,7 @@ fn test_scope_of(
 /// nothing, whose names stay quiet (poisoned).
 fn bind_uses(
     r: &Resolver<'_, '_>,
+    importer: &str,
     scope: &mut ModuleScope,
     kinds: &mut Kinds,
     uses: &[UseDecl],
@@ -1952,6 +1966,7 @@ fn bind_uses(
 ) {
     let names = &r.cx.names;
     r.cx.world.hold_reads(true);
+    let mut child = String::new();
     for (row, u) in uses.iter().enumerate() {
         let row = u32::try_from(row).unwrap_or(u32::MAX);
         let module = u.module();
@@ -2005,6 +2020,9 @@ fn bind_uses(
             poison_use(scope, names, u, row);
             continue;
         }
+        // A use of a module it may not name still binds its names, so the
+        // module's code checks against them (`module.vis.nested`).
+        report_private(r, importer, u, diags);
         if let Some(group) = &u.group {
             {
                 if !r.module_exists(&module) {
@@ -2015,7 +2033,21 @@ fn bind_uses(
                 }
                 for g in group {
                     let sym = names.syms.intern(&g.name);
-                    match r.export(&module, sym) {
+                    child.clear();
+                    child.push_str(&module);
+                    child.push('.');
+                    child.push_str(&g.name);
+                    // In a module's own `pub use M.{c}`, `c` names its child
+                    // module, since re-exporting its own binding means
+                    // nothing (`module.use.facade.module`). Elsewhere a
+                    // declaration of the module wins.
+                    let own = u.public && module == importer && r.module_exists(&child);
+                    let found = r.export(&module, sym);
+                    if own || (found == Err(Code::UnknownImport) && r.module_exists(&child)) {
+                        reexport_child(r, importer, (scope, &mut *diags), u, g, row);
+                        continue;
+                    }
+                    match found {
                         Ok((d, k)) => {
                             let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
                             let origin = if u.public {
@@ -2106,6 +2138,135 @@ fn bind_uses(
     r.cx.world.hold_reads(false);
 }
 
+/// The written form of the first `k` segments of `u`'s absolute path:
+/// the same segments past the root, which `pkg`, `self`, `super` or
+/// `dep.NAME` spelled. The absolute path when the root covers them.
+fn written_prefix(u: &UseDecl, k: usize) -> String {
+    let written: Vec<&str> = u.written_path.split('.').collect();
+    match (k + written.len()).checked_sub(u.path.len()) {
+        Some(keep) if (1..=written.len()).contains(&keep) => written[..keep].join("."),
+        _ => u.path[..k].join("."),
+    }
+}
+
+/// Reports `u` when its path names a module `importer` may not name: a
+/// nested module outside whose parent's subtree `importer` is, and which
+/// the parent does not re-export (`module.vis.nested`). When the parent
+/// re-exports each declaration the use names, a fix-it names them through
+/// the parent (`module.vis.nested.fix`). Cost: one `published` question
+/// per path segment, and two export lookups per name for the fix-it.
+fn report_private(r: &Resolver<'_, '_>, importer: &str, u: &UseDecl, diags: &mut DiagBuf) {
+    let world = r.cx.world;
+    let Some(k) = hd_project::hidden_prefix(importer, &u.path, |p| world.published(p)) else {
+        return;
+    };
+    let hidden = written_prefix(u, k);
+    let parent = written_prefix(u, k - 1);
+    // A directory without `mod.hd` is no module, so nothing can re-export
+    // its modules (`module.vis.nested.folder`): say where the facade goes.
+    let owner = u.path[..k - 1].join(".");
+    let hint = if !hd_project::is_root_path(&owner) && !r.module_exists(&owner) {
+        let child = &u.path[k - 1];
+        format!(
+            "; `{parent}` is a directory without `mod.hd`: add one with `pub use {parent}.{{{child}}}`"
+        )
+    } else {
+        String::new()
+    };
+    let msg = format!(
+        "`{hidden}` is a child module of `{parent}`, which does not re-export it, so only `{parent}` and the modules below it may use it{hint}"
+    );
+    diags.error(Code::PrivateModule, u.span, &msg);
+    if let Some(path) = reexported_path(r, u, k, &parent) {
+        let shown = match &u.group {
+            Some(group) => {
+                let names: Vec<&str> = group.iter().map(|g| g.name.as_str()).collect();
+                format!("{path}.{{{}}}", names.join(", "))
+            }
+            None => path.clone(),
+        };
+        let title = format!("use `{shown}`, which `{parent}` re-exports");
+        diags.add_fix(&title, hd_diag::FixSafety::Exact, &[(u.path_span, &path)]);
+    }
+}
+
+/// The written path that names `u`'s declarations through the parent of
+/// the hidden module at `u.path[..k]`, written `parent`, when the parent
+/// exports each under its own name as the same declaration. `None` for a
+/// use of a module's namespace, which no declaration re-export replaces.
+fn reexported_path(r: &Resolver<'_, '_>, u: &UseDecl, k: usize, parent: &str) -> Option<String> {
+    let names = &r.cx.names;
+    let owner = u.path[..k - 1].join(".");
+    let (declaring, written): (String, Vec<&str>) = if let Some(group) = &u.group {
+        (u.module(), group.iter().map(|g| g.name.as_str()).collect())
+    } else {
+        if r.module_exists(&u.module()) {
+            return None;
+        }
+        let (last, path) = u.path.split_last()?;
+        (path.join("."), vec![last.as_str()])
+    };
+    for name in &written {
+        if r.module_exists(&format!("{declaring}.{name}")) {
+            return None;
+        }
+        let sym = names.syms.intern(name);
+        let (d, _) = r.export(&declaring, sym).ok()?;
+        let (via, _) = r.export(&owner, sym).ok()?;
+        if d != via {
+            return None;
+        }
+    }
+    Some(match (&u.group, written.as_slice()) {
+        (None, [last]) => format!("{parent}.{last}"),
+        _ => parent.to_owned(),
+    })
+}
+
+/// The grouped name `g` of `u` names a child module of `u`'s module that
+/// declares no such name. In a `pub use` in that module it re-exports the
+/// child and binds no name (`module.use.facade.module`): a root facade
+/// re-exports modules named like prelude names, such as `std.debug` and
+/// `std.f64`. Any other module may not re-export it
+/// (`module.use.facade.module.own`), and a plain grouped use names
+/// declarations only (`module.use.grouped`): the namespace is `use M.child`.
+fn reexport_child(
+    r: &Resolver<'_, '_>,
+    importer: &str,
+    (scope, diags): (&mut ModuleScope, &mut DiagBuf),
+    u: &UseDecl,
+    g: &UseName,
+    row: u32,
+) {
+    let local =
+        r.cx.names
+            .syms
+            .intern(g.alias.as_deref().unwrap_or(&g.name));
+    let module = u.module();
+    let (code, msg) = if !u.public {
+        let path = written_prefix(u, u.path.len());
+        (
+            Code::UnknownImport,
+            format!(
+                "`{path}` declares no `{0}`; `{0}` is its child module, which `use {path}.{0}` names",
+                g.name
+            ),
+        )
+    } else if module != importer {
+        (
+            Code::PrivateModule,
+            format!(
+                "only `{module}` may re-export its child module `{}`; a module re-exports only its own children",
+                g.name
+            ),
+        )
+    } else {
+        return;
+    };
+    diags.error(code, g.span, &msg);
+    bind_poison(scope, local, use_origin(u), row);
+}
+
 /// Asks the world again what [`bind_uses`] asked it for each use of
 /// `uses` that binds a name of `seen`, so a recording world
 /// ([`Recorded`]) counts those reads.
@@ -2123,6 +2284,7 @@ fn reread_uses(r: &Resolver<'_, '_>, uses: &[UseDecl], seen: &HashSet<Symbol>) {
                     asked = true;
                     let _ = r.module_exists(&module);
                 }
+                let _ = r.module_exists(&format!("{module}.{}", g.name));
                 let _ = r.export(&module, names.syms.intern(&g.name));
             }
         } else if let Some((last, parent)) = u.path.split_last()
@@ -2151,8 +2313,17 @@ fn reexports(r: &Resolver<'_, '_>, m: &ModIn<'_>, u: &UseDecl) -> Vec<(Symbol, S
             return Vec::new();
         }
         let module = u.module();
+        // A name of a child module that the module does not declare
+        // re-exports the module, no declaration (`module.use.facade.module`).
         return group
             .iter()
+            .filter(|g| {
+                let child = format!("{module}.{}", g.name);
+                if module == m.path {
+                    return !r.module_exists(&child);
+                }
+                declares(r, &module, names.syms.intern(&g.name)) || !r.module_exists(&child)
+            })
             .map(|g| {
                 let local = names.syms.intern(g.alias.as_deref().unwrap_or(&g.name));
                 (local, module.clone(), names.syms.intern(&g.name))
@@ -2169,6 +2340,19 @@ fn reexports(r: &Resolver<'_, '_>, m: &ModIn<'_>, u: &UseDecl) -> Vec<(Symbol, S
         .syms
         .intern(u.alias.as_deref().unwrap_or(last.as_str()));
     vec![(local, parent.join("."), names.syms.intern(last))]
+}
+
+/// Whether `module` declares `name`: a head of this unit's own module, or
+/// an export of another unit's frozen interface. A unit's own `pub use`
+/// links are still being collected, so they are not asked.
+fn declares(r: &Resolver<'_, '_>, module: &str, name: Symbol) -> bool {
+    if r.is_own_unit(module) {
+        r.module_keys
+            .get(module)
+            .is_some_and(|&m| r.own.contains_key(&(m, name)))
+    } else {
+        r.export(module, name).is_ok()
+    }
 }
 
 /// What the user reads when `module` does not give `name` to an import.
@@ -2956,6 +3140,24 @@ impl Lower<'_, '_, '_> {
         for (s, _) in &segs[1..segs.len() - 1] {
             module.push('.');
             module.push_str(s);
+        }
+        // A root's name leads to its nested modules only where a use
+        // could name them (`module.vis.nested`).
+        if segs.len() > 2 {
+            let world = self.r.cx.world;
+            let path: Vec<&str> = module.split('.').collect();
+            if let Some(k) = hd_project::hidden_prefix(self.module, &path, |p| world.published(p)) {
+                let written: Vec<&str> = segs[..k.min(segs.len())]
+                    .iter()
+                    .map(|(s, _)| s.as_str())
+                    .collect();
+                let hidden = written.join(".");
+                let parent = written[..written.len() - 1].join(".");
+                let msg = format!(
+                    "`{hidden}` is a child module of `{parent}`, which does not re-export it, so only `{parent}` and the modules below it may use it"
+                );
+                self.diags.error(Code::PrivateModule, span, &msg);
+            }
         }
         let (last, token) = segs.last()?;
         let last_sym = self.sym_token(*token);
@@ -9339,7 +9541,14 @@ pub fn build_unit(
             let mut test_diags = DiagBuf::default();
             let tests = m.tests.then(|| {
                 let uses = test_use_decls(&m.src, &m.roots);
-                test_scope_of(&r, &m.src, hs, (&scope, &mut kinds), &uses, &mut test_diags)
+                test_scope_of(
+                    &r,
+                    (&m.src, &m.path),
+                    hs,
+                    (&scope, &mut kinds),
+                    &uses,
+                    &mut test_diags,
+                )
             });
             ModScopes {
                 scope,
@@ -10123,6 +10332,10 @@ mod module_key_tests {
             false
         }
 
+        fn published(&self, module: &str) -> Option<bool> {
+            self.usable(module).then_some(false)
+        }
+
         fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
             None
         }
@@ -10192,6 +10405,9 @@ mod module_key_tests {
                 }
                 fn test_only(&self, _: &str) -> bool {
                     false
+                }
+                fn published(&self, _: &str) -> Option<bool> {
+                    Some(false)
                 }
                 fn iface(&self, _: u32) -> Option<Arc<UnitIface>> {
                     None

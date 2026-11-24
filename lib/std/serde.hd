@@ -25,7 +25,7 @@ use std.structure.{
     Facts,
     skips,
 }
-use std.rt.bytes.{string_from_bytes}
+use std.rt.{string_from_bytes}
 
 ## A member's or variant's document name, independent of its hd source name.
 ## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).

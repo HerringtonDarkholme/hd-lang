@@ -10,7 +10,7 @@ use std.function.{Fn, FnMut}
 use std.ops.AsyncDisposable
 use std.time.{Clock, Duration, Instant, sleep}
 use std.collections.Deque
-use std.rt.wait.{WaitCell, wait_cell, wait_signal}
+use std.rt.{WaitCell, wait_cell, wait_signal}
 
 ## A configuration that wraps work and declares the resulting type.
 ## See [std-task.layer.decl](../../spec/std/task.md#r-std-task.layer.decl).
