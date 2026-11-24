@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+# A user method with the same name must not get List-specific repairs.
+struct Log: pass
+
+impl Log:
+    fn append(&mut self, other: string) -> void:
+        pass
+
+fn write(log: &mut Log) -> void:
+    log.append(+7)
