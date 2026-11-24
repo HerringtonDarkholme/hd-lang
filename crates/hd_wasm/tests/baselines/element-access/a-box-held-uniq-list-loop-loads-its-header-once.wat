@@ -141,13 +141,13 @@
     ;; 29 |     s
     local.get $s
   )
-  (func $in_a_local (param $u.buffer.address i32) (param $u.buffer.capacity i32) (param $u.len i32) (param $n i32) (result i64) (local $t0 i32) (local $s i64) (local $t1 i32)
+  (func $in_a_local (param $u.buffer.ptr i32) (param $u.buffer.capacity i32) (param $u.len i32) (param $n i32) (result i64) (local $t0 i32) (local $s i64) (local $t1 i32)
     ;; 38 |     h := Holder { store: box(u) }
     i32.const 32
     i32.const 1
     call $rt:new/class-3
     local.tee $t0
-    local.get $u.buffer.address
+    local.get $u.buffer.ptr
     i32.store $heap
     local.get $t0
     local.get $u.buffer.capacity
@@ -184,7 +184,7 @@
         i32.add
         local.set $t1
     ;; 41 |         s = s + h.store[i]
-        local.tee $u.buffer.address
+        local.tee $u.buffer.ptr
         local.get $t0
         i32.load $heap offset=8
         i32.ge_u
@@ -200,7 +200,7 @@
         local.get $s
         local.get $t0
         i32.load $heap
-        local.get $u.buffer.address
+        local.get $u.buffer.ptr
         i32.const 8
         i32.mul
         i32.add

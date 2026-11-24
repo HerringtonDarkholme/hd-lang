@@ -10,11 +10,11 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 32 funcref))
-  (func $begin (param $sink.0 i32) (param $sink.1 i32) (param $value.values i32) (param $value.owner.buffer.address i32) (param $value.owner.buffer.capacity i32) (param $value.owner.len i32) (result i32)
+  (func $begin (param $sink.0 i32) (param $sink.1 i32) (param $value.values i32) (param $value.owner.buffer.ptr i32) (param $value.owner.buffer.capacity i32) (param $value.owner.len i32) (result i32)
     ;; 25 |     sink.keep(value)
     local.get $sink.0
     local.get $value.values
-    local.get $value.owner.buffer.address
+    local.get $value.owner.buffer.ptr
     local.get $value.owner.buffer.capacity
     local.get $value.owner.len
     local.get $sink.1

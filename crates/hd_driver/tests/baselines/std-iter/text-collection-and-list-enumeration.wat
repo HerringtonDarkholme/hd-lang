@@ -2,7 +2,7 @@
 == @build: release
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[u8]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[u8]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[char]" (func $"impl[T] Iterator[T] for ListIter[T].next[char]" (param i32) (result i32)))
   (import "fixture" "impl StringBuilder.push_char" (func $"impl StringBuilder.push_char" (param i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
@@ -22,7 +22,7 @@
     local.get $t0
     call $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]"
   )
-  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t5 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -55,40 +55,41 @@
       local.get $t4
       i32.store $heap offset=8
       i32.const 0
-      i32.const 1
-      call $room
+      call $"impl[T < ?Copy] UniqList[T].with_capacity[u8]"
       local.set $t2
+      local.set $t3
+      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap offset=24
       local.get $t0
       i32.const 32
       i32.add
-      local.tee $t3
-      local.get $t2
+      local.tee $t5
+      local.get $t4
       i32.store $heap
+      local.get $t5
       local.get $t3
-      i32.const 0
       i32.store $heap offset=4
-      local.get $t3
-      i32.const 0
+      local.get $t5
+      local.get $t2
       i32.store $heap offset=8
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=12
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=16
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=20
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=24
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=28
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=32
       loop
@@ -106,47 +107,47 @@
               br 0
               unreachable
             end
-            local.get $t3
+            local.get $t5
             local.get $t2
             call $"impl StringBuilder.push_char"
             br 1
           end
-          local.get $t3
+          local.get $t5
           call $"impl StringBuilder.build"
+          local.set $t3
           local.set $t4
-          local.set $t2
           local.get $t1
           if
             local.get $t1
             i32.load $heap
-            local.tee $t1
+            local.tee $t2
             if
-              local.get $t1
+              local.get $t2
               i32.const 8
               i32.sub
               i32.load $heap
               if
-                local.get $t1
+                local.get $t2
                 call $rt:release_ref
               end
             end
           end
-          local.get $t3
+          local.get $t5
           if
-            local.get $t3
+            local.get $t5
             call $"release_value[std.text.StringBuilder]"
           end
           br 2
         end
         br 0
       end
-      local.get $t3
+      local.get $t5
       if
-        local.get $t3
+        local.get $t5
         call $"release_value[std.text.StringBuilder]"
       end
       i32.const 0
-      local.set $t3
+      local.set $t5
       local.get $t1
       if
         local.get $t1
@@ -191,15 +192,15 @@
           end
         end
       end
-      local.get $t3
+      local.get $t5
       if
-        local.get $t3
+        local.get $t5
         call $"release_value[std.text.StringBuilder]"
       end
       unreachable
     end
-    local.get $t2
     local.get $t4
+    local.get $t3
     local.get $t0
     i32.const 72
     i32.add
@@ -296,7 +297,7 @@
 == @build: release checked
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[u8]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[u8]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[char]" (func $"impl[T] Iterator[T] for ListIter[T].next[char]" (param i32) (result i32)))
   (import "fixture" "impl StringBuilder.push_char" (func $"impl StringBuilder.push_char" (param i32 i32)))
   (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
@@ -317,7 +318,7 @@
     local.get $t0
     call $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]"
   )
-  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32)
+  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t5 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -350,40 +351,41 @@
       local.get $t4
       i32.store $heap offset=8
       i32.const 0
-      i32.const 1
-      call $room
+      call $"impl[T < ?Copy] UniqList[T].with_capacity[u8]"
       local.set $t2
+      local.set $t3
+      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap offset=24
       local.get $t0
       i32.const 32
       i32.add
-      local.tee $t3
-      local.get $t2
+      local.tee $t5
+      local.get $t4
       i32.store $heap
+      local.get $t5
       local.get $t3
-      i32.const 0
       i32.store $heap offset=4
-      local.get $t3
-      i32.const 0
+      local.get $t5
+      local.get $t2
       i32.store $heap offset=8
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=12
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=16
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=20
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=24
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=28
-      local.get $t3
+      local.get $t5
       i32.const 1
       i32.store $heap offset=32
       loop
@@ -401,27 +403,27 @@
               br 0
               unreachable
             end
-            local.get $t3
+            local.get $t5
             local.get $t2
             call $"impl StringBuilder.push_char"
             br 1
           end
-          local.get $t3
+          local.get $t5
           call $"impl StringBuilder.build"
+          local.set $t3
           local.set $t4
-          local.set $t2
           local.get $t1
           if
             local.get $t1
             i32.load $heap
-            local.tee $t1
+            local.tee $t2
             if
-              local.get $t1
+              local.get $t2
               i32.const 8
               i32.sub
               i32.load $heap
               if
-                local.get $t1
+                local.get $t2
                 call $rt:release_ref
               else
                 call $skipped_test
@@ -430,22 +432,22 @@
               call $skipped_test
             end
           end
-          local.get $t3
+          local.get $t5
           if
-            local.get $t3
+            local.get $t5
             call $"release_value[std.text.StringBuilder]"
           end
           br 2
         end
         br 0
       end
-      local.get $t3
+      local.get $t5
       if
-        local.get $t3
+        local.get $t5
         call $"release_value[std.text.StringBuilder]"
       end
       i32.const 0
-      local.set $t3
+      local.set $t5
       local.get $t1
       if
         local.get $t1
@@ -502,15 +504,15 @@
           call $skipped_test
         end
       end
-      local.get $t3
+      local.get $t5
       if
-        local.get $t3
+        local.get $t5
         call $"release_value[std.text.StringBuilder]"
       end
       unreachable
     end
-    local.get $t2
     local.get $t4
+    local.get $t3
     local.get $t0
     i32.const 72
     i32.add

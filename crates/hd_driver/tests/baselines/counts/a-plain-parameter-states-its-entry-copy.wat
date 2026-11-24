@@ -13,7 +13,7 @@
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[i32]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[i32]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[i32]" (param i32 i32)))
   (import "fixture" "release_value[std.collections.UniqList[i32]]" (func $"release_value[std.collections.UniqList[i32]]" (param i32)))
   (import "fixture" "rt:new/class-1'2" (func $rt:new/class-1'2 (param i32 i32) (result i32)))
@@ -75,7 +75,7 @@
     local.get $t3
     local.get $t2
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $items i32) (local $t1 i32) (local $size i32) (local $t2 i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $original.0 i32) (local $original.1 i32) (local $size i32) (local $t1 i32) (local $t2 i32) (local $items i32) (local $t0 i32)
     ;; 39 |     original := word(7)
     global.get $stack
     global.get $stack_limit
@@ -101,19 +101,19 @@
     i32.const 7
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t1
-    local.tee $items
+    local.tee $size
     if
-      local.get $items
+      local.get $size
       call $retain
     end
-    local.get $items
+    local.get $size
     local.get $t1
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $items
+    local.get $size
     if
-      local.get $items
+      local.get $size
       call $rt:release_ref'1
     end
     ;; 41 |     println(same(+7))
@@ -134,13 +134,13 @@
     i32.const 9
     call_indirect $table0 (param i32 i32) (result i32 i32)
     local.set $t1
-    local.set $items
+    local.set $size
     local.get $t1
     i32.const 0
-    local.get $items
+    local.get $size
     call_indirect $table0 (param i32 i32) (result i32 i32)
-    local.set $items
-    local.tee $size
+    local.set $size
+    local.tee $t2
     local.get $t1
     if
       local.get $t1
@@ -154,13 +154,13 @@
         call $rt:release_ref'2
       end
     end
-    local.get $items
+    local.get $size
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $size
+    local.get $t2
     if
-      local.get $size
+      local.get $t2
       call $rt:release_ref'1
     end
     ;; 43 |     call := make()
@@ -168,15 +168,15 @@
     call_indirect $table0 (result i32 i32)
     ;; 44 |     println(call(original))
     local.set $t1
-    local.set $items
+    local.set $size
     local.get $t1
     local.get $original.0
     local.get $original.1
     i32.const 0
-    local.get $items
+    local.get $size
     call_indirect $table0 (param i32 i32 i32 i32) (result i32 i32)
-    local.set $items
-    local.tee $size
+    local.set $size
+    local.tee $t2
     local.get $t1
     if
       local.get $t1
@@ -190,13 +190,13 @@
         call $rt:release_ref'2
       end
     end
-    local.get $items
+    local.get $size
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $size
+    local.get $t2
     if
-      local.get $size
+      local.get $t2
       call $rt:release_ref'1
     end
     ;; 45 |     println(read(&original))
@@ -226,28 +226,28 @@
     i32.store $heap offset=4
     local.get $t1
     ;; 47 |     println(same(shared).text)
-    local.tee $items
+    local.tee $size
     i32.const 12
     call_indirect $table0 (param i32) (result i32)
     drop
-    local.get $items
+    local.get $size
     i32.load $heap
-    local.get $items
+    local.get $size
     i32.load $heap offset=4
-    local.set $items
-    local.tee $size
+    local.set $size
+    local.tee $t2
     if
-      local.get $size
+      local.get $t2
       call $retain
     end
+    local.get $t2
     local.get $size
-    local.get $items
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $size
+    local.get $t2
     if
-      local.get $size
+      local.get $t2
       call $rt:release_ref'1
     end
     ;; 48 |     println(keep(shared)().text)
@@ -265,36 +265,13 @@
     local.get $t1
     i32.const 13
     call_indirect $table0 (param i32) (result i32 i32)
-    local.set $items
     local.set $size
-    local.get $items
-    i32.const 0
+    local.set $t2
     local.get $size
+    i32.const 0
+    local.get $t2
     call_indirect $table0 (param i32 i32) (result i32)
-    local.tee $size
-    local.get $items
-    if
-      local.get $items
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      global.get $tracing
-      i32.or
-      if
-        local.get $items
-        call $rt:release_ref'2
-      end
-    end
-    local.tee $items
-    i32.load $heap
-    local.get $items
-    i32.load $heap offset=4
-    local.set $items
     local.tee $t2
-    if
-      local.get $t2
-      call $retain
-    end
     local.get $size
     if
       local.get $size
@@ -308,36 +285,59 @@
         call $rt:release_ref'2
       end
     end
-    local.get $t2
-    local.get $items
-    local.get $provider0
-    local.get $provider0.vtable
-    call $"println[string]"
+    local.tee $size
+    i32.load $heap
+    local.get $size
+    i32.load $heap offset=4
+    local.set $size
+    local.tee $items
+    if
+      local.get $items
+      call $retain
+    end
     local.get $t2
     if
       local.get $t2
-      call $rt:release_ref'1
-    end
-    ;; 49 |     println(keep(+7)())
-    i32.const 7
-    i32.const 14
-    call_indirect $table0 (param i32) (result i32 i32)
-    local.set $items
-    local.set $size
-    local.get $items
-    i32.const 0
-    local.get $size
-    call_indirect $table0 (param i32 i32) (result i32)
-    local.get $items
-    if
-      local.get $items
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $items
+        local.get $t2
+        call $rt:release_ref'2
+      end
+    end
+    local.get $items
+    local.get $size
+    local.get $provider0
+    local.get $provider0.vtable
+    call $"println[string]"
+    local.get $items
+    if
+      local.get $items
+      call $rt:release_ref'1
+    end
+    ;; 49 |     println(keep(+7)())
+    i32.const 7
+    i32.const 14
+    call_indirect $table0 (param i32) (result i32 i32)
+    local.set $size
+    local.set $t2
+    local.get $size
+    i32.const 0
+    local.get $t2
+    call_indirect $table0 (param i32 i32) (result i32)
+    local.get $size
+    if
+      local.get $size
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      global.get $tracing
+      i32.or
+      if
+        local.get $size
         call $rt:release_ref'2
       end
     end
@@ -349,21 +349,21 @@
     i32.load $heap
     local.get $t1
     i32.load $heap offset=4
-    local.set $items
-    local.tee $size
+    local.set $size
+    local.tee $t2
     if
-      local.get $size
+      local.get $t2
       call $retain
     end
+    local.get $t2
     local.get $size
-    local.get $items
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
     ;; 51 |     let mut items = UniqList::[i32].new()
-    local.get $size
+    local.get $t2
     if
-      local.get $size
+      local.get $t2
       call $rt:release_ref'1
     end
     local.get $t1
@@ -380,9 +380,10 @@
       end
     end
     i32.const 0
-    i32.const 4
-    call $room
+    call $"impl[T < ?Copy] UniqList[T].with_capacity[i32]"
     local.set $t1
+    local.set $size
+    local.set $t2
     ;; 39 |     original := word(7)
     local.get $t0
     i64.const 0
@@ -392,13 +393,13 @@
     i32.add
     local.tee $items
     ;; 51 |     let mut items = UniqList::[i32].new()
-    local.get $t1
+    local.get $t2
     i32.store $heap
     local.get $items
-    i32.const 0
+    local.get $size
     i32.store $heap offset=4
     local.get $items
-    i32.const 0
+    local.get $t1
     i32.store $heap offset=8
     local.get $items
     i32.const 1
@@ -464,8 +465,8 @@
     i32.const 15
     call_indirect $table0 (param i32 i32 i32) (result i32 i32 i32)
     local.set $t1
-    local.set $items
     local.set $size
+    local.set $t2
     ;; 39 |     original := word(7)
     local.get $t0
     i64.const 0
@@ -473,37 +474,37 @@
     local.get $t0
     i32.const 48
     i32.add
-    local.tee $t2
+    local.tee $items
     ;; 53 |     println(unique(items).len())
-    local.get $size
+    local.get $t2
     i32.store $heap
-    local.get $t2
     local.get $items
+    local.get $size
     i32.store $heap offset=4
-    local.get $t2
+    local.get $items
     local.get $t1
     i32.store $heap offset=8
-    local.get $t2
+    local.get $items
     i32.const 1
     i32.store $heap offset=12
-    local.get $t2
+    local.get $items
     i32.const 1
     i32.store $heap offset=16
-    local.get $t2
+    local.get $items
     i32.const 1
     i32.store $heap offset=20
-    local.get $t2
+    local.get $items
     i32.const 1
     i32.store $heap offset=24
-    local.get $t2
+    local.get $items
     i32.const 1
     i32.store $heap offset=28
-    local.get $t2
+    local.get $items
     i32.load $heap offset=8
     local.set $t1
-    local.get $t2
+    local.get $items
     if
-      local.get $t2
+      local.get $items
       call $"release_value[std.collections.UniqList[i32]]"
     end
     local.get $t1
@@ -527,9 +528,9 @@
     i32.add
     global.set $stack
   )
-  (func $unique (param $value.buffer.address i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32)
+  (func $unique (param $value.buffer.ptr i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32)
     ;; 36 |     value
-    local.get $value.buffer.address
+    local.get $value.buffer.ptr
     local.get $value.buffer.capacity
     local.get $value.len
   )

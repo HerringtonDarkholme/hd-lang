@@ -13,15 +13,15 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 v: i32 [param read] value
->     uses $2: entry -> %29 consume last
+>     uses $2: entry -> %28 consume last
 >   local $3 r: &mut i32 [read assigned] value
->     uses $3: %35 -> %30 lend last
+>     uses $3: %34 -> %29 lend last
 >   local $4 self: &mut UniqList[i32] [read] value
 >     uses $4: %2 -> %5 lend, %9 lend last
 >   local $5 index: usize [read] value
 >     uses $5: %3 -> %4 lend, %11 consume last
 >   local $7 index: usize [read] value
->     uses $7: %12 -> %15 lend last
+>     uses $7: %12 -> %14 lend last
 >   %0 = Read borrow [$0] : &mut UniqList[i32]
 >   %1 = Read copy [$1] : usize
 >   %2 = Store [$4] %0 : ()
@@ -35,37 +35,36 @@ fn set(xs: &mut UniqList[i32], i: usize, v: i32) -> void:
 >   %10 = LoanBegin %9 #0 : ()
 >   %11 = Read copy [$5] : usize
 >   %12 = Store [$7] %11 : ()
->   %13 = Read copy [*%9 .address] : usize
->   %14 = NewStruct [%13] : Ptr[i32]
->   %15 = Read copy [$7] : usize
->   %16 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[i32] (%14, %15) : Ptr[i32]
->   %17 = Break L0 %16 : never
->   %18 = Block - : Ptr[i32]
->   %19 = Scope %18 [] : Ptr[i32]
->   %20 = LoanClose %10 : ()
->   %21 = LoanEnd [%9] : ()
->   %22 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[i32] (%19) : &mut i32
->   %23 = NewVariant #1 [%22] : &mut i32?
->   %24 = Block %23 : &mut i32?
->   %25 = If %6 [%8 %24] : &mut i32?
->   %26 = Break L1 %25 : never
->   %27 = Block - : &mut i32?
->   %28 = Scope %27 [] : &mut i32?
->   %41 = Block - : never
->   %42 = Match %28 [%41 %31 %33] : ()
->   %43 = LoanEnd [%28] : ()
->   %44 = Block - : ()
+>   %13 = Read copy [*%9 .ptr] : Ptr[i32]
+>   %14 = Read copy [$7] : usize
+>   %15 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].offset[i32] (%13, %14) : Ptr[i32]
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : Ptr[i32]
+>   %18 = Scope %17 [] : Ptr[i32]
+>   %19 = LoanClose %10 : ()
+>   %20 = LoanEnd [%9] : ()
+>   %21 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[i32] (%18) : &mut i32
+>   %22 = NewVariant #1 [%21] : &mut i32?
+>   %23 = Block %22 : &mut i32?
+>   %24 = If %6 [%8 %23] : &mut i32?
+>   %25 = Break L1 %24 : never
+>   %26 = Block - : &mut i32?
+>   %27 = Scope %26 [] : &mut i32?
+>   %40 = Block - : never
+>   %41 = Match %27 [%40 %30 %32] : ()
+>   %42 = LoanEnd [%27] : ()
+>   %43 = Block - : ()
         .Some(r) => *r = v
->   %29 = Read copy [$2] : i32
->   %30 = Store [*$3] %29 : ()
->   %31 = Block - : ()
->   %34 = Read borrow [%28 as #1 .0] : &mut i32
->   %35 = Store [$3] %34 : ()
->   %37 = Block - : never
->   %40 = SwitchTag %28 [#1 %37 %39] : never
+>   %28 = Read copy [$2] : i32
+>   %29 = Store [*$3] %28 : ()
+>   %30 = Block - : ()
+>   %33 = Read borrow [%27 as #1 .0] : &mut i32
+>   %34 = Store [$3] %33 : ()
+>   %36 = Block - : never
+>   %39 = SwitchTag %27 [#1 %36 %38] : never
         .None => panic("index")
->   %32 = Call std/core/panic[] ("index") : never
->   %33 = Block - : never
+>   %31 = Call std/core/panic[] ("index") : never
+>   %32 = Block - : never
 >   summary kept [] writes
 
 fn first(xs: &List[string]) -> usize:

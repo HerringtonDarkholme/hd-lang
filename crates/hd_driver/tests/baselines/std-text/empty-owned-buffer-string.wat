@@ -6,7 +6,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $transfer (param $room.address i32) (param $room.capacity i32) (param $size i32) (result i32 i32) (local $bytes i32) (local $t0 i32) (local $t1 i32)
+  (func $transfer (param $room.ptr i32) (param $room.capacity i32) (param $size i32) (result i32 i32) (local $bytes i32) (local $t0 i32) (local $t1 i32)
     ;; 9 |     .Some(string_from_buffer(room, size))
     global.get $stack
     global.get $stack_limit
@@ -29,7 +29,7 @@
     i32.const 8
     i32.add
     local.tee $bytes
-    local.get $room.address
+    local.get $room.ptr
     i32.store $heap
     local.get $bytes
     local.get $room.capacity
@@ -44,7 +44,7 @@
     i32.const 1
     i32.store $heap offset=16
     i32.const 1
-    local.set $room.address
+    local.set $room.ptr
     local.get $bytes
     call $"impl[T < ?Copy] Buffer[T].capacity[u8]"
     i32.eqz
@@ -52,7 +52,7 @@
       i32.const 16 ;; &"heap-exhausted"
     else
       i32.const 0
-      local.set $room.address
+      local.set $room.ptr
       local.get $bytes
       i32.load $heap
       local.get $bytes
@@ -65,7 +65,7 @@
       local.set $t1
     end
     local.set $room.capacity
-    local.get $room.address
+    local.get $room.ptr
     if
       local.get $bytes
       if

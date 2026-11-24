@@ -42,6 +42,7 @@ std/json/impl TextWriter.close#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 app/main/main#0
+std/collections/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
 std/collections/impl[T] List[T].pop#0 [string]
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0

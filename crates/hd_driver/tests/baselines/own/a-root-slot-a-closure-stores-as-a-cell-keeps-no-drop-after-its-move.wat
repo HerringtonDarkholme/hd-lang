@@ -6,7 +6,7 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "rt:new/class-1'1" (func $rt:new/class-1'1 (param i32 i32) (result i32)))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[u8]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[u8]" (param i32) (result i32 i32 i32)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
   (import "fixture" "impl[T < ?Copy & Display] Display for &T.write[string]" (func $"impl[T < ?Copy & Display] Display for &T.write[string]" (param i32 i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
@@ -102,7 +102,7 @@
     i32.add
     i32.store $heap offset=4
   )
-  (func $rounds#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32) (local $t0 i32)
+  (func $rounds#1 (param $env i32) (param $x i32) (param $ctx i32) (result i32 i32) (local $t1 i32) (local $value.0 i32) (local $t2 i32) (local $t3 i64) (local $t0 i32)
     ;; 14 |         xs = xs.map(fn(x): "$x$tag")
     local.get $env
     i32.load $heap
@@ -122,41 +122,42 @@
     local.get $x
     i32.store $heap
     i32.const 0
-    i32.const 1
-    call $room
+    call $"impl[T < ?Copy] UniqList[T].with_capacity[u8]"
     local.set $x
+    local.set $value.0
+    local.set $t1
     i32.const 36
     i32.const 1
     call $rt:new/class-3
-    local.tee $t1
-    local.get $x
+    local.tee $t2
+    local.get $t1
     i32.store $heap
-    local.get $t1
-    i32.const 0
+    local.get $t2
+    local.get $value.0
     i32.store $heap offset=4
-    local.get $t1
-    i32.const 0
+    local.get $t2
+    local.get $x
     i32.store $heap offset=8
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.store $heap offset=12
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.store $heap offset=16
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.store $heap offset=20
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.store $heap offset=24
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.store $heap offset=28
-    local.get $t1
+    local.get $t2
     i32.const 1
     i32.store $heap offset=32
     local.get $t0
-    local.get $t1
+    local.get $t2
     call $"impl[T < ?Copy & Display] Display for &T.write[string]"
     local.get $t0
     if
@@ -171,33 +172,33 @@
         call $rt:release_ref'2
       end
     end
-    local.get $t1
+    local.get $t2
     call $"impl StringBuilder.build"
     local.set $x
     local.tee $t0
-    local.get $t1
+    local.get $t2
     if
-      local.get $t1
+      local.get $t2
       i32.const 8
       i32.sub
       i32.load $heap
       global.get $tracing
       i32.or
       if
-        local.get $t1
+        local.get $t2
         call $rt:release_ref'2
       end
     end
     drop
     local.get $ctx
-    local.tee $t1
+    local.tee $value.0
     if
-      local.get $t1
+      local.get $value.0
       call $retain
     end
-    local.get $t1
+    local.get $value.0
     if
-      local.get $t1
+      local.get $value.0
       call $rt:release_ref'1
     end
     local.get $x
@@ -205,35 +206,35 @@
     local.get $env
     i64.extend_i32_u
     i64.add
-    local.tee $t2
+    local.tee $t3
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
-    i32.wrap_i64
-    local.tee $t1
-    i32.const 16
-    local.set $t3
-    if
-      local.get $t1
-      call $rt:str
-      local.set $t3
-    end
     local.get $t3
+    i32.wrap_i64
+    local.tee $value.0
+    i32.const 16
+    local.set $t1
+    if
+      local.get $value.0
+      call $rt:str
+      local.set $t1
+    end
+    local.get $t1
     i64.extend_i32_u
     i64.const 0
     i64.add
-    local.tee $t2
+    local.tee $t3
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $t3
     i32.wrap_i64
     local.get $t0
     local.get $x
@@ -243,19 +244,19 @@
       local.get $t0
       call $rt:release_ref'1
     end
-    local.get $t3
+    local.get $t1
     i64.extend_i32_u
     local.get $x
     i64.extend_i32_u
     i64.add
-    local.tee $t2
+    local.tee $t3
     i64.const 4294967295
     i64.gt_u
     if
       call $rt:panic'1
       unreachable
     end
-    local.get $t2
+    local.get $t3
     i32.wrap_i64
     local.get $ctx
     local.get $env
@@ -265,8 +266,8 @@
       local.get $ctx
       call $rt:release_ref'1
     end
-    local.get $t3
     local.get $t1
+    local.get $value.0
   )
   (func $rounds (param $n i32) (result i32) (local $i i32) (local $xs i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $t3 i32) (local $t4 i64) (local $t6 i32) (local $t5 i32) (local $total i32) (local $t7 i32)
     ;; 11 |     let mut xs: List[string] = ["a"]

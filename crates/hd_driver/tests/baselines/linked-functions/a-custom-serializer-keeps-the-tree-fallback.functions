@@ -17,6 +17,7 @@ std/rt.alloc/release_acyclic#0
 std/json/encode_fallback#0 [app.main.Odd]
 std/rt.alloc/block_of#0
 app/main/main#0
+std/collections/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
 std/json/to_json#0 [app.main.Odd]
