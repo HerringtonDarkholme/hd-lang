@@ -7,7 +7,7 @@ run: hd test map.hd
 exit: 1
 stdout: PANIC map.hd:5: maps differing in one value fail assert_equal
 stdout:     panic: assertion-failed: deliberately unequal value: actual {"ada": 1, "grace": 2}, expected {"ada": 1, "grace": 3}
-stdout:     <std>/testing.hd:736 std.testing.check_equal
+stdout:     <std>/testing.hd:739 std.testing.check_equal
 stdout:     map.hd:10 test "maps differing in one value fail assert_equal"
 stdout:     repro: hd test map.hd --filter "maps differing in one value fail assert_equal"
 stdout: test result: FAILED. 0 passed; 1 failed; 0 ignored
@@ -15,7 +15,7 @@ run: hd test tuple.hd
 exit: 1
 stdout: PANIC tuple.hd:5: tuples differing in one element fail assert_equal
 stdout:     panic: assertion-failed: deliberately unequal last element: actual (1, "one", true), expected (1, "one", false)
-stdout:     <std>/testing.hd:736 std.testing.check_equal
+stdout:     <std>/testing.hd:739 std.testing.check_equal
 stdout:     tuple.hd:10 test "tuples differing in one element fail assert_equal"
 stdout:     repro: hd test tuple.hd --filter "tuples differing in one element fail assert_equal"
 stdout: test result: FAILED. 0 passed; 1 failed; 0 ignored
