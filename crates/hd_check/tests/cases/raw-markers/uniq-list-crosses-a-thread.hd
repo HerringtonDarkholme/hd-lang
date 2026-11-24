@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# A `UniqList[*mut i32]` moved into `background!` while `main` keeps the
+# same box: both threads would count it with plain adds
+# (`module.marker.send.counts`). `List[*mut i32]` is refused the same way.
+# expected: unsatisfied-trait-bound at the `background!` call, as for `List[*mut i32]` (#2345)
+use std.collections.UniqList
+use std.thread.background
+
+fn count(held: UniqList[*mut i32]) -> usize:
+    held.len()
+
+pub fn main!() -> void:
+    shared := box(7)
+    let mut held = UniqList::[*mut i32]::new()
+    held.push(shared)
+    n := background!(fn(): count(held))
+    other := shared
