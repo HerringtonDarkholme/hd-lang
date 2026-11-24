@@ -42,11 +42,9 @@ pub fn main() -> void $ Console:
     present := Present(1)
     absent := Absent(2)
     println(
-        (
-            zero == Count(0)
-            && present.value() == 1
-            && !present.is_absent()
-            && absent.value() == 2
-            && absent.is_absent()
-        ),
+        zero == Count(0)
+        && present.value() == 1
+        && !present.is_absent()
+        && absent.value() == 2
+        && absent.is_absent(),
     )

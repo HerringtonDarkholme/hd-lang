@@ -125,17 +125,13 @@ tests:
     it("a keyed hasher differs from the plain one and from another key"):
         message := "abc".bytes().collect()
         assert(
-            (
-                Sha256::hmac("a".bytes().collect()).update(message).finish()
-                != Sha256::new().update(message).finish()
-            ),
+            Sha256::hmac("a".bytes().collect()).update(message).finish()
+            != Sha256::new().update(message).finish(),
             reason="keyed vs plain",
         )
         assert(
-            (
-                Sha256::hmac("a".bytes().collect()).update(message).finish()
-                != Sha256::hmac("b".bytes().collect()).update(message).finish()
-            ),
+            Sha256::hmac("a".bytes().collect()).update(message).finish()
+            != Sha256::hmac("b".bytes().collect()).update(message).finish(),
             reason="two keys",
         )
 

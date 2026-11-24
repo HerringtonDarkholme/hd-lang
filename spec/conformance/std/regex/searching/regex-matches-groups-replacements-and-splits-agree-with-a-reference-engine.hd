@@ -646,15 +646,11 @@ fn old_summary(node: Node, names: List[string], text: string, pieces: List[Piece
             start := hay.offsets[matched(slots, 0)]
             end := hay.offsets[matched(slots, 1)]
             lines.push(
-                (
-                    "replace "
-                    + debug(
-                        (
-                            text.slice(0, start)
-                            + old_expand(hay, slots, names, pieces)
-                            + text.slice(end, text.len())
-                        ),
-                    )
+                "replace "
+                + debug(
+                    text.slice(0, start)
+                    + old_expand(hay, slots, names, pieces)
+                    + text.slice(end, text.len()),
                 ),
             )
         .None =>

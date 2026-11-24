@@ -114,13 +114,11 @@ fn event_text(value: Event) -> string:
                 "{"
                 + field(
                     "Flags",
-                    (
-                        "{"
-                        + field("flags", list_bool(flags))
-                        + ","
-                        + field("label", optional_text(label))
-                        + "}"
-                    ),
+                    "{"
+                    + field("flags", list_bool(flags))
+                    + ","
+                    + field("label", optional_text(label))
+                    + "}",
                 )
                 + "}"
             )

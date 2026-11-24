@@ -128,12 +128,10 @@ fn compress(state: List[u32], block: List[u8], at: usize, rounds: List[u32]) -> 
     for t in usize(0)..usize(16):
         index := at + 4 * t
         schedule.push(
-            (
-                (u32(block[index]) << 24)
-                | (u32(block[index + 1]) << 16)
-                | (u32(block[index + 2]) << 8)
-                | u32(block[index + 3])
-            ),
+            (u32(block[index]) << 24)
+            | (u32(block[index + 1]) << 16)
+            | (u32(block[index + 2]) << 8)
+            | u32(block[index + 3]),
         )
     for t in usize(16)..usize(64):
         low := schedule[t - 15]

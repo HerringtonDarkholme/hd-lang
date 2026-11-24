@@ -9,26 +9,20 @@ tests:
 
     it("Exited compares by complete output and prints its fields"):
         assert_equal(
-            (
-                ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
-                == ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
-            ),
+            ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
+            == ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" }),
             true,
             reason="same",
         )
         assert_equal(
-            (
-                ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
-                == ProcessError.Exited(ProcessOutput { status: 2, stderr: "a", program: "git" })
-            ),
+            ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
+            == ProcessError.Exited(ProcessOutput { status: 2, stderr: "a", program: "git" }),
             false,
             reason="other status",
         )
         assert_equal(
-            (
-                ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
-                == ProcessError.Exited(ProcessOutput { status: 1, stderr: "b", program: "git" })
-            ),
+            ProcessError.Exited(ProcessOutput { status: 1, stderr: "a", program: "git" })
+            == ProcessError.Exited(ProcessOutput { status: 1, stderr: "b", program: "git" }),
             false,
             reason="other stderr",
         )
