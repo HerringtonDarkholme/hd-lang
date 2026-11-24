@@ -2943,7 +2943,7 @@ fn build_packages_inner(
     }
     for cycle in &folder_cycles {
         let mut diags = lock(&run.diags);
-        diags.error(Code::FolderCycle, cycle.span, &cycle.message);
+        diags.error(Code::ModuleCycle, cycle.span, &cycle.message);
         if let Some((from, to)) = &cycle.fix {
             diags.add_fix(
                 &format!("move {from} to {to}"),
@@ -3480,7 +3480,7 @@ fn line_col(text: &str, at: u32) -> (usize, usize) {
 }
 
 /// The folder as cycle diagnostics show it: its `mod.hd` directory, or
-/// the `x` of a lone `x.hd` (`module.cycle.diagnostic.first-loop`).
+/// the `x` of a lone `x.hd` (`module.cycle.diagnostic.shortest-loop`).
 fn folder_display(table: &ModuleTable, f: usize) -> String {
     let mut files: Vec<&str> = table.folders[f]
         .modules
@@ -3499,7 +3499,7 @@ fn folder_display(table: &ModuleTable, f: usize) -> String {
 
 /// The shortest directed loop through the tangle's least-path folder,
 /// open (the message closes it). Adjacency is in deterministic folder order
-/// (`module.cycle.diagnostic.first-loop`).
+/// (`module.cycle.diagnostic.shortest-loop`).
 fn shortest_loop(table: &ModuleTable, adj: &[Vec<usize>], touch: &HashSet<usize>) -> Vec<usize> {
     shortest_loop_with_work(table, adj, touch, || {})
 }
@@ -3617,7 +3617,7 @@ fn describe_cycles(
                 }
             }
             let names: Vec<String> = shown.iter().map(|f| folder_display(table, *f)).collect();
-            let mut message = format!("folder-cycle: {}", names.join(" -> "));
+            let mut message = names.join(" -> ");
             if let Some(first) = names.first() {
                 message.push_str(" -> ");
                 message.push_str(first);
@@ -4317,7 +4317,7 @@ impl Run<'_> {
                 hi: 0,
             };
             lock(&self.diags).error(
-                Code::FolderCycle,
+                Code::ModuleCycle,
                 span,
                 &format!("folders form a cycle{whose}: {}", names.join(" -> ")),
             );
@@ -4549,7 +4549,7 @@ impl Run<'_> {
                 names.display_name(d),
                 self.table.folders[f.idx()].path,
             );
-            lock(&self.diags).error(Code::FolderCycle, span, &msg);
+            lock(&self.diags).error(Code::ModuleCycle, span, &msg);
         }
     }
 

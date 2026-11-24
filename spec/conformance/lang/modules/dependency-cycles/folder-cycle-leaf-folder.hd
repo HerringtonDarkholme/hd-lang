@@ -1,5 +1,5 @@
-# test: moving the shared file to a leaf folder keeps its module name and breaks the loop
-# Spec 10 Folder Graph: module.cycle.acyclic (Dependency Cycles DC5, DC11).
+# test: a shared module in a leaf folder that a child folder uses makes no loop
+# Spec 10 Module Graph: module.cycle.siblings (Dependency Cycles DC5, DC11).
 # fixture-package-tree: facade-leaf/src/shop/mod.hd
 use pkg.error.{Error}
 

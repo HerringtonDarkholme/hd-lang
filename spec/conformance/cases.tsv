@@ -2711,10 +2711,10 @@ lang/expressions/expression-categories/compound-assign-value-no-operator.hd	type
 lang/expressions/expression-categories/compound-assign-value-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/05-expressions.md#r-expr.assign.compound.store-rules
 lang/traits/sealed-traits/num-from-i64-overflow.hd	runtime	panic:integer-overflow	lang/09-traits.md#r-trait.num.from-i64-checked
 lang/traits/sealed-traits/num-ordered-display.hd	runtime	accept	lang/09-traits.md#r-trait.num.num-ordered
-lang/modules/dependency-cycles/folder-cycle-facade.hd	type	reject:folder-cycle	lang/10-modules.md#r-module.cycle.acyclic
-lang/modules/dependency-cycles/folder-cycle-leaf-folder.hd	type	accept	lang/10-modules.md#folder-graph
-lang/modules/dependency-cycles/folder-loop-within-folder.hd	type	accept	lang/10-modules.md#r-module.cycle.within-folder
-lang/modules/dependency-cycles/folder-cycle-nested.hd	type	reject:folder-cycle	lang/10-modules.md#r-module.cycle.nested
+lang/modules/dependency-cycles/folder-cycle-facade.hd	type	accept	lang/10-modules.md#r-module.cycle.edge
+lang/modules/dependency-cycles/folder-cycle-leaf-folder.hd	type	accept	lang/10-modules.md#r-module.cycle.siblings
+lang/modules/dependency-cycles/folder-loop-within-folder.hd	type	accept	lang/10-modules.md#r-module.cycle.siblings
+lang/modules/dependency-cycles/folder-cycle-nested.hd	type	reject:module-cycle	lang/10-modules.md#r-module.folder.nested
 lang/modules/dependency-cycles/folder-graph-test-edges.hd	runtime	accept	lang/10-modules.md#r-module.cycle.test-code
 lang/modules/dependency-cycles/folder-graph-tests-block-edges.hd	runtime	accept	lang/10-modules.md#r-module.cycle.test-code
 lang/modules/public-uses-and-visibility/pub-use-chain.hd	type	accept	lang/10-modules.md#r-module.pub-use.chain
@@ -3166,7 +3166,7 @@ lang/modules/prelude/string-slice-range-out-of-range.hd	runtime	panic:index-out-
 std/collections/list-methods/list-slice-out-of-range.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.list.slice
 std/collections/list-methods/list-slice-reversed.hd	runtime	panic:index-out-of-bounds	std/collections.md#r-std-collections.list.slice
 lang/control-flow/for-loops/range-from-overflow.hd	runtime	panic:integer-overflow	lang/06-control-flow.md#r-flow.for.range.from-overflow
-lang/modules/dependency-cycles/folder-parent-file.hd	type	accept	lang/10-modules.md#r-module.folder.parent-child
+lang/modules/dependency-cycles/folder-parent-file.hd	type	accept	lang/10-modules.md#r-module.folder.parent-file
 lang/expressions/unary-and-binary-operators/equality/list-literal-compares-with-readonly-binding.hd	type	accept	lang/05-expressions.md#equality
 lang/requirements/requirement-rows/requirement-keys/requirement-key-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
 lang/requirements/requirement-rows/requirement-keys/a-body-row-key-of-a-primitive.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.traits
@@ -4698,7 +4698,7 @@ lang/names/module-scope/exec-binding-read-before-declared.hd	type	reject:binding
 lang/names/module-scope/an-inferred-result-body-reads-a-later-binding.hd	type	reject:binding-not-yet-visible	lang/03-names-and-scopes.md#r-names.exec.not-before
 lang/names/module-scope/use-names-exec-binding.hd	type	reject:unknown-import	lang/03-names-and-scopes.md#r-names.exec.not-usable
 lang/names/use-declarations/files-of-folder-use-each-other.hd	type	accept	lang/03-names-and-scopes.md#r-names.use.cycles-in-folder
-lang/names/use-declarations/folders-use-each-other.hd	type	reject:folder-cycle	lang/03-names-and-scopes.md#r-names.use.folder-cycle
+lang/names/use-declarations/folders-use-each-other.hd	type	reject:module-cycle	lang/03-names-and-scopes.md#r-names.use.module-cycle
 lang/names/local-bindings/tuple-binding-one-annotation.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.tuple.annotation
 lang/modules/path-inferred-modules/lib-index-pub-use.hd	type	accept	lang/10-modules.md#r-module.path.lib-index
 lang/modules/path-inferred-modules/module-path-case-sensitive.hd	type	reject:unknown-module	lang/10-modules.md#r-module.path.case-sensitive

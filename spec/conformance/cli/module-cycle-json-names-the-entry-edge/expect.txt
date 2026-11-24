@@ -1,0 +1,14 @@
+# The diagnostic is reported at the edge that enters the group's first module,
+# `cart`, from another folder: the use in `src/shop/mod.hd`.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"module-cycle","severity":"error","message":null,"file":"src/shop/mod.hd","line":1,"column":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+# The text shows one shortest loop, the `use` that makes each edge, the size
+# of the group, and which declarations to move.
+run: hd check
+exit: 101
+stderr: error: src/shop/mod.hd:1:1: module-cycle: modules of different folders use each other
+stderr:   src/cart/mod.hd:1:1: use pkg.shop.{shop}
+stderr:   src/shop/mod.hd:1:1: use pkg.cart.{cart}
+stderr: loop of 2 modules in 2 folders; only modules of one folder may loop
+stderr: help: move `cart` out of `cart`, into a module both use
