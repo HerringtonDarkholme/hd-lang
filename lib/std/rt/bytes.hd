@@ -6,8 +6,19 @@
 # The compiler supplies each body: the byte primitives come from the Wasm
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
-use std.core.Copy
-use std.rt.memory.{Buffer, Ptr, copy, new_string, string_bytes, store_u8}
+use std.core.{Copy, inline}
+use std.rt.memory.{
+    Buffer,
+    Ptr,
+    copy,
+    copy_bytes,
+    fill,
+    load_u8,
+    load_u32,
+    new_string,
+    string_bytes,
+    store_u8,
+}
 
 ## The number of bytes in `text`.
 @intrinsic("bytes_len")
@@ -66,6 +77,98 @@ pub trait TextSink < ?Copy:
 pub struct TextRoom:
     pub room: string
     pub len: usize
+
+# TextRoom's counted string keeps generic serializer copies independent.
+# Its payload always starts at the allocation, so testing the existing
+# count word needs no allocator lookup and no retain/release pair.
+impl TextRoom:
+    pub fn new() -> TextRoom:
+        TextRoom { room: "", len: 0 }
+
+    @inline(.Always)
+    fn spare(&mut self, additional: usize) -> Ptr[u8]:
+        capacity := bytes_len(self.room)
+        address := string_bytes(self.room).address
+        if capacity == 0 || additional > capacity - self.len || load_u32(address - 8) != 1:
+            self.grow(additional)
+        Ptr::[u8] { address: string_bytes(self.room).address + self.len }
+
+    @inline(.Never)
+    fn grow(&mut self, additional: usize) -> void:
+        minimum := collection_capacity_sum(self.len, additional)
+        let capacity = bytes_len(self.room)
+        if capacity == 0:
+            capacity = 64
+        while capacity < minimum:
+            if capacity > 0x7fff0000:
+                capacity = minimum
+                break
+            capacity *= 2
+        next := new_string(capacity)
+        address := string_bytes(next).address
+        copy_bytes(address, string_bytes(self.room).address, self.len)
+        fill(address + self.len, 0, capacity - self.len)
+        self.room = next
+
+    @inline(.Never)
+    pub fn push_byte(&mut self, byte: u8) -> void:
+        self.spare(1).write(byte)
+        self.len += 1
+
+    # The float writer appends ASCII backward, then reverses that suffix.
+    @inline(.Never)
+    ## Reverses the remaining sequence without advancing or buffering it.
+    ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
+    pub fn reverse_bytes(&mut self, start: usize) -> void:
+        _ := self.spare(0)
+        address := string_bytes(self.room).address
+        let left = start
+        let right = self.len
+        while left + 1 < right:
+            right -= 1
+            byte := load_u8(address + left)
+            store_u8(address + left, load_u8(address + right))
+            store_u8(address + right, byte)
+            left += 1
+
+    pub fn take_text(&mut self) -> string:
+        room := self.room
+        size := self.len
+        self.room = ""
+        self.len = 0
+        string_prefix(room, 0, size)
+
+impl TextSink for TextRoom:
+    @inline(.Never)
+    fn append_text(&mut self, text: string) -> void:
+        size := bytes_len(text)
+        if size == 0:
+            return
+        destination := self.spare(size)
+        copy_bytes(destination.address, string_bytes(text).address, size)
+        self.len += size
+
+    @inline(.Never)
+    fn append_signed(&mut self, value: i64) -> void:
+        destination := self.spare(20)
+        digits := format_signed(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.len += digits._1
+
+    @inline(.Never)
+    fn append_unsigned(&mut self, value: u64) -> void:
+        destination := self.spare(20)
+        digits := format_unsigned(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.len += digits._1
+
+# Capacity overflow is an impossible allocation in every build profile.
+pub fn collection_capacity_sum(left: usize, right: usize) -> usize:
+    # The runtime leaf has only primitive operations, not Integer methods.
+    if right > ~usize(0) - left:
+        panic_with("heap-exhausted", "collection capacity does not fit the address space")
+        return 0
+    left + right
 
 pub trait ByteBuffer < ?Copy & TextSink:
     fn push_byte(&mut self, byte: u8) -> void
