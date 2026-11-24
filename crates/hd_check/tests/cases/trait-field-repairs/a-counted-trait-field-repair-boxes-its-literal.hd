@@ -1,0 +1,17 @@
+# @dump: diagnostics fixed
+# A counted field's repair installs its literal in counted storage.
+trait Named:
+    fn number(&self) -> i32
+
+struct Item:
+    value: i32
+
+impl Named for Item:
+    fn number(&self) -> i32:
+        self.value
+
+struct Owned:
+    item: *dyn Named
+
+fn create() -> Owned:
+    Owned { item: Item { value: 1 } }

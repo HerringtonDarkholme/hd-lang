@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# Adding a reference cannot make an unrelated type implement the trait.
+trait Named:
+    fn number(&self) -> i32
+
+struct Other:
+    value: i32
+
+fn need(value: &dyn Named) -> i32:
+    value.number()
+
+fn inspect(value: Other) -> i32:
+    need(value)
