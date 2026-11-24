@@ -819,9 +819,35 @@ pub fn tir(p: &Program) -> String {
     out.finish()
 }
 
+/// The root package's manifest host registrations, shared by linked and
+/// inspection builds. One manifest over the header bytes, parsed once; an
+/// empty header allocates nothing.
+fn host_packages(p: &Program, package: &str) -> Vec<hd_driver::HostPackage> {
+    if p.hosts.is_empty() {
+        Vec::new()
+    } else {
+        let manifest: String = std::iter::once("[host]\n".to_owned())
+            .chain(
+                p.hosts
+                    .iter()
+                    .map(|t| format!("\"{t}\" = \"provider.ts\"\n")),
+            )
+            .collect();
+        vec![hd_driver::HostPackage {
+            package: 0,
+            identity: package.to_owned(),
+            versioned_source: None,
+            declarations: hd_project::parse_manifest(&manifest)
+                .expect("a stage case's `@host` traits make a manifest")
+                .host,
+            manifest: "hd.toml".to_owned(),
+        }]
+    }
+}
+
 /// The packages of a `diagnostics`, `spans`, `fixed`, `stdout`,
 /// `functions` or `tests` build of `p` as `build`: the case's `@fuel`,
-/// `@profile`, `@entry`, `@single-file` and `@dependency` packages, and
+/// `@profile`, `@entry`, `@single-file`, `@host` and `@dependency` packages, and
 /// `@build`'s level (`release` runs the optimized pipeline, and a
 /// program gets the release profile), engine target and checked runtime.
 /// Every build verifies the ownership passes' output
@@ -830,6 +856,7 @@ pub fn tir(p: &Program) -> String {
 /// only the case package's whole-result reuse, which a case never repeats.
 fn packages(p: &Program, build: Build) -> hd_driver::Packages<'_> {
     let mut packages = hd_driver::Packages {
+        host_packages: host_packages(p, if build.std { "std" } else { p.package_name() }),
         requires: p.deps.iter().map(|d| (d.key.clone(), d.index)).collect(),
         deps: p
             .deps
