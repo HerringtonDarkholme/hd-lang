@@ -1431,6 +1431,14 @@ impl Gen<'_, '_> {
         {
             return self.relate(&v, &me, false, false);
         }
+        // `$.use(K)` lends the provider the body received, which lies in no
+        // parameter: a local reference, never returned or stored past the
+        // body (`req.use.value.local`).
+        if b.provider_ref(iu) {
+            for &slot in &self.s.ls.of(me.1).tops {
+                self.seed(me.0[slot], Origin::Hidden(i));
+            }
+        }
         match b.tags[iu] {
             Tag::Store => {
                 if self.static_field_place(a) {

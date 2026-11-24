@@ -5904,6 +5904,9 @@ impl Ck<'_, '_> {
                     None => format!("`{}` is another parameter", name(p)),
                 }
             }
+            Origin::Hidden(h) if body.provider_ref(h as usize) => {
+                format!("the value refers to a provider from `$.use`, a local of {f}")
+            }
             Origin::Hidden(_) | Origin::Site(_) | Origin::Lent(_) | Origin::Outside(_) => {
                 format!("the value refers to a temporary of {f}")
             }

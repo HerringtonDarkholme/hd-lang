@@ -1,0 +1,7 @@
+# test: requirements / provider access / a provider's reference is never stored in a place the caller owns
+
+trait Sink:
+    fn put(&mut self, text: string) -> void
+
+fn replace(target: &mut (&mut dyn Sink)) -> void $ Sink:
+    *target = $.use(Sink) # diagnostic: local-reference-escapes
