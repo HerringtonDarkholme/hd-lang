@@ -1,0 +1,15 @@
+# @dump: functions
+# expected: a recursive call graph keeps mutable and shared reference instances distinct
+fn walk[T < ?Copy](value: T, steps: usize) -> usize:
+    if steps == 0:
+        return 0
+    walk(value, steps - 1)
+
+pub fn main() -> void:
+    let mut value = +7
+    _ := walk(&mut value, 2)
+    _ := walk(&value, 2)
+    counted := box(+9)
+    let shared: *i32 = counted
+    _ := walk(counted, 2)
+    _ := walk(shared, 2)
