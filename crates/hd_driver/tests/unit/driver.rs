@@ -196,6 +196,15 @@ mod cache_section_tests {
             0,
             &[(0, 0, b"first"), (1, 0, b""), (2, 0, b"third")],
         );
+        let old: Arc<[u8]> = Arc::from(hd_cache::encode_entry(
+            EntryKind::Graph,
+            LAYOUT - 1,
+            key,
+            toolchain,
+            0,
+            &[(0, 0, b"old layout")],
+        ));
+        assert!(cache_sections(&old, key, toolchain).is_none());
         let entry: Arc<[u8]> = Arc::from(encoded);
         let retained = Arc::downgrade(&entry);
         let sections = cache_sections(&entry, key, toolchain).expect("valid entry");

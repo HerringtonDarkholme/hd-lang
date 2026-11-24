@@ -85,7 +85,7 @@ use hd_types::{Ty, TyData, TyList};
 #[must_use]
 pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     let topo = Topology::new(b);
-    let mut errs = verify_structure(b, &topo);
+    let mut errs = verify_structure(b);
     let places: Vec<Option<Place>> = (0..b.len())
         .map(|i| match b.tags[i].operands().0 {
             Op::Place => b.decode_place(b.data[i][0]),
