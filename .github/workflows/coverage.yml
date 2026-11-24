@@ -10,11 +10,6 @@ on:
   schedule:
     - cron: "53 5,17 * * *"
   workflow_dispatch:
-    inputs:
-      attribute:
-        description: "Retain per-set profiles and measure unique core lines"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -62,7 +57,9 @@ jobs:
       - name: Measure and check
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/coverage.ts --check ${{ inputs.attribute && '--attribute' || '' }}
+        # While #2342 is open, every run retains per-set costs and unique-line
+        # evidence, including scheduled runs. Remove this default when cutting sets.
+        run: node scripts/coverage.ts --check --attribute
 
       - name: Store the report
         # Keep completed sets even when a later set hits the job timeout.
