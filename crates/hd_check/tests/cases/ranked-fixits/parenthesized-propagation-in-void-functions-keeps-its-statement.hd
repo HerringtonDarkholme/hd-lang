@@ -1,0 +1,11 @@
+# @dump: diagnostics fixed
+# Repairs preserve the outer parentheses while handling the unused success value.
+fn result(value: Result[i32, string]) -> void:
+    (
+    # Keep this operation inside the parenthesized statement.
+    value?)
+
+fn optional(value: i32?) -> void:
+    (
+    # Keep this operation inside the parenthesized statement.
+    value?)
