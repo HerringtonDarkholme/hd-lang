@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# Result.unwrap is an ordinary method requiring Debug on its error type.
+# A missing bound is not a reason to offer a different unwrapping policy.
+fn value[E](result: Result[i32, E]) -> i32:
+    result.unwrap()
