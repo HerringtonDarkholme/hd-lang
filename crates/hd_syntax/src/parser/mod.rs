@@ -586,8 +586,35 @@ impl<'t> Parser<'t> {
             .copied()
             .is_some_and(TokenKind::is_keyword)
             && (at != self.pos() || self.current().is_some());
-        if keyword {
-            let word = self.nth_text(at - self.pos());
+        // A keyword after a nameless header can be the next item rather
+        // than a misspelled name. Like rustc's identifier recovery, require
+        // a following name delimiter, or an existing dotted name path.
+        let distance = at - self.pos();
+        let follows_name = !self.nth_line_first(distance + 1)
+            && matches!(
+                self.toks.kind.get(at + 1),
+                Some(
+                    TokenKind::Colon
+                        | TokenKind::ColonEq
+                        | TokenKind::Eq
+                        | TokenKind::Comma
+                        | TokenKind::LParen
+                        | TokenKind::RParen
+                        | TokenKind::LBracket
+                        | TokenKind::RBracket
+                        | TokenKind::RBrace
+                        | TokenKind::Dot
+                        | TokenKind::ColonColon
+                        | TokenKind::FatArrow
+                        | TokenKind::Lt
+                        | TokenKind::Ellipsis
+                )
+            );
+        let after_dot = at > 0
+            && self.toks.kind.get(at - 1) == Some(&TokenKind::Dot)
+            && !self.nth_line_first(distance);
+        if keyword && (follows_name || after_dot) {
+            let word = self.nth_text(distance);
             let error = self.errors.len();
             self.error_at(
                 Code::SyntaxError,

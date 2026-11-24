@@ -78,7 +78,11 @@ The ranking records the initial current-main audit above.
 
 The parser reports these at the existing failing token. It does not accept
 new syntax. Exact edits use existing spans; ambiguous scope or numeric
-width choices receive a hint. In particular, radix conversion edits avoid
+width choices receive a hint. Cast edits require a bounded postfix or
+explicitly grouped operand; ungrouped prefixes and following operations
+keep their hint without an edit. Keyword-name edits require a name-following
+delimiter or an existing dotted path, so nameless items keep their error.
+In particular, radix conversion edits avoid
 moving a possible unary sign across a checked conversion.
 
 The focused fixtures live in
