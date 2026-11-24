@@ -484,7 +484,8 @@ pub fn shim(
     };
     if kind == Shim::CellDrop {
         let parts = |t, v, out: &mut Vec<Ty>| crate::facts::in_place_parts(pool, env, t, v, out);
-        let root = hd_tir::own::cell_drop(b.body_mut(), x.raw(), t, &parts)
+        let opens = |t| crate::facts::counted_type(pool, env, t);
+        let root = hd_tir::own::cell_drop(b.body_mut(), x.raw(), t, &parts, &opens)
             .map_err(|e| hd_base::NotImplemented::bug(Stage::Collect, e))?;
         b.body_mut().phase = Phase::Lowered;
         let body = (b.finish(Ref(root), &[]))
