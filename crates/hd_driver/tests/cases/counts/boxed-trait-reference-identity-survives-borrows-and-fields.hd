@@ -16,6 +16,9 @@ impl Score for Item:
 struct Held:
     value: *dyn Inspectable
 
+struct StoredBox[T]:
+    value: *T
+
 fn direct(value: *dyn Score) -> bool:
     let erased: *dyn Inspectable = box(value)
     erased.runtime_type() == TypeId::of::[*dyn Score]()
@@ -30,6 +33,11 @@ fn mutable(value: *mut dyn Score) -> bool:
 
 fn borrowed[T < Inspectable](value: &T) -> bool:
     let erased: &dyn Inspectable = value
+    erased.runtime_type() == TypeId::of::[T]()
+
+fn borrowed_box[T < Inspectable & 'static](value: T) -> bool:
+    outer := box(value)
+    let erased: &dyn Inspectable = outer
     erased.runtime_type() == TypeId::of::[T]()
 
 fn stored[T < Inspectable & 'static](value: T) -> Held:
@@ -51,5 +59,11 @@ pub fn main() -> void $ Console:
     println(borrowed(&changing))
     changed := stored(changing)
     println(changed.value.runtime_type() == TypeId::of::[*mut dyn Score]())
+    println(borrowed_box(concrete))
+    println(borrowed_box(value))
+    println(borrowed_box(changing))
+    stored_box := StoredBox { value: box(value) }
+    let from_field: &dyn Inspectable = stored_box.value
+    println(from_field.runtime_type() == TypeId::of::[*dyn Score]())
     println(value.value())
     println(changing.value())
