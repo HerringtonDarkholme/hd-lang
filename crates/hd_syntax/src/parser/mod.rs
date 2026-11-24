@@ -540,7 +540,17 @@ impl<'t> Parser<'t> {
         if self.eat(kind) {
             return true;
         }
-        self.expected(what);
+        if kind == TokenKind::Colon
+            && self.toks.kind.get(self.pos()) == Some(&TokenKind::Colon)
+            && self.at_layout(Layout::Newline)
+        {
+            self.error(
+                Code::SyntaxError,
+                "keep ':' on the header's final line; wrap a multiline expression in parentheses",
+            );
+        } else {
+            self.expected(what);
+        }
         false
     }
 
@@ -558,8 +568,41 @@ impl<'t> Parser<'t> {
         if self.eat_name() {
             return true;
         }
-        self.expected(what);
+        self.expected_name(what);
         false
+    }
+
+    /// A keyword in a name position has the same raw-identifier repair
+    /// for declarations, parameters, fields, members and import segments.
+    pub(crate) fn expected_name(&mut self, what: &str) {
+        self.expected_name_at(what, self.pos());
+    }
+
+    pub(crate) fn expected_name_at(&mut self, what: &str, at: usize) {
+        let keyword = self
+            .toks
+            .kind
+            .get(at)
+            .copied()
+            .is_some_and(TokenKind::is_keyword)
+            && (at != self.pos() || self.current().is_some());
+        if keyword {
+            let word = self.nth_text(at - self.pos());
+            let error = self.errors.len();
+            self.error_at(
+                Code::SyntaxError,
+                at,
+                &format!("expected {what}; '{word}' is reserved: write `{word}` between backticks"),
+            );
+            let (lo, hi) = self.token_span(at);
+            self.fix_error(
+                error,
+                "escape the reserved name with backticks",
+                &[(lo, hi, &format!("`{word}`"))],
+            );
+        } else {
+            self.expected_at(what, at);
+        }
     }
 
     // ----------------------------------------------------------- markers
@@ -952,7 +995,21 @@ impl<'t> Parser<'t> {
     /// then its lines are read as part of the current suite.
     pub(crate) fn stray_indent(&mut self) {
         self.stmt_errored = false;
-        self.error(Code::SyntaxError, "unexpected indentation");
+        let continuation = self
+            .toks
+            .kind
+            .get(self.pos())
+            .copied()
+            .and_then(exprs::infix)
+            .is_some();
+        self.error(
+            Code::SyntaxError,
+            if continuation {
+                "unexpected indentation; wrap a continued expression in parentheses"
+            } else {
+                "unexpected indentation"
+            },
+        );
         let marker = self.start();
         self.bump();
         self.statements(true);

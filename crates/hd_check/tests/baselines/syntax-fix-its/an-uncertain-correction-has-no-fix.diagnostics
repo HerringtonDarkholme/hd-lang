@@ -19,9 +19,15 @@ error: main.hd:46:1: syntax-error: documentation comments start with '##', not '
 error: main.hd:50:7: syntax-error: expected a line ending, found 'LIMIT'
 error: main.hd:52:7: syntax-error: expected a line ending, found 'LIMIT'
 error: main.hd:54:7: syntax-error: expected a line ending, found 'LIMIT'
-error: main.hd:56:27: syntax-error: expected ',' or ')', found 'as'
-error: main.hd:58:26: syntax-error: expected ',' or ')', found 'as'
-error: main.hd:60:26: syntax-error: expected ',' or ')', found 'as'
+error: main.hd:56:27: syntax-error: write a numeric cast as `T(value)`; for a collection, annotate the binding
+  fix (exact): write the numeric conversion as a call
+    edit main.hd:56:20 954..954: "u8("
+    edit main.hd:56:26 960..966: ")"
+error: main.hd:58:26: syntax-error: write a numeric cast as `T(value)`; for a collection, annotate the binding
+error: main.hd:60:26: syntax-error: write a numeric cast as `T(value)`; for a collection, annotate the binding
+  fix (exact): write the numeric conversion as a call
+    edit main.hd:60:20 1024..1024: "u8("
+    edit main.hd:60:25 1029..1035: ")"
 error: main.hd:64:13: syntax-error: expected '=>', found '['
 error: main.hd:68:13: syntax-error: expected '=>', found '['
 error: main.hd:73:10: syntax-error: expected a line ending, found 'ready'

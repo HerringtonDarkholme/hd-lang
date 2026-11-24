@@ -3,7 +3,7 @@ error: main.hd:6:10: syntax-error: expected ':', found 'and'
 error: main.hd:11:1: syntax-error: expected ':' and a function body, found a line ending
 error: main.hd:11:9: syntax-error: expected a type, found ')'
 error: main.hd:14:13: syntax-error: expected a parameter name, found ','
-error: main.hd:19:1: syntax-error: expected an expression, found a line ending
+error: main.hd:19:1: syntax-error: a continued expression needs parentheses around the whole expression
 error: main.hd:19:12: syntax-error: expected ',' or ']', found '3'
 error: main.hd:21:9: syntax-error: expected ',' or ')', found '2'
 error: main.hd:23:12: syntax-error: expected ',' or '}', found '3'

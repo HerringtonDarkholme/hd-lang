@@ -1,0 +1,8 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+fn source() -> usize: 2
+fn literal() -> i32: 2 as i32
+fn negative() -> i32: -2 as i32
+fn call() -> i32: source() as i32
+fn grouped() -> i32: (source() + 1) as i32
+fn binary() -> i32: +1 + source() as i32

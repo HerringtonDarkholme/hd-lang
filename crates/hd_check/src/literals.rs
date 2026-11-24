@@ -151,7 +151,10 @@ impl Ck<'_, '_> {
                 return Ok(self.poison(n));
             }
             let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {
-                let msg = format!("`{name}` is not defined");
+                let msg = format!(
+                    "`{name}` is not defined{}",
+                    hd_resolve::iface::numeric_type_hint(name)
+                );
                 self.err(Code::UnknownName, n, &msg);
                 return Ok(self.poison(n));
             };

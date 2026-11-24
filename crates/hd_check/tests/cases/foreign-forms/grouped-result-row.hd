@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: a row is grouped with the function, not just its result
+fn make() -> fn() -> (i32 $ Console):
+    fn() -> i32: +1

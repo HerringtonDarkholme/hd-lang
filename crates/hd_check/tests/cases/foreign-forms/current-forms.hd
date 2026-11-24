@@ -1,0 +1,13 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+struct Value: pass
+trait Empty
+impl Empty for Value
+fn typed() -> u8:
+    1u8
+fn callback() -> (fn() -> i32 $ Console):
+    fn() -> i32 $ Console: +1
+fn optional() -> (fn() -> i32)?:
+    .None
+fn borrowed(value: &mut i32) -> void:
+    pass

@@ -1050,6 +1050,17 @@ pub struct Export {
     pub kind: HeadKind,
 }
 
+/// A foreign primitive spelling that failed ordinary name resolution.
+/// User declarations with these names still resolve normally.
+#[must_use]
+pub fn numeric_type_hint(name: &str) -> &'static str {
+    if matches!(name, "isize" | "int" | "uint" | "float" | "double") {
+        "; use a fixed-width numeric type such as i32, i64 or f64; indices use usize"
+    } else {
+        ""
+    }
+}
+
 /// Where std offers a name a module did not import: the message's hint,
 /// and the one path to import when there is exactly one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

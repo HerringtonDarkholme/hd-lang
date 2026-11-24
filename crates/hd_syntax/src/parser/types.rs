@@ -452,7 +452,7 @@ impl Parser<'_> {
                     // grammar.generic.binding.trait-type-only
                     self.error(
                         Code::SyntaxError,
-                        "a trait type takes no associated-type binding here",
+                        "set an associated type with `type Item = T` in the impl body; bindings in type arguments belong to `dyn Trait[Item = T]`",
                     );
                 }
                 saw_binding = true;
@@ -693,6 +693,9 @@ impl Parser<'_> {
                 "add the trailing comma",
                 edits,
             );
+        }
+        if self.at(TokenKind::Dollar) {
+            self.error(Code::SyntaxError, "a row belongs to the function type; group the whole type as `(fn(...) -> T $ Row)`");
         }
         self.expect_token(TokenKind::RParen, "')'");
         let kind = if count == 1 && !comma {
