@@ -55,7 +55,7 @@ mod source_function_tests {
 
     #[test]
     fn selected_input_borrows_its_resolved_header_signature_and_block() {
-        let parsed = hd_syntax::parse(b"fn ready() -> i32:\n    42\n");
+        let parsed = hd_syntax::parse(include_bytes!("programs/ready.hd"));
         let node = parsed
             .tree
             .root()
@@ -76,7 +76,7 @@ mod source_function_tests {
 
     #[test]
     fn missing_or_non_callable_headers_report_the_selection_invariant() {
-        let parsed = hd_syntax::parse(b"fn ready() -> i32:\n    42\n");
+        let parsed = hd_syntax::parse(include_bytes!("programs/ready.hd"));
         let node = parsed
             .tree
             .root()
@@ -102,7 +102,7 @@ mod source_function_tests {
 
     #[test]
     fn a_bodyless_trait_method_cannot_be_selected_as_a_source_body() {
-        let parsed = hd_syntax::parse(b"trait Work:\n    fn act() -> void\n");
+        let parsed = hd_syntax::parse(include_bytes!("programs/work_trait.hd"));
         let declaration = parsed
             .tree
             .root()
