@@ -1,0 +1,10 @@
+# @dump: diagnostics fixed
+# A parameter or local named Default must not become a trait call.
+fn parameter(Default: i32, present: bool) -> i32:
+    if present:
+        Default
+
+fn local(present: bool) -> i32:
+    let Default = +7
+    if present:
+        Default
