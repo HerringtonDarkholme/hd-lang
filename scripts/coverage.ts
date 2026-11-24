@@ -281,6 +281,18 @@ function measure(sets: string[]): Measured {
     cargo(["llvm-cov", "report", "--release", "--lcov", "--skip-functions", "--output-path", path]);
     seconds[`${run.name}-report`] = Math.round((performance.now() - reportStart) / 1000);
     setCounts.set(run.name, parseLcov(readFileSync(path, "utf8")));
+    writeFileSync(
+      join(dir, "timing.json"),
+      JSON.stringify(
+        {
+          name: run.name,
+          seconds: seconds[run.name],
+          reportSeconds: seconds[`${run.name}-report`],
+        },
+        null,
+        2,
+      ) + "\n",
+    );
     for (const profile of archiveProfiles(coverageTarget, dir)) {
       profiles.push(profile);
     }
