@@ -26,10 +26,15 @@ pub const RUNTIME_MODULE: &str = "std.rt";
 pub const FORMAT_MODULE: &str = "std.format";
 pub const BYTES_MODULE: &str = "std.rt.bytes";
 pub const HASH_RUNTIME_MODULE: &str = "std.rt.hash";
-/// The walks a `Send` crossing's `std.rt.unique` calls, and the
-/// collections whose raw buffers std walks (`fn.crossing.mode.unique`).
+/// The walks a `Send` crossing's `std.rt.unique` calls
+/// (`fn.crossing.mode.unique`).
 pub const CROSSING_MODULE: &str = "std.rt.crossing";
-pub const COLLECTIONS_MODULE: &str = "std.collections";
+/// The modules of the collections whose raw buffers std walks, each with
+/// its walk; `std.collections` re-exports the types.
+pub const UNIQ_LIST_MODULE: &str = "std.collections.uniq_list";
+pub const UNIQ_MAP_MODULE: &str = "std.collections.uniq_map";
+/// The module of std's inherent `List` methods.
+pub const LIST_MODULE: &str = "std.collections.list";
 
 /// The modules with compiler-supplied declarations, in seed order.
 pub const SEEDED_MODULES: &[&str] = &[
@@ -427,7 +432,7 @@ impl KnownItems {
             option: item(CORE_MODULE, "Option"),
             result: item(CORE_MODULE, "Result"),
             list: item(CORE_MODULE, "List"),
-            list_is_empty: inherent_method("std.collections", "impl[T] List[T]", "is_empty"),
+            list_is_empty: inherent_method(LIST_MODULE, "impl[T] List[T]", "is_empty"),
             map: item(CORE_MODULE, "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ptr: item("std.rt.memory", "Ptr"),

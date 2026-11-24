@@ -18,7 +18,7 @@ use hd_types::{AdtId, Prim, Ty, TyData};
 use super::{Cx, Gen, Handles, SYN, Shape, Var};
 
 use hd_resolve::known::{
-    COLLECTIONS_MODULE as COLLECTIONS, CROSSING_MODULE as CROSSING, RUNTIME_MODULE as RUNTIME,
+    CROSSING_MODULE as CROSSING, RUNTIME_MODULE as RUNTIME, UNIQ_LIST_MODULE, UNIQ_MAP_MODULE,
 };
 
 /// Whether a `ty` may hold a counted buffer (`module.marker.sync.leaf`):
@@ -46,15 +46,15 @@ fn holds(cx: &Cx<'_, '_>, ty: Ty, memo: &mut HashMap<Ty, bool>) -> bool {
 }
 
 /// std's walk of `UniqList` or `UniqMap` `d`, whose raw buffer the type's
-/// members do not show.
-fn uniq(cx: &Cx<'_, '_>, d: DefId) -> Option<&'static str> {
+/// members do not show: the module declaring both, and the walk.
+fn uniq(cx: &Cx<'_, '_>, d: DefId) -> Option<(&'static str, &'static str)> {
     [
-        ("UniqList", "unique_uniq_list"),
-        ("UniqMap", "unique_uniq_map"),
+        (UNIQ_LIST_MODULE, "UniqList", "unique_uniq_list"),
+        (UNIQ_MAP_MODULE, "UniqMap", "unique_uniq_map"),
     ]
     .into_iter()
-    .find(|(n, _)| cx.names.item(COLLECTIONS, n) == d)
-    .map(|(_, walk)| walk)
+    .find(|(m, n, _)| cx.names.item(m, n) == d)
+    .map(|(m, _, walk)| (m, walk))
 }
 
 /// `unique[ty]`'s body: its parameter `value: &mut ty`.
@@ -87,7 +87,7 @@ pub fn unique_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty) -> StageResult<Body> {
         }
         TyData::Adt(AdtId::Declared(d), args) if let Some(walk) = uniq(cx, d) => {
             if holds(ty) {
-                call(&mut g, (COLLECTIONS, walk), pool.list_items(args), s);
+                call(&mut g, walk, pool.list_items(args), s);
             }
         }
         // A newtype has its base's representation, and so its reference.
