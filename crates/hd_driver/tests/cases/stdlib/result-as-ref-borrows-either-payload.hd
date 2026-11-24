@@ -1,0 +1,12 @@
+# @dump: wat counts
+# @helper: std/result/impl[T < ?Copy, E < ?Copy] Result[T, E].as_ref
+# @build: dev | checked | release | release checked
+# expected: the result lends its payload; no retain or release acquires the payload.
+struct Item:
+    n: i32
+
+impl !Copy for Item
+
+fn view(value: &Result[Item, Item]) -> Result[&Item, &Item]:
+    # subject
+    value.as_ref()

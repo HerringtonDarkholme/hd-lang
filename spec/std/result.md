@@ -5,7 +5,7 @@ Status: standard library specification draft.
 This chapter defines the part of `std.result` that `lib/std` writes in
 ordinary hd over the language tier. That is the inherent methods
 `and_then`, `map_err`, `unwrap_or`, `unwrap_or_else`, `or_else`, `map`,
-`ok`, `err`, `is_ok`, `is_err`, `unwrap`, and `expect` of `Result[T, E]`.
+`ok`, `err`, `is_ok`, `is_err`, `as_ref`, `unwrap`, and `expect` of `Result[T, E]`.
 
 The language tier keeps what the compiler knows by name
 ([Result Types](../lang/04-type-system.md#result-types)):
@@ -186,3 +186,23 @@ fn required(value: Result[i32, string]) -> i32:
 3. r[std-result.unwrap.panic] For `.Err(error)`, `unwrap` panics with category `explicit-panic` and includes `debug(error)` in its message. Panic: `explicit-panic`.
 
 > **Note.** `expect(message)` remains the method for a caller-supplied message and an error implementing `Display`.
+
+## Borrowed Payloads
+
+`as_ref` lends either payload without moving the result.
+
+```text
+fn positive(value: &Result[i32, string]) -> bool:
+    match value.as_ref():
+        .Ok(number) => *number > 0
+        .Err(_) => false
+```
+
+| Rule | Method | Result |
+| --- | --- | --- |
+| r[std-result.as-ref] `as_ref` | `fn as_ref(&self) -> Result[&T, &E]` | `.Ok` of a reference to the success payload, or `.Err` of a reference to the error payload |
+
+1. r[std-result.as-ref.in-place] `as_ref` leaves the original result in place, for payloads that are copied or not.
+2. r[std-result.as-ref.borrow] The returned references borrow the receiver, following [Dependent Results](../lang/13-values-and-references.md#dependent-results).
+
+> **Why.** The method follows Rust's `Result::as_ref` and the existing optional borrowing method, [Option `as_ref`](option.md#borrowed-payloads).

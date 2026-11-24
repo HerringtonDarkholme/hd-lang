@@ -1,0 +1,5 @@
+# test: references returned by as_ref cannot escape a local result
+# Spec std Result: std-result.as-ref.borrow.
+fn escaped['a]() -> Result[&'a i32, &'a string]:
+    let value: Result[i32, string] = .Ok(7)
+    value.as_ref() # diagnostic: local-reference-escapes
