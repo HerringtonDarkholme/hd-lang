@@ -680,7 +680,7 @@ fn copy_name(u: &mut User, v: &User) -> void:
 6. r[ref.excl.live] The reference is live until the last use of a binding whose origin set holds it, not until the end of the block. A use that the write or move cannot reach does not count: one in another arm of the same branch, or one after a `return`. A use earlier in a loop counts when the binding is declared outside the loop.
 7. r[ref.excl.reassign] Assigning the binding a value whose origin set does not hold the reference ends the reference's use through it.
 8. r[ref.excl.declare] A `let` or `:=` makes a new local, so it writes no place a reference from an earlier iteration of its loop points into.
-9. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field, unless its signature names that field ([`ref.result.path.caller`](#r-ref.result.path.caller)). A result of type `&mut T` holds that reference as a `&mut` one after the call, whatever the receiver or parameter kind, as when a `&self` method returns a `&mut` through a `*mut` field.
+9. r[ref.excl.call] The `&` a call takes for a `&self` receiver or a `&` parameter is a shared reference to the whole place it was taken from. A `&mut` binding that a call takes as `&` lends the place it refers to in the same way. A `&mut` a call takes, a passed-on `&mut` binding included, lends the whole place as a `&mut` reference. A call's result that depends on that reference holds it ([`ref.dep.call`](#r-ref.dep.call)), even where the result points into one field, unless its signature names that field ([`ref.result.path.caller`](#r-ref.result.path.caller)). The result holds the reference with the kind the call took it: shared for a `&self` receiver or a `&` parameter, exclusive for a `&mut` one. A result type `&mut T` says only how long the result may live and that it is never copied.
 10. r[ref.excl.args] While a call takes a `&mut` of a place, its other arguments and its receiver may not hold a reference to an overlapping place. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
 11. r[ref.excl.args.after] An argument after a written `&mut p` argument may not use `p` or an overlapping place. The arguments of a `&mut self` method call may read the receiver's place, as in `xs.push(xs.len())`. Error: `conflicting-access`.
 12. r[ref.excl.args.shared] An argument after a `&` of `p` that the call takes, written or for a `&self` receiver, may not write or move `p` or an overlapping place: `referred(&ys, ys.pop())` is an error, and `referred(&ys, ys.len())` is valid. An element reference falls under [`ref.elem.conflict`](#r-ref.elem.conflict) instead. Error: `conflicting-access`.
@@ -719,6 +719,14 @@ fn early(bag: Bag) -> usize:
 > signature names the field the result points into ([Result Paths](#result-paths)). The fixes are
 > Rust's: make the change after the last use, copy the value out first
 > (`name := *u.name()`), or borrow only the field the code reads (`&u.name`).
+>
+> A `&mut T` result of a `&self` call keeps its source shared, as in Rust,
+> since safe code cannot make one that aliases: a reference made through a
+> `*mut` is local to the function that makes it
+> ([`ref.local.pointer`](#r-ref.local.pointer)). Only the standard
+> library makes one from a shared receiver, through `Ptr.as_mut`
+> ([`module.rt.ptr.as-ref`](10-modules.md#r-module.rt.ptr.as-ref)), whose
+> caller keeps the value unshared.
 
 ### Conflicts Through Aliases
 

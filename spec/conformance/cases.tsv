@@ -7158,6 +7158,9 @@ lang/references/dependent-results/writes-while-borrowed/implicit-lend-cancellati
 lang/expressions/comprehensions/constant-tee-comprehension.hd	runtime	accept	lang/05-expressions.md#comprehensions
 std/num/wrapping-arithmetic/inlined-constant-arithmetic.hd	runtime	accept	std/num.md#r-std-num.wrapping.result
 lang/references/dependent-results/writes-while-borrowed/readonly-optional-tag-lends-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.place
+lang/references/dependent-results/writes-while-borrowed/a-shared-receivers-mut-result-keeps-the-receiver-shared.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
+lang/references/dependent-results/writes-while-borrowed/a-shared-receivers-mut-result-blocks-a-mut-receiver-call.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.call
+lang/references/dependent-results/writes-while-borrowed/a-helper-over-a-shared-receivers-mut-result-keeps-its-source-shared.hd	type	accept	lang/13-values-and-references.md#r-ref.excl.call
 std/collections/uniqlist/function-value-copy-inputs-preserve-owners.hd	runtime	accept	std/collections.md#uniqlist
 std/time/clock/cold-function-value-copy-inputs-keep-owners.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
 lang/functions/function-types-and-values/a-returned-parameter-keeps-its-callers-lifetime.hd	runtime	accept	lang/07-functions.md#function-types-and-values
