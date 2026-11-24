@@ -22,6 +22,7 @@ import { playgroundSteps } from "./playground/e2e.ts";
 import { replSteps } from "./playground/e2e-repl.ts";
 import { encodeBase64Url } from "./playground/src/share.ts";
 import { browserPath } from "./playground/test/chrome.ts";
+import { assertBackgroundToken } from "./playground/test/theme.ts";
 import { PLAYGROUND_APP_DIR, PLAYGROUND_PAGE } from "./src/pages.ts";
 
 const DIST = join(dirname(fileURLToPath(import.meta.url)), "dist");
@@ -199,12 +200,16 @@ try {
     const spec = page.locator("#sidebar .sidebar-primary a", { hasText: "Spec" });
     await spec.waitFor({ state: "visible" });
     await page.keyboard.press("Escape");
-    const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    assert.equal(await background(), "rgb(255, 255, 255)");
+    const body = page.locator("body");
+    const light = await assertBackgroundToken(body, "--bg", "light");
     await page.click(".theme-toggle");
-    assert.equal(await background(), "rgb(17, 19, 24)");
+    assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+    const dark = await assertBackgroundToken(body, "--bg", "dark");
+    assert.notEqual(light, dark, "the toggle changes the background");
+    assert.equal(await page.evaluate(() => localStorage.getItem("hd-theme")), "dark");
     await page.reload();
-    assert.equal(await background(), "rgb(17, 19, 24)", "the choice persists");
+    assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+    assert.equal(await assertBackgroundToken(body, "--bg", "dark"), dark, "the choice persists");
     if (SCREENSHOTS) {
       await page.screenshot({ path: join(SCREENSHOTS, "home-phone-dark.png") });
     }
@@ -226,7 +231,7 @@ try {
     assert.deepEqual(workers, [`${origin}${PAGES_BASE}${PLAYGROUND_APP_DIR}/assets/worker.js`]);
     await page.click("#tour-run");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await output.locator(".stdout").textContent(), "Hello, Ada!\n");
+    assert.equal(await output.locator(".stdout").textContent(), "A day has 1440 minutes\n");
     assert.equal(
       await page.locator("#sidebar .tour-contents a[aria-current=page]").textContent(),
       "1Hello",
@@ -236,34 +241,34 @@ try {
     await page.locator(".tour-pager a[rel=next]").click();
     await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-bindings/`);
     await page.locator("#tour-editor .cm-editor").waitFor();
-    // Increase the quantity by three rather than one, as a reader would.
-    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).click();
+    // Increase the number of boxes from three to five, as a reader would.
+    await page.locator(".cm-line", { hasText: "box_count := 3" }).click();
     await page.keyboard.press("End");
     await page.keyboard.press("Backspace");
-    await page.keyboard.type("3");
+    await page.keyboard.type("5");
     await page.keyboard.press("Control+Enter");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
     assert.equal(await output.locator(".stdout").textContent(), "5 items cost 6000 cents\n");
 
     // The edit survives a reload; Reset brings back the original.
     await page.reload();
-    await page.locator(".cm-line", { hasText: "quantity = quantity + 3" }).waitFor();
+    await page.locator(".cm-line", { hasText: "box_count := 5" }).waitFor();
     const savedEdit = await page.evaluate(() => {
       const key = `hd-tour:${document.getElementById("tour-editor")!.dataset.tourKey!}`;
       return { key, value: localStorage.getItem(key)! };
     });
     const parsedEdit = JSON.parse(savedEdit.value) as Record<string, unknown>;
     assert.equal(typeof parsedEdit.originalHash, "string");
-    assert.match(parsedEdit.code as string, /quantity = quantity \+ 3/);
+    assert.match(parsedEdit.code as string, /box_count := 5/);
     await page.click("#tour-reset");
-    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).waitFor();
+    await page.locator(".cm-line", { hasText: "box_count := 3" }).waitFor();
     await page.evaluate(({ key, value }) => {
       const stale = JSON.parse(value) as { originalHash: string };
       stale.originalHash = "an-older-lesson";
       localStorage.setItem(key, JSON.stringify(stale));
     }, savedEdit);
     await page.reload();
-    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).waitFor();
+    await page.locator(".cm-line", { hasText: "box_count := 3" }).waitFor();
     assert.equal(
       await page.evaluate((key) => localStorage.getItem(key), savedEdit.key),
       null,
@@ -274,13 +279,13 @@ try {
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
     assert.equal(await output.locator(".stdout").textContent(), "3 items cost 3600 cents\n");
     await page.reload();
-    await page.locator(".cm-line", { hasText: "quantity = quantity + 1" }).waitFor();
+    await page.locator(".cm-line", { hasText: "box_count := 3" }).waitFor();
 
     // The page's edit turns the reassignable binding into a fixed one.
-    await page.locator(".cm-line", { hasText: "let quantity = +2" }).click();
+    await page.locator(".cm-line", { hasText: "let quantity = +0" }).click();
     await page.keyboard.press("Home");
     await page.keyboard.press("Shift+End");
-    await page.keyboard.type("quantity := +2");
+    await page.keyboard.type("quantity := +0");
     await page.click("#tour-run");
     await output.locator(".outcome.failed").waitFor({ timeout: FIRST_REPLY_MS });
     assert.equal(
@@ -317,14 +322,7 @@ try {
         editor && editor.width <= 375 && editor.height >= 300,
         `${colorScheme}: editor box`,
       );
-      const background = await page
-        .locator(".tour-code .cm-editor")
-        .evaluate((node) => getComputedStyle(node).backgroundColor);
-      assert.equal(
-        background,
-        colorScheme === "dark" ? "rgb(27, 30, 39)" : "rgb(246, 246, 249)",
-        `${colorScheme}: the editor uses the site's code background`,
-      );
+      await assertBackgroundToken(page.locator(".tour-code .cm-editor"), "--bg-code", colorScheme);
       await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
       await page.click("#tour-run");
       await page.locator("#tour-output .outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
@@ -352,7 +350,10 @@ try {
   });
 
   await step("a tour page with tests has a Test button, and wrapped lines hang", async () => {
-    const { page } = await openPage("tour/15-requirements/", { ready: "#tour-editor .cm-editor" });
+    const { page } = await openPage("tour/15-requirements/", {
+      width: 375,
+      ready: "#tour-editor .cm-editor",
+    });
     const output = page.locator("#tour-output");
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-test");
@@ -361,7 +362,7 @@ try {
     });
     await page.click("#tour-run");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await output.locator(".stdout").textContent(), "Reminder: invoice INV-7 is due\n");
+    assert.equal(await output.locator(".stdout").textContent(), "Hello, Ada\n");
 
     // A wrapped line hangs one step under its own indentation: 8 spaces + 4.
     const hang = await page
