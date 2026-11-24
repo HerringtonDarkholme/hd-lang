@@ -1,0 +1,23 @@
+# test: as_ref borrows the err payload in place through a shared reference
+# Spec std Result: std-result.as-ref, std-result.as-ref.in-place.
+struct Item:
+    n: i32
+
+impl !Copy for Item
+
+fn read(value: &Result[Item, Item]) -> i32:
+    let view: Result[&Item, &Item] = value.as_ref()
+    match view:
+        .Ok(item) => item.n
+        .Err(item) => -item.n
+
+tests:
+    use std.testing.assert_equal
+
+    it("borrows the err payload and leaves its owner writable"):
+        let mut value: Result[Item, Item] = .Err(Item { n: 9 })
+        assert_equal(read(&value), -9, reason="the borrowed payload")
+        match &mut value:
+            .Ok(item) => item.n += 1
+            .Err(item) => item.n += 1
+        assert_equal(read(&value), -10, reason="the original payload remains in place")

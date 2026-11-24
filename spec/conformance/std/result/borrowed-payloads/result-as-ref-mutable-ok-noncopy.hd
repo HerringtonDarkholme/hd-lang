@@ -1,0 +1,23 @@
+# test: as_ref borrows the ok payload in place through a mutable reference
+# Spec std Result: std-result.as-ref, std-result.as-ref.in-place.
+struct Item:
+    n: i32
+
+impl !Copy for Item
+
+fn read(value: &mut Result[Item, Item]) -> i32:
+    let view: Result[&Item, &Item] = value.as_ref()
+    match view:
+        .Ok(item) => item.n
+        .Err(item) => -item.n
+
+tests:
+    use std.testing.assert_equal
+
+    it("borrows the ok payload and leaves its owner writable"):
+        let mut value: Result[Item, Item] = .Ok(Item { n: 7 })
+        assert_equal(read(&mut value), 7, reason="the borrowed payload")
+        match &mut value:
+            .Ok(item) => item.n += 1
+            .Err(item) => item.n += 1
+        assert_equal(read(&mut value), 8, reason="the original payload remains in place")
