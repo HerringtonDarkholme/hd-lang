@@ -126,7 +126,7 @@ impl Slots:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Read copy [$1] : usize
 >   %3 = LoanBegin %0 #2 : ()
->   %4 = Call std/collections/impl[T] List[T].remove[string] (%0, %2) : string
+>   %4 = Call std/collections.list/impl[T] List[T].remove[string] (%0, %2) : string
 >   %5 = LoanClose %1 : ()
 >   %6 = LoanEnd [%0] : ()
 >   %7 = Block %4 : string
@@ -145,7 +145,7 @@ impl Slots:
 >   %2 = Read copy [$1] : usize
 >   %3 = Read copy [$2] : usize
 >   %4 = LoanBegin %0 #2 : ()
->   %5 = Call std/collections/impl[T] List[T].swap[string] (%0, %2, %3) : ()
+>   %5 = Call std/collections.list/impl[T] List[T].swap[string] (%0, %2, %3) : ()
 >   %6 = LoanClose %1 : ()
 >   %7 = LoanEnd [%0] : ()
 >   %8 = Block - : ()

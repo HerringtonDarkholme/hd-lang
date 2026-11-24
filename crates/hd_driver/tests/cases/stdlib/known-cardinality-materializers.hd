@@ -1,19 +1,19 @@
 # @dump: stdout wat
 # @build: release | release checked
-# @helper: std/collections/impl[T < Copy] UniqList[T].to_list
-# @helper: std/collections/impl[T] List[T].map
-# @helper: std/collections/impl[T] List[T].take
-# @helper: std/collections/impl[T] List[T].reversed
-# @helper: std/collections/impl[T] List[T].sorted_by
-# @helper: std/collections/impl[T] List[T].chunks
-# @helper: std/collections/impl[T] List[T].zip
-# @helper: std/collections/impl[T] List[T].sorted_by_key
-# @helper: std/collections/impl[T] List[T].windows
-# @helper: std/collections/impl[T < Ord] List[T].sorted
-# @helper: std/collections/impl[K < Eq & Hash, V] Map[K, V].keys
-# @helper: std/collections/impl[K < Eq & Hash, V] Map[K, V].values
-# @helper: std/collections/impl[K < Eq & Hash, V] Map[K, V] #2.entries
-# @helper: std/collections/impl[T] ListView[T].to_list
+# @helper: std/collections.uniq_list/impl[T < Copy] UniqList[T].to_list
+# @helper: std/collections.list/impl[T] List[T].map
+# @helper: std/collections.list/impl[T] List[T].take
+# @helper: std/collections.list/impl[T] List[T].reversed
+# @helper: std/collections.uniq_list/impl[T] List[T].sorted_by
+# @helper: std/collections.list/impl[T] List[T].chunks
+# @helper: std/collections.list/impl[T] List[T].zip
+# @helper: std/collections.list/impl[T] List[T].sorted_by_key
+# @helper: std/collections.list/impl[T] List[T].windows
+# @helper: std/collections.uniq_list/impl[T < Ord] List[T].sorted
+# @helper: std/collections.map/impl[K < Eq & Hash, V] Map[K, V].keys
+# @helper: std/collections.map/impl[K < Eq & Hash, V] Map[K, V].values
+# @helper: std/collections.map/impl[K < Eq & Hash, V] Map[K, V] #2.entries
+# @helper: std/collections.view/impl[T] ListView[T].to_list
 # Exact reservations preserve values, aliases, view snapshots and callback order.
 use std.collections.UniqList
 use std.annotation.inline

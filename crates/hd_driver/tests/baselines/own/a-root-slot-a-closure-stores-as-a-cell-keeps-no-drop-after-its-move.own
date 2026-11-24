@@ -180,7 +180,7 @@ fn rounds(n: usize) -> usize:
 >   %82 = Box #8 #1 : ()
 >   %83 = Store [$8] %80 : ()
 >   %84 = Ref local [$8] : &(&string)
->   %85 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[u8] (0:usize) : UniqList[u8]
+>   %85 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[u8] (0:usize) : UniqList[u8]
 >   %86 = Break L7 %85 : never
 >   %87 = Block - : UniqList[u8]
 >   %88 = Scope %87 [] : UniqList[u8]
@@ -272,7 +272,7 @@ fn rounds(n: usize) -> usize:
 >   %174 = Block %171 : string
 >   %175 = Closure #1 : fn(&string) -> string
 >   %176 = Retain %175 Operation captures #0 : ()
->   %177 = Call std/collections/impl[T] List[T].map[string, string, fn(&string) -> string] (%77, %175) : List[string]
+>   %177 = Call std/collections.list/impl[T] List[T].map[string, string, fn(&string) -> string] (%77, %175) : List[string]
 >   %177 keeps %175
 >   %178 = LoanEnd [%77] : ()
 >   %179 = Store [$1] %177 : ()

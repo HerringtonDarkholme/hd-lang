@@ -1,6 +1,6 @@
 # @dump: counts wat
 # @build: std release
-# @helper: std/collections/impl[T < Eq] List[T].contains
+# @helper: std/collections.list/impl[T < Eq] List[T].contains
 # expected: both membership APIs borrow the needle; List scans until its
 # first equal element and Set reuses its single existing map lookup.
 use std.collections.Set

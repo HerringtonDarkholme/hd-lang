@@ -78,7 +78,7 @@ fn pushes(n: usize) -> List[i32]:
 >   %14 = Store [$1 [0:usize]] 3:i32 : ()
     let p = items.pop()
 >   %15 = Ref mut local frame [$1] : &mut List[i32]
->   %16 = Call std/collections/impl[T] List[T].pop[i32] (%15) : i32?
+>   %16 = Call std/collections.list/impl[T] List[T].pop[i32] (%15) : i32?
 >   %17 = LoanEnd [%15] : ()
 >   %18 = Store [$2] %16 : ()
     items

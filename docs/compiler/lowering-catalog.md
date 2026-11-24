@@ -221,7 +221,9 @@ for hashing, updates, tombstones, iteration and copy-on-write.
 
 These are ordinary std structs using the same aggregate and collection
 layouts. Their current implementations are in
-[collections.hd](../../lib/std/collections.hd); they have no independent
+[set.hd](../../lib/std/collections/set.hd),
+[deque.hd](../../lib/std/collections/deque.hd) and
+[heap.hd](../../lib/std/collections/heap.hd); they have no independent
 backend representation.
 
 ### Iterators And Ranges

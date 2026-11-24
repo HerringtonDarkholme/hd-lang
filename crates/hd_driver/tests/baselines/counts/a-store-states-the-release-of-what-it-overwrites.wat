@@ -9,7 +9,7 @@
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_signed_sized" (func $write_signed_sized (param i64 i32 i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
-  (import "fixture" "release_value[std.collections.UniqList[i32]]" (func $"release_value[std.collections.UniqList[i32]]" (param i32)))
+  (import "fixture" "release_value[std.collections.uniq_list.UniqList[i32]]" (func $"release_value[std.collections.uniq_list.UniqList[i32]]" (param i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
@@ -224,7 +224,7 @@
         local.get $u
         if
           local.get $u
-          call $"release_value[std.collections.UniqList[i32]]"
+          call $"release_value[std.collections.uniq_list.UniqList[i32]]"
         end
     ;; 41 |         return u.len()
         br 1
@@ -234,7 +234,7 @@
       local.get $u
       if
         local.get $u
-        call $"release_value[std.collections.UniqList[i32]]"
+        call $"release_value[std.collections.uniq_list.UniqList[i32]]"
       end
     end
     local.get $t4

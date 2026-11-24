@@ -3,7 +3,7 @@
   (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].insert[string, string]" (param i32 i32 i32 i32 i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[string]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[string]" (param i32) (result i32 i32 i32)))
-  (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]" (param i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.uniq_list.UniqList[string]]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.uniq_list.UniqList[string]]" (param i32 i32 i32 i32 i32 i32) (result i32)))
   (import "fixture" "impl[T < ?Copy] UniqList[T].reserve_for[string]" (func $"impl[T < ?Copy] UniqList[T].reserve_for[string]" (param i32 i32)))
   (import "fixture" "impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]" (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_ref[string, string]" (param i32 i32 i32) (result i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
@@ -36,7 +36,7 @@
     local.get $t2
     local.get $t1
     local.get $t0
-    call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.UniqList[string]]"
+    call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].get_or_insert[string, std.collections.uniq_list.UniqList[string]]"
     local.tee $m
     i32.load $heap offset=8
     local.set $k.0

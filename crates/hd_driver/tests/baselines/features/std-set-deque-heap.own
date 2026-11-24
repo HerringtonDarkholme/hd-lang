@@ -20,7 +20,7 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 >   %1 = Box #2 #255 : ()
 >   %2 = Read borrow [$0] : &mut Set[string]
 >   %3 = Read borrow [$1] : string
->   %4 = Call std/collections/impl[T < Eq & Hash] Set[T].insert[string] (%2, %3) : bool
+>   %4 = Call std/collections.set/impl[T < Eq & Hash] Set[T].insert[string] (%2, %3) : bool
 >   %5 = Retain %4 Operation operand 1 #0 : ()
 >   %12 = Drop [$2] : ()
 >   %13 = Intrinsic ParamOwned [1:i32] : bool
@@ -33,7 +33,7 @@ fn seen(s: &mut Set[string], a: string, b: string) -> bool:
 >   %6 = Read borrow [$0] : &mut Set[string]
 >   %7 = Coerce %6 [Weaken -] : &Set[string]
 >   %8 = Ref local frame promoted [$2] : &string
->   %9 = Call std/collections/impl[T < Eq & Hash] Set[T].contains[string] (%7, %8) : bool
+>   %9 = Call std/collections.set/impl[T < Eq & Hash] Set[T].contains[string] (%7, %8) : bool
 >   %10 = LoanEnd [%8] : ()
 >   %11 = Drop [$2] : ()
 >   exit sub 0 drops [$2]
@@ -52,12 +52,12 @@ fn queue(q: &mut Deque[string], a: string) -> usize:
 >   %1 = Read borrow [$0] : &mut Deque[string]
 >   %2 = Read move [$1] : string
 >   %3 = Intrinsic Empty [] : ()
->   %4 = Call std/collections/impl[T] Deque[T].push_back[string] (%1, %2) : ()
+>   %4 = Call std/collections.deque/impl[T] Deque[T].push_back[string] (%1, %2) : ()
 >   %24 = Drop [$1] : ()
 >   %25 = Block %22 : usize
     match q.pop_front():
 >   %5 = Read borrow [$0] : &mut Deque[string]
->   %6 = Call std/collections/impl[T] Deque[T].pop_front[string] (%5) : string?
+>   %6 = Call std/collections.deque/impl[T] Deque[T].pop_front[string] (%5) : string?
 >   %21 = Block - : never
 >   %22 = Match %6 [%21 %12 %13] : usize
 >   %23 = Drop [%6] : ()
@@ -90,12 +90,12 @@ fn top(h: &mut Heap[string], a: string) -> usize:
 >   %1 = Read borrow [$0] : &mut Heap[string]
 >   %2 = Read move [$1] : string
 >   %3 = Intrinsic Empty [] : ()
->   %4 = Call std/collections/impl[T < Ord] Heap[T].push[string] (%1, %2) : ()
+>   %4 = Call std/collections.heap/impl[T < Ord] Heap[T].push[string] (%1, %2) : ()
 >   %24 = Drop [$1] : ()
 >   %25 = Block %22 : usize
     match h.pop():
 >   %5 = Read borrow [$0] : &mut Heap[string]
->   %6 = Call std/collections/impl[T < Ord] Heap[T].pop[string] (%5) : string?
+>   %6 = Call std/collections.heap/impl[T < Ord] Heap[T].pop[string] (%5) : string?
 >   %21 = Block - : never
 >   %22 = Match %6 [%21 %12 %13] : usize
 >   %23 = Drop [%6] : ()

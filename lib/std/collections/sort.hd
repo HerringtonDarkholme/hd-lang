@@ -1,0 +1,385 @@
+use std.annotation.inline
+use std.rt.memory.{Buffer, copy_bytes, size_of}
+
+# The stable driftsort shape from Rust 1.81: long natural runs scheduled by
+# powersort, lazy stable quicksort runs that split off equal elements only
+# when a pivot repeats its ancestor, small insertion sorts, and
+# merge-sort fallback at the quicksort depth limit. Both list families use
+# this kernel, moving elements between their room and raw scratch storage.
+# One logical run in driftsort's powersort merge tree. An unsorted run is
+# sorted lazily, only when it meets a natural run or reaches the root.
+# Keep Ord/key comparisons static; a generic mutable callback is stored
+# inline in DriftByFn, borrowed once through the existing sort kernel.
+# No comparator environment is retained per comparison.
+pub trait DriftOrder[T < ?Copy]:
+    fn order(&mut self, left: &T, right: &T) -> Ordering
+
+struct DriftRun:
+    start: usize
+    len: usize
+    sorted: bool
+
+@inline
+fn drift_less[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    left: usize,
+    right: usize,
+) -> bool:
+    match by.order(items.at(left).as_ref(), items.at(right).as_ref()):
+        .Less => true
+        _ => false
+
+fn drift_insertion_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    start: usize,
+    end: usize,
+) -> void:
+    let index = start + 1
+    while index < end:
+        let hole = index
+        while hole > start && drift_less(items, by, index, hole - 1):
+            hole -= 1
+        if hole != index:
+            value := items.at(index).read()
+            let at = index
+            while at > hole:
+                items.at(at).write(items.at(at - 1).read())
+                at -= 1
+            items.at(hole).write(value)
+        index += 1
+
+fn drift_reverse[T < ?Copy](items: &Buffer[T], start: usize, end: usize) -> void:
+    let left = start
+    let right = end
+    while left + 1 < right:
+        right -= 1
+        held := items.at(left).read()
+        items.at(left).write(items.at(right).read())
+        items.at(right).write(held)
+        left += 1
+
+# Finds an ascending run, or a strictly descending run which may be reversed
+# without changing the order of equal elements.
+fn drift_natural_run[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    start: usize,
+    size: usize,
+) -> (usize, bool):
+    if start + 1 >= size:
+        return (1, false)
+    let end = start + 2
+    descending := drift_less(items, by, start + 1, start)
+    if descending:
+        while end < size && drift_less(items, by, end, end - 1):
+            end += 1
+    else:
+        while end < size && !drift_less(items, by, end, end - 1):
+            end += 1
+    (end - start, descending)
+
+# Stable physical merge. Equal elements come from the left run. The left
+# run moves to scratch first; a panic is unrecoverable (flow.panic.def), so
+# no step needs to keep both runs whole while the comparator runs.
+fn drift_merge[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    scratch: &Buffer[T],
+    start: usize,
+    middle: usize,
+    end: usize,
+) -> void:
+    copy_bytes(
+        scratch.at(start).address,
+        items.at(start).address,
+        (middle - start) * size_of::[T](),
+    )
+    let left = start
+    let right = middle
+    let out = start
+    while left < middle && right < end:
+        take_right := match by.order(items.at(right).as_ref(), scratch.at(left).as_ref()):
+            .Less => true
+            _ => false
+        if take_right:
+            items.at(out).write(items.at(right).read())
+            right += 1
+        else:
+            items.at(out).write(scratch.at(left).read())
+            left += 1
+        out += 1
+    # The rest of the right run is already in place.
+    copy_bytes(items.at(out).address, scratch.at(left).address, (middle - left) * size_of::[T]())
+
+fn drift_merge_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    scratch: &Buffer[T],
+    start: usize,
+    end: usize,
+) -> void:
+    run := 16
+    let at = start
+    while at < end:
+        stop := at + (if run < end - at: run else: end - at)
+        drift_insertion_sort(items, by, at, stop)
+        at = stop
+    let width = run
+    while width < end - start:
+        at = start
+        while at < end:
+            middle := at + (if width < end - at: width else: end - at)
+            stop := middle + (if width < end - middle: width else: end - middle)
+            if middle < stop:
+                drift_merge(items, by, scratch, at, middle, stop)
+            at = stop
+        if width >= end - start - width:
+            break
+        width *= 2
+
+fn drift_log2(value: usize) -> usize:
+    let bits: usize = 0
+    let rest = value
+    while rest > 1:
+        rest /= 2
+        bits += 1
+    bits
+
+# Rust 1.81's sampled pivot policy: medians from the first, middle and
+# last eighth, recursively sampled for regions of at least 64 elements.
+fn drift_sample_median[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    first: usize,
+    middle: usize,
+    last: usize,
+    width: usize,
+) -> usize:
+    let a = first
+    let b = middle
+    let c = last
+    # Each incoming region is one eighth of its parent, so width >= 8
+    # is the reference policy's parent-size threshold of 64.
+    if width >= 8:
+        eighth := width / 8
+        a = drift_sample_median(items, by, a, a + eighth * 4, a + eighth * 7, eighth)
+        b = drift_sample_median(items, by, b, b + eighth * 4, b + eighth * 7, eighth)
+        c = drift_sample_median(items, by, c, c + eighth * 4, c + eighth * 7, eighth)
+    x := drift_less(items, by, a, b)
+    y := drift_less(items, by, a, c)
+    if x == y:
+        z := drift_less(items, by, b, c)
+        if z != x: c else: b
+    else:
+        a
+
+# Whether the element at `index` goes left of the pivot copied at `slot`:
+# below it, or with `le` also equal to it.
+@inline
+fn drift_goes_left[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    pivots: &Buffer[T],
+    index: usize,
+    slot: usize,
+    le: bool,
+) -> bool:
+    match by.order(items.at(index).as_ref(), pivots.at(slot).as_ref()):
+        .Less => true
+        .Equal => le
+        .Greater => false
+
+# Rust 1.81's stable partition: one pass sends left values forward and the
+# rest backward in scratch, then both groups move back, the right one
+# reversed so its order is kept. Returns the size of the left group.
+fn drift_partition[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    scratch: &Buffer[T],
+    pivots: &Buffer[T],
+    start: usize,
+    end: usize,
+    slot: usize,
+    le: bool,
+) -> usize:
+    let left: usize = 0
+    let back = end
+    let index = start
+    while index < end:
+        if drift_goes_left(items, by, pivots, index, slot, le):
+            scratch.at(start + left).write(items.at(index).read())
+            left += 1
+        else:
+            back -= 1
+            scratch.at(back).write(items.at(index).read())
+        index += 1
+    copy_bytes(items.at(start).address, scratch.at(start).address, left * size_of::[T]())
+    let at = start + left
+    let from = end
+    while from > back:
+        from -= 1
+        items.at(at).write(scratch.at(from).read())
+        at += 1
+    left
+
+# Stable quicksort with sampled pivots and a merge fallback, as Rust 1.81's
+# driftsort: the right side recurses with this pivot as its left ancestor,
+# and a pivot no greater than its ancestor splits off the equal elements,
+# which are then done. `pivots` holds one copy per depth; `remaining` only
+# falls along a recursion chain, so each live copy has its own slot.
+fn drift_quick_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    scratch: &Buffer[T],
+    pivots: &Buffer[T],
+    start: usize,
+    end: usize,
+    limit: usize,
+    ancestor: usize?,
+) -> void:
+    let first = start
+    let last = end
+    let remaining = limit
+    let left_ancestor = ancestor
+    while last - first > 16:
+        if remaining == 0:
+            drift_merge_sort(items, by, scratch, first, last)
+            return
+        remaining -= 1
+        eighth := (last - first) / 8
+        pivot := drift_sample_median(
+            items,
+            by,
+            first,
+            first + eighth * 4,
+            first + eighth * 7,
+            eighth,
+        )
+        slot := remaining
+        copy_bytes(pivots.at(slot).address, items.at(pivot).address, size_of::[T]())
+        let equal = match left_ancestor:
+            .Some(above) =>
+                match by.order(pivots.at(above).as_ref(), pivots.at(slot).as_ref()):
+                    .Less => false
+                    _ => true
+            .None => false
+        let less: usize = 0
+        if !equal:
+            less = drift_partition(items, by, scratch, pivots, first, last, slot, false)
+            equal = less == 0
+        if equal:
+            first += drift_partition(items, by, scratch, pivots, first, last, slot, true)
+            left_ancestor = .None
+            continue
+        drift_quick_sort(items, by, scratch, pivots, first + less, last, remaining, .Some(slot))
+        last = first + less
+    drift_insertion_sort(items, by, first, last)
+
+fn drift_sort_lazy_run[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    scratch: &Buffer[T],
+    pivots: &Buffer[T],
+    start: usize,
+    end: usize,
+) -> void:
+    drift_quick_sort(items, by, scratch, pivots, start, end, 2 * drift_log2(end - start), .None)
+
+fn drift_logical_merge[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    scratch: &Buffer[T],
+    pivots: &Buffer[T],
+    left: DriftRun,
+    right: DriftRun,
+) -> DriftRun:
+    if !left.sorted && !right.sorted:
+        return DriftRun { start: left.start, len: left.len + right.len, sorted: false }
+    if !left.sorted:
+        drift_sort_lazy_run(items, by, scratch, pivots, left.start, left.start + left.len)
+    if !right.sorted:
+        drift_sort_lazy_run(items, by, scratch, pivots, right.start, right.start + right.len)
+    drift_merge(items, by, scratch, left.start, right.start, right.start + right.len)
+    DriftRun { start: left.start, len: left.len + right.len, sorted: true }
+
+fn drift_scale_factor(size: usize) -> u64:
+    ((1u64 << 62) + u64(size) - 1) / u64(size)
+
+fn drift_merge_depth(left: usize, middle: usize, right: usize, scale: u64) -> u8:
+    x := u64(left + middle)
+    y := u64(middle + right)
+    u8(((scale * x) ^ (scale * y)).leading_zeros())
+
+fn drift_sqrt_approx(size: usize) -> usize:
+    shift := (1 + drift_log2(size | 1)) / 2
+    ((1usize << shift) + (size >> shift)) / 2
+
+fn drift_create_run[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    by: &mut O,
+    start: usize,
+    minimum: usize,
+    size: usize,
+) -> DriftRun:
+    remaining := size - start
+    if remaining >= minimum:
+        let (len, reversed) = drift_natural_run(items, by, start, size)
+        if len >= minimum:
+            if reversed:
+                drift_reverse(items, start, start + len)
+            return DriftRun { start: start, len: len, sorted: true }
+    DriftRun { start: start, len: if minimum < remaining: minimum else: remaining, sorted: false }
+
+# Driftsort's top-level policy: preserve long natural runs, keep the other
+# runs lazy for stable quicksort, and merge them in powersort order.
+pub fn drift_sort[T < ?Copy, O < ?Copy & DriftOrder[T]](
+    items: &Buffer[T],
+    size: usize,
+    by: &mut O,
+) -> void:
+    if size < 2:
+        return
+    if size <= 16:
+        drift_insertion_sort(items, by, 0, size)
+        return
+    let (run, reversed) = drift_natural_run(items, by, 0, size)
+    if run == size:
+        if reversed:
+            drift_reverse(items, 0, size)
+        return
+    scratch := Buffer::[T].new(size)
+    # One pivot copy per quicksort depth; the depth limit is 2 log2(size).
+    pivots := Buffer::[T].new(2 * drift_log2(size) + 1)
+    scale := drift_scale_factor(size)
+    minimum := if size <= 64 * 64:
+        half := size - size / 2
+        if half < 64: half else: 64
+    else:
+        drift_sqrt_approx(size)
+    let mut runs: List[DriftRun] = []
+    let mut depths: List[u8] = []
+    let scan: usize = 0
+    let prev = DriftRun { start: 0, len: 0, sorted: true }
+    while true:
+        next := if scan < size:
+            drift_create_run(items, by, scan, minimum, size)
+        else:
+            DriftRun { start: scan, len: 0, sorted: true }
+        depth := if scan < size:
+            drift_merge_depth(prev.start, scan, scan + next.len, scale)
+        else:
+            0u8
+        while runs.len() > 1 && depths.last().unwrap_or(0) >= depth:
+            left := runs.pop().unwrap_or(DriftRun { start: 0, len: 0, sorted: true })
+            _ := depths.pop()
+            prev = drift_logical_merge(items, by, &scratch, &pivots, left, prev)
+        runs.push(prev)
+        depths.push(depth)
+        if scan >= size:
+            break
+        scan += next.len
+        prev = next
+    if !prev.sorted:
+        drift_sort_lazy_run(items, by, &scratch, &pivots, 0, size)

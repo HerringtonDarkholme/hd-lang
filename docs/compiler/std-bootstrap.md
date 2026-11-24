@@ -77,10 +77,10 @@ others are private to the one module that calls them.
 | `int_wrapping_add`, `int_wrapping_sub`, `int_wrapping_mul` | the methods `wrapping_add`, `wrapping_sub`, `wrapping_mul` of `impl[N < Integer] N`, in `num.hd` | compiler |
 | `int_count_ones`, `int_leading_zeros`, `int_trailing_zeros` | the methods `count_ones`, `leading_zeros`, `trailing_zeros` of `impl[N < Integer] N`, in `num.hd` | compiler |
 | `format_int` | `[N < Integer](value: N) -> string`, in `format.hd`; the runtime's `FmtInt` helper | compiler |
-| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections.hd` | compiler |
-| `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections.hd`; `other` is lent | compiler |
+| `list_truncate` | `[T](items: &mut List[T], len: usize) -> void`, in `collections/list.hd` | compiler |
+| `list_extend` | `[T](items: &mut List[T], other: List[T]) -> void`, in `collections/list.hd`; `other` is lent | compiler |
 | `list_reserve` | `[T](items: &mut List[T], count: usize) -> void`, in `text.hd`, under `StringBuilder.reserve`; the runtime's one reserve routine, which `list_extend` calls too | compiler |
-| `map_probe` | the body of `Map.get_or_insert`, in `collections.hd` | compiler |
+| `map_probe` | the body of `Map.get_or_insert`, in `collections/map.hd` | compiler |
 | `map_steps` | `[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V))?`, in `iter.hd`, the step function of a map cursor | compiler |
 | `map_hash_seed` | `() -> u64`, in `rt/mod.hd`; the compiler mixes the `hd:rt` `hash_seed` import with a per-run counter | compiler |
 | `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`, in `function.hd` | compiler |

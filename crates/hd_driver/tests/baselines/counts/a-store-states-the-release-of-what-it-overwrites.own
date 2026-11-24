@@ -189,7 +189,7 @@ fn field_over(r: &mut P, k: i32) -> void:
 fn fresh() -> UniqList[i32]:
     UniqList::[i32].new()
 > app/main/fresh
->   %0 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[i32] (0:usize) : UniqList[i32]
+>   %0 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[i32] (0:usize) : UniqList[i32]
 >   %1 = Break L0 %0 : never
 >   %2 = Block - : UniqList[i32]
 >   %3 = Scope %2 [] : UniqList[i32]

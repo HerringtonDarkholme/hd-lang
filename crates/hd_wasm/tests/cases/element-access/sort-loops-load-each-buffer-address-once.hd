@@ -1,6 +1,6 @@
 # @dump: wat
 # @build: v8 release
-# @helpers: std/collections/drift_partition std/collections/drift_merge
+# @helpers: std/collections.sort/drift_partition std/collections.sort/drift_merge
 # expected: an unchanged field read through a reference loads once, not
 # per read or per iteration (issue: a loop reloads an unchanged struct
 # field read through a reference on every iteration)

@@ -55,7 +55,7 @@ impl Members:
 >   %0 = Ref mut local [*$0 .infos] : &mut List[Info]
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = LoanBegin %0 #2 : ()
->   %3 = Call std/collections/impl[T] List[T].pop[Info] (%0) : Info?
+>   %3 = Call std/collections.list/impl[T] List[T].pop[Info] (%0) : Info?
 >   %4 = LoanClose %1 : ()
 >   %5 = LoanEnd [%0] : ()
 >   %16 = Block - : never

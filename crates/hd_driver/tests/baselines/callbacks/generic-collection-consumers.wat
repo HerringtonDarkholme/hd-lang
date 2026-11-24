@@ -26,7 +26,91 @@
     i32.const 0
     i32.const 0
   )
-  (func $"drift_insertion_sort[i32, std.collections.DriftByOrd]" (param $t5 i32) (param $t1 i32) (param $t0 i32) (param $t2 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32) (local $t7 i32)
+  (func $folded (param $values i32) (param $scale i32) (result i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $total i32)
+    ;; 11 |     values.iter().fold(+0, fn(total: i32, value: i32) -> i32: total + value * scale)
+    global.get $stack
+    global.get $stack_limit
+    i32.sub
+    i32.const 24
+    i32.lt_u
+    if
+      call $rt:panic
+      unreachable
+    end
+    global.get $stack
+    i32.const 24
+    i32.sub
+    local.tee $t0
+    global.set $stack
+    local.get $values
+    i32.load $heap offset=4
+    local.set $t1
+    local.get $t0
+    i64.const 0
+    i64.store $heap
+    local.get $t0
+    i32.const 8
+    i32.add
+    local.tee $cursor
+    local.get $values
+    i32.store $heap
+    local.get $cursor
+    i32.const 0
+    i32.store $heap offset=4
+    local.get $cursor
+    local.get $t1
+    i32.store $heap offset=8
+    block
+      loop
+        local.get $cursor
+        call $"impl[T] Iterator[T] for ListIter[T].next[i32]"
+        local.set $values
+        local.set $t1
+        block
+          block
+            block
+              local.get $t1
+              i32.eqz
+              br_if 1
+              br 0
+              unreachable
+            end
+            local.get $total
+            local.get $values
+            local.get $scale
+            i32.mul
+            i32.add
+            local.set $total
+            br 1
+          end
+          br 2
+        end
+        br 0
+      end
+    end
+    local.get $cursor
+    if
+      local.get $cursor
+      i32.load $heap
+      local.tee $values
+      if
+        local.get $values
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $values
+          call $rt:release_ref
+        end
+      end
+    end
+    local.get $total
+    local.get $t0
+    i32.const 24
+    i32.add
+    global.set $stack
+  )
+  (func $"drift_insertion_sort[i32, std.collections.uniq_list.DriftByOrd]" (param $t5 i32) (param $t1 i32) (param $t0 i32) (param $t2 i32) (local $t3 i32) (local $t4 i32) (local $t6 i32) (local $t7 i32)
     ;; (no span)
     local.get $t0
     i32.const 1
@@ -167,90 +251,6 @@
         br 0
       end
     end
-  )
-  (func $folded (param $values i32) (param $scale i32) (result i32) (local $t1 i32) (local $cursor i32) (local $t0 i32) (local $total i32)
-    ;; 11 |     values.iter().fold(+0, fn(total: i32, value: i32) -> i32: total + value * scale)
-    global.get $stack
-    global.get $stack_limit
-    i32.sub
-    i32.const 24
-    i32.lt_u
-    if
-      call $rt:panic
-      unreachable
-    end
-    global.get $stack
-    i32.const 24
-    i32.sub
-    local.tee $t0
-    global.set $stack
-    local.get $values
-    i32.load $heap offset=4
-    local.set $t1
-    local.get $t0
-    i64.const 0
-    i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $cursor
-    local.get $values
-    i32.store $heap
-    local.get $cursor
-    i32.const 0
-    i32.store $heap offset=4
-    local.get $cursor
-    local.get $t1
-    i32.store $heap offset=8
-    block
-      loop
-        local.get $cursor
-        call $"impl[T] Iterator[T] for ListIter[T].next[i32]"
-        local.set $values
-        local.set $t1
-        block
-          block
-            block
-              local.get $t1
-              i32.eqz
-              br_if 1
-              br 0
-              unreachable
-            end
-            local.get $total
-            local.get $values
-            local.get $scale
-            i32.mul
-            i32.add
-            local.set $total
-            br 1
-          end
-          br 2
-        end
-        br 0
-      end
-    end
-    local.get $cursor
-    if
-      local.get $cursor
-      i32.load $heap
-      local.tee $values
-      if
-        local.get $values
-        i32.const 8
-        i32.sub
-        i32.load $heap
-        if
-          local.get $values
-          call $rt:release_ref
-        end
-      end
-    end
-    local.get $total
-    local.get $t0
-    i32.const 24
-    i32.add
-    global.set $stack
   )
   (func $"impl[T] List[T].any[i32, fn(&i32) -> bool]" (param $t1 i32) (param $t0 i32) (param $t6 i32) (result i32) (local $t7 i32) (local $t2 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32)
     ;; (no span)

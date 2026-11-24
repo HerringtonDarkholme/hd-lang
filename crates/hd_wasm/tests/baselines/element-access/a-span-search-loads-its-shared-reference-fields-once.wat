@@ -4,6 +4,14 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "borders[u8]" (func $"borders[u8]" (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
+  (func $find (param $hay i32) (param $needle.items i32) (param $needle.start i32) (param $needle.end i32) (result i32 i32)
+    ;; 12 |     hay.index_of_span(needle)
+    local.get $hay
+    local.get $needle.items
+    local.get $needle.start
+    local.get $needle.end
+    call $"impl[T < Eq, 'a] Span[T, 'a].index_of_span[u8]"
+  )
   (func $"impl[T < Eq, 'a] Span[T, 'a].index_of_span[u8]" (param $t0 i32) (param $t6 i32) (param $t4 i32) (param $t3 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t5 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32)
     block
     ;; (no span)
@@ -60,7 +68,7 @@
       i32.const 1
       i32.add
       local.set $t2
-      i32.const 80 ;; &empty-buffer
+      i32.const 24 ;; &empty-buffer
       local.set $t8
       local.get $t1
       local.set $t9
@@ -467,13 +475,5 @@
     end
     i32.const 0
     i32.const 0
-  )
-  (func $find (param $hay i32) (param $needle.items i32) (param $needle.start i32) (param $needle.end i32) (result i32 i32)
-    ;; 12 |     hay.index_of_span(needle)
-    local.get $hay
-    local.get $needle.items
-    local.get $needle.start
-    local.get $needle.end
-    call $"impl[T < Eq, 'a] Span[T, 'a].index_of_span[u8]"
   )
 )

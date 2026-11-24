@@ -1,7 +1,7 @@
 # @dump: wat
 # @build: v8 release
-# @helper: std/collections/impl[T < Eq & Hash] Iterator[T] for Union[T].next
-# @helper: std/collections/impl[T < Eq & Hash] Iterator[T] for Intersection[T].next
+# @helper: std/collections.set/impl[T < Eq & Hash] Iterator[T] for Union[T].next
+# @helper: std/collections.set/impl[T < Eq & Hash] Iterator[T] for Intersection[T].next
 # expected: next walks existing cursors and tests membership without building a result set.
 use std.collections.Set
 

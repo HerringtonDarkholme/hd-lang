@@ -17,14 +17,11 @@ std/rt.cycle/drain#0
 std/rt.alloc/metadata#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/rt.cycle/suspect#0
-std/collections/impl TextRoom.take_text#0
 std/json/impl Serializer for TextWriter.end_variant#0
 std/structure/impl Facts.find#0 [std.serde.EnumTagging]
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
-std/collections/impl TextSink for TextRoom.append_unsigned#0
-std/collections/impl[T < ?Copy] Drop for UniqList[T].drop#0 [u8]
-std/collections/impl[T] List[T].pop#0 [std.json.ObjectEntry]
+std/collections.uniq_list/impl TextSink for TextRoom.append_text#0
 std/json/impl Serializer for TextWriter.end_map#0
 std/json/impl TextWriter.start#0
 std/rt.alloc/release_known#0
@@ -42,9 +39,9 @@ std/json/impl TextWriter.close#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 app/main/main#0
-std/collections/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
-std/collections/impl[T] List[T].pop#0 [string]
+std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
 std/rt.alloc/full#0
+std/collections.uniq_list/impl TextRoom.grow#0
 std/rt.alloc/move_table#0
 std/serde/joined_name#0
 std/json/impl JsonWriter.close#0
@@ -66,6 +63,8 @@ std/json/push_quoted#0
 std/structure/impl Facts.find#0 [std.serde.SkipNone[i64]]
 std/structure/impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF].fact#0 [app.main.Pair, i64, std.serde.Skip]
 std/rt.alloc/retain#0
+std/collections.uniq_list/impl TextSink for TextRoom.append_unsigned#0
+std/collections.uniq_list/impl TextSink for TextRoom.append_signed#0
 std/rt.cycle/sweep#0
 std/rt.hash/hash_string#0
 std/rt.alloc/free#0
@@ -88,11 +87,13 @@ std/json/tagged_json#0
 std/rt.entry/host_provider#0 [Console]
 std/json/render#0
 std/rt.alloc/retain_known#0
+std/collections.uniq_list/impl ByteBuffer for UniqList[u8].take_text#0
 std/rt.memory/room#0
+std/collections.list/impl[T] List[T].pop#0 [string]
 std/rt.alloc/alloc#0
 std/rt.alloc/extend#0
 std/json/encode_fallback#0 [app.main.Pair]
-std/collections/impl UniqList[u8].grow_bytes#0
+std/collections.list/impl[T] List[T].pop#0 [std.json.ObjectEntry]
 std/rt.memory/impl[T < ?Copy] Drop for Buffer[T].drop#0 [u8]
 app/main/Pair.structure handle 0 1#0
 std/text/maximal_suffix#0
@@ -103,19 +104,19 @@ std/rt.alloc/free_block#0
 std/json/impl Serializer for JsonWriter.end_map#0
 std/json/encode#0 [app.main.Pair]
 app/main/Pair.structure member facts 0 0#0
+std/collections.uniq_list/impl TextRoom.take_text#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].grow#0 [u8]
 std/rt.cycle/hold_room#0
 std/json/impl Display for Json.to_string#0
 app/main/Pair.structure handle 0 0#2
 std/json/impl Serializer for TextWriter.end_list#0
 std/json/escape_text#0
+std/collections.list/impl[T] List[T].pop#0 [std.json.OpenFrame]
 std/json/impl JsonWriter.open#0
 std/rt.alloc/init.init#0
 app/main/Pair.structure member facts 0 1#0
-std/collections/impl[T] List[T].pop#0 [std.json.OpenFrame]
 std/json/line_break#0
 std/rt.bytes/concat_all#0
-std/collections/impl[T] List[T].pop#0 [std.json.Json]
 std/rt.cycle/collection_due#0
 std/format/impl Display for f64.to_string#0
 std/rt.hash/rotate_right#0
@@ -124,42 +125,41 @@ std/json/impl Serializer for TextWriter.int#0
 std/json/impl Serializer for JsonWriter.end_variant#0
 std/text/search_from#0
 std/text/impl StringBuilder.build#0
-std/collections/collection_capacity_sum#0
-std/collections/impl TextSink for TextRoom.append_text#0
 std/rt.cycle/mark#0
 std/json/impl JsonObject.index_dense#0
 std/iter/impl[T] Iterator[T] for ListIter[T].next#0 [std.json.ObjectEntry]
+std/collections.uniq_list/impl UniqList[u8].grow_bytes#0
 std/json/impl Serializer for JsonWriter.end_data#0
 std/text/impl string.replace#0
 std/rt.hash/hash_bytes#0
-std/collections/impl ByteBuffer for UniqList[u8].take_text#0
+std/collections.uniq_list/impl[T < ?Copy] Drop for UniqList[T].drop#0 [u8]
 app/main/Pair.structure handle 0 1#1
 std/rt.cycle/visit#0
 std/serde/impl Serialize for i64.serialize#0 [std.json.JsonWriter]
+std/collections.list/impl[T] List[T].pop#0 [std.json.Json]
 std/json/impl TextWriter.add_key#0
 std/serde/skipped#0 [app.main.Pair, i64]
 std/serde/uppercase_name#0
+std/collections.uniq_list/collection_capacity_sum#0
 std/structure/impl Facts.find#0 [std.serde.Rename]
 std/rt.cycle/collect#0
 std/rt.cycle/due#0
-std/collections/impl TextSink for TextRoom.append_signed#0
 std/text/pair_windows#0
 std/json/impl Serializer for TextWriter.end_data#0
 std/rt.alloc/take#0
 std/rt.cycle/init.init#0
-std/collections/impl TextRoom.grow#0
 std/text/plain_windows#0
 std/json/push_escaped#0
+std/rt.alloc/release_value#0 [std.text.StringBuilder]
+std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
-std/rt.alloc/release_value#0 [std.text.StringBuilder]
-std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]
 std/rt.alloc/release_value#0 [(std.json.OpenFrame, List[string], List[std.json.Json])]
+std/rt.alloc/release_value#0 [std.collections.uniq_list.UniqList[u8]]
 std/rt.alloc/release_value#0 [std.json.Json?]
 std/rt.alloc/release_value#0 [std.json.JsonWriter]
 std/rt.alloc/release_value#0 [std.json.OpenFrame]
 std/rt.alloc/retain_value#0 [std.json.OpenFrame]
-std/rt.alloc/release_value#0 [std.collections.UniqList[u8]]
 std/rt.alloc/release_value#0 [std.serde.EnumTagging]
 std/rt.alloc/retain_value#0 [std.serde.EnumTagging]
 std/rt.alloc/release_value#0 [std.json.TextWriter]

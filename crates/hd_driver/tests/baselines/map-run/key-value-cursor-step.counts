@@ -3,8 +3,8 @@
 > no count operations
 # @build: std release checked
 # @helper: std/iter/impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V].next
-# @helper: std/collections/impl[K < Eq & Hash, V] Iterator[K] for MapKeys[K, V].next
-# @helper: std/collections/impl[K < Eq & Hash, V] Iterator[V] for MapValues[K, V].next
+# @helper: std/collections.map/impl[K < Eq & Hash, V] Iterator[K] for MapKeys[K, V].next
+# @helper: std/collections.map/impl[K < Eq & Hash, V] Iterator[V] for MapValues[K, V].next
 # expected: consuming projections move each selected owned field, with no
 # retain/drop pair for forwarding it; the unselected counted field drops.
 use std.collections.{MapKeys, MapValues}

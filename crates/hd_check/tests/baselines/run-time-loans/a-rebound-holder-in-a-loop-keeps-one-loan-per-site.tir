@@ -36,7 +36,7 @@ fn sum(head: *mut Node) -> usize:
         if current.children.is_empty():
 >   %8 = Ref local [*$1 .children] : &List[*mut Node]
 >   %9 = LoanBegin %8 #0 : ()
->   %10 = Call std/collections/impl[T] List[T].is_empty[*mut Node] (%8) : bool
+>   %10 = Call std/collections.list/impl[T] List[T].is_empty[*mut Node] (%8) : bool
 >   %11 = LoanClose %9 : ()
 >   %12 = LoanClose %1 : ()
 >   %13 = LoanClose %21 : ()
