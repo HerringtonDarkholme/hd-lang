@@ -445,7 +445,9 @@ pub(super) fn call_params(
     target: Option<&Target>,
 ) -> Vec<Ty> {
     match target {
-        Some(Target::Call(c)) => super::callee_params(input, m, c.key, c.item, c.args),
+        Some(Target::Call(c) | Target::CrossingNumber { call: c, .. }) => {
+            super::callee_params(input, m, c.key, c.item, c.args)
+        }
         _ => Vec::new(),
     }
 }

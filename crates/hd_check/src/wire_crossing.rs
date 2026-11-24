@@ -132,14 +132,12 @@ impl Ck<'_, '_> {
         let kfn_ty = self.b.body().ty[lifted.as_inst()?.0 as usize];
         let code = self.wire_local(kfn_ty, "$lifted", local_flags::CAPTURED, syn);
         self.b.set(code, lifted, syn);
-        // The literal: its item's path digest and its node
-        // (`fn.crossing.lift`), which every build of the same source keeps.
-        let item = self.cx.names.path_hash(self.b.body().item).0;
-        let item = u64::try_from(item & u128::from(u64::MAX)).unwrap_or(0);
+        // Collection supplies the first scalar argument from the lifted
+        // code's full instance key, after its enclosing arguments are known.
         let u64_ = Ty::prim(Prim::U64);
-        let literal = self.b.const_value(u64_, item ^ u64::from(syn.raw()));
+        let unresolved = self.b.const_value(u64_, 0);
         let f = self.b.get(code, kfn_ty, syn);
-        let number = self.remote_call("crossing_number", &[kfn_ty], &[literal, f], u64_, syn);
+        let number = self.remote_call("crossing_number", &[kfn_ty], &[unresolved, f], u64_, syn);
         let num = self.wire_local(u64_, "$number", local_flags::CAPTURED, syn);
         self.b.set(num, number, syn);
         let g = self.cx.names.known.crossing_code(pool, ft);

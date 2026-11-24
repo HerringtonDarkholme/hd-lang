@@ -619,7 +619,7 @@ impl Em<'_, '_, '_> {
         // Copy inputs and references use the common borrowed convention;
         // noncopy values retain their ownership transfer.
         let copy = self.operation_count(i, Tag::Retain, hd_tir::ir::count::Part::Arguments);
-        self.push_args(i, args, Some(&tys), None, copy)?;
+        self.push_args(i, args, Some(&tys), None, copy, None)?;
         let c = self.push_fn_ctx(i, ft)?;
         ps.push(Val::I32);
         let results = self.vals(self.ty(i))?;

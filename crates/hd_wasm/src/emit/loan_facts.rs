@@ -118,9 +118,10 @@ impl Context for Facts<'_, '_> {
             TargetKind::Intrinsic(_) | TargetKind::Builtin { .. } => Vec::new(),
         };
         let keys = match target {
-            Target::Call(c) | Target::Default { call: c, .. } | Target::MapInline(c) => {
-                Some(direct(c))
-            }
+            Target::Call(c)
+            | Target::CrossingNumber { call: c, .. }
+            | Target::Default { call: c, .. }
+            | Target::MapInline(c) => Some(direct(c)),
             Target::MapKey { hash, eq } => {
                 let mut keys = direct(hash);
                 keys.extend(direct(eq));

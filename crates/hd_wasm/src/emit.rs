@@ -3106,6 +3106,8 @@ impl Em<'_, '_, '_> {
         Ok(Some(s))
     }
 
+    /// `first` resolves the crossing helper's leading `u64`; every other
+    /// argument retains its original ABI index and ownership operation.
     pub(super) fn push_args(
         &mut self,
         i: u32,
@@ -3113,7 +3115,16 @@ impl Em<'_, '_, '_> {
         params: Option<&[Ty]>,
         lends: Option<u64>,
         copy: Option<Reason>,
+        first: Option<u64>,
     ) -> StageResult<()> {
+        let offset = usize::from(first.is_some());
+        if let Some(bits) = first {
+            self.f.op(Instruction::I64Const(bits.cast_signed()));
+        }
+        // ruled out: only CrossingNumber supplies `first`; its declared
+        // leading u64 is one scalar argument and one scalar parameter.
+        let args = &args[offset..];
+        let params = params.map(|params| &params[offset..]);
         let Some(params) = params else {
             for r in args {
                 if crate::layout::holds_drop(self.pool(), self.env(), self.ty_of(*r)) {
@@ -3127,7 +3138,7 @@ impl Em<'_, '_, '_> {
         };
         if params.len() == args.len() {
             for (k, (r, t)) in args.iter().zip(params).enumerate() {
-                self.push_arg(i, k, *r, *t, lends)?;
+                self.push_arg(i, k + offset, *r, *t, lends)?;
             }
             return Ok(());
         }
@@ -3146,7 +3157,7 @@ impl Em<'_, '_, '_> {
             // its tuple spread has that same flattened component layout.
             assert!(part.is_some());
             let part = part.as_slice()[0];
-            if let Pass::Owned = self.argument_pass(lends, k, *t)
+            if let Pass::Owned = self.argument_pass(lends, k + offset, *t)
                 && self
                     .operation_count(i, Tag::Release, CountPart::Arguments)
                     .is_none()
@@ -3203,7 +3214,13 @@ impl Em<'_, '_, '_> {
     }
 
     /// Call `i` of instance `ct` at `args`.
-    fn call_instance(&mut self, i: u32, ct: &hd_mono::CallTarget, args: &[u32]) -> StageResult<()> {
+    fn call_instance(
+        &mut self,
+        i: u32,
+        ct: &hd_mono::CallTarget,
+        args: &[u32],
+        first: Option<u64>,
+    ) -> StageResult<()> {
         let suspends = self.env().suspends(ct.item);
         if suspends && let Some(on) = crate::drive::block_on_of(self.b, &self.topo, self.calls, i) {
             return self.call_known_drive(i, ct, args, on);
@@ -3223,7 +3240,14 @@ impl Em<'_, '_, '_> {
                 dest = abi.ret.as_ref().map(|mem| self.result_dest(i, mem));
                 worker = Some(self.push_worker_args(i, args, params, lends, &abi.params)?);
             } else {
-                self.push_args(i, args, params.as_deref(), Some(lends), self.f.reason)?;
+                self.push_args(
+                    i,
+                    args,
+                    params.as_deref(),
+                    Some(lends),
+                    self.f.reason,
+                    first,
+                )?;
             }
         }
         let c = self.push_call_providers(i, ct.item, ct.args)?;
@@ -3269,8 +3293,11 @@ impl Em<'_, '_, '_> {
         }
         match self.calls.get(&i).cloned() {
             Some(Target::MapKey { .. } | Target::MapInline(_)) => self.map_probe(i, &args),
+            Some(Target::CrossingNumber { call, number }) => {
+                self.call_instance(i, &call, &args, Some(number))
+            }
             Some(Target::Call(ct)) => match &ct.kind {
-                TargetKind::Instance => self.call_instance(i, &ct, &args),
+                TargetKind::Instance => self.call_instance(i, &ct, &args, None),
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
                 TargetKind::Intrinsic(key)
                     if matches!(key.as_str(), "downcast_ref" | "downcast_mut") =>
@@ -3600,7 +3627,14 @@ impl Em<'_, '_, '_> {
         let args = self.b.call_args(i as usize).to_vec();
         let params = self.param_tys(call.key, call.item, call.args);
         let lends = self.env().lends(call.item, call.args);
-        self.push_args(i, &args, params.as_deref(), Some(lends), self.f.reason)?;
+        self.push_args(
+            i,
+            &args,
+            params.as_deref(),
+            Some(lends),
+            self.f.reason,
+            None,
+        )?;
         let c = self.push_call_providers(i, call.item, call.args)?;
         if bracket {
             self.forbid_by(1);

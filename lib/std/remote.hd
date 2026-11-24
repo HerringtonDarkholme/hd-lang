@@ -564,13 +564,13 @@ fn crossing_frame[C < ?Copy](number: u64, captures: C) -> List[u8]:
     wire_put::[C]()(&captures, &mut out)
     out.bytes
 
-# The number of the function a `Wire` crossing literal was lifted to: the
-# literal's own number and the function's type, so each instance of a
-# generic literal has its own. Collection keeps the same numbers for the
-# worker's dispatcher.
+# Collection resolves the leading argument to the lifted literal's full
+# instance number, including its enclosing generic arguments. This ordinary
+# helper keeps the code argument's call ABI and ownership; the worker's
+# dispatcher uses the same number.
 @inline(.Never)
-fn crossing_number[F](literal: u64, _code: F) -> u64:
-    literal ^ type_number::[F]()
+fn crossing_number[F](number: u64, _code: F) -> u64:
+    number
 
 # The worker's side of a `Wire` crossing: runs the function literal
 # `number` was lifted to on its encoded captures, and returns its encoded

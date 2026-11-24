@@ -102,7 +102,7 @@ pub fn settled(input: &Input<'_>) -> Settled {
                 continue;
             };
             let target = match input.collected.calls[id.idx()].get(&hd_tir::ir::u32_of(i)) {
-                Some(Target::Call(ct)) => Some(ct),
+                Some(Target::Call(ct) | Target::CrossingNumber { call: ct, .. }) => Some(ct),
                 _ => None,
             };
             let instance = target.filter(|ct| ct.kind == TargetKind::Instance);
