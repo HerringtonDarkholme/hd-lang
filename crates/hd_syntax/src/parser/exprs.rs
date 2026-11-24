@@ -727,7 +727,7 @@ impl Parser<'_> {
         let outer = core::mem::take(&mut self.links);
         let first = self.pos();
         let mut lhs = self.unary();
-        self.foreign_cast(first);
+        self.foreign_cast(first, lhs.kind());
         let mut links = self.links;
         while let Some((power, kind)) = self.current().and_then(infix) {
             if power < min {
@@ -758,9 +758,10 @@ impl Parser<'_> {
         lhs
     }
 
-    /// Diagnose after the whole unary operand, so a repair wraps a sign,
-    /// dereference or call too. No operand copy or speculative type parse.
-    fn foreign_cast(&mut self, first: usize) {
+    /// Diagnose after the whole unary operand. Only a clearly bounded
+    /// postfix or grouped operand receives an edit; other forms keep the
+    /// hint. No operand copy or speculative type parse.
+    fn foreign_cast(&mut self, first: usize, operand: SyntaxKind) {
         if !self.at_word("as") || self.nth_line_first(0) {
             return;
         }
@@ -769,16 +770,20 @@ impl Parser<'_> {
             Code::SyntaxError,
             "write a numeric cast as `T(value)`; for a collection, annotate the binding",
         );
-        if !self.nth_line_first(1)
-            && !matches!(
+        // Prefix operators and a following operation leave the intended
+        // conversion boundary uncertain. Keep the hint, without an edit.
+        let bounded = self.nth(2).is_none()
+            || self.nth_line_first(2)
+            || matches!(
                 self.nth(2),
                 Some(
-                    TokenKind::Question
-                        | TokenKind::LBracket
-                        | TokenKind::Dot
-                        | TokenKind::ColonColon
+                    TokenKind::RParen | TokenKind::RBracket | TokenKind::RBrace | TokenKind::Comma
                 )
-            )
+            );
+        if (is_postfix(operand)
+            || matches!(operand, SyntaxKind::LiteralExpr | SyntaxKind::ParenExpr))
+            && bounded
+            && !self.nth_line_first(1)
             && matches!(
                 self.nth_text(1),
                 "i8" | "u8"

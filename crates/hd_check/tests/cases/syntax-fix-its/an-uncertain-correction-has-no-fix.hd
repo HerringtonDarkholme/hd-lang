@@ -1,6 +1,6 @@
 # @dump: diagnostics
-# Uncertain forms stay rejected without an edit; a form whose correction
-# becomes certain gains a fix-it here.
+# Each form below is rejected with no fix-it: the parser offers an edit only
+# where one correction is certain.
 # A member, map or import form the migration fixes do not cover.
 fn f(pair: P): pair.0xA
 
