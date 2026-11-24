@@ -58,7 +58,7 @@ const INIT: &str = "std/rt.alloc/init.init#0";
 
 #[test]
 fn a_program_that_never_allocates_runs_no_allocator_init() {
-    let (names, globals) = linked("fn helper() -> i32:\n    1\n", false);
+    let (names, globals) = linked(include_str!("programs/allocator_init/helper.hd"), false);
     assert!(!names.iter().any(|n| n == INIT), "{names:?}");
     assert!(!names.iter().any(|n| n.starts_with("std/rt.")), "{names:?}");
     // Nor the allocator's bindings, nor the forbidden-context depth its
@@ -68,17 +68,14 @@ fn a_program_that_never_allocates_runs_no_allocator_init() {
 
 #[test]
 fn a_program_that_allocates_in_a_std_call_runs_the_allocator_init() {
-    let (names, globals) = linked(
-        "pub fn main() -> void $ Console:\n    println(\"ab\".repeat(3))\n",
-        false,
-    );
+    let (names, globals) = linked(include_str!("programs/allocator_init/repeat.hd"), false);
     assert!(names.iter().any(|n| n == INIT), "{names:?}");
     assert!(globals > 0, "{names:?}");
 }
 
 #[test]
 fn a_checked_program_keeps_the_allocator_init_its_audit_needs() {
-    let (names, _) = linked("fn helper() -> i32:\n    1\n", true);
+    let (names, _) = linked(include_str!("programs/allocator_init/helper.hd"), true);
     assert!(names.iter().any(|n| n == INIT), "{names:?}");
 }
 

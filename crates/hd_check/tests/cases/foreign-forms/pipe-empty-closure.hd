@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+fn accept(body: fn() -> i32) -> i32: body()
+fn call() -> i32: accept(|| +1)

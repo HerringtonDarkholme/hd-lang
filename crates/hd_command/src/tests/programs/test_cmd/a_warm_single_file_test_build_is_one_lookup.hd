@@ -1,0 +1,5 @@
+fn v() -> i32: 1
+
+tests:
+    it("v is 1"):
+        assert(v() == 1, "v")

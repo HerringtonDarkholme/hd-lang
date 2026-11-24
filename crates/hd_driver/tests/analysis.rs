@@ -185,14 +185,14 @@ fn fetched_debug_event_reuses_dependency_check_entries_without_body_rechecks() {
     let mut root = MemorySources::default();
     root.insert(
         "src/main.hd",
-        "use dep.money.{cents}\npub fn main() -> void:\n    _ := cents(+1)\n",
+        include_str!("programs/analysis/dependency_user.hd"),
     );
     // A named set keeps a last-run record, so the lint runs take the
     // dependency's `dbg` references from its row.
     let mut money = MemorySources::named("/w/money");
     money.insert(
         "src/lib.hd",
-        "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    n * 100\n",
+        include_str!("programs/analysis/dependency_money.hd"),
     );
     let store = MemoryStore::default();
     let host = Host {
@@ -233,7 +233,7 @@ fn fetched_debug_event_reuses_dependency_check_entries_without_body_rechecks() {
 
 #[test]
 fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
-    let source = "enum Pair:\n    Values(left: i32, right: i32)\nfn inspect(value: Pair, remaining: usize) -> bool:\n    let mut count = +1\n    _ := count\n    match value:\n        .Values(right, left) =>\n            debug(+1)\n            remaining < 0\nfn stop() -> i32:\n    return +1\n    +2\n";
+    let source = include_str!("programs/analysis/checked_views.hd");
     let store = MemoryStore::default();
     let checked = run(&store, source, None);
     assert!(!checked.diags.has_errors(), "{}", checked.render());
@@ -284,8 +284,7 @@ fn checked_views_expose_completed_types_bindings_flow_patterns_and_callees() {
 
 #[test]
 fn verified_modules_reach_the_hook_then_load_the_lint_cache() {
-    let source =
-        "pub fn alpha(value: i32) -> i32:\n    value\n\nfn beta() -> void:\n    _ := alpha(+1)\n";
+    let source = include_str!("programs/analysis/verified_modules.hd");
     let store = MemoryStore::default();
     let expected = ["module:app.main"];
     let cold_sink = Recorder::new(Requests::MODULE);
@@ -310,7 +309,7 @@ fn verified_modules_reach_the_hook_then_load_the_lint_cache() {
 #[test]
 fn cached_finding_spans_follow_comment_only_line_shifts() {
     let store = MemoryStore::default();
-    let source = "pub fn main() -> void:\n    pass\n";
+    let source = include_str!("programs/analysis/main_pass.hd");
     let cold_sink = Recorder::new(Requests::MODULE);
     let cold = run(&store, source, Some(&cold_sink));
     assert!(!cold.diags.has_errors(), "{}", cold.render());
@@ -346,7 +345,7 @@ fn cached_finding_spans_follow_comment_only_line_shifts() {
 
 #[test]
 fn lint_entries_from_another_toolchain_are_cache_misses() {
-    let source = "pub fn main() -> void:\n    pass\n";
+    let source = include_str!("programs/analysis/main_pass.hd");
     let store = MemoryStore::default();
     let cold_sink = Recorder::new(Requests::MODULE);
     let cold = run(&store, source, Some(&cold_sink));
@@ -374,7 +373,7 @@ fn lint_entries_from_another_toolchain_are_cache_misses() {
 fn changing_one_module_misses_only_its_lint_entry() {
     fn build(store: &MemoryStore, b_body: &str, sink: &Recorder) -> hd_driver::Output {
         let mut sources = MemorySources::default();
-        sources.insert("a.hd", "pub fn a() -> void:\n    pass\n");
+        sources.insert("a.hd", include_str!("programs/analysis/a_pass.hd"));
         sources.insert("b.hd", &format!("pub fn b() -> void:\n{b_body}\n"));
         let host = Host {
             render_tir: &[],
@@ -417,7 +416,11 @@ fn changing_one_module_misses_only_its_lint_entry() {
 fn errors_discard_findings() {
     let store = MemoryStore::default();
     let sink = Recorder::new(Requests::MODULE);
-    let out = run(&store, "pub fn main() -> void:\n    pass\n", Some(&sink));
+    let out = run(
+        &store,
+        include_str!("programs/analysis/main_pass.hd"),
+        Some(&sink),
+    );
     assert!(!out.diags.has_errors(), "{}", out.render());
     assert_eq!(sink.take(), ["module:app.main"]);
     assert_eq!(out.analysis_diags.len(), 1);
@@ -425,7 +428,7 @@ fn errors_discard_findings() {
     let failed = Recorder::new(Requests::MODULE);
     let out = run(
         &MemoryStore::default(),
-        "pub fn main() -> void:\n    missing_name\n",
+        include_str!("programs/analysis/main_missing_name.hd"),
         Some(&failed),
     );
     assert!(out.diags.has_errors());
@@ -436,7 +439,7 @@ fn errors_discard_findings() {
 #[test]
 fn ordinary_builds_do_not_run_analysis() {
     let mut sources = MemorySources::default();
-    sources.insert("main.hd", "pub fn main() -> void:\n    pass\n");
+    sources.insert("main.hd", include_str!("programs/analysis/main_pass.hd"));
     let store = MemoryStore::default();
     let host = Host {
         render_tir: &[],
@@ -453,7 +456,7 @@ fn ordinary_builds_do_not_run_analysis() {
 
 #[test]
 fn no_requests_keep_warm_checks_warm() {
-    let source = "fn value() -> i32:\n    +1\n";
+    let source = include_str!("programs/analysis/value_fn.hd");
     let store = MemoryStore::default();
     let cold = run(&store, source, None);
     assert!(!cold.diags.has_errors(), "{}", cold.render());
@@ -472,8 +475,8 @@ fn no_requests_keep_warm_checks_warm() {
 fn module_findings_are_merged_in_source_table_order() {
     fn build(executor: Executor) -> Vec<u32> {
         let mut sources = MemorySources::default();
-        sources.insert("b.hd", "pub fn b() -> void:\n    pass\n");
-        sources.insert("a.hd", "pub fn a() -> void:\n    pass\n");
+        sources.insert("b.hd", include_str!("programs/analysis/b_pass.hd"));
+        sources.insert("a.hd", include_str!("programs/analysis/a_pass.hd"));
         let store = MemoryStore::default();
         let host = Host {
             render_tir: &[],

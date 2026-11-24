@@ -1,0 +1,6 @@
+# @dump: diagnostics fixed
+# expected: empty impl declarations omit the colon and body
+trait Empty
+struct Value:
+    x: i32
+impl Empty for Value: pass

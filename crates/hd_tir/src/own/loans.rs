@@ -147,7 +147,7 @@ pub(crate) fn share_counters(b: &mut Body, temporary: hd_base::Symbol) -> Result
     let mut begins = Vec::new();
     for i in 0..b.len() {
         let [site, word] = b.data[i];
-        if b.tags[i] != Tag::LoanBegin || word & (loan_word::ACTIVATE | loan_word::INNER) != 0 {
+        if b.tags[i] != Tag::LoanBegin || word & loan_word::ACTIVATE != 0 {
             continue;
         }
         if let Some(local) = site_pointer(b, site, true) {

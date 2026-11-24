@@ -1,0 +1,8 @@
+pub trait Mark
+
+pub struct Record: pass
+
+impl Mark for Record
+
+pub fn configure[T, N < const usize, $ R](value: T) -> T $ R:
+    value

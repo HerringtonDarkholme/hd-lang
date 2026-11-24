@@ -1,0 +1,9 @@
+struct Box[T]:
+    value: T
+impl[T] Box[T]:
+    fn read(self) -> T:
+        self.value
+fn wrapper(x: i32) -> i32:
+    fn unused[T](value: T) -> T:
+        value
+    x

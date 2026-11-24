@@ -1,0 +1,13 @@
+pub fn f() -> i32:
+    1
+fn g() -> i32:
+    2
+fn h(x: fn() -> i32) -> i32 $ Console:
+    3
+fn k():
+    4
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        "5"
+    fn say(self) -> void $ Console:
+        6

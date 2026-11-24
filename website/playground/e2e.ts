@@ -8,12 +8,16 @@
 // relative URLs.
 
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { text as readStreamText } from "node:stream/consumers";
+import { fileURLToPath } from "node:url";
 
 import type { Browser, Locator, Page } from "playwright-core";
 
 import { classify } from "../src/highlight.ts";
 import { encodeBase64Url } from "./src/share.ts";
+import { assertBackgroundToken } from "./test/theme.ts";
 
 interface PlaygroundE2e {
   readonly browser: Browser;
@@ -108,6 +112,20 @@ async function editorClassesMatch(open: (source: string) => Promise<Page>): Prom
   });
   assert.deepEqual(lines, expected);
   await page.context().close();
+}
+
+/** Read a clipped preview's full module, whose entry may follow the line limit. */
+async function wholeWat(page: Page, preview: string, id: string): Promise<string> {
+  if (!(await page.locator(".wat-truncated").isVisible())) {
+    return preview;
+  }
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.click("#wat-download"),
+  ]);
+  const whole = await readStreamText(await download.createReadStream());
+  assert.ok(whole.length > preview.length, `${id}: the download includes the clipped lines`);
+  return whole;
 }
 
 /** Drives the built playground at `origin + base` through every check. */
@@ -217,6 +235,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
   await step("Clock and Random run in the browser; FsRead stops before running", () =>
     hostCapabilities(openPage, code, outcome),
   );
+  await step("Workers run in a browser worker", () => browserWorkers(openPage, code));
 
   await step("the multi-file example runs; tabs add, rename, and share", async () => {
     const page = await openPage();
@@ -363,27 +382,24 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
           .filter((value) => value !== ""),
       );
     assert.ok(ids.length >= 15, `${ids.length} examples`);
-    let previous = "";
+    const result = page.locator("#wat .wat-code, #wat .outcome.failed").first();
     for (const id of ids) {
+      const previous = await result.elementHandle();
+      assert.ok(previous, `${id}: the previous result is ready`);
       await page.selectOption("#examples", id);
-      // The view changes to the new example's module, or to the errors that
-      // stop it.
-      await page.waitForFunction((before) => {
-        const view = document.querySelector("#wat");
-        const shown = view?.querySelector(".wat-code, .outcome.failed");
-        return shown !== null && shown !== undefined && shown.textContent !== before;
-      }, previous);
+      // Wait for the new result's element: different examples may compile
+      // to identical text, especially when the preview is clipped.
+      await previous.waitForElementState("hidden");
+      await previous.dispose();
+      await result.waitFor();
       const failed = await page.locator("#wat .outcome.failed").count();
       if (failed > 0) {
         assert.equal(id, "missing-provider", `${id} does not compile`);
-        previous = (await page.locator("#wat .outcome.failed").textContent()) ?? "";
         continue;
       }
       const text = (await page.locator(".wat-code").textContent()) ?? "";
-      previous = text;
       assert.ok(text.startsWith("(module"), `${id}: ${text.slice(0, 40)}`);
-      // The entry module's functions by name.
-      assert.match(text, /\(func \$playground\/main\//, id);
+      assert.match(await wholeWat(page, text, id), /\(func \$playground\/main\//, id);
     }
     await page.context().close();
   });
@@ -399,8 +415,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
       await page.locator(".cm-line").first().textContent(),
       "# Effects you can review. Tests without mocks.",
     );
-    const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    assert.equal(background, "rgb(17, 19, 24)");
+    await assertBackgroundToken(page.locator("body"), "--editor-bg", "dark");
     await page.setViewportSize({ width: 375, height: 740 });
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -475,4 +490,35 @@ async function hostCapabilities(
     /main needs FsRead, which the playground does not provide/,
   );
   await page.context().close();
+}
+
+/**
+ * Runs each runtime case of spec/conformance/std/remote/workers in the
+ * playground, whose `Workers` start a browser worker (host/web.ts), and
+ * checks its standard output. The playground has no threads, so
+ * `background!` runs its closure in place.
+ */
+async function browserWorkers(
+  openPage: (hash: string) => Promise<Page>,
+  code: (source: string) => string,
+): Promise<void> {
+  const dir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../spec/conformance/std/remote/workers",
+  );
+  // cost: one listing of one case directory per e2e run, and one page per case in it.
+  for (const name of readdirSync(dir).sort()) {
+    const text = readFileSync(join(dir, name), "utf8");
+    const expected = [...text.matchAll(/^# expect-stdout: (.*)$/gm)].map(
+      (match) => `${match[1]}\n`,
+    );
+    if (expected.length === 0) {
+      continue;
+    }
+    const page = await openPage(code(text));
+    await page.click("#run");
+    await page.locator(".outcome.passed").waitFor();
+    assert.equal(await page.locator(".stdout").textContent(), expected.join(""), name);
+    await page.context().close();
+  }
 }

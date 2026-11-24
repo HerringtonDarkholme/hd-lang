@@ -1,0 +1,5 @@
+# @dump: diagnostics
+# @build: std
+# A std header reports its unknown type without looking for an import repair.
+struct Holder:
+    value: StringBuilder

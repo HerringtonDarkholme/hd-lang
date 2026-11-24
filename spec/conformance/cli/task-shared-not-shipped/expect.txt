@@ -1,0 +1,6 @@
+# A shared task module is no part of the executable's program, even one that
+# does not compile.
+run: hd run
+stdout: main
+run: hd build
+file: build/debug/app.wasm

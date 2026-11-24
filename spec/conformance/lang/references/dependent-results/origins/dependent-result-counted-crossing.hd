@@ -1,5 +1,5 @@
-# test: a place reached through a counted reference has the origins of the place the counted reference was read from
-# Spec 13 Origins: ref.dep.origin.counted, ref.dep.origin.reborrow.
+# test: a place reached through a counted reference is a local of the function, so a reference to it is not returned
+# Spec 13 Origins: ref.dep.origin.counted; Spec 13 Local References: ref.local.pointer.
 struct P:
     x: i32
 
@@ -7,4 +7,4 @@ struct H:
     p: *mut P
 
 fn through(h: &H) -> &i32:
-    &h.p.x
+    &h.p.x # diagnostic: local-reference-escapes

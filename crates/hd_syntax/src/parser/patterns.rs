@@ -89,7 +89,7 @@ impl Parser<'_> {
             Some(TokenKind::LParen) => self.tuple_pattern(let_pattern),
             _ => {
                 let marker = self.start();
-                self.expected("a pattern");
+                self.expected_name("a pattern");
                 if self.current().is_some_and(|kind| {
                     !kind.closes()
                         && !matches!(
@@ -340,9 +340,18 @@ impl Parser<'_> {
         }
         if count > 0 && !comma {
             // grammar.stmt.let-pattern.parenthesized, grammar.pattern.tuple-spread
-            self.error(
-                Code::SyntaxError,
-                "a one-element tuple pattern keeps its trailing comma: write '(p,)'",
+            let at = self.pos();
+            let lo = self.token_span(at).0;
+            let message = "a one-element tuple pattern keeps its trailing comma: write '(p,)'";
+            let edits: &[(u32, u32, &str)] = if self.at(TokenKind::RParen) {
+                &[(lo, lo, ",")]
+            } else {
+                &[]
+            };
+            self.error_fixed(
+                (Code::SyntaxError, at, message),
+                "add the trailing comma",
+                edits,
             );
         }
         self.expect_token(TokenKind::RParen, "')'");

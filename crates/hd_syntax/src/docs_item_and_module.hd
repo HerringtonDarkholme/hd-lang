@@ -1,0 +1,10 @@
+## The module.
+## Second line.
+
+## Adds one.
+##
+##    indented
+pub fn f(x: i32) -> i32: x
+
+# plain
+fn g() -> i32: 1

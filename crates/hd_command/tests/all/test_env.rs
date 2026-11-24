@@ -27,11 +27,14 @@ fn package(name: &str, manifest: &str) -> Scratch {
         format!("[package]\nname = \"shop\"\n{manifest}"),
     )
     .expect("hd.toml");
-    std::fs::write(root.join("src/lib.hd"), "pub fn total() -> i32:\n    3\n").expect("lib");
+    std::fs::write(
+        root.join("src/lib.hd"),
+        include_str!("programs/test_env/package.hd"),
+    )
+    .expect("lib");
     std::fs::write(
         root.join("tests/sum.hd"),
-        "use pkg.total\nuse std.testing.assert_equal\n\nit(\"prints and sums\"):\n    \
-         println(\"checking\")\n    assert_equal(total(), 3, reason=\"the total\")\n",
+        include_str!("programs/test_env/package_2.hd"),
     )
     .expect("test file");
     root

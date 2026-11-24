@@ -1,0 +1,12 @@
+use std.host.{Args, args}
+use std.console.{ConsoleInput, read_line}
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + Args + ConsoleInput + FsRead:
+    match read_line!():
+        .Ok(.Some(line)) => println("seeded ${args().len()} ${line}")
+        _ => println("no input")
+    match read_text!(Path("data.txt")):
+        .Ok(text) => println(text)
+        .Err(e) => println("${e}")

@@ -74,7 +74,7 @@ fn node_host_exits_after_main_returns_every_time() {
     let wasm = build(
         &dir,
         "exits",
-        "pub fn main() -> void $ Console:\n    println(\"done\")\n",
+        include_str!("programs/node_host_exit/node_host_exits_after_main_returns_every_time.hd"),
     );
     // With a time limit, the instance runs in a worker thread.
     let limited = dir.join("limited.json");
@@ -117,13 +117,9 @@ fn node_time_limit_cuts_a_socket_wait_after_flushing_output() {
     let wasm = build(
         &dir,
         "accepts",
-        "use std.net.Net\n\n\
-         fn wait_conn!() -> string $ Net:\n    let mut net = $.use(Net)\n    \
-         let mut server = match net.listen!(\"127.0.0.1\", 0):\n        .Ok(l) => l\n        \
-         .Err(e) => return \"${e}\"\n    match server.accept!():\n        \
-         .Ok(_) => \"accepted\"\n        .Err(e) => \"${e}\"\n\n\
-         pub fn main!() -> void $ Console + Net:\n    println(\"before\")\n    \
-         println(wait_conn!())\n",
+        include_str!(
+            "programs/node_host_exit/node_time_limit_cuts_a_socket_wait_after_flushing_output.hd"
+        ),
     );
     let started = Instant::now();
     let mut command = hd(&dir);
@@ -143,10 +139,9 @@ fn node_time_limit_ends_a_read_of_input_that_never_comes() {
     let wasm = build(
         &dir,
         "reads",
-        "use std.console.{ConsoleInput, read_line}\n\n\
-         pub fn main!() -> void $ Console + ConsoleInput:\n    println(\"prompt\")\n    \
-         match read_line!():\n        .Ok(_) => println(\"read\")\n        \
-         .Err(_) => println(\"closed\")\n",
+        include_str!(
+            "programs/node_host_exit/node_time_limit_ends_a_read_of_input_that_never_comes.hd"
+        ),
     );
     let mut command = hd(&dir);
     command
@@ -168,10 +163,9 @@ fn node_time_limit_leaves_input_lines_to_the_program() {
     let wasm = build(
         &dir,
         "lines",
-        "use std.console.{ConsoleInput, read_line}\n\n\
-         pub fn main!() -> void $ Console + ConsoleInput:\n    for _ in 0..3:\n        \
-         match read_line!():\n            .Ok(.Some(line)) => println(\"[${line}]\")\n            \
-         .Ok(.None) => println(\"end\")\n            .Err(_) => println(\"closed\")\n",
+        include_str!(
+            "programs/node_host_exit/node_time_limit_leaves_input_lines_to_the_program.hd"
+        ),
     );
     let mut command = hd(&dir);
     command
@@ -194,10 +188,7 @@ fn node_time_limit_ends_a_child_process_wait() {
     let wasm = build(
         &dir,
         "waits",
-        "use std.process.{Command, Process}\n\n\
-         pub fn main!() -> void $ Console + Process:\n    println(\"started\")\n    \
-         match Command::new(\"sleep\").arg(\"30\").run!():\n        .Ok(_) => println(\"ran\")\n        \
-         .Err(e) => println(\"${e}\")\n",
+        include_str!("programs/node_host_exit/node_time_limit_ends_a_child_process_wait.hd"),
     );
     let started = Instant::now();
     let mut command = hd(&dir);
@@ -230,25 +221,7 @@ fn test_run(name: &str, lib: &str, tests: &str, limit: &str) -> Output {
     )
 }
 
-const SPIN: &str = "fn forever(stop: i32) -> i32:
-    let total: i32 = 0
-    while total != stop:
-        total = (total + 1) % 1000
-    total
-
-tests:
-    use std.testing.{assert, it_each}
-
-    it(\"spins\"):
-        _ := forever(-1)
-
-    it(\"fast\"):
-        assert(true, reason=\"ok\")
-
-    it_each(\"rows\", [1, -1, 2], body=fn!(value: i32):
-        assert(forever(value) == value, reason=\"ends\")
-    )
-";
+const SPIN: &str = include_str!("programs/node_host_exit/spin.hd");
 
 /// The report is the one `--engine=wasmtime` prints for the same package.
 #[test]
@@ -271,32 +244,16 @@ fn node_test_time_limit_fails_a_busy_case_and_row_like_wasmtime() {
     assert!(started.elapsed() < Duration::from_secs(30));
 }
 
-const WAITS: &str = "use std.time.{ms, s, sleep}
-use std.net.Net
-
-it(\"sleeps\"):
-    println(\"before\")
-    sleep!(30s)
-
-it(\"accepts\"):
-    let mut net = $.use(Net)
-    let mut server = match net.listen!(\"127.0.0.1\", 0):
-        .Ok(l) => l
-        .Err(_) => return
-    match server.accept!():
-        .Ok(_) => println(\"accepted\")
-        .Err(e) => println(\"${e}\")
-
-it(\"fast\"):
-    sleep!(1ms)
-";
+const WAITS: &str = include_str!("programs/node_host_exit/waits.hd");
 
 #[test]
 fn node_test_time_limit_cuts_host_waits_at_the_limit() {
     let started = Instant::now();
     let output = test_run(
         "node-test-waits",
-        "pub fn one() -> i32:\n    1\n",
+        include_str!(
+            "programs/node_host_exit/node_test_time_limit_cuts_host_waits_at_the_limit.hd"
+        ),
         WAITS,
         "--time-limit=500ms",
     );
@@ -319,20 +276,14 @@ fn node_test_time_limit_cuts_host_waits_at_the_limit() {
 /// `cli.limit.test`: each case has the whole limit on its own.
 #[test]
 fn node_test_time_limit_applies_to_each_case_on_its_own() {
-    let tests = "use std.time.{ms, sleep}
-
-it(\"first\"):
-    sleep!(ms(400))
-
-it(\"second\"):
-    sleep!(ms(400))
-
-it(\"third\"):
-    sleep!(ms(400))
-";
+    let tests = include_str!(
+        "programs/node_host_exit/node_test_time_limit_applies_to_each_case_on_its_own.hd"
+    );
     let output = test_run(
         "node-test-each",
-        "pub fn one() -> i32:\n    1\n",
+        include_str!(
+            "programs/node_host_exit/node_test_time_limit_applies_to_each_case_on_its_own_2.hd"
+        ),
         tests,
         "--time-limit=1s",
     );
@@ -360,10 +311,9 @@ fn node_time_limit_ends_a_run_blocked_in_a_file_read() {
     let wasm = build(
         &dir,
         "fifo",
-        "use std.fs.{FsRead, read_text}\nuse std.path.Path\n\n\
-         pub fn main!() -> void $ Console + FsRead:\n    println(\"before\")\n    \
-         match read_text!(Path(\"pipe/ff\")):\n        .Ok(t) => println(t)\n        \
-         .Err(e) => println(\"${e}\")\n",
+        include_str!(
+            "programs/node_host_exit/node_time_limit_ends_a_run_blocked_in_a_file_read.hd"
+        ),
     );
     std::fs::create_dir_all(dir.join("pipe")).unwrap();
     fifo(&dir.join("pipe/ff"));
@@ -386,13 +336,18 @@ fn node_test_time_limit_ends_a_run_blocked_in_a_file_read() {
     std::fs::create_dir_all(package.join("src")).unwrap();
     std::fs::create_dir_all(package.join("tests")).unwrap();
     std::fs::write(package.join("hd.toml"), "[package]\nname = \"probe\"\n\n[capabilities]\nConsole = true\nConsoleInput = true\nFsRead = true\nNet = true\nProcess = true\n\n[dev-capabilities]\nClock = true\n").unwrap();
-    std::fs::write(package.join("src/lib.hd"), "pub fn one() -> i32:\n    1\n").unwrap();
+    std::fs::write(
+        package.join("src/lib.hd"),
+        include_str!(
+            "programs/node_host_exit/node_test_time_limit_ends_a_run_blocked_in_a_file_read.hd"
+        ),
+    )
+    .unwrap();
     std::fs::write(
         package.join("tests/reads.hd"),
-        "use std.fs.{FsRead, read_text}\nuse std.path.Path\n\n\
-         it(\"reads\"):\n    match read_text!(Path(\"../ff\")):\n        \
-         .Ok(t) => println(t)\n        .Err(e) => println(\"${e}\")\n\n\
-         it(\"fast\"):\n    println(\"fast\")\n",
+        include_str!(
+            "programs/node_host_exit/node_test_time_limit_ends_a_run_blocked_in_a_file_read_2.hd"
+        ),
     )
     .unwrap();
     // Outside the package, whose files `hd test` reads.

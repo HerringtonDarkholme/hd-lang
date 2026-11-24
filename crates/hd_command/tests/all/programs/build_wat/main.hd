@@ -1,0 +1,3 @@
+pub fn main() -> void $ Console:
+    xs := [for i in 0..10 => "n$i"]
+    println("${xs.len()} ${xs[3]}")

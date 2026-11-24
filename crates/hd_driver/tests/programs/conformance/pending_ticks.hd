@@ -1,0 +1,18 @@
+# fixture-runtime-profile: tick
+# fixture-runtime-scenario: pending-first-poll
+use std.testing.assert_equal
+
+pub trait Tick:
+    fn tick!(&mut self, note: string) -> void
+
+let calls = +0
+
+fn note!(text: string) -> void $ Console + Tick:
+    $.use(Tick).tick!(text)
+    println("${text} ${calls}")
+    calls = calls + 1
+
+pub fn main!() -> void $ Console + Tick:
+    note!("first")
+    note!("second")
+    assert_equal(calls, 2, reason="each call resumed after its pending tick")

@@ -1,0 +1,40 @@
+# @dump: diagnostics spans
+# Syntax of another language: one diagnostic each, whose span is the foreign
+# token (the first `/`, the module path's first name, the newtype's name, the
+# first `|`, the cast's `:`, the operation's name, the `!`), and whose message
+# gives the hd spelling with the operand, type or callee as written.
+/// doc
+fn f(): pass
+
+fn f():
+    use std.text
+
+newtype Meters(f64)
+
+fn f():
+    match n:
+        1 | 2 | 3 => pass
+
+(1: i64)
+
+(x: f64)
+
+(x + 1: f64)
+
+(+1: i64)
+
+(-2.5: f32)
+
+(+x: i64)
+
+fn f():
+    $.nosuch()
+
+fn g():
+    f()!
+
+load(key)!
+
+files.load(key)!
+
+load::[i32](key)!

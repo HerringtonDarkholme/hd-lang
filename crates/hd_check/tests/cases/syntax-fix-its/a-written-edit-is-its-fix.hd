@@ -1,0 +1,47 @@
+# @dump: diagnostics fixed
+# Each parser and lexer message below names one edit, and carries it as
+# its only fix-it; the fixed module checks clean.
+use std.time.Clock
+
+trait Shape:
+    fn area(&self) -> i32
+
+fn borrowed(s: &dyn mut Shape) -> i32: s.area()
+
+fn rest(t: (List[i32]...)) -> i32: 0
+
+fn rows() -> void $ (Console + Clock): pass
+
+newtype Meters(f64)
+
+pub use std.cmp.max
+
+fn short() -> i32:
+    mut x := 1
+    x += 1
+    x
+
+fn pair(p: (i32, i32)) -> i32:
+    let a, b = p
+    a + b
+
+fn half() -> f64: .5
+
+fn spread(xs: List[i32]) -> (List[i32]...,): (xs...)
+
+fn single(p: (i32,)) -> i32:
+    match p:
+        (v) => v
+
+fn keyed() -> void $ mut Console: pass
+
+fn length(xs: List[string]) -> string:
+    xs
+        |> _.len()
+        .to_string()
+
+fn spaced(c: bool) -> i32:
+    if c: 1else: 2
+
+fn quoted(text: string) -> i32:
+    if"a" == text: 1 else: 0

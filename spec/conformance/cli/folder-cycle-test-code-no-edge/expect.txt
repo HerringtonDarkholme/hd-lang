@@ -1,0 +1,4 @@
+# A test module may use a helper folder that uses its own folder: test code
+# makes no folder edge, so there is no cycle.
+run: hd check --tests
+stderr: check result: ok.

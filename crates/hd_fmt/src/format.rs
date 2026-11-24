@@ -21,6 +21,7 @@ const HAS_ELSE: u8 = 1;
 const CONTAINS_SUITE: u8 = 1 << 1;
 const IN_PIPE: u8 = 1 << 2;
 const FORCE_FLAT: u8 = 1 << 3;
+const UNDELIMITED_SUITE: u8 = 1 << 4;
 
 pub(crate) fn format(source: &str, parsed: &Parse) -> (String, PrintStats) {
     let analysis = Analysis::new(source, parsed);
@@ -83,12 +84,23 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 node.kind(),
                 S::ClosureExpr | S::IfExpr | S::MatchExpr | S::TrailingCallExpr
             ) {
-                node_flags[index] |= CONTAINS_SUITE;
+                node_flags[index] |= CONTAINS_SUITE | UNDELIMITED_SUITE;
             }
             if node_flags[index] & CONTAINS_SUITE != 0
                 && let Some(parent) = parents[index].get()
             {
                 node_flags[parent.idx()] |= CONTAINS_SUITE;
+                // Delimiters give their contents a fresh expression context.
+                // A suite inside them is safe in an enclosing same-line arm.
+                let delimited = matches!(node.kind(), S::ParenExpr | S::StringExpr)
+                    || comma_group(node.kind(), *node, &parsed.tokens)
+                        && node
+                            .last_token()
+                            .get()
+                            .is_some_and(|last| parsed.tokens.kind(last).is_close_delimiter());
+                if node_flags[index] & UNDELIMITED_SUITE != 0 && !delimited {
+                    node_flags[parent.idx()] |= UNDELIMITED_SUITE;
+                }
             }
         }
         let mut this = Self {
@@ -413,7 +425,9 @@ impl<'s, 'p> Analysis<'s, 'p> {
                         .find(|ancestor| ancestor.kind() == S::IfExpr)
                         .unwrap_or(parent)
                 };
-                self.if_is_value(owner)
+                one_statement
+                    && self.node_flags[node.index().idx()] & UNDELIMITED_SUITE == 0
+                    && self.if_is_value(owner)
             }
             _ => false,
         }
@@ -1091,11 +1105,15 @@ impl<'s, 'p> Analysis<'s, 'p> {
         let Some(mut parent) = self.parent(node) else {
             return false;
         };
-        if parent.kind() == S::ParenExpr
-            && self.removable_paren(parent).is_some()
-            && let Some(grandparent) = self.parent(parent)
-        {
-            parent = grandparent;
+        if parent.kind() == S::ParenExpr {
+            // Preserved parentheses already provide a continuation boundary;
+            // their binary contents still need an independently breakable group.
+            if self.removable_paren(parent).is_none() {
+                return true;
+            }
+            if let Some(grandparent) = self.parent(parent) {
+                parent = grandparent;
+            }
         }
         matches!(
             parent.kind(),

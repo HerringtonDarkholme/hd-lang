@@ -1,0 +1,46 @@
+# @dump: tree
+# grammar.recovery.unclosed: an unclosed bracket's scope ends at the next
+# column-0 item start, and later items report their own errors, or none. The
+# last item's error is found at the end of the file.
+fn first() -> i32:
+    total := add(1, 2
+    total
+
+fn second() -> i32:
+    x := (1 2)
+    x
+
+fn first() -> i32:
+    values := [
+        +1
+    +2 +
+
+struct Point:
+    x i32
+
+fn first() -> i32:
+    run(fn(x): [x,
+        +1 +
+
+pub fn second() -> i32:
+    y := [1 2]
+    y
+
+fn first() -> i32:
+    total := add(1,
+
+tests:
+    it("adds"):
+        x := (1 2)
+
+fn first() -> i32:
+    total := add(1, 2
+    total
+
+fn second() -> i32:
+    +2
+
+fn first() -> i32:
+    run(fn(x):
+fn second() -> i32:
+    +1 +

@@ -1,0 +1,11 @@
+use std.process.{Command, Process}
+
+fn start!(program: string, args: List[string], input: string) -> string $ Process:
+    match Command::new(program).args(args).stdin(input).run!():
+        .Ok(out) => "${out.status} [${out.stdout}] [${out.stderr}]"
+        .Err(e) => "${e}"
+
+pub fn main!() -> void $ Console + Process:
+    println(start!("sh", ["-c", "cat; echo oops >&2; exit 3"], "fed"))
+    println(start!("ls", [], ""))
+    println(start!("hd-no-such-program-176", [], ""))

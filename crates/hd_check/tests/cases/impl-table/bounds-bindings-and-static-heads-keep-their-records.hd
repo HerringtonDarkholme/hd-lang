@@ -1,0 +1,28 @@
+# @dump: diagnostics stdout
+# Bound plans, associated bindings and static heads stay with their impl row.
+trait Source:
+    type Item
+
+trait Select[A]:
+    fn select(self, value: A) -> A
+
+struct Token: pass
+struct Wrapper[T]:
+    value: T
+
+impl Source for Token:
+    type Item = i32
+
+impl Source for &'static Token:
+    type Item = i32
+
+impl[T, U < Source[Item = T]] Select[T] for Wrapper[U]:
+    fn select(self, value: T) -> T:
+        value
+
+impl Token:
+    fn zero(self) -> i32:
+        +0
+
+pub fn main() -> void $ Console:
+    println(Wrapper { value: Token {} }.select(+42) + Token {}.zero())

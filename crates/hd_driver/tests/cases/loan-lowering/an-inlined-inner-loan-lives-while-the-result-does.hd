@@ -1,9 +1,9 @@
 # @dump: stdout
 # @build: dev | release
-# A returned reference into an object the callee reached through a
-# pointer keeps that object's loan after inlining: the inliner moves the
-# callee's closes to where the caller closes the INNER loan, so the alias
-# write panics borrow-conflict in both builds.
+# A callee hands out the pointer to the object it reached (a reference
+# through it would be local to the callee, `ref.local.pointer`); the
+# caller's reference through it keeps that object's loan after inlining,
+# so the alias write panics borrow-conflict in both builds (#2339).
 struct Cell:
     value: string
     other: string
@@ -34,11 +34,11 @@ fn make() -> *mut Outer:
     box(Outer { next: box(Cell { value: orig(), other: second() }), other: second() })
 
 impl Outer:
-    fn slot_ref(&self) -> &string:
-        &self.next.value
+    fn slot(&self) -> *mut Cell:
+        self.next
 
 fn probe(p: *mut Outer, alias: *mut Outer) -> string:
-    r := p.slot_ref()
+    r := &p.slot().value
     alias.next.value = fresh() # panic: borrow-conflict
     junk := churn()
     seen := *r

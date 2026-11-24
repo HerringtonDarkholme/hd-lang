@@ -1,0 +1,23 @@
+## Shapes, with one typo of each kind of name.
+
+pub struct Point:
+    x: i32
+    yval: i32
+
+pub enum Shape:
+    Dot(at: Point)
+    Empty
+
+pub fn height(p: Point) -> i32:
+    p.yval
+
+pub fn moved(count: i32) -> Point:
+    Point { x: count, yval: 0 }
+
+pub fn area(s: Shape) -> i32:
+    match s:
+        .Dot(at=p) => 0
+        .Empty => 1
+
+pub fn size(xs: List[i32]) -> usize:
+    xs.len()

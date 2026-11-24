@@ -1,0 +1,14 @@
+# @dump: diagnostics
+# The diagnostic states the edit; the guide explains the rule.
+struct Photo:
+    name: string
+
+impl !Copy for Photo
+
+fn name_len(p: Photo) -> usize:
+    p.name.len()
+
+fn moved_capture() -> usize:
+    photo := Photo { name: "a" }
+    run := fn() -> usize: name_len(photo) # diagnostic: move-out-of-place
+    run()

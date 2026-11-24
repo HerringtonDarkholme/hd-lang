@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# A newtype has no checked lifetime argument, even in a checked function header.
+type UserId(i64)
+
+fn plain(value: UserId) -> UserId:
+    value
+
+fn invalid['a](value: UserId['a]) -> void:
+    pass

@@ -3817,9 +3817,29 @@ impl Lower<'_, '_, '_> {
             }
             if segs.len() == 1 {
                 let hint = self.import_hint(&first);
-                let msg = format!("no type named `{first}`{}", hint.text);
+                let params: Vec<Symbol> = gn.tys.iter().map(|p| p.name).collect();
+                let best = hint.text.is_empty().then(|| {
+                    let kind = |d| {
+                        self.kinds
+                            .get(&d)
+                            .copied()
+                            .or_else(|| self.r.item(d)?.kind())
+                    };
+                    let scope = (&*self.scope, &*self.locals, self.at);
+                    crate::iface::type_typo(&self.names, scope, Some(&params), &first, kind)
+                });
+                let best = best.flatten().map(str::to_owned);
+                let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                let numeric = if hint.text.is_empty() {
+                    crate::iface::numeric_type_hint(&first)
+                } else {
+                    ""
+                };
+                let msg = format!("no type named `{first}`{}{did}{numeric}", hint.text);
                 self.diags.error(Code::UnknownType, span, &msg);
                 hint.add_fix(&self.src, self.diags);
+                self.diags
+                    .add_typo_fix(self.src.token_span(ft), best.as_deref());
             }
             return Ty::POISON;
         };
@@ -9283,18 +9303,6 @@ impl TopBindings {
             init: src.parse.tree.node(init),
         })
     }
-
-    /// How many names the module binds at its top level.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Whether the module binds no name at its top level.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }
 
 /// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
@@ -10303,7 +10311,7 @@ mod top_binding_tests {
             file: hd_base::FileId::from_raw(0),
         };
         let index = TopBindings::of(&src);
-        assert_eq!(index.len(), 4002);
+        assert_eq!(index.0.len(), 4002);
         assert_eq!(init_text(&src, &index, "N3999"), Some("3999"));
         assert_eq!(init_text(&src, &index, "N2000"), Some("2000"));
         // A chain binds each name to its last initializer; the first

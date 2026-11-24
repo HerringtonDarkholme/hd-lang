@@ -1,0 +1,58 @@
+enum Value:
+    Null
+    Flag(on: bool)
+    Num(n: i64)
+    Text(s: string)
+    Items(items: List[Value])
+    Fields(fields: Map[string, Value])
+
+fn keys() -> List[string]:
+    ["name", "tags", "nested"]
+
+fn count(v: Value) -> i32:
+    match v:
+        .Items(items) =>
+            let n = +1
+            for item in items:
+                n = n + count(item)
+            n
+        .Fields(fields) =>
+            let n = +1
+            for key in keys():
+                match fields.get(key):
+                    .Some(inner) => n = n + count(inner)
+                    .None => pass
+            n
+        _ => 1
+
+fn render(v: Value) -> string:
+    match v:
+        .Null => "null"
+        .Flag(on) =>
+            if on: "true" else: "false"
+        .Num(n) => "$n"
+        .Text(s) => "'$s'"
+        .Items(items) =>
+            let mut parts: List[string] = []
+            for item in items:
+                parts.push(render(item))
+            "[" + parts.join(",") + "]"
+        .Fields(fields) =>
+            let mut parts: List[string] = []
+            for key in keys():
+                match fields.get(key):
+                    .Some(inner) => parts.push(key + ":" + render(inner))
+                    .None => pass
+            "{" + parts.join(",") + "}"
+
+pub fn main() -> void $ Console:
+    let mut inner: Map[string, Value] = {}
+    inner["name"] = Value.Null
+    let mut fields: Map[string, Value] = {}
+    fields["name"] = Value.Text("hd")
+    fields["tags"] = Value.Items([Value.Flag(true), Value.Null, Value.Num(25)])
+    fields["nested"] = Value.Fields(inner)
+    doc := Value.Fields(fields)
+    println(count(doc))
+    println(render(doc))
+    println(render(Value.Items([])))

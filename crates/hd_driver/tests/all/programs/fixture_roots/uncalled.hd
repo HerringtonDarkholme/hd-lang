@@ -1,0 +1,12 @@
+pub struct Point:
+    x: i32
+
+impl Point:
+    fn next(self) -> i32:
+        self.x + 1
+
+fn f(x: i32) -> i32:
+    x + 7
+
+pub fn main(x: i32) -> Point:
+    Point { x: x }

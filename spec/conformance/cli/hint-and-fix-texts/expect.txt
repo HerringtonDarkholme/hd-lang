@@ -1,16 +1,16 @@
 # Texts the conformance runner does not judge: cast hints, fix-it targets and a panic report note.
 run: hd check --format json cast-bracketed-type.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'List[i32](x)'","line":5,"column":12,"fixes":[],"file":"cast-bracketed-type.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'List[i32](x)'","line":5,"column":12,"file":"cast-bracketed-type.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json cast-long-operand.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":46,"fixes":[],"file":"cast-long-operand.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":46,"file":"cast-long-operand.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json cast-before-comma.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":12,"fixes":[],"file":"cast-before-comma.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":12,"file":"cast-before-comma.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json cast-no-type.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":12,"fixes":[],"file":"cast-no-type.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"trailing-block-position","message":"casts are calls: write 'Type(value)'","line":4,"column":12,"file":"cast-no-type.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json row-fix-skips-const.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"generic-kind-mismatch","message":"`T` is a type parameter, not a row parameter: declare it as `$T`","line":3,"column":20,"fixes":[{"message":"mark the parameter as a row parameter","edits":[{"file":"row-fix-skips-const.hd","start":112,"end":112,"text":"$"}]}],"file":"row-fix-skips-const.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

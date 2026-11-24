@@ -1,0 +1,17 @@
+pub fn late_fee(days: i32) -> i32:
+    if days > 30: 5 else: 0
+
+tests:
+    use std.testing.assert_equal
+
+    struct Invoice:
+        days: i32
+
+    fn overdue() -> Invoice:
+        Invoice { days: 31 }
+
+    it("charges a fee after 30 days"):
+        assert_equal(late_fee(overdue().days), 5, reason="one day late")
+
+    it("charges nothing on time"):
+        assert_equal(late_fee(Invoice { days: 30 }.days), 0, reason="thirty days is on time")

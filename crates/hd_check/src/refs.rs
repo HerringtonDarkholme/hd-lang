@@ -900,8 +900,7 @@ impl Ck<'_, '_> {
         if matches!(self.infer.resolve(self.pool(), t), Ty::POISON | Ty::NEVER) {
             return;
         }
-        let msg = format!("no field `{name}` on {}", self.show(t));
-        self.err(Code::UnknownField, e, &msg);
+        self.unknown_field(t, name, e);
     }
 
     fn not_a_reference(&mut self, t: Ty, n: NodeRef<'_>) {

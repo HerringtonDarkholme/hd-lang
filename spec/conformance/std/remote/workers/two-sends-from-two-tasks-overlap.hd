@@ -1,0 +1,27 @@
+# test: sends from two suspended tasks are in flight together: a third task runs while both wait, and each reply goes to its own send
+# Spec std Remote, Workers: std-remote.workers.host; Spec std Host, Host Operations: std-host.op.wait, std-host.op.no-order.
+# expect-stdout: waiting
+# expect-stdout: replied
+# expect-stdout: replied
+# expect-stdout: 9 16
+# expect-stdout: 25 4
+use std.remote.Workers
+use std.task.join
+
+fn square!(n: u64) -> u64 $ Console + Workers:
+    result := $.use(Workers).run!(fn() -> u64: n * n).unwrap_or(0)
+    println("replied")
+    result
+
+fn note!() -> u64 $ Console:
+    println("waiting")
+    0
+
+pub fn main!() -> void $ Console + Workers:
+    let (a, b, _) = join!(square(3), square(4), note())
+    println("$a $b")
+    let (c, d) = join!(square2(5), square2(2))
+    println("$c $d")
+
+fn square2!(n: u64) -> u64 $ Workers:
+    $.use(Workers).run!(fn() -> u64: n * n).unwrap_or(0)

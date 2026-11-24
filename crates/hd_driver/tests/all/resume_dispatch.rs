@@ -9,16 +9,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 /// A loop of three waits, so its body list holds three states.
-const MAIN: &str = "use std.time.{Clock, Duration, sleep}\n\n\
-pub fn main!() -> void $ Console + Clock:\n    \
-    let i: i32 = 0\n    \
-    while i < 3:\n        \
-        sleep!(Duration::milliseconds(1))\n        \
-        println(\"a\")\n        \
-        sleep!(Duration::milliseconds(1))\n        \
-        println(\"b\")\n        \
-        sleep!(Duration::milliseconds(1))\n        \
-        i += 1\n";
+const MAIN: &str = include_str!("programs/resume_dispatch/main.hd");
 
 #[test]
 fn a_loop_of_waits_uses_one_resume_table_and_resident_slots() {

@@ -1,0 +1,6 @@
+# @dump: stdout
+pub fn main() -> void $ Console:
+    dbg()
+    dbg(1, "two", [3])
+    dbg(1 + 2)
+    println("done")

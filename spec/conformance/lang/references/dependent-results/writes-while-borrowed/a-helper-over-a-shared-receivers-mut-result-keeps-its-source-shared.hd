@@ -1,0 +1,22 @@
+# test: a helper whose `&mut` result is written at a `&` parameter's lifetime holds that parameter shared, so two live results of it check
+# Spec 13 Writes While Borrowed: ref.excl.call; Spec 13 Dependent Results: ref.dep.call.
+struct Account:
+    balance: i64
+
+struct Arena:
+    used: usize
+
+impl Arena:
+    fn alloc['s, T](&'s self, v: T) -> &'s mut T:
+        panic("stub")
+
+fn open['a](bank: &'a Arena, balance: i64) -> &'a mut Account:
+    bank.alloc(Account { balance: balance })
+
+fn transfer() -> i64:
+    bank := Arena { used: 0 }
+    a := open(&bank, 50)
+    b := open(&bank, 10)
+    a.balance -= 30
+    b.balance += 30
+    a.balance + b.balance

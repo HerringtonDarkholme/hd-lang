@@ -781,7 +781,15 @@ type IfaceDiags = Vec<(
     hd_resolve::anchor::Anchor,
     String,
     Vec<IfaceFix>,
+    Vec<IfaceLabel>,
 )>;
+
+/// A secondary location anchored to its declaration, including other modules.
+struct IfaceLabel {
+    module: String,
+    anchor: hd_resolve::anchor::Anchor,
+    message: String,
+}
 
 /// A stage-A fix-it as an interface entry keeps it: no byte offsets, as
 /// for its diagnostic. Each edit is its module, an anchor of the token at
@@ -1651,6 +1659,7 @@ struct Run<'a> {
     /// `PathId` and `ModuleId`: the tables have unrelated insertion orders.
     module_nodes: HashMap<PathId, ModuleId>,
     texts: Texts<'a>,
+    span_indexes: Vec<OnceLock<hd_resolve::anchor::SpanIndex>>,
     pool: Arc<InternPool>,
     paths: Arc<PathTable>,
     /// The compiler-known std items, resolved once for the run.
@@ -2833,6 +2842,7 @@ fn build_packages_inner(
         single_file: packages.single_file,
         goal: goal.clone(),
         texts,
+        span_indexes: (0..n).map(|_| OnceLock::new()).collect(),
         pool,
         paths,
         known,
@@ -4667,10 +4677,11 @@ impl Run<'_> {
         // (`folder_iface`), so each anchor names a declaration of this run.
         let place = |m: usize, anchor: &hd_resolve::anchor::Anchor| {
             let mid = folder.modules.get(m)?;
-            hd_resolve::anchor::resolve(&self.src(mid.idx()), anchor)
+            self.span_index(mid.idx())
+                .resolve(&self.src(mid.idx()), anchor)
         };
         let mut d = lock(&self.diags);
-        for (m, code, severity, anchor, msg, fixes) in diags {
+        for (m, code, severity, anchor, msg, fixes, labels) in diags {
             let Some(mid) = folder.modules.get(*m) else {
                 continue;
             };
@@ -4680,6 +4691,11 @@ impl Run<'_> {
                 hi: 0,
             });
             d.push(*code, *severity, span, msg, None);
+            for label in labels {
+                if let Some(span) = self.place_label(label) {
+                    d.add_label(span, &label.message);
+                }
+            }
             for fix in fixes {
                 // A fix-it with an edit this run cannot place is left out.
                 let edits: Option<Vec<(Span, &str)>> = fix
@@ -5044,12 +5060,43 @@ impl Run<'_> {
                     m,
                     diags.code[i],
                     diags.severity[i],
-                    hd_resolve::anchor::of_span(&self.src(folder.modules[m].idx()), sp.lo, sp.hi),
+                    self.span_index(folder.modules[m].idx()).of_span(
+                        &self.src(folder.modules[m].idx()),
+                        sp.lo,
+                        sp.hi,
+                    ),
                     diags.get_text(diags.message[i]).to_owned(),
                     fixes,
+                    self.anchor_labels(diags, i),
                 )
             })
             .collect()
+    }
+
+    fn span_index(&self, m: usize) -> &hd_resolve::anchor::SpanIndex {
+        self.span_indexes[m].get_or_init(|| hd_resolve::anchor::SpanIndex::new(&self.src(m)))
+    }
+
+    fn anchor_labels(&self, diags: &DiagBuf, row: usize) -> Vec<IfaceLabel> {
+        diags
+            .labels(row)
+            .iter()
+            .map(|(span, message)| IfaceLabel {
+                module: self.table.modules[span.file.idx()].path.clone(),
+                anchor: self.span_index(span.file.idx()).of_span(
+                    &self.src(span.file.idx()),
+                    span.lo,
+                    span.hi,
+                ),
+                message: message.clone(),
+            })
+            .collect()
+    }
+
+    fn place_label(&self, label: &IfaceLabel) -> Option<Span> {
+        let module = self.table.module(&label.module)?;
+        self.span_index(module.idx())
+            .resolve(&self.src(module.idx()), &label.anchor)
     }
 
     /// The modules and folders a header lowering of folder `fid` read, as
@@ -5710,7 +5757,9 @@ impl Run<'_> {
         };
         // The anchors of a folder with a broken module are this run's:
         // its interface is never stored (`folder_iface`).
-        hd_resolve::anchor::resolve(&self.src(target.idx()), anchor).unwrap_or(fallback)
+        self.span_index(target.idx())
+            .resolve(&self.src(target.idx()), anchor)
+            .unwrap_or(fallback)
     }
 
     /// Strict lookup: an older/missing anchor never falls back to deleting
@@ -5726,14 +5775,14 @@ impl Run<'_> {
             .modules
             .get(*m as usize)?;
         let src = self.src(target.idx());
-        let first = hd_resolve::anchor::resolve(&src, anchor)?;
+        let first = self.span_index(target.idx()).resolve(&src, anchor)?;
         let (end_module, end_anchor) = iface
             .spans
             .get(&(def, hd_resolve::anchor::VISIBILITY_END_SLOT))?;
         if end_module != m {
             return None;
         }
-        let keyword = hd_resolve::anchor::resolve(&src, end_anchor)?;
+        let keyword = self.span_index(target.idx()).resolve(&src, end_anchor)?;
         Some(Span {
             hi: keyword.lo,
             ..first
@@ -6132,7 +6181,7 @@ impl Run<'_> {
     }
 
     /// [`Self::coherence`]'s findings as the part's bytes; `None` when it
-    /// is blocked.
+    /// is blocked or its findings cannot be cached.
     fn coherence_part(&self) -> Option<Vec<u8>> {
         let Some((all, _)) = self.coherence_inputs() else {
             self.blocked(Stage::Coherence);
@@ -6267,15 +6316,21 @@ impl Run<'_> {
             // The key holds each impl's stable path, so a stored path names
             // the same impl of `tr`.
             let reused = key.and_then(|k| old_traits.get(&k)).and_then(|row| {
+                if row.found.is_empty() {
+                    return Some(Vec::new());
+                }
+                let by_path: HashMap<_, _> = u.impls[&tr]
+                    .iter()
+                    .map(|i| (names.path(i.def), i.def))
+                    .collect();
                 row.found
                     .iter()
-                    .map(|(path, msg)| {
-                        let at = u.impls[&tr].iter().find(|i| names.path(i.def) == *path)?;
-                        Some((at.def, msg.clone()))
+                    .map(|(path, other, msg)| {
+                        Some((*by_path.get(path)?, *by_path.get(other)?, msg.clone()))
                     })
                     .collect::<Option<Vec<_>>>()
             });
-            let part: Vec<(DefId, String)> = if let Some(part) = reused {
+            let part: Vec<(DefId, DefId, String)> = if let Some(part) = reused {
                 read += 1;
                 part
             } else {
@@ -6285,12 +6340,11 @@ impl Run<'_> {
                 overlaps
                     .into_iter()
                     .map(|(a, b, witness)| {
+                        let trait_name = names.display_name(tr);
                         let msg = format!(
-                            "implementations {} and {} both apply to {witness}",
-                            names.path(a),
-                            names.path(b)
+                            "conflicting `{trait_name}` implementations for {witness}; remove one implementation"
                         );
-                        (b, msg)
+                        (b, a, msg)
                     })
                     .collect()
             };
@@ -6300,7 +6354,7 @@ impl Run<'_> {
                     trait_: names.path(tr),
                     found: part
                         .iter()
-                        .map(|(b, msg)| (names.path(*b), msg.clone()))
+                        .map(|(b, a, msg)| (names.path(*b), names.path(*a), msg.clone()))
                         .collect(),
                 });
             }
@@ -6325,15 +6379,16 @@ impl Run<'_> {
         }
         lock(&self.report).ok(Stage::Coherence);
         let bytes = if found.is_empty() {
-            Vec::new()
+            Some(Vec::new())
         } else {
             encode_overlaps(&found, &all)
         };
         let mut d = lock(&self.diags);
-        for (item, msg) in found {
+        for (item, other, msg) in found {
             d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
+            d.add_label(self.item_span(other, 0), "conflicting implementation");
         }
-        Some(bytes)
+        bytes
     }
 
     /// The key of the package's coherence rows: one `graph` entry per
@@ -6459,8 +6514,9 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::Coherence);
         {
             let mut d = lock(&self.diags);
-            for (item, msg) in found {
+            for (item, other, msg) in found {
                 d.error(Code::OverlappingImpl, self.item_span(item, 0), &msg);
+                d.add_label(self.item_span(other, 0), "conflicting implementation");
             }
         }
         for (&f, r) in folders.iter().zip(runs) {
@@ -6505,12 +6561,14 @@ impl Run<'_> {
                 .flat_map(|i| i.items.iter())
                 .chain(test_impls.iter().copied()),
         );
-        let anchor = |d: DefId| {
-            anchors
-                .iter()
-                .find(|(def, slot, _)| *def == d && *slot == 0)
-                .map(|(_, _, a)| *a)
-        };
+        let mut by_def = HashMap::default();
+        for &(def, slot, anchor) in anchors {
+            if slot == 0 {
+                by_def.entry(def).or_insert(anchor);
+            }
+        }
+        let anchor = |d: DefId| by_def.get(&d).copied();
+        let positions = hd_resolve::anchor::SpanIndex::new(src);
         // Content order: the block's impls come after every impl the test
         // code sees, in source order, so the later impl reported is the
         // block's.
@@ -6530,19 +6588,24 @@ impl Run<'_> {
             lo: 0,
             hi: 0,
         };
-        for (a, b, witness) in u.overlaps(&order) {
-            if !test_only.contains(&b) {
-                continue;
+        for tr in u.traits() {
+            for (a, b, witness) in u.trait_overlaps(tr, &order).0 {
+                if !test_only.contains(&b) {
+                    continue;
+                }
+                let span = anchor(b)
+                    .and_then(|at| positions.resolve(src, &at))
+                    .unwrap_or(fallback);
+                let trait_name = names.display_name(tr);
+                let msg = format!(
+                    "conflicting `{trait_name}` implementations for {witness}; remove one implementation"
+                );
+                diags.error(Code::OverlappingImpl, span, &msg);
+                let other = anchor(a)
+                    .and_then(|at| positions.resolve(src, &at))
+                    .unwrap_or_else(|| self.item_span(a, 0));
+                diags.add_label(other, "conflicting implementation");
             }
-            let span = anchor(b)
-                .and_then(|at| hd_resolve::anchor::resolve(src, &at))
-                .unwrap_or(fallback);
-            let msg = format!(
-                "implementations {} and {} both apply to {witness}",
-                names.path(a),
-                names.path(b)
-            );
-            diags.error(Code::OverlappingImpl, span, &msg);
         }
     }
 
@@ -8805,6 +8868,7 @@ impl Run<'_> {
                     dw.str(diags.get_text(e.text));
                 }
             }
+            write_labels(&mut dw, &self.anchor_labels(&diags, i));
         }
         // Invariant 3 (`crates/hd_tir/DESIGN.md` §4.13.11): `Hole` and
         // `Poison` only where something reported an error. A header's
@@ -9166,6 +9230,11 @@ impl Run<'_> {
                     ));
                 }
                 buf.add_fix(title, safety, &edits);
+            }
+            for label in read_labels(&mut r) {
+                if let Some(span) = self.place_label(&label) {
+                    buf.add_label(span, &label.message);
+                }
             }
         }
         // A module that does not parse has its parse errors besides.
@@ -12604,7 +12673,7 @@ struct CohRows {
 struct CohRow {
     key: Hash128,
     trait_: String,
-    found: Vec<(String, String)>,
+    found: Vec<(String, String, String)>,
 }
 
 /// One folder's row: its key, its path, and per trait it implements (by
@@ -12722,8 +12791,9 @@ fn encode_coh_rows(rows: &CohRows) -> Vec<u8> {
         w.hash(r.key);
         w.str(&r.trait_);
         w.len_of(&r.found);
-        for (path, msg) in &r.found {
+        for (path, other, msg) in &r.found {
             w.str(path);
+            w.str(other);
             w.str(msg);
         }
     }
@@ -12747,7 +12817,7 @@ fn decode_coh_rows(b: &[u8]) -> Option<CohRows> {
             key: r.hash(),
             trait_: r.str().to_owned(),
             found: (0..r.count())
-                .map(|_| (r.str().to_owned(), r.str().to_owned()))
+                .map(|_| (r.str().to_owned(), r.str().to_owned(), r.str().to_owned()))
                 .collect(),
         })
         .collect();
@@ -12763,38 +12833,48 @@ fn decode_coh_rows(b: &[u8]) -> Option<CohRows> {
 
 /// The overlaps of a coherence run, each reported impl as its folder's
 /// index and its item's index in that folder's interface.
-fn encode_overlaps(found: &[(DefId, String)], all: &[Arc<FolderIface>]) -> Vec<u8> {
+fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<FolderIface>]) -> Option<Vec<u8>> {
+    // One index for both endpoints of every overlap, O(items + findings),
+    // rather than scanning every interface for each endpoint.
+    let locations: HashMap<_, _> = all
+        .iter()
+        .enumerate()
+        .flat_map(|(f, iface)| {
+            iface
+                .items
+                .iter()
+                .enumerate()
+                .map(move |(i, item)| (item.def, (f, i)))
+        })
+        .collect();
     let mut w = Writer::default();
     w.len_of(found);
-    for (item, msg) in found {
-        let (f, i) = all
-            .iter()
-            .enumerate()
-            .find_map(|(f, iface)| {
-                iface
-                    .items
-                    .iter()
-                    .position(|it| it.def == *item)
-                    .map(|i| (f, i))
-            })
-            .unwrap_or((0, 0));
-        w.u32(u32_of(f));
-        w.u32(u32_of(i));
+    for (item, other, msg) in found {
+        for def in [item, other] {
+            // An absent endpoint leaves the graph uncached; the caller still
+            // reports every finding from this run.
+            let &(f, i) = locations.get(def)?;
+            w.u32(u32_of(f));
+            w.u32(u32_of(i));
+        }
         w.str(msg);
     }
-    w.bytes
+    Some(w.bytes)
 }
 
-fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, String)>> {
+fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, DefId, String)>> {
     let mut r = Reader::new(b);
     let mut out = Vec::new();
     for _ in 0..r.count() {
         let f = r.u32() as usize;
         let i = r.u32() as usize;
         let item = all.get(f)?.items.get(i)?.def;
-        out.push((item, r.str().to_owned()));
+        let f = r.u32() as usize;
+        let i = r.u32() as usize;
+        let other = all.get(f)?.items.get(i)?.def;
+        out.push((item, other, r.str().to_owned()));
     }
-    Some(out)
+    (r.ok() && r.at_end()).then_some(out)
 }
 
 /// Stage-B findings by item index in the folder's interface.
@@ -12942,10 +13022,29 @@ fn decode_anchor(r: &mut Reader<'_>) -> hd_resolve::anchor::Anchor {
     }
 }
 
+fn write_labels(w: &mut Writer, labels: &[IfaceLabel]) {
+    w.len_of(labels);
+    for label in labels {
+        w.str(&label.module);
+        encode_anchor(w, &label.anchor);
+        w.str(&label.message);
+    }
+}
+
+fn read_labels(r: &mut Reader<'_>) -> Vec<IfaceLabel> {
+    (0..r.count())
+        .map(|_| IfaceLabel {
+            module: r.str().to_owned(),
+            anchor: decode_anchor(r),
+            message: r.str().to_owned(),
+        })
+        .collect()
+}
+
 fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(d);
-    for (m, code, severity, a, msg, fixes) in d {
+    for (m, code, severity, a, msg, fixes, labels) in d {
         w.u32(u32_of(*m));
         w.str(code.as_str());
         w.u8(u8::from(*severity == Severity::Warning));
@@ -12964,6 +13063,7 @@ fn encode_iface_diags(d: &IfaceDiags) -> Vec<u8> {
                 w.str(text);
             }
         }
+        write_labels(&mut w, labels);
     }
     w.bytes
 }
@@ -12998,7 +13098,8 @@ fn decode_iface_diags(b: &[u8]) -> Option<IfaceDiags> {
                 edits,
             });
         }
-        out.push((m, code, severity, a, msg, fixes));
+        let labels = read_labels(&mut r);
+        out.push((m, code, severity, a, msg, fixes, labels));
     }
     r.ok().then_some(out)
 }
@@ -14404,10 +14505,7 @@ mod cache_section_tests {
 
         // A later test build shares the std pack with the partial build.
         let mut tests = MemorySources::default();
-        tests.insert(
-            "tests/one.hd",
-            "it(\"one\"):\n    assert_equal(+1, +1, reason=\"one\")\n",
-        );
+        tests.insert("tests/one.hd", include_str!("tests/programs/lib/it_one.hd"));
         compile(
             &partial,
             &tests,
@@ -14528,9 +14626,7 @@ mod host_declaration_tests {
 
     #[test]
     fn paired_host_declarations_match_canonical_trait_paths() {
-        let files = sources(
-            "@host\npub trait `type`:\n    fn read(&self) -> string\n\n@host\npub trait Σurface:\n    fn read(&self) -> string\n",
-        );
+        let files = sources(include_str!("tests/programs/lib/paired_traits.hd"));
         let diags = declarations(
             &[&files],
             &[metadata(0, &["server.type", "server.Σurface"])],
@@ -14540,14 +14636,20 @@ mod host_declaration_tests {
 
     #[test]
     fn each_missing_side_names_its_own_trait_and_manifest_location() {
-        let marked = sources("\n@host\npub trait Marked:\n    fn read(&self) -> string\n");
+        let marked = sources(&format!(
+            "\n{}",
+            include_str!("tests/programs/lib/marked_trait.hd")
+        ));
         let d = declarations(&[&marked], &[metadata(0, &[])]);
         assert_eq!(d.code, [Code::InvalidManifest]);
         assert_eq!(d.primary[0].lo, 1);
         assert!(d.text.contains("server.Marked"));
         assert!(d.text.contains("/sdk-0/hd.toml:7"));
 
-        let plain = sources("\n\npub trait Plain:\n    fn read(&self) -> string\n");
+        let plain = sources(&format!(
+            "\n\n{}",
+            include_str!("tests/programs/lib/plain_trait.hd")
+        ));
         let d = declarations(&[&plain], &[metadata(0, &["server.Plain"])]);
         assert_eq!(d.code, [Code::InvalidManifest]);
         assert_eq!(d.primary[0].lo, 12, "the actual trait name is highlighted");
@@ -14558,8 +14660,8 @@ mod host_declaration_tests {
 
     #[test]
     fn same_named_packages_cannot_supply_each_others_marker() {
-        let marked = sources("@host\npub trait Server:\n    fn read(&self) -> string\n");
-        let plain = sources("pub trait Server:\n    fn read(&self) -> string\n");
+        let marked = sources(include_str!("tests/programs/lib/marked_server.hd"));
+        let plain = sources(include_str!("tests/programs/lib/plain_server.hd"));
         let d = declarations(
             &[&marked, &plain],
             &[
@@ -14574,7 +14676,7 @@ mod host_declaration_tests {
 
     #[test]
     fn a_package_named_std_is_not_the_compiler_owned_standard_library() {
-        let files = sources("@host\npub trait Server:\n    fn read(&self) -> string\n");
+        let files = sources(include_str!("tests/programs/lib/marked_server.hd"));
         let table = ModuleTable::discover_all(&[PackageIn {
             name: "std",
             identity: "/local/std",
@@ -14584,9 +14686,9 @@ mod host_declaration_tests {
             entries: Vec::new(),
             dev_requires: Vec::new(),
         }]);
-        let texts = Texts::ready(vec![Arc::from(
-            "@host\npub trait Server:\n    fn read(&self) -> string\n",
-        )]);
+        let texts = Texts::ready(vec![Arc::from(include_str!(
+            "tests/programs/lib/marked_server.hd"
+        ))]);
         let mut diags = DiagBuf::default();
         let declaration_sources: [&dyn SourceSet; 1] = [&files];
         check_host_declarations(
@@ -14616,7 +14718,7 @@ mod host_declaration_tests {
 
     #[test]
     fn manifest_only_edits_cannot_hide_behind_cached_checks() {
-        let mut files = sources("@host\npub trait Server:\n    fn read(&self) -> string\n");
+        let mut files = sources(include_str!("tests/programs/lib/marked_server.hd"));
         files.insert("main.hd", "pub fn main() -> void: pass\n");
         let store = super::warm_std_store();
         let host = Host {
@@ -14639,46 +14741,6 @@ mod host_declaration_tests {
         assert_eq!(out.diags.code, [Code::InvalidManifest], "{}", out.render());
         assert!(out.render().contains("server.Server"));
     }
-
-    #[test]
-    fn host_marker_rejects_private_traits_arguments_and_wrong_targets() {
-        for (text, listed) in [
-            (
-                "@host\ntrait Server:\n    fn read(&self) -> string\n",
-                vec!["server.Server"],
-            ),
-            (
-                "@host()\npub trait Server:\n    fn read(&self) -> string\n",
-                vec!["server.Server"],
-            ),
-            (
-                "@host::[i32]\npub trait Server:\n    fn read(&self) -> string\n",
-                vec!["server.Server"],
-            ),
-            ("@host\npub fn read() -> void: pass\n", vec![]),
-        ] {
-            let files = sources(text);
-            let store = super::warm_std_store();
-            let host = Host {
-                sources: &files,
-                store: &store,
-                clock: &NoClock,
-                executor: Executor::Serial(SerialOrder::Priority),
-                render_tir: &[],
-            };
-            let packages = Packages {
-                host_packages: vec![metadata(0, &listed)],
-                ..Packages::default()
-            };
-            let out = build_packages(&host, "sdk", &packages, &Goal::Analyze);
-            assert_eq!(
-                out.diags.code,
-                [Code::DecoratorTargetKind],
-                "{text}\n{}",
-                out.render()
-            );
-        }
-    }
 }
 
 #[cfg(all(test, feature = "host-artifacts"))]
@@ -14690,53 +14752,7 @@ mod package_host_abi_tests {
         let mut files = MemorySources::default();
         files.insert(
             "src/main.hd",
-            "\
-use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
-
-pub struct Message:
-    pub text: string
-    pub count: u64
-
-@derive(Serialize, Deserialize)
-pub struct Secret:
-    large: u64
-    signed: i64
-    ratio: f64
-    zero: f64
-    children: List[string]
-
-pub struct Token:
-    hidden: string
-
-impl Serialize for Token:
-    fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]:
-        out.text(\"custom:${self.hidden}\")
-
-impl Deserialize for Token:
-    fn deserialize[R < Deserializer](input: &mut R) -> Result[Token, R::Error]:
-        .Ok(Token { hidden: input.text(\"Token\")? })
-
-pub enum Problem:
-    Broken(reason: string)
-
-@host
-pub trait Server:
-    fn ready(&self, message: Message) -> Message
-    fn secret(&self, value: Secret) -> Secret
-    fn custom(&self, value: Token) -> Token
-    fn wait!(&mut self) -> Result[string, Problem]
-
-pub fn main!() -> void $ Console + Server:
-    message := $.use(Server).ready(Message { text: \"hello\", count: 7 })
-    println(\"${message.text} ${message.count}\")
-    secret := $.use(Server).secret(Secret { large: 18446744073709551615, signed: -9223372036854775808, ratio: 1.0, zero: -0.0, children: [\"nested\"] })
-    println(\"${secret.large} ${secret.signed} ${secret.ratio.to_bits()} ${secret.zero.to_bits()} ${secret.children[0]}\")
-    token := $.use(Server).custom(Token { hidden: \"private\" })
-    println(token.hidden)
-    match $.use(Server).wait!():
-        .Ok(value) => println(value)
-        .Err(.Broken(reason)) => println(reason)
-",
+            include_str!("tests/programs/lib/host_abi_main.hd"),
         );
         let store = MemoryStore::default();
         let host = Host {
@@ -14898,31 +14914,7 @@ mod package_host_inheritance_tests {
         let mut files = MemorySources::default();
         files.insert(
             "src/main.hd",
-            "\
-use std.ops.AsyncDisposable
-
-pub trait Base[T]:
-    fn echo(&self, text: T) -> T
-
-pub enum EventError:
-    Closed
-
-pub trait Events < AsyncDisposable:
-    fn next!(&mut self) -> Result[string?, EventError]
-
-@host
-pub trait Server < Base[string]:
-    fn open!(&mut self) -> *mut dyn Events
-
-pub fn main!() -> void $ Console + Server:
-    println($.use(Server).echo(\"inherited\"))
-    handle := $.use(Server).open!()
-    match handle.next!():
-        .Ok(.Some(text)) => println(text)
-        .Ok(.None) => pass
-        .Err(.Closed) => pass
-    handle.dispose!()
-",
+            include_str!("tests/programs/lib/inherited_host.hd"),
         );
         let store = MemoryStore::default();
         let host = Host {
@@ -15070,13 +15062,13 @@ mod package_host_reexport_tests {
     #[test]
     fn a_transitive_sdk_keeps_its_identity_through_a_public_dependency_alias() {
         let mut app = MemorySources::default();
-        app.insert("main.hd", "use dep.wrap.Service\npub fn main() -> void $ Console + Service:\n    println($.use(Service).read(\"hello\"))\n");
+        app.insert("main.hd", include_str!("tests/programs/lib/alias_app.hd"));
         let mut wrapper = MemorySources::default();
         wrapper.insert("src/lib.hd", "pub use dep.real.{Server as Service}\n");
         let mut sdk = MemorySources::default();
         sdk.insert(
             "src/lib.hd",
-            "@host\npub trait Server:\n    fn read(&self, input: string) -> string\n",
+            include_str!("tests/programs/lib/sdk_server.hd"),
         );
         let store = MemoryStore::default();
         let host = Host {
@@ -15143,7 +15135,7 @@ mod main_capability_tests {
 
     #[test]
     fn unused_entry_capabilities_are_available_on_cold_and_warm_checks() {
-        let source = "use std.process.Process\npub fn main() -> void $ Process:\n    pass\n";
+        let source = include_str!("tests/programs/lib/process_main.hd");
         let mut files = MemorySources::default();
         files.insert("src/main.hd", source);
         let store = super::warm_std_store();
@@ -15178,7 +15170,7 @@ mod main_capability_tests {
         files.insert("src/lib.hd", "pub fn value() -> i32: +1\n");
         files.insert(
             "tests/one.hd",
-            "it(\"needs console\"):\n    println(\"hello\")\n",
+            include_str!("tests/programs/lib/console_test.hd"),
         );
         let store = super::warm_std_store();
         let host = Host {
@@ -15299,35 +15291,25 @@ mod main_capability_tests {
 
     #[test]
     fn task_script_provider_reads_distinguish_local_and_host_grants() {
-        let local = "use std.time.{Clock, ManualClock, Timestamp, now}\n\n$.with(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0))):\n    _ := now()\n";
-        let spread = concat!(
-            "use std.time.{Clock, ManualClock, Timestamp, now}\n",
-            "context := $.context(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0)))\n",
-            "$.with(context...):\n    _ := now()\n",
-        );
-        let trait_method = concat!(
-            "use std.time.{Clock, Timestamp, now}\n",
-            "trait Observe:\n    fn read(self) -> Timestamp $ Clock\n",
-            "struct Observer: pass\n",
-            "impl Observe for Observer:\n    fn read(self) -> Timestamp $ Clock: now()\n",
-            "let observer: *dyn Observe = box(Observer {})\n",
-            "_ := observer.read()\n",
-        );
+        let local = include_str!("tests/programs/lib/clock_with_local.hd");
+        let spread = include_str!("tests/programs/lib/clock_with_spread.hd");
+        let trait_method = include_str!("tests/programs/lib/clock_trait_method.hd");
         for (source, wants_clock) in [
             (trait_method.to_owned(), true),
             (spread.to_owned(), false),
             (format!("{spread}\n_ := now()\n"), true),
             (local.to_owned(), false),
             (format!("{local}\n_ := now()\n"), true),
-            ("use std.time.Clock\n_ := $.use(Clock)\n".to_owned(), true),
             (
-                "use std.time.{Clock, now}\naction := fn() -> void $ Clock: _ := now()\naction()\n"
-                    .to_owned(),
+                include_str!("tests/programs/lib/clock_use.hd").to_owned(),
                 true,
             ),
             (
-                "use std.time.{Clock, now}\naction := fn() -> void $ Clock: _ := now()\n"
-                    .to_owned(),
+                include_str!("tests/programs/lib/clock_action_called.hd").to_owned(),
+                true,
+            ),
+            (
+                include_str!("tests/programs/lib/clock_action_unused.hd").to_owned(),
                 false,
             ),
         ] {
@@ -15366,7 +15348,7 @@ mod main_capability_tests {
         let mut files = MemorySources::default();
         files.insert(
             "src/main.hd",
-            "use std.process.Process\nfn main() -> void $ Process: pass\n",
+            include_str!("tests/programs/lib/private_main.hd"),
         );
         let store = super::warm_std_store();
         let host = Host {
@@ -15392,7 +15374,10 @@ mod main_capability_tests {
     #[test]
     fn a_package_trait_named_process_is_not_the_builtin_capability() {
         let mut files = MemorySources::default();
-        files.insert("src/main.hd", "@host\npub trait Process:\n    fn read(&self) -> string\npub fn main() -> void $ Process: pass\n");
+        files.insert(
+            "src/main.hd",
+            include_str!("tests/programs/lib/process_trait_main.hd"),
+        );
         let store = super::warm_std_store();
         let host = Host {
             sources: &files,
@@ -15428,7 +15413,7 @@ mod main_capability_tests {
         let mut files = MemorySources::default();
         files.insert(
             "src/lib.hd",
-            "use std.process.Process\npub fn main() -> void $ Process: pass\n",
+            include_str!("tests/programs/lib/library_main.hd"),
         );
         let store = super::warm_std_store();
         let host = Host {
@@ -15621,42 +15606,6 @@ mod instantiation_chain_tests {
     }
 
     #[test]
-    fn copied_wrapper_keeps_its_active_never_inline_ancestor() {
-        let source = r"use std.annotation.inline
-@inline(.Never)
-fn root(x: i32) -> i32:
-    if x == 0: +7 else: bridge(x - 1) + bridge(x - 1)
-@inline(.Always)
-fn bridge(x: i32) -> i32: root(x)
-pub fn main() -> void $ Console: println(root(4))
-";
-        let mut sources = MemorySources::default();
-        sources.insert("main.hd", source);
-        let store = warm_std_store();
-        let host = Host {
-            render_tir: &[],
-            sources: &sources,
-            store: &store,
-            clock: &NoClock,
-            executor: Executor::Serial(hd_sched::SerialOrder::Priority),
-        };
-        let out = build_packages(
-            &host,
-            "inline_cycle",
-            &Packages {
-                level: OptLevel::Optimized,
-                build_profile: BuildProfile::Release,
-                ..Packages::default()
-            },
-            &Goal::Program {
-                entry: "main".into(),
-            },
-        );
-        assert!(!out.diags.has_errors(), "{}", out.render());
-        assert!(out.wasm.is_some());
-    }
-
-    #[test]
     fn pathological_optimized_chains_have_linear_callee_preparation_work() {
         let mut measured = Vec::new();
         for count in [1000, 10000] {
@@ -15820,3 +15769,54 @@ pub fn main() -> void $ Console: println(root(4))
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod program_ir_tests;
+
+#[cfg(test)]
+mod secondary_label_codec_tests {
+    use super::*;
+
+    #[test]
+    fn header_and_module_label_transport_keeps_anchors() {
+        let labels = vec![IfaceLabel {
+            module: "app.other".into(),
+            anchor: hd_resolve::anchor::Anchor {
+                decl: 2,
+                member: 1,
+                tok: 3,
+                count: 4,
+            },
+            message: "other implementation".into(),
+        }];
+        let mut w = Writer::default();
+        write_labels(&mut w, &labels);
+        let mut r = Reader::new(&w.bytes);
+        let got = read_labels(&mut r);
+        assert!(r.ok() && r.at_end());
+        assert_eq!(got.len(), labels.len());
+        assert_eq!(got[0].module, labels[0].module);
+        assert_eq!(got[0].anchor, labels[0].anchor);
+        assert_eq!(got[0].message, labels[0].message);
+    }
+
+    #[test]
+    fn missing_overlap_endpoint_leaves_graph_uncached() {
+        let found = [(DefId::from_raw(1), DefId::from_raw(2), "overlap".into())];
+        assert!(encode_overlaps(&found, &[]).is_none());
+    }
+
+    #[test]
+    fn coherence_rows_keep_both_impl_identities() {
+        let found = vec![("app/first".into(), "app/second".into(), "overlap".into())];
+        let rows = CohRows {
+            traits: vec![CohRow {
+                key: Hash128(1),
+                trait_: "app.Show".into(),
+                found: found.clone(),
+            }],
+            folders: vec![],
+        };
+        let bytes = encode_coh_rows(&rows);
+        let got = decode_coh_rows(&bytes).expect("coherence rows");
+        assert_eq!(got.traits[0].found, found);
+        assert!(decode_coh_rows(&bytes[..bytes.len() - 1]).is_none());
+    }
+}

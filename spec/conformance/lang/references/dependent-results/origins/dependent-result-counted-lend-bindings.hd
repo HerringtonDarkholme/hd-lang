@@ -1,8 +1,8 @@
-# test: a counted reference read through a binding, a field two levels down, a loop, a method receiver or a reborrow is lent from the place it was read from
-# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
-# ref.dep.origin.projection, ref.dep.origin.counted. Each binding holds
-# only values read from places of `n` or `o`, so each result has their
-# origins.
+# test: a counted reference read through a binding, a field two levels down, a loop, a method receiver or a tuple is returned as the counted reference itself, since a reference lent from it is local
+# Spec 13 Local References: ref.local.pointer; Spec 13 Origins:
+# ref.dep.origin.lend, ref.dep.origin.binding, ref.dep.origin.projection.
+# Each function hands out the `*Node` it reads, the form the fix-it of
+# `ref.local.pointer` writes.
 struct Node:
     value: i32
     next: *Node?
@@ -15,61 +15,46 @@ struct Outer:
     link: Link
 
 impl Node:
-    fn me(&self) -> &Node:
-        self
+    fn after(&self) -> *Node?:
+        self.next
 
-fn last(n: &Node) -> &Node:
+fn last(n: *Node) -> *Node:
     match n.next:
         .Some(m) => last(m)
         .None => n
 
-fn through_let(n: &Node) -> &Node:
+fn through_let(n: *Node) -> *Node:
     next := n.next
     match next:
         .Some(m) => through_let(m)
         .None => n
 
-fn two_down(o: &Outer) -> &Node?:
+fn two_down(o: &Outer) -> *Node?:
     match o.link.next:
         .Some(m) => .Some(last(m))
         .None => .None
 
-fn pick(n: &Node) -> &Node:
-    n
-
-fn in_loop(n: &Node) -> &Node:
+fn in_loop(n: *Node) -> *Node:
     let mut cur = n
     while true:
         match cur.next:
-            .Some(m) => cur = pick(m)
+            .Some(m) => cur = m
             .None => return cur
     cur
 
-fn receiver(n: &Node) -> &Node:
-    match n.next:
-        .Some(m) => m.me()
-        .None => n
-
-fn reborrow(n: &Node) -> &Node:
-    match n.next:
+fn receiver(n: *Node) -> *Node:
+    match n.after():
         .Some(m) => m
         .None => n
 
-fn rebound(n: &Node) -> &Node:
-    match n.next:
-        .Some(k) =>
-            m := k
-            last(m)
-        .None => n
-
-fn reassigned(n: &Node) -> &Node:
+fn reassigned(n: *Node) -> *Node:
     let mut o: *Node? = .None
     o = n.next
     match o:
         .Some(m) => last(m)
         .None => n
 
-fn in_tuple(n: &Node) -> &Node:
+fn in_tuple(n: *Node) -> *Node:
     t := (n.next, 1)
     match t:
         (.Some(m), _) => last(m)

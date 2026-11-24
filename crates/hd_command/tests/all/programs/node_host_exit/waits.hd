@@ -1,0 +1,18 @@
+use std.time.{ms, s, sleep}
+use std.net.Net
+
+it("sleeps"):
+    println("before")
+    sleep!(30s)
+
+it("accepts"):
+    let mut net = $.use(Net)
+    let mut server = match net.listen!("127.0.0.1", 0):
+        .Ok(l) => l
+        .Err(_) => return
+    match server.accept!():
+        .Ok(_) => println("accepted")
+        .Err(e) => println("${e}")
+
+it("fast"):
+    sleep!(1ms)

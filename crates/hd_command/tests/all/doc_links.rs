@@ -42,41 +42,15 @@ const MONEY: &[(&str, &str)] = &[
     ("money/hd.toml", "[package]\nname = \"money\"\n"),
     (
         "money/src/lib.hd",
-        "## Money helpers.\n\n## Turns euros into cents.\npub fn cents(euros: i32) -> i32:\n    euros * 100\n\n## A sum.\npub struct Sum:\n    pub n: i32\n\nimpl Sum:\n    ## Doubles.\n    pub fn double(self) -> Sum: self\n",
+        include_str!("programs/doc_links/money.hd"),
     ),
 ];
 
-const LIB: &str = "\
-## The shop. See [`total`] and [`std.text.split`].
+const LIB: &str = include_str!("programs/doc_links/lib.hd");
 
-## Sums a [`helper`] result, like [`Cart.add`] does.
-pub fn total() -> i32:
-    helper()
+const CART: &str = include_str!("programs/doc_links/cart.hd");
 
-fn helper() -> i32: 1
-";
-
-const CART: &str = "\
-## Carts, summed by [`total`].
-
-use pkg.{total}
-use dep.money.{Sum, cents}
-
-## A cart that costs [`cents`], [`Sum.double`], [`Sum.n`] and [`sluggify`], not [`Sum.nope`].
-pub struct Cart:
-    pub n: i32
-
-impl Cart:
-    ## Adds to a [`Cart`].
-    pub fn add(self) -> Cart: self
-";
-
-const DEEP: &str = "\
-## Deep. See [`total`] and [`Cart.add`].
-
-use pkg.{total}
-use pkg.cart.{Cart}
-";
+const DEEP: &str = include_str!("programs/doc_links/deep.hd");
 
 fn project(name: &str) -> (Scratch, Scratch) {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);

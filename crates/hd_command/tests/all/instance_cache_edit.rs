@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 
 use hd_testkit::Scratch;
 
-const MAIN: &str = "use pkg.gen.keep\n\npub struct A:\n    pub v: i64\n\npub fn main() -> void $ Console:\n    println(keep(A { v: 1 }).len() + keep(\"s\").len())\n";
+const MAIN: &str = include_str!("programs/instance_cache_edit/main.hd");
 
-const GEN: &str = "use pkg.util.bump\n\npub fn keep[T](x: T) -> List[T]:\n    xs := [x]\n    if bump(xs.len()) > 9:\n        return []\n    xs\n";
+const GEN: &str = include_str!("programs/instance_cache_edit/gen.hd");
 
 fn package(name: &str, bump: &str) -> Scratch {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
@@ -67,7 +67,7 @@ fn an_edit_to_a_body_an_instance_folded_in_rebuilds_the_instance() {
     let old = build(&root);
     std::fs::write(
         root.join("src/util.hd"),
-        "pub fn bump(x: usize) -> usize:\n    x + 20\n",
+        include_str!("programs/instance_cache_edit/an_edit_to_a_body_an_instance_folded_in_rebuilds_the_instance.hd"),
     )
     .expect("edit");
     let new = build(&root);

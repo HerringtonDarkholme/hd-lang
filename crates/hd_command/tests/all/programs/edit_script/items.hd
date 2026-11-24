@@ -1,0 +1,34 @@
+## The state of an order.
+@derive(Eq)
+pub enum Status:
+    Pending
+    Paid(amount: i64)
+
+## A line item.
+pub struct Item:
+    pub name: string
+    pub price: i64
+    pub count: i32
+    pub status: Status
+
+## Something with a cost.
+pub trait Costed:
+    fn cost(self) -> i64
+
+impl Costed for Item:
+    fn cost(self) -> i64:
+        self.price * i64(self.count)
+
+## The total cost of the items.
+pub fn total(items: List[Item]) -> i64:
+    let sum: i64 = 0
+    for item in items:
+        sum = sum + item.cost() + bump()
+    sum
+
+## Twice the total.
+pub fn double(items: List[Item]) -> i64:
+    total(items) * 2
+
+fn bump() -> i64:
+    0

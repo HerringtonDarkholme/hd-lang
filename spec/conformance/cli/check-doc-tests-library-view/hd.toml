@@ -1,0 +1,5 @@
+[package]
+name = "app2"
+
+[capabilities]
+Console = true

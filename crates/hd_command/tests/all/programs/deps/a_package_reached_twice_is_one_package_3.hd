@@ -1,0 +1,4 @@
+use dep.cash.{Coin}
+
+pub fn take(c: Coin) -> i32:
+    c.cents

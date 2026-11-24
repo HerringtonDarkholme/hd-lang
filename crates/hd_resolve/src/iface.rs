@@ -17,7 +17,9 @@ use hd_types::solver::{
     Declarations, HeadKey, ImplOrigin, ImplTable, PlanStep, SealedTraits, TypeDecl,
 };
 use hd_types::wire::{TableWriter, Tables};
-use hd_types::{ConstValue, CopyDecl, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{
+    ConstValue, CopyDecl, FnDeps, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList,
+};
 
 /// The segment prefix of a local declaration's hidden scope; `#` is in no
 /// identifier, so no field or parameter default (also `Hidden`) has it.
@@ -1050,6 +1052,17 @@ pub struct Export {
     pub kind: HeadKind,
 }
 
+/// A foreign primitive spelling that failed ordinary name resolution.
+/// User declarations with these names still resolve normally.
+#[must_use]
+pub fn numeric_type_hint(name: &str) -> &'static str {
+    if matches!(name, "isize" | "int" | "uint" | "float" | "double") {
+        "; use a fixed-width numeric type such as i32, i64 or f64; indices use usize"
+    } else {
+        ""
+    }
+}
+
 /// Where std offers a name a module did not import: the message's hint,
 /// and the one path to import when there is exactly one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -1138,6 +1151,57 @@ impl ImportIndex {
         }
         out
     }
+}
+
+/// The type a misspelt `name` most likely meant (#2332,
+/// [`hd_diag::suggest::best_match`]): a struct, enum, alias or newtype
+/// that `locals` binds at byte `at` or `scope` binds, `kind` telling an
+/// item's kind, or, given `params`, one of those type parameters or a
+/// builtin type; without them, a struct only, as a literal names. A near candidate is looked up in `scope`, so a scope that
+/// notes its lookups (#248) keys on it. Cost: one pass over the names in
+/// scope, on an error only.
+pub fn type_typo<'n>(
+    names: &'n Names<'_>,
+    (scope, locals, at): (&crate::ModuleScope, &crate::Locals, u32),
+    params: Option<&[Symbol]>,
+    name: &str,
+    kind: impl Fn(DefId) -> Option<HeadKind>,
+) -> Option<&'n str> {
+    let typed = params.is_some();
+    let builtins = ["never", "void"]
+        .into_iter()
+        .chain(Prim::ALL.iter().map(|p| p.name()))
+        .filter(|_| typed);
+    let params = params.unwrap_or_default();
+    let visible = locals
+        .items()
+        .iter()
+        .filter(|l| l.covers(at))
+        .map(|l| l.name);
+    let syms = params.iter().chain(&scope.name).copied().chain(visible);
+    let candidates: Vec<&str> = syms.map(|s| names.text(s)).chain(builtins).collect();
+    let builtin =
+        |c: &str| typed && (c == "never" || c == "void" || Prim::ALL.iter().any(|p| p.name() == c));
+    let fits = |k: HeadKind| {
+        if typed {
+            k.is_type()
+        } else {
+            k == HeadKind::Struct
+        }
+    };
+    hd_diag::suggest::best_match(name, candidates.iter().copied(), |c| {
+        let Some(s) = names.syms.find(c) else {
+            return builtin(c);
+        };
+        let item = match locals.at(s, at) {
+            Some(l) => Some(l.kind),
+            None => scope
+                .lookup(s)
+                .filter(|b| b.kind == crate::BindingKind::Item)
+                .and_then(|b| kind(DefId::from_raw(b.value))),
+        };
+        params.contains(&s) || builtin(c) || item.is_some_and(fits)
+    })
 }
 
 /// An import hint from the public std exports of `ifaces`, including the
@@ -2929,31 +2993,61 @@ pub fn folder_iface(
 /// Templates take no row; inherent blocks are not trait impls.
 #[must_use]
 pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
-    let by_def: HashMap<DefId, &Item> = impls.iter().map(|i| (i.def, *i)).collect();
-    let mut rows: Vec<(DefId, DefId, Ty, TyList, ImplKind, usize, Hash128)> = impls
+    // Keep each row's validated implementation data through sorting rather
+    // than rebuilding an item lookup and recovering from impossible misses.
+    struct Row<'a> {
+        trait_: DefId,
+        item: &'a Item,
+        self_ty: Ty,
+        args: TyList,
+        kind: ImplKind,
+        assoc: &'a [(DefId, Ty)],
+        outlives: bool,
+        rank: Hash128,
+    }
+    let mut rows: Vec<Row<'_>> = impls
         .iter()
-        .filter_map(|i| match i.data {
+        .filter_map(|i| match &i.data {
             ItemData::Impl {
                 trait_,
                 self_ty,
                 trait_args,
                 kind,
+                assoc,
+                self_lifetimes,
+                trait_slots,
                 ..
-            } if trait_ != DefId::NONE && kind.is_impl() => Some((
-                trait_,
-                i.def,
-                self_ty,
-                trait_args,
-                kind,
-                i.generics.len(),
-                names.path_hash(i.def),
-            )),
+            } if *trait_ != DefId::NONE && kind.is_impl() => Some(Row {
+                trait_: *trait_,
+                item: i,
+                self_ty: *self_ty,
+                args: *trait_args,
+                kind: *kind,
+                assoc,
+                outlives: self_lifetimes
+                    .iter()
+                    .chain(trait_slots)
+                    .any(|&l| l == STATIC_LIFETIME),
+                rank: names.path_hash(i.def),
+            }),
             _ => None,
         })
         .collect();
-    rows.sort_stable_by_key(|r| (names.path_hash(r.0), r.6));
+    rows.sort_stable_by_key(|r| (names.path_hash(r.trait_), r.rank));
     let mut t = ImplTable::default();
-    for (n, (trait_, def, self_ty, args, kind, n_params, rank)) in rows.into_iter().enumerate() {
+    for (n, r) in rows.into_iter().enumerate() {
+        let Row {
+            trait_,
+            item,
+            self_ty,
+            args,
+            kind,
+            assoc,
+            outlives,
+            rank,
+        } = r;
+        let def = item.def;
+        let generics = &item.generics;
         let n = u32::try_from(n).expect("impls");
         t.by_trait
             .entry(trait_.raw())
@@ -2966,29 +3060,13 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             ImplKind::UnionTemplate => HeadKey::UnionAny,
             _ => HeadKey::of(names.pool.types(), self_ty),
         });
-        t.n_params.push(u8::try_from(n_params).unwrap_or(u8::MAX));
+        t.n_params
+            .push(u8::try_from(generics.len()).unwrap_or(u8::MAX));
         t.head_self.push(self_ty);
         t.head_args.push(args);
-        let item = by_def.get(&def);
-        t.head_outlives.push(item.is_some_and(|i| {
-            match &i.data {
-                ItemData::Impl {
-                    self_lifetimes,
-                    trait_slots,
-                    ..
-                } => self_lifetimes
-                    .iter()
-                    .chain(trait_slots)
-                    .any(|&l| l == STATIC_LIFETIME),
-                _ => false,
-            }
-        }));
+        t.head_outlives.push(outlives);
         let mut plan = Vec::new();
-        for (gi, g) in item
-            .map_or(&[][..], |i| i.generics.as_slice())
-            .iter()
-            .enumerate()
-        {
+        for (gi, g) in generics.iter().enumerate() {
             for b in &g.bounds {
                 if let TyData::TraitValue {
                     def: tr,
@@ -3021,10 +3099,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             }
         }
         t.plan.push(plan);
-        t.assoc.push(match item.map(|i| &i.data) {
-            Some(ItemData::Impl { assoc, .. }) => assoc.clone(),
-            _ => vec![],
-        });
+        t.assoc.push(assoc.to_vec());
         t.origin.push(match kind {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
             ImplKind::UnionTemplate => ImplOrigin::UnionTemplate,
@@ -3111,6 +3186,26 @@ pub fn show_ty_qualified_in(
     show_ty_opts(names, pool, t, rows, true)
 }
 
+/// Qualified diagnostic rendering with short opaque bounds, owners and arguments.
+/// A caller comparing two types may fall back to full paths if these still clash.
+#[must_use]
+pub fn show_ty_diagnostic_in(
+    names: &Names<'_>,
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    rows: bool,
+) -> String {
+    let mut shower = Shower::new(
+        names,
+        pool,
+        (rows, true),
+        SHOWN_TYPE_BYTES,
+        SHOWN_TYPE_DEPTH,
+    );
+    shower.short_opaque_paths = true;
+    shower.show(t)
+}
+
 fn show_ty_opts(
     names: &Names<'_>,
     pool: hd_types::Types<'_>,
@@ -3131,29 +3226,35 @@ fn show_ty_opts(
 /// The lifetime marks of a function type's reference slots, inputs then
 /// result, for a message (`fn.type.lifetime.identity`): `None` when
 /// elision gives its map, else a name for each slot that shares one.
-fn lifetime_marks(pool: hd_types::Types<'_>, t: Ty) -> Option<Marks> {
-    // An open map names no shared lifetime ([`hd_types::FnDeps`]).
+fn lifetime_marks(
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    params: TyList,
+    result: Ty,
+    deps: FnDeps,
+    mut visit: impl FnMut(),
+) -> Option<Marks> {
+    // Keep validation of open or misaligned maps; the caller already decoded Fn.
     let (ins, outs) = pool.fn_ty_deps(t).filter(|(_, outs)| !outs.is_empty())?;
-    let TyData::Fn {
-        params,
-        result,
-        deps,
-        ..
-    } = pool.get(t)
-    else {
-        return None;
-    };
     if pool.fn_deps_written(pool.list_items(params), result, &[]) == deps {
         return None;
     }
-    let all: Vec<u32> = ins.iter().chain(outs).copied().collect();
-    let name = |l: u32| {
-        (l != 0 && all.iter().filter(|&&x| x == l).count() > 1)
-            .then(|| char::from(b'a' + u8::try_from((l - 1) % 26).unwrap_or(0)))
-    };
-    Some(std::cell::RefCell::new(
-        all.iter().map(|&l| name(l)).collect(),
-    ))
+    let mut first = HashMap::default();
+    let mut marks = std::collections::VecDeque::with_capacity(ins.len() + outs.len());
+    for (at, &lifetime) in ins.iter().chain(outs).enumerate() {
+        visit();
+        let earlier = *first.entry(lifetime).or_insert(at);
+        let shared = earlier != at;
+        let name = (shared && lifetime != 0)
+            .then(|| char::from(b'a' + u8::try_from((lifetime - 1) % 26).unwrap_or(0)));
+        if shared {
+            // Every earlier iteration appended one mark, so this index
+            // precedes the current end even if the deque's storage grew.
+            marks[earlier] = name;
+        }
+        marks.push_back(name);
+    }
+    Some(std::cell::RefCell::new(marks))
 }
 
 /// Each reference slot's mark, in [`hd_types::Types::ref_slots`] order.
@@ -3170,6 +3271,7 @@ struct Shower<'s, 'n> {
     pool: hd_types::Types<'s>,
     rows: bool,
     qualified: bool,
+    short_opaque_paths: bool,
     out: String,
     limit: usize,
     max_depth: u32,
@@ -3190,6 +3292,7 @@ impl<'s, 'n> Shower<'s, 'n> {
             pool,
             rows,
             qualified,
+            short_opaque_paths: false,
             out: String::new(),
             limit,
             max_depth,
@@ -3240,6 +3343,7 @@ impl<'s, 'n> Shower<'s, 'n> {
             self.limit.saturating_sub(self.out.len()),
             self.max_depth,
         );
+        sub.short_opaque_paths = self.short_opaque_paths;
         sub.ty(t, depth, None);
         (sub.out, sub.cut)
     }
@@ -3442,9 +3546,10 @@ impl<'s, 'n> Shower<'s, 'n> {
                 result,
                 row,
                 suspends,
+                deps,
                 ..
             } => {
-                let own = lifetime_marks(pool, t);
+                let own = lifetime_marks(pool, t, params, result, deps, || {});
                 let own = own.as_ref();
                 self.put(if suspends { "fn!(" } else { "fn(" });
                 self.list(pool.list_items(params), ", ", d, own);
@@ -3463,19 +3568,22 @@ impl<'s, 'n> Shower<'s, 'n> {
                 owner, args, bound, ..
             } => {
                 self.put("impl ");
-                let (shown, cut) = self.render(bound, d, self.rows);
-                let shown = match shown.strip_prefix("dyn ") {
-                    Some(rest) => rest.to_owned(),
-                    None => shown,
-                };
-                self.put_rendered((shown, cut));
-                if self.qualified {
+                // A bound renders as a trait name. `dyn` is emitted only
+                // by a reference, after its `&` or `*` prefix.
+                let qualified = self.qualified;
+                if self.short_opaque_paths {
+                    self.qualified = false;
+                }
+                let shown = self.render(bound, d, self.rows);
+                self.put_rendered(shown);
+                if qualified {
                     self.put(" returned by ");
                     self.seg(owner);
                     self.put("[");
                     self.list(pool.list_items(args), ", ", d, marks);
                     self.close("]");
                 }
+                self.qualified = qualified;
             }
             TyData::Param(p) => self.put(&self.names.param_name(p.owner, p.index)),
             TyData::Assoc { assoc, self_ty, .. } => {
@@ -3553,6 +3661,56 @@ mod tests {
             &[],
             Vec::new(),
         )
+    }
+
+    #[test]
+    fn function_lifetime_names_take_linear_work_at_width_and_depth() -> Result<(), &'static str> {
+        use hd_types::{Inputs, InternPool, RowId, Ty, TyData};
+        for width in [100, 1_000] {
+            for depth in [0, 20] {
+                let pool = InternPool::new();
+                let reference = pool.intern_ty(&TyData::Ref {
+                    inner: Ty::I32,
+                    mutable: false,
+                    counted: false,
+                });
+                let mut input = pool.product(pool.list(&vec![reference; width]), None);
+                for _ in 0..depth {
+                    input = pool.product(pool.list(&[input]), None);
+                }
+                let mut ins = vec![1; width];
+                ins[width - 1] = 2;
+                let params = pool.list(&[input]);
+                let deps = pool.types().fn_deps(&ins, &[2]);
+                let function = pool.intern_ty(&TyData::Fn {
+                    params,
+                    result: reference,
+                    row: RowId::EMPTY,
+                    suspends: false,
+                    inputs: Inputs::Fixed,
+                    deps,
+                });
+                let mut work = 0;
+                let marks =
+                    super::lifetime_marks(pool.types(), function, params, reference, deps, || {
+                        work += 1;
+                    })
+                    .ok_or("non-elided function lifetimes")?;
+                let marks = marks.borrow();
+                assert_eq!(marks.len(), width + 1);
+                // Dependency canonicalization splits input lifetimes absent from
+                // the result; only the last input/result pair shares a name.
+                assert!(marks.iter().take(width - 1).all(Option::is_none));
+                assert!(marks[width - 1].is_some());
+                assert_eq!(marks[width - 1], marks[width]);
+                println!("width={width} depth={depth} lifetime_id_visits={work}");
+                assert!(
+                    work <= width + 1,
+                    "{work} lifetime-ID visits at width {width}, depth {depth}"
+                );
+            }
+        }
+        Ok(())
     }
 
     #[test]

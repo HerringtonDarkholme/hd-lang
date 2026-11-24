@@ -4,3 +4,29 @@ run: hd test --format json tasks/seed.hd
 stdout-json: [{"kind":"test","name":"seeds two rows","outcome":"passed"},{"kind":"summary","passed":1,"failed":0,"status":0}]
 run: hd test --format json
 stdout-json: [{"kind":"test","name":"seeds two rows","outcome":"passed"},{"kind":"test","name":"runs the seed task","outcome":"passed"},{"kind":"summary","errors":0,"passed":2,"failed":0,"status":0}]
+# `hd run NAME` runs the executable of that name or a task, and names a NAME
+# that is neither (`cli.run.name`).
+run: hd run shop
+stdout: shop is open
+run: hd run seed
+stdout: seeded 2 rows
+run: hd run missing
+exit: 101
+stderr: error: package `shop` has no executable or task named `missing`
+# `hd run FILE` is an error that suggests `hd run` and `hd run NAME`
+# (`cli.run.file`), and a directory suggests `-p NAME`
+# (`cli.command.positional.package-directory`).
+run: hd run src/main.hd
+exit: 101
+stdout-json: []
+stderr: error: `hd run` takes no FILE (`src/main.hd`); use `hd run` for the package's executable or `hd run NAME` for a named executable or task, and `hd FILE` to run one file
+run: hd run tasks/seed.hd
+exit: 101
+stdout-json: []
+stderr: error: `hd run` takes no FILE (`tasks/seed.hd`); use `hd run` for the package's executable or `hd run NAME` for a named executable or task, and `hd FILE` to run one file
+run: hd run tasks/
+exit: 101
+stderr: error: `tasks/` is a directory, neither a NAME nor a FILE; select a package member with `-p NAME`
+# `hd FILE` runs a file of a package as a single file (`cli.file.run`).
+run: hd tasks/seed.hd
+stdout: seeded 2 rows

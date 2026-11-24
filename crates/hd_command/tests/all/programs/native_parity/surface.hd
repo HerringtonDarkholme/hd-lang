@@ -1,0 +1,33 @@
+pub enum Command:
+    Text(id: u32, text: string)
+    Move(id: u32, x: f64, y: f64)
+    Style(id: u32, color: string?, bold: bool)
+
+pub enum UiEvent:
+    Click(id: u32)
+    Key(code: u32)
+
+@host
+pub trait Surface:
+    fn apply!(&mut self, commands: List[Command]) -> void
+    fn next_event!(&mut self) -> UiEvent
+
+pub fn main!() -> void $ Console + Surface:
+    let i = +0
+    while i < READY:
+        $.use(Surface).apply!(
+            [
+                Command.Text(1, "hello"),
+                Command.Move(1, 2.0, 3.0),
+                Command.Style(1, .Some("red"), true),
+            ],
+        )
+        i += 1
+    let clicks = +0
+    let j = +0
+    while j < PENDING:
+        match $.use(Surface).next_event!():
+            .Click(_) => clicks += 1
+            .Key(_) => pass
+        j += 1
+    println("$i $clicks")

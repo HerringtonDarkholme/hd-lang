@@ -180,7 +180,7 @@ export interface Host {
   imports: DynamicRecord;
   run(
     instance: HostInstance,
-    init: string,
+    init: string | null,
     poll: string,
     options?: { driver?: Dynamic; cancel?: Dynamic },
   ): Promise<RunResult>;

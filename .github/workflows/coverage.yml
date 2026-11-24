@@ -1,18 +1,24 @@
 name: Coverage
 
-# Core coverage on its own workflow, every 3 hours on main and by hand
-# (moved out of Test on 2026-11-16). Two core-coverage drops that day (#2065,
-# hd_types; #2071, hd_tir) surfaced only at Test's twice-daily run, one 7.7 h
-# after the commit that caused it. Test's own schedule stays twice a day: it
-# also starts the Windows and macOS host jobs. Coverage stays off push runs:
+# Core coverage on its own workflow, twice a day on main and by hand. It
+# ran every 3 hours from 2026-11-16, but each run takes 46-75 minutes
+# (about 8 runner-hours a day, half of it timed out), so it runs twice a day
+# until #2342 cuts its time. Test's own schedule is also twice a day: it
+# starts the Windows and macOS host jobs. Coverage stays off push runs:
 # three instrumented conformance runs are too slow for every push.
 on:
   schedule:
-    - cron: "53 */3 * * *"
+    - cron: "53 5,17 * * *"
   workflow_dispatch:
+    inputs:
+      attribute:
+        description: "Retain per-set profiles and measure unique core lines"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  actions: read
 
 # One run at a time; a newer one waits instead of cancelling the running one.
 concurrency:
@@ -25,8 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
-      # The full history, so a drop lists the uncovered lines changed since the
-      # baseline's commit.
+      # Full history maps the previous measured run's uncovered lines.
       - name: Check out
         uses: actions/checkout@v5
         with:
@@ -55,10 +60,13 @@ jobs:
           tool: cargo-llvm-cov@0.6.14
 
       - name: Measure and check
-        run: node scripts/coverage.ts --check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/coverage.ts --check ${{ inputs.attribute && '--attribute' || '' }}
 
       - name: Store the report
-        if: ${{ !cancelled() }}
+        # Keep completed sets even when a later set hits the job timeout.
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: core-coverage
@@ -67,4 +75,5 @@ jobs:
             bench/coverage/summary.md
             bench/coverage/uncovered/
             target/coverage/lcov.info
+            target/coverage/sets/
           if-no-files-found: ignore

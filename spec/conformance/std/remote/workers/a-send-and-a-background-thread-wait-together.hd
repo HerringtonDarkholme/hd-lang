@@ -1,0 +1,16 @@
+# test: a send waits together with a task that waits for a background thread, and each wakes when its own work ends
+# Spec std Remote, Workers: std-remote.workers.host; Spec std Host, Host Operations: std-host.op.wait.
+# expect-stdout: 9 42
+use std.remote.Workers
+use std.task.join
+use std.thread.background
+
+fn square!(n: u64) -> u64 $ Workers:
+    $.use(Workers).run!(fn() -> u64: n * n).unwrap_or(0)
+
+fn answer!() -> u64:
+    background!(fn() -> u64: 6 * 7)
+
+pub fn main!() -> void $ Console + Workers:
+    let (a, b) = join!(square(3), answer())
+    println("$a $b")

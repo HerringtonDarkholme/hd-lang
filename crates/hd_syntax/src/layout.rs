@@ -101,7 +101,9 @@ pub struct LayoutCursor<'t> {
     prepared: usize,
     opening: Option<bool>,
     eof: bool,
-    pub(crate) errors: Vec<(Code, usize, String)>,
+    /// Each error: its code, token, message, and the text that replaces
+    /// that token when one edit is certain.
+    pub(crate) errors: Vec<(Code, usize, String, Option<&'static str>)>,
 }
 
 impl<'t> LayoutCursor<'t> {
@@ -212,8 +214,7 @@ impl<'t> LayoutCursor<'t> {
                     Code::UnexpectedIndentation,
                     self.pos,
                     "a nested suite's body must be deeper than the statement that contains its header"
-                        .to_owned(),
-                ));
+                        .to_owned(), None));
                 self.opening = Some(closure);
                 self.force_open(header);
                 return SuiteKind::Indented;
@@ -325,6 +326,7 @@ impl<'t> LayoutCursor<'t> {
                     Code::SyntaxError,
                     self.pos,
                     format!("expected a line ending before {found} after a closure body"),
+                    None,
                 ));
             }
             if !newline {
@@ -395,7 +397,7 @@ impl<'t> LayoutCursor<'t> {
                 } else {
                     not_active_level(column)
                 };
-                self.errors.push((code, self.pos, message));
+                self.errors.push((code, self.pos, message, None));
             }
             if !newline {
                 self.pending.push_back(Layout::Newline);
@@ -416,13 +418,18 @@ impl<'t> LayoutCursor<'t> {
                     format!(
                         "expected ',' or a closing delimiter after the closure body, found {found}"
                     ),
+                    None,
                 ));
             }
             let parent = self.blocks.top();
             if !nested && parent.depth == self.depth && column > parent.indent {
                 // lex.indent.unknown-column: go on at the parent's level.
-                self.errors
-                    .push((Code::InvalidDedent, self.pos, not_active_level(column)));
+                self.errors.push((
+                    Code::InvalidDedent,
+                    self.pos,
+                    not_active_level(column),
+                    None,
+                ));
                 let parent = self.blocks.top_mut();
                 parent.logical = column;
                 parent.piped = false;
@@ -452,6 +459,7 @@ impl<'t> LayoutCursor<'t> {
                 Code::SyntaxError,
                 self.pos,
                 format!("a {what} line cannot continue a line whose same-line suite is still open"),
+                None,
             ));
         } else if dot && block.piped {
             // lex.pipe.no-dot-line
@@ -460,6 +468,7 @@ impl<'t> LayoutCursor<'t> {
                 self.pos,
                 "a leading-dot line cannot continue a pipe chain; write the call as a step, such as '|> _.name()'"
                     .to_owned(),
+                Some("|> _."),
             ));
         }
         true
@@ -500,7 +509,7 @@ mod tests {
 
     #[test]
     fn emits_depth_zero_layout() {
-        let layouts = layouts("fn f():\n    +1\nnext := +2\n");
+        let layouts = layouts(include_str!("layout_suite.hd"));
         assert_eq!(
             layouts,
             [
@@ -515,7 +524,7 @@ mod tests {
 
     #[test]
     fn bracket_continuation_suppresses_layout() {
-        let layouts = layouts("values := [\n    +1,\n    +2,\n]\nnext := +3\n");
+        let layouts = layouts(include_str!("layout_brackets.hd"));
         assert_eq!(layouts, [Layout::Newline, Layout::Newline]);
     }
 }

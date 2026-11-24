@@ -17,21 +17,21 @@ fn probe(items: UniqList[string]) -> string:
 >   local $2 p: *mut Outer [:= read assigned] value
 >     uses $2: %9 -> %10 lend last
 >   local $3 r: &string [:= read assigned] value
->     uses $3: %58 -> %61 lend last
+>     uses $3: %56 -> %59 lend last
 >   local $4 junk: string [:= read assigned] value
->     uses $4: %60 -> %67 lend last
+>     uses $4: %58 -> %63 lend last
 >   local $5 self: &string? [read] value
->     uses $5: %34 -> %36 lend last
+>     uses $5: %33 -> %35 lend last
 >   local $6 message: string [read] value
->     uses $6: %35 -> %40 lend last
+>     uses $6: %34 -> %39 lend last
 >   local $7 value: &string [read assigned] value
->     uses $7: %44 -> %37 consume last
+>     uses $7: %43 -> %36 consume last
 >   local $8 self: &UniqList[string] [read] value
 >     uses $8: %12 -> %15 lend, %19 lend last
 >   local $9 index: usize [read] value
 >     uses $9: %13 -> %14 lend, %21 lend last
 >   local $10 $temporary_owner: bool [read assigned] value
->     uses $10: %1 -> %74 lend last
+>     uses $10: %1 -> %70 lend last
 >   %0 = Intrinsic ParamOwned [0:i32] : bool
 >   %1 = Store [$10] %0 : ()
 >   %2 = Read move [$0] : UniqList[string]
@@ -42,11 +42,11 @@ fn probe(items: UniqList[string]) -> string:
 >   %7 = Store [$1] %5 : ()
 >   %8 = Ref take mut [$1] : *mut Outer
 >   %9 = Store [$2] %8 : ()
->   %74 = Read copy [$10] : bool
->   %75 = Drop [$0] : ()
->   %76 = Block - : ()
->   %77 = If %74 [%76 -] : ()
->   %78 = Block %69 : string
+>   %70 = Read copy [$10] : bool
+>   %71 = Drop [$0] : ()
+>   %72 = Block - : ()
+>   %73 = If %70 [%72 -] : ()
+>   %74 = Block %65 : string
     r := p.items.get_ref(0).expect("slot")
 >   %10 = Ref local [*$2 .items] : &UniqList[string]
 >   %11 = LoanBegin %10 #0 : ()
@@ -71,45 +71,41 @@ fn probe(items: UniqList[string]) -> string:
 >   %30 = Block - : &string?
 >   %31 = Scope %30 [] : &string?
 >   %32 = LoanEnd [$8] : ()
->   %33 = LoanBegin %31 #4 : ()
->   %34 = Store [$5] %31 : ()
->   %35 = Store [$6] "slot" : ()
->   %36 = Read borrow [$5] : &string?
->   %37 = Read copy [$7] : &string
->   %38 = Retain %37 Value #0 : ()
->   %39 = Block %37 : &string
->   %40 = Read borrow [$6] : string
->   %41 = Call std/core/panic[] (%40) : never
->   %42 = Block - : never
->   %43 = Read borrow [%36 as #1 .0] : &string
->   %44 = Store [$7] %43 : ()
->   %46 = Block - : never
->   %49 = SwitchTag %36 [#1 %46 %48] : never
->   %50 = Block - : never
->   %51 = Match %36 [%50 %39 %42] : &string
->   %52 = Break L0 %51 : never
->   %53 = Block - : &string
->   %54 = Scope %53 [] : &string
->   %55 = Drop [$6] : ()
->   %56 = LoanEnd [$5] : ()
->   %57 = LoanBegin %54 #4 : ()
->   %58 = Store [$3] %54 : ()
+>   %33 = Store [$5] %31 : ()
+>   %34 = Store [$6] "slot" : ()
+>   %35 = Read borrow [$5] : &string?
+>   %36 = Read copy [$7] : &string
+>   %37 = Retain %36 Value #0 : ()
+>   %38 = Block %36 : &string
+>   %39 = Read borrow [$6] : string
+>   %40 = Call std/core/panic[] (%39) : never
+>   %41 = Block - : never
+>   %42 = Read borrow [%35 as #1 .0] : &string
+>   %43 = Store [$7] %42 : ()
+>   %45 = Block - : never
+>   %48 = SwitchTag %35 [#1 %45 %47] : never
+>   %49 = Block - : never
+>   %50 = Match %35 [%49 %38 %41] : &string
+>   %51 = Break L0 %50 : never
+>   %52 = Block - : &string
+>   %53 = Scope %52 [] : &string
+>   %54 = Drop [$6] : ()
+>   %55 = LoanEnd [$5] : ()
+>   %56 = Store [$3] %53 : ()
     junk := "j".repeat(4)
->   %59 = Call std/text/impl string.repeat[] ("j", 4:usize) : string
->   %60 = Store [$4] %59 : ()
+>   %57 = Call std/text/impl string.repeat[] ("j", 4:usize) : string
+>   %58 = Store [$4] %57 : ()
     *r + junk
->   %61 = Read copy [*$3] : string
->   %62 = Retain %61 Value #0 : ()
->   %63 = LoanClose %11 : ()
->   %64 = LoanClose %33 : ()
->   %65 = LoanClose %57 : ()
->   %66 = Drop [$3] : ()
->   %67 = Read move [$4] : string
->   %68 = Intrinsic Empty [] : ()
->   %69 = Intrinsic StrConcat [%61 %67] : string
->   %70 = Release %69 Operation operand 0 #2 : ()
->   %71 = Drop [%67] : ()
->   %72 = Drop [%61] : ()
->   %73 = Drop [$2] : ()
+>   %59 = Read copy [*$3] : string
+>   %60 = Retain %59 Value #0 : ()
+>   %61 = LoanClose %11 : ()
+>   %62 = Drop [$3] : ()
+>   %63 = Read move [$4] : string
+>   %64 = Intrinsic Empty [] : ()
+>   %65 = Intrinsic StrConcat [%59 %63] : string
+>   %66 = Release %65 Operation operand 0 #2 : ()
+>   %67 = Drop [%63] : ()
+>   %68 = Drop [%59] : ()
+>   %69 = Drop [$2] : ()
 >   exit sub 0 drops [$0]
 >   storage sub 0: $1 cell

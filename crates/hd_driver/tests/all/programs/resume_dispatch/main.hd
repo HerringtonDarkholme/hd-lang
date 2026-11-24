@@ -1,0 +1,11 @@
+use std.time.{Clock, Duration, sleep}
+
+pub fn main!() -> void $ Console + Clock:
+    let i: i32 = 0
+    while i < 3:
+        sleep!(Duration::milliseconds(1))
+        println("a")
+        sleep!(Duration::milliseconds(1))
+        println("b")
+        sleep!(Duration::milliseconds(1))
+        i += 1

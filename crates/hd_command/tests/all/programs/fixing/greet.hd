@@ -1,0 +1,5 @@
+pub trait Greet:
+    fn greet(self) -> string
+
+pub fn twice(g: Greet) -> string:
+    g.greet() + g.greet()

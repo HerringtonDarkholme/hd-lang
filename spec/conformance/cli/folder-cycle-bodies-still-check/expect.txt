@@ -1,0 +1,10 @@
+# The folders of a cycle resolve together: the cycle is one error, the uses
+# across it still resolve, and a body error in one of them is still found.
+run: hd check
+exit: 101
+stderr: error: src/a/x.hd:1:1: folder-cycle: src/a/x -> src/b/y -> src/a/x
+stderr:   src/a/x.hd:1:1: use pkg.b.y.{two}
+stderr:   src/b/y.hd:1:1: use pkg.a.x.{one}
+stderr: tangle of 2 folders; move src/a/x.hd to src/a/x/mod.hd
+stderr:     fix: move src/a/x.hd to src/a/x/mod.hd
+stderr: error: src/b/y.hd:4:13: unknown-name: `missing` is not defined

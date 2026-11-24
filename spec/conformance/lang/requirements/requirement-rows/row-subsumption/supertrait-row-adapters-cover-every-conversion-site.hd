@@ -98,7 +98,10 @@ pub fn main() -> void $ Console:
     assigned = fn() -> i32 $ Base: original()
     holder := Holder { callback: original }
     let callbacks: List[fn() -> i32 $ Named] = [original, fn() -> i32 $ Base: original()]
-    let branch: fn() -> i32 $ Named = if true: original else: fn() -> i32 $ Base: original()
+    let branch: fn() -> i32 $ Named = if true:
+        original
+    else:
+        fn() -> i32 $ Base: original()
     captured := "x"
     closure := fn() -> i32 $ Base: original() + i32(captured.len())
     let converted: fn() -> i32 $ Named = closure

@@ -139,7 +139,7 @@ fn instruction_origins_survive_nbody_advance_and_leave_bytes_unchanged() {
 
 #[test]
 fn instruction_origins_are_rebuilt_on_a_warm_link_cache() {
-    let source = "pub fn main() -> void $ Console:\n    println(7)\n";
+    let source = include_str!("programs/instruction_origins/print.hd");
     let store = MemoryStore::default();
     let first = compile(&store, source, EngineTarget::V8, OptLevel::Dev, false);
     let cached = compile(&store, source, EngineTarget::V8, OptLevel::Dev, false);
@@ -269,7 +269,7 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
 fn instruction_origins_put_scope_exit_releases_on_the_scope() {
     // The interpolation's moved/zeroed slots need no exit release. The unused
     // owned parameter stays live until the scope exits and must be released.
-    let source = "fn length(value: string, unused: string) -> usize:\n    text := \"$value!\"\n    text.len()\n\npub fn main() -> void $ Console:\n    println(length(\"work\", \"still owned\"))\n";
+    let source = include_str!("programs/instruction_origins/scope_exit.hd");
     let output = compile(
         &MemoryStore::default(),
         source,

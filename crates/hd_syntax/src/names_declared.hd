@@ -1,0 +1,9 @@
+use std.cmp.{max as most}
+
+trait Shape:
+    fn area(self) -> f64
+
+fn bonus() -> i32:
+    +1
+
+rate := +3

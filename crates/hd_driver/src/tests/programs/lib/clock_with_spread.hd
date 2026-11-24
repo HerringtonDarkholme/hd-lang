@@ -1,0 +1,4 @@
+use std.time.{Clock, ManualClock, Timestamp, now}
+context := $.context(Clock=ManualClock::new(Timestamp::from_unix_milliseconds(0)))
+$.with(context...):
+    _ := now()

@@ -1,62 +1,49 @@
+//! Parser fix-it internals: where a missing import goes, by byte offset in LF
+//! and CRLF text, and the edit count of a long `mut` prefix. What each parser
+//! fix-it edits is a stage case under
+//! `crates/hd_check/tests/cases/syntax-fix-its/`.
+
 use hd_base::SliceSort as _;
 use hd_syntax::{UseInsertion, parse};
 
+use super::corpus::{blocks, stage_cases};
+
+/// A parser fix-it case is of one kind. Either every diagnostic has exactly
+/// one fix-it, and the file with all of them applied parses clean; or no
+/// diagnostic has a fix-it, and each snippet is rejected alone.
 #[test]
-fn moved_punctuation_and_documentation_fixes_parse() {
-    for (source, corrected) in [
-        ("fn f!(): value()!\n", "fn f!(): value!()\n"),
-        ("fn f!(): value!()!\n", "fn f!(): value!()\n"),
-        (
-            "fn f!(): value::[i32](+1)!\n",
-            "fn f!(): value!::[i32](+1)\n",
-        ),
-        ("fn f(xs: P): [...xs, 1]\n", "fn f(xs: P): [xs..., 1]\n"),
-        ("fn f(xs: P): [...`xs`]\n", "fn f(xs: P): [`xs`...]\n"),
-        (
-            "# café\n/// Returns a value.\nfn f(): +1\n",
-            "# café\n## Returns a value.\nfn f(): +1\n",
-        ),
-        (
-            "/// Public value.\npub struct Value: pass\n",
-            "## Public value.\npub struct Value: pass\n",
-        ),
-    ] {
+fn a_fix_it_case_fixes_every_diagnostic_or_none() {
+    // cost: one walk of the topic's folder; each case is parsed once whole,
+    // then once more fixed or once per snippet.
+    for path in stage_cases("hd_check", "syntax-fix-its") {
+        let source = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
         let parsed = parse(source.as_bytes());
-        let fixes: Vec<_> = parsed.diagnostics.iter().flat_map(|d| &d.fixes).collect();
-        assert_eq!(fixes.len(), 1, "{source}: {:?}", parsed.diagnostics);
-        let mut edits = fixes[0].edits.clone();
+        assert!(!parsed.is_ok(), "{}: no diagnostic", path.display());
+        if parsed.diagnostics.iter().all(|d| d.fixes.is_empty()) {
+            for snippet in blocks(&source) {
+                let alone = parse(snippet.as_bytes());
+                assert!(!alone.is_ok(), "{snippet}");
+                assert!(
+                    alone.diagnostics.iter().all(|d| d.fixes.is_empty()),
+                    "{snippet}: {:?}",
+                    alone.diagnostics
+                );
+            }
+            continue;
+        }
+        let mut edits = Vec::new();
+        for d in &parsed.diagnostics {
+            assert_eq!(d.fixes.len(), 1, "{}: {d:?}", path.display());
+            edits.extend(d.fixes[0].edits.iter().cloned());
+        }
         edits.sort_stable_by_key(|(span, _)| std::cmp::Reverse(span.lo));
-        let mut edited = source.to_owned();
+        let mut edited = source.clone();
         for (span, replacement) in edits {
             edited.replace_range(span.lo as usize..span.hi as usize, &replacement);
         }
-        assert_eq!(edited, corrected);
         let checked = parse(edited.as_bytes());
         assert!(checked.is_ok(), "{edited}: {:?}", checked.diagnostics);
-    }
-}
-
-#[test]
-fn incomplete_spreads_and_other_comment_positions_have_no_fix() {
-    for source in [
-        "fn f!(): value() !\n",
-        "fn f(): [...]\n",
-        "fn f(): [..., value]\n",
-        "fn f(): [...value...]\n",
-        "fn f(): [...value +]\n",
-        "fn f(): [...copy(value)]\n",
-        "fn f(): [...value.]\n",
-        "fn f():\n    /// Not declaration documentation.\n    pass\n",
-        "/// Separated.\n\nfn f(): pass\n",
-        "/// Before a binding.\nvalue := +1\n",
-    ] {
-        let parsed = parse(source.as_bytes());
-        assert!(!parsed.is_ok(), "{source}");
-        assert!(
-            parsed.diagnostics.iter().all(|d| d.fixes.is_empty()),
-            "{source}: {:?}",
-            parsed.diagnostics
-        );
     }
 }
 

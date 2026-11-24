@@ -1,41 +1,33 @@
-# test: a `for` loop's counted element binding over a place is lent from that place, as a pattern or `let` binding is
-# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
-# ref.dep.origin.element. Each loop reads elements of a list in `n`.
+# test: a `for` loop's counted element binding over a place is returned as the counted reference itself, since a reference lent from it is local
+# Spec 13 Local References: ref.local.pointer; Spec 13 Origins:
+# ref.dep.origin.lend, ref.dep.origin.binding, ref.dep.origin.element.
+# Each loop reads elements of a list in `n` and hands out the `*Node`.
 struct Node:
     value: i32
     kids: List[*Node]
 
-impl Node:
-    fn me(&self) -> &Node:
-        self
-
-fn last(n: &Node) -> &Node:
+fn last(n: *Node) -> *Node:
     for k in n.kids:
         return last(k)
     n
 
-fn through_let(n: &Node) -> &Node:
+fn through_let(n: *Node) -> *Node:
     kids := n.kids
     for k in kids:
         return through_let(k)
     n
 
-fn receiver(n: &Node) -> &Node:
-    for k in n.kids:
-        return k.me()
-    n
-
-fn returned(n: &Node) -> &Node:
+fn returned(n: *Node) -> *Node:
     for k in n.kids:
         if k.value > 0:
             return k
     n
 
-fn by_index(n: &Node) -> &Node:
+fn by_index(n: *Node) -> *Node:
     for i in 0..n.kids.len():
         return last(n.kids[i])
     n
 
-fn in_comprehension(n: &Node) -> usize:
+fn in_comprehension(n: *Node) -> usize:
     values := [for k in n.kids => last(k).value]
     values.len()

@@ -1,0 +1,4 @@
+fn z[T](x: T) -> T:
+    x
+fn a[T](x: T) -> T:
+    x

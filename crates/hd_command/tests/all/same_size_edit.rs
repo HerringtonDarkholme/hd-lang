@@ -6,8 +6,7 @@ use std::path::Path;
 
 use hd_testkit::Scratch;
 
-const MAIN: &str =
-    "use pkg.price.price\n\npub fn main() -> void $ Console:\n    println(price())\n";
+const MAIN: &str = include_str!("programs/same_size_edit/main.hd");
 
 fn package(name: &str, price: &str) -> Scratch {
     let root = Scratch::new(env!("CARGO_TARGET_TMPDIR"), name);
@@ -46,8 +45,10 @@ fn build(root: &Path) -> Vec<u8> {
 
 #[test]
 fn an_edit_that_keeps_size_and_mtime_is_rebuilt() {
-    let before = "pub fn price() -> i32:\n    return 41\n";
-    let after = "pub fn price() -> i32:\n    return 42\n";
+    let before =
+        include_str!("programs/same_size_edit/an_edit_that_keeps_size_and_mtime_is_rebuilt.hd");
+    let after =
+        include_str!("programs/same_size_edit/an_edit_that_keeps_size_and_mtime_is_rebuilt_2.hd");
     assert_eq!(before.len(), after.len());
     let root = package("same-size-edit", before);
     let file = root.join("src/price.hd");

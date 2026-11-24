@@ -1,0 +1,5 @@
+use pkg.a.x.{one}
+use pkg.c.z.{three}
+
+pub fn two() -> i32:
+    one() + 1

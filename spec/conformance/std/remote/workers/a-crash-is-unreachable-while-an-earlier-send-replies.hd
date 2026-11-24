@@ -1,0 +1,27 @@
+# test: a worker that panics makes its send Unreachable while an earlier send in flight still gets its reply, and the next send starts another worker
+# Spec std Remote, Workers: std-remote.workers.host.
+# expect-stdout: 12 unreachable
+# expect-stdout: 5
+use std.remote.{CrossError, Workers}
+use std.task.join
+
+fn fail(n: u64) -> u64:
+    if n > 0:
+        panic("the worker stops")
+    n
+
+fn triple!(n: u64) -> Result[u64, CrossError] $ Workers:
+    $.use(Workers).run!(fn() -> u64: n * 3)
+
+fn crash!(n: u64) -> Result[u64, CrossError] $ Workers:
+    $.use(Workers).run!(fn() -> u64: fail(n))
+
+fn shown(result: Result[u64, CrossError]) -> string:
+    match result:
+        .Ok(n) => "$n"
+        .Err(cross) => "$cross"
+
+pub fn main!() -> void $ Console + Workers:
+    let (ran, lost) = join!(triple(4), crash(1))
+    println("${shown(ran)} ${shown(lost)}")
+    println(shown($.use(Workers).run!(fn() -> u64: 5)))

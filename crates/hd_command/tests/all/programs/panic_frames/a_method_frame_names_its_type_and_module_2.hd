@@ -1,0 +1,7 @@
+use pkg.cart.Cart
+
+fn first(c: Cart) -> i32:
+    c.take(2)
+
+it("flows"):
+    first(Cart { items: [] })

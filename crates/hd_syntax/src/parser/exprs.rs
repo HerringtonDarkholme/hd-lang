@@ -9,7 +9,7 @@ use crate::layout::SuiteKind;
 use crate::{Layout, SyntaxKind, TokenKind};
 
 /// Binding power and node of an infix operator.
-fn infix(kind: TokenKind) -> Option<(u8, SyntaxKind)> {
+pub(super) fn infix(kind: TokenKind) -> Option<(u8, SyntaxKind)> {
     Some(match kind {
         TokenKind::OrOr => (1, SyntaxKind::LogicalOrExpr),
         TokenKind::AndAnd => (2, SyntaxKind::LogicalAndExpr),
@@ -142,11 +142,7 @@ impl Parser<'_> {
             && self.nth(1) == Some(TokenKind::ColonEq)
         {
             // grammar.tests.keyword: a reserved word never names a binding.
-            let word = self.nth_text(0);
-            self.error(
-                Code::SyntaxError,
-                &format!("'{word}' is a reserved word, so it cannot name a binding"),
-            );
+            self.expected_name("a binding name");
             self.bound_keywords.push(kind);
             return self.binding_expr(ctx);
         }
@@ -729,7 +725,9 @@ impl Parser<'_> {
 
     fn binary(&mut self, min: u8) -> Done {
         let outer = core::mem::take(&mut self.links);
+        let first = self.pos();
         let mut lhs = self.unary();
+        self.foreign_cast(first, lhs.kind());
         let mut links = self.links;
         while let Some((power, kind)) = self.current().and_then(infix) {
             if power < min {
@@ -758,6 +756,58 @@ impl Parser<'_> {
         }
         self.links = outer.max(links);
         lhs
+    }
+
+    /// Diagnose after the whole unary operand. Only a clearly bounded
+    /// postfix or grouped operand receives an edit; other forms keep the
+    /// hint. No operand copy or speculative type parse.
+    fn foreign_cast(&mut self, first: usize, operand: SyntaxKind) {
+        if !self.at_word("as") || self.nth_line_first(0) {
+            return;
+        }
+        let error = self.errors.len();
+        self.error(
+            Code::SyntaxError,
+            "write a numeric cast as `T(value)`; for a collection, annotate the binding",
+        );
+        // Prefix operators and a following operation leave the intended
+        // conversion boundary uncertain. Keep the hint, without an edit.
+        let bounded = self.nth(2).is_none()
+            || self.nth_line_first(2)
+            || matches!(
+                self.nth(2),
+                Some(
+                    TokenKind::RParen | TokenKind::RBracket | TokenKind::RBrace | TokenKind::Comma
+                )
+            );
+        if (is_postfix(operand)
+            || matches!(operand, SyntaxKind::LiteralExpr | SyntaxKind::ParenExpr))
+            && bounded
+            && !self.nth_line_first(1)
+            && matches!(
+                self.nth_text(1),
+                "i8" | "u8"
+                    | "i16"
+                    | "u16"
+                    | "i32"
+                    | "u32"
+                    | "i64"
+                    | "u64"
+                    | "usize"
+                    | "f32"
+                    | "f64"
+            )
+        {
+            let target = self.nth_text(1);
+            let (lo, _) = self.token_span(first);
+            let end = self.toks.end[self.pos() - 1];
+            let (_, type_end) = self.token_span(self.pos() + 1);
+            self.fix_error(
+                error,
+                "write the numeric conversion as a call",
+                &[(lo, lo, &format!("{target}(")), (end, type_end, ")")],
+            );
+        }
     }
 
     /// A prefix expression and its `**` tail, without recursion. The
@@ -796,6 +846,15 @@ impl Parser<'_> {
             let mut tail = true;
             let mut done = loop {
                 let deref = self.at(TokenKind::Star);
+                if deref && self.nth(1) == Some(TokenKind::KwMut) {
+                    let error = self.errors.len();
+                    self.error(
+                        Code::SyntaxError,
+                        "construct a writable reference with `&mut value`; `*mut T` is a type",
+                    );
+                    let (lo, hi) = self.token_span(self.pos());
+                    self.fix_error(error, "construct the writable reference", &[(lo, hi, "&")]);
+                }
                 let prefix = matches!(
                     self.current(),
                     Some(
@@ -942,51 +1001,6 @@ impl Parser<'_> {
             let link = self.pos();
             let callee = lhs.kind();
             match kind {
-                TokenKind::Ident
-                    if same_line
-                        && self.at_word("as")
-                        && lhs.kind() == SyntaxKind::NameExpr
-                        && first > 0
-                        && self.toks.kind[first - 1] == TokenKind::LParen
-                        && !self.nth_line_first(1)
-                        && self.nth(2) == Some(TokenKind::RParen)
-                        && matches!(
-                            self.nth_text(1),
-                            "i8" | "u8"
-                                | "i16"
-                                | "u16"
-                                | "i32"
-                                | "u32"
-                                | "i64"
-                                | "u64"
-                                | "usize"
-                                | "f32"
-                                | "f64"
-                        ) =>
-                {
-                    let target = self.nth_text(1);
-                    let end = self.toks.end[self.pos() - 1];
-                    let (_, type_end) = self.token_span(self.pos() + 1);
-                    let value = &self.src[start..end as usize];
-                    let error = self.errors.len();
-                    self.error(
-                        Code::SyntaxError,
-                        &format!("write '{target}({value})' for the numeric conversion"),
-                    );
-                    self.fix_error(
-                        error,
-                        "write the numeric conversion as a call",
-                        &[
-                            (
-                                self.toks.start[first],
-                                self.toks.start[first],
-                                &format!("{target}("),
-                            ),
-                            (end, type_end, ")"),
-                        ],
-                    );
-                    break;
-                }
                 TokenKind::Dot => {
                     match self.nth(1) {
                         Some(TokenKind::Ident | TokenKind::RawIdent) => {
@@ -1008,7 +1022,7 @@ impl Parser<'_> {
                             // grammar.expr.no-numeric-member, lex.raw.*
                             let at = self.pos() + 1;
                             let error = self.errors.len();
-                            self.expected_at("a member name after '.'", at);
+                            self.expected_name_at("a member name after '.'", at);
                             if self.nth(1) == Some(TokenKind::Number)
                                 && self.nth_text(1).bytes().all(|byte| byte.is_ascii_digit())
                             {
@@ -1331,10 +1345,12 @@ impl Parser<'_> {
                 if self.nth(1) == Some(TokenKind::Number) && self.nth_glued(1) {
                     // lex.float.no-bare-point
                     let at = self.pos();
-                    self.error_at(
-                        Code::InvalidToken,
-                        at,
-                        "a number needs a digit before '.': write '0.5'",
+                    let lo = self.token_span(at).0;
+                    let message = "a number needs a digit before '.': write '0.5'";
+                    self.error_fixed(
+                        (Code::InvalidToken, at, message),
+                        "write `0` before the `.`",
+                        &[(lo, lo, "0")],
                     );
                     self.bump();
                     self.bump();
@@ -1414,6 +1430,13 @@ impl Parser<'_> {
                             &[(lo, end, "##")],
                         );
                     }
+                } else if self.at_layout(Layout::Newline) {
+                    self.error(
+                        Code::SyntaxError,
+                        "a continued expression needs parentheses around the whole expression",
+                    );
+                } else if self.at(TokenKind::Pipe) || self.at(TokenKind::OrOr) {
+                    self.foreign_closure();
                 } else {
                     self.expected("an expression");
                 }
@@ -1430,6 +1453,53 @@ impl Parser<'_> {
                     self.bump();
                 }
                 self.complete(marker, SyntaxKind::Error)
+            }
+        }
+    }
+
+    /// Bare closure parameter lists have the same spelling in hd. Scan
+    /// only that prefix, once for a newly emitted diagnostic; do not scan
+    /// the body or repeat work for suppressed errors.
+    fn foreign_closure(&mut self) {
+        let error = self.errors.len();
+        self.error(
+            Code::SyntaxError,
+            "write a closure as `fn(x): expression` or `fn(): expression`",
+        );
+        if self.errors.len() == error {
+            return;
+        }
+        let first = self.pos();
+        let (lo, hi) = self.token_span(first);
+        if self.at(TokenKind::OrOr) {
+            self.fix_error(error, "write the closure with `fn`", &[(lo, hi, "fn():")]);
+            return;
+        }
+        let mut at = first + 1;
+        loop {
+            if self.nth_line_first(at - first) {
+                return;
+            }
+            if self.toks.kind.get(at) == Some(&TokenKind::Pipe) {
+                let (end, after) = self.token_span(at);
+                self.fix_error(
+                    error,
+                    "write the closure with `fn`",
+                    &[(lo, hi, "fn("), (end, after, "):")],
+                );
+                return;
+            }
+            if !matches!(
+                self.toks.kind.get(at),
+                Some(TokenKind::Ident | TokenKind::RawIdent)
+            ) {
+                return;
+            }
+            at += 1;
+            if self.toks.kind.get(at) == Some(&TokenKind::Comma) {
+                at += 1;
+            } else if self.toks.kind.get(at) != Some(&TokenKind::Pipe) {
+                return;
             }
         }
     }
@@ -1496,9 +1566,18 @@ impl Parser<'_> {
             comma = true;
         }
         if spread_seen && !comma {
-            self.error(
-                Code::SyntaxError,
-                "a lone spread in a tuple keeps its trailing comma: write '(xs...,)'",
+            let at = self.pos();
+            let lo = self.token_span(at).0;
+            let message = "a lone spread in a tuple keeps its trailing comma: write '(xs...,)'";
+            let edits: &[(u32, u32, &str)] = if self.at(TokenKind::RParen) {
+                &[(lo, lo, ",")]
+            } else {
+                &[]
+            };
+            self.error_fixed(
+                (Code::SyntaxError, at, message),
+                "add the trailing comma",
+                edits,
             );
         }
         self.expect_token(TokenKind::RParen, "')'");
@@ -1554,6 +1633,13 @@ impl Parser<'_> {
     fn list(&mut self) -> Done {
         let marker = self.start();
         self.bump(); // [
+        if self.at(TokenKind::Colon) && self.nth(1) == Some(TokenKind::RBracket) {
+            let error = self.errors.len();
+            self.error(Code::SyntaxError, "write an empty map as `{}`");
+            let (lo, _) = self.token_span(self.pos() - 1);
+            let (_, hi) = self.token_span(self.pos() + 1);
+            self.fix_error(error, "use the empty map literal", &[(lo, hi, "{}")]);
+        }
         if self.at(TokenKind::KwFor) && self.comprehension_ahead() {
             self.comprehension_clauses();
             if self.expect_token(TokenKind::FatArrow, "'=>'") {

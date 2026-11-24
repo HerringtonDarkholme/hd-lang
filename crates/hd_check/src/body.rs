@@ -1825,6 +1825,19 @@ impl Ck<'_, '_> {
         self.diags.error(code, span, msg);
     }
 
+    /// Attaches to the diagnostic pushed last the exact fix-it `title`
+    /// that inserts `text` at byte `at` of this file.
+    pub(crate) fn insert_fix(&mut self, title: &str, at: u32, text: &str) {
+        let file = self.cx.src.file;
+        let span = hd_base::Span {
+            file,
+            lo: at,
+            hi: at,
+        };
+        self.diags
+            .add_fix(title, hd_diag::FixSafety::Exact, &[(span, text)]);
+    }
+
     /// `trait-resolution-depth` once per use, a span: a type past a depth
     /// limit fails each proof and each projection that reaches it, and
     /// the first of them tells the cause. A projection chain of n
@@ -1869,7 +1882,7 @@ impl Ck<'_, '_> {
         let o = outs.iter().find(|&&o| o != 0)?;
         let k = ins.iter().position(|x| x == o)?;
         Some(format!(
-            "; the found result borrows from input reference {}, which the expected result may not borrow from",
+            "; result borrows from input {}; change the result lifetime annotation",
             k + 1
         ))
     }
@@ -1887,7 +1900,7 @@ impl Ck<'_, '_> {
         };
         if w.trim_start_matches("mut ") == g.trim_start_matches("mut ") {
             let qualified = |t| {
-                hd_resolve::iface::show_ty_qualified_in(
+                hd_resolve::iface::show_ty_diagnostic_in(
                     &self.cx.names,
                     pool,
                     self.infer.resolve(pool, t),
@@ -1896,6 +1909,20 @@ impl Ck<'_, '_> {
             };
             let (qw, qg) = (qualified(want), qualified(got));
             // A view of the same item still has the same qualified name.
+            if qw.trim_start_matches("mut ") != qg.trim_start_matches("mut ") {
+                return (qw, qg);
+            }
+            // Homonymous owners/types still need distinct paths. There are
+            // exactly two qualified forms, never a retry/fixpoint over types.
+            let full = |t| {
+                hd_resolve::iface::show_ty_qualified_in(
+                    &self.cx.names,
+                    pool,
+                    self.infer.resolve(pool, t),
+                    with_rows,
+                )
+            };
+            let (qw, qg) = (full(want), full(got));
             if qw.trim_start_matches("mut ") != qg.trim_start_matches("mut ") {
                 return (qw, qg);
             }
@@ -2649,7 +2676,7 @@ impl Ck<'_, '_> {
         if self.diags.len() == before && !joined && !self.perm_fits(got, want, true, 0) {
             let (want_s, got_s) = self.show_pair(want, got);
             let msg = format!(
-                "in {what}: expected {want_s}, found {got_s}; permissions inside a type convert only by declared variance, and a function type inside a type keeps its row"
+                "in {what}: expected {want_s}, found {got_s}; convert the value explicitly"
             );
             self.err(Code::TypeMismatch, n, &msg);
         }
@@ -4777,8 +4804,7 @@ impl Ck<'_, '_> {
                 let Some((l, depth)) = self.find_local(name) else {
                     let text = self.cx.names.text(name).to_owned();
                     if !self.is_poison_name(&text) {
-                        let msg = format!("`{text}` is not defined");
-                        self.err(Code::UnknownName, lhs, &msg);
+                        self.unknown_name(&text, lhs, crate::call::NameUse::Binding);
                     }
                     return Ok(());
                 };
@@ -4799,11 +4825,14 @@ impl Ck<'_, '_> {
                 } else if flags & local_flags::PARAM != 0
                     && !self.mut_params.iter().any(|(p, _)| *p == l)
                 {
-                    let msg = format!(
-                        "parameter `{}` cannot be reassigned",
-                        self.cx.names.text(name)
-                    );
+                    let text = self.cx.names.text(name).to_owned();
+                    let msg = format!("parameter `{text}` cannot be reassigned");
                     self.err(Code::NonReassignableParameterBinding, lhs, &msg);
+                    // A parameter is the function's own copy: `mut` is the
+                    // one way to reassign it.
+                    let syn = self.b.body_mut().local_syn[l.idx()];
+                    self.writable_binding_fix(&text, false, true, syn);
+                    self.diags.exact_last_fix();
                 }
                 let lt = self.b.local_ty(l);
                 let v = match compound {
@@ -4874,8 +4903,7 @@ impl Ck<'_, '_> {
                 if self.is_struct_ty(bt) {
                     let (_, bt) = self.promote_base(br, bt, &fname, lhs);
                     if self.field_of(bt, &fname).is_none() {
-                        let msg = format!("no field `{fname}` on {}", self.show(bt));
-                        self.err(Code::UnknownField, lhs, &msg);
+                        self.unknown_field(bt, &fname, lhs);
                         return Ok(());
                     }
                     self.check_field_visible(bt, &fname, lhs);
@@ -4908,8 +4936,7 @@ impl Ck<'_, '_> {
                     self.err(Code::InvalidAssignmentTarget, lhs, &msg);
                     return Ok(());
                 }
-                let msg = format!("no field `{fname}` on {}", self.show(bt));
-                self.err(Code::UnknownField, lhs, &msg);
+                self.unknown_field(bt, &fname, lhs);
             }
             SyntaxKind::IndexExpr => {
                 let [base, key] = lhs.parts();

@@ -88,6 +88,8 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/hint-and-fix-texts/cast-bracketed-type.hd",
     "cli/hint-and-fix-texts/cast-long-operand.hd",
     "cli/hint-and-fix-texts/cast-no-type.hd",
+    // A check --fix case whose parser errors each carry the edit they name.
+    "cli/check-fix-named-edits/src/syntax.hd",
 ];
 
 /// The cases `KNOWN_FAILURES.tsv` lists: a fixture path, or a CLI case
@@ -199,6 +201,159 @@ fn valid_sources_parse_clean_and_round_trip() {
         }
     }
     assert!(failures.is_empty(), "{}\n", failures.join("\n"));
+}
+
+/// The cases of one topic of a crate's stage tests, in name order.
+pub(super) fn stage_cases(krate: &str, topic: &str) -> Vec<PathBuf> {
+    let dir = repository_root()
+        .join("crates")
+        .join(krate)
+        .join("tests/cases")
+        .join(topic);
+    let mut files = Vec::new();
+    // cost: one read of one topic's folder.
+    hd_files(&dir, &mut files);
+    files.sort_stable();
+    assert!(!files.is_empty(), "no stage cases in {}", dir.display());
+    files
+}
+
+/// The text of one stage case of a crate, by its path below `tests/cases`.
+pub(super) fn stage_case(krate: &str, case: &str) -> String {
+    let path = repository_root()
+        .join("crates")
+        .join(krate)
+        .join("tests/cases")
+        .join(case);
+    fs::read_to_string(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+}
+
+/// The snippets of a case that holds one per block: its blank-line-separated
+/// blocks. A block that ends in a comment line belongs to the code after it,
+/// so the case's header and a comment set apart by a blank line stay with
+/// their snippet.
+pub(super) fn blocks(text: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut open = false;
+    for block in text.split("\n\n").filter(|block| !block.trim().is_empty()) {
+        match out.last_mut() {
+            Some(last) if open => {
+                last.push('\n');
+                last.push_str(block);
+            }
+            _ => out.push(block.to_owned()),
+        }
+        let last = out.last_mut().expect("a block was pushed");
+        if !last.ends_with('\n') {
+            last.push('\n');
+        }
+        let end = block.trim_end().lines().next_back().unwrap_or_default();
+        open = end.trim_start().starts_with('#') || end.trim_start().starts_with("///");
+    }
+    out
+}
+
+/// The snippets of a case that titles each one: a snippet runs from a
+/// column-0 comment that follows a blank line to the next such comment. The
+/// case's header ends in the first snippet's title.
+pub(super) fn titled(text: &str) -> Vec<&str> {
+    let mut starts = vec![0];
+    starts.extend(text.match_indices("\n\n#").map(|(at, _)| at + 2));
+    starts.push(text.len());
+    starts
+        .windows(2)
+        .map(|pair| &text[pair[0]..pair[1]])
+        .collect()
+}
+
+/// The stage cases hold the programs the parser tests once held as Rust
+/// strings, with their recovered errors and their layouts as written. The
+/// tree of each one gives back its source, and one that parses clean has
+/// no error node.
+#[test]
+fn stage_cases_round_trip() {
+    let mut files = Vec::new();
+    // cost: one walk of this crate's cases, each read and parsed once.
+    hd_files(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/cases"),
+        &mut files,
+    );
+    assert!(!files.is_empty(), "no stage cases");
+    for path in files {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read UTF-8 {}: {error}", path.display()));
+        let parsed = parse(source.as_bytes());
+        assert_eq!(
+            parsed.tree.reconstruct(&parsed.tokens, &source),
+            source,
+            "{}",
+            path.display()
+        );
+        let mut nodes = parsed.tree.root().descendants();
+        assert!(
+            !parsed.is_ok() || nodes.all(|node| node.kind() != SyntaxKind::Error),
+            "{}: error node without a diagnostic",
+            path.display()
+        );
+    }
+}
+
+/// `grammar.recovery.statement`: each titled snippet of the case, parsed
+/// alone, has exactly one diagnostic, and the snippets together have no more.
+#[test]
+fn an_error_reports_once_without_its_fallout() {
+    let source = stage_case(
+        "hd_syntax",
+        "recovery/an-error-reports-once-without-its-fallout.hd",
+    );
+    let snippets = titled(&source);
+    for snippet in &snippets {
+        let parsed = parse(snippet.as_bytes());
+        assert_eq!(
+            parsed.diagnostics.len(),
+            1,
+            "{snippet}: {:?}",
+            parsed.diagnostics
+        );
+    }
+    assert_eq!(
+        parse(source.as_bytes()).diagnostics.len(),
+        snippets.len(),
+        "the snippets together"
+    );
+}
+
+/// Each form of the two rejected-form cases is rejected alone, and a copy
+/// assignment is a `syntax-error` that builds no assignment statement.
+#[test]
+fn each_rejected_form_is_rejected_alone() {
+    let impls = stage_case(
+        "hd_syntax",
+        "recovery/impl-type-outside-a-function-annotation.hd",
+    );
+    for snippet in blocks(&impls) {
+        assert!(!parse(snippet.as_bytes()).is_ok(), "{snippet}");
+    }
+    let copies = stage_case(
+        "hd_syntax",
+        "recovery/copy-assignment-is-not-a-statement.hd",
+    );
+    for snippet in blocks(&copies) {
+        let parsed = parse(snippet.as_bytes());
+        assert!(
+            parsed
+                .diagnostics
+                .iter()
+                .any(|d| d.code == Code::SyntaxError),
+            "{snippet}: {:?}",
+            parsed.diagnostics
+        );
+        let mut nodes = parsed.tree.root().descendants();
+        assert!(
+            nodes.all(|node| node.kind() != SyntaxKind::AssignmentStmt),
+            "{snippet}"
+        );
+    }
 }
 
 /// The declaration skeleton of the full tree: each top-level declaration's

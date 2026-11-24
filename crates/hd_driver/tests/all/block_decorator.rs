@@ -39,12 +39,7 @@ fn errors(out: &Output) -> Vec<Code> {
         .collect()
 }
 
-const STYLE: &str = "struct Style:
-    prefix: string = \"\"
-
-fn style(prefix: string = \"\") -> Style:
-    Style { prefix: prefix }
-";
+const STYLE: &str = include_str!("programs/block_decorator/style.hd");
 
 #[test]
 fn cached_rebuild_stays_quiet() {

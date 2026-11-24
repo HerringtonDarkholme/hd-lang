@@ -1,0 +1,5 @@
+trait Named:
+    fn name(self) -> string
+
+fn greet[T < Named](x: T) -> string:
+    "hi ${x.name()}"

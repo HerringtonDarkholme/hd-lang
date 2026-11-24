@@ -773,7 +773,7 @@ fn a_union_crosses_as_its_case_and_payload() {
     assert_eq!(run.stdout, "int 42\ntext a\ni64 7\npoint 1,2\nlist p+q\n");
 }
 
-const FAILING: &str = "@host\npub trait Server:\n    fn read(&self) -> i32\n    fn wait!(&mut self) -> i32\n\npub fn main!() -> void $ Console + Server:\n    println(\"before\")\n    println(\"${$.use(Server).wait!()}\")\n    println(\"${$.use(Server).read()}\")\n";
+const FAILING: &str = include_str!("programs/native_parity/failing.hd");
 
 /// How the `failures` provider answers: `read` throws, or `wait!` throws
 /// at once, or its pending call fails.
@@ -872,34 +872,7 @@ companion!(bench, "bench-surface");
 /// hdru's renderer boundary: `apply!` takes a list of commands with named
 /// payloads, strings, numbers and optionals and answers at once;
 /// `next_event!` answers through a pending call.
-const SURFACE: &str = "pub enum Command:
-    Text(id: u32, text: string)
-    Move(id: u32, x: f64, y: f64)
-    Style(id: u32, color: string?, bold: bool)
-
-pub enum UiEvent:
-    Click(id: u32)
-    Key(code: u32)
-
-@host
-pub trait Surface:
-    fn apply!(&mut self, commands: List[Command]) -> void
-    fn next_event!(&mut self) -> UiEvent
-
-pub fn main!() -> void $ Console + Surface:
-    let i = +0
-    while i < READY:
-        $.use(Surface).apply!([Command.Text(1, \"hello\"), Command.Move(1, 2.0, 3.0), Command.Style(1, .Some(\"red\"), true)])
-        i += 1
-    let clicks = +0
-    let j = +0
-    while j < PENDING:
-        match $.use(Surface).next_event!():
-            .Click(_) => clicks += 1
-            .Key(_) => pass
-        j += 1
-    println(\"$i $clicks\")
-";
+const SURFACE: &str = include_str!("programs/native_parity/surface.hd");
 
 const SURFACE_JS: &str = "export default {
   apply(commands: unknown[]) {

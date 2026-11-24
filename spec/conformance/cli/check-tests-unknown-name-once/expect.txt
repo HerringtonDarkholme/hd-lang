@@ -4,10 +4,8 @@ run: hd check totals.hd
 exit: 101
 stdout-json: []
 stderr: error: totals.hd:2:5: unknown-name: `assert_equal` is not defined
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd check --tests totals.hd
 exit: 101
 stdout-json: []
 stderr: error: totals.hd:2:5: unknown-name: `assert_equal` is not defined; add `use std.testing.assert_equal`
 stderr:     fix: add `use std.testing.assert_equal`
-stderr: check result: FAILED. errors: 1; warnings: 0

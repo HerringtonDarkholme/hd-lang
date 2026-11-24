@@ -12,14 +12,9 @@ use hd_driver::{
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-const MAIN: &str = "\
-use dep.money.{cents}
+const MAIN: &str = include_str!("programs/dbg_release/main.hd");
 
-pub fn main() -> void $ Console:
-    println(cents(2))
-";
-
-const MONEY: &str = "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    n * 100\n";
+const MONEY: &str = include_str!("programs/dbg_release/money.hd");
 
 fn sources(path: &str, text: &str) -> MemorySources {
     let mut s = MemorySources::default();
@@ -85,7 +80,7 @@ fn a_path_dependency_is_rejected_in_release_after_a_checked_build() {
 #[test]
 fn fetched_debug_is_quiet_while_suppression_survives_check_and_link_cache_hits() {
     let store = MemoryStore::default();
-    let code = "pub fn cents(n: i32) -> i32:\n    dbg(n)\n    let show: fn((i32,)) -> void = dbg\n    show((n,))\n    n * 100\n";
+    let code = include_str!("programs/dbg_release/money_function_value.hd");
     let local = build_with_debug_code(&store, false, BuildProfile::Checked, code);
     assert!(local.diags.is_empty(), "{}", local.render());
     assert!(local.wasm.is_some());

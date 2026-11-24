@@ -2,7 +2,9 @@
 //! full debug link of the compiler, so one per crate is the cheap layout.
 
 mod const_generics;
+mod error_queries;
 mod iface_codec;
 mod known_items;
 mod show_ty;
 mod source_queries;
+mod trait_queries;

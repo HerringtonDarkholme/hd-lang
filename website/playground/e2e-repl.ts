@@ -176,6 +176,11 @@ export async function replSteps(options: ReplE2e): Promise<void> {
     await page.locator("#repl-stop").click();
     await shows(repl, "debug", 'repl#10:2:25: "woke" = "woke"');
     await shows(repl, "error", "cancelled");
+    await shows(
+      repl,
+      "debug",
+      "note: repl#11 was cancelled, so the next rebuild skips it; its changes are not restored",
+    );
     assert.ok(Date.now() - started < 10_000, "the sleep was not cancelled");
     assert.equal(
       await repl.locator(".repl-note", { hasText: /^restored:/ }).count(),
@@ -190,11 +195,6 @@ export async function replSteps(options: ReplE2e): Promise<void> {
     await enter(repl, ":help");
     await shows(repl, "note", /:reload {7}rebuild the session over the editor's files/);
     await enter(repl, ":reload");
-    await shows(
-      repl,
-      "note",
-      "note: repl#11 was stopped, so the rebuild skipped it; its changes are not restored",
-    );
     await shows(repl, "note", /^reloaded: \d+ inputs replayed$/);
     await enter(repl, "total * 2");
     await shows(repl, "out", "80 : usize");

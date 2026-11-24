@@ -102,7 +102,7 @@ target, so a slow `hd` fails fast instead of holding the run for minutes.
 | `edit-latency`      | 10k-line package, settled: warm-up `hd check`, then 20 edits of a private function body, each followed by `hd check`                                                                                                        | p50 ≤ 50 ms, p95 ≤ 200 ms                                                                        | never                                    |
 | `cold-check`        | `hd check` of a fresh copy of the 10k-line package with an empty `HD_CACHE`, median of 3                                                                                                                           | ≤ 1 s                                                                                            | never                                    |
 | `test-latency`      | 10k-line package: edit one module, then `hd test --filter NAME` of one of its test cases, median of 5                                                                                                              | ≤ 300 ms                                                                                         | never                                    |
-| `mistakes`          | the [mistake corpus](#mistake-corpus): diagnostics per program, the expected code, the fix-it, the text size                                                                                                       | one diagnostic in ≥ 95%; expected code in ≥ 95%; fix-it resolves ≥ 80%; largest text ≤ 60 tokens | fix-it line: no `fix` field              |
+| `mistakes`          | the [mistake corpus](#mistake-corpus): diagnostics per program, the expected code, the fix-it, the text / JSON size                                                                                                       | one diagnostic in ≥ 95%; expected code in ≥ 95%; fix-it resolves ≥ 80%; text / JSON ≤ 60 tokens | fix-it line: no `fix` field              |
 | `answer-size`       | bytes of `hd doc m001.Item1`, one failing `hd test`, its JSON test object, one JSON diagnostic object                                                                                                              | doc ≤ 1,000 B; failing test ≤ 800 B; test object ≤ 400 B; diagnostic object ≤ 600 B              | doc line: no `hd doc`                    |
 | `determinism`       | 8 or 9 fixed inputs, each run 10 times: exit status, stdout and stderr                                                                                                                                             | byte-identical                                                                                   | never                                    |
 | `pathological`      | the [stress cases](#pathological-cases) at scales 1, 2 and 4                                                                                                                                                       | at 4x: ≤ 2 s and ≤ 200 MB; growth exponent ≤ 1.3                                                 | RSS line: no `/usr/bin/time`             |
@@ -150,6 +150,8 @@ Notes on the choices:
   `hd lint` for `# tool: lint`. Both use `--tests FILE`, so a mistake inside
   a `tests:` block is checked too
   ([`cli.check.tests`](../../spec/cli/command-line.md#r-cli.check.tests)).
+  JSON size counts each actual diagnostic line in UTF-8 bytes, excluding
+  its newline and the command summary; multiple diagnostics are separate samples.
 
 ## Pillar 2 Metrics
 

@@ -1,0 +1,20 @@
+# @dump: tree
+# `place ...= value` is a syntax error for every place form, and no
+# AssignmentStmt node is built for it.
+fn f():
+    value ...= other
+
+fn f():
+    object.Part ...= other
+
+fn f():
+    *reference ...= other
+
+fn f():
+    values[0] ...= other
+
+fn f():
+    if true: value ...= other
+
+fn f():
+    value ...= if true: other else: another

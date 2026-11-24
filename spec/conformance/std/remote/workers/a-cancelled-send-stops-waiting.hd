@@ -1,0 +1,19 @@
+# test: a send whose task is cancelled stops waiting: the rest of that task never runs, the program goes on, and a later send gets its own reply
+# Spec std Remote, Workers: std-remote.workers.host; Spec std Host, Host Operations: std-host.op.cancel.
+# expect-stdout: 7
+# expect-stdout: 36
+use std.remote.Workers
+use std.task.race
+
+fn square!(n: u64) -> u64 $ Console + Workers:
+    result := $.use(Workers).run!(fn() -> u64: n * n).unwrap_or(0)
+    println("not cancelled")
+    result
+
+fn now!() -> u64:
+    7
+
+pub fn main!() -> void $ Console + Workers:
+    println(race!(square(5), now()))
+    side := u64(6)
+    println($.use(Workers).run!(fn() -> u64: side * side).unwrap_or(0))

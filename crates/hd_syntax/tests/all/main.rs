@@ -2,10 +2,8 @@
 
 mod corpus;
 mod crlf;
-mod elif;
 mod fixits;
 mod fuzz;
-mod legacy_syntax;
 mod messages;
 mod parents;
 mod source_boundaries;

@@ -11,12 +11,12 @@ impl Sink for Count:
     fn put(&mut self, text: string) -> void:
         self.n = self.n + text.len()
 
-fn replace(target: &mut (&mut dyn Sink)) -> void $ Sink:
-    *target = $.use(Sink)
+fn replace['a](target: &mut (&'a mut dyn Sink), with: &'a mut dyn Sink) -> void:
+    *target = with
 
 fn line(text: string) -> void $ Sink:
     let mut sink: &mut dyn Sink = $.use(Sink)
-    replace(&mut sink)
+    replace(&mut sink, $.use(Sink))
     sink.put(text)
 
 pub fn main() -> void $ Console:

@@ -1,0 +1,22 @@
+use pkg.geo.keys.{Clock, Tag, FixedClock, FixedTag}
+
+fn run_all[$ R](callback: fn() -> i32 $ R + Clock + Tag) -> i32 $ R:
+    $.with(Clock=FixedClock { value: 7 }, Tag=FixedTag { value: 10 }):
+        callback()
+
+fn run_two[$ R](callback: fn() -> i32 $ R + Tag + Console) -> i32 $ R + Console:
+    $.with(Tag=FixedTag { value: 20 }):
+        callback()
+
+fn three() -> i32 $ Tag + Clock + Console:
+    println("${$.use(Tag).id()}")
+    $.use(Clock).now()
+
+fn tagged() -> i32 $ Console + Clock:
+    run_all(fn(): $.use(Tag).id() + $.use(Clock).now())
+
+pub fn main() -> void $ Console:
+    $.with(Clock=FixedClock { value: 1 }):
+        println("${tagged()}")
+        println("${run_two(fn(): $.use(Tag).id())}")
+        println("${run_all(fn(): three())}")

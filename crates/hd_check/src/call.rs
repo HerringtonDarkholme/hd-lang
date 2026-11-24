@@ -52,23 +52,6 @@ pub struct MethodIndex {
     shared: Option<std::sync::Arc<Self>>,
 }
 
-fn name_distance(left: &str, right: &str) -> usize {
-    let right: Vec<_> = right.chars().collect();
-    let mut row: Vec<_> = (0..=right.len()).collect();
-    for (i, left) in left.chars().enumerate() {
-        let mut diagonal = row[0];
-        row[0] = i + 1;
-        for (j, right) in right.iter().enumerate() {
-            let above = row[j + 1];
-            row[j + 1] = (row[j] + 1)
-                .min(above + 1)
-                .min(diagonal + usize::from(left != *right));
-            diagonal = above;
-        }
-    }
-    row[right.len()]
-}
-
 impl MethodIndex {
     /// An interface closure has one index, independent of each module's private items.
     #[must_use]
@@ -600,6 +583,18 @@ impl Args<'_> {
     }
 }
 
+/// What an unknown name is used as, which decides what it may misspell
+/// ([`Ck::value_typo`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NameUse {
+    /// A value: a local, a top-level binding, a function, a fieldless struct.
+    Value,
+    /// A callee: a value or any constructor or conversion.
+    Call,
+    /// A local or top-level binding only: an assignment's target, `$name`.
+    Binding,
+}
+
 impl Ck<'_, '_> {
     pub(crate) fn args_of<'t>(&mut self, al: Option<NodeRef<'t>>) -> Args<'t> {
         let mut a = Args::empty();
@@ -687,24 +682,76 @@ impl Ck<'_, '_> {
         )
     }
 
-    fn name_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
-        if name == "print" {
-            hd_resolve::iface::ImportHint {
-                text: "; did you mean `println`?".to_owned(),
-                path: None,
-            }
+    /// `unknown-name` at `n` for `text`, with its import hint and the
+    /// fix-it that adds the `use` it names, else the value in scope it
+    /// misspells for `role`.
+    pub(crate) fn unknown_name(&mut self, text: &str, n: NodeRef<'_>, role: NameUse) {
+        let hint = self.import_hint(text);
+        let best = if hint.text.is_empty() {
+            self.value_typo(text, role)
         } else {
-            self.import_hint(name)
+            None
+        };
+        let did = hd_diag::suggest::did_you_mean(best.as_deref());
+        self.err(
+            Code::UnknownName,
+            n,
+            &format!("`{text}` is not defined{}{did}", hint.text),
+        );
+        hint.add_fix(&self.cx.src, self.diags);
+        let first = self.cx.src.first(n);
+        if self.cx.src.text(first) == text {
+            let span = self.cx.src.token_span(first);
+            self.diags.add_typo_fix(span, best.as_deref());
         }
     }
 
-    /// `unknown-name` at `n` for `text`, with its import hint and the
-    /// fix-it that adds the `use` it names.
-    fn unknown_name(&mut self, text: &str, n: NodeRef<'_>) {
-        let hint = self.name_hint(text);
-        let msg = format!("`{text}` is not defined{}", hint.text);
-        self.err(Code::UnknownName, n, &msg);
-        hint.add_fix(&self.cx.src, self.diags);
+    /// The value a misspelt `name` most likely meant for `role`: a local, a
+    /// top-level binding, or an item of the module's scope that
+    /// [`Self::name_expr`] reads as a value, or a call calls. Cost: one pass
+    /// over the names in scope, on an error only.
+    pub(crate) fn value_typo(&mut self, name: &str, role: NameUse) -> Option<String> {
+        let call = role == NameUse::Call;
+        let cx = self.cx;
+        let at = self.at;
+        let names: Vec<&str> = self
+            .scopes
+            .iter_rev()
+            .flat_map(|(_, frame)| frame.keys())
+            .chain(&cx.scope_at(at).name)
+            .chain(cx.init.borrow().globals.keys())
+            .copied()
+            .chain(
+                cx.locals
+                    .items()
+                    .iter()
+                    .filter(|l| l.covers(at))
+                    .map(|l| l.name),
+            )
+            .map(|s| cx.names.text(s))
+            .chain(Prim::ALL.iter().filter(|_| call).map(|p| p.name()))
+            .collect();
+        crate::work::scan_work(names.len());
+        let best = hd_diag::suggest::best_match(name, names, |c| {
+            let s = cx.names.syms.intern(c);
+            if self.find_local(s).is_some() || cx.init.borrow().globals.contains_key(&s) {
+                return true;
+            }
+            if role == NameUse::Binding {
+                return false;
+            }
+            let item = match self.scope_name(c) {
+                Some(Named::Item(d)) => cx.lookup.item(d).map(|i| &i.data),
+                _ => None,
+            };
+            match item {
+                Some(ItemData::Fn(..)) => true,
+                Some(ItemData::Struct(fields, _)) => call || fields.is_empty(),
+                Some(ItemData::Newtype(..)) => call,
+                _ => call && Prim::ALL.iter().any(|p| p.name() == c),
+            }
+        });
+        best.map(str::to_owned)
     }
 
     pub(crate) fn name_expr(&mut self, n: NodeRef<'_>, want: Option<Ty>) -> StageResult<(Ref, Ty)> {
@@ -722,7 +769,7 @@ impl Ck<'_, '_> {
         if let Some(Named::Item(def)) = self.scope_name(&text) {
             return self.declaration_value(def, &text, want, n);
         }
-        self.unknown_name(&text, n);
+        self.unknown_name(&text, n, NameUse::Value);
         Ok((Ref(NONE), Ty::POISON))
     }
 
@@ -814,7 +861,7 @@ impl Ck<'_, '_> {
     /// `names.module.other-module.value`: a path that names nothing.
     fn undefined_path(&mut self, segs: &[String], n: NodeRef<'_>) -> (Ref, Ty) {
         if let [name] = segs {
-            self.unknown_name(name, n);
+            self.unknown_name(name, n, NameUse::Value);
         } else {
             let msg = format!("`{}` is not defined", segs.join("."));
             self.err(Code::UnknownName, n, &msg);
@@ -1132,9 +1179,7 @@ impl Ck<'_, '_> {
         for (i, g) in generics.iter().enumerate().skip(explicit) {
             if g.const_type.is_some() && !named[i] {
                 let name = self.cx.names.text(g.name);
-                let msg = format!(
-                    "no argument's type names const parameter `{name}`, so it cannot be inferred: write it in the call, as in `f::[4](...)`"
-                );
+                let msg = format!("write const argument `{name}` explicitly, as in `f::[4](...)`");
                 self.err(Code::CannotInferType, n, &msg);
                 if let Some(v) = vars.get_mut(i) {
                     *v = Ty::POISON;
@@ -1277,7 +1322,7 @@ impl Ck<'_, '_> {
                     let msg = "`loop` is not defined; write 'while true:' for an endless loop";
                     self.err(Code::UnknownName, callee, msg);
                 } else {
-                    self.unknown_name(&text, callee);
+                    self.unknown_name(&text, callee, NameUse::Call);
                 }
                 if text == "loop"
                     && !bang
@@ -3551,6 +3596,11 @@ impl Ck<'_, '_> {
             n,
             "a bare pipe step cannot suspend; write `_` and `!`",
         );
+        // A named step `f` becomes the call `f!(_)`.
+        if matches!(n.kind(), SyntaxKind::NameExpr | SyntaxKind::PathExpr) {
+            let hi = self.cx.src.span(n).hi;
+            self.insert_fix("call the step with `!(_)`", hi, "!(_)");
+        }
         (Ref(NONE), Ty::POISON)
     }
 
@@ -3890,7 +3940,12 @@ impl Ck<'_, '_> {
                 }
             }
             _ => {
-                let msg = format!("`.{name}` needs an expected enum type");
+                let mut msg = format!("`.{name}` needs an expected enum type");
+                if matches!(name.as_str(), "Some" | "None")
+                    && want.is_some_and(|t| matches!(pool.get(t), TyData::Fn { .. }))
+                {
+                    msg.push_str("; an optional function is `(fn(...) -> T)?`, while `fn(...) -> T?` returns an optional value");
+                }
                 self.err(Code::MissingContextualEnumType, v, &msg);
                 return Ok((Ref(NONE), Ty::POISON));
             }
@@ -4124,8 +4179,14 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> StageResult<(Ref, Ty)> {
         let Some((index, fields)) = self.variant_fields(t, name) else {
-            let msg = format!("no variant `{name}` of {}", self.show(t));
+            let best = hd_diag::suggest::best_match(name, self.variant_names(t), |_| true)
+                .map(str::to_owned);
+            let did = hd_diag::suggest::did_you_mean(best.as_deref());
+            let msg = format!("no variant `{name}` of {}{did}", self.show(t));
             self.err(Code::UnknownVariant, n, &msg);
+            if let Some(span) = self.member_span(n, name) {
+                self.diags.add_typo_fix(span, best.as_deref());
+            }
             return Ok((Ref(NONE), Ty::POISON));
         };
         let names = self.variant_field_names(t, name);
@@ -4726,8 +4787,11 @@ impl Ck<'_, '_> {
                 self.err(Code::UnsatisfiedTraitBound, n, &unmet);
                 false
             } else if hidden.is_empty() {
-                let hint = self.method_hint(t, name);
+                let (hint, best) = self.method_hint(t, name);
                 self.err(Code::UnknownMethod, n, &format!("{msg}{hint}"));
+                if let Some(span) = self.member_span(n, name) {
+                    self.diags.add_typo_fix(span, best.as_deref());
+                }
                 true
             } else {
                 let names = self.cx.names.display_names(&hidden).join("`, `");
@@ -4782,70 +4846,130 @@ impl Ck<'_, '_> {
         );
     }
 
-    fn method_hint(&mut self, t: Ty, name: &str) -> String {
+    /// The end of an `unknown-method` message and, for a misspelt name,
+    /// the method it meant ([`hd_diag::suggest::best_match`]): one the
+    /// receiver has and that applies to it.
+    fn method_hint(&mut self, t: Ty, name: &str) -> (String, Option<String>) {
         let bare = self.resolved(self.infer.resolve(self.pool(), t));
         let data = self.pool().get(bare);
         if name == "new"
             && matches!(data, TyData::Adt(AdtId::Declared(def), _) if def == self.cx.names.known.map)
         {
-            return "; write `{}` for an empty map".to_owned();
+            return ("; write `{}` for an empty map".to_owned(), None);
         }
         if name == "unwrap" && self.option_arg(bare).is_some() {
-            return "; use `expect(message)` or `unwrap_or(fallback)`".to_owned();
+            return (
+                "; use `expect(message)` or `unwrap_or(fallback)`".to_owned(),
+                None,
+            );
         }
-        let mut names: Vec<String> = self
+        let names: Vec<String> = self
             .receiver_method_names(bare)
             .into_iter()
             .map(|s| self.cx.names.text(s).to_owned())
             .chain(["len", "push", "get", "remove"].map(str::to_owned))
             .collect();
         crate::work::scan_work(names.len());
-        names.sort_stable();
-        names.dedup();
-        let mut ranked: Vec<_> = names
+        let best = hd_diag::suggest::best_match(name, names.iter().map(String::as_str), |c| {
+            self.method_applies(bare, c)
+        })
+        .map(str::to_owned);
+        (hd_diag::suggest::did_you_mean(best.as_deref()), best)
+    }
+
+    /// Whether `bare` has a method `candidate` here, tried and rolled back.
+    fn method_applies(&mut self, bare: Ty, candidate: &str) -> bool {
+        let checkpoint = self.checkpoint();
+        let memo = std::mem::take(&mut self.memo);
+        let fuel = std::mem::replace(&mut self.fuel, hd_base::Fuel::new(4096));
+        let inherent = self.find_inherent(bare, candidate).is_some()
+            || self.builtin_method(bare, candidate).is_some();
+        let sym = self.cx.names.syms.intern(candidate);
+        let traits = self
+            .available_traits(sym)
             .into_iter()
-            .map(|candidate| (name_distance(name, &candidate), candidate))
-            .filter(|(distance, candidate)| {
-                candidate != name && *distance <= name.chars().count().div_ceil(2).max(3)
-            })
+            .map(|(tr, _)| tr)
             .collect();
-        ranked.sort_stable();
-        for (_, candidate) in ranked {
-            let checkpoint = self.checkpoint();
-            let memo = std::mem::take(&mut self.memo);
-            let fuel = std::mem::replace(&mut self.fuel, hd_base::Fuel::new(4096));
-            let inherent = self.find_inherent(bare, &candidate).is_some()
-                || self.builtin_method(bare, &candidate).is_some();
-            let sym = self.cx.names.syms.intern(&candidate);
-            let traits = self
-                .available_traits(sym)
-                .into_iter()
-                .map(|(tr, _)| tr)
-                .collect();
-            // A parameter, an opaque type, a projection or a trait value
-            // takes its methods from its bounds or its traits, not from
-            // impl rows: the lookup itself answers it.
-            let own_traits = matches!(
-                self.pool().get(bare),
-                TyData::Param(_)
-                    | TyData::Opaque { .. }
-                    | TyData::Assoc { .. }
-                    | TyData::TraitValue { .. }
-            );
-            let applicable = inherent
-                || if own_traits {
-                    matches!(self.resolve_method(bare, &candidate), Ok(Some(_)))
-                } else {
-                    matches!(self.solve_goal(&Goal::Methods { receiver: bare, name: sym, traits }), Ok(Answer::Candidates(c)) if !c.is_empty())
-                };
-            self.rollback(checkpoint);
-            self.memo = memo;
-            self.fuel = fuel;
-            if applicable {
-                return format!("; did you mean `{candidate}`?");
-            }
+        // A parameter, an opaque type, a projection or a trait value
+        // takes its methods from its bounds or its traits, not from
+        // impl rows: the lookup itself answers it.
+        let own_traits = matches!(
+            self.pool().get(bare),
+            TyData::Param(_)
+                | TyData::Opaque { .. }
+                | TyData::Assoc { .. }
+                | TyData::TraitValue { .. }
+        );
+        let applicable = inherent
+            || if own_traits {
+                matches!(self.resolve_method(bare, candidate), Ok(Some(_)))
+            } else {
+                matches!(self.solve_goal(&Goal::Methods { receiver: bare, name: sym, traits }), Ok(Answer::Candidates(c)) if !c.is_empty())
+            };
+        self.rollback(checkpoint);
+        self.memo = memo;
+        self.fuel = fuel;
+        applicable
+    }
+
+    /// The span of the member name `name` that the access, call or path
+    /// `n` writes: its callee's last token of that text.
+    pub(crate) fn member_span(&self, n: NodeRef<'_>, name: &str) -> Option<hd_base::Span> {
+        let callee = match n.kind() {
+            SyntaxKind::CallExpr => n.children().next()?,
+            _ => n,
+        };
+        let src = &self.cx.src;
+        let t = src.tokens(callee).filter(|&t| src.text(t) == name).last()?;
+        Some(src.token_span(t))
+    }
+
+    /// The field of `t` visible here that a misspelt `name` most likely
+    /// meant: a struct's own field or an enum's shared one.
+    pub(crate) fn field_typo(&self, t: Ty, name: &str) -> Option<String> {
+        let (def, _) = self.pool().adt(self.resolved(t))?;
+        let fields = match &self.cx.lookup.item(def)?.data {
+            ItemData::Struct(fields, _) => fields,
+            ItemData::Enum { shared, .. } => shared,
+            _ => return None,
+        };
+        let visible = fields
+            .iter()
+            .filter(|f| self.member_visible(def, f.public || f.embedded))
+            .map(|f| self.cx.names.text(f.name));
+        hd_diag::suggest::best_match(name, visible, |_| true).map(str::to_owned)
+    }
+
+    /// `unknown-field` at `n`, which writes the member `name` of `t`, with
+    /// the field it misspells and the fix-it that writes it.
+    pub(crate) fn unknown_field(&mut self, t: Ty, name: &str, n: NodeRef<'_>) {
+        let best = self.field_typo(t, name);
+        let did = hd_diag::suggest::did_you_mean(best.as_deref());
+        self.err(
+            Code::UnknownField,
+            n,
+            &format!("no field `{name}` on {}{did}", self.show(t)),
+        );
+        if let Some(span) = self.member_span(n, name) {
+            self.diags.add_typo_fix(span, best.as_deref());
         }
-        String::new()
+    }
+
+    /// The variant names of `t`, when it is an enum.
+    pub(crate) fn variant_names(&self, t: Ty) -> Vec<&str> {
+        let pool = self.pool();
+        match pool.get(self.strip(t)) {
+            TyData::Adt(AdtId::Declared(def), _) if def.get().is_some() => {
+                match self.cx.lookup.item(def).map(|i| &i.data) {
+                    Some(ItemData::Enum { variants, .. }) => variants
+                        .iter()
+                        .map(|v| self.cx.names.text(v.name))
+                        .collect(),
+                    _ => Vec::new(),
+                }
+            }
+            _ => Vec::new(),
+        }
     }
 
     /// The method names a receiver of type `t` may have, for the "did you

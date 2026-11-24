@@ -1,0 +1,3 @@
+## Counts coins.
+pub fn coins() -> i32:
+    2

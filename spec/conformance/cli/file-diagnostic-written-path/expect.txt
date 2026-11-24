@@ -10,7 +10,6 @@ stderr: error: ./x/greet.hd:2:5: type-mismatch: in result: expected i32, found s
 run: hd check x/greet.hd
 exit: 101
 stderr: error: x/greet.hd:2:5: type-mismatch: in result: expected i32, found string
-stderr: check result: FAILED. errors: 1; warnings: 0
 run: hd test x/greet.hd
 exit: 101
 stderr: error: x/greet.hd:2:5: type-mismatch: in result: expected i32, found string

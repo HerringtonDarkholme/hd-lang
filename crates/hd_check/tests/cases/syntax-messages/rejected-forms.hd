@@ -1,0 +1,98 @@
+# @dump: diagnostics
+# `syntax-error` sites that name the rejected form and the accepted spelling.
+fn f(values: i32...):
+    pass
+
+fn f():
+    x := a |> b
+        |> c
+        .d
+
+fn f(x: i32) -> i32:
+    if fn() -> bool:
+        true
+    : 1
+
+x := if c: if d: 1 else: 2 else: 3
+
+mut x := 1
+
+tests:
+    tests:
+        pass
+
+pub use a.b
+
+pub impl T:
+    pass
+
+struct P:
+    pub Base
+
+x := 1..=
+
+x := a..b..c
+
+x := Box[i32] { value: 1 }
+
+x := a::[T]!(1)
+
+x := (xs...)
+
+x := (a..., b)
+
+x := T { a: 1, ...b }
+
+fn f():
+    x := $.foo(1)
+
+fn f(values...: i32 = 1):
+    pass
+
+enum E:
+    A(x: i32 = 1)
+
+fn f[$R < Log]():
+    pass
+
+fn f[T: Log]():
+    pass
+
+impl[T = i32] X:
+    pass
+
+let (a) = x
+
+fn f():
+    match x:
+        .Some(mut u) => 1
+
+fn f():
+    match x:
+        P { a = b } => 1
+
+fn f():
+    match x:
+        (a, xs..., b) => 1
+
+fn f():
+    match x:
+        5s => 1
+
+let x: mut Suspend[i32] = y
+
+let x: dyn mut Counter = y
+
+let x: (T...) = y
+
+fn f() $(A + B):
+    pass
+
+fn f() $ R + mut Logger:
+    pass
+
+fn f(x: List[Name = i32, i32]):
+    pass
+
+@derive(X)
+type A = i32

@@ -13,25 +13,7 @@ use hd_testkit::Scratch;
 
 /// The library with a `tests:` block that declares a use, a data type and
 /// a function, which its test cases use.
-const LIB: &str = "\
-pub fn late_fee(days: i32) -> i32:
-    if days > 30: 5 else: 0
-
-tests:
-    use std.testing.assert_equal
-
-    struct Invoice:
-        days: i32
-
-    fn overdue() -> Invoice:
-        Invoice { days: 31 }
-
-    it(\"charges a fee after 30 days\"):
-        assert_equal(late_fee(overdue().days), 5, reason=\"one day late\")
-
-    it(\"charges nothing on time\"):
-        assert_equal(late_fee(Invoice { days: 30 }.days), 0, reason=\"thirty days is on time\")
-";
+const LIB: &str = include_str!("programs/tests_block_items/lib.hd");
 
 /// A fresh package `shop` whose `src/lib.hd` is `lib`, with the given
 /// integration test files.
@@ -97,13 +79,8 @@ fn non_test_code_cannot_name_a_test_item() {
 /// a test item is no declaration of it.
 #[test]
 fn an_integration_test_cannot_import_a_test_item() {
-    let test = "\
-use pkg.overdue
-use std.testing.assert
-
-it(\"sees no test item\"):
-    assert(overdue().days > 0, reason=\"a test item\")
-";
+    let test =
+        include_str!("programs/tests_block_items/an_integration_test_cannot_import_a_test_item.hd");
     let root = package("tests-block-integration", LIB, &[("fees.hd", test)]);
     let out = hd(&root, &["test"]);
     let err = text(&out.stderr);

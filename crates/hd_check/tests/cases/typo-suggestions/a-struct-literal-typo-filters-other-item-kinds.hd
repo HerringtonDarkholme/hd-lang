@@ -1,0 +1,16 @@
+# @dump: diagnostics fixed
+# A literal's misspelt constructor suggests a struct, excluding equally near
+# enums, aliases, newtypes and functions from the candidate set.
+struct Parcel: pass
+
+enum Parcelx:
+    Empty
+
+type Parcely(i32)
+type Parcelz = i32
+
+fn parcelq() -> void:
+    pass
+
+fn construct() -> Parcel:
+    Parcelq {}

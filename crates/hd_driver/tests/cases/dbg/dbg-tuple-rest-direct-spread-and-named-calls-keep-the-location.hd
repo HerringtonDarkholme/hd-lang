@@ -1,0 +1,6 @@
+# @dump: stdout
+pub fn main() -> void:
+    let tail: List[i32] = [1, 2]
+    let values: (i32, List[i32]...) = (0, tail...)
+    dbg(values...)
+    dbg(values=values)

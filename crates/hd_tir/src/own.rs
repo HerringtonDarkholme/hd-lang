@@ -208,6 +208,11 @@ pub trait OwnCx {
     fn cold_parameter_transfers(&self, _item: hd_base::DefId, _ty: Ty) -> bool {
         false
     }
+    /// Whether the init body `init` belongs to the module that declares
+    /// the top-level binding `global`, the one module that initializes it.
+    fn declares_binding(&self, _init: hd_base::DefId, _global: hd_base::DefId) -> bool {
+        false
+    }
     fn string_slice(&self, _callee: &Callee) -> bool {
         false
     }

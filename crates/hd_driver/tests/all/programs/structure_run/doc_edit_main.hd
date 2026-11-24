@@ -1,0 +1,7 @@
+use pkg.shapes.options.Pack
+use std.cli.Cli
+
+pub fn main() -> void $ Console:
+    match Pack::parse(["--help"]):
+        .Err(.Help(text)) => println(text)
+        _ => panic("expected help")

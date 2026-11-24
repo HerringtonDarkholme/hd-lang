@@ -1,0 +1,4 @@
+use std.testing.assert_equal
+
+it("uses nothing from the package"):
+    assert_equal(1 + 1, 2, reason="arithmetic")

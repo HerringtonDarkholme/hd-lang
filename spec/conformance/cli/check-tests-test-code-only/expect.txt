@@ -1,7 +1,7 @@
 # An error only in test code: plain `hd check` passes, `--tests` reports it.
 run: hd check
 stdout-json: []
-stderr: check result: ok. errors: 0; warnings: 0
+stderr: check result: ok.
 run: hd check --tests --summary
 exit: 101
 stdout-json: []

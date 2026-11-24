@@ -1131,6 +1131,7 @@ export const nodeLayer = {
       const child = syncClient("./process.ts", "close", reactor);
       const files = syncClient("./fs.ts", "close", reactor);
       const input = syncClient("./input.ts", null, reactor);
+      const workers = workersProvider(env.module, reactor);
       // A bare Promise does not keep Node alive. Reference one idle message
       // port while the guest waits, without a polling timer or worker spin.
       let keeper: { port1: MessagePort; port2: MessagePort } | null = null;
@@ -1186,7 +1187,7 @@ export const nodeLayer = {
             processClient: client(child),
           }),
           "hd:TestRunner": testRunner.provider,
-          "hd:Workers": workersProvider(env.module),
+          "hd:Workers": workers.provider,
         },
         tempDir: testRunner.tempDir,
         keepAlive,
@@ -1196,6 +1197,7 @@ export const nodeLayer = {
           child.drainReady();
           files.drainReady();
           input.drainReady();
+          workers.drain();
         },
         // The sockets still open, by kind (cli.test.leak).
         leaks: () => {

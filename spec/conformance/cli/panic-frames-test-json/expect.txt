@@ -1,0 +1,15 @@
+# A passing case prints no frames. A failing case's text lists its frames,
+# panic site first; its JSON line holds the message only.
+run: hd test --filter passes
+stdout: test result: ok. 1 passed; 0 failed; 0 ignored
+run: hd test --filter out
+exit: 1
+stdout: PANIC src/lib.hd:23: runs out
+stdout:     panic: explicit-panic: out of stock
+stdout:     src/lib.hd:11 shop.boom
+stdout:     src/lib.hd:24 test "runs out"
+stdout:     repro: hd test src/lib.hd --filter "runs out"
+stdout: test result: FAILED. 0 passed; 1 failed; 0 ignored
+run: hd test --filter out --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"runs out","outcome":"failed","message":"panic: explicit-panic: out of stock"},{"kind":"summary","status":1}]

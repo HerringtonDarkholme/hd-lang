@@ -1,0 +1,9 @@
+# @dump: diagnostics
+# An unresolved receiver is an inference error at the call, with its file,
+# line and column (`trait.resolve.lookup.unknown-receiver`).
+fn mk[T]() -> T:
+    panic("x")
+
+pub fn main() -> void:
+    f := mk()
+    let _ = f.go()

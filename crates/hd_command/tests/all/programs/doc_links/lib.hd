@@ -1,0 +1,8 @@
+## The shop. See [`total`] and [`std.text.split`].
+
+## Sums a [`helper`] result, like [`Cart.add`] does.
+pub fn total() -> i32:
+    helper()
+
+fn helper() -> i32:
+    1

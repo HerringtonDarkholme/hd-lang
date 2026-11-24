@@ -4,8 +4,10 @@
 //! (`std.remote.worker_serve`). Its `WorkerPort.next` takes each frame
 //! from a channel, and `reply` answers the send that frame came from. A
 //! send waits on the `hd-io` runtime, so the program's other operations
-//! go on meanwhile. Cost: one thread and one instance per run; per send,
-//! one copy of the frame and one of the reply each way.
+//! go on meanwhile. Cancelling it aborts that wait, which drops its reply's
+//! receiver, and the worker skips a frame whose receiver is gone. Cost:
+//! one thread and one instance per run; per send, one copy of the frame
+//! and one of the reply each way.
 
 use std::sync::{Arc, mpsc};
 
@@ -102,11 +104,7 @@ pub(crate) fn call(
             pending(host.reactor.offload(reply), |_| lost())
         }
         Id::WorkerPortNext => {
-            let next = (caller.data_mut().workers.port.as_mut()).and_then(|(frames, reply)| {
-                let (frame, to) = frames.recv().ok()?;
-                *reply = Some(to);
-                Some(frame)
-            });
+            let next = caller.data_mut().workers.port.as_mut().and_then(take);
             Ok(Ret::value(&next))
         }
         Id::WorkerPortReply => {
@@ -121,6 +119,17 @@ pub(crate) fn call(
         }
         _ => Err(crate::host::misrouted(method)),
     }
+}
+
+/// The next frame whose send still waits, which `reply` then answers. A
+/// frame whose send was cancelled before the worker took it is dropped
+/// unrun (`std-host.op.cancel`), as tokio's `spawn_blocking` abort drops a
+/// task that has not started; one already taken runs to its end, and its
+/// reply finds no receiver. Cost: one closed check per frame.
+fn take((frames, reply): &mut Port) -> Option<Vec<u8>> {
+    let (frame, to) = frames.iter().find(|(_, to)| !to.is_closed())?;
+    *reply = Some(to);
+    Some(frame)
 }
 
 impl State {
@@ -274,4 +283,25 @@ pub(crate) fn watch(
         return Err(error);
     }
     Ok(Suspension::new(call, |(), _| Ok(Vec::new())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A cancelled send's frame is skipped, and the next open one is taken.
+    #[test]
+    fn a_frame_whose_send_was_cancelled_is_not_taken() {
+        let (tx, rx) = mpsc::channel();
+        let mut port: Port = (rx, None);
+        let (cancelled, gone) = oneshot::channel();
+        let (open, mut waits) = oneshot::channel();
+        tx.send((vec![1], cancelled)).unwrap();
+        tx.send((vec![2], open)).unwrap();
+        drop((tx, gone));
+        assert_eq!(take(&mut port), Some(vec![2]));
+        port.1.take().unwrap().send(vec![4]).unwrap();
+        assert_eq!(waits.try_recv(), Ok(vec![4]));
+        assert_eq!(take(&mut port), None, "a closed channel has no frame");
+    }
 }

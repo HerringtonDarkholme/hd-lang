@@ -1,0 +1,7 @@
+use pkg.util.bump
+
+pub fn keep[T](x: T) -> List[T]:
+    xs := [x]
+    if bump(xs.len()) > 9:
+        return []
+    xs

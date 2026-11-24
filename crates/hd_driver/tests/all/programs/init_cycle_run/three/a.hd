@@ -1,0 +1,11 @@
+use pkg.ring.b.{from_b}
+use pkg.log.{record}
+
+let a_val = from_b() + 1
+record("a ${a_val}")
+
+pub fn hello() -> string:
+    "hello"
+
+pub fn a_value() -> i32:
+    a_val

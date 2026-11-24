@@ -1285,9 +1285,14 @@ impl Ck<'_, '_> {
         }
         missing.sort_stable();
         if let Some(k) = missing.first() {
-            let msg = format!(
+            let mut msg = format!(
                 "in {what}: the function's row lists `{k}`, which the expected row does not"
             );
+            if what == "result" {
+                msg.push_str(
+                    "; `(fn(...) -> T $ Row)` keeps a returned function's row inside its type",
+                );
+            }
             self.err(Code::TypeMismatch, n, &msg);
         }
     }

@@ -1,0 +1,10 @@
+# test: a reference made through a pointer is not pushed into a list the caller owns
+# Spec 13 Local References: ref.local.pointer.
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+fn collect['a](h: &'a Holder, out: &mut List[&'a Node]) -> void:
+    out.push(&*h.item) # diagnostic: local-reference-escapes

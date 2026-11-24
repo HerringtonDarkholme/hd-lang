@@ -9,35 +9,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 /// `greet(Clock)` needs `Show for Clock`, which only the block declares.
-const MAIN: &str = "\
-trait Show:
-    fn show(self) -> string
-
-struct Clock:
-    hour: i32
-
-fn greet[T < Show](t: T) -> string:
-    \"hi ${t.show()}\"
-
-pub fn main() -> void $ Console:
-    println(greet(Clock { hour: 3 }))
-
-tests:
-    use std.testing.assert_equal
-
-    struct Tag:
-        name: string
-
-    impl Show for Tag:
-        fn show(self) -> string: \"tag:${self.name}\"
-
-    impl Show for Clock:
-        fn show(self) -> string: \"clock:${self.hour}\"
-
-    it(\"selects the block's impls\"):
-        assert_equal(greet(Tag { name: \"a\" }), \"hi tag:a\", reason=\"a test-only type\")
-        assert_equal(greet(Clock { hour: 3 }), \"hi clock:3\", reason=\"a library type\")
-";
+const MAIN: &str = include_str!("programs/tests_block_impls/main.hd");
 
 fn built(store: &hd_cache::MemoryStore, goal: &Goal) -> Output {
     let mut src = MemorySources::default();

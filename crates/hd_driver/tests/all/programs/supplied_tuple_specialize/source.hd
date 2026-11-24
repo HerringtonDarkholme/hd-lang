@@ -1,0 +1,100 @@
+
+use std.annotation.cold
+use std.function.Tuple
+use std.structure.{Field, Structure, Variant, Walker}
+
+fn check(value: bool) -> void:
+    if !value:
+        panic("tuple specialization changed the result")
+
+@cold
+fn label(value: usize) -> string:
+    "tuple-$value"
+
+@cold
+fn ordered(left: (string, usize), right: (string, usize)) -> bool:
+    left < right
+
+# WIDE_FUNCTION
+
+let comparisons = +0
+
+struct Observed:
+    value: i32
+
+impl Eq for Observed:
+    fn eq(&self, other: &Observed) -> bool:
+        self.value == other.value
+
+impl PartialOrd for Observed:
+    fn partial_cmp(&self, other: &Observed) -> Ordering?:
+        comparisons += 1
+        self.value.partial_cmp(&other.value)
+
+let evaluations = +0
+
+struct Marker:
+    number: i32
+
+fn stamp() -> Marker:
+    evaluations += 1
+    Marker { number: evaluations }
+
+@derive(Eq, PartialOrd)
+struct Marked:
+    @stamp()
+    value: string
+
+@derive(Eq, PartialOrd)
+enum Choice:
+    Word(string)
+    Number(i64)
+
+trait Fields:
+    fn fields(self) -> usize
+
+struct Counter:
+    count: usize
+
+impl[S] Walker[S] for Counter:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+    fn member[F](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        self.count += 1
+        .Ok(())
+
+impl[T < Tuple] Fields for T by Structure:
+    fn fields(self) -> usize:
+        let mut counter = Counter { count: 0 }
+        _ := Structure::walk(&self, &mut counter)
+        counter.count
+
+pub fn main() -> void $ Console:
+    let mut values = [label(10)]
+    left := (values[0], 1)
+    right := (values[0], 2)
+    check(ordered(left, right))
+    check(!ordered(right, left))
+    check(!ordered(left, left))
+    values[0] = label(20)
+    check(left._0 == "tuple-10")
+    check(right._0 == "tuple-10")
+    check(((left, "z") < (right, "a")))
+    check(Choice.Word(left._0) < Choice.Number(+0))
+    check(evaluations == +0)
+    marked := Marked { value: left._0 }
+    check(marked < Marked { value: "tuple-20" })
+    check(evaluations == +1)
+    check(!(marked < marked))
+    check(evaluations == +1)
+    check((left, values[0], +3).fields() == 3)
+    # WIDE_CHECK
+    check(comparisons == +0)
+    observed := Observed { value: +1 }
+    # EFFECT_CHECK
+    check(comparisons == +32)
+    let nan: f64 = 0.0 / 0.0
+    check(!((nan, 1) < (1.0, 2)))
+    check((1.0, nan) < (2.0, 0.0))
+    println("ok")

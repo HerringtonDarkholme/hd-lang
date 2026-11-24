@@ -1,0 +1,6 @@
+use pkg.api.{total}
+use pkg.shop.items.{Item}
+use pkg.shop.labels.{label}
+
+pub fn main() -> void $ Console:
+    println(label(total([Item { name: "a", price: 2, count: 3, status: .Pending }])))

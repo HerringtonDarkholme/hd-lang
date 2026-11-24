@@ -1,0 +1,17 @@
+# test: a `&mut self` call while a `&self` method's `&mut` result is live conflicts, since the result holds the receiver shared
+# Spec 13 Writes While Borrowed: ref.excl.call, ref.excl.shared.
+struct Arena:
+    used: usize
+
+impl Arena:
+    fn alloc['s, T](&'s self, v: T) -> &'s mut T:
+        panic("stub")
+
+    fn reset(&mut self) -> void:
+        self.used = 0
+
+fn churn() -> i64:
+    let mut arena = Arena { used: 0 }
+    a := arena.alloc(i64(1))
+    arena.reset() # diagnostic: conflicting-access
+    *a

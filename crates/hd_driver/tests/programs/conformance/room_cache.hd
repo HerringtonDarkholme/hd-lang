@@ -1,0 +1,7 @@
+use std.rt.memory.Buffer
+use std.rt.checked.allocated
+pub fn main() -> void $ Console:
+    before := allocated()
+    _ := Buffer::[u8].new(8)
+    count := allocated() - before
+    println(count)

@@ -20,19 +20,7 @@ fn write(path: &Path, text: &str) {
     std::fs::write(path, text).unwrap();
 }
 
-const PROGRAM: &str = "use std.console.{ConsoleInput, read_all}
-use std.host.{Args, args}
-use std.process.ExitCode
-
-pub fn main!() -> ExitCode $ Args + ConsoleInput + Console:
-    println(\"VERSION\")
-    println(\"name=${$.use(Args).program()}\")
-    for word in args():
-        println(\"arg=$word\")
-    text := read_all!().expect(\"stdin\")
-    println(\"stdin=$text\")
-    ExitCode(7)
-";
+const PROGRAM: &str = include_str!("programs/install/program.hd");
 
 impl Case {
     fn new(label: &str) -> Self {
@@ -237,7 +225,9 @@ fn updates_preserve_old_commands_on_failure_and_deny_is_one_time() {
     );
     write(
         &other.join("src/main.hd"),
-        "pub fn main() -> void $ Console:\n    println(\"other\")\n",
+        include_str!(
+            "programs/install/updates_preserve_old_commands_on_failure_and_deny_is_one_time.hd"
+        ),
     );
     rejected(
         &c.hd(&[
@@ -252,7 +242,9 @@ fn updates_preserve_old_commands_on_failure_and_deny_is_one_time() {
     // Intentional invalid source tests transactional build failure.
     write(
         &c.app.join("src/main.hd"),
-        "pub fn main() -> void:\n    intentionally_missing_name()\n",
+        include_str!(
+            "programs/install/updates_preserve_old_commands_on_failure_and_deny_is_one_time_2.hd"
+        ),
     );
     assert_eq!(c.install().status.code(), Some(101));
     assert_eq!(std::fs::read(c.registry()).unwrap(), original);
@@ -321,7 +313,9 @@ fn install_time_path_grants_do_not_follow_the_callers_package() {
     );
     write(
         &c.app.join("src/main.hd"),
-        "use std.fs.{FsRead, read_text}\nuse std.path.Path\nuse std.host.{Args, args}\n\npub fn main!() -> void $ Args + Console + FsRead:\n    match read_text!(Path(args()[0])):\n        .Ok(text) => println(text)\n        .Err(_) => println(\"denied\")\n",
+        include_str!(
+            "programs/install/install_time_path_grants_do_not_follow_the_callers_package.hd"
+        ),
     );
     let inside = c.app.join("data/value.txt");
     let outside = c.caller.join("data/value.txt");

@@ -1,0 +1,17 @@
+use std.ops.AsyncDisposable
+use std.time.{Clock, ms, sleep}
+
+struct Conn:
+    closing: Suspend[void]
+
+impl AsyncDisposable for Conn:
+    fn dispose!(&mut self) -> void:
+        let mut closing = self.closing
+        closing!()
+
+pub fn main!() -> void $ Console + Clock:
+    using! conn = Conn { closing: sleep(ms(300)) }
+    println("ready")
+    let mut forever = sleep(ms(600000))
+    forever!()
+    println("never")

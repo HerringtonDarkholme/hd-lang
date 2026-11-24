@@ -1,0 +1,46 @@
+use std.fs.{EntryKind, FsError, FsRead, FsWrite, read_text, write_text}
+use std.path.Path
+
+fn kind(k: EntryKind) -> string:
+    match k:
+        .File => "file"
+        .Directory => "dir"
+        .Symlink => "link"
+
+fn outcome(r: Result[void, FsError]) -> string:
+    match r:
+        .Ok(_) => "ok"
+        .Err(e) => "${e}"
+
+pub fn main!() -> void $ Console + FsRead + FsWrite:
+    let mut files = $.use(FsWrite)
+    println(outcome(files.create_dir_all!(Path("out/sub"))))
+    println(outcome(write_text!(Path("out/sub/a.txt"), "h\u{E9}llo")))
+    println(outcome(files.append_text!(Path("out/sub/a.txt"), "!")))
+    println(outcome(files.write_bytes!(Path("out/sub/b.bin"), [0, 200, 255])))
+    match read_text!(Path("out/sub/a.txt")):
+        .Ok(text) => println(text)
+        .Err(e) => println("${e}")
+    match $.use(FsRead).read_bytes!(Path("out/sub/b.bin")):
+        .Ok(bytes) => println("${bytes.len()} ${bytes[1]}")
+        .Err(e) => println("${e}")
+    match $.use(FsRead).list_dir!(Path("out/sub")):
+        .Ok(entries) =>
+            for entry in entries:
+                println("${entry.path} ${kind(entry.kind)} ${entry.size}")
+        .Err(e) => println("${e}")
+    match $.use(FsRead).stat!(Path("out/none")):
+        .Ok(.None) => println("no entry")
+        .Ok(.Some(_)) => println("an entry")
+        .Err(e) => println("${e}")
+    println(outcome(files.rename!(Path("out/sub/a.txt"), Path("out/c.txt"))))
+    println(outcome(files.remove!(Path("out/sub/b.bin"))))
+    println(outcome(write_text!(Path("denied.txt"), "x")))
+    match read_text!(Path("secret.txt")):
+        .Ok(_) => println("read")
+        .Err(.NotGranted(_)) => println("read not granted")
+        .Err(e) => println("${e}")
+    match read_text!(Path("out/missing.txt")):
+        .Ok(_) => println("read")
+        .Err(.NotFound(_)) => println("not found")
+        .Err(e) => println("${e}")

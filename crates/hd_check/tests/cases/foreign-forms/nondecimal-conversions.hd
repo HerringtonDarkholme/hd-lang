@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+fn binary() -> u8: 0b101u8
+fn octal() -> u16: 0o77u16
+fn signed() -> i8: -0x80i8

@@ -1,0 +1,7 @@
+pub trait Files:
+    fn open!(self) -> *mut dyn FileHandle
+
+pub fn main!() -> void $ Files:
+    let handle: &mut dyn FileHandle = $.use(Files).open!()
+    let _ = handle.close()
+    let _ = handle.read!()

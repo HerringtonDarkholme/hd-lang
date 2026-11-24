@@ -92,15 +92,7 @@ impl[S] Walker[S] for Quiet:
         .Ok(())
 "
     };
-    let main = "use pkg.lib.show.Show
-
-@derive(Show)
-struct Label:
-    text: string
-
-pub fn main() -> void:
-    pass
-";
+    let main = include_str!("programs/derive_members/label_main.hd");
     let store = crate::warm_store();
     let mut src = MemorySources::default();
     src.insert("app/main.hd", main);

@@ -117,13 +117,19 @@ impl Ck<'_, '_> {
             let text = self.cx.src.text(self.cx.src.first(n));
             let digits = split_suffix(text).0;
             if !decimal_digits(digits) {
-                let mut msg = format!("duration literal `{text}` needs a whole decimal integer");
-                if let Some(millis) = duration_fraction(digits, scale)
-                    && millis <= i64::MAX as u128
-                {
-                    msg = format!("{msg}; write `{millis}ms`");
-                }
-                self.err(Code::TypeMismatch, n, &msg);
+                let msg = format!("duration literal `{text}` needs a whole decimal integer");
+                let Some(millis) =
+                    duration_fraction(digits, scale).filter(|&m| m <= i64::MAX as u128)
+                else {
+                    self.err(Code::TypeMismatch, n, &msg);
+                    return Ok(self.poison(n));
+                };
+                let fixed = format!("{millis}ms");
+                self.err(Code::TypeMismatch, n, &format!("{msg}; write `{fixed}`"));
+                let span = self.cx.src.token_span(self.cx.src.first(n));
+                let title = format!("write `{fixed}`");
+                self.diags
+                    .add_fix(&title, hd_diag::FixSafety::Exact, &[(span, &fixed)]);
                 return Ok(self.poison(n));
             }
             let count = digits.replace('_', "").parse::<u64>().ok();
@@ -145,7 +151,10 @@ impl Ck<'_, '_> {
                 return Ok(self.poison(n));
             }
             let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {
-                let msg = format!("`{name}` is not defined");
+                let msg = format!(
+                    "`{name}` is not defined{}",
+                    hd_resolve::iface::numeric_type_hint(name)
+                );
                 self.err(Code::UnknownName, n, &msg);
                 return Ok(self.poison(n));
             };

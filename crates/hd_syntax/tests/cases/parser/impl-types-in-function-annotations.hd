@@ -1,0 +1,8 @@
+# @dump: tree
+# An `impl` type is a named function's result type or a parameter's type.
+fn values[T](value: T) -> impl Iterator[T]:
+    value
+
+fn show(value: impl Display) -> void: ()
+
+fn call['a](value: impl FnMut() -> void & 'a) -> void: ()

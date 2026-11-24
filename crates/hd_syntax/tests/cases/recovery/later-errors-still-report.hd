@@ -1,0 +1,30 @@
+# @dump: tree
+# Independent errors in two items both report.
+fn first(a: bool, b: bool) -> bool:
+    if a and b:
+        true
+    else:
+        false
+
+fn second() -> i32:
+    x := (1 2)
+    x
+
+# A stray indentation reports once, and its later lines report their own errors.
+fn f() -> i32:
+    x := +1
+        .0
+        y := (1 2)
+    x
+
+# A reserved binding name is reported in each item that writes it.
+fn f() -> i32:
+    tests := 3
+    tests
+
+fn g() -> i32:
+    tests
+
+# An unmatched closing delimiter reports, and the next statement still parses.
+first := [1, 2)
+second := +2

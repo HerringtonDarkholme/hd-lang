@@ -1,0 +1,9 @@
+[package]
+name = "shop"
+
+[capabilities]
+Console = true
+
+[[executable]]
+name = "migrate"
+module = "tools.migrate"

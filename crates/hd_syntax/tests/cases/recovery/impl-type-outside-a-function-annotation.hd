@@ -1,0 +1,16 @@
+# @dump: tree
+# An `impl` type is rejected in a field, a local annotation, a function type, a
+# type argument and a requirement key.
+struct S:
+    value: impl Display
+
+fn f() -> void:
+    let value: impl Display = +1
+
+fn f() -> fn() -> impl Display: +1
+
+fn f() -> Result[fn(impl Display) -> void, string]: +1
+
+fn f(value: List[impl Display]) -> void: ()
+
+fn f() -> Wrapper[$ Key[impl Display]]: +1

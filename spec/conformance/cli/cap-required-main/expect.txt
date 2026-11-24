@@ -6,6 +6,7 @@ exit: 101
 stdout-json: []
 stderr-json: [{"kind":"diagnostic","code":"missing-capability","severity":"error","file":"src/main.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --fix
+same-text: hd.toml want/hd.toml
 run: hd check --format json
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd run

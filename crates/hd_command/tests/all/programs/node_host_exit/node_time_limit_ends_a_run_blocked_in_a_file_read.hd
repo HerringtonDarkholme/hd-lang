@@ -1,0 +1,8 @@
+use std.fs.{FsRead, read_text}
+use std.path.Path
+
+pub fn main!() -> void $ Console + FsRead:
+    println("before")
+    match read_text!(Path("pipe/ff")):
+        .Ok(t) => println(t)
+        .Err(e) => println("${e}")

@@ -1,6 +1,8 @@
 # Raw input data stays deliberately unformatted when repo .hd sources are formatted.
+# `--check` lists the file that would change.
 run: hd fmt --check inputs/binary.input
 exit: 1
+stdout: inputs/binary.input
 run: hd fmt inputs/binary.input
 same-text: inputs/binary.input want/binary.hd
 run: hd fmt --check inputs/binary.input

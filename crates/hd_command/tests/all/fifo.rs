@@ -8,8 +8,7 @@ use std::time::{Duration, Instant};
 
 use hd_testkit::Scratch;
 
-const MAIN: &str = "use std.testing.assert_equal\n\npub fn main() -> void $ Console:\n    println(\"hi\")\n\n\
-                    tests:\n    it(\"adds\"):\n        assert_equal(1 + 1, 2, reason=\"sum\")\n";
+const MAIN: &str = include_str!("programs/fifo/main.hd");
 
 fn fifo(path: &Path) {
     let made = Command::new("mkfifo").arg(path).status().expect("mkfifo");
@@ -30,7 +29,7 @@ fn package(name: &str) -> Scratch {
     std::fs::write(root.join("src/main.hd"), MAIN).expect("main");
     std::fs::write(
         root.join("tests/it.hd"),
-        "use std.testing.assert_equal\n\nit(\"ok\"):\n    assert_equal(1, 1, reason=\"one\")\n",
+        include_str!("programs/fifo/package.hd"),
     )
     .expect("it");
     fifo(&root.join("pipe"));

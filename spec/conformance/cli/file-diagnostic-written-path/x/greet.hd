@@ -1,2 +1,6 @@
 fn greet(name: string) -> i32:
     "hello, $name"
+
+# An unread binding is lint advice: no ordinary command prints it.
+fn unread() -> void:
+    spare := +1

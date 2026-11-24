@@ -1,0 +1,8 @@
+@host
+pub trait Server:
+    fn read(&self) -> i32
+    fn wait!(&mut self) -> i32
+
+pub fn main!() -> void $ Console + Server:
+    println("${$.use(Server).read()}")
+    println("${$.use(Server).wait!()}")

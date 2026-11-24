@@ -331,6 +331,11 @@ fn write_diags(w: &mut Writer, d: &DiagBuf) {
         write_span(w, d.primary[i]);
         write_range(w, d.message[i]);
         write_range(w, d.fixes[i]);
+        w.len_of(d.labels(i));
+        for (span, message) in d.labels(i) {
+            write_span(w, *span);
+            w.str(message);
+        }
         match d.root[i] {
             None => w.u8(u8::MAX),
             Some(root) => {
@@ -366,6 +371,10 @@ fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option
         d.primary.push(read_span(r));
         d.message.push(read_range(r));
         d.fixes.push(read_range(r));
+        for _ in 0..r.count() {
+            let span = read_span(r);
+            d.add_label(span, r.str());
+        }
         let cause = match r.u8() {
             u8::MAX => None,
             0 => Some(CauseKind::Type),
@@ -411,4 +420,37 @@ fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option
         && d.fixes.iter().all(|&f| within(f, d.fix_title.len()))
         && d.fix_edits.iter().all(|&e| within(e, d.edits.len()));
     (r.ok() && ok).then_some(d)
+}
+
+#[cfg(test)]
+mod label_tests {
+    use super::*;
+
+    #[test]
+    fn package_diagnostics_keep_secondary_spans_and_labels() {
+        let span = Span {
+            file: FileId::from_raw(3),
+            lo: 8,
+            hi: 14,
+        };
+        let mut before = DiagBuf::default();
+        before.error(Code::OverlappingImpl, span, "overlap");
+        before.add_label(
+            Span {
+                lo: 1,
+                hi: 7,
+                ..span
+            },
+            "other implementation",
+        );
+        before.error(Code::TypeMismatch, span, "another error");
+        let mut w = Writer::default();
+        write_diags(&mut w, &before);
+        let mut r = Reader::new(&w.bytes);
+        let after = read_diags(&mut r, &Code::from_name).expect("valid diagnostics");
+        assert!(r.at_end());
+        assert_eq!(after.render_json(), before.render_json());
+        assert_eq!(after.labels(0), before.labels(0));
+        assert!(after.labels(1).is_empty());
+    }
 }

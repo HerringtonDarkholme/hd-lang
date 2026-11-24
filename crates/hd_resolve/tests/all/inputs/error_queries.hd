@@ -1,0 +1,12 @@
+@error("lost $code")
+pub struct Lost:
+    code: i32
+
+@error
+pub enum Status:
+    Plain
+    @error("bad $code: $name")
+    Pair(code: i32, name: string)
+
+pub fn plain() -> void:
+    pass

@@ -7,4 +7,5 @@ run: hd build/debug/greeter.wasm
 stdout: hello
 run: hd build/debug/greeter.wasm --cap Console=false
 exit: 101
+stderr: error: denied-capability: the program needs Console, which `--cap Console=false` denies, so it does not start
 stdout-json: []

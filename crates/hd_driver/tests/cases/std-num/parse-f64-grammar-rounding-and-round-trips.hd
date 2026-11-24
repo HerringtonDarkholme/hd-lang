@@ -1,0 +1,55 @@
+# @dump: tests
+# `parse::[f64]` through a program (`std-num.parse-f64.*`): the grammar it
+# accepts, the position of the first byte it rejects, the special values,
+# correct rounding at ties, at the range's ends and around half the smallest
+# subnormal, and the round trip of `to_string`. Every case passes.
+use std.num.{ParseNumberError}
+use std.testing.assert_equal
+
+fn bits(text: string) -> string:
+    match text.parse::[f64]():
+        .Ok(value) => "${value}"
+        .Err(.InvalidDigit(position)) => "invalid ${position}"
+        .Err(_) => "error"
+
+tests:
+    it("accepts the grammar"):
+        assert_equal(bits("1.5"), "1.5", reason="plain")
+        assert_equal(bits("+1.5"), "1.5", reason="plus")
+        assert_equal(bits("15e-1"), "1.5", reason="exponent")
+        assert_equal(bits("15E+0"), "15.0", reason="upper E")
+        assert_equal(bits(".5"), "0.5", reason="no whole part")
+        assert_equal(bits("-.5"), "-0.5", reason="negative")
+        assert_equal(bits("5."), "5.0", reason="no fraction")
+        assert_equal(bits("007"), "7.0", reason="leading zeros")
+        assert_equal(bits("-0"), "-0.0", reason="negative zero")
+    it("rejects the rest"):
+        assert_equal(bits(""), "error", reason="empty")
+        assert_equal(bits(" 1.5"), "invalid 0", reason="space")
+        assert_equal(bits("1_000"), "invalid 1", reason="underscore")
+        assert_equal(bits("0x10"), "invalid 1", reason="hex")
+        assert_equal(bits("1,5"), "invalid 1", reason="comma")
+        assert_equal(bits("1e"), "invalid 2", reason="bare exponent")
+        assert_equal(bits("1.5f"), "invalid 3", reason="suffix")
+        assert_equal(bits("."), "invalid 1", reason="lone point")
+    it("reads the specials"):
+        assert_equal(bits("nan"), "NaN", reason="nan")
+        assert_equal(bits("-Infinity"), "-inf", reason="negative infinity")
+        assert_equal(bits("+INF"), "inf", reason="inf")
+    it("rounds correctly"):
+        assert_equal(bits("9007199254740993"), "9007199254740992.0", reason="tie to even, down")
+        assert_equal(bits("9007199254740995"), "9007199254740996.0", reason="tie to even, up")
+        assert_equal(bits("1e400"), "inf", reason="past the range")
+        assert_equal(bits("-1e400"), "-inf", reason="negative past the range")
+        assert_equal(bits("1e-400"), "0.0", reason="below the subnormals")
+        assert_equal(bits("-1e-400"), "-0.0", reason="negative below")
+        assert_equal(bits("5e-324"), "5e-324", reason="smallest subnormal")
+        assert_equal(bits("2.4703282292062327e-324"), "0.0", reason="below half the smallest")
+        assert_equal(bits("2.4703282292062328e-324"), "5e-324", reason="above half the smallest")
+        assert_equal(bits("1.7976931348623157e308"), "1.7976931348623157e+308", reason="largest")
+        assert_equal(bits("0.30000000000000004"), "0.30000000000000004", reason="seventeen digits")
+    it("round-trips float text"):
+        x := 0.1 + 0.2
+        assert_equal(bits(x.to_string()), "0.30000000000000004", reason="sum")
+        assert_equal(bits(1e300.to_string()), "1e+300", reason="large")
+        assert_equal(bits(5e-324.to_string()), "5e-324", reason="subnormal")

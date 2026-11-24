@@ -1,0 +1,5 @@
+tests:
+    it("runs"):
+        pass
+
+use pkg.main

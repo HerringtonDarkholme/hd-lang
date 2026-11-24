@@ -1,0 +1,8 @@
+use dep.place.{report, from_inside, shown}
+
+pub fn main() -> void $ Console:
+    println(report())
+    println(from_inside())
+    show := report
+    println(show())
+    println(shown()())

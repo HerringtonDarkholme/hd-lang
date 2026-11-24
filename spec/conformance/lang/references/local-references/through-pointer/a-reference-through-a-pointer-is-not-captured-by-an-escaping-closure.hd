@@ -1,0 +1,11 @@
+# test: a closure that outlives the function may not capture a reference made through a pointer
+# Spec 13 Local References: ref.local.pointer, ref.local.escape.capture-stored.
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+fn reader(h: &Holder) -> fn() -> i32:
+    r := &*h.item
+    fn() -> i32: r.v # diagnostic: local-reference-escapes

@@ -1,8 +1,9 @@
 # @dump: stdout
 # @build: dev | checked | release
-# The argument is a stored local reference, so its call has no newly
-# crossed pointer head; the result still borrows the counted child, so the
-# aliased child write panics borrow-conflict (#2174).
+# The argument is a stored local reference, and the callee hands out the
+# counted child (a reference through it would be local to the callee,
+# `ref.local.pointer`); the caller's own reference through it borrows the
+# child, so the aliased child write panics borrow-conflict (#2174, #2339).
 use std.annotation.inline
 
 struct Node:
@@ -10,8 +11,8 @@ struct Node:
     children: List[*mut Node]
 
 @inline(.Never)
-fn descend(node: &Node) -> &Node:
-    &*node.children[0]
+fn descend(node: &Node) -> *mut Node:
+    node.children[0]
 
 @inline(.Never)
 fn maybe_change(alias: *mut Node, change: bool) -> void:
@@ -26,6 +27,6 @@ pub fn main() -> void $ Console:
         n += 1
     let alias = head.children[0]
     let current = &*head
-    current = descend(current)
+    current = &*descend(current)
     maybe_change(alias, true)
     println(current.value)

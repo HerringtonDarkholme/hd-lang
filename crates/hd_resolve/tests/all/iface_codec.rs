@@ -386,3 +386,41 @@ fn result_paths_survive_eager_and_lazy_interfaces_in_a_fresh_session() {
         "only the requested signatures are decoded"
     );
 }
+
+/// Generic kind and impl metadata are queried the same way before and
+/// after caching, even when diagnostics do not ask for a const-slot label.
+#[test]
+fn generic_and_impl_metadata_survive_interface_roundtrip() -> Result<(), &'static str> {
+    let run = Run::new();
+    let names = run.names();
+    let text = include_str!("inputs/generic_item_metadata.hd");
+    let (items, exports) = super::const_generics::resolve_in(names, text);
+    let bytes = encode_items(&names, &items, &exports).map_err(|_| "encode resolved items")?;
+    let (decoded, decoded_exports) = decode_items(&names, &bytes).ok_or("decode resolved items")?;
+    assert_eq!(decoded_exports, exports);
+    for view in [&items, &decoded] {
+        let configure = view
+            .iter()
+            .find(|item| item.def == names.item("app", "configure"))
+            .ok_or("resolved function")?;
+        let ItemData::Fn(signature, _) = &configure.data else {
+            return Err("function signature");
+        };
+        let kinds: Vec<_> = signature
+            .generics
+            .iter()
+            .map(|generic| (names.text(generic.name), generic.kind_name()))
+            .collect();
+        assert_eq!(kinds, [("T", "type"), ("N", "const"), ("R", "row")]);
+        let mark = names.item("app", "Mark");
+        let implementation = view
+            .iter()
+            .find(|item| {
+                matches!(&item.data,
+            ItemData::Impl { trait_, .. } if *trait_ == mark)
+            })
+            .ok_or("resolved impl")?;
+        assert_eq!(implementation.kind(), Some(hd_resolve::HeadKind::Impl));
+    }
+    Ok(())
+}

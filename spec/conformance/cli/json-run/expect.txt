@@ -4,3 +4,17 @@ stderr-json: [{"kind":"summary","errors":0,"warnings":0,"passed":0,"failed":0,"i
 run: hd --format json src/main.hd
 stdout: hello
 stderr-json: [{"kind":"summary","errors":0,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":0}]
+# `--format json` after FILE too.
+run: hd src/main.hd --format json
+stdout: hello
+stderr-json: [{"kind":"summary","errors":0,"warnings":0,"passed":0,"failed":0,"ignored":0,"status":0}]
+# A program that doesn't check prints nothing; its diagnostics are JSON lines
+# on standard error, ending in the summary.
+run: hd --format json broken.hd
+exit: 101
+stdout-json: []
+stderr-json: [{"kind":"diagnostic","code":"unknown-name","file":"broken.hd","line":2,"column":13},{"kind":"summary","errors":1,"status":101}]
+# `--format` takes `text` or `json`.
+run: hd build --format yaml
+exit: 101
+stderr: error: `--format` takes `text` or `json`, not `yaml`

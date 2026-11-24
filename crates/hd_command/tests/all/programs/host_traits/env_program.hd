@@ -1,0 +1,13 @@
+use std.host.{Env, env}
+
+fn show(name: string) -> string $ Env:
+    match env(name):
+        .Some(value) => value
+        .None => "(none)"
+
+pub fn main() -> void $ Console + Env:
+    println(show("HD_T176_SEEN"))
+    println(show("HD_T176_HIDDEN"))
+    println(show("HD_T176_HIDDEN"))
+    println(show("HD_T176_UNSET"))
+    println("${$.use(Env).names().len()}")

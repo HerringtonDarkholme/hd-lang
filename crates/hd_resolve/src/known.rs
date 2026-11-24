@@ -610,9 +610,9 @@ impl KnownItems {
     /// `Fn` or `FnMut` when `d` is that function trait.
     #[must_use]
     pub fn fn_trait_name(&self, d: DefId) -> Option<&'static str> {
-        if d == DefId::NONE {
-            None
-        } else if d == self.fn_trait {
+        // Both known trait IDs are interned and nonzero; NONE takes the
+        // same fallback as every other declaration that is neither trait.
+        if d == self.fn_trait {
             Some("Fn")
         } else if d == self.fn_mut_trait {
             Some("FnMut")

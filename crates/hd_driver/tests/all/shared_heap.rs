@@ -6,20 +6,7 @@
 use hd_driver::{BuildProfile, Executor, Goal, Host, NoClock, OptLevel, Packages, build_packages};
 use hd_sched::SerialOrder;
 
-const THREADS: &str = "use std.rt.alloc.alloc
-use std.rt.memory.{atomic_add_u32, atomic_load_u32, store_u32}
-use std.thread.{Scope, scope}
-
-COUNTER := alloc(16)
-
-fn add_one() -> void:
-    _ := atomic_add_u32(COUNTER, 1)
-
-pub fn main() -> void $ Console:
-    store_u32(COUNTER, 0)
-    scope(fn(s: &mut Scope) -> void: s.spawn(fn() -> void: add_one()).join())
-    println(\"joined ${atomic_load_u32(COUNTER)}\")
-";
+const THREADS: &str = include_str!("programs/shared_heap/threads.hd");
 
 /// `source` as std's `rt_tests.stage_case`, built at `level`.
 fn wasm(source: &str, level: OptLevel) -> Vec<u8> {

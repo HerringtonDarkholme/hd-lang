@@ -1,6 +1,6 @@
 use crate::is_nfc;
 use hd_base::{FileId, Span, Symbol, TokenIdx};
-use hd_diag::{Code, Diagnostic};
+use hd_diag::{Code, Diagnostic, DiagnosticFix, FixSafety};
 use unicode_ident::{is_xid_continue, is_xid_start};
 
 const NONE: u32 = u32::MAX;
@@ -654,6 +654,7 @@ impl<'s> Lexer<'s> {
                 "'{text}' is a reserved word, so it cannot prefix a string: write '{text} \"...'"
             );
             self.error(Code::SyntaxError, start, self.pos, message);
+            self.fix_last("insert a space", self.pos, " ");
         }
         let kind = keyword(text).unwrap_or_else(|| {
             if text == "_" {
@@ -787,6 +788,7 @@ impl<'s> Lexer<'s> {
                         "'{word}' is a reserved word, so '{number}{word}' needs a space: write '{number} {word}'"
                     );
                     self.error(Code::SyntaxError, start, self.pos, message);
+                    self.fix_last("insert a space", suffix, " ");
                 }
             }
         } else if self.pos == start + 2 {
@@ -807,11 +809,42 @@ impl<'s> Lexer<'s> {
             {
                 self.pos += char_len(self.source, self.pos);
             }
-            let message = format!(
-                "invalid integer literal '{}'",
-                &self.source[start..self.pos]
-            );
-            self.error(Code::SyntaxError, start, self.pos, message);
+            let literal = &self.source[start..self.pos];
+            // Radix literals do not call suffix functions. A recognized
+            // numeric suffix has an unambiguous conversion spelling.
+            let target = [
+                "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "usize", "f32", "f64",
+            ]
+            .into_iter()
+            .find(|target| literal.ends_with(target));
+            if let Some(target) = target {
+                let digits = literal[..literal.len() - target.len()].trim_end_matches('_');
+                let mut d = diagnostic(
+                    Code::SyntaxError,
+                    start,
+                    self.pos,
+                    format!(
+                        "a radix literal uses a conversion, not a suffix: write `{target}(value)` with any unary sign inside"
+                    ),
+                );
+                // The lexer cannot distinguish a unary sign from a binary
+                // operator. Leave signed cases to the hint rather than
+                // move a sign across a checked conversion.
+                if !matches!(
+                    self.tokens.kind.last(),
+                    Some(TokenKind::Plus | TokenKind::Minus)
+                ) {
+                    d.fixes.push(DiagnosticFix {
+                        message: "convert the radix literal with a call".into(),
+                        safety: FixSafety::Exact,
+                        edits: vec![(d.primary, format!("{target}({digits})"))],
+                    });
+                }
+                self.diagnostics.push(d);
+            } else {
+                let message = format!("invalid integer literal '{literal}'");
+                self.error(Code::SyntaxError, start, self.pos, message);
+            }
         }
         if bad_separator {
             let kind = if radix == 10 { "numeric" } else { "integer" };
@@ -1156,6 +1189,23 @@ impl<'s> Lexer<'s> {
         self.diagnostics.push(diagnostic(code, start, end, message));
     }
 
+    /// Gives the diagnostic pushed last the one certain fix-it `title`:
+    /// `text` inserted at byte `at`.
+    fn fix_last(&mut self, title: &str, at: usize, text: &str) {
+        if let Some(d) = self.diagnostics.last_mut() {
+            let span = Span {
+                lo: to_u32(at),
+                hi: to_u32(at),
+                ..d.primary
+            };
+            d.fixes.push(hd_diag::DiagnosticFix {
+                message: title.to_owned(),
+                safety: hd_diag::FixSafety::Exact,
+                edits: vec![(span, text.to_owned())],
+            });
+        }
+    }
+
     /// Whether only spaces and tabs precede the cursor on its line.
     fn in_indentation(&self) -> bool {
         self.bytes[..self.pos]
@@ -1442,7 +1492,7 @@ mod tests {
 
     #[test]
     fn lexes_losslessly() {
-        let source = "## docs\nfn café(x: i32) -> string:\n    r\"hello $x\" # tail\n";
+        let source = include_str!("lexer_lossless.hd");
         let lexed = lex(source.as_bytes());
         assert!(lexed.diagnostics.is_empty(), "{:?}", lexed.diagnostics);
         assert_eq!(lexed.tokens.reconstruct(source), source);

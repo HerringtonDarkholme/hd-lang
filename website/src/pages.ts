@@ -103,6 +103,12 @@ export const PAGES: readonly PageSource[] = [
     "Guide",
   ),
   page("website/guide/COMMANDS.md", "guide/commands.html", "The `hd` Command", "Guide"),
+  page(
+    "website/guide/DIAGNOSTICS.md",
+    "guide/diagnostics.html",
+    "Understanding Diagnostics",
+    "Guide",
+  ),
   page("website/guide/USING_HD.md", "guide/using-hd.html", "Using hd", "Guide"),
   page("spec/README.md", "spec/index.html", "Specification", "Reference"),
   // The number comes from the file name, so a removed chapter (13, GADTs)

@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: every bare closure parameter is preserved by the fn repair
+fn accept(body: fn(i32, i32) -> i32) -> i32: body(+1, +2)
+fn call() -> i32: accept(|left, right| left + right)

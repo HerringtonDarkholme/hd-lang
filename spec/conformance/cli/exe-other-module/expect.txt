@@ -1,0 +1,6 @@
+# An `[[executable]]` table names its entry module below the source root:
+# `hd run NAME` runs it and `hd build` writes it under its name.
+run: hd run migrate
+stdout: migrated
+run: hd build
+file: build/debug/migrate.wasm

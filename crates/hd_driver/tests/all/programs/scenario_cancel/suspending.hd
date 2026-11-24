@@ -1,0 +1,6 @@
+fn ready!() -> i32:
+    42
+
+pub fn main!() -> void $ Console:
+    value := ready!()
+    println("value=$value")

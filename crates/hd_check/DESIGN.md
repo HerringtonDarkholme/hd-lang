@@ -1832,7 +1832,7 @@ owning a second solver.
 
 | Component | Owns | Does not own |
 | --- | --- | --- |
-| Resolution (`hd_resolve`) | impl heads, bound plans and derived heads in the interface; every header check that needs no solver: orphan, module ownership, targets, unconstrained parameters, sealed traits, per-member `dyn` availability, template placement, associated-type bindings; the overlap check (`Universe::overlaps`) | goals |
+| Resolution (`hd_resolve`) | impl heads, bound plans and derived heads in the interface; every header check that needs no solver: orphan, module ownership, targets, unconstrained parameters, sealed traits, per-member `dyn` availability, template placement, associated-type bindings; the overlap check (`Universe::trait_overlaps`) | goals |
 | **Trait solver (`hd_types::solver`, this document)** | `Implements`, `Instantiations` and the trait part of `Methods`; canonical goals and the memo; selection for codegen (`select`, `normalize_concrete`); `FailInfo` | inference variables (it reads them, never writes them), diagnostic text, spans |
 | Candidate lookup (`hd_types::lookup`) | owner folders, unowned rows, the candidate directory, impl universes | answers |
 | Header checks (`hd_check::header`, the `HeaderCheck(F)` task) | each impl's supertrait checks, newtype bases, delegation targets: goals under the item's environment ([crates/hd_resolve/DESIGN.md §4.10.1](../hd_resolve/DESIGN.md#4101-header-validation-stages)) | the answers |
@@ -2554,12 +2554,12 @@ return.
 Implementation differs: one `Coherence` task covers every trait
 (`hd_driver` `Run::coherence`) and checks again only the traits whose
 `coh_key` changed (crates/hd_cache/DESIGN.md §5.3), and
-`hd_resolve::Universe::overlaps` unifies each head with
-every earlier head of its trait. Its answers, witnesses and content-order
-blame match steps 1, 2, 5 and 6, and a written tuple impl beside a tuple
-template is reported directly. The pairwise loop is quadratic in a
-trait's head count (300 `From` impls of one error type cost about 45,000
-unifications).
+`hd_resolve::Universe::trait_overlaps` indexes earlier heads by the outer
+constructor of the target and first trait argument, then unifies compatible
+candidates. Its answers, witnesses and content-order blame match steps 1,
+2, 5 and 6, and a written tuple impl beside a tuple template is reported
+directly. Constructor-disjoint heads avoid pairwise unification; wildcard
+heads still compare against compatible candidates.
 
 ### 5.3 Why No Global Index
 
@@ -3200,7 +3200,7 @@ and environments are frozen and read through `&`.
 | [Supertraits](../../spec/lang/09-traits.md#supertraits), [Supertrait Bindings](../../spec/lang/09-traits.md#supertrait-bindings) | `hd_check::body::add_bound`; `hd_check::header` |
 | [Associated Types](../../spec/lang/09-traits.md#associated-types), [Associated Type Bindings](../../spec/lang/09-traits.md#associated-type-bindings) | `hd_check` normalization; `hd_resolve::assoc` |
 | [Implementation Targets](../../spec/lang/09-traits.md#implementation-targets), [Implementation Ownership](../../spec/lang/09-traits.md#implementation-ownership) | resolution header checks; `hd_types::lookup` |
-| [Overlap](../../spec/lang/09-traits.md#overlap) | `hd_resolve::Universe::overlaps`; bound plans |
+| [Overlap](../../spec/lang/09-traits.md#overlap) | `hd_resolve::Universe::trait_overlaps`; bound plans |
 | [Derived Implementations](../../spec/lang/09-traits.md#derived-implementations), [Templates](../../spec/lang/14-annotations.md#templates), [Derived Bounds](../../spec/lang/14-annotations.md#derived-bounds) | derived heads; `hd_check::derive` |
 | [Method Resolution](../../spec/lang/09-traits.md#method-resolution), [Trait Availability](../../spec/lang/09-traits.md#trait-availability) | `Search::methods`; `hd_check::MethodIndex` |
 | [Instantiations Of One Generic Trait](../../spec/lang/09-traits.md#instantiations-of-one-generic-trait), [Inference Through A Bound](../../spec/lang/04-type-system.md#inference-through-a-bound) | `Search::instantiations`; `hd_check::trial` |

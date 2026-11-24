@@ -1,0 +1,7 @@
+```hd
+pub fn split(self, separator: string) -> List[string]
+```
+
+Splits the string around each occurrence of `separator`, in order.
+
+Reference: [std.text.string.split](spec/std/text.md#r-std-text.string.split)
