@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# A known target uses the same-head bucket and reports the later member.
+struct Record: pass
+
+impl Record:
+    fn marker(self) -> i32:
+        +1
+
+impl Record:
+    fn marker(self) -> i32:
+        +2

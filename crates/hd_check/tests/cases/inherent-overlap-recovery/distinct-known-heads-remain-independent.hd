@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# Equal member names on distinct nominal targets do not conflict.
+struct Left: pass
+struct Right: pass
+
+impl Left:
+    fn marker(self) -> i32:
+        +1
+
+impl Right:
+    fn marker(self) -> i32:
+        +2
