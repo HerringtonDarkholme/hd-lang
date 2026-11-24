@@ -1,719 +1,112 @@
-# test: every narrowing and signedness-changing integer pair returns the exact value or a range error
+# test: every narrowing and signedness pair, with table-driven boundary checks
 # Spec std/num Fallible Integer Conversions: std-num.try-from.impls, std-num.try-from.exact, std-num.try-from.range, std-num.try-from.profiles, std-num.try-from.usize.
 use std.convert.TryFrom
-use std.num.TryFromIntError
+use std.num.{Integer, TryFromIntError}
+use std.testing.assert_equal
+
+fn add_neighbors[S < Integer](values: &mut List[S], value: S) -> void:
+    values.push(value)
+    if value > S::min_value():
+        values.push(value - S::one())
+    if value < S::max_value():
+        values.push(value + S::one())
+
+fn check_pair[S < Integer, T < Integer & TryFrom[S, Error = TryFromIntError]]() -> void:
+    let mut values = [S::min_value(), S::max_value(), S::zero()]
+    # Test each destination boundary and its neighbors when the source can hold it.
+    low := i64(T::min_value())
+    if low < 0:
+        if low >= i64(S::min_value()):
+            add_neighbors(&mut values, S::from_i64(low))
+    else:
+        add_neighbors(&mut values, S::zero())
+    high := u64(T::max_value())
+    if high <= u64(S::max_value()):
+        add_neighbors(&mut values, S::from_u64(high))
+    # Independent bit-width oracle: exact signed/unsigned views, without the implementation's bound comparisons.
+    width := (~T::zero()).count_ones()
+    signed := T::min_value() < T::zero()
+    for value in values:
+        negative := value < S::zero()
+        let fits = false
+        if negative:
+            needed := 64 - u64(~i64(value)).leading_zeros() + 1
+            fits = signed && needed <= width
+        else:
+            needed := 64 - u64(value).leading_zeros()
+            usable := width - (if signed: 1 else: 0)
+            fits = needed <= usable
+        result := T::try_from(value)
+        assert_equal(result.is_ok(), fits, reason="range agrees with the value's bit width")
+        match result:
+            .Ok(converted) =>
+                if negative:
+                    assert_equal(i64(converted), i64(value), reason="negative value is exact")
+                else:
+                    assert_equal(u64(converted), u64(value), reason="nonnegative value is exact")
+            .Err(_) => pass
 
 tests:
-    use std.testing.assert_equal
+    use std.testing.it_each
 
-    it("i8 to u8"):
-        assert_equal(u8::try_from(i8(-128)), .Err(TryFromIntError {}), reason="i8 to u8: -128")
-        assert_equal(u8::try_from(i8(-1)), .Err(TryFromIntError {}), reason="i8 to u8: -1")
-        assert_equal(u8::try_from(i8(0)), .Ok(u8(0)), reason="i8 to u8: 0")
-        assert_equal(u8::try_from(i8(127)), .Ok(u8(127)), reason="i8 to u8: 127")
-
-    it("i8 to u16"):
-        assert_equal(u16::try_from(i8(-128)), .Err(TryFromIntError {}), reason="i8 to u16: -128")
-        assert_equal(u16::try_from(i8(-1)), .Err(TryFromIntError {}), reason="i8 to u16: -1")
-        assert_equal(u16::try_from(i8(0)), .Ok(u16(0)), reason="i8 to u16: 0")
-        assert_equal(u16::try_from(i8(127)), .Ok(u16(127)), reason="i8 to u16: 127")
-
-    it("i8 to u32"):
-        assert_equal(u32::try_from(i8(-128)), .Err(TryFromIntError {}), reason="i8 to u32: -128")
-        assert_equal(u32::try_from(i8(-1)), .Err(TryFromIntError {}), reason="i8 to u32: -1")
-        assert_equal(u32::try_from(i8(0)), .Ok(u32(0)), reason="i8 to u32: 0")
-        assert_equal(u32::try_from(i8(127)), .Ok(u32(127)), reason="i8 to u32: 127")
-
-    it("i8 to usize"):
-        assert_equal(
-            usize::try_from(i8(-128)),
-            .Err(TryFromIntError {}),
-            reason="i8 to usize: -128",
-        )
-        assert_equal(usize::try_from(i8(-1)), .Err(TryFromIntError {}), reason="i8 to usize: -1")
-        assert_equal(usize::try_from(i8(0)), .Ok(usize(0)), reason="i8 to usize: 0")
-        assert_equal(usize::try_from(i8(127)), .Ok(usize(127)), reason="i8 to usize: 127")
-
-    it("i8 to u64"):
-        assert_equal(u64::try_from(i8(-128)), .Err(TryFromIntError {}), reason="i8 to u64: -128")
-        assert_equal(u64::try_from(i8(-1)), .Err(TryFromIntError {}), reason="i8 to u64: -1")
-        assert_equal(u64::try_from(i8(0)), .Ok(u64(0)), reason="i8 to u64: 0")
-        assert_equal(u64::try_from(i8(127)), .Ok(u64(127)), reason="i8 to u64: 127")
-
-    it("i16 to i8"):
-        assert_equal(
-            i8::try_from(i16(-32768)),
-            .Err(TryFromIntError {}),
-            reason="i16 to i8: -32768",
-        )
-        assert_equal(i8::try_from(i16(-129)), .Err(TryFromIntError {}), reason="i16 to i8: -129")
-        assert_equal(i8::try_from(i16(-128)), .Ok(i8(-128)), reason="i16 to i8: -128")
-        assert_equal(i8::try_from(i16(0)), .Ok(i8(0)), reason="i16 to i8: 0")
-        assert_equal(i8::try_from(i16(127)), .Ok(i8(127)), reason="i16 to i8: 127")
-        assert_equal(i8::try_from(i16(128)), .Err(TryFromIntError {}), reason="i16 to i8: 128")
-        assert_equal(i8::try_from(i16(32767)), .Err(TryFromIntError {}), reason="i16 to i8: 32767")
-
-    it("i16 to u8"):
-        assert_equal(
-            u8::try_from(i16(-32768)),
-            .Err(TryFromIntError {}),
-            reason="i16 to u8: -32768",
-        )
-        assert_equal(u8::try_from(i16(-1)), .Err(TryFromIntError {}), reason="i16 to u8: -1")
-        assert_equal(u8::try_from(i16(0)), .Ok(u8(0)), reason="i16 to u8: 0")
-        assert_equal(u8::try_from(i16(255)), .Ok(u8(255)), reason="i16 to u8: 255")
-        assert_equal(u8::try_from(i16(256)), .Err(TryFromIntError {}), reason="i16 to u8: 256")
-        assert_equal(u8::try_from(i16(32767)), .Err(TryFromIntError {}), reason="i16 to u8: 32767")
-
-    it("i16 to u16"):
-        assert_equal(
-            u16::try_from(i16(-32768)),
-            .Err(TryFromIntError {}),
-            reason="i16 to u16: -32768",
-        )
-        assert_equal(u16::try_from(i16(-1)), .Err(TryFromIntError {}), reason="i16 to u16: -1")
-        assert_equal(u16::try_from(i16(0)), .Ok(u16(0)), reason="i16 to u16: 0")
-        assert_equal(u16::try_from(i16(32767)), .Ok(u16(32767)), reason="i16 to u16: 32767")
-
-    it("i16 to u32"):
-        assert_equal(
-            u32::try_from(i16(-32768)),
-            .Err(TryFromIntError {}),
-            reason="i16 to u32: -32768",
-        )
-        assert_equal(u32::try_from(i16(-1)), .Err(TryFromIntError {}), reason="i16 to u32: -1")
-        assert_equal(u32::try_from(i16(0)), .Ok(u32(0)), reason="i16 to u32: 0")
-        assert_equal(u32::try_from(i16(32767)), .Ok(u32(32767)), reason="i16 to u32: 32767")
-
-    it("i16 to usize"):
-        assert_equal(
-            usize::try_from(i16(-32768)),
-            .Err(TryFromIntError {}),
-            reason="i16 to usize: -32768",
-        )
-        assert_equal(usize::try_from(i16(-1)), .Err(TryFromIntError {}), reason="i16 to usize: -1")
-        assert_equal(usize::try_from(i16(0)), .Ok(usize(0)), reason="i16 to usize: 0")
-        assert_equal(usize::try_from(i16(32767)), .Ok(usize(32767)), reason="i16 to usize: 32767")
-
-    it("i16 to u64"):
-        assert_equal(
-            u64::try_from(i16(-32768)),
-            .Err(TryFromIntError {}),
-            reason="i16 to u64: -32768",
-        )
-        assert_equal(u64::try_from(i16(-1)), .Err(TryFromIntError {}), reason="i16 to u64: -1")
-        assert_equal(u64::try_from(i16(0)), .Ok(u64(0)), reason="i16 to u64: 0")
-        assert_equal(u64::try_from(i16(32767)), .Ok(u64(32767)), reason="i16 to u64: 32767")
-
-    it("i32 to i8"):
-        assert_equal(
-            i8::try_from(i32(-2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i32 to i8: -2147483648",
-        )
-        assert_equal(i8::try_from(i32(-129)), .Err(TryFromIntError {}), reason="i32 to i8: -129")
-        assert_equal(i8::try_from(i32(-128)), .Ok(i8(-128)), reason="i32 to i8: -128")
-        assert_equal(i8::try_from(i32(0)), .Ok(i8(0)), reason="i32 to i8: 0")
-        assert_equal(i8::try_from(i32(127)), .Ok(i8(127)), reason="i32 to i8: 127")
-        assert_equal(i8::try_from(i32(128)), .Err(TryFromIntError {}), reason="i32 to i8: 128")
-        assert_equal(
-            i8::try_from(i32(2147483647)),
-            .Err(TryFromIntError {}),
-            reason="i32 to i8: 2147483647",
-        )
-
-    it("i32 to i16"):
-        assert_equal(
-            i16::try_from(i32(-2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i32 to i16: -2147483648",
-        )
-        assert_equal(
-            i16::try_from(i32(-32769)),
-            .Err(TryFromIntError {}),
-            reason="i32 to i16: -32769",
-        )
-        assert_equal(i16::try_from(i32(-32768)), .Ok(i16(-32768)), reason="i32 to i16: -32768")
-        assert_equal(i16::try_from(i32(0)), .Ok(i16(0)), reason="i32 to i16: 0")
-        assert_equal(i16::try_from(i32(32767)), .Ok(i16(32767)), reason="i32 to i16: 32767")
-        assert_equal(
-            i16::try_from(i32(32768)),
-            .Err(TryFromIntError {}),
-            reason="i32 to i16: 32768",
-        )
-        assert_equal(
-            i16::try_from(i32(2147483647)),
-            .Err(TryFromIntError {}),
-            reason="i32 to i16: 2147483647",
-        )
-
-    it("i32 to u8"):
-        assert_equal(
-            u8::try_from(i32(-2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i32 to u8: -2147483648",
-        )
-        assert_equal(u8::try_from(i32(-1)), .Err(TryFromIntError {}), reason="i32 to u8: -1")
-        assert_equal(u8::try_from(i32(0)), .Ok(u8(0)), reason="i32 to u8: 0")
-        assert_equal(u8::try_from(i32(255)), .Ok(u8(255)), reason="i32 to u8: 255")
-        assert_equal(u8::try_from(i32(256)), .Err(TryFromIntError {}), reason="i32 to u8: 256")
-        assert_equal(
-            u8::try_from(i32(2147483647)),
-            .Err(TryFromIntError {}),
-            reason="i32 to u8: 2147483647",
-        )
-
-    it("i32 to u16"):
-        assert_equal(
-            u16::try_from(i32(-2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i32 to u16: -2147483648",
-        )
-        assert_equal(u16::try_from(i32(-1)), .Err(TryFromIntError {}), reason="i32 to u16: -1")
-        assert_equal(u16::try_from(i32(0)), .Ok(u16(0)), reason="i32 to u16: 0")
-        assert_equal(u16::try_from(i32(65535)), .Ok(u16(65535)), reason="i32 to u16: 65535")
-        assert_equal(
-            u16::try_from(i32(65536)),
-            .Err(TryFromIntError {}),
-            reason="i32 to u16: 65536",
-        )
-        assert_equal(
-            u16::try_from(i32(2147483647)),
-            .Err(TryFromIntError {}),
-            reason="i32 to u16: 2147483647",
-        )
-
-    it("i32 to u32"):
-        assert_equal(
-            u32::try_from(i32(-2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i32 to u32: -2147483648",
-        )
-        assert_equal(u32::try_from(i32(-1)), .Err(TryFromIntError {}), reason="i32 to u32: -1")
-        assert_equal(u32::try_from(i32(0)), .Ok(u32(0)), reason="i32 to u32: 0")
-        assert_equal(
-            u32::try_from(i32(2147483647)),
-            .Ok(u32(2147483647)),
-            reason="i32 to u32: 2147483647",
-        )
-
-    it("i32 to usize"):
-        assert_equal(
-            usize::try_from(i32(-2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i32 to usize: -2147483648",
-        )
-        assert_equal(usize::try_from(i32(-1)), .Err(TryFromIntError {}), reason="i32 to usize: -1")
-        assert_equal(usize::try_from(i32(0)), .Ok(usize(0)), reason="i32 to usize: 0")
-        assert_equal(
-            usize::try_from(i32(2147483647)),
-            .Ok(usize(2147483647)),
-            reason="i32 to usize: 2147483647",
-        )
-
-    it("i32 to u64"):
-        assert_equal(
-            u64::try_from(i32(-2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i32 to u64: -2147483648",
-        )
-        assert_equal(u64::try_from(i32(-1)), .Err(TryFromIntError {}), reason="i32 to u64: -1")
-        assert_equal(u64::try_from(i32(0)), .Ok(u64(0)), reason="i32 to u64: 0")
-        assert_equal(
-            u64::try_from(i32(2147483647)),
-            .Ok(u64(2147483647)),
-            reason="i32 to u64: 2147483647",
-        )
-
-    it("i64 to i8"):
-        assert_equal(
-            i8::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i8: -9223372036854775808",
-        )
-        assert_equal(i8::try_from(i64(-129)), .Err(TryFromIntError {}), reason="i64 to i8: -129")
-        assert_equal(i8::try_from(i64(-128)), .Ok(i8(-128)), reason="i64 to i8: -128")
-        assert_equal(i8::try_from(i64(0)), .Ok(i8(0)), reason="i64 to i8: 0")
-        assert_equal(i8::try_from(i64(127)), .Ok(i8(127)), reason="i64 to i8: 127")
-        assert_equal(i8::try_from(i64(128)), .Err(TryFromIntError {}), reason="i64 to i8: 128")
-        assert_equal(
-            i8::try_from(i64(9223372036854775807)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i8: 9223372036854775807",
-        )
-
-    it("i64 to i16"):
-        assert_equal(
-            i16::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i16: -9223372036854775808",
-        )
-        assert_equal(
-            i16::try_from(i64(-32769)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i16: -32769",
-        )
-        assert_equal(i16::try_from(i64(-32768)), .Ok(i16(-32768)), reason="i64 to i16: -32768")
-        assert_equal(i16::try_from(i64(0)), .Ok(i16(0)), reason="i64 to i16: 0")
-        assert_equal(i16::try_from(i64(32767)), .Ok(i16(32767)), reason="i64 to i16: 32767")
-        assert_equal(
-            i16::try_from(i64(32768)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i16: 32768",
-        )
-        assert_equal(
-            i16::try_from(i64(9223372036854775807)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i16: 9223372036854775807",
-        )
-
-    it("i64 to i32"):
-        assert_equal(
-            i32::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i32: -9223372036854775808",
-        )
-        assert_equal(
-            i32::try_from(i64(-2147483649)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i32: -2147483649",
-        )
-        assert_equal(
-            i32::try_from(i64(-2147483648)),
-            .Ok(i32(-2147483648)),
-            reason="i64 to i32: -2147483648",
-        )
-        assert_equal(i32::try_from(i64(0)), .Ok(i32(0)), reason="i64 to i32: 0")
-        assert_equal(
-            i32::try_from(i64(2147483647)),
-            .Ok(i32(2147483647)),
-            reason="i64 to i32: 2147483647",
-        )
-        assert_equal(
-            i32::try_from(i64(2147483648)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i32: 2147483648",
-        )
-        assert_equal(
-            i32::try_from(i64(9223372036854775807)),
-            .Err(TryFromIntError {}),
-            reason="i64 to i32: 9223372036854775807",
-        )
-
-    it("i64 to u8"):
-        assert_equal(
-            u8::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u8: -9223372036854775808",
-        )
-        assert_equal(u8::try_from(i64(-1)), .Err(TryFromIntError {}), reason="i64 to u8: -1")
-        assert_equal(u8::try_from(i64(0)), .Ok(u8(0)), reason="i64 to u8: 0")
-        assert_equal(u8::try_from(i64(255)), .Ok(u8(255)), reason="i64 to u8: 255")
-        assert_equal(u8::try_from(i64(256)), .Err(TryFromIntError {}), reason="i64 to u8: 256")
-        assert_equal(
-            u8::try_from(i64(9223372036854775807)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u8: 9223372036854775807",
-        )
-
-    it("i64 to u16"):
-        assert_equal(
-            u16::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u16: -9223372036854775808",
-        )
-        assert_equal(u16::try_from(i64(-1)), .Err(TryFromIntError {}), reason="i64 to u16: -1")
-        assert_equal(u16::try_from(i64(0)), .Ok(u16(0)), reason="i64 to u16: 0")
-        assert_equal(u16::try_from(i64(65535)), .Ok(u16(65535)), reason="i64 to u16: 65535")
-        assert_equal(
-            u16::try_from(i64(65536)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u16: 65536",
-        )
-        assert_equal(
-            u16::try_from(i64(9223372036854775807)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u16: 9223372036854775807",
-        )
-
-    it("i64 to u32"):
-        assert_equal(
-            u32::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u32: -9223372036854775808",
-        )
-        assert_equal(u32::try_from(i64(-1)), .Err(TryFromIntError {}), reason="i64 to u32: -1")
-        assert_equal(u32::try_from(i64(0)), .Ok(u32(0)), reason="i64 to u32: 0")
-        assert_equal(
-            u32::try_from(i64(4294967295)),
-            .Ok(u32(4294967295)),
-            reason="i64 to u32: 4294967295",
-        )
-        assert_equal(
-            u32::try_from(i64(4294967296)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u32: 4294967296",
-        )
-        assert_equal(
-            u32::try_from(i64(9223372036854775807)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u32: 9223372036854775807",
-        )
-
-    it("i64 to usize"):
-        assert_equal(
-            usize::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to usize: -9223372036854775808",
-        )
-        assert_equal(usize::try_from(i64(-1)), .Err(TryFromIntError {}), reason="i64 to usize: -1")
-        assert_equal(usize::try_from(i64(0)), .Ok(usize(0)), reason="i64 to usize: 0")
-        assert_equal(
-            usize::try_from(i64(4294967295)),
-            .Ok(usize(4294967295)),
-            reason="i64 to usize: 4294967295",
-        )
-        assert_equal(
-            usize::try_from(i64(4294967296)),
-            .Err(TryFromIntError {}),
-            reason="i64 to usize: 4294967296",
-        )
-        assert_equal(
-            usize::try_from(i64(9223372036854775807)),
-            .Err(TryFromIntError {}),
-            reason="i64 to usize: 9223372036854775807",
-        )
-
-    it("i64 to u64"):
-        assert_equal(
-            u64::try_from(i64(-9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="i64 to u64: -9223372036854775808",
-        )
-        assert_equal(u64::try_from(i64(-1)), .Err(TryFromIntError {}), reason="i64 to u64: -1")
-        assert_equal(u64::try_from(i64(0)), .Ok(u64(0)), reason="i64 to u64: 0")
-        assert_equal(
-            u64::try_from(i64(9223372036854775807)),
-            .Ok(u64(9223372036854775807)),
-            reason="i64 to u64: 9223372036854775807",
-        )
-
-    it("u8 to i8"):
-        assert_equal(i8::try_from(u8(0)), .Ok(i8(0)), reason="u8 to i8: 0")
-        assert_equal(i8::try_from(u8(127)), .Ok(i8(127)), reason="u8 to i8: 127")
-        assert_equal(i8::try_from(u8(128)), .Err(TryFromIntError {}), reason="u8 to i8: 128")
-        assert_equal(i8::try_from(u8(255)), .Err(TryFromIntError {}), reason="u8 to i8: 255")
-
-    it("u8 to i16"):
-        assert_equal(i16::try_from(u8(0)), .Ok(i16(0)), reason="u8 to i16: 0")
-        assert_equal(i16::try_from(u8(255)), .Ok(i16(255)), reason="u8 to i16: 255")
-
-    it("u8 to i32"):
-        assert_equal(i32::try_from(u8(0)), .Ok(i32(0)), reason="u8 to i32: 0")
-        assert_equal(i32::try_from(u8(255)), .Ok(i32(255)), reason="u8 to i32: 255")
-
-    it("u8 to i64"):
-        assert_equal(i64::try_from(u8(0)), .Ok(i64(0)), reason="u8 to i64: 0")
-        assert_equal(i64::try_from(u8(255)), .Ok(i64(255)), reason="u8 to i64: 255")
-
-    it("u16 to i8"):
-        assert_equal(i8::try_from(u16(0)), .Ok(i8(0)), reason="u16 to i8: 0")
-        assert_equal(i8::try_from(u16(127)), .Ok(i8(127)), reason="u16 to i8: 127")
-        assert_equal(i8::try_from(u16(128)), .Err(TryFromIntError {}), reason="u16 to i8: 128")
-        assert_equal(i8::try_from(u16(65535)), .Err(TryFromIntError {}), reason="u16 to i8: 65535")
-
-    it("u16 to i16"):
-        assert_equal(i16::try_from(u16(0)), .Ok(i16(0)), reason="u16 to i16: 0")
-        assert_equal(i16::try_from(u16(32767)), .Ok(i16(32767)), reason="u16 to i16: 32767")
-        assert_equal(
-            i16::try_from(u16(32768)),
-            .Err(TryFromIntError {}),
-            reason="u16 to i16: 32768",
-        )
-        assert_equal(
-            i16::try_from(u16(65535)),
-            .Err(TryFromIntError {}),
-            reason="u16 to i16: 65535",
-        )
-
-    it("u16 to i32"):
-        assert_equal(i32::try_from(u16(0)), .Ok(i32(0)), reason="u16 to i32: 0")
-        assert_equal(i32::try_from(u16(65535)), .Ok(i32(65535)), reason="u16 to i32: 65535")
-
-    it("u16 to i64"):
-        assert_equal(i64::try_from(u16(0)), .Ok(i64(0)), reason="u16 to i64: 0")
-        assert_equal(i64::try_from(u16(65535)), .Ok(i64(65535)), reason="u16 to i64: 65535")
-
-    it("u16 to u8"):
-        assert_equal(u8::try_from(u16(0)), .Ok(u8(0)), reason="u16 to u8: 0")
-        assert_equal(u8::try_from(u16(255)), .Ok(u8(255)), reason="u16 to u8: 255")
-        assert_equal(u8::try_from(u16(256)), .Err(TryFromIntError {}), reason="u16 to u8: 256")
-        assert_equal(u8::try_from(u16(65535)), .Err(TryFromIntError {}), reason="u16 to u8: 65535")
-
-    it("u32 to i8"):
-        assert_equal(i8::try_from(u32(0)), .Ok(i8(0)), reason="u32 to i8: 0")
-        assert_equal(i8::try_from(u32(127)), .Ok(i8(127)), reason="u32 to i8: 127")
-        assert_equal(i8::try_from(u32(128)), .Err(TryFromIntError {}), reason="u32 to i8: 128")
-        assert_equal(
-            i8::try_from(u32(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="u32 to i8: 4294967295",
-        )
-
-    it("u32 to i16"):
-        assert_equal(i16::try_from(u32(0)), .Ok(i16(0)), reason="u32 to i16: 0")
-        assert_equal(i16::try_from(u32(32767)), .Ok(i16(32767)), reason="u32 to i16: 32767")
-        assert_equal(
-            i16::try_from(u32(32768)),
-            .Err(TryFromIntError {}),
-            reason="u32 to i16: 32768",
-        )
-        assert_equal(
-            i16::try_from(u32(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="u32 to i16: 4294967295",
-        )
-
-    it("u32 to i32"):
-        assert_equal(i32::try_from(u32(0)), .Ok(i32(0)), reason="u32 to i32: 0")
-        assert_equal(
-            i32::try_from(u32(2147483647)),
-            .Ok(i32(2147483647)),
-            reason="u32 to i32: 2147483647",
-        )
-        assert_equal(
-            i32::try_from(u32(2147483648)),
-            .Err(TryFromIntError {}),
-            reason="u32 to i32: 2147483648",
-        )
-        assert_equal(
-            i32::try_from(u32(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="u32 to i32: 4294967295",
-        )
-
-    it("u32 to i64"):
-        assert_equal(i64::try_from(u32(0)), .Ok(i64(0)), reason="u32 to i64: 0")
-        assert_equal(
-            i64::try_from(u32(4294967295)),
-            .Ok(i64(4294967295)),
-            reason="u32 to i64: 4294967295",
-        )
-
-    it("u32 to u8"):
-        assert_equal(u8::try_from(u32(0)), .Ok(u8(0)), reason="u32 to u8: 0")
-        assert_equal(u8::try_from(u32(255)), .Ok(u8(255)), reason="u32 to u8: 255")
-        assert_equal(u8::try_from(u32(256)), .Err(TryFromIntError {}), reason="u32 to u8: 256")
-        assert_equal(
-            u8::try_from(u32(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="u32 to u8: 4294967295",
-        )
-
-    it("u32 to u16"):
-        assert_equal(u16::try_from(u32(0)), .Ok(u16(0)), reason="u32 to u16: 0")
-        assert_equal(u16::try_from(u32(65535)), .Ok(u16(65535)), reason="u32 to u16: 65535")
-        assert_equal(
-            u16::try_from(u32(65536)),
-            .Err(TryFromIntError {}),
-            reason="u32 to u16: 65536",
-        )
-        assert_equal(
-            u16::try_from(u32(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="u32 to u16: 4294967295",
-        )
-
-    it("usize to i8"):
-        assert_equal(i8::try_from(usize(0)), .Ok(i8(0)), reason="usize to i8: 0")
-        assert_equal(i8::try_from(usize(127)), .Ok(i8(127)), reason="usize to i8: 127")
-        assert_equal(i8::try_from(usize(128)), .Err(TryFromIntError {}), reason="usize to i8: 128")
-        assert_equal(
-            i8::try_from(usize(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="usize to i8: 4294967295",
-        )
-
-    it("usize to i16"):
-        assert_equal(i16::try_from(usize(0)), .Ok(i16(0)), reason="usize to i16: 0")
-        assert_equal(i16::try_from(usize(32767)), .Ok(i16(32767)), reason="usize to i16: 32767")
-        assert_equal(
-            i16::try_from(usize(32768)),
-            .Err(TryFromIntError {}),
-            reason="usize to i16: 32768",
-        )
-        assert_equal(
-            i16::try_from(usize(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="usize to i16: 4294967295",
-        )
-
-    it("usize to i32"):
-        assert_equal(i32::try_from(usize(0)), .Ok(i32(0)), reason="usize to i32: 0")
-        assert_equal(
-            i32::try_from(usize(2147483647)),
-            .Ok(i32(2147483647)),
-            reason="usize to i32: 2147483647",
-        )
-        assert_equal(
-            i32::try_from(usize(2147483648)),
-            .Err(TryFromIntError {}),
-            reason="usize to i32: 2147483648",
-        )
-        assert_equal(
-            i32::try_from(usize(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="usize to i32: 4294967295",
-        )
-
-    it("usize to i64"):
-        assert_equal(i64::try_from(usize(0)), .Ok(i64(0)), reason="usize to i64: 0")
-        assert_equal(
-            i64::try_from(usize(4294967295)),
-            .Ok(i64(4294967295)),
-            reason="usize to i64: 4294967295",
-        )
-
-    it("usize to u8"):
-        assert_equal(u8::try_from(usize(0)), .Ok(u8(0)), reason="usize to u8: 0")
-        assert_equal(u8::try_from(usize(255)), .Ok(u8(255)), reason="usize to u8: 255")
-        assert_equal(u8::try_from(usize(256)), .Err(TryFromIntError {}), reason="usize to u8: 256")
-        assert_equal(
-            u8::try_from(usize(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="usize to u8: 4294967295",
-        )
-
-    it("usize to u16"):
-        assert_equal(u16::try_from(usize(0)), .Ok(u16(0)), reason="usize to u16: 0")
-        assert_equal(u16::try_from(usize(65535)), .Ok(u16(65535)), reason="usize to u16: 65535")
-        assert_equal(
-            u16::try_from(usize(65536)),
-            .Err(TryFromIntError {}),
-            reason="usize to u16: 65536",
-        )
-        assert_equal(
-            u16::try_from(usize(4294967295)),
-            .Err(TryFromIntError {}),
-            reason="usize to u16: 4294967295",
-        )
-
-    it("u64 to i8"):
-        assert_equal(i8::try_from(u64(0)), .Ok(i8(0)), reason="u64 to i8: 0")
-        assert_equal(i8::try_from(u64(127)), .Ok(i8(127)), reason="u64 to i8: 127")
-        assert_equal(i8::try_from(u64(128)), .Err(TryFromIntError {}), reason="u64 to i8: 128")
-        assert_equal(
-            i8::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to i8: 18446744073709551615",
-        )
-
-    it("u64 to i16"):
-        assert_equal(i16::try_from(u64(0)), .Ok(i16(0)), reason="u64 to i16: 0")
-        assert_equal(i16::try_from(u64(32767)), .Ok(i16(32767)), reason="u64 to i16: 32767")
-        assert_equal(
-            i16::try_from(u64(32768)),
-            .Err(TryFromIntError {}),
-            reason="u64 to i16: 32768",
-        )
-        assert_equal(
-            i16::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to i16: 18446744073709551615",
-        )
-
-    it("u64 to i32"):
-        assert_equal(i32::try_from(u64(0)), .Ok(i32(0)), reason="u64 to i32: 0")
-        assert_equal(
-            i32::try_from(u64(2147483647)),
-            .Ok(i32(2147483647)),
-            reason="u64 to i32: 2147483647",
-        )
-        assert_equal(
-            i32::try_from(u64(2147483648)),
-            .Err(TryFromIntError {}),
-            reason="u64 to i32: 2147483648",
-        )
-        assert_equal(
-            i32::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to i32: 18446744073709551615",
-        )
-
-    it("u64 to i64"):
-        assert_equal(i64::try_from(u64(0)), .Ok(i64(0)), reason="u64 to i64: 0")
-        assert_equal(
-            i64::try_from(u64(9223372036854775807)),
-            .Ok(i64(9223372036854775807)),
-            reason="u64 to i64: 9223372036854775807",
-        )
-        assert_equal(
-            i64::try_from(u64(9223372036854775808)),
-            .Err(TryFromIntError {}),
-            reason="u64 to i64: 9223372036854775808",
-        )
-        assert_equal(
-            i64::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to i64: 18446744073709551615",
-        )
-
-    it("u64 to u8"):
-        assert_equal(u8::try_from(u64(0)), .Ok(u8(0)), reason="u64 to u8: 0")
-        assert_equal(u8::try_from(u64(255)), .Ok(u8(255)), reason="u64 to u8: 255")
-        assert_equal(u8::try_from(u64(256)), .Err(TryFromIntError {}), reason="u64 to u8: 256")
-        assert_equal(
-            u8::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to u8: 18446744073709551615",
-        )
-
-    it("u64 to u16"):
-        assert_equal(u16::try_from(u64(0)), .Ok(u16(0)), reason="u64 to u16: 0")
-        assert_equal(u16::try_from(u64(65535)), .Ok(u16(65535)), reason="u64 to u16: 65535")
-        assert_equal(
-            u16::try_from(u64(65536)),
-            .Err(TryFromIntError {}),
-            reason="u64 to u16: 65536",
-        )
-        assert_equal(
-            u16::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to u16: 18446744073709551615",
-        )
-
-    it("u64 to u32"):
-        assert_equal(u32::try_from(u64(0)), .Ok(u32(0)), reason="u64 to u32: 0")
-        assert_equal(
-            u32::try_from(u64(4294967295)),
-            .Ok(u32(4294967295)),
-            reason="u64 to u32: 4294967295",
-        )
-        assert_equal(
-            u32::try_from(u64(4294967296)),
-            .Err(TryFromIntError {}),
-            reason="u64 to u32: 4294967296",
-        )
-        assert_equal(
-            u32::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to u32: 18446744073709551615",
-        )
-
-    it("u64 to usize"):
-        assert_equal(usize::try_from(u64(0)), .Ok(usize(0)), reason="u64 to usize: 0")
-        assert_equal(
-            usize::try_from(u64(4294967295)),
-            .Ok(usize(4294967295)),
-            reason="u64 to usize: 4294967295",
-        )
-        assert_equal(
-            usize::try_from(u64(4294967296)),
-            .Err(TryFromIntError {}),
-            reason="u64 to usize: 4294967296",
-        )
-        assert_equal(
-            usize::try_from(u64(18446744073709551615)),
-            .Err(TryFromIntError {}),
-            reason="u64 to usize: 18446744073709551615",
-        )
+    it_each(
+        "narrowing and sign-change pairs",
+        [
+            fn() -> void: check_pair::[i8, u8](),
+            fn() -> void: check_pair::[i8, u16](),
+            fn() -> void: check_pair::[i8, u32](),
+            fn() -> void: check_pair::[i8, usize](),
+            fn() -> void: check_pair::[i8, u64](),
+            fn() -> void: check_pair::[i16, i8](),
+            fn() -> void: check_pair::[i16, u8](),
+            fn() -> void: check_pair::[i16, u16](),
+            fn() -> void: check_pair::[i16, u32](),
+            fn() -> void: check_pair::[i16, usize](),
+            fn() -> void: check_pair::[i16, u64](),
+            fn() -> void: check_pair::[i32, i8](),
+            fn() -> void: check_pair::[i32, i16](),
+            fn() -> void: check_pair::[i32, u8](),
+            fn() -> void: check_pair::[i32, u16](),
+            fn() -> void: check_pair::[i32, u32](),
+            fn() -> void: check_pair::[i32, usize](),
+            fn() -> void: check_pair::[i32, u64](),
+            fn() -> void: check_pair::[i64, i8](),
+            fn() -> void: check_pair::[i64, i16](),
+            fn() -> void: check_pair::[i64, i32](),
+            fn() -> void: check_pair::[i64, u8](),
+            fn() -> void: check_pair::[i64, u16](),
+            fn() -> void: check_pair::[i64, u32](),
+            fn() -> void: check_pair::[i64, usize](),
+            fn() -> void: check_pair::[i64, u64](),
+            fn() -> void: check_pair::[u8, i8](),
+            fn() -> void: check_pair::[u8, i16](),
+            fn() -> void: check_pair::[u8, i32](),
+            fn() -> void: check_pair::[u8, i64](),
+            fn() -> void: check_pair::[u16, i8](),
+            fn() -> void: check_pair::[u16, i16](),
+            fn() -> void: check_pair::[u16, i32](),
+            fn() -> void: check_pair::[u16, i64](),
+            fn() -> void: check_pair::[u16, u8](),
+            fn() -> void: check_pair::[u32, i8](),
+            fn() -> void: check_pair::[u32, i16](),
+            fn() -> void: check_pair::[u32, i32](),
+            fn() -> void: check_pair::[u32, i64](),
+            fn() -> void: check_pair::[u32, u8](),
+            fn() -> void: check_pair::[u32, u16](),
+            fn() -> void: check_pair::[usize, i8](),
+            fn() -> void: check_pair::[usize, i16](),
+            fn() -> void: check_pair::[usize, i32](),
+            fn() -> void: check_pair::[usize, i64](),
+            fn() -> void: check_pair::[usize, u8](),
+            fn() -> void: check_pair::[usize, u16](),
+            fn() -> void: check_pair::[u64, i8](),
+            fn() -> void: check_pair::[u64, i16](),
+            fn() -> void: check_pair::[u64, i32](),
+            fn() -> void: check_pair::[u64, i64](),
+            fn() -> void: check_pair::[u64, u8](),
+            fn() -> void: check_pair::[u64, u16](),
+            fn() -> void: check_pair::[u64, u32](),
+            fn() -> void: check_pair::[u64, usize]()
+        ],
+        body=fn!(action: fn() -> void): action()
+    )
