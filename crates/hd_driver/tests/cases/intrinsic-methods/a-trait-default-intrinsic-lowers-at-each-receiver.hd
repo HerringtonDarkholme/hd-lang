@@ -1,0 +1,21 @@
+# @dump: stdout wat
+# @build: std dev | std checked | std release | std release checked
+# A std trait member uses an existing intrinsic at its instantiated Self type.
+use std.annotation.inline
+
+trait Wrapping:
+    @intrinsic("int_wrapping_add")
+    fn plus(self, other: Self) -> Self:
+        panic("intrinsic")
+
+impl Wrapping for u32
+
+impl Wrapping for i32
+
+@inline(.Never)
+fn add[T < Wrapping](left: T, right: T) -> T:
+    left.plus(right)
+
+pub fn main() -> void $ Console:
+    println(add(4294967295u32, 1u32))
+    println(add(2147483647i32, 1i32))
