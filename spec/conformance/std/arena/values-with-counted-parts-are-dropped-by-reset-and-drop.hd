@@ -1,0 +1,25 @@
+# test: values whose types hold counted parts are dropped by `reset` and by the arena's drop, so rounds of strings and lists leave nothing behind
+# Spec std Arena: std-arena.reset, std-arena.drop, std-arena.no-count.
+# expect-stdout: 300 300
+use std.arena.Arena
+
+struct Label:
+    text: string
+    tags: List[string]
+
+fn fill(arena: &Arena, round: i64) -> i64:
+    let mut total = i64(0)
+    for i in 0..100:
+        l := arena.alloc(Label { text: "r$round-$i", tags: ["a", "b"] })
+        n := arena.alloc(i * 2)
+        total += i64(l.tags.len()) - 1 + *n - i * 2
+    total
+
+pub fn main() -> void $ Console:
+    let mut arena = Arena::new()
+    let mut kept = i64(0)
+    for round in 0..3:
+        kept += fill(&arena, round)
+        arena.reset()
+    last := Arena::new()
+    println("$kept ${fill(&last, 9) * 3}")

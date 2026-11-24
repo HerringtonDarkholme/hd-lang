@@ -1008,6 +1008,7 @@ lang/14-annotations.md	60	mixed	lang/annotations/error-derivation/error-derivati
 lang/14-annotations.md	61	mixed	lang/annotations/error-derivation/error-from-same-type.hd|lang/annotations/error-derivation/error-from-type-parameter.hd
 lang/14-annotations.md	62	complete	lang/annotations/error-derivation/error-derivation.hd
 lang/14-annotations.md	63	complete	lang/annotations/error-derivation/error-generated-bounds.hd|lang/annotations/error-derivation/error-interpolated-bound.hd
+std/arena.md	1	complete	std/arena/accounts-opened-through-a-helper-are-written-together.hd
 std/cli.md	1	complete	std/cli/parsing/cli-parse-args.hd
 std/cli.md	2	complete	std/cli/declaring-arguments/cli-required-and-many.hd
 std/cli.md	3	complete	std/cli/parsing/cli-parse-args.hd

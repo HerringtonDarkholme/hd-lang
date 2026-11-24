@@ -1,0 +1,29 @@
+# test: an interner keeps the arena in a struct and hands out shared symbols, one per distinct text
+# Spec std Arena: std-arena.alloc, std-arena.no-count.
+# expect-stdout: 0 1 0
+use std.arena.Arena
+
+pub struct Symbol:
+    pub text: string
+    pub id: u32
+
+pub struct Interner['a]:
+    arena: &'a Arena
+    ids: Map[string, &'a Symbol]
+
+impl['a] Interner['a]:
+    pub fn intern(&mut self, text: string) -> &'a Symbol:
+        match self.ids.get(text):
+            .Some(found) => return found
+            .None => pass
+        sym := self.arena.alloc(Symbol { text: text, id: u32(self.ids.len()) })
+        self.ids[text] = sym
+        sym
+
+pub fn main() -> void $ Console:
+    arena := Arena::new()
+    let mut names = Interner { arena: &arena, ids: {} }
+    a := names.intern("x").id
+    b := names.intern("y").id
+    c := names.intern("x").id
+    println("$a $b $c")

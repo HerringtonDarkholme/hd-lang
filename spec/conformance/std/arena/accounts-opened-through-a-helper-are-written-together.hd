@@ -1,0 +1,20 @@
+# test: two accounts opened through a helper are written while both are live, and a value of another type shares the arena
+# Spec std Arena: std-arena.alloc.disjoint, std-arena.alloc.lent.
+# expect-stdout: 20 40 moved 30
+use std.arena.Arena
+
+pub struct Account:
+    pub owner: string
+    pub balance: i64
+
+pub fn open['a](bank: &'a Arena, owner: string, balance: i64) -> &'a mut Account:
+    bank.alloc(Account { owner: owner, balance: balance })
+
+pub fn main() -> void $ Console:
+    bank := Arena::new()
+    a := open(&bank, "ann", 50)
+    b := open(&bank, "bob", 10)
+    a.balance -= 30
+    b.balance += 30
+    note := bank.alloc("moved 30")
+    println("${a.balance} ${b.balance} ${*note}")

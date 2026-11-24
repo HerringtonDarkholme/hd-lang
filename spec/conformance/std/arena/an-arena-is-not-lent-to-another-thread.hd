@@ -1,0 +1,10 @@
+# test: a thread may not allocate from an arena another thread lends it, since the arena is not `Sync`
+# Spec std Arena: std-arena.type.
+use std.arena.Arena
+use std.thread.{Scope, scope}
+
+fn share(arena: &Arena) -> i64:
+    scope(fn(s: &mut Scope) -> i64:
+        h := s.spawn(fn() -> i64: *arena.alloc(i64(1))) # diagnostic: unsatisfied-trait-bound
+        h.join()
+    )

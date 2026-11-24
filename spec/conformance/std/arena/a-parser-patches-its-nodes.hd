@@ -1,0 +1,39 @@
+# test: a parser allocates nodes with `&mut` children, then a pass writes every node through them (a resolver patching a typed arena)
+# Spec std Arena: std-arena.alloc.disjoint, std-arena.alloc.lent.
+# expect-stdout: i64
+use std.arena.Arena
+
+pub struct Expr['a]:
+    pub word: string
+    pub left: (&'a mut Expr['a])?
+    pub right: (&'a mut Expr['a])?
+    pub ty: string
+
+pub fn parse['a](arena: &'a Arena, words: &List[string], at: &mut usize) -> &'a mut Expr['a]:
+    word := words[*at]
+    *at += 1
+    if word == "+":
+        left := parse(arena, words, at)
+        right := parse(arena, words, at)
+        return arena.alloc(Expr { word: word, left: .Some(left), right: .Some(right), ty: "" })
+    arena.alloc(Expr { word: word, left: .None, right: .None, ty: "" })
+
+pub fn annotate(e: &mut Expr) -> void:
+    match &mut e.left:
+        .Some(l) => annotate(*l)
+        .None => pass
+    match &mut e.right:
+        .Some(r) => annotate(*r)
+        .None => pass
+    e.ty = "i64"
+
+pub fn run(source: string) -> string:
+    arena := Arena::new()
+    let mut at: usize = 0
+    words := source.split(" ")
+    tree := parse(&arena, &words, &mut at)
+    annotate(tree)
+    tree.ty
+
+pub fn main() -> void $ Console:
+    println(run("+ 1 + 2 3"))

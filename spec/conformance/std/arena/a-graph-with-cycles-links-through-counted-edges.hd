@@ -1,0 +1,19 @@
+# test: a graph with cycles: two cities hold each other in counted edge lists, read through shared results (typed-arena's safe cycles)
+# Spec std Arena: std-arena.alloc.disjoint.
+# expect-stdout: 2
+use std.arena.Arena
+
+pub struct City['a]:
+    pub name: string
+    pub roads: *mut List[&'a City['a]]
+
+pub fn map_size(arena: &Arena) -> usize:
+    let a: &City = arena.alloc(City { name: "Ames", roads: box([]) })
+    let b: &City = arena.alloc(City { name: "Boone", roads: box([]) })
+    a.roads.push(b)
+    b.roads.push(a)
+    a.roads.len() + b.roads.len()
+
+pub fn main() -> void $ Console:
+    arena := Arena::new()
+    println(map_size(&arena))

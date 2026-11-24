@@ -43,6 +43,7 @@ const SPEC_CHAPTERS: readonly [file: string, title: string][] = [
 
 /** The stdlib chapters in spec/std/, one per std module, in reading order. */
 const STD_CHAPTERS: readonly [module: string, title: string][] = [
+  ["arena", "Arena"],
   ["cli", "Cli"],
   ["cmp", "Cmp"],
   ["collections", "Collections"],

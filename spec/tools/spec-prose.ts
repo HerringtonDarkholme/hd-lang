@@ -54,6 +54,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/task.md": "std-task",
   "std/sync.md": "std-sync",
   "std/thread.md": "std-thread",
+  "std/arena.md": "std-arena",
   "std/ops.md": "std-ops",
   "std/cmp.md": "std-cmp",
   "std/hash.md": "std-hash",

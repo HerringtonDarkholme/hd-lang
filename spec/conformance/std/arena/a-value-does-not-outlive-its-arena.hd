@@ -1,0 +1,10 @@
+# test: an `alloc` result is not stored into a place that outlives the arena that made it
+# Spec std Arena: std-arena.alloc.lent.
+use std.arena.Arena
+
+struct Account:
+    balance: i64
+
+fn outlive['a](keep: &mut List[&'a Account]) -> void:
+    bank := Arena::new()
+    keep.push(bank.alloc(Account { balance: 1 })) # diagnostic: local-reference-escapes
