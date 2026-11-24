@@ -65,28 +65,7 @@ fn fresh(p: &super::Program, at: super::Build) -> Output {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
     };
-    // The root package's manifest `[host]`, each trait bound to one
-    // provider file, as `hd build` reads it (`module.host.package.marker`).
-    let host_packages = if p.hosts.is_empty() {
-        Vec::new()
-    } else {
-        let manifest: String = std::iter::once("[host]\n".to_owned())
-            .chain(
-                p.hosts
-                    .iter()
-                    .map(|t| format!("\"{t}\" = \"provider.ts\"\n")),
-            )
-            .collect();
-        vec![hd_driver::HostPackage {
-            package: 0,
-            identity: package.to_owned(),
-            versioned_source: None,
-            declarations: hd_project::parse_manifest(&manifest)
-                .expect("a stage case's `@host` traits make a manifest")
-                .host,
-            manifest: "hd.toml".to_owned(),
-        }]
-    };
+    let host_packages = super::host_packages(p, package);
     let run = |session: Option<&hd_driver::Session>, goal: &hd_driver::Goal| {
         build_packages(
             &host,

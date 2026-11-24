@@ -1,0 +1,10 @@
+# @dump: diagnostics functions
+# @build: dev | checked | release | release checked
+# @host: main.Input
+# Every stage build forwards the case's manifest host registration.
+@host
+pub trait Input:
+    fn read(&self) -> i32
+
+pub fn main() -> void $ Input:
+    _ := $.use(Input).read()
