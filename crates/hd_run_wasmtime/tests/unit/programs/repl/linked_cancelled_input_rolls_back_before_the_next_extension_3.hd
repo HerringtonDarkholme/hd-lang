@@ -1,0 +1,3 @@
+if values.len() != 0:
+    panic("cancelled changes were restored")
+pass

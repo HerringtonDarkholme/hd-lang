@@ -16,7 +16,7 @@ pub struct Captured {
 
 /// A shared buffer that a run writes one stream to.
 #[derive(Clone, Default)]
-pub(crate) struct Shared(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+pub struct Shared(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl std::io::Write for Shared {
     fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
@@ -32,7 +32,8 @@ impl std::io::Write for Shared {
 }
 
 impl Shared {
-    pub(crate) fn take(&self) -> Vec<u8> {
+    #[must_use]
+    pub fn take(&self) -> Vec<u8> {
         self.0
             .lock()
             .map(|mut v| std::mem::take(&mut *v))

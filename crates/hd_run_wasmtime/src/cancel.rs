@@ -48,7 +48,7 @@ impl HostInterrupt {
 
 /// How far the host's cancellation of a run went: its cleanup bound, and
 /// whether it cancelled, with the deadline it then set, or abandoned.
-pub(crate) struct HostCancel {
+pub struct HostCancel {
     bound: Duration,
     cancelled: bool,
     /// When the bound passes; `None` before the cancel, or for a bound past
@@ -59,13 +59,14 @@ pub(crate) struct HostCancel {
 
 /// What a request or the bound asks of the root.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CancelStep {
+pub enum CancelStep {
     Cancel,
     Abandon,
 }
 
 impl HostCancel {
-    pub(crate) fn new(bound: Duration) -> Self {
+    #[must_use]
+    pub fn new(bound: Duration) -> Self {
         Self {
             bound,
             cancelled: false,
@@ -77,7 +78,7 @@ impl HostCancel {
     /// The step a request (`asked`) or the bound asks for now, if any,
     /// recorded as taken: the first request cancels and sets the
     /// deadline, and the next one or the deadline abandons.
-    pub(crate) fn next(&mut self, asked: bool, now: Instant) -> Option<CancelStep> {
+    pub fn next(&mut self, asked: bool, now: Instant) -> Option<CancelStep> {
         if !self.cancelled {
             if !asked {
                 return None;
@@ -95,31 +96,8 @@ impl HostCancel {
     }
 
     /// The deadline the host waits for while it bounds a cleanup.
-    pub(crate) fn deadline(&self) -> Option<Instant> {
+    #[must_use]
+    pub fn deadline(&self) -> Option<Instant> {
         self.deadline.filter(|_| !self.abandoned)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{CancelStep, HostCancel};
-    use std::time::{Duration, Instant};
-
-    #[test]
-    fn the_first_request_cancels_and_the_next_or_the_bound_abandons() {
-        let t0 = Instant::now();
-        let mut c = HostCancel::new(Duration::from_millis(100));
-        assert_eq!(c.next(false, t0), None);
-        assert_eq!(c.next(true, t0), Some(CancelStep::Cancel));
-        let deadline = t0 + Duration::from_millis(100);
-        assert_eq!(c.deadline(), Some(deadline));
-        assert_eq!(c.next(false, t0 + Duration::from_millis(50)), None);
-        assert_eq!(c.next(false, deadline), Some(CancelStep::Abandon));
-        assert_eq!(c.deadline(), None);
-        assert_eq!(c.next(true, deadline), None);
-
-        let mut twice = HostCancel::new(Duration::from_secs(10));
-        assert_eq!(twice.next(true, t0), Some(CancelStep::Cancel));
-        assert_eq!(twice.next(true, t0), Some(CancelStep::Abandon));
     }
 }

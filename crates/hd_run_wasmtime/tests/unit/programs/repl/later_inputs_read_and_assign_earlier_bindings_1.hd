@@ -1,0 +1,2 @@
+fn price(n: i32) -> i32:
+    n * rate

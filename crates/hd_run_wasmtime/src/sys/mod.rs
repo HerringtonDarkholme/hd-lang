@@ -9,10 +9,8 @@ use crate::host::{Host, Ret, Stop, int_arg};
 
 mod clock;
 mod env;
-mod platform;
-mod random;
-#[cfg(test)]
-mod tests;
+pub(crate) mod platform;
+pub(crate) mod random;
 
 pub(crate) use random::random;
 

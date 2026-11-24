@@ -27,12 +27,10 @@ pub(crate) mod client;
 pub(crate) mod connector;
 pub(crate) mod request;
 pub(crate) mod target;
-#[cfg(test)]
-pub(crate) mod test_support;
 pub(crate) mod tls;
 
 /// Exchange headers: name and value pairs.
-pub(crate) type Headers = Vec<(String, String)>;
+pub type Headers = Vec<(String, String)>;
 
 pub(crate) fn is_token(value: &str) -> bool {
     !value.is_empty()

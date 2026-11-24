@@ -13,8 +13,6 @@ use crate::runtime::reactor::Done;
 
 pub(crate) mod native;
 pub(crate) mod test_child;
-#[cfg(test)]
-mod tests;
 
 /// `Process.run`'s `.start`, or its `.finish` when `finish`.
 pub(crate) fn call(

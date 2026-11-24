@@ -1,0 +1,8 @@
+fn fetch!(port: u16) -> string $ Net:
+    let mut net = $.use(Net)
+    let mut stream = match net.connect!("127.0.0.1", port):
+        .Ok(s) => s
+        .Err(e) => return "${e}"
+    match stream.read!(100):
+        .Ok(bytes) => "read ${bytes.len()}"
+        .Err(e) => "${e}"

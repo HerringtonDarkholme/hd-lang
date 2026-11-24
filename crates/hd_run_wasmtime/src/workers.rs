@@ -24,7 +24,7 @@ use crate::runtime::reactor::Done;
 /// A frame for the worker, and where its reply goes.
 type Job = (Vec<u8>, oneshot::Sender<Vec<u8>>);
 /// A worker's frames, and the reply of the one taken.
-type Port = (mpsc::Receiver<Job>, Option<oneshot::Sender<Vec<u8>>>);
+pub type Port = (mpsc::Receiver<Job>, Option<oneshot::Sender<Vec<u8>>>);
 
 /// What a worker is made of: the parent's engine and module.
 pub(crate) struct Spawn {
@@ -126,7 +126,8 @@ pub(crate) fn call(
 /// unrun (`std-host.op.cancel`), as tokio's `spawn_blocking` abort drops a
 /// task that has not started; one already taken runs to its end, and its
 /// reply finds no receiver. Cost: one closed check per frame.
-fn take((frames, reply): &mut Port) -> Option<Vec<u8>> {
+#[must_use]
+pub fn take((frames, reply): &mut Port) -> Option<Vec<u8>> {
     let (frame, to) = frames.iter().find(|(_, to)| !to.is_closed())?;
     *reply = Some(to);
     Some(frame)
@@ -283,25 +284,4 @@ pub(crate) fn watch(
         return Err(error);
     }
     Ok(Suspension::new(call, |(), _| Ok(Vec::new())))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// A cancelled send's frame is skipped, and the next open one is taken.
-    #[test]
-    fn a_frame_whose_send_was_cancelled_is_not_taken() {
-        let (tx, rx) = mpsc::channel();
-        let mut port: Port = (rx, None);
-        let (cancelled, gone) = oneshot::channel();
-        let (open, mut waits) = oneshot::channel();
-        tx.send((vec![1], cancelled)).unwrap();
-        tx.send((vec![2], open)).unwrap();
-        drop((tx, gone));
-        assert_eq!(take(&mut port), Some(vec![2]));
-        port.1.take().unwrap().send(vec![4]).unwrap();
-        assert_eq!(waits.try_recv(), Ok(vec![4]));
-        assert_eq!(take(&mut port), None, "a closed channel has no frame");
-    }
 }

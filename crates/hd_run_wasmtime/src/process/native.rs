@@ -41,7 +41,7 @@ use crate::runtime::reactor::Done;
 const PIPE_CHUNK: usize = 8192;
 
 /// What `.start` decides.
-pub(crate) enum Start {
+pub enum Start {
     /// The encoded result of a refused start: no child runs.
     Refused(Enc),
     /// A child to run.
@@ -51,21 +51,21 @@ pub(crate) enum Start {
 /// A child to run: the program, its arguments, its standard input, the
 /// pairs added to its environment, and the working directory it starts in
 /// (the process's own when `None`).
-pub(crate) struct Request {
-    pub(crate) name: String,
-    pub(crate) program: String,
-    pub(crate) argv: Vec<String>,
-    pub(crate) input: Vec<u8>,
-    pub(crate) env: Vec<(String, String)>,
-    pub(crate) cwd: Option<PathBuf>,
+pub struct Request {
+    pub name: String,
+    pub program: String,
+    pub argv: Vec<String>,
+    pub input: Vec<u8>,
+    pub env: Vec<(String, String)>,
+    pub cwd: Option<PathBuf>,
 }
 
 /// A child's standard output, standard error and status.
-pub(crate) type Output = (Vec<u8>, Vec<u8>, i32);
+pub type Output = (Vec<u8>, Vec<u8>, i32);
 
 /// What the task delivers: the program, for the error text, and how its
 /// run ended.
-pub(crate) struct Ran {
+pub struct Ran {
     name: String,
     result: io::Result<Output>,
 }
@@ -73,7 +73,7 @@ pub(crate) struct Ran {
 /// `run.start`'s checks, in the Node host's order: the grant, the empty
 /// name, then NUL bytes, then the working directory. `cwd` is the directory
 /// a relative `current_dir` is from (the process's own when `None`).
-pub(crate) fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmtime::Result<Start> {
+pub fn start(bytes: &[u8], grants: &Grants, cwd: Option<&Path>) -> wasmtime::Result<Start> {
     let call = Call::dec(&mut Dec::new(bytes))?;
     if !grants.covers_name("Process", &call.program) {
         return Ok(Start::Refused(failed(ProcessError::NotGranted)));
@@ -131,7 +131,7 @@ pub(crate) fn failed(error: ProcessError) -> Enc {
 
 impl Request {
     /// The task: runs the child to its end.
-    pub(crate) async fn run(self) -> Done {
+    pub async fn run(self) -> Done {
         let result = run_child(&self).await;
         Done::Process(Ran {
             name: self.name,
@@ -141,7 +141,8 @@ impl Request {
 }
 
 /// `run.finish`'s result: the output, or why the program did not run.
-pub(crate) fn finish(ran: Ran) -> Enc {
+#[must_use]
+pub fn finish(ran: Ran) -> Enc {
     match ran.result {
         Ok((out, err, status)) => encode(&Ok::<_, ProcessError>(ProcessOutput {
             stdout: String::from_utf8_lossy(&out).into_owned(),
@@ -159,9 +160,9 @@ pub(crate) fn finish(ran: Ran) -> Enc {
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "testing")]
 impl Ran {
-    pub(crate) fn into_result(self) -> io::Result<Output> {
+    pub fn into_result(self) -> io::Result<Output> {
         self.result
     }
 }

@@ -1,0 +1,3 @@
+if kept() != 7:
+    panic("escaped closure code was lost")
+pass

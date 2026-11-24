@@ -3,8 +3,6 @@
 
 pub(crate) mod engine;
 pub(crate) mod runner;
-#[cfg(test)]
-mod tests;
 
 pub use engine::{
     NamedProgram, PreparedTest, TestEngine, TestEnvironment, TestHostKind, TestModule,

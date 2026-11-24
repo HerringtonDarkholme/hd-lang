@@ -36,12 +36,12 @@ const ESCAPE: &str = "a path led outside of the filesystem";
 /// The handles of a program's granted directories, each opened at its
 /// first use and kept for the run.
 #[derive(Default)]
-pub(crate) struct Sandbox {
+pub struct Sandbox {
     open: Mutex<Vec<(PathBuf, Arc<Dir>)>>,
 }
 
 /// Where a file operation acts.
-pub(crate) enum Place {
+pub enum Place {
     /// By name, with `std::fs`: the trait has no limit.
     Ambient(PathBuf),
     /// Under a granted directory's handle.
@@ -100,7 +100,8 @@ impl From<cap_std::fs::Metadata> for Stat {
 // Truncate sub-millisecond precision toward the epoch, like signed
 // integer division of Node's nanoseconds. Unknown or unrepresentable
 // metadata is absent rather than a filesystem error.
-fn modified_millis(time: io::Result<SystemTime>) -> Option<i64> {
+#[must_use]
+pub fn modified_millis(time: io::Result<SystemTime>) -> Option<i64> {
     let millis = match time.ok()?.duration_since(UNIX_EPOCH) {
         Ok(duration) => i128::try_from(duration.as_millis()).ok()?,
         Err(error) => -i128::try_from(error.duration().as_millis()).ok()?,
@@ -134,7 +135,7 @@ impl Sandbox {
     /// `create` makes a missing granted directory and its parents, as
     /// `create_dir_all` does. A trait with no limit acts by name; a total
     /// deny never gets here, since the grant check refused it.
-    pub(crate) fn place(
+    pub fn place(
         &self,
         grants: &Grants,
         key: &str,
@@ -572,42 +573,3 @@ pub(crate) fn below_a_file(_: &Place, error: io::Error) -> io::Error {
 
 /// A directory's entry names as they are read.
 pub(crate) type Names = Box<dyn Iterator<Item = io::Result<std::ffi::OsString>>>;
-
-#[cfg(test)]
-mod timestamp_tests {
-    use super::{UNIX_EPOCH, modified_millis};
-    use std::{io, time::Duration};
-
-    #[test]
-    fn modification_times_are_signed_whole_milliseconds_or_absent() {
-        assert_eq!(modified_millis(Ok(UNIX_EPOCH)), Some(0));
-        assert_eq!(
-            modified_millis(Ok(UNIX_EPOCH + Duration::from_millis(123))),
-            Some(123)
-        );
-        assert_eq!(
-            modified_millis(Ok(UNIX_EPOCH - Duration::from_millis(123))),
-            Some(-123)
-        );
-        assert_eq!(
-            modified_millis(Ok(UNIX_EPOCH - Duration::from_nanos(1))),
-            Some(0)
-        );
-        assert_eq!(
-            modified_millis(Err(io::ErrorKind::Unsupported.into())),
-            None
-        );
-        if let Some(time) =
-            UNIX_EPOCH.checked_add(Duration::from_millis(i64::MAX.cast_unsigned() + 1))
-        {
-            assert_eq!(modified_millis(Ok(time)), None);
-        }
-        let edge = Duration::from_millis(i64::MAX.cast_unsigned() + 1);
-        if let Some(time) = UNIX_EPOCH.checked_sub(edge) {
-            assert_eq!(modified_millis(Ok(time)), Some(i64::MIN));
-        }
-        if let Some(time) = UNIX_EPOCH.checked_sub(edge + Duration::from_millis(1)) {
-            assert_eq!(modified_millis(Ok(time)), None);
-        }
-    }
-}

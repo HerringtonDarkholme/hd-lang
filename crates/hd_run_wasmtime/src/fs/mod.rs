@@ -24,16 +24,9 @@ use crate::host::{Host, Ret, Stop, bytes, int_arg};
 use crate::runtime::reactor::Done;
 
 pub(crate) mod api;
-/// Special-file coverage; every item is unix-only, like its tests.
-#[cfg(all(test, unix))]
-pub(crate) mod fifo;
 pub(crate) mod io;
 pub(crate) mod ops;
 pub(crate) mod sandbox;
-#[cfg(test)]
-mod sandbox_tests;
-#[cfg(test)]
-pub(crate) mod test_support;
 
 pub(crate) use api::{read_file_until, write_file_until};
 pub(crate) use sandbox::Sandbox;

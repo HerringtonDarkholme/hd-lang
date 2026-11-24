@@ -1,0 +1,4 @@
+use std.time.{now, Clock}
+
+pub fn main() -> void $ Console + Clock:
+    println(now().unix_milliseconds() > 0)

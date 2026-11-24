@@ -17,8 +17,6 @@ use crate::runtime::reactor;
 pub(crate) mod client;
 pub(crate) mod ops;
 pub(crate) mod socket;
-#[cfg(test)]
-pub(crate) mod test_support;
 pub(crate) mod validate;
 
 pub use client::Client;
@@ -28,7 +26,7 @@ pub(crate) use socket::connect_attempts;
 
 /// The most bytes one read takes, and the receive buffer.
 pub(crate) const CHUNK: usize = 65536;
-pub(crate) const CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
+pub const CONNECT_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(250);
 
 /// A `Net`, `TcpStream`, `TcpListener` or `UdpSocket` call: its one import,
 /// or its `.start`, or its `.finish` when `finish`. `input` is the

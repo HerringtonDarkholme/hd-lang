@@ -1,0 +1,5 @@
+struct Node:
+    children: List[*mut Node]
+    value: usize
+let root: *mut Node = box(Node { children: [], value: 1 })
+root.children.push(root)

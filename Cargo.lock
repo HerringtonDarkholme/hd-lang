@@ -906,6 +906,7 @@ dependencies = [
  "hd_mono",
  "hd_project",
  "hd_run",
+ "hd_run_wasmtime",
  "hd_sched",
  "hd_testkit",
  "hostname",

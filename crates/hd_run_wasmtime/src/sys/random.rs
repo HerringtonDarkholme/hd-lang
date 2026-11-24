@@ -2,7 +2,7 @@
 
 use crate::host::Stop;
 
-pub(crate) fn random(count: usize) -> wasmtime::Result<Vec<u8>> {
+pub fn random(count: usize) -> wasmtime::Result<Vec<u8>> {
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(count)
