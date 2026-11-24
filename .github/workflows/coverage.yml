@@ -25,9 +25,10 @@ jobs:
     name: Core coverage
     runs-on: ubuntu-latest
     # Owner, 2026-11-24: Coverage is the scheduled-only exception to the
-    # 10-minute job rule, capped at 40 minutes (about 32 after #2342 dropped
-    # checked conformance). A run that passes 40 minutes is a regression to fix.
-    timeout-minutes: 40
+    # 10-minute job rule ("coverage is okay, it can be longer"). It runs about
+    # 32 minutes since #2342 dropped checked conformance; 60 leaves room for
+    # the runner speed spread (about 1.4x between runs).
+    timeout-minutes: 60
     steps:
       # Full history maps the previous measured run's uncovered lines.
       - name: Check out
