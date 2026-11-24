@@ -79,123 +79,12 @@ type Key = (PlaceRoot, Vec<Proj>, u32);
 /// remain distinct. Metadata parents precede snapshots, so one ascending
 /// pass closes every chain: O(locals + origin rows), no depth walk/retry.
 #[derive(Default)]
-struct CaptureOrigins {
+pub struct CaptureOrigins {
     roots: Vec<Option<hd_base::LocalId>>,
     /// The inlined parameters that take a lent argument's pointer.
     lent: Vec<bool>,
-    #[cfg(test)]
-    work: usize,
-}
-
-#[cfg(test)]
-mod capture_origin_tests {
-    use super::*;
-    use hd_base::{DefId, LocalId, SubId};
-
-    #[test]
-    fn pointer_key_interning_is_independent_of_other_keys() {
-        for (width, depth) in [(100_u32, 20), (1000, 20), (20, 1000)] {
-            let mut borrows = Borrows::default();
-            let keys: Vec<_> = (0..width)
-                .map(|local| {
-                    (
-                        PlaceRoot::Local(LocalId::from_raw(local)),
-                        vec![Proj::Field(0); depth],
-                        ANY_FRAME,
-                    )
-                })
-                .collect();
-            for (expected, key) in keys.iter().enumerate() {
-                assert_eq!(borrows.intern_key(key.clone()), expected);
-            }
-            for _ in 0..10 {
-                for (expected, key) in keys.iter().enumerate() {
-                    let before = borrows.key_work;
-                    assert_eq!(borrows.intern_key(key.clone()), expected);
-                    assert_eq!(borrows.key_work - before, depth + 1);
-                }
-            }
-            assert_eq!(u32::try_from(borrows.keys.len()), Ok(width));
-            assert_eq!(borrows.key_work, 12 * keys.len() * (depth + 1));
-        }
-    }
-
-    #[test]
-    fn pointer_keys_normalize_capture_origins_before_interning() {
-        let body = body(3, &[(1, 0), (2, 1)]);
-        let mut borrows = Borrows {
-            capture_origins: CaptureOrigins::new(&body, &[], |_| true),
-            ..Borrows::default()
-        };
-        for local in [2, 0, 1] {
-            assert_eq!(
-                borrows.intern_key((
-                    PlaceRoot::Local(LocalId::from_raw(local)),
-                    vec![],
-                    ANY_FRAME
-                )),
-                0
-            );
-        }
-        assert_eq!(borrows.keys.len(), 1);
-        assert_eq!(borrows.key_index.len(), 1);
-        assert_eq!(borrows.keys[0].0.0, PlaceRoot::Local(LocalId::from_raw(0)));
-    }
-
-    fn body(locals: usize, edges: &[(u32, u32)]) -> Body {
-        let mut b = Body::new(DefId::from_raw(0), hd_tir::ir::BodyKind::Fn);
-        b.local_ty = vec![Ty::VOID; locals];
-        b.inlined_capture_origins = edges
-            .iter()
-            .map(|&(s, c)| {
-                (
-                    SubId::from_raw(0),
-                    LocalId::from_raw(s),
-                    LocalId::from_raw(c),
-                )
-            })
-            .collect();
-        b
-    }
-
-    #[test]
-    fn only_whole_pointer_capture_keys_inherit_creator_context() {
-        let b = body(5, &[(1, 0), (2, 1), (3, 0)]);
-        let origins = CaptureOrigins::new(&b, &[], |l| l.raw() != 3);
-        let root = PlaceRoot::Local(LocalId::from_raw(2));
-        assert_eq!(
-            origins.key((root, vec![], ANY_FRAME)).0,
-            PlaceRoot::Local(LocalId::from_raw(0))
-        );
-        let field = (root, vec![Proj::Field(0)], ANY_FRAME);
-        assert_eq!(origins.key(field.clone()), field);
-        let cell = (root, vec![], 0);
-        assert_eq!(origins.key(cell.clone()), cell);
-        assert_eq!(origins.local(3), 3, "non-pointer capture has no exemption");
-        assert_eq!(origins.local(4), 4, "ordinary aliases have no provenance");
-    }
-
-    #[test]
-    fn capture_provenance_chains_have_linear_counted_work() {
-        for width in [100u32, 1_000] {
-            let depth = 20;
-            let mut edges = Vec::new();
-            for layer in 0..depth {
-                for column in 0..width {
-                    let snapshot = 1 + layer * width + column;
-                    let creator = if layer == 0 { 0 } else { snapshot - width };
-                    edges.push((snapshot, creator));
-                }
-            }
-            let n = 1 + (width * depth) as usize;
-            let b = body(n, &edges);
-            let origins = CaptureOrigins::new(&b, &[], |_| true);
-            assert_eq!(origins.work, 2 * n + edges.len());
-            for l in 0..n {
-                assert_eq!(origins.local(l), 0);
-            }
-        }
-    }
+    #[cfg(feature = "testing")]
+    pub work: usize,
 }
 
 /// The inlined parameters that receive a lent `*T` argument (the `Read` a
@@ -242,7 +131,7 @@ fn lent_params(b: &Body) -> Vec<(u32, u32)> {
 }
 
 impl CaptureOrigins {
-    fn new(
+    pub fn new(
         b: &Body,
         lent_params: &[(u32, u32)],
         eligible: impl Fn(hd_base::LocalId) -> bool,
@@ -259,7 +148,7 @@ impl CaptureOrigins {
         }
         let lent_params = lent.iter().map(Option::is_some).collect();
         let mut roots = vec![None; b.local_ty.len()];
-        #[cfg(test)]
+        #[cfg(feature = "testing")]
         let mut work = roots.len();
         for &(_, snapshot_id, creator_id) in &b.inlined_capture_origins {
             let (snapshot, creator) = (snapshot_id.idx(), creator_id.idx());
@@ -272,7 +161,7 @@ impl CaptureOrigins {
                 assert!(roots[snapshot].is_none(), "capture snapshot must be unique");
                 roots[snapshot] = Some(creator_id);
             }
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             {
                 work += 1;
             }
@@ -286,7 +175,7 @@ impl CaptureOrigins {
             if let Some(parent) = roots[l] {
                 roots[l] = roots[parent.idx()].or(Some(parent));
             }
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             {
                 work += 1;
             }
@@ -294,7 +183,7 @@ impl CaptureOrigins {
         Self {
             roots,
             lent: lent_params,
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             work,
         }
     }
@@ -305,8 +194,8 @@ impl CaptureOrigins {
         self.lent.get(l).copied().unwrap_or(false)
     }
 
-    #[cfg(test)]
-    fn local(&self, l: usize) -> usize {
+    #[cfg(feature = "testing")]
+    pub fn local(&self, l: usize) -> usize {
         self.roots
             .get(l)
             .copied()
@@ -314,7 +203,8 @@ impl CaptureOrigins {
             .map_or(l, hd_base::LocalId::idx)
     }
 
-    fn key(&self, mut key: Key) -> Key {
+    #[must_use]
+    pub fn key(&self, mut key: Key) -> Key {
         if key.1.is_empty()
             && key.2 == ANY_FRAME
             && let PlaceRoot::Local(l) = key.0
@@ -327,7 +217,7 @@ impl CaptureOrigins {
 }
 
 /// The frame of a pointer's key ([`Key`]).
-const ANY_FRAME: u32 = u32::MAX;
+pub const ANY_FRAME: u32 = u32::MAX;
 
 /// The inlined copy each instruction of `b` came from: its anchor's row
 /// in [`Body::inlined`], or `ANY_FRAME - 1` for the body's own. An
@@ -372,8 +262,8 @@ impl BorrowFacts {
 
 /// The per-body state of its loans and own-loan checks.
 #[derive(Default)]
-pub(super) struct Borrows {
-    capture_origins: CaptureOrigins,
+pub struct Borrows {
+    pub capture_origins: CaptureOrigins,
     /// The loan sites (`Ref`s, and `*T` reads a call lends), and the
     /// objects each one crossed, once emitted: the header address, the
     /// pointer's key, and whether elision keeps that loan
@@ -399,11 +289,11 @@ pub(super) struct Borrows {
     valued: hd_base::HashSet<u32>,
     /// The pointers places reach objects through, and the local holding
     /// the state of the function's own loans through each, once used.
-    keys: Vec<(Key, Option<u32>)>,
+    pub keys: Vec<(Key, Option<u32>)>,
     /// Stable vector IDs, indexed without scanning other pointers.
-    key_index: HashMap<Key, usize>,
-    #[cfg(test)]
-    key_work: usize,
+    pub key_index: HashMap<Key, usize>,
+    #[cfg(feature = "testing")]
+    pub key_work: usize,
     /// The first `loans` keys are those a loan is taken through, interned
     /// before emission.
     loans: usize,
@@ -597,9 +487,9 @@ pub(super) fn pointer_lent(
 
 impl Borrows {
     /// Expected O(key projection words); IDs retain first-insertion order.
-    fn intern_key(&mut self, key: Key) -> usize {
+    pub fn intern_key(&mut self, key: Key) -> usize {
         let key = self.capture_origins.key(key);
-        #[cfg(test)]
+        #[cfg(feature = "testing")]
         {
             self.key_work += 1 + key.1.len();
         }
@@ -607,7 +497,7 @@ impl Borrows {
             hd_base::hash::hash_map::Entry::Occupied(entry) => *entry.get(),
             hd_base::hash::hash_map::Entry::Vacant(entry) => {
                 let index = self.keys.len();
-                #[cfg(test)]
+                #[cfg(feature = "testing")]
                 {
                     self.key_work += 1 + entry.key().1.len();
                 }

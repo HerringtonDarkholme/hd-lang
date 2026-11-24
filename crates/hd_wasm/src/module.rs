@@ -149,6 +149,7 @@ pub struct DescriptorKey {
 }
 impl DescriptorKey {
     #[cfg(feature = "checked-report")]
+    #[must_use]
     pub fn checked(kind: u8) -> Self {
         Self { kind }
     }
@@ -177,6 +178,7 @@ pub enum Sym {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SymId(pub u32);
 impl SymId {
+    #[must_use]
     pub const fn idx(self) -> usize {
         self.0 as usize
     }
@@ -202,6 +204,7 @@ struct SymbolData {
     signature_ids: hd_base::HashMap<(Vec<Val>, Vec<Val>), SigId>,
 }
 impl Symbols {
+    #[must_use]
     pub fn intern_global(&self, global: Global) -> GlobalId {
         let mut data = self.0.borrow_mut();
         if let Some(&id) = data.global_ids.get(&global) {
@@ -212,12 +215,22 @@ impl Symbols {
         data.global_ids.insert(global, id);
         id
     }
+    #[must_use]
     pub fn global(&self, id: GlobalId) -> Global {
         self.0.borrow().globals[id.0 as usize]
     }
+    #[must_use]
+    #[cfg_attr(
+        feature = "testing",
+        expect(
+            clippy::len_without_is_empty,
+            reason = "no caller asks whether it is empty"
+        )
+    )]
     pub fn len(&self) -> usize {
         self.0.borrow().names.len()
     }
+    #[must_use]
     pub fn intern(&self, symbol: Sym) -> SymId {
         let mut data = self.0.borrow_mut();
         if let Some(&id) = data.ids.get(&symbol) {
@@ -228,13 +241,16 @@ impl Symbols {
         data.ids.insert(symbol, id);
         id
     }
+    #[must_use]
     pub fn get(&self, id: SymId) -> Ref<'_, Sym> {
         Ref::map(self.0.borrow(), |data| &data.names[id.idx()])
     }
+    #[must_use]
     pub fn cmp(&self, a: SymId, b: SymId) -> std::cmp::Ordering {
         let data = self.0.borrow();
         data.names[a.idx()].cmp(&data.names[b.idx()])
     }
+    #[must_use]
     pub fn intern_signature(&self, params: Vec<Val>, results: Vec<Val>) -> SigId {
         let mut data = self.0.borrow_mut();
         let signature = (params, results);
@@ -246,13 +262,15 @@ impl Symbols {
         data.signature_ids.insert(signature, id);
         id
     }
+    #[must_use]
     pub fn signature(&self, id: SigId) -> Ref<'_, (Vec<Val>, Vec<Val>)> {
         Ref::map(self.0.borrow(), |data| &data.signatures[id.0 as usize])
     }
 
     /// Actual emitted signatures take precedence after wide lowering. A
     /// newly referenced helper still has its declared logical signature.
-    pub(crate) fn call_arities(&self, functions: &[Option<Func>]) -> crate::opt::Arity {
+    #[must_use]
+    pub fn call_arities(&self, functions: &[Option<Func>]) -> crate::opt::Arity {
         self.0
             .borrow()
             .names
@@ -280,9 +298,9 @@ impl Symbols {
 
 /// Membership in a reachability walk, one bit per symbol.
 #[derive(Default)]
-struct Reached(Vec<u64>);
+pub struct Reached(Vec<u64>);
 impl Reached {
-    fn insert(&mut self, id: SymId) -> bool {
+    pub fn insert(&mut self, id: SymId) -> bool {
         let word = id.idx() / 64;
         self.0.resize(self.0.len().max(word + 1), 0);
         let mask = 1 << (id.0 % 64);
@@ -290,12 +308,13 @@ impl Reached {
         self.0[word] |= mask;
         fresh
     }
-    fn contains(&self, id: SymId) -> bool {
+    #[must_use]
+    pub fn contains(&self, id: SymId) -> bool {
         self.0
             .get(id.idx() / 64)
             .is_some_and(|w| w & (1 << (id.0 % 64)) != 0)
     }
-    fn iter(&self) -> impl Iterator<Item = SymId> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = SymId> + '_ {
         self.0.iter().enumerate().flat_map(|(word, &bits)| {
             let mut bits = bits;
             std::iter::from_fn(move || {
@@ -312,12 +331,13 @@ impl Reached {
 
 /// Dense optional numbering, preserving the semantic order chosen by linking.
 #[derive(Default)]
-struct Numbers(Vec<Option<u32>>);
+pub struct Numbers(Vec<Option<u32>>);
 impl Numbers {
-    fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self::default()
     }
-    fn insert(&mut self, id: SymId, number: u32) {
+    pub fn insert(&mut self, id: SymId, number: u32) {
         self.0.resize(self.0.len().max(id.idx() + 1), None);
         self.0[id.idx()] = Some(number);
     }
@@ -555,7 +575,7 @@ pub enum Ins {
     /// A descriptor alias: a distinct slot with the same release glue, keyed
     /// by checked-report allocation kind.
     #[cfg_attr(
-        all(not(feature = "checked-report"), not(test)),
+        all(not(feature = "checked-report"), not(feature = "testing")),
         expect(
             dead_code,
             reason = "ruled out: only checked-report's allocation kinds make a descriptor alias"
@@ -576,6 +596,7 @@ pub enum Ins {
 impl Ins {
     /// Panic-frame source metadata travels with its call, like LLVM `DebugLoc`.
     /// No marker separates adjacent executable instructions during optimization.
+    #[must_use]
     pub fn call_anchor(self) -> Option<u32> {
         match self {
             Self::Call(_, anchor) | Self::CallIndirect(_, anchor) => anchor,
@@ -652,15 +673,19 @@ impl Func {
         }
     }
 
+    #[must_use]
     pub fn intern(&self, s: Sym) -> SymId {
         self.symbols.intern(s)
     }
+    #[must_use]
     pub fn intern_global(&self, global: Global) -> GlobalId {
         self.symbols.intern_global(global)
     }
+    #[must_use]
     pub fn symbol(&self, id: SymId) -> Ref<'_, Sym> {
         self.symbols.get(id)
     }
+    #[must_use]
     pub fn signature(&self, id: SigId) -> Ref<'_, (Vec<Val>, Vec<Val>)> {
         self.symbols.signature(id)
     }
@@ -681,6 +706,7 @@ impl Func {
         self.labels.push(labels);
         id
     }
+    #[must_use]
     pub fn label_list(&self, id: LabelListId) -> &[u32] {
         &self.labels[id.0 as usize]
     }
@@ -708,11 +734,13 @@ impl Func {
         self.count_origin_base = Some(u32::try_from(len).expect("TIR instructions"));
     }
 
+    #[must_use]
     pub fn source_origin(&self, origin: Option<u32>) -> Option<u32> {
         origin.and_then(|o| self.count_origin(o).map_or(Some(o), |n| n.origin))
     }
 
-    pub(crate) fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
+    #[must_use]
+    pub fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
         self.count_origins
             .get(origin.checked_sub(self.count_origin_base?)? as usize)
     }
@@ -1173,12 +1201,12 @@ pub struct Module {
     pub package_contract: hd_host_abi::schema::Contract,
     /// Interface lookup during construction; finish sorts the contract only
     /// after all recording is complete.
-    pub(crate) package_interface_at: hd_base::HashMap<String, usize>,
-    #[cfg(test)]
-    pub(crate) package_interface_probes: usize,
+    pub package_interface_at: hd_base::HashMap<String, usize>,
+    #[cfg(feature = "testing")]
+    pub package_interface_probes: usize,
     /// Defined functions by symbol. A helper is defined when
     /// [`Module::finish`] finds a body naming it.
-    symbols: Symbols,
+    pub symbols: Symbols,
     funcs: Vec<Option<Func>>,
     /// Instances in the order they were defined: content order.
     inst_order: Vec<SymId>,
@@ -1203,7 +1231,7 @@ pub struct Module {
     vtable_at: hd_base::HashMap<Hash128, usize>,
     /// The vtable contents [`Module::vtable_full`] compared, which the
     /// cost test counts.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub vtable_compares: usize,
     /// Vtables [`Module::vtable_reserve`] holds for a table whose slots
     /// are still being built: no other table deduplicates into one.
@@ -1350,6 +1378,7 @@ pub struct Module {
 }
 
 impl Module {
+    #[must_use]
     pub fn new(runtime: &crate::Runtime) -> Self {
         Self {
             row_key_graphs: hd_base::HashMap::default(),
@@ -1362,7 +1391,7 @@ impl Module {
             open_world: Default::default(),
             package_contract: hd_host_abi::schema::Contract::default(),
             package_interface_at: hd_base::HashMap::default(),
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             package_interface_probes: 0,
             symbols: Symbols::default(),
             funcs: Vec::default(),
@@ -1375,7 +1404,7 @@ impl Module {
             data_roots: Vec::new(),
             vtables: Vec::default(),
             vtable_at: hd_base::HashMap::default(),
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             vtable_compares: Default::default(),
             reserved_vtables: hd_base::HashSet::default(),
             handle_vtables: hd_base::HashMap::default(),
@@ -1425,11 +1454,11 @@ impl Module {
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "testing")]
 impl Default for Module {
     fn default() -> Self {
-        let mut module = Self::new(&crate::tests::runtime());
-        crate::tests::define_runtime(&mut module);
+        let mut module = Self::new(&crate::testing::runtime());
+        crate::testing::define_runtime(&mut module);
         module
     }
 }
@@ -1632,7 +1661,7 @@ impl Module {
 
     /// The number of a static vtable whose slots are `slots`' table
     /// indices, one `i32` each; [`Ins::VTable`] names its address.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub fn vtable(&mut self, slots: Vec<Sym>) -> usize {
         self.vtable_with(slots, Vec::new())
     }
@@ -1640,7 +1669,7 @@ impl Module {
     /// The number of a static vtable whose slots are `slots`' table
     /// indices, then the addresses of the vtables `parents`, one `i32`
     /// each.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub fn vtable_with(&mut self, slots: Vec<Sym>, parents: Vec<usize>) -> usize {
         self.vtable_full(slots, parents, Vec::new())
     }
@@ -1660,7 +1689,7 @@ impl Module {
         );
         let hash = vtable_hash(&v);
         if let Some(&k) = self.vtable_at.get(&hash) {
-            #[cfg(test)]
+            #[cfg(feature = "testing")]
             {
                 self.vtable_compares += 1;
             }
@@ -3433,7 +3462,7 @@ fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> 
     }
 }
 
-fn descriptor_slot(
+pub fn descriptor_slot(
     s: SymId,
     key: DescriptorKey,
     table_start: u32,
@@ -3452,249 +3481,4 @@ fn descriptor_slot(
     slots.push(f);
     ids.insert(pair, k);
     Ok(k)
-}
-
-#[cfg(all(test, feature = "checked-report"))]
-mod checked_descriptor_tests {
-    use super::*;
-    #[test]
-    fn kinds_alias_one_release_function_in_distinct_slots() {
-        let glue = SymId(3);
-        let mut index = Numbers::new();
-        index.insert(glue, 7);
-        let mut slots = Vec::new();
-        let mut ids = BTreeMap::new();
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                0,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            0
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(2),
-                0,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            1
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                0,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            0
-        );
-        assert_eq!(slots, [7, 7]);
-    }
-
-    #[test]
-    fn extension_descriptors_follow_the_initialized_table_prefix() {
-        let glue = SymId(3);
-        let mut index = Numbers::new();
-        index.insert(glue, 7);
-        let mut slots = Vec::new();
-        let mut ids = BTreeMap::new();
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                41,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            41
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(2),
-                41,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            42
-        );
-        assert_eq!(
-            descriptor_slot(
-                glue,
-                DescriptorKey::checked(1),
-                41,
-                &index,
-                &mut slots,
-                &mut ids
-            )
-            .unwrap(),
-            41
-        );
-        assert_eq!(slots, [7, 7]);
-    }
-}
-
-#[cfg(test)]
-mod dense_symbol_tests {
-    #[test]
-    fn emitted_wide_signature_wins_over_logical_helper_metadata() {
-        let symbols = super::Symbols::default();
-        let target = symbols.intern(super::Sym::Helper(crate::rt::Helper::DynTrap {
-            params: vec![super::Val::I32; 64],
-            results: vec![super::Val::I32; 65],
-        }));
-        assert_eq!(symbols.call_arities(&[])[target.idx()], Some((64, 65)));
-        let physical = super::Func {
-            params: vec![super::Val::I32; 65],
-            ..super::Func::default()
-        };
-        let functions = vec![Some(physical)];
-        // Wide results add one frame address even when the parameter
-        // count was exactly the threshold; do not lower it a second time.
-        assert_eq!(
-            symbols.call_arities(&functions)[target.idx()],
-            Some((65, 0))
-        );
-    }
-
-    use super::*;
-
-    fn encoded(reverse_interning: bool) -> Vec<u8> {
-        let mut m = Module::default();
-        let a = Sym::Import(Import::new("test", "a", &[], &[Val::I32]));
-        let b = Sym::Import(Import::new("test", "b", &[], &[Val::I32]));
-        if reverse_interning {
-            m.symbols.intern(b.clone());
-            m.symbols.intern(a.clone());
-            m.symbols.intern_global(Global::HashSeed);
-        } else {
-            m.symbols.intern(a.clone());
-            m.symbols.intern(b.clone());
-            m.symbols.intern_global(Global::Forbid);
-        }
-        let leaf = Sym::Inst(Hash128(1));
-        let root = Sym::Inst(Hash128(2));
-        let mut f = m.func("leaf", vec![], vec![Val::I32]);
-        f.u32(7);
-        m.define(leaf.clone(), f);
-        let mut f = m.func("root", vec![], vec![Val::I32]);
-        f.global_get(Global::Forbid);
-        f.op(Instruction::Drop);
-        f.global_get(Global::HashSeed);
-        f.op(Instruction::Drop);
-        f.call(b);
-        f.op(Instruction::Drop);
-        f.table_slot(leaf);
-        f.call_indirect(vec![], vec![Val::I32]);
-        f.op(Instruction::Drop);
-        f.op(Instruction::Block(wasm_encoder::BlockType::Empty));
-        f.u32(0);
-        f.br_table(vec![0, 0], 0);
-        f.op(Instruction::End);
-        f.call(a);
-        m.define(root.clone(), f);
-        m.export("root", root);
-        m.finish().expect("module encodes")
-    }
-
-    #[test]
-    fn arena_insertion_order_does_not_change_wasm_numbering() {
-        let a = encoded(false);
-        let b = encoded(true);
-        assert_eq!(a, b);
-        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
-            .validate_all(&a)
-            .expect("valid Wasm");
-    }
-
-    #[test]
-    fn reachability_bits_cross_word_boundaries() {
-        let mut reached = Reached::default();
-        for id in [0, 63, 64, 130] {
-            assert!(reached.insert(SymId(id)));
-            assert!(!reached.insert(SymId(id)));
-        }
-        assert!(!reached.contains(SymId(62)));
-        assert_eq!(
-            reached.iter().map(|id| id.0).collect::<Vec<_>>(),
-            [0, 63, 64, 130]
-        );
-    }
-
-    #[test]
-    fn cancellation_fact_is_specialized_and_markers_are_not_linked() {
-        for explicit in [false, true] {
-            let mut m = Module::default();
-            let root = Sym::Inst(Hash128(42));
-            let mut f = m.func("probe", vec![], vec![Val::I32]);
-            if explicit {
-                f.helper(crate::rt::Helper::CancellationRoot);
-            }
-            f.helper(crate::rt::Helper::CanCancel);
-            m.define(root.clone(), f);
-            m.export("probe", root);
-            let wasm = m.finish().expect("module encodes");
-            wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
-                .validate_all(&wasm)
-                .expect("valid Wasm");
-            let bodies: Vec<_> = wasmparser::Parser::new(0)
-                .parse_all(&wasm)
-                .filter_map(|p| match p.expect("payload") {
-                    wasmparser::Payload::CodeSectionEntry(body) => Some(body),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(bodies.len(), 1, "link-time helpers disappear");
-            let ops: Vec<_> = bodies[0]
-                .get_operators_reader()
-                .expect("operators")
-                .into_iter()
-                .collect::<Result<_, _>>()
-                .expect("valid operators");
-            assert!(
-                matches!(ops.as_slice(), [wasmparser::Operator::I32Const { value }, wasmparser::Operator::End] if *value == i32::from(explicit))
-            );
-        }
-    }
-
-    #[test]
-    fn final_reachability_removes_a_call_folded_out_of_the_body() {
-        let mut m = Module::default();
-        let dead = Sym::Inst(Hash128(1));
-        let root = Sym::Inst(Hash128(2));
-        let f = m.func("dead_after_fold", vec![], vec![]);
-        m.define(dead.clone(), f);
-        let mut f = m.func("root", vec![], vec![]);
-        f.i32(0);
-        f.op(Instruction::If(wasm_encoder::BlockType::Empty));
-        f.call(dead);
-        f.op(Instruction::End);
-        m.define(root.clone(), f);
-        m.export("root", root);
-        let wasm = m.finish().expect("module encodes");
-        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
-            .validate_all(&wasm)
-            .expect("valid Wasm");
-        let functions = wasmparser::Parser::new(0)
-            .parse_all(&wasm)
-            .filter(|p| matches!(p, Ok(wasmparser::Payload::CodeSectionEntry(_))))
-            .count();
-        assert_eq!(functions, 1, "only the exported root is still linked");
-    }
 }

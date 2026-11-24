@@ -9,18 +9,26 @@ use wasm_encoder::BlockType;
 /// Each open target's current absolute position. Entries remember shadowed
 /// positions, so popping restores a prior target without searching the stack.
 #[derive(Default)]
-pub(super) struct Stack {
+pub struct Stack {
     entries: Vec<(Ctl, Option<usize>)>,
     targets: hd_base::HashMap<Ctl, usize>,
     plain: Option<usize>,
 }
 
 impl Stack {
-    pub(super) fn len(&self) -> usize {
+    #[must_use]
+    #[cfg_attr(
+        feature = "testing",
+        expect(
+            clippy::len_without_is_empty,
+            reason = "no caller asks whether it is empty"
+        )
+    )]
+    pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    pub(super) fn push(&mut self, target: Ctl) {
+    pub fn push(&mut self, target: Ctl) {
         crate::work::control(1);
         let at = self.entries.len();
         let prior = if target == Ctl::Plain {
@@ -31,7 +39,7 @@ impl Stack {
         self.entries.push((target, prior));
     }
 
-    pub(super) fn pop(&mut self) -> Option<Ctl> {
+    pub fn pop(&mut self) -> Option<Ctl> {
         crate::work::control(1);
         let (target, prior) = self.entries.pop()?;
         if target == Ctl::Plain {
@@ -44,7 +52,8 @@ impl Stack {
         Some(target)
     }
 
-    pub(super) fn position(&self, target: Ctl) -> Option<usize> {
+    #[must_use]
+    pub fn position(&self, target: Ctl) -> Option<usize> {
         crate::work::control(1);
         if target == Ctl::Plain {
             self.plain
@@ -162,56 +171,5 @@ impl Em<'_, '_, '_> {
             }
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Ctl, Stack};
-
-    #[test]
-    fn indexed_targets_count_linear_work_at_width_1000_depth_20() {
-        let ((), work) = crate::work::count_control(|| {
-            let mut stack = Stack::default();
-            for arm in 0..1000 {
-                stack.push(Ctl::Arm(7, arm));
-                for _ in 0..20 {
-                    stack.push(Ctl::Plain);
-                }
-            }
-            for arm in (0..1000).rev() {
-                assert_eq!(stack.position(Ctl::Arm(7, arm)), Some(21 * arm as usize));
-                for _ in 0..20 {
-                    assert!(stack.pop() == Some(Ctl::Plain));
-                }
-                assert!(stack.pop() == Some(Ctl::Arm(7, arm)));
-            }
-            assert_eq!(stack.len(), 0);
-        });
-        assert_eq!(work, 43_000);
-    }
-
-    #[test]
-    fn popping_restores_shadowed_targets() {
-        let mut stack = Stack::default();
-        assert!(stack.pop().is_none());
-        assert_eq!(stack.position(Ctl::Exit), None);
-        assert_eq!(stack.position(Ctl::Plain), None);
-        stack.push(Ctl::Plain);
-        stack.push(Ctl::Plain);
-        assert_eq!(stack.position(Ctl::Plain), Some(1));
-        assert!(stack.pop() == Some(Ctl::Plain));
-        assert_eq!(stack.position(Ctl::Plain), Some(0));
-        assert!(stack.pop() == Some(Ctl::Plain));
-        assert_eq!(stack.position(Ctl::Plain), None);
-        stack.push(Ctl::Brk(2));
-        stack.push(Ctl::Plain);
-        stack.push(Ctl::Brk(2));
-        assert_eq!(stack.position(Ctl::Brk(2)), Some(2));
-        assert!(stack.pop() == Some(Ctl::Brk(2)));
-        assert_eq!(stack.position(Ctl::Brk(2)), Some(0));
-        assert!(stack.pop() == Some(Ctl::Plain));
-        assert!(stack.pop() == Some(Ctl::Brk(2)));
-        assert_eq!(stack.position(Ctl::Brk(2)), None);
     }
 }

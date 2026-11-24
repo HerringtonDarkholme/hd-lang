@@ -217,7 +217,7 @@ pub(super) struct AllPoint {
 }
 
 /// The frame: the body's parameter 0.
-pub(super) const FRAME: u32 = 0;
+pub const FRAME: u32 = 0;
 
 impl Em<'_, '_, '_> {
     /// The homogeneous list frame, unlike the fixed-arity tuple point.
@@ -1350,7 +1350,8 @@ pub(super) fn push_zero(f: &mut crate::module::Func, v: Val) {
 /// The save area of a body whose locals `0..n` are `vals`, from offset
 /// `start` on, past the frame's slots (#1707): each local's offset in the
 /// frame, excluding `skip`, and the frame's payload size.
-pub(super) fn save_area(vals: &[Val], skip: &[u32], start: u32) -> (Vec<(u32, u32, Val)>, u32) {
+#[must_use]
+pub fn save_area(vals: &[Val], skip: &[u32], start: u32) -> (Vec<(u32, u32, Val)>, u32) {
     let mut at = start;
     let mut out = Vec::new();
     let skip: hd_base::HashSet<u32> = skip.iter().copied().collect();
@@ -2176,59 +2177,4 @@ fn set_flags(f: &mut crate::module::Func, bits: i32, on: bool) {
         f.op(I::I32And);
     }
     f.op(I::I32Store(mem(HEAP, F_FLAGS, 2)));
-}
-
-#[cfg(test)]
-mod origin_tests {
-    use super::*;
-
-    #[test]
-    fn resident_save_area_has_no_ephemeral_local_holes() {
-        for count in [100_u32, 1_000] {
-            let values = vec![Val::I64; count as usize];
-            let skip: Vec<u32> = (0..count - 2).collect();
-            let (area, size) = super::save_area(&values, &skip, 32);
-            assert_eq!(area, [(count - 2, 32, Val::I64), (count - 1, 40, Val::I64)]);
-            assert_eq!(size, 48);
-        }
-    }
-
-    #[test]
-    fn resident_spill_rewrites_get_set_tee_and_preserves_origins() {
-        let m = crate::module::Module::default();
-        let mut f = m.func("resident", vec![Val::I32], vec![]);
-        let value = f.local(Val::I32);
-        let base = f.local(Val::I32);
-        let stack = f.local(Val::I32);
-        f.body = vec![
-            Ins::LoadAll,
-            Ins::Op(I::LocalGet(value)),
-            Ins::Op(I::LocalTee(value)),
-            Ins::Op(I::LocalSet(value)),
-            Ins::Op(I::LocalGet(super::FRAME)),
-            Ins::SpillBase,
-            Ins::Op(I::Drop),
-        ];
-        f.origins = Some(vec![Some(10); 7]);
-        super::super::susp_spill::resident(
-            &mut f,
-            super::super::susp_spill::Plan {
-                area: &[(value, 32, Val::I32)],
-                selected: &[false, true, false, false],
-                start: 32,
-                size: 40,
-            },
-            base,
-            stack,
-            0,
-        );
-        assert!(
-            !f.body
-                .iter()
-                .any(|i| matches!(i, Ins::LoadAll | Ins::SpillBase))
-        );
-        assert!(!f.body.iter().any(|i| matches!(i,
-            Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l)) if *l == value)));
-        assert_eq!(f.origins.as_ref().map(Vec::len), Some(f.body.len()));
-    }
 }

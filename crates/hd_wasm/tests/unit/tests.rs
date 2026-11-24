@@ -1,10 +1,11 @@
 //! The module builder's output validates and has the entry exports.
 
 use hd_base::Hash128;
+use hd_wasm::testing::{define_runtime, runtime};
 
-use crate::boundary::{LEnum, LList, LTy};
-use crate::module::{Module, Sym, Val};
-use crate::rt::{Elem, Helper};
+use hd_wasm::testing::boundary::{LEnum, LList, LTy};
+use hd_wasm::testing::module::{Module, Sym, Val};
+use hd_wasm::testing::rt::{Elem, Helper};
 
 fn validate(wasm: &[u8]) {
     let mut v = wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all());
@@ -57,8 +58,8 @@ fn an_empty_entry_links_two_memories_and_the_entry_exports() {
 /// than the bound, and stack frames share the heap memory.
 #[test]
 fn wide_signatures_pass_through_the_shadow_stack() {
-    use crate::op::Op as I;
-    let n = u32::try_from(crate::wide::WIDTH).expect("width") + 36;
+    use hd_wasm::testing::op::Op as I;
+    let n = u32::try_from(hd_wasm::testing::wide::WIDTH).expect("width") + 36;
     let vals = vec![Val::I32; n as usize];
     let wide = Sym::Inst(Hash128(9));
     // Returns its arguments reversed, early when the first is zero.
@@ -103,8 +104,8 @@ fn wide_signatures_pass_through_the_shadow_stack() {
             wasmparser::Payload::TypeSection(r) => {
                 for t in r.into_iter_err_on_gc_types() {
                     let t = t.expect("type");
-                    assert!(t.params().len() <= crate::wide::WIDTH);
-                    assert!(t.results().len() <= crate::wide::WIDTH);
+                    assert!(t.params().len() <= hd_wasm::testing::wide::WIDTH);
+                    assert!(t.results().len() <= hd_wasm::testing::wide::WIDTH);
                 }
             }
             _ => {}
@@ -120,20 +121,20 @@ fn static_bytes_and_vtables_are_shared_by_content() {
     let mut m = Module::default();
     let a = m.static_bytes(b"abc", 1);
     let b = m.static_bytes(b"xy", 8);
-    assert_eq!(a, crate::module::STATIC_BASE);
-    assert_eq!(b, crate::module::STATIC_BASE + 8);
+    assert_eq!(a, hd_wasm::testing::module::STATIC_BASE);
+    assert_eq!(b, hd_wasm::testing::module::STATIC_BASE + 8);
     assert_eq!(m.static_bytes(b"abc", 1), a);
     let host = || {
         Sym::Helper(Helper::HostCold {
             module: "hd:Console".into(),
             method: "write_line".into(),
-            args: vec![crate::task::HostArg::Str],
+            args: vec![hd_wasm::testing::task::HostArg::Str],
             area: string_area(),
-            counts: Box::new(crate::rt::HostCounts {
+            counts: Box::new(hd_wasm::testing::rt::HostCounts {
                 borrowed: string_area().parts,
                 owned: Vec::new(),
             }),
-            res: crate::task::HostRes::Tags,
+            res: hd_wasm::testing::task::HostRes::Tags,
         })
     };
     let v = m.vtable(vec![host(), host()]);
@@ -149,7 +150,7 @@ fn vtable_requests_compare_a_linear_number_of_tables() {
     let mut m = Module::default();
     let n = 5_000_u32;
     let slot = |k: u32| {
-        Sym::Import(crate::module::Import::new(
+        Sym::Import(hd_wasm::testing::module::Import::new(
             "hd:T",
             &format!("m{k}"),
             &[],
@@ -199,34 +200,34 @@ fn every_runtime_helper_validates() {
     f.i32(0);
     f.i32(0);
     f.helper(Helper::ToBuf);
-    f.op(crate::op::Op::Drop);
+    f.op(hd_wasm::testing::op::Op::Drop);
     f.i32(8);
     f.helper(Helper::Alloc);
-    f.op(crate::op::Op::Drop);
+    f.op(hd_wasm::testing::op::Op::Drop);
     for signed in [false, true] {
-        f.op(crate::op::Op::I64Const(-5));
+        f.op(hd_wasm::testing::op::Op::I64Const(-5));
         f.i32(20);
         f.helper(Helper::Str);
         f.helper(Helper::FmtInt { signed });
-        f.op(crate::op::Op::Drop);
-        f.op(crate::op::Op::Drop);
+        f.op(hd_wasm::testing::op::Op::Drop);
+        f.op(hd_wasm::testing::op::Op::Drop);
     }
     for _ in 0..4 {
         f.i32(0);
     }
     f.helper(Helper::StrEq);
-    f.op(crate::op::Op::Drop);
+    f.op(hd_wasm::testing::op::Op::Drop);
     m.define(Sym::Inst(main), f);
     let console = m.vtable(vec![Sym::Helper(Helper::HostCold {
         module: "hd:Console".into(),
         method: "write_line".into(),
-        args: vec![crate::task::HostArg::Str],
+        args: vec![hd_wasm::testing::task::HostArg::Str],
         area: string_area(),
-        counts: Box::new(crate::rt::HostCounts {
+        counts: Box::new(hd_wasm::testing::rt::HostCounts {
             borrowed: string_area().parts,
             owned: Vec::new(),
         }),
-        res: crate::task::HostRes::Tags,
+        res: hd_wasm::testing::task::HostRes::Tags,
     })]);
     // A host call of every boundary type, in both directions, and a
     // waiting one through a handle's slot.
@@ -235,10 +236,10 @@ fn every_runtime_helper_validates() {
         module: "hd:Probe".into(),
         method: "echo".into(),
         args: vec![
-            crate::task::HostArg::Scalar(Val::I64),
-            crate::task::HostArg::Buf(every.clone()),
+            hd_wasm::testing::task::HostArg::Scalar(Val::I64),
+            hd_wasm::testing::task::HostArg::Buf(every.clone()),
         ],
-        result: crate::boundary::CallRes::Buf(every.clone()),
+        result: hd_wasm::testing::boundary::CallRes::Buf(every.clone()),
         owned: None,
     };
     let mut params = vec![Val::I64];
@@ -247,21 +248,21 @@ fn every_runtime_helper_validates() {
         module: "hd:Probe".into(),
         method: "wait".into(),
         args: vec![
-            crate::task::HostArg::Scalar(Val::I32),
-            crate::task::HostArg::Buf(LTy::Str),
+            hd_wasm::testing::task::HostArg::Scalar(Val::I32),
+            hd_wasm::testing::task::HostArg::Buf(LTy::Str),
         ],
         area: Elem {
             size: 12,
             leaves: vec![word(0), word(4), word(8)],
-            counted: crate::rt::Counted::None,
+            counted: hd_wasm::testing::rt::Counted::None,
             parts: vec![],
             cyclic: false,
         },
-        counts: Box::new(crate::rt::HostCounts {
+        counts: Box::new(hd_wasm::testing::rt::HostCounts {
             borrowed: Vec::new(),
             owned: Vec::new(),
         }),
-        res: crate::task::HostRes::Buf(every.clone()),
+        res: hd_wasm::testing::task::HostRes::Buf(every.clone()),
     };
     let probe = m.vtable(vec![
         Sym::Helper(call),
@@ -288,8 +289,8 @@ fn every_runtime_helper_validates() {
 }
 
 /// A 4-byte `i32` leaf at `offset`.
-fn word(offset: u32) -> crate::layout::Leaf {
-    crate::layout::Leaf {
+fn word(offset: u32) -> hd_wasm::testing::layout::Leaf {
+    hd_wasm::testing::layout::Leaf {
         offset,
         val: Val::I32,
         bytes: 4,
@@ -302,13 +303,13 @@ fn string_area() -> Elem {
     Elem {
         size: 8,
         leaves: vec![word(0), word(4)],
-        counted: crate::rt::Counted::Address {
+        counted: hd_wasm::testing::rt::Counted::Address {
             index: 0,
             known: false,
         },
         parts: vec![(
             0,
-            crate::rt::Counted::Address {
+            hd_wasm::testing::rt::Counted::Address {
                 index: 0,
                 known: false,
             },
@@ -322,9 +323,9 @@ fn string_area() -> Elem {
 /// so the values store in any order.
 #[test]
 fn a_variant_writes_the_bytes_it_shares_with_another() {
-    let f64m = crate::layout::Mem::one(Val::F64, 8, false);
-    let i32m = crate::layout::Mem::one(Val::I32, 4, false);
-    let shape = crate::layout::flat_of(&[
+    let f64m = hd_wasm::testing::layout::Mem::one(Val::F64, 8, false);
+    let i32m = hd_wasm::testing::layout::Mem::one(Val::I32, 4, false);
+    let shape = hd_wasm::testing::layout::flat_of(&[
         vec![f64m.clone()],
         vec![f64m.clone(), f64m],
         vec![i32m.clone(), i32m.clone(), i32m],
@@ -332,17 +333,19 @@ fn a_variant_writes_the_bytes_it_shares_with_another() {
     ])
     // ruled out: past the value-size limit; six scalars fit.
     .expect("fits");
-    let rect = crate::layout::variant_steps(&shape, 1);
+    let rect = hd_wasm::testing::layout::variant_steps(&shape, 1);
     assert!(rect[2].is_some() && rect[4].is_some() && rect[1].is_none());
 }
 
 /// A record of every kind of boundary type the codecs build.
 fn every_boundary_type() -> LTy {
-    let string = crate::layout::Mem::string();
-    let int = crate::layout::Mem::one(Val::I64, 8, false);
+    let string = hd_wasm::testing::layout::Mem::string();
+    let int = hd_wasm::testing::layout::Mem::one(Val::I64, 8, false);
     let opt = LTy::Enum(Box::new(LEnum {
         // ruled out: past the value-size limit; a few scalars fit.
-        layout: Box::new(crate::layout::flat_of(&[vec![], vec![string], vec![int]]).expect("fits")),
+        layout: Box::new(
+            hd_wasm::testing::layout::flat_of(&[vec![], vec![string], vec![int]]).expect("fits"),
+        ),
         variants: vec![
             vec![],
             vec![LTy::Str],
@@ -374,7 +377,7 @@ fn every_boundary_type() -> LTy {
             elem: Elem {
                 size: 8,
                 leaves: vec![word(0), word(4)],
-                counted: crate::rt::Counted::None,
+                counted: hd_wasm::testing::rt::Counted::None,
                 parts: vec![],
                 cyclic: false,
             },
@@ -465,12 +468,12 @@ fn count_labels_skip_instructions_with_no_source() {
     f.origin_at = None;
     f.i32(1);
     f.origin_at = Some(2);
-    f.op(crate::op::Op::I32Add);
-    f.op(crate::op::Op::Drop);
+    f.op(hd_wasm::testing::op::Op::I32Add);
+    f.op(hd_wasm::testing::op::Op::Drop);
     f.note_count(
         start,
         5,
-        crate::views::CountAction::Retain,
+        hd_wasm::views::CountAction::Retain,
         "Node",
         Some(hd_tir::own::Reason::Stored),
     );
@@ -498,10 +501,10 @@ fn cold_paths_are_no_direct_calls() {
     let l = f.local(Val::I32);
     f.get(l);
     f.helper(Helper::ListUnique { elem: elem.clone() });
-    f.op(crate::op::Op::Drop);
+    f.op(hd_wasm::testing::op::Op::Drop);
     f.get(l);
     f.cold_helper(Helper::ListGrow { elem }, vec![Val::I32], vec![Val::I32]);
-    f.op(crate::op::Op::Drop);
+    f.op(hd_wasm::testing::op::Op::Drop);
     f.helper(Helper::Panic("index-out-of-bounds: x".into()));
     for _ in 0..4 {
         f.get(l);
@@ -632,15 +635,15 @@ fn session_static_record_relocates_its_address_word_once() {
     // ruled out: the metadata is whole words.
     let word = |k: usize| u32::from_le_bytes(metadata[k * 4..k * 4 + 4].try_into().expect("word"));
     assert_eq!(word(4), 1, "one relocation for the deduplicated record");
-    assert_eq!(word(5), record - crate::module::STATIC_BASE);
+    assert_eq!(word(5), record - hd_wasm::testing::module::STATIC_BASE);
 }
 
 /// A data relocation must never reinterpret an integer whose value happens
 /// to equal an address. The relocated operand keeps its source mapping.
 #[test]
 fn session_static_relocation_preserves_integer_constants_and_origins() {
-    use crate::module::{Global, Ins, STATIC_BASE};
-    use crate::op::Op as I;
+    use hd_wasm::testing::module::{Global, Ins, STATIC_BASE};
+    use hd_wasm::testing::op::Op as I;
 
     let m = Module::default();
     let mut f = m.func("extension", vec![], vec![Val::I32; 3]);
@@ -694,7 +697,7 @@ fn session_static_operands_keep_ordinary_wasm_identical() {
 /// growable table: a later input may introduce a wide call or new glue.
 #[test]
 fn session_base_exports_shared_storage_and_keeps_its_table_growable() {
-    use crate::module::Global;
+    use hd_wasm::testing::module::Global;
     let mut m = Module::default();
     let key = Sym::Inst(Hash128(646));
     let global = Global::Storage(Hash128(17), 0, Val::I32);
@@ -776,8 +779,8 @@ fn collected_init_constants_cross_temporaries_only_in_closed_programs()
     for session in [false, true] {
         let mut m = Module::default();
         let init = Hash128(1388);
-        let field = crate::module::Global::Storage(Hash128(1389), 0, Val::I32);
-        let length = crate::module::Global::Storage(Hash128(1389), 1, Val::I32);
+        let field = hd_wasm::testing::module::Global::Storage(Hash128(1389), 0, Val::I32);
+        let length = hd_wasm::testing::module::Global::Storage(Hash128(1389), 1, Val::I32);
         m.init_insts.push(init);
         let mut f = m.func("init", vec![], vec![]);
         let value = f.local(Val::I32);
@@ -844,10 +847,10 @@ fn collected_init_constants_cross_temporaries_only_in_closed_programs()
 /// fresh static data through an allocation, and appends a new table entry.
 #[test]
 fn session_extension_shares_state_and_appends_without_reinitializing() {
-    use crate::module::{Address, Global, HEAP, Ins, STATIC_BASE, mem};
-    use crate::op::Op as I;
+    use hd_wasm::testing::module::{Address, Global, HEAP, Ins, STATIC_BASE, mem};
+    use hd_wasm::testing::op::Op as I;
 
-    fn bump(m: &Module) -> crate::module::Func {
+    fn bump(m: &Module) -> hd_wasm::testing::module::Func {
         let mut f = m.func("bump", vec![], vec![Val::I32]);
         let counter = Address::Binding(Hash128(646));
         let value = f.local(Val::I32);
@@ -1006,7 +1009,7 @@ console.log('session extension passed');
 /// lowered ABI, and both callers must use the same shadow stack pointer.
 #[test]
 fn session_extension_reuses_a_lowered_wide_function() {
-    use crate::op::Op as I;
+    use hd_wasm::testing::op::Op as I;
     fn define_wide(m: &mut Module, key: Sym, width: usize) {
         let mut f = m.func("wide", vec![Val::I32; width], vec![Val::I32]);
         f.get(0);
@@ -1024,7 +1027,7 @@ fn session_extension_reuses_a_lowered_wide_function() {
         m.define(key.clone(), f);
         m.export("call", key);
     }
-    let width = crate::wide::WIDTH + 3;
+    let width = hd_wasm::testing::wide::WIDTH + 3;
     let wide = Sym::Inst(Hash128(670));
     let mut base = Module::default();
     define_wide(&mut base, wide.clone(), width);
@@ -1081,7 +1084,7 @@ fn run_session_node(script: &str) {
 /// have no call instruction in any newly defined body.
 #[test]
 fn session_extension_imports_export_only_and_vtable_only_functions() {
-    use crate::module::Ins;
+    use hd_wasm::testing::module::Ins;
     let first = Sym::Inst(Hash128(680));
     let second = Sym::Inst(Hash128(681));
     let mut base = Module::default();
@@ -1127,8 +1130,8 @@ if (base['hd.session.table'].get(slot)() !== 43) throw Error('vtable-only functi
 /// data segments, and replays only the tail without repeating host calls.
 #[test]
 fn session_host_restores_checkpoint_and_active_tail_without_effects() {
-    use crate::module::{Address, Global, HEAP, Import, mem};
-    use crate::op::Op as I;
+    use hd_wasm::testing::module::{Address, Global, HEAP, Import, mem};
+    use hd_wasm::testing::op::Op as I;
 
     let counter = Global::Storage(Hash128(690), 0, Val::I32);
     let place = Hash128(691);
@@ -1301,8 +1304,8 @@ try {{
 /// both orders of `-`, `*` and unary `-`, signed and unsigned.
 #[test]
 fn a_constant_operand_range_matches_the_exact_result() {
-    use crate::emit::{int_range, operand_range};
     use hd_tir::ir::PrimOp;
+    use hd_wasm::testing::emit::{int_range, operand_range};
     for signed in [true, false] {
         let (min, max) = int_range(8, signed);
         for c in min..=max {
@@ -1332,87 +1335,31 @@ fn a_constant_operand_range_matches_the_exact_result() {
     }
 }
 
-/// Symbolic runtime identities for assembler-only tests. Program behaviour is
-/// exercised through driver builds with the actual std runtime definitions.
-pub(crate) fn runtime() -> crate::Runtime {
-    let keys: Vec<_> = crate::runtime_items(false, false)
-        .iter()
-        .enumerate()
-        .map(|(i, _)| Some(Hash128((1u128 << 127) + i as u128)))
-        .collect();
-    // ruled out: the test supplies one key for every runtime_items entry.
-    crate::emit::required(
-        crate::Runtime::from_keys(&keys),
-        "the assembler harness defines every runtime key",
-    )
-}
-
-/// Assembler harness definitions, not a runtime implementation: these tests
-/// validate linking and generated helper control flow, never ownership counts.
-/// Keep their historical bump allocation while making every runtime symbol
-/// explicit. Count/drop behaviour is covered by driver tests with std linked.
-pub(crate) fn define_runtime(module: &mut Module) {
-    let runtime = runtime();
-    let keys = crate::runtime_items(false, false);
-    for (i, (_, name)) in keys.into_iter().enumerate() {
-        let (args, result) = match name {
-            "collect" => (6, false),
-            "due" | "marking" | "metadata" => (0, true),
-            "alloc_class" | "lookup" | "type_of" => {
-                (if name == "alloc_class" { 2 } else { 1 }, true)
-            }
-            "alloc"
-            | "block_of"
-            | "block_bytes"
-            | "visit"
-            | "release"
-            | "release_known"
-            | "release_acyclic"
-            | "release_known_acyclic" => (1, true),
-            "bind" | "forget" | "type_bind" => (2, false),
-            _ => (1, false),
-        };
-        let mut f = module.func(
-            format!("test-runtime:{name}"),
-            vec![Val::I32; args],
-            if result { vec![Val::I32] } else { vec![] },
-        );
-        if name == "alloc" {
-            f.get(0);
-            f.helper(Helper::Alloc);
-        } else if result {
-            f.i32(0);
-        }
-        module.define(Sym::Inst(Hash128((1u128 << 127) + i as u128)), f);
-    }
-    assert_eq!(module.runtime, runtime);
-}
-
 /// Declarations queried before reach must match the independently built
 /// helper ABI, including structured boundaries and dispatch adapters.
 #[test]
 fn ungenerated_helper_shapes_match_their_constructed_functions() {
-    use crate::rt::{HostCounts, PrimArg, RefLayout, RefRead};
-    use crate::task::{HostArg, HostRes};
+    use hd_wasm::testing::rt::{HostCounts, PrimArg, RefLayout, RefRead};
+    use hd_wasm::testing::task::{HostArg, HostRes};
     let check = |helper: Helper| {
-        let actual = crate::rt::helper(&helper, &mut Module::default());
+        let actual = hd_wasm::testing::rt::helper(&helper, &mut Module::default());
         assert_eq!(
-            crate::rt::arity(&helper),
+            hd_wasm::testing::rt::arity(&helper),
             (actual.params.len(), actual.results.len()),
             "{}",
             actual.name
         );
     };
-    let entry = crate::map::Entry {
+    let entry = hd_wasm::testing::map::Entry {
         size: 8,
         leaves: vec![word(0), word(4)],
         keys: 1,
-        key_counted: crate::rt::Counted::None,
-        val_counted: crate::rt::Counted::None,
+        key_counted: hd_wasm::testing::rt::Counted::None,
+        val_counted: hd_wasm::testing::rt::Counted::None,
         cyclic: false,
     };
-    let ops = crate::map::KeyOps::I32(Hash128(7));
-    let tuple = crate::layout::Mem {
+    let ops = hd_wasm::testing::map::KeyOps::I32(Hash128(7));
+    let tuple = hd_wasm::testing::layout::Mem {
         size: 12,
         align: 4,
         leaves: vec![word(0), word(4), word(8)],
@@ -1446,11 +1393,13 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         Helper::MapStep {
             entry,
             // ruled out: past the value-size limit; a few scalars fit.
-            item: Box::new(crate::layout::flat_of(&[vec![], vec![tuple]]).expect("fits")),
+            item: Box::new(
+                hd_wasm::testing::layout::flat_of(&[vec![], vec![tuple]]).expect("fits"),
+            ),
         },
         Helper::DynSlot {
             target: Hash128(8),
-            retained_result: crate::rt::Counted::Address {
+            retained_result: hd_wasm::testing::rt::Counted::Address {
                 index: 0,
                 known: true,
             },
@@ -1458,16 +1407,16 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             params: vec![Val::I64, Val::F64],
             results: vec![Val::I32],
             own: vec![
-                (1, crate::rt::Counted::None),
-                (1, crate::rt::Counted::None),
-                (1, crate::rt::Counted::None),
+                (1, hd_wasm::testing::rt::Counted::None),
+                (1, hd_wasm::testing::rt::Counted::None),
+                (1, hd_wasm::testing::rt::Counted::None),
             ],
             given: vec![],
             ctx: None,
         },
         Helper::DynRead {
             target: Hash128(8),
-            retained_result: crate::rt::Counted::Address {
+            retained_result: hd_wasm::testing::rt::Counted::Address {
                 index: 0,
                 known: true,
             },
@@ -1475,12 +1424,15 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
                 value: RefLayout {
                     size: 4,
                     leaves: vec![word(0)],
-                    counted: crate::rt::Counted::None,
+                    counted: hd_wasm::testing::rt::Counted::None,
                 },
             },
             params: vec![Val::I64],
             results: vec![Val::I32],
-            own: vec![(1, crate::rt::Counted::None), (1, crate::rt::Counted::None)],
+            own: vec![
+                (1, hd_wasm::testing::rt::Counted::None),
+                (1, hd_wasm::testing::rt::Counted::None),
+            ],
             given: vec![],
             ctx: None,
         },
@@ -1495,14 +1447,14 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             check(Helper::Race {
                 part,
                 results: results.clone(),
-                counted: crate::rt::Counted::None,
+                counted: hd_wasm::testing::rt::Counted::None,
             });
         }
     }
     let all_element = Elem {
         size: 4,
         leaves: vec![word(0)],
-        counted: crate::rt::Counted::None,
+        counted: hd_wasm::testing::rt::Counted::None,
         parts: vec![],
         cyclic: false,
     };
@@ -1529,7 +1481,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
             };
             let align = u32::from(bytes);
             offset = offset.div_ceil(align) * align;
-            let leaf = crate::layout::Leaf {
+            let leaf = hd_wasm::testing::layout::Leaf {
                 offset,
                 val,
                 bytes,
@@ -1542,7 +1494,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
     let area = Elem {
         size: offset,
         leaves,
-        counted: crate::rt::Counted::None,
+        counted: hd_wasm::testing::rt::Counted::None,
         parts: vec![],
         cyclic: false,
     };
@@ -1613,14 +1565,14 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         }
     }
     for result in [
-        crate::boundary::CallRes::Void,
-        crate::boundary::CallRes::Scalar(Val::I64),
-        crate::boundary::CallRes::Buf(every_boundary_type()),
+        hd_wasm::testing::boundary::CallRes::Void,
+        hd_wasm::testing::boundary::CallRes::Scalar(Val::I64),
+        hd_wasm::testing::boundary::CallRes::Buf(every_boundary_type()),
     ] {
         let results = match &result {
-            crate::boundary::CallRes::Void => vec![],
-            crate::boundary::CallRes::Scalar(value) => vec![*value],
-            crate::boundary::CallRes::Buf(ty) => ty.vals(),
+            hd_wasm::testing::boundary::CallRes::Void => vec![],
+            hd_wasm::testing::boundary::CallRes::Scalar(value) => vec![*value],
+            hd_wasm::testing::boundary::CallRes::Buf(ty) => ty.vals(),
         };
         let inner = Helper::HostCall {
             module: "hd:Probe".into(),
@@ -1645,7 +1597,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
 /// and mutable zero slots retain their exact linear-memory addresses.
 #[test]
 fn unreachable_static_bytes_leave_live_addresses_and_zero_slots_intact() -> Result<(), String> {
-    use crate::op::Op as Instruction;
+    use hd_wasm::testing::op::Op as Instruction;
     let mut m = Module::default();
     let dead = m.static_bytes(&[b'x'; 96], 1);
     let live = m.static_bytes(&[b'y'; 64], 8);
@@ -1707,7 +1659,7 @@ fn unreachable_static_bytes_leave_live_addresses_and_zero_slots_intact() -> Resu
 /// survives in a reader which had no static operands before optimization.
 #[test]
 fn a_folded_initializer_keeps_its_forwarded_literal() -> Result<(), String> {
-    use crate::{module::Global, op::Op as I};
+    use hd_wasm::testing::{module::Global, op::Op as I};
     let mut m = Module::default();
     let text = b"forwarded literal survives its removed initializer";
     let at = m.static_bytes(text, 1);
@@ -1757,8 +1709,8 @@ fn a_folded_initializer_keeps_its_forwarded_literal() -> Result<(), String> {
 /// Identical init lists/flags therefore reuse one helper over shared globals.
 #[test]
 fn session_entry_init_reuses_keyed_initializers_and_forbid_flags() -> Result<(), String> {
-    use crate::module::Global;
-    use crate::op::Op as I;
+    use hd_wasm::testing::module::Global;
+    use hd_wasm::testing::op::Op as I;
     let trace = Global::Storage(Hash128(8010), 0, Val::I32);
     let first = Hash128(8011);
     let second = Hash128(8012);
@@ -1881,15 +1833,15 @@ if (base.read() !== 112) throw Error('new init flags were not applied');
 /// Count actual buffer changes while executing the ordinary list helpers.
 #[test]
 fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std::error::Error>> {
-    use crate::module::{BUF, HEAP, mem};
-    use crate::op::Op as I;
+    use hd_wasm::testing::module::{BUF, HEAP, mem};
+    use hd_wasm::testing::op::Op as I;
     use std::io::Write;
     let mut m = Module::new(&runtime());
     define_runtime(&mut m);
     let elem = |size| Elem {
         size,
         leaves: vec![],
-        counted: crate::rt::Counted::None,
+        counted: hd_wasm::testing::rt::Counted::None,
         parts: vec![],
         cyclic: false,
     };
@@ -1946,7 +1898,7 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     push.get(0);
     push.helper(Helper::ListGrow { elem: elem(4) });
     push.op(I::LocalTee(block));
-    push.op(I::I32Load(mem(HEAP, crate::rt::LIST_LEN, 2)));
+    push.op(I::I32Load(mem(HEAP, hd_wasm::testing::rt::LIST_LEN, 2)));
     push.set(len);
     push.get(block);
     push.get(len);
@@ -1954,16 +1906,20 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     push.op(I::I32Mul);
     push.op(I::I32Add);
     push.get(1);
-    push.op(I::I32Store(mem(HEAP, u64::from(crate::rt::LIST_ELEMS), 2)));
+    push.op(I::I32Store(mem(
+        HEAP,
+        u64::from(hd_wasm::testing::rt::LIST_ELEMS),
+        2,
+    )));
     push.get(block);
     push.get(len);
     push.i32(1);
     push.op(I::I32Add);
-    push.op(I::I32Store(mem(HEAP, crate::rt::LIST_LEN, 2)));
+    push.op(I::I32Store(mem(HEAP, hd_wasm::testing::rt::LIST_LEN, 2)));
     push.get(block);
     m.define(Sym::Inst(Hash128(99101)), push);
     m.export("push", Sym::Inst(Hash128(99101)));
-    for (name, offset) in [("capacity", 0), ("length", crate::rt::LIST_LEN)] {
+    for (name, offset) in [("capacity", 0), ("length", hd_wasm::testing::rt::LIST_LEN)] {
         let mut f = m.func(name, vec![Val::I32], vec![Val::I32]);
         f.get(0);
         f.op(I::I32Load(mem(HEAP, offset, 2)));
@@ -1977,11 +1933,15 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
     read.i32(4);
     read.op(I::I32Mul);
     read.op(I::I32Add);
-    read.op(I::I32Load(mem(HEAP, u64::from(crate::rt::LIST_ELEMS), 2)));
+    read.op(I::I32Load(mem(
+        HEAP,
+        u64::from(hd_wasm::testing::rt::LIST_ELEMS),
+        2,
+    )));
     m.define(Sym::Inst(Hash128(99110)), read);
     m.export("at", Sym::Inst(Hash128(99110)));
     let mut full = m.func("set_full", vec![Val::I32; 2], vec![]);
-    for offset in [0, crate::rt::LIST_LEN] {
+    for offset in [0, hd_wasm::testing::rt::LIST_LEN] {
         full.get(0);
         full.get(1);
         full.op(I::I32Store(mem(HEAP, offset, 2)));
@@ -2049,8 +2009,8 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
 
 #[test]
 fn symbolic_descriptors_fold_their_constant_addends() {
-    use crate::module::{DescriptorKey, Ins};
-    use crate::op::Op as I;
+    use hd_wasm::testing::module::{DescriptorKey, Ins};
+    use hd_wasm::testing::op::Op as I;
     for addend in [0, 1, i32::MIN + 1] {
         let mut m = Module::default();
         let glue = Sym::Inst(Hash128(9));
