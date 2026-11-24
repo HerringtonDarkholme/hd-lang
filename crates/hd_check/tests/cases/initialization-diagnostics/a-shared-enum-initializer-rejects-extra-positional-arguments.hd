@@ -1,0 +1,4 @@
+# @dump: diagnostics
+# The variant initializes the enclosing enum's shared parameters.
+enum Status(code: i32):
+    Ready -> Status(200, 201)
