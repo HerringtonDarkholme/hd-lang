@@ -1,0 +1,28 @@
+# @dump: stdout counts wat
+# @build: dev | checked | release | release checked
+# expected: true, 7, true, 7; both reference erasures must retain their owners.
+# Known #2352: the dynamic-reference instance currently releases its outer box early.
+use std.inspect.{Inspectable, TypeId}
+
+trait Score:
+    fn value(&self) -> i32
+
+struct Item:
+    n: i32
+
+impl Score for Item:
+    fn value(&self) -> i32:
+        self.n
+
+fn recorded[T < Inspectable & 'static](value: T) -> bool:
+    # subject
+    let erased: *dyn Inspectable = box(value)
+    erased.runtime_type() == TypeId::of::[T]()
+
+pub fn main() -> void $ Console:
+    let concrete: *Item = box(Item { n: 7 })
+    println(recorded(concrete))
+    println(concrete.n)
+    let value: *dyn Score = concrete
+    println(recorded(value))
+    println(value.value())
