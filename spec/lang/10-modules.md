@@ -1861,7 +1861,7 @@ pub fn align_of[T < ?Copy]() -> usize
 pub fn needs_drop[T < ?Copy]() -> bool
 
 pub struct Buffer[T < ?Copy]:
-    address: usize
+    ptr: Ptr[T]
     capacity: usize
 
 impl[T < ?Copy] !Copy for Buffer[T]

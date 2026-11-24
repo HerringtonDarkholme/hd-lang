@@ -25,7 +25,7 @@
     local.get $photo.width
     local.get $photo.tags
   )
-  (func $uniq (param $xs.buffer.address i32) (param $xs.buffer.capacity i32) (param $xs.len i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $ys i32) (local $t0 i32)
+  (func $uniq (param $xs.buffer.ptr i32) (param $xs.buffer.capacity i32) (param $xs.len i32) (param $s.0 i32) (param $s.1 i32) (result i32 i32 i32) (local $ys i32) (local $t0 i32)
     ;; 31 |     let mut ys = xs
     global.get $stack
     global.get $stack_limit
@@ -48,7 +48,7 @@
     i32.const 8
     i32.add
     local.tee $ys
-    local.get $xs.buffer.address
+    local.get $xs.buffer.ptr
     i32.store $heap
     local.get $ys
     local.get $xs.buffer.capacity
@@ -74,21 +74,21 @@
     ;; 32 |     ys.push(s)
     local.get $ys
     i32.load $heap offset=8
-    local.set $xs.buffer.address
+    local.set $xs.buffer.ptr
     local.get $ys
     i32.load $heap offset=4
-    local.get $xs.buffer.address
+    local.get $xs.buffer.ptr
     i32.le_u
     if
       local.get $ys
-      local.get $xs.buffer.address
+      local.get $xs.buffer.ptr
       i32.const 1
       i32.add
       call $"impl[T < ?Copy] UniqList[T].reserve_for[string]"
     end
     local.get $ys
     i32.load $heap
-    local.get $xs.buffer.address
+    local.get $xs.buffer.ptr
     i32.const 8
     i32.mul
     i32.add
@@ -99,7 +99,7 @@
     local.get $s.1
     i32.store $heap offset=4
     local.get $ys
-    local.get $xs.buffer.address
+    local.get $xs.buffer.ptr
     i32.const 1
     i32.add
     i32.store $heap offset=8

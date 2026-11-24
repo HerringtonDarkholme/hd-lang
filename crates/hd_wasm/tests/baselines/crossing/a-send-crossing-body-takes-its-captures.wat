@@ -15,7 +15,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 4 funcref))
-  (func $send (param $items.buffer.address i32) (param $items.buffer.capacity i32) (param $items.len i32) (param $word.0 i32) (param $word.1 i32) (result i32) (local $items i32) (local $t0 i32)
+  (func $send (param $items.buffer.ptr i32) (param $items.buffer.capacity i32) (param $items.len i32) (param $word.0 i32) (param $word.1 i32) (result i32) (local $items i32) (local $t0 i32)
     ;; 14 |     run(fn() -> usize: items.len() + word.len())
     global.get $stack
     global.get $stack_limit
@@ -38,7 +38,7 @@
     i32.const 8
     i32.add
     local.tee $items
-    local.get $items.buffer.address
+    local.get $items.buffer.ptr
     i32.store $heap
     local.get $items
     local.get $items.buffer.capacity
@@ -67,7 +67,7 @@
     i32.load $heap
     local.get $items
     i32.load $heap offset=4
-    local.set $items.buffer.address
+    local.set $items.buffer.ptr
     local.get $items
     i32.load $heap offset=8
     local.set $items.buffer.capacity
@@ -115,7 +115,7 @@
     local.get $items.len
     i32.store $heap
     local.get $items
-    local.get $items.buffer.address
+    local.get $items.buffer.ptr
     i32.store $heap offset=4
     local.get $items
     local.get $items.buffer.capacity

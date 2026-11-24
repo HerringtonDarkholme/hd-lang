@@ -3,7 +3,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
-  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
+  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[i32]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
@@ -116,10 +116,7 @@
   (func $fresh (result i32 i32 i32)
     ;; 36 |     UniqList::[i32].new()
     i32.const 0
-    i32.const 4
-    call $room
-    i32.const 0
-    i32.const 0
+    call $"impl[T < ?Copy] UniqList[T].with_capacity[i32]"
   )
   (func $make (param $n i32) (result i32 i32) (local $t0 i64) (local $value i64) (local $t1 i32) (local $t3 i32) (local $t2 i32)
     ;; 16 |     "s$n"

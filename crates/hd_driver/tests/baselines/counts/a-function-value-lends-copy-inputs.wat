@@ -38,10 +38,10 @@
     i32.const 2
     i32.const 0
   )
-  (func $moving (param $callback.0 i32) (param $callback.1 i32) (param $value.buffer.address i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32)
+  (func $moving (param $callback.0 i32) (param $callback.1 i32) (param $value.buffer.ptr i32) (param $value.buffer.capacity i32) (param $value.len i32) (result i32 i32 i32)
     ;; 39 |     callback(value)
     local.get $callback.1
-    local.get $value.buffer.address
+    local.get $value.buffer.ptr
     local.get $value.buffer.capacity
     local.get $value.len
     i32.const 0

@@ -189,29 +189,11 @@ fn field_over(r: &mut P, k: i32) -> void:
 fn fresh() -> UniqList[i32]:
     UniqList::[i32].new()
 > app/main/fresh
->   local $0 capacity: usize [read] value
->     uses $0: %0 -> %1 consume last
->   local $1 capacity: usize [read] value
->     uses $1: %2 -> %3 lend, %6 consume last
->   %0 = Store [$0] 0:usize : ()
->   %1 = Read copy [$0] : usize
->   %2 = Store [$1] %1 : ()
->   %3 = Read copy [$1] : usize
->   %4 = Call std/rt.memory/size_of[i32] () : usize
->   %5 = Call std/rt.memory/room[] (%3, %4) : usize
->   %6 = Read copy [$1] : usize
->   %7 = NewStruct [%5 %6] : Buffer[i32]
->   %8 = Break L0 %7 : never
->   %9 = Block - : Buffer[i32]
->   %10 = Scope %9 [] : Buffer[i32]
->   %11 = NewStruct [%10 0:usize] : UniqList[i32]
->   %12 = Break L1 %11 : never
->   %13 = Block - : UniqList[i32]
->   %14 = Scope %13 [] : UniqList[i32]
->   %15 = Break L2 %14 : never
->   %16 = Block - : UniqList[i32]
->   %17 = Scope %16 [] : UniqList[i32]
->   %18 = Block %17 : UniqList[i32]
+>   %0 = Call std/collections/impl[T < ?Copy] UniqList[T].with_capacity[i32] (0:usize) : UniqList[i32]
+>   %1 = Break L0 %0 : never
+>   %2 = Block - : UniqList[i32]
+>   %3 = Scope %2 [] : UniqList[i32]
+>   %4 = Block %3 : UniqList[i32]
 >   summary kept [] writes
 
 fn declared(c: bool) -> usize:
