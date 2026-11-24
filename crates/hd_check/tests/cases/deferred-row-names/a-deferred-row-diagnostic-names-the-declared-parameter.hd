@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# expected: the deferred recursive call names the declared Work row parameter
+fn walk[$ Work](callback: fn() -> void $ Work, n: i32) -> void:
+    if n == 0:
+        return callback()
+    step(callback, n - 1)
+
+fn step[$ Work](callback: fn() -> void $ Work, n: i32) $():
+    walk(callback, n)
+
+fn walk_with_row[$ Work](callback: fn() -> void $ Work, n: i32) -> void:
+    if n == 0:
+        return callback()
+    step_with_row(callback, n - 1)
+
+fn step_with_row[$ Work](callback: fn() -> void $ Work, n: i32) $ Work:
+    walk_with_row(callback, n)
