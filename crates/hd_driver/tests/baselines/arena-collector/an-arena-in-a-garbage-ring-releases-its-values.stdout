@@ -4,8 +4,14 @@ exit: 0
 -- stdout
 done
 == @build: checked
-exit: 3
+exit: 0
 -- stdout
 done
--- stderr
-panic: count-audit: 1 blocks leaked: allocated and never freed; the lowest at 1310736 holds count 1 and descriptor word 0 in 16 bytes
+== @build: release
+exit: 0
+-- stdout
+done
+== @build: release checked
+exit: 0
+-- stdout
+done

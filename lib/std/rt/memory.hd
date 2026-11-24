@@ -240,8 +240,10 @@ impl[T < ?Copy] Drop for Buffer[T]:
 # it as its own header with no copy. While the buffer owns the room,
 # neither it nor a reference into an element takes a count
 # (`module.rt.buffer.not-copyable`).
-# Its values follow.
-fn room(capacity: usize, size: usize) -> usize:
+# Its values follow. A checked build allocates and frees rooms on its
+# ledger of objects, so its audit finds a leaked one.
+## A new room for `capacity` values of `size` bytes, or 0 for none, whose owner frees it with `free_room`.
+pub fn room(capacity: usize, size: usize) -> usize:
     bytes := u64(capacity) * u64(size)
     if bytes == 0:
         return 0
@@ -253,9 +255,8 @@ fn room(capacity: usize, size: usize) -> usize:
     store_u32(block + 4, 0)
     block + 8
 
-# Frees the room at `address`, unless it is 0. While the collector traces
-# its holder, the collector frees it instead (`std.rt.cycle.hold_room`).
-fn free_room(address: usize) -> void:
+## Frees the room at `address`, unless it is 0. While the collector traces its holder, the collector keeps it, or frees it once the holder's references are released (`std.rt.cycle.hold_room`).
+pub fn free_room(address: usize) -> void:
     if address == 0:
         return
     block := address - 8

@@ -1,12 +1,10 @@
 # @dump: stdout
-# @build: dev | checked
+# @build: dev | checked | release | release checked
 # An arena held by a node that is a cycle candidate while a collection
 # runs. The collector traces the node's release glue to mark and scan,
-# and that glue calls the arena's `Drop` (`module.rt.drop.trace`). The
-# hook frees the arena's chunks though the node stays alive, so `first`
-# then reads freed memory that the filler strings reuse; the checked run
-# stops out of bounds.
-# expected: `42 again? 43` in both builds; the hook must change nothing while the collector marks (#2345 report)
+# and that glue calls the arena's `Drop` (`module.rt.drop.trace`). While
+# the collector marks, the hook keeps its chunks and its drop list, so
+# `first` still reads its own value after the filler strings.
 use std.arena.Arena
 
 struct Item:

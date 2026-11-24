@@ -1,12 +1,11 @@
 # @dump: stdout
-# @build: dev | checked
+# @build: dev | checked | release | release checked
 # A one-node ring that holds an arena with a value in it, found garbage by
 # the collection at the entry's end. The node's glue runs while the
 # collector marks and scans (`module.rt.drop.trace`) and again when it
-# frees the ring. The arena's hook empties its drop list and frees its
-# chunks in the first pass, so the string in it is never released: the
-# checked run's audit reports it leaked.
-# expected: exit 0 and `done` in both builds, no leak (#2345 report)
+# frees the ring. Only that last pass empties the drop list, so the string
+# in the arena is released, and the collector frees the chunk after it
+# (`std.rt.cycle.hold_room`): the checked run's audit finds no leak.
 use std.arena.Arena
 
 struct Item:

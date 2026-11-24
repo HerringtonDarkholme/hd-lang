@@ -9,11 +9,15 @@
 # call's `&mut` result keeps the arena shared (`ref.excl.call`).
 use std.annotation.inline
 use std.rt.Drop
-use std.rt.alloc.{alloc, free_block}
-use std.rt.memory.{Ptr, align_of, needs_drop, size_of}
+use std.rt.cycle.marking
+use std.rt.memory.{Ptr, align_of, free_room, needs_drop, room, size_of}
 
-# A chunk is one `alloc` block: the previous chunk's address, then values.
+# A chunk is one buffer room (`std.rt.memory.room`), so the collector and
+# a checked build's audit treat it as a buffer's: the previous chunk's
+# address, then values. Its block is the room's 8-byte header and the
+# room; the block sizes are size classes of std.rt.alloc.
 HEADER := usize(8)
+ROOM := usize(8)
 FIRST := usize(4096)
 LARGEST := usize(1048576)
 
@@ -86,27 +90,31 @@ impl Arena:
         self.refill(size, align)
 
     # A new chunk with room for `size` bytes at `align`: the newest
-    # chunk's size doubled up to `LARGEST`, or one larger value's.
+    # chunk's block size doubled up to `LARGEST`, or one larger value's.
     @inline(.Never)
     fn refill(&self, size: usize, align: usize) -> usize:
         last := self.state.chunk
-        let mut bytes = if last == 0: FIRST else: (self.state.end - last) * 2
+        let mut bytes = if last == 0: FIRST else: (self.state.end - last + ROOM) * 2
         if bytes > LARGEST:
             bytes = LARGEST
-        if bytes < HEADER + size + align:
-            bytes = HEADER + size + align
-        chunk := alloc(bytes)
+        if bytes < ROOM + HEADER + size + align:
+            bytes = ROOM + HEADER + size + align
+        chunk := room(bytes - ROOM, 1)
         Ptr::[usize] { address: chunk }.write(last)
         self.state.chunk = chunk
-        self.state.end = chunk + bytes
+        self.state.end = chunk + bytes - ROOM
         start := round_up(chunk + HEADER, align)
         self.state.next = start + size
         start
 
-    # Runs each drop entry, newest first, and empties the list.
+    # Runs each drop entry, newest first, and empties the list. While the
+    # collector marks or scans a holder (`module.rt.drop.trace`), the list
+    # stays: each entry reads its value out, which leaves the bytes for the
+    # next pass, and the value's drop releases only to the collector.
     fn drop_values(&self) -> void:
         let mut e = self.state.drops
-        self.state.drops = 0
+        if !marking():
+            self.state.drops = 0
         while e != 0:
             entry := Ptr::[DropEntry] { address: e }.read()
             e = entry.before
@@ -121,12 +129,13 @@ impl Drop for Arena:
         newest := self.state.chunk
         free_chunks(newest)
 
-# Frees `chunk` and every chunk before it.
+# Frees `chunk` and every chunk before it, as a buffer frees its room:
+# while the collector traces the arena's holder, it keeps each chunk.
 fn free_chunks(chunk: usize) -> void:
     let mut c = chunk
     while c != 0:
         before := Ptr::[usize] { address: c }.read()
-        free_block(c)
+        free_room(c)
         c = before
 
 # Drops the value of `T` at `address`: reading it out moves it here, and

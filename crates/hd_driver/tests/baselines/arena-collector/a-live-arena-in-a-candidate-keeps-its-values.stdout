@@ -2,8 +2,16 @@
 == @build: dev
 exit: 0
 -- stdout
-846142917247328 again? 43
+42 again? 43
 == @build: checked
-exit: 3
--- stderr
-internal error: memory access out of bounds
+exit: 0
+-- stdout
+42 again? 43
+== @build: release
+exit: 0
+-- stdout
+42 again? 43
+== @build: release checked
+exit: 0
+-- stdout
+42 again? 43
