@@ -282,21 +282,6 @@
           i32.const 0
           i32.store $heap
     ;; 9 |     sleep!(ms(1))
-          local.get $t1
-          i32.load $heap
-          local.tee $t1
-          if
-            local.get $t1
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $t1
-              call $rt:release_ref'2
-            end
-          end
         end
         local.get $provider0
         local.get $frame
@@ -342,20 +327,20 @@
       i32.load $heap offset=12
       i32.const 64
       i32.or
+      local.tee $t1
       i32.store $heap offset=12
       local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $t1
       i32.const -17
       i32.and
+      local.tee $provider0
       i32.store $heap offset=12
       i32.const 0
       local.get $frame
       local.get $frame
       if
         local.get $frame
-        local.get $frame
-        i32.load $heap offset=12
+        local.get $provider0
         i32.const -129
         i32.and
         local.get $t2
@@ -414,7 +399,7 @@
     i32.add
     global.set $stack
   )
-  (func $waits.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
+  (func $waits.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 9 |     sleep!(ms(1))
     local.get $t0
     call $rt:poll_check
@@ -441,13 +426,13 @@
     i32.load $heap offset=12
     i32.const -2
     i32.and
+    local.tee $t3
     i32.store $heap offset=12
     local.get $t1
     i32.eqz
     if
       local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
+      local.get $t3
       i32.const 4
       i32.or
       i32.store $heap offset=12
@@ -533,10 +518,9 @@
     end
     local.get $t0
     i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'1

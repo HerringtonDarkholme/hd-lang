@@ -310,36 +310,33 @@
     i64.const 1
     i64.add
     local.set $t2
-    local.get $counts
-    i32.load $heap
-    local.set $other.0
     local.get $word.0
     local.get $word.1
-    local.get $other.0
+    local.get $t3
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $other.1
+    local.set $other.0
+    local.get $t3
     local.get $other.0
-    local.get $other.1
     local.get $word.0
     local.get $word.1
     call $rt:map_find
-    local.set $t3
+    local.set $other.1
     local.get $word.0
     if
       local.get $word.0
       call $retain
     end
+    local.get $t3
     local.get $other.0
     local.get $other.1
-    local.get $t3
     local.get $word.0
     local.get $word.1
     local.get $t2
     call $rt:map_put
-    local.set $other.0
+    local.set $t3
     local.get $counts
-    local.get $other.0
+    local.get $t3
     i32.store $heap
   )
   (func $tally_match (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32) (local $seen i64)

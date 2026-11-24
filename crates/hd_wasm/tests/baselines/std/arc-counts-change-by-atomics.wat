@@ -7,15 +7,15 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"impl[T < ?Copy] Drop for Arc[T].drop[i64]" (param $t0 i32)
+  (func $"impl[T < ?Copy] Drop for Arc[T].drop[i64]" (param $t0 i32) (local $t1 i32)
     block
     ;; (no span)
       local.get $t0
       i32.load $heap
+      local.tee $t1
       i32.eqz
       br_if 0
-      local.get $t0
-      i32.load $heap
+      local.get $t1
       i32.const 1
       i32.atomic.rmw.sub
       i32.const 1

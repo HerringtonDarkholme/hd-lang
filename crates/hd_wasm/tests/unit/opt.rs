@@ -2,6 +2,7 @@ mod bounds;
 mod constant;
 mod empty_loops;
 mod live_set;
+mod loads;
 
 mod origin_tests {
     use hd_wasm::testing::opt::live_set::Sets;

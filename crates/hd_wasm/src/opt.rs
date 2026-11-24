@@ -93,10 +93,17 @@ pub(crate) fn version_loop_bounds(f: &mut Func) -> bool {
 pub(crate) mod constant;
 pub(crate) mod empty_loops;
 pub(crate) mod live_set;
+pub(crate) mod loads;
 
 /// Delete finite induction loops whose counters are unobserved.
 pub fn delete_empty_loops(f: &mut Func) -> bool {
     empty_loops::run(f)
+}
+
+/// Reuse a load's value where a dominating load or store already has it
+/// and nothing between may write it ([`loads`]).
+pub fn reuse_loads(f: &mut Func, arity: &Arity) -> bool {
+    loads::run(f, arity)
 }
 
 /// Propagate literal local values after instruction scheduling exposes them.

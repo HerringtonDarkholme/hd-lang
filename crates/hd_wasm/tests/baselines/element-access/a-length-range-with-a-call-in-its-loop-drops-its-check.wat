@@ -6,11 +6,9 @@
     ;; 13 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap
+    local.tee $xs
     i32.load $heap offset=4
     local.set $t0
-    local.get $xs
-    i32.load $heap
-    local.set $xs
     block
       loop
         local.get $t1

@@ -3,7 +3,7 @@
   (import "fixture" "rt:memory_copy/0/0" (func $rt:memory_copy/0/0 (param i32 i32 i32)))
   (import "fixture" "impl[T < Ord] List[T].sort[u32]" (func $"impl[T < Ord] List[T].sort[u32]" (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"drift_merge[u32, std.collections.DriftByOrd]" (param $t2 i32) (param $t4 i32) (param $t0 i32) (param $t1 i32) (param $t3 i32) (param $t6 i32) (local $t5 i32) (local $t7 i32) (local $t8 i32)
+  (func $"drift_merge[u32, std.collections.DriftByOrd]" (param $t2 i32) (param $t4 i32) (param $t0 i32) (param $t1 i32) (param $t3 i32) (param $t6 i32) (local $t5 i32) (local $t8 i32) (local $t9 i32) (local $t7 i32)
     ;; (no span)
     local.get $t0
     i32.load $heap
@@ -41,6 +41,7 @@
         br_if 1
         local.get $t2
         i32.load $heap
+        local.tee $t7
         local.get $t4
         i32.const 4
         i32.mul
@@ -51,47 +52,45 @@
         i32.const 4
         i32.mul
         i32.add
-        local.set $t7
+        local.set $t8
+        i32.load $heap
+        local.set $t9
+        local.get $t8
         i32.load $heap
         local.set $t8
-        local.get $t7
-        i32.load $heap
-        local.set $t7
         i32.const 1
+        local.get $t9
         local.get $t8
-        local.get $t7
         i32.gt_u
         i32.add
+        local.get $t9
         local.get $t8
-        local.get $t7
         i32.lt_u
         i32.sub
-        local.set $t7
+        local.set $t8
         block
           block
             block
-              local.get $t7
+              local.get $t8
               br_if 1
               br 0
               unreachable
             end
             i32.const 1
-            local.set $t7
+            local.set $t8
             br 1
           end
           i32.const 0
-          local.set $t7
+          local.set $t8
         end
-        local.get $t7
+        local.get $t8
         if
-          local.get $t2
-          i32.load $heap
+          local.get $t7
           local.get $t5
           i32.const 4
           i32.mul
           i32.add
-          local.get $t2
-          i32.load $heap
+          local.get $t7
           local.get $t4
           i32.const 4
           i32.mul
@@ -153,7 +152,7 @@
     local.get $xs
     call $"impl[T < Ord] List[T].sort[u32]"
   )
-  (func $"drift_partition[u32, std.collections.DriftByOrd]" (param $t4 i32) (param $t1 i32) (param $t11 i32) (param $t5 i32) (param $t2 i32) (param $t0 i32) (param $t6 i32) (param $t9 i32) (result i32) (local $t10 i32) (local $t3 i32) (local $t7 i32) (local $t8 i32)
+  (func $"drift_partition[u32, std.collections.DriftByOrd]" (param $t4 i32) (param $t1 i32) (param $t12 i32) (param $t6 i32) (param $t2 i32) (param $t0 i32) (param $t7 i32) (param $t10 i32) (result i32) (local $t11 i32) (local $t3 i32) (local $t8 i32) (local $t9 i32) (local $t5 i32)
     ;; (no span)
     local.get $t0
     local.set $t1
@@ -168,81 +167,81 @@
         br_if 1
         local.get $t4
         i32.load $heap
+        local.tee $t5
         local.get $t3
         i32.const 4
         i32.mul
         i32.add
-        local.get $t5
-        i32.load $heap
         local.get $t6
+        i32.load $heap
+        local.get $t7
         i32.const 4
         i32.mul
         i32.add
-        local.set $t7
+        local.set $t8
+        i32.load $heap
+        local.set $t9
+        local.get $t8
         i32.load $heap
         local.set $t8
-        local.get $t7
-        i32.load $heap
-        local.set $t7
         i32.const 1
+        local.get $t9
         local.get $t8
-        local.get $t7
         i32.gt_u
         i32.add
+        local.get $t9
         local.get $t8
-        local.get $t7
         i32.lt_u
         i32.sub
-        local.set $t7
+        local.set $t8
         block
           block
             block
               block
-                local.get $t7
+                local.get $t8
                 br_table 0 1 2
                 unreachable
               end
               i32.const 1
-              local.set $t7
+              local.set $t8
               br 2
             end
-            local.get $t9
-            local.set $t7
+            local.get $t10
+            local.set $t8
             br 1
           end
           i32.const 0
-          local.set $t7
+          local.set $t8
         end
-        local.get $t7
+        local.get $t8
         if
           local.get $t2
-          local.get $t10
-          i32.add
-          local.set $t7
           local.get $t11
+          i32.add
+          local.set $t8
+          local.get $t12
           i32.load $heap
-          local.get $t7
+          local.get $t8
           i32.const 4
           i32.mul
           i32.add
-          local.get $t4
-          i32.load $heap
+          local.get $t5
           local.get $t3
           i32.const 4
           i32.mul
           i32.add
           i32.load $heap
           i32.store $heap
-          local.get $t10
+          local.get $t11
           i32.const 1
           i32.add
-          local.set $t10
+          local.set $t11
         else
           local.get $t1
           i32.const 1
           i32.sub
           local.set $t1
-          local.get $t11
+          local.get $t12
           i32.load $heap
           local.get $t1
           i32.const 4
@@ -270,20 +269,20 @@
     i32.const 4
     i32.mul
     i32.add
-    local.get $t11
+    local.get $t12
     i32.load $heap
     local.get $t2
     i32.const 4
     i32.mul
     i32.add
-    local.get $t10
+    local.get $t11
     i32.const 4
     i32.mul
     call $rt:memory_copy/0/0
     local.get $t2
-    local.get $t10
+    local.get $t11
     i32.add
-    local.set $t5
+    local.set $t6
     block
       loop
         local.get $t0
@@ -297,11 +296,11 @@
         local.set $t0
         local.get $t4
         i32.load $heap
-        local.get $t5
+        local.get $t6
         i32.const 4
         i32.mul
         i32.add
-        local.get $t11
+        local.get $t12
         i32.load $heap
         local.get $t0
         i32.const 4
@@ -309,13 +308,13 @@
         i32.add
         i32.load $heap
         i32.store $heap
-        local.get $t5
+        local.get $t6
         i32.const 1
         i32.add
-        local.set $t5
+        local.set $t6
         br 0
       end
     end
-    local.get $t10
+    local.get $t11
   )
 )

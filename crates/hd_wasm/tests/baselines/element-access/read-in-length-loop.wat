@@ -5,9 +5,6 @@
     ;; ...
     ;; 10 |     for i in 0..n:
     local.set $t0
-    local.get $xs
-    i32.load $heap
-    local.set $xs
     block
       loop
         local.get $t1

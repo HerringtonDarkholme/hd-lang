@@ -4,10 +4,11 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $value i64)
+  (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $t0 i64)
     ;; 13 |         if self.at >= self.end:
     local.get $self
     i64.load $heap
+    local.tee $t0
     local.get $self
     i64.load $heap offset=8
     i64.ge_s
@@ -21,16 +22,15 @@
     ;; 16 |         self.at = value + 1
     local.get $self
     ;; 15 |         value := self.at
-    local.get $self
-    i64.load $heap
-    local.tee $value
+    local.get $t0
     ;; 16 |         self.at = value + 1
     i64.const 1
     i64.add
     i64.store $heap
     ;; 17 |         .Some(value)
     i32.const 1
-    local.get $value
+    ;; 15 |         value := self.at
+    local.get $t0
   )
   (func $total (param $counter.at i64) (param $counter.end i64) (result i64) (local $cursor i32) (local $t0 i32) (local $sum i64) (local $t1 i32)
     ;; 20 |     let mut cursor = counter

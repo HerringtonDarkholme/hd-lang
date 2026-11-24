@@ -85,17 +85,14 @@
     ;; 58 |     if !(xs.len() <= 0):
     local.get $xs
     i32.load $heap
+    local.tee $xs
     i32.load $heap offset=4
+    local.tee $t0
     i32.const 0
     i32.le_u
     i32.eqz
     if
     ;; 59 |         for i in 0..n:
-      local.get $xs
-      i32.load $heap
-      local.tee $xs
-      i32.load $heap offset=4
-      local.set $t0
       block
         loop
           local.get $t1
@@ -136,7 +133,7 @@
     ;; 61 |     sum
     local.get $sum
   )
-  (func $uniq_after_break (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32)
+  (func $uniq_after_break (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32) (local $t1 i32)
     ;; 65 |     for i in 0..n:
     block
       loop
@@ -154,14 +151,14 @@
     ;; 66 |         if xs.len() == 0:
         local.get $xs
         i32.load $heap offset=8
+        local.tee $t1
         i32.eqz
         br_if 1
     ;; 68 |         sum += xs[(head + i) & (xs.len() - 1)]
         local.get $head
         local.get $i
         i32.add
-        local.get $xs
-        i32.load $heap offset=8
+        local.get $t1
         i32.const 1
         i32.sub
         i32.and
@@ -376,11 +373,13 @@
     ;; 54 |     sum
     local.get $sum
   )
-  (func $list_early (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $mask i32) (local $sum i32) (local $t0 i32) (local $i i32)
+  (func $list_early (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32) (local $mask i32)
     ;; 22 |     if xs.len() == 0:
     local.get $xs
     i32.load $heap
+    local.tee $xs
     i32.load $heap offset=4
+    local.tee $mask
     i32.eqz
     if
     ;; 23 |         return 0
@@ -389,16 +388,11 @@
     ;; 22 |     if xs.len() == 0:
     end
     ;; 24 |     mask := xs.len() - 1
-    local.get $xs
-    i32.load $heap
-    i32.load $heap offset=4
+    local.get $mask
     i32.const 1
     i32.sub
     local.set $mask
     ;; 26 |     for i in 0..n:
-    local.get $xs
-    i32.load $heap
-    local.set $xs
     block
       loop
         local.get $t0
@@ -437,14 +431,11 @@
     ;; 16 |     if xs.len() > 0:
     local.get $xs
     i32.load $heap
+    local.tee $xs
     i32.load $heap offset=4
+    local.tee $t0
     if
     ;; 17 |         for i in 0..n:
-      local.get $xs
-      i32.load $heap
-      local.tee $xs
-      i32.load $heap offset=4
-      local.set $t0
       block
         loop
           local.get $t1

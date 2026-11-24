@@ -75,13 +75,11 @@
     local.get $t1
     i32.load $heap
     call $rt:list_unique
+    local.tee $d
     i32.store $heap
     local.get $t1
     i32.const 4
     i32.sub
-    local.get $t1
-    i32.load $heap
-    local.set $d
     i32.const 0
     local.get $d
     i32.load $heap offset=4

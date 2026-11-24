@@ -9,19 +9,19 @@
     local.get $k
     call $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].contains_key[u32, u32]"
   )
-  (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index[u32, u32]" (param $t0 i32) (param $t3 i32) (result i32 i32) (local $t1 i32) (local $t2 i32) (local $t6 i64) (local $t4 i64) (local $t7 i64) (local $t5 i64) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32)
+  (func $"impl[K < Eq & Hash, V < ?Copy] UniqMap[K, V].find_index[u32, u32]" (param $t0 i32) (param $t3 i32) (result i32 i32) (local $t2 i32) (local $t6 i64) (local $t4 i64) (local $t7 i64) (local $t5 i64) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32) (local $t1 i32)
     block
     ;; (no span)
       local.get $t0
       i32.load $heap offset=16
+      local.tee $t1
       i32.eqz
       if
         i32.const 0
         i32.const 0
         return
       end
-      local.get $t0
-      i32.load $heap offset=16
+      local.get $t1
       i32.const 2
       i32.shr_u
       i32.const 1

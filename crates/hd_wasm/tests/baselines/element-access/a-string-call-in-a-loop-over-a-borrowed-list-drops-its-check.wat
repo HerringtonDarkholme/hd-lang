@@ -8,13 +8,13 @@
         local.get $i
         local.get $xs
         i32.load $heap
+        local.tee $self.1
         i32.load $heap offset=4
         i32.lt_u
         i32.eqz
         br_if 1
     ;; 11 |         n = n + xs[i].len()
-        local.get $xs
-        i32.load $heap
+        local.get $self.1
         local.get $i
         i32.const 8
         i32.mul

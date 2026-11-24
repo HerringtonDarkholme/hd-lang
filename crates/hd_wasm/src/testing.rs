@@ -151,6 +151,9 @@ pub mod opt {
     pub mod live_set {
         pub use crate::opt::live_set::{Set, Sets, hash_probes};
     }
+    pub mod loads {
+        pub use crate::opt::loads::{run, run_with};
+    }
 }
 pub mod rt {
     pub use crate::rt::{

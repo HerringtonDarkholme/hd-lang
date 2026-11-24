@@ -329,20 +329,20 @@
       i32.load $heap offset=12
       i32.const 64
       i32.or
+      local.tee $t1
       i32.store $heap offset=12
       local.get $frame'1
-      local.get $frame'1
-      i32.load $heap offset=12
+      local.get $t1
       i32.const -17
       i32.and
+      local.tee $home
       i32.store $heap offset=12
       i32.const 0
       local.get $frame'1
       local.get $frame'1
       if
         local.get $frame'1
-        local.get $frame'1
-        i32.load $heap offset=12
+        local.get $home
         i32.const -129
         i32.and
         local.get $t2
@@ -401,7 +401,7 @@
     i32.add
     global.set $stack
   )
-  (func $answer.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
+  (func $answer.poll (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 33 |     handle_call!(home, rooted, frame)
     local.get $t0
     call $rt:poll_check
@@ -428,13 +428,13 @@
     i32.load $heap offset=12
     i32.const -2
     i32.and
+    local.tee $t3
     i32.store $heap offset=12
     local.get $t1
     i32.eqz
     if
       local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
+      local.get $t3
       i32.const 4
       i32.or
       i32.store $heap offset=12
@@ -540,10 +540,9 @@
     end
     local.get $t0
     i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'1
@@ -1114,8 +1113,7 @@
           i32.load $heap offset=36
           local.get $t1
           i32.load $heap offset=40
-          local.get $t1
-          i32.load $heap offset=44
+          local.get $t3
           call $"release_value[std.remote.Served]"
           local.get $t10
           local.set $t4
@@ -1171,20 +1169,20 @@
       i32.load $heap offset=12
       i32.const 64
       i32.or
+      local.tee $t1
       i32.store $heap offset=12
       local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $t1
       i32.const -17
       i32.and
+      local.tee $t4
       i32.store $heap offset=12
       i32.const 0
       local.get $frame
       local.get $frame
       if
         local.get $frame
-        local.get $frame
-        i32.load $heap offset=12
+        local.get $t4
         i32.const -129
         i32.and
         local.get $t2
@@ -1243,7 +1241,7 @@
     i32.add
     global.set $stack
   )
-  (func $std/remote/serve.poll'1 (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
+  (func $std/remote/serve.poll'1 (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; (no span)
     local.get $t0
     call $rt:poll_check
@@ -1278,13 +1276,13 @@
     i32.load $heap offset=12
     i32.const -2
     i32.and
+    local.tee $t3
     i32.store $heap offset=12
     local.get $t1
     i32.eqz
     if
       local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
+      local.get $t3
       i32.const 4
       i32.or
       i32.store $heap offset=12
@@ -1333,10 +1331,9 @@
     end
     local.get $t0
     i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'1
@@ -1829,8 +1826,7 @@
           i32.load $heap offset=36
           local.get $t1
           i32.load $heap offset=40
-          local.get $t1
-          i32.load $heap offset=44
+          local.get $t3
           call $"release_value[std.remote.Served]"
           local.get $t10
           local.set $t4
@@ -1886,20 +1882,20 @@
       i32.load $heap offset=12
       i32.const 64
       i32.or
+      local.tee $t1
       i32.store $heap offset=12
       local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $t1
       i32.const -17
       i32.and
+      local.tee $t4
       i32.store $heap offset=12
       i32.const 0
       local.get $frame
       local.get $frame
       if
         local.get $frame
-        local.get $frame
-        i32.load $heap offset=12
+        local.get $t4
         i32.const -129
         i32.and
         local.get $t2
@@ -1958,7 +1954,7 @@
     i32.add
     global.set $stack
   )
-  (func $std/remote/serve.poll'2 (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32)
+  (func $std/remote/serve.poll'2 (param $t0 i32) (result i32 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; (no span)
     local.get $t0
     call $rt:poll_check
@@ -1992,13 +1988,13 @@
     i32.load $heap offset=12
     i32.const -2
     i32.and
+    local.tee $t3
     i32.store $heap offset=12
     local.get $t1
     i32.eqz
     if
       local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
+      local.get $t3
       i32.const 4
       i32.or
       i32.store $heap offset=12
@@ -2047,10 +2043,9 @@
     end
     local.get $t0
     i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'1

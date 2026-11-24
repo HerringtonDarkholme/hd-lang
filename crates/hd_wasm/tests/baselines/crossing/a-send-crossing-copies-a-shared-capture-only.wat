@@ -186,16 +186,16 @@
     i32.add
     global.set $stack
   )
-  (func $"own_list[i32]" (param $t0 i32) (local $t1 i32)
+  (func $"own_list[i32]" (param $t0 i32) (local $t2 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0
     i32.load $heap
-    i32.load $heap offset=4
     local.tee $t1
+    i32.load $heap offset=4
+    local.tee $t2
     i32.eqz
     if
-      local.get $t0
-      i32.load $heap
+      local.get $t1
       local.get $t0
       i32.const 80 ;; &empty-buffer
       i32.store $heap
@@ -214,7 +214,7 @@
       local.get $t0
       local.get $t0
       i32.load $heap
-      local.get $t1
+      local.get $t2
       call $rt:list_truncate
       i32.store $heap
     end

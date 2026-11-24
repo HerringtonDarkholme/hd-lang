@@ -71,7 +71,7 @@
     ;; 19 |     sum
     local.get $sum
   )
-  (func $uniq_after_plain_if (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32)
+  (func $uniq_after_plain_if (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32) (local $t1 i32)
     ;; 63 |     for i in 0..n:
     block
       loop
@@ -89,6 +89,7 @@
     ;; 64 |         if xs.len() == 0:
         local.get $xs
         i32.load $heap offset=8
+        local.tee $t1
         i32.eqz
         if
     ;; 65 |             sum += 1
@@ -102,8 +103,7 @@
         local.get $head
         local.get $i
         i32.add
-        local.get $xs
-        i32.load $heap offset=8
+        local.get $t1
         i32.const 1
         i32.sub
         i32.and
@@ -264,16 +264,15 @@
     ;; 39 |     sum
     local.get $sum
   )
-  (func $list_changed (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $mask i32) (local $t0 i32) (local $i i32) (local $t1 i32)
+  (func $list_changed (param $xs i32) (param $head i32) (param $n i32) (result i32) (local $sum i32) (local $t0 i32) (local $i i32) (local $t1 i32) (local $mask i32)
     ;; 43 |     if xs.len() > 0:
     local.get $xs
     i32.load $heap
     i32.load $heap offset=4
+    local.tee $mask
     if
     ;; 44 |         mask := xs.len() - 1
-      local.get $xs
-      i32.load $heap
-      i32.load $heap offset=4
+      local.get $mask
       i32.const 1
       i32.sub
       local.set $mask

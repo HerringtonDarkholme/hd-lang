@@ -4,7 +4,10 @@
 # the chunk end and a store of the new next byte, then the value's
 # stores; `align_of` and `needs_drop` are constants with no call left.
 # A `Node` (no drop work) writes no drop entry; a `Label` (a `string`)
-# writes one. Only the chunk refill stays a call.
+# writes one. Only the chunk refill stays a call. Each bump loads the
+# arena's state pointer once. `label` loads it again for the drop entry:
+# the value's stores and the refill call may write any memory, since no
+# rule yet says a shared loan freezes the bytes behind it.
 use std.arena.Arena
 
 struct Node:

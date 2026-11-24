@@ -88,21 +88,19 @@
     i32.add
     global.set $stack
   )
-  (func $total (param $xs i32) (result i64) (local $n i32) (local $s i64) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t3 i32) (local $t4 i32)
+  (func $total (param $xs i32) (result i64) (local $n i32) (local $s i64) (local $t2 i32) (local $t1 i32) (local $t0 i32) (local $i i32) (local $t3 i32) (local $t4 i32)
     ;; 8 |     n := xs.len()
     local.get $xs
     i32.load $heap
+    local.tee $t0
     i32.load $heap offset=4
     local.tee $n
     ;; 10 |     for i in 0..n:
-    local.set $t0
-    local.get $xs
-    i32.load $heap
     local.set $t1
     block
       loop
         local.get $t2
-        local.get $t0
+        local.get $t1
         i32.lt_u
         i32.eqz
         br_if 1
@@ -114,7 +112,7 @@
         local.set $t2
     ;; 11 |         s = s + xs[i]
         local.get $s
-        local.get $t1
+        local.get $t0
         local.get $i
         i32.const 8
         i32.mul
@@ -127,9 +125,6 @@
       end
     end
     ;; 12 |     for i in 0..n:
-    local.get $xs
-    i32.load $heap
-    local.set $t2
     block
       loop
         local.get $t3
@@ -138,15 +133,15 @@
         i32.eqz
         br_if 1
         local.get $t3
-        local.set $t0
+        local.set $t2
         local.get $t3
         i32.const 1
         i32.add
         local.set $t3
     ;; 13 |         s = s + xs[i]
         local.get $s
-        local.get $t2
         local.get $t0
+        local.get $t2
         i32.const 8
         i32.mul
         i32.add
@@ -158,8 +153,7 @@
       end
     end
     ;; 14 |     xs.push(5)
-    local.get $xs
-    i32.load $heap
+    local.get $t0
     call $rt:list_unique
     local.set $t2
     local.get $xs

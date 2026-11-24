@@ -3,24 +3,22 @@
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "depth" (func $depth (param i64) (result i64)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (param $ys i32) (result i64) (local $s i64) (local $i i32)
+  (func $total (param $xs i32) (param $ys i32) (result i64) (local $s i64) (local $i i32) (local $t0 i32)
     ;; 15 |     while i < r.len():
     block
       loop
         local.get $i
         local.get $xs
         i32.load $heap
+        local.tee $xs
         i32.load $heap offset=4
+        local.tee $t0
         i32.lt_u
         i32.eqz
         br_if 1
     ;; 16 |         s = s + r[i] + depth(3)
-        local.get $xs
-        i32.load $heap
-        local.set $xs
         local.get $i
-        local.get $xs
-        i32.load $heap offset=4
+        local.get $t0
         i32.ge_u
         if
           call $rt:panic

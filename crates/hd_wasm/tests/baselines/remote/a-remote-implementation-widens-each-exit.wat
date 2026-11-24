@@ -168,7 +168,7 @@
       i32.store $heap offset=12
     end
   )
-  (func $"impl Counter for Fixed.count.poll" (param $t0 i32) (result i32 i32 i32 i64) (local $t4 i32) (local $t3 i32) (local $t2 i64) (local $t1 i32)
+  (func $"impl Counter for Fixed.count.poll" (param $t0 i32) (result i32 i32 i32 i64) (local $t4 i32) (local $t3 i32) (local $t2 i64) (local $t1 i32) (local $t5 i32)
     ;; 31 |         match checked(n)?:
     local.get $t0
     call $rt:poll_check
@@ -198,13 +198,13 @@
     i32.load $heap offset=12
     i32.const -2
     i32.and
+    local.tee $t5
     i32.store $heap offset=12
     local.get $t1
     i32.eqz
     if
       local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
+      local.get $t5
       i32.const 4
       i32.or
       i32.store $heap offset=12

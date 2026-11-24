@@ -5,6 +5,7 @@
     ;; 17 |     for i in 0..o.bag.xs.len():
     local.get $o
     i32.load $heap offset=8
+    local.tee $o
     i32.load $heap offset=4
     local.set $t0
     block
@@ -23,7 +24,6 @@
     ;; 18 |         s = s + o.bag.xs[i]
         local.get $s
         local.get $o
-        i32.load $heap offset=8
         local.get $i
         i32.const 8
         i32.mul

@@ -1,0 +1,23 @@
+# @dump: wat
+# @build: v8 release
+# expected: `p.x` loads again after the store through `q`, which may
+# point at the same pair, and after the call, which may write it.
+use std.annotation.inline
+
+struct Pair:
+    x: i32
+    y: i32
+
+fn after_store(p: *mut Pair, q: *mut Pair) -> i32:
+    a := p.x
+    q.x = 7
+    a + p.x
+
+fn after_call(p: *mut Pair) -> i32:
+    a := p.x
+    touch(p)
+    a + p.x
+
+@inline(.Never)
+fn touch(p: *mut Pair) -> void:
+    p.y = 1

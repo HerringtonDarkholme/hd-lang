@@ -11,17 +11,15 @@
         local.get $i
         local.get $b
         i32.load $heap
+        local.tee $t0
         i32.load $heap offset=4
+        local.tee $t1
         i32.lt_u
         i32.eqz
         br_if 1
     ;; 15 |         s = s + b.xs[i]
-        local.get $b
-        i32.load $heap
-        local.set $t0
         local.get $i
-        local.get $t0
-        i32.load $heap offset=4
+        local.get $t1
         i32.ge_u
         if
           call $rt:panic

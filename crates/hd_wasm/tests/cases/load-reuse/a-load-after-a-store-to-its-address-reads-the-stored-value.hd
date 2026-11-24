@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# expected: each read after the store is the stored operand: `v`, the
+# constant 7, or the stored sum, with no load left.
+struct Pair:
+    x: i32
+    y: i32
+
+fn after_local(p: *mut Pair, v: i32) -> i32:
+    p.x = v
+    p.x + 1
+
+fn after_constant(p: *mut Pair) -> i32:
+    p.y = 7
+    p.y * 2
+
+fn after_sum(p: *mut Pair, a: i32, b: i32) -> i32:
+    p.x = a + b
+    p.x * p.x

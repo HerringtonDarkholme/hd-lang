@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl Arena.refill" (func $"impl Arena.refill" (param i32 i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $node (param $arena i32) (param $l i32) (result i32) (local $size i32) (local $align i32) (local $at i32)
+  (func $node (param $arena i32) (param $l i32) (result i32) (local $size i32) (local $align i32) (local $at i32) (local $t0 i32)
     ;; 18 |     arena.alloc(Node { left: l, right: 0 })
     i32.const 8
     local.set $size
@@ -11,6 +11,7 @@
     block
       local.get $arena
       i32.load $heap
+      local.tee $t0
       i32.load $heap
       i32.const 3
       i32.add
@@ -19,18 +20,14 @@
       local.tee $at
       i32.const 8
       i32.add
-      local.get $arena
-      i32.load $heap
+      local.get $t0
       i32.load $heap offset=4
       i32.le_u
       if
+        local.get $t0
         local.get $at
         local.get $size
         i32.add
-        local.set $size
-        local.get $arena
-        i32.load $heap
-        local.get $size
         i32.store $heap
         br 1
       end
@@ -48,7 +45,7 @@
     i32.store $heap offset=4
     local.get $at
   )
-  (func $label (param $arena i32) (param $text.0 i32) (param $text.1 i32) (result i32) (local $size i32) (local $align i32) (local $at i32)
+  (func $label (param $arena i32) (param $text.0 i32) (param $text.1 i32) (result i32) (local $size i32) (local $align i32) (local $at i32) (local $t0 i32)
     ;; 21 |     arena.alloc(Label { text: text })
     local.get $text.0
     local.set $text.0
@@ -59,6 +56,7 @@
     block
       local.get $arena
       i32.load $heap
+      local.tee $t0
       i32.load $heap
       i32.const 3
       i32.add
@@ -67,18 +65,14 @@
       local.tee $at
       i32.const 8
       i32.add
-      local.get $arena
-      i32.load $heap
+      local.get $t0
       i32.load $heap offset=4
       i32.le_u
       if
+        local.get $t0
         local.get $at
         local.get $size
         i32.add
-        local.set $size
-        local.get $arena
-        i32.load $heap
-        local.get $size
         i32.store $heap
         br 1
       end
@@ -102,26 +96,23 @@
     block
       local.get $arena
       i32.load $heap
+      local.tee $size
       i32.load $heap
       i32.const 3
       i32.add
       i32.const -4
       i32.and
-      local.tee $size
+      local.tee $align
       i32.const 16
       i32.add
-      local.get $arena
-      i32.load $heap
+      local.get $size
       i32.load $heap offset=4
       i32.le_u
       if
         local.get $size
+        local.get $align
         local.get $text.0
         i32.add
-        local.set $text.0
-        local.get $arena
-        i32.load $heap
-        local.get $text.0
         i32.store $heap
         br 1
       end
@@ -129,9 +120,9 @@
       local.get $text.0
       local.get $text.1
       call $"impl Arena.refill"
-      local.set $size
+      local.set $align
     end
-    local.get $size
+    local.get $align
     local.get $arena
     i32.load $heap
     i32.load $heap offset=12
@@ -150,7 +141,7 @@
     i32.store $heap offset=4
     local.get $arena
     i32.load $heap
-    local.get $size
+    local.get $align
     i32.store $heap offset=12
     local.get $at
   )

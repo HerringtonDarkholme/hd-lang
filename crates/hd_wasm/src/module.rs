@@ -2306,6 +2306,9 @@ impl Module {
                     crate::opt::locals(f, &arity);
                 }
             }
+            if self.optimized && crate::opt::reuse_loads(f, &arity) {
+                crate::opt::locals(f, &arity);
+            }
             if crate::opt::fold_local_constants(f) {
                 crate::opt::locals(f, &arity);
                 crate::opt::blocks(f, &arity);

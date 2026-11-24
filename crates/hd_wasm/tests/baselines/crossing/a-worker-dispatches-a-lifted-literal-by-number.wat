@@ -234,9 +234,7 @@
               local.get $t1
               local.get $provider0.vtable
               i32.store $heap offset=24
-              local.get $t1
-              i32.load $heap offset=24
-              local.tee $provider0.vtable
+              local.get $provider0.vtable
               if
                 local.get $provider0.vtable
                 call $retain
@@ -249,8 +247,7 @@
               local.get $t1
               local.get $provider0.vtable
               i32.store $heap offset=32
-              local.get $t1
-              i32.load $heap offset=32
+              local.get $provider0.vtable
               local.get $t1
               i32.load $heap offset=36
               local.set $provider0.vtable
@@ -525,8 +522,7 @@
             local.get $t1
             local.get $provider0.vtable
             i32.store $heap offset=76
-            local.get $t1
-            i32.load $heap offset=76
+            local.get $provider0.vtable
             local.get $t1
             i32.load $heap offset=80
             local.set $provider0.vtable
@@ -991,19 +987,19 @@
       i32.load $heap offset=12
       i32.const 64
       i32.or
+      local.tee $t1
       i32.store $heap offset=12
       local.get $frame
-      local.get $frame
-      i32.load $heap offset=12
+      local.get $t1
       i32.const -17
       i32.and
+      local.tee $provider0.vtable
       i32.store $heap offset=12
       local.get $frame
       local.get $frame
       if
         local.get $frame
-        local.get $frame
-        i32.load $heap offset=12
+        local.get $provider0.vtable
         i32.const -129
         i32.and
         local.get $t2
@@ -1061,7 +1057,7 @@
     i32.add
     global.set $stack
   )
-  (func $main.poll (param $t0 i32) (result i32)
+  (func $main.poll (param $t0 i32) (result i32) (local $t1 i32)
     ;; 14 |     let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
     local.get $t0
     call $rt:poll_check
@@ -1084,12 +1080,12 @@
     i32.load $heap offset=12
     i32.const -2
     i32.and
+    local.tee $t1
     i32.store $heap offset=12
     i32.eqz
     if
       local.get $t0
-      local.get $t0
-      i32.load $heap offset=12
+      local.get $t1
       i32.const 4
       i32.or
       i32.store $heap offset=12
@@ -1193,10 +1189,9 @@
     end
     local.get $t0
     i32.load $heap offset=16
+    local.tee $t0
     if
       local.get $t0
-      i32.load $heap offset=16
-      local.tee $t0
       if
         local.get $t0
         call $rt:release_ref'2

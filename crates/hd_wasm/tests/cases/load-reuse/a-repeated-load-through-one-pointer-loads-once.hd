@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# expected: `o.inner` loads once and both field reads use it; `inner.x`
+# loads once for both of its reads. No store or call runs between them.
+struct Pair:
+    x: i32
+    y: i32
+
+struct Outer:
+    inner: *mut Pair
+
+fn sum(o: &Outer) -> i32:
+    o.inner.x + o.inner.y + o.inner.x
