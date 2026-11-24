@@ -1,5 +1,9 @@
 use std.a # note
 pub use std.b.{c}
+use std.g.{
+    h,
+    i,
+}
 user := 1
 use := 2
 use
