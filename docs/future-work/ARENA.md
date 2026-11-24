@@ -1,9 +1,9 @@
 # Std Arena Allocator
 
 **Status:** proposal, 2026-11-23, rewritten the same day for the owner's
-API (untyped, `&mut T` results); domain: std memory and lifetimes
-([#1410](https://github.com/HerringtonDarkholme/hd-lang/issues/1410)); not
-accepted. The signatures and examples are the package [arena/](arena/);
+API (untyped, `&mut T` results); revised 2026-11-24: built without a
+marker, see "The Primitive, As Built"; domain: std memory and lifetimes
+([#1410](https://github.com/HerringtonDarkholme/hd-lang/issues/1410)). The signatures and examples are the package [arena/](arena/);
 the stress test is [ARENA_STRESS_TEST.md](ARENA_STRESS_TEST.md).
 
 ## The Proposal
@@ -13,15 +13,18 @@ The owner's API, bumpalo's `Bump`: one untyped `std.arena.Arena`, and
 once, none outlives the arena, and `reset` is rejected while any is live.
 **hd cannot express it today**: the checker makes each `&mut` result a
 `&mut` loan of the arena, so the second `alloc` is `conflicting-access`.
-It needs one missing primitive and two missing intrinsics:
+As built (2026-11-24), it needs no marker and two intrinsics:
 
-- **`@interior`**, a std-only marker on `Arena`'s declaration: a `&` of
-  such a value stays a shared loan when a `&mut` result holds it, as
-  Rust's borrow checker treats `&'a Bump -> &'a mut T`. It is hd's name
-  for the `UnsafeCell` that bumpalo and typed-arena build on. About 35
-  checker lines.
+- **The signature is the primitive.** A call's result holds its source
+  with the kind the call took it ([`ref.excl.call`](../../spec/lang/13-values-and-references.md#r-ref.excl.call),
+  as Rust's borrow checker treats `&'a Bump -> &'a mut T`), and a
+  reference made through a `*T` is local to its function
+  ([`ref.local.pointer`](../../spec/lang/13-values-and-references.md#r-ref.local.pointer)),
+  so safe code cannot hand out an aliasing `&mut` from `&self`. Only std
+  makes one, with `Ptr.as_mut`. The `@interior` marker below is not
+  needed.
 - **`needs_drop[T]()`** and **`align_of[T]()`** in `std.rt.memory`, as
-  Rust's `core::mem` has them. About 30 backend lines.
+  Rust's `core::mem` has them.
 
 ```text
 use std.arena.Arena
@@ -44,8 +47,9 @@ fn settle(bank: &Arena) -> i64:
 
 ## Open Questions
 
-1. Add `@interior` (std-only, in `std.rt.memory`) to close the gap?
-   **Recommended: yes**; the other primitives are compared below.
+1. ~~Add `@interior`?~~ Resolved: no. The owner removed the caller-side
+   upgrade from `ref.excl.call` and made a reference through a `*T`
+   local (`ref.local.pointer`); the signature alone is enough.
 2. Add `needs_drop[T]()` and `align_of[T]()` to `std.rt.memory`?
    **Recommended: yes**; without `needs_drop` a glue-free value pays a drop
    entry, which gave back all of `binary_trees`' gain (297 to 296 ms).
@@ -54,7 +58,18 @@ fn settle(bank: &Arena) -> i64:
 4. `reset` keeps the newest chunk, as bumpalo does. **Recommended: yes.**
 5. Drop order: newest first (`reset` and drop). **Recommended: yes.**
 
-## The Gap, Exactly
+## The Primitive, As Built
+
+Two owner decisions (2026-11-24) replaced the marker:
+"`&'s mut T` only proves `'s` is valid and `&mut T` is not copy", so a
+result holds its source with the call's kind; and a `*mut T` lent as
+`&mut T` is `&*t`, a local guard loan, so `fn get(&self) -> &mut i32:
+&mut *self.r` is `local-reference-escapes`. Together they are Rust's
+rules: `alloc(&self, val: T) -> &mut T` keeps the arena shared, and the
+only way to make such a result is `Ptr.as_mut` in std. The sections
+below are the history of the gap and the primitives that were compared.
+
+## The Gap, Exactly (before 2026-11-24)
 
 [`ref.excl.call`](../../spec/lang/13-values-and-references.md#r-ref.excl.call)
 ends: "A result of type `&mut T` holds that reference as a `&mut` one
@@ -85,7 +100,7 @@ values a count, the cost an arena exists to remove.
 
 | Primitive | Sound because | Checker price | Stress cases | Counts back |
 | --- | --- | --- | --- | --- |
-| **`@interior` on `Arena`, an `UnsafeCell`-like type marker** (recommended) | every `&self -> &mut` method of a marked std type hands out fresh bytes (`module.rt.ptr.as-ref`); std-only by `module.rt.std-only`; the result still holds `&arena`, so `reset`, a move and a drop wait | about 35 lines (estimate): a `TypeAttrs` flag and its wire bit, the inert prototype's test in `mut_result` | as the inert prototype: 5 of 5 check; the graph keeps a `*mut` edge list and shared bindings, as Rust needs `Cell` | graph edge lists only |
+| **`@interior` on `Arena`, an `UnsafeCell`-like type marker** (was recommended; not needed after 2026-11-24) | every `&self -> &mut` method of a marked std type hands out fresh bytes (`module.rt.ptr.as-ref`); std-only by `module.rt.std-only`; the result still holds `&arena`, so `reset`, a move and a drop wait | about 35 lines (estimate): a `TypeAttrs` flag and its wire bit, the inert prototype's test in `mut_result` | as the inert prototype: 5 of 5 check; the graph keeps a `*mut` edge list and shared bindings, as Rust needs `Cell` | graph edge lists only |
 | Inert receiver (no name: a type of only scalars keeps the `&` shared) | an inert value reaches no `&mut`; std-only `Ptr` is the only other source | 29 lines, prototyped; passed `lang/references` and `lang/functions` (3,024 cases, three modes) | 5 of 5, as above; the package checks | same |
 | `@disjoint` on the `alloc` method | as the marker, for one method's results | 32 lines, prototyped (`CallAttrs` flag, wire bit, decorator, `mut_result`); passed the same 3,024 cases | 4 of 5: the parser's `parse(arena, ..) -> &'a mut Expr` is no `@disjoint` call, so its result locks the arena again; the package's `open(bank, ..)` helper does too | same, where it checks |
 | Region or provider-scope lifetime | results tied to a scope, not to a borrow | a new lifetime kind through `dep_results`; hundreds of lines; not pursued: the arena is an explicit parameter (owner, 2026-11-24) | parse only | none |
@@ -114,6 +129,7 @@ program takes 87 ms, so the work is the wall time minus 87 ms.
 | today | 297 ms | 210 ms | 10,981 bytes |
 | untyped arena, `needs_drop` false for `Node` | 197 ms | 110 ms (1.9x less) | 8,407 bytes |
 | untyped arena, a drop entry per value | 296 ms | 209 ms | — |
+| as built (2026-11-24): `std.arena`, inlined fast path; base re-measured at 288 ms, empty 78 ms, median of 15, Node 26 | 161 ms | 83 ms (2.5x less) | 9,248 bytes |
 
 The untyped arena gives the same output. Its `alloc` and the bump are not
 force-inlined (bug 2 of the first draft still blocks `@inline(.Always)` on
@@ -171,7 +187,7 @@ with the list, and reports 600 leaked blocks without it.
 
 | Component | Price |
 | --- | --- |
-| Checker | about 35 lines: `@interior` in `TypeAttrs` and its wire bit, read by `mut_result`; nothing deleted |
+| Checker | none: the marker is not needed (the two owner decisions above deleted 16 and 184 lines) |
 | Backend | about 30 lines: `ptr_needs_drop` and `ptr_align_of` beside `ptr_size_of` in `hd_wasm`'s `ptr` |
 | `lib/std/arena.hd` | about 140 lines; the probe is 120 |
 | Spec | one sentence in `ref.excl.call`, three `module.rt` rules, `spec/std/arena.md` (about 70 lines) |
@@ -220,8 +236,8 @@ Its `alloc(&self, value: T) -> &mut T` takes `self.chunks.borrow_mut()`
 (a `RefCell<ChunkList<T>>`), pushes only below capacity so no value
 moves, and returns `unsafe { &mut *chunks.current.as_mut_ptr().add(len) }`
 ([source](https://github.com/thomcc/rust-typed-arena/blob/master/src/lib.rs)).
-hd takes its drop of values; `@interior` is hd's name for that `RefCell`
-and `unsafe`.
+hd takes its drop of values; std's `Ptr.as_mut` stands for that
+`RefCell` and `unsafe`.
 
 ```rust
 struct Node<'a> { left: Option<&'a Node<'a>>, right: Option<&'a Node<'a>> }
@@ -367,8 +383,9 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 ## Appendix F. Details
 
 - **Typing.** No new type rule; `alloc[T]` is an ordinary generic method.
-- **Ownership.** `@interior` changes only `mut_result`: a `&` of a
-  marked value stays shared; everything else of `ref.excl` holds.
+- **Ownership.** No change: a `&self` result holds the arena shared by
+  `ref.excl.call`, and `ref.local.pointer` keeps safe code from making
+  such a result alias.
 - **Soundness.** Each `alloc` writes bytes no earlier result covers; std
   keeps that (`module.rt.ptr.as-ref`). Results hold `&arena`, so `reset`
   (`&mut self`), a move and a drop wait for them.
@@ -377,9 +394,8 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 
 **Phases**, each about one hour with its test:
 
-1. `@interior` in spec 13 and `hd_check`, with a valid stage case (two
-   live results, and a helper returning one) and an invalid one (the
-   `&mut *self.r` getter of an unmarked type).
+1. ~~`@interior`~~: replaced by the two owner decisions, built as
+   #2339 and the `ref.excl.call` change.
 2. `needs_drop` and `align_of` intrinsics with conformance cases.
 3. `lib/std/arena.hd`, `spec/std/arena.md`, runtime fixtures in checked
    builds: mixed types, glue values, zero-sized, nested arenas.
@@ -387,6 +403,5 @@ withUnsafeTemporaryAllocation(of: Node.self, capacity: 64) { buffer in
 5. Bugs 1 to 3 of the first draft: bisect and fix.
 
 **Checks.** In `docs/future-work/arena/`: `hd fmt --check` passes;
-`hd check` passes with phase 1's rule (verified on the prototype) and on
-today's checker reports the five `conflicting-access` errors the rule
-removes.
+`hd check` passes on main since the two owner decisions of 2026-11-24
+landed, with no marker.

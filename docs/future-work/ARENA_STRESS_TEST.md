@@ -317,6 +317,10 @@ fn check(node: *mut Node) -> i64:
 **Effect.** Cases 1 to 3 fail on today's checker at the second `alloc`
 (`ref.excl.call`'s last sentence).
 
+**Resolved (2026-11-24).** Neither candidate was needed: the owner
+removed the caller-side upgrade from `ref.excl.call` and made a reference
+through a `*T` local (`ref.local.pointer`). The text below is the record.
+
 **Candidates.** Should std mark the `Arena` type `@interior`, as
 `UnsafeCell` marks a field? Or mark only `alloc` `@disjoint`, which case 3
 shows is not enough? Or should every inert

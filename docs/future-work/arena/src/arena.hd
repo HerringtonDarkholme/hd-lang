@@ -5,9 +5,9 @@
 ## Values of any types that live and die together. `alloc` moves a value
 ## in and lends it writable for as long as the arena is borrowed; no value
 ## is counted, and `reset` or the arena's drop drops them all at once.
-## Proposal: in std, `Arena` carries `@interior` (`std.rt.memory`), so each
-## result holds the arena shared and many are written at once. The arena
-## is neither `Send` nor `Sync`.
+## Each result holds the arena shared (`ref.excl.call`), so many are
+## written at once; only std makes such a result, through `Ptr.as_mut`
+## (`ref.local.pointer`). The arena is neither `Send` nor `Sync`.
 pub struct Arena:
     state: usize
 
