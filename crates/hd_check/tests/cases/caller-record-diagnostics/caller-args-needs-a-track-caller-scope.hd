@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# expected: caller_args outside a tracked function reports the accessor's own name.
+use std.debug.Location
+
+fn rejected() -> void:
+    _ := Location::caller_args()
