@@ -1,5 +1,5 @@
-# test: a use in a tests: block makes no folder edge, so the block may use a folder that uses its own
-# Spec 10 Folder Graph: module.cycle.test-code (Dependency Cycles DC6, DC11).
+# test: a use in a tests: block makes no edge, so the block may use a module that uses its own
+# Spec 10 Module Graph: module.cycle.test-code.
 # Spec 10 Entry Behavior: module.init.tests (the test run initializes `money.coins`).
 # fixture-package-tree: tests-block-edges/src/ledger.hd
 pub fn total() -> i32:

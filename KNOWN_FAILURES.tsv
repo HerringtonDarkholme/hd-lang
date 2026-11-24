@@ -1,6 +1,1 @@
 path	issue	engine	reason
-lang/modules/dependency-cycles/folder-cycle-facade.hd	#2347		use edges follow the named module and pub use adds no edge (phase 2 of #2347); the old folder graph still sees a loop
-cli/module-cycle-bodies-still-check	#2347		the module-cycle diagnostic (entry edge, group counts, help, no fix-it) lands in phase 2 of the modules build
-cli/module-cycle-flat-parent-file-has-no-fix	#2347		the module-cycle diagnostic (entry edge, group counts, help, no fix-it) lands in phase 2 of the modules build
-cli/module-cycle-json-names-the-entry-edge	#2347		the module-cycle diagnostic (entry edge, group counts, help, no fix-it) lands in phase 2 of the modules build
-cli/module-cycle-three-folder-group	#2347		the module-cycle diagnostic (entry edge, group counts, help, no fix-it) lands in phase 2 of the modules build

@@ -1,8 +1,0 @@
-# test: a child folder's use through the root facade reaches the declaring module, so there is no loop
-# Spec 10 Module Graph: module.cycle.edge, module.cycle.edge.pub-use.
-# Spec 10 Module Graph: module.cycle.siblings (Dependency Cycles DC2, DC11).
-# fixture-package-tree: facade-error/src/shop/mod.hd
-use pkg.error.{Error}
-
-pub struct Cart:
-    pub count: i32

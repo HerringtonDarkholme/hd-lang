@@ -1,0 +1,10 @@
+# test: two top-level modules, children of the package root, are siblings and may use each other
+# Spec 10 Module Graph: module.cycle.sibling-group, module.cycle.siblings.
+# fixture-package-tree: top-pair/src/text.hd
+use pkg.format.{Writer}
+
+pub struct Builder:
+    pub size: i32
+
+pub fn read(writer: Writer) -> Builder:
+    Builder { size: writer.size }

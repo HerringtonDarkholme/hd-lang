@@ -1,0 +1,4 @@
+use pkg.format.{Writer}
+
+pub struct UniqList:
+    pub writer: Writer

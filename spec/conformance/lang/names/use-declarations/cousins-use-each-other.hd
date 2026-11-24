@@ -1,6 +1,6 @@
-# test: modules of two folders of a package that use each other form a module cycle
+# test: modules of two different parents that use each other form a module cycle
 # Spec 03 Use Declarations: names.use.module-cycle. The tree's src/billing/invoice.hd uses
-# pkg.shipping.route, and this file, in src/shipping, uses pkg.billing.invoice.
+# pkg.shipping.route, and this file, src/shipping/route.hd, uses pkg.billing.invoice.
 # fixture-package-tree: folder-pair/src/shipping/route.hd
 use pkg.billing.invoice.{Invoice} # diagnostic: module-cycle
 
