@@ -1,0 +1,38 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# An opaque value supplies the type parameter of reusable provider contexts.
+trait Feed[T < Display]:
+    fn get(&self) -> T
+
+struct Source[T]:
+    value: T
+
+impl[T < Display] Feed[T] for Source[T]:
+    fn get(&self) -> T:
+        self.value
+
+struct Envelope[$ R]:
+    work: fn() -> string $ R
+
+fn hidden() -> impl Display:
+    +7
+
+fn make[T < Display](value: T) -> $.Context[$ Feed[T]]:
+    $.context(Feed[T]=box(Source { value }))
+
+fn read[T < Display]() -> string $ Feed[T]:
+    $.use(Feed[T]).get().to_string()
+
+fn envelope[T < Display](value: T) -> Envelope[$ Feed[T]]:
+    Envelope { work: read::[T] }
+
+fn show[T < Display](context: $.Context[$ Feed[T]]) -> string:
+    $.with(context...):
+        $.use(Feed[T]).get().to_string()
+
+pub fn main() -> void $ Console:
+    println(show(make(hidden())))
+    context := make(hidden())
+    wrapped := envelope(hidden())
+    $.with(context...):
+        println((wrapped.work)())
