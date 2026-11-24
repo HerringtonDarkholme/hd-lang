@@ -28,19 +28,12 @@
 // Usage:
 //   node scripts/coverage.ts [--only SETS] [--jobs N]   measure and report
 //   node scripts/coverage.ts --check                    also fail on a drop
-//   node scripts/coverage.ts --record [--from REPORT]   rewrite the baseline
-//   node scripts/coverage.ts --check --from REPORT      check a stored report
+//   node scripts/coverage.ts --check --from REPORT --base PREVIOUS_REPORT
 //
-// `--check` fails when a crate's percent is more than 0.05 points under
-// bench/coverage/baseline.json and an uncovered line sits on a line changed
-// since the baseline's commit; it prints those ranges. A fall with no such
-// line is covered code deleted and passes (#1521). Without a diff from the
-// baseline's commit, any fall fails. With no baseline yet it only reports.
-// `--record` rewrites the baseline from the measured report, or from a
-// report.json that CI uploaded (its uncovered/ folder beside it). Both need
-// every run. The baseline only moves by `--record`: CI measures on a schedule,
-// and by the time a run ends main has usually moved on, so the counts gate's
-// automatic refresh (which yields to a newer main) would rarely apply.
+// `--check` compares uncovered lines with the previous successful main run's
+// artifact, mapping unchanged lines through git diff. New gaps and coverage
+// lost on unchanged lines fail; deleted covered code cannot fail. Percentages
+// are reported only. --base selects a downloaded report for an offline check.
 //
 // The full conformance suites run on CI only. Outside CI a conformance,
 // std-rt-checked or cli-conformance set needs HD_CONFORMANCE_ONLY naming its
@@ -62,12 +55,11 @@ import {
 import { basename, dirname, join, relative } from "node:path";
 import { parseArgs } from "node:util";
 import { classifyRust, type FileLines, type LineKind } from "../bench/coverage/rust-lines.ts";
+import { mapUncovered, newUncovered, type Range } from "../bench/coverage/history.ts";
 
 const root = join(import.meta.dirname, "..");
 const output = join(root, "bench", "coverage");
 const work = join(root, "target", "coverage");
-const baselinePath = join(output, "baseline.json");
-const TOLERANCE = 0.05;
 const PRINT_LIMIT = 200;
 
 const CORE = [
@@ -128,7 +120,6 @@ const RUNS: Run[] = [
 ];
 const SET_NAMES = ["core", ...CORE, ...RUNS.map((run) => run.name)];
 
-type Range = { file: string; first: number; last: number };
 type Lines = { covered: number; total: number };
 type CrateReport = Lines & { percent: number; invariant: Lines };
 type Report = {
@@ -140,14 +131,13 @@ type Report = {
   crates: Partial<Record<Crate, CrateReport>>;
 };
 type Measured = { report: Report; uncovered: Map<Crate, Range[]> };
-type Baseline = { commit: string; crates: Partial<Record<Crate, number>> };
 
 // ---- options ----
 
 const { values } = parseArgs({
   options: {
     check: { type: "boolean", default: false },
-    record: { type: "boolean", default: false },
+    base: { type: "string" },
     from: { type: "string" },
     only: { type: "string" },
     jobs: { type: "string" },
@@ -155,12 +145,8 @@ const { values } = parseArgs({
 });
 
 function selectedSets(): string[] {
-  if (
-    (values.check || values.record) &&
-    values.from === undefined &&
-    process.env.HD_CONFORMANCE_ONLY
-  ) {
-    fail("--check and --record need the whole suite; unset HD_CONFORMANCE_ONLY");
+  if (values.check && values.from === undefined && process.env.HD_CONFORMANCE_ONLY) {
+    fail("--check needs the whole suite; unset HD_CONFORMANCE_ONLY");
   }
   if (values.only === undefined) {
     return SET_NAMES.filter((name) => !(CORE as readonly string[]).includes(name));
@@ -170,8 +156,8 @@ function selectedSets(): string[] {
   if (unknown.length > 0) {
     fail(`unknown set ${unknown.join(", ")}; the sets are ${SET_NAMES.join(", ")}`);
   }
-  if (values.check || values.record) {
-    fail("--check and --record need every run; leave out --only");
+  if (values.check) {
+    fail("--check needs every run; leave out --only");
   }
   return sets;
 }
@@ -447,28 +433,21 @@ function readStored(path: string): Measured {
     if (existsSync(list)) {
       const lines = readFileSync(list, "utf8").split("\n").filter(Boolean);
       uncovered.set(crate, lines.map(parseRange));
+    } else if (report.crates[crate]) {
+      fail(`missing uncovered lines in stored measurement: ${list}`);
     }
   }
   return { report, uncovered };
 }
 
-function readBaseline(): Baseline | undefined {
-  return existsSync(baselinePath)
-    ? (JSON.parse(readFileSync(baselinePath, "utf8")) as Baseline)
-    : undefined;
-}
-
-function summaryTable(report: Report, baseline: Baseline | undefined): string {
+function summaryTable(report: Report): string {
   const rows = CORE.flatMap((crate) => {
     const row = report.crates[crate];
     if (row === undefined) {
       return [];
     }
-    const base = baseline?.crates[crate];
-    const delta = base === undefined ? "" : ` (${(row.percent - base).toFixed(2)})`;
     return [
       `| ${crate} | ${row.covered} | ${row.total} | ${row.percent.toFixed(2)}% | ` +
-        `${base === undefined ? "-" : `${base.toFixed(2)}%`}${delta} | ` +
         `${row.invariant.covered} / ${row.invariant.total} |`,
     ];
   });
@@ -478,8 +457,8 @@ function summaryTable(report: Report, baseline: Baseline | undefined): string {
   return [
     `### Core coverage at ${report.commit.slice(0, 9)}`,
     "",
-    "| Crate | Covered | Lines | Percent | Baseline | Invariant covered |",
-    "| --- | ---: | ---: | ---: | ---: | ---: |",
+    "| Crate | Covered | Lines | Percent | Invariant covered |",
+    "| --- | ---: | ---: | ---: | ---: |",
     ...rows,
     "",
     `Runs: ${report.runs.join(", ")}. Time: ${times}.`,
@@ -487,62 +466,80 @@ function summaryTable(report: Report, baseline: Baseline | undefined): string {
   ].join("\n");
 }
 
-// ---- check and record ----
+// ---- compare with the previous measured main run ----
 
 function git(args: string[]): string {
-  return execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
-}
-
-// Lines added or changed between two commits, per file; undefined when git can't tell.
-function changedLines(
-  from: string,
-  to: string,
-  crate: Crate,
-): Map<string, Set<number>> | undefined {
-  let diff: string;
-  try {
-    diff = git([
-      "diff",
-      "-U0",
-      "--no-color",
-      "--no-ext-diff",
-      from,
-      to,
-      "--",
-      `crates/${crate}/src`,
-    ]);
-  } catch {
-    return undefined;
-  }
-  const changed = new Map<string, Set<number>>();
-  let lines = new Set<number>();
-  for (const line of diff.split("\n")) {
-    const file = /^\+\+\+ b\/(.*)$/.exec(line);
-    const hunk = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(line);
-    if (file) {
-      lines = new Set();
-      changed.set(file[1], lines);
-    } else if (hunk) {
-      const first = Number(hunk[1]);
-      const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
-      for (let at = first; at < first + count; at++) {
-        lines.add(at);
-      }
-    }
-  }
-  return changed;
-}
-
-function newRanges(ranges: Range[], changed: Map<string, Set<number>>): Range[] {
-  return ranges.filter((range) => {
-    const lines = changed.get(range.file);
-    for (let at = range.first; lines && at <= range.last; at++) {
-      if (lines.has(at)) {
-        return true;
-      }
-    }
-    return false;
+  // cost: one diff of the two measured commits, or one commit-ID lookup.
+  return execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 1 << 28,
+    timeout: 30_000,
   });
+}
+
+function gh(args: string[]): string {
+  // cost: one bounded run listing or the selected run's artifact download.
+  return execFileSync("gh", args, { cwd: root, encoding: "utf8", timeout: 60_000 });
+}
+
+// Cost: one listing of at most 100 successful main runs, ancestor checks on
+// that bounded recent history, then one artifact download. No compiler rerun.
+function previousReport(commit: string): Measured | undefined {
+  if (values.base) {
+    return readStored(values.base);
+  }
+  const repo =
+    process.env.GITHUB_REPOSITORY ??
+    gh(["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).trim();
+  const data = JSON.parse(
+    gh([
+      "api",
+      `repos/${repo}/actions/workflows/coverage.yml/runs?branch=main&status=success&per_page=100`,
+      "--jq",
+      "{workflow_runs: [.workflow_runs[] | {id, head_sha}]}",
+    ]),
+  ) as {
+    workflow_runs: { id: number; head_sha: string }[];
+  };
+  const currentRun = Number(process.env.GITHUB_RUN_ID ?? Infinity);
+  for (const run of data.workflow_runs) {
+    if (run.id >= currentRun) {
+      continue;
+    }
+    // cost: at most 100 ancestry queries over the recent successful runs.
+    const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", run.head_sha, commit], {
+      cwd: root,
+      timeout: 10_000,
+    });
+    if (ancestor.status === 1) {
+      continue;
+    }
+    if (ancestor.status !== 0) {
+      throw new Error(`cannot map previous coverage commit ${run.head_sha}`);
+    }
+    const dir = join(work, "previous", String(run.id));
+    rmSync(dir, { recursive: true, force: true });
+    mkdirSync(dir, { recursive: true });
+    gh([
+      "run",
+      "download",
+      String(run.id),
+      "--repo",
+      repo,
+      "--name",
+      "core-coverage",
+      "--dir",
+      dir,
+    ]);
+    const previous = readStored(join(dir, "bench", "coverage", "report.json"));
+    if (previous.report.commit !== run.head_sha) {
+      throw new Error("coverage artifact commit differs from its run");
+    }
+    return previous;
+  }
+  console.log("No previous successful main measurement in the recent run history: report only.");
+  return undefined;
 }
 
 function printRanges(title: string, ranges: Range[]): void {
@@ -555,65 +552,52 @@ function printRanges(title: string, ranges: Range[]): void {
   }
 }
 
-function check({ report, uncovered }: Measured, baseline: Baseline | undefined): boolean {
-  if (baseline === undefined) {
-    console.log("No bench/coverage/baseline.json yet; record one with --record.");
+function check({ report, uncovered }: Measured, previous: Measured | undefined): boolean {
+  if (!previous) {
     return true;
+  }
+  if (report.conformanceOnly || previous.report.conformanceOnly) {
+    fail("a comparison needs complete measurements, not named conformance subsets");
+  }
+  const before = previous.report.commit;
+  console.log(`Comparing uncovered lines with main's measurement at ${before.slice(0, 9)}.`);
+  const diff = git([
+    "-c",
+    "core.quotePath=false",
+    "diff",
+    "-U0",
+    "--find-renames",
+    "--no-color",
+    "--no-ext-diff",
+    before,
+    report.commit,
+    "--",
+    ...CORE.map((crate) => `crates/${crate}/src`),
+  ]);
+  const mapped = mapUncovered([...previous.uncovered.values()].flat(), diff);
+  const mappedCrates = new Map<Crate, Range[]>();
+  for (const range of mapped) {
+    const crate = crateOf(range.file);
+    if (crate) {
+      const ranges = mappedCrates.get(crate) ?? [];
+      ranges.push(range);
+      mappedCrates.set(crate, ranges);
+    }
   }
   let ok = true;
   for (const crate of CORE) {
-    const row = report.crates[crate];
-    const base = baseline.crates[crate];
-    if (row === undefined || base === undefined) {
-      console.log(`${crate}: ${row === undefined ? "not measured" : "no baseline"}`);
-      ok &&= row !== undefined;
-      continue;
-    }
-    if (row.percent > base + TOLERANCE) {
-      console.log(`${crate}: ${row.percent}% is above the baseline ${base}%; --record raises it`);
-    }
-    if (row.percent >= base - TOLERANCE) {
-      continue;
-    }
-    console.log(`${crate}: ${row.percent}% fell below the baseline ${base}%`);
-    const ranges = uncovered.get(crate) ?? [];
-    const changed = changedLines(baseline.commit, report.commit, crate);
-    if (changed === undefined) {
+    if (!report.crates[crate]) {
+      console.log(`${crate}: not measured`);
       ok = false;
-      printRanges(`uncovered ranges (no diff from ${baseline.commit.slice(0, 9)})`, ranges);
       continue;
     }
-    // A change fails only for what it makes worse: an uncovered line on a
-    // line it changed. Deleting covered code lowers the percentage without
-    // leaving any such line, and passes (#1521).
-    const fresh = newRanges(ranges, changed);
-    if (fresh.length === 0) {
-      console.log(
-        `${crate}: no uncovered line on lines changed since ${baseline.commit.slice(0, 9)}; ` +
-          "the fall is covered code deleted, which passes",
-      );
-      continue;
+    const fresh = newUncovered(uncovered.get(crate) ?? [], mappedCrates.get(crate) ?? []);
+    if (fresh.length) {
+      ok = false;
+      printRanges(`${crate}: new or newly uncovered ranges`, fresh);
     }
-    ok = false;
-    printRanges(`uncovered ranges on lines changed since ${baseline.commit.slice(0, 9)}`, fresh);
   }
   return ok;
-}
-
-function record(report: Report): void {
-  const missing = CORE.filter((crate) => report.crates[crate] === undefined);
-  const runs = ["core", ...RUNS.map((run) => run.name)];
-  const partial = runs.some((run) => !report.runs.includes(run)) || report.conformanceOnly;
-  if (missing.length > 0 || partial) {
-    fail(`a baseline needs every crate and run; this report has ${report.runs.join(", ")}`);
-  }
-  const crates: Partial<Record<Crate, number>> = {};
-  for (const crate of CORE) {
-    crates[crate] = report.crates[crate]?.percent;
-  }
-  const baseline: Baseline = { commit: report.commit, crates };
-  writeFileSync(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
-  console.log(`Recorded ${relative(root, baselinePath)} at ${report.commit.slice(0, 9)}.`);
 }
 
 function main(): void {
@@ -626,8 +610,7 @@ function main(): void {
   } else {
     measured = readStored(values.from);
   }
-  const baseline = readBaseline();
-  const table = summaryTable(measured.report, baseline);
+  const table = summaryTable(measured.report);
   console.log(`\n${table}`);
   if (values.from === undefined) {
     writeFileSync(join(output, "summary.md"), table);
@@ -635,11 +618,13 @@ function main(): void {
   if (process.env.GITHUB_STEP_SUMMARY) {
     appendFileSync(process.env.GITHUB_STEP_SUMMARY, table);
   }
-  if (values.record) {
-    record(measured.report);
-  } else if (values.check && !check(measured, baseline)) {
+  if (values.check && !check(measured, previousReport(measured.report.commit))) {
     process.exitCode = 1;
   }
 }
 
-main();
+try {
+  main();
+} catch (error) {
+  fail(String(error));
+}
