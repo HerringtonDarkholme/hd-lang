@@ -31,7 +31,7 @@
 //   node scripts/coverage.ts --check --from REPORT --base PREVIOUS_REPORT
 //   node scripts/coverage.ts --attribute                retain per-set evidence
 //
-// `--check` compares uncovered lines with the previous successful main run's
+// `--check` compares uncovered lines with the previous measured main run's
 // artifact, mapping unchanged lines through git diff. New gaps and coverage
 // lost on unchanged lines fail; deleted covered code cannot fail. Percentages
 // are reported only. --base selects a downloaded report for an offline check.
@@ -56,7 +56,13 @@ import {
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { classifyRust, type FileLines, type LineKind } from "../bench/coverage/rust-lines.ts";
-import { mapUncovered, newUncovered, type Range } from "../bench/coverage/history.ts";
+import {
+  mapUncovered,
+  newUncovered,
+  previousMeasurement,
+  type CoverageRun,
+  type Range,
+} from "../bench/coverage/history.ts";
 import { contributions } from "../bench/coverage/contributions.ts";
 import { archiveProfiles, restoreProfiles } from "../bench/coverage/profiles.ts";
 
@@ -602,8 +608,8 @@ function gh(args: string[]): string {
   return execFileSync("gh", args, { cwd: root, encoding: "utf8", timeout: 60_000 });
 }
 
-// Cost: one listing of at most 100 successful main runs, ancestor checks on
-// that bounded recent history, then one artifact download. No compiler rerun.
+// Cost: at most 100 recent main runs, one ancestry/artifact lookup per
+// candidate, and downloads only for live artifacts. No compiler rerun.
 function previousReport(commit: string): Measured | undefined {
   if (values.base) {
     return readStored(values.base);
@@ -614,51 +620,69 @@ function previousReport(commit: string): Measured | undefined {
   const data = JSON.parse(
     gh([
       "api",
-      `repos/${repo}/actions/workflows/coverage.yml/runs?branch=main&status=success&per_page=100`,
+      `repos/${repo}/actions/workflows/coverage.yml/runs?branch=main&per_page=100`,
       "--jq",
       "{workflow_runs: [.workflow_runs[] | {id, head_sha}]}",
     ]),
-  ) as {
-    workflow_runs: { id: number; head_sha: string }[];
-  };
-  const currentRun = Number(process.env.GITHUB_RUN_ID ?? Infinity);
-  for (const run of data.workflow_runs) {
-    if (run.id >= currentRun) {
-      continue;
-    }
-    // cost: at most 100 ancestry queries over the recent successful runs.
-    const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", run.head_sha, commit], {
-      cwd: root,
-      timeout: 10_000,
-    });
-    if (ancestor.status === 1) {
-      continue;
-    }
-    if (ancestor.status !== 0) {
-      throw new Error(`cannot map previous coverage commit ${run.head_sha}`);
-    }
-    const dir = join(work, "previous", String(run.id));
-    rmSync(dir, { recursive: true, force: true });
-    mkdirSync(dir, { recursive: true });
-    gh([
-      "run",
-      "download",
-      String(run.id),
-      "--repo",
-      repo,
-      "--name",
-      "core-coverage",
-      "--dir",
-      dir,
-    ]);
-    const previous = readStored(join(dir, "bench", "coverage", "report.json"));
-    if (previous.report.commit !== run.head_sha) {
-      throw new Error("coverage artifact commit differs from its run");
-    }
-    return previous;
+  ) as { workflow_runs: CoverageRun[] };
+  const previous = previousMeasurement(
+    data.workflow_runs,
+    Number(process.env.GITHUB_RUN_ID ?? Infinity),
+    (sha) => {
+      // cost: at most 100 ancestry queries over the recent runs.
+      const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", sha, commit], {
+        cwd: root,
+        timeout: 10_000,
+      });
+      if (ancestor.status === 1) {
+        return false;
+      }
+      if (ancestor.status !== 0) {
+        throw new Error(`cannot map previous coverage commit ${sha}`);
+      }
+      return true;
+    },
+    (run) => {
+      const artifacts = JSON.parse(
+        gh(["api", `repos/${repo}/actions/runs/${run.id}/artifacts?name=core-coverage`]),
+      ) as { artifacts: { name: string; expired: boolean }[] };
+      if (!artifacts.artifacts.some((item) => item.name === "core-coverage" && !item.expired)) {
+        return undefined;
+      }
+      const dir = join(work, "previous", String(run.id));
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir, { recursive: true });
+      gh([
+        "run",
+        "download",
+        String(run.id),
+        "--repo",
+        repo,
+        "--name",
+        "core-coverage",
+        "--dir",
+        dir,
+      ]);
+      const path = join(dir, "bench", "coverage", "report.json");
+      // always() also uploads per-set timings after a timeout. Those are
+      // useful diagnostics, but are not a completed coverage measurement.
+      if (!existsSync(path)) {
+        return undefined;
+      }
+      const measured = readStored(path);
+      if (measured.report.commit !== run.head_sha) {
+        throw new Error("coverage artifact commit differs from its run");
+      }
+      if (measured.report.conformanceOnly || CORE.some((crate) => !measured.report.crates[crate])) {
+        return undefined;
+      }
+      return measured;
+    },
+  );
+  if (!previous) {
+    console.log("No previous complete main measurement in the recent run history: report only.");
   }
-  console.log("No previous successful main measurement in the recent run history: report only.");
-  return undefined;
+  return previous;
 }
 
 function printRanges(title: string, ranges: Range[]): void {

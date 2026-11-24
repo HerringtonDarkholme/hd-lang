@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { mapUncovered, newUncovered, type Range } from "./history.ts";
+import { mapUncovered, newUncovered, previousMeasurement, type Range } from "./history.ts";
 
 const range = (first: number, last = first, file = "a.rs"): Range => ({ file, first, last });
 const diff = (hunks: string) => `diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n${hunks}\n`;
@@ -148,5 +148,95 @@ test("offline CLI passes covered deletions and fails a newly uncovered unchanged
     assert.match(loss.stdout, /lib.rs:11/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the latest uploaded measurement becomes the reference even after a failed check", () => {
+  const runs = [
+    { id: 4, head_sha: "current" },
+    { id: 3, head_sha: "failed" },
+    { id: 2, head_sha: "successful" },
+  ];
+  const lookedUp: string[] = [];
+  const selected = previousMeasurement(
+    runs,
+    4,
+    () => true,
+    (run) => {
+      lookedUp.push(run.head_sha);
+      return run.head_sha;
+    },
+  );
+  assert.equal(selected, "failed");
+  assert.deepEqual(lookedUp, ["failed"]);
+  // Yesterday's failure is today's baseline: unchanged gaps recover to green.
+  const failed = [range(10), range(20)];
+  assert.deepEqual(newUncovered(failed, failed), []);
+  assert.deepEqual(newUncovered([...failed, range(30)], failed), [range(30)]);
+});
+
+test("reference selection skips non-ancestors and unavailable or incomplete measurements", () => {
+  const runs = ["other-branch", "missing", "expired", "partial", "measured", "older"].map(
+    (head_sha, i) => ({ id: 10 - i, head_sha }),
+  );
+  const ancestry: string[] = [];
+  const lookedUp: string[] = [];
+  const selected = previousMeasurement(
+    runs,
+    Infinity,
+    (sha) => {
+      ancestry.push(sha);
+      return sha !== "other-branch";
+    },
+    (run) => {
+      lookedUp.push(run.head_sha);
+      return run.head_sha === "measured" ? run.head_sha : undefined;
+    },
+  );
+  assert.equal(selected, "measured");
+  assert.deepEqual(ancestry, ["other-branch", "missing", "expired", "partial", "measured"]);
+  assert.deepEqual(lookedUp, ["missing", "expired", "partial", "measured"]);
+  assert.equal(
+    previousMeasurement(
+      [],
+      Infinity,
+      () => true,
+      () => "unused",
+    ),
+    undefined,
+  );
+  assert.equal(
+    previousMeasurement(
+      runs,
+      0,
+      () => assert.fail("current or newer run"),
+      () => "unused",
+    ),
+    undefined,
+  );
+});
+
+test("finding a recent measurement does not scan growing older history", () => {
+  for (const width of [100, 1000]) {
+    const runs = Array.from({ length: width }, (_, i) => ({ id: width - i, head_sha: String(i) }));
+    let ancestry = 0;
+    let downloads = 0;
+    assert.equal(
+      previousMeasurement(
+        runs,
+        Infinity,
+        () => {
+          ancestry++;
+          return true;
+        },
+        () => {
+          downloads++;
+          return "measurement";
+        },
+      ),
+      "measurement",
+    );
+    assert.equal(ancestry, 1);
+    assert.equal(downloads, 1);
   }
 });

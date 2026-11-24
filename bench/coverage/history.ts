@@ -149,3 +149,28 @@ export function newUncovered(current: readonly Range[], previous: readonly Range
   }
   return fresh;
 }
+
+export type CoverageRun = { id: number; head_sha: string };
+
+/**
+ * Runs arrive newest first from GitHub. A verdict is not a measurement:
+ * failed checks remain usable; missing/expired/partial uploads do not.
+ * Cost: at most one ancestry check and measurement lookup per listed run.
+ */
+export function previousMeasurement<Measurement>(
+  runs: readonly CoverageRun[],
+  currentRun: number,
+  isAncestor: (commit: string) => boolean,
+  measurement: (run: CoverageRun) => Measurement | undefined,
+): Measurement | undefined {
+  for (const run of runs) {
+    if (run.id >= currentRun || !isAncestor(run.head_sha)) {
+      continue;
+    }
+    const previous = measurement(run);
+    if (previous !== undefined) {
+      return previous;
+    }
+  }
+  return undefined;
+}
