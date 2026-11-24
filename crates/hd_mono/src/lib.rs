@@ -3111,10 +3111,10 @@ impl Cx<'_> {
             self.out.table.sub[id.idx()],
             self.out.table.args[id.idx()],
         );
-        match sub {
+        let sub_body = match sub {
             Sub::Adapter => return self.scan_adapter(id),
-            Sub::Body(_) => {}
-        }
+            Sub::Body(k) => k,
+        };
         let pool = self.pool;
         let env = self.env;
         // A compiler-supplied method's instance has no item body: its
@@ -3167,10 +3167,7 @@ impl Cx<'_> {
         // scanning its whole item once per closure grows with the square
         // of a body holding many closures. Each nested closure is an
         // instance of its own, requested by its `Closure`.
-        let own_sub = match sub {
-            Sub::Body(k) if k != 0 => Some(u32::from(k)),
-            _ => None,
-        };
+        let own_sub = (sub_body != 0).then_some(u32::from(sub_body));
         let subs = (own_sub.is_some()
             || plan.as_ref().is_some_and(|p| !p.spec_args.is_empty())
             || !known.is_empty())
@@ -3231,10 +3228,7 @@ impl Cx<'_> {
                                         body,
                                         at: i,
                                         sources,
-                                        own: match sub {
-                                            Sub::Body(k) => u32::from(k) == subs[i],
-                                            Sub::Adapter => true,
-                                        },
+                                        own: u32::from(sub_body) == subs[i],
                                         known: &known,
                                         calls: &calls,
                                     };
