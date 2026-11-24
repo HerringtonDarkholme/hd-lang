@@ -74,9 +74,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// Per sub-body of `def`'s checked body, the type-parameter ranges of
     /// the generic local functions it stands in
     /// (`hd_tir::ir::local_function_scopes`); empty with no body.
-    fn local_scopes(&self, _def: DefId) -> Vec<Vec<(u32, u32)>> {
-        Vec::new()
-    }
+    fn local_scopes(&self, _def: DefId) -> Vec<Vec<(u32, u32)>>;
     /// Release (#1118): the exclusive copy of `def`'s instance at `args`,
     /// which borrows through the parameters in its mask across calls that
     /// may write, and which a call may run where
@@ -112,9 +110,7 @@ pub trait ProgramEnv: LayoutEnv {
     fn bounded(&self, def: DefId) -> Option<Vec<bool>>;
     /// Whether a method has a `where` bound on its owner's parameters,
     /// which keeps it off a vtable (`trait.dyn.member.where`).
-    fn where_bounded(&self, _def: DefId) -> bool {
-        false
-    }
+    fn where_bounded(&self, _def: DefId) -> bool;
     /// Per instance argument: is a row parameter (`$R`), including owner
     /// arguments. A trait owner's implicit `Self` is not a row parameter.
     fn generic_rows(&self, def: DefId) -> Vec<bool>;
@@ -123,9 +119,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// The declared parameter types (`self` first for a method).
     fn params(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Source parameter names (`self` first), when declaration metadata exists.
-    fn parameter_names(&self, _def: DefId) -> Option<Vec<String>> {
-        None
-    }
+    fn parameter_names(&self, _def: DefId) -> Option<Vec<String>>;
 
     /// Whether the function suspends (`fn f!`).
     fn suspends(&self, def: DefId) -> bool;
@@ -227,13 +221,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// qualified name.
     fn type_name(&self, def: DefId) -> String;
     /// The source declaration name, without its package or module path.
-    fn source_type_name(&self, def: DefId) -> String {
-        self.type_name(def)
-            .rsplit(['.', '/'])
-            .next()
-            .unwrap_or("")
-            .to_owned()
-    }
+    fn source_type_name(&self, def: DefId) -> String;
 
     /// The same declaration as it prints (trait.typeid.name.*): a package
     /// root by its manifest name, a single-file program's by nothing.
@@ -297,21 +285,12 @@ pub trait ProgramEnv: LayoutEnv {
     fn debug_trait(&self) -> DefId;
     /// `std.remote`'s `crossing_number`, `crossing_run` and `worker_serve`,
     /// and `Wire` (`fn.crossing.lift`); `None` without `std.remote`.
-    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)> {
-        None
-    }
+    fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)>;
     /// The canonical digest of `ty`, as `type_number[ty]` returns it.
-    fn type_number(&self, _ty: Ty) -> u64 {
-        0
-    }
+    fn type_number(&self, _ty: Ty) -> u64;
     /// `crossing_run`'s body over the lifted literals `arms` (number, the
     /// lifted function's type), in order (`hd_structure::remote`).
-    fn crossing_run_body(&self, _item: DefId, _arms: &[(u64, Ty)]) -> StageResult<Body> {
-        Err(NotImplemented::bug(
-            Stage::Collect,
-            "no crossing dispatcher",
-        ))
-    }
+    fn crossing_run_body(&self, _item: DefId, _arms: &[(u64, Ty)]) -> StageResult<Body>;
     /// The private `by Structure` templates (`DbgStructural`,
     /// `WireStructural`), one row per method: the template's method, the
     /// trait's method and the trait; then the `Structure` trait, whose
