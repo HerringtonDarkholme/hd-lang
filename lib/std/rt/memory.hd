@@ -190,7 +190,10 @@ impl[T < ?Copy] Buffer[T]:
     ## A new buffer with room for `capacity` values of `T`, whose bytes hold no value yet.
     ## See [module.rt.buffer.new](../../../spec/lang/10-modules.md#r-module.rt.buffer.new).
     pub fn new(capacity: usize) -> Buffer[T]:
-        Buffer::[T] { ptr: Ptr::[T] { address: room(capacity, size_of::[T]()) }, capacity: capacity }
+        Buffer::[T] {
+            ptr: Ptr::[T] { address: room(capacity, size_of::[T]()) },
+            capacity: capacity,
+        }
 
     ## How many values of `T` the buffer has room for.
     pub fn capacity(&self) -> usize:

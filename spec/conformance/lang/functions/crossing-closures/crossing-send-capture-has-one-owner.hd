@@ -21,6 +21,14 @@ fn names(n: usize) -> UniqList[string]:
         out.push("n".repeat(i + 1))
     out
 
+# An `Arc` crosses only with a `Sync` payload (`module.marker.sync`): a
+# `UniqList[string]` is not `Sync`, since each string's count is not atomic.
+fn numbers(n: usize) -> UniqList[i32]:
+    let mut out: UniqList[i32] = UniqList::new()
+    for i in 0..n:
+        out.push(i32(i))
+    out
+
 struct Bag:
     items: UniqList[string]
     n: usize
@@ -47,12 +55,12 @@ pub fn main() -> void $ Console:
     let kept: UniqList[string]? = .Some(names(1))
     taken := run(fn() -> UniqList[string]?: kept)
     println("${items.len()} $k $size ${taken.is_some()}")
-    shared := Arc::new(names(2))
+    shared := Arc::new(numbers(2))
     reader := shared.clone()
     read := run(fn() -> usize: reader.get().len())
     after_read := Arc::strong_count(&shared)
     mover := shared.clone()
-    held := run(fn() -> Arc[UniqList[string]]: mover)
+    held := run(fn() -> Arc[UniqList[i32]]: mover)
     after_move := Arc::strong_count(&shared)
     unused := shared.clone()
     skipped := skip(fn() -> usize: unused.get().len())
