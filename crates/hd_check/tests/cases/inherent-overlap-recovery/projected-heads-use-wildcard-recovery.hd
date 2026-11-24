@@ -1,0 +1,17 @@
+# @dump: diagnostics
+# @build: std
+# Projected targets are invalid, but their name conflicts still recover.
+trait Source:
+    type Item
+
+impl[T < Source] (T::Item):
+    fn marker(self) -> i32:
+        +1
+
+impl i32:
+    fn marker(self) -> i32:
+        +2
+
+impl[U < Source] (U::Item):
+    fn marker(self) -> i32:
+        +3
