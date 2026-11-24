@@ -65,7 +65,8 @@ jobs:
         run: node scripts/coverage.ts --check ${{ inputs.attribute && '--attribute' || '' }}
 
       - name: Store the report
-        if: ${{ !cancelled() }}
+        # Keep completed sets even when a later set hits the job timeout.
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: core-coverage
