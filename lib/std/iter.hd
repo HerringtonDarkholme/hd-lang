@@ -1,5 +1,5 @@
 # std.iter: user-defined cursors and lazy, named adapter values.
-use std.function.FnMut
+use std.ops.FnMut
 use std.num.Num
 use std.cmp.{Ord, Ordering}
 

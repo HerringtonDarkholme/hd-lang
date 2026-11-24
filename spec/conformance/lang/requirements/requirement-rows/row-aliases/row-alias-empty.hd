@@ -1,6 +1,6 @@
 # test: a row alias may name the empty row
 
-use std.function.Fn
+use std.ops.Fn
 
 type NoRow = $()
 

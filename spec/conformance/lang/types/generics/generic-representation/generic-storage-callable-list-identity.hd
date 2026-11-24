@@ -1,6 +1,6 @@
 # test: a &mut list of callables passed through generic code is shared, so the callee's push reaches the caller's list
 # Spec 04 Generic Representation: types.generic.unobservable.
-use std.function.Fn
+use std.ops.Fn
 
 fn load_orders() -> i32:
     40

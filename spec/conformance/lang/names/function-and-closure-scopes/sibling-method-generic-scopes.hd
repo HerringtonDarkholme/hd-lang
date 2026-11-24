@@ -3,7 +3,7 @@
 # Spec 03 Function And Closure Scopes: names.generic.params.visible.
 # Spec 07 Varargs: fn.vararg.type.kinds.
 # Spec 11 Row Parameters: req.row.param.marked.owners.
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 trait Label:
     fn text(self) -> string

@@ -8,7 +8,7 @@
 # expect-stdout: same struct, two builds: true
 # expect-stdout: same struct, two templates: true
 # expect-stdout: same variant, two templates: true
-use std.function.Tuple
+use std.ops.Tuple
 use std.structure.{Structure, Field, Variant, Members, Key, Source}
 
 # Picks variant `pick`, records the id of the directory it is offered,

@@ -1,5 +1,5 @@
 # Spec 02 Row Type Arguments: grammar.type.row-argument, grammar.type.row-argument.dollar, grammar.type.row.empty, grammar.type.row.plus-keys.
-use std.function.Fn
+use std.ops.Fn
 
 trait Logger
 trait Clock

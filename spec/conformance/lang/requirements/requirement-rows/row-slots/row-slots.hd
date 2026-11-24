@@ -1,5 +1,5 @@
 # test: every row in a row slot is written after $, including one key and a row alias
-use std.function.Fn
+use std.ops.Fn
 
 trait Db
 

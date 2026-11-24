@@ -1,6 +1,6 @@
 # test: a closure for a lifetime-bounded Fn field may not store through a captured &mut reference
 # Spec 13 Lifetime Bounds: ref.generic.outlives.read-only.
-use std.function.Fn
+use std.ops.Fn
 
 struct Counter:
     n: i32

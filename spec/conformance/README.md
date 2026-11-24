@@ -94,7 +94,7 @@ every fixture. They are the items a numbered chapter specifies:
   literal `snapshot`, and the functions of the test registration calls
   `it_each`, `it_prop`, and `it_prop_with`;
 - the lang items and traits of `std.task`, `std.convert`, `std.error`,
-  `std.inspect`, `std.function`, `std.process`, `std.ops`, `std.num`,
+  `std.inspect`, `std.ops`, `std.process`, `std.ops`, `std.num`,
   `std.structure`, `std.annotation`, and `std.format`
   (`Display`, `Debug`, `DebugWriter`, and `debug`), and `Iterable` and
   `Iterator` from `std.iter`;

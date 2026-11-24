@@ -1,7 +1,7 @@
 # test: an impl whose where-clause bounds its parameter by Fn with a rest tuple applies to a value of a vararg function
 # expect-stdout: 6 6
 # Spec 07: fn.trait.function-values-read-only, fn.trait.bound-tuple, fn.vararg.type.
-use std.function.Fn
+use std.ops.Fn
 
 fn total(head: i32, tail...: List[i32]) -> i32:
     let sum = head

@@ -6,7 +6,7 @@
 # The dependent result `d` points into what the root holds: `Drop [$ps]`
 # and `Drop [$h]` follow `*d`, not the read, so a writer the loop never
 # calls leaves the root alive (#1700, `ref.box.root`).
-use std.function.FnMut
+use std.ops.FnMut
 
 struct P:
     name: string

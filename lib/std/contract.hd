@@ -1,5 +1,5 @@
 # std.contract.
-use std.function.Fn
+use std.ops.Fn
 use std.ops.{AutoClosing, Disposable}
 
 ## A postcondition guard registered by `ensure`.

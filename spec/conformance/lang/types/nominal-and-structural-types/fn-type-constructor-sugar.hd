@@ -1,6 +1,6 @@
 # test: fn(i32) -> i32 is exact sugar for Fn[(i32,), i32, $()], so each spelling passes where the other is expected
 # Spec 04 Function Type Identity: types.fn.constructor.
-use std.function.Fn
+use std.ops.Fn
 
 fn spelled(f: Fn[(i32,), i32, $()]) -> fn(i32) -> i32:
     f

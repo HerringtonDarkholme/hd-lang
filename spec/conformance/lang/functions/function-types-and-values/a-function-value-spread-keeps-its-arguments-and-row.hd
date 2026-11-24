@@ -1,7 +1,7 @@
 # test: a function-value spread keeps its arguments and row
 # expect-stdout: hello Ada 2
 # expect-stdout: 3
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 pub trait Label:
     fn prefix(self) -> string

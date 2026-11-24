@@ -1,5 +1,5 @@
 # test: templates a generic pair impl overlaps the tuple template
-use std.function.Tuple
+use std.ops.Tuple
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Encode:

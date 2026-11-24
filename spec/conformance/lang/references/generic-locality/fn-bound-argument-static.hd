@@ -1,6 +1,6 @@
 # test: a closure for a type parameter bounded by 'static captures no local reference
 # Spec 13 Lifetime Bounds: ref.generic.outlives.argument.
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

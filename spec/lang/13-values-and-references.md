@@ -63,7 +63,7 @@ fn each(f: fn(&Point) -> *mut Point, pending: *Point?) -> void: pass
 > kinds writes both implementations.
 
 ```text
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 trait Named:
     fn name(&self) -> string
@@ -1450,7 +1450,7 @@ fn writable(p: &'static mut Point) -> void:  # error: static-reference-mut
 A type parameter bounded by a declared lifetime stands for a type whose values may hold local references of that lifetime, so a struct may store a closure that captures one:
 
 ```hd
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

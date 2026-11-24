@@ -1,5 +1,5 @@
 # test: sealed traits a user impl of tuple is rejected
-use std.function.Tuple
+use std.ops.Tuple
 
 struct Handle: pass
 

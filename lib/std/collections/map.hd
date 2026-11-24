@@ -1,6 +1,6 @@
 use std.annotation.inline
 use std.collections.list.{before, list_reserve}
-use std.function.FnMut
+use std.ops.FnMut
 use std.iter.MapEntries
 
 # The std `Map` methods beside the language-tier `len`, `get`, and `remove`

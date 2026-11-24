@@ -2261,7 +2261,7 @@ lang/expressions/unary-and-binary-operators/identity/function-identity-against-a
 lang/traits/trait-implementations/implementation-targets/function-type-impl-target.hd	type	accept	lang/09-traits.md#r-trait.target.function-type.valid
 lang/traits/trait-implementations/implementation-targets/function-type-tuple-impl.hd	type	accept	lang/09-traits.md#implementation-targets
 lang/traits/trait-implementations/overlap/function-type-overlapping-impl.hd	type	reject:overlapping-impl	lang/09-traits.md#overlap
-lang/traits/trait-implementations/implementation-ownership/function-type-orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.std.function
+lang/traits/trait-implementations/implementation-ownership/function-type-orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.std.ops
 lang/traits/trait-implementations/implementation-targets/function-type-impl-method.hd	runtime	accept	lang/09-traits.md#r-trait.target.function-type.valid
 lang/traits/runtime-type-identity/a-type-with-a-row-argument-is-inspectable.hd	runtime	accept	lang/09-traits.md#r-trait.inspectable.declared
 lang/traits/runtime-type-identity/spelled-function-type-not-inspectable.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.inspectable.not.function

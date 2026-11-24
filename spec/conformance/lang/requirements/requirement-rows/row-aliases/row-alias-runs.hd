@@ -1,6 +1,6 @@
 # test: a row alias in headers, function types, and context types runs with its providers
 # expect: test
-use std.function.Fn
+use std.ops.Fn
 trait Db:
     fn name(self) -> string
 

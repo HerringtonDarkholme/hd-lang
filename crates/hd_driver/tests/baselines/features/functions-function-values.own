@@ -6,7 +6,7 @@
 # expected: a named function, a generic instance and a variant
 # constructor as values make no closure object and no count; `apply`
 # passes `s` borrowed; `variant_value` moves `s` into the payload.
-use std.function.Fn
+use std.ops.Fn
 
 enum Event:
     Named(name: string)

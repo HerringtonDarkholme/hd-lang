@@ -126,7 +126,7 @@ local references. Say so with a generic parameter bounded by a function
 trait and `'static`:
 
 ```hd
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Button[F < FnMut() -> void & 'static]:
     label: string

@@ -1,7 +1,7 @@
 # test: the empty row in a row slot is $()
 # expect: test
 # Spec 11 Row Slots: req.row.slot.empty.
-use std.function.Fn
+use std.ops.Fn
 
 type Job[$ R] = fn() -> string $ R
 

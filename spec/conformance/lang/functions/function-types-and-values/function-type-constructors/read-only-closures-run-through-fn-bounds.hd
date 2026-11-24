@@ -1,6 +1,6 @@
 # test: read-only closures run through Fn bounds while FnMut closures change their captures
 # expect: test
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn count_where[F < Fn(i32) -> bool](items: List[i32], keep: F) -> usize:
     let n: usize = 0
