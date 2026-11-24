@@ -3830,7 +3830,12 @@ impl Lower<'_, '_, '_> {
                 });
                 let best = best.flatten().map(str::to_owned);
                 let did = hd_diag::suggest::did_you_mean(best.as_deref());
-                let msg = format!("no type named `{first}`{}{did}", hint.text);
+                let numeric = if hint.text.is_empty() {
+                    crate::iface::numeric_type_hint(&first)
+                } else {
+                    ""
+                };
+                let msg = format!("no type named `{first}`{}{did}{numeric}", hint.text);
                 self.diags.error(Code::UnknownType, span, &msg);
                 hint.add_fix(&self.src, self.diags);
                 self.diags

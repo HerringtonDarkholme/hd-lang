@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: parentheses distinguish an optional function from an optional result
+fn get() -> void:
+    let callback: fn() -> i32? = .None

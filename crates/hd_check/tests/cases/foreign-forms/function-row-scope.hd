@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: parentheses keep the returned function row inside its type
+fn make() -> fn() -> i32 $ Console:
+    fn() -> i32 $ Console: +1

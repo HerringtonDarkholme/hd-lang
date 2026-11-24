@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+# expected: a continued expression needs parentheses
+fn f(x: bool, y: bool) -> bool:
+    x &&
+        y

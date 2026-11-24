@@ -1,0 +1,5 @@
+# @dump: diagnostics fixed
+# expected: Rust closures point to fn syntax
+fn apply(f: fn(i32) -> i32) -> i32: f(+1)
+fn value() -> i32:
+    apply(|x| x + +1)

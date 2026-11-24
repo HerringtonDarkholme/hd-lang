@@ -1,0 +1,7 @@
+# @dump: diagnostics fixed
+# expected: an impl defines associated types in its body
+trait Has:
+    type Item
+struct Value: pass
+impl Has[Item = i32] for Value:
+    pass

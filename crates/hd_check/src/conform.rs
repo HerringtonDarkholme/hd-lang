@@ -351,6 +351,17 @@ impl Ck<'_, '_> {
                 "`{}` differs from the trait's declaration: {why}",
                 self.cx.names.text(it.name)
             );
+            let function_rows_differ = match (pool.get(tsig.ret), pool.get(checked.ret)) {
+                (TyData::Fn { row: want, .. }, TyData::Fn { row: got, .. }) => want != got,
+                _ => false,
+            };
+            if (why == "the requirement row" && matches!(pool.get(sig.ret), TyData::Fn { .. }))
+                || (why == "the result type" && function_rows_differ)
+            {
+                msg.push_str(
+                    "; `(fn(...) -> T $ Row)` keeps a returned function's row inside its type",
+                );
+            }
             if trait_ == known.index_set && why == "a parameter type" {
                 let params = self.cx.lookup.item(trait_).map_or_else(Vec::new, |t| {
                     t.generics

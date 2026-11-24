@@ -1,0 +1,4 @@
+# @dump: diagnostics fixed
+# expected: direct hints preserve valid neighboring forms and unambiguous repairs
+struct Value[N < const i64]: pass
+fn make() -> Value[5isize]: Value {}

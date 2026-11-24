@@ -3942,7 +3942,12 @@ impl Ck<'_, '_> {
                 }
             }
             _ => {
-                let msg = format!("`.{name}` needs an expected enum type");
+                let mut msg = format!("`.{name}` needs an expected enum type");
+                if matches!(name.as_str(), "Some" | "None")
+                    && want.is_some_and(|t| matches!(pool.get(t), TyData::Fn { .. }))
+                {
+                    msg.push_str("; an optional function is `(fn(...) -> T)?`, while `fn(...) -> T?` returns an optional value");
+                }
                 self.err(Code::MissingContextualEnumType, v, &msg);
                 return Ok((Ref(NONE), Ty::POISON));
             }

@@ -716,10 +716,15 @@ impl Ck<'_, '_> {
                     None
                 };
                 let did = hd_diag::suggest::did_you_mean(best.as_deref());
+                let numeric = if code == Code::UnknownType && hint.text.is_empty() {
+                    hd_resolve::iface::numeric_type_hint(name)
+                } else {
+                    ""
+                };
                 self.err(
                     code,
                     n,
-                    &format!("no {what} named `{name}`{}{did}", hint.text),
+                    &format!("no {what} named `{name}`{}{did}{numeric}", hint.text),
                 );
                 hint.add_fix(&self.cx.src, self.diags);
                 let first = self.cx.src.first(n);

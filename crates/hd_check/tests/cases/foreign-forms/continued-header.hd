@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# expected: the condition is grouped and the colon stays on the header's final line
+fn read(x: bool, y: bool) -> i32:
+    if x && (
+        y
+    )
+    :
+        +1
+    else:
+        +2

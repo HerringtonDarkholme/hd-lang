@@ -672,7 +672,7 @@ fn literal(src: &Src<'_>, n: NodeRef<'_>, want: Option<Prim>, negated: bool) -> 
                     Some(p) => p,
                     None => {
                         return Err(nonconstant(&format!(
-                            "the suffix `{suffix}` calls a function, not a const operation"
+                            "the suffix `{suffix}` calls a function, not a const operation; use a built-in numeric conversion such as `i64(5)`"
                         )));
                     }
                 }

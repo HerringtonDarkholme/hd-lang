@@ -1,6 +1,6 @@
 use crate::is_nfc;
 use hd_base::{FileId, Span, Symbol, TokenIdx};
-use hd_diag::{Code, Diagnostic};
+use hd_diag::{Code, Diagnostic, DiagnosticFix, FixSafety};
 use unicode_ident::{is_xid_continue, is_xid_start};
 
 const NONE: u32 = u32::MAX;
@@ -809,11 +809,42 @@ impl<'s> Lexer<'s> {
             {
                 self.pos += char_len(self.source, self.pos);
             }
-            let message = format!(
-                "invalid integer literal '{}'",
-                &self.source[start..self.pos]
-            );
-            self.error(Code::SyntaxError, start, self.pos, message);
+            let literal = &self.source[start..self.pos];
+            // Radix literals do not call suffix functions. A recognized
+            // numeric suffix has an unambiguous conversion spelling.
+            let target = [
+                "i8", "u8", "i16", "u16", "i32", "u32", "i64", "u64", "usize", "f32", "f64",
+            ]
+            .into_iter()
+            .find(|target| literal.ends_with(target));
+            if let Some(target) = target {
+                let digits = literal[..literal.len() - target.len()].trim_end_matches('_');
+                let mut d = diagnostic(
+                    Code::SyntaxError,
+                    start,
+                    self.pos,
+                    format!(
+                        "a radix literal uses a conversion, not a suffix: write `{target}(value)` with any unary sign inside"
+                    ),
+                );
+                // The lexer cannot distinguish a unary sign from a binary
+                // operator. Leave signed cases to the hint rather than
+                // move a sign across a checked conversion.
+                if !matches!(
+                    self.tokens.kind.last(),
+                    Some(TokenKind::Plus | TokenKind::Minus)
+                ) {
+                    d.fixes.push(DiagnosticFix {
+                        message: "convert the radix literal with a call".into(),
+                        safety: FixSafety::Exact,
+                        edits: vec![(d.primary, format!("{target}({digits})"))],
+                    });
+                }
+                self.diagnostics.push(d);
+            } else {
+                let message = format!("invalid integer literal '{literal}'");
+                self.error(Code::SyntaxError, start, self.pos, message);
+            }
         }
         if bad_separator {
             let kind = if radix == 10 { "numeric" } else { "integer" };

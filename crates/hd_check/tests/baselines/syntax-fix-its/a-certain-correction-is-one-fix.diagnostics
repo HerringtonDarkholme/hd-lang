@@ -37,11 +37,11 @@ error: main.hd:34:41: syntax-error: a spread is written after its value: write '
 error: main.hd:36:1: syntax-error: documentation comments start with '##', not '///'
   fix (exact): start the documentation comment with `##`
     edit main.hd:36:1 856..859: "##"
-error: main.hd:39:39: syntax-error: write 'u8(number)' for the numeric conversion
+error: main.hd:39:39: syntax-error: write a numeric cast as `T(value)`; for a collection, annotate the binding
   fix (exact): write the numeric conversion as a call
     edit main.hd:39:32 931..931: "u8("
     edit main.hd:39:38 937..943: ")"
-error: main.hd:41:41: syntax-error: write 'u8(τιμή)' for the numeric conversion
+error: main.hd:41:41: syntax-error: write a numeric cast as `T(value)`; for a collection, annotate the binding
   fix (exact): write the numeric conversion as a call
     edit main.hd:41:36 985..985: "u8("
     edit main.hd:41:40 993..999: ")"

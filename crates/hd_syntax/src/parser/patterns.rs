@@ -89,7 +89,7 @@ impl Parser<'_> {
             Some(TokenKind::LParen) => self.tuple_pattern(let_pattern),
             _ => {
                 let marker = self.start();
-                self.expected("a pattern");
+                self.expected_name("a pattern");
                 if self.current().is_some_and(|kind| {
                     !kind.closes()
                         && !matches!(
