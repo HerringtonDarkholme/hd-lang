@@ -1,0 +1,42 @@
+# The arena and the slab in use: std/arena.md's bank example on the user
+# arena, and a slab of open connections keyed by slot.
+use pkg.bump.Bump
+use pkg.slab.Slab
+
+struct Account:
+    owner: string
+    balance: i64
+
+fn open(bank: &Bump, owner: string, balance: i64) -> &mut Account:
+    bank.alloc(Account { owner: owner, balance: balance })
+
+fn settle() -> i64:
+    bank := Bump::new()
+    alice := open(&bank, "alice", 100)
+    bob := open(&bank, "bob", 5)
+    alice.balance -= 30
+    bob.balance += 30
+    alice.balance + bob.balance
+
+# A connection holds a buffer that is not `Copy`, so `List` cannot hold it.
+struct Conn:
+    peer: string
+    pending: List[u8]
+
+impl !Copy for Conn
+
+fn serve() -> string:
+    let mut conns = Slab::[Conn]::new()
+    a := conns.insert(Conn { peer: "10.0.0.1", pending: [] })
+    b := conns.insert(Conn { peer: "10.0.0.2", pending: [1, 2] })
+    _ := conns.remove(a)
+    c := conns.insert(Conn { peer: "10.0.0.3", pending: [] })
+    peer := match conns.get(b):
+        .Some(conn) => conn.peer
+        .None => ""
+    conns.clear()
+    "$peer reused slot ${c == a}"
+
+pub fn main() -> void $ Console:
+    println("${settle()}")
+    println(serve())

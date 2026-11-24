@@ -1,0 +1,79 @@
+# lib/std/arena.hd rewritten as user code over the proposed `std.ptr`
+# (docs/future-work/UNCHECKED.md, "The worked example"). Lines marked
+# `unchecked:` are where the doc's copy wraps the call in an
+# `unchecked:` block; the wrapper is not parsed yet, so it is left out
+# here and the rest checks today. Rust's bumpalo is the model: values are
+# never dropped, and the chunks are freed with the arena.
+use pkg.ptr.{Buffer, Ptr, align_of, size_of}
+
+FIRST := usize(4096)
+LARGEST := usize(1048576)
+
+# The bump state, which `alloc` changes through a shared arena: the next
+# free byte, the end of the newest chunk, its size, and every chunk;
+# a chunk's room is freed when its last holder drops.
+struct State:
+    next: Ptr[u8]
+    end: usize
+    size: usize
+    chunks: List[*mut Buffer[u8]]
+
+## Values of any types that live together; each `alloc` result lives
+## while the arena is lent. Neither `Send` nor `Sync`: `state` is a `*mut`.
+pub struct Bump:
+    state: *mut State
+
+impl Bump:
+    ## An empty arena; the first `alloc` takes its first chunk.
+    pub fn new() -> Bump:
+        # `next` past `end` makes the first `alloc` refill, even for a
+        # value with no bytes.
+        next := Buffer::[u8]::new(0).at(0).with_address(1)
+        Bump { state: box(State { next: next, end: 0, size: 0, chunks: [] }) }
+
+    ## Moves `val` into the arena and lends it writable while the arena is
+    ## lent. Its drop never runs, as in bumpalo.
+    pub fn alloc[T < ?Copy](&self, val: T) -> &mut T:
+        at := self.bump(size_of::[T](), align_of::[T]()).cast::[T]()
+        # unchecked: the bytes are fresh, aligned for `T`, and no other
+        # result reaches them.
+        at.write(val)
+        at.as_mut()
+
+    ## Frees every chunk but the newest, which later values reuse.
+    pub fn reset(&mut self) -> void:
+        match self.state.chunks.pop():
+            .Some(newest) =>
+                self.state.chunks.clear()
+                self.state.next = newest.at(0)
+                self.state.chunks.push(newest)
+            .None => pass
+
+    # `size` free bytes at `align` from the newest chunk, or a new one.
+    fn bump(&self, size: usize, align: usize) -> Ptr[u8]:
+        next := self.state.next
+        at := round_up(next.address(), align)
+        if at + size <= self.state.end:
+            self.state.next = next.with_address(at + size)
+            return next.with_address(at)
+        self.refill(size, align)
+
+    # A new chunk with room for `size` bytes at `align`: the newest
+    # chunk's size doubled up to `LARGEST`, or one larger value's.
+    fn refill(&self, size: usize, align: usize) -> Ptr[u8]:
+        let mut bytes = if self.state.size == 0: FIRST else: self.state.size * 2
+        if bytes > LARGEST:
+            bytes = LARGEST
+        if bytes < size + align:
+            bytes = size + align
+        chunk := box(Buffer::[u8]::new(bytes))
+        start := chunk.at(0)
+        self.state.chunks.push(chunk)
+        self.state.size = bytes
+        self.state.end = start.address() + bytes
+        at := start.with_address(round_up(start.address(), align))
+        self.state.next = at.offset(size)
+        at
+
+fn round_up(n: usize, align: usize) -> usize:
+    (n + align - 1) & ~(align - 1)
