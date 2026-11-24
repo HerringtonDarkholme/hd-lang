@@ -15,11 +15,11 @@
 //! mark per word), so linear in the copied words. The tables are the call
 //! site's O(1) lookups.
 
-use hd_base::{HashMap, LocalId, Range32};
+use hd_base::{HashMap, LocalId};
 use hd_types::{Ty, TyList};
 
 use super::{
-    Body, CaptureMode, LoanSlot, Loc, NONE, Op, Providers, Ref, SuspRow, Tag, TypeWord,
+    Body, CaptureMode, LoanSlot, Loc, NONE, Op, Providers, Ref, Tag, TypeWord,
     inst_record_type_words, place, slots, u32_of,
 };
 
@@ -412,21 +412,6 @@ pub(crate) fn renumber(b: &mut Body, map: &mut Through<'_>) -> Result<(), String
             };
         }
     }
-    // Suspension scopes are mapped where they stand, so the body's
-    // records keep their places.
-    for mut row in std::mem::take(&mut b.susp) {
-        let Some(inst) = map.inst(row.inst).filter(|&n| n != NONE) else {
-            continue;
-        };
-        for p in row.scopes.start as usize..(row.scopes.start + row.scopes.len) as usize {
-            if done.first(p) {
-                b.extra[p] = word(b.extra[p]);
-            }
-        }
-        row.inst = inst;
-        row.hook_site = word(row.hook_site);
-        b.susp.push(row);
-    }
     SideRows::take(b).copy(b, map)
 }
 
@@ -453,13 +438,12 @@ pub(crate) fn local_words(b: &Body, i: usize, f: &mut dyn FnMut(u32)) {
 }
 
 /// Side rows that name instructions: `fallback`, `held_args`,
-/// `loan_slots` and `susp` (with its scope words).
+/// and `loan_slots`.
 #[derive(Clone, Default)]
 pub(crate) struct SideRows {
     pub fallback: Vec<[u32; 2]>,
     pub held: Vec<(u32, u32)>,
     pub loan_slots: Vec<LoanSlot>,
-    susp: Vec<(u32, Vec<u32>, u32)>,
 }
 
 impl SideRows {
@@ -476,24 +460,15 @@ impl SideRows {
         for row in &b.loan_slots {
             out[group(row.call)].loan_slots.push(row.clone());
         }
-        for row in &b.susp {
-            out[group(row.inst)].susp.push(Self::susp_row(b, row));
-        }
         out
     }
 
-    fn susp_row(b: &Body, row: &SuspRow) -> (u32, Vec<u32>, u32) {
-        let (s, len) = (row.scopes.start as usize, row.scopes.len as usize);
-        (row.inst, b.extra[s..s + len].to_vec(), row.hook_site)
-    }
-
-    /// `b`'s side rows but `susp`, taken out of it.
+    /// `b`'s side rows, taken out of it.
     pub(crate) fn take(b: &mut Body) -> Self {
         Self {
             fallback: std::mem::take(&mut b.fallback),
             held: std::mem::take(&mut b.held_args),
             loan_slots: std::mem::take(&mut b.loan_slots),
-            susp: Vec::new(),
         }
     }
 
@@ -501,7 +476,7 @@ impl SideRows {
     /// instruction `map` leaves out is dropped.
     ///
     /// # Errors
-    /// A local or suspension scope `map` has no copy for.
+    /// A local `map` has no copy for.
     pub(crate) fn copy(&self, out: &mut Body, map: &mut dyn Remap) -> Result<(), String> {
         let kept = |w: u32| map.inst(w).filter(|&n| n != NONE);
         for &[i, l] in &self.fallback {
@@ -520,28 +495,6 @@ impl SideRows {
             if row.remap_values(&kept).is_some() {
                 out.loan_slots.push(row);
             }
-        }
-        for (inst, scopes, hook) in &self.susp {
-            let Some(inst) = kept(*inst) else {
-                continue;
-            };
-            let mut words = Vec::with_capacity(scopes.len());
-            for &w in scopes {
-                words.push(kept(w).ok_or_else(|| bad("scope", w))?);
-            }
-            let at = out.push_record(&words);
-            out.susp.push(SuspRow {
-                inst,
-                scopes: Range32 {
-                    start: at,
-                    len: u32_of(words.len()),
-                },
-                hook_site: if *hook == NONE {
-                    NONE
-                } else {
-                    kept(*hook).unwrap_or(NONE)
-                },
-            });
         }
         Ok(())
     }

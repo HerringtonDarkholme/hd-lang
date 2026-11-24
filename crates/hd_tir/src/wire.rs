@@ -20,7 +20,7 @@ use hd_intern::{PathTable, ShardedInterner};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, Ty, TyList};
 
-use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Phase, Storage, SuspRow, Tag, place};
+use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Phase, Storage, Tag, place};
 
 const KINDS: [BodyKind; 7] = [
     BodyKind::Fn,
@@ -57,8 +57,6 @@ enum Holder {
     Extra(u32),
     /// A sub-body's parameter record (`Body::sub_params`).
     SubParams(usize),
-    /// A suspension row's scope list (`SuspRow::scopes`).
-    Susp(usize),
     /// A stable list's place word (`Body::stable_lists`).
     StableList(usize),
 }
@@ -104,16 +102,6 @@ fn references(b: &Body, f: &mut dyn FnMut(Reach)) -> StageResult<()> {
                 at: Holder::SubParams(s),
                 start: r.start,
                 end: bounded(b, payload, r.len)?,
-            });
-        }
-    }
-    for (s, row) in b.susp.iter().enumerate() {
-        // A range of scope instructions, with no length word.
-        if row.scopes.len > 0 {
-            f(Reach::Span {
-                at: Holder::Susp(s),
-                start: row.scopes.start,
-                end: bounded(b, row.scopes.start, row.scopes.len)?,
             });
         }
     }
@@ -394,7 +382,6 @@ fn compact(b: &Body) -> StageResult<std::borrow::Cow<'_, Body>> {
             Holder::Data(i, k) => out.data[i][k] = to,
             Holder::Extra(at) => out.extra[moved(at) as usize] = to,
             Holder::SubParams(s) => out.sub_params[s].start = to,
-            Holder::Susp(s) => out.susp[s].scopes.start = to,
             Holder::StableList(r) => out.stable_lists[r][1] = to,
         }
     }
@@ -551,8 +538,7 @@ fn encode(
 /// Whether `b` holds the ownership passes' output, which only an owned
 /// body's wire form carries: a checker's body encodes as it always has.
 fn owned(b: &Body) -> bool {
-    !(b.susp.is_empty()
-        && b.exit_drops.is_empty()
+    !(b.exit_drops.is_empty()
         && b.storage.is_empty()
         && b.cancel.is_empty()
         && b.suites.is_empty()
@@ -566,7 +552,7 @@ fn owned(b: &Body) -> bool {
 }
 
 /// The owned section, after the locations: the passes' columns
-/// (`Body::susp` to `Body::inlined_capture_origins`), each a flat `u32`
+/// (`Body::exit_drops` to `Body::inlined_capture_origins`), each a flat `u32`
 /// column of its rows; `inlined` has its callees as table rows. Outside
 /// the hashed prefix: a cache of owned bodies keys one by its checked
 /// body, never by this encoding's hash.
@@ -580,14 +566,6 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
                 .into_iter(),
         );
     };
-    u32s(
-        w,
-        b.susp
-            .iter()
-            .flat_map(|s| [s.inst, s.scopes.start, s.scopes.len, s.hook_site])
-            .collect::<Vec<_>>()
-            .into_iter(),
-    );
     u32s(
         w,
         b.exit_drops
@@ -659,14 +637,6 @@ fn write_owned(w: &mut Writer, b: &Body, inlined: &[[u32; 4]]) {
 /// malformed row.
 fn read_owned(r: &mut Reader<'_>, b: &mut Body, t: &Tables) -> Option<()> {
     let pairs = |v: Vec<u32>| v.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-    b.susp = col(r)
-        .chunks_exact(4)
-        .map(|c| SuspRow {
-            inst: c[0],
-            scopes: Range32::new(c[1], c[2]),
-            hook_site: c[3],
-        })
-        .collect();
     b.exit_drops = col(r)
         .chunks_exact(2)
         .map(|c| (SubId::from_raw(c[0]), LocalId::from_raw(c[1])))
@@ -1015,8 +985,8 @@ mod tests {
     /// such section, so its bytes and hash do not change.
     #[test]
     fn an_owned_body_round_trips_its_pass_columns_into_a_fresh_run() {
-        use crate::ir::{Storage, SuspRow};
-        use hd_base::{LocalId, Range32, SubId};
+        use crate::ir::Storage;
+        use hd_base::{LocalId, SubId};
         let (pool, paths, syms) = (
             InternPool::new(),
             PathTable::new(),
@@ -1033,11 +1003,6 @@ mod tests {
         let root = b.close_block(blk, None, Ty::NEVER, n);
         let mut body = b.finish(root, &[]).expect("verifies");
         let checked = write_body(&body, &pool, &paths, &syms).expect("wire");
-        body.susp = vec![SuspRow {
-            inst: 1,
-            scopes: Range32::new(0, 0),
-            hook_site: crate::ir::NONE,
-        }];
         body.exit_drops = vec![(SubId::from_raw(0), LocalId::from_raw(0))];
         body.storage = vec![(SubId::from_raw(0), LocalId::from_raw(0), Storage::Static)];
         body.cancel = vec![(1, 2)];
@@ -1133,25 +1098,18 @@ mod tests {
                     }
                 }
             }
-            // A suspension row's scope range and a root with a parameter
-            // record point into `extra` too.
+            // A root with a parameter record points into `extra` too.
             let list = u32::try_from(body.extra.len()).expect("extra");
-            body.extra.extend([5, 1, 0]);
-            body.susp = vec![crate::ir::SuspRow {
-                inst: 0,
-                scopes: hd_base::Range32::new(list, 1),
-                hook_site: crate::ir::NONE,
-            }];
-            body.sub_params[0] = hd_base::Range32::new(list + 1, 1);
+            body.extra.extend([1, 0]);
+            body.sub_params[0] = hd_base::Range32::new(list, 1);
             body.extra.splice(0..0, [3, 0, dead, 0]);
             for r in &mut body.sub_params {
                 r.start += shift;
             }
-            body.susp[0].scopes.start += shift;
             // A nested range is authoritative even when its prefix names
             // more words. Empty nested ranges may have unrelated or stale
             // offsets, just like a copied body's default root.
-            let child = list + 3 + shift;
+            let child = list + 2 + shift;
             body.extra.extend([7, 0]);
             for range in [
                 hd_base::Range32::new(child, 1),
@@ -1169,7 +1127,6 @@ mod tests {
             let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
             let back = read_body(&bytes, &pool, &paths, &syms).expect("read");
             assert_eq!(back.extra.len() + 4, body.extra.len());
-            assert_eq!(back.extra[back.susp[0].scopes.start as usize], 5);
             assert_eq!(back.sub_param_locals(0), &[0]);
             assert_eq!(back.sub_param_locals(1), &[0]);
             for sub in [2, 3] {

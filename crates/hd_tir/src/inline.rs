@@ -164,7 +164,6 @@ pub fn copyable(c: &Body) -> bool {
     matches!(c.kind, BodyKind::Fn | BodyKind::Default)
         && n >= 1
         && c.sub_root == [u32_of(n - 1)]
-        && c.susp.is_empty()
         // Only eliminated shared-cell facts and instantiations' captures
         // remain, not a callee environment.
         && c.cap_local.len() == c.inlined_shared.len() + held

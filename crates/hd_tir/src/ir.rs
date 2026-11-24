@@ -1020,16 +1020,6 @@ pub mod return_word {
     pub const CANCELLED: u32 = 2;
 }
 
-/// A suspension point's side record (16 bytes).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(C)]
-pub struct SuspRow {
-    pub inst: u32,
-    pub scopes: Range32,
-    pub hook_site: u32,
-}
-const _: () = assert!(core::mem::size_of::<SuspRow>() == 16);
-
 /// Which side of collection a body is on (`docs/future-work/INSTANCE_TIR.md` at 421bcec83,
 /// "Phase mark"): the checker's generic form, or one instance's form, whose
 /// types are concrete and whose trait calls are chosen (invariant 24,
@@ -1126,7 +1116,6 @@ pub struct Body {
     pub label_inst: Vec<u32>,
     pub cap_local: Vec<LocalId>,
     pub cap_mode: Vec<CaptureMode>,
-    pub susp: Vec<SuspRow>,
     /// The body's constants: type and bits (`Ref::konst(i)` is row i).
     /// A `string` constant's bits index `strings`.
     pub consts: Vec<(Ty, u64)>,
@@ -1246,7 +1235,6 @@ impl Body {
             label_inst: vec![],
             cap_local: vec![],
             cap_mode: vec![],
-            susp: vec![],
             consts: vec![],
             strings: vec![],
             label: "".into(),
@@ -2065,7 +2053,6 @@ pub struct TirCheckpoint {
     pub captures: u32,
     pub subs: u32,
     pub labels: u32,
-    pub susp: u32,
     /// The constant, string and closed-capture columns: a trial's
     /// literals and closures leave no row behind.
     pub consts: u32,
@@ -2625,7 +2612,6 @@ impl TirSink for TirBuilder {
             captures: n(self.open_caps.len()),
             subs: n(self.body.sub_root.len()),
             labels: n(self.body.label_inst.len()),
-            susp: n(self.body.susp.len()),
             consts: n(self.body.consts.len()),
             strings: n(self.body.strings.len()),
             cap_local: n(self.body.cap_local.len()),
@@ -2647,7 +2633,6 @@ impl TirSink for TirBuilder {
         b.sub_parent.truncate(c.subs as usize);
         b.sub_flags.truncate(c.subs as usize);
         b.label_inst.truncate(c.labels as usize);
-        b.susp.truncate(c.susp as usize);
         b.consts.truncate(c.consts as usize);
         b.strings.truncate(c.strings as usize);
         b.cap_local.truncate(c.cap_local as usize);
@@ -2690,7 +2675,7 @@ impl VerifyError {
 /// and 23 holds after ownership ([`verify_owned`]) where 22 holds before;
 /// 24 holds on an instance body, which [`verify_owned`] checks too.
 pub const CHECKED_INVARIANTS: &[u8] = &[
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23, 24,
+    1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23, 24,
 ];
 
 /// Verifies a checked body, including record rules that need no external facts.
@@ -2894,7 +2879,7 @@ pub fn cleanup_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
 /// its invariant.
 #[must_use]
 pub fn verify(b: &Body) -> Vec<VerifyError> {
-    let mut errs = verify_structure(b, &Topology::new(b));
+    let mut errs = verify_structure(b);
     if b.phase != Phase::Lowered {
         no_ownership(b, &mut errs);
     }
@@ -2968,7 +2953,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
 
 /// The invariants of every body, before or after the ownership passes:
 /// all of [`CHECKED_INVARIANTS`] but 22 and 23.
-pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
+pub(crate) fn verify_structure(b: &Body) -> Vec<VerifyError> {
     let mut errs = Vec::new();
     let n = u32::try_from(b.len()).expect("insts");
     let mut owner = vec![NONE; b.len()];
@@ -3246,7 +3231,6 @@ pub(crate) fn verify_structure(b: &Body, topo: &Topology) -> Vec<VerifyError> {
         }
     }
     types_are_global(b, &mut errs);
-    suspension_scopes(b, topo, &mut errs);
     constant_rows(b, &mut errs);
     errs
 }
@@ -3368,48 +3352,6 @@ fn types_are_global(b: &Body, errs: &mut Vec<VerifyError>) {
     }
 }
 
-/// Invariant 7: a suspension row names a suspension point, and its scope
-/// list (words of `extra`) is the `Scope`s around that point, innermost
-/// first. A suspension point with no row is not checked: no body writes
-/// rows yet.
-fn suspension_scopes(b: &Body, topo: &Topology, errs: &mut Vec<VerifyError>) {
-    let n = b.len();
-    let mut scope_of = vec![NONE; n];
-    for (i, &tag) in b.tags.iter().enumerate() {
-        if tag == Tag::Scope
-            && let Some(x) = scope_of.get_mut(b.data[i][0] as usize)
-        {
-            *x = u32::try_from(i).expect("i");
-        }
-    }
-    for row in &b.susp {
-        let mut err = |what: &str| {
-            errs.push(VerifyError {
-                invariant: 7,
-                inst: row.inst,
-                what: what.into(),
-            });
-        };
-        if (row.inst as usize) >= n || !is_suspension(b.tags[row.inst as usize]) {
-            err("suspension row names no suspension point");
-            continue;
-        }
-        let want: Vec<u32> = topo
-            .enclosing(row.inst)
-            .map(|blk| scope_of[blk as usize])
-            .filter(|&s| s != NONE)
-            .collect();
-        let (start, len) = (row.scopes.start as usize, row.scopes.len as usize);
-        match b.extra.get(start..start + len) {
-            None => err("suspension row's scope list is out of range"),
-            Some(got) if got != want.as_slice() => {
-                err("suspension row does not list exactly the enclosing scopes");
-            }
-            Some(_) => {}
-        }
-    }
-}
-
 /// Invariant 12, its first half: a constant `Ref` names a row of `consts`.
 /// The row's type against its position is invariant 4's.
 fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
@@ -3483,13 +3425,6 @@ pub fn print(b: &Body) -> String {
     let _ = writeln!(o, "caps {}", words(&caps));
     let modes: Vec<u32> = b.cap_mode.iter().map(|m| *m as u32).collect();
     let _ = writeln!(o, "modes {}", words(&modes));
-    for s in &b.susp {
-        let _ = writeln!(
-            o,
-            "susp {} {} {} {}",
-            s.inst, s.scopes.start, s.scopes.len, s.hook_site
-        );
-    }
     let _ = writeln!(o, "extra {}", words(&b.extra));
     for st in &b.strings {
         let _ = write!(o, "str ");
@@ -3665,17 +3600,6 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     })
                     .collect::<Result<_, _>>()?;
             }
-            "susp" => {
-                let v = nums(1)?;
-                if v.len() != 4 {
-                    return Err(e("susp needs 4 fields".into()));
-                }
-                b.susp.push(SuspRow {
-                    inst: v[0],
-                    scopes: Range32::new(v[1], v[2]),
-                    hook_site: v[3],
-                });
-            }
             "str" | "label" => {
                 let hex = f.get(1).copied().unwrap_or(".").trim_end_matches('.');
                 let bytes: Option<Vec<u8>> = (0..hex.len() / 2)
@@ -3798,10 +3722,10 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        BodyKind, Callee, CaptureMode, ChoiceKind, Coercion, NONE, Providers, SuspRow, Tag,
-        TirBuilder, TirSink, VerifyCx, parse, print, verify, verify_in,
+        BodyKind, Callee, CaptureMode, ChoiceKind, Coercion, NONE, Providers, Tag, TirBuilder,
+        TirSink, VerifyCx, parse, print, verify, verify_in,
     };
-    use hd_base::{DefId, LocalId, NodeIdx, Range32, SubId, Symbol};
+    use hd_base::{DefId, LocalId, NodeIdx, SubId, Symbol};
     use hd_types::{Ty, TyList};
 
     fn sample() -> super::Body {
@@ -3888,40 +3812,6 @@ mod tests {
         let at = b.data[call][0] as usize;
         b.extra[at + 3] = local;
         assert_eq!(invariants(&b), [3]);
-    }
-
-    #[test]
-    fn verifier_checks_suspension_scopes() {
-        let mut b = TirBuilder::new(DefId::from_raw(2), BodyKind::Fn);
-        let n = NodeIdx::from_raw(1);
-        let blk = b.open_block();
-        let sm = b.open_scope();
-        let inner = b.open_block();
-        let callee = Callee::Item {
-            def: DefId::from_raw(9),
-            targs: TyList::EMPTY,
-        };
-        let aw = b.call(&callee, &[], Providers::None, Ty::VOID, n);
-        b.body_mut().tags[aw.0 as usize] = Tag::Await;
-        let suite = b.open_block();
-        let suite = b.close_block(suite, None, Ty::VOID, n);
-        b.defer(suite, n);
-        let body = b.close_block(inner, None, Ty::VOID, n);
-        let scope = b.close_scope(sm, body, Ty::VOID, n);
-        let root = b.close_block(blk, None, Ty::VOID, n);
-        let list = b.words_record(&[scope.0]);
-        b.body_mut().susp.push(SuspRow {
-            inst: aw.0,
-            scopes: Range32::new(list + 1, 1),
-            hook_site: super::NONE,
-        });
-        let good = b.finish(root, &[]).expect("the row lists its scope");
-        let mut bad = good.clone();
-        bad.susp[0].scopes = Range32::new(0, 0);
-        assert_eq!(invariants(&bad), [7]);
-        let mut bad = good;
-        bad.susp[0].inst = root.0;
-        assert_eq!(invariants(&bad), [7]);
     }
 
     /// The checker's facts for the context checks: enum type 77 has three
