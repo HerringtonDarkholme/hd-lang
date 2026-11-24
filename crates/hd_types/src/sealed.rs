@@ -55,6 +55,11 @@ pub struct SealedTraits {
     /// `Remote` (`module.remote.std`): a counted trait value of a trait
     /// that extends it is `Wire` (`module.marker.table.remote`).
     pub remote: DefId,
+    /// `std.rt.memory.Ptr`, the address of a value of its type argument
+    /// (`module.rt.ptr.type`): a marker counts that value as held
+    /// (`module.marker.address`), so a type that keeps values behind a
+    /// `Ptr` field, `std.rt.memory.Buffer` among them, holds them too.
+    pub ptr: DefId,
 }
 
 impl Default for SealedTraits {
@@ -79,6 +84,7 @@ impl Default for SealedTraits {
             sync: DefId::NONE,
             wire: DefId::NONE,
             remote: DefId::NONE,
+            ptr: DefId::NONE,
         }
     }
 }
@@ -756,6 +762,15 @@ fn copy_parts(
                 CopyDecl::Copies => {}
                 CopyDecl::Members(ms) | CopyDecl::NotCopy(ms) => {
                     let items = pool.list_items(args);
+                    // A `Ptr[T]` reaches a `T` through an address its field
+                    // does not name, so a marker walks `T` as its part
+                    // (`module.marker.address`), as rustc's auto-trait walk
+                    // takes a raw pointer's pointee as its constituent
+                    // (`instantiate_constituent_tys_for_auto_trait`). `Copy`
+                    // copies the address alone (`module.rt.ptr.copy`).
+                    if walk != Walk::Copy && def == decls.sealed().ptr {
+                        stack.extend(items.iter().rev().map(|&a| Step::Enter(a)));
+                    }
                     stack.extend(ms.iter().rev().map(|&m| {
                         Step::Enter(pool.subst(m, &|p: ParamRef| {
                             (p.owner == def)

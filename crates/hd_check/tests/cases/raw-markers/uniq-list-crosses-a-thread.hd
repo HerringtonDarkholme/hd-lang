@@ -2,7 +2,6 @@
 # A `UniqList[*mut i32]` moved into `background!` while `main` keeps the
 # same box: both threads would count it with plain adds
 # (`module.marker.send.counts`). `List[*mut i32]` is refused the same way.
-# expected: unsatisfied-trait-bound at the `background!` call, as for `List[*mut i32]` (#2345)
 use std.collections.UniqList
 use std.thread.background
 

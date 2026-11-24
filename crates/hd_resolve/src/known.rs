@@ -369,6 +369,7 @@ impl KnownItems {
             sync: self.sync,
             wire: self.wire,
             remote: self.remote,
+            ptr: self.ptr,
         }
     }
 
