@@ -1,0 +1,19 @@
+# @dump: diagnostics
+# A struct has a marker when every field does, so one that holds a
+# `UniqList[*mut i32]` is neither `Send` nor `Sync`.
+# expected: unsatisfied-trait-bound on both calls (#2345)
+use std.collections.UniqList
+use std.marker.{Send, Sync}
+
+struct Holder:
+    items: UniqList[*mut i32]
+
+fn need_send[T < ?Copy & Send]() -> void:
+    pass
+
+fn need_sync[T < ?Copy & Sync]() -> void:
+    pass
+
+fn held() -> void:
+    need_send::[Holder]()
+    need_sync::[Holder]()

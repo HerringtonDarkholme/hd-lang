@@ -1,0 +1,26 @@
+# @dump: diagnostics
+# @build: std
+# `Buffer[T]` and `Ptr[T]` hold values of `T` through an address, so a
+# marker counts those values as held, as Rust's auto-trait walk takes
+# `PhantomData<T>`'s `T` (`module.marker.structural`).
+# expected: unsatisfied-trait-bound on the four calls in `held`; `plain` is accepted (#2345)
+use std.marker.{Send, Sync}
+use std.rt.memory.{Buffer, Ptr}
+
+fn need_send[T < ?Copy & Send]() -> void:
+    pass
+
+fn need_sync[T < ?Copy & Sync]() -> void:
+    pass
+
+fn held() -> void:
+    need_send::[Buffer[*mut i32]]()
+    need_sync::[Buffer[string]]()
+    need_send::[Ptr[*mut i32]]()
+    need_sync::[Ptr[string]]()
+
+fn plain() -> void:
+    need_send::[Buffer[i32]]()
+    need_sync::[Buffer[u8]]()
+    need_send::[Ptr[string]]()
+    need_sync::[Ptr[u64]]()

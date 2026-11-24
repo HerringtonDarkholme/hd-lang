@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# A `UniqList[string]` read from two threads at once would change its
+# strings' counts (`module.marker.sync.meaning`).
+# expected: unsatisfied-trait-bound on both calls, as for `List[string]` (#2345)
+use std.collections.UniqList
+use std.marker.Sync
+
+fn need_sync[T < ?Copy & Sync]() -> void:
+    pass
+
+fn shared() -> void:
+    need_sync::[UniqList[string]]()
+    need_sync::[UniqList[*mut i32]]()

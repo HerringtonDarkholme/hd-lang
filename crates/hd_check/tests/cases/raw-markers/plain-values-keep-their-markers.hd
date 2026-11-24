@@ -1,0 +1,21 @@
+# @dump: diagnostics
+# A `UniqList`, `UniqMap` or holder of plain values keeps `Send` and
+# `Sync`, and a `UniqList[string]` stays `Send`, as `List[string]` is.
+use std.collections.{UniqList, UniqMap}
+use std.marker.{Send, Sync}
+
+struct Holder:
+    items: UniqList[i32]
+
+fn need_both[T < ?Copy & Send & Sync]() -> void:
+    pass
+
+fn need_send[T < ?Copy & Send]() -> void:
+    pass
+
+fn plain() -> void:
+    need_both::[UniqList[i32]]()
+    need_both::[UniqMap[i32, f64]]()
+    need_both::[Holder]()
+    need_send::[UniqList[string]]()
+    need_send::[UniqMap[string, string]]()
