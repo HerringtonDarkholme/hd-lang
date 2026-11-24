@@ -12,11 +12,14 @@ use std.num.{Float, Integer}
 use std.ops.Range
 use std.random.{Random, SeededRandom}
 use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
-use std.rt.bytes.{panic_with}
+use std.rt.{panic_with}
 # `std.testing.arbitrary` stays a child module: after `use std.testing` the
 # path `testing.arbitrary.x` is an error
-# (spec/lang/10-modules.md#r-module.path.no-std-child-import). These re-exports
-# are the way to its items.
+# (spec/lang/10-modules.md#r-module.path.no-std-child-import). Re-exporting
+# the module lets code write `use std.testing.arbitrary`
+# (spec/std/testing.md#r-std-testing.arbitrary.with.module-typed-struct.generic,
+# spec/lang/10-modules.md#r-module.use.facade.module).
+pub use std.testing.{arbitrary}
 pub use std.testing.arbitrary.{With, with}
 use std.process.{Command, Process, ProcessOutput, Termination}
 use std.time.Duration

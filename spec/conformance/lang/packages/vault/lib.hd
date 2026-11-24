@@ -1,0 +1,5 @@
+# Re-exports `open`; `sealed` stays private to the package (module.vis.parent).
+pub use pkg.{open}
+
+pub fn root_value() -> i32:
+    1

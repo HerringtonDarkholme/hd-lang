@@ -4,3 +4,5 @@ pub fn main() -> void $ Console:
     println(1)
 # @file: a/x.hd
 use std.nothing.{X}
+# @file: a/mod.hd
+pub use pkg.a.{x}

@@ -5,9 +5,9 @@
 # `alloc::sync`; every Wasm atomic is sequentially consistent, so the
 # orderings Rust names (`Relaxed`, `Release`, `Acquire`) are all one here.
 use std.marker.{Send, Sync}
-use std.rt.Drop
-use std.rt.alloc.{alloc, free_block}
-use std.rt.memory.{
+use std.rt.{Drop}
+use std.rt.{alloc, free_block}
+use std.rt.{
     Ptr,
     atomic_add_u32,
     atomic_compare_exchange_u32,

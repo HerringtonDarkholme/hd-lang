@@ -1699,7 +1699,7 @@ mod stamp_tests {
             for i in 0..n {
                 std::fs::create_dir_all(root.join(format!("src/f{i}"))).expect("folder");
                 std::fs::write(
-                    root.join(format!("src/f{i}/m.hd")),
+                    root.join(format!("src/f{i}/mod.hd")),
                     format!("## Doc.\npub fn value() -> i32: {i}\n"),
                 )
                 .expect("module");
@@ -1718,7 +1718,7 @@ mod stamp_tests {
             assert!(plan <= files, "{plan} plan reads, {n} modules");
             assert_eq!(reads(&root, &store), (0, 0), "warm, {n} modules");
             std::fs::write(
-                root.join("src/f1/m.hd"),
+                root.join("src/f1/mod.hd"),
                 include_str!(
                     "tests/programs/disk/a_settled_package_is_read_only_where_it_changed_3.hd"
                 ),

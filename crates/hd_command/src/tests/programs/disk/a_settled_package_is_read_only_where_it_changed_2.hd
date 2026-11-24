@@ -1,4 +1,4 @@
-use pkg.f0.m.{value}
+use pkg.f0.{value}
 use std.testing.{assert_equal}
 
 it("value"):

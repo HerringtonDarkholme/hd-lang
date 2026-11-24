@@ -1,0 +1,5 @@
+# A shared task module is private to its folder (module.vis.parent): with no
+# tasks/shared/mod.hd to re-export it, a task may not use it.
+run: hd run build
+exit: 101
+stderr: error: tasks/build.hd:1:1: private-module: `self.shared.zip` is a child module of `self.shared`, which does not re-export it, so only `self.shared` and the modules below it may use it; `self.shared` is a directory without `mod.hd`: add one with `pub use self.{zip}`

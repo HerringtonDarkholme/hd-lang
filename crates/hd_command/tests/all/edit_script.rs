@@ -74,7 +74,16 @@ fn package(root: &Path) {
         ),
         ("src/shop/items.hd", ITEMS),
         ("src/shop/labels.hd", LABELS),
+        // A folder's modules are private to it (`module.vis.parent`).
+        (
+            "src/shop/mod.hd",
+            include_str!("programs/facades/shop_items_labels.hd"),
+        ),
         ("src/report/summary.hd", SUMMARY),
+        (
+            "src/report/mod.hd",
+            include_str!("programs/facades/report_summary.hd"),
+        ),
         (
             "tests/smoke.hd",
             include_str!("programs/edit_script/package_2.hd"),

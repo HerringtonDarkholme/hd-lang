@@ -1,5 +1,5 @@
 use std.annotation.inline
-pub use std.rt.bytes.{collection_capacity_sum}
+pub use std.rt.{collection_capacity_sum}
 use std.collections.list.list_reserve
 use std.collections.sort.{DriftOrder, drift_sort}
 use std.format.DebugWriter
@@ -12,7 +12,7 @@ use std.ops.IndexMut
 use std.ops.IndexSet
 use std.ops.Range
 use std.rt.{Drop, unique}
-use std.rt.bytes.{
+use std.rt.{
     ByteBuffer,
     TextSink,
     bytes_len,
@@ -21,7 +21,7 @@ use std.rt.bytes.{
     panic_with,
     string_from_buffer,
 }
-use std.rt.memory.{Buffer, Ptr, copy_bytes, load_u8, new_string, size_of, string_bytes}
+use std.rt.{Buffer, Ptr, copy_bytes, load_u8, new_string, size_of, string_bytes}
 
 ## A uniquely owned growable list that may hold non-copyable elements.
 ## See [std-collections.uniq-list.type](../../../spec/std/collections.md#r-std-collections.uniq-list.type).

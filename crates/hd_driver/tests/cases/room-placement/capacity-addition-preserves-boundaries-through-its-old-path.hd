@@ -1,8 +1,11 @@
 # @dump: stdout wat
 # @build: std | std,checked | std,checked,release
 # @helpers: std/rt.bytes/collection_capacity_sum
-# The old helper path is a re-export and addition accepts both boundary orders.
-use std.collections.uniq_list.collection_capacity_sum
+# Addition accepts both boundary orders. The old helper path,
+# std.collections.uniq_list, re-exports it for std.collections' own modules
+# (uniq_map); outside that subtree it is private (module.vis.parent), so this
+# case names the helper through std.rt.
+use std.rt.{collection_capacity_sum}
 
 pub fn main() -> void $ Console:
     println(collection_capacity_sum(0, ~usize(0)))

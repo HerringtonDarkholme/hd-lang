@@ -1,0 +1,7 @@
+# test: a module outside a nested module's parent may not use it, and the use still binds its names
+# Spec 10 Module Privacy: module.vis.parent.
+# fixture-package-tree: nested-privacy/src/report.hd
+use pkg.shop.ledger.{balance} # diagnostic: private-module
+
+pub fn report() -> i32:
+    balance()

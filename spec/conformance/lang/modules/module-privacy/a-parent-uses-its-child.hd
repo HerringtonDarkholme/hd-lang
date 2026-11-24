@@ -1,0 +1,7 @@
+# test: a parent module may use its own child modules
+# Spec 10 Module Privacy: module.vis.parent.
+# fixture-package-tree: nested-privacy/src/shop/orders/mod.hd
+use pkg.shop.orders.item.{item}
+
+pub fn first() -> i32:
+    item()

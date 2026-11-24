@@ -1,7 +1,7 @@
 use std.collections.list.list_reserve
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 use std.ops.Index
-use std.rt.bytes.panic_with
+use std.rt.{panic_with}
 
 # A read-only window on a run of a list's elements
 # (spec/std/collections.md#views). It holds a copy-on-write snapshot of the

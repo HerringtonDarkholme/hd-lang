@@ -1,0 +1,3 @@
+# test: std's nested modules follow the rule: std.collections does not re-export its child sort
+# Spec 10 Module Privacy: module.vis.parent.
+use std.collections.sort.{drift_sort} # diagnostic: private-module

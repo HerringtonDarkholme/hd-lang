@@ -10,7 +10,7 @@ use std.collections.UniqList
 use std.format.DebugWriter
 use std.serde.{Deserialize, Deserializer, ValueKind, member_name}
 use std.structure.{Facts, Member, VariantInfo}
-use std.rt.bytes.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
+use std.rt.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
 
 # A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
@@ -2813,7 +2813,7 @@ impl Debug for Regex:
         out.debug_struct("Regex").field("pattern", self.text).finish()
 
 tests:
-    use std.rt.bytes.char_from_scalar
+    use std.rt.{char_from_scalar}
     use std.testing.{assert, assert_equal}
 
     it("byte classes split at each range's ends and nowhere else"):

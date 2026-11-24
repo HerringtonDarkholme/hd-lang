@@ -62,3 +62,5 @@ pub fn scaled(x: i32) -> i32:
 
 pub fn half(x: i32) -> i32:
     (x / 2
+# @file: geo/mod.hd
+pub use pkg.geo.{shapes}

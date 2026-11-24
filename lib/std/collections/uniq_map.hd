@@ -4,11 +4,11 @@ use std.iter.FromIterator
 use std.ops.Index
 use std.ops.IndexMut
 use std.ops.IndexSet
-use std.rt.map_hash_seed
+use std.rt.{map_hash_seed}
 use std.rt.{Drop, unique}
-use std.rt.bytes.panic_with
-use std.rt.hash.hash_key
-use std.rt.memory.{Buffer, copy_bytes, fill, load_u32, load_u64, size_of, store_u8, store_u32}
+use std.rt.{panic_with}
+use std.rt.{hash_key}
+use std.rt.{Buffer, copy_bytes, fill, load_u32, load_u64, size_of, store_u8, store_u32}
 
 enum UniqMapSlot[K < Eq & Hash, V < ?Copy]:
     Deleted
