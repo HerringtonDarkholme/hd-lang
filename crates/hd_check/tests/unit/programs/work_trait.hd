@@ -1,0 +1,2 @@
+trait Work:
+    fn act() -> void
