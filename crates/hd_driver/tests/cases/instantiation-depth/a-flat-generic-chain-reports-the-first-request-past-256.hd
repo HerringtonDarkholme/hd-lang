@@ -1,0 +1,778 @@
+# @dump: stdout
+# @build: dev | checked
+# types.generic.instantiation-depth.error: 257 shallow generic requests
+# reach the implementation's chain limit, not its type-depth limit.
+# Generated as one ordinary call per step; every type argument stays i32.
+fn step000[T](value: T) -> T:
+    step001(value)
+
+fn step001[T](value: T) -> T:
+    step002(value)
+
+fn step002[T](value: T) -> T:
+    step003(value)
+
+fn step003[T](value: T) -> T:
+    step004(value)
+
+fn step004[T](value: T) -> T:
+    step005(value)
+
+fn step005[T](value: T) -> T:
+    step006(value)
+
+fn step006[T](value: T) -> T:
+    step007(value)
+
+fn step007[T](value: T) -> T:
+    step008(value)
+
+fn step008[T](value: T) -> T:
+    step009(value)
+
+fn step009[T](value: T) -> T:
+    step010(value)
+
+fn step010[T](value: T) -> T:
+    step011(value)
+
+fn step011[T](value: T) -> T:
+    step012(value)
+
+fn step012[T](value: T) -> T:
+    step013(value)
+
+fn step013[T](value: T) -> T:
+    step014(value)
+
+fn step014[T](value: T) -> T:
+    step015(value)
+
+fn step015[T](value: T) -> T:
+    step016(value)
+
+fn step016[T](value: T) -> T:
+    step017(value)
+
+fn step017[T](value: T) -> T:
+    step018(value)
+
+fn step018[T](value: T) -> T:
+    step019(value)
+
+fn step019[T](value: T) -> T:
+    step020(value)
+
+fn step020[T](value: T) -> T:
+    step021(value)
+
+fn step021[T](value: T) -> T:
+    step022(value)
+
+fn step022[T](value: T) -> T:
+    step023(value)
+
+fn step023[T](value: T) -> T:
+    step024(value)
+
+fn step024[T](value: T) -> T:
+    step025(value)
+
+fn step025[T](value: T) -> T:
+    step026(value)
+
+fn step026[T](value: T) -> T:
+    step027(value)
+
+fn step027[T](value: T) -> T:
+    step028(value)
+
+fn step028[T](value: T) -> T:
+    step029(value)
+
+fn step029[T](value: T) -> T:
+    step030(value)
+
+fn step030[T](value: T) -> T:
+    step031(value)
+
+fn step031[T](value: T) -> T:
+    step032(value)
+
+fn step032[T](value: T) -> T:
+    step033(value)
+
+fn step033[T](value: T) -> T:
+    step034(value)
+
+fn step034[T](value: T) -> T:
+    step035(value)
+
+fn step035[T](value: T) -> T:
+    step036(value)
+
+fn step036[T](value: T) -> T:
+    step037(value)
+
+fn step037[T](value: T) -> T:
+    step038(value)
+
+fn step038[T](value: T) -> T:
+    step039(value)
+
+fn step039[T](value: T) -> T:
+    step040(value)
+
+fn step040[T](value: T) -> T:
+    step041(value)
+
+fn step041[T](value: T) -> T:
+    step042(value)
+
+fn step042[T](value: T) -> T:
+    step043(value)
+
+fn step043[T](value: T) -> T:
+    step044(value)
+
+fn step044[T](value: T) -> T:
+    step045(value)
+
+fn step045[T](value: T) -> T:
+    step046(value)
+
+fn step046[T](value: T) -> T:
+    step047(value)
+
+fn step047[T](value: T) -> T:
+    step048(value)
+
+fn step048[T](value: T) -> T:
+    step049(value)
+
+fn step049[T](value: T) -> T:
+    step050(value)
+
+fn step050[T](value: T) -> T:
+    step051(value)
+
+fn step051[T](value: T) -> T:
+    step052(value)
+
+fn step052[T](value: T) -> T:
+    step053(value)
+
+fn step053[T](value: T) -> T:
+    step054(value)
+
+fn step054[T](value: T) -> T:
+    step055(value)
+
+fn step055[T](value: T) -> T:
+    step056(value)
+
+fn step056[T](value: T) -> T:
+    step057(value)
+
+fn step057[T](value: T) -> T:
+    step058(value)
+
+fn step058[T](value: T) -> T:
+    step059(value)
+
+fn step059[T](value: T) -> T:
+    step060(value)
+
+fn step060[T](value: T) -> T:
+    step061(value)
+
+fn step061[T](value: T) -> T:
+    step062(value)
+
+fn step062[T](value: T) -> T:
+    step063(value)
+
+fn step063[T](value: T) -> T:
+    step064(value)
+
+fn step064[T](value: T) -> T:
+    step065(value)
+
+fn step065[T](value: T) -> T:
+    step066(value)
+
+fn step066[T](value: T) -> T:
+    step067(value)
+
+fn step067[T](value: T) -> T:
+    step068(value)
+
+fn step068[T](value: T) -> T:
+    step069(value)
+
+fn step069[T](value: T) -> T:
+    step070(value)
+
+fn step070[T](value: T) -> T:
+    step071(value)
+
+fn step071[T](value: T) -> T:
+    step072(value)
+
+fn step072[T](value: T) -> T:
+    step073(value)
+
+fn step073[T](value: T) -> T:
+    step074(value)
+
+fn step074[T](value: T) -> T:
+    step075(value)
+
+fn step075[T](value: T) -> T:
+    step076(value)
+
+fn step076[T](value: T) -> T:
+    step077(value)
+
+fn step077[T](value: T) -> T:
+    step078(value)
+
+fn step078[T](value: T) -> T:
+    step079(value)
+
+fn step079[T](value: T) -> T:
+    step080(value)
+
+fn step080[T](value: T) -> T:
+    step081(value)
+
+fn step081[T](value: T) -> T:
+    step082(value)
+
+fn step082[T](value: T) -> T:
+    step083(value)
+
+fn step083[T](value: T) -> T:
+    step084(value)
+
+fn step084[T](value: T) -> T:
+    step085(value)
+
+fn step085[T](value: T) -> T:
+    step086(value)
+
+fn step086[T](value: T) -> T:
+    step087(value)
+
+fn step087[T](value: T) -> T:
+    step088(value)
+
+fn step088[T](value: T) -> T:
+    step089(value)
+
+fn step089[T](value: T) -> T:
+    step090(value)
+
+fn step090[T](value: T) -> T:
+    step091(value)
+
+fn step091[T](value: T) -> T:
+    step092(value)
+
+fn step092[T](value: T) -> T:
+    step093(value)
+
+fn step093[T](value: T) -> T:
+    step094(value)
+
+fn step094[T](value: T) -> T:
+    step095(value)
+
+fn step095[T](value: T) -> T:
+    step096(value)
+
+fn step096[T](value: T) -> T:
+    step097(value)
+
+fn step097[T](value: T) -> T:
+    step098(value)
+
+fn step098[T](value: T) -> T:
+    step099(value)
+
+fn step099[T](value: T) -> T:
+    step100(value)
+
+fn step100[T](value: T) -> T:
+    step101(value)
+
+fn step101[T](value: T) -> T:
+    step102(value)
+
+fn step102[T](value: T) -> T:
+    step103(value)
+
+fn step103[T](value: T) -> T:
+    step104(value)
+
+fn step104[T](value: T) -> T:
+    step105(value)
+
+fn step105[T](value: T) -> T:
+    step106(value)
+
+fn step106[T](value: T) -> T:
+    step107(value)
+
+fn step107[T](value: T) -> T:
+    step108(value)
+
+fn step108[T](value: T) -> T:
+    step109(value)
+
+fn step109[T](value: T) -> T:
+    step110(value)
+
+fn step110[T](value: T) -> T:
+    step111(value)
+
+fn step111[T](value: T) -> T:
+    step112(value)
+
+fn step112[T](value: T) -> T:
+    step113(value)
+
+fn step113[T](value: T) -> T:
+    step114(value)
+
+fn step114[T](value: T) -> T:
+    step115(value)
+
+fn step115[T](value: T) -> T:
+    step116(value)
+
+fn step116[T](value: T) -> T:
+    step117(value)
+
+fn step117[T](value: T) -> T:
+    step118(value)
+
+fn step118[T](value: T) -> T:
+    step119(value)
+
+fn step119[T](value: T) -> T:
+    step120(value)
+
+fn step120[T](value: T) -> T:
+    step121(value)
+
+fn step121[T](value: T) -> T:
+    step122(value)
+
+fn step122[T](value: T) -> T:
+    step123(value)
+
+fn step123[T](value: T) -> T:
+    step124(value)
+
+fn step124[T](value: T) -> T:
+    step125(value)
+
+fn step125[T](value: T) -> T:
+    step126(value)
+
+fn step126[T](value: T) -> T:
+    step127(value)
+
+fn step127[T](value: T) -> T:
+    step128(value)
+
+fn step128[T](value: T) -> T:
+    step129(value)
+
+fn step129[T](value: T) -> T:
+    step130(value)
+
+fn step130[T](value: T) -> T:
+    step131(value)
+
+fn step131[T](value: T) -> T:
+    step132(value)
+
+fn step132[T](value: T) -> T:
+    step133(value)
+
+fn step133[T](value: T) -> T:
+    step134(value)
+
+fn step134[T](value: T) -> T:
+    step135(value)
+
+fn step135[T](value: T) -> T:
+    step136(value)
+
+fn step136[T](value: T) -> T:
+    step137(value)
+
+fn step137[T](value: T) -> T:
+    step138(value)
+
+fn step138[T](value: T) -> T:
+    step139(value)
+
+fn step139[T](value: T) -> T:
+    step140(value)
+
+fn step140[T](value: T) -> T:
+    step141(value)
+
+fn step141[T](value: T) -> T:
+    step142(value)
+
+fn step142[T](value: T) -> T:
+    step143(value)
+
+fn step143[T](value: T) -> T:
+    step144(value)
+
+fn step144[T](value: T) -> T:
+    step145(value)
+
+fn step145[T](value: T) -> T:
+    step146(value)
+
+fn step146[T](value: T) -> T:
+    step147(value)
+
+fn step147[T](value: T) -> T:
+    step148(value)
+
+fn step148[T](value: T) -> T:
+    step149(value)
+
+fn step149[T](value: T) -> T:
+    step150(value)
+
+fn step150[T](value: T) -> T:
+    step151(value)
+
+fn step151[T](value: T) -> T:
+    step152(value)
+
+fn step152[T](value: T) -> T:
+    step153(value)
+
+fn step153[T](value: T) -> T:
+    step154(value)
+
+fn step154[T](value: T) -> T:
+    step155(value)
+
+fn step155[T](value: T) -> T:
+    step156(value)
+
+fn step156[T](value: T) -> T:
+    step157(value)
+
+fn step157[T](value: T) -> T:
+    step158(value)
+
+fn step158[T](value: T) -> T:
+    step159(value)
+
+fn step159[T](value: T) -> T:
+    step160(value)
+
+fn step160[T](value: T) -> T:
+    step161(value)
+
+fn step161[T](value: T) -> T:
+    step162(value)
+
+fn step162[T](value: T) -> T:
+    step163(value)
+
+fn step163[T](value: T) -> T:
+    step164(value)
+
+fn step164[T](value: T) -> T:
+    step165(value)
+
+fn step165[T](value: T) -> T:
+    step166(value)
+
+fn step166[T](value: T) -> T:
+    step167(value)
+
+fn step167[T](value: T) -> T:
+    step168(value)
+
+fn step168[T](value: T) -> T:
+    step169(value)
+
+fn step169[T](value: T) -> T:
+    step170(value)
+
+fn step170[T](value: T) -> T:
+    step171(value)
+
+fn step171[T](value: T) -> T:
+    step172(value)
+
+fn step172[T](value: T) -> T:
+    step173(value)
+
+fn step173[T](value: T) -> T:
+    step174(value)
+
+fn step174[T](value: T) -> T:
+    step175(value)
+
+fn step175[T](value: T) -> T:
+    step176(value)
+
+fn step176[T](value: T) -> T:
+    step177(value)
+
+fn step177[T](value: T) -> T:
+    step178(value)
+
+fn step178[T](value: T) -> T:
+    step179(value)
+
+fn step179[T](value: T) -> T:
+    step180(value)
+
+fn step180[T](value: T) -> T:
+    step181(value)
+
+fn step181[T](value: T) -> T:
+    step182(value)
+
+fn step182[T](value: T) -> T:
+    step183(value)
+
+fn step183[T](value: T) -> T:
+    step184(value)
+
+fn step184[T](value: T) -> T:
+    step185(value)
+
+fn step185[T](value: T) -> T:
+    step186(value)
+
+fn step186[T](value: T) -> T:
+    step187(value)
+
+fn step187[T](value: T) -> T:
+    step188(value)
+
+fn step188[T](value: T) -> T:
+    step189(value)
+
+fn step189[T](value: T) -> T:
+    step190(value)
+
+fn step190[T](value: T) -> T:
+    step191(value)
+
+fn step191[T](value: T) -> T:
+    step192(value)
+
+fn step192[T](value: T) -> T:
+    step193(value)
+
+fn step193[T](value: T) -> T:
+    step194(value)
+
+fn step194[T](value: T) -> T:
+    step195(value)
+
+fn step195[T](value: T) -> T:
+    step196(value)
+
+fn step196[T](value: T) -> T:
+    step197(value)
+
+fn step197[T](value: T) -> T:
+    step198(value)
+
+fn step198[T](value: T) -> T:
+    step199(value)
+
+fn step199[T](value: T) -> T:
+    step200(value)
+
+fn step200[T](value: T) -> T:
+    step201(value)
+
+fn step201[T](value: T) -> T:
+    step202(value)
+
+fn step202[T](value: T) -> T:
+    step203(value)
+
+fn step203[T](value: T) -> T:
+    step204(value)
+
+fn step204[T](value: T) -> T:
+    step205(value)
+
+fn step205[T](value: T) -> T:
+    step206(value)
+
+fn step206[T](value: T) -> T:
+    step207(value)
+
+fn step207[T](value: T) -> T:
+    step208(value)
+
+fn step208[T](value: T) -> T:
+    step209(value)
+
+fn step209[T](value: T) -> T:
+    step210(value)
+
+fn step210[T](value: T) -> T:
+    step211(value)
+
+fn step211[T](value: T) -> T:
+    step212(value)
+
+fn step212[T](value: T) -> T:
+    step213(value)
+
+fn step213[T](value: T) -> T:
+    step214(value)
+
+fn step214[T](value: T) -> T:
+    step215(value)
+
+fn step215[T](value: T) -> T:
+    step216(value)
+
+fn step216[T](value: T) -> T:
+    step217(value)
+
+fn step217[T](value: T) -> T:
+    step218(value)
+
+fn step218[T](value: T) -> T:
+    step219(value)
+
+fn step219[T](value: T) -> T:
+    step220(value)
+
+fn step220[T](value: T) -> T:
+    step221(value)
+
+fn step221[T](value: T) -> T:
+    step222(value)
+
+fn step222[T](value: T) -> T:
+    step223(value)
+
+fn step223[T](value: T) -> T:
+    step224(value)
+
+fn step224[T](value: T) -> T:
+    step225(value)
+
+fn step225[T](value: T) -> T:
+    step226(value)
+
+fn step226[T](value: T) -> T:
+    step227(value)
+
+fn step227[T](value: T) -> T:
+    step228(value)
+
+fn step228[T](value: T) -> T:
+    step229(value)
+
+fn step229[T](value: T) -> T:
+    step230(value)
+
+fn step230[T](value: T) -> T:
+    step231(value)
+
+fn step231[T](value: T) -> T:
+    step232(value)
+
+fn step232[T](value: T) -> T:
+    step233(value)
+
+fn step233[T](value: T) -> T:
+    step234(value)
+
+fn step234[T](value: T) -> T:
+    step235(value)
+
+fn step235[T](value: T) -> T:
+    step236(value)
+
+fn step236[T](value: T) -> T:
+    step237(value)
+
+fn step237[T](value: T) -> T:
+    step238(value)
+
+fn step238[T](value: T) -> T:
+    step239(value)
+
+fn step239[T](value: T) -> T:
+    step240(value)
+
+fn step240[T](value: T) -> T:
+    step241(value)
+
+fn step241[T](value: T) -> T:
+    step242(value)
+
+fn step242[T](value: T) -> T:
+    step243(value)
+
+fn step243[T](value: T) -> T:
+    step244(value)
+
+fn step244[T](value: T) -> T:
+    step245(value)
+
+fn step245[T](value: T) -> T:
+    step246(value)
+
+fn step246[T](value: T) -> T:
+    step247(value)
+
+fn step247[T](value: T) -> T:
+    step248(value)
+
+fn step248[T](value: T) -> T:
+    step249(value)
+
+fn step249[T](value: T) -> T:
+    step250(value)
+
+fn step250[T](value: T) -> T:
+    step251(value)
+
+fn step251[T](value: T) -> T:
+    step252(value)
+
+fn step252[T](value: T) -> T:
+    step253(value)
+
+fn step253[T](value: T) -> T:
+    step254(value)
+
+fn step254[T](value: T) -> T:
+    step255(value)
+
+fn step255[T](value: T) -> T:
+    step256(value)
+
+fn step256[T](value: T) -> T:
+    value
+
+pub fn main() -> void $ Console:
+    println(step000(+7))
