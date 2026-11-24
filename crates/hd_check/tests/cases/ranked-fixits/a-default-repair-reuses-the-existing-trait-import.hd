@@ -1,0 +1,7 @@
+# @dump: diagnostics fixed
+# The repair must reuse Default without inserting a duplicate import.
+use std.ops.Default
+
+fn choose(present: bool) -> i32:
+    if present:
+        +7
