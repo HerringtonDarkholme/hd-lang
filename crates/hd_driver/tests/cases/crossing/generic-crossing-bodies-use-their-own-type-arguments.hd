@@ -1,0 +1,26 @@
+# @dump: stdout wat
+# @build: dev | checked | release | release checked
+# expected: 11 then 22; #2351 currently rejects identical signatures with different bodies.
+use std.annotation.inline
+use std.remote.{LoopbackWorkers, Workers}
+
+trait Offset:
+    fn offset() -> i32
+
+impl Offset for i32:
+    fn offset() -> i32:
+        +10
+
+impl Offset for u64:
+    fn offset() -> i32:
+        +20
+
+# subject
+@inline(.Never)
+fn apply![T < Offset](workers: *mut dyn Workers, n: i32) -> i32:
+    workers.run!(fn() -> i32: n + T::offset()).unwrap_or(+0)
+
+pub fn main!() -> void $ Console:
+    let mut workers: *mut dyn Workers = box(LoopbackWorkers {})
+    println(apply!::[i32](workers, +1))
+    println(apply!::[u64](workers, +2))
