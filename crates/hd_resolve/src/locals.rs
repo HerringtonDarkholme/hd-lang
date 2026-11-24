@@ -110,10 +110,9 @@ impl Locals {
                 continue;
             }
             named.entry(l.name).or_default().push((i, l.lo, l.hi));
-            let first = first_in_suite.entry((l.suite, l.name)).or_insert(i);
-            if l.lo < items[*first].lo {
-                *first = i;
-            }
+            // local_heads preserves source order within each suite; method
+            // bodies interleave only declarations from different suites.
+            first_in_suite.entry((l.suite, l.name)).or_insert(i);
         }
         impl_ends.sort_stable();
         impl_ends.dedup();

@@ -1408,3 +1408,5 @@ says that the check covered syntax only.
 | 2026-11-23 | #2331 homonymous opaque diagnostic fixture | name error | `second()` after the invalid import | ``unknown-name: `second` is not defined`` | no; this cascaded from the invalid import | Fix the import to `use pkg.b.{create as second}` | GPT-6 (Codex) |
 
 | 2026-11-23 | #2334 reference repair fixture | semantic | `fn change(value: i32)` followed by a writable reference construction after applying the intended syntax repair | ``error: main.hd:4:18: non-reassignable-parameter-binding: `&mut` needs a writable place, but parameter `value` is the function's own copy, which never changes; write `mut value` to change the copy`` | yes | Declare the test parameter `mut value` so the syntax repair has a writable place. | GPT-6.2 |
+
+| 2026-11-23 | #1442 local declaration order fixture | syntax | Put `fn value(self)` inside `struct Holder` | ``error: main.hd:5:9: syntax-error: expected a data field name, found 'fn'`` | yes; the data guide confirms methods belong in an impl | Move the method to `impl Holder` | GPT-6.2 |
