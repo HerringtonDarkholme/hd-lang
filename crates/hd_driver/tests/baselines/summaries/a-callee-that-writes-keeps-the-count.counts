@@ -12,8 +12,6 @@ struct Node:
     value: i64
 
 ROOT := box(Node { left: .None, value: 0 })
-> app/main/init.init
->   release *mut app.main.Node (overwritten)
 
 fn prune(parent: *mut Node) -> i64:
     parent.left = .None

@@ -1,0 +1,15 @@
+# @dump: own
+# A module init's first store of a top-level binding declares it: its slot
+# holds no value, so no `Release` follows it, and no `Drop` hook runs on a
+# value never made (#2328). A later reassignment releases the value it
+# replaces.
+use std.sync.Arc
+
+let SHARED = Arc::new(41)
+
+let mut COUNTER = Arc::new(0)
+
+COUNTER = Arc::new(1)
+
+pub fn main() -> void:
+    _ := *SHARED.get() + *COUNTER.get()

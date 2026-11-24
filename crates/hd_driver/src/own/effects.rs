@@ -107,6 +107,9 @@ impl<'a, 'e> View<'a, 'e> {
 // Only the structural effect index reads this view. The ownership passes
 // continue to use Env and their existing physical-layout admission.
 impl OwnCx for View<'_, '_> {
+    fn declares_binding(&self, init: hd_base::DefId, global: hd_base::DefId) -> bool {
+        OwnCx::declares_binding(self.env, init, global)
+    }
     fn temporary_owner_name(&self) -> hd_base::Symbol {
         OwnCx::temporary_owner_name(self.env)
     }

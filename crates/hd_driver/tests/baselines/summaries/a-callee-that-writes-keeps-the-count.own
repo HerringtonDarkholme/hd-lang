@@ -19,7 +19,6 @@ ROOT := box(Node { left: .None, value: 0 })
 >   %3 = Store [$0] %1 : ()
 >   %4 = Ref take mut [$0] : *mut Node
 >   %5 = Store [@app/main/ROOT] %4 : ()
->   %6 = Release %5 Operation #3 : ()
 >   storage sub 0: $0 cell
 
 fn prune(parent: *mut Node) -> i64:

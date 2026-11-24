@@ -12,7 +12,6 @@ let shared: List[usize] = [1, 2, 3]
 > app/main/init.init
 >   %0 = NewList - [1:usize 2:usize 3:usize] : List[usize]
 >   %1 = Store [@app/main/shared] %0 : ()
->   %2 = Release %1 Operation #3 : ()
 
 @inline(.Never)
 fn swap_in(xs: &mut List[usize]) -> void:

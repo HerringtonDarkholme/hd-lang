@@ -3,9 +3,7 @@
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "rt:str" (func $rt:str (param i32) (result i32)))
   (import "fixture" "write_unsigned_sized" (func $write_unsigned_sized (param i64 i32 i32)))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:list_buf" (func $rt:list_buf (param i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "impl string.len" (func $"impl string.len" (param i32) (result i32)))
   (import "fixture" "names" (global $names (mut i32)))
@@ -42,18 +40,11 @@
     local.get $t1
     call $write_unsigned_sized
     i32.const 24 ;; &greeting
-    i32.load $heap
-    i32.const 24 ;; &greeting
     local.get $t4
     i32.store $heap
     i32.const 24 ;; &greeting
     local.get $t3
     i32.store $heap offset=4
-    local.tee $t1
-    if
-      local.get $t1
-      call $rt:release_ref'1
-    end
     ;; 8 | names := ["a${1}", "b"]
     i64.const 1
     local.tee $t0
@@ -101,18 +92,6 @@
     local.get $t2
     i32.const 1
     i32.store $heap offset=20
-    global.get $names
-    local.tee $t2
-    if
-      local.get $t2
-      i32.const 8
-      i32.sub
-      i32.load $heap
-      if
-        local.get $t2
-        call $rt:release_ref'2
-      end
-    end
     local.get $t1
     global.set $names
   )

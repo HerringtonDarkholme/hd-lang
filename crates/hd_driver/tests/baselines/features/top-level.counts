@@ -5,11 +5,8 @@
 # expected: the initializer stores each value with no count beyond the
 # temporaries it frees; a read takes none; `copy_top` retains once.
 greeting := "hello ${1}"
-> app/main/init.init
->   release string (overwritten)
 
 names := ["a${1}", "b"]
->   release List[string] (overwritten)
 
 fn read_top() -> usize:
     greeting.len() + names.len()

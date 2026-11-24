@@ -493,6 +493,10 @@ impl hd_opt::prove::Cx for Env<'_> {
 }
 
 impl OwnCx for Env<'_> {
+    fn declares_binding(&self, init: DefId, global: DefId) -> bool {
+        let names = self.run.names();
+        names.module_node(init) == names.module_node(global)
+    }
     fn copies_collection(&self, ty: Ty) -> bool {
         if let Some(hit) = lock(&self.run.own_types).get(ty).and_then(|f| f.collection) {
             return hit;
