@@ -161,6 +161,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Restored before the build is fetched: on a key that matches only by
+      # prefix (a manifest changed), rust-cache cleans target/, which
+      # deleted the fetched target/tools and test list (run 45365652912).
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2.9.2
+
       - name: Fetch the build
         uses: actions/download-artifact@v4
         with:
@@ -169,9 +175,6 @@ jobs:
 
       - name: Unpack the build
         run: zstd -dc target/ci-build.tar.zst | tar -xf -
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2.9.2
 
       # sccache caches each workspace crate's compiled output, so a run
       # rebuilds only the crates a change touches (and those above them).
