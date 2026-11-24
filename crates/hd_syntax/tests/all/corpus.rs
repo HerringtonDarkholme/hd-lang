@@ -88,6 +88,8 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/hint-and-fix-texts/cast-bracketed-type.hd",
     "cli/hint-and-fix-texts/cast-long-operand.hd",
     "cli/hint-and-fix-texts/cast-no-type.hd",
+    // A check --fix case whose parser errors each carry the edit they name.
+    "cli/check-fix-named-edits/src/syntax.hd",
 ];
 
 /// The cases `KNOWN_FAILURES.tsv` lists: a fixture path, or a CLI case
