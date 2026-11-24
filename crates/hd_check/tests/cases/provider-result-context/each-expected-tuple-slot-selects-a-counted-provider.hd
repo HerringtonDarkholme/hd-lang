@@ -1,0 +1,9 @@
+# @dump: tir
+trait Left:
+    fn left(&self) -> i32
+
+trait Right:
+    fn right(&self) -> i32
+
+fn counted() -> (*dyn Left, *dyn Right) $ Left + Right:
+    $.use(Left, Right)
