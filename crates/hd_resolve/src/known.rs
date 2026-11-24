@@ -670,8 +670,8 @@ pub fn runtime_module(module: &str) -> bool {
         .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
 }
 
-/// The prelude rows `module` sees: `std.core` and a runtime module, std's
-/// leaf layer, see only `std.core`'s names (`module.core.prelude`,
+/// The prelude rows `module` sees: `std.core` and runtime modules see
+/// only `std.core`'s names (`module.core.prelude`,
 /// `module.rt.core-prelude`); every other module sees them all.
 #[must_use]
 pub fn prelude_rows(module: &str) -> &'static [(&'static str, &'static [&'static str])] {

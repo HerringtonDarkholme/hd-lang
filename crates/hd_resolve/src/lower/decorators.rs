@@ -239,9 +239,8 @@ impl Lower<'_, '_, '_> {
 
     /// [`Self::target_allowed`] for an already resolved decorator.
     fn target_allowed_def(&self, def: DefId, kind: u16, items: &HashMap<DefId, &Item>) -> bool {
-        // `std.core` declares `inline` and `cold` without an `@annotate`
-        // fact, since the leaf layer cannot import `std.annotation`; the
-        // compiler knows their targets (annot.inline.targets).
+        // The compiler knows the targets of the built-in `inline` and `cold`
+        // decorators without an `@annotate` fact (annot.inline.targets).
         if def == self.names.known.inline || def == self.names.known.cold {
             return kind & (self::kind::FN | self::kind::METHOD) != 0;
         }

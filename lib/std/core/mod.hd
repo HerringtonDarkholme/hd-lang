@@ -1,10 +1,10 @@
-# std.core: the language's core declarations, std's leaf layer
-# (spec/lang/10-modules.md#r-module.core.leaf). The compiler supplies the
+# std.core: the language's core declarations
+# (spec/lang/10-modules.md#core-layer). The compiler supplies the
 # primitives, `List`, `Map`, `Option`, `Result`, the `Any` traits, `panic`
 # and `box` (hd_resolve::seed). The traits below are the ones those
 # declarations name: `List[T < Copy]` and `Map[K < Eq & Hash, V]`.
-# `std.ops`, `std.cmp` and `std.hash` re-export them, and nothing here uses
-# another std module.
+# `std.ops`, `std.cmp` and `std.hash` re-export them. Other dependencies
+# follow the ordinary module import rules.
 
 # The compiler-known marker for a value that copies
 # (spec/lang/13-values-and-references.md#copy). A prelude name.
