@@ -17,7 +17,9 @@ use hd_types::solver::{
     Declarations, HeadKey, ImplOrigin, ImplTable, PlanStep, SealedTraits, TypeDecl,
 };
 use hd_types::wire::{TableWriter, Tables};
-use hd_types::{ConstValue, CopyDecl, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
+use hd_types::{
+    ConstValue, CopyDecl, FnDeps, InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList,
+};
 
 /// The segment prefix of a local declaration's hidden scope; `#` is in no
 /// identifier, so no field or parameter default (also `Hidden`) has it.
@@ -3224,29 +3226,35 @@ fn show_ty_opts(
 /// The lifetime marks of a function type's reference slots, inputs then
 /// result, for a message (`fn.type.lifetime.identity`): `None` when
 /// elision gives its map, else a name for each slot that shares one.
-fn lifetime_marks(pool: hd_types::Types<'_>, t: Ty) -> Option<Marks> {
-    // An open map names no shared lifetime ([`hd_types::FnDeps`]).
+fn lifetime_marks(
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    params: TyList,
+    result: Ty,
+    deps: FnDeps,
+    mut visit: impl FnMut(),
+) -> Option<Marks> {
+    // Keep validation of open or misaligned maps; the caller already decoded Fn.
     let (ins, outs) = pool.fn_ty_deps(t).filter(|(_, outs)| !outs.is_empty())?;
-    let TyData::Fn {
-        params,
-        result,
-        deps,
-        ..
-    } = pool.get(t)
-    else {
-        return None;
-    };
     if pool.fn_deps_written(pool.list_items(params), result, &[]) == deps {
         return None;
     }
-    let all: Vec<u32> = ins.iter().chain(outs).copied().collect();
-    let name = |l: u32| {
-        (l != 0 && all.iter().filter(|&&x| x == l).count() > 1)
-            .then(|| char::from(b'a' + u8::try_from((l - 1) % 26).unwrap_or(0)))
-    };
-    Some(std::cell::RefCell::new(
-        all.iter().map(|&l| name(l)).collect(),
-    ))
+    let mut first = HashMap::default();
+    let mut marks = std::collections::VecDeque::with_capacity(ins.len() + outs.len());
+    for (at, &lifetime) in ins.iter().chain(outs).enumerate() {
+        visit();
+        let earlier = *first.entry(lifetime).or_insert(at);
+        let shared = earlier != at;
+        let name = (shared && lifetime != 0)
+            .then(|| char::from(b'a' + u8::try_from((lifetime - 1) % 26).unwrap_or(0)));
+        if shared {
+            // Every earlier iteration appended one mark, so this index
+            // precedes the current end even if the deque's storage grew.
+            marks[earlier] = name;
+        }
+        marks.push_back(name);
+    }
+    Some(std::cell::RefCell::new(marks))
 }
 
 /// Each reference slot's mark, in [`hd_types::Types::ref_slots`] order.
@@ -3538,9 +3546,10 @@ impl<'s, 'n> Shower<'s, 'n> {
                 result,
                 row,
                 suspends,
+                deps,
                 ..
             } => {
-                let own = lifetime_marks(pool, t);
+                let own = lifetime_marks(pool, t, params, result, deps, || {});
                 let own = own.as_ref();
                 self.put(if suspends { "fn!(" } else { "fn(" });
                 self.list(pool.list_items(params), ", ", d, own);
@@ -3652,6 +3661,56 @@ mod tests {
             &[],
             Vec::new(),
         )
+    }
+
+    #[test]
+    fn function_lifetime_names_take_linear_work_at_width_and_depth() -> Result<(), &'static str> {
+        use hd_types::{Inputs, InternPool, RowId, Ty, TyData};
+        for width in [100, 1_000] {
+            for depth in [0, 20] {
+                let pool = InternPool::new();
+                let reference = pool.intern_ty(&TyData::Ref {
+                    inner: Ty::I32,
+                    mutable: false,
+                    counted: false,
+                });
+                let mut input = pool.product(pool.list(&vec![reference; width]), None);
+                for _ in 0..depth {
+                    input = pool.product(pool.list(&[input]), None);
+                }
+                let mut ins = vec![1; width];
+                ins[width - 1] = 2;
+                let params = pool.list(&[input]);
+                let deps = pool.types().fn_deps(&ins, &[2]);
+                let function = pool.intern_ty(&TyData::Fn {
+                    params,
+                    result: reference,
+                    row: RowId::EMPTY,
+                    suspends: false,
+                    inputs: Inputs::Fixed,
+                    deps,
+                });
+                let mut work = 0;
+                let marks =
+                    super::lifetime_marks(pool.types(), function, params, reference, deps, || {
+                        work += 1;
+                    })
+                    .ok_or("non-elided function lifetimes")?;
+                let marks = marks.borrow();
+                assert_eq!(marks.len(), width + 1);
+                // Dependency canonicalization splits input lifetimes absent from
+                // the result; only the last input/result pair shares a name.
+                assert!(marks.iter().take(width - 1).all(Option::is_none));
+                assert!(marks[width - 1].is_some());
+                assert_eq!(marks[width - 1], marks[width]);
+                println!("width={width} depth={depth} lifetime_id_visits={work}");
+                assert!(
+                    work <= width + 1,
+                    "{work} lifetime-ID visits at width {width}, depth {depth}"
+                );
+            }
+        }
+        Ok(())
     }
 
     #[test]
