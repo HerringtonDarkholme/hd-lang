@@ -1,0 +1,8 @@
+# @dump: diagnostics fixed
+# A result type without Default keeps the explicit missing-path repair.
+struct Item:
+    n: i32
+
+fn choose(present: bool) -> Item:
+    if present:
+        Item { n: +7 }
