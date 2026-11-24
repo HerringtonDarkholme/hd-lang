@@ -21,7 +21,9 @@
 //   tests of a crate  hd_driver, hd_check, hd_wasm: `--lib --test stages`; hd_driver's
 //                     `--features analysis --test analysis` when an analysis.rs changes; hd_check's
 //                     also run when any compiler crate is selected, since its
-//                     stage baselines dump later stages through hd_testkit;
+//                     stage baselines dump later stages through hd_testkit, and
+//                     hd_wasm's when hd_check is, since its baselines dump
+//                     checked bodies;
 //                     hd_command: `--lib` when touched, plus `--test all` for the test
 //                     modules the diff changes; hd_cache: also `--features disk --lib`,
 //                     as CI runs it; every other touched crate: all its targets; a
@@ -306,8 +308,12 @@ const stageRule: Rule = (ctx) => {
   } else if (anyOf(ctx.selected, COMPILER_CRATES)) {
     stages("hd_check", "check_stages", "a compiler stage selected: hd_check's baselines dump it");
   }
+  // hd_wasm's stage cases dump own and wat of checked bodies, so the
+  // checker's loans and diagnostics reach its baselines too (#2339's merge).
   if (ctx.selected.has("hd_wasm")) {
     stages("hd_wasm", "wasm_stages");
+  } else if (ctx.selected.has("hd_check")) {
+    stages("hd_wasm", "wasm_stages", "hd_check selected: hd_wasm's baselines dump checked bodies");
   }
   return steps;
 };
@@ -445,6 +451,9 @@ const stdRtRule: Rule = (ctx) => {
         "--exact",
         "std_runtime_modules_pass_their_hd_tests_on_the_linear_backend",
       ),
+      // The conformance target refuses an unfiltered local run; this
+      // test runs the std runtime modules' own tests, which `std` names.
+      { HD_CONFORMANCE_ONLY: "std" },
     ),
   ];
 };
