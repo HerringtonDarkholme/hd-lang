@@ -354,8 +354,8 @@ lint-unselected-main	cli.exe.unselected-main.lint
 lint-unselected-main-prerequisites	cli.lint.prerequisites
 lint-lifetime-order	cli.lint.lifetime-order,cli.lint.default,cli.lint.levels
 release-reference-behind-pointer	cli.profile.release
-folder-cycle-fix-flat-file	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.diagnostic.nonempty-fixes,cli.json.fix.object.v2,cli.exit.hd-failure
-folder-cycle-no-fix-all-directories	cli.package.whole,cli.check.default,cli.json.lines.build,cli.json.diagnostic.nonempty-fixes,cli.exit.hd-failure
+module-cycle-flat-parent-file-has-no-fix	cli.package.whole,cli.check.default,cli.json.lines.build,cli.exit.hd-failure
+module-cycle-json-names-the-entry-edge	cli.package.whole,cli.check.default,cli.json.lines.build,cli.exit.hd-failure
 host-supertrait-drive	cli.host.package.entry,cli.host.package.generated,cli.host.package.completion-forms,cli.profile.pipeline.unobservable
 host-supertrait-diamond	cli.host.package.entry,cli.host.package.generated,cli.host.package.contract,cli.profile.pipeline.unobservable
 host-supertrait-cycle	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
@@ -376,9 +376,9 @@ check-tests-and-all	cli.check.default,cli.check.tests,cli.check.all,cli.exit.hd-
 check-test-and-task-code-by-file	cli.check.all,cli.task.no-path,cli.json.diagnostic.fields
 check-doc-tests-library-view	cli.check.tests,cli.exit.hd-failure
 manifest-errors-stop-the-check	cli.check.default,cli.exit.hd-failure,cli.json.diagnostic.fields
-folder-cycle-bodies-still-check	cli.package.whole,cli.check.default,cli.exit.hd-failure
-folder-cycle-three-folder-tangle	cli.package.whole,cli.check.default,cli.exit.hd-failure
-folder-cycle-test-code-no-edge	cli.package.whole,cli.check.tests
+module-cycle-bodies-still-check	cli.package.whole,cli.check.default,cli.exit.hd-failure
+module-cycle-three-folder-group	cli.package.whole,cli.check.default,cli.exit.hd-failure
+module-cycle-test-code-no-edge	cli.package.whole,cli.check.tests
 task-shared-module	cli.task.shared,cli.task.root-file,cli.task.no-path,cli.task.shared-copy,cli.task.shared-unused.lint
 task-super-above-root	cli.task.super,cli.task.above-root,cli.exit.hd-failure
 task-shared-not-shipped	cli.task.not-shipped,cli.build.output

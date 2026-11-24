@@ -643,8 +643,8 @@ pub use std.testing.assert_equal  # error: syntax-error
 
 ## Dependency Cycles
 
-The files of one folder may use each other in a loop, but folders must not
-depend on each other in a loop:
+The modules of one folder may use each other in a loop, but modules of
+different folders must not:
 
 ```text
 # src/shop/mod.hd
@@ -672,7 +672,7 @@ directory of its child modules:
 1. r[module.folder.holder] A source file's folder is the directory that holds it, except for a file with child modules.
 2. r[module.folder.parent-file] A file `x.hd` whose directory `x/` beside it holds source files, its child modules, is in folder `x/`, as `x/mod.hd` would be.
 3. r[module.folder.interchangeable] So `x.hd` and `x/mod.hd` are interchangeable: each is in the folder of its children.
-4. r[module.folder.parent-child] A parent module and its child modules share one folder, so a parent and a child that use each other make no folder edge.
+4. r[module.folder.siblings] Modules whose source files are in one folder are **siblings**. A parent module and its child modules are siblings, so they may use each other in a loop.
 5. r[module.folder.mod-file] A `mod.hd` file is in the folder of its directory, like the other files there.
 6. r[module.folder.nested] Nested directories are separate folders: a file in `src/shop/orders` is not in folder `src/shop`.
 
@@ -681,18 +681,36 @@ src/shop/mod.hd      # module shop, folder src/shop
 src/shop/cart.hd     # module shop.cart, folder src/shop
 ```
 
-### Folder Graph
+### Module Graph
 
-1. r[module.cycle.folder-edge] The **folder graph** of a package has an edge from folder `A` to a different folder `B`. The edge exists when a file in `A` uses a module in `B`. A `use` or `pub use` uses the module its path reaches. So `use pkg.shop.{Item}` and `use pkg.shop.Item` both use `shop`.
-2. r[module.cycle.same-package] Only uses of the package's own modules make edges. Uses of `std` and of dependencies make none.
-3. r[module.cycle.test-code] A use in [test code](#r-module.test.code) makes no edge.
-4. r[module.cycle.nested] A folder and its parent or child folder are separate nodes, and an edge between them counts like any other.
-5. r[module.cycle.acyclic] The folder graph must be acyclic. A folder that depends on itself through other folders is an error. Error: `folder-cycle`.
-6. r[module.cycle.within-folder] Uses between files of one folder make no edge, so those files may use each other in any pattern, loops included.
+1. r[module.cycle.edge] The **module graph** of a package has an edge from module `M` to a different module `N` when a use in `M` reaches a name that `N` declares. The edge goes to the declaring module after every `pub use` chain, as [`module.pub-use.chain`](#r-module.pub-use.chain) follows it. So `use pkg.{Error}` through a root facade that re-exports `pkg.error.Error` is an edge to `error`, not to the root.
+2. r[module.cycle.edge.pub-use] A `pub use` line is a use of its own module, so it makes an edge from that module to the declaring module.
+3. r[module.cycle.edge.namespace] A use that names a module itself, such as `use pkg.shop`, makes an edge to that module.
+4. r[module.cycle.same-package] Only uses of the package's own modules make edges. Uses of `std` and of dependencies make none.
+5. r[module.cycle.test-code] A use in [test code](#r-module.test.code) makes no edge.
+6. r[module.cycle.siblings] A loop of the module graph is an error unless every module on it is a sibling of the others. Error: `module-cycle`.
 7. r[module.cycle.package] The dependency graph of packages must be acyclic: a package that depends on itself, directly or through other packages, is an error. Error: `package-cycle`.
 
-A root facade that uses a child folder, beside a shared root file that the
-child uses, makes a loop of folders:
+A facade and a child folder's module that uses each other loop across two
+folders:
+
+```text
+# src/shop/mod.hd, in folder src/shop
+pub use pkg.shop.orders.{order}
+
+pub fn money() -> i32:
+    100
+
+# src/shop/orders/mod.hd, in folder src/shop/orders
+use pkg.shop.{money}  # error: module-cycle
+
+pub fn order() -> i32:
+    money()
+```
+
+A root facade that re-exports a child folder's name, beside a shared root
+module that the child uses, makes no loop: the child's use reaches the
+module that declares the name, never the facade.
 
 ```text
 # src/lib.hd, in folder src
@@ -703,29 +721,41 @@ pub enum Error:
     Empty
 
 # src/shop/mod.hd, in folder src/shop
-use pkg.error.{Error}  # error: folder-cycle
+use pkg.error.{Error}
+
+pub struct Cart:
+    size: i32
 ```
 
 > **Why.** Every signature that another file sees is written out, so files
-> are checked in parallel whatever their loops. The folder rule bounds the
-> largest set of files that must be compiled together at one folder. A
-> folder then compiles from the signatures of the folders it uses, as a Go
-> package compiles from its imports' export data.
+> are checked in parallel whatever their loops. The sibling rule bounds the
+> largest set of modules that must be compiled together at one folder. A
+> loop of sibling modules then compiles from the signatures of the modules
+> it uses, as a Go package compiles from its imports' export data.
 
-> **Note.** Shared declarations go in a leaf folder. Moving `src/error.hd`
-> to `src/error/mod.hd` keeps the module name `error`, so no `use` line
-> changes, and breaks the loop above.
+> **Note.** Shared declarations go in a module that the modules of the loop
+> both use, below them.
+
+### Folder Graph
+
+Folders are not nodes of any graph. A folder only decides which modules are
+siblings ([Folders](#folders)), and the [module graph](#module-graph)
+decides which loops are allowed.
 
 ### Cycle Diagnostic
 
-1. r[module.cycle.diagnostic.first-loop] The `folder-cycle` diagnostic must show one shortest loop through the tangle's first folder in path order, with each edge's `use` declaration.
-2. r[module.cycle.diagnostic.size] It must show the size of the tangle: the number of folders that lie on some loop with the shown ones.
-3. r[module.cycle.diagnostic.fix] When a flat module file `x.hd` lies on the loop, it must offer a fix-it that moves that file to `x/mod.hd`, which keeps its module name.
-4. r[module.cycle.diagnostic.fix.none] When no file on the loop is a flat module file, every folder on it is a directory with its own `mod.hd`, and the diagnostic offers no fix-it.
+1. r[module.cycle.diagnostic.report] The `module-cycle` diagnostic is reported once for each strongly connected group of the module graph whose modules are in more than one folder.
+2. r[module.cycle.diagnostic.entry] Its edge is the first edge, in source order, that enters the group's first module, in path order, from a module of another folder. The diagnostic is reported at that edge's `use` line.
+3. r[module.cycle.diagnostic.shortest-loop] It must show one shortest loop through that edge, each edge with its `use` line.
+4. r[module.cycle.diagnostic.group] It must show the number of modules in the group and the number of folders they are in.
+5. r[module.cycle.diagnostic.help] Its help must name the declarations that one cross-folder edge of the shown loop reaches, to move into a module both sides use. That edge is the one whose `use` line reaches the fewest declarations; on a tie, the edge the diagnostic is reported at, then the first one shown.
 
 ```text
-folder-cycle: src/cart -> src/shop -> src/cart
-tangle of 3 folders; move src/cart.hd to src/cart/mod.hd
+error: src/shop/orders/mod.hd:1:1: module-cycle: modules of different folders use each other
+  src/shop/mod.hd:1:1: pub use pkg.shop.orders.{order}
+  src/shop/orders/mod.hd:1:1: use pkg.shop.{money}
+loop of 2 modules in 2 folders; only modules of one folder may loop
+help: move `money` out of `shop`, into a module both use
 ```
 
 See also: [Use Declarations](03-names-and-scopes.md#use-declarations),

@@ -1,9 +1,0 @@
-# Three folders with two loops through them are one strongly connected
-# component, so one `folder-cycle` error.
-run: hd check
-exit: 101
-stderr: error: src/a/x.hd:1:1: folder-cycle: src/a/x -> src/b/y -> src/a/x
-stderr:   src/a/x.hd:1:1: use pkg.b.y.{two}
-stderr:   src/b/y.hd:1:1: use pkg.a.x.{one}
-stderr: tangle of 3 folders; move src/a/x.hd to src/a/x/mod.hd
-stderr:     fix: move src/a/x.hd to src/a/x/mod.hd

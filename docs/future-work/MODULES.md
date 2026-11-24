@@ -112,9 +112,9 @@ help: move `money` out of `shop`, into a module both use
 ```
 
 The help names the cross-folder edge whose `use` line names the fewest
-declarations. When every module on the loop is a flat `x.hd` and files in
-`x/`, the fix-it moves `x.hd` to `x/mod.hd`, which keeps its name and makes
-the loop siblings. Std's one violation is fixed that way (`testing.hd`).
+declarations. There is no fix-it that moves a flat `x.hd` (decision 2):
+`x.hd` is already in the folder `x/` of its children, so std's `testing.hd`
+and `testing/arbitrary.hd` are siblings and their loop is legal.
 
 **Visibility.** Four candidates, each checked against the sibling rule:
 
@@ -141,7 +141,7 @@ ch. 10) holds, tighter.
 
 | Component | Change | Size |
 | --- | --- | --- |
-| Spec | delete `module.folder.*` (6), `module.cycle.folder-edge`, `.nested`, `.acyclic`, `.within-folder`, `names.use.folder-cycle`, 4 diagnostic rules; add 6 rules (Appendix E) | about -15 +9 rule lines |
+| Spec | delete `module.folder.*` (6), module.cycle.folder-edge, `.nested`, `.acyclic`, `.within-folder`, names.use.folder-cycle, 4 diagnostic rules; add 6 rules (Appendix E) | about -15 +9 rule lines |
 | Diagnostic code | `folder-cycle` renamed `module-cycle` | README, `hd_diag` |
 | Conformance | 8 folder cases: 2 flip, 2 change code, 4 stay (Appendix D) | 4 fixture edits |
 | Compiler, deleted | `FolderGraph` and `FolderSet` (`hd_project` 1611-1734), cycle recovery by merging folders, its display and tests (`hd_driver` 3405-3763) | about -450 lines, from those ranges |
@@ -223,18 +223,18 @@ from Go's package-as-directory, and offers `internal/` as the alternative to
 - Rules: [Dependency Cycles](../../spec/lang/10-modules.md#dependency-cycles), [Folders](../../spec/lang/10-modules.md#folders), [Folder Graph](../../spec/lang/10-modules.md#folder-graph), [Cycle Diagnostic](../../spec/lang/10-modules.md#cycle-diagnostic), [`module.vis.no-package-private`](../../spec/lang/10-modules.md#r-module.vis.no-package-private), [`module.init.use-graph`](../../spec/lang/10-modules.md#r-module.init.use-graph).
 - Std census (library `use` lines, test code excluded as `module.cycle.test-code` says; 60 modules, 9 folders, 251 edges): four loops. Siblings: rt.alloc, rt.cycle, rt.memory; http, http_wire; annotation, cmp, collections, format, hash, inspect, iter, num, ops, structure, text. Across folders: testing, testing.arbitrary (`testing.hd:20` and `testing/arbitrary.hd:8`). Counting `tests:` blocks too joins them into the 19-module loop #2347 quotes.
 - Probes (main 01de0e532): `folderprobe2` and two more layouts give false `folder-cycle` errors (Problems table); a flat parent and its child using each other checks (`module.folder.parent-file`).
-- Conformance re-judged: `folder-cycle-facade` flips to accept (edge to `error`); `folder-parent-file` flips to reject (Question 2); `folder-cycle-nested` and `folders-use-each-other` become `module-cycle`; `folder-cycle-leaf-folder`, `folder-loop-within-folder` and both test-edge cases stay accept.
+- Conformance re-judged: `folder-cycle-facade` flips to accept (edge to `error`); `folder-parent-file` stays accept (decision 2); `folder-cycle-nested` and `folders-use-each-other` become `module-cycle`; `folder-cycle-leaf-folder`, `folder-loop-within-folder` and both test-edge cases stay accept. The CLI cases `folder-cycle-*` became `module-cycle-*`; the flat-file case offers no fix-it.
 
 ## Appendix E. Details
 
-Spec text (ch. 10, replacing Folders, Folder Graph and Cycle Diagnostic):
+Spec text as applied (ch. 10, [Dependency Cycles](../../spec/lang/10-modules.md#dependency-cycles)):
 
-1. new rule module.cycle.edge: the module graph has an edge from module M to a different module N when M's library code has a use whose name N declares, after `pub use` chains; a namespace use reaches the module it names.
+1. [`module.cycle.edge`](../../spec/lang/10-modules.md#r-module.cycle.edge), [`module.cycle.edge.pub-use`](../../spec/lang/10-modules.md#r-module.cycle.edge.pub-use), [`module.cycle.edge.namespace`](../../spec/lang/10-modules.md#r-module.cycle.edge.namespace): an edge from module M to a different module N when a use in M reaches a name N declares, after `pub use` chains; a `pub use` line is an edge from its own module; a namespace use reaches the module it names.
 2. `module.cycle.same-package`, `module.cycle.test-code`, `module.cycle.package`: kept.
-3. new rule module.cycle.folder: a module's folder is the directory of its source file.
-4. new rule module.cycle.siblings: a loop of the module graph is an error unless all its modules share a folder. Error: `module-cycle`.
-5. new rule module.cycle.diagnostic.loop: the diagnostic shows one shortest loop through the first edge that enters the group's first module from another folder, each edge with its `use` line, and the group's size.
-6. new rule module.cycle.diagnostic.fix: when moving one flat `x.hd` to `x/mod.hd` puts every module of the loop in one folder, it offers that move.
+3. The folder rules `module.folder.*` stay (decision 2), with module.folder.parent-child replaced by [`module.folder.siblings`](../../spec/lang/10-modules.md#r-module.folder.siblings): modules in one folder are siblings, a flat `x.hd` beside `x/` included.
+4. [`module.cycle.siblings`](../../spec/lang/10-modules.md#r-module.cycle.siblings): a loop of the module graph is an error unless its modules are siblings. Error: `module-cycle`.
+5. [`module.cycle.diagnostic.report`](../../spec/lang/10-modules.md#r-module.cycle.diagnostic.report), [`.entry`](../../spec/lang/10-modules.md#r-module.cycle.diagnostic.entry), [`.shortest-loop`](../../spec/lang/10-modules.md#r-module.cycle.diagnostic.shortest-loop), [`.group`](../../spec/lang/10-modules.md#r-module.cycle.diagnostic.group), [`.help`](../../spec/lang/10-modules.md#r-module.cycle.diagnostic.help): one error per group, at the first edge entering the group's first module from another folder; one shortest loop with its `use` lines; the group's module and folder counts; the declarations of one cross-folder edge to move. (module.cycle.diagnostic.loop was an ID used before, so the spec uses `.shortest-loop`.)
+6. Not adopted (decision 2): a fix-it that moves `x.hd` to `x/mod.hd`; the two are interchangeable, so the move changes no folder.
 7. Not adopted (owner: no `pub(super)` now). Was: new rule module.vis.super: `pub(super)` makes a declaration visible to its module's parent and the parent's descendants; a `pub use` of it is an error outside them. `module.vis.no-package-private` stays true: `pub(super)` is not package-wide.
 
 Checklist: grammar adds one modifier form (`pub(super)`, formatter keeps it);

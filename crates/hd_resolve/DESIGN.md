@@ -54,7 +54,7 @@ deleted file is never served from the cache (Gleam #4320).
 1. For each non-test `use` in a file of folder `A`, find the module its
    path reaches: the longest prefix of the path that names a module.
    `use pkg.shop.Item` and `use pkg.shop.{Item}` both reach `shop`
-   ([`module.cycle.folder-edge`](../../spec/lang/10-modules.md#r-module.cycle.folder-edge)).
+   ([`module.cycle.edge`](../../spec/lang/10-modules.md#r-module.cycle.edge)).
 2. Add the edge `A -> folder(module)` when the folders differ and the
    module is in the same package. Fixed prelude uses participate exactly
    like written uses, except that the virtual `std.core` module does not

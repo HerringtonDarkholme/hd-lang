@@ -19,7 +19,7 @@ and [visibility](../../spec/lang/10-modules.md#public-uses-and-visibility) rules
 
 ## Surface Being Tested
 
-- **R1, edges.** An edge goes from a module to the module that declares the name a library `use` reaches, after `pub use` chains (MODULES.md Question 1, recommended). Variant **R1b**: the edge goes to the module the path names, as `module.cycle.folder-edge` says today.
+- **R1, edges.** An edge goes from a module to the module that declares the name a library `use` reaches, after `pub use` chains (MODULES.md Question 1, recommended). Variant **R1b**: the edge goes to the module the path names, as module.cycle.folder-edge says today.
 - **R2, siblings.** Modules are siblings when their files share a directory; `x/mod.hd` is in `x/`, a flat `x.hd` is not (Question 2, recommended). Variant **R2b**: `x.hd` counts as in `x/`, as `module.folder.parent-file` says today.
 - **R3, loops.** A loop is legal only among siblings; any other is `module-cycle`.
 - **R4, helpers.** `pub(super)`: visible to the parent module and its subtree (Question 3, recommended).
