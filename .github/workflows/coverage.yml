@@ -57,9 +57,9 @@ jobs:
       - name: Measure and check
         env:
           GH_TOKEN: ${{ github.token }}
-        # While #2342 is open, every run retains per-set costs and unique-line
-        # evidence, including scheduled runs. Remove this default when cutting sets.
-        run: node scripts/coverage.ts --check --attribute
+        # Redundant checked conformance is omitted using measured per-set coverage.
+        # Per-set attribution remains available through scripts/coverage.ts --attribute.
+        run: node scripts/coverage.ts --check
 
       - name: Store the report
         # Failed checks still become the next reference when a report exists.
