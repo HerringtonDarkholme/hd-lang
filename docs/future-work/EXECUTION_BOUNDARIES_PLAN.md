@@ -504,13 +504,24 @@ changed, the walk is cached by the file hashes it read.
 
 ## 8. Stage 6: Runtime
 
-Part built (2026-11-23):
+Part built (2026-11-24):
 - Built:
-  - `std.sync` `Arc`/`Weak` over `std.rt` atomics;
-  - shared memory with `std.rt.thread` spawn and join on Node and Wasmtime;
-  - the per-thread allocator.
-- In progress: the unique-buffer crossing.
-- Then: `Scope`/`Background`.
+  - workers: lifted crossing literals, `std.remote.Workers`, and the
+    worker instance on Node and Wasmtime;
+  - `std.sync` `Arc`/`Weak` over `std.rt` atomics (+315);
+  - shared memory with `std.rt.thread` spawn and join on Node and
+    Wasmtime (+518);
+  - the per-thread allocator (+231);
+  - the unique-buffer crossing, option A (4be8f5589);
+  - `std.thread` `scope`, `Scope.spawn` and `Handle.join` (cb1e38da9)
+    and `background!` (ff04ebec0): +424 against +350.
+- Left:
+  - `Mutex[T]`, the std part of S1 (below), about +120 of S1's +150:
+    waits on an owner question, how a copy out of a guard stays unique;
+  - workers follow-ups: overlapping sends on Node (a pending operation,
+    as `Http.send` has), abort on cancel, a browser `Worker`; about +150
+    of host code, no owner question;
+  - the jobs store: unpriced; needs the owner's API and store backend.
 
 Re-priced on 2026-11-22 after the owner's decision on counts,
 which this section follows: "ARC should be something a stdlib to ship,
