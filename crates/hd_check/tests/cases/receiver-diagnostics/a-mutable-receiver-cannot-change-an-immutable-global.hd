@@ -1,0 +1,12 @@
+# @dump: diagnostics
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn bump(&mut self) -> void:
+        self.value += 1
+
+let counter = Counter { value: 0 }
+
+fn run() -> void:
+    counter.bump()

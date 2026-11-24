@@ -1,0 +1,9 @@
+# @dump: diagnostics
+trait ReadCount:
+    fn read(*self) -> i32
+
+fn owned[T < ReadCount](value: T) -> i32:
+    value.read()
+
+fn borrowed[T < ReadCount](value: &T) -> i32:
+    value.read()
