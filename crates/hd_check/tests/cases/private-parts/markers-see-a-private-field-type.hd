@@ -1,7 +1,6 @@
 # @dump: diagnostics
 # A public struct whose fields are a private struct and a private enum of
 # another module has each marker its parts have (`module.marker.structural`).
-# expected: no diagnostics: `Wrapper` is `Send`, `Sync` and `Wire`
 use pkg.shapes.{Wrapper, make}
 use std.marker.{Send, Sync, Wire}
 

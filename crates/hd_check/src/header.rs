@@ -88,6 +88,19 @@ pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<
     stage_b_over(cx, items.iter().filter(|it| held.checks(it)))
 }
 
+/// Whether an interface item is part of its folder's API, not a private
+/// type declaration carried for the solver's walks.
+fn api_item(it: &Item) -> bool {
+    it.public
+        || !matches!(
+            it.data,
+            ItemData::Struct(..)
+                | ItemData::Enum { .. }
+                | ItemData::Newtype(..)
+                | ItemData::Alias { .. }
+        )
+}
+
 /// Stage B over the items of one module that `HeaderCheck` leaves out
 /// ([`InterfaceCheck::checks`]): its private items, and its impls that name
 /// one. `cx`'s lookup holds the module's own items, private ones included:
@@ -122,13 +135,21 @@ impl<'n, 'a> InterfaceCheck<'n, 'a> {
         }
     }
 
+    /// Whether an interface holds `d` as part of the API: a private type
+    /// declaration it carries only for a dependent's `Copy` and marker
+    /// walks (`hd_resolve::interface_items`) is checked with its module.
     fn holds(&self, d: DefId) -> bool {
-        d == DefId::NONE || self.lookup.ifaces.iter().any(|f| f.item(d).is_some())
+        d == DefId::NONE
+            || self
+                .lookup
+                .ifaces
+                .iter()
+                .any(|f| f.item(d).is_some_and(api_item))
     }
 
     /// Whether `HeaderCheck(F)` checks `it`.
     pub fn checks(&mut self, it: &Item) -> bool {
-        if !self.lookup.ifaces.iter().any(|f| f.item(it.def).is_some()) {
+        if !api_item(it) || !self.holds(it.def) {
             return false;
         }
         let (mut defs, mut tys) = (Vec::new(), Vec::new());

@@ -4840,7 +4840,7 @@ impl Run<'_> {
         let items = if input {
             all
         } else {
-            hd_resolve::interface_items(&all)
+            hd_resolve::interface_items(&self.pool, &all)
         };
         let blob = match hd_resolve::encode_items(&names, &items, &out.exports) {
             Ok(b) => b,

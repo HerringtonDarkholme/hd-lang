@@ -325,6 +325,15 @@ a public signature
 ([`module.vis.signature`](../../spec/lang/10-modules.md#r-module.vis.signature)).
 So adding `impl Display for PrivateThing` rechecks no dependent.
 
+The blob also carries each private type declaration that a kept item's
+header reaches, at any depth (`interface_items`): a dependent's solver
+walks a public type's fields into it for `Copy` and the markers, as
+rustc's crate metadata keeps every ADT. Without it a public struct with a
+private field type read as a built-in: no marker, and always `Copy`
+(#2345). Such a declaration binds no name, since only `exports` do, and
+`HeaderCheck` leaves it to its module's check (`InterfaceCheck::checks`).
+Its fields are in `api_hash`, so a field change there rechecks dependents.
+
 The rule covers impls owned through a trait argument too.
 `impl Pick[Product] for Receiver` in `Product`'s module has a nameable
 trait and target, whatever `Product`'s visibility, so its head is in

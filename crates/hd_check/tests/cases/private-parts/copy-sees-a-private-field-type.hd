@@ -1,7 +1,6 @@
 # @dump: diagnostics
 # A public struct that holds a private `impl !Copy` struct of another
 # module is not copied (`ref.copy.structure`).
-# expected: use-of-moved-value at the second `w`
 use pkg.shapes.{Holder, make}
 
 fn twice(w: Holder) -> (Holder, Holder):

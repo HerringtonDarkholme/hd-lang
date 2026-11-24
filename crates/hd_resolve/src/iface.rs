@@ -2731,14 +2731,57 @@ pub fn deep_hash(api_hash: Hash128, mentions: &[(String, Hash128)]) -> Hash128 {
     h.finish()
 }
 
-/// What other folders may see: public items, every impl, and the members
-/// of both.
+/// What other folders may see: public items, every impl, the members of
+/// both, and each private type declaration their headers reach, at any
+/// depth. A dependent's solver walks a public type's fields into a private
+/// one for `Copy` and the markers (`ref.copy.structure`,
+/// `module.marker.structural`), as rustc's metadata keeps every ADT; it
+/// cannot name one, since only `exports` bind names. Cost: one pass over
+/// the kept headers' types, each type once.
 #[must_use]
-pub fn interface_items(items: &[Item]) -> Vec<Item> {
+pub fn interface_items(pool: &InternPool, items: &[Item]) -> Vec<Item> {
+    let by_def: HashMap<DefId, usize> = items
+        .iter()
+        .enumerate()
+        .map(|(i, it)| (it.def, i))
+        .collect();
+    let mut keep = vec![false; items.len()];
+    let (mut defs, mut tys) = (Vec::new(), Vec::new());
+    for (i, it) in items.iter().enumerate() {
+        if it.public || matches!(it.data, ItemData::Impl { .. }) {
+            keep[i] = true;
+            header_parts(pool, it, &mut defs, &mut tys);
+        }
+    }
+    let mut seen = hd_base::HashSet::default();
+    while let Some(t) = tys.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        let mut named = Vec::new();
+        ty_parts(pool, t, &mut named, &mut tys);
+        for d in named {
+            let Some(&j) = by_def.get(&d) else { continue };
+            let it = &items[j];
+            if !keep[j]
+                && matches!(
+                    it.data,
+                    ItemData::Struct(..)
+                        | ItemData::Enum { .. }
+                        | ItemData::Newtype(..)
+                        | ItemData::Alias { .. }
+                )
+            {
+                keep[j] = true;
+                header_parts(pool, it, &mut defs, &mut tys);
+            }
+        }
+    }
     items
         .iter()
-        .filter(|i| i.public || matches!(i.data, ItemData::Impl { .. }))
-        .cloned()
+        .zip(keep)
+        .filter(|&(_, k)| k)
+        .map(|(it, _)| it.clone())
         .collect()
 }
 
