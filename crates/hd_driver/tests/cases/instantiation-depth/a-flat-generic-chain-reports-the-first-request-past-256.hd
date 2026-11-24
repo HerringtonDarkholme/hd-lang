@@ -2,7 +2,10 @@
 # @build: dev | checked
 # types.generic.instantiation-depth.error: 257 shallow generic requests
 # reach the implementation's chain limit, not its type-depth limit.
-# Generated as one ordinary call per step; every type argument stays i32.
+# The shallow nominal type stays unchanged through every generic call.
+# The 120-byte diagnostic cut falls inside its Unicode name.
+struct AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA界Tail: pass
+
 fn step000[T](value: T) -> T:
     step001(value)
 
@@ -775,4 +778,8 @@ fn step256[T](value: T) -> T:
     value
 
 pub fn main() -> void $ Console:
-    println(step000(+7))
+    _ := step000(
+        AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA界Tail {
+        },
+    )
+    println("ok")
