@@ -74,6 +74,9 @@ use hd_testkit::known_failures::{self, Outcome};
 #[path = "../../hd_fmt/examples/conformance/policy.rs"]
 mod format_policy;
 
+#[path = "conformance/coverage.rs"]
+mod coverage;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {
     Parse,
@@ -2689,6 +2692,14 @@ fn workers() -> usize {
 /// file first. A runtime case costs about 30 times a type case on
 /// average, and the widest fixtures take many seconds to compile.
 fn run_all(cases: &[Case], store: &Store) -> Vec<Verdict> {
+    if let Some(directory) = std::env::var_os("HD_COVERAGE_CASE_DIR") {
+        assert_eq!(
+            engine_mode(),
+            EngineMode::Node,
+            "case attribution measures the Node coverage job"
+        );
+        return coverage::run(cases, store, Path::new(&directory));
+    }
     let timings = timings();
     let size =
         |case: &Case| std::fs::metadata(suite_root().join(&case.path)).map_or(0, |m| m.len());
