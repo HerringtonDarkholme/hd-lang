@@ -62,7 +62,7 @@ edit from one key.
 | --- | --- | --- | --- | --- | --- |
 | Skim (header pass) | file bytes | `HeaderSkeleton` | file | dependency packages only, in `depfiles` | |
 | Full parse | file bytes | `TokenBuf`, `GreenTree`, item index | file | a `parse` entry records that a source parses cleanly | `parse_key` |
-| Folder graph | use lists of every file | folder DAG, `folder-cycle` | package | no | |
+| Module graph | use lists of every file | units (strongly connected module groups) in dependency order, `module-cycle` | package | no | |
 | Folder interface | the folder's files, interfaces of used folders | `FolderIface`, blob, deep hash, header diagnostics | folder | `iface` | [§5.3](../../crates/hd_cache/DESIGN.md#53-key-composition) |
 | Header check | a folder's interface and its closure's interfaces | header bound, supertrait, newtype-base and delegation diagnostics | folder | one `graph` entry per folder | `hdr_key` |
 | Module prep | module tree, interfaces of the folder's closure | module scope, inferred results | module | inside `check` | |

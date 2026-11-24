@@ -126,8 +126,10 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   stored, so a warm run reports what a clean one does (#310). This is better
   than the design's `source_hash(m)`, which rechecked a module on every
   comment or blank-line edit.
-- **Dependency closures.** `closure(m)` is m's own folder plus every
-  folder reachable from it through the folder graph's use edges. A
+- **Dependency closures.** `closure(m)` is m's own unit (a strongly
+  connected group of modules, `crates/hd_resolve/DESIGN.md` §4.8) plus every
+  unit reachable from it through the module graph's dependency edges,
+  walked on demand. A
   role-`test` `check_key` uses `test_closure(m)`, which adds every folder
   that test code reaches, dev dependencies included. So each key lists
   every folder whose impls its check can see. A `tests:` block's uses,

@@ -16,8 +16,8 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 2. Open the session: `toolchain_key` and the disk store. The thread pool
    is used when the thread count is above 1, and `hd check` creates no
    Wasm engine.
-3. Read and skim every source file; build the folder graph from the
-   skims' use lists.
+3. Read and skim every source file; build the module graph and its units
+   from the skims' use lists.
 4. Bottom-up over folders: read the folder's read list, compute
    `iface_key` from it, look it up, and on a miss parse the folder's
    files and run `FolderIface`.
