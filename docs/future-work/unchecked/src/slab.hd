@@ -1,0 +1,54 @@
+# A slab of values that need not be `Copy`, as Rust's `slab` crate: keys
+# are slot numbers, and a removed slot is reused. `List[T]` needs `Copy`
+# elements, so the values live in one `Buffer[T]` room. Lines marked
+# `unchecked:` are where the doc's copy wraps the call.
+use pkg.ptr.Buffer
+
+pub struct Slab[T < ?Copy]:
+    room: Buffer[T]
+    full: List[bool]
+    free: List[usize]
+
+impl[T < ?Copy] Slab[T]:
+    ## An empty slab.
+    pub fn new() -> Slab[T]:
+        Slab::[T] { room: Buffer::[T]::new(0), full: [], free: [] }
+
+    ## Moves `value` in and gives its key.
+    pub fn insert(&mut self, value: T) -> usize:
+        key := match self.free.pop():
+            .Some(slot) => slot
+            .None =>
+                slot := self.full.len()
+                if slot == self.room.capacity():
+                    self.room.grow(if slot == 0: 4 else: slot * 2)
+                self.full.push(false)
+                slot
+        # unchecked: the slot is room for a `T` and holds no value.
+        self.room.at(key).write(value)
+        self.full[key] = true
+        key
+
+    ## The value at `key`, if one is there.
+    pub fn get(&self, key: usize) -> &T?:
+        if key >= self.full.len() || !self.full[key]:
+            return .None
+        # unchecked: the slot holds a value, which `&self` keeps there.
+        .Some(self.room.at(key).as_ref())
+
+    ## Moves the value at `key` out, if one is there.
+    pub fn remove(&mut self, key: usize) -> T?:
+        if key >= self.full.len() || !self.full[key]:
+            return .None
+        self.full[key] = false
+        self.free.push(key)
+        # unchecked: the slot held a value, and is now marked empty.
+        .Some(self.room.at(key).read())
+
+    ## Drops every value. Without a user drop hook, a slab dropped while
+    ## full leaks its values, as a bumpalo value's `Drop` never runs.
+    pub fn clear(&mut self) -> void:
+        let mut key = usize(0)
+        while key < self.full.len():
+            _ := self.remove(key)
+            key += 1
