@@ -322,7 +322,7 @@ fn read_range(r: &mut Reader<'_>) -> Range32 {
 
 /// A buffer's columns as they are, so the replay renders, orders and
 /// deduplicates exactly as the run that stored it.
-fn write_diags(w: &mut Writer, d: &DiagBuf) {
+pub fn write_diags(w: &mut Writer, d: &DiagBuf) {
     w.str(&d.text);
     w.len_of(&d.code);
     for i in 0..d.code.len() {
@@ -358,7 +358,7 @@ fn write_diags(w: &mut Writer, d: &DiagBuf) {
     }
 }
 
-fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option<DiagBuf> {
+pub fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option<DiagBuf> {
     let mut d = DiagBuf::default();
     r.str().clone_into(&mut d.text);
     for _ in 0..r.count() {
@@ -420,37 +420,4 @@ fn read_diags(r: &mut Reader<'_>, code: &dyn Fn(&str) -> Option<Code>) -> Option
         && d.fixes.iter().all(|&f| within(f, d.fix_title.len()))
         && d.fix_edits.iter().all(|&e| within(e, d.edits.len()));
     (r.ok() && ok).then_some(d)
-}
-
-#[cfg(test)]
-mod label_tests {
-    use super::*;
-
-    #[test]
-    fn package_diagnostics_keep_secondary_spans_and_labels() {
-        let span = Span {
-            file: FileId::from_raw(3),
-            lo: 8,
-            hi: 14,
-        };
-        let mut before = DiagBuf::default();
-        before.error(Code::OverlappingImpl, span, "overlap");
-        before.add_label(
-            Span {
-                lo: 1,
-                hi: 7,
-                ..span
-            },
-            "other implementation",
-        );
-        before.error(Code::TypeMismatch, span, "another error");
-        let mut w = Writer::default();
-        write_diags(&mut w, &before);
-        let mut r = Reader::new(&w.bytes);
-        let after = read_diags(&mut r, &Code::from_name).expect("valid diagnostics");
-        assert!(r.at_end());
-        assert_eq!(after.render_json(), before.render_json());
-        assert_eq!(after.labels(0), before.labels(0));
-        assert!(after.labels(1).is_empty());
-    }
 }

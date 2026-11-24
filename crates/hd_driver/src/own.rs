@@ -127,7 +127,7 @@ impl Env<'_> {
 }
 
 mod effects;
-mod place_types;
+pub(crate) mod place_types;
 mod program;
 
 thread_local! {
@@ -1302,7 +1302,7 @@ impl Env<'_> {
 /// Internal calls compose as read-only only when every generated factory
 /// has no external write. Each helper's TIR is inspected once; no recursive
 /// query or fixpoint is needed for this conservative group proof.
-fn read_only_factories(
+pub fn read_only_factories(
     pool: &hd_types::InternPool,
     target: Ty,
     bodies: &[Body],
@@ -1326,67 +1326,6 @@ fn read_only_factories(
         })
 }
 
-#[test]
-fn supplied_factory_effects_preserve_external_initializers_and_target_identity()
--> Result<(), String> {
-    use hd_tir::ir::{BodyKind, Providers, TirBuilder, TirSink};
-    let pool = hd_types::InternPool::new();
-    let target = Ty::I32;
-    let helper = |def: u32, callee: Option<(u32, Ty)>| {
-        let mut b = TirBuilder::new(DefId::from_raw(def), BodyKind::Handle);
-        let root = b.open_block();
-        if let Some((called, target)) = callee {
-            b.call(
-                &Callee::Item {
-                    def: DefId::from_raw(called),
-                    targs: pool.list(&[target]),
-                },
-                &[],
-                Providers::None,
-                Ty::VOID,
-                hd_base::NodeIdx::NONE,
-            );
-        }
-        let root = b.close_block(root, None, Ty::VOID, hd_base::NodeIdx::NONE);
-        b.finish(root, &[]).map_err(|errors| format!("{errors:?}"))
-    };
-    let index = [(DefId::from_raw(1), 0), (DefId::from_raw(2), 1)]
-        .into_iter()
-        .collect();
-    let static_family = [helper(1, Some((2, target)))?, helper(2, None)?];
-    assert!(read_only_factories(
-        &pool,
-        target,
-        &static_family,
-        &index,
-        &|_| true
-    ));
-    let effectful = [helper(1, Some((2, target)))?, helper(2, Some((3, target)))?];
-    assert!(!read_only_factories(
-        &pool,
-        target,
-        &effectful,
-        &index,
-        &|_| true
-    ));
-    assert!(read_only_factories(
-        &pool,
-        target,
-        &effectful,
-        &index,
-        &|_| false
-    ));
-    let other_target = [helper(1, Some((2, Ty::BOOL)))?, helper(2, None)?];
-    assert!(!read_only_factories(
-        &pool,
-        target,
-        &other_target,
-        &index,
-        &|_| true
-    ));
-    Ok(())
-}
-
 /// The run's layout memo (`Run::own_types`): one [`TypeFacts`] per type,
 /// in a table indexed by the type's id, as Cranelift's `SecondaryMap`
 /// keeps a fact per entity. The ownership passes ask a fact of a value's
@@ -1394,13 +1333,14 @@ fn supplied_factory_effects_preserve_external_initializers_and_target_identity()
 /// hash. A body-local type (`Ty::is_local`), which no pool index names,
 /// keeps its entry in a map.
 #[derive(Debug, Default)]
-pub(super) struct TypeTable {
-    global: Vec<Option<TypeFacts>>,
-    local: HashMap<Ty, TypeFacts>,
+pub struct TypeTable {
+    pub global: Vec<Option<TypeFacts>>,
+    pub local: HashMap<Ty, TypeFacts>,
 }
 
 impl TypeTable {
-    fn get(&self, t: Ty) -> Option<&TypeFacts> {
+    #[must_use]
+    pub fn get(&self, t: Ty) -> Option<&TypeFacts> {
         if t.is_local() {
             self.local.get(&t)
         } else {
@@ -1408,7 +1348,7 @@ impl TypeTable {
         }
     }
 
-    fn get_mut(&mut self, t: Ty) -> Option<&mut TypeFacts> {
+    pub fn get_mut(&mut self, t: Ty) -> Option<&mut TypeFacts> {
         if t.is_local() {
             self.local.get_mut(&t)
         } else {
@@ -1431,11 +1371,12 @@ impl TypeTable {
         )
     }
 
-    fn contains(&self, t: Ty) -> bool {
+    #[must_use]
+    pub fn contains(&self, t: Ty) -> bool {
         self.get(t).is_some()
     }
 
-    fn insert(&mut self, t: Ty, facts: TypeFacts) {
+    pub fn insert(&mut self, t: Ty, facts: TypeFacts) {
         if t.is_local() {
             self.local.insert(t, facts);
             return;
@@ -1462,19 +1403,19 @@ fn index(t: Ty) -> usize {
 /// entries; the counted facts the first time a pass asks them of a type
 /// that names no parameter ([`Env::layout_facts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) struct TypeFacts {
-    refs: RefFacts,
+pub struct TypeFacts {
+    pub refs: RefFacts,
     /// Whether it holds a counted leaf, and its reference ownership.
-    layout: Option<(bool, Option<bool>)>,
-    mode: Option<hd_tir::own::ParameterMode>,
-    function_input: Option<hd_tir::own::FunctionInput>,
-    collection: Option<bool>,
+    pub layout: Option<(bool, Option<bool>)>,
+    pub mode: Option<hd_tir::own::ParameterMode>,
+    pub function_input: Option<hd_tir::own::FunctionInput>,
+    pub collection: Option<bool>,
 }
 
 /// The references a value of a type may hold, from its own kind and its
 /// parts' facts ([`ref_facts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct RefFacts {
+pub struct RefFacts {
     /// It may hold a reference ([`OwnCx::holds_ref`]): a reference type, a
     /// trait value, a function value, which may hold the references its
     /// closure captured, a `Ptr[T]`, whose address `as_ref` makes a
@@ -1484,18 +1425,18 @@ struct RefFacts {
     /// (`ref.generic.local`), but never one into a local of the body that
     /// holds it: no expression makes a `T` from that body's storage
     /// (`ref.generic.body`), so for frame locals it holds none.
-    holds: bool,
+    pub holds: bool,
     /// Every reference it may hold is a counted `Ref`: no local `Ref`,
     /// trait value, function value, `Ptr` or type parameter.
-    only_counted: bool,
+    pub only_counted: bool,
     /// It holds a counted `Ref` ([`OwnCx::counted_refs_only`] with
     /// `only_counted`).
-    counted: bool,
+    pub counted: bool,
 }
 
 impl RefFacts {
     /// A type that holds no reference and nothing open.
-    const NONE: Self = Self {
+    pub const NONE: Self = Self {
         holds: false,
         only_counted: true,
         counted: false,
@@ -1562,7 +1503,7 @@ fn ref_facts_of(
 /// its direct parts, with no native recursion. A type that doubles at each
 /// level, `(D, D)` over `n` aliases, costs `n` entries, not its `2^n`
 /// leaves.
-fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTable) -> RefFacts {
+pub fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTable) -> RefFacts {
     crate::work::layout_probe();
     if let Some(f) = memo.get(t) {
         return f.refs;
@@ -1603,67 +1544,6 @@ fn ref_facts(pool: &hd_types::InternPool, ptr: DefId, t: Ty, memo: &mut TypeTabl
         );
     }
     refs
-}
-
-#[test]
-fn a_function_beside_a_counted_reference_may_hold_a_local_reference() {
-    let pool = hd_types::InternPool::new();
-    let ptr = DefId::from_raw(1);
-    let boxed = pool.intern_ty(&TyData::Ref {
-        inner: Ty::I32,
-        counted: true,
-        mutable: false,
-    });
-    let callback = pool.intern_ty(&TyData::Fn {
-        params: TyList::EMPTY,
-        result: Ty::I32,
-        row: hd_types::RowId::EMPTY,
-        suspends: false,
-        inputs: hd_types::Inputs::Fixed,
-        deps: hd_types::FnDeps::NONE,
-    });
-    let pair = |right| pool.product(pool.list(&[boxed, right]), None);
-    let mut memo = TypeTable::default();
-    let mut only = |t| {
-        let f = ref_facts(&pool, ptr, t, &mut memo);
-        f.only_counted && f.counted
-    };
-    assert!(only(pair(Ty::STRING)));
-    assert!(!only(pair(callback)));
-}
-
-#[test]
-fn the_type_table_indexes_pool_types_and_maps_body_local_ones() {
-    let facts = |holds| TypeFacts {
-        refs: RefFacts {
-            holds,
-            ..RefFacts::NONE
-        },
-        layout: None,
-        mode: None,
-        function_input: None,
-        collection: None,
-    };
-    let mut table = TypeTable::default();
-    let (far, near, local) = (Ty(1_000), Ty(3), Ty(Ty::I32.0 | 0x8000_0000));
-    assert!(local.is_local() && !far.is_local());
-    table.insert(far, facts(true));
-    table.insert(near, facts(false));
-    table.insert(local, facts(true));
-    assert!(table.contains(far) && table.contains(near) && table.contains(local));
-    assert!(!table.contains(Ty(999)) && !table.contains(Ty(5_000)));
-    assert_eq!(table.global.len(), 1_001);
-    assert_eq!(table.local.len(), 1);
-    // ruled out: a missing entry; both were inserted above.
-    table.get_mut(near).expect("an entry").layout = Some((true, None));
-    // ruled out: a missing entry; both were inserted above.
-    table.get_mut(local).expect("an entry").layout = Some((false, Some(true)));
-    assert_eq!(table.get(near).and_then(|f| f.layout), Some((true, None)));
-    assert_eq!(
-        table.get(local).and_then(|f| f.layout),
-        Some((false, Some(true)))
-    );
-    assert!(table.get_mut(Ty(7)).is_none());
 }
 
 impl Env<'_> {
@@ -2027,7 +1907,7 @@ impl Env<'_> {
     }
 
     /// `t`'s reference facts from the run's layout memo ([`ref_facts`]).
-    fn ref_facts(&self, t: Ty) -> RefFacts {
+    pub fn ref_facts(&self, t: Ty) -> RefFacts {
         ref_facts(
             &self.run.pool,
             self.run.known.ptr,
@@ -2054,8 +1934,8 @@ impl Env<'_> {
             body.anchors = (0..hd_tir::ir::u32_of(body.len())).collect();
         }
         self.root_across_pure_calls(&mut body);
-        #[cfg(all(test, not(target_arch = "wasm32")))]
-        metadata_tests::verify_checked_variants(self, &body);
+        #[cfg(all(feature = "testing", not(target_arch = "wasm32")))]
+        test_hooks::metadata::verify_checked_variants(self, &body);
         let returns = summarize
             .then(|| hd_tir::own::returned_param(&body))
             .flatten();
@@ -2099,8 +1979,8 @@ impl Env<'_> {
                 ));
             }
         }
-        #[cfg(all(test, not(target_arch = "wasm32")))]
-        metadata_tests::verify_fresh(self, &body);
+        #[cfg(all(feature = "testing", not(target_arch = "wasm32")))]
+        test_hooks::metadata::verify_fresh(self, &body);
         // The exit set as statements, after the verifier
         // (`hd_tir::own::elaborate`).
         hd_tir::own::elaborate(&mut body, self)
@@ -3141,8 +3021,8 @@ impl Env<'_> {
         if let Some(key) = key
             && let Some((body, _)) = self.run.stored_package_owned(self.p, key)
         {
-            #[cfg(test)]
-            owned_cache_tests::verify_stored(self.run, self.p, &body);
+            #[cfg(feature = "testing")]
+            test_hooks::verify_stored(self.run, self.p, &body);
             let owned = std::sync::Arc::new(body);
             lock(instances).insert(node, Some(owned.clone()));
             return Ok(Some(owned));
@@ -4183,153 +4063,5 @@ impl Run<'_> {
     }
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod metadata_tests;
-
-#[cfg(test)]
-pub(super) mod owned_cache_tests {
-    use std::cell::Cell;
-
-    use hd_base::{BuildProfile, Hash128};
-    use hd_cache::{CacheStore, EntryKind, MemoryStore};
-    use hd_intern::{PathTable, ShardedInterner};
-    use hd_project::MemorySources;
-    use hd_tir::ir::Body;
-    use hd_types::InternPool;
-
-    use super::{ProgramTables, Run};
-    use crate::{Executor, Goal, Host, NoClock, Packages, build_packages};
-
-    thread_local! {
-        /// While set, how many stored bodies a build verified.
-        pub(super) static VERIFIED: Cell<Option<usize>> = const { Cell::new(None) };
-    }
-
-    /// Verifies a std body a build took from the store
-    /// (`Run::own_lazy`), while [`every_std_body_owned_form_round_trips`]
-    /// asks.
-    pub(crate) fn verify_stored(run: &Run<'_>, p: &ProgramTables, body: &Body) {
-        let Some(n) = VERIFIED.get() else {
-            return;
-        };
-        // The phase rides in the stored wire form: a std body is owned as
-        // its one instance (`Env::mark_instance`).
-        assert_eq!(
-            body.phase,
-            hd_tir::ir::Phase::Elaborated,
-            "stored `{}`",
-            run.names().path(body.item)
-        );
-        let errs = run.with_env(p, |env| hd_tir::ir::verify_owned(body, env));
-        if let Some(e) = errs.first() {
-            panic!(
-                "stored `{}` fails invariant {} at %{}: {}",
-                run.names().path(body.item),
-                e.invariant,
-                e.inst,
-                e.what
-            );
-        }
-        VERIFIED.set(Some(n + 1));
-        #[cfg(not(target_arch = "wasm32"))]
-        if super::metadata_tests::active() {
-            run.with_env(p, |env| super::metadata_tests::verify_fresh(env, body));
-        }
-    }
-
-    /// Programs over much of std: JSON and serde, maps, sorting, strings,
-    /// closures, tasks and trait values.
-    const PROGRAMS: [&str; 5] = [
-        include_str!("../../../bench/study/json.hd"),
-        include_str!("../../../bench/runtime/progs/map-count.hd"),
-        include_str!("../../../bench/runtime/progs/task-pipeline.hd"),
-        include_str!("../../../bench/runtime/progs/string-builder.hd"),
-        include_str!("../../../bench/runtime/progs/plugins.hd"),
-    ];
-
-    fn build(store: &MemoryStore, text: &str, profile: BuildProfile) -> crate::Output {
-        build_at(store, text, profile, hd_base::OptLevel::Dev)
-    }
-
-    pub(super) fn build_at(
-        store: &MemoryStore,
-        text: &str,
-        profile: BuildProfile,
-        level: hd_base::OptLevel,
-    ) -> crate::Output {
-        let mut sources = MemorySources::default();
-        sources.insert("main.hd", text);
-        let host = Host {
-            render_tir: &[],
-            sources: &sources,
-            store,
-            clock: &NoClock,
-            executor: Executor::Serial(hd_sched::SerialOrder::Priority),
-        };
-        let packages = Packages {
-            build_profile: profile,
-            level,
-            ..Packages::default()
-        };
-        let out = build_packages(
-            &host,
-            "app",
-            &packages,
-            &Goal::Program {
-                entry: "main".into(),
-            },
-        );
-        assert!(!out.diags.has_errors(), "{}", out.render());
-        out
-    }
-
-    /// Every std body these programs own is stored once per profile, its
-    /// wire form decodes into another run's tables and encodes back to the
-    /// same bytes, and a later build takes each from the store, whose
-    /// owned verifier accepts it.
-    #[test]
-    fn every_std_body_owned_form_round_trips() {
-        let store = MemoryStore::default();
-        for profile in [BuildProfile::Checked, BuildProfile::Release] {
-            for text in PROGRAMS {
-                build(&store, text, profile);
-            }
-        }
-        let owned: Vec<Hash128> = store
-            .drain_new()
-            .into_iter()
-            .filter_map(|(kind, key)| (kind == EntryKind::Owned).then_some(key))
-            .collect();
-        assert!(owned.len() > 380, "{} owned std bodies", owned.len());
-        // A store with only the owned bodies: the builds below check, collect
-        // and link again, and take every std body from it.
-        let warm = MemoryStore::default();
-        for key in &owned {
-            let entry = store.get(EntryKind::Owned, key).expect("stored");
-            let (_, sections) = hd_cache::decode_entry(&entry).expect("an entry");
-            let wire = sections[1].1;
-            let (pool, paths, syms) = (
-                InternPool::new(),
-                PathTable::new(),
-                ShardedInterner::default(),
-            );
-            // Other IDs than the writer's run.
-            paths.item("zzz", "a", "b");
-            let body = hd_tir::wire::read_body(wire, &pool, &paths, &syms).expect("decodes");
-            let again = hd_tir::wire::write_body(&body, &pool, &paths, &syms).expect("encodes");
-            assert_eq!(wire, &again[..], "{key:?}");
-            warm.put(EntryKind::Owned, key, &entry);
-        }
-        VERIFIED.set(Some(0));
-        let mut hits = 0;
-        for profile in [BuildProfile::Checked, BuildProfile::Release] {
-            for text in PROGRAMS {
-                let out = build(&warm, text, profile);
-                assert_eq!(out.counters.misses.get("owned"), None);
-                hits += out.counters.hits.get("owned").copied().unwrap_or(0);
-            }
-        }
-        assert_eq!(VERIFIED.take(), Some(hits));
-        assert!(hits >= owned.len());
-    }
-}
+#[cfg(feature = "testing")]
+pub(crate) mod test_hooks;

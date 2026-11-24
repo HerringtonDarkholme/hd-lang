@@ -1,5 +1,5 @@
 //! A focused runtime test, independent of the aggregate std runner.
-use super::*;
+use hd_driver::*;
 use std::io::Write as _;
 use std::process::Stdio;
 
@@ -8,7 +8,7 @@ fn pending_counts_stop_at_observation_boundaries() {
     let mut sources = std_sources();
     sources.insert(
         "rt_count_pair_tests/mod.hd",
-        include_str!("../tests/std_rt/count_pair_detector.hd"),
+        include_str!("../std_rt/count_pair_detector.hd"),
     );
     let store = hd_cache::MemoryStore::default();
     let host = Host {
@@ -37,7 +37,7 @@ fn emitted_pairs_have_source_lines_and_observation_barriers() {
     let mut sources = std_sources();
     sources.insert(
         "rt_count_pair_tests/mod.hd",
-        include_str!("../tests/std_rt/count_pair_emission.hd"),
+        include_str!("../std_rt/count_pair_emission.hd"),
     );
     let store = hd_cache::MemoryStore::default();
     let host = Host {

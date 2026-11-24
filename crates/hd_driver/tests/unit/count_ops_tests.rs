@@ -1,11 +1,12 @@
 //! A real hot-loop count increase must fail the same comparator as CI.
-use super::*;
+use hd_driver::*;
+use hd_project::MemorySources;
 use std::{io::Write as _, process::Stdio};
 
 #[test]
 fn an_extra_owner_in_a_hot_loop_is_a_gate_regression() {
-    let text = include_str!("../tests/cases/counts/operation-counter-loop.hd");
-    let store = crate::warm_std_store();
+    let text = include_str!("../cases/counts/operation-counter-loop.hd");
+    let store = crate::support::warm_std_store();
     let mut modules = Vec::new();
     for source in [
         text.replace("EXTRA := true", "EXTRA := false"),
@@ -90,8 +91,8 @@ fn an_extra_owner_in_a_hot_loop_is_a_gate_regression() {
 /// at each setting, compared.
 #[test]
 fn the_checked_report_changes_only_a_build_that_asks_for_it() {
-    let text = include_str!("../../../bench/runtime/progs/closures.hd");
-    let store = crate::warm_std_store();
+    let text = include_str!("../../../../bench/runtime/progs/closures.hd");
+    let store = crate::support::warm_std_store();
     let mut sources = MemorySources::default();
     sources.insert("main.hd", text);
     let host = Host {

@@ -1,9 +1,15 @@
 //! Exercise IR record transformations on bodies emitted by the checker.
-use super::*;
+use hd_driver::testing::{body_index, checked_entry};
+use hd_intern::{PathTable, ShardedInterner};
+use hd_project::MemorySources;
+use hd_types::{InternPool, Ty, TyList};
+
+use crate::support::warm_std_store;
 use hd_base::PathId;
+use hd_driver::*;
 use hd_tir::ir::{Body, BodyKind, Callee, Providers, Ref, Tag, TirBuilder, u32_of};
 
-const SOURCE: &str = include_str!("../tests/cases/functions/shared-closure-records.hd");
+const SOURCE: &str = include_str!("../cases/functions/shared-closure-records.hd");
 
 struct Checked {
     body: Body,
@@ -34,7 +40,7 @@ fn checked_source(source: &str, name: &str) -> Checked {
         .iter()
         .position(|m| m == "ir_program.main")
         .expect("main module");
-    let entry = out.checks[module].as_ref().expect("checked program entry");
+    let entry = checked_entry(&out, module).expect("checked program entry");
     let (pool, paths, syms) = (
         InternPool::new(),
         PathTable::new(),
@@ -62,7 +68,7 @@ fn checked_source(source: &str, name: &str) -> Checked {
 
 #[test]
 fn copied_program_projections_and_shared_cells_keep_checked_metadata() {
-    let source = include_str!("../tests/cases/functions/local-closure-copy-metadata.hd");
+    let source = include_str!("../cases/functions/local-closure-copy-metadata.hd");
     for name in ["projected", "shared_counter", "shared_environment"] {
         let Checked { mut body, .. } = checked_source(source, name);
         assert!(
@@ -91,7 +97,7 @@ fn copied_program_projections_and_shared_cells_keep_checked_metadata() {
 fn a_shared_capture_of_an_immutable_callback_keeps_its_environment_live() {
     use hd_tir::ir::CaptureMode;
     let Checked { mut body, .. } = checked_source(
-        include_str!("../tests/cases/functions/closure-copy-refusal-paths.hd"),
+        include_str!("../cases/functions/closure-copy-refusal-paths.hd"),
         "nested",
     );
     let closures = body
@@ -139,7 +145,7 @@ fn a_shared_read_with_another_owner_does_not_use_the_returned_loan_abi() {
     use hd_tir::ir::{NONE, Topology};
     use hd_tir::own::{BatchInsert, insert_batch};
     let Checked { mut body, pool, .. } = checked_source(
-        include_str!("../tests/cases/counts/returned-call-owner-handoffs.hd"),
+        include_str!("../cases/counts/returned-call-owner-handoffs.hd"),
         "identity",
     );
     assert_eq!(hd_tir::own::return_loan::parameter(&body), Some(0));
@@ -382,7 +388,7 @@ fn bad_splices_of_a_real_call_report_the_operand_and_insertion_position() {
 #[test]
 fn malformed_program_members_and_places_do_not_become_ownership_facts() {
     let Checked { body, .. } = checked_source(
-        include_str!("../tests/cases/counts/local-reference-alias-adaptations.hd"),
+        include_str!("../cases/counts/local-reference-alias-adaptations.hd"),
         "scalar_element",
     );
     assert!(body.tags.contains(&Tag::Call) && body.tags.contains(&Tag::Ref));
@@ -433,7 +439,7 @@ fn a_temporary_reference_with_another_address_cannot_be_promoted() {
     use hd_tir::ir::{Topology, ref_word};
     use hd_tir::own::{BatchInsert, insert_batch};
     let Checked { mut body, .. } = checked_source(
-        include_str!("../tests/cases/counts/local-reference-alias-adaptations.hd"),
+        include_str!("../cases/counts/local-reference-alias-adaptations.hd"),
         "mixed_effects",
     );
     let reference = body

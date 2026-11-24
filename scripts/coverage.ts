@@ -122,7 +122,8 @@ const RUNS: Run[] = [
     name: "driver",
     args: [
       ...DRIVER,
-      "--lib",
+      "--test",
+      "unit",
       "--test",
       "stages",
       "--test",

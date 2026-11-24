@@ -334,12 +334,13 @@ const driverRule: Rule = (ctx) => {
   }
   const targets = captures(ctx, /^crates\/hd_driver\/tests\/(count_reasons)\.rs$/);
   const stages = ctx.stagesDone ? [] : ["--test", "stages"];
+  const unit = ctx.unit.get("hd_driver") ?? ["--lib"];
   const extra = targets.flatMap((name) => ["--test", name]);
   const why = ctx.stagesDone
     ? "hd_driver selected (stages done by the caller)"
     : "hd_driver selected";
   const steps = [
-    step("hd_driver", why, cargoTest("-p", "hd_driver", "--lib", ...stages, ...extra)),
+    step("hd_driver", why, cargoTest("-p", "hd_driver", ...unit, ...stages, ...extra)),
   ];
   // tests/analysis.rs is `#![cfg(feature = "analysis")]`: without the feature
   // `--test analysis` builds and runs 0 tests. Its feature build is the one

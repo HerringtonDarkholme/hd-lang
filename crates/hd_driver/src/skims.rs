@@ -31,56 +31,57 @@ pub(crate) struct EntryFacts {
 /// What `hd_syntax::skim` gives a file's text, before its module's uses
 /// are resolved against the module table: a function of the text alone.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FileSkim {
-    pub(crate) source_hash: Hash128,
-    pub(crate) api_text_hash: Hash128,
+pub struct FileSkim {
+    pub source_hash: Hash128,
+    pub api_text_hash: Hash128,
     /// What checking one of the file's templates reads of it
     /// (`HeaderSkeleton::template_text_hash`).
-    pub(crate) template_text_hash: Hash128,
-    pub(crate) token_hash: Hash128,
+    pub template_text_hash: Hash128,
+    pub token_hash: Hash128,
     /// The hash of the attached documentation, the only comments that
     /// affect generated metadata; plain comments keep cache reuse.
-    pub(crate) doc_hash: Hash128,
+    pub doc_hash: Hash128,
     /// The text's length in bytes, which ends its last code line.
-    pub(crate) len: u32,
+    pub len: u32,
     /// The start of each code line (`HeaderSkeleton::code_lines`).
-    pub(crate) code_lines: Vec<u32>,
+    pub code_lines: Vec<u32>,
     /// The byte range of each `use` line outside a `tests:` block
     /// (`HeaderSkeleton::uses`): the uses that make folder edges.
-    pub(crate) use_lines: Vec<(u32, u32)>,
+    pub use_lines: Vec<(u32, u32)>,
     /// The module path each of `use_lines` names as written, its root not
     /// yet resolved. Kept so a module's uses resolve without its text.
-    pub(crate) use_paths: Vec<String>,
+    pub use_paths: Vec<String>,
     /// The path of each `use` line of a `tests:` block, as written. Test
     /// code makes no folder edge (`module.cycle.test-code`); these widen
     /// only the test role's closure.
-    pub(crate) test_uses: Vec<String>,
-    pub(crate) has_tests_block: bool,
+    pub test_uses: Vec<String>,
+    pub has_tests_block: bool,
     /// Whether the text holds both `@` and `host`, so it may declare a
     /// host trait, which `check_host_declarations` then parses it for.
-    pub(crate) host_marker: bool,
+    pub host_marker: bool,
     /// Whether the text names `derive` or `Structure`, so it may opt in to
     /// a derivation template (`Run::template_sources`).
-    pub(crate) derives: bool,
+    pub derives: bool,
     /// Whether the text holds a fence (`` ``` ``), so it may hold a doc
     /// test.
-    pub(crate) fences: bool,
+    pub fences: bool,
     /// The header span of a top-level `pub fn main` or `main!`, which
     /// `cli.exe.unselected-main` is about.
-    pub(crate) public_main: Option<(u32, u32)>,
+    pub public_main: Option<(u32, u32)>,
     /// The header span of a top-level `main` or `main!` that is not
     /// `pub` (`module.entry.private-main.lint`).
-    pub(crate) private_main: Option<(u32, u32)>,
+    pub private_main: Option<(u32, u32)>,
     /// The offset of each newline, in a text that may register a test case
     /// (it holds `it(` or `it_`): what places a case on its line without
     /// the text (`Run::test_cases`). `None` in any other text.
-    pub(crate) newlines: Option<Vec<u32>>,
+    pub newlines: Option<Vec<u32>>,
     /// An entry module's [`EntryFacts`], set once a run parses it.
     pub(crate) entry: OnceLock<EntryFacts>,
 }
 
 impl FileSkim {
-    pub(crate) fn of(text: &str) -> FileSkim {
+    #[must_use]
+    pub fn of(text: &str) -> FileSkim {
         let sk = skim(text.as_bytes());
         let path_of = |&(lo, hi): &(u32, u32)| {
             written_path(text.get(lo as usize..hi as usize).unwrap_or("")).to_owned()
@@ -127,7 +128,7 @@ impl FileSkim {
         }
     }
 
-    fn write(&self, w: &mut Writer) {
+    pub fn write(&self, w: &mut Writer) {
         w.hash(self.source_hash);
         w.hash(self.api_text_hash);
         w.hash(self.template_text_hash);
@@ -185,7 +186,7 @@ impl FileSkim {
         }
     }
 
-    fn read(r: &mut Reader<'_>) -> FileSkim {
+    pub fn read(r: &mut Reader<'_>) -> FileSkim {
         let source_hash = r.hash();
         let api_text_hash = r.hash();
         let template_text_hash = r.hash();
@@ -589,48 +590,4 @@ impl<'a> FileSkims<'a> {
 /// Whether module `m` is std's: std is the table's last package.
 fn is_std(table: &ModuleTable, m: usize) -> bool {
     usize::from(table.modules[m].package) + 1 == table.packages.len()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::FileSkim;
-    use hd_base::wire::{Reader, Writer};
-
-    #[test]
-    fn a_file_skim_round_trips() {
-        let text = include_str!("tests/programs/skims/file_skim.hd");
-        let s = FileSkim::of(text);
-        assert!(s.has_tests_block && s.public_main.is_some() && s.private_main.is_none());
-        assert_eq!(s.test_uses, ["pkg.other"]);
-        // The block's `use` line is no folder-edge line, and a line led by
-        // another name is no use line.
-        let lines: Vec<&str> = s
-            .use_lines
-            .iter()
-            .map(|&(lo, hi)| &text[lo as usize..hi as usize])
-            .collect();
-        assert_eq!(lines, ["use std.text"]);
-        assert_eq!(s.use_paths, ["std.text"]);
-        let mut w = Writer::default();
-        s.write(&mut w);
-        let mut r = Reader::new(&w.bytes);
-        assert_eq!(FileSkim::read(&mut r), s);
-        assert!(r.ok() && r.at_end());
-        let mut short = Reader::new(&w.bytes[..w.bytes.len() - 3]);
-        let _ = FileSkim::read(&mut short);
-        assert!(!short.ok());
-    }
-
-    /// Each written form of a `use` line gives its path, in a `tests:`
-    /// block and out of it, with LF and CRLF endings: `pub`, a group, a
-    /// rename, a trailing comment.
-    #[test]
-    fn use_paths_are_the_written_paths() {
-        let lf = include_str!("tests/programs/skims/use_forms.hd");
-        for text in [lf.to_owned(), lf.replace('\n', "\r\n")] {
-            let s = FileSkim::of(&text);
-            assert_eq!(s.use_paths, ["std.a", "self.d"]);
-            assert_eq!(s.test_uses, ["pkg.f", "std.h"]);
-        }
-    }
 }
