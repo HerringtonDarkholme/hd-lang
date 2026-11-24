@@ -3862,10 +3862,6 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 /// at an instantiation limit. With `joined_inputs` (a REPL session's
 /// program, every kept input joined), each init body is also a root of the
 /// host boundary, since each input's init runs with the entry's providers.
-/// `refs`
-/// are function references the module holds though its code takes none:
-/// each item's adapter instance at its type arguments, as a REPL
-/// session's prelude holds them for later inputs (`f1c55020:future-work/compiler/repl-plan.md` job C8).
 /// `planner` holds the pipeline's body-unit passes, whose plans
 /// collection applies (`plan`).
 pub fn collect(
@@ -3875,7 +3871,6 @@ pub fn collect(
     root: DefId,
     inits: &[DefId],
     extra: &[(DefId, TyList)],
-    refs: &[(DefId, TyList)],
     joined_inputs: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
@@ -3886,7 +3881,6 @@ pub fn collect(
         Some(root),
         inits,
         extra,
-        refs,
         joined_inputs,
         planner,
     )
@@ -3904,7 +3898,7 @@ pub fn collect_fixtures(
     roots: &[(DefId, TyList)],
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
-    collect_roots(pool, env, solver, None, inits, roots, &[], false, planner)
+    collect_roots(pool, env, solver, None, inits, roots, false, planner)
 }
 
 fn collect_roots(
@@ -3914,7 +3908,6 @@ fn collect_roots(
     root: Option<DefId>,
     inits: &[DefId],
     extra: &[(DefId, TyList)],
-    refs: &[(DefId, TyList)],
     joined_inputs: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
@@ -3951,7 +3944,7 @@ fn collect_roots(
         crossing_arms: Vec::new(),
         worker_sends: false,
     };
-    if let Err(e) = cx.run(root, inits, extra, refs) {
+    if let Err(e) = cx.run(root, inits, extra) {
         return match cx.too_deep.take() {
             Some(t) => Ok(Err(t)),
             None => Err(locate_stop(e, cx.at, |item, node| {
@@ -3985,7 +3978,6 @@ impl Cx<'_> {
         root: Option<DefId>,
         inits: &[DefId],
         extra: &[(DefId, TyList)],
-        refs: &[(DefId, TyList)],
     ) -> StageResult<()> {
         if let Some(root) = root {
             self.push(
@@ -4006,9 +3998,6 @@ impl Cx<'_> {
         for (d, args) in extra {
             let t = self.target(*d, *args, InstId::NONE)?;
             self.out.extra.push(t.key);
-        }
-        for (d, args) in refs {
-            self.push(*d, Sub::Adapter, *args, *args, InstId::NONE)?;
         }
         if let Some(root) = root {
             let mut boundary_roots = vec![(root, TyList::EMPTY)];
