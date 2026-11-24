@@ -1,0 +1,4 @@
+# std.f32: the module of `std.f32.consts`, which it re-exports so code can
+# write `use std.f32.consts.{PI, E}` (spec/std/num.md#r-std-num.float-math.constant.pi,
+# spec/lang/10-modules.md#r-module.use.facade.module).
+pub use std.f32.{consts}

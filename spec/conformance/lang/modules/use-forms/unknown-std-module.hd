@@ -1,6 +1,8 @@
 # test: a std use path that names no std module is an error at the use
-# Spec 10 Use Forms: module.use.single (task #179).
-use std.non_existing # diagnostic: unknown-module
+# Spec 10 Use Forms: module.use.single (task #179). std has a root module, so
+# `use std.non_existing` would name a missing declaration of it, as
+# `use pkg.x` does; one segment more names a missing module.
+use std.non_existing.thing # diagnostic: unknown-module
 
 pub fn label() -> string:
     "label"

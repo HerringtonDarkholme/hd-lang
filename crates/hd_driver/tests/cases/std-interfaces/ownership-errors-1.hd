@@ -6,3 +6,5 @@ pub fn main() -> void $ Console:
 impl Display for i32:
     fn to_text(self) -> string:
         ""
+# @file: a/mod.hd
+pub use pkg.a.{x}

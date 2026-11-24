@@ -18,6 +18,8 @@ pub use std.rt.checked.{
 use std.rt.alloc.{alloc, block_of, free_block}
 use std.rt.checked.{CountObserver, observe_counts}
 use std.rt.checked_report.pairs
+# std's runtime tests read the pair table (spec/lang/10-modules.md#r-module.use.facade.module).
+pub use std.rt.checked_report.{pairs}
 use std.rt.cycle.freeing_cycles
 use std.rt.memory.{copy, fill, load_u32, load_u64, store_u64}
 

@@ -6,9 +6,9 @@
 # `std::thread::scope`; `background!` is Kotlin's `withContext` and
 # Swift's detached task, a thread whose end a task awaits.
 use std.marker.Send
-use std.rt.Drop
-use std.rt.bytes.panic_with
-use std.rt.thread.{abandon, new_block, release, run, run_here, running, share, take, wait}
+use std.rt.{Drop}
+use std.rt.{panic_with}
+use std.rt.{abandon, new_block, release, run, run_here, running, share, take, wait}
 
 ## The threads of one `scope` call, whose closures may borrow for `'s`.
 ## See [std-thread.scope](../../spec/std/thread.md#r-std-thread.scope).

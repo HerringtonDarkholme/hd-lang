@@ -264,7 +264,7 @@ fn affected_works_on_wasmtime_and_the_engine_reruns() {
 fn an_edit_reruns_the_programs_whose_test_code_reaches_it() {
     let world = Scratch::new(env!("CARGO_TARGET_TMPDIR"), "hd-affected-test-only");
     let root = world.join("shop");
-    let files: [(&str, &str); 9] = [
+    let files: [(&str, &str); 10] = [
         (
             "shop/hd.toml",
             "[package]\nname = \"shop\"\n\n[dev-dependencies]\nfixtures = { path = \"../fixtures\" }\n",
@@ -274,6 +274,11 @@ fn an_edit_reruns_the_programs_whose_test_code_reaches_it() {
             include_str!(
                 "programs/affected/an_edit_reruns_the_programs_whose_test_code_reaches_it.hd"
             ),
+        ),
+        // A folder's modules are private to it (`module.vis.parent`).
+        (
+            "shop/src/money/mod.hd",
+            include_str!("programs/facades/money_coins.hd"),
         ),
         ("shop/src/stock.hd", STOCK),
         (

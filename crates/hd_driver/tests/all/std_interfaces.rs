@@ -76,29 +76,28 @@ fn std_interfaces_build_with_no_diagnostic() {
     assert_eq!(
         units,
         // Each unit is a strongly connected module group, named after its
-        // first module: std's language layer is one (`std.annotation`).
+        // first module: std's language layer is one (`std.annotation`), and
+        // `std.rt` holds the runtime children its re-exports read and that
+        // use it back. `std` is std's root, which re-exports the rest.
         [
             "app.main",
+            "std",
             "std.annotation",
             "std.core",
             "std.f32.consts",
             "std.f64.consts",
             "std.prelude.testing",
             "std.rt",
-            "std.rt.alloc",
-            "std.rt.bytes",
             "std.rt.checked",
             "std.rt.checked_report",
             "std.rt.checked_report.pairs",
             "std.rt.crossing",
             "std.rt.entry",
-            "std.rt.hash",
-            "std.rt.thread",
             "std.rt.wait",
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::UnitIface).ok, 18);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 15);
 }
 
 #[test]
@@ -140,9 +139,11 @@ fn std_interfaces_hold_no_poison_type() {
         fresh(|n| {
             let (items, exports) = decode_items(n, blob).expect("decode");
             // The entry glue's items and the crossing runtime's, which
-            // the compiler calls, are all private.
+            // the compiler calls, are all private; std's root re-exports
+            // modules only, which bind no name.
             assert!(
-                !exports.is_empty() || ["std.rt.entry", "std.rt.crossing"].contains(&unit.as_str()),
+                !exports.is_empty()
+                    || ["std", "std.rt.entry", "std.rt.crossing"].contains(&unit.as_str()),
                 "{unit}"
             );
             let mut bad = Vec::new();
@@ -226,7 +227,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 18);
+    assert_eq!(base.len(), 15);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -247,6 +248,7 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
         s.insert("main.hd", main);
         s.insert("service/load.hd", service);
         s.insert("user/types.hd", &types(field));
+        crate::add_facades(&mut s);
         s
     };
     let store = MemoryStore::default();
@@ -324,10 +326,11 @@ fn std_typed_signatures_compile_through_headers() {
         "main.hd",
         include_str!("programs/std_interfaces/stats_main.hd"),
     );
+    crate::add_facades(&mut s);
     let out = run(&s);
     let t = out.report.tally(Stage::UnitIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (19, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 19);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (17, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 17);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

@@ -224,11 +224,12 @@ modules that tasks share:
 | `tasks/build.hd` | task `build`, which uses `use self.shared.zip` |
 | `tasks/seed.hd` | task `seed` |
 | `tasks/shared/zip.hd` | a shared task module |
+| `tasks/shared/mod.hd` | its folder's module, which re-exports it: `pub use self.{zip}` |
 
 1. r[cli.task.file] Each file `tasks/NAME.hd` in the package directory is a task named `NAME`, and it is an entry module.
 2. r[cli.task.program] Each task is its own program, compiled separately from the package's other tasks.
 2. r[cli.task.no-path] Tasks and shared task modules are not modules of the package: they have no module path, so a library module such as `src/tasks/zip.hd` never clashes with `tasks/zip.hd`.
-3. r[cli.task.shared] A module in a subdirectory of `tasks`, such as `tasks/shared/zip.hd`, is a **shared task module**. Every task of the package may use it.
+3. r[cli.task.shared] A module in a subdirectory of `tasks`, such as `tasks/shared/zip.hd`, is a **shared task module**. Every task of the package may use it where its folder's `mod.hd` re-exports it, as [`module.vis.parent`](../lang/10-modules.md#r-module.vis.parent) requires of every module.
 4. r[cli.task.beside-directory] A file directly under `tasks` beside a directory of the same name, such as `tasks/shared.hd` beside `tasks/shared/`, is an error. It has no fix-it, and its message names the file's target, `tasks/shared/mod.hd`. Error: `duplicate-module-name`.
 5. r[cli.task.relative] In a task or a shared task module, relative lookup works as it does under `src`, with `tasks` in place of the package root.
 6. r[cli.task.root-file] A task resolves relative uses as a [root file](../lang/10-modules.md#r-module.relative.root-file) does, so its lookup starts at `tasks`. From `tasks/build.hd`, `self.shared.zip` names `tasks/shared/zip.hd`.

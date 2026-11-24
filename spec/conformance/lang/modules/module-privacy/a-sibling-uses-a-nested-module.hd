@@ -1,0 +1,7 @@
+# test: a sibling of a nested module may use it, whether or not the parent re-exports it
+# Spec 10 Module Privacy: module.vis.parent.
+# fixture-package-tree: nested-privacy/src/shop/audit.hd
+use pkg.shop.ledger.{balance}
+
+pub fn audit() -> i32:
+    balance()

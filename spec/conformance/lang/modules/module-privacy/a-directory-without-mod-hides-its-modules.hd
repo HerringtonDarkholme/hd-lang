@@ -1,0 +1,7 @@
+# test: a directory without mod.hd is no module, so nothing re-exports the modules in it
+# Spec 10 Module Privacy: module.vis.parent.root.
+# fixture-package-tree: nested-privacy/src/report.hd
+use pkg.shop.orders.item.{item} # diagnostic: private-module
+
+pub fn report() -> i32:
+    item()

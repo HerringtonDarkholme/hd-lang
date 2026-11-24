@@ -853,14 +853,14 @@ mod stored_report_tests {
         // f0's doc test fails to check; f1 holds a lint finding.
         write(
             &root,
-            "src/f0/m.hd",
+            "src/f0/mod.hd",
             include_str!(
                 "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_2.hd"
             ),
         );
         write(
             &root,
-            "src/f1/m.hd",
+            "src/f1/mod.hd",
             include_str!(
                 "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_3.hd"
             ),
@@ -868,7 +868,7 @@ mod stored_report_tests {
         for i in 2..12 {
             write(
                 &root,
-                &format!("src/f{i}/m.hd"),
+                &format!("src/f{i}/mod.hd"),
                 &format!("pub fn v() -> i32: {i}\n"),
             );
         }
@@ -893,7 +893,7 @@ mod stored_report_tests {
         let store = Counted::default();
         let mut reports = Vec::new();
         for o in &runs {
-            for only in [None, Some("src/f1/m.hd")] {
+            for only in [None, Some("src/f1/mod.hd")] {
                 let (cold, _) = run(&root, &store, o, only);
                 let (warm, gets) = run(&root, &store, o, only);
                 assert_eq!(
@@ -935,7 +935,7 @@ mod stored_report_tests {
             ("an edit", &|| {
                 write(
                     &root,
-                    "src/f1/m.hd",
+                    "src/f1/mod.hd",
                     include_str!(
                         "tests/programs/check_cmd/a_warm_report_replays_with_one_lookup_and_each_change_misses_4.hd"
                     ),
@@ -946,7 +946,7 @@ mod stored_report_tests {
             }),
             // `main` uses the removed module.
             ("a removed file", &|| {
-                std::fs::remove_file(root.join("src/f1/m.hd")).expect("remove");
+                std::fs::remove_file(root.join("src/f1/mod.hd")).expect("remove");
             }),
             ("a manifest edit", &|| {
                 write(&root, "hd.toml", "[package]\nname = \"shop\"\n");

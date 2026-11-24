@@ -29,3 +29,11 @@ pub fn fc() -> i32:
 use pkg.a.x.fa
 pub fn fd() -> i32:
     0
+# @file: src/a/mod.hd
+pub use pkg.a.{x}
+# @file: src/b/mod.hd
+pub use pkg.b.{x}
+# @file: src/c/mod.hd
+pub use pkg.c.{x}
+# @file: src/d/mod.hd
+pub use pkg.d.{x}

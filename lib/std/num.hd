@@ -5,8 +5,8 @@ use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
 use std.annotation.inline
 use std.cmp.Ordering
 use std.text.Parse
-use std.rt.bytes.{string_from_bytes, panic_with, bytes_at}
-use std.rt.memory.{address_of, load_u64, store_u64}
+use std.rt.{string_from_bytes, panic_with, bytes_at}
+use std.rt.{address_of, load_u64, store_u64}
 
 # The numeric traits (spec/lang/09-traits.md#numeric-traits). They are sealed:
 # only these implementations exist, one per primitive number type
