@@ -29,6 +29,7 @@
 //   node scripts/coverage.ts [--only SETS] [--jobs N]   measure and report
 //   node scripts/coverage.ts --check                    also fail on a drop
 //   node scripts/coverage.ts --check --from REPORT --base PREVIOUS_REPORT
+//   node scripts/coverage.ts --attribute                retain per-set evidence
 //
 // `--check` compares uncovered lines with the previous successful main run's
 // artifact, mapping unchanged lines through git diff. New gaps and coverage
@@ -52,14 +53,20 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { classifyRust, type FileLines, type LineKind } from "../bench/coverage/rust-lines.ts";
 import { mapUncovered, newUncovered, type Range } from "../bench/coverage/history.ts";
+import { contributions } from "../bench/coverage/contributions.ts";
+import { archiveProfiles, restoreProfiles } from "../bench/coverage/profiles.ts";
 
 const root = join(import.meta.dirname, "..");
 const output = join(root, "bench", "coverage");
 const work = join(root, "target", "coverage");
+const coverageTarget = resolve(
+  root,
+  process.env.CARGO_LLVM_COV_TARGET_DIR ?? "target/llvm-cov-target",
+);
 const PRINT_LIMIT = 200;
 
 const CORE = [
@@ -102,8 +109,29 @@ const conformance = (name: string, test: string, env: Record<string, string>): R
   conformance: "filtered",
 });
 
+// Measured >60s under instrumentation in run45186693397. Normal CI still
+// runs these: repeated hash/order permutations, widths2..2048, and2k/20k test
+// exports measure determinism/scale, not a new coverage scenario per repeat.
+const COVERAGE_SKIPS = [
+  "rows_determinism::row_polymorphic_programs_build_identically_in_every_order",
+  "supplied_tuple_specialize::tuple_effect_summaries_borrow_small_and_shared_wide_operands",
+  "test_plan::a_test_program_exports_two_entries_and_a_function_per_case",
+];
 const RUNS: Run[] = [
-  { name: "driver", args: [...DRIVER, "--lib", "--test", "stages", "--test", "all"], env: {} },
+  {
+    name: "driver",
+    args: [
+      ...DRIVER,
+      "--lib",
+      "--test",
+      "stages",
+      "--test",
+      "all",
+      "--",
+      ...COVERAGE_SKIPS.flatMap((name) => ["--skip", name]),
+    ],
+    env: {},
+  },
   conformance("conformance", SUITE, {}),
   conformance("conformance-checked", SUITE, { HD_CONFORMANCE_CHECKED: "1" }),
   conformance("conformance-checked-optimized", SUITE, {
@@ -137,6 +165,7 @@ type Measured = { report: Report; uncovered: Map<Crate, Range[]> };
 const { values } = parseArgs({
   options: {
     check: { type: "boolean", default: false },
+    attribute: { type: "boolean", default: false },
     base: { type: "string" },
     from: { type: "string" },
     only: { type: "string" },
@@ -189,14 +218,20 @@ function guardLocalRuns(runs: Run[]): void {
 // ---- measuring ----
 
 function cargo(args: string[], env: Record<string, string> = {}): void {
-  const childEnv: NodeJS.ProcessEnv = { ...process.env };
+  const childEnv: NodeJS.ProcessEnv = { ...process.env, CARGO_LLVM_COV_TARGET_DIR: coverageTarget };
   for (const key of MODE_KEYS) {
     delete childEnv[key];
   }
   Object.assign(childEnv, env);
   const shown = Object.entries(env).map(([key, value]) => `${key}=${value} `);
   console.log(`\n$ ${shown.join("")}cargo ${args.join(" ")}`);
-  const result = spawnSync("cargo", args, { cwd: root, env: childEnv, stdio: "inherit" });
+  // cost: one invocation per selected test set/report; no unbounded retry.
+  const result = spawnSync("cargo", args, {
+    cwd: root,
+    env: childEnv,
+    stdio: "inherit",
+    timeout: 75 * 60_000,
+  });
   if (result.status !== 0) {
     fail(`cargo ${args.slice(0, 2).join(" ")} failed (${result.status ?? result.signal})`);
   }
@@ -225,15 +260,40 @@ function measure(sets: string[]): Measured {
   // Stale test binaries of the workspace would map old line numbers, so each
   // measurement rebuilds the workspace crates (dependencies stay built).
   cargo(["llvm-cov", "clean", "--workspace"]);
+  const setsDir = join(work, "sets");
+  rmSync(setsDir, { recursive: true, force: true });
+  const setCounts = new Map<string, Map<string, Map<number, number>>>();
+  const profiles: [string, string][] = [];
   for (const run of runs) {
     const start = performance.now();
-    cargo(["llvm-cov", "--no-report", "--release", ...jobs, ...run.args], run.env);
+    cargo(["llvm-cov", "--no-report", "--release", ...jobs, ...run.args], {
+      ...run.env,
+      LLVM_PROFILE_FILE_NAME: `${run.name}-%p-%m.profraw`,
+    });
     seconds[run.name] = Math.round((performance.now() - start) / 1000);
+    if (!values.attribute) {
+      continue;
+    }
+    const dir = join(setsDir, run.name);
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, "lcov.info");
+    const reportStart = performance.now();
+    cargo(["llvm-cov", "report", "--release", "--lcov", "--skip-functions", "--output-path", path]);
+    seconds[`${run.name}-report`] = Math.round((performance.now() - reportStart) / 1000);
+    setCounts.set(run.name, parseLcov(readFileSync(path, "utf8")));
+    for (const profile of archiveProfiles(coverageTarget, dir)) {
+      profiles.push(profile);
+    }
+  }
+  // Restore the raw inputs for the ordinary merged report, without rerunning tests.
+  restoreProfiles(profiles);
+  if (values.attribute) {
+    writeContributions(setCounts, seconds, setsDir);
   }
   mkdirSync(work, { recursive: true });
   const lcov = join(work, "lcov.info");
   const start = performance.now();
-  cargo(["llvm-cov", "report", "--release", "--lcov", "--output-path", lcov]);
+  cargo(["llvm-cov", "report", "--release", "--lcov", "--skip-functions", "--output-path", lcov]);
   seconds.report = Math.round((performance.now() - start) / 1000);
   const counts = parseLcov(readFileSync(lcov, "utf8"));
   return summarize(counts, {
@@ -242,6 +302,52 @@ function measure(sets: string[]): Measured {
     conformanceOnly: process.env.HD_CONFORMANCE_ONLY || null,
     seconds,
   });
+}
+
+// Classify each current source file once across all sets. Only covered core
+// non-test/non-invariant lines count as contributions, just like the main report.
+function writeContributions(
+  sets: Map<string, Map<string, Map<number, number>>>,
+  seconds: Record<string, number>,
+  dir: string,
+): void {
+  const classified = new Map<string, FileLines>();
+  for (const files of sets.values()) {
+    for (const absolute of files.keys()) {
+      const file = relative(root, absolute).split("\\").join("/");
+      if (crateOf(file) && !classified.has(file)) {
+        classified.set(file, classifyRust(readFileSync(join(root, file), "utf8"), file));
+      }
+    }
+  }
+  const dirs = testFiles(classified);
+  const covered = new Map<string, Set<string>>();
+  for (const [name, files] of sets) {
+    const lines = new Set<string>();
+    for (const [absolute, counts] of files) {
+      const file = relative(root, absolute).split("\\").join("/");
+      const source = classified.get(file);
+      if (!source || isTestFile(file, dirs)) {
+        continue;
+      }
+      for (const [at, count] of counts) {
+        if (count > 0 && source.kinds.get(at) === "code") {
+          lines.add(`${file}:${at}`);
+        }
+      }
+    }
+    covered.set(name, lines);
+  }
+  const unique = contributions(covered);
+  const rows = [...covered].map(([name, lines]) => ({
+    name,
+    seconds: seconds[name],
+    reportSeconds: seconds[`${name}-report`],
+    covered: lines.size,
+    unique: unique.get(name),
+  }));
+  writeFileSync(join(dir, "contributions.json"), JSON.stringify(rows, null, 2) + "\n");
+  console.log("Per-set measured core-line contributions:", rows);
 }
 
 // Absolute source path to its line counts.

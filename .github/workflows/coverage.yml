@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: "53 5,17 * * *"
   workflow_dispatch:
+    inputs:
+      attribute:
+        description: "Retain per-set profiles and measure unique core lines"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -57,7 +62,7 @@ jobs:
       - name: Measure and check
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/coverage.ts --check
+        run: node scripts/coverage.ts --check ${{ inputs.attribute && '--attribute' || '' }}
 
       - name: Store the report
         if: ${{ !cancelled() }}
@@ -69,4 +74,5 @@ jobs:
             bench/coverage/summary.md
             bench/coverage/uncovered/
             target/coverage/lcov.info
+            target/coverage/sets/
           if-no-files-found: ignore
