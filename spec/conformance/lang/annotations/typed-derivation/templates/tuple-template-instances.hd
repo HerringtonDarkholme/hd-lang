@@ -1,6 +1,6 @@
 # test: each tuple type a program uses with the trait gets its own implementation from the tuple template
 # Spec 14 Tuple Templates: annot.template.tuple.instance.
-use std.function.Tuple
+use std.ops.Tuple
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Encode:

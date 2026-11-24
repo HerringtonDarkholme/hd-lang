@@ -1,5 +1,5 @@
 # std.result: inherent methods on `Result[T, E]` (spec/std/result.md).
-use std.function.FnMut
+use std.ops.FnMut
 
 impl[T < ?Copy, E < ?Copy] Result[T, E]:
     ## `.Ok` of `transform(value)` for an `.Ok`, and the error unchanged for an `.Err`.

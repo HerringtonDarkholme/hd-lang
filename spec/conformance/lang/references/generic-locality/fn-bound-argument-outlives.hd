@@ -1,6 +1,6 @@
 # test: a call result in a lifetime that bounds a closure argument's type parameter outlives that closure's captured local
 # Spec 13 Lifetime Bounds: ref.generic.outlives.argument-origins.
-use std.function.Fn
+use std.ops.Fn
 
 struct Counter:
     n: i32

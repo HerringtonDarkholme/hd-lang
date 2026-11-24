@@ -6,7 +6,7 @@
 use std.task.join
 use std.error.Error
 use std.convert.From
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 use std.ops.AsyncDisposable
 use std.time.{Clock, Duration, Instant, sleep}
 use std.collections.Deque

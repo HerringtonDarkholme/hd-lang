@@ -1,6 +1,6 @@
 # std.validate: value validation after decoding or construction.
 use std.annotation.annotate
-use std.function.Fn
+use std.ops.Fn
 use std.hash.Hash
 use std.http.Url as HttpUrl
 use std.inspect.Inspectable

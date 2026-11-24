@@ -1,5 +1,5 @@
 # test: a bare row alias as the row argument of Fn is an error
-use std.function.Fn
+use std.ops.Fn
 
 trait Db
 

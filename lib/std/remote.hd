@@ -3,7 +3,7 @@
 # and the plain std over them (spec/std/remote.md): `per_request`, `home`,
 # `action` and the HTTP adapters.
 use std.annotation.inline
-use std.function.Fn
+use std.ops.Fn
 use std.hash.Hash
 use std.http.{Http, HttpError, Request, Response, Url}
 use std.marker.Wire

@@ -1,6 +1,6 @@
 # test: one implementation over Fn[Args, O, $ R] with Args < Tuple covers every plain function type
 # Spec 09 Traits: trait.target.function-type, trait.target.row-argument.
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 trait Describe:
     fn describe(self) -> string

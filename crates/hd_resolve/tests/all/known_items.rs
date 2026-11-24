@@ -157,7 +157,7 @@ fn every_known_item_is_declared() {
             "known item `{name}` names no declared std item (renamed?)"
         );
     }
-    for module in ["std.function", "std.testing"] {
+    for module in ["std.ops", "std.testing"] {
         assert!(
             modules.contains(module),
             "known module `{module}` names no declared std module (renamed?)"

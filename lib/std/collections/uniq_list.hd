@@ -3,7 +3,7 @@ pub use std.rt.{collection_capacity_sum}
 use std.collections.list.list_reserve
 use std.collections.sort.{DriftOrder, drift_sort}
 use std.format.DebugWriter
-use std.function.FnMut
+use std.ops.FnMut
 use std.hash.Hasher
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 use std.iter.FromIterator

@@ -3,7 +3,7 @@
 # expect-stdout: a
 # expect-stdout: 2b
 # expect-stdout: 1a
-use std.function.Tuple
+use std.ops.Tuple
 
 fn pack[Args < Tuple](args...: Args) -> Args:
     args

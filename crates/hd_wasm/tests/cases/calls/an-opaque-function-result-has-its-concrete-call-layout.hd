@@ -1,6 +1,6 @@
 # @dump: wat
 # expected: the returned function's hidden result is an i64, including its indirect call and Display dispatch
-use std.function.Fn
+use std.ops.Fn
 
 fn make() -> Fn[(), impl Display, $()]:
     fn() -> i64: 7i64

@@ -4,7 +4,7 @@
 # Spec std/iter List And Optional Map: std-iter.option.map.fn-mut.
 # expect: test
 use std.collections.{UniqList, UniqMap}
-use std.function.FnMut
+use std.ops.FnMut
 
 fn generic_any[F < ?Copy & FnMut(&i32) -> bool](values: &List[i32], predicate: F) -> bool:
     values.any(predicate)

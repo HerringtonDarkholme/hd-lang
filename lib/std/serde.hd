@@ -7,7 +7,7 @@
 # implementations and the templates are spec/std/serde.md.
 use std.annotation.{annotate, cold, inline}
 use std.collections.Set
-use std.function.Tuple
+use std.ops.Tuple
 use std.hash.Hash
 use std.text.Parse
 use std.structure.{

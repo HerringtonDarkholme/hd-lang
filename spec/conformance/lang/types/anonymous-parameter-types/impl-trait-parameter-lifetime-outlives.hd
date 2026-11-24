@@ -1,5 +1,5 @@
 # test: a closure passed to a lifetime-bounded anonymous parameter cannot capture a shorter local reference
-use std.function.Fn
+use std.ops.Fn
 
 struct Counter:
     n: i32

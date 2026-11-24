@@ -1,6 +1,6 @@
 # test: a closure whose body needs a key outside its Fn bound's row is a type mismatch
 # Spec 07 Functions: fn.trait.bound-closure.
-use std.function.FnMut
+use std.ops.FnMut
 
 trait Mutate:
     fn poke(&mut self) -> void

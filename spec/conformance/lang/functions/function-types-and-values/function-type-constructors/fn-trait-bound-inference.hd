@@ -1,6 +1,6 @@
 # test: Fn bounds infer closure inputs, function outputs and rows, and the lowered type of suspending functions
 # Spec Functions, Static Fn Bounds: fn.trait.bound.infer-instantiation, fn.trait.bound.closure-inputs, and fn.trait.suspend-weaken.
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 use std.ops.Disposable
 
 fn map_one[I, O, F < Fn(I) -> O](value: I, f: F) -> O:

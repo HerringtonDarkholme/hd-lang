@@ -4,7 +4,7 @@
 # Native Drop ownership transfers once while thin reference counts are lent.
 use std.annotation.inline
 use std.collections.UniqList
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 use std.rt.Drop
 use std.testing.assert_equal
 use std.time.{Clock, ms, sleep}

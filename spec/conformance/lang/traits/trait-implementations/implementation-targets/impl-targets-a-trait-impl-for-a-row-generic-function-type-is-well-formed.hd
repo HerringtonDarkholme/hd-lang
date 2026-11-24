@@ -1,5 +1,5 @@
 # test: impl targets a trait impl for a row generic function type is well formed
-use std.function.Fn
+use std.ops.Fn
 
 trait Marker
 trait Log:

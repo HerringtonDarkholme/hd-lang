@@ -1,6 +1,6 @@
 //! Compiler-supplied std declarations (`docs/compiler/std-bootstrap.md`, "Prelude"):
 //! `std.core`'s primitives, collections, `Option`, `Result`, the `Any`
-//! traits, `panic` and `box`; `std.task`'s suspension protocol; `std.function`'s
+//! traits, `panic` and `box`; `std.task`'s suspension protocol; `std.ops`'s
 //! function type constructors; `std.testing.it`. Each is an ordinary
 //! interface item of its module, so uses, the prelude and re-exports reach
 //! it like any declaration. A source declaration of the same name wins.
@@ -264,7 +264,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 ItemData::Fn(join, intrinsic(names, "task_all")),
             );
         }
-        known::FUNCTION_MODULE => {
+        known::OPS_MODULE => {
             let tr = names.item(module, "Fn");
             let tuple = pool.intern_ty(&TyData::TraitValue {
                 def: names.known.tuple,

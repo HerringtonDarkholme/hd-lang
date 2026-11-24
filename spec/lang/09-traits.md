@@ -938,7 +938,7 @@ impl Marker for &dyn Display      # error: trait-value-impl-target
 A function type is a target like any other:
 
 ```text
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 trait Describe:
     fn describe(self) -> string
@@ -1010,7 +1010,7 @@ one of these declarations:
 6. r[trait.own.aliases] Transparent aliases do not create ownership; nominal newtypes do.
 7. r[trait.own.std] The standard library owns primitives, built-in collection type constructors, tuple constructors, and the prelude enums `Option` and `Result`.
 8. r[trait.own.optional] An implementation for `string?` therefore needs the package of the trait or of a trait argument. An example is `impl Validate for string?` in the package that owns `Validate`.
-9. r[trait.own.std.function] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
+9. r[trait.own.std.ops] The standard library also owns the function type constructors `Fn` and `SuspendFn`. An implementation for a function type therefore needs the package of the trait or of a trait argument.
 10. r[trait.own.inherent] An inherent implementation may be declared only in the package that owns its target nominal type. Error: `orphan-impl`.
 11. r[trait.own.inherent.target-forms] An inherent implementation cannot target a tuple, a transparent alias, or a type owned by another package. A `dyn` type is a target only as [Inherent Methods On `dyn` Types](#inherent-methods-on-dyn-types) allows.
 12. r[trait.own.inherent.tuple-alias] An inherent implementation whose target is a tuple or a transparent alias is an error, whichever package owns the type it names. Error: `invalid-impl-target`.
@@ -2319,7 +2319,7 @@ compiler and the standard library supply.
 5. r[trait.sealed.user-impl] An `impl` of a sealed trait outside the standard library is an error, reported on the `impl` line, whatever its target. Error: `sealed-trait-implementation`.
 
 ```text
-use std.function.Fn
+use std.ops.Fn
 use std.inspect.{Inspectable, TypeId}
 
 struct User:
@@ -2627,7 +2627,7 @@ These types are not inspectable, as values or as type arguments:
 
 | Rule | Not inspectable |
 | --- | --- |
-| r[trait.inspectable.not.function] Function | function types, spelled or as the constructors `Fn` and `SuspendFn` from `std.function`, closures, and function values |
+| r[trait.inspectable.not.function] Function | function types, spelled or as the constructors `Fn` and `SuspendFn` from `std.ops`, closures, and function values |
 | r[trait.inspectable.not.suspend] Suspension | `Suspend[T]` and suspension frames |
 | r[trait.inspectable.not.local] Local declaration | struct, enum, newtype, and trait declarations local to a block suite |
 | r[trait.inspectable.not.local-reference] Local reference | a type that [holds a local reference](13-values-and-references.md#r-ref.local.holding): `&T`, `&mut T`, and a struct or enum with a lifetime argument, at any depth, such as `List[&T]`, `Option[&T]` or `View['a]` |

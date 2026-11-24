@@ -5,7 +5,7 @@
 # expected: the contextual consumer bonus retains the ordinary scope budget
 # for a dependent result; `through` remains a call from `kept`.
 # ref.dep.call; fn.trait.bound-sugar.
-use std.function.Fn
+use std.ops.Fn
 
 fn through[F < Fn() -> void](text: &string, f: F) -> &string:
     f()

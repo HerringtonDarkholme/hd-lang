@@ -22,7 +22,7 @@ The rules are in [language/references.md](../language/references.md).
 | Wrote | Code | Write instead |
 | --- | --- | --- |
 | a `&P` or `&mut P` put in a field or a collection | `local-reference-escapes` | make the object a box where it is declared, `p := box(P { ... })`, and store the `*P` |
-| a function parameter `f: fn() -> void` stored in a field | `local-reference-escapes` | a generic `F < FnMut() -> void & 'static` field, with `use std.function.FnMut` |
+| a function parameter `f: fn() -> void` stored in a field | `local-reference-escapes` | a generic `F < FnMut() -> void & 'static` field, with `use std.ops.FnMut` |
 | `$.with(Mailer=&mut fake)` | `local-reference-escapes` | `fake := box(Fake { ... })`, then `$.with(Mailer=fake)` |
 
 ## `conflicting-access`: changed while a reference is in use

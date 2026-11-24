@@ -1,6 +1,6 @@
 # test: a function trait in a body's trait value type has no `dyn` form
 # Spec 13: ref.type.dyn.no-fn.
-use std.function.Fn
+use std.ops.Fn
 
 fn double(x: i64) -> i64:
     x * 2

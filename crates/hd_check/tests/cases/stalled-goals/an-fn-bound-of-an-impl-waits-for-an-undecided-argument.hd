@@ -3,7 +3,7 @@
 # impl's bound (`F < Fn[(B,), B]`) while `B` is still a variable, can
 # neither hold nor fail: it waits on that variable. The later
 # annotation decides `B = i32`, and the goal then holds: no diagnostic.
-use std.function.Fn
+use std.ops.Fn
 
 trait Takes[A]:
     fn take(self) -> i32
