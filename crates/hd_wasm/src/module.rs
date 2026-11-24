@@ -2154,12 +2154,16 @@ impl Module {
         } else {
             &self.init_insts
         };
-        crate::opt::constants(&mut self.funcs, &self.symbols, inits, &arity);
+        let folded = crate::opt::constants(&mut self.funcs, &self.symbols, inits, &arity);
         if !session && !self.open_world {
             // A std init's release of its binding's old value reads the
             // constant the fold just gave it. Dropping a release of a
             // value that holds no reference leaves its helper's writes
-            // unreached, so the fold runs once more (#1423).
+            // unreached (#1423), and so can a fold itself: a branch on a
+            // folded binding that guarded the collector's only writes of
+            // another. Either way the fold runs once more, so what it
+            // finds does not hang on whether an init happened to release
+            // anything (#2328).
             let mut dropped = false;
             for key in self.init_insts.clone() {
                 if self.std_insts.contains(&key) {
@@ -2167,7 +2171,7 @@ impl Module {
                     dropped |= self.drop_null_releases(init);
                 }
             }
-            if dropped {
+            if dropped || folded {
                 self.reach();
                 crate::opt::constants(&mut self.funcs, &self.symbols, &self.init_insts, &arity);
             }

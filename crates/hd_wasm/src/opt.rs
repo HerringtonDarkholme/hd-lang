@@ -119,8 +119,13 @@ use crate::rt::Helper;
 /// Reads each top-level binding that one instruction writes, a constant
 /// stored by an init, as that constant, and drops the store. An init runs
 /// before any code that reads its bindings (`module.init.binding`), so every
-/// read sees the constant.
-pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128], arity: &Arity) {
+/// read sees the constant. Whether it folded any binding.
+pub fn constants(
+    funcs: &mut [Option<Func>],
+    symbols: &Symbols,
+    inits: &[Hash128],
+    arity: &Arity,
+) -> bool {
     // The init keys, indexed once: every key the caller and the entry
     // helpers name goes in one set, and each function asks it once, so
     // the pass costs the keys named plus the functions, not their product.
@@ -203,7 +208,7 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
             .filter_map(|(g, (n, at))| (n == 1).then_some(at).flatten().map(|at| (g, at))),
     );
     if known.is_empty() {
-        return;
+        return false;
     }
     for f in funcs.iter_mut().flatten() {
         for i in &mut f.body {
@@ -226,6 +231,7 @@ pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols, inits: &[Hash128
             }
         }
     }
+    true
 }
 
 /// Whether `ins` only reads and writes locals, tests an `i32` or
