@@ -60,7 +60,7 @@ fn two_spellings_of_one_row_share_the_interface() {
     assert!(warm.diags.is_empty(), "{}", warm.render());
     let c = &warm.counters;
     assert_eq!(
-        c.deep_hashes["app.geo"], cold.counters.deep_hashes["app.geo"],
+        c.deep_hashes["app.geo.shapes"], cold.counters.deep_hashes["app.geo.shapes"],
         "one row, one interface"
     );
     assert_eq!(c.modules_checked, vec!["app.geo.shapes".to_owned()]);

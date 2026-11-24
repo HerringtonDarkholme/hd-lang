@@ -70,8 +70,8 @@ fn a_unit_whose_key_moved_is_read_again() {
     let fresh = build(&edited, &MemoryStore::default(), &program(), None);
     assert!(fresh.wasm.is_some(), "{}", fresh.render());
     assert_eq!(reused.wasm, fresh.wasm);
-    // The root unit alone: std's interfaces are taken.
-    assert_eq!(reused.counters.ifaces_built, ["app"]);
+    // The edited module's unit alone: std's interfaces are taken.
+    assert_eq!(reused.counters.ifaces_built, ["app.main"]);
     assert_eq!(iface_reads(&reused), 1);
 }
 

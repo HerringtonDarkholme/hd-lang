@@ -75,31 +75,41 @@ fn std_interfaces_build_with_no_diagnostic() {
     let units: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
     assert_eq!(
         units,
+        // Each unit is a strongly connected module group, named after its
+        // first module: std's language layer is one (`std.annotation`).
         [
-            "app",
-            "std",
+            "app.main",
+            "std.annotation",
             "std.core",
-            "std.f32",
-            "std.f64",
-            "std.prelude",
+            "std.f32.consts",
+            "std.f64.consts",
+            "std.prelude.testing",
             "std.rt",
+            "std.rt.alloc",
+            "std.rt.bytes",
             "std.rt.checked",
             "std.rt.checked_report",
+            "std.rt.checked_report.pairs",
+            "std.rt.crossing",
             "std.rt.entry",
+            "std.rt.hash",
+            "std.rt.thread",
+            "std.rt.wait",
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::UnitIface).ok, 11);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 18);
 }
 
 #[test]
 fn the_prelude_module_reexports_the_prelude_table() {
     let out = run(&hello());
+    // `std.prelude` is in std's language-layer unit.
     let (_, blob) = out
         .ifaces
         .iter()
-        .find(|f| f.0 == "std.prelude")
-        .expect("std.prelude");
+        .find(|f| f.0 == "std.annotation")
+        .expect("std's language layer");
     fresh(|n| {
         let (_, exports) = decode_items(n, blob).expect("decode");
         // A row's name is declared in its origin module, or in `std.core`
@@ -129,8 +139,12 @@ fn std_interfaces_hold_no_poison_type() {
     for (unit, blob) in out.ifaces.iter().filter(|f| f.0.starts_with("std")) {
         fresh(|n| {
             let (items, exports) = decode_items(n, blob).expect("decode");
-            // The entry glue's items are all private.
-            assert!(!exports.is_empty() || unit == "std.rt.entry", "{unit}");
+            // The entry glue's items and the crossing runtime's, which
+            // the compiler calls, are all private.
+            assert!(
+                !exports.is_empty() || ["std.rt.entry", "std.rt.crossing"].contains(&unit.as_str()),
+                "{unit}"
+            );
             let mut bad = Vec::new();
             for it in &items {
                 let mut tys: Vec<hd_types::Ty> = it
@@ -212,7 +226,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 11);
+    assert_eq!(base.len(), 18);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -240,16 +254,24 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
     assert!(a.diags.is_empty(), "{}", a.render());
     let b = run_with(&program("i64"), &store, SerialOrder::Priority);
     let deep = |o: &Output, f: &str| o.counters.deep_hashes.get(f).copied();
-    assert_ne!(deep(&a, "app.user"), deep(&b, "app.user"));
+    assert_ne!(deep(&a, "app.user.types"), deep(&b, "app.user.types"));
     // `service` did not change, but its signature names `User`.
-    assert_ne!(deep(&a, "app.service"), deep(&b, "app.service"));
+    assert_ne!(deep(&a, "app.service.load"), deep(&b, "app.service.load"));
     // `main` names neither `User` nor its unit.
     assert_ne!(
         a.counters.check_keys.get("app.main"),
         b.counters.check_keys.get("app.main")
     );
-    assert!(b.counters.ifaces_built.contains(&"app.service".to_owned()));
-    assert!(!b.counters.ifaces_built.contains(&"std".to_owned()));
+    assert!(
+        b.counters
+            .ifaces_built
+            .contains(&"app.service.load".to_owned())
+    );
+    assert!(
+        !b.counters
+            .ifaces_built
+            .contains(&"std.annotation".to_owned())
+    );
 }
 
 #[test]
@@ -304,8 +326,8 @@ fn std_typed_signatures_compile_through_headers() {
     );
     let out = run(&s);
     let t = out.report.tally(Stage::UnitIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (12, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 12);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (19, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 19);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(
