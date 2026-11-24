@@ -7,7 +7,6 @@ std/rt.alloc/init_classes#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].take#0 [u8]
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
-std/collections.uniq_list/impl TextSink for TextRoom.append_text#0
 std/json/impl TextWriter.start#0
 std/json/impl JsonObject.len#0
 std/json/impl TextWriter.spaced_key#0
@@ -17,21 +16,19 @@ std/rt.alloc/block_of#0
 app/main/main#0
 std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
 std/rt.alloc/full#0
-std/collections.uniq_list/impl TextRoom.grow#0
 std/rt.alloc/move_table#0
 std/json/to_json#0 [app.main.Odd]
 std/json/impl TextWriter.finish#0
+std/rt.bytes/impl TextRoom.take_text#0
 app/main/impl Serialize for Odd.serialize#0 [std.json.JsonWriter]
+std/rt.bytes/impl TextSink for TextRoom.append_signed#0
 std/json/impl Serializer for JsonWriter.int#0
 std/text/impl StringBuilder.push#0
 std/text/impl string.repeat#0
 std/rt.alloc/unlink#0
 std/json/push_quoted#0
 std/rt.alloc/retain#0
-std/collections.uniq_list/impl TextSink for TextRoom.append_unsigned#0
-std/collections.uniq_list/impl TextSink for TextRoom.append_signed#0
 std/rt.alloc/reclaim#0
-std/num/impl[N < Integer] N.checked_add#0 [usize]
 std/rt.alloc/claim#0
 std/json/impl JsonWriter.put#0
 std/json/key_print#0
@@ -41,14 +38,15 @@ std/rt.alloc/retain_known#0
 std/collections.uniq_list/impl ByteBuffer for UniqList[u8].take_text#0
 std/rt.memory/room#0
 std/rt.alloc/alloc#0
+std/rt.bytes/impl TextRoom.grow#0
 std/rt.alloc/extend#0
 std/rt.memory/impl[T < ?Copy] Drop for Buffer[T].drop#0 [u8]
 app/main/impl Serialize for Odd.serialize#0 [std.json.TextWriter]
 std/json/impl TextWriter.give_up#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
-std/collections.uniq_list/impl TextRoom.take_text#0
 std/rt.memory/impl[T < ?Copy] Buffer[T].grow#0 [u8]
+std/rt.bytes/impl TextSink for TextRoom.append_unsigned#0
 std/rt.cycle/hold_room#0
 std/json/impl Display for Json.to_string#0
 std/json/escape_text#0
@@ -63,9 +61,9 @@ std/iter/impl[T] Iterator[T] for ListIter[T].next#0 [std.json.ObjectEntry]
 std/collections.uniq_list/impl UniqList[u8].grow_bytes#0
 std/collections.uniq_list/impl[T < ?Copy] Drop for UniqList[T].drop#0 [u8]
 std/json/impl TextWriter.add_key#0
-std/collections.uniq_list/collection_capacity_sum#0
 std/rt.alloc/take#0
 std/rt.cycle/init.init#0
+std/rt.bytes/impl TextSink for TextRoom.append_text#0
 std/json/push_escaped#0
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]
 std/rt.alloc/release_value#0 [(string, std.json.Json)?]

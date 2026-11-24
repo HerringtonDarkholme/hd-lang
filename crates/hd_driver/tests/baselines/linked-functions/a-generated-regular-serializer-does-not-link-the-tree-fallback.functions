@@ -13,7 +13,6 @@ std/json/impl Serializer for TextWriter.end_variant#0
 std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 app/main/Row.structure handle 0#0
-std/collections.uniq_list/impl TextSink for TextRoom.append_text#0
 std/json/impl Serializer for TextWriter.end_map#0
 std/json/impl TextWriter.start#0
 std/rt.alloc/release_known#0
@@ -31,22 +30,21 @@ std/rt.alloc/block_of#0
 app/main/Row.structure handle 0 0#0
 app/main/main#0
 std/rt.alloc/full#0
-std/collections.uniq_list/impl TextRoom.grow#0
 std/rt.alloc/move_table#0
 std/serde/joined_name#0
+std/rt.bytes/impl TextRoom.take_text#0
 std/json/impl Serializer for TextWriter.member#0
 std/serde/impl Serialize for i64.serialize#0 [std.json.TextWriter]
+std/rt.bytes/impl TextSink for TextRoom.append_signed#0
 std/text/impl string.repeat#0
 std/rt.alloc/unlink#0
 std/json/push_quoted#0
 std/json/encode_pretty#0 [List[app.main.Row]]
 std/rt.alloc/retain#0
 app/main/Row.structure handle 0 1#2
-std/collections.uniq_list/impl TextSink for TextRoom.append_signed#0
 std/rt.cycle/sweep#0
 std/rt.alloc/free#0
 std/rt.alloc/reclaim#0
-std/num/impl[N < Integer] N.checked_add#0 [usize]
 std/rt.alloc/claim#0
 std/text/searcher#0
 std/json/impl TextWriter.open#0
@@ -57,13 +55,13 @@ std/serde/case_name#0
 std/rt.entry/host_provider#0 [Console]
 std/rt.alloc/retain_known#0
 std/rt.alloc/alloc#0
+std/rt.bytes/impl TextRoom.grow#0
 std/rt.alloc/extend#0
 std/serde/impl Serialize for string.serialize#0 [std.json.TextWriter]
 std/text/maximal_suffix#0
 std/json/impl TextWriter.give_up#0
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
-std/collections.uniq_list/impl TextRoom.take_text#0
 std/json/impl Serializer for TextWriter.end_list#0
 std/json/escape_text#0
 app/main/Row.structure handle 0 0#1
@@ -80,7 +78,6 @@ std/text/impl string.replace#0
 std/rt.cycle/visit#0
 std/json/impl TextWriter.add_key#0
 std/serde/uppercase_name#0
-std/collections.uniq_list/collection_capacity_sum#0
 std/structure/impl Facts.find#0 [std.serde.Rename]
 std/rt.cycle/collect#0
 std/rt.cycle/due#0
@@ -88,6 +85,7 @@ std/text/pair_windows#0
 std/json/impl Serializer for TextWriter.end_data#0
 std/rt.alloc/take#0
 std/rt.cycle/init.init#0
+std/rt.bytes/impl TextSink for TextRoom.append_text#0
 std/serde/impl[T < Serialize] Serialize for List[T].serialize#0 [app.main.Row, std.json.TextWriter]
 std/text/plain_windows#0
 std/json/push_escaped#0
