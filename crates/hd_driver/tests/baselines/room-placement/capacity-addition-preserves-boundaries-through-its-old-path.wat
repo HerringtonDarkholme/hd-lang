@@ -4,21 +4,21 @@
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
-    ;; 8 |     println(collection_capacity_sum(0, ~usize(0)))
+    ;; 11 |     println(collection_capacity_sum(0, ~usize(0)))
     i32.const -1
     local.set $t0
     local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 9 |     println(collection_capacity_sum(~usize(0), 0))
+    ;; 12 |     println(collection_capacity_sum(~usize(0), 0))
     i32.const -1
     local.set $t0
     local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 10 |     println(collection_capacity_sum(7, 9))
+    ;; 13 |     println(collection_capacity_sum(7, 9))
     i32.const 16 ;; &"heap-exhausted"
     local.set $t0
     local.get $t0
@@ -49,7 +49,7 @@
     i32.add
   )
   (func $addition (result i32 i32)
-    ;; 14 |     collection_capacity_sum
+    ;; 17 |     collection_capacity_sum
     i32.const 2
     i32.const 0
   )
@@ -59,21 +59,21 @@
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32)
-    ;; 8 |     println(collection_capacity_sum(0, ~usize(0)))
+    ;; 11 |     println(collection_capacity_sum(0, ~usize(0)))
     i32.const -1
     local.set $t0
     local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 9 |     println(collection_capacity_sum(~usize(0), 0))
+    ;; 12 |     println(collection_capacity_sum(~usize(0), 0))
     i32.const -1
     local.set $t0
     local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 10 |     println(collection_capacity_sum(7, 9))
+    ;; 13 |     println(collection_capacity_sum(7, 9))
     i32.const 16 ;; &"heap-exhausted"
     local.set $t0
     local.get $t0
@@ -104,7 +104,7 @@
     i32.add
   )
   (func $addition (result i32 i32)
-    ;; 14 |     collection_capacity_sum
+    ;; 17 |     collection_capacity_sum
     i32.const 2
     i32.const 0
   )
@@ -114,21 +114,21 @@
   (import "fixture" "println[usize]" (func $"println[usize]" (param i32 i32 i32)))
   (import "fixture" "table0" (table $table0 4 funcref))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $right i32)
-    ;; 8 |     println(collection_capacity_sum(0, ~usize(0)))
+    ;; 11 |     println(collection_capacity_sum(0, ~usize(0)))
     i32.const -1
     local.set $right
     local.get $right
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 9 |     println(collection_capacity_sum(~usize(0), 0))
+    ;; 12 |     println(collection_capacity_sum(~usize(0), 0))
     i32.const -1
     local.set $right
     local.get $right
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 10 |     println(collection_capacity_sum(7, 9))
+    ;; 13 |     println(collection_capacity_sum(7, 9))
     i32.const 16 ;; &"heap-exhausted"
     local.set $right
     local.get $right
@@ -159,7 +159,7 @@
     i32.add
   )
   (func $addition (result i32 i32)
-    ;; 14 |     collection_capacity_sum
+    ;; 17 |     collection_capacity_sum
     i32.const 2
     i32.const 0
   )

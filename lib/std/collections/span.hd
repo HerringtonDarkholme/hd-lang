@@ -3,7 +3,7 @@ use std.ops.Index
 use std.ops.IndexMut
 use std.ops.IndexSet
 use std.ops.Range
-use std.rt.bytes.panic_with
+use std.rt.{panic_with}
 
 # A read-only live view of a list (spec/std/collections.md#spans). Its
 # lifetime keeps the list and its elements live for every read.

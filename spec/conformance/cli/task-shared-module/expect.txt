@@ -1,4 +1,5 @@
-# A task uses a shared task module through `self`, and the library module
+# A task uses a shared task module through `self` and the re-export of
+# tasks/shared/mod.hd (module.vis.parent), and the library module
 # src/tasks/zip.hd coexists with tasks/shared/zip.hd.
 run: hd run build
 stdout: zip

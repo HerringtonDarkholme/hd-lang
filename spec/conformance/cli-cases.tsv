@@ -379,6 +379,7 @@ manifest-errors-stop-the-check	cli.check.default,cli.exit.hd-failure,cli.json.di
 module-cycle-bodies-still-check	cli.package.whole,cli.check.default,cli.exit.hd-failure
 module-cycle-three-module-group	cli.package.whole,cli.check.default,cli.exit.hd-failure
 module-cycle-test-code-no-edge	cli.package.whole,cli.check.tests
+task-shared-module-private	cli.task.shared
 task-shared-module	cli.task.shared,cli.task.root-file,cli.task.no-path,cli.task.shared-copy,cli.task.shared-unused.lint
 task-super-above-root	cli.task.super,cli.task.above-root,cli.exit.hd-failure
 task-shared-not-shipped	cli.task.not-shipped,cli.build.output

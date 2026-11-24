@@ -17,12 +17,12 @@ fn view_work(k: usize) -> (usize, usize) {
     let mut main = String::new();
     for m in 0..k {
         src.insert(
-            &format!("d{m}/m.hd"),
+            &format!("d{m}.hd"),
             &format!(
                 "fn a(x: i64) -> i64:\n    x + {m}\n\nfn b(x: i64) -> i64:\n    a(x) * 2\n\npub fn run(x: i64) -> i64:\n    b(x) + a(x)\n"
             ),
         );
-        let _ = writeln!(main, "use pkg.d{m}.m.run as run{m}");
+        let _ = writeln!(main, "use pkg.d{m}.run as run{m}");
     }
     main += "\npub fn main() -> void $ Console:\n    let s: i64 = 0\n";
     for m in 0..k {

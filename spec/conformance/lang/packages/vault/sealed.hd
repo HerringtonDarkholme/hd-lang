@@ -1,0 +1,2 @@
+pub fn hidden() -> i32:
+    3

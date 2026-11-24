@@ -22,6 +22,7 @@ fn build_by(
     for (name, text) in files {
         src.insert(name, text);
     }
+    crate::add_facades(&mut src);
     let host = Host {
         render_tir: &[],
         sources: &src,

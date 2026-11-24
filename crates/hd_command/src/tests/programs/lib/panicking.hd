@@ -1,4 +1,4 @@
-use pkg.f0.m.{pick}
+use pkg.f0.{pick}
 
 pub fn main() -> void:
     let _ = pick([1, 2], 5)

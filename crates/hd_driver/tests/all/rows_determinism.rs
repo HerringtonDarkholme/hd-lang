@@ -22,6 +22,7 @@ fn sources(files: &[(&str, &str)]) -> MemorySources {
     for (path, text) in files {
         s.insert(path, text);
     }
+    crate::add_facades(&mut s);
     s
 }
 

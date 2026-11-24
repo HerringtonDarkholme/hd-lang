@@ -475,6 +475,9 @@ fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
         fn test_only(&self, _module: &str) -> bool {
             false
         }
+        fn published(&self, module: &str) -> Option<bool> {
+            self.usable(module).then_some(false)
+        }
         fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
             None
         }

@@ -21,8 +21,8 @@ use std.ops.{Add, Sub, num_suffix}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
 use std.collections.Heap
 use std.ops.defer
-use std.rt.wait.{WaitCell, wait_cell, wait_signal, idle_hook}
-use std.rt.bytes.panic_with
+use std.rt.{WaitCell, wait_cell, wait_signal, idle_hook}
+use std.rt.{panic_with}
 
 ## A distance in time, as a count of whole milliseconds, never negative.
 ## See [std-time.suffix.std.duration](../../spec/std/time.md#r-std-time.suffix.std.duration).

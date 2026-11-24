@@ -15,3 +15,7 @@ struct Hidden:
 # @file: b/z.hd
 pub struct Z:
     pub v: i32
+# @file: a/mod.hd
+pub use pkg.a.{x}
+# @file: b/mod.hd
+pub use pkg.b.{z}

@@ -14,6 +14,7 @@ fn analyze(files: &[(&str, &str)], executor: Executor, file: &str) -> Vec<String
     for (path, text) in files {
         src.insert(path, text);
     }
+    crate::add_facades(&mut src);
     let store = MemoryStore::default();
     let host = Host {
         render_tir: &[],
@@ -87,6 +88,7 @@ fn analyze_in(
     for (path, text) in files {
         src.insert(path, text);
     }
+    crate::add_facades(&mut src);
     let host = Host {
         render_tir: &[],
         sources: &src,

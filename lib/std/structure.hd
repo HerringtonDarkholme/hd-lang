@@ -12,7 +12,7 @@
 # whose type arguments are the caller's parameters of the same names.
 use std.annotation.annotate
 use std.inspect.Inspectable
-use std.rt.memory.address_of
+use std.rt.{address_of}
 
 # A member's or variant's facts. The prototype holds `Inspectable` values
 # rather than `Any`.

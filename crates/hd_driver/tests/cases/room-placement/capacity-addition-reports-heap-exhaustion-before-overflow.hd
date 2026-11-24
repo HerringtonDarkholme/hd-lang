@@ -1,6 +1,6 @@
 # @dump: stdout wat
 # @build: std | std,checked | std,checked,release
-use std.collections.uniq_list.collection_capacity_sum
+use std.rt.{collection_capacity_sum}
 
 pub fn main() -> void:
     _ := collection_capacity_sum(~usize(0), 1)

@@ -17,8 +17,8 @@ use std.serde.{
     Skip,
 }
 use std.structure.{VariantInfo, Member, Facts}
-use std.rt.memory.string_bytes
-use std.rt.bytes.{
+use std.rt.{string_bytes}
+use std.rt.{
     bytes_len,
     bytes_at,
     bytes_slice,

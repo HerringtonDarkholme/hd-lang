@@ -1,0 +1,7 @@
+# test: a module below a nested module's parent, such as its sibling's child, may use it
+# Spec 10 Module Privacy: module.vis.parent.
+# fixture-package-tree: nested-privacy/src/shop/orders/line.hd
+use pkg.shop.ledger.{balance}
+
+pub fn line() -> i32:
+    balance()

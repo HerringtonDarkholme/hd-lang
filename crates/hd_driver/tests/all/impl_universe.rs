@@ -33,6 +33,7 @@ fn analyze(executor: Executor, a_first: bool) -> String {
     };
     src.insert(fa, A);
     src.insert(fb, B);
+    crate::add_facades(&mut src);
     let store = crate::warm_store();
     let host = Host {
         render_tir: &[],

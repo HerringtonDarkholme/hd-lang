@@ -1,6 +1,6 @@
 # std.encoding: bytes as hex and base64 text (spec/std/encoding.md).
 
-use std.rt.bytes.{bytes_len, bytes_at, string_from_bytes}
+use std.rt.{bytes_len, bytes_at, string_from_bytes}
 
 # Why decoding failed, at a byte offset into the text
 # (r-std-encoding.error.position-bytes).

@@ -167,15 +167,15 @@ fn a_file_with_the_same_size_and_new_bytes_is_read_and_checked_again() {
 #[test]
 fn a_renamed_unit_is_read_under_its_new_paths() {
     let mut sources = package("rename", 2);
-    sources.files.insert("a/x.hd", "pub fn x() -> i32: 1\n");
+    sources.files.insert("a/mod.hd", "pub fn x() -> i32: 1\n");
     sources.files.insert(
         "main.hd",
-        "use pkg.a.x.{x}\n\npub fn main() -> void:\n    let v = x()\n",
+        "use pkg.a.{x}\n\npub fn main() -> void:\n    let v = x()\n",
     );
     reads(&sources);
-    sources.files.remove("a/x.hd");
-    sources.files.insert("b/x.hd", "pub fn x() -> i32: 1\n");
-    // `main` still uses `a.x`, now gone: the rename is seen, not a stale
+    sources.files.remove("a/mod.hd");
+    sources.files.insert("b/mod.hd", "pub fn x() -> i32: 1\n");
+    // `main` still uses `a`, now gone: the rename is seen, not a stale
     // record of the old unit.
     let out = check(&sources);
     assert!(!out.diags.is_empty(), "the use of the moved module fails");

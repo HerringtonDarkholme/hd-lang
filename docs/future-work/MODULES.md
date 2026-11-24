@@ -43,6 +43,17 @@ and 2 and phase 1's folder rules):
    its parent's subtree; other packages reach items only through the
    package root's `pub use`.
 
+**Applied** (lane 268, 2026-11-24): privacy is uniform. A module is visible
+to its parent and the modules under it, and elsewhere only where its parent
+re-exports it with `pub use M.{child}` (`module.vis.parent`,
+`module.use.facade.module`; error `private-module`). A package, test or task
+root is its top-level modules' parent, and a directory without `mod.hd` is a
+parent with no re-exports (`module.vis.parent.root`). #2356 was closed ("not
+needed"), so std keeps its layout and gains a root file, `lib/std/mod.hd`,
+re-exporting every top-level module but `std.rt`. Outside `std.rt`, std names
+only `std.rt` (#2355), which re-exports the runtime names the rest of std
+uses.
+
 The compiler keeps two graphs. The policy graph above decides
 `module-cycle`, on its strongly connected groups. The dependency graph,
 every use including `pub use`, orders initialization and forms the compile

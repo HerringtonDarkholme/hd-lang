@@ -86,7 +86,10 @@ fn main() {
             {
                 continue;
             }
-            let text = std::fs::read_to_string(abs).unwrap_or_default();
+            let mut text = std::fs::read_to_string(abs).unwrap_or_default();
+            if web {
+                text = browser_lines(&text);
+            }
             let dest = stripped.join(rel);
             if let Some(dir) = dest.parent() {
                 let _ = std::fs::create_dir_all(dir);
@@ -183,4 +186,18 @@ fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
             out.push(p);
         }
     }
+}
+
+/// `text` without the lines that name what the browser build leaves out:
+/// each ends in the comment `# not in the browser build`, as the line of
+/// `rt/mod.hd` that re-exports the checked runtime, whose files the browser
+/// build drops (above). Cost: one pass over the text.
+fn browser_lines(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        if !line.trim_end().ends_with("# not in the browser build") {
+            out.push_str(line);
+        }
+    }
+    out
 }

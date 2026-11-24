@@ -1389,3 +1389,78 @@ mod secondary_label_codec_tests {
         assert!(decode_coh_rows(&bytes[..bytes.len() - 1]).is_none());
     }
 }
+
+mod privacy_key_tests {
+    use super::{Executor, Goal, Host, MemorySources, NoClock, Packages, build_packages};
+
+    /// `module.vis.parent`: whether a nested module is visible is a fact of
+    /// its parent's text, which the user's own unit does not depend on. A
+    /// warm run after the parent adds or drops `pub use pkg.shop.{ledger}`
+    /// must still give the new verdict: the unit's keys hash the
+    /// publication facts its uses read.
+    #[test]
+    fn a_parent_reexport_edit_changes_a_warm_runs_verdict() {
+        let store = super::warm_std_store();
+        let mut sources = MemorySources::default();
+        sources.insert("main.hd", include_str!("programs/privacy/main.hd"));
+        sources.insert("shop/ledger.hd", include_str!("programs/privacy/ledger.hd"));
+        let mut check = |shop: &str| {
+            sources.insert("shop/mod.hd", shop);
+            let host = Host {
+                render_tir: &[],
+                sources: &sources,
+                store: &store,
+                clock: &NoClock,
+                executor: Executor::Serial(hd_sched::SerialOrder::Priority),
+            };
+            let goal = Goal::Program {
+                entry: "main".into(),
+            };
+            build_packages(&host, "app", &Packages::default(), &goal).render()
+        };
+        let private = include_str!("programs/privacy/shop_private.hd");
+        let public = include_str!("programs/privacy/shop_public.hd");
+        assert!(
+            check(private).contains("private-module"),
+            "cold: shop hides ledger"
+        );
+        let shown = check(public);
+        assert!(
+            !shown.contains("private-module"),
+            "warm: shop re-exports ledger\n{shown}"
+        );
+        assert!(
+            check(private).contains("private-module"),
+            "warm: hidden again"
+        );
+    }
+}
+
+mod std_runtime_boundary_tests {
+    use hd_project::SourceSet as _;
+
+    /// A std module outside `std.rt` names only `std.rt`, never a child of
+    /// it: a use makes its edge to the module it names
+    /// (`module.cycle.edge`), so no module outside the runtime has an edge
+    /// into `rt.memory` or `rt.bytes`, and the runtime's own loops stay
+    /// inside it (#2355). `std.rt` re-exports what the rest of std uses.
+    #[test]
+    fn std_outside_the_runtime_names_only_std_rt() {
+        let std = hd_driver::std_sources();
+        let mut found = Vec::new();
+        for entry in std.list().iter().filter(|e| !e.path.starts_with("rt/")) {
+            let text = std.read(&entry.path).expect("listed file");
+            let text = String::from_utf8_lossy(&text);
+            for (n, line) in text.lines().enumerate() {
+                let code = line.trim_start().trim_start_matches("pub ").trim_start();
+                let named_child = code
+                    .strip_prefix("use std.rt.")
+                    .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_lowercase()));
+                if named_child {
+                    found.push(format!("{}:{}: {line}", entry.path, n + 1));
+                }
+            }
+        }
+        assert!(found.is_empty(), "uses past std.rt:\n{}", found.join("\n"));
+    }
+}
