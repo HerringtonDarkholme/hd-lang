@@ -8,6 +8,7 @@
 # compiler's.
 use std.format.{Debug, DebugWriter}
 use std.hash.Hasher
+use std.marker.{Send, Sync}
 use std.rt.memory.Ptr
 
 ## The sealed trait of types with a runtime identity, which the compiler supplies.
@@ -37,6 +38,14 @@ struct TypeInfo:
 ## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
 pub struct TypeId:
     info: Ptr[TypeInfo]
+
+# Its descriptor is static storage that no count reaches, so threads may
+# share a `TypeId` though `TypeInfo` holds strings
+# (`module.marker.explicit.only`); it is never `Wire`: an address means
+# nothing in another memory.
+impl Send for TypeId
+
+impl Sync for TypeId
 
 impl TypeId:
     ## The `TypeId` of `T`.
