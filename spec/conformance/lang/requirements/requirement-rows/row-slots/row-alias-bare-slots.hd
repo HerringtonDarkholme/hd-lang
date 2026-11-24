@@ -1,5 +1,5 @@
 # test: a row alias in every row slot is written after $
-use std.function.{Fn, SuspendFn}
+use std.ops.{Fn, SuspendFn}
 
 trait Db
 

@@ -2,7 +2,7 @@
 # Spec 13 Lifetime Bounds: ref.generic.outlives.field.
 # expect-stdout: 12
 # expect-stdout: 17
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

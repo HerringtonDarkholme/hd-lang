@@ -1,5 +1,5 @@
 # test: an argument-position impl Trait may outlive a declared lifetime
-use std.function.Fn
+use std.ops.Fn
 
 struct Counter:
     n: i32

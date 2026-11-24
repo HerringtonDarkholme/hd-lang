@@ -751,7 +751,7 @@ impl Ck<'_, '_> {
         if self
             .cx
             .names
-            .declared_in(def, self.cx.names.known.function_module)
+            .declared_in(def, self.cx.names.known.ops_module)
         {
             let name = self
                 .cx

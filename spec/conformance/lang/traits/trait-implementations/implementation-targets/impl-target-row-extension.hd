@@ -1,6 +1,6 @@
 # test: an implementation target cannot extend a row parameter
 # Spec 09 Implementation Targets: trait.target.row-argument.extension.
-use std.function.Fn
+use std.ops.Fn
 
 trait Marker:
     fn mark(self) -> void

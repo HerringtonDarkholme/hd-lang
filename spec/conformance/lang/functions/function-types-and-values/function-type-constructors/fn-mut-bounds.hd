@@ -1,5 +1,5 @@
 # test: FnMut bounds take the sugar and tuple forms, and Fn meets them
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn twice[F < FnMut(i32) -> i32](mut f: F) -> i32:
     f(1) + f.call_mut((2,))

@@ -1,7 +1,7 @@
 # test: a function with a final vararg, and a value of its rest function type, implement Fn and FnMut for an inputs tuple with a rest element
 # expect-stdout: 6 6
 # Spec 07: fn.trait.function-values-read-only, fn.trait.mut.function-values, fn.trait.bound-tuple, fn.vararg.type.
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn total(head: i32, tail...: List[i32]) -> i32:
     let sum = head

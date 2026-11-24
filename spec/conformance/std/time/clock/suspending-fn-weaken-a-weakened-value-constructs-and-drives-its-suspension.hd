@@ -7,7 +7,7 @@
 # expect-stdout: 52
 # expect-stdout: 2
 use std.time.{Clock, Duration, sleep}
-use std.function.{Fn, SuspendFn}
+use std.ops.{Fn, SuspendFn}
 
 fn plus!(by: i32) -> i32:
     by + 1

@@ -1,7 +1,7 @@
 # test: void implements tuple
 # expect-stdout: true
 
-use std.function.Tuple
+use std.ops.Tuple
 
 fn keep[T < Tuple](value: T) -> T:
     value

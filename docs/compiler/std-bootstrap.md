@@ -36,7 +36,7 @@ wins.
 | Module | Supplied names | Why source alone is not enough |
 | --- | --- | --- |
 | `std.task` | `all` | `join!` has no writable signature; the emitter lowers it through the `task_all` key |
-| `std.function` | `Fn`, `SuspendFn` | function-type syntax lowers to these constructors; `Tuple` stays in `function.hd` |
+| `std.ops` | `Fn`, `SuspendFn` | function-type syntax lowers to these constructors; `Tuple` stays in `ops.hd` |
 | `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
 | `std.testing` | `it` | intrinsic body (`test_case`) |
 | `std.rt.entry` | `entry_status`, `entry_status_error`, `entry_status_dyn_ref`, `host_provider`, `entry_write` | hd functions in the virtual `rt/entry/mod.hd` (`hd_driver::RT_SOURCE`) report entry and test results over the `entry_write` intrinsic |
@@ -83,7 +83,7 @@ others are private to the one module that calls them.
 | `map_probe` | the body of `Map.get_or_insert`, in `collections/map.hd` | compiler |
 | `map_steps` | `[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V))?`, in `iter.hd`, the step function of a map cursor | compiler |
 | `map_hash_seed` | `() -> u64`, in `rt/mod.hd`; the compiler mixes the `hd:rt` `hash_seed` import with a per-run counter | compiler |
-| `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`, in `function.hd` | compiler |
+| `fn_call`, `fn_mut_call` | the bodies of `Fn.call` and `FnMut.call_mut`, in `ops.hd` | compiler |
 | `ref_identity` | `identity_of[T](target: &T) -> RefIdentity`, in `cmp.hd` | compiler |
 | `mem_ref_address` | `address_of[T](target: &T) -> usize`, in `structure.hd`, under `MembersRecord.id` | compiler |
 | `caller_location`, `caller_args` | `Location::caller()` and `Location::caller_args()`, in `debug.hd` | compiler |

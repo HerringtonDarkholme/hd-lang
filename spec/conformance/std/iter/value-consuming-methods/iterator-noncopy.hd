@@ -1,6 +1,6 @@
 # test: all four methods accept noncopy items and cursors without extra Copy bounds
 use std.collections.UniqList
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Ticket:
     label: string

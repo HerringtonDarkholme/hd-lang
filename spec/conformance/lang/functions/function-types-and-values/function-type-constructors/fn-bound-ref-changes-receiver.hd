@@ -1,6 +1,6 @@
 # test: a bound reference to a &mut self method changes its receiver, so it does not meet an Fn bound
 # Spec Functions, Read-Only Fn Closures: fn.trait.read-only.bound-ref.
-use std.function.Fn
+use std.ops.Fn
 
 struct Counter:
     value: i32

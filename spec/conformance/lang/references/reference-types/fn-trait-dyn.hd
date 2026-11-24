@@ -1,5 +1,5 @@
 # test: Fn is static-only and has no dynamic trait value form
-use std.function.Fn
+use std.ops.Fn
 
 fn invalid(f: &dyn Fn(i32) -> i32) -> i32: # diagnostic: invalid-dyn-type
     f.call((1,))

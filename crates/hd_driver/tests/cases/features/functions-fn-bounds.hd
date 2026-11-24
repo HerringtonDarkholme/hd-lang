@@ -5,7 +5,7 @@
 # expected: `invoke` instances call `width` and the closure directly
 # (inlined) with no closure allocation; `fn_mut`'s closure shares `n`
 # in a cell or frame slot and takes no count per element.
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn width(s: string) -> usize:
     s.len()

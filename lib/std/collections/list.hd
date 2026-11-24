@@ -1,6 +1,6 @@
 use std.collections.set.Set
 use std.collections.view.ListView
-use std.function.FnMut
+use std.ops.FnMut
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 use std.num.Num
 use std.ops.Range

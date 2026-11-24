@@ -1,6 +1,6 @@
 # test: closures passed by position, by name, and to a method's generic Fn parameter capture local references for the call
 # Spec 13 Lifetime Bounds: ref.generic.outlives.argument, ref.generic.outlives.argument-origins.
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 struct Counter:
     n: i32

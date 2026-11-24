@@ -1,6 +1,6 @@
 # test: boxing a closure read from a lifetime-bounded field is local-reference-escapes
 # Spec 13 Lifetime Bounds: ref.generic.outlives.box.
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

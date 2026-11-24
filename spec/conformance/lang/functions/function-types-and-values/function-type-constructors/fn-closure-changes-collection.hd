@@ -1,6 +1,6 @@
 # test: a closure that pushes to a captured list, or nests a closure that does, does not meet an Fn bound
 # Spec Functions, Read-Only Fn Closures: fn.trait.read-only.changes.
-use std.function.Fn
+use std.ops.Fn
 
 fn later(f: fn() -> void) -> void:
     f()

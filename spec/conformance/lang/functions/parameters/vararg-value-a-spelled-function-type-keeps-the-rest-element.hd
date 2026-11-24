@@ -1,6 +1,6 @@
 # test: a spelled function type keeps the rest element
 # expect-stdout: 3
-use std.function.Fn
+use std.ops.Fn
 
 fn count(label: string, values...: List[i32]) -> usize:
     values.len()

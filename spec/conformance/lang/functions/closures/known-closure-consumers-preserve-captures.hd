@@ -2,7 +2,7 @@
 # fn.capture.copy.value; fn.capture.cell.closures; fn.capture.copies;
 # fn.capture.call.any; fn.trait.mut.call.
 # expect-stdout: new 10 old:a,old:bb,old:ccc,old:dddd
-use std.function.FnMut
+use std.ops.FnMut
 
 fn each[F < FnMut(string) -> void](xs: List[string], mut f: F) -> void:
     for x in xs:

@@ -37,7 +37,7 @@ use std.contract.require                              # check a precondition
 use std.convert.From
 use std.error.{Error, message, report_of}
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, append_text, create_dir_all, list_dir, read_text, remove, write_text}
-use std.function.{Fn, FnMut}                          # bounds for closures that are kept
+use std.ops.{Fn, FnMut}                          # bounds for closures that are kept
 use std.hash.Hasher
 use std.host.{Args, Env, Sys, args, env}
 use std.inspect.Inspectable

@@ -3784,10 +3784,7 @@ impl Lower<'_, '_, '_> {
         span: Span,
     ) -> Ty {
         let pool = self.names.pool;
-        if self
-            .names
-            .declared_in(def, self.names.known.function_module)
-        {
+        if self.names.declared_in(def, self.names.known.ops_module) {
             let name = self.names.paths.segment(PathId::from_raw(def.raw()));
             if name == "Fn" || name == "SuspendFn" {
                 let inputs = args.first().copied().unwrap_or(Ty::POISON);

@@ -1,7 +1,7 @@
 # #1383: exposing a generic consumer preserves captured-root loans.
 # ref.excl.alias.shared-variable; ref.dep.call; fn.capture.cell;
 # fn.trait.mut.call.
-use std.function.FnMut
+use std.ops.FnMut
 
 struct P:
     name: string

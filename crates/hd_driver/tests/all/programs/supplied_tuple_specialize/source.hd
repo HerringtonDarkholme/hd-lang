@@ -1,6 +1,6 @@
 
 use std.annotation.cold
-use std.function.Tuple
+use std.ops.Tuple
 use std.structure.{Field, Structure, Variant, Walker}
 
 fn check(value: bool) -> void:

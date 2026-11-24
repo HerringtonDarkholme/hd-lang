@@ -1,6 +1,6 @@
 # test: a stored trailing callback bounded by Fn changes no capture
 # Rule: fn.trailing.fn-bound.
-use std.function.Fn
+use std.ops.Fn
 
 type Stored[F < Fn() -> i32](F)
 

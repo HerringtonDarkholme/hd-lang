@@ -4,7 +4,7 @@
 # expect-stdout: 19
 # expect-stdout: 1
 # expect-stdout: 2
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 type Job = fn() -> i32
 type Stored[F < Fn() -> i32](F)

@@ -1,4 +1,4 @@
-use std.function.FnMut
+use std.ops.FnMut
 
 fn show(value: impl Display) -> string:
     value.to_string()

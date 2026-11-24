@@ -1,5 +1,5 @@
 # test: a tuple argument is never spread automatically; call(add2, (1, 2)) makes Args a one-element tuple
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 fn add2(a: i32, b: i32) -> i32:
     a + b

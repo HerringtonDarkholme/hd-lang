@@ -1,6 +1,6 @@
 # test: a spread after separate arguments of a tuple vararg fills the tuple's rest element
 # Spec 05 Positional Spreads: expr.call.spread.tuple-vararg-tail.
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 fn joined(a: usize, b: usize, xs...: List[i32]) -> usize:
     a * 100 + b * 10 + xs.len()

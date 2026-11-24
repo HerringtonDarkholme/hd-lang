@@ -1,5 +1,5 @@
 # test: a type parameter bounded by FnMut only does not meet an Fn bound
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 fn read[F < Fn(i32) -> i32](f: F) -> i32:
     f(1)

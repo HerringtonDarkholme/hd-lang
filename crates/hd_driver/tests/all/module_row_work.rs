@@ -12,7 +12,7 @@ use hd_sched::SerialOrder;
 fn delayed_function_value_arguments_have_bounded_body_work() {
     for (width, depth) in [(100, 1), (1000, 1), (1, 20)] {
         let mut source = String::from(
-            "use std.function.Fn\n\nfn invoke[F, T, R, $ E](call: fn(&F, (T,)) -> R $ E, f: F, value: T) -> R $ E:\n    call(&f, (value,))\n\nfn logged(value: i32) -> i32 $ Console:\n    println(value)\n    value + 1\n\n",
+            "use std.ops.Fn\n\nfn invoke[F, T, R, $ E](call: fn(&F, (T,)) -> R $ E, f: F, value: T) -> R $ E:\n    call(&f, (value,))\n\nfn logged(value: i32) -> i32 $ Console:\n    println(value)\n    value + 1\n\n",
         );
         for i in 0..width {
             let _ = writeln!(source, "fn worker{i}() -> i32:");

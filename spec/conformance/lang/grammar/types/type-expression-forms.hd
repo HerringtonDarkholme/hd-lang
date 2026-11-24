@@ -10,7 +10,7 @@
 # expect-stdout: nothing
 # expect-stdout: 1 2
 # expect-stdout: 6
-use std.function.Fn
+use std.ops.Fn
 
 trait Counter:
     fn next(&mut self) -> i32
