@@ -6,9 +6,7 @@
 const { MessageChannel, Worker, receiveMessageOnPort, workerData } =
   process.getBuiltinModule("node:worker_threads");
 import type { MessagePort } from "node:worker_threads";
-import { CrossError } from "./gen/abi.ts";
-import { pendingOperation } from "./core.ts";
-import { Err, Ok, variant } from "./wire.ts";
+import { Frames, type Link, workerSends } from "./worker-link.ts";
 
 type Dynamic = ReturnType<typeof JSON.parse>;
 type Flag = Int32Array<SharedArrayBuffer>;
@@ -21,115 +19,54 @@ const post = (port: MessagePort, flag: Flag, message: Dynamic, frame?: Uint8Arra
   Atomics.notify(flag, 0);
 };
 
-// A send in flight: its reply once it came, and the wake of its pending
-// operation.
-type Send = { reply: Dynamic; ready: (() => void) | null };
-type Link = { port: MessagePort; down: Flag; sends: Map<number, Send> };
-
-// `hd:Workers` (std-remote.workers.host): the first send starts one worker
-// thread on `module`. A send is a pending operation (std-host.op.wait), so
-// sends from several tasks are in flight together: the worker posts each
-// reply with its send's number and wakes the instance's `reactor`, and
-// `drain` delivers it. A cancelled send (std-host.op.cancel) stops
-// waiting, and the worker drops its frame unless it already runs it, as
-// tokio's `spawn_blocking` abort does; a late reply finds no send. A
-// worker whose instance ended, or a host without the module, makes each
-// send still in flight `Unreachable`, and the next send starts another.
-// Cost: one thread and one instance per run; per send, one map entry and
-// one message each way with its frame's buffer moved, not copied; one
-// wake of the worker and one of the reactor; no polling.
+// `hd:Workers` (std-remote.workers.host, worker-link.ts): the first send
+// starts one worker thread on `module`. The worker posts each reply and
+// wakes the instance's `reactor`, and `drain` delivers it; the port's
+// listener delivers while the instance awaits a Promise. A host without
+// the module answers `Unreachable`.
+// Cost: one thread and one instance per run; per send, one wake of the
+// worker and one of the reactor; no polling.
 export function workersProvider(
   module: WebAssembly.Module | undefined,
   reactor: Flag,
 ): { provider: Record<string, (frame: Uint8Array) => Dynamic>; drain: () => void } {
-  let link: Link | null = null;
-  let last = 0;
-  const lost = () => Err(variant(CrossError, "Unreachable"));
-  const settle = (send: Send, reply: Dynamic): void => {
-    send.reply = reply;
-    send.ready?.();
-  };
-  const deliver = (from: Link, message: Dynamic): void => {
-    if (message.lost) {
-      if (link === from) {
-        link = null;
-      }
-      for (const send of from.sends.values()) {
-        settle(send, lost());
-      }
-      from.sends.clear();
-      return;
+  type Port = Link & { port: MessagePort; deliver: (message: Dynamic) => void };
+  const { send, current } = workerSends((deliver): Port | null => {
+    if (!module) {
+      return null;
     }
-    const send = from.sends.get(message.id);
-    if (send) {
-      from.sends.delete(message.id);
-      settle(send, Ok(message.frame));
-    }
-  };
-  const start = (code: WebAssembly.Module): Link => {
     const { port1, port2 } = new MessageChannel();
     const down = new Int32Array(new SharedArrayBuffer(4));
-    const started: Link = { port: port1, down, sends: new Map() };
     new Worker(new URL(import.meta.url), {
-      workerData: { hdWorker: { module: code, port: port2, down, up: reactor } },
+      workerData: { hdWorker: { module, port: port2, down, up: reactor } },
       transferList: [port2],
     }).unref();
-    // The event loop delivers while the instance awaits a Promise; a
-    // synchronous wait on the reactor delivers through `drain`.
-    port1.on("message", (message: Dynamic) => deliver(started, message));
+    port1.on("message", deliver);
     port1.unref();
-    return started;
-  };
+    return {
+      port: port1,
+      deliver,
+      post: (message: Dynamic, frame?: Uint8Array) => post(port1, down, message, frame),
+    };
+  });
   return {
-    provider: {
-      send: (frame: Uint8Array) => {
-        if (!module) {
-          return lost();
-        }
-        link ??= start(module);
-        const to = link;
-        const id = ++last;
-        const send: Send = { reply: null, ready: null };
-        to.sends.set(id, send);
-        post(to.port, to.down, { id, frame }, frame);
-        return pendingOperation(
-          () => send.reply !== null,
-          () => send.reply,
-          () => {
-            if (to.sends.delete(id)) {
-              post(to.port, to.down, { cancel: id });
-            }
-          },
-          null,
-          (ready) => {
-            send.ready = ready;
-            if (send.reply !== null) {
-              ready();
-            }
-            return () => {
-              send.ready = null;
-            };
-          },
-        );
-      },
-    },
+    provider: { send },
     drain: () => {
-      for (let from = link; from !== null; from = link) {
+      for (let from = current(); from !== null; from = current()) {
         const item = receiveMessageOnPort(from.port);
         if (!item) {
           return;
         }
-        deliver(from, item.message);
+        from.deliver(item.message);
       }
     },
   };
 }
 
 // The worker thread: `hd:WorkerPort` takes the parent's frames in order,
-// skipping the ones cancelled before they were taken, and an instance
-// that ends tells the parent so. Not awaited at the top level: node.ts
-// imports this module, so a top-level wait for node.ts would wait on
-// itself.
+// and an instance that ends tells the parent so. Not awaited at the top
+// level: node.ts imports this module, so a top-level wait for node.ts
+// would wait on itself.
 async function serve(worker: {
   module: WebAssembly.Module;
   port: MessagePort;
@@ -137,23 +74,15 @@ async function serve(worker: {
   up: Flag;
 }): Promise<void> {
   const { module, port, down, up } = worker;
-  // The frames not yet taken, by send, in the order they came.
-  const frames = new Map<number, Uint8Array>();
-  let taken = 0;
+  const frames = new Frames();
   const next = (): Uint8Array => {
     for (;;) {
       const seen = Atomics.load(down, 0);
       for (let item; (item = receiveMessageOnPort(port));) {
-        const { id, frame, cancel } = item.message;
-        if (cancel === undefined) {
-          frames.set(id, frame);
-        } else {
-          frames.delete(cancel);
-        }
+        frames.add(item.message);
       }
-      for (const [id, frame] of frames) {
-        frames.delete(id);
-        taken = id;
+      const frame = frames.take();
+      if (frame) {
         return frame;
       }
       Atomics.wait(down, 0, seen);
@@ -169,7 +98,7 @@ async function serve(worker: {
       module,
       workerPort: {
         next,
-        reply: (frame: Uint8Array) => post(port, up, { id: taken, frame }, frame),
+        reply: (frame: Uint8Array) => post(port, up, { id: frames.taken, frame }, frame),
       },
     });
     try {

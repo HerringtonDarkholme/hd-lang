@@ -8,7 +8,9 @@
 // relative URLs.
 
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { Browser, Locator, Page } from "playwright-core";
 
@@ -217,6 +219,7 @@ export async function playgroundSteps(options: PlaygroundE2e): Promise<void> {
   await step("Clock and Random run in the browser; FsRead stops before running", () =>
     hostCapabilities(openPage, code, outcome),
   );
+  await step("Workers run in a browser worker", () => browserWorkers(openPage, code));
 
   await step("the multi-file example runs; tabs add, rename, and share", async () => {
     const page = await openPage();
@@ -475,4 +478,35 @@ async function hostCapabilities(
     /main needs FsRead, which the playground does not provide/,
   );
   await page.context().close();
+}
+
+/**
+ * Runs each runtime case of spec/conformance/std/remote/workers in the
+ * playground, whose `Workers` start a browser worker (host/web.ts), and
+ * checks its standard output. The playground has no threads, so
+ * `background!` runs its closure in place.
+ */
+async function browserWorkers(
+  openPage: (hash: string) => Promise<Page>,
+  code: (source: string) => string,
+): Promise<void> {
+  const dir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../spec/conformance/std/remote/workers",
+  );
+  // cost: one listing of one case directory per e2e run, and one page per case in it.
+  for (const name of readdirSync(dir).sort()) {
+    const text = readFileSync(join(dir, name), "utf8");
+    const expected = [...text.matchAll(/^# expect-stdout: (.*)$/gm)].map(
+      (match) => `${match[1]}\n`,
+    );
+    if (expected.length === 0) {
+      continue;
+    }
+    const page = await openPage(code(text));
+    await page.click("#run");
+    await page.locator(".outcome.passed").waitFor();
+    assert.equal(await page.locator(".stdout").textContent(), expected.join(""), name);
+    await page.context().close();
+  }
 }
