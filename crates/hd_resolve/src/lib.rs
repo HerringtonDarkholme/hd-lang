@@ -244,16 +244,6 @@ impl ModuleScope {
     }
 }
 
-/// The use worklist's state per export (§3.15).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u8)]
-pub enum ExportState {
-    Resolved,
-    Pending,
-    Visiting,
-    Loop,
-}
-
 #[cfg(test)]
 mod tests {
     use super::{Binding, BindingKind, ModuleScope, Origin};
