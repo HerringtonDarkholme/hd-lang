@@ -230,6 +230,7 @@ manifest-invalid-syntax	cli.manifest.invalid.syntax,cli.manifest.invalid,cli.jso
 name-std-manifest	cli.name.std,cli.name.std.manifest,cli.json.diagnostic.fields,cli.diagnostic.file,cli.file.run,cli.exit.hd-failure
 name-std-dependency	cli.name.std,cli.name.std.manifest,cli.dep.reached,cli.diagnostic.file,cli.exit.hd-failure
 repl-value	cli.repl.script,cli.repl.script.lines,cli.repl.script.echo,cli.repl.value,cli.repl.value.stream,cli.repl.input-types
+repl-function-values	cli.repl.script,cli.repl.script.echo,cli.repl.value,cli.repl.value.stream
 repl-value-stream	cli.repl.script.output,cli.repl.value.stream,cli.dbg.repl
 repl-checkpoint	cli.repl.checkpoint.continue,cli.repl.checkpoint.initialized,cli.repl.checkpoint.effects,cli.repl.checkpoint.history
 repl-hash-replay	cli.repl.rebuild,cli.repl.command.reload,cli.repl.host.once
