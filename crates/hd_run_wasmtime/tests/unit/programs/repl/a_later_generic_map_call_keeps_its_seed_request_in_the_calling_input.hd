@@ -1,0 +1,4 @@
+fn later[T](value: T) -> usize:
+    let mut values: Map[usize, T] = {}
+    values[0] = value
+    values.len()

@@ -1,0 +1,22 @@
+struct Item:
+    name: string
+    cents: i32
+
+trait Priced:
+    fn price(self) -> i32
+
+impl Priced for Item:
+    fn price(self) -> i32: self.cents
+
+fn total[T < Priced](items: List[T]) -> i32:
+    let sum = +0
+    for item in items:
+        sum = sum + item.price()
+    sum
+
+pub fn main() -> void $ Console:
+    items := [Item { name: "tea", cents: 250 }, Item { name: "cake", cents: 425 }]
+    double := fn(x: i32) -> i32: x * 2
+    for item in items:
+        println("${item.name}: ${double(item.price())}")
+    println("total ${total(items)}")

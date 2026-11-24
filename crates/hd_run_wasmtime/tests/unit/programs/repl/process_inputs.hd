@@ -1,0 +1,2 @@
+fn run!(program: string, args: List[string]) -> Result[ProcessOutput, ProcessError] $ Process:
+    Command::new(program).args(args).run!()

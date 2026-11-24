@@ -797,7 +797,7 @@ impl WasmtimeSession {
     /// Rebuilds the session in linked base `wasm` from another session's
     /// `journal`: one the JS host recorded, which must replay here as the
     /// session's own does.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub(crate) fn run_from(
         &mut self,
         journal: &[u8],
@@ -1061,13 +1061,13 @@ impl WasmtimeSession {
     }
 
     /// The host calls the session made, not served from a record.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub(crate) fn host_calls(&self) -> u64 {
         self.run.store.data().calls
     }
 
     /// Whether a host operation is pending in the session's reactor.
-    #[cfg(test)]
+    #[cfg(feature = "testing")]
     pub(crate) fn pending(&self) -> bool {
         self.run.store.data().waiting()
     }

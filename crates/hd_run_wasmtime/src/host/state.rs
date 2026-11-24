@@ -37,7 +37,7 @@ pub(crate) const HELD_OUTPUT_BOUND: usize = 64 * 1024;
 /// The per-instance host state of the store.
 pub struct Host {
     // Drop the reactor first: it cancels pending output before the writer joins.
-    pub(crate) reactor: Reactor,
+    pub reactor: Reactor,
     output: super::output::Output,
     /// Standard output not yet written.
     pub(crate) out: Vec<u8>,
@@ -81,7 +81,7 @@ pub struct Host {
     timeout_millis: Option<i64>,
     /// A REPL session's journal (`docs/compiler/live-execution.md` §4), which every host
     /// call and driver event is recorded in; `None` for every other run.
-    pub(crate) journal: Option<hd_run::journal::Recorder>,
+    pub journal: Option<hd_run::journal::Recorder>,
     /// While a session's rebuild replays an input: the record its host
     /// calls and wakes are served from, instead of being made again
     /// (`cli.repl.host.once`).
@@ -140,7 +140,8 @@ impl Host {
 
     /// A host with no streams, arguments or grant, which holds a store's
     /// place while its host moves to another store.
-    pub(crate) fn placeholder() -> Host {
+    #[must_use]
+    pub fn placeholder() -> Host {
         let io = HostIo {
             out: Box::new(std::io::sink()),
             err: Box::new(std::io::sink()),
@@ -265,7 +266,7 @@ impl Host {
 
     /// The one boundary for operation abort and completed-run cleanup.
     /// Reusable test instances retain providers only when close is false.
-    pub(crate) fn control(&mut self, event: Control) -> Option<Outcome> {
+    pub fn control(&mut self, event: Control) -> Option<Outcome> {
         let (status, close) = match event {
             Control::Abort(handle) => {
                 if let Some(Work::Offloaded(Some(Done::Net(done)))) =

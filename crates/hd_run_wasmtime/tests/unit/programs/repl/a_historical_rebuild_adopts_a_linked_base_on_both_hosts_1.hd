@@ -1,0 +1,5 @@
+use std.random.fill
+struct Counter:
+    value: usize
+count := box(Counter { value: 0 })
+alias := count

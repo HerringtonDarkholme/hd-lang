@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use crate::abi::PropertyCase;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PlanKind {
+pub enum PlanKind {
     Example,
     Saved,
     Fresh,
@@ -13,12 +13,12 @@ pub(crate) enum PlanKind {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Plan {
-    pub(crate) example: Option<u32>,
-    pub(crate) seed: i64,
-    pub(crate) size: i64,
-    pub(crate) replay: Vec<i64>,
-    pub(crate) kind: PlanKind,
+pub struct Plan {
+    pub example: Option<u32>,
+    pub seed: i64,
+    pub size: i64,
+    pub replay: Vec<i64>,
+    pub kind: PlanKind,
 }
 
 impl Plan {
@@ -36,7 +36,7 @@ impl Plan {
     }
 }
 
-pub(crate) struct Property {
+pub struct Property {
     pub(crate) cases: u32,
     pub(crate) shrink: u32,
     examples: u32,
@@ -51,13 +51,8 @@ pub(crate) struct Property {
 }
 
 impl Property {
-    pub(crate) fn new(
-        cases: u32,
-        shrink: u32,
-        examples: u32,
-        seed: i64,
-        replays: Vec<Vec<i64>>,
-    ) -> Self {
+    #[must_use]
+    pub fn new(cases: u32, shrink: u32, examples: u32, seed: i64, replays: Vec<Vec<i64>>) -> Self {
         Self {
             cases,
             shrink,
@@ -73,7 +68,14 @@ impl Property {
         }
     }
 
-    pub(crate) fn next(&mut self) -> Result<Option<Plan>, String> {
+    #[cfg_attr(
+        feature = "testing",
+        expect(
+            clippy::should_implement_trait,
+            reason = "fallible, so not an `Iterator`"
+        )
+    )]
+    pub fn next(&mut self) -> Result<Option<Plan>, String> {
         if let Some(plan) = self.retry.take() {
             return Ok(Some(plan));
         }
@@ -106,11 +108,12 @@ impl Property {
         }))
     }
 
-    pub(crate) fn more(&self) -> bool {
+    #[must_use]
+    pub fn more(&self) -> bool {
         self.example < self.examples || !self.replays.is_empty() || self.passed < self.cases
     }
 
-    pub(crate) fn pass(&mut self, kind: PlanKind) {
+    pub fn pass(&mut self, kind: PlanKind) {
         if kind == PlanKind::Fresh {
             self.passed += 1;
             self.size += 1;
@@ -130,7 +133,7 @@ fn simpler(a: &[i64], b: &[i64]) -> bool {
     a.len() < b.len() || (a.len() == b.len() && a < b)
 }
 
-pub(crate) enum Trial<T> {
+pub enum Trial<T> {
     Candidate(T),
     NotFailed,
     /// Initialization/deadline failure before a replay began is not a new
@@ -140,7 +143,7 @@ pub(crate) enum Trial<T> {
 
 /// Matches Node's deletion/zeroing/halving order. Only a failing replay
 /// with an actually simpler recorded stream becomes the new best.
-pub(crate) fn shrink<T>(
+pub fn shrink<T>(
     mut best: T,
     budget: u32,
     draws: impl Fn(&T) -> &[i64],
@@ -211,81 +214,4 @@ pub(crate) fn shrink<T>(
         }
     }
     Ok(best)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{PlanKind, Property, Trial, shrink};
-
-    #[test]
-    fn examples_saved_stream_and_fresh_plans_have_consecutive_seeds() {
-        let mut property = Property::new(2, 10, 1, 20, vec![vec![8, 3]]);
-        let example = property.next().expect("plan").expect("example");
-        assert_eq!(
-            (example.kind, example.example, example.seed, example.size),
-            (PlanKind::Example, Some(0), 20, 0)
-        );
-        property.pass(example.kind);
-        let saved = property.next().expect("plan").expect("saved");
-        assert_eq!(
-            (saved.kind, saved.seed, saved.size, saved.replay),
-            (PlanKind::Saved, 21, 0, vec![8, 3])
-        );
-        property.pass(saved.kind);
-        let first = property.next().expect("plan").expect("fresh");
-        assert_eq!(
-            (first.kind, first.seed, first.size),
-            (PlanKind::Fresh, 22, 0)
-        );
-        // A discarded generated case consumes a seed but not a size.
-        let second = property.next().expect("plan").expect("fresh");
-        assert_eq!((second.seed, second.size), (23, 0));
-        property.pass(second.kind);
-        let last = property.next().expect("plan").expect("fresh");
-        assert_eq!((last.seed, last.size), (24, 1));
-        property.pass(last.kind);
-        assert!(!property.more());
-        assert!(property.next().expect("done").is_none());
-    }
-
-    #[test]
-    fn shrinking_keeps_failing_recorded_streams_and_respects_budget() {
-        let mut tried = Vec::new();
-        let best = shrink(vec![10_i64], 100, Vec::as_slice, |stream| {
-            tried.push(stream.to_vec());
-            Ok(if stream.len() == 1 && stream[0] >= 3 {
-                Trial::Candidate(stream.to_vec())
-            } else {
-                Trial::NotFailed
-            })
-        })
-        .expect("shrink");
-        assert_eq!(best, [3]);
-        assert!(tried.len() <= 100);
-        assert_eq!(tried.first(), Some(&Vec::new()));
-        let mut attempts = 0;
-        let unchanged = shrink(vec![9_i64; 4], 2, Vec::as_slice, |_| {
-            attempts += 1;
-            Ok(Trial::NotFailed)
-        })
-        .expect("bounded shrink");
-        assert_eq!(attempts, 2);
-        assert_eq!(unchanged, [9; 4]);
-        assert_eq!(
-            shrink(vec![5_i64], 0, Vec::as_slice, |_| panic!(
-                "zero budget never runs"
-            ))
-            .expect("zero"),
-            [5]
-        );
-    }
-
-    #[test]
-    fn seed_overflow_is_not_silently_wrapped() {
-        let mut property = Property::new(2, 0, 0, i64::MAX, Vec::new());
-        let first = property.next().expect("plan").expect("fresh");
-        assert_eq!(first.seed, i64::MAX);
-        property.pass(first.kind);
-        assert!(property.next().is_err());
-    }
 }

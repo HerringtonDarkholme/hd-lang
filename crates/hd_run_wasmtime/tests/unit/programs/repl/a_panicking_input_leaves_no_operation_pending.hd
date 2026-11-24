@@ -1,0 +1,7 @@
+use std.task.{join}
+use std.time.{sleep, Duration}
+
+fn boom!() -> void:
+    _ := [+1][3]
+
+join!(sleep(Duration.seconds(+30)), boom())

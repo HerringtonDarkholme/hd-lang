@@ -1,0 +1,7 @@
+use std.ops.defer
+
+fn cleanup(xs: List[i32]) -> void:
+    defer(fn() -> void: _ := xs[3])
+    pass
+
+cleanup([+1])

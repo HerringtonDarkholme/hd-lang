@@ -1,0 +1,3 @@
+fn nap!() -> string $ Clock:
+    sleep!(ms(100))
+    "timeout"

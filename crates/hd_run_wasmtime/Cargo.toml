@@ -8,6 +8,17 @@ repository.workspace = true
 include.workspace = true
 description = "The in-process wasmtime engine and its host providers (hd compiler internals, no stable API; install `hd-lang`)"
 
+# The unit tests are `tests/unit`, over the `internals` facade
+# (src/internals.rs): a test build then compiles this library once, not
+# again in test mode.
+[lib]
+test = false
+
+[features]
+# What `tests/unit` reaches inside the engine and its test hooks; the
+# dev-dependency on itself below turns it on.
+testing = []
+
 [dependencies]
 # `OptLevel`, which selects the engine options (`EngineConfig::pipeline`).
 hd_base = { workspace = true }
@@ -62,6 +73,7 @@ name = "child_signals"
 harness = false
 
 [dev-dependencies]
+hd_run_wasmtime = { path = ".", features = ["testing"] }
 # The Rust companion generator, whose output `tests/all/native_companion.rs`
 # snapshots and compiles against this crate's `native` surface.
 hd_host_abi = { path = "../hd_host_abi", features = ["native-rust"] }

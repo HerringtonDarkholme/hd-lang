@@ -40,7 +40,7 @@ pub(crate) struct Inner {
 }
 
 #[derive(Clone)]
-pub struct TestEngine(Arc<Inner>);
+pub struct TestEngine(pub(crate) Arc<Inner>);
 
 pub(crate) struct Compiled {
     report: Option<crate::checked_report::Report>,
@@ -229,45 +229,4 @@ pub struct TestEnvironment {
     pub cwd: PathBuf,
     pub program: String,
     pub children: Vec<NamedProgram>,
-}
-
-#[cfg(test)]
-mod wide_memory_tests {
-    use super::{TestEngine, TestPoolConfig};
-    use crate::EngineConfig;
-
-    #[test]
-    fn pool_holds_three_memories_for_every_worker() {
-        let engine = TestEngine::new(
-            EngineConfig::default(),
-            TestPoolConfig {
-                workers: 2,
-                shrink_spares: 0,
-            },
-        )
-        .expect("create pool");
-        let mut memories = wasm_encoder::MemorySection::new();
-        for _ in 0..3 {
-            memories.memory(wasm_encoder::MemoryType {
-                minimum: 1,
-                maximum: None,
-                memory64: false,
-                shared: false,
-                page_size_log2: None,
-            });
-        }
-        let mut module = wasm_encoder::Module::new();
-        module.section(&memories);
-        let module = engine
-            .compile(&module.finish())
-            .expect("compile three memories");
-        let mut stores = Vec::new();
-        for _ in 0..2 {
-            let mut store = wasmtime::Store::new(&engine.0.engine, ());
-            let _instance = wasmtime::Instance::new(&mut store, &module.0.module, &[])
-                .expect("each worker has three pool memory slots");
-            stores.push(store);
-        }
-        assert_eq!(stores.len(), 2);
-    }
 }

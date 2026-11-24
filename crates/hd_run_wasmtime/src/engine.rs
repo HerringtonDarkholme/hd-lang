@@ -224,7 +224,8 @@ fn host_of(setup: &HostSetup, io: HostIo) -> Host {
     )
 }
 
-pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
+#[must_use]
+pub fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
     let mut c = wasmtime::Config::new();
     c.wasm_gc(false)
         .wasm_multi_value(true)
@@ -356,7 +357,3 @@ impl Engine for WasmtimeEngine {
         )?))
     }
 }
-
-#[cfg(test)]
-#[path = "package_tests.rs"]
-mod package_tests;

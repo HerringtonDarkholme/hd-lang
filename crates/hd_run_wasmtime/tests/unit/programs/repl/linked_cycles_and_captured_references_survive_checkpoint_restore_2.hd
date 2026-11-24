@@ -1,0 +1,3 @@
+fn reader(node: *Node) -> fn() -> usize:
+    fn() -> usize: node.value
+saved := reader(root)

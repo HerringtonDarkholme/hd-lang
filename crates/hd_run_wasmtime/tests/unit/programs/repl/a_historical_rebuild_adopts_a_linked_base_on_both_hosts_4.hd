@@ -1,0 +1,4 @@
+if count.value != 2:
+    panic("rebuilt state was not retained")
+alias.value += 1
+_ := fill(128).len()

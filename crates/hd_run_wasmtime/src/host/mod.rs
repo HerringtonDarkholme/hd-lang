@@ -38,7 +38,7 @@ mod call;
 mod kind;
 mod link;
 pub(crate) mod offload;
-mod output;
+pub(crate) mod output;
 pub(crate) mod package;
 mod reply;
 mod rt;
@@ -94,7 +94,7 @@ impl std::error::Error for Stop {}
 /// Deadlines become traps through import dispatch or the engine driver;
 /// this boundary owns their final flush and bounded provider cleanup.
 #[derive(Clone, Copy)]
-pub(crate) enum Control {
+pub enum Control {
     Abort(i32),
     Exit {
         status: i32,

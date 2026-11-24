@@ -1,0 +1,7 @@
+use std.ops.defer
+
+fn nap!() -> void:
+    defer(fn() -> void: log.push("cleanup"))
+    sleep!(Duration.seconds(+30))
+
+nap!()

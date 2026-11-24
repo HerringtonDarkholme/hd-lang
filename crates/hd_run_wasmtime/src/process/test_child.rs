@@ -15,7 +15,7 @@ use crate::test_engine::TestEnvironment;
 use hd_run::{Grants, Instance, Outcome};
 
 /// `Process.run!` of a named test child: refused at once, or running.
-pub(crate) enum Start {
+pub enum Start {
     /// The grant, the name or the thread refused: the encoded result.
     Ready(Enc),
     /// The child runs on its own thread.
@@ -27,7 +27,7 @@ pub(crate) enum Start {
 /// A child instance running on its own big-stack thread. A child needs the
 /// stack of a test engine's thread, which a tokio task does not have, so
 /// the thread delivers its result to a task that waits for it.
-pub(crate) struct ChildRun {
+pub struct ChildRun {
     /// Set to interrupt the child: its host checks it at every host call,
     /// in its waits and at epoch ticks, so the thread ends promptly.
     stop: Arc<AtomicBool>,
@@ -46,7 +46,7 @@ impl Drop for StopOnDrop {
 impl ChildRun {
     /// The task: waits for the child's result. Aborting it drops the wait,
     /// which interrupts the child, and its late result goes nowhere.
-    pub(crate) async fn wait(self) -> Done {
+    pub async fn wait(self) -> Done {
         let _stop = StopOnDrop(self.stop);
         match self.result.await {
             Ok(done) => done,
@@ -56,8 +56,9 @@ impl ChildRun {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn stop_flag(&self) -> Arc<AtomicBool> {
+    #[cfg(feature = "testing")]
+    #[must_use]
+    pub fn stop_flag(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.stop)
     }
 }
@@ -71,7 +72,7 @@ pub(crate) fn not_run(error: &str) -> Enc {
 
 /// `run.start` of a test case's child: the grant and the name are checked
 /// here, and an accepted child starts on its thread.
-pub(crate) fn start(
+pub fn start(
     bytes: &[u8],
     grants: &Grants,
     environment: &TestEnvironment,

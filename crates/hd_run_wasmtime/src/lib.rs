@@ -40,12 +40,11 @@ mod codec;
 mod console;
 mod engine;
 mod fs;
-#[cfg(test)]
-#[path = "../tests/support/hd_source.rs"]
-mod hd_source;
 mod host;
 mod http;
 mod instance;
+#[cfg(feature = "testing")]
+pub mod internals;
 mod limits;
 pub mod native;
 mod net;
@@ -56,15 +55,9 @@ mod run;
 mod runtime;
 pub mod scenario;
 mod session;
-#[cfg(test)]
-mod session_tests;
 mod sys;
 mod test_engine;
-#[cfg(all(test, unix))]
-mod test_fifo;
 pub mod testing;
-#[cfg(test)]
-mod tests;
 mod workers;
 
 pub use cancel::HostInterrupt;

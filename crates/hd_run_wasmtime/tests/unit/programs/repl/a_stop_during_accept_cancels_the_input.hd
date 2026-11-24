@@ -1,0 +1,8 @@
+fn accept_one!(port: u16) -> string $ Net:
+    let mut net = $.use(Net)
+    let mut listener = match net.listen!("127.0.0.1", port):
+        .Ok(l) => l
+        .Err(e) => return "${e}"
+    match listener.accept!():
+        .Ok(_) => "accepted"
+        .Err(e) => "${e}"
