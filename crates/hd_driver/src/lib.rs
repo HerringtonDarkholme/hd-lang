@@ -10429,7 +10429,6 @@ impl Run<'_> {
                 root,
                 &all_inits,
                 &extra.roots,
-                &[],
                 self.session.is_some(),
                 &self.planner,
             );
