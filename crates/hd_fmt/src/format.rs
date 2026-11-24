@@ -796,8 +796,8 @@ impl<'s, 'p> Analysis<'s, 'p> {
         }
         node.kind() == outer.kind()
             && (outer.kind() == S::PipeExpr
-                || self.needs_continuation_wrapper(outer)
-                || self.in_bracket_or_brace(outer))
+                || self.in_delimited_context(outer)
+                || self.needs_continuation_wrapper(outer))
     }
 
     fn mark_assignment(&mut self, node: NodeRef<'_>) {
@@ -1123,20 +1123,19 @@ impl<'s, 'p> Analysis<'s, 'p> {
                 | S::AssignmentStmt
                 | S::ReturnStmt
                 | S::ExprStmt
-                | S::Argument
-                | S::NamedArgument
         ) || self.is_suite_header(node)
     }
 
-    fn in_bracket_or_brace(&self, node: NodeRef<'_>) -> bool {
+    fn in_delimited_context(&self, node: NodeRef<'_>) -> bool {
         for ancestor in self.ancestors(node) {
             if matches!(ancestor.kind(), S::Block | S::Root) {
                 return false;
             }
-            if comma_group(ancestor.kind(), ancestor, &self.parsed.tokens)
-                && ancestor
-                    .direct_tokens()
-                    .any(|token| matches!(self.parsed.tokens.kind(token), T::LBracket | T::LBrace))
+            if ancestor.kind() == S::ArgumentList
+                || comma_group(ancestor.kind(), ancestor, &self.parsed.tokens)
+                    && ancestor.direct_tokens().any(|token| {
+                        matches!(self.parsed.tokens.kind(token), T::LBracket | T::LBrace)
+                    })
             {
                 return true;
             }
@@ -1222,8 +1221,12 @@ impl<'s, 'p> Builder<'s, 'p> {
                 .analysis
                 .parent(node)
                 .is_some_and(|parent| binary(parent.kind()));
-        let regular_binary = outer_binary && self.analysis.needs_continuation_wrapper(node);
-        let delimited_binary = outer_binary && self.analysis.in_bracket_or_brace(node);
+        let delimited_binary = outer_binary && self.analysis.in_delimited_context(node);
+        // Delimiters also contain a chain in a suite header. An authored,
+        // comment-bearing parenthesis still keeps its own breakable group.
+        let regular_binary = outer_binary
+            && (!delimited_binary || self.analysis.has_preserved_paren_parent(node))
+            && self.analysis.needs_continuation_wrapper(node);
         let pipe = node.kind() == S::PipeExpr
             && !self
                 .analysis

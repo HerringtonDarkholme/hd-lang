@@ -148,10 +148,8 @@ tests:
         let pair: Map[string, u32] = { "pen": 4, "ink": 0 }
         written := calls(pair)
         assert(
-            (
-                written == "map:2 key:pen uint:4 key:ink uint:0 end-map"
-                || written == "map:2 key:ink uint:0 key:pen uint:4 end-map"
-            ),
+            written == "map:2 key:pen uint:4 key:ink uint:0 end-map"
+            || written == "map:2 key:ink uint:0 key:pen uint:4 end-map",
             reason="both entries, in the map's order",
         )
         let none: Map[string, bool] = {}

@@ -1,0 +1,55 @@
+fn check(ok: bool) -> void:
+    pass
+
+fn identity(value: bool) -> bool:
+    value
+
+fn original(first_condition_name_here: bool, second_condition_name_here: bool, third: bool):
+    check(first_condition_name_here && second_condition_name_here && third)
+
+fn positional(
+    first_condition_name_for_the_current_request: bool,
+    second_condition_name_for_the_current_request: bool,
+    third_condition_name_for_the_current_request: bool,
+):
+    check(
+        first_condition_name_for_the_current_request
+        && second_condition_name_for_the_current_request
+        && third_condition_name_for_the_current_request,
+    )
+
+fn named(
+    first_condition_name_for_the_current_request: bool,
+    second_condition_name_for_the_current_request: bool,
+    third_condition_name_for_the_current_request: bool,
+):
+    check(
+        ok=first_condition_name_for_the_current_request
+        && second_condition_name_for_the_current_request
+        && third_condition_name_for_the_current_request,
+    )
+
+fn nested(
+    first_condition_name_for_the_current_request: bool,
+    second_condition_name_for_the_current_request: bool,
+    third_condition_name_for_the_current_request: bool,
+):
+    check(
+        identity(
+            first_condition_name_for_the_current_request
+            && second_condition_name_for_the_current_request
+            && third_condition_name_for_the_current_request,
+        ),
+    )
+
+fn header(
+    first_condition_name_for_the_current_request: bool,
+    second_condition_name_for_the_current_request: bool,
+    third_condition_name_for_the_current_request: bool,
+):
+    if identity(
+        first_condition_name_for_the_current_request
+        && second_condition_name_for_the_current_request
+        && third_condition_name_for_the_current_request,
+    ):
+        pass

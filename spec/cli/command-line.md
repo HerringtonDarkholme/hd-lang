@@ -1467,7 +1467,7 @@ hd fmt --check          # writes nothing; lists each file that would change
 14. r[cli.fmt.width.close] A broken group's closing delimiter starts a separate line at the opening line's indentation.
 15. r[cli.fmt.width.signature] An overlong function signature breaks its parameter list before breaking its result type.
 16. r[cli.fmt.width.binary-continuation] A broken binary chain uses parentheses only in positions that require them for line continuation.
-17. r[cli.fmt.width.binary-delimited] A broken binary chain inside brackets or braces places its operands on separate lines without adding parentheses.
+17. r[cli.fmt.width.binary-delimited] A broken binary chain inside brackets, braces, or a call's positional or named argument places its operands on separate lines without adding parentheses.
 18. r[cli.fmt.width.binary-operands] A broken binary chain places one operand per line, with the operator before each later operand.
 19. r[cli.fmt.width.protected] Comment and string literal text remains as written, even when it exceeds the width.
 20. r[cli.fmt.width.trailing-comma] A comma-delimited group written one element per line ends its last element with a comma, unless that element ends in a suite.

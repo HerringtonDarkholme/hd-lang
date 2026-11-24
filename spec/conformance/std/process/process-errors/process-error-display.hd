@@ -58,10 +58,8 @@ tests:
             reason="other program",
         )
         assert_equal(
-            (
-                ProcessError.PermissionDenied(program="a")
-                == ProcessError.PermissionDenied(program="b")
-            ),
+            ProcessError.PermissionDenied(program="a")
+            == ProcessError.PermissionDenied(program="b"),
             false,
             reason="other program denied",
         )

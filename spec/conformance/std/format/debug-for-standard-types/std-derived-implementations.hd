@@ -137,10 +137,8 @@ tests:
             reason="struct field differs",
         )
         assert(
-            (
-                Request::get(Url::parse("https://example.test/a").expect("fixture URL"))
-                != Request::get(Url::parse("https://example.test/b").expect("fixture URL"))
-            ),
+            Request::get(Url::parse("https://example.test/a").expect("fixture URL"))
+            != Request::get(Url::parse("https://example.test/b").expect("fixture URL")),
             reason="request field differs",
         )
         assert(Response::status(.Ok) != Response::status(.Created), reason="response field differs")

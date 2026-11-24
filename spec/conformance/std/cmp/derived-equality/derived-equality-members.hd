@@ -15,10 +15,8 @@ tests:
 
     it("equal fields make equal values"):
         assert(
-            (
-                Paint { finish: Finish.Custom("teal"), coats: 2 }
-                == Paint { finish: Finish.Custom("teal"), coats: 2 }
-            ),
+            Paint { finish: Finish.Custom("teal"), coats: 2 }
+            == Paint { finish: Finish.Custom("teal"), coats: 2 },
             reason="every field equal",
         )
 
