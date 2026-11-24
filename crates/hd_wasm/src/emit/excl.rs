@@ -52,7 +52,9 @@ pub(super) fn call_info(
     }
     let env = input.env;
     match target? {
-        Target::Call(call) => Some(env.local_ref_receiver(call.item)),
+        Target::Call(call) | Target::CrossingNumber { call, .. } => {
+            Some(env.local_ref_receiver(call.item))
+        }
         // A trait method on a trait value: its declaration says how it
         // takes `self`.
         Target::Dyn => {

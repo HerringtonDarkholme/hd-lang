@@ -14005,9 +14005,6 @@ impl ProgramEnv for Env<'_> {
         );
         (items.0 != DefId::NONE).then_some(items)
     }
-    fn type_number(&self, ty: Ty) -> u64 {
-        Env::type_number(self, ty)
-    }
     fn crossing_run_body(&self, item: DefId, arms: &[(u64, Ty)]) -> StageResult<Body> {
         let names = self.run.names();
         let cx = hd_structure::Cx {

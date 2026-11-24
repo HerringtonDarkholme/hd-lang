@@ -223,6 +223,7 @@ pub fn coinductive_flags(
             };
             match target {
                 hd_mono::Target::Call(t)
+                | hd_mono::Target::CrossingNumber { call: t, .. }
                 | hd_mono::Target::Default { call: t, .. }
                 | hd_mono::Target::MapInline(t) => call(t),
                 hd_mono::Target::MapKey { hash, eq } => {

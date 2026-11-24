@@ -284,8 +284,6 @@ pub trait ProgramEnv: LayoutEnv {
     /// `std.remote`'s `crossing_number`, `crossing_run` and `worker_serve`,
     /// and `Wire` (`fn.crossing.lift`); `None` without `std.remote`.
     fn crossing_items(&self) -> Option<(DefId, DefId, DefId, DefId)>;
-    /// The canonical digest of `ty`, as `type_number[ty]` returns it.
-    fn type_number(&self, _ty: Ty) -> u64;
     /// `crossing_run`'s body over the lifted literals `arms` (number, the
     /// lifted function's type), in order (`hd_structure::remote`).
     fn crossing_run_body(&self, _item: DefId, _arms: &[(u64, Ty)]) -> StageResult<Body>;
@@ -378,6 +376,13 @@ pub fn key_order(
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
     Call(CallTarget),
+    /// The existing crossing-number helper, with its first scalar argument
+    /// resolved from the lifted code's full instance key. The remaining
+    /// arguments keep the ordinary call's ownership and ABI.
+    CrossingNumber {
+        call: CallTarget,
+        number: u64,
+    },
     /// An omitted argument's default body (`crates/hd_mono/DESIGN.md` §13.13): its
     /// instance, and whether the body makes a call, so emission brackets
     /// it with the forbidden-context counter (§12.3).
@@ -1375,6 +1380,9 @@ struct Cx<'a> {
     /// Each lifted `Wire` crossing literal an instance numbers: its
     /// number, its function's code instance and type (`fn.crossing.lift`).
     crossings: Vec<(u64, Hash128, Ty)>,
+    /// Collision lookup in expected O(1), while `crossings` retains the
+    /// deterministic first-seen order of dispatcher arms.
+    crossing_numbers: HashMap<u64, Hash128>,
     /// `crossing_run`, once a body calls it: its body waits for every
     /// literal, so it is generated after the worklist drains.
     crossing_run: Option<DefId>,
@@ -3214,7 +3222,13 @@ impl Cx<'_> {
                             let targs = pool.list(&targs);
                             if self.env.crossing_items().is_some_and(|c| c.0 == def) {
                                 let f = pool.list_items(targs).first().copied();
-                                self.note_crossing(body, i, f.unwrap_or(Ty::VOID), &calls)?;
+                                let number =
+                                    self.note_crossing(body, i, f.unwrap_or(Ty::VOID), &calls, id)?;
+                                let call = self.target(def, targs, id)?;
+                                self.hash_target(&call, &mut reps);
+                                reps.u64(number);
+                                calls.insert(ix, Target::CrossingNumber { call, number });
+                                continue;
                             }
                             if let Some(target) = self.default_target(body, i, def, targs, id)? {
                                 self.hash_target(&target, &mut reps);
@@ -3925,6 +3939,7 @@ fn collect_roots(
         drop_checked: HashSet::default(),
         vtables: HashMap::default(),
         crossings: Vec::new(),
+        crossing_numbers: HashMap::default(),
         crossing_run: None,
         crossing_arms: Vec::new(),
         worker_sends: false,
@@ -4067,16 +4082,20 @@ impl Cx<'_> {
     }
 
     /// A call of `crossing_number[F](literal, code)` (`fn.crossing.lift`):
-    /// records the lifted function `code` names under the number the call
-    /// returns, for the dispatcher. Cost: a few instructions back to the
-    /// closure; once per literal and instance.
+    /// records the lifted function `code` names under its full instance
+    /// identity, for both the helper's argument and the dispatcher. The
+    /// instance key includes the literal and enclosing type arguments,
+    /// like rustc's monomorphized symbol identity, not just its signature.
+    /// Cost: a few generated instructions back to the closure, one hash
+    /// and one expected O(1) collision lookup per literal and instance.
     fn note_crossing(
         &mut self,
         body: &Body,
         i: usize,
         f: Ty,
         calls: &HashMap<u32, Target>,
-    ) -> StageResult<()> {
+        caller: InstId,
+    ) -> StageResult<u64> {
         let (Some(&literal), Some(&code)) = (body.call_args(i).first(), body.call_args(i).get(1))
         else {
             return err("a malformed crossing number");
@@ -4098,18 +4117,36 @@ impl Cx<'_> {
                 .find(|&s| body.tags[s] == Tag::Store && body.data[s][0] == word)
                 .map_or(usize::MAX, |s| body.data[s][1] as usize);
         }
-        let (Some(literal), Some(&Target::Closure(key))) =
+        let (Some(_literal), Some(&Target::Closure(key))) =
             (literal, calls.get(&hd_tir::ir::u32_of(at)))
         else {
             return err("a crossing number without its literal");
         };
-        let number = literal ^ self.env.type_number(f);
-        match self.crossings.iter().find(|c| c.0 == number) {
-            Some(c) if c.1 != key => err("two lifted crossing literals share a number"),
-            Some(_) => Ok(()),
-            None => {
+        let mut hash = StableHasher::new("crossing-instance");
+        hash.hash(key);
+        let bytes = hash.finish().0.to_le_bytes();
+        let number = u64::from_le_bytes(std::array::from_fn(|i| bytes[i]));
+        match self.crossing_numbers.entry(number) {
+            std::collections::hash_map::Entry::Occupied(prior) if *prior.get() != key => {
+                let table = &self.out.table;
+                let args = self.pool.list_items(table.args[caller.idx()]);
+                let shown: Vec<_> = args
+                    .iter()
+                    .map(|&t| shown_type(self.pool, self.env, t))
+                    .collect();
+                err(&format!(
+                    "two lifted crossing literals share number {number}: `{}[{}]` {:?}, instance {key:?}, conflicts with instance {:?}",
+                    self.env.describe(table.item[caller.idx()]),
+                    shown.join(", "),
+                    table.sub[caller.idx()],
+                    prior.get(),
+                ))
+            }
+            std::collections::hash_map::Entry::Occupied(_) => Ok(number),
+            std::collections::hash_map::Entry::Vacant(slot) => {
+                slot.insert(key);
                 self.crossings.push((number, key, f));
-                Ok(())
+                Ok(number)
             }
         }
     }
