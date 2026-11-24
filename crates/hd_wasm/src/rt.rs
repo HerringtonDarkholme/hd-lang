@@ -299,12 +299,6 @@ pub enum Helper {
     /// where another known retain takes the inline test (about 36 bytes a
     /// site, `count_tests`).
     RetainColl,
-    /// `(box) -> moved`: takes the value out of the counted box at
-    /// payload start `box`, whose fields the caller has loaded. A box
-    /// with one holder is freed without its glue, so its fields move out
-    /// (1); a shared one loses a count, and the caller counts its copy
-    /// (0).
-    TakeBox,
     /// `(payload)`: one more count on each part of a new object's
     /// payload, laid out as `leaves`, that its construction copied in:
     /// each part's first leaf and how its type counts.
@@ -2320,7 +2314,6 @@ pub(crate) fn arity(helper: &Helper) -> (usize, usize) {
         | H::CollectPoll { .. }
         | H::Alloc
         | H::Str
-        | H::TakeBox
         | H::ListBuf { .. }
         | H::ListUnique { .. }
         | H::ListCopy { .. }
@@ -2782,7 +2775,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::ReleaseRef | Helper::ReleaseKnown | Helper::ReleaseFresh => release_ref(m, h),
         Helper::ReleaseDrain => release_drain(m),
-        Helper::TakeBox => take_box(m),
         Helper::RetainKnown | Helper::RetainColl => {
             let name = if *h == Helper::RetainColl {
                 "rt:retain_coll"
@@ -3792,31 +3784,6 @@ fn release_ref(m: &Module, h: &Helper) -> Func {
     } else {
         f.helper(Helper::ReleaseDrain);
     }
-    f
-}
-
-/// [`Helper::TakeBox`].
-fn take_box(m: &Module) -> Func {
-    let mut f = m.func("rt:take_box", vec![Val::I32], vec![Val::I32]);
-    let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
-    f.get(0);
-    f.u32(HEADER);
-    f.op(Instruction::I32Sub);
-    f.op(Instruction::LocalTee(block));
-    unique_count(&mut f, m);
-    f.i32(1);
-    f.op(Instruction::I32Eq);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(block);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.set(desc);
-    free_loaded_object(&mut f, m, block, desc);
-    f.i32(1);
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.get(0);
-    f.helper(Helper::ReleaseKnown);
-    f.i32(0);
     f
 }
 
