@@ -2991,31 +2991,61 @@ pub fn folder_iface(
 /// Templates take no row; inherent blocks are not trait impls.
 #[must_use]
 pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
-    let by_def: HashMap<DefId, &Item> = impls.iter().map(|i| (i.def, *i)).collect();
-    let mut rows: Vec<(DefId, DefId, Ty, TyList, ImplKind, usize, Hash128)> = impls
+    // Keep each row's validated implementation data through sorting rather
+    // than rebuilding an item lookup and recovering from impossible misses.
+    struct Row<'a> {
+        trait_: DefId,
+        item: &'a Item,
+        self_ty: Ty,
+        args: TyList,
+        kind: ImplKind,
+        assoc: &'a [(DefId, Ty)],
+        outlives: bool,
+        rank: Hash128,
+    }
+    let mut rows: Vec<Row<'_>> = impls
         .iter()
-        .filter_map(|i| match i.data {
+        .filter_map(|i| match &i.data {
             ItemData::Impl {
                 trait_,
                 self_ty,
                 trait_args,
                 kind,
+                assoc,
+                self_lifetimes,
+                trait_slots,
                 ..
-            } if trait_ != DefId::NONE && kind.is_impl() => Some((
-                trait_,
-                i.def,
-                self_ty,
-                trait_args,
-                kind,
-                i.generics.len(),
-                names.path_hash(i.def),
-            )),
+            } if *trait_ != DefId::NONE && kind.is_impl() => Some(Row {
+                trait_: *trait_,
+                item: i,
+                self_ty: *self_ty,
+                args: *trait_args,
+                kind: *kind,
+                assoc,
+                outlives: self_lifetimes
+                    .iter()
+                    .chain(trait_slots)
+                    .any(|&l| l == STATIC_LIFETIME),
+                rank: names.path_hash(i.def),
+            }),
             _ => None,
         })
         .collect();
-    rows.sort_stable_by_key(|r| (names.path_hash(r.0), r.6));
+    rows.sort_stable_by_key(|r| (names.path_hash(r.trait_), r.rank));
     let mut t = ImplTable::default();
-    for (n, (trait_, def, self_ty, args, kind, n_params, rank)) in rows.into_iter().enumerate() {
+    for (n, r) in rows.into_iter().enumerate() {
+        let Row {
+            trait_,
+            item,
+            self_ty,
+            args,
+            kind,
+            assoc,
+            outlives,
+            rank,
+        } = r;
+        let def = item.def;
+        let generics = &item.generics;
         let n = u32::try_from(n).expect("impls");
         t.by_trait
             .entry(trait_.raw())
@@ -3028,29 +3058,13 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             ImplKind::UnionTemplate => HeadKey::UnionAny,
             _ => HeadKey::of(names.pool.types(), self_ty),
         });
-        t.n_params.push(u8::try_from(n_params).unwrap_or(u8::MAX));
+        t.n_params
+            .push(u8::try_from(generics.len()).unwrap_or(u8::MAX));
         t.head_self.push(self_ty);
         t.head_args.push(args);
-        let item = by_def.get(&def);
-        t.head_outlives.push(item.is_some_and(|i| {
-            match &i.data {
-                ItemData::Impl {
-                    self_lifetimes,
-                    trait_slots,
-                    ..
-                } => self_lifetimes
-                    .iter()
-                    .chain(trait_slots)
-                    .any(|&l| l == STATIC_LIFETIME),
-                _ => false,
-            }
-        }));
+        t.head_outlives.push(outlives);
         let mut plan = Vec::new();
-        for (gi, g) in item
-            .map_or(&[][..], |i| i.generics.as_slice())
-            .iter()
-            .enumerate()
-        {
+        for (gi, g) in generics.iter().enumerate() {
             for b in &g.bounds {
                 if let TyData::TraitValue {
                     def: tr,
@@ -3083,10 +3097,7 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             }
         }
         t.plan.push(plan);
-        t.assoc.push(match item.map(|i| &i.data) {
-            Some(ItemData::Impl { assoc, .. }) => assoc.clone(),
-            _ => vec![],
-        });
+        t.assoc.push(assoc.to_vec());
         t.origin.push(match kind {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
             ImplKind::UnionTemplate => ImplOrigin::UnionTemplate,
