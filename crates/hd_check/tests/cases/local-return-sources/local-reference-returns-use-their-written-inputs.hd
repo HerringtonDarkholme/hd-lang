@@ -1,0 +1,24 @@
+# @dump: diagnostics
+fn single(value: &i32) -> i32:
+    fn view(input: &i32) -> &i32:
+        input
+
+    *view(value)
+
+fn ambiguous(left: &i32, right: &i32) -> void:
+    fn view(first: &i32, second: &i32) -> &i32:
+        panic("not executed")
+
+    pass
+
+fn absent() -> void:
+    fn view() -> &i32:
+        panic("not executed")
+
+    pass
+
+fn inferred() -> void:
+    fn view():
+        pass
+
+    view()
