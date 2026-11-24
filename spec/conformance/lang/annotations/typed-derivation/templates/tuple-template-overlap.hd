@@ -1,6 +1,6 @@
 # test: a tuple template is an implementation for every tuple type, so a hand-written tuple implementation overlaps it
 # Spec 14 Tuple Templates: annot.template.tuple.overlap (owner decision O3b, batch 36, 2026-10-01).
-use std.function.Tuple
+use std.ops.Tuple
 use std.structure.{Structure, Field, Variant, Walker}
 
 trait Encode:

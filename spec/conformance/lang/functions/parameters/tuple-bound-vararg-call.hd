@@ -1,6 +1,6 @@
 # test: a Tuple-bounded vararg collects the separate arguments into the tuple the function fixes, one element per argument, and a spread or a named argument passes that tuple
 # expect: test
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 fn add2(a: i32, b: i32) -> i32:
     a + b
 fn neg(a: i32) -> i32:

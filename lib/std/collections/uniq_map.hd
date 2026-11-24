@@ -1,5 +1,5 @@
 use std.collections.uniq_list.collection_capacity_sum
-use std.function.FnMut
+use std.ops.FnMut
 use std.iter.FromIterator
 use std.ops.Index
 use std.ops.IndexMut

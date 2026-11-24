@@ -845,7 +845,7 @@ fn helper() -> void:
 5. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
 6. r[module.prelude.inspect-reference-api] Likewise `std.inspect` declares `Inspectable` and `TypeId`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
 7. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
-8. r[module.prelude.function-items] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.function.{Fn, Tuple}`.
+8. r[module.prelude.function-items] `std.ops` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.ops.{Fn, Tuple}`.
 9. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
 10. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
 11. r[module.prelude.ops-literal-markers] `std.ops` declares `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a literal function, as in `use std.ops.num_suffix` or `use std.ops.{Template, str_prefix}`.

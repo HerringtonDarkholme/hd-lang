@@ -1,6 +1,6 @@
 # test: a closure that changes a captured local does not meet an Fn bound
 # Spec Functions, Read-Only Fn Closures: fn.trait.read-only.
-use std.function.Fn
+use std.ops.Fn
 
 fn read[F < Fn(i32) -> i32](f: F) -> i32:
     f(1)

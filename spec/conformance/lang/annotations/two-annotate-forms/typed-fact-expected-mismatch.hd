@@ -2,7 +2,7 @@
 # Spec 14 Member-Typed Facts: annot.typed-fact.check
 # (owner decisions FACT-EXPECTED, batch 38, and ANNOTATE-TYPED, batch 39, 2026-10-01).
 use std.annotation.annotate
-use std.function.Fn
+use std.ops.Fn
 
 @annotate::[F](.Field)
 struct Fallback[F]:

@@ -1,6 +1,6 @@
 # test: function names, method references and closures that change no capture meet Fn bounds
 # Spec Functions, Read-Only Fn Closures: fn.trait.read-only.items, fn.trait.read-only.bound-ref, fn.trait.read-only.concrete.
-use std.function.{Fn, FnMut}
+use std.ops.{Fn, FnMut}
 
 struct Meter:
     scale: i32

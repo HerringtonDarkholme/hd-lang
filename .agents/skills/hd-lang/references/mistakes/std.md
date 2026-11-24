@@ -34,5 +34,5 @@ way, and the code `hd check` reports. When a name is not here, run
 | `defer(...)` with no import | `unknown-name` | `use std.ops.defer` |
 | `max(a, b)` with no import | `unknown-name` | `use std.cmp.max` |
 | `sleep!(1ms)` with no import | `unknown-name` | `use std.time.{Clock, ms, sleep}` |
-| `Fn() -> T` in a bound with no import | `unknown-trait` | `use std.function.Fn` |
+| `Fn() -> T` in a bound with no import | `unknown-trait` | `use std.ops.Fn` |
 | `read_text!` imported as `use std.fs.read_text!` | `syntax-error` | `use std.fs.read_text`; the `!` is written only at the call |

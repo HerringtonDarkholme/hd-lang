@@ -1,6 +1,6 @@
 # test: a context, an Fn row argument, an alias row argument and an explicit row type argument are row slots
 # Spec 11 Row Slots: req.row.slot.
-use std.function.Fn
+use std.ops.Fn
 
 trait Db
 

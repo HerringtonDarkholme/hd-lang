@@ -1,6 +1,6 @@
 # test: a struct field of a type parameter bounded by the struct's lifetime holds a closure that captures a local reference
 # Spec 13 Lifetime Bounds: ref.generic.outlives, ref.generic.outlives.field, ref.generic.outlives.position; Spec 07 Static Fn Bounds: fn.trait.bound-sugar.next-bound.
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Counter:
     n: i32

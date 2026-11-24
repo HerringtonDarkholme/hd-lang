@@ -1,6 +1,6 @@
 # test: a closure or function value for a bare Fn-bounded parameter takes the bound's row
 # Spec 07 Functions: fn.trait.bound-closure.
-use std.function.FnMut
+use std.ops.FnMut
 
 trait Mutate:
     fn poke(&mut self) -> void

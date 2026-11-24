@@ -17,7 +17,7 @@ Code that works over every arity uses ordinary tuples instead:
 | equality, ordering, and hashing of tuples | derived by the compiler for every arity ([Implementation Targets](09-traits.md#implementation-targets)) |
 
 ```text
-use std.function.{Fn, Tuple}
+use std.ops.{Fn, Tuple}
 
 fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
     f(args...)

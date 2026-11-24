@@ -20,7 +20,6 @@ pub use std.{
     f64,
     format,
     fs,
-    function,
     hash,
     host,
     http,

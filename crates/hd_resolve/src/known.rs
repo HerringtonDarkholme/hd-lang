@@ -16,7 +16,7 @@ pub const MARKER_MODULE: &str = "std.marker";
 /// `std.remote`, whose language items stubs and dispatchers name.
 pub const REMOTE_MODULE: &str = "std.remote";
 pub const TASK_MODULE: &str = "std.task";
-pub const FUNCTION_MODULE: &str = "std.function";
+pub const OPS_MODULE: &str = "std.ops";
 pub const INSPECT_MODULE: &str = "std.inspect";
 pub const STRUCTURE_MODULE: &str = "std.structure";
 pub const TESTING_MODULE: &str = "std.testing";
@@ -40,7 +40,7 @@ pub const LIST_MODULE: &str = "std.collections.list";
 pub const SEEDED_MODULES: &[&str] = &[
     CORE_MODULE,
     TASK_MODULE,
-    FUNCTION_MODULE,
+    OPS_MODULE,
     INSPECT_MODULE,
     STRUCTURE_MODULE,
     TESTING_MODULE,
@@ -60,8 +60,8 @@ pub struct KnownItems {
     /// `List.is_empty`, whose result is known for a generated empty facts list.
     pub list_is_empty: DefId,
     pub map: DefId,
-    // std.function
-    pub function_module: PathId,
+    // std.ops
+    pub ops_module: PathId,
     /// The `std.core` module, which owns every built-in type's methods.
     pub core_module: PathId,
     /// The `Fn[I, O, $R]` trait. In a type position the same declaration
@@ -410,9 +410,9 @@ impl KnownItems {
         let union_type = item(STRUCTURE_MODULE, "UnionType");
         let static_bound = item(CORE_MODULE, "'static");
         let walker = item(STRUCTURE_MODULE, "Walker");
-        let tuple = item(FUNCTION_MODULE, "Tuple");
-        let fn_trait = item(FUNCTION_MODULE, "Fn");
-        let fn_mut_trait = item(FUNCTION_MODULE, "FnMut");
+        let tuple = item(OPS_MODULE, "Tuple");
+        let fn_trait = item(OPS_MODULE, "Fn");
+        let fn_mut_trait = item(OPS_MODULE, "FnMut");
         let suspend = item(TASK_MODULE, "Suspend");
         let inspectable = item(INSPECT_MODULE, "Inspectable");
         let num = item("std.num", "Num");
@@ -451,7 +451,7 @@ impl KnownItems {
             host_decode: item("std.host", "host_decode"),
             package_encode: item("std.host", "package_encode"),
             package_decode: item("std.host", "package_decode"),
-            function_module: module(FUNCTION_MODULE),
+            ops_module: module(OPS_MODULE),
             core_module: module(CORE_MODULE),
             fn_trait,
             fn_call: trait_method(fn_trait, "call"),

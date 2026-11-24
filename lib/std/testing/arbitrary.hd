@@ -4,7 +4,7 @@
 # of `Arbitrary` in `std.testing` reads a member's `With[F]` through its
 # handle.
 use std.annotation.annotate
-use std.function.Fn
+use std.ops.Fn
 use std.testing.Choices
 
 # A typed fact type (r-std-testing.arbitrary.with.module-typed-struct.generic): on a member

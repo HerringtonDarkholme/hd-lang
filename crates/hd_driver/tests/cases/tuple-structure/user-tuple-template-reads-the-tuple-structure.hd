@@ -3,7 +3,7 @@
 # per tuple type, reading the tuple's `Structure` (`annot.tuple.*`):
 # `name()` is `""`, the one variant is named `""` with `of_data` true, and
 # the members are `_0`, `_1`... positional, not embedded.
-use std.function.Tuple
+use std.ops.Tuple
 use std.structure.{Structure, Field, Variant, Walker, Describer}
 
 trait Shape:

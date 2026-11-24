@@ -20,7 +20,7 @@ fn debit(balance: i64, amount: i64) -> i64:
     balance - amount
 ```
 
-1. r[std-contract.require.decl] `std.contract` declares `pub fn require[F < Fn() -> bool](message: string = "requirement failed", condition: F) -> void`, with `Fn` from `std.function`.
+1. r[std-contract.require.decl] `std.contract` declares `pub fn require[F < Fn() -> bool](message: string = "requirement failed", condition: F) -> void`, with `Fn` from `std.ops`.
 2. r[std-contract.require.debug-once] In a debug or test build, a `require` call evaluates `condition` exactly once.
 3. r[std-contract.require.debug-pass] In a debug or test build, if `condition` returns true, `require` returns without panicking.
 4. r[std-contract.require.debug-fail] In a debug or test build, if `condition` returns false, `require` calls the prelude `panic` with `message`. Panic: `explicit-panic`.

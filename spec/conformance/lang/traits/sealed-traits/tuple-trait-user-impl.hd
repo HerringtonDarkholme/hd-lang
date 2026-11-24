@@ -1,5 +1,5 @@
 # test: Tuple is sealed; only the compiler implements it
-use std.function.Tuple
+use std.ops.Tuple
 
 struct Pair:
     left: i32

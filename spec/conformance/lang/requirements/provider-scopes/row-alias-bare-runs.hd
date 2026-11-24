@@ -1,6 +1,6 @@
 # test: a context and a function type written with a row alias after $ run with the alias's providers
 # expect: test
-use std.function.Fn
+use std.ops.Fn
 trait Db:
     fn name(self) -> string
 

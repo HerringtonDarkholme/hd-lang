@@ -406,7 +406,7 @@ fn run_job[$R](providers: $.Context[$ R], job: fn() -> void $ R) -> void:  # err
 A row written inside a type's brackets starts with `$`, even for one key:
 
 ```text
-use std.function.Fn
+use std.ops.Fn
 
 trait Db
 
@@ -486,7 +486,7 @@ fn get_order() -> string $ AppRow + Clock:
 20. r[req.row.alias.cycle] A row alias that expands to itself is an [alias cycle](04-type-system.md#r-types.alias.cycle). Error: `alias-cycle`.
 
 ```text
-use std.function.Fn
+use std.ops.Fn
 
 trait Db
 

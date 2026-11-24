@@ -4,7 +4,7 @@
 # expect-stdout: 9
 # expect-stdout: 0 1
 # expect-stdout: 5
-use std.function.FnMut
+use std.ops.FnMut
 
 struct Shift:
     offset: i32

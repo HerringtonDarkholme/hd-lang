@@ -1,6 +1,6 @@
 # test: a tuple type with a rest element implements Tuple
 # expect: accept
-use std.function.Tuple
+use std.ops.Tuple
 
 fn arity[T < Tuple](value: T) -> i32:
     0

@@ -5,7 +5,7 @@
 # (Testing T48, T53, T54).
 
 use std.debug.Location
-use std.function.Tuple
+use std.ops.Tuple
 use std.num.Integer
 use std.structure.{Structure, UnionType, Walker, Variant, Field}
 use std.rt.{string_from_bytes, string_prefix, char_scalar, TextSink, bytes_index_set, bytes_at}

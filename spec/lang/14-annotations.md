@@ -1101,7 +1101,7 @@ A **tuple template** derives a trait for every tuple type, at every size,
 through the tuple's [Structure](#tuple-structure):
 
 ```text
-use std.function.Tuple
+use std.ops.Tuple
 use std.structure.Structure
 
 impl[T < Tuple] Encode for T by Structure:
@@ -1111,7 +1111,7 @@ impl[T < Tuple] Encode for T by Structure:
         w.out
 ```
 
-1. r[annot.template.tuple.form] `impl[T < Tuple] Trait for T by Structure:` declares the tuple template of `Trait`, where `Tuple` is `std.function.Tuple`.
+1. r[annot.template.tuple.form] `impl[T < Tuple] Trait for T by Structure:` declares the tuple template of `Trait`, where `Tuple` is `std.ops.Tuple`.
 2. r[annot.template.tuple.rules] The template rules for its module, its uniqueness, its body, its `Structure` calls, and its qualified calls apply to a tuple template as well.
 3. r[annot.template.tuple.separate] A trait may have both a template and a tuple template. `@derive` uses only the template, so a trait with only a tuple template is not derivable.
 4. r[annot.template.tuple.implements] A tuple type implements `Trait` through its tuple template exactly when each of its members meets the obligation of [`annot.walker.obligation`](#r-annot.walker.obligation).
