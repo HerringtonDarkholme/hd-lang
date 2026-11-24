@@ -573,7 +573,7 @@ reported as `trait-resolution-depth`.
   apart ([crates/hd_check/DESIGN.md (trait solver) §5.2](../hd_check/DESIGN.md#52-the-overlap-check)).
   Heads that differ at a constructor cost time linear in their total
   size, not one check per pair.
-  Implementation differs: `Universe::overlaps` keeps no tries.
+  Implementation differs: `Universe::trait_overlaps` keeps no tries.
   - **Keys.** It sorts each trait's heads in content order and keys each
     head by the outer constructor of its target and of its first trait
     argument (`head_key`). A parameter, or a tuple with a rest, is a

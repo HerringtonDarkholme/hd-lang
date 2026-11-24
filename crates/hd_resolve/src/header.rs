@@ -53,33 +53,6 @@ impl<'a> Universe<'a> {
         crate::iface::show_ty(&self.names, t)
     }
 
-    /// The overlap check (§4.12.3): per trait, heads that unify after
-    /// renaming apart overlap. A head whose target is a bare parameter
-    /// bounded by a trait with only ground impls (a numeric family) is
-    /// expanded to those targets first. Returns (earlier, later, witness)
-    /// in content order.
-    #[must_use]
-    pub fn overlaps(&self, order: &dyn Fn(DefId) -> String) -> Vec<(DefId, DefId, String)> {
-        self.overlaps_counted(order).0
-    }
-
-    /// [`Self::overlaps`], and how many head pairs it unified: each
-    /// trait's [`Self::trait_overlaps`], in [`Self::traits`] order.
-    #[must_use]
-    pub fn overlaps_counted(
-        &self,
-        order: &dyn Fn(DefId) -> String,
-    ) -> (Vec<(DefId, DefId, String)>, usize) {
-        let mut out = Vec::new();
-        let mut tried = 0_usize;
-        for tr in self.traits() {
-            let (found, n) = self.trait_overlaps(tr, order);
-            out.extend(found);
-            tried += n;
-        }
-        (out, tried)
-    }
-
     /// The traits with an impl, in the order the overlap check reports
     /// them: by stable path hash.
     #[must_use]
