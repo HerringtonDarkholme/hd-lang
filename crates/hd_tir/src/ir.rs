@@ -197,10 +197,9 @@ tags! {
     MakeUnique: Inst, Record;
     // Run-time pointer loans (`docs/compiler/ownership.md`, "Pointer
     // Loans"), which the checker places from its lifetime regions:
-    // `LoanBegin` takes the loans of site a (a `Ref`, a lent argument, or
-    // a call whose result points into an object), named as an instruction,
-    // not used as a value, so no pass counts it as a use; b a
-    // [`loan_word`];
+    // `LoanBegin` takes the loans of site a (a `Ref` or a lent argument),
+    // named as an instruction, not used as a value, so no pass counts it
+    // as a use; b a [`loan_word`];
     // `LoanClose` ends the loans of the `LoanBegin` a names, after the
     // last use of every value and local whose region holds them.
     LoanBegin: Inst, Meta;
@@ -220,9 +219,6 @@ pub mod loan_word {
     /// call: the shared loan the site's own `LoanBegin` reserved becomes
     /// exclusive. Its `a` is that `LoanBegin`'s site.
     pub const ACTIVATE: u32 = 2;
-    /// The object a call's returned reference points into, which the
-    /// callee reached through a pointer: its site is the call.
-    pub const INNER: u32 = 4;
     /// Above the flags: the local plus one that counts the function's own
     /// loans through the site's pointer, where a closure shares that
     /// pointer (`own::loans::share_counters`); 0 for none.

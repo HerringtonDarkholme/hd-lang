@@ -24,11 +24,11 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   local $0 h: *mut H [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 alias: *mut H [param read] value
->     uses $1: entry -> %13 lend last
+>     uses $1: entry -> %14 lend last
 >   local $2 next: *P [param read] value
->     uses $2: entry -> %11 consume last
+>     uses $2: entry -> %12 consume last
 >   local $3 d: &string [:= read assigned] value
->     uses $3: %10 -> %15 lend last
+>     uses $3: %11 -> %16 lend last
 >   local $4 p: &P [read] value
 >     uses $4: %3 -> %4 lend last
 >   %0 = Retain %31 Entry local $2 #0 : ()
@@ -38,11 +38,12 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   %3 = Store [$4] %1 : ()
 >   %4 = Ref local [*$4 .name] : &string
 >   %5 = LoanBegin %4 #0 : ()
->   %6 = Break L0 %4 : never
->   %7 = Block - : &string
->   %8 = Scope %7 [] : &string
->   %9 = LoanEnd [$4] : ()
->   %10 = Store [$3] %8 : ()
+>   %6 = LoanClose %5 : ()
+>   %7 = Break L0 %4 : never
+>   %8 = Block - : &string
+>   %9 = Scope %8 [] : &string
+>   %10 = LoanEnd [$4] : ()
+>   %11 = Store [$3] %9 : ()
 >   %20 = Drop [$2] : ()
 >   %21 = Intrinsic ParamOwned [0:i32] : bool
 >   %22 = Drop [$0] : ()
@@ -54,17 +55,16 @@ fn replace(h: *mut H, alias: *mut H, next: *P) -> string:
 >   %28 = Block - : ()
 >   %29 = If %26 [%28 -] : ()
 >   %30 = Release %31 Exit local $1 #2 : ()
->   %31 = Block %15 : string
+>   %31 = Block %16 : string
     alias.p = next
->   %11 = Read move [$2] : *P
->   %12 = Intrinsic Empty [] : ()
->   %13 = Store [*$1 .p] %11 : ()
->   %14 = Release %13 Operation #3 : ()
+>   %12 = Read move [$2] : *P
+>   %13 = Intrinsic Empty [] : ()
+>   %14 = Store [*$1 .p] %12 : ()
+>   %15 = Release %14 Operation #3 : ()
     *d
->   %15 = Read copy [*$3] : string
->   %16 = Retain %15 Value #0 : ()
->   %17 = LoanClose %2 : ()
->   %18 = LoanClose %5 : ()
+>   %16 = Read copy [*$3] : string
+>   %17 = Retain %16 Value #0 : ()
+>   %18 = LoanClose %2 : ()
 >   %19 = LoanEnd [$3] : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$0 $1] writes
@@ -88,11 +88,11 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   local $0 h: *mut M [param read] value
 >     uses $0: entry -> %1 lend last
 >   local $1 alias: *mut M [param read] value
->     uses $1: entry -> %13 lend last
+>     uses $1: entry -> %14 lend last
 >   local $2 next: *mut P [param read] value
->     uses $2: entry -> %11 consume last
+>     uses $2: entry -> %12 consume last
 >   local $3 d: &mut string [:= read assigned] value
->     uses $3: %10 -> %15 lend last
+>     uses $3: %11 -> %16 lend last
 >   local $4 p: &mut P [read] value
 >     uses $4: %3 -> %4 lend last
 >   %0 = Retain %31 Entry local $2 #0 : ()
@@ -102,11 +102,12 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   %3 = Store [$4] %1 : ()
 >   %4 = Ref mut local [*$4 .name] : &mut string
 >   %5 = LoanBegin %4 #1 : ()
->   %6 = Break L0 %4 : never
->   %7 = Block - : &mut string
->   %8 = Scope %7 [] : &mut string
->   %9 = LoanEnd [$4] : ()
->   %10 = Store [$3] %8 : ()
+>   %6 = LoanClose %5 : ()
+>   %7 = Break L0 %4 : never
+>   %8 = Block - : &mut string
+>   %9 = Scope %8 [] : &mut string
+>   %10 = LoanEnd [$4] : ()
+>   %11 = Store [$3] %9 : ()
 >   %20 = Drop [$2] : ()
 >   %21 = Intrinsic ParamOwned [0:i32] : bool
 >   %22 = Drop [$0] : ()
@@ -118,17 +119,16 @@ fn replace_mut(h: *mut M, alias: *mut M, next: *mut P) -> string:
 >   %28 = Block - : ()
 >   %29 = If %26 [%28 -] : ()
 >   %30 = Release %31 Exit local $1 #2 : ()
->   %31 = Block %15 : string
+>   %31 = Block %16 : string
     alias.p = next
->   %11 = Read move [$2] : *mut P
->   %12 = Intrinsic Empty [] : ()
->   %13 = Store [*$1 .p] %11 : ()
->   %14 = Release %13 Operation #3 : ()
+>   %12 = Read move [$2] : *mut P
+>   %13 = Intrinsic Empty [] : ()
+>   %14 = Store [*$1 .p] %12 : ()
+>   %15 = Release %14 Operation #3 : ()
     *d
->   %15 = Read copy [*$3] : string
->   %16 = Retain %15 Value #0 : ()
->   %17 = LoanClose %2 : ()
->   %18 = LoanClose %5 : ()
+>   %16 = Read copy [*$3] : string
+>   %17 = Retain %16 Value #0 : ()
+>   %18 = LoanClose %2 : ()
 >   %19 = LoanEnd [$3] : ()
 >   exit sub 0 drops [$2]
 >   summary kept [$2] borrows [$0 $1] writes

@@ -24,12 +24,10 @@ fn probe(p: *mut Cell, alias: *mut Cell) -> string:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Coerce %0 [Weaken -] : *Cell
 >   %3 = Call app/main/impl Cell.slot_ref[] (%2) : &string
->   %4 = LoanBegin %3 #4 : ()
->   %5 = Store [$2] %3 : ()
->   %10 = Block %7 : string
+>   %4 = Store [$2] %3 : ()
+>   %8 = Block %6 : string
     alias.value = "fresh"
->   %6 = Store [*$1 .value] "fresh" : ()
+>   %5 = Store [*$1 .value] "fresh" : ()
     *r
->   %7 = Read [*$2] : string
->   %8 = LoanClose %1 : ()
->   %9 = LoanClose %4 : ()
+>   %6 = Read [*$2] : string
+>   %7 = LoanClose %1 : ()

@@ -96,10 +96,8 @@ fn project['a](point: &'a Point) -> &'a i32:
 >   %5 = Break L0 %3 : never
 >   %6 = Block - : &i32
 >   %7 = Scope %6 [] : &i32
->   %8 = LoanBegin %7 #4 : ()
->   %9 = LoanClose %1 : ()
->   %10 = LoanClose %8 : ()
->   %11 = Block %7 : &i32
+>   %8 = LoanClose %1 : ()
+>   %9 = Block %7 : &i32
 >   summary kept []
 
 struct Owner:

@@ -2090,55 +2090,6 @@ impl Gen<'_, '_> {
             rows.extend(from.iter().map(|&k| (Holder::Value(i), k)));
             by_val.entry(i).or_default().extend(from);
         }
-        // A call whose result holds an argument's loan may return a
-        // reference into an object the callee reached through a pointer:
-        // an INNER site at the call, which the link pass keeps only where
-        // the callee does (`hd_tir::own::pointer`). It lives while the
-        // values after the call that hold the argument's loan do.
-        let mut by_value: HashMap<u32, Vec<u32>> = HashMap::default();
-        for &(h, k) in &rows {
-            if let Holder::Value(v) = h {
-                by_value.entry(v).or_default().push(k);
-            }
-        }
-        let mut inner = Vec::new();
-        for c in 0..w(b.len()) {
-            if !matches!(
-                b.tags[c as usize],
-                Tag::Call | Tag::Await | Tag::CallDyn | Tag::CallValue
-            ) || by_inst.contains_key(&c)
-            {
-                continue;
-            }
-            let Some(held) = by_value.get(&c) else {
-                continue;
-            };
-            let k = w(sites.len());
-            let excl = is_mut(self.s.pool, b.ty[c as usize]);
-            sites.push(Site {
-                at: c,
-                word: hd_tir::ir::loan_word::INNER
-                    | (u32::from(excl) * hd_tir::ir::loan_word::EXCL),
-                activate: NONE,
-            });
-            inner.push((c, k, held.clone()));
-        }
-        if !inner.is_empty() {
-            rows.sort_stable_by_key(|r| r.1);
-            let at = |k: u32| rows.partition_point(|r| r.1 < k);
-            let mut extra = Vec::new();
-            for (c, k, held) in inner {
-                extra.push((Holder::Value(c), k));
-                for s in held {
-                    for &(h, _) in &rows[at(s)..at(s + 1)] {
-                        if !matches!(h, Holder::Value(v) if v < c) {
-                            extra.push((h, k));
-                        }
-                    }
-                }
-            }
-            rows.extend(extra);
-        }
         crate::work::scan_work(rows.len());
         rows.sort_stable();
         rows.dedup();

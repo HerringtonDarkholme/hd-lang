@@ -30,7 +30,7 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
     let o: (&User)? = if left: .Some(&pair.left) else: .None
 > app/main/left_or_right
 >   local $0 pair: &Pair [param read] value
->     uses $0: entry -> %1 lend, %12 lend last
+>     uses $0: entry -> %1 lend, %11 lend last
 >   local $1 left: bool [param read] value
 >     uses $1: entry -> %0 lend last
 >   local $2 o: &User? [read assigned] value
@@ -44,21 +44,18 @@ fn left_or_right(pair: &Pair, left: bool) -> &User:
 >   %6 = Block %5 : &User?
 >   %7 = If %0 [%4 %6] : &User?
 >   %8 = Store [$2] %7 : ()
->   %22 = Block %14 : &User
+>   %19 = Block %13 : &User
     o.unwrap_or(&pair.right)
 >   %9 = Read move [$2] : &User?
 >   %10 = Intrinsic Empty [] : ()
->   %11 = LoanClose %18 : ()
->   %12 = Ref local [*$0 .right] : &User
->   %13 = LoanBegin %12 #0 : ()
->   %14 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%9, %12) : &User
->   %15 = Retain %14 Operation operand 0 #0 : ()
->   %16 = LoanEnd [%12] : ()
->   %17 = LoanEnd [%9] : ()
->   %18 = LoanBegin %14 #4 : ()
->   %19 = LoanClose %2 : ()
->   %20 = LoanClose %13 : ()
->   %21 = LoanClose %18 : ()
+>   %11 = Ref local [*$0 .right] : &User
+>   %12 = LoanBegin %11 #0 : ()
+>   %13 = Call std/option/impl[T < ?Copy] T?.unwrap_or[&User] (%9, %11) : &User
+>   %14 = Retain %13 Operation operand 0 #0 : ()
+>   %15 = LoanClose %2 : ()
+>   %16 = LoanClose %12 : ()
+>   %17 = LoanEnd [%11] : ()
+>   %18 = LoanEnd [%9] : ()
 >   summary kept []
 
 fn demo(u: &User) -> usize:
@@ -67,22 +64,20 @@ fn demo(u: &User) -> usize:
 >   local $0 u: &User [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 n: &string [:= read assigned] value
->     uses $1: %6 -> %7 lend last
+>     uses $1: %5 -> %6 lend last
 >   %0 = Ref local [*$0 .name] : &string
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Call app/main/id[&string] (%0) : &string
 >   %3 = Retain %2 Value #0 : ()
 >   %4 = LoanEnd [%0] : ()
->   %5 = LoanBegin %2 #4 : ()
->   %6 = Store [$1] %2 : ()
->   %13 = Block %9 : usize
+>   %5 = Store [$1] %2 : ()
+>   %11 = Block %8 : usize
     n.len()
->   %7 = Read move [$1] : &string
->   %8 = Intrinsic Empty [] : ()
->   %9 = Call std/text/impl string.len[] (%7) : usize
->   %10 = LoanClose %1 : ()
->   %11 = LoanClose %5 : ()
->   %12 = Drop [%7] : ()
+>   %6 = Read move [$1] : &string
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = Call std/text/impl string.len[] (%6) : usize
+>   %9 = LoanClose %1 : ()
+>   %10 = Drop [%6] : ()
 >   summary kept []
 
 fn keep[T < 'static](value: T) -> *mut T:

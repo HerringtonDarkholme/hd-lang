@@ -673,14 +673,6 @@ impl Em<'_, '_, '_> {
             // A site that keeps no loan takes its access check only: its
             // `LoanBegin` and closes lower to nothing.
             let kept = self.m.kept_sites.contains(&(self.inst, site));
-            // The object a call's result points into: one slot.
-            if word & loan_word::INNER != 0 {
-                if kept {
-                    st.begins
-                        .insert(u32::try_from(i).expect("insts"), vec![(0, None)]);
-                }
-                continue;
-            }
             // A site an ownership pass forwarded to a `*T` value: its
             // whole object, at the value's address.
             if !matches!(self.b.tags[site as usize], Tag::Ref | Tag::Read) {
@@ -799,9 +791,6 @@ impl Em<'_, '_, '_> {
         if word & loan_word::ACTIVATE != 0 {
             return self.loan_activate(site);
         }
-        if word & loan_word::INNER != 0 {
-            return self.loan_inner(i, site, word & loan_word::EXCL != 0);
-        }
         if self.borrows.valued.contains(&site) {
             self.loan_value(site);
         }
@@ -877,50 +866,6 @@ impl Em<'_, '_, '_> {
             self.borrow_check(header, mask, None, target, writes);
         }
         self.borrows.refs.insert(site, vec![(header, None, keep)]);
-    }
-
-    /// `LoanBegin` `i` of call `site`'s INNER loan: on the object its
-    /// returned reference points into, which the page table finds, where
-    /// the callee reached it through a pointer past the argument's own
-    /// object (`hd_tir::own::pointer`). The last run's loan ends first.
-    fn loan_inner(&mut self, i: u32, site: u32, excl: bool) {
-        if !self.m.kept.contains(&(self.inst, site, u32::MAX - 1)) {
-            return;
-        }
-        let Some(slots) = self.borrows.begins.get(&i).cloned() else {
-            return;
-        };
-        let Some(&r) = self.vals.get(&site).and_then(|v| v.first()) else {
-            return;
-        };
-        let (h, kl) = slots[0];
-        let delta = if excl { LOAN_EXCL } else { LOAN_SHARED };
-        let mask = if excl { LOAN_STATE } else { LOAN_EXCL };
-        self.f.get(h);
-        self.f.op(I::If(BlockType::Empty));
-        self.borrow_add(h, kl, delta, -1);
-        self.f.op(I::End);
-        let rt = self.m.runtime;
-        self.f.get(r);
-        self.f.call(crate::module::Sym::Inst(rt.block_of));
-        self.f.op(I::LocalTee(h));
-        self.f.op(I::If(BlockType::Empty));
-        self.f.get(h);
-        self.f.u32(4);
-        self.f.op(I::I32Add);
-        self.f.set(h);
-        self.f.get(h);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.u32(mask);
-        self.f.op(I::I32And);
-        self.f.op(I::If(BlockType::Empty));
-        self.f.helper(Helper::Panic(
-            "borrow-conflict: an object a live reference borrows was lent by a call's result"
-                .into(),
-        ));
-        self.f.op(I::End);
-        self.borrow_add(h, kl, delta, 1);
-        self.f.op(I::End);
     }
 
     /// A cancelled body's way out: every loan it still holds ends, as

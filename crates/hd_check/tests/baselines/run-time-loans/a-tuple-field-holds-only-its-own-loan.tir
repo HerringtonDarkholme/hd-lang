@@ -26,22 +26,18 @@ fn pick(p: *mut Slots, q: *mut Slots) -> string:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Coerce %0 [Weaken -] : *Slots
 >   %3 = Call app/main/impl Slots.at[] (%2, 0:usize) : &string
->   %4 = LoanBegin %3 #4 : ()
->   %5 = Read [$1] : *mut Slots
->   %6 = LoanBegin %5 #0 : ()
->   %7 = Coerce %5 [Weaken -] : *Slots
->   %8 = Call app/main/impl Slots.at[] (%7, 0:usize) : &string
->   %9 = LoanBegin %8 #4 : ()
->   %10 = NewTuple - [%3 %8] : (&string, &string)
->   %11 = Read [%10 .0] : &string
->   %12 = LoanClose %6 : ()
->   %13 = LoanClose %9 : ()
->   %14 = Store [$2] %11 : ()
->   %20 = Block %17 : string
+>   %4 = Read [$1] : *mut Slots
+>   %5 = LoanBegin %4 #0 : ()
+>   %6 = Coerce %4 [Weaken -] : *Slots
+>   %7 = Call app/main/impl Slots.at[] (%6, 0:usize) : &string
+>   %8 = NewTuple - [%3 %7] : (&string, &string)
+>   %9 = Read [%8 .0] : &string
+>   %10 = LoanClose %5 : ()
+>   %11 = Store [$2] %9 : ()
+>   %16 = Block %14 : string
     q.items.push("x")
->   %15 = Read [*$1 .items] : List[string]
->   %16 = Intrinsic ListPush [%15 "x"] : ()
+>   %12 = Read [*$1 .items] : List[string]
+>   %13 = Intrinsic ListPush [%12 "x"] : ()
     *first
->   %17 = Read [*$2] : string
->   %18 = LoanClose %1 : ()
->   %19 = LoanClose %4 : ()
+>   %14 = Read [*$2] : string
+>   %15 = LoanClose %1 : ()

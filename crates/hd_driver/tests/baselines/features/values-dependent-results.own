@@ -95,18 +95,18 @@ fn through_ptr(u: *User) -> usize:
 >   %2 = Store [$1] %0 : ()
 >   %3 = Ref local [*$1 .name] : &string
 >   %4 = LoanBegin %3 #0 : ()
->   %5 = Break L0 %3 : never
->   %6 = Block - : &string
->   %7 = Scope %6 [] : &string
->   %8 = LoanEnd [$1] : ()
->   %9 = Call std/text/impl string.len[] (%7) : usize
->   %10 = LoanClose %1 : ()
->   %11 = LoanClose %4 : ()
->   %12 = LoanEnd [%7] : ()
+>   %5 = LoanClose %4 : ()
+>   %6 = Break L0 %3 : never
+>   %7 = Block - : &string
+>   %8 = Scope %7 [] : &string
+>   %9 = LoanEnd [$1] : ()
+>   %10 = Call std/text/impl string.len[] (%8) : usize
+>   %11 = LoanClose %1 : ()
+>   %12 = LoanEnd [%8] : ()
 >   %13 = Intrinsic ParamOwned [0:i32] : bool
 >   %14 = Drop [$0] : ()
 >   %15 = Block - : ()
 >   %16 = If %13 [%15 -] : ()
 >   %17 = Release %18 Exit local $0 #2 : ()
->   %18 = Block %9 : usize
+>   %18 = Block %10 : usize
 >   summary kept [] borrows [$0]
