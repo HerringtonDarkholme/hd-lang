@@ -7354,6 +7354,10 @@ std/result/borrowed-payloads/result-as-ref-mutable-ok-noncopy.hd	runtime	accept	
 std/result/borrowed-payloads/result-as-ref-mutable-err-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-ref.in-place
 std/result/borrowed-payloads/result-as-ref-copy-payloads.hd	runtime	accept	std/result.md#r-std-result.as-ref
 std/result/borrowed-payloads/result-as-ref-cannot-outlive-its-owner.hd	type	reject:local-reference-escapes	std/result.md#r-std-result.as-ref.borrow
+std/result/borrowed-payloads/result-as-mut-cannot-outlive-its-owner.hd	type	reject:local-reference-escapes	std/result.md#r-std-result.as-mut.borrow
+std/result/borrowed-payloads/result-as-mut-copy-payloads.hd	runtime	accept	std/result.md#r-std-result.as-mut
+std/result/borrowed-payloads/result-as-mut-err-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-mut.in-place
+std/result/borrowed-payloads/result-as-mut-ok-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-mut.in-place
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

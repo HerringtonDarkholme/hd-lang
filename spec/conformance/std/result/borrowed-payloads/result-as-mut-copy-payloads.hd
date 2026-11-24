@@ -1,0 +1,17 @@
+# test: as_mut writes either copied payload in its original result
+# Spec std Result: std-result.as-mut.
+fn increment(value: &mut Result[i32, i32]):
+    match value.as_mut():
+        .Ok(number) => *number += 1
+        .Err(error) => *error += 1
+
+tests:
+    use std.testing.assert_equal
+
+    it("writes both variants"):
+        let mut success: Result[i32, i32] = .Ok(3)
+        let mut failure: Result[i32, i32] = .Err(5)
+        increment(&mut success)
+        increment(&mut failure)
+        assert_equal(success.ok(), .Some(4))
+        assert_equal(failure.err(), .Some(6))
