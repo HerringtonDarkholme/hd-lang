@@ -1,0 +1,27 @@
+# @dump: diagnostics
+# A public struct whose fields are a private struct and a private enum of
+# another module has each marker its parts have (`module.marker.structural`).
+# expected: no diagnostics: `Wrapper` is `Send`, `Sync` and `Wire`
+use pkg.shapes.{Wrapper, make}
+use std.marker.{Send, Sync, Wire}
+
+fn need[T < ?Copy & Send & Sync & Wire]() -> void:
+    pass
+
+fn check() -> void:
+    need::[Wrapper]()
+    _ := make()
+# @file: shapes.hd
+struct Inner:
+    x: i32
+
+enum Slot:
+    Empty
+    Full(value: i32)
+
+pub struct Wrapper:
+    inner: Inner
+    slot: Slot
+
+pub fn make() -> Wrapper:
+    Wrapper { inner: Inner { x: 1 }, slot: .Empty }

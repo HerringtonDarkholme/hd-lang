@@ -1,0 +1,22 @@
+# @dump: diagnostics
+# A public struct that holds a private `impl !Copy` struct of another
+# module is not copied (`ref.copy.structure`).
+# expected: use-of-moved-value at the second `w`
+use pkg.shapes.{Holder, make}
+
+fn twice(w: Holder) -> (Holder, Holder):
+    (w, w)
+
+fn check() -> void:
+    _ := twice(make())
+# @file: shapes.hd
+struct Token:
+    n: i32
+
+impl !Copy for Token
+
+pub struct Holder:
+    token: Token
+
+pub fn make() -> Holder:
+    Holder { token: Token { n: 1 } }
