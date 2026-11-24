@@ -1,7 +1,6 @@
 # @dump: stdout counts wat
 # @build: dev | checked | release | release checked
 # expected: true, 7, true, 7; both reference erasures must retain their owners.
-# Known #2352: the dynamic-reference instance currently releases its outer box early.
 use std.inspect.{Inspectable, TypeId}
 
 trait Score:

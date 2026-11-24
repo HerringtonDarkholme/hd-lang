@@ -353,9 +353,10 @@ pub trait OwnCx {
         let _ = ty;
         None
     }
-    /// Whether the trait immediately behind reference `from` is `to`
-    /// or declares it as a supertrait. This is a declaration fact only.
-    fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
+    /// Whether converting the full source `from` to `to` reads an already
+    /// erased referent's data owner, rather than keeping the source address
+    /// or making a fresh box. Collection and ownership use the same decision.
+    fn trait_value_widens(&self, from: Ty, to: Ty) -> bool {
         let _ = (from, to);
         false
     }

@@ -460,7 +460,7 @@ pub enum SlotRecv {
 /// A reference whose immediate referent is an erased trait can widen to
 /// that trait or a declared supertrait without wrapping its referent again.
 /// Nested references still erase their reference-valued referent normally.
-pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
+fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
     let TyData::Ref { inner, .. } = pool.get(from) else {
         return false;
     };
@@ -485,6 +485,21 @@ pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty,
         }
     }
     false
+}
+
+/// Whether this conversion reads the erased referent's data and vtable,
+/// rather than constructing a table for the source reference's own
+/// referent. Ownership and collection must choose the same owner.
+#[must_use]
+pub fn trait_value_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
+    let mut value = from;
+    while let TyData::Ref { inner, .. } = pool.get(value) {
+        value = inner;
+    }
+    let sealed = env.decls().sealed();
+    let identity = matches!(pool.get(to), TyData::TraitValue { def, .. }
+        if def == sealed.inspectable || def == sealed.any);
+    (!identity || trait_reference_widens(pool, env, from, to)) && is_trait_value(pool, value)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -3504,15 +3519,7 @@ impl Cx<'_> {
                     // A reference whose target is already a trait value
                     // widens without a new implementation or vtable
                     // (trait.erase.keeps, trait.dyn.widen).
-                    let mut value_ty = from;
-                    while let TyData::Ref { inner, .. } = pool.get(value_ty) {
-                        value_ty = inner;
-                    }
-                    let sealed = env.decls().sealed();
-                    let sealed_identity = matches!(pool.get(ty), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
-                    if (!sealed_identity || trait_reference_widens(pool, env, from, ty))
-                        && is_trait_value(pool, value_ty)
-                    {
+                    if trait_value_widens(pool, env, from, ty) {
                         continue;
                     }
                     let to = ty;

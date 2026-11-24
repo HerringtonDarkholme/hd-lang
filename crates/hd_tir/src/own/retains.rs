@@ -447,19 +447,13 @@ pub(crate) fn handed(
     if b.tags[i] == Tag::Coerce {
         let next = next_after(b, topo, i)?;
         let source = Ref(b.data[i][0]).as_inst()?;
-        let mut target = b.ty[source.0 as usize];
-        // Through references to a trait value, the result's data is loaded:
-        // another object's count than the source's. A provider reference
-        // keeps the reference's own words.
-        let keeps = b.record(b.data[i][1]).first() == Some(&(Coercion::RefAsProvider as u32));
-        while !keeps && !cx.trait_value(target) {
-            let Some(inner) = cx.reference_target(target) else {
-                break;
-            };
-            if cx.trait_value(inner) {
-                return None;
-            }
-            target = inner;
+        let target = b.ty[source.0 as usize];
+        // Loading an erased referent takes its data owner's count, not the
+        // outer reference's. Fresh erasure and provider references keep the
+        // source owner, so its adjacent cleanup can donate that count.
+        let provider = b.record(b.data[i][1]).first() == Some(&(Coercion::RefAsProvider as u32));
+        if !provider && !cx.trait_value(target) && cx.trait_value_widens(target, b.ty[i]) {
+            return None;
         }
         return (ends(next, source.0) && owns_its_count(b, cx, results, source.0, 8))
             .then_some(next);
@@ -690,17 +684,11 @@ pub(crate) fn result(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
             if cx.trait_value(source) {
                 return true;
             }
-            let mut target = source;
-            while let Some(inner) = cx.reference_target(target) {
-                if cx.trait_value(inner) {
-                    // Widening through references keeps the trait's data,
-                    // including when reaching it needs loads first. Erasing
-                    // the reference's identity into a box is a separate kind.
-                    return cx.trait_reference_widens(target, b.ty[i]);
-                }
-                target = inner;
-            }
-            cx.single_counted_address(source)
+            // The conversion either loads the erased referent's owner or
+            // keeps a direct counted source address. A fresh backend box
+            // already arrives with its count. Use collection's decision on
+            // the complete source, not a peeled inner trait reference.
+            cx.trait_value_widens(source, b.ty[i]) || cx.single_counted_address(source)
         }
         // Lookup copies the caller-held provider into a result of its own,
         // except for the `&dyn` a `$.use` makes of it: a local reference,
@@ -728,17 +716,18 @@ mod tests {
             ty == Ty::STRING || ty == Ty(43)
         }
         fn single_counted_address(&self, ty: Ty) -> bool {
-            matches!(ty, Ty(42 | 44))
+            matches!(ty, Ty(42 | 47))
         }
         fn reference_target(&self, ty: Ty) -> Option<Ty> {
             match ty {
                 Ty(44 | 46) => Some(Ty(43)),
                 Ty(45) => Some(Ty(46)),
+                Ty(47) => Some(Ty(44)),
                 _ => None,
             }
         }
-        fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
-            from == Ty(46) && to == Ty(43)
+        fn trait_value_widens(&self, from: Ty, to: Ty) -> bool {
+            matches!(from, Ty(45 | 46)) && to == Ty(43)
         }
         fn trait_value(&self, ty: Ty) -> bool {
             ty == Ty(43)
@@ -977,7 +966,10 @@ mod tests {
         for (kind, source, counted) in [
             (Coercion::RefToTraitValue, Ty(42), true),
             (Coercion::Supertrait, Ty(43), true),
+            // An indirect/fat source needs a fresh backend box; an outer
+            // one-word counted box keeps its own address instead.
             (Coercion::RefToTraitValue, Ty(44), false),
+            (Coercion::RefToTraitValue, Ty(47), true),
             (Coercion::RefToTraitValue, Ty(46), true),
             (Coercion::RefToTraitValue, Ty(45), true),
             (Coercion::RefAsProvider, Ty(43), true),

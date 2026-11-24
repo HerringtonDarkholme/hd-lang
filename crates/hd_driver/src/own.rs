@@ -801,10 +801,10 @@ impl OwnCx for Env<'_> {
             .flatten()
     }
 
-    fn trait_reference_widens(&self, from: Ty, to: Ty) -> bool {
+    fn trait_value_widens(&self, from: Ty, to: Ty) -> bool {
         !self.is_open(from)
             && !self.is_open(to)
-            && hd_mono::trait_reference_widens(&self.run.pool, self, from, to)
+            && hd_mono::trait_value_widens(&self.run.pool, self, from, to)
     }
 
     fn plain_reference(&self, ty: Ty) -> bool {

@@ -1,0 +1,58 @@
+# @dump: stdout counts
+# @build: dev | checked | release | release checked
+# expected: 107, 107, 17, 17, 107, 17, 107, 17, 7; preserve the chosen impl.
+trait Label:
+    fn label(&self) -> i32
+
+trait Score < Label:
+    fn value(&self) -> i32
+
+struct Item:
+    n: i32
+
+impl Score for Item:
+    fn value(&self) -> i32:
+        self.n
+
+impl Label for Item:
+    fn label(&self) -> i32:
+        self.n + 10
+
+impl Label for *Item:
+    fn label(&self) -> i32:
+        self.n + 100
+
+struct Holder:
+    value: *dyn Label
+
+fn erased[T < Label & 'static](value: T) -> *dyn Label:
+    box(value)
+
+fn direct(value: *dyn Score) -> i32:
+    # subject
+    let out: *dyn Label = box(value)
+    out.label()
+
+fn direct_concrete(value: *Item) -> i32:
+    let out: *dyn Label = box(value)
+    out.label()
+
+fn borrowed[T < Label](value: &T) -> i32:
+    let out: &dyn Label = value
+    out.label()
+
+fn held[T < Label & 'static](value: T) -> Holder:
+    Holder { value: box(value) }
+
+pub fn main() -> void $ Console:
+    let concrete: *Item = box(Item { n: 7 })
+    let value: *dyn Score = concrete
+    println(erased(concrete).label())
+    println(direct_concrete(concrete))
+    println(erased(value).label())
+    println(direct(value))
+    println(borrowed(&concrete))
+    println(borrowed(&value))
+    println(held(concrete).value.label())
+    println(held(value).value.label())
+    println(value.value())
