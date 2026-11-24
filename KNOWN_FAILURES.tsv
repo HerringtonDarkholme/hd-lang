@@ -1,8 +1,1 @@
 path	issue	engine	reason
-lang/references/local-references/through-pointer/a-mut-reference-through-a-pointer-field-is-not-returned.hd	#2339		A reference made through a `*T` takes the origins of the place the pointer was read from, so it may leave the function.
-lang/references/local-references/through-pointer/a-shared-reference-through-a-pointer-field-is-not-returned.hd	#2339		A reference made through a `*T` takes the origins of the place the pointer was read from, so it may leave the function.
-lang/references/local-references/through-pointer/a-reference-to-a-field-behind-a-pointer-is-not-returned.hd	#2339		A reference made through a `*T` takes the origins of the place the pointer was read from, so it may leave the function.
-lang/references/local-references/through-pointer/a-reference-through-a-pointer-is-not-returned-through-a-helper.hd	#2339		A reference made through a `*T` takes the origins of the place the pointer was read from, so it may leave the function.
-lang/references/local-references/through-pointer/a-pointer-lent-as-a-reference-is-not-returned-through-a-helper.hd	#2339		A reference made through a `*T` takes the origins of the place the pointer was read from, so it may leave the function.
-lang/references/local-references/through-pointer/a-reference-through-a-pointer-is-not-stored-in-a-callers-field.hd	#2339		A reference made through a `*T` takes the origins of the place the pointer was read from, so it may leave the function.
-lang/references/local-references/through-pointer/a-reference-through-a-pointer-is-not-stored-in-a-callers-list.hd	#2339		A reference made through a `*T` takes the origins of the place the pointer was read from, so it may leave the function.

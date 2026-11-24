@@ -554,8 +554,8 @@ An **origin** is a storage root that a local reference may point into. It is wha
 | r[ref.dep.origin.place] Place | `&x` or `&x.f.g`, or the automatic address a method call takes of such a place, for a local or a parameter `x` | `x`'s own storage |
 | r[ref.dep.origin.element] Element place | `&xs[i]`, `&m[k]`, or an element reference loop binding | the origin of the collection's root place |
 | r[ref.dep.origin.reborrow] Reborrow | `&r.f`, `&*r`, or an automatic address through a reference value `r` | the origins of `r` |
-| r[ref.dep.origin.counted] Counted crossing | a place reached through a counted reference, as `&h.p.x` with `p: *mut P` | the origins of the place the counted reference was read from |
-| r[ref.dep.origin.lend] Lent counted reference | a counted reference read from a place and lent as a source argument | that place's origins |
+| r[ref.dep.origin.counted] Counted crossing | a place reached through a counted reference, as `&h.p.x` with `p: *mut P` | a local of the function ([`ref.local.pointer`](#r-ref.local.pointer)), and the origins of the place the counted reference was read from |
+| r[ref.dep.origin.lend] Lent counted reference | a counted reference read from a place and lent as a source argument | a local of the function ([`ref.local.pointer`](#r-ref.local.pointer)), and that place's origins |
 | r[ref.dep.origin.temporary] Temporary | `&e` on a value, and a `&self` call on a temporary | a hidden local |
 | r[ref.dep.origin.binding] Binding | a read of a binding `b` | the union of every value stored into `b` anywhere in the function |
 | r[ref.dep.origin.parts] Construction | a tuple, `.Some(a)`, or a struct or enum literal | the union of its parts, each in its positions |
@@ -950,8 +950,8 @@ struct Crew:
     lead: *mut User
     size: i32
 
-fn lead_name(c: &Crew) -> &'c.lead.name Name:
-    &c.lead.name                   # valid: the path crosses the `*mut`
+fn lead_name(c: &Crew) -> &'c.lead.name Name:  # error: local-reference-escapes
+    &c.lead.name                   # through the `*mut`: local to `lead_name`
 
 fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
     n := u.first()     # n borrows only u.name
@@ -972,7 +972,7 @@ fn birthday(u: &mut User, t: &mut Team) -> void $ Console:
 2. r[ref.result.path.position] A result path is written only in a function's result type. Anywhere else it is an error. Error: `unknown-lifetime`.
 3. r[ref.result.path.param] The name is a `&` or `&mut` parameter's, `self` included. Any other name is an error. Error: `unknown-lifetime`.
 4. r[ref.result.path.fields] Each step names a field of the struct the previous step reaches, starting from the parameter's referent. Any other step is an error. Error: `unknown-field`.
-5. r[ref.result.path.counted] A step may cross a `*T` or `*mut T` field: the next step names a field of its referent, as `'c.lead.name` with `lead: *mut User`. The path's place goes through the counted reference, as a written `&c.lead.name` does. The callee and caller rules treat the crossing as one more step of that place.
+5. r[ref.result.path.counted] A step never crosses a `*T` or `*mut T` field, as `'c.lead.name` with `lead: *mut User` would, since a reference made through it is local to the function ([`ref.local.pointer`](#r-ref.local.pointer)). Error: `local-reference-escapes`.
 6. r[ref.result.path.not-yet] A step through a local reference (`&T` or `&mut T`), and a result path on a reference inside another reference of the result, are not checked yet, so they are errors. Error: `references-not-yet-checked`.
 7. r[ref.result.path.visible] Each field must be visible where the signature is written. Error: `private-member`.
 8. r[ref.result.path.public] A `pub` signature names only public fields, so private layout never enters an API. Error: `private-type-leak`.

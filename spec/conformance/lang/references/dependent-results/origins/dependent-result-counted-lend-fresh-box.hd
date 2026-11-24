@@ -1,14 +1,12 @@
 # test: a counted reference binding that may hold a box the function made is lent from that box too, so a dependent result of it escapes
-# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
+# Spec 13 Local References: ref.local.pointer; Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
 # ref.dep.origin.temporary.
 struct Node:
     value: i32
     next: *Node?
 
 fn last(n: &Node) -> &Node:
-    match n.next:
-        .Some(m) => last(m)
-        .None => n
+    n
 
 fn fresh(n: &Node) -> &Node:
     let mut m: *Node = box(Node { value: 1, next: .None })

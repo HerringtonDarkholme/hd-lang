@@ -78,8 +78,7 @@ const PATH: u32 = 1 << 30;
 /// layout slot, and its text as written.
 pub(super) struct OwnPath {
     param: u32,
-    /// The place steps from the parameter's referent: each field, and a
-    /// dereference after a `*T` or `*mut T` field (`ref.result.path.counted`).
+    /// The place steps from the parameter's referent: each field.
     steps: Vec<Proj>,
     slot: usize,
     text: String,
@@ -2685,6 +2684,10 @@ enum Origin {
     /// it lives while a value holding it does (`ref.excl.alias.loan`).
     /// Never a diagnostic.
     Lent(u32),
+    /// A reference made through the counted reference that instruction
+    /// `h` reads: a guard loan local to the function, which never leaves
+    /// it, however long the function's own uses last (`ref.local.pointer`).
+    Through(u32),
 }
 
 /// The definition word of [`Origin::Static`] for a constant literal, which
@@ -5310,6 +5313,9 @@ impl Ck<'_, '_> {
         {
             self.capture_source_error(self.b.body().item, f);
         }
+        // A result path that crosses a pointer is the one report for what
+        // the body returns through it (`ref.result.path.counted`).
+        let crossed = errs.iter().any(|e| e.1 == Code::LocalReferenceEscapes);
         // A function value in the result may carry captures with no source
         // (`ref.generic.outlives.read`) when no `fn(...)` parameter gives one.
         for (at, code, msg) in errs {
@@ -5382,14 +5388,69 @@ impl Ck<'_, '_> {
         let mut verdicts = constraints::solve(&s, &returns);
         let run_loans = std::mem::take(&mut verdicts.run_loans);
         let sigs = (own.as_ref(), mine.as_ref());
+        let fixes = self.pointer_result_fixes(&verdicts, fun);
         for (at, code, msg) in self.verdict_list(verdicts, sigs, fun, &paths) {
+            if crossed && fixes.contains_key(&at) {
+                continue;
+            }
             let node = self.cx.src.parse.tree.node(at);
             self.err(code, node, &msg);
+            if let Some((true, edits)) = fixes.get(&at) {
+                let edits: Vec<_> = edits.iter().map(|(s, t)| (*s, t.as_str())).collect();
+                (self.diags).add_fix(
+                    "return the pointer itself",
+                    hd_diag::FixSafety::Exact,
+                    &edits,
+                );
+            }
         }
         if !run_loans.0.is_empty() {
             self.run_loans = Some(run_loans);
         }
         Ok(())
+    }
+
+    /// For each returned value a reference made through a pointer, the
+    /// fix that returns the pointer: the result type `&mut T` (`&T`) as
+    /// `*mut T` (`*T`), and the value `&mut *p` (`&*p`) as `p`. Exact only
+    /// where the value is that form and the result type a direct one.
+    fn pointer_result_fixes(
+        &self,
+        v: &Verdicts,
+        fun: Option<NodeRef<'_>>,
+    ) -> HashMap<NodeIdx, (bool, Vec<(hd_base::Span, String)>)> {
+        let mut out = HashMap::default();
+        let Some(ret) = fun.and_then(Src::type_child) else {
+            return out;
+        };
+        let src = self.cx.src;
+        if ret.kind() != SyntaxKind::RefType {
+            return out;
+        }
+        let text = src.node_text(ret);
+        let inner = text.trim_start_matches('&').trim_start();
+        let inner = match inner.strip_prefix('\'') {
+            Some(named) => named.split_once(' ').map_or(named, |x| x.1).trim_start(),
+            None => inner,
+        };
+        let pointer = format!("*{inner}");
+        for &(at, o, _) in &v.results {
+            if at == NodeIdx::NONE || !matches!(o, Origin::Through(_)) {
+                continue;
+            }
+            let node = src.parse.tree.node(at);
+            let deref = (node.kind() == SyntaxKind::RefExpr)
+                .then(|| node.children().last())
+                .flatten()
+                .filter(|d| d.kind() == SyntaxKind::DerefExpr)
+                .and_then(|d| d.children().last());
+            let mut edits = vec![(src.span(ret), pointer.clone())];
+            if let Some(place) = deref {
+                edits.push((src.span(node), src.node_text(place).to_owned()));
+            }
+            out.insert(at, (deref.is_some(), edits));
+        }
+        out
     }
 
     /// Each argument a call lends to a local-reference parameter of its
@@ -5520,9 +5581,9 @@ impl Ck<'_, '_> {
     }
 
     /// The place steps of result path `fields` from parameter type `pty`:
-    /// each field, and a dereference where the next field is reached
-    /// through a `*T` or `*mut T` (`ref.result.path.fields`,
-    /// `ref.result.path.counted`).
+    /// each field (`ref.result.path.fields`). A step never crosses a `*T`
+    /// or `*mut T`, since a reference through it is local to the function
+    /// (`ref.result.path.counted`, `ref.local.pointer`).
     fn path_steps(
         &self,
         pty: Ty,
@@ -5532,14 +5593,12 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let (mut t, mut steps) = (referent(pool, pty), Vec::new());
         for &name in fields {
-            if let TyData::Ref {
-                inner,
-                counted: true,
-                ..
-            } = pool.get(self.resolved(t))
-            {
-                steps.push(Proj::Deref);
-                t = inner;
+            if let TyData::Ref { counted: true, .. } = pool.get(self.resolved(t)) {
+                let msg = format!(
+                    "a result path never crosses the pointer `{}`: a reference made through it is local to the function; return the pointer instead",
+                    self.show(t)
+                );
+                return Err((Code::LocalReferenceEscapes, msg));
             }
             let (j, next) = self.path_step(t, name, public)?;
             steps.push(Proj::Field(j));
@@ -5907,6 +5966,9 @@ impl Ck<'_, '_> {
             Origin::Hidden(h) if body.provider_ref(h as usize) => {
                 format!("the value refers to a provider from `$.use`, a local of {f}")
             }
+            Origin::Through(_) => format!(
+                "the value is a reference made through a pointer, a local loan of {f}; return the pointer itself"
+            ),
             Origin::Hidden(_) | Origin::Site(_) | Origin::Lent(_) | Origin::Outside(_) => {
                 format!("the value refers to a temporary of {f}")
             }

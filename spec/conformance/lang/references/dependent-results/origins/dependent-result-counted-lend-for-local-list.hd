@@ -1,13 +1,11 @@
 # test: a `for` loop's counted element binding over a local list is lent from that list, so a dependent result of it escapes
-# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
+# Spec 13 Local References: ref.local.pointer; Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.binding,
 # ref.dep.origin.element.
 struct Node:
     value: i32
     kids: List[*Node]
 
 fn last(n: &Node) -> &Node:
-    for k in n.kids:
-        return last(k)
     n
 
 fn from_local(n: &Node) -> &Node:

@@ -45,6 +45,12 @@ const collections: Path[] = ["list", "map", "slots", "slotmap"];
 
 /** The alias actions each path has, under one lifetime. */
 function actions(path: Path, life: Life): Action[] {
+  // A method never returns a reference made through a pointer it reads, here
+  // `self.next` (`ref.local.pointer`); the `ptr2` root returns its object's
+  // pointer instead, which the other lifetimes already cover.
+  if (life === "ret" && path === "ptr2") {
+    return [];
+  }
   if (path === "local") {
     return ["write"];
   }

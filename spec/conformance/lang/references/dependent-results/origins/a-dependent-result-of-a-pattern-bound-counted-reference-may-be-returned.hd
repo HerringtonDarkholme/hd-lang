@@ -1,12 +1,12 @@
-# test: a counted reference bound by a pattern from a place is lent from that place, so a dependent result of it may be returned
-# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.projection,
-# ref.dep.origin.counted. `m` is read from `n.next`, so `last(m)` has
-# `n`'s origins.
+# test: a counted reference bound by a pattern from a place and lent as a source argument is a local of the function, so a dependent result of it is not returned
+# Spec 13 Origins: ref.dep.origin.lend, ref.dep.origin.projection;
+# Spec 13 Local References: ref.local.pointer. `m` is read from `n.next`
+# and lent to `last`, so `last(m)` is local; return the `*Node` instead.
 struct Node:
     value: i32
     next: *Node?
 
 fn last(n: &Node) -> &Node:
     match n.next:
-        .Some(m) => last(m)
+        .Some(m) => last(m) # diagnostic: local-reference-escapes
         .None => n

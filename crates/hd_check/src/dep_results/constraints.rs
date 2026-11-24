@@ -302,6 +302,21 @@ impl Gen<'_, '_> {
         (self.s.ty(v).is_some() && b.tags[v as usize] == Tag::Read).then_some(v)
     }
 
+    /// The counted reference the place `word` dereferences first, by the
+    /// instruction that reads it, or the local that holds it: a reference
+    /// made there is local to the function (`ref.local.pointer`).
+    fn through_pointer(&self, word: u32) -> Option<u32> {
+        let b = self.s.b;
+        let p = b.decode_place(word)?;
+        let counted = |t: Ty| matches!(local_ref(self.s.pool, t), Some((true, _)));
+        match p.root {
+            PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
+                self.s.ty(v.0).filter(|&t| counted(t)).map(|_| v.0)
+            }
+            _ => None,
+        }
+    }
+
     /// Whether value `v` is a read of a whole local, with no projection.
     fn whole_binding_read(&self, v: u32) -> bool {
         let b = self.s.b;
@@ -1513,6 +1528,9 @@ impl Gen<'_, '_> {
                     self.seed(me.0[0], Origin::Site(i));
                 } else if exclusive::runtime_site(self.s, i) {
                     self.seed(me.0[0], Origin::Lent(i));
+                }
+                if let Some(h) = self.through_pointer(a) {
+                    self.seed(me.0[0], Origin::Through(h));
                 }
                 let inner = (me.0[1..].to_vec(), referent(pool, me.1));
                 // A reborrow of a local's or a reference's part, shared or
