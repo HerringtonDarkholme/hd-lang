@@ -1,2 +1,1 @@
 path	issue	engine	reason
-lang/expressions/primary-expressions/module-member-a-private-declaration-through-a-module-is-private-import-associated-call.hd	#2349		A private type that an interface carries for markers resolves through a qualified associated call, so the private-import diagnostic is missing.

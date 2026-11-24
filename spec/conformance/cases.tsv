@@ -5487,6 +5487,10 @@ lang/names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-tr
 lang/names/name-categories/module-member-a-bare-trait-or-alias-is-not-a-value-alias.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
 lang/expressions/primary-expressions/module-member-a-private-declaration-through-a-module-is-private-import-enum-variant.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
 lang/expressions/primary-expressions/module-member-a-private-declaration-through-a-module-is-private-import-associated-call.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
+lang/expressions/primary-expressions/module-member-a-private-declaration-through-a-module-is-private-import-struct-literal.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
+lang/expressions/primary-expressions/module-member-a-private-declaration-through-a-module-is-private-import-type-annotation.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
+lang/expressions/primary-expressions/module-member-a-private-declaration-through-a-module-is-private-import-reached-enum-variant.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
+lang/expressions/primary-expressions/module-member-a-private-declaration-through-a-module-is-private-import-method-value.hd	type	reject:private-import	lang/05-expressions.md#r-expr.name.qualified.private
 lang/expressions/primary-expressions/module-member-a-missing-declaration-through-a-module-is-unknown-import-enum-variant.hd	type	reject:unknown-import	lang/05-expressions.md#r-expr.name.qualified.missing
 lang/expressions/primary-expressions/module-member-a-missing-declaration-through-a-module-is-unknown-import-associated-call.hd	type	reject:unknown-import	lang/05-expressions.md#r-expr.name.qualified.missing
 lang/expressions/primary-expressions/nested-interpolation-a-string-literal-inside-an-interpolation-prints-once.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.forms

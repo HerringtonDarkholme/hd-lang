@@ -1,0 +1,7 @@
+# test: a private type's method through a module is private import, also as a value
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    make := shapes.Secret::new # diagnostic: private-import
+    pass

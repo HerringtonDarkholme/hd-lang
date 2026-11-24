@@ -152,7 +152,11 @@ impl Ck<'_, '_> {
         )
     }
 
-    /// `module.name` through the module's export.
+    /// `module.name` through the module's export. A declaration of the
+    /// body's own folder has no export yet, so it is found by its path,
+    /// and only when it is `pub` or declared in the body's module
+    /// (`module.vis.private-default`): an interface also carries the
+    /// private types its headers reach, for markers and `Copy` only (#2349).
     pub(crate) fn export(&self, module: u32, name: &str) -> Option<DefId> {
         let m = self.cx.scope_at(self.at).modules.get(module as usize)?;
         let sym = self.cx.names.syms.intern(name);
@@ -164,7 +168,8 @@ impl Ck<'_, '_> {
             .map(|e| e.def)
             .or_else(|| {
                 let d = self.cx.names.item(m, name);
-                self.cx.lookup.item(d).map(|_| d)
+                let item = self.cx.lookup.item(d)?;
+                (item.public || self.declared_here(d)).then_some(d)
             })
     }
 

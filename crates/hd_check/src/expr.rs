@@ -3606,6 +3606,15 @@ impl Ck<'_, '_> {
                 })
                 .flatten()
         }) else {
+            // Through a module in scope, a private or missing declaration
+            // is `private-import` or `unknown-import`
+            // (`expr.name.qualified.private`), as in a type (#2349).
+            if let (Some(crate::ty::Named::Module(m)), [_, name]) =
+                (self.scope_name(&segs[0]), segs.as_slice())
+            {
+                self.missing_export(m, name, name_node);
+                return Ok((Ref(NONE), Ty::POISON));
+            }
             let hint = match segs.as_slice() {
                 [name] => self.import_hint(name),
                 _ => hd_resolve::iface::ImportHint::default(),
