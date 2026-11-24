@@ -43,7 +43,7 @@
   )
   (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $t0 i32) (local $t1 i64) (local $code.1 i32)
     ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
-    i64.const -1162861209082736682
+    i64.const -2549619231260123173
     i32.const 10
     local.tee $t0
     i32.const 0

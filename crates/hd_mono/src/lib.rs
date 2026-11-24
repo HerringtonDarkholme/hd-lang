@@ -4127,7 +4127,7 @@ impl Cx<'_> {
         let bytes = hash.finish().0.to_le_bytes();
         let number = u64::from_le_bytes(std::array::from_fn(|i| bytes[i]));
         match self.crossing_numbers.entry(number) {
-            std::collections::hash_map::Entry::Occupied(prior) if *prior.get() != key => {
+            hd_base::hash::hash_map::Entry::Occupied(prior) if *prior.get() != key => {
                 let table = &self.out.table;
                 let args = self.pool.list_items(table.args[caller.idx()]);
                 let shown: Vec<_> = args
@@ -4142,8 +4142,8 @@ impl Cx<'_> {
                     prior.get(),
                 ))
             }
-            std::collections::hash_map::Entry::Occupied(_) => Ok(number),
-            std::collections::hash_map::Entry::Vacant(slot) => {
+            hd_base::hash::hash_map::Entry::Occupied(_) => Ok(number),
+            hd_base::hash::hash_map::Entry::Vacant(slot) => {
                 slot.insert(key);
                 self.crossings.push((number, key, f));
                 Ok(number)
