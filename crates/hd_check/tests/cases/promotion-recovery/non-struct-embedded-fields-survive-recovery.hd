@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# expected: invalid embedded types are diagnosed, and later member lookup safely reports the missing field.
+enum Mode:
+    Ready
+
+struct NumberPart:
+    i32
+
+struct EnumPart:
+    Mode
+
+fn number_field(value: NumberPart) -> i32:
+    value.missing
+
+fn enum_field(value: EnumPart) -> i32:
+    value.missing
