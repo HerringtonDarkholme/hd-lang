@@ -94,7 +94,7 @@ collections -> annotation -> structure -> inspect -> format -> text -> collectio
 ```
 
 So any child that `text` reaches (`uniq_list.hd`) and that reaches `format`
-or `num` closes a loop across `lib/std` and `lib/std/collections`. R1 does
+or `num` closes a loop across `lib/std` and the planned `collections/` folder. R1 does
 not help: the edge already reaches the declarer. The loop is real.
 
 ```text

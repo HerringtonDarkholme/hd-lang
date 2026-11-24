@@ -1,10 +1,31 @@
 # Module Graph And Visibility
 
-Status: proposal, 2026-11-24; domain: modules (spec ch. 10), std layout,
-the compiler's interface unit; not accepted. Issues
+Status: accepted by the owner, 2026-11-24, with the changes under Owner
+Decisions; being built in #2347 (nothing here is in the specification yet).
+Domain: modules (spec ch. 10), std layout, the compiler's interface unit. Issues
 [#2347](https://github.com/HerringtonDarkholme/hd-lang/issues/2347) and
 [#2346](https://github.com/HerringtonDarkholme/hd-lang/issues/2346).
 Stress test: [MODULES_STRESS_TEST.md](MODULES_STRESS_TEST.md).
+
+## Owner Decisions
+
+Owner, 2026-11-24 ("approved", "please build"):
+
+1. Question 1, edges go to the declaring module: as recommended.
+2. Question 2, a flat `x.hd` is in its children's folder: **yes**, as
+   `module.folder.parent-file` says today, overriding the recommendation.
+   `x.hd` and `x/mod.hd` stay interchangeable; no fix-it moves `x.hd`, and
+   `folder-parent-file` keeps its expectation.
+3. Question 3: **no `pub(super)` now** ("no need to add pub(super) now").
+   Instead, the owner's original design: **child modules are private by
+   default** ("always had children private"). A nested module is visible only
+   within its parent's subtree; outside code reaches its items through the
+   parent's `pub use`. The agent-written chapter 10 never stated this.
+4. Question 4, the compiler unit is the sibling module loop: as recommended.
+5. Question 5, `StringBuilder` stops holding `UniqList[u8]`: as recommended.
+
+The owner's rule throughout: no module cycles, unless the modules are
+siblings in one folder.
 
 ## The Proposal
 
@@ -208,13 +229,13 @@ from Go's package-as-directory, and offers `internal/` as the alternative to
 
 Spec text (ch. 10, replacing Folders, Folder Graph and Cycle Diagnostic):
 
-1. `module.cycle.edge`: the module graph has an edge from module M to a different module N when M's library code has a use whose name N declares, after `pub use` chains; a namespace use reaches the module it names.
+1. new rule module.cycle.edge: the module graph has an edge from module M to a different module N when M's library code has a use whose name N declares, after `pub use` chains; a namespace use reaches the module it names.
 2. `module.cycle.same-package`, `module.cycle.test-code`, `module.cycle.package`: kept.
-3. `module.cycle.folder`: a module's folder is the directory of its source file.
-4. `module.cycle.siblings`: a loop of the module graph is an error unless all its modules share a folder. Error: `module-cycle`.
-5. `module.cycle.diagnostic.loop`: the diagnostic shows one shortest loop through the first edge that enters the group's first module from another folder, each edge with its `use` line, and the group's size.
-6. `module.cycle.diagnostic.fix`: when moving one flat `x.hd` to `x/mod.hd` puts every module of the loop in one folder, it offers that move.
-7. `module.vis.super` (if Question 3 picks it): `pub(super)` makes a declaration visible to its module's parent and the parent's descendants; a `pub use` of it is an error outside them. `module.vis.no-package-private` stays true: `pub(super)` is not package-wide.
+3. new rule module.cycle.folder: a module's folder is the directory of its source file.
+4. new rule module.cycle.siblings: a loop of the module graph is an error unless all its modules share a folder. Error: `module-cycle`.
+5. new rule module.cycle.diagnostic.loop: the diagnostic shows one shortest loop through the first edge that enters the group's first module from another folder, each edge with its `use` line, and the group's size.
+6. new rule module.cycle.diagnostic.fix: when moving one flat `x.hd` to `x/mod.hd` puts every module of the loop in one folder, it offers that move.
+7. Not adopted (owner: no `pub(super)` now). Was: new rule module.vis.super: `pub(super)` makes a declaration visible to its module's parent and the parent's descendants; a `pub use` of it is an error outside them. `module.vis.no-package-private` stays true: `pub(super)` is not package-wide.
 
 Checklist: grammar adds one modifier form (`pub(super)`, formatter keeps it);
 typing unchanged; patterns, derives and closures unchanged; initialization
