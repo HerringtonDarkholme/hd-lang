@@ -6,8 +6,8 @@
 //! release only; an inlined copy binds by value in every build. Whether `T` is small and
 //! holds no counted leaf is the backend's question; these are the TIR
 //! halves: which parameters the body only reads through
-//! ([`read_only_params`]), the copy ([`promote`]), which calls may run
-//! it ([`promoted_call_in`]), and which an inlined copy may bind by value
+//! ([`read_only_params`]), the copy ([`promote`]), which arguments a call
+//! may promote ([`promotable_args_in`]), and which an inlined copy may bind by value
 //! ([`inline_args`]).
 
 use hd_types::Ty;
@@ -183,18 +183,6 @@ pub fn promote(b: &Body, mask: u64, referent: impl Fn(Ty) -> Ty) -> Body {
         };
     }
     out
-}
-
-/// Whether `Call` `call` of `b` may run its callee's promoted copy, which
-/// takes the parameters in `mask` by value: each such argument is a
-/// read-only `Ref` of a part of a local of `b` no closure captures, whose
-/// only other uses are `Drop`s. The emitter then reads the local's value
-/// for the argument, and the local needs no memory for it. A body with a
-/// suspension point keeps the plain callee.
-/// Uses `b`'s facts made once ([`Promotion`]).
-#[must_use]
-pub fn promoted_call_in(b: &Body, call: usize, mask: u64, facts: &Promotion) -> bool {
-    mask != 0 && promotable_args_in(b, call, facts) & mask == mask
 }
 
 /// The arguments of `Call` `call` of `b` whose values the passes keep
