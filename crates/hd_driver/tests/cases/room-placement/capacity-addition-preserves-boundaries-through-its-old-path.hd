@@ -1,0 +1,14 @@
+# @dump: stdout wat
+# @build: std | std,checked | std,checked,release
+# @helpers: std/rt.bytes/collection_capacity_sum
+# The old helper path is a re-export and addition accepts both boundary orders.
+use std.collections.uniq_list.collection_capacity_sum
+
+pub fn main() -> void $ Console:
+    println(collection_capacity_sum(0, ~usize(0)))
+    println(collection_capacity_sum(~usize(0), 0))
+    println(collection_capacity_sum(7, 9))
+
+# Escaping the function keeps its real body visible to the WAT pricing view.
+pub fn addition() -> fn(usize, usize) -> usize:
+    collection_capacity_sum

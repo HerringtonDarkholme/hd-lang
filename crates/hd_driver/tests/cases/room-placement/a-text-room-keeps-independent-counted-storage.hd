@@ -1,0 +1,15 @@
+# @dump: stdout wat
+# @build: std | std,checked | std,checked,release
+# @helpers: std/rt.bytes/collection_capacity_sum
+# A copyable text sink keeps snapshots independent while each one grows.
+use std.rt.bytes.TextRoom
+use std.rt.bytes.TextSink
+
+pub fn main() -> void $ Console:
+    let mut first = TextRoom.new()
+    first.append_text("value=")
+    let mut second = first
+    first.append_signed(-7)
+    second.append_unsigned(42)
+    println(first.take_text())
+    println(second.take_text())
