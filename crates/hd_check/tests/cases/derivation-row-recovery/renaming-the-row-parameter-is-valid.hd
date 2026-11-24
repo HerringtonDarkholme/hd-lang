@@ -1,0 +1,7 @@
+# @dump: diagnostics
+use std.structure.Structure
+
+struct Holder[$ R]:
+    action: fn() -> void $ R
+
+impl[$ S] Holder[$ S] by Structure
