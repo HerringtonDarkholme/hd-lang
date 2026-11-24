@@ -1708,19 +1708,16 @@ where snapshot files live.
 
 ## Core Layer
 
-`std.core` is the standard library's leaf layer, as Rust's `core` is. It
-holds the primitives and the declarations that every other std module
-builds on. It uses no other module, so every std folder may use it.
+`std.core` holds the primitives and the declarations that the standard
+library builds on. Its imports follow the ordinary module rules.
 
-1. r[module.core.leaf] `std.core` is a folder of its own, and it uses no other module.
-2. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds. It also declares the inline and cold decorators ([`annot.inline.declared.v2`](14-annotations.md#r-annot.inline.declared.v2)), so the runtime modules can use them.
-3. r[module.core.re-exports] `std.ops` re-exports `Copy`, `std.cmp` re-exports `Eq`, and `std.hash` re-exports `Hash` and `Hasher`, so `use std.hash.Hasher` names the declaration in `std.core`.
-4. r[module.core.prelude] `std.core` sees only its own prelude names, the `std.core` row of the [prelude](#prelude).
-5. r[module.core.hint] An import hint for a name that `std.core` declares and another std module re-exports names the re-exporting module.
+1. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds. It also declares the inline and cold decorators ([`annot.inline.declared.v2`](14-annotations.md#r-annot.inline.declared.v2)), so the runtime modules can use them.
+2. r[module.core.re-exports] `std.ops` re-exports `Copy`, `std.cmp` re-exports `Eq`, and `std.hash` re-exports `Hash` and `Hasher`, so `use std.hash.Hasher` names the declaration in `std.core`.
+3. r[module.core.prelude] `std.core` sees only its own prelude names, the `std.core` row of the [prelude](#prelude).
+4. r[module.core.hint] An import hint for a name that `std.core` declares and another std module re-exports names the re-exporting module.
 
 > **Why.** `List` and `Map` name these traits, so a module that names
-> `List` depends on them. With the traits in `std.core`, a std module that
-> needs only the core names never depends on the rest of std.
+> `List` depends on them.
 
 ## Runtime Modules
 
@@ -1739,7 +1736,7 @@ pub fn main() -> void:
 2. r[module.rt.std-only] Only a module of the standard library may use a runtime module, or a name declared in one.
 3. r[module.rt.std-only.error] So a use declaration in any other package whose path names a runtime module, or a name inside one, is an error. Error: `std-only-use`.
 4. r[module.rt.core-prelude] A runtime module sees only the `std.core` row of the [prelude](#prelude). It imports any other name it uses.
-5. r[module.rt.leaf] The runtime modules of the folder `lib/std/rt` use only `std.core` and each other, so with [`std.core`](#core-layer) they form std's leaf layer, and every std module may use them.
+5. r[module.rt.leaf] The runtime modules of the folder `lib/std/rt` use only `std.core` and each other, and every std module may use them.
 6. r[module.rt.bytes] `std.rt.bytes` declares, with `pub`, each byte, text, and panic [primitive](../std/README.md#standard-library-primitives) that more than one std module calls. Each std module that calls one imports it from there, so each primitive is declared once.
 7. r[module.rt.entry] `std.rt.entry` holds the hd that reports an entry's or a test case's result. It uses std modules outside the leaf layer, so it is a folder of its own, `rt/entry`, above them.
 

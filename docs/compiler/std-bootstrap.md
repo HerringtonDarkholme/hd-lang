@@ -158,7 +158,7 @@ needs no self-derivation.
 
 | Layer | Modules | Uses layers |
 | --- | --- | --- |
-| `std.core` (`lib/std/core`) | `std.core` from `core/mod.hd`: the seeded names, and `Copy`, `Eq`, `Hash`, `Hasher` | none |
+| `std.core` (`lib/std/core`) | `std.core` from `core/mod.hd`: the seeded names, and `Copy`, `Eq`, `Hash`, `Hasher` | ordinary module imports |
 | `std` (`lib/std`) | the root files other than `prelude.hd` and `testing.hd` | `std.core`, `std.rt` (`std.rt.bytes`) |
 | `std.rt` (`lib/std/rt`) | `std.rt.bytes`, `std.rt.memory`, `std.rt.alloc`, `std.rt.cycle` | `std.core` |
 | `std.rt.entry` (virtual `rt/entry/mod.hd`) | `std.rt.entry` | `std`, `std.core` |
@@ -167,18 +167,18 @@ needs no self-derivation.
 | `std.testing` (`lib/std/testing`) | `std.testing` from `testing.hd`, plus `std.testing.arbitrary` | `std` |
 | `std.prelude` (`lib/std/prelude`) | `std.prelude` from `prelude.hd`, plus `std.prelude.testing` | `std`; `std.testing`, through the test-only re-export of `it` |
 
-The graph is acyclic. `testing.hd` and `testing/arbitrary.hd` are a parent
-and its child, so their loop is legal
+Module loops follow the sibling-group rule. `testing.hd` and
+`testing/arbitrary.hd` are a parent and its child, so their loop is legal
 ([`module.cycle.sibling-group.siblings`](../../spec/lang/10-modules.md#r-module.cycle.sibling-group.siblings)).
 The compiler's units are module groups, not these layers
 (`crates/hd_resolve/DESIGN.md` §4.8); the table shows std's layers.
 
-`std.core` and `std.rt` are std's leaf layer
-([`module.core.leaf`](../../spec/lang/10-modules.md#r-module.core.leaf),
-[`module.rt.leaf`](../../spec/lang/10-modules.md#r-module.rt.leaf)).
 `std.core` declares the traits that `List` and `Map` name, which `std.ops`,
-`std.cmp` and `std.hash` re-export. A module of either layer sees only
-`std.core`'s prelude row, so neither reaches the root layer. The entry
+`std.cmp` and `std.hash` re-export. It follows ordinary module imports.
+Runtime modules still import only core and each other
+([`module.rt.leaf`](../../spec/lang/10-modules.md#r-module.rt.leaf)).
+Core and runtime modules see only `std.core`'s prelude row; explicit
+imports determine their other dependencies. The entry
 glue (`hd_driver::RT_SOURCE`, module `std.rt.entry`) and the checked
 runtime use `std.format`, `std.process`, `std.error` and `std.json`, so
 each is a layer of its own under `rt/`, above the root. Every other
