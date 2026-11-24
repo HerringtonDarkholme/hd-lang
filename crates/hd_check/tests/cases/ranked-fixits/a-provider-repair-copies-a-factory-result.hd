@@ -1,0 +1,23 @@
+# @dump: diagnostics fixed
+
+trait Clock:
+    fn tick(&mut self) -> i64
+
+struct ManualClock:
+    now: i64
+
+impl Clock for ManualClock:
+    fn tick(&mut self) -> i64:
+        self.now = self.now + 1
+        self.now
+
+fn stamp() -> i64 $ Clock:
+    $.use(Clock).tick()
+
+fn make() -> *ManualClock:
+    box(ManualClock { now: 0 })
+
+fn run() -> i64:
+    let clock: *ManualClock = make()
+    $.with(Clock=clock):
+        stamp()
