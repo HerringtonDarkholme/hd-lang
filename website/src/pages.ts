@@ -49,6 +49,7 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["collections", "Collections"],
   ["console", "Console"],
   ["contract", "Contract"],
+  ["convert", "Conversions"],
   ["crypto", "Crypto"],
   ["encoding", "Encoding"],
   ["error", "Error"],
