@@ -4212,10 +4212,12 @@ impl Em<'_, '_, '_> {
 
     /// `std.rt.memory`'s typed intrinsics on the heap (`module.rt.ptr.*`).
     /// A `Ptr[T]` is its address, and a `T` there has the layout of a
-    /// list's element of `T`, so `size_of` is that size and `offset` one
-    /// multiply and add.
+    /// list's element of `T`, so `size_of` and `align_of` are that size
+    /// and alignment, `needs_drop` whether counting a `T` does anything
+    /// (`hd_layout::counted`), and `offset` one multiply and add.
     fn ptr(&mut self, i: u32, key: &str, targs: TyList, args: &[u32]) -> StageResult<()> {
-        // Each is a method of `impl[T] Ptr[T]` or `size_of[T]`.
+        // Each is a method of `impl[T] Ptr[T]`, or `size_of[T]`,
+        // `align_of[T]` or `needs_drop[T]`.
         let targs = self.pool().list_items(targs);
         let t = targs[targs.len() - 1];
         let m = crate::layout::mem(self.pool(), self.env(), t)?;
@@ -4225,6 +4227,11 @@ impl Em<'_, '_, '_> {
             self.f.u32(m.size);
             self.f.op(I::I32Mul);
             self.f.op(I::I32Add);
+        } else if key == "ptr_align_of" {
+            self.f.u32(m.align);
+        } else if key == "ptr_needs_drop" {
+            let counted = crate::layout::counted(self.pool(), self.env(), t);
+            self.f.u32(u32::from(counted));
         } else {
             self.f.u32(m.size);
         }

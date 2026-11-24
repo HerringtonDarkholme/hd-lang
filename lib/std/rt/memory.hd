@@ -164,6 +164,18 @@ impl[T < ?Copy] Ptr[T]:
 pub fn size_of[T < ?Copy]() -> usize:
     panic("intrinsic")
 
+## The alignment, in bytes, at which the heap places a value of `T`.
+## See [module.rt.ptr.align-of](../../../spec/lang/10-modules.md#r-module.rt.ptr.align-of).
+@intrinsic("ptr_align_of")
+pub fn align_of[T < ?Copy]() -> usize:
+    panic("intrinsic")
+
+## Whether dropping a value of `T` does anything: it holds a counted reference or a `Drop` value.
+## See [module.rt.ptr.needs-drop](../../../spec/lang/10-modules.md#r-module.rt.ptr.needs-drop).
+@intrinsic("ptr_needs_drop")
+pub fn needs_drop[T < ?Copy]() -> bool:
+    panic("intrinsic")
+
 ## Raw memory with one owner: room for `capacity()` values of `T`. It knows nothing about the values in it: dropping it frees the room and drops none of them.
 ## See [module.rt.buffer.type](../../../spec/lang/10-modules.md#r-module.rt.buffer.type).
 pub struct Buffer[T < ?Copy]:

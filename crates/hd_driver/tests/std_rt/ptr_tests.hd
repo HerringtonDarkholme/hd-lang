@@ -6,9 +6,11 @@
 use std.rt.memory.{
     Buffer,
     Ptr,
+    align_of,
     grow,
     load_u8,
     load_u32,
+    needs_drop,
     new_string,
     pages,
     size_of,
@@ -69,6 +71,27 @@ tests:
         assert(size_of::[i64]() == 8, "i64")
         assert(size_of::[f64]() == 8, "f64")
         assert(size_of::[Body]() >= 13, "a struct holds its fields")
+
+    it("align_of gives a power of two that divides the size"):
+        assert(align_of::[u8]() == 1, "u8")
+        assert(align_of::[u16]() == 2, "u16")
+        assert(align_of::[u32]() == 4, "u32")
+        assert(align_of::[u64]() == 8, "u64")
+        assert(align_of::[f64]() == 8, "f64")
+        assert(align_of::[(u32, u32)]() == 4, "a pair of u32 aligns as one")
+        assert(align_of::[Body]() == 8, "a struct aligns as its widest field")
+        assert(size_of::[Body]() % align_of::[Body]() == 0, "the size is a multiple")
+
+    it("needs_drop is true only where dropping a value does something"):
+        assert(!needs_drop::[i64](), "a number")
+        assert(!needs_drop::[Body](), "a struct of numbers")
+        assert(!needs_drop::[(u32, bool)](), "a tuple of numbers")
+        assert(!needs_drop::[&Body](), "a local reference counts nothing")
+        assert(needs_drop::[string](), "a string")
+        assert(needs_drop::[List[i32]](), "a list")
+        assert(needs_drop::[*Body](), "a counted reference")
+        assert(needs_drop::[Option[string]](), "a payload that needs it")
+        assert(needs_drop::[Buffer[u8]](), "a Drop value")
 
     it("offset moves by whole values of T"):
         let p: Ptr[i64] = Ptr { address: 1000 }
