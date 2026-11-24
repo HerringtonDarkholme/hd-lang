@@ -308,12 +308,17 @@ fn module_texts(
     Ok(texts)
 }
 
-/// The standard library's modules, `text` for `lib/std/text.hd`, with the
-/// source embedded in the driver.
+/// The standard library's modules, `text` for `lib/std/text.hd` and
+/// `collections` for `lib/std/collections/mod.hd`, with the source
+/// embedded in the driver.
 fn std_names() -> Vec<(String, &'static str)> {
     hd_driver::STD_FILES
         .iter()
-        .filter_map(|(path, text)| Some((path.strip_suffix(".hd")?.replace('/', "."), *text)))
+        .filter_map(|(path, text)| {
+            let path = path.strip_suffix(".hd")?;
+            let path = path.strip_suffix("/mod").unwrap_or(path);
+            Some((path.replace('/', "."), *text))
+        })
         .collect()
 }
 

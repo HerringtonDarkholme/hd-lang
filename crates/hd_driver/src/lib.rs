@@ -1422,6 +1422,18 @@ type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 /// and its trait, `None` for a tuple template.
 type UnitTemplate = (String, Option<DefId>);
 
+/// What a key reads of a unit's closure, folded once per unit in
+/// dependency order (a Merkle digest, as a content-addressed build hashes
+/// a node over its inputs' hashes): the paths and deep hashes, the names
+/// hashes, and the user template modules of the closure. A key then
+/// hashes the digests of the units it reads directly, not each unit of
+/// their closures. Cost: O(direct uses + templates) per unit, once.
+struct Digest {
+    deep: Hash128,
+    names: Hash128,
+    templates: Arc<[UnitTemplate]>,
+}
+
 /// One tuple template's member steps, computed once (`crates/hd_check/DESIGN.md` (trait solver)
 /// §3.9); `None` for a template whose body does not check.
 type PlanCell = Arc<OnceLock<Option<Arc<[MemberStep]>>>>;
@@ -1805,6 +1817,10 @@ struct Run<'a> {
     files: skims::FileSkims<'a>,
     /// Each module's row of the last check run of its kind (`rows`).
     rows: rows::ModuleRows<'a>,
+    /// The units' rows of the same records ([`rows::UnitRows`]).
+    unit_rows: rows::UnitRows<'a>,
+    /// Per unit: its closure digests ([`Run::digest`]), set once.
+    digests: Vec<OnceLock<Option<Arc<Digest>>>>,
     skim: Vec<OnceLock<SkimOut>>,
     parse: Vec<OnceLock<Parse>>,
     /// The module graph and its units, built before the run
@@ -2881,6 +2897,8 @@ fn build_packages_inner(
         k.finish()
     });
     let rows = rows::ModuleRows::new(host.store, toolchain, &identities, kind, n);
+    let unit_rows =
+        rows::UnitRows::new(host.store, toolchain, &identities, kind, table.units.len());
     let run = Run {
         lint: analysis::Lint::new(analysis, n),
         host,
@@ -2962,6 +2980,8 @@ fn build_packages_inner(
             .collect(),
         files,
         rows,
+        unit_rows,
+        digests: (0..nf).map(|_| OnceLock::new()).collect(),
         skim: skims.into_iter().map(OnceLock::from).collect(),
         parse: (0..n).map(|_| OnceLock::new()).collect(),
         graph,
@@ -3113,6 +3133,7 @@ fn build_packages_inner(
     };
     let records = phase("records");
     run.rows.finish(&run.table);
+    run.unit_rows.finish(&run.table);
     if let Some(hit) = run.files.finish(&run.table) {
         let mut c = lock(&run.counters);
         let kind = EntryKind::Depfiles.as_str();
@@ -4382,6 +4403,90 @@ impl Run<'_> {
         out
     }
 
+    /// Unit `f`'s [`Digest`]: `None` while a unit of its closure has no
+    /// interface. Folded in post order with an explicit stack, so the
+    /// depth of the unit graph never sets a native stack depth; each
+    /// unit's digest is set once and shared. Cost: O(the units and edges
+    /// not yet folded).
+    fn digest(&self, f: UnitId) -> Option<Arc<Digest>> {
+        if let Some(d) = self.digests[f.idx()].get() {
+            return d.clone();
+        }
+        let mut seen: HashSet<UnitId> = HashSet::default();
+        let mut stack = vec![(f, false)];
+        seen.insert(f);
+        while let Some((u, ready)) = stack.pop() {
+            if self.digests[u.idx()].get().is_some() {
+                continue;
+            }
+            let uses = &self.graph.uses[u.idx()];
+            if !ready {
+                stack.push((u, true));
+                for &v in uses {
+                    if self.digests[v.idx()].get().is_none() && seen.insert(v) {
+                        stack.push((v, false));
+                    }
+                }
+                continue;
+            }
+            let d = self.fold_digest(u, uses);
+            let _ = self.digests[u.idx()].set(d);
+        }
+        self.digests[f.idx()].get().cloned().flatten()
+    }
+
+    /// Unit `u`'s digest over its own interface and the digests of `uses`,
+    /// each set already.
+    fn fold_digest(&self, u: UnitId, uses: &[UnitId]) -> Option<Arc<Digest>> {
+        let iface = self.iface_of(u)?;
+        let mut deps: Vec<Arc<Digest>> = Vec::with_capacity(uses.len());
+        let mut order: Vec<UnitId> = uses.iter().copied().filter(|v| *v != u).collect();
+        order.sort_stable_by_key(|v| v.raw());
+        order.dedup();
+        for v in &order {
+            deps.push(self.digests[v.idx()].get().cloned().flatten()?);
+        }
+        let mut deep = hd_base::StableHasher::new("closure-deep");
+        deep.str(&self.table.units[u.idx()].path);
+        deep.hash(iface.deep_hash);
+        let mut names = hd_base::StableHasher::new("closure-names");
+        names.hash(iface.names_hash);
+        for d in &deps {
+            deep.hash(d.deep);
+            names.hash(d.names);
+        }
+        let own = self.own_templates(u, &iface);
+        let templates = match (
+            own.is_empty(),
+            deps.iter().find(|d| !d.templates.is_empty()),
+        ) {
+            (true, None) => Arc::from([]),
+            (true, Some(only))
+                if deps.iter().all(|d| {
+                    d.templates.is_empty() || Arc::ptr_eq(&d.templates, &only.templates)
+                }) =>
+            {
+                Arc::clone(&only.templates)
+            }
+            _ => {
+                let mut all: Vec<UnitTemplate> = own.to_vec();
+                for d in &deps {
+                    all.extend(d.templates.iter().cloned());
+                }
+                all.sort_stable_by(|a, b| {
+                    (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw)))
+                });
+                all.dedup();
+                Arc::from(all)
+            }
+        };
+        Some(Arc::new(Digest {
+            deep: deep.finish(),
+            names: names.finish(),
+            templates,
+        }))
+    }
+
     /// The units `starts` reach, as a mask over the units: for the few
     /// whole-run scopes. Cost: O(units + the reached edges).
     fn reach_mask(&self, starts: impl IntoIterator<Item = UnitId>) -> Vec<bool> {
@@ -4580,19 +4685,33 @@ impl Run<'_> {
     fn unit_iface(&self, fi: usize) {
         let unit = &self.table.units[fi];
         let fid = unit.id;
-        let reach: Vec<UnitId> = self
-            .closure(fid)
-            .into_iter()
-            .filter(|c| *c != fid)
-            .collect();
+        // A unit whose direct uses all have a digest has every interface
+        // of its closure: O(direct uses), not O(closure).
+        if self.graph.uses[fi]
+            .iter()
+            .any(|&c| c != fid && self.digest(c).is_none())
+        {
+            self.blocked(Stage::UnitIface);
+            let _ = self.iface[fi].set(None);
+            return;
+        }
+        // A REPL input's interface carries every item it declares, for
+        // later inputs, which see them whatever their `pub`. Its session
+        // scope reads the earlier inputs outside the world, so its key
+        // keeps every unit of its closure.
+        let input = unit
+            .modules
+            .iter()
+            .any(|m| self.repl_number(m.idx()).is_some());
         let mut reach_hashes = Vec::new();
-        for c in &reach {
-            if let Some(i) = self.iface_of(*c) {
+        if input {
+            for c in self.closure(fid).into_iter().filter(|c| *c != fid) {
+                let Some(i) = self.iface_of(c) else {
+                    self.blocked(Stage::UnitIface);
+                    let _ = self.iface[fi].set(None);
+                    return;
+                };
                 reach_hashes.push((self.table.units[c.idx()].path.as_str(), i.deep_hash));
-            } else {
-                self.blocked(Stage::UnitIface);
-                let _ = self.iface[fi].set(None);
-                return;
             }
         }
         let own = self.reads_key(fi);
@@ -4603,25 +4722,9 @@ impl Run<'_> {
         // unchanged module's clean parse is a `parse` entry, so this
         // parses only edited modules.
         let broken = !self.unit_parses(fi);
-        // A REPL input's interface carries every item it declares, for
-        // later inputs, which see them whatever their `pub`. Its session
-        // scope reads the earlier inputs outside the world, so its key
-        // keeps every unit of its closure.
-        let input = unit
-            .modules
-            .iter()
-            .any(|m| self.repl_number(m.idx()).is_some());
         if !input && !broken && self.take_reused(fi, own) {
             return;
         }
-        let (stored, _owed_reads) = if input || broken {
-            (None, None)
-        } else {
-            match self.lookup_owed(EntryKind::Iface, own) {
-                Ok(s) => (s.into_iter().next(), None),
-                Err(owed) => (None, Some(owed)),
-            }
-        };
         let key_of = |reads: &[(String, bool)]| {
             if input {
                 iface_key(own, &reach_hashes)
@@ -4630,6 +4733,29 @@ impl Run<'_> {
                 let rows: Vec<(&str, Hash128)> =
                     answers.iter().map(|(m, h)| (m.as_str(), *h)).collect();
                 iface_key(own, &rows)
+            }
+        };
+        // The unit's row: when its reads answer as last run, its
+        // interface is the row's, and no entry is read.
+        if !input
+            && !broken
+            && let Some((key, sections)) = self.unit_rows.iface(&self.table, fi, own)
+            && let Some((reads, sections)) = sections.split_first()
+            && let Some(reads) = decode_reads(reads)
+            && key_of(&reads) == key
+            && let Some(mentions) = self.iface_hit(fi, sections, None)
+        {
+            if let Some(diags) = sections.get(1).and_then(|d| decode_iface_diags(d)) {
+                self.leave_reused(fi, own, reads, key, diags, &mentions);
+            }
+            return;
+        }
+        let (stored, _owed_reads) = if input || broken {
+            (None, None)
+        } else {
+            match self.lookup_owed(EntryKind::Iface, own) {
+                Ok(s) => (s.into_iter().next(), None),
+                Err(owed) => (None, Some(owed)),
             }
         };
         let last = stored.as_deref().and_then(decode_reads);
@@ -4651,6 +4777,10 @@ impl Run<'_> {
                 sections.get(1).and_then(|d| decode_iface_diags(d)),
             ) {
                 self.leave_reused(fi, own, reads.clone(), key, diags, &mentions);
+            }
+            if let Some(reads) = stored.as_deref().filter(|_| !input) {
+                self.unit_rows
+                    .record_iface(&self.table, fi, (own, key), reads, &sections);
             }
             let m = unit.modules[0].idx();
             self.keep_input(
@@ -4760,6 +4890,15 @@ impl Run<'_> {
             if stored.as_deref() != Some(bytes.as_slice()) {
                 self.put(EntryKind::Iface, own, &[&bytes]);
             }
+            self.unit_rows.record_iface(
+                &self.table,
+                fi,
+                (own, key),
+                &bytes,
+                &[
+                    &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
+                ],
+            );
         }
         self.keep_input(
             unit.modules[0].idx(),
@@ -5640,17 +5779,12 @@ impl Run<'_> {
     /// impl universe, taken when the task starts (`crates/hd_check/DESIGN.md` (trait solver) §3.2).
     fn header_check(&self, fi: usize) {
         let fid = self.table.units[fi].id;
-        let (Some(own), Some(all)) = (self.iface_of(fid), self.closure_ifaces(fid)) else {
+        // The digest is `None` while a unit of the closure has no interface.
+        let (Some(own), Some(digest)) = (self.iface_of(fid), self.digest(fid)) else {
             self.blocked(Stage::HeaderCheck);
             return;
         };
-        let closure = self.closure(fid);
         let unit = &self.table.units[fi];
-        let reach: Vec<(&str, Hash128)> = closure
-            .iter()
-            .zip(&all)
-            .map(|(c, i)| (self.table.units[c.idx()].path.as_str(), i.deep_hash))
-            .collect();
         // A tuple template's member steps come from its body, which no
         // interface carries (`crates/hd_check/DESIGN.md` (trait solver) §3.9): its source is a
         // dependency of the findings, as it is of a module's check.
@@ -5658,8 +5792,8 @@ impl Run<'_> {
             self.blocked(Stage::HeaderCheck);
             return;
         };
-        let reach: Vec<(&str, Hash128)> = reach
-            .into_iter()
+        // The closure's paths and deep hashes, as one digest.
+        let reach: Vec<(&str, Hash128)> = std::iter::once(("$closure", digest.deep))
             .chain(templates.iter().map(|(p, h)| (p.as_str(), *h)))
             .collect();
         // A test's fuel budget for the root package ([`Packages::body_fuel`])
@@ -5675,9 +5809,7 @@ impl Run<'_> {
             k.hash(own.deep_hash);
             k.hash(own.heads_hash);
             k.hash(self.reads_key(fi));
-            for i in &all {
-                k.hash(i.names_hash);
-            }
+            k.hash(digest.names);
             if let Some(fuel) = test_fuel {
                 k.u64(fuel);
             }
@@ -5693,28 +5825,31 @@ impl Run<'_> {
         // A unit with a module that does not parse is checked every
         // run and never stored (`unit_iface`, #310).
         let parses = self.unit_parses(fi);
+        // The unit's row first: an unchanged unit reads no entry.
+        if parses
+            && let Some(sections) = self.unit_rows.header(&self.table, fi, key)
+            && self.header_hit(fi, &own, &sections)
+        {
+            return;
+        }
         let mut _owed = None;
         if parses
             && let Some(sections) = self
                 .lookup_owed(EntryKind::Graph, key)
                 .map_err(|owed| _owed = Some(owed))
                 .ok()
-            && let Some(found) = sections
-                .first()
-                .and_then(|b| decode_header_findings(b, &own.items))
-            && let Some(uses) = sections.get(1).and_then(|b| decode_iface_diags(b))
+            && self.header_hit(fi, &own, &sections)
         {
-            lock(&self.report).ok(Stage::HeaderCheck);
-            self.emit_iface_diags(fi, &uses);
-            self.emit_findings(&found);
-            self.keep_input(
-                unit.modules[0].idx(),
-                |e| &mut e.header,
-                || sections.iter().map(|section| section.to_vec()).collect(),
-            );
+            self.unit_rows
+                .record_header(&self.table, fi, key, &sections);
             return;
         }
         self.computed(Stage::HeaderCheck);
+        let closure = self.closure(fid);
+        let Some(all) = self.closure_ifaces(fid) else {
+            self.blocked(Stage::HeaderCheck);
+            return;
+        };
         let names = self.names();
         // The uses' diagnostics (#248), reported whatever stage B finds.
         let mods: Vec<hd_resolve::ModIn<'_>> =
@@ -5766,6 +5901,8 @@ impl Run<'_> {
         let bytes = encode_header_findings(&findings, &lookup.own_index);
         if parses {
             self.put(EntryKind::Graph, key, &[&bytes, &uses]);
+            self.unit_rows
+                .record_header(&self.table, fi, key, &[&bytes, &uses]);
         }
         self.keep_input(
             unit.modules[0].idx(),
@@ -5773,6 +5910,28 @@ impl Run<'_> {
             || vec![bytes, uses],
         );
         self.emit_findings(&findings);
+    }
+
+    /// Replays unit `fi`'s stored header findings, the sections of its
+    /// `graph` entry or of its row. Whether they decoded.
+    fn header_hit(&self, fi: usize, own: &UnitIface, sections: &[CacheSection]) -> bool {
+        let (Some(found), Some(uses)) = (
+            sections
+                .first()
+                .and_then(|b| decode_header_findings(b, &own.items)),
+            sections.get(1).and_then(|b| decode_iface_diags(b)),
+        ) else {
+            return false;
+        };
+        lock(&self.report).ok(Stage::HeaderCheck);
+        self.emit_iface_diags(fi, &uses);
+        self.emit_findings(&found);
+        self.keep_input(
+            self.table.units[fi].modules[0].idx(),
+            |e| &mut e.header,
+            || sections.iter().map(|section| section.to_vec()).collect(),
+        );
+        true
     }
 
     fn emit_findings(&self, findings: &[hd_check::header::Finding]) {
@@ -6455,11 +6614,16 @@ impl Run<'_> {
     fn check_key(&self, m: usize) -> Option<Hash128> {
         let module = &self.table.modules[m];
         let templates = self.template_sources(m)?;
+        // The units the check reads directly, each with its closure's
+        // digest: O(those units), not O(their closures).
+        let mut units = self.module_units(m);
+        units.sort_stable_by_key(|u| u.raw());
+        units.dedup();
         let mut closure = Vec::new();
-        for c in self.module_closure(m) {
+        for c in units {
             closure.push((
                 self.table.units[c.idx()].path.as_str(),
-                self.iface_of(c)?.deep_hash,
+                self.digest(c)?.deep,
             ));
         }
         closure.extend(templates.iter().map(|(p, h)| (p.as_str(), *h)));
@@ -6530,9 +6694,16 @@ impl Run<'_> {
         // The text is read only for a module that may opt in and a
         // closure with a user template to opt in to.
         let opts_in = self.skim_of(m).file.derives;
-        let closure = self.module_closure(m);
-        self.template_hashes(&closure, &|trait_| {
-            opts_in && self.names_trait(&closure, &self.texts[m], trait_)
+        // The closure is walked only to find a trait's `pub use` names,
+        // for a module that opts in to a derivation template.
+        let closure = std::cell::OnceCell::new();
+        self.template_hashes(&self.module_units(m), &|trait_| {
+            opts_in
+                && self.names_trait(
+                    closure.get_or_init(|| self.module_closure(m)),
+                    &self.texts[m],
+                    trait_,
+                )
         })
     }
 
@@ -6556,52 +6727,24 @@ impl Run<'_> {
     /// modules' text is all that is missing. std's templates are in the
     /// toolchain key.
     fn tuple_template_sources(&self, unit: UnitId) -> Option<Vec<(String, Hash128)>> {
-        self.template_hashes(&self.closure(unit), &|_| false)
+        self.template_hashes(&[unit], &|_| false)
     }
 
     /// The template text hashes (`HeaderSkeleton::template_text_hash`) of
-    /// the user template modules in `closure`: every module with a tuple
+    /// the user template modules in the closures of `units`, from their
+    /// digests: every module with a tuple
     /// template, and every module with a derivation template whose trait
     /// `wanted` takes. A body edit outside the template and outside every
     /// function whose signature it infers keeps the hash.
     fn template_hashes(
         &self,
-        closure: &[UnitId],
+        units: &[UnitId],
         wanted: &dyn Fn(DefId) -> bool,
     ) -> Option<Vec<(String, Hash128)>> {
         let mut out = std::collections::BTreeMap::new();
-        for &c in closure {
-            let iface = self.iface_of(c)?;
-            let templates = self.unit_templates[c.idx()].get_or_init(|| {
-                // From the item index: only a template's record is read (#213).
-                let items = &iface.items;
-                let mut ts: Vec<UnitTemplate> = (0..items.len())
-                    .filter_map(|i| {
-                        let (kind, _) = items.impl_kind(i)?;
-                        let template = match kind {
-                            hd_resolve::ImplKind::Template => true,
-                            hd_resolve::ImplKind::TupleTemplate
-                            | hd_resolve::ImplKind::UnionTemplate => false,
-                            _ => return None,
-                        };
-                        let p = self.item_module_text(*items.defs().get(i)?).into_owned();
-                        if p.starts_with("std.") {
-                            return None;
-                        }
-                        let trait_ = match items.get(i)?.data {
-                            ItemData::Impl { trait_, .. } if template => Some(trait_),
-                            _ => None,
-                        };
-                        Some((p, trait_))
-                    })
-                    .collect();
-                ts.sort_stable_by(|a, b| {
-                    (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw)))
-                });
-                ts.dedup();
-                ts
-            });
-            for (p, trait_) in templates {
+        for &c in units {
+            let digest = self.digest(c)?;
+            for (p, trait_) in digest.templates.iter() {
                 if trait_.is_some_and(|t| !wanted(t)) {
                     continue;
                 }
@@ -6614,6 +6757,37 @@ impl Run<'_> {
             }
         }
         Some(out.into_iter().collect())
+    }
+
+    /// The user template modules unit `c`'s own interface declares, read
+    /// from its item index (only a template's record is read, #213).
+    fn own_templates(&self, c: UnitId, iface: &UnitIface) -> &[UnitTemplate] {
+        self.unit_templates[c.idx()].get_or_init(|| {
+            let items = &iface.items;
+            let mut ts: Vec<UnitTemplate> = (0..items.len())
+                .filter_map(|i| {
+                    let (kind, _) = items.impl_kind(i)?;
+                    let template = match kind {
+                        hd_resolve::ImplKind::Template => true,
+                        hd_resolve::ImplKind::TupleTemplate
+                        | hd_resolve::ImplKind::UnionTemplate => false,
+                        _ => return None,
+                    };
+                    let p = self.item_module_text(*items.defs().get(i)?).into_owned();
+                    if p.starts_with("std.") {
+                        return None;
+                    }
+                    let trait_ = match items.get(i)?.data {
+                        ItemData::Impl { trait_, .. } if template => Some(trait_),
+                        _ => None,
+                    };
+                    Some((p, trait_))
+                })
+                .collect();
+            ts.sort_stable_by(|a, b| (&a.0, a.1.map(DefId::raw)).cmp(&(&b.0, b.1.map(DefId::raw))));
+            ts.dedup();
+            ts
+        })
     }
 
     /// A module's cache claim covers its complete check and put on this
