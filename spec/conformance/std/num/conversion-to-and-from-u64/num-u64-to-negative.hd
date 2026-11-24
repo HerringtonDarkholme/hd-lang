@@ -1,5 +1,5 @@
 # test: to_u64 panics on a negative value
-# Spec std/num Conversion To And From u64: std-num.u64.checked.
+# Spec std/num Conversion To And From u64: std-num.u64.checked, std-num.try-from.panicking.
 use std.num.Integer
 
 fn widen[N < Integer](n: N) -> u64:

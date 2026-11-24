@@ -1942,3 +1942,9 @@ impl f32:
     ## See [std-num.float-math.tan](../../spec/std/num.md#r-std-num.float-math.tan).
     pub fn tan(self) -> f32:
         f32(f64(self).tan())
+
+## An integer conversion failed because the value is outside the destination type's range.
+## See [std-num.try-from.error](../../spec/std/num.md#r-std-num.try-from.error).
+@derive(Debug, Eq)
+@error("out of range integral type conversion attempted")
+pub struct TryFromIntError: pass
