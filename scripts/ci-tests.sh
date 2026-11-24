@@ -37,10 +37,16 @@ while IFS=$'\t' read -r -u 3 dir name exe; do
   # A hung binary is stopped after ${CI_TEST_LIMIT:-600} s and named, so the
   # job ends with a log instead of hitting its own time limit (run
   # 45277379767 hung for 25 min and kept no log).
+  started=$SECONDS
   time (cd "$root/$dir" && timeout --kill-after=10 "${CI_TEST_LIMIT:-600}" "$root/$exe" "$@")
   code=$?
-  if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
+  # 124 is timeout's own exit; 137 is SIGKILL, from timeout's kill-after only
+  # once the limit has passed, otherwise from outside, such as the runner's
+  # out-of-memory killer (run 45372886461 was killed after 19 s).
+  if [ "$code" -eq 124 ] || { [ "$code" -eq 137 ] && [ $((SECONDS - started)) -ge "${CI_TEST_LIMIT:-600}" ]; }; then
     echo "::error::$dir $name ran over ${CI_TEST_LIMIT:-600} s and was stopped (hung test?)"
+  elif [ "$code" -gt 128 ]; then
+    echo "::error::$dir $name was killed by signal $((code - 128)) after $((SECONDS - started)) s (out of memory?)"
   fi
   [ "$code" -eq 0 ] || status=1
   ran=$((ran + 1))
