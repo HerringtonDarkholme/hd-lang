@@ -1,14 +1,14 @@
 name: Coverage
 
-# Core coverage on its own workflow, every 3 hours on main and by hand
-# (moved out of Test on 2026-11-16). Two core-coverage drops that day (#2065,
-# hd_types; #2071, hd_tir) surfaced only at Test's twice-daily run, one 7.7 h
-# after the commit that caused it. Test's own schedule stays twice a day: it
-# also starts the Windows and macOS host jobs. Coverage stays off push runs:
+# Core coverage on its own workflow, twice a day on main and by hand. It
+# ran every 3 hours from 2026-11-16, but each run takes 46-75 minutes
+# (about 8 runner-hours a day, half of it timed out), so it runs twice a day
+# until #2342 cuts its time. Test's own schedule is also twice a day: it
+# starts the Windows and macOS host jobs. Coverage stays off push runs:
 # three instrumented conformance runs are too slow for every push.
 on:
   schedule:
-    - cron: "53 */3 * * *"
+    - cron: "53 5,17 * * *"
   workflow_dispatch:
 
 permissions:
