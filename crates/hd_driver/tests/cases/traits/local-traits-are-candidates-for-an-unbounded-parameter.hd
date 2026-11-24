@@ -1,0 +1,34 @@
+# @dump: diagnostics
+# Nested and sibling local traits coexist with failed lookup on an unbounded parameter.
+struct Item:
+    n: i32
+
+fn first[T](value: T) -> i32:
+    trait Local:
+        fn amount(self) -> i32
+
+    impl Local for Item:
+        fn amount(self) -> i32:
+            self.n
+
+    value.amount()
+
+fn second[T](value: T) -> i32:
+    trait Sibling:
+        fn amount(self) -> i32
+
+    impl Sibling for Item:
+        fn amount(self) -> i32:
+            self.n + 1
+
+    if true:
+        trait Inner:
+            fn amount(self) -> i32
+
+        impl Inner for Item:
+            fn amount(self) -> i32:
+                self.n + 2
+
+        value.amount()
+    else:
+        value.amount()
