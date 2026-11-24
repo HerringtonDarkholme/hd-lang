@@ -1,0 +1,14 @@
+# test: a `*mut` lent as a `&mut` argument is a reference made through it, so the helper's result that depends on it is not returned
+# Spec 13 Local References: ref.local.pointer.
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+fn forward['a](n: &'a mut Node) -> &'a mut Node:
+    n
+
+impl Holder:
+    fn lend(&self) -> &mut Node:
+        forward(self.item) # diagnostic: local-reference-escapes

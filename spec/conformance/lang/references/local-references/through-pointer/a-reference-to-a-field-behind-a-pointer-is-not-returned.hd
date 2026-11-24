@@ -1,0 +1,11 @@
+# test: a `&self` method may not return a reference to a field of an object behind a `*mut` field
+# Spec 13 Local References: ref.local.pointer.
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+impl Holder:
+    fn value(&self) -> &i32:
+        &self.item.v # diagnostic: local-reference-escapes

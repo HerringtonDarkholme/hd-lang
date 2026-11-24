@@ -1,0 +1,20 @@
+# test: two holders hand out one object; a `&mut` the caller takes through the first holds its loan, so a write through the second while it lives panics
+# Spec 13 Local References: ref.local.pointer; Spec 13 Conflicts Through Aliases: ref.excl.alias.loan, ref.excl.alias.conflict.
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+impl Holder:
+    fn get(&self) -> *mut Node:
+        self.item
+
+pub fn main() -> void $ Console:
+    p := box(Node { v: 1 })
+    h1 := Holder { item: p }
+    h2 := Holder { item: p }
+    a := &mut *h1.get()
+    h2.get().v = 3 # panic: borrow-conflict
+    a.v = 2
+    println("${a.v}")

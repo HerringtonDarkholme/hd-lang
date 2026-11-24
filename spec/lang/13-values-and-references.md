@@ -360,6 +360,27 @@ fn demo(h: Holder) -> i32:
 4. r[ref.local.holding.counted] A counted reference type, `*T` or `*mut T`, holds a local reference when `T` holds one.
 5. r[ref.local.self.keep] A `&self` or `&mut self` receiver is a local reference, so these rules apply to `self` in such a method. A method that keeps `self` takes `*self` or `*mut self` ([Reference Receivers](07-functions.md#reference-receivers)). A `&self` method may still return a value that depends on `self` ([Dependent Results](#dependent-results)).
 6. r[ref.local.escape.counted] A local reference never converts to a counted one. Using one where a counted reference is expected, as for a `*T` parameter or field, is an error. Error: `local-reference-escapes`.
+7. r[ref.local.pointer] A reference made through a counted reference is local to the function that makes it, as a temporary is. That is a `&p` or `&mut p` whose place's path dereferences a `*T` or `*mut T`, and a `*T` or `*mut T` lent as a `&T` or `&mut T`. It is never the function's result, never stored into a place the caller reaches, and never captured by a closure that outlives the call. A function that hands out the object returns the counted reference instead. Error: `local-reference-escapes`, with a fix-it that returns the counted reference where the result is `&*p` or `&mut *p`.
+
+```text
+struct Node:
+    v: i32
+
+struct Holder:
+    item: *mut Node
+
+impl Holder:
+    fn get(&self) -> &mut Node:
+        &mut *self.item    # error: local-reference-escapes
+    fn get_ptr(&self) -> *mut Node:
+        self.item          # valid: the caller takes its own loan
+```
+
+> **Why.** A reference through a `*mut` holds a run-time loan on the
+> object, as Rust's `RefCell::borrow_mut()` guard does. Rust's guard is a
+> temporary, so returning a reference into it is E0515. Here too the loan
+> ends in the function that took it, so a reference past it would alias
+> another holder's `&mut` with no loan to catch it.
 
 A local reference escapes when it reaches one of these positions, and each is an error:
 
@@ -372,9 +393,9 @@ A local reference escapes when it reaches one of these positions, and each is an
 | r[ref.local.escape.capture-stored] Stored closure capture | is captured by a closure outside a direct `fn(...)` argument, a [type parameter field](#r-ref.generic.outlives.field), and a [type parameter argument](#r-ref.generic.outlives.argument), a captured `self` included | `fn() -> i32: p.x` | `local-reference-escapes` |
 | r[ref.local.escape.trait-argument] Trait argument | is a type argument of a trait or a trait value, written or inferred | `dyn Store[&Point]` | `local-reference-escapes` |
 
-7. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
-8. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
-9. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
+8. r[ref.local.escape.position-message] The diagnostic's message names the position the reference escapes to, a row of the table above or a counted reference.
+9. r[ref.local.capture-parameter] A closure supplied directly for a `fn(...)` parameter may capture a local reference under [`fn.capture.local-parameter`](07-functions.md#r-fn.capture.local-parameter).
+10. r[ref.local.capture-origin] Such a function value carries the captured reference's origin while it remains in the call's dependent scope.
 
 ```text
 struct Point:
@@ -717,7 +738,7 @@ fn rename(t: &Team, alias: *mut User) -> void $ Console:
     println(*m)
 ```
 
-1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, or that an optional, tuple or struct holds. It holds it directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or from another such holder by a copy or a move. The loan holds each object that a dereference of a `*mut` or a `*T` in `p`'s path reaches. A `&mut p` holds the last such object exclusively; every other object, and every object of a `&p`, is held shared. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan is live until the last use of every binding that holds it and the release of every value that contains it ([`ref.excl.live`](#r-ref.excl.live)).
+1. r[ref.excl.alias.loan] A **run-time loan** is a `&p` or `&mut p` that a `:=` or `let` binding of type `&T` or `&mut T` holds, or that an optional, tuple or struct holds. It holds it directly, through a call's result that depends on it ([`ref.excl.call`](13-values-and-references.md#r-ref.excl.call)), or from another such holder by a copy or a move. The loan holds each object that a dereference of a `*mut` or a `*T` in `p`'s path reaches. A `&mut p` holds the last such object exclusively; every other object, and every object of a `&p`, is held shared. A `*mut` that a call takes for a `&self` or `&mut self` receiver lends the whole object it refers to. The loan is live until the last use of every binding that holds it and the release of every value that contains it ([`ref.excl.live`](#r-ref.excl.live)). It never outlives the function that takes it, since a reference made through a counted reference is local to it ([`ref.local.pointer`](#r-ref.local.pointer)).
 2. r[ref.excl.alias.counted-access] An **access through a counted reference** is a use of a place whose path dereferences a `*mut` or a `*T`. An assignment, a `&mut` and a built-in change of the place write the object its last dereference reaches; a read and a `&` read it. Every earlier object on the path is read. Passing a `*mut` or a `*T` to a call is no access at run time; the callee's uses of it are.
 3. r[ref.excl.alias.conflict] An access through a counted reference panics when it writes an object a live run-time loan holds, or reads an object a live loan holds exclusively. A loan that the accessing function took through the same pointer, with the same root and path, does not conflict with it. [`ref.excl.place`](#r-ref.excl.place) already checks that pair. Panic: `borrow-conflict`.
 

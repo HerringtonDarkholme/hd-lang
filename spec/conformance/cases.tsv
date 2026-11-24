@@ -6615,6 +6615,16 @@ lang/references/local-references/newtype-trailing-block-cannot-capture-a-local-r
 lang/control-flow/auto-closing-calls/newtype-payload-cannot-store-an-auto-closing-value.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.storage
 lang/references/local-references/variant-callback-cannot-capture-a-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
 lang/references/local-references/variant-trailing-block-cannot-capture-a-local-reference.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.escape.capture-stored
+lang/references/local-references/through-pointer/a-mut-reference-through-a-pointer-field-is-not-returned.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-shared-reference-through-a-pointer-field-is-not-returned.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-reference-to-a-field-behind-a-pointer-is-not-returned.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-reference-through-a-pointer-is-not-returned-through-a-helper.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-pointer-lent-as-a-reference-is-not-returned-through-a-helper.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-reference-through-a-pointer-is-not-stored-in-a-callers-field.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-reference-through-a-pointer-is-not-stored-in-a-callers-list.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-reference-through-a-pointer-is-not-captured-by-an-escaping-closure.hd	type	reject:local-reference-escapes	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/a-method-hands-out-the-pointer-and-the-caller-borrows.hd	runtime	accept	lang/13-values-and-references.md#r-ref.local.pointer
+lang/references/local-references/through-pointer/two-live-references-through-handed-out-pointers-conflict.hd	runtime	panic:borrow-conflict	lang/13-values-and-references.md#r-ref.excl.alias.conflict
 lang/control-flow/auto-closing-calls/variant-payload-cannot-store-an-auto-closing-value.hd	type	reject:unregistered-auto-closing	lang/06-control-flow.md#r-flow.auto-closing.storage
 lang/functions/trailing-callback-blocks/constructor-function-bounds-take-trailing-blocks.hd	runtime	accept	lang/07-functions.md#r-fn.trailing.fn-bound
 lang/functions/trailing-callback-blocks/constructor-function-bound-keeps-read-only-captures.hd	type	reject:not-writable	lang/07-functions.md#r-fn.trailing.fn-bound
