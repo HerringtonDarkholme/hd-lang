@@ -34,14 +34,14 @@ use crate::rt::Helper;
 use hd_layout::shims::Portion;
 
 mod body_facts;
-mod borrow;
+pub(crate) mod borrow;
 pub(crate) use body_facts::{BodyFactCell, prepare as prepare_body_facts};
 mod loan_facts;
 pub(crate) use borrow::lent_receiver_reads;
 pub(crate) use hd_tir::own::pointer::LoanSite;
 pub(crate) use hd_tir::own::pointer::{StorageRoots, global_root};
 mod closure;
-mod control;
+pub(crate) mod control;
 mod count;
 mod ctx;
 pub(crate) use ctx::ctx_lookup;
@@ -58,11 +58,11 @@ mod loan;
 mod map;
 mod promote;
 pub use promote::{Settled, settled};
-mod refs;
+pub(crate) mod refs;
 mod row;
-mod shape;
-mod susp;
-mod susp_spill;
+pub(crate) mod shape;
+pub(crate) mod susp;
+pub(crate) mod susp_spill;
 mod switch;
 mod text;
 mod value;
@@ -749,10 +749,10 @@ impl Reentry {
 
 /// A facts or structure-handle body owns one cached result per instance.
 /// Its flag follows the result globals: 0 empty, 2 evaluating, 1 ready.
-struct OnceCell<'b> {
-    key: Hash128,
-    results: Vec<Val>,
-    fact: Option<&'b str>,
+pub struct OnceCell<'b> {
+    pub key: Hash128,
+    pub results: Vec<Val>,
+    pub fact: Option<&'b str>,
 }
 
 impl OnceCell<'_> {
@@ -765,7 +765,7 @@ impl OnceCell<'_> {
     }
 
     /// Opens the cached path and loads its result, before its retain.
-    fn load_cached(&self, f: &mut Func) -> Vec<u32> {
+    pub fn load_cached(&self, f: &mut Func) -> Vec<u32> {
         f.global_get(self.global(self.results.len()));
         f.i32(1);
         f.op(I::I32Eq);
@@ -778,7 +778,7 @@ impl OnceCell<'_> {
         held
     }
 
-    fn return_cached(f: &mut Func, held: &[u32]) {
+    pub fn return_cached(f: &mut Func, held: &[u32]) {
         for l in held {
             f.get(*l);
         }
@@ -787,7 +787,7 @@ impl OnceCell<'_> {
     }
 
     /// Publishes the values after the global has taken its own count.
-    fn publish(&self, f: &mut Func, held: &[u32]) {
+    pub fn publish(&self, f: &mut Func, held: &[u32]) {
         for (k, l) in held.iter().enumerate() {
             f.get(*l);
             f.global_set(self.global(k));
@@ -862,67 +862,6 @@ impl OnceCell<'_> {
         }
         Ok(())
     }
-}
-
-/// A minimal handle body increments a counter on entry and returns it.
-/// Execute the emitted cache twice: the body must have run only once.
-#[test]
-fn handle_once_cell_runs_its_body_once() {
-    let cell = OnceCell {
-        key: Hash128(616),
-        results: vec![Val::I32],
-        fact: None,
-    };
-    let counter = Global::Storage(Hash128(617), 0, Val::I32);
-    let mut m = Module::default();
-    let mut handle = m.func("handle", vec![], vec![Val::I32]);
-    let cached = cell.load_cached(&mut handle);
-    OnceCell::return_cached(&mut handle, &cached);
-    handle.global_get(counter);
-    handle.i32(1);
-    handle.op(I::I32Add);
-    let result = handle.local(Val::I32);
-    handle.set(result);
-    handle.get(result);
-    handle.global_set(counter);
-    cell.publish(&mut handle, &[result]);
-    handle.get(result);
-    let mut runs = m.func("runs", vec![], vec![Val::I32]);
-    runs.global_get(counter);
-    m.define(Sym::Inst(Hash128(616)), handle);
-    m.export("handle", Sym::Inst(Hash128(616)));
-    m.define(Sym::Inst(Hash128(617)), runs);
-    m.export("runs", Sym::Inst(Hash128(617)));
-    let wasm = m.finish().expect("link counter fixture");
-    let mut child = hd_testkit::node::command()
-        .args([
-            "--input-type=module",
-            "-e",
-            r"
-            const chunks = [];
-            for await (const chunk of process.stdin) chunks.push(chunk);
-            const {instance} = await WebAssembly.instantiate(Buffer.concat(chunks));
-            const first = instance.exports.handle();
-            const second = instance.exports.handle();
-            const runs = instance.exports.runs();
-            if (first !== 1 || second !== 1 || runs !== 1) {
-                throw new Error(JSON.stringify({first, second, runs}));
-            }
-        ",
-        ])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("start Node counter fixture");
-    std::io::Write::write_all(&mut child.stdin.take().expect("fixture stdin"), &wasm)
-        .expect("send counter fixture");
-    let output = child.wait_with_output().expect("run counter fixture");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 /// The parameter locals of closure body `sub`, in order.
@@ -1167,7 +1106,7 @@ pub(super) fn param_locals(b: &Body) -> Vec<usize> {
 
 /// An open Wasm block, for branch depths.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum Ctl {
+pub enum Ctl {
     Plain,
     /// The end of a `Loop`, a `Match` or a labelled `Block`.
     Brk(u32),
@@ -1208,22 +1147,22 @@ struct MapProbe {
 }
 
 #[derive(Clone)]
-struct FrameRefs {
+pub struct FrameRefs {
     local: usize,
-    plan: crate::frame_referents::Plan,
+    pub plan: crate::frame_referents::Plan,
     /// One saved pointer per physical reference slot; zero means it was inactive
     /// when constructed, independent of later parameter-tag mutations.
-    held: Vec<u32>,
-    conditional: Vec<bool>,
+    pub held: Vec<u32>,
+    pub conditional: Vec<bool>,
     /// Layout gives simultaneously live fields distinct physical indices;
     /// logical leaves in disjoint enum arms can share one physical value.
     /// They share its saved owner slot, keeping frame size proportional to
     /// the parameter's physical representation, not its variant count.
-    slots: Vec<usize>,
+    pub slots: Vec<usize>,
 }
 
 impl FrameRefs {
-    fn new(local: usize, plan: crate::frame_referents::Plan, f: &mut Func) -> Self {
+    pub fn new(local: usize, plan: crate::frame_referents::Plan, f: &mut Func) -> Self {
         let mut index = HashMap::default();
         let mut held = Vec::new();
         let mut conditional = Vec::new();
@@ -5457,7 +5396,8 @@ impl Em<'_, '_, '_> {
 }
 
 /// The smallest and largest value of a `bits`-wide integer type.
-pub(crate) const fn int_range(bits: u8, signed: bool) -> (i128, i128) {
+#[must_use]
+pub const fn int_range(bits: u8, signed: bool) -> (i128, i128) {
     if signed {
         (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1)
     } else {
@@ -5469,12 +5409,8 @@ pub(crate) const fn int_range(bits: u8, signed: bool) -> (i128, i128) {
 /// the type's range `(min, max)`; `op` is `+`, `-`, `*`, or unary `-`
 /// read as `0 - x`. The set is one interval, since each operation is
 /// monotonic in `x`.
-pub(crate) fn operand_range(
-    op: PrimOp,
-    c: i128,
-    c_left: bool,
-    (min, max): (i128, i128),
-) -> (i128, i128) {
+#[must_use]
+pub fn operand_range(op: PrimOp, c: i128, c_left: bool, (min, max): (i128, i128)) -> (i128, i128) {
     let floor = |a: i128, b: i128| {
         let q = a / b;
         if a % b != 0 && (a < 0) != (b < 0) {
@@ -5520,69 +5456,4 @@ fn float_unary(name: &str) -> Option<[I; 2]> {
         "sqrt" => [I::F32Sqrt, I::F64Sqrt],
         _ => return None,
     })
-}
-
-#[cfg(test)]
-mod frame_ref_tests {
-    use super::*;
-    use crate::frame_referents::{Guard, Plan, Referent};
-    use crate::layout::{Discr, Leaf};
-
-    #[test]
-    fn disjoint_variants_share_one_saved_owner_per_physical_value() {
-        let discr = Discr {
-            value: 0,
-            leaf: Leaf {
-                offset: 0,
-                val: Val::I32,
-                bytes: 4,
-                signed: false,
-            },
-            enc: Enc::Direct,
-        };
-        let plan = Plan {
-            guards: (0..1_000)
-                .map(|variant| Guard {
-                    parent: None,
-                    discr,
-                    variant,
-                })
-                .collect(),
-            refs: (0..1_000)
-                .map(|variant| Referent {
-                    guard: Some(variant),
-                    value: 1,
-                })
-                .collect(),
-        };
-        let mut f = Func::default();
-        let saved = FrameRefs::new(0, plan, &mut f);
-        assert_eq!(saved.plan.refs.len(), 1_000);
-        assert_eq!(saved.held.len(), 1);
-        assert_eq!(f.locals, [Val::I32]);
-        assert_eq!(saved.conditional, [true]);
-        assert!(saved.slots.iter().all(|&slot| slot == 0));
-    }
-
-    #[test]
-    fn simultaneous_fields_keep_distinct_owners() {
-        let plan = Plan {
-            guards: vec![],
-            refs: vec![
-                Referent {
-                    guard: None,
-                    value: 0,
-                },
-                Referent {
-                    guard: None,
-                    value: 1,
-                },
-            ],
-        };
-        let mut f = Func::default();
-        let saved = FrameRefs::new(0, plan, &mut f);
-        assert_eq!(saved.held.len(), 2);
-        assert_eq!(saved.slots, [0, 1]);
-        assert_eq!(saved.conditional, [false, false]);
-    }
 }

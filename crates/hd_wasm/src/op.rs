@@ -182,6 +182,7 @@ pub enum Op {
 
 impl Op {
     /// Resolves the scalar operation without allocation or information loss.
+    #[must_use]
     pub fn to_wasm(self, labels: &[Vec<u32>]) -> Wasm<'_> {
         match self {
             Self::AtomicFence => Wasm::AtomicFence,

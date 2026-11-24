@@ -45,14 +45,14 @@ pub(super) fn initial(f: &mut Func, area: &[(u32, u32, Val)], selected: &[bool])
 /// Layout offsets are task-relative, whereas `base` addresses the scalar
 /// region itself (so provisional memory needs no fake task prefix).
 #[derive(Clone, Copy)]
-pub(super) struct Plan<'a> {
+pub struct Plan<'a> {
     pub area: &'a [(u32, u32, Val)],
     pub selected: &'a [bool],
     pub start: u32,
     pub size: u32,
 }
 
-pub(super) fn resident(f: &mut Func, plan: Plan<'_>, base: u32, stack: u32, stack_offset: u32) {
+pub fn resident(f: &mut Func, plan: Plan<'_>, base: u32, stack: u32, stack_offset: u32) {
     let Plan {
         area,
         selected,

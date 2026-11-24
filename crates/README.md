@@ -202,8 +202,8 @@ check keys, so it cannot reuse an unchecked result.
   instead, so a test build compiles the library once, not again in test
   mode: `[lib] test = false`, and a `testing` feature, which the crate's
   dev-dependency on itself turns on, exports what they reach
-  (`hd_check/src/testing.rs`, `hd_driver/src/testing.rs`). Run them with
-  `cargo test -p <crate> --test unit`.
+  (`hd_check/src/testing.rs`, `hd_driver/src/testing.rs`,
+  `hd_wasm/src/testing.rs`). Run them with `cargo test -p <crate> --test unit`.
 - Compiler output is tested with stage cases: a plain `.hd` file under
   `crates/<crate>/tests/cases/<topic>/` with its generated output under
   `tests/baselines/<topic>/`. `hd_syntax` (tokens, tree), `hd_check` (tir),

@@ -47,6 +47,8 @@ mod static_data;
 pub mod suspension_work;
 mod tables;
 mod task;
+#[cfg(feature = "testing")]
+pub mod testing;
 pub mod views;
 mod wide;
 pub mod work;
@@ -811,37 +813,6 @@ fn global_source_span(input: &Input<'_>, global: DefId) -> Option<hd_base::Span>
     input.env.source_span(global, hd_base::NodeIdx::NONE)
 }
 
-#[cfg(test)]
-mod layout_error_location_tests {
-    use super::locate_layout_error;
-    use hd_base::{FileId, NotImplemented, Span, Stage};
-
-    #[test]
-    fn layout_stops_use_available_context_and_preserve_inner_locations() {
-        let span = Span {
-            file: FileId::from_raw(3),
-            lo: 17,
-            hi: 24,
-        };
-        let error = NotImplemented::too_large(Stage::Emit, "large value");
-        assert_eq!(
-            locate_layout_error(error.clone(), || Some(span)),
-            error.clone().at(span)
-        );
-        assert_eq!(locate_layout_error(error.clone(), || None), error);
-        let located = error.at(span);
-        assert_eq!(
-            locate_layout_error(located.clone(), || panic!("already located")),
-            located
-        );
-        let bug = NotImplemented::bug(Stage::Emit, "internal check");
-        assert_eq!(
-            locate_layout_error(bug.clone(), || panic!("not a layout stop")),
-            bug
-        );
-    }
-}
-
 /// Gives each top-level binding that some reference refers to a static
 /// slot of its layout, which its reads and writes use from then on
 /// (`crates/hd_wasm/DESIGN.md` §23.20): a reference is its address.
@@ -976,6 +947,3 @@ fn referenced_global(
         _ => emit::global_root(roots, &p).filter(|(def, _)| written.contains(&env.path_hash(*def))),
     }
 }
-
-#[cfg(test)]
-mod tests;
