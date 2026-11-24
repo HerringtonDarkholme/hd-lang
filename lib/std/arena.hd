@@ -29,7 +29,7 @@ struct State:
 
 # A value with drop work: the entry before it, the value's address, and
 # the function that drops a value of its type there.
-struct Entry:
+struct DropEntry:
     before: usize
     at: usize
     drop: fn(usize) -> void
@@ -57,9 +57,9 @@ impl Arena:
         at := Ptr::[T] { address: self.bump(size_of::[T](), align_of::[T]()) }
         at.write(val)
         if needs_drop::[T]():
-            e := self.bump(size_of::[Entry](), align_of::[Entry]())
-            entry := Entry { before: self.state.drops, at: at.address, drop: drop_at::[T] }
-            Ptr::[Entry] { address: e }.write(entry)
+            e := self.bump(size_of::[DropEntry](), align_of::[DropEntry]())
+            entry := DropEntry { before: self.state.drops, at: at.address, drop: drop_at::[T] }
+            Ptr::[DropEntry] { address: e }.write(entry)
             self.state.drops = e
         at.as_mut()
 
@@ -108,15 +108,18 @@ impl Arena:
         let mut e = self.state.drops
         self.state.drops = 0
         while e != 0:
-            entry := Ptr::[Entry] { address: e }.read()
+            entry := Ptr::[DropEntry] { address: e }.read()
             e = entry.before
             run := entry.drop
             run(entry.at)
 
 impl Drop for Arena:
+    # module.rt.drop.caller-read: every `alloc` result borrows the arena, so
+    # none is live while it drops, and no caller reads the chunks freed here.
     fn drop(&mut self) -> void:
         self.drop_values()
-        free_chunks(self.state.chunk)
+        newest := self.state.chunk
+        free_chunks(newest)
 
 # Frees `chunk` and every chunk before it.
 fn free_chunks(chunk: usize) -> void:
