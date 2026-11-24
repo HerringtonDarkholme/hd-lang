@@ -395,13 +395,14 @@ impl Values {
     }
 
     /// The block decision `i` (an `If` on a `bool` or a `Match`) runs,
-    /// where its operand's value decides it.
+    /// where its operand's value decides it. Each caller dispatches only
+    /// `If`/`Match` here; the other decision kind is therefore `If`.
     fn chosen(&self, body: &Body, i: usize) -> Option<u32> {
         let blocks = body.record(body.data[i][1]);
-        let block = match body.tags[i] {
-            Tag::Match => blocks.get(self.arm(body, blocks[0], 0)? as usize + 1),
-            Tag::If => blocks.get(self.taken(body, i)?),
-            _ => None,
+        let block = if body.tags[i] == Tag::Match {
+            blocks.get(self.arm(body, blocks[0], 0)? as usize + 1)
+        } else {
+            blocks.get(self.taken(body, i)?)
         };
         block.copied().filter(|&k| k != NONE)
     }
