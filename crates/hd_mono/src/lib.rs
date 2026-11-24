@@ -542,7 +542,6 @@ pub struct Collected {
     /// callees' representation summaries and signatures (walking skeleton,
     /// SK-3) and the layouts of its types; each code key holds it.
     pub callee_reps: Vec<Hash128>,
-    pub imports: BTreeSet<u32>,
     /// Data types the program builds or reads.
     pub data: BTreeSet<DefIdOrd>,
     /// The init bodies' instances, in initialization order.
@@ -3210,9 +3209,6 @@ impl Cx<'_> {
             let ix = hd_tir::ir::u32_of(i);
             let [a, b] = body.data[i];
             match body.tags[i] {
-                Tag::CallHost => {
-                    self.out.imports.insert(a);
-                }
                 Tag::Call | Tag::Await => {
                     let Some(c) = Callee::from_words(body.record(a)) else {
                         return err("a malformed callee record");
@@ -3850,7 +3846,7 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 
 /// Collection from `root` (`crates/hd_mono/DESIGN.md` §13.1) and the init bodies `inits`
 /// of the groups it reaches, in initialization order: every reachable
-/// instance, each call's target, the imports and data types; or the stop
+/// instance, each call's target and the data types; or the stop
 /// at an instantiation limit. With `joined_inputs` (a REPL session's
 /// program, every kept input joined), each init body is also a root of the
 /// host boundary, since each input's init runs with the entry's providers.

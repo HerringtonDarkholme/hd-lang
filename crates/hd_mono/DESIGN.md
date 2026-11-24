@@ -597,8 +597,9 @@ A worklist walk, as rustc's collector does:
    arguments.
 7. For each `Closure`, push the closure body with the parent's
    arguments.
-8. Record every `CallHost` as an import, every type whose layout an
-   operation needs, and every fact getter the instance calls (§12.3).
+8. Record every type whose layout an operation needs, and every fact
+   getter the instance calls (§12.3). Checked TIR rejects `CallHost`;
+   host calls are emitted through their collected call targets.
 9. Repeat until the worklist is empty.
 
 **Body-less intrinsic impls.** A body-less impl method in a
