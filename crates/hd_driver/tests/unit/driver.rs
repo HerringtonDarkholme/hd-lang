@@ -72,11 +72,8 @@ mod cache_section_tests {
         use hd_project::MemorySources;
 
         let mut program = MemorySources::default();
-        program.insert(
-            "main.hd",
-            "use pkg.shop.{price}\n\npub fn main() -> void:\n    _ := price()\n",
-        );
-        program.insert("shop.hd", "pub fn price() -> i32:\n    3\n");
+        program.insert("main.hd", include_str!("programs/folder_layout/main.hd"));
+        program.insert("shop.hd", include_str!("programs/folder_layout/shop.hd"));
         let compile = |store: &MemoryStore| {
             let host = super::Host {
                 render_tir: &[],

@@ -1421,7 +1421,9 @@ impl<'a> Lookup<'a> {
             IfaceIndex::MISSING if d == DefId::NONE => self.ifaces.iter().find_map(|f| f.item(d)),
             IfaceIndex::MISSING => None,
             location => {
-                let unit = usize::try_from(location >> 32).expect("interface unit");
+                // A location whose unit does not fit `usize` names no
+                // item, as a missing unit or slot does.
+                let unit = usize::try_from(location >> 32).ok()?;
                 let slot =
                     usize::try_from(location & u64::from(u32::MAX)).expect("interface item slot");
                 self.by_unit.get(unit)?.as_ref()?.items.get(slot)
