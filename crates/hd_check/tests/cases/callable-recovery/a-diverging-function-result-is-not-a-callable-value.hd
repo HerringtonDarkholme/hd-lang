@@ -1,0 +1,6 @@
+# @dump: diagnostics
+fn stop() -> never:
+    panic("stopped")
+
+fn rejected() -> void:
+    stop()()
