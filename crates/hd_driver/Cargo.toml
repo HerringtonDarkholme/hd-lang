@@ -9,7 +9,15 @@ repository.workspace = true
 include = ["/src/**", "/build.rs", "/std/**"]
 description = "The one driver: the task graph of one compile run over the caller's sources, cache store, executor and clock (hd compiler internals, no stable API; install `hd-lang`)"
 
+# The unit tests are `tests/unit`, over the `testing` facade (src/testing.rs):
+# a test build then compiles this library once, not again in test mode.
+[lib]
+test = false
+
 [features]
+# What `tests/unit` reaches inside the driver; the dev-dependency on itself
+# below turns it on for test builds.
+testing = []
 # Lets `Executor::Pool` run the graph on a rayon thread pool. Without it the
 # driver is serial only, which is what the browser build uses.
 threads = ["hd_sched/threads"]
@@ -64,6 +72,7 @@ hd_syntax = { workspace = true }
 workspace = true
 
 [dev-dependencies]
+hd_driver = { path = ".", features = ["testing"] }
 hd_tir = { path = "../hd_tir", features = ["test-utils"] }
 hd_fmt = { path = "../hd_fmt" }
 hd_run = { path = "../hd_run" }

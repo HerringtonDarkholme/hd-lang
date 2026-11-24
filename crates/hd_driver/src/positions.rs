@@ -29,8 +29,8 @@ use hd_types::{InternPool, Ty, TyData};
 /// module path, with the path its frames print; and its test cases'
 /// registered names, by their bodies' stable paths.
 pub struct Positions {
-    modules: Vec<(String, String, Arc<ModuleSource>)>,
-    tests: HashMap<String, String>,
+    pub(crate) modules: Vec<(String, String, Arc<ModuleSource>)>,
+    pub(crate) tests: HashMap<String, String>,
 }
 
 /// The modules of the programs one command builds, each kept once: the
@@ -45,24 +45,24 @@ pub struct PositionPool {
 /// is read, decoded or parsed until an anchor of the module is asked for,
 /// and then once: a warm run reads no text for its positions
 /// (`crates/hd_cache/DESIGN.md` §5.5).
-struct ModuleSource {
-    file: String,
+pub struct ModuleSource {
+    pub file: String,
     /// The hash of its text, which tells two runs' versions apart.
-    hash: Hash128,
+    pub hash: Hash128,
     /// Its text: module `index` of `texts`.
-    texts: crate::Texts<'static>,
-    index: usize,
-    check: Option<Arc<[u8]>>,
-    input: Arc<ModuleInput>,
-    read: OnceLock<Option<Module>>,
+    pub texts: crate::Texts<'static>,
+    pub index: usize,
+    pub check: Option<Arc<[u8]>>,
+    pub input: Arc<ModuleInput>,
+    pub read: OnceLock<Option<Module>>,
 }
 
 /// Source data the build already read. Missing parses and bodies remain lazy:
 /// a warm link need not decode TIR or parse modules solely to retain them.
 #[derive(Default)]
-pub(super) struct ModuleInput {
-    pub(super) parse: Option<Arc<Parse>>,
-    bodies: HashMap<Hash128, (String, Body)>,
+pub struct ModuleInput {
+    pub parse: Option<Arc<Parse>>,
+    pub bodies: HashMap<Hash128, (String, Body)>,
 }
 
 impl ModuleInput {
@@ -78,26 +78,26 @@ impl ModuleInput {
 }
 
 /// One module, read: its bodies, by item path, and the parse of its text.
-struct Module {
-    bodies: HashMap<String, Body>,
-    parse: Arc<Parse>,
+pub struct Module {
+    pub bodies: HashMap<String, Body>,
+    pub parse: Arc<Parse>,
     /// LF line starts, shared by every anchor lookup in this module.
     /// The lexer also records bare CR lines; positions have always counted LF.
-    line_starts: Vec<u32>,
+    pub line_starts: Vec<u32>,
 }
 
 /// A body of a module: its syntax node per instruction, and its name in
 /// the module (`List.remove`), from the module's frame-name record.
 #[derive(Clone)]
-struct Body {
-    syn: Arc<[NodeIdx]>,
-    name: String,
+pub struct Body {
+    pub syn: Arc<[NodeIdx]>,
+    pub name: String,
     /// The body of a `@track_caller` function, whose frames a panic's
     /// frame list leaves out (`fn.caller.frames`).
-    hidden: bool,
+    pub hidden: bool,
     /// Its operations whose `usize` type is a literal's default, by
     /// instruction, each with the name of the local it reads.
-    fallback: Arc<[(u32, Option<String>)]>,
+    pub fallback: Arc<[(u32, Option<String>)]>,
 }
 
 impl Body {
@@ -391,7 +391,7 @@ impl ModuleSource {
     }
 }
 
-fn lf_line_starts(parse: &Parse, text: &str) -> Vec<u32> {
+pub fn lf_line_starts(parse: &Parse, text: &str) -> Vec<u32> {
     parse
         .tokens
         .line_start
@@ -401,7 +401,7 @@ fn lf_line_starts(parse: &Parse, text: &str) -> Vec<u32> {
         .collect()
 }
 
-fn path_of(paths: &PathTable, d: DefId) -> String {
+pub fn path_of(paths: &PathTable, d: DefId) -> String {
     paths.display(PathId::from_raw(d.raw())).to_string()
 }
 
@@ -415,7 +415,7 @@ fn path_of(paths: &PathTable, d: DefId) -> String {
 /// checker built, so no spelling of a path segment decides them. A body
 /// of a `@track_caller` function (`hidden`) is marked: its frames are left
 /// out of a panic's frame list (`fn.caller.frames`).
-pub(crate) fn write_frame_names(
+pub fn write_frame_names(
     w: &mut Writer,
     paths: &PathTable,
     items: &[DefId],
@@ -451,7 +451,8 @@ pub(crate) fn write_frame_names(
 
 /// The frame names [`write_frame_names`] wrote, by body path, each with
 /// whether its frames are left out.
-fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, (String, bool)>> {
+#[must_use]
+pub fn read_frame_names(bytes: &[u8]) -> Option<HashMap<String, (String, bool)>> {
     let mut r = Reader::new(bytes);
     let mut names = HashMap::default();
     for _ in 0..r.count() {
@@ -491,7 +492,8 @@ pub(crate) fn self_type_name(names: &Names<'_>, generics: &[Generic], ty: Ty) ->
 }
 
 /// A test case's name as an hd string literal writes it.
-fn quoted(name: &str) -> String {
+#[must_use]
+pub fn quoted(name: &str) -> String {
     let mut out = String::with_capacity(name.len() + 2);
     out.push('"');
     for c in name.chars() {
@@ -502,214 +504,4 @@ fn quoted(name: &str) -> String {
     }
     out.push('"');
     out
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::{Arc, OnceLock};
-
-    use hd_base::wire::Writer;
-    use hd_base::{DefId, FileId, HashMap, NodeIdx, PathId};
-    use hd_intern::{PathKind, PathTable};
-    use hd_resolve::Src;
-    use hd_syntax::parse;
-
-    use super::{
-        Body, Module, ModuleInput, ModuleSource, Positions, lf_line_starts, quoted,
-        read_frame_names, write_frame_names,
-    };
-
-    #[test]
-    fn anchor_lines_preserve_lf_positions_for_all_syntax_nodes() {
-        for text in [
-            "",
-            "\n\n",
-            "fn f() -> i32:\n    +1",
-            "# λ\r\n\r\nfn f() -> string:\r\n    \"é\"\r\n",
-            "# first\r# second\r\nfn f() -> i32:\r    +1\n",
-            "# before\n\nfn f() -> string:\n    \"first\\nsecond\"\n",
-        ] {
-            let parse = parse(text.as_bytes());
-            let syn: Vec<_> = (0..parse.tree.len())
-                .map(|n| NodeIdx::from_raw(u32::try_from(n).unwrap()))
-                .chain([NodeIdx::NONE, NodeIdx::from_raw(u32::MAX - 1)])
-                .collect();
-            let src = Src {
-                parse: &parse,
-                text,
-                file: FileId::from_raw(0),
-            };
-            let expected: Vec<_> = syn
-                .iter()
-                .map(|&node| {
-                    if node == NodeIdx::NONE || node.idx() >= parse.tree.len() {
-                        return None;
-                    }
-                    let lo = src.span(parse.tree.node(node)).lo as usize;
-                    Some((
-                        "source.hd",
-                        u32::try_from(text[..lo].matches('\n').count()).unwrap() + 1,
-                    ))
-                })
-                .collect();
-            let line_starts = lf_line_starts(&parse, text);
-            let positions = Positions {
-                modules: vec![(
-                    "pkg".into(),
-                    "pkg".into(),
-                    Arc::new(ModuleSource {
-                        file: "source.hd".into(),
-                        hash: hd_base::hash128(text.as_bytes()),
-                        texts: crate::Texts::ready(vec![text.into()]),
-                        index: 0,
-                        check: None,
-                        input: Arc::new(ModuleInput::default()),
-                        read: OnceLock::from(Some(Module {
-                            bodies: [(
-                                "pkg/f".into(),
-                                Body {
-                                    syn: syn.into(),
-                                    name: "f".into(),
-                                    hidden: false,
-                                    fallback: Arc::from([]),
-                                },
-                            )]
-                            .into_iter()
-                            .collect(),
-                            parse: Arc::new(parse),
-                            line_starts,
-                        })),
-                    }),
-                )],
-                tests: HashMap::default(),
-            };
-            for (inst, expected) in expected.into_iter().enumerate() {
-                assert_eq!(
-                    positions.line("pkg/f", u32::try_from(inst).unwrap()),
-                    expected,
-                    "{text:?}"
-                );
-            }
-            assert_eq!(positions.line("pkg/f", u32::MAX), None);
-            assert_eq!(positions.line("pkg/missing", 0), None);
-        }
-    }
-
-    #[test]
-    fn retained_sources_match_wire_positions_on_cold_warm_and_comment_edits() {
-        use crate::{Executor, Goal, Host, NoClock, PositionPool, build};
-        use hd_cache::MemoryStore;
-        use hd_project::MemorySources;
-        use hd_sched::SerialOrder;
-
-        let original = include_str!("tests/programs/positions/retained_sources.hd");
-        let edited = format!("# λ: current source lines\n\n{original}");
-        let store = MemoryStore::default();
-        let mut pool = PositionPool::default();
-        for (round, text) in [original, original, edited.as_str()]
-            .into_iter()
-            .enumerate()
-        {
-            let mut sources = MemorySources::default();
-            sources.insert("main.hd", text);
-            let host = Host {
-                render_tir: &[],
-                sources: &sources,
-                store: &store,
-                clock: &NoClock,
-                executor: Executor::Serial(SerialOrder::Priority),
-            };
-            let mut output = build(
-                &host,
-                "app",
-                &Goal::Program {
-                    entry: "main".into(),
-                },
-            );
-            assert!(!output.diags.has_errors(), "{}", output.render());
-            let reused = output.positions(&mut pool);
-            let missing: Vec<_> = (0..output.modules.len())
-                .map(|_| Arc::new(ModuleInput::default()))
-                .collect();
-            let retained = std::mem::replace(&mut output.position_inputs, missing);
-            let wire = output.positions(&mut PositionPool::default());
-            output.position_inputs = retained;
-            let table = hd_run::frames::LineTable::parse(output.wasm.as_ref().expect("Wasm"))
-                .expect("line table");
-            let mut anchors = 0;
-            for (_, _, rows) in table.functions() {
-                for hd_run::frames::Anchored { item, inst } in rows.into_iter().flatten() {
-                    assert_eq!(reused.name(&item), wire.name(&item));
-                    assert_eq!(reused.line(&item, inst), wire.line(&item, inst));
-                    assert_eq!(reused.span(&item, inst), wire.span(&item, inst));
-                    assert_eq!(reused.fallback(&item, inst), wire.fallback(&item, inst));
-                    anchors += 1;
-                }
-            }
-            assert!(anchors > 10);
-            if round == 0 {
-                assert!(output.position_inputs.iter().any(|i| !i.bodies.is_empty()));
-            }
-            for (m, input) in output.position_inputs.iter().enumerate() {
-                if let Some(parse) = &input.parse
-                    && let Some((_, _, source)) = reused
-                        .modules
-                        .iter()
-                        .find(|(p, _, _)| p == &output.modules[m])
-                    && let Some(Some(read)) = source.read.get()
-                {
-                    assert!(Arc::ptr_eq(parse, &read.parse));
-                }
-            }
-        }
-    }
-
-    /// A body's frame name comes from the item the impl segment names, not
-    /// from how the segment spells its head: these segments are not impl
-    /// heads at all, and the names still follow the recorded types.
-    #[test]
-    fn a_frame_name_comes_from_the_record_not_the_segment_spelling() {
-        let paths = PathTable::new();
-        let module = paths.item("pkg", "m", "x");
-        let m = PathId::from_raw(module.raw())
-            .get()
-            .map(|p| paths.parent(p));
-        let m = m.expect("module");
-        let def = |parent: PathId, kind: PathKind, seg: &str| {
-            let id = paths.intern(parent, kind, seg);
-            (id, DefId::from_raw(id.raw()))
-        };
-        let (generic, generic_impl) = def(m, PathKind::Impl, "??? generic spelling ???");
-        let (_, generic_method) = def(generic, PathKind::Member, "remove");
-        let (derived, derived_impl) = def(m, PathKind::Impl, "something else #2");
-        let (_, derived_method) = def(derived, PathKind::Member, "eq");
-        let (inherent, inherent_impl) = def(m, PathKind::Impl, "impl Cart");
-        let (_, inherent_method) = def(inherent, PathKind::Member, "total");
-        let (_, free) = def(m, PathKind::Item, "run");
-        let record = |d: DefId| -> Option<String> {
-            [
-                (generic_impl, "List"),
-                (derived_impl, "Cart"),
-                (inherent_impl, "Cart"),
-            ]
-            .iter()
-            .find(|(i, _)| *i == d)
-            .map(|(_, t)| (*t).to_owned())
-        };
-        let items = [generic_method, derived_method, inherent_method, free];
-        let mut w = Writer::default();
-        write_frame_names(&mut w, &paths, &items, &record, &|d| d == free);
-        let names = read_frame_names(&w.bytes).expect("record");
-        let of = |d: DefId| names[&super::path_of(&paths, d)].clone();
-        assert_eq!(of(generic_method), ("List.remove".to_owned(), false));
-        assert_eq!(of(derived_method), ("Cart.eq".to_owned(), false));
-        assert_eq!(of(inherent_method), ("Cart.total".to_owned(), false));
-        assert_eq!(of(free), ("run".to_owned(), true));
-    }
-
-    #[test]
-    fn a_test_name_is_quoted_as_a_literal() {
-        assert_eq!(quoted("sums prices"), "\"sums prices\"");
-        assert_eq!(quoted("a \"b\" \\"), "\"a \\\"b\\\" \\\\\"");
-    }
 }

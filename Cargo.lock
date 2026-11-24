@@ -763,6 +763,7 @@ dependencies = [
  "hd_cache",
  "hd_check",
  "hd_diag",
+ "hd_driver",
  "hd_fmt",
  "hd_host_abi",
  "hd_intern",
