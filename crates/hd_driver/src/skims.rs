@@ -58,8 +58,10 @@ impl UseShape {
         let mut names = Vec::new();
         // Each item is `name` or `name as local`, items split by commas.
         let mut item: Vec<&str> = Vec::new();
-        let mut flush = |item: &mut Vec<&str>| {
-            if let Some(&name) = item.first() {
+        // Whether the item holds a token no well-formed item has.
+        let mut malformed = false;
+        let mut flush = |item: &mut Vec<&str>, malformed: &mut bool| {
+            if !*malformed && let Some(&name) = item.first() {
                 let local = if item.len() >= 3 && item[1] == "as" {
                     item[2]
                 } else {
@@ -68,18 +70,23 @@ impl UseShape {
                 names.push((name.to_owned(), local.to_owned()));
             }
             item.clear();
+            *malformed = false;
         };
         for i in 0..toks.kind.len() {
             let t = &group[toks.start[i] as usize..toks.end[i] as usize];
             match toks.kind[i] {
                 hd_syntax::TokenKind::Ident => item.push(t),
                 hd_syntax::TokenKind::RawIdent => item.push(t.trim_matches('`')),
-                hd_syntax::TokenKind::Comma | hd_syntax::TokenKind::RBrace => flush(&mut item),
-                // ruled out: a match on a token kind; whitespace, comments and line breaks inside a group name nothing.
-                _ => {}
+                hd_syntax::TokenKind::Comma => flush(&mut item, &mut malformed),
+                hd_syntax::TokenKind::RBrace => break,
+                // Any other token makes the item malformed, which the
+                // parser reports; it names nothing the module graph may
+                // follow. The lexer keeps comments and line breaks apart,
+                // so they are no tokens here.
+                _ => malformed = true,
             }
         }
-        flush(&mut item);
+        flush(&mut item, &mut malformed);
         UseShape {
             public,
             grouped: true,
@@ -680,4 +687,34 @@ impl<'a> FileSkims<'a> {
 /// Whether module `m` is std's: std is the table's last package.
 fn is_std(table: &ModuleTable, m: usize) -> bool {
     usize::from(table.modules[m].package) + 1 == table.packages.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UseShape;
+
+    fn names(line: &str) -> Vec<(String, String)> {
+        let at = u32::try_from(line.find("use").expect("a use line")).expect("short");
+        let end = u32::try_from(line.len()).expect("short");
+        UseShape::of(line, (at, end)).names
+    }
+
+    /// A grouped use's names with the local names they bind; an item
+    /// holding a token no well-formed item has names nothing.
+    #[test]
+    fn grouped_names_and_malformed_items() {
+        let pair = |n: &str, l: &str| (n.to_owned(), l.to_owned());
+        assert_eq!(
+            names("use pkg.shop.{a, b as c, `d`,}"),
+            [pair("a", "a"), pair("b", "c"), pair("d", "d")]
+        );
+        assert_eq!(
+            names("use pkg.shop.{a, b.c, d}"),
+            [pair("a", "a"), pair("d", "d")]
+        );
+        assert_eq!(
+            names("use pkg.shop.{a, b"),
+            [pair("a", "a"), pair("b", "b")]
+        );
+    }
 }
