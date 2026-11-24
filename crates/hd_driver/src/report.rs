@@ -106,7 +106,7 @@ pub struct Counters {
     /// Generic instance bodies built (`hd_mono::instantiate`): one per
     /// distinct item and type arguments the run owns.
     pub instances_built: usize,
-    /// How many folder interface item records were decoded from blobs:
+    /// How many unit interface item records were decoded from blobs:
     /// only the ones the run reads (#213).
     pub iface_records: usize,
     /// Of those, the records of items other than impls and traits, which
@@ -123,7 +123,7 @@ pub struct Counters {
     pub emitted: usize,
     pub stage_ns: BTreeMap<&'static str, u64>,
     pub deep_hashes: BTreeMap<String, Hash128>,
-    /// Per folder: the hash of its interface blob bytes.
+    /// Per unit: the hash of its interface blob bytes.
     pub iface_blobs: BTreeMap<String, Hash128>,
     pub check_keys: BTreeMap<String, Hash128>,
     /// Per stage: the `graph` parts (`Coherence`, `InitOrder`,
@@ -132,9 +132,9 @@ pub struct Counters {
     /// How many body-unit pass runs collection's planner made
     /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §2.2): 0 in a pipeline with no body pass.
     pub body_passes: usize,
-    /// Folders the program view read to list its built folders
-    /// (`Run::with_env`): the program's folders once, whatever its bodies.
-    pub view_folders: usize,
+    /// Units the program view read to list its built units
+    /// (`Run::with_env`): the program's units once, whatever its bodies.
+    pub view_units: usize,
 }
 
 impl Counters {

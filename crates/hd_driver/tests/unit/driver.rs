@@ -1,4 +1,4 @@
-//! Tests of the driver's crate-root code: program items, folder cycles,
+//! Tests of the driver's crate-root code: program items, unit cycles,
 //! cache sections, host declarations and ABIs, capabilities, verification,
 //! instantiation chains and label codecs.
 
@@ -61,6 +61,55 @@ mod program_items_tests {
 
 mod cache_section_tests {
     use super::{Arc, EntryKind, Hash128, LAYOUT, cache_sections};
+
+    /// The compile unit changed from a folder to a module group (#2347),
+    /// with `LAYOUT_VERSION` bumped: every entry a pre-unit build left at
+    /// a key this build asks for is framed with the old layout, so it misses
+    /// and is rebuilt, quietly, never decoded as a module group's.
+    #[test]
+    fn entries_of_the_folder_layout_are_misses() {
+        use hd_cache::{CacheStore, MemoryStore, encode_entry};
+        use hd_project::MemorySources;
+
+        let mut program = MemorySources::default();
+        program.insert(
+            "main.hd",
+            "use pkg.shop.{price}\n\npub fn main() -> void:\n    _ := price()\n",
+        );
+        program.insert("shop.hd", "pub fn price() -> i32:\n    3\n");
+        let compile = |store: &MemoryStore| {
+            let host = super::Host {
+                render_tir: &[],
+                sources: &program,
+                store,
+                clock: &super::NoClock,
+                executor: super::Executor::Serial(hd_sched::SerialOrder::Priority),
+            };
+            let goal = super::Goal::Program {
+                entry: "main".into(),
+            };
+            let out = super::build_packages(&host, "shop", &super::Packages::default(), &goal);
+            assert!(out.diags.is_empty(), "{}", out.render());
+            assert!(out.wasm.is_some(), "the program builds");
+            out
+        };
+        let store = MemoryStore::default();
+        let cold = compile(&store);
+        let control = compile(&store);
+        assert!(control.counters.hit("iface") + control.counters.hit("check") > 0);
+        let mut replaced = 0;
+        for (kind, key) in store.drain_new() {
+            if matches!(kind, EntryKind::Iface | EntryKind::Check | EntryKind::Graph) {
+                let old = encode_entry(kind, LAYOUT - 1, key, Hash128(1), 0, &[(0, 0, &[])]);
+                store.put(kind, &key, &old);
+                replaced += 1;
+            }
+        }
+        assert!(replaced > 0);
+        let warm = compile(&store);
+        assert_eq!(warm.wasm, cold.wasm);
+        assert_eq!(warm.counters.hit("iface") + warm.counters.hit("check"), 0);
+    }
 
     #[test]
     fn a_partial_repl_build_publishes_complete_std_skims() {

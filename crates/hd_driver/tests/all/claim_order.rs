@@ -189,8 +189,8 @@ impl CacheStore for Stops {
 
 /// Each claimed kind's computation ends its claim on every exit, not
 /// only at its put: a `check` miss (`module_prep` through
-/// `module_finish`), an `iface` miss (`folder_iface`, the read list and
-/// the interface) and a `graph` miss (a folder's header findings, the
+/// `module_finish`), an `iface` miss (`unit_iface`, the read list and
+/// the interface) and a `graph` miss (a unit's header findings, the
 /// coherence rows, the package's parts) that stop before their puts
 /// leave no claim held, and a build that finishes leaves none either.
 #[test]

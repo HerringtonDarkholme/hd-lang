@@ -18,13 +18,13 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
    Wasm engine.
 3. Read and skim every source file; build the module graph and its units
    from the skims' use lists.
-4. Bottom-up over folders: read the folder's read list, compute
-   `iface_key` from it, look it up, and on a miss parse the folder's
-   files and run `FolderIface`.
+4. Bottom-up over units: read the unit's read list, compute
+   `iface_key` from it, look it up, and on a miss parse the unit's
+   files and run `UnitIface`.
 5. For each module, compute `check_key`; on a hit take its result, on a
    miss parse it and run M1 to M3.
-6. Run `HeaderCheck` per folder, `Coherence` once and `InitOrder` per
-   folder, each looked up by its key first.
+6. Run `HeaderCheck` per unit, `Coherence` once and `InitOrder` per
+   unit, each looked up by its key first.
 7. Print diagnostics in content order once every task that can add one
    is done (§6.5). A clean check prints `check result: ok.`; a default
    check with diagnostics needs no summary. `--summary`
@@ -49,8 +49,8 @@ thread after output (§5.4).
 
 ### 7.2 `hd check FILE`
 
-1. As steps 1 to 4 above, but only for the folders that FILE's module
-   deeply depends on, plus its own folder.
+1. As steps 1 to 4 above, but only for the units that FILE's module
+   deeply depends on, plus its own unit.
 2. Check FILE's module and every module it uses, deeply: FILE's module
    "linked with the rest of the package" (`cli.package.file`). A module
    FILE does not reach stays silent, so a sibling's error is not
@@ -59,7 +59,7 @@ thread after output (§5.4).
    is test code.
 3. Coherence runs only for traits with an impl in FILE.
 4. Output: the diagnostics of those modules, in content order, plus one
-   note per used folder whose interface has errors ("src/shop has 2
+   note per used unit whose interface has errors ("src/shop has 2
    errors; run hd check"). JSON output keeps its contract: each
    diagnostic, then the summary.
 5. A FILE under no root is a single-file program
@@ -69,9 +69,9 @@ thread after output (§5.4).
 Implementation differs: the driver checks the bodies of FILE's module,
 its doc tests and the modules they use, deeply (`Packages::check_roots`,
 `Run::check_scope`), and builds the interfaces of their closures'
-folders, all modules of each. Coherence runs over those interfaces, not
+units, all modules of each. Coherence runs over those interfaces, not
 only for the traits with an impl in FILE. `check_cmd.rs` still filters
-the output to the same modules, and there are no per-folder notes.
+the output to the same modules, and there are no per-unit notes.
 
 ### 7.3 `hd test`
 
@@ -233,7 +233,7 @@ on wasmtime only.
 1. In package mode the session acts as code inside `src/lib.hd`
    ([`cli.repl.package.lib`](../../spec/cli/command-line.md#r-cli.repl.package.lib)):
    the driver adds `lib.hd`'s private items to each input's scope.
-2. Each input is a synthetic file `repl#n` in folder `src`, built with
+2. Each input is a synthetic file `repl#n` in unit `src`, built with
    `Goal::ReplInput`. Its scope is `lib.hd`'s scope, the uses of every
    earlier input, and the earlier inputs' top-level bindings with their
    fixed types

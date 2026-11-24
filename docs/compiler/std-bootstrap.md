@@ -7,7 +7,7 @@ pack would hold. `hd_driver::std_sources` embeds `lib/std` at build time and
 adds one virtual module, `rt/entry/mod.hd` (`hd_driver::RT_SOURCE`). Every run checks
 std from these sources, with the cache in front.
 
-Planned, not built: a std pack, std's folder interface blobs by folder,
+Planned, not built: a std pack, std's unit interface blobs by unit,
 written at build time and embedded in `hd_driver` in place of
 source-backed std interfaces.
 
@@ -154,9 +154,9 @@ needs no self-derivation.
 | `Debug` | `format.hd` | struct and enum values; tuples |
 | `Display` | `format.hd` | tuples |
 
-## Folder Graph
+## Layers
 
-| Folder | Modules | Outgoing folder edges |
+| Layer | Modules | Uses layers |
 | --- | --- | --- |
 | `std.core` (`lib/std/core`) | `std.core` from `core/mod.hd`: the seeded names, and `Copy`, `Eq`, `Hash`, `Hasher` | none |
 | `std` (`lib/std`) | the root files other than `prelude.hd` and `testing.hd` | `std.core`, `std.rt` (`std.rt.bytes`) |
@@ -170,17 +170,17 @@ needs no self-derivation.
 The graph is acyclic. `testing.hd` and `testing/arbitrary.hd` are a parent
 and its child, so their loop is legal
 ([`module.cycle.sibling-group.siblings`](../../spec/lang/10-modules.md#r-module.cycle.sibling-group.siblings)).
-The compiler's units are module groups, not these folders
+The compiler's units are module groups, not these layers
 (`crates/hd_resolve/DESIGN.md` §4.8); the table shows std's layers.
 
 `std.core` and `std.rt` are std's leaf layer
 ([`module.core.leaf`](../../spec/lang/10-modules.md#r-module.core.leaf),
 [`module.rt.leaf`](../../spec/lang/10-modules.md#r-module.rt.leaf)).
 `std.core` declares the traits that `List` and `Map` name, which `std.ops`,
-`std.cmp` and `std.hash` re-export. A module of either folder sees only
-`std.core`'s prelude row, so neither reaches the root folder. The entry
+`std.cmp` and `std.hash` re-export. A module of either layer sees only
+`std.core`'s prelude row, so neither reaches the root layer. The entry
 glue (`hd_driver::RT_SOURCE`, module `std.rt.entry`) and the checked
 runtime use `std.format`, `std.process`, `std.error` and `std.json`, so
-each is a folder of its own under `rt/`, above the root. Every other
-prelude origin is in folder `std`, so the fixed uses give every other
-folder an edge to `std`.
+each is a layer of its own under `rt/`, above the root. Every other
+prelude origin is in layer `std`, so the fixed uses give every other
+layer an edge to `std`.

@@ -126,7 +126,7 @@ pub struct FileSkim {
     /// The start of each code line (`HeaderSkeleton::code_lines`).
     pub code_lines: Vec<u32>,
     /// The byte range of each `use` line outside a `tests:` block
-    /// (`HeaderSkeleton::uses`): the uses that make folder edges.
+    /// (`HeaderSkeleton::uses`): the uses that make unit edges.
     pub use_lines: Vec<(u32, u32)>,
     /// The module path each of `use_lines` names as written, its root not
     /// yet resolved. Kept so a module's uses resolve without its text.
@@ -135,7 +135,7 @@ pub struct FileSkim {
     /// module graph follows `pub use` chains through it without the text.
     pub use_shapes: Vec<UseShape>,
     /// The path of each `use` line of a `tests:` block, as written. Test
-    /// code makes no folder edge (`module.cycle.test-code`); these widen
+    /// code makes no unit edge (`module.cycle.test-code`); these widen
     /// only the test role's closure.
     pub test_uses: Vec<String>,
     pub has_tests_block: bool,

@@ -5327,7 +5327,7 @@ impl Ck<'_, '_> {
     ///
     /// Cost: one probe of the module's tables with rows for the head
     /// ([`crate::body::BodyCx::head_tables`]), then one probe of each one's name index
-    /// per key code, made once per table (a folder's once per run), then
+    /// per key code, made once per table (a unit's once per run), then
     /// one probe of the method index and the scope per trait found. Asking
     /// every available trait declaring `sym` solved a goal per trait
     /// (#1925), and probing each trait of the head for `sym` cost every

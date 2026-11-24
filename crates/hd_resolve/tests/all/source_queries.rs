@@ -1,9 +1,9 @@
 //! Read-only source and declaration queries used by diagnostics and tooling.
 
-use hd_base::{FileId, FolderId, NodeIdx, TokenIdx};
+use hd_base::{FileId, NodeIdx, TokenIdx, UnitId};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_resolve::facts::{DeclView, callee_of, fact_lines, is_marker, name_path, path_def};
-use hd_resolve::iface::{IfaceIndex, folder_iface};
+use hd_resolve::iface::{IfaceIndex, unit_iface};
 use hd_resolve::{
     Binding, BindingKind, ImplKind, Item, ItemData, Items, KnownItems, Lookup, ModuleScope, Names,
     Origin, Src, TypeAttrs,
@@ -301,7 +301,7 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
     let derived = implementation("derived", ImplKind::Derived);
     let written = implementation("written", ImplKind::Written);
     let own = [record.clone(), derived.clone(), written];
-    let folder = folder_iface(
+    let unit = unit_iface(
         "app.data",
         Items::new(vec![record.clone(), derived]),
         Vec::new(),
@@ -310,10 +310,10 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
         &[],
         Vec::new(),
     );
-    let folder_id = FolderId::from_raw(0);
+    let unit_id = UnitId::from_raw(0);
     let index = IfaceIndex::default();
-    index.insert(folder_id, &folder);
-    let lookup = Lookup::new(&own, [(folder_id, &folder)], &index);
+    index.insert(unit_id, &unit);
+    let lookup = Lookup::new(&own, [(unit_id, &unit)], &index);
     let mut scope = ModuleScope::default();
     scope.bind(
         record.name,
@@ -335,7 +335,7 @@ fn declaration_views_report_names_blocks_and_only_derived_nominal_impls() -> Res
         0,
     );
     let blocks = [NodeIdx::from_raw(4), NodeIdx::from_raw(9)];
-    let view = DeclView::new(names, folder_id, &scope, &lookup, &blocks);
+    let view = DeclView::new(names, unit_id, &scope, &lookup, &blocks);
     assert!(view.derivation_block(blocks[0]));
     assert!(view.derivation_block(blocks[1]));
     assert!(!view.derivation_block(NodeIdx::from_raw(5)));
@@ -454,7 +454,7 @@ fn scope_overlay_rebases_modules_and_ambiguities_and_hides_unreadable_names() {
 #[test]
 fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
     use hd_base::PathId;
-    use hd_resolve::{FolderIface, Reads, Recorded, World};
+    use hd_resolve::{Reads, Recorded, UnitIface, World};
     use std::cell::RefCell;
 
     struct IndexedWorld {
@@ -465,7 +465,7 @@ fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
         fn module_path_node(&self, module: PathId) -> Option<&str> {
             (module == self.node).then_some("app.data")
         }
-        fn module_folder(&self, module: &str) -> Option<u32> {
+        fn module_unit(&self, module: &str) -> Option<u32> {
             self.calls.borrow_mut().push(module.to_owned());
             (module == "app.data").then_some(7)
         }
@@ -475,7 +475,7 @@ fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
         fn test_only(&self, _module: &str) -> bool {
             false
         }
-        fn iface(&self, _folder: u32) -> Option<Arc<FolderIface>> {
+        fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
             None
         }
     }
@@ -496,23 +496,23 @@ fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
 
     // The default node lookup takes owned text for data and renders the
     // missing node's text. Every lookup reaches the world exactly once.
-    assert_eq!(recorded.module_folder_node(&names, missing), None);
-    assert_eq!(recorded.module_folder_node(&names, data), Some(7));
-    assert_eq!(recorded.module_folder_node(&names, data), Some(7));
+    assert_eq!(recorded.module_unit_node(&names, missing), None);
+    assert_eq!(recorded.module_unit_node(&names, data), Some(7));
+    assert_eq!(recorded.module_unit_node(&names, data), Some(7));
     assert_eq!(
         *world.calls.borrow(),
         ["app.missing", "app.data", "app.data"]
     );
     let expected = Reads {
         modules: vec!["app.data".into(), "app.missing".into()],
-        folders: Vec::new(),
+        units: Vec::new(),
     };
     assert_eq!(recorded.reads(), expected);
 
     // Holding dependency reads must not suppress the underlying lookup.
     recorded.hold_reads(true);
     assert_eq!(
-        recorded.module_folder_node(&names, names.module("app.held")),
+        recorded.module_unit_node(&names, names.module("app.held")),
         None
     );
     assert_eq!(
@@ -522,7 +522,7 @@ fn recorded_world_node_queries_preserve_text_and_track_only_lookups() {
     assert_eq!(recorded.reads(), expected);
     recorded.hold_reads(false);
     assert_eq!(
-        recorded.module_folder_node(&names, names.module("app.held")),
+        recorded.module_unit_node(&names, names.module("app.held")),
         None
     );
     assert_eq!(
@@ -581,7 +581,7 @@ fn import_hints_exclude_runtime_reexports_and_cache_unrelated_exports() {
                 )
             })
             .collect();
-        let iface = folder_iface(
+        let iface = unit_iface(
             "std",
             Items::new(items),
             exports,

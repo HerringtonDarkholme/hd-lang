@@ -1,9 +1,9 @@
-//! Use resolution and header lowering for one folder (resolution-and-
+//! Use resolution and header lowering for one unit (resolution-and-
 //! interfaces.md §4.9, §4.10 steps 1 to 4): item heads, use declarations
 //! in every form, the export worklist with `pub use` chains, module scopes
 //! with the prelude, and every header lowered to `hd_types`.
 //!
-//! The same code serves two modes. While `FolderIface(F)` runs, uses of
+//! The same code serves two modes. While `UnitIface(F)` runs, uses of
 //! sibling modules resolve through F's own heads and a worklist. Once F's
 //! interface is frozen, `ModulePrep` and `Body` resolve them through its
 //! export index instead.
@@ -27,9 +27,8 @@ use hd_types::{
 use crate::const_eval::{ConstArg, ConstName};
 use crate::generic_scope::{Entry, Scoped};
 use crate::iface::{
-    CallAttrs, Export, Field, FnAttrs, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item,
-    ItemData, Lookup, Names, ResultPath, TraitData, Variant, fill_trait_args, fill_type_args,
-    show_ty,
+    CallAttrs, Export, Field, FnAttrs, FnSig, Generic, HeadKind, ImplKind, Item, ItemData, Lookup,
+    Names, ResultPath, TraitData, UnitIface, Variant, fill_trait_args, fill_type_args, show_ty,
 };
 use crate::known::KnownItems;
 use crate::variance::{self, Seen};
@@ -283,28 +282,28 @@ pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
         .map(|(module, _)| names.item(module, name))
 }
 
-/// The modules the prelude's names come from: each module's folder gets an
+/// The modules the prelude's names come from: each module's unit gets an
 /// edge to theirs (`module.prelude.fixed-uses`).
 #[must_use]
 pub fn prelude_modules(module: &str) -> Vec<&'static str> {
     prelude_rows(module).iter().map(|p| p.0).collect()
 }
 
-/// The outside of one folder: which folder holds a module, and the frozen
-/// interfaces of other folders.
+/// The outside of one unit: which unit holds a module, and the frozen
+/// interfaces of other units.
 pub trait World {
-    fn module_folder(&self, module: &str) -> Option<u32>;
+    fn module_unit(&self, module: &str) -> Option<u32>;
     /// Dotted text already owned by the world, when it indexes module nodes.
     fn module_path_node(&self, _module: PathId) -> Option<&str> {
         None
     }
-    /// A known module's folder without rendering a dotted path. Small worlds
+    /// A known module's unit without rendering a dotted path. Small worlds
     /// may keep the text-only implementation; the project driver indexes nodes.
-    fn module_folder_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
+    fn module_unit_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
         if let Some(text) = self.module_path_node(module) {
-            self.module_folder(text)
+            self.module_unit(text)
         } else {
-            self.module_folder(&names.module_text(module))
+            self.module_unit(&names.module_text(module))
         }
     }
     /// Whether a `use` may name the module: it exists and is not its own
@@ -314,7 +313,7 @@ pub trait World {
     /// test module), which non-test code may not use
     /// (`module.test.non-test-use.test-module`).
     fn test_only(&self, module: &str) -> bool;
-    fn iface(&self, folder: u32) -> Option<Arc<FolderIface>>;
+    fn iface(&self, unit: u32) -> Option<Arc<UnitIface>>;
     /// Holds (`true`) or resumes the recording of the reads that follow,
     /// in a world that records them ([`Recorded`]): binding a use reads
     /// quietly, since its reads count only once a lookup consults a name
@@ -322,12 +321,12 @@ pub trait World {
     fn hold_reads(&self, _held: bool) {}
 }
 
-/// A [`World`] that records what one folder's header lowering reads of
+/// A [`World`] that records what one unit's header lowering reads of
 /// it (#248): each module path it asks about, found or not, and each
-/// folder whose interface it opens. A use's own reads are held while it
+/// unit whose interface it opens. A use's own reads are held while it
 /// binds, and count once a lookup consults a name it binds
-/// ([`build_folder`] reads them again then). `FolderIface(F)` keys F's
-/// interface by these reads, not by every folder F's uses reach
+/// ([`build_unit`] reads them again then). `UnitIface(F)` keys F's
+/// interface by these reads, not by every unit F's uses reach
 /// (`crates/hd_cache/DESIGN.md` §5.3).
 pub struct Recorded<'a> {
     world: &'a dyn World,
@@ -338,10 +337,10 @@ pub struct Recorded<'a> {
 /// What a [`Recorded`] world was asked, sorted, without repeats.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Reads {
-    /// Each module path asked for its folder, its use, or its test role.
+    /// Each module path asked for its unit, its use, or its test role.
     pub modules: Vec<String>,
-    /// Each folder whose interface was opened, by folder ID.
-    pub folders: Vec<u32>,
+    /// Each unit whose interface was opened, by unit ID.
+    pub units: Vec<u32>,
 }
 
 impl<'a> Recorded<'a> {
@@ -385,17 +384,17 @@ impl World for Recorded<'_> {
     fn module_path_node(&self, module: PathId) -> Option<&str> {
         self.world.module_path_node(module)
     }
-    fn module_folder_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
+    fn module_unit_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
         if let Some(text) = self.world.module_path_node(module) {
             self.module(text);
         } else {
             self.module(&names.module_text(module));
         }
-        self.world.module_folder_node(names, module)
+        self.world.module_unit_node(names, module)
     }
-    fn module_folder(&self, module: &str) -> Option<u32> {
+    fn module_unit(&self, module: &str) -> Option<u32> {
         self.module(module);
-        self.world.module_folder(module)
+        self.world.module_unit(module)
     }
     fn usable(&self, module: &str) -> bool {
         self.module(module);
@@ -405,14 +404,14 @@ impl World for Recorded<'_> {
         self.module(module);
         self.world.test_only(module)
     }
-    fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
+    fn iface(&self, unit: u32) -> Option<Arc<UnitIface>> {
         if !self.held() {
             let mut r = self.lock();
-            if let Err(at) = r.folders.binary_search(&folder) {
-                r.folders.insert(at, folder);
+            if let Err(at) = r.units.binary_search(&unit) {
+                r.units.insert(at, unit);
             }
         }
-        self.world.iface(folder)
+        self.world.iface(unit)
     }
     fn hold_reads(&self, held: bool) {
         self.held.store(held, std::sync::atomic::Ordering::Relaxed);
@@ -1302,7 +1301,7 @@ fn local_decls<'t>(n: NodeRef<'t>, out: &mut Vec<(NodeRef<'t>, NodeRef<'t>)>) {
 /// The kind of every item a scope can name.
 pub type Kinds = HashMap<DefId, HeadKind>;
 
-/// One module of the folder being resolved.
+/// One module of the unit being resolved.
 pub struct ModIn<'t> {
     pub path: String,
     /// What the roots of its use paths name.
@@ -1312,7 +1311,7 @@ pub struct ModIn<'t> {
     pub seeds: Vec<Item>,
     /// Whether its test code is checked (`hd check --tests`, `hd test`):
     /// the items of its `tests:` block are then items of the module, which
-    /// only the block sees. A folder interface never holds them.
+    /// only the block sees. A unit interface never holds them.
     pub tests: bool,
     /// For a REPL input (`f1c55020:future-work/compiler/repl-plan.md` §2.2): the session scope its own
     /// scope is nested in. Every top-level declaration and `use` of the
@@ -1348,7 +1347,7 @@ pub struct ModOut {
     /// (`names.tests.sees-module`, `names.tests.shadow`).
     pub tests: Option<ModuleScope>,
     /// The diagnostics of its `tests:` block's uses and item headers,
-    /// which no folder interface reports.
+    /// which no unit interface reports.
     pub test_diags: DiagBuf,
     pub kinds: Kinds,
     /// Declaration-relative positions of the items (`anchor`).
@@ -1357,16 +1356,16 @@ pub struct ModOut {
     pub blocks: Vec<hd_base::NodeIdx>,
 }
 
-pub struct FolderOut {
+pub struct UnitOut {
     pub modules: Vec<ModOut>,
     pub exports: Vec<Export>,
     /// The interface's private-name index: each top-level declaration
     /// without `pub`, as (module path, name), sorted (§4.9).
     pub private_names: Vec<(String, Symbol)>,
-    /// Names no use can reach through this folder: each public name whose
+    /// Names no use can reach through this unit: each public name whose
     /// `pub use` chain returns to a `pub use` it passed
     /// (`module.pub-use.chain.loop`), as (module path, name), sorted. A
-    /// use through another folder reads them as a loop, quietly.
+    /// use through another unit reads them as a loop, quietly.
     pub loop_names: Vec<(String, Symbol)>,
     /// The names of declarations whose source holds a parse diagnostic
     /// (`grammar.recovery.item`), as (module path, name), sorted. A use
@@ -1380,7 +1379,7 @@ pub struct FolderOut {
 /// What one resolution needs from the run.
 pub struct Cx<'a> {
     pub names: Names<'a>,
-    pub folder: u32,
+    pub unit: u32,
     pub world: &'a dyn World,
 }
 
@@ -1388,13 +1387,13 @@ type Res = Result<(DefId, HeadKind), Code>;
 
 struct Resolver<'a, 'b> {
     cx: &'b Cx<'a>,
-    frozen: Option<Arc<FolderIface>>,
+    frozen: Option<Arc<UnitIface>>,
     // Module identity is the package/module trie node, never an item node or
     // an hd_project::ModuleTable row. Text is shared only at World/blob boundaries.
     module_keys: HashMap<Arc<str>, PathId>,
     module_paths: HashMap<PathId, Arc<str>>,
     own: HashMap<(PathId, Symbol), (DefId, HeadKind, bool)>,
-    /// The names of the folder's broken declarations ([`broken_names`]).
+    /// The names of the unit's broken declarations ([`broken_names`]).
     broken: HashSet<(PathId, Symbol)>,
     pub_uses: HashMap<(PathId, Symbol), (PathId, Symbol)>,
     memo: RefCell<HashMap<(PathId, Symbol), Res>>,
@@ -1406,18 +1405,18 @@ struct Resolver<'a, 'b> {
     top_bindings: RefCell<HashMap<Box<str>, Arc<TopBindings>>>,
     /// Each module's [`Enclosing`], built on its first local header.
     enclosing: RefCell<HashMap<Box<str>, Arc<Enclosing>>>,
-    /// Associated type names of this folder's traits, from their heads.
+    /// Associated type names of this unit's traits, from their heads.
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
-    /// The declared variance markers of the folder's own declarations.
+    /// The declared variance markers of the unit's own declarations.
     variances: HashMap<DefId, Vec<i8>>,
-    /// Whether each generic parameter of the folder's own declarations is
+    /// Whether each generic parameter of the unit's own declarations is
     /// a row parameter, from their heads.
     row_params: HashMap<DefId, Vec<bool>>,
-    /// The kind of each non-lifetime generic parameter of a folder
-    /// declaration, from their heads. Other folders' come from their
+    /// The kind of each non-lifetime generic parameter of a unit
+    /// declaration, from their heads. Other units' come from their
     /// interfaces' [`Generic::const_type`].
     const_params: HashMap<DefId, Vec<Slot>>,
-    /// This folder's aliases, each lowered after the aliases it names:
+    /// This unit's aliases, each lowered after the aliases it names:
     /// whether each generic parameter is a row parameter, and the body.
     aliases: RefCell<HashMap<DefId, AliasBody>>,
     /// Each alias's [`Lower::alias_in_order`] answer, asked at every use.
@@ -1435,7 +1434,7 @@ struct Resolver<'a, 'b> {
     /// whatever the declaration order, and a private trait (which a frozen
     /// interface leaves out) is filled as while it was built.
     own_traits: RefCell<HashMap<DefId, Vec<Generic>>>,
-    /// The declared parameters of the folder's own aliases and of its data
+    /// The declared parameters of the unit's own aliases and of its data
     /// types, enums and newtypes that declare a default, so a written type
     /// fills its omitted trailing arguments from them (`fill_type_args`).
     /// They are recorded by [`lower_aliases`], each after the aliases and
@@ -1450,7 +1449,7 @@ struct Resolver<'a, 'b> {
     /// declares its associated type (trait.binding.name-reach) whatever
     /// the declaration order.
     own_supers: RefCell<HashMap<DefId, Vec<Ty>>>,
-    /// The supertrait edges dropped to break the folder's supertrait
+    /// The supertrait edges dropped to break the unit's supertrait
     /// cycles, by child trait, in declared order: each cycle is reported
     /// (`trait.super.acyclic`), and the lowered graph keeps no cycle, so
     /// every later walk over supertraits ends without a depth limit.
@@ -1513,12 +1512,12 @@ impl Resolver<'_, '_> {
         let Some(f) = self
             .cx
             .world
-            .module_folder(module)
+            .module_unit(module)
             .filter(|_| self.cx.world.usable(module) || self.inputs.contains(module))
         else {
             return Err(Code::UnknownModule);
         };
-        let frozen = |i: &FolderIface| {
+        let frozen = |i: &UnitIface| {
             i.export(module, name)
                 .map(|e| (e.def, e.kind))
                 .ok_or(if i.is_private(module, name) {
@@ -1531,7 +1530,7 @@ impl Resolver<'_, '_> {
                     Code::UnknownImport
                 })
         };
-        if f != self.cx.folder {
+        if f != self.cx.unit {
             let Some(i) = self.cx.world.iface(f) else {
                 // A test-only module has no interface outside a test
                 // build; naming it from non-test code is test-only-use,
@@ -1546,7 +1545,7 @@ impl Resolver<'_, '_> {
         if let Some(i) = &self.frozen {
             return frozen(i);
         }
-        // An unfrozen folder normally supplies every module. If a caller
+        // An unfrozen unit normally supplies every module. If a caller
         // supplies a subset, preserve its previous absent-head lookup result.
         let Some(&module) = self.module_keys.get(module) else {
             return Err(Code::UnknownImport);
@@ -1577,10 +1576,10 @@ impl Resolver<'_, '_> {
         r
     }
 
-    /// Whether `module` lives in the folder being lowered: only then did
-    /// the lookup above follow this folder's own `pub use` chain.
-    fn is_own_folder(&self, module: &str) -> bool {
-        self.cx.world.module_folder(module) == Some(self.cx.folder)
+    /// Whether `module` lives in the unit being lowered: only then did
+    /// the lookup above follow this unit's own `pub use` chain.
+    fn is_own_unit(&self, module: &str) -> bool {
+        self.cx.world.module_unit(module) == Some(self.cx.unit)
     }
 
     /// The `pub use` cycle reachable from `key`, if following the chain
@@ -1609,10 +1608,10 @@ impl Resolver<'_, '_> {
     }
 
     /// Reports a re-export loop once per cycle, at `span`. A loop through
-    /// another folder was reported when its interface was built, so its
+    /// another unit was reported when its interface was built, so its
     /// uses stay quiet here.
     fn report_loop(&self, diags: &mut DiagBuf, span: hd_base::Span, module: &str, name: Symbol) {
-        if !self.is_own_folder(module) {
+        if !self.is_own_unit(module) {
             return;
         }
         let cycle = self
@@ -1621,7 +1620,7 @@ impl Resolver<'_, '_> {
             .and_then(|&module| self.export_cycle((module, name)));
         let fresh = match cycle {
             Some(cycle) => self.loops_reported.borrow_mut().insert(cycle),
-            // No cycle in this folder's chain: report, as before.
+            // No cycle in this unit's chain: report, as before.
             None => true,
         };
         if fresh {
@@ -1630,14 +1629,14 @@ impl Resolver<'_, '_> {
         }
     }
 
-    /// An item of another folder or a seed, for kinds and alias bodies.
+    /// An item of another unit or a seed, for kinds and alias bodies.
     fn item(&self, d: DefId) -> Option<Item> {
         if let Some(i) = self.seeds.get(&d) {
             return Some(i.clone());
         }
         let module = self.cx.names.module_node(d);
-        let f = self.cx.world.module_folder_node(&self.cx.names, module)?;
-        let iface = if f == self.cx.folder {
+        let f = self.cx.world.module_unit_node(&self.cx.names, module)?;
+        let iface = if f == self.cx.unit {
             self.frozen.clone()?
         } else {
             self.cx.world.iface(f)?
@@ -1735,9 +1734,9 @@ impl Resolver<'_, '_> {
         let iface = self
             .cx
             .world
-            .module_folder_node(&self.cx.names, module)
+            .module_unit_node(&self.cx.names, module)
             .and_then(|f| {
-                if f == self.cx.folder {
+                if f == self.cx.unit {
                     self.frozen.clone()
                 } else {
                     self.cx.world.iface(f)
@@ -2289,7 +2288,7 @@ type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<u16>, Vec<Ty>, Vec<Vec<u16>>);
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
 
-/// A same-folder alias's parameter kinds, expanded body and the declared
+/// A same-unit alias's parameter kinds, expanded body and the declared
 /// lifetime of each body reference slot.
 type AliasBody = (Vec<bool>, Ty, Vec<u16>);
 
@@ -2606,8 +2605,8 @@ struct Lower<'a, 'r, 'x> {
     /// named `Self` (`names.local-type.refs`), since `Self` there is the
     /// eventual implementing type.
     outer_takes_self: bool,
-    /// The chain edges of this folder's `@track_caller` functions: a
-    /// function, and a function of this folder its body may call, which it
+    /// The chain edges of this unit's `@track_caller` functions: a
+    /// function, and a function of this unit its body may call, which it
     /// passes its call site on to (`fn.caller.chain`). [`caller_chains`]
     /// follows them once every module is lowered.
     chains: Vec<(DefId, DefId)>,
@@ -2867,14 +2866,14 @@ impl Lower<'_, '_, '_> {
             return crate::iface::ImportHint::default();
         }
         let world = self.r.cx.world;
-        // std's root folder holds the public modules and their export
-        // index; `std.core` is a folder of its own, whose traits the root
-        // modules re-export. Prelude has child modules, so its own folder
+        // std's root unit holds the public modules and their export
+        // index; `std.core` is a unit of its own, whose traits the root
+        // modules re-export. Prelude has child modules, so its own unit
         // is only re-exports.
         let root = self.names.module_node(self.names.known.ordering);
         world
-            .module_folder_node(&self.names, root)
-            .and_then(|folder| world.iface(folder))
+            .module_unit_node(&self.names, root)
+            .and_then(|unit| world.iface(unit))
             .map_or_else(crate::iface::ImportHint::default, |iface| {
                 crate::iface::std_import_hint(&self.names, [&*iface], name)
             })
@@ -7195,8 +7194,8 @@ impl Lower<'_, '_, '_> {
     /// names `caller` (`Location::caller()`, `fn.caller.reads`), the
     /// argument texts too when it names `caller_args`
     /// (`fn.caller.record.args`), and what a `@track_caller` function of
-    /// another folder it may call reads (`fn.caller.chain`). A function of
-    /// this folder it may call becomes a chain edge instead, which
+    /// another unit it may call reads (`fn.caller.chain`). A function of
+    /// this unit it may call becomes a chain edge instead, which
     /// [`caller_chains`] follows once every module is lowered.
     ///
     /// A name counts when the module scope binds it to an item, or when it
@@ -7206,10 +7205,10 @@ impl Lower<'_, '_, '_> {
     /// while a missed read loses the call site.
     ///
     /// Cost: one pass over the body's tokens, one scope lookup per name,
-    /// and one interface lookup per distinct function of another folder;
-    /// in a frozen folder, one interface lookup.
+    /// and one interface lookup per distinct function of another unit;
+    /// in a frozen unit, one interface lookup.
     fn caller_reads(&mut self, def: DefId, block: NodeRef<'_>) -> SiteReads {
-        // A frozen folder's interface holds what its chains settled, while
+        // A frozen unit's interface holds what its chains settled, while
         // the modules lowered now may leave out a chain's callee.
         if self.r.frozen.is_some()
             && let Some(a) = self.r.item(def).and_then(|it| it.fn_attrs().copied())
@@ -7291,8 +7290,8 @@ impl Lower<'_, '_, '_> {
                 .r
                 .cx
                 .world
-                .module_folder_node(names, names.module_node(d))
-                == Some(self.r.cx.folder)
+                .module_unit_node(names, names.module_node(d))
+                == Some(self.r.cx.unit)
             {
                 self.chains.push((def, d));
             } else if let Some(a) = self
@@ -7630,7 +7629,7 @@ impl Lower<'_, '_, '_> {
         out.push(it);
     }
 
-    /// The folder declarations (by index in `index`) that the part `scan`
+    /// The unit declarations (by index in `index`) that the part `scan`
     /// of the declaration `n` names, other than through its own generic
     /// parameters.
     fn named_in_order(
@@ -7749,7 +7748,7 @@ fn declares_params(h: &Head<'_>) -> bool {
     )
 }
 
-/// Lowers every alias of the folder before any other header, each after
+/// Lowers every alias of the unit before any other header, each after
 /// the aliases its declaration names, whatever the declaration order
 /// (`crates/hd_resolve/DESIGN.md`, "Row aliases and context types in
 /// interfaces"). Every struct, enum and newtype takes part in that
@@ -7962,7 +7961,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
 }
 
 /// `trait.super.acyclic`, `trait.super.cycle-report`: the supertrait graph
-/// of the folder's traits has no cycle. A cycle is one error, on its trait
+/// of the unit's traits has no cycle. A cycle is one error, on its trait
 /// that comes first by module and then by source position.
 fn supertrait_cycles(
     r: &Resolver<'_, '_>,
@@ -8024,14 +8023,14 @@ fn supertrait_cycles(
     }
 }
 
-/// Breaks every cycle of the folder's supertrait graph: a depth-first
+/// Breaks every cycle of the unit's supertrait graph: a depth-first
 /// walk from each trait in declaration order, supertraits in declared
 /// order, records each edge to a trait still on its path as cut
 /// ([`Resolver::cut_supers`]) and drops it from `own_supers`; the lowered
 /// declarations leave it out too. What is left is acyclic and keeps every
 /// other edge, so a bound on the first trait of a cycle still reaches the
 /// rest of it. Each cycle is reported by [`supertrait_cycles`]. Linear in
-/// the folder's traits and supertrait edges, once per folder.
+/// the unit's traits and supertrait edges, once per unit.
 fn cut_supertrait_cycles(r: &mut Resolver<'_, '_>, all_heads: &[Vec<Head<'_>>]) {
     let traits: Vec<DefId> = all_heads
         .iter()
@@ -8435,12 +8434,12 @@ impl SiteReads {
 }
 
 /// `fn.caller.reads` and `fn.caller.record.args` through a chain, across
-/// the folder's modules: a `@track_caller` function that may call one of
-/// the folder that reads its record passes its call site on, so it reads
+/// the unit's modules: a `@track_caller` function that may call one of
+/// the unit that reads its record passes its call site on, so it reads
 /// its own record too, and its records hold argument texts when the
-/// callee's do. A chain into another folder was settled while lowering
-/// ([`Lower::caller_reads`]), from that folder's interface. `fns` are the
-/// folder's functions; the result counts the edges followed.
+/// callee's do. A chain into another unit was settled while lowering
+/// ([`Lower::caller_reads`]), from that unit's interface. `fns` are the
+/// unit's functions; the result counts the edges followed.
 ///
 /// Cost: linear in the functions and the chain edges, whatever the chains'
 /// width or depth: each function gains each of its two bits at most once,
@@ -8994,7 +8993,7 @@ fn session_targets(
         }
         let Some(iface) =
             r.cx.world
-                .module_folder_node(names, names.module_node(def))
+                .module_unit_node(names, names.module_node(def))
                 .and_then(|f| r.cx.world.iface(f))
         else {
             continue;
@@ -9014,11 +9013,7 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
     let names = &r.cx.names;
     let mut out = HashSet::default();
     for m in r.session_modules.get(module).into_iter().flatten() {
-        let Some(iface) =
-            r.cx.world
-                .module_folder(m)
-                .and_then(|f| r.cx.world.iface(f))
-        else {
+        let Some(iface) = r.cx.world.module_unit(m).and_then(|f| r.cx.world.iface(f)) else {
             continue;
         };
         let node = names.module(m);
@@ -9041,11 +9036,11 @@ fn session_blocks(r: &Resolver<'_, '_>, module: &str) -> HashSet<DefId> {
     out
 }
 
-/// The diagnostics a use of the folder's modules reports when it names
-/// nothing (`USE_CODES`), in the order [`build_folder`] meets them:
+/// The diagnostics a use of the unit's modules reports when it names
+/// nothing (`USE_CODES`), in the order [`build_unit`] meets them:
 /// `HeaderCheck(F)` reports them (#248), so the interface entry, keyed
-/// by the folders F's headers read, holds none. They depend on every
-/// folder F's uses reach, and on F's own uses.
+/// by the units F's headers read, holds none. They depend on every
+/// unit F's uses reach, and on F's own uses.
 pub fn use_diags(cx: &Cx<'_>, mods: &[ModIn<'_>], diags: &mut DiagBuf) {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
@@ -9062,8 +9057,8 @@ pub fn use_diags(cx: &Cx<'_>, mods: &[ModIn<'_>], diags: &mut DiagBuf) {
 }
 
 /// The codes a `use` that names nothing reports while module scopes are
-/// built: [`use_diags`]' codes, which `build_folder` leaves out.
-/// `re-export-loop` is not one: it depends only on the folder's own
+/// built: [`use_diags`]' codes, which `build_unit` leaves out.
+/// `re-export-loop` is not one: it depends only on the unit's own
 /// source, and its interface reports it once per loop.
 pub const USE_CODES: [Code; 6] = [
     Code::UnknownImport,
@@ -9078,14 +9073,14 @@ fn is_use_code(code: Code) -> bool {
     USE_CODES.contains(&code)
 }
 
-/// The resolver of one folder's lowering: its own heads and `pub use`
+/// The resolver of one unit's lowering: its own heads and `pub use`
 /// links, over `frozen` once its interface is built.
 fn resolver<'a, 'b>(
     cx: &'b Cx<'a>,
     mods: &[ModIn<'_>],
     all_heads: &[Vec<Head<'_>>],
     all_uses: &[Vec<UseDecl>],
-    frozen: Option<Arc<FolderIface>>,
+    frozen: Option<Arc<UnitIface>>,
 ) -> Resolver<'a, 'b> {
     let names = &cx.names;
     let mut r = Resolver {
@@ -9305,17 +9300,17 @@ impl TopBindings {
     }
 }
 
-/// Resolves and lowers the modules of one folder (§4.10 steps 1 to 4).
-/// Without `frozen`, `mods` must be every module of the folder: sibling
-/// uses resolve through their heads, and the folder's exports are
+/// Resolves and lowers the modules of one unit (§4.10 steps 1 to 4).
+/// Without `frozen`, `mods` must be every module of the unit: sibling
+/// uses resolve through their heads, and the unit's exports are
 /// computed. With `frozen`, sibling uses read its export index, and `mods`
 /// may be any subset.
-pub fn build_folder(
+pub fn build_unit(
     cx: &Cx<'_>,
     mods: &[ModIn<'_>],
-    frozen: Option<Arc<FolderIface>>,
+    frozen: Option<Arc<UnitIface>>,
     diags: &mut DiagBuf,
-) -> FolderOut {
+) -> UnitOut {
     let names = &cx.names;
     let all_heads: Vec<Vec<Head<'_>>> = mods
         .iter()
@@ -9323,7 +9318,7 @@ pub fn build_folder(
         .collect();
     let all_uses: Vec<Vec<UseDecl>> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
     let mut r = resolver(cx, mods, &all_heads, &all_uses, frozen);
-    let mut out = FolderOut {
+    let mut out = UnitOut {
         modules: Vec::new(),
         exports: Vec::new(),
         private_names: Vec::new(),
@@ -9354,7 +9349,7 @@ pub fn build_folder(
             }
         })
         .collect();
-    // A use bound above may have filled the memo of this folder's own
+    // A use bound above may have filled the memo of this unit's own
     // `pub use` chains while its reads were held: they are read again,
     // recorded, when a lookup needs them.
     r.memo.borrow_mut().clear();
@@ -9507,7 +9502,7 @@ pub fn build_folder(
             blocks,
         });
     }
-    let index = FolderItems::new(&out.modules);
+    let index = UnitItems::new(&out.modules);
     drop_extra_methods(&r, &mut out.modules, &index);
     delegations(&r, &mut out.modules, &index);
     caller_chains(
@@ -9661,14 +9656,14 @@ pub fn build_folder(
     out
 }
 
-/// The folder's lowered items by `DefId`, as (module, item): the first of
+/// The unit's lowered items by `DefId`, as (module, item): the first of
 /// each `DefId`, as a scan would find it. Built once, after every module
 /// is lowered, so each implementation finds its trait, part and trait
 /// methods by one probe (#1888). The passes that read it only add items
 /// after their scan, so the positions hold while it is read.
-struct FolderItems(HashMap<DefId, (usize, usize)>);
+struct UnitItems(HashMap<DefId, (usize, usize)>);
 
-impl FolderItems {
+impl UnitItems {
     fn new(modules: &[ModOut]) -> Self {
         let mut at = HashMap::default();
         for (mi, m) in modules.iter().enumerate() {
@@ -9676,10 +9671,10 @@ impl FolderItems {
                 at.entry(it.def).or_insert((mi, ii));
             }
         }
-        FolderItems(at)
+        UnitItems(at)
     }
 
-    /// The item `d`: the folder's, or else another folder's or a seed.
+    /// The item `d`: the unit's, or else another unit's or a seed.
     fn get<'a>(
         &self,
         r: &Resolver<'_, '_>,
@@ -9699,7 +9694,7 @@ impl FolderItems {
 /// method is no part of the trait implementation, so a later call to it is
 /// the ordinary unknown method. The checker reports it once, where its body
 /// is checked.
-fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems) {
+fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &UnitItems) {
     // Each trait's method names, hashed once however many implementations
     // it has; `None` for a trait reference that names no trait.
     let mut declared: HashMap<DefId, Option<HashSet<Symbol>>> = HashMap::default();
@@ -9744,7 +9739,7 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &Fold
 
 /// The members a delegating implementation `impl Tr for C by E` takes
 /// from its part (spec 09 "Delegation", `crates/hd_check/DESIGN.md` (trait solver) §3.10), once every
-/// item of the folder is lowered:
+/// item of the unit is lowered:
 ///
 /// - each associated type of `Tr` is bound to the projection
 ///   `<F as Tr[A]>::Name`, where `F` is the embedded field `E`'s type at
@@ -9762,7 +9757,7 @@ fn drop_extra_methods(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &Fold
 ///
 /// An implementation whose part is not an embedded field of a struct
 /// takes nothing: the checker reports it (`invalid-delegation`).
-fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &FolderItems) {
+fn delegations(r: &Resolver<'_, '_>, modules: &mut [ModOut], index: &UnitItems) {
     let names = &r.cx.names;
     let pool = names.pool;
     let item = |d: DefId| index.get(r, modules, d);
@@ -9929,7 +9924,7 @@ struct Taken {
     forwarders: Vec<Item>,
 }
 
-/// One module's scopes while its folder resolves: its own, and with test
+/// One module's scopes while its unit resolves: its own, and with test
 /// code, its `tests:` block's, whose diagnostics are kept apart.
 struct ModScopes {
     scope: ModuleScope,
@@ -10102,7 +10097,7 @@ mod prelude_tests {
 #[cfg(test)]
 mod module_key_tests {
     use super::{Cx, Recorded, Resolver, World, resolver};
-    use crate::{FolderIface, HeadKind, KnownItems, Names};
+    use crate::{HeadKind, KnownItems, Names, UnitIface};
     use hd_base::{DefId, PathId};
     use hd_diag::Code;
     use hd_intern::{PathTable, ShardedInterner};
@@ -10112,7 +10107,7 @@ mod module_key_tests {
     struct Modules;
 
     impl World for Modules {
-        fn module_folder(&self, module: &str) -> Option<u32> {
+        fn module_unit(&self, module: &str) -> Option<u32> {
             match module {
                 "app" | "app.a" | "app.z" => Some(0),
                 "dep.mod" => Some(1),
@@ -10121,14 +10116,14 @@ mod module_key_tests {
         }
 
         fn usable(&self, module: &str) -> bool {
-            self.module_folder(module).is_some()
+            self.module_unit(module).is_some()
         }
 
         fn test_only(&self, _module: &str) -> bool {
             false
         }
 
-        fn iface(&self, _folder: u32) -> Option<Arc<FolderIface>> {
+        fn iface(&self, _unit: u32) -> Option<Arc<UnitIface>> {
             None
         }
     }
@@ -10146,7 +10141,7 @@ mod module_key_tests {
         };
         let cx = Cx {
             names,
-            folder: 0,
+            unit: 0,
             world: &Modules,
         };
         test(&mut resolver(&cx, &[], &[], &[], None));
@@ -10183,13 +10178,13 @@ mod module_key_tests {
                 app: PathId,
             }
             impl World for Indexed {
-                fn module_folder(&self, _: &str) -> Option<u32> {
+                fn module_unit(&self, _: &str) -> Option<u32> {
                     panic!("node lookup must not fall back to text");
                 }
                 fn module_path_node(&self, node: PathId) -> Option<&str> {
                     (node == self.app).then_some("app.a")
                 }
-                fn module_folder_node(&self, _: &Names<'_>, node: PathId) -> Option<u32> {
+                fn module_unit_node(&self, _: &Names<'_>, node: PathId) -> Option<u32> {
                     (node == self.app).then_some(0)
                 }
                 fn usable(&self, _: &str) -> bool {
@@ -10198,25 +10193,25 @@ mod module_key_tests {
                 fn test_only(&self, _: &str) -> bool {
                     false
                 }
-                fn iface(&self, _: u32) -> Option<Arc<FolderIface>> {
+                fn iface(&self, _: u32) -> Option<Arc<UnitIface>> {
                     None
                 }
             }
             let names = &r.cx.names;
             let app = names.module("app.a");
             let missing = names.module("missing");
-            assert_eq!(Modules.module_folder_node(names, app), Some(0));
-            assert_eq!(Modules.module_folder_node(names, missing), None);
+            assert_eq!(Modules.module_unit_node(names, app), Some(0));
+            assert_eq!(Modules.module_unit_node(names, missing), None);
             let world = Indexed { app };
             let recorded = Recorded::new(&world);
-            assert_eq!(recorded.module_folder_node(names, app), Some(0));
-            assert_eq!(recorded.module_folder_node(names, app), Some(0));
+            assert_eq!(recorded.module_unit_node(names, app), Some(0));
+            assert_eq!(recorded.module_unit_node(names, app), Some(0));
             assert_eq!(recorded.reads().modules, vec!["app.a"]);
             recorded.hold_reads(true);
-            assert_eq!(recorded.module_folder_node(names, missing), None);
+            assert_eq!(recorded.module_unit_node(names, missing), None);
             assert_eq!(recorded.reads().modules, vec!["app.a"]);
             recorded.hold_reads(false);
-            assert_eq!(recorded.module_folder_node(names, missing), None);
+            assert_eq!(recorded.module_unit_node(names, missing), None);
             assert_eq!(recorded.reads().modules, vec!["app.a", "missing"]);
         });
     }

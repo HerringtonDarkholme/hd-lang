@@ -1,5 +1,5 @@
 //! Implementation heads per type (`cli.doc.impls`), from the package's
-//! folder interfaces: every trait implementation of the package, in
+//! unit interfaces: every trait implementation of the package, in
 //! whichever module, with derived ones marked. The blobs decode into
 //! fresh run tables, so this needs nothing of the run but the bytes.
 
@@ -15,7 +15,7 @@ use hd_types::{InternPool, TyData};
 /// The implementation lines of each type, by (module path, type name).
 pub(crate) type ImplLines = HashMap<(String, String), Vec<String>>;
 
-/// The implementation lines of the folders of the package whose module
+/// The implementation lines of the units of the package whose module
 /// root is `root`.
 pub(crate) fn impl_lines(root: &str, ifaces: &[(String, Arc<[u8]>)]) -> ImplLines {
     let (pool, paths, syms) = (
@@ -32,8 +32,8 @@ pub(crate) fn impl_lines(root: &str, ifaces: &[(String, Arc<[u8]>)]) -> ImplLine
     };
     let below = format!("{root}.");
     let mut out = ImplLines::default();
-    for (folder, blob) in ifaces {
-        if folder != root && !folder.starts_with(&below) {
+    for (unit, blob) in ifaces {
+        if unit != root && !unit.starts_with(&below) {
             continue;
         }
         let Some((items, _)) = decode_items(&names, blob) else {

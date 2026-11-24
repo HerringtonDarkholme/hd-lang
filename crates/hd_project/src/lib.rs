@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
-//! `hd_project`: manifests, module discovery and identity, folders, the
-//! folder graph and the `SourceSet` trait (`docs/compiler/design-overview.md` §2.1,
+//! `hd_project`: manifests, module discovery and identity, units, the
+//! unit graph and the `SourceSet` trait (`docs/compiler/design-overview.md` §2.1,
 //! `crates/hd_resolve/DESIGN.md` §4.7 and §4.8).
 //!
 //! No file system access here (§2.2 rule 3): sources come through
@@ -14,7 +14,7 @@ use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, Hash128, HashMap, ModuleId, Span};
+use hd_base::{FileId, Hash128, HashMap, ModuleId, Span, UnitId};
 use hd_diag::Code;
 
 pub use doctest::{BODY_INDENT, DocTest, doc_tests};
@@ -176,8 +176,8 @@ pub enum Root {
     Task,
     /// A REPL input (`docs/compiler/live-execution.md` "REPL Decisions"): the synthetic
     /// file `repl#N` of
-    /// the session's `N`th input, outside every package folder. It is its
-    /// own module and its own folder, and its relative lookup starts at
+    /// the session's `N`th input, outside every package unit. It is its
+    /// own module and its own unit, and its relative lookup starts at
     /// the package root module, as `src/lib.hd`'s does (`cli.repl.package.lib`).
     Repl,
     /// A package without that layout, as std or a single-file program:
@@ -475,7 +475,7 @@ pub struct Module {
     /// connected group of the module graph, once [`ModuleGraph::build`]
     /// has grouped the table; until then the module alone, or its
     /// package's test unit.
-    pub folder: FolderId,
+    pub unit: UnitId,
     pub role: Role,
     /// Index into `ModuleTable::packages`: 0 is the root package.
     pub package: u16,
@@ -624,14 +624,14 @@ impl UseRoots {
 /// One compile unit: a strongly connected group of the module graph, its
 /// modules in path order (`crates/hd_resolve/DESIGN.md` §4.8).
 #[derive(Clone, Debug)]
-pub struct Folder {
-    pub id: FolderId,
+pub struct Unit {
+    pub id: UnitId,
     pub path: String,
     pub modules: Vec<ModuleId>,
     pub package: u16,
 }
 
-/// Modules and folders of the root package and the packages it reaches
+/// Modules and units of the root package and the packages it reaches
 /// (std among them), in path order (§4.7).
 #[derive(Clone, Debug, Default)]
 pub struct ModuleTable {
@@ -658,7 +658,7 @@ pub struct ModuleTable {
     /// (`SourceEntry::stamp`).
     pub stamps: Vec<Option<Hash128>>,
     pub modules: Vec<Module>,
-    pub folders: Vec<Folder>,
+    pub units: Vec<Unit>,
     /// Identity errors of discovery (§4.7 step 3): each module's file, the
     /// code and the message, in path order.
     pub problems: Vec<(FileId, Code, String)>,
@@ -1176,7 +1176,7 @@ impl ModuleTable {
             dev_requires: packages.iter().map(|p| p.dev_requires.clone()).collect(),
             ..Self::default()
         };
-        let mut folders: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
+        let mut units: BTreeMap<String, (u16, Vec<ModuleId>)> = BTreeMap::new();
         let mut folded_seen: BTreeMap<String, usize> = BTreeMap::new();
         for (pi, p) in packages.iter().enumerate() {
             let pi = u16::try_from(pi).expect("packages");
@@ -1227,7 +1227,7 @@ impl ModuleTable {
                 } else {
                     path.clone()
                 };
-                folders.entry(unit).or_insert((pi, Vec::new())).1.push(id);
+                units.entry(unit).or_insert((pi, Vec::new())).1.push(id);
                 let file = FileId::from_raw(id.raw());
                 let beside = match Root::of(&e.path) {
                     (Root::Test | Root::Task, rest) => !rest.contains('/') && dirs.contains(stem),
@@ -1334,7 +1334,7 @@ impl ModuleTable {
                         path.clone()
                     },
                     path,
-                    folder: FolderId::NONE,
+                    unit: UnitId::NONE,
                     role: if executable {
                         Role::Exe
                     } else {
@@ -1347,12 +1347,12 @@ impl ModuleTable {
             }
         }
         t.roots = roots;
-        for (i, (path, (package, mods))) in folders.into_iter().enumerate() {
-            let id = FolderId::from_raw(u32::try_from(i).expect("folders"));
+        for (i, (path, (package, mods))) in units.into_iter().enumerate() {
+            let id = UnitId::from_raw(u32::try_from(i).expect("units"));
             for &m in &mods {
-                t.modules[m.idx()].folder = id;
+                t.modules[m.idx()].unit = id;
             }
-            t.folders.push(Folder {
+            t.units.push(Unit {
                 id,
                 path,
                 modules: mods,
@@ -1527,17 +1527,17 @@ impl ModuleTable {
     /// The unit whose path is `path`. Units are in path order, so this is
     /// a binary search.
     #[must_use]
-    pub fn unit_at(&self, path: &str) -> Option<FolderId> {
-        self.folders
+    pub fn unit_at(&self, path: &str) -> Option<UnitId> {
+        self.units
             .binary_search_by(|f| f.path.as_str().cmp(path))
             .ok()
-            .map(|i| self.folders[i].id)
+            .map(|i| self.units[i].id)
     }
 
-    /// The folder of a module path, if the module exists.
+    /// The unit of a module path, if the module exists.
     #[must_use]
-    pub fn folder_of_module(&self, path: &str) -> Option<FolderId> {
-        self.module(path).map(|m| self.modules[m.idx()].folder)
+    pub fn unit_of_module(&self, path: &str) -> Option<UnitId> {
+        self.module(path).map(|m| self.modules[m.idx()].unit)
     }
 
     /// The module a `use` path names: its longest prefix that is a module.
@@ -1614,9 +1614,9 @@ pub struct ModuleGraph {
     /// sorted.
     pub policy: Vec<Vec<PolicyEdge>>,
     /// Per unit: the units it uses, sorted.
-    pub uses: Vec<Vec<FolderId>>,
+    pub uses: Vec<Vec<UnitId>>,
     /// Units in dependency order: every unit after the units it uses.
-    pub order: Vec<FolderId>,
+    pub order: Vec<UnitId>,
     /// Longest path to a sink: the interface task's priority
     /// (`crates/hd_sched/DESIGN.md` §6.3).
     pub height: Vec<u32>,
@@ -1693,17 +1693,13 @@ impl ModuleGraph {
     /// Makes each strongly connected group of units one unit, in path
     /// order, and orders the units.
     fn group_units(&mut self, table: &mut ModuleTable) {
-        let nf = table.folders.len();
+        let nf = table.units.len();
         let deps = &self.deps;
         let sccs = {
             let t = &*table;
             hd_base::scc::sccs(nf, |f, out| {
-                for m in &t.folders[f as usize].modules {
-                    out.extend(
-                        deps[m.idx()]
-                            .iter()
-                            .map(|d| t.modules[d.idx()].folder.raw()),
-                    );
+                for m in &t.units[f as usize].modules {
+                    out.extend(deps[m.idx()].iter().map(|d| t.modules[d.idx()].unit.raw()));
                 }
             })
         };
@@ -1711,40 +1707,40 @@ impl ModuleGraph {
         // A unit takes the path and package of its first member: units
         // stay in path order.
         let mut new_id = vec![u32::MAX; sccs.len()];
-        let old = std::mem::take(&mut table.folders);
+        let old = std::mem::take(&mut table.units);
         for (f, unit) in old.into_iter().enumerate() {
             let c = sccs.comp[f] as usize;
-            let Folder {
+            let Unit {
                 path,
                 modules,
                 package,
                 ..
             } = unit;
             if new_id[c] == u32::MAX {
-                new_id[c] = u32::try_from(table.folders.len()).expect("units");
-                table.folders.push(Folder {
-                    id: FolderId::from_raw(new_id[c]),
+                new_id[c] = u32::try_from(table.units.len()).expect("units");
+                table.units.push(Unit {
+                    id: UnitId::from_raw(new_id[c]),
                     path,
                     modules: Vec::new(),
                     package,
                 });
             }
-            table.folders[new_id[c] as usize].modules.extend(modules);
+            table.units[new_id[c] as usize].modules.extend(modules);
         }
-        for unit in &mut table.folders {
+        for unit in &mut table.units {
             unit.modules.sort_stable_by_key(|m| m.raw());
             for m in &unit.modules {
-                table.modules[m.idx()].folder = unit.id;
+                table.modules[m.idx()].unit = unit.id;
             }
         }
-        let units = table.folders.len();
+        let units = table.units.len();
         self.uses = vec![Vec::new(); units];
         for (m, deps) in self.deps.iter().enumerate() {
-            let from = table.modules[m].folder;
+            let from = table.modules[m].unit;
             let out = &mut self.uses[from.idx()];
             out.extend(
                 deps.iter()
-                    .map(|d| table.modules[d.idx()].folder)
+                    .map(|d| table.modules[d.idx()].unit)
                     .filter(|f| *f != from),
             );
         }
@@ -1754,7 +1750,7 @@ impl ModuleGraph {
         }
         // Tarjan finishes each component after every one it reaches.
         self.order = (0..sccs.len())
-            .map(|c| FolderId::from_raw(new_id[c]))
+            .map(|c| UnitId::from_raw(new_id[c]))
             .collect();
         self.height = vec![0; units];
         for &f in &self.order {
@@ -2032,7 +2028,7 @@ mod tests {
     }
 
     fn unit_paths(t: &ModuleTable) -> Vec<&str> {
-        t.folders.iter().map(|f| f.path.as_str()).collect()
+        t.units.iter().map(|f| f.path.as_str()).collect()
     }
 
     /// Units are the dependency graph's strongly connected groups, in path
@@ -2048,17 +2044,17 @@ mod tests {
         let order: Vec<&str> = g
             .order
             .iter()
-            .map(|f| t.folders[f.idx()].path.as_str())
+            .map(|f| t.units[f.idx()].path.as_str())
             .collect();
         assert_eq!(order, ["pkg.b.y", "pkg.a.x", "pkg.app"]);
-        let main = t.folder_of_module("pkg.app").expect("main");
+        let main = t.unit_of_module("pkg.app").expect("main");
         assert_eq!(g.height[main.idx()], 2);
     }
 
     /// `module.cycle.edge`: a use's edge goes to the module it names, and a
     /// `pub use` makes none. Its dependency edge goes there too, and the
     /// facade's own `pub use` edge reaches the declaring module. A root
-    /// facade that a child folder's module uses back is one unit with it.
+    /// facade that a child unit's module uses back is one unit with it.
     #[test]
     fn facades_make_no_policy_edge() {
         let mut reexport = grouped("pkg.shop", &["Cart"]);
@@ -2179,7 +2175,7 @@ mod tests {
             files.iter().map(|(f, u)| (f.as_str(), u.clone())).collect();
         let (t, g) = graph_of(&refs);
         assert!(g.loops.is_empty());
-        assert_eq!(t.folders.len(), 1);
+        assert_eq!(t.units.len(), 1);
         assert!(g.work < 8 * n as u64, "work {}", g.work);
         // A forbidden ring of 1000 cousins: one error, linear work.
         let files: Vec<(String, Vec<UseRef>)> = (0..n)

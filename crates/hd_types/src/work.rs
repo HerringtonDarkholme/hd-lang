@@ -75,7 +75,7 @@ thread_local! {
     static VIEW_SLOTS: Cell<Option<u64>> = const { Cell::new(None) };
 }
 
-/// Count the folder slots of impl views that `Impls::tables_at` reads on
+/// Count the unit slots of impl views that `Impls::tables_at` reads on
 /// this thread. Use the driver's serial executor to measure a whole build.
 pub fn count_view_slots<R>(run: impl FnOnce() -> R) -> (R, u64) {
     let previous = VIEW_SLOTS.with(|c| c.replace(Some(0)));
@@ -84,7 +84,7 @@ pub fn count_view_slots<R>(run: impl FnOnce() -> R) -> (R, u64) {
     (result, n)
 }
 
-/// `n` folder slots of an impl view read.
+/// `n` unit slots of an impl view read.
 pub fn view_slots(n: usize) {
     VIEW_SLOTS.with(|c| {
         if let Some(m) = c.get() {

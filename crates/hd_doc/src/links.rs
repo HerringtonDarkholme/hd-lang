@@ -128,7 +128,7 @@ impl<'a> Links<'a> {
         links
     }
 
-    /// The exports and public items of the folders outside this package and
+    /// The exports and public items of the units outside this package and
     /// `std`, which the checks of dependency links read.
     fn read_ifaces(&mut self) {
         let (pool, paths, syms) = (
@@ -144,9 +144,9 @@ impl<'a> Links<'a> {
             known: &known,
         };
         let below = format!("{}.", self.p.root);
-        for (folder, blob) in self.p.ifaces {
-            let root = folder.split('.').next().unwrap_or("");
-            if root == "std" || folder == self.p.root || folder.starts_with(&below) {
+        for (unit, blob) in self.p.ifaces {
+            let root = unit.split('.').next().unwrap_or("");
+            if root == "std" || unit == self.p.root || unit.starts_with(&below) {
                 continue;
             }
             let Some((items, exports)) = decode_items(&names, blob) else {

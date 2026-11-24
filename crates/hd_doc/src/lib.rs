@@ -2,7 +2,7 @@
 //! `hd_doc`: the pages of `hd doc` (spec/cli/command-line.md
 //! "Documentation", `f1c55020:future-work/compiler/doc.md`). Each module's page is
 //! rendered from its source, whose declarations give the signatures as
-//! written and the `##` documentation, and from the package's folder
+//! written and the `##` documentation, and from the package's unit
 //! interfaces, which give each type's implementations. Pages are built as
 //! strings: the Markdown copies the documentation unchanged, and the HTML
 //! holds the same content under the same anchors.
@@ -41,7 +41,7 @@ pub struct Package<'a> {
     /// interfaces.
     pub root: &'a str,
     pub modules: &'a [Module<'a>],
-    /// The run's folder interface blobs, by folder path.
+    /// The run's unit interface blobs, by unit path.
     pub ifaces: &'a [(String, Arc<[u8]>)],
     /// `--private`: the private items and members too (`cli.doc.private`).
     pub private: bool,

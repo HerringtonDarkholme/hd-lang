@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 //! `hd_driver`: the one driver (`docs/compiler/design-overview.md` §1, `crates/hd_sched/DESIGN.md` §6.1).
-//! A run is the task graph of §6.1 over a package: skim, folder graph,
-//! folder interfaces, header checks, module prep, bodies, module finish,
+//! A run is the task graph of §6.1 over a package: skim, unit graph,
+//! unit interfaces, header checks, module prep, bodies, module finish,
 //! coherence, init order, package result, then `Collect` and
 //! `Link` for a program. Every task writes its result into a per-kind slot
 //! (`OnceLock`), so the serial, stepping and pool executors run the same
@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use hd_base::wire::{Reader, Writer};
 pub use hd_base::{BuildProfile, EngineTarget, OptLevel};
 use hd_base::{
-    DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, PathId, Span, StageResult,
+    DefId, FileId, Hash128, ModuleId, NotImplemented, PathId, Span, StageResult, UnitId,
 };
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, hdr_key, iface_key, init_key,
@@ -41,14 +41,14 @@ use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, HostItems, ProgramEnv};
 use hd_project::{MemorySources, ModuleGraph, ModuleTable, PackageIn, Role, Scope, SourceSet};
 use hd_resolve::iface::IfaceIndex;
-use hd_resolve::{FolderIface, Item, ItemData, Items, Lookup, ModOut, Names, Src};
+use hd_resolve::{Item, ItemData, Items, Lookup, ModOut, Names, Src, UnitIface};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
 use hd_syntax::{HeaderKind, Parse, parse, skim};
 use hd_tir::Body;
 use hd_types::solver::{
-    Declarations, FolderImpls, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls,
-    MemberStep, OWN_TABLE, OwnerMap, SealedTraits, TableSolver, TuplePlans, TypeDecl,
-    UniverseImpls, folder_table,
+    Declarations, GlobalMemo, ImplRef, ImplUniverseId, ImplUniverses, ImplView, Impls, MemberStep,
+    OWN_TABLE, OwnerMap, SealedTraits, TableSolver, TuplePlans, TypeDecl, UnitImpls, UniverseImpls,
+    unit_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
 pub use hd_wasm::views::{CountAction, CountOperation, CountedLeaf, FieldLayout, TypeLayout};
@@ -87,8 +87,8 @@ pub const ENTRY_MODULE: &str = hd_resolve::known::ENTRY_MODULE;
 /// plain, `Error` and `dyn Error` (`report_fn`).
 const ENTRY_STATUS_FNS: [&str; 3] = ["entry_status", "entry_status_error", "entry_status_dyn_ref"];
 
-/// The virtual file of [`ENTRY_MODULE`]: a folder of its own under `rt/`,
-/// so the runtime folder `rt/` uses none of the std modules it uses.
+/// The virtual file of [`ENTRY_MODULE`]: a unit of its own under `rt/`,
+/// so the runtime unit `rt/` uses none of the std modules it uses.
 pub const ENTRY_PATH: &str = "rt/entry/mod.hd";
 
 /// The std sources every run reads: `lib/std` as embedded at build time,
@@ -180,14 +180,14 @@ fn entry_write(text: string) -> void:
 
 /// The modules the compiler roots after an entry or a test case, whatever
 /// the program uses: [`ENTRY_MODULE`] (`RT_SOURCE`) and the runtime
-/// allocator's module, whose folder holds the other runtime modules that
+/// allocator's module, whose unit holds the other runtime modules that
 /// emitted code calls.
 fn rt_roots(
     table: &ModuleTable,
     checked: bool,
     report: bool,
 ) -> impl Iterator<Item = ModuleId> + '_ {
-    // A checked build links the checked runtime, which has folders of its
+    // A checked build links the checked runtime, which has units of its
     // own (`std.rt.checked`, and `std.rt.checked_report` when it asks for
     // the report).
     let checked_rt: &[&str] = match (checked, report) {
@@ -391,7 +391,7 @@ pub enum Goal {
     CheckTests,
     /// The `input`th input of a REPL session (`f1c55020:future-work/compiler/repl-plan.md` §2.2): the root
     /// package's synthetic file `repl#N` ([`hd_project::repl_file`]), a
-    /// module outside every package folder, polled as a script. The
+    /// module outside every package unit, polled as a script. The
     /// sources hold the session's earlier inputs as `repl#K` files, `K`
     /// below `input`, without the inputs that panicked
     /// (`cli.repl.panic.binding`). An input sees `src/lib.hd`'s scope with
@@ -620,7 +620,7 @@ pub struct Output {
     pub shown_roots: Vec<hd_project::ShownRoot>,
     pub counters: Counters,
     pub report: PipelineReport,
-    /// Each built folder interface's blob, by folder path.
+    /// Each built unit interface's blob, by unit path.
     pub ifaces: Vec<(String, Arc<[u8]>)>,
     /// With [`Packages::doc_scopes`], each module of the root package with
     /// the names its scope binds: its own declarations and its `use`s.
@@ -765,10 +765,10 @@ fn main_visibility(header: &str) -> Option<bool> {
 struct SkimOut {
     /// The text's own skim.
     file: Arc<skims::FileSkim>,
-    /// The module paths its library code uses: its folder edges and
+    /// The module paths its library code uses: its unit edges and
     /// `closure(m)`.
     uses: Vec<String>,
-    /// The module paths only its `tests:` block uses, which make no folder
+    /// The module paths only its `tests:` block uses, which make no unit
     /// edge (`module.cycle.test-code`) and widen only the test role's
     /// closure ([`Run::module_closure`]).
     test_uses: Vec<String>,
@@ -789,7 +789,7 @@ struct PrepOut {
     blocks: Vec<hd_base::NodeIdx>,
 }
 
-/// A folder's stage-A diagnostics, with the module each belongs to, the
+/// A unit's stage-A diagnostics, with the module each belongs to, the
 /// severity each was reported with and its fix-its (a cache hit re-emits
 /// them).
 type IfaceDiags = Vec<(
@@ -899,14 +899,14 @@ struct ProgramTables {
     /// The build ID (`Env::build_id`), made once per build.
     build_id: OnceLock<u64>,
     bodies: Bodies,
-    /// Where each impl's row lives: its folder's table.
+    /// Where each impl's row lives: its unit's table.
     impl_rows: HashMap<DefId, ImplRef>,
-    /// The program's impl universe: every folder of the program. A build
+    /// The program's impl universe: every unit of the program. A build
     /// sees the whole program, so the universe is not narrowed to a
     /// closure (`crates/hd_check/DESIGN.md` (trait solver) §3.2).
     universe: ImplUniverseId,
     extra: Arc<UniverseImpls>,
-    /// A test program's impls that no folder table holds: those of the
+    /// A test program's impls that no unit table holds: those of the
     /// `tests:` blocks, which only the test role checks
     /// (`names.tests.module-items`, `module.test.code`). The program view
     /// reads them as its own table, so a memo entry that probed one is
@@ -949,7 +949,7 @@ struct EntryCx {
 /// std's modules in this program. A program reaches a small part of std, so a module's
 /// items and bodies are indexed when something first asks for one of them. Every item
 /// and body of a std module has a path under that module, and its impls are in the
-/// folder interface, so a lookup needs only its own module.
+/// unit interface, so a lookup needs only its own module.
 #[derive(Default)]
 struct StdModules {
     cx: Option<EntryCx>,
@@ -1075,7 +1075,7 @@ fn configured_bodies(
 /// Where a program's items come from.
 enum ItemSource {
     Check(Box<hd_resolve::Items>),
-    Interface(Arc<FolderIface>),
+    Interface(Arc<UnitIface>),
 }
 
 impl ItemSource {
@@ -1119,8 +1119,8 @@ impl ProgramItems {
         self.add(ItemSource::Check(Box::new(items)), true);
     }
 
-    /// A folder interface's items fill gaps without replacing checked declarations.
-    fn add_interface(&mut self, iface: Arc<FolderIface>) {
+    /// A unit interface's items fill gaps without replacing checked declarations.
+    fn add_interface(&mut self, iface: Arc<UnitIface>) {
         self.add(ItemSource::Interface(iface), false);
     }
 
@@ -1246,15 +1246,15 @@ fn skim_module(
     let mut uses: Vec<String> = refs.iter().map(|r| r.path.clone()).collect();
     // A `tests:` block's uses, of this package or another, such as a dev
     // dependency (`module.test.dev-dependency.in-tests`): the block is
-    // test code, so they make no folder edge (`module.cycle.test-code`).
+    // test code, so they make no unit edge (`module.cycle.test-code`).
     // The block is checked with its module in the test role, whose
     // closure they join.
     let mut test_uses = written_test_uses(&file.test_uses, &roots);
     // Test code has the prelude's `std.testing` row
     // (`module.prelude.test-only`), and its test cases run bodies of
-    // `std.testing` (`case_timeout` for a `timeout`), so that folder
+    // `std.testing` (`case_timeout` for a `timeout`), so that unit
     // joins its closure; std's own test code makes no such edge. A test
-    // module is test code as a whole, in a folder no library code uses;
+    // module is test code as a whole, in a unit no library code uses;
     // a `tests:` block is test code only in the test role.
     let package = table.modules[m].package;
     let testing_elsewhere = table
@@ -1269,7 +1269,7 @@ fn skim_module(
         }
     }
     // A REPL input sees `src/lib.hd`, once its session holds it, and the
-    // earlier inputs through its session scope, so their folders join its
+    // earlier inputs through its session scope, so their units join its
     // closure. It uses the library and the input just before it: that
     // input uses the one before, so the closure, and every key and order
     // over it, is the same as with a use of each earlier input, at one
@@ -1418,9 +1418,9 @@ struct JoinedInput {
 /// registrations.
 type TestsOut = (Vec<Item>, Vec<hd_check::tests::TestReg>);
 
-/// A user template of a folder's interface: its declaring module's path
+/// A user template of a unit's interface: its declaring module's path
 /// and its trait, `None` for a tuple template.
-type FolderTemplate = (String, Option<DefId>);
+type UnitTemplate = (String, Option<DefId>);
 
 /// One tuple template's member steps, computed once (`crates/hd_check/DESIGN.md` (trait solver)
 /// §3.9); `None` for a template whose body does not check.
@@ -1572,11 +1572,11 @@ fn names_any(text: &str, names: &HashSet<String>) -> bool {
 /// reaches from its own module, through its uses and its session's
 /// (`cli.repl.package.lib`, `cli.repl.uses.other`), and from `std.rt.entry`,
 /// which the compiler roots after an entry, and each module of
-/// another package's folder it reaches. Every other text is empty and
-/// never read, so a root-package folder the input reaches holds only its
+/// another package's unit it reaches. Every other text is empty and
+/// never read, so a root-package unit the input reaches holds only its
 /// reached modules for the run ([`Run::builds_module`]): an implementation
 /// in a module that no reached module uses is not in the session, as one
-/// in a folder outside the input's closure is not. Also each reached
+/// in a unit outside the input's closure is not. Also each reached
 /// module's skim, which the walk computes anyway. `None` when the run
 /// builds no input of `repl`.
 #[inline(never)]
@@ -1705,14 +1705,14 @@ struct Run<'a> {
     syms: Arc<ShardedInterner>,
     universes: ImplUniverses,
     memo: GlobalMemo,
-    /// Which folder declares what (`crates/hd_check/DESIGN.md` (trait solver) §3.2), built on first use.
+    /// Which unit declares what (`crates/hd_check/DESIGN.md` (trait solver) §3.2), built on first use.
     owners: OnceLock<OwnerMap>,
-    /// Per folder: its impl table and `arg_impls` section, built once per
+    /// Per unit: its impl table and `arg_impls` section, built once per
     /// run from its interface on first use.
-    folder_impls: Vec<OnceLock<Option<Arc<FolderImpls>>>>,
-    /// The folders whose impls were built, in id order: the program view's
+    unit_impls: Vec<OnceLock<Option<Arc<UnitImpls>>>>,
+    /// The units whose impls were built, in id order: the program view's
     /// walk (`Run::with_env`), built once per run.
-    built_folders: OnceLock<Vec<u32>>,
+    built_units: OnceLock<Vec<u32>>,
     toolchain: Hash128,
     package_key: Hash128,
     root_settings: Hash128,
@@ -1810,18 +1810,18 @@ struct Run<'a> {
     /// The module graph and its units, built before the run
     /// ([`module_graph`]).
     graph: ModuleGraph,
-    iface: Vec<OnceLock<Option<Arc<FolderIface>>>>,
+    iface: Vec<OnceLock<Option<Arc<UnitIface>>>>,
     iface_index: IfaceIndex,
     /// Method maps shared only by exactly the same ordered visible interfaces.
-    method_indexes: Mutex<HashMap<Vec<FolderId>, Arc<hd_check::MethodIndex>>>,
+    method_indexes: Mutex<HashMap<Vec<UnitId>, Arc<hd_check::MethodIndex>>>,
     prep: Vec<OnceLock<Option<PrepOut>>>,
     /// Per module that declares a derivation template: its items and scope,
     /// lowered once per run for the opt-ins that instantiate it.
     template_mods: Vec<OnceLock<Option<ModOut>>>,
-    /// Per folder: the templates outside std that its interface holds, as
+    /// Per unit: the templates outside std that its interface holds, as
     /// (declaring module path, trait), found on first use; the trait is
     /// `None` for a tuple template.
-    folder_templates: Vec<OnceLock<Vec<FolderTemplate>>>,
+    unit_templates: Vec<OnceLock<Vec<UnitTemplate>>>,
     /// Per tuple template: its member steps (`crates/hd_check/DESIGN.md` (trait solver) §3.9),
     /// computed once per run from its body on first use.
     tuple_plans: Mutex<HashMap<DefId, PlanCell>>,
@@ -1833,8 +1833,8 @@ struct Run<'a> {
     regs: Vec<OnceLock<Vec<hd_check::tests::TestReg>>>,
     /// Each module's references to `dbg` (`module.dbg.release`).
     dbg_refs: Vec<OnceLock<Vec<hd_check::DbgRef>>>,
-    /// Per folder: `InitOrder`'s runs, one list per module cycle of the
-    /// folder whose statements sit in several modules.
+    /// Per unit: `InitOrder`'s runs, one list per module cycle of the
+    /// unit whose statements sit in several modules.
     init_runs: Vec<OnceLock<Vec<Vec<InitRun>>>>,
     /// The package's `graph` entry this run fills on a miss.
     graph_parts: OnceLock<GraphParts>,
@@ -1860,7 +1860,7 @@ struct Run<'a> {
     /// The entries of each REPL input this run builds, by number, as it
     /// reads or writes them, for [`Session::inputs`].
     input_entries: Mutex<BTreeMap<u32, InputEntries>>,
-    /// Per folder: whether it is an earlier REPL input's, read from the
+    /// Per unit: whether it is an earlier REPL input's, read from the
     /// session ([`Run::read_kept`]), so it has no task.
     kept: OnceLock<Vec<bool>>,
     /// `src/lib.hd`'s scope, kinds and items, lowered once for the REPL
@@ -1877,7 +1877,7 @@ struct Run<'a> {
     /// The files a check is narrowed to ([`Packages::check_roots`]).
     check_roots: Option<Vec<String>>,
     /// For a narrowed check, once the skims are in: per module whether a
-    /// check root reaches it, and the folders of those modules' closures
+    /// check root reaches it, and the units of those modules' closures
     /// ([`Run::builds`], [`Run::builds_module`]).
     check_scope: OnceLock<Option<(Vec<bool>, Vec<bool>)>>,
     /// For a REPL input's build, per unit: whether the input's closure or
@@ -2248,14 +2248,14 @@ pub struct Packages<'a> {
     /// ([`Output::scopes`]), which `hd doc` resolves its links in.
     pub doc_scopes: bool,
     /// For `Goal::Analyze` and `Goal::CheckTests`: the files whose modules
-    /// are checked, with every module they use, deeply, and the folders of
+    /// are checked, with every module they use, deeply, and the units of
     /// those modules' closures (`hd check FILE`, `crates/hd_command/DESIGN.md`
     /// §7.2). `None` checks the whole package.
     pub check_roots: Option<Vec<String>>,
     /// Cached source/check entries and the linking ABI of earlier REPL
     /// inputs: the build links as one more module of that session.
     pub session: Option<&'a Session>,
-    /// The folder interfaces an earlier build of the caller decoded or
+    /// The unit interfaces an earlier build of the caller decoded or
     /// built ([`Reuse`]); an empty one is filled by this build.
     pub reuse: Option<&'a Reuse>,
     /// Where [`result_key`] leaves its table for this build, which takes
@@ -2280,7 +2280,7 @@ pub struct Packages<'a> {
     /// modules, and of each of their items' header goals, smaller than
     /// `Fuel::BODY_DEFAULT`, so a small program reaches `item-too-complex`
     /// (`fn.limit.complexity.error`) fast. It is part of those modules'
-    /// check keys and of their folders' header-check keys. `None` keeps
+    /// check keys and of their units' header-check keys. `None` keeps
     /// the default; every other package always does.
     pub body_fuel: Option<u64>,
     /// Enable allocation/count auditing for compiler conformance checks.
@@ -2317,19 +2317,19 @@ pub struct Session {
     linked: Option<hd_wasm::Session>,
 }
 
-/// The folder interfaces one build leaves for the caller's later builds
+/// The unit interfaces one build leaves for the caller's later builds
 /// over the same store, such as the check and program builds of one
 /// conformance case (#1423). The first build given an empty `Reuse` fills
 /// it with its interners and each interface it read or built. A later
-/// build adopts those interners and takes a folder's interface whenever
-/// its `iface` key and the deep hashes of the folders it names are
+/// build adopts those interners and takes a unit's interface whenever
+/// its `iface` key and the deep hashes of the units it names are
 /// unchanged, so it neither reads nor decodes the entry again. Later
 /// builds only read it.
 ///
-/// Cost: one map insert per folder in the filling build. A reading build
-/// pays a key and a map probe per folder, in place of the entry read, its
+/// Cost: one map insert per unit in the filling build. A reading build
+/// pays a key and a map probe per unit, in place of the entry read, its
 /// checksum and the decode. Its counters count no `iface` or `reads`
-/// lookup for a reused folder.
+/// lookup for a reused unit.
 #[derive(Default)]
 pub struct Reuse(OnceLock<Reused>);
 
@@ -2343,7 +2343,7 @@ pub struct Discovered(Mutex<Option<Stamped>>);
 type Stamped = (ModuleTable, Vec<Option<Arc<str>>>);
 
 /// What [`Reuse`] holds: the filling build's interners, which the reused
-/// interfaces' items name, and the interfaces by their folder's `reads_key`.
+/// interfaces' items name, and the interfaces by their unit's `reads_key`.
 struct Reused {
     pool: Arc<InternPool>,
     paths: Arc<PathTable>,
@@ -2354,12 +2354,12 @@ struct Reused {
 
 /// One reused interface, with what decides whether a later build may take
 /// it: the reads its key was computed over, the key, and the deep hash of
-/// each folder it names. Its header findings re-emit against the reading
+/// each unit it names. Its header findings re-emit against the reading
 /// build's files, as on a cache hit.
 struct ReusedIface {
     reads: Vec<(String, bool)>,
     key: Hash128,
-    iface: Arc<FolderIface>,
+    iface: Arc<UnitIface>,
     diags: IfaceDiags,
     mentions: Vec<(String, Hash128)>,
 }
@@ -2416,7 +2416,7 @@ fn cache_sections(
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct InputEntries {
     iface: Option<Vec<Vec<u8>>>,
-    /// The other folders its interface names, with their deep hashes,
+    /// The other units its interface names, with their deep hashes,
     /// which are fixed for the session too.
     mentions: Option<Vec<(String, Hash128)>>,
     header: Option<Vec<Vec<u8>>>,
@@ -2608,7 +2608,7 @@ fn par_files<R: Send>(
     {
         let out = Mutex::new(Vec::new());
         let mut g = TaskGraph::default();
-        g.add(TaskKind::FolderGraph, &[]);
+        g.add(TaskKind::UnitGraph, &[]);
         // One task maps the items: `par_map` is parallel inside a pool task.
         hd_sched::pool::run_pool(g, threads, &|_, _, _| {
             *lock(&out) = hd_sched::par_map(items, |&m| f(m));
@@ -2793,7 +2793,7 @@ fn build_packages_inner(
     );
     drop(graph_phase);
     let n = table.modules.len();
-    let nf = table.folders.len();
+    let nf = table.units.len();
     let pipeline = pipeline::key(packages.target, packages.level);
     let planner = hd_opt::planner::PipelinePlanner::new(hd_opt::passes::pipeline(
         packages.target,
@@ -2896,8 +2896,8 @@ fn build_packages_inner(
         universes: ImplUniverses::default(),
         memo: GlobalMemo::default(),
         owners: OnceLock::new(),
-        folder_impls: (0..nf).map(|_| OnceLock::new()).collect(),
-        built_folders: OnceLock::new(),
+        unit_impls: (0..nf).map(|_| OnceLock::new()).collect(),
+        built_units: OnceLock::new(),
         toolchain,
         package_key,
         root_settings,
@@ -2970,7 +2970,7 @@ fn build_packages_inner(
         method_indexes: Mutex::default(),
         prep: (0..n).map(|_| OnceLock::new()).collect(),
         template_mods: (0..n).map(|_| OnceLock::new()).collect(),
-        folder_templates: (0..nf).map(|_| OnceLock::new()).collect(),
+        unit_templates: (0..nf).map(|_| OnceLock::new()).collect(),
         tuple_plans: Mutex::default(),
         body: (0..n).map(|_| OnceLock::new()).collect(),
         check: (0..n).map(|_| OnceLock::new()).collect(),
@@ -3070,7 +3070,7 @@ fn build_packages_inner(
                 g.add(TaskKind::Parse(file), &[]);
             }
         }
-        g.add(TaskKind::FolderGraph, &skims);
+        g.add(TaskKind::UnitGraph, &skims);
         let exec = |id: TaskId, kind: TaskKind, sp: &dyn Spawn| run.exec(id, kind, sp);
         let left = match host.executor {
             Executor::Serial(order) => SerialScheduler { order }.run(&mut g, &exec),
@@ -3178,7 +3178,7 @@ fn build_packages_inner(
     let session_added = wasm.as_ref().and_then(|_| run.session_added.get().cloned());
     let ifaces = run
         .table
-        .folders
+        .units
         .iter()
         .filter_map(|f| Some((f.path.clone(), run.iface_of(f.id)?.blob.clone())))
         .collect();
@@ -3602,16 +3602,6 @@ fn describe_loop(
     (span, message)
 }
 
-/// The module paths a file's `use` lines name, their roots replaced by
-/// the module paths they name. A path whose root names nothing makes no
-/// edge; resolution reports it.
-fn written_uses(file: &skims::FileSkim, roots: &hd_project::UseRoots) -> Vec<String> {
-    written_use_lines(file, roots)
-        .into_iter()
-        .map(|(path, _, _)| path)
-        .collect()
-}
-
 /// The module paths a `tests:` block's `use` lines name (`test_uses`, as
 /// written), their roots replaced as test code resolves them, dev
 /// dependencies included.
@@ -3623,25 +3613,6 @@ fn written_test_uses(paths: &[String], roots: &hd_project::UseRoots) -> Vec<Stri
             roots.absolute_in_tests(&segs).ok().map(|abs| abs.join("."))
         })
         .collect()
-}
-
-/// The module paths a file's `use` lines name with their line spans, as
-/// `written_uses`, for the folder edge each use makes.
-fn written_use_lines(
-    file: &skims::FileSkim,
-    roots: &hd_project::UseRoots,
-) -> Vec<(String, u32, u32)> {
-    let mut uses = Vec::new();
-    for (&(lo, hi), path) in file.use_lines.iter().zip(&file.use_paths) {
-        if path.is_empty() {
-            continue;
-        }
-        let segs: Vec<&str> = path.split('.').collect();
-        if let Ok(abs) = roots.absolute(&segs) {
-            uses.push((abs.join("."), lo, hi));
-        }
-    }
-    uses
 }
 
 /// The 1-based line and character column of byte `at` in `text`.
@@ -3668,7 +3639,7 @@ pub fn has_tests_block(text: &str) -> bool {
 /// `use` lines, deeply, `file` first: the part of the package that
 /// `hd test FILE` and `hd check FILE` link with FILE's module
 /// (`cli.package.file`), and that `hd test --affected` maps an edit back
-/// through. A `tests:` block's uses count, though they make no folder
+/// through. A `tests:` block's uses count, though they make no unit
 /// edge: its cases read those modules. Only discovery and skims run, no
 /// check.
 #[must_use]
@@ -3693,7 +3664,10 @@ pub fn use_closure(
         order.push(table.files[m].clone());
         let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
         let file = files.get(&table, m, || read_text(sources, &table.sources[m].1));
-        let uses = written_uses(&file, &roots);
+        let uses: Vec<String> = written_refs(&file, &roots)
+            .into_iter()
+            .map(|r| r.path)
+            .collect();
         for u in uses
             .iter()
             .chain(&written_test_uses(&file.test_uses, &roots))
@@ -3944,7 +3918,7 @@ impl Run<'_> {
     }
 
     fn exec_task(&self, _id: TaskId, kind: TaskKind, sp: &dyn Spawn) {
-        // A module's or folder's task is named by its path.
+        // A module's or unit's task is named by its path.
         let _span = hd_base::trace::span("task", || match kind {
             TaskKind::Skim(i)
             | TaskKind::Parse(i)
@@ -3953,8 +3927,8 @@ impl Run<'_> {
             | TaskKind::ModuleFinish(i) => {
                 format!("{} {}", kind.name(), self.table.modules[i as usize].path)
             }
-            TaskKind::FolderIface(i) | TaskKind::HeaderCheck(i) | TaskKind::InitOrder(i) => {
-                format!("{} {}", kind.name(), self.table.folders[i as usize].path)
+            TaskKind::UnitIface(i) | TaskKind::HeaderCheck(i) | TaskKind::InitOrder(i) => {
+                format!("{} {}", kind.name(), self.table.units[i as usize].path)
             }
             _ => kind.name().to_owned(),
         });
@@ -3962,8 +3936,8 @@ impl Run<'_> {
         let mut child_ns = 0;
         match kind {
             TaskKind::Skim(f) => self.skim(f as usize),
-            TaskKind::FolderGraph => self.folder_graph(sp),
-            TaskKind::FolderIface(f) => self.folder_iface(f as usize),
+            TaskKind::UnitGraph => self.unit_graph(sp),
+            TaskKind::UnitIface(f) => self.unit_iface(f as usize),
             TaskKind::HeaderCheck(f) => self.header_check(f as usize),
             TaskKind::InitOrder(f) => self.init_order(f as usize),
             TaskKind::Coherence => self.coherence(),
@@ -4044,9 +4018,9 @@ impl Run<'_> {
             .copied()
     }
 
-    fn item_folder(&self, item: DefId) -> Option<FolderId> {
+    fn item_unit(&self, item: DefId) -> Option<UnitId> {
         self.item_module(item)
-            .map(|m| self.table.modules[m.idx()].folder)
+            .map(|m| self.table.modules[m.idx()].unit)
     }
 
     /// The runtime functions emitted code calls, from the table the emitter
@@ -4262,16 +4236,16 @@ impl Run<'_> {
         }
     }
 
-    /// `FolderGraph`: schedules the run's tasks over the units the module
+    /// `UnitGraph`: schedules the run's tasks over the units the module
     /// graph grouped before the run ([`module_graph`]). An interface task
     /// waits for the interface tasks of the units its unit uses, so for its
     /// whole closure; a header check and a module's prep wait only for the
     /// interfaces they read directly. Cost: O(units + unit edges), plus a
     /// closure walk per kept REPL unit a unit uses.
     #[inline(never)]
-    fn folder_graph(&self, sp: &dyn Spawn) {
+    fn unit_graph(&self, sp: &dyn Spawn) {
         let g = &self.graph;
-        lock(&self.report).ok(Stage::FolderGraph);
+        lock(&self.report).ok(Stage::UnitGraph);
         // `hd check FILE` checks only what FILE reaches (`Run::check_scope`).
         let _ = self.check_scope.set(self.check_scope());
         let checked = self.check_scope.get().and_then(Option::as_ref);
@@ -4279,15 +4253,15 @@ impl Run<'_> {
         // The earlier REPL inputs are the session's, read here: they get
         // no task, so a build's tasks do not grow with the session.
         let kept = self.kept.get_or_init(|| {
-            (0..self.table.folders.len())
+            (0..self.table.units.len())
                 .map(|fi| self.read_kept(fi))
                 .collect()
         });
-        let nf = self.table.folders.len();
+        let nf = self.table.units.len();
         let mut iface_task: Vec<Option<TaskId>> = vec![None; nf];
         // The tasks building `units`: a unit read from the session has no
         // task, so one that uses it waits for the tasks of its closure.
-        let tasks_of = |units: &[FolderId], iface_task: &[Option<TaskId>]| {
+        let tasks_of = |units: &[UnitId], iface_task: &[Option<TaskId>]| {
             let mut deps: Vec<TaskId> = Vec::new();
             for &u in units {
                 if kept[u.idx()] {
@@ -4306,7 +4280,7 @@ impl Run<'_> {
             .filter(|f| !kept[f.idx()] && self.builds(**f))
         {
             let deps = tasks_of(&g.uses[f.idx()], &iface_task);
-            let t = sp.add(TaskKind::FolderIface(f.raw()), &deps);
+            let t = sp.add(TaskKind::UnitIface(f.raw()), &deps);
             iface_task[f.idx()] = Some(t);
             let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &[t]);
             sp.edge(hc, pr);
@@ -4316,7 +4290,7 @@ impl Run<'_> {
         // compiler roots `std.rt.entry`'s result functions after an entry
         // or a test case (`RT_SOURCE`), and the runtime that emitted code
         // calls, whatever the program uses.
-        let mut starts: Vec<FolderId> = Vec::new();
+        let mut starts: Vec<UnitId> = Vec::new();
         for (m, module) in self.table.modules.iter().enumerate() {
             if module.package == 0 && self.builds_module(m) {
                 starts.extend(self.module_units(m));
@@ -4332,10 +4306,10 @@ impl Run<'_> {
             // references. Local and std dependency bodies remain deferred
             // until a program needs them.
             if (module.package != 0
-                && (!reached[module.folder.idx()]
+                && (!reached[module.unit.idx()]
                     || (self.analyze() && !self.fetched[usize::from(module.package)])))
                 || !self.builds_module(m)
-                || kept[module.folder.idx()]
+                || kept[module.unit.idx()]
             {
                 continue;
             }
@@ -4388,14 +4362,14 @@ impl Run<'_> {
     /// `closure(F)`: F and every unit its uses reach, in unit order, found
     /// on demand (`crates/hd_sched/DESIGN.md` §6.1). Cost: O(the closure
     /// and its edges) per call; no per-unit set is kept.
-    fn closure(&self, unit: FolderId) -> Vec<FolderId> {
+    fn closure(&self, unit: UnitId) -> Vec<UnitId> {
         self.closure_of([unit])
     }
 
     /// The units `starts` reach, themselves included, in unit order.
-    fn closure_of(&self, starts: impl IntoIterator<Item = FolderId>) -> Vec<FolderId> {
-        let mut seen: HashSet<FolderId> = HashSet::default();
-        let mut stack: Vec<FolderId> = starts.into_iter().filter(|s| seen.insert(*s)).collect();
+    fn closure_of(&self, starts: impl IntoIterator<Item = UnitId>) -> Vec<UnitId> {
+        let mut seen: HashSet<UnitId> = HashSet::default();
+        let mut stack: Vec<UnitId> = starts.into_iter().filter(|s| seen.insert(*s)).collect();
         while let Some(f) = stack.pop() {
             for &u in &self.graph.uses[f.idx()] {
                 if seen.insert(u) {
@@ -4403,16 +4377,16 @@ impl Run<'_> {
                 }
             }
         }
-        let mut out: Vec<FolderId> = seen.into_iter().collect();
+        let mut out: Vec<UnitId> = seen.into_iter().collect();
         out.sort_stable_by_key(|f| f.raw());
         out
     }
 
     /// The units `starts` reach, as a mask over the units: for the few
     /// whole-run scopes. Cost: O(units + the reached edges).
-    fn reach_mask(&self, starts: impl IntoIterator<Item = FolderId>) -> Vec<bool> {
-        let mut mask = vec![false; self.table.folders.len()];
-        let mut stack: Vec<FolderId> = Vec::new();
+    fn reach_mask(&self, starts: impl IntoIterator<Item = UnitId>) -> Vec<bool> {
+        let mut mask = vec![false; self.table.units.len()];
+        let mut stack: Vec<UnitId> = Vec::new();
         for s in starts {
             if !std::mem::replace(&mut mask[s.idx()], true) {
                 stack.push(s);
@@ -4432,12 +4406,12 @@ impl Run<'_> {
     /// test role the units of the modules its `tests:` block uses. A
     /// `tests:` block's use makes no edge (`module.cycle.test-code`), so
     /// only this widens to it.
-    fn module_units(&self, m: usize) -> Vec<FolderId> {
-        let mut units = vec![self.table.modules[m].folder];
+    fn module_units(&self, m: usize) -> Vec<UnitId> {
+        let mut units = vec![self.table.modules[m].unit];
         if self.role(m) == "test" {
             for u in &self.skim_of(m).test_uses {
                 if let Some(t) = self.table.module_of_use(u) {
-                    units.push(self.table.modules[t.idx()].folder);
+                    units.push(self.table.modules[t.idx()].unit);
                 }
             }
         }
@@ -4446,11 +4420,11 @@ impl Run<'_> {
 
     /// The units module `m`'s check reads, in unit order: the closure of
     /// [`Self::module_units`] (`crates/hd_cache/DESIGN.md` §5.3).
-    fn module_closure(&self, m: usize) -> Vec<FolderId> {
+    fn module_closure(&self, m: usize) -> Vec<UnitId> {
         self.closure_of(self.module_units(m))
     }
 
-    fn iface_of(&self, f: FolderId) -> Option<Arc<FolderIface>> {
+    fn iface_of(&self, f: UnitId) -> Option<Arc<UnitIface>> {
         self.iface
             .get(f.idx())
             .and_then(|s| s.get())
@@ -4458,7 +4432,7 @@ impl Run<'_> {
             .flatten()
     }
 
-    /// The package key of a folder's package: the root's, or another
+    /// The package key of a unit's package: the root's, or another
     /// package's identity, so two packages of one name never share an
     /// entry (`module.dep.identity`).
     fn package_key_of(&self, package: u16) -> Hash128 {
@@ -4469,41 +4443,41 @@ impl Run<'_> {
         }
     }
 
-    /// The other folders an interface names, with their deep hashes
+    /// The other units an interface names, with their deep hashes
     /// (§4.11.3): `None` when one of them is not built.
     fn mentions<'a>(
         &self,
-        fid: FolderId,
+        fid: UnitId,
         items: impl IntoIterator<Item = &'a Item>,
         exports: &[hd_resolve::Export],
     ) -> Option<Vec<(String, Hash128)>> {
-        let mut folders = std::collections::BTreeSet::new();
+        let mut units = std::collections::BTreeSet::new();
         for d in hd_resolve::mentioned_defs(&self.pool, items, exports) {
-            if let Some(f) = self.item_folder(d)
+            if let Some(f) = self.item_unit(d)
                 && f != fid
             {
-                folders.insert(f.raw());
+                units.insert(f.raw());
             }
         }
-        folders
+        units
             .into_iter()
             .map(|f| {
-                let f = FolderId::from_raw(f);
+                let f = UnitId::from_raw(f);
                 Some((
-                    self.table.folders[f.idx()].path.clone(),
+                    self.table.units[f.idx()].path.clone(),
                     self.iface_of(f)?.deep_hash,
                 ))
             })
             .collect()
     }
 
-    /// Reports each folder that `fid`'s interface names but does not reach:
-    /// its interface can never be built after that folder's, so the two
-    /// form a loop the folder graph does not show, and every folder that
+    /// Reports each unit that `fid`'s interface names but does not reach:
+    /// its interface can never be built after that unit's, so the two
+    /// form a loop the unit graph does not show, and every unit that
     /// reaches either is blocked.
     fn unordered_mentions<'a>(
         &self,
-        fid: FolderId,
+        fid: UnitId,
         items: impl IntoIterator<Item = &'a Item>,
         exports: &[hd_resolve::Export],
     ) {
@@ -4511,7 +4485,7 @@ impl Run<'_> {
         let names = self.names();
         let mut seen = HashSet::default();
         for d in hd_resolve::mentioned_defs(&self.pool, items, exports) {
-            let Some(f) = self.item_folder(d) else {
+            let Some(f) = self.item_unit(d) else {
                 continue;
             };
             if f == fid || reach.contains(&f) || !seen.insert(f) {
@@ -4523,17 +4497,17 @@ impl Run<'_> {
                 hi: 0,
             };
             let msg = format!(
-                "folders form a cycle: the interface of {} names `{}.{}` of folder {}, which it does not use",
-                self.table.folders[fid.idx()].path,
+                "units form a cycle: the interface of {} names `{}.{}` of unit {}, which it does not use",
+                self.table.units[fid.idx()].path,
                 self.item_module_text(d),
                 names.display_name(d),
-                self.table.folders[f.idx()].path,
+                self.table.units[f.idx()].path,
             );
             lock(&self.diags).error(Code::ModuleCycle, span, &msg);
         }
     }
 
-    /// The folders an interface entry's mention section names, with this
+    /// The units an interface entry's mention section names, with this
     /// run's deep hashes: `None` when one is not built or is gone.
     fn mentioned(&self, b: &[u8]) -> Option<Vec<(String, Hash128)>> {
         let mut r = Reader::new(b);
@@ -4546,20 +4520,20 @@ impl Run<'_> {
         r.ok().then_some(out)
     }
 
-    /// Re-emits a folder's stage-A diagnostics against this run's files,
+    /// Re-emits a unit's stage-A diagnostics against this run's files,
     /// with the severity each was reported with.
     fn emit_iface_diags(&self, fi: usize, diags: &IfaceDiags) {
-        let folder = &self.table.folders[fi];
-        // A replayed interface is of a folder whose modules all parse
-        // (`folder_iface`), so each anchor names a declaration of this run.
+        let unit = &self.table.units[fi];
+        // A replayed interface is of a unit whose modules all parse
+        // (`unit_iface`), so each anchor names a declaration of this run.
         let place = |m: usize, anchor: &hd_resolve::anchor::Anchor| {
-            let mid = folder.modules.get(m)?;
+            let mid = unit.modules.get(m)?;
             self.span_index(mid.idx())
                 .resolve(&self.src(mid.idx()), anchor)
         };
         let mut d = lock(&self.diags);
         for (m, code, severity, anchor, msg, fixes, labels) in diags {
-            let Some(mid) = folder.modules.get(*m) else {
+            let Some(mid) = unit.modules.get(*m) else {
                 continue;
             };
             let span = place(*m, anchor).unwrap_or(Span {
@@ -4596,17 +4570,17 @@ impl Run<'_> {
         }
     }
 
-    /// `FolderIface(F)` (`crates/hd_resolve/DESIGN.md` §4.10). Its key
+    /// `UnitIface(F)` (`crates/hd_resolve/DESIGN.md` §4.10). Its key
     /// is F's own source and what F's header lowering read last time
     /// (`crates/hd_cache/DESIGN.md` §5.3): the read list, an entry under
-    /// `reads_key`, names the modules it asked about and the folders whose
+    /// `reads_key`, names the modules it asked about and the units whose
     /// interfaces it opened, and `iface_key` adds the run's answer for
-    /// each. A folder it never read, such as one a dependency uses
+    /// each. A unit it never read, such as one a dependency uses
     /// privately, stays out of the key.
-    fn folder_iface(&self, fi: usize) {
-        let folder = &self.table.folders[fi];
-        let fid = folder.id;
-        let reach: Vec<FolderId> = self
+    fn unit_iface(&self, fi: usize) {
+        let unit = &self.table.units[fi];
+        let fid = unit.id;
+        let reach: Vec<UnitId> = self
             .closure(fid)
             .into_iter()
             .filter(|c| *c != fid)
@@ -4614,9 +4588,9 @@ impl Run<'_> {
         let mut reach_hashes = Vec::new();
         for c in &reach {
             if let Some(i) = self.iface_of(*c) {
-                reach_hashes.push((self.table.folders[c.idx()].path.as_str(), i.deep_hash));
+                reach_hashes.push((self.table.units[c.idx()].path.as_str(), i.deep_hash));
             } else {
-                self.blocked(Stage::FolderIface);
+                self.blocked(Stage::UnitIface);
                 let _ = self.iface[fi].set(None);
                 return;
             }
@@ -4628,12 +4602,12 @@ impl Run<'_> {
         // the key ignores comments, which can break the parse. An
         // unchanged module's clean parse is a `parse` entry, so this
         // parses only edited modules.
-        let broken = !self.folder_parses(fi);
+        let broken = !self.unit_parses(fi);
         // A REPL input's interface carries every item it declares, for
         // later inputs, which see them whatever their `pub`. Its session
         // scope reads the earlier inputs outside the world, so its key
-        // keeps every folder of its closure.
-        let input = folder
+        // keeps every unit of its closure.
+        let input = unit
             .modules
             .iter()
             .any(|m| self.repl_number(m.idx()).is_some());
@@ -4678,7 +4652,7 @@ impl Run<'_> {
             ) {
                 self.leave_reused(fi, own, reads.clone(), key, diags, &mentions);
             }
-            let m = folder.modules[0].idx();
+            let m = unit.modules[0].idx();
             self.keep_input(
                 m,
                 |e| &mut e.iface,
@@ -4687,19 +4661,16 @@ impl Run<'_> {
             self.keep_input(m, |e| &mut e.mentions, || mentions);
             return;
         }
-        let mods: Vec<hd_resolve::ModIn<'_>> = folder
-            .modules
-            .iter()
-            .map(|m| self.mod_in(m.idx()))
-            .collect();
+        let mods: Vec<hd_resolve::ModIn<'_>> =
+            unit.modules.iter().map(|m| self.mod_in(m.idx())).collect();
         let world = hd_resolve::Recorded::new(self);
         let cx = hd_resolve::Cx {
             names,
-            folder: fid.raw(),
+            unit: fid.raw(),
             world: &world,
         };
         let mut diags = DiagBuf::default();
-        let out = hd_resolve::build_folder(&cx, &mods, None, &mut diags);
+        let out = hd_resolve::build_unit(&cx, &mods, None, &mut diags);
         let reads = self.read_list(fid, &world.reads());
         let key = key_of(&reads);
         let mut anchored = Vec::new();
@@ -4722,7 +4693,7 @@ impl Run<'_> {
         let blob = match hd_resolve::encode_items(&names, &items, &out.exports) {
             Ok(b) => b,
             Err(e) => {
-                self.stage::<()>(Stage::FolderIface, Err(e));
+                self.stage::<()>(Stage::UnitIface, Err(e));
                 let _ = self.iface[fi].set(None);
                 return;
             }
@@ -4740,7 +4711,7 @@ impl Run<'_> {
             match hd_resolve::encode_items(&names, &visible, &out.exports) {
                 Ok(b) => Some(hd_base::hash128(&b)),
                 Err(e) => {
-                    self.stage::<()>(Stage::FolderIface, Err(e));
+                    self.stage::<()>(Stage::UnitIface, Err(e));
                     let _ = self.iface[fi].set(None);
                     return;
                 }
@@ -4766,11 +4737,11 @@ impl Run<'_> {
         let nhash = names_hash(&psec, &lsec);
         let Some(mentions) = self.mentions(fid, &items, &out.exports) else {
             self.unordered_mentions(fid, &items, &out.exports);
-            self.blocked(Stage::FolderIface);
+            self.blocked(Stage::UnitIface);
             let _ = self.iface[fi].set(None);
             return;
         };
-        // The folders the interface names, so a hit finds them without
+        // The units the interface names, so a hit finds them without
         // decoding its items (#213).
         let msec = encode_mentioned(&mentions);
         if !broken {
@@ -4791,7 +4762,7 @@ impl Run<'_> {
             }
         }
         self.keep_input(
-            folder.modules[0].idx(),
+            unit.modules[0].idx(),
             |e| &mut e.iface,
             || {
                 vec![
@@ -4808,12 +4779,12 @@ impl Run<'_> {
             },
         );
         self.keep_input(
-            folder.modules[0].idx(),
+            unit.modules[0].idx(),
             |e| &mut e.mentions,
             || mentions.clone(),
         );
-        let mut iface = hd_resolve::folder_iface(
-            &folder.path,
+        let mut iface = hd_resolve::unit_iface(
+            &unit.path,
             Items::new(items),
             out.exports,
             Arc::from(blob),
@@ -4827,32 +4798,32 @@ impl Run<'_> {
         iface.names_hash = nhash;
         iface.set_broken(&names, out.broken_names, &mentions);
         lock(&self.diags).append(&diags);
-        self.note_iface(&folder.path, &iface, true);
-        lock(&self.report).ok(Stage::FolderIface);
-        self.iface_index.insert(folder.id, &iface);
+        self.note_iface(&unit.path, &iface, true);
+        lock(&self.report).ok(Stage::UnitIface);
+        self.iface_index.insert(unit.id, &iface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
         if !input && !broken {
             self.leave_reused(fi, own, reads, key, idiags, &mentions);
         }
     }
 
-    /// Sets folder `fi`'s interface from what an earlier build left in
+    /// Sets unit `fi`'s interface from what an earlier build left in
     /// [`Packages::reuse`] under its `reads_key` `own`, when the reads its
-    /// key was computed over answer the same in this run and each folder
+    /// key was computed over answer the same in this run and each unit
     /// it names has the same deep hash. Whether it did.
     fn take_reused(&self, fi: usize, own: Hash128) -> bool {
         let Some(kept) = self.reused.and_then(|r| r.ifaces.get(&own)) else {
             return false;
         };
-        let folder = &self.table.folders[fi];
-        let answers = self.read_answers(folder.id, &kept.reads);
+        let unit = &self.table.units[fi];
+        let answers = self.read_answers(unit.id, &kept.reads);
         let rows: Vec<(&str, Hash128)> = answers.iter().map(|(m, h)| (m.as_str(), *h)).collect();
         if iface_key(own, &rows) != kept.key {
             return false;
         }
         let same_deep = |(path, deep): &(String, Hash128)| {
             self.table
-                .folders
+                .units
                 .iter()
                 .find(|f| f.path == *path)
                 .and_then(|f| self.iface_of(f.id))
@@ -4868,14 +4839,14 @@ impl Run<'_> {
             seen.1 += iface.items.decoded_other();
         }
         self.emit_iface_diags(fi, &kept.diags);
-        self.note_iface(&folder.path, iface, false);
-        lock(&self.report).ok(Stage::FolderIface);
-        self.iface_index.insert(folder.id, iface);
+        self.note_iface(&unit.path, iface, false);
+        lock(&self.report).ok(Stage::UnitIface);
+        self.iface_index.insert(unit.id, iface);
         let _ = self.iface[fi].set(Some(Arc::clone(iface)));
         true
     }
 
-    /// Leaves folder `fi`'s interface, as this run read or built it, for
+    /// Leaves unit `fi`'s interface, as this run read or built it, for
     /// the later builds of an empty [`Packages::reuse`] this run fills.
     fn leave_reused(
         &self,
@@ -4889,7 +4860,7 @@ impl Run<'_> {
         let Some(left) = &self.reusing else {
             return;
         };
-        let Some(iface) = self.iface_of(self.table.folders[fi].id) else {
+        let Some(iface) = self.iface_of(self.table.units[fi].id) else {
             return;
         };
         lock(left).insert(
@@ -4904,11 +4875,11 @@ impl Run<'_> {
         );
     }
 
-    /// `diags`, reported in folder `fi`'s files, with each span as a
+    /// `diags`, reported in unit `fi`'s files, with each span as a
     /// declaration-relative anchor, as an entry stores them.
     fn anchored_diags(&self, fi: usize, diags: &DiagBuf) -> IfaceDiags {
-        let folder = &self.table.folders[fi];
-        let module_of = |file: FileId| folder.modules.iter().position(|x| x.raw() == file.raw());
+        let unit = &self.table.units[fi];
+        let module_of = |file: FileId| unit.modules.iter().position(|x| x.raw() == file.raw());
         (0..diags.len())
             .map(|i| {
                 let sp = diags.primary[i];
@@ -4921,7 +4892,7 @@ impl Run<'_> {
                             .iter()
                             .map(|e| {
                                 let m = module_of(e.span.file)?;
-                                let src = self.src(folder.modules[m].idx());
+                                let src = self.src(unit.modules[m].idx());
                                 let (anchor, lo, hi) = edit_anchor(&src, e.span);
                                 Some((m, anchor, lo, hi, diags.get_text(e.text).to_owned()))
                             })
@@ -4937,8 +4908,8 @@ impl Run<'_> {
                     m,
                     diags.code[i],
                     diags.severity[i],
-                    self.span_index(folder.modules[m].idx()).of_span(
-                        &self.src(folder.modules[m].idx()),
+                    self.span_index(unit.modules[m].idx()).of_span(
+                        &self.src(unit.modules[m].idx()),
                         sp.lo,
                         sp.hi,
                     ),
@@ -4976,26 +4947,26 @@ impl Run<'_> {
             .resolve(&self.src(module.idx()), &label.anchor)
     }
 
-    /// The modules and folders a header lowering of folder `fid` read, as
+    /// The modules and units a header lowering of unit `fid` read, as
     /// its read list: each module path it asked about, and whether it
-    /// opened the interface of that module's folder. A folder opened
+    /// opened the interface of that module's unit. A unit opened
     /// through no module it asked about is listed by its first module.
-    fn read_list(&self, fid: FolderId, reads: &hd_resolve::Reads) -> Vec<(String, bool)> {
+    fn read_list(&self, fid: UnitId, reads: &hd_resolve::Reads) -> Vec<(String, bool)> {
         // `reads.modules` is sorted, so `out` is, by path.
         let mut out: Vec<(String, bool)> = Vec::new();
         let mut covered = Vec::new();
         for m in &reads.modules {
-            let f = self.table.folder_of_module(m).map(FolderId::raw);
-            let opened = f.is_some_and(|f| f != fid.raw() && reads.folders.contains(&f));
+            let f = self.table.unit_of_module(m).map(UnitId::raw);
+            let opened = f.is_some_and(|f| f != fid.raw() && reads.units.contains(&f));
             if opened {
                 covered.extend(f);
             }
             out.push((m.clone(), opened));
         }
-        for f in reads.folders.iter().filter(|f| !covered.contains(*f)) {
+        for f in reads.units.iter().filter(|f| !covered.contains(*f)) {
             let first = self
                 .table
-                .folders
+                .units
                 .get(*f as usize)
                 .and_then(|g| g.modules.first());
             if let Some(m) = first {
@@ -5010,19 +4981,19 @@ impl Run<'_> {
     }
 
     /// The run's answer for each read of a read list, for `iface_key`:
-    /// the module's folder, whether a use may name it and whether it is
-    /// test-only code, and, when the lowering opened its folder's
+    /// the module's unit, whether a use may name it and whether it is
+    /// test-only code, and, when the lowering opened its unit's
     /// interface, that interface's deep hash and names hash.
-    fn read_answers(&self, fid: FolderId, reads: &[(String, bool)]) -> Vec<(String, Hash128)> {
+    fn read_answers(&self, fid: UnitId, reads: &[(String, bool)]) -> Vec<(String, Hash128)> {
         use hd_resolve::World as _;
         reads
             .iter()
             .map(|(m, opened)| {
                 let mut k = hd_base::StableHasher::new("iface-read");
-                match self.table.folder_of_module(m) {
+                match self.table.unit_of_module(m) {
                     Some(f) => {
                         k.u8(1);
-                        k.str(&self.table.folders[f.idx()].path);
+                        k.str(&self.table.units[f.idx()].path);
                         if *opened {
                             match self.iface_of(f).filter(|_| f != fid) {
                                 Some(i) => {
@@ -5043,11 +5014,11 @@ impl Run<'_> {
             .collect()
     }
 
-    /// `reads_key(F)` (`crates/hd_cache/DESIGN.md` §5.3): what folder
+    /// `reads_key(F)` (`crates/hd_cache/DESIGN.md` §5.3): what unit
     /// `fi`'s own source decides of its interface and its uses.
     fn reads_key(&self, fi: usize) -> Hash128 {
-        let folder = &self.table.folders[fi];
-        let apis: Vec<FileApi<'_>> = folder
+        let unit = &self.table.units[fi];
+        let apis: Vec<FileApi<'_>> = unit
             .modules
             .iter()
             .map(|m| FileApi {
@@ -5058,14 +5029,14 @@ impl Run<'_> {
             .collect();
         let semantic = reads_key(
             self.toolchain,
-            self.package_key_of(folder.package),
-            &folder.path,
+            self.package_key_of(unit.package),
+            &unit.path,
             &apis,
             self.roots_hash(fi),
         );
         let mut key = hd_base::StableHasher::new("iface-own-derivation-facts-v1");
         key.hash(semantic);
-        for m in &folder.modules {
+        for m in &unit.modules {
             key.hash(self.doc_hash(m.idx()));
         }
         key.finish()
@@ -5077,11 +5048,11 @@ impl Run<'_> {
         self.skim_of(m).file.doc_hash
     }
 
-    /// The hash of the use roots of folder `fi`'s modules (`UseRoots`):
+    /// The hash of the use roots of unit `fi`'s modules (`UseRoots`):
     /// what a use's root names, which no read records.
     fn roots_hash(&self, fi: usize) -> Hash128 {
         let mut k = hd_base::StableHasher::new("use-roots");
-        for m in &self.table.folders[fi].modules {
+        for m in &self.table.units[fi].modules {
             let r = self.table.use_roots(*m);
             k.str(&r.pkg);
             k.str(&r.base);
@@ -5102,8 +5073,8 @@ impl Run<'_> {
         k.finish()
     }
 
-    /// Sets folder `fi`'s interface from the sections of its `iface`
-    /// entry and the deep hashes of the folders it names: `mentions`, or
+    /// Sets unit `fi`'s interface from the sections of its `iface`
+    /// entry and the deep hashes of the units it names: `mentions`, or
     /// else this run's interfaces'. Returns those, if the sections decode.
     fn iface_hit(
         &self,
@@ -5111,7 +5082,7 @@ impl Run<'_> {
         sections: &[impl AsRef<[u8]>],
         mentions: Option<&[(String, Hash128)]>,
     ) -> Option<Vec<(String, Hash128)>> {
-        let folder = &self.table.folders[fi];
+        let unit = &self.table.units[fi];
         let names = self.names();
         let (blob, dsec) = (sections.first()?.as_ref(), sections.get(1)?.as_ref());
         let blob: Arc<[u8]> = Arc::from(blob);
@@ -5139,7 +5110,7 @@ impl Run<'_> {
             Some(m) => m.to_vec(),
             None => match sections.get(7) {
                 Some(b) => self.mentioned(b.as_ref())?,
-                None => self.mentions(folder.id, &items, &exports)?,
+                None => self.mentions(unit.id, &items, &exports)?,
             },
         };
         // The hash of the blob without the impls of private types, when
@@ -5148,8 +5119,8 @@ impl Run<'_> {
             .get(6)
             .and_then(|b| <[u8; 16]>::try_from(b.as_ref()).ok())
             .map(|b| Hash128(u128::from_le_bytes(b)));
-        let mut iface = hd_resolve::folder_iface(
-            &folder.path,
+        let mut iface = hd_resolve::unit_iface(
+            &unit.path,
             items,
             exports,
             blob,
@@ -5162,19 +5133,19 @@ impl Run<'_> {
         iface.loop_names = looped.into_iter().collect();
         iface.names_hash = names_hash(sections.get(3)?.as_ref(), sections.get(4)?.as_ref());
         self.emit_iface_diags(fi, &diags);
-        self.note_iface(&folder.path, &iface, false);
-        lock(&self.report).ok(Stage::FolderIface);
-        self.iface_index.insert(folder.id, &iface);
+        self.note_iface(&unit.path, &iface, false);
+        lock(&self.report).ok(Stage::UnitIface);
+        self.iface_index.insert(unit.id, &iface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
         Some(mentions)
     }
 
-    /// Reads folder `fi` from the session when it is an earlier REPL
+    /// Reads unit `fi` from the session when it is an earlier REPL
     /// input's ([`Session::inputs`]): its interface, its header findings,
     /// its init order (one module, so no cycle) and its module's check,
     /// with no task, no key and no store read. Whether it did.
     fn read_kept(&self, fi: usize) -> bool {
-        let Some(kept) = self.kept_folder(fi) else {
+        let Some(kept) = self.kept_unit(fi) else {
             return false;
         };
         let (Some(iface), Some(mentions), Some(header), Some(uses), Some(check)) = (
@@ -5192,7 +5163,7 @@ impl Run<'_> {
         if self.iface_hit(fi, iface, Some(mentions)).is_none() {
             return false;
         }
-        let fid = self.table.folders[fi].id;
+        let fid = self.table.units[fi].id;
         let Some(found) = self
             .iface_of(fid)
             .and_then(|own| decode_header_findings(header, &own.items))
@@ -5204,14 +5175,14 @@ impl Run<'_> {
         self.emit_findings(&found);
         let _ = self.init_runs[fi].set(Vec::new());
         lock(&self.report).ok(Stage::InitOrder);
-        let m = self.table.folders[fi].modules[0].idx();
+        let m = self.table.units[fi].modules[0].idx();
         lock(&self.report).ok(Stage::ModulePrep);
         self.read_check(m, check, Some(Arc::from(join_sections(check))));
         let _ = self.prep[m].set(None);
         true
     }
 
-    fn note_iface(&self, path: &str, iface: &FolderIface, built: bool) {
+    fn note_iface(&self, path: &str, iface: &UnitIface, built: bool) {
         let mut c = lock(&self.counters);
         if built {
             c.ifaces_built.push(path.to_owned());
@@ -5261,12 +5232,12 @@ impl Run<'_> {
         self.lib_module().filter(|_| self.with_lib(m))
     }
 
-    /// Whether this run builds folder `f`: a REPL input's build builds the
-    /// folders the input's closure holds (`cli.repl.uses.other`), so a
+    /// Whether this run builds unit `f`: a REPL input's build builds the
+    /// units the input's closure holds (`cli.repl.uses.other`), so a
     /// broken module it never reaches does not stop it, and those of
     /// the runtime's, which the compiler roots after an entry
     /// (`RT_SOURCE`); every other run builds them all.
-    fn builds(&self, f: FolderId) -> bool {
+    fn builds(&self, f: UnitId) -> bool {
         let scoped = self
             .check_scope
             .get()
@@ -5278,26 +5249,26 @@ impl Run<'_> {
                 .get_or_init(|| {
                     let m = self.repl_inputs.input?;
                     Some(self.reach_mask(
-                        std::iter::once(self.table.modules[m].folder).chain(self.rt_folders()),
+                        std::iter::once(self.table.modules[m].unit).chain(self.rt_units()),
                     ))
                 })
                 .as_ref()
                 .is_none_or(|s| s[f.idx()])
     }
 
-    /// The folders of [`rt_roots`], the hd the compiler roots after an
+    /// The units of [`rt_roots`], the hd the compiler roots after an
     /// entry, when the run's std has them.
-    fn rt_folders(&self) -> impl Iterator<Item = FolderId> + '_ {
+    fn rt_units(&self) -> impl Iterator<Item = UnitId> + '_ {
         rt_roots(&self.table, self.checked(), self.report())
-            .map(|m| self.table.modules[m.idx()].folder)
+            .map(|m| self.table.modules[m.idx()].unit)
     }
 
-    /// Whether this run builds module `m`: a module of a folder it builds,
+    /// Whether this run builds module `m`: a module of a unit it builds,
     /// which a REPL input's build also reached ([`repl_texts`]). A module
-    /// of such a folder that the input does not reach is empty for the run,
+    /// of such a unit that the input does not reach is empty for the run,
     /// as are its items.
     fn builds_module(&self, m: usize) -> bool {
-        self.builds(self.table.modules[m].folder)
+        self.builds(self.table.modules[m].unit)
             && self.reached.as_ref().is_none_or(|r| r[m])
             && self
                 .check_scope
@@ -5307,12 +5278,12 @@ impl Run<'_> {
     }
 
     /// A narrowed run's scope: per module, whether the run reaches it, and
-    /// the folders it builds. `None` when the run checks the whole package.
+    /// the units it builds. `None` when the run checks the whole package.
     /// `hd check FILE` ([`Packages::check_roots`]) reaches through `use`s
     /// from FILE's modules, `tests:` blocks included, as it filters its
-    /// output, and builds the reached modules' folder closures. A program
+    /// output, and builds the reached modules' unit closures. A program
     /// checks only the root package's modules its entry reaches through
-    /// `use`s (`cli.exe.reach`), and builds every folder's interface as an
+    /// `use`s (`cli.exe.reach`), and builds every unit's interface as an
     /// unscoped run does; another package's bodies follow the reached
     /// modules' closures as before. A program whose root package is std
     /// is unscoped, since the compiler reaches std's items through its
@@ -5367,7 +5338,7 @@ impl Run<'_> {
             for (m, module) in self.table.modules.iter().enumerate() {
                 reach[m] |= module.package != 0;
             }
-            vec![true; self.table.folders.len()]
+            vec![true; self.table.units.len()]
         } else {
             self.reach_mask(
                 (0..n)
@@ -5414,9 +5385,9 @@ impl Run<'_> {
         }
     }
 
-    /// [`Run::kept_input`] for folder `fi`, which an input has to itself.
-    fn kept_folder(&self, fi: usize) -> Option<&InputEntries> {
-        match self.table.folders[fi].modules.as_slice() {
+    /// [`Run::kept_input`] for unit `fi`, which an input has to itself.
+    fn kept_unit(&self, fi: usize) -> Option<&InputEntries> {
+        match self.table.units[fi].modules.as_slice() {
             [m] => self.kept_input(m.idx()),
             _ => None,
         }
@@ -5427,7 +5398,7 @@ impl Run<'_> {
     fn is_kept(&self, m: usize) -> bool {
         self.kept
             .get()
-            .is_some_and(|k| k[self.table.modules[m].folder.idx()])
+            .is_some_and(|k| k[self.table.modules[m].unit.idx()])
     }
 
     /// Records an entry of a REPL input this run builds, when module `m`
@@ -5470,7 +5441,7 @@ impl Run<'_> {
     /// `src/lib.hd` lowered against its frozen interface, once per run.
     /// Only the tasks of a REPL input whose session holds the library call
     /// it ([`Run::with_lib`]): the input's closure holds the library's
-    /// folder, so its interface is built first. Another module's task may
+    /// unit, so its interface is built first. Another module's task may
     /// run before that interface and would fix the result at `None` for the
     /// whole run.
     fn lib_scope(&self) -> Option<&LibScope> {
@@ -5523,7 +5494,7 @@ impl Run<'_> {
             out.modules = self.session_modules(m);
             for &(number, k) in self.earlier_inputs(m) {
                 let module = &self.table.modules[k];
-                let Some(iface) = self.iface_of(module.folder) else {
+                let Some(iface) = self.iface_of(module.unit) else {
                     continue;
                 };
                 let mut inner = hd_resolve::ModuleScope::default();
@@ -5556,15 +5527,15 @@ impl Run<'_> {
     }
 
     /// One module's items (private ones included), scope and kinds,
-    /// against its folder's frozen interface. Header diagnostics are the
-    /// folder interface's and use diagnostics its `HeaderCheck`'s, so
+    /// against its unit's frozen interface. Header diagnostics are the
+    /// unit interface's and use diagnostics its `HeaderCheck`'s, so
     /// `diags` here is the caller's to drop.
     fn lower_module(&self, m: usize, diags: &mut DiagBuf) -> Option<ModOut> {
         let module = &self.table.modules[m];
-        let own = self.iface_of(module.folder)?;
+        let own = self.iface_of(module.unit)?;
         let cx = hd_resolve::Cx {
             names: self.names(),
-            folder: module.folder.raw(),
+            unit: module.unit.raw(),
             world: self,
         };
         // In the test role, its `tests:` block's items are its items too.
@@ -5572,7 +5543,7 @@ impl Run<'_> {
             tests: self.role(m) == "test",
             ..self.mod_in(m)
         }];
-        let out = hd_resolve::lower::build_folder(&cx, &mods, Some(own), diags);
+        let out = hd_resolve::lower::build_unit(&cx, &mods, Some(own), diags);
         out.modules.into_iter().next()
     }
 
@@ -5592,8 +5563,8 @@ impl Run<'_> {
         out
     }
 
-    /// Every interface of a folder's closure (its own included).
-    fn closure_ifaces(&self, fid: FolderId) -> Option<Vec<Arc<FolderIface>>> {
+    /// Every interface of a unit's closure (its own included).
+    fn closure_ifaces(&self, fid: UnitId) -> Option<Vec<Arc<UnitIface>>> {
         self.closure(fid)
             .into_iter()
             .map(|c| self.iface_of(c))
@@ -5617,7 +5588,7 @@ impl Run<'_> {
             lo: 0,
             hi: 0,
         };
-        let Some(iface) = self.iface_of(module.folder) else {
+        let Some(iface) = self.iface_of(module.unit) else {
             return fallback;
         };
         let Some((m, anchor)) = iface
@@ -5627,14 +5598,11 @@ impl Run<'_> {
         else {
             return fallback;
         };
-        let Some(target) = self.table.folders[module.folder.idx()]
-            .modules
-            .get(*m as usize)
-        else {
+        let Some(target) = self.table.units[module.unit.idx()].modules.get(*m as usize) else {
             return fallback;
         };
-        // The anchors of a folder with a broken module are this run's:
-        // its interface is never stored (`folder_iface`).
+        // The anchors of a unit with a broken module are this run's:
+        // its interface is never stored (`unit_iface`).
         self.span_index(target.idx())
             .resolve(&self.src(target.idx()), anchor)
             .unwrap_or(fallback)
@@ -5645,11 +5613,11 @@ impl Run<'_> {
     fn visibility_span(&self, def: DefId) -> Option<Span> {
         let mid = self.item_module(def)?;
         let module = &self.table.modules[mid.idx()];
-        let iface = self.iface_of(module.folder)?;
+        let iface = self.iface_of(module.unit)?;
         let (m, anchor) = iface
             .spans
             .get(&(def, hd_resolve::anchor::VISIBILITY_SLOT))?;
-        let target = self.table.folders[module.folder.idx()]
+        let target = self.table.units[module.unit.idx()]
             .modules
             .get(*m as usize)?;
         let src = self.src(target.idx());
@@ -5671,17 +5639,17 @@ impl Run<'_> {
     /// asked through the solver with the impls of `closure(F)` and its
     /// impl universe, taken when the task starts (`crates/hd_check/DESIGN.md` (trait solver) §3.2).
     fn header_check(&self, fi: usize) {
-        let fid = self.table.folders[fi].id;
+        let fid = self.table.units[fi].id;
         let (Some(own), Some(all)) = (self.iface_of(fid), self.closure_ifaces(fid)) else {
             self.blocked(Stage::HeaderCheck);
             return;
         };
         let closure = self.closure(fid);
-        let folder = &self.table.folders[fi];
+        let unit = &self.table.units[fi];
         let reach: Vec<(&str, Hash128)> = closure
             .iter()
             .zip(&all)
-            .map(|(c, i)| (self.table.folders[c.idx()].path.as_str(), i.deep_hash))
+            .map(|(c, i)| (self.table.units[c.idx()].path.as_str(), i.deep_hash))
             .collect();
         // A tuple template's member steps come from its body, which no
         // interface carries (`crates/hd_check/DESIGN.md` (trait solver) §3.9): its source is a
@@ -5696,12 +5664,12 @@ impl Run<'_> {
             .collect();
         // A test's fuel budget for the root package ([`Packages::body_fuel`])
         // bounds each item's goals too, so it is part of the key.
-        let test_fuel = self.body_fuel.filter(|_| folder.package == 0);
+        let test_fuel = self.body_fuel.filter(|_| unit.package == 0);
         let fuel = test_fuel.unwrap_or(hd_base::Fuel::BODY_DEFAULT);
-        // The folder's own impls of private types are in its findings.
+        // The unit's own impls of private types are in its findings.
         // Its uses' diagnostics read its own uses, which a body-only use
         // edit changes and no interface hash sees (`reads_key`), and the
-        // private names of the folders they reach.
+        // private names of the units they reach.
         let own_hash = {
             let mut k = hd_base::StableHasher::new("hdr-own");
             k.hash(own.deep_hash);
@@ -5717,14 +5685,14 @@ impl Run<'_> {
         };
         let key = hdr_key(
             self.toolchain,
-            self.package_key_of(folder.package),
-            &folder.path,
+            self.package_key_of(unit.package),
+            &unit.path,
             own_hash,
             &reach,
         );
-        // A folder with a module that does not parse is checked every
-        // run and never stored (`folder_iface`, #310).
-        let parses = self.folder_parses(fi);
+        // A unit with a module that does not parse is checked every
+        // run and never stored (`unit_iface`, #310).
+        let parses = self.unit_parses(fi);
         let mut _owed = None;
         if parses
             && let Some(sections) = self
@@ -5740,7 +5708,7 @@ impl Run<'_> {
             self.emit_iface_diags(fi, &uses);
             self.emit_findings(&found);
             self.keep_input(
-                folder.modules[0].idx(),
+                unit.modules[0].idx(),
                 |e| &mut e.header,
                 || sections.iter().map(|section| section.to_vec()).collect(),
             );
@@ -5749,14 +5717,11 @@ impl Run<'_> {
         self.computed(Stage::HeaderCheck);
         let names = self.names();
         // The uses' diagnostics (#248), reported whatever stage B finds.
-        let mods: Vec<hd_resolve::ModIn<'_>> = folder
-            .modules
-            .iter()
-            .map(|m| self.mod_in(m.idx()))
-            .collect();
+        let mods: Vec<hd_resolve::ModIn<'_>> =
+            unit.modules.iter().map(|m| self.mod_in(m.idx())).collect();
         let cx = hd_resolve::Cx {
             names,
-            folder: fid.raw(),
+            unit: fid.raw(),
             world: self,
         };
         let mut found_uses = DiagBuf::default();
@@ -5768,20 +5733,20 @@ impl Run<'_> {
             closure.iter().copied().zip(all.iter().map(AsRef::as_ref)),
             &self.iface_index,
         );
-        let (folders, universe, extra) = self.closure_impls(&closure);
+        let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: None,
-            folders: hd_types::lookup::FolderSlots::new(&folders),
+            units: hd_types::lookup::UnitSlots::new(&units),
             universe,
             extra: &extra,
             arity: &arity,
             hidden: hd_types::lookup::Unseen::default(),
             plans: Some(self),
         };
-        let session = match folder.modules.as_slice() {
+        let session = match unit.modules.as_slice() {
             [m] => self.session_nodes(m.idx()),
             _ => Vec::new(),
         };
@@ -5803,7 +5768,7 @@ impl Run<'_> {
             self.put(EntryKind::Graph, key, &[&bytes, &uses]);
         }
         self.keep_input(
-            folder.modules[0].idx(),
+            unit.modules[0].idx(),
             |e| &mut e.header,
             || vec![bytes, uses],
         );
@@ -5823,13 +5788,13 @@ impl Run<'_> {
     }
 
     /// The init summaries `InitOrder(F)` reads: one list per module cycle
-    /// of folder `fi` whose statements sit in several modules, and their
+    /// of unit `fi` whose statements sit in several modules, and their
     /// part key, `init_key` over the summaries. `None` until every module
     /// of a cycle is checked.
     fn init_inputs(&self, fi: usize) -> Option<InitInputs<'_>> {
-        let folder = &self.table.folders[fi];
+        let unit = &self.table.units[fi];
         let mut cycles: Vec<Vec<(usize, &[u8])>> = Vec::new();
-        for cycle in self.folder_cycles(fi) {
+        for cycle in self.unit_cycles(fi) {
             let mut sums = Vec::new();
             for m in cycle {
                 let Some(Some(c)) = self.check[m].get() else {
@@ -5855,12 +5820,12 @@ impl Run<'_> {
                 (self.table.modules[*m].path.as_str(), k.finish())
             })
             .collect();
-        let key = init_key(self.toolchain, &folder.path, &summaries);
+        let key = init_key(self.toolchain, &unit.path, &summaries);
         Some((cycles, key))
     }
 
     /// `InitOrder(F)` (§4.13.10; spec 10 "Order Inside A Cycle"): the
-    /// statement order of each module cycle of the folder whose statements
+    /// statement order of each module cycle of the unit whose statements
     /// sit in several modules, from the modules' init summaries, or
     /// `top-level-read-before-initialization` where the statements wait on
     /// each other (`module.init.cycle.stuck`). The order is a part of the
@@ -5959,13 +5924,13 @@ impl Run<'_> {
         self.graph.deps[m].iter().map(|d| d.idx()).collect()
     }
 
-    /// The module cycles of folder `fi` whose statements sit in several
+    /// The module cycles of unit `fi` whose statements sit in several
     /// modules, each in module identity order (`module.init.cycle`). A
-    /// cycle never leaves its folder (`module.init.use-graph`), and only a
+    /// cycle never leaves its unit (`module.init.use-graph`), and only a
     /// checked module's summary counts its statements.
-    fn folder_cycles(&self, fi: usize) -> Vec<Vec<usize>> {
-        let folder = FolderId::from_raw(u32_of(fi));
-        let mods = &self.table.folders[fi].modules;
+    fn unit_cycles(&self, fi: usize) -> Vec<Vec<usize>> {
+        let unit = UnitId::from_raw(u32_of(fi));
+        let mods = &self.table.units[fi].modules;
         if mods.len() < 2 {
             return Vec::new();
         }
@@ -5974,7 +5939,7 @@ impl Run<'_> {
             edges[m.idx()] = self
                 .use_edges(m.idx())
                 .into_iter()
-                .filter(|w| self.table.modules[*w].folder == folder)
+                .filter(|w| self.table.modules[*w].unit == unit)
                 .collect();
         }
         let starts: Vec<usize> = mods.iter().map(|m| m.idx()).collect();
@@ -6005,24 +5970,24 @@ impl Run<'_> {
             .or_default() += 1;
     }
 
-    /// The interfaces `Coherence` reads, every folder the run builds (a
+    /// The interfaces `Coherence` reads, every unit the run builds (a
     /// REPL input's program is its closure, [`Run::builds`]), and their
     /// part key; `None` while one is not built. The key is coarser than
     /// the per-trait `coh_key`s, which only `Coherence` computes: it
     /// decides whether `Coherence` runs, and that run checks again only
     /// the traits whose `coh_key` changed (`crates/hd_cache/DESIGN.md`,
     /// "Coherence runs per changed trait").
-    fn coherence_inputs(&self) -> Option<(Vec<Arc<FolderIface>>, Hash128)> {
+    fn coherence_inputs(&self) -> Option<(Vec<Arc<UnitIface>>, Hash128)> {
         // A failed REPL input adds no implementation to the session
         // (`cli.repl.panic.declarations`): a later one may repeat it.
         let repl = self.repl_inputs();
-        let failed = |f: &FolderId| {
+        let failed = |f: &UnitId| {
             repl.sorted.iter().any(|&(n, m)| {
-                self.table.modules[m].folder == *f && !repl.visible.iter().any(|(v, _)| *v == n)
+                self.table.modules[m].unit == *f && !repl.visible.iter().any(|(v, _)| *v == n)
             })
         };
-        let built: Vec<FolderId> = (0..self.table.folders.len())
-            .map(|f| FolderId::from_raw(u32_of(f)))
+        let built: Vec<UnitId> = (0..self.table.units.len())
+            .map(|f| UnitId::from_raw(u32_of(f)))
             .filter(|f| self.builds(*f) && !failed(f))
             .collect();
         let mut all = Vec::new();
@@ -6032,7 +5997,7 @@ impl Run<'_> {
         let mut k = hd_base::StableHasher::new("coh");
         k.hash(self.toolchain);
         for (f, i) in built.iter().zip(&all) {
-            k.str(&self.table.folders[f.idx()].path);
+            k.str(&self.table.units[f.idx()].path);
             k.hash(i.deep_hash);
             k.hash(i.heads_hash);
         }
@@ -6069,9 +6034,9 @@ impl Run<'_> {
             .iter()
             .map(|&(n, k)| (self.table.modules[k].path.as_str(), n))
             .collect();
-        // The interfaces that carry each impl, in folder order, so a key
+        // The interfaces that carry each impl, in unit order, so a key
         // reads those instead of every interface of the program.
-        let mut holders: HashMap<DefId, Vec<&FolderIface>> = HashMap::default();
+        let mut holders: HashMap<DefId, Vec<&UnitIface>> = HashMap::default();
         for i in &all {
             for it in &i.items {
                 if matches!(it.data, ItemData::Impl { .. }) {
@@ -6079,7 +6044,7 @@ impl Run<'_> {
                 }
             }
         }
-        let carrying = |d: DefId| -> Vec<&FolderIface> {
+        let carrying = |d: DefId| -> Vec<&UnitIface> {
             holders
                 .get(&d)
                 .cloned()
@@ -6132,17 +6097,17 @@ impl Run<'_> {
         // Per trait, `coh_key` over the head hashes of its impls; a trait
         // whose key the package's coherence rows hold reads its findings
         // there (`crates/hd_cache/DESIGN.md`, "Coherence runs per changed
-        // trait"). The head hashes come per folder, read from the rows
-        // while the folder's impl records and their ranks are unchanged.
+        // trait"). The head hashes come per unit, read from the rows
+        // while the unit's impl records and their ranks are unchanged.
         let (old, _owed) = self.coherence_rows();
-        let old_folders: HashMap<Hash128, &CohFolder> =
-            old.folders.iter().rev().map(|r| (r.key, r)).collect();
+        let old_units: HashMap<Hash128, &CohUnit> =
+            old.units.iter().rev().map(|r| (r.key, r)).collect();
         let old_traits: HashMap<Hash128, &CohRow> =
             old.traits.iter().rev().map(|r| (r.key, r)).collect();
         let trait_of: HashMap<Hash128, DefId> =
             u.impls.keys().map(|t| (names.path_hash(*t), *t)).collect();
         let mut parts: HashMap<DefId, Vec<Hash128>> = HashMap::default();
-        let (mut folders, mut hashed) = (Vec::new(), 0_usize);
+        let (mut units, mut hashed) = (Vec::new(), 0_usize);
         let mut cacheable = true;
         for iface in &all {
             let impls: Vec<&Item> = iface
@@ -6156,12 +6121,12 @@ impl Run<'_> {
             if impls.is_empty() {
                 continue;
             }
-            let key = coherence_folder_key(iface, &impls, &holders, &inputs, &order);
-            let row = if let Some(r) = old_folders.get(&key) {
+            let key = coherence_unit_key(iface, &impls, &holders, &inputs, &order);
+            let row = if let Some(r) = old_units.get(&key) {
                 (*r).clone()
             } else {
                 hashed += 1;
-                let Some(row) = coherence_folder(&u, iface, &impls, key, &order) else {
+                let Some(row) = coherence_unit(&u, iface, &impls, key, &order) else {
                     cacheable = false;
                     break;
                 };
@@ -6172,7 +6137,7 @@ impl Run<'_> {
                     parts.entry(*t).or_default().push(*h);
                 }
             }
-            folders.push(row);
+            units.push(row);
         }
         let part_of = |t: DefId| Some(parts.get(&t).cloned().unwrap_or_default());
         let (mut found, mut rows, mut ran) = (Vec::new(), Vec::new(), Vec::new());
@@ -6233,7 +6198,7 @@ impl Run<'_> {
         if cacheable && (hashed > 0 || !ran.is_empty()) {
             let rows = CohRows {
                 traits: keep_previous(rows, &old.traits, |r| (&r.trait_, r.key)),
-                folders: keep_previous(folders, &old.folders, |r| (&r.folder, r.key)),
+                units: keep_previous(units, &old.units, |r| (&r.unit, r.key)),
             };
             self.put(
                 EntryKind::Graph,
@@ -6262,7 +6227,7 @@ impl Run<'_> {
     }
 
     /// The key of the package's coherence rows: one `graph` entry per
-    /// package, rewritten when `Coherence` hashes a folder or checks a
+    /// package, rewritten when `Coherence` hashes a unit or checks a
     /// trait.
     fn coherence_rows_key(&self) -> Hash128 {
         let mut k = hd_base::StableHasher::new("coh-rows");
@@ -6273,7 +6238,7 @@ impl Run<'_> {
 
     /// The package's coherence rows, newest first; empty when there are
     /// none, with the miss's guard: `Coherence` rewrites the rows only
-    /// when it hashed a folder or checked a trait.
+    /// when it hashed a unit or checked a trait.
     fn coherence_rows(&self) -> (CohRows, Option<Owed<'_>>) {
         match self.lookup_owed(EntryKind::Graph, self.coherence_rows_key()) {
             Ok(s) => (
@@ -6286,12 +6251,12 @@ impl Run<'_> {
         }
     }
 
-    /// The slot of folder `fi`'s init order among the graph parts after
+    /// The slot of unit `fi`'s init order among the graph parts after
     /// coherence's.
     fn graph_slot(&self, fi: usize) -> usize {
         self.graph_parts
             .get()
-            .and_then(|g| g.folders.iter().position(|f| *f == fi))
+            .and_then(|g| g.units.iter().position(|f| *f == fi))
             .unwrap_or(usize::MAX - 1)
     }
 
@@ -6327,14 +6292,14 @@ impl Run<'_> {
 
     /// The package's `graph` entry (`crates/hd_cache/DESIGN.md`, "Graph
     /// parts"), keyed by its parts' keys: coherence's, then each built
-    /// folder's init order's. On a hit, applies every part and returns
+    /// unit's init order's. On a hit, applies every part and returns
     /// `true`; on a miss, starts the entry the part tasks fill.
-    fn graph_hit(&self, folders: &[usize]) -> bool {
+    fn graph_hit(&self, units: &[usize]) -> bool {
         let Some((all, coh)) = self.coherence_inputs() else {
             return false;
         };
         let mut keys = vec![coh];
-        for &f in folders {
+        for &f in units {
             let Some((_, k)) = self.init_inputs(f) else {
                 return false;
             };
@@ -6374,7 +6339,7 @@ impl Run<'_> {
         let Some((found, runs)) = hit else {
             let _ = self.graph_parts.set(GraphParts {
                 key,
-                folders: folders.to_vec(),
+                units: units.to_vec(),
                 slots: (0..keys.len()).map(|_| OnceLock::new()).collect(),
                 left: std::sync::atomic::AtomicUsize::new(keys.len()),
                 claimed: owed.map(Owed::hand_on).is_some(),
@@ -6389,7 +6354,7 @@ impl Run<'_> {
                 d.add_label(self.item_span(other, 0), "conflicting implementation");
             }
         }
-        for (&f, r) in folders.iter().zip(runs) {
+        for (&f, r) in units.iter().zip(runs) {
             let _ = self.init_runs[f].set(r);
             lock(&self.report).ok(Stage::InitOrder);
         }
@@ -6399,7 +6364,7 @@ impl Run<'_> {
     /// The overlap check (`trait.overlap.definition`,
     /// `trait.overlap.error`) for the impls of module `m`'s `tests:` block,
     /// which are module items in the test role (`names.tests.module-items`)
-    /// but in no folder interface, so [`Self::coherence`] never sees them.
+    /// but in no unit interface, so [`Self::coherence`] never sees them.
     /// Each is checked against the impls of `ifaces`, the test role's
     /// closure (`test_closure(m)`), and the block's other impls. The
     /// findings go into the module's test-role `check` entry, whose key
@@ -6407,12 +6372,12 @@ impl Run<'_> {
     fn test_overlaps(
         &self,
         m: usize,
-        ifaces: &[Arc<FolderIface>],
+        ifaces: &[Arc<UnitIface>],
         (items, anchors): (&[Item], &hd_resolve::anchor::Anchors),
         src: &Src<'_>,
         diags: &mut DiagBuf,
     ) {
-        let Some(own) = self.iface_of(self.table.modules[m].folder) else {
+        let Some(own) = self.iface_of(self.table.modules[m].unit) else {
             return;
         };
         let test_impls: Vec<&Item> = items
@@ -6493,7 +6458,7 @@ impl Run<'_> {
         let mut closure = Vec::new();
         for c in self.module_closure(m) {
             closure.push((
-                self.table.folders[c.idx()].path.as_str(),
+                self.table.units[c.idx()].path.as_str(),
                 self.iface_of(c)?.deep_hash,
             ));
         }
@@ -6573,7 +6538,7 @@ impl Run<'_> {
 
     /// Whether `text` holds a name the trait `trait_` goes by in
     /// `closure`: its declared name, or the name of a `pub use` of it.
-    fn names_trait(&self, closure: &[FolderId], text: &str, trait_: DefId) -> bool {
+    fn names_trait(&self, closure: &[UnitId], text: &str, trait_: DefId) -> bool {
         let names = self.names();
         text.contains(names.display_name(trait_))
             || closure.iter().filter_map(|c| self.iface_of(*c)).any(|i| {
@@ -6584,14 +6549,14 @@ impl Run<'_> {
     }
 
     /// The template text hashes of the user tuple-template modules in
-    /// `closure(folder)`: what `HeaderCheck(folder)` reads through a
+    /// `closure(unit)`: what `HeaderCheck(unit)` reads through a
     /// template's member steps, which come from its body and from nothing
     /// an interface carries (`crates/hd_check/DESIGN.md` (trait solver) §3.9). The walkers' bounds
     /// are in the interfaces of the key's reach already, so the template
     /// modules' text is all that is missing. std's templates are in the
     /// toolchain key.
-    fn tuple_template_sources(&self, folder: FolderId) -> Option<Vec<(String, Hash128)>> {
-        self.template_hashes(&self.closure(folder), &|_| false)
+    fn tuple_template_sources(&self, unit: UnitId) -> Option<Vec<(String, Hash128)>> {
+        self.template_hashes(&self.closure(unit), &|_| false)
     }
 
     /// The template text hashes (`HeaderSkeleton::template_text_hash`) of
@@ -6601,16 +6566,16 @@ impl Run<'_> {
     /// function whose signature it infers keeps the hash.
     fn template_hashes(
         &self,
-        closure: &[FolderId],
+        closure: &[UnitId],
         wanted: &dyn Fn(DefId) -> bool,
     ) -> Option<Vec<(String, Hash128)>> {
         let mut out = std::collections::BTreeMap::new();
         for &c in closure {
             let iface = self.iface_of(c)?;
-            let templates = self.folder_templates[c.idx()].get_or_init(|| {
+            let templates = self.unit_templates[c.idx()].get_or_init(|| {
                 // From the item index: only a template's record is read (#213).
                 let items = &iface.items;
-                let mut ts: Vec<FolderTemplate> = (0..items.len())
+                let mut ts: Vec<UnitTemplate> = (0..items.len())
                     .filter_map(|i| {
                         let (kind, _) = items.impl_kind(i)?;
                         let template = match kind {
@@ -6726,7 +6691,7 @@ impl Run<'_> {
             return 0;
         };
         // The scratch holds what the module's uses report, which the
-        // folder's `HeaderCheck` reports to the user.
+        // unit's `HeaderCheck` reports to the user.
         let use_errors = (0..scratch.len()).any(|i| {
             scratch.severity[i] == Severity::Error
                 && hd_resolve::USE_CODES.contains(&scratch.code[i])
@@ -6763,9 +6728,9 @@ impl Run<'_> {
             .any(|p| p.get().is_some_and(|p| !p.is_ok()))
     }
 
-    /// Whether every module of folder `fi` parses ([`Self::parses`]).
-    fn folder_parses(&self, fi: usize) -> bool {
-        self.table.folders[fi]
+    /// Whether every module of unit `fi` parses ([`Self::parses`]).
+    fn unit_parses(&self, fi: usize) -> bool {
+        self.table.units[fi]
             .modules
             .iter()
             .all(|m| self.parses(m.idx()))
@@ -6807,64 +6772,64 @@ impl Run<'_> {
         }
     }
 
-    /// Which folder declares what: every module's path node.
+    /// Which unit declares what: every module's path node.
     fn owners(&self) -> &OwnerMap {
         self.owners.get_or_init(|| {
             let names = self.names();
             let mut o = OwnerMap::default();
             for m in &self.table.modules {
-                o.insert(names.module(&m.path), m.folder);
+                o.insert(names.module(&m.path), m.unit);
             }
             o
         })
     }
 
-    /// A folder's impls, frozen with its interface (`crates/hd_check/DESIGN.md` (trait solver) §3.2,
+    /// A unit's impls, frozen with its interface (`crates/hd_check/DESIGN.md` (trait solver) §3.2,
     /// §3.3); `None` when the interface was not built.
-    fn folder_impls(&self, f: FolderId) -> Option<&FolderImpls> {
-        self.folder_impls[f.idx()]
+    fn unit_impls(&self, f: UnitId) -> Option<&UnitImpls> {
+        self.unit_impls[f.idx()]
             .get_or_init(|| {
                 let iface = self.iface_of(f)?;
                 // Only the impls' records are read (#213).
                 let impls: Vec<&Item> = iface.items.impls().collect();
                 let table = hd_resolve::impl_table(&self.names(), &impls);
-                let fi = FolderImpls::new(f, table, self.pool.types(), &self.paths, self.owners());
+                let fi = UnitImpls::new(f, table, self.pool.types(), &self.paths, self.owners());
                 Some(Arc::new(fi))
             })
             .as_deref()
     }
 
     /// A solving context's impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2): the closure's
-    /// folder tables by folder id, read by owner, and its impl universe,
-    /// the closure's folders whose `arg_impls` or unowned rows are not
+    /// unit tables by unit id, read by owner, and its impl universe,
+    /// the closure's units whose `arg_impls` or unowned rows are not
     /// empty.
     fn closure_impls(
         &self,
-        closure: &[FolderId],
-    ) -> (Vec<(u32, &FolderImpls)>, ImplUniverseId, Arc<UniverseImpls>) {
-        let mut folders: Vec<(u32, &FolderImpls)> = Vec::new();
+        closure: &[UnitId],
+    ) -> (Vec<(u32, &UnitImpls)>, ImplUniverseId, Arc<UniverseImpls>) {
+        let mut units: Vec<(u32, &UnitImpls)> = Vec::new();
         let mut members = Vec::new();
         for f in closure {
-            let Some(fi) = self.folder_impls(*f) else {
+            let Some(fi) = self.unit_impls(*f) else {
                 continue;
             };
-            folders.push((f.raw(), fi));
+            units.push((f.raw(), fi));
             if fi.in_universe() {
                 members.push((*f, fi));
             }
         }
-        // By id, for `FolderSlots`: O(c log c) for a closure of c folders,
-        // where a slot per folder of the program cost every module the
-        // program's folders.
-        folders.sort_stable_by_key(|s| s.0);
-        folders.dedup_by_key(|s| s.0);
-        hd_types::work::view_slots(folders.len());
+        // By id, for `UnitSlots`: O(c log c) for a closure of c units,
+        // where a slot per unit of the program cost every module the
+        // program's units.
+        units.sort_stable_by_key(|s| s.0);
+        units.dedup_by_key(|s| s.0);
+        hd_types::work::view_slots(units.len());
         let (universe, extra) = self.universes.intern(&members);
-        (folders, universe, extra)
+        (units, universe, extra)
     }
 
     /// Whether a module's file already has an error: its header errors are
-    /// reported by the folder interface, before any body of it. Its uses'
+    /// reported by the unit interface, before any body of it. Its uses'
     /// errors come from `HeaderCheck`, which no body waits for: a body
     /// reads them from its `ModulePrep` ([`PrepOut::use_errors`]).
     fn file_has_errors(&self, m: usize) -> bool {
@@ -6877,13 +6842,9 @@ impl Run<'_> {
     }
 
     /// Each lookup keeps its own items ahead of its shared interface closure.
-    fn method_index(
-        &self,
-        lookup: &Lookup<'_>,
-        folders: &[FolderId],
-    ) -> Arc<hd_check::MethodIndex> {
+    fn method_index(&self, lookup: &Lookup<'_>, units: &[UnitId]) -> Arc<hd_check::MethodIndex> {
         let shared = lock(&self.method_indexes)
-            .entry(folders.to_vec())
+            .entry(units.to_vec())
             .or_insert_with(|| {
                 Arc::new(hd_check::MethodIndex::interfaces(lookup, self.pool.types()))
             })
@@ -6916,14 +6877,14 @@ impl Run<'_> {
         };
         let module = &self.table.modules[m];
         let closure = self.module_closure(m);
-        let (iface_folders, ifaces): (Vec<_>, Vec<Arc<FolderIface>>) = closure
+        let (iface_units, ifaces): (Vec<_>, Vec<Arc<UnitIface>>) = closure
             .iter()
             .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
             .unzip();
         // A REPL input also sees `src/lib.hd`'s private items
         // (`cli.repl.package.lib`), which no interface carries.
         // Only an input whose session holds the library asks: its closure
-        // holds `src/lib.hd`'s folder, so that interface is built by now
+        // holds `src/lib.hd`'s unit, so that interface is built by now
         // ([`Self::lib_scope`]).
         let input = self.repl_number(m).is_some();
         let lib = if self.with_lib(m) {
@@ -6937,7 +6898,7 @@ impl Run<'_> {
         };
         let lookup = Lookup::new(
             &own,
-            iface_folders
+            iface_units
                 .iter()
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
@@ -6966,13 +6927,13 @@ impl Run<'_> {
             .filter(|i| matches!(i.data, ItemData::Impl { .. }))
             .collect();
         let own_table = hd_resolve::impl_table(&names, &own_impls);
-        let (folders, universe, extra) = self.closure_impls(&closure);
+        let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: Some(&own_table),
-            folders: hd_types::lookup::FolderSlots::new(&folders),
+            units: hd_types::lookup::UnitSlots::new(&units),
             universe,
             extra: &extra,
             arity: &arity,
@@ -7007,7 +6968,7 @@ impl Run<'_> {
             impls: &impls,
             global: &self.memo,
             solver: &solver,
-            methods: self.method_index(&lookup, &iface_folders),
+            methods: self.method_index(&lookup, &iface_units),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
                 self.earlier_bindings(m),
                 self.declared_by(m),
@@ -7034,7 +6995,7 @@ impl Run<'_> {
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
         // `ref.local.escape.*`: written local references that are kept.
         hd_check::local_ref_declarations(&cx.src, &mut diags);
-        // The `tests:` block's use and header diagnostics, which no folder
+        // The `tests:` block's use and header diagnostics, which no unit
         // interface reports.
         diags.append(&lowered.test_diags);
         if tests {
@@ -7310,12 +7271,12 @@ impl Run<'_> {
                 }
             }
         }
-        // Keep only the call graph summary for the folder join. Warm checks
+        // Keep only the call graph summary for the unit join. Warm checks
         // read it from the check entry without decoding any cached TIR.
         let mut generic_edges = hd_check::inst_cycles::call_edges(&cx, &bodies);
         if self.table.modules[m].package != 0 {
             // Preserve the existing local check for dependencies. Their TIR
-            // and summaries are not inputs to the user's folder graph.
+            // and summaries are not inputs to the user's unit graph.
             let edges: Vec<_> = generic_edges.iter().collect();
             hd_check::inst_cycles::growing_cycles(&edges, &mut diags);
             generic_edges.clear();
@@ -7653,9 +7614,9 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::Body);
         let mut inferred = hd_check::results::inferred(&cx);
         inferred.extend(hd_check::remote::public_results(&cx));
-        let folder = module.folder;
-        let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
-        let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
+        let unit = module.unit;
+        let same_unit = |d: DefId| self.item_unit(d) == Some(unit);
+        let summary = hd_check::init::summary(&cx, init_facts, &same_unit);
         let dbg = cx.dbg_refs.take();
         // A REPL input's interface carries its bindings for later inputs,
         // and `src/lib.hd`'s its private ones for the inputs whose session
@@ -8440,12 +8401,12 @@ impl Run<'_> {
             .get_or_init(|| self.lower_module(tm, &mut DiagBuf::default()))
             .as_ref()?;
         let mut closure = self.module_closure(m);
-        for fo in self.closure(self.table.modules[tm].folder) {
+        for fo in self.closure(self.table.modules[tm].unit) {
             if !closure.contains(&fo) {
                 closure.push(fo);
             }
         }
-        let (iface_folders, ifaces): (Vec<_>, Vec<Arc<FolderIface>>) = closure
+        let (iface_units, ifaces): (Vec<_>, Vec<Arc<UnitIface>>) = closure
             .iter()
             .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
             .unzip();
@@ -8463,19 +8424,19 @@ impl Run<'_> {
             .collect();
         let lookup = Lookup::new(
             &items,
-            iface_folders
+            iface_units
                 .iter()
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
         );
-        let (folders, universe, extra) = self.closure_impls(&closure);
+        let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let view = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: own_impls,
-            folders: hd_types::lookup::FolderSlots::new(&folders),
+            units: hd_types::lookup::UnitSlots::new(&units),
             universe,
             extra: &extra,
             arity: &arity,
@@ -8494,7 +8455,7 @@ impl Run<'_> {
             impls: &view,
             global: &self.memo,
             solver: &TableSolver,
-            methods: self.method_index(&lookup, &iface_folders),
+            methods: self.method_index(&lookup, &iface_units),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -8526,14 +8487,14 @@ impl Run<'_> {
         let tmod = self.template_mods[tm]
             .get_or_init(|| self.lower_module(tm, &mut DiagBuf::default()))
             .as_ref()?;
-        let closure = self.closure(self.table.modules[tm].folder);
-        let (iface_folders, ifaces): (Vec<_>, Vec<Arc<FolderIface>>) = closure
+        let closure = self.closure(self.table.modules[tm].unit);
+        let (iface_units, ifaces): (Vec<_>, Vec<Arc<UnitIface>>) = closure
             .iter()
             .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
             .unzip();
         let lookup = Lookup::new(
             &tmod.items,
-            iface_folders
+            iface_units
                 .iter()
                 .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
@@ -8545,13 +8506,13 @@ impl Run<'_> {
             .filter(|i| matches!(i.data, ItemData::Impl { .. }))
             .collect();
         let own_table = hd_resolve::impl_table(&names, &own_impls);
-        let (folders, universe, extra) = self.closure_impls(&closure);
+        let (units, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let view = ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: Some(&own_table),
-            folders: hd_types::lookup::FolderSlots::new(&folders),
+            units: hd_types::lookup::UnitSlots::new(&units),
             universe,
             extra: &extra,
             arity: &arity,
@@ -8570,7 +8531,7 @@ impl Run<'_> {
             impls: &view,
             global: &memo,
             solver: &TableSolver,
-            methods: self.method_index(&lookup, &iface_folders),
+            methods: self.method_index(&lookup, &iface_units),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -8685,7 +8646,7 @@ impl Run<'_> {
     /// module's items; TIR, one record per body; a test run's
     /// registrations; the init summary, which `InitOrder` reads; the `dbg`
     /// references; each body's frame name (`positions`); and the fixed-callee
-    /// generic call edges the folder join reads without decoding TIR.
+    /// generic call edges the unit join reads without decoding TIR.
     fn module_finish(&self, m: usize) {
         let (
             Some(Some(prep)),
@@ -8742,9 +8703,9 @@ impl Run<'_> {
         }
         // Invariant 3 (`crates/hd_tir/DESIGN.md` §4.13.11): `Hole` and
         // `Poison` only where something reported an error. A header's
-        // error is the folder's, reported before its modules finish, so
+        // error is the unit's, reported before its modules finish, so
         // the run's errors so far stand in for the module's. An import's
-        // is the folder's `HeaderCheck`'s, which may finish later: its
+        // is the unit's `HeaderCheck`'s, which may finish later: its
         // `ModulePrep` saw it.
         if !diags.has_errors()
             && !prep.use_errors
@@ -9188,7 +9149,7 @@ impl Run<'_> {
     }
 
     /// The written `@inline(.Always)` on `def`, including private items
-    /// whose declarations are not part of a folder interface.
+    /// whose declarations are not part of a unit interface.
     fn inline_always_span(&self, def: DefId) -> Span {
         let Some(module) = self.item_module(def) else {
             return self.item_span(def, 0);
@@ -9479,21 +9440,21 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::PackageResult);
         self.check_inline_always();
         self.check_opaque_cycles();
-        // Recompute the folder graph from current module summaries, including
+        // Recompute the unit graph from current module summaries, including
         // cache hits. Its verdict is never cached under one module's key.
-        let mut folder_edges: BTreeMap<usize, Vec<&hd_check::inst_cycles::Edge>> = BTreeMap::new();
+        let mut unit_edges: BTreeMap<usize, Vec<&hd_check::inst_cycles::Edge>> = BTreeMap::new();
         for (m, module) in self.table.modules.iter().enumerate() {
             if module.package == 0
                 && self.builds_module(m)
                 && let Some(Some(check)) = self.check[m].get()
             {
-                folder_edges
-                    .entry(module.folder.idx())
+                unit_edges
+                    .entry(module.unit.idx())
                     .or_default()
                     .extend(&check.generic_edges);
             }
         }
-        for edges in folder_edges.values() {
+        for edges in unit_edges.values() {
             hd_check::inst_cycles::growing_cycles(edges, &mut lock(&self.diags));
         }
         // The package's crossing closures against its whole call graph
@@ -9504,21 +9465,21 @@ impl Run<'_> {
             .map(|c| &c.reach)
             .collect();
         hd_check::crossing::join(&reach, &mut lock(&self.diags));
-        // `InitOrder(F)` reads the init summaries of the folder's modules,
+        // `InitOrder(F)` reads the init summaries of the unit's modules,
         // so it runs once they are checked.
         let kept = self.kept.get();
-        let folders: Vec<usize> = (0..self.table.folders.len())
-            .filter(|f| !kept.is_some_and(|k| k[*f]) && self.builds(FolderId::from_raw(u32_of(*f))))
+        let units: Vec<usize> = (0..self.table.units.len())
+            .filter(|f| !kept.is_some_and(|k| k[*f]) && self.builds(UnitId::from_raw(u32_of(*f))))
             .collect();
-        // Coherence and every folder's init order are parts of one `graph`
+        // Coherence and every unit's init order are parts of one `graph`
         // entry: a hit runs neither. Coherence runs here, after every
         // interface and check, so the entry's key holds both kinds of part.
-        let orders: Vec<TaskId> = if self.graph_hit(&folders) {
+        let orders: Vec<TaskId> = if self.graph_hit(&units) {
             Vec::new()
         } else {
             let mut t = vec![sp.add(TaskKind::Coherence, &[])];
             t.extend(
-                folders
+                units
                     .iter()
                     .map(|f| sp.add(TaskKind::InitOrder(u32_of(*f)), &[])),
             );
@@ -9616,23 +9577,23 @@ impl Run<'_> {
                 }
             }
         }
-        for f in 0..self.table.folders.len() {
-            if let Some(i) = self.iface_of(FolderId::from_raw(u32_of(f))) {
+        for f in 0..self.table.units.len() {
+            if let Some(i) = self.iface_of(UnitId::from_raw(u32_of(f))) {
                 items.add_interface(i);
             }
         }
         let mut impl_rows = HashMap::default();
         let mut members = Vec::new();
-        for f in 0..self.table.folders.len() {
-            let fid = FolderId::from_raw(u32_of(f));
-            let Some(fi) = self.folder_impls(fid) else {
+        for f in 0..self.table.units.len() {
+            let fid = UnitId::from_raw(u32_of(f));
+            let Some(fi) = self.unit_impls(fid) else {
                 continue;
             };
             for (row, d) in fi.table.def.iter().enumerate() {
                 impl_rows.insert(
                     *d,
                     ImplRef {
-                        module: folder_table(fid),
+                        module: unit_table(fid),
                         row: u32_of(row),
                     },
                 );
@@ -9642,7 +9603,7 @@ impl Run<'_> {
             }
         }
         // A `tests:` block's impls are in its module's test-role entry but
-        // in no folder interface, which is built without test code.
+        // in no unit interface, which is built without test code.
         let test_impls: Vec<&Item> = test_role_impls
             .iter()
             .filter(|d| !impl_rows.contains_key(*d))
@@ -9738,7 +9699,7 @@ impl Run<'_> {
     }
 
     /// What keeps [`StdModules`] from finding everything in std module `m`'s entry: an
-    /// item or body with a path under another module, or an impl outside the folder
+    /// item or body with a path under another module, or an impl outside the unit
     /// interface. A build reports this when it checks the module.
     fn std_entry_stray(&self, m: usize, items: &[Item], bodies: &[Body]) -> Option<String> {
         if !self.reads_on_first_use(m) {
@@ -9755,7 +9716,7 @@ impl Run<'_> {
                 return Some(format!("`{}`", names.path(def)));
             }
         }
-        let iface = self.iface_of(self.table.modules[m].folder)?;
+        let iface = self.iface_of(self.table.modules[m].unit)?;
         for item in items
             .iter()
             .filter(|i| matches!(i.data, ItemData::Impl { .. }))
@@ -11204,10 +11165,10 @@ impl Run<'_> {
         if paths.len() < 2 {
             return Ok(paths.into_iter().map(|p| (init_of(p), p)).collect());
         }
-        let folder = self.table.modules[graph.cycles[c][0]].folder.idx();
-        if query.indexed.insert(folder) {
-            // A folder's cycle runs, by the cycle of their first module.
-            for runs in self.init_runs[folder].get().into_iter().flatten() {
+        let unit = self.table.modules[graph.cycles[c][0]].unit.idx();
+        if query.indexed.insert(unit) {
+            // A unit's cycle runs, by the cycle of their first module.
+            for runs in self.init_runs[unit].get().into_iter().flatten() {
                 if let Some(m) = runs.first().and_then(|r| self.table.module(&r.module)) {
                     query.runs_of.insert(graph.comp[m.idx()], runs);
                 }
@@ -11466,13 +11427,13 @@ impl Run<'_> {
         if let Some((0, identity)) = self.package_trait_identity(def) {
             selectors.insert(format!("pkg.{}", identity.trait_path));
         }
-        for folder in &self.table.folders {
+        for unit in &self.table.units {
             let mut prefixes = Vec::new();
-            if folder.package == 0 {
+            if unit.package == 0 {
                 prefixes.push("pkg".to_owned());
             } else {
                 for (alias, package) in &self.table.requires[0] {
-                    if *package == folder.package {
+                    if *package == unit.package {
                         prefixes.push(format!("dep.{}", hd_project::package_ident(alias)));
                     }
                 }
@@ -11480,11 +11441,11 @@ impl Run<'_> {
             if prefixes.is_empty() {
                 continue;
             }
-            let Some(iface) = self.iface_of(folder.id) else {
+            let Some(iface) = self.iface_of(unit.id) else {
                 continue;
             };
             for export in iface.exports.iter().filter(|e| e.def == def) {
-                let root = &self.table.roots[usize::from(folder.package)];
+                let root = &self.table.roots[usize::from(unit.package)];
                 let relative = export
                     .module
                     .strip_prefix(root)
@@ -11891,13 +11852,13 @@ impl hd_resolve::World for Run<'_> {
             .get(&module)
             .map(|m| self.table.modules[m.idx()].path.as_str())
     }
-    fn module_folder_node(&self, _names: &Names<'_>, module: PathId) -> Option<u32> {
+    fn module_unit_node(&self, _names: &Names<'_>, module: PathId) -> Option<u32> {
         self.module_nodes
             .get(&module)
-            .map(|m| self.table.modules[m.idx()].folder.raw())
+            .map(|m| self.table.modules[m.idx()].unit.raw())
     }
-    fn module_folder(&self, module: &str) -> Option<u32> {
-        self.table.folder_of_module(module).map(FolderId::raw)
+    fn module_unit(&self, module: &str) -> Option<u32> {
+        self.table.unit_of_module(module).map(UnitId::raw)
     }
     fn usable(&self, module: &str) -> bool {
         self.table.usable(module)
@@ -11907,13 +11868,13 @@ impl hd_resolve::World for Run<'_> {
             .module(module)
             .is_some_and(|m| self.table.modules[m.idx()].role == hd_project::Role::Test)
     }
-    fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
+    fn iface(&self, unit: u32) -> Option<Arc<UnitIface>> {
         // A use from outside the test unit never reads it: only test code
         // may use test code, and it is all in that one unit
         // (`module.test.non-test-use.test-module`). Whether it is built
         // yet must not decide the answer.
-        let f = FolderId::from_raw(folder);
-        let tests = self.table.folders[f.idx()]
+        let f = UnitId::from_raw(unit);
+        let tests = self.table.units[f.idx()]
             .modules
             .first()
             .is_some_and(|m| self.table.modules[m.idx()].role == hd_project::Role::Test);
@@ -12277,17 +12238,17 @@ fn decode_regs(r: &mut Reader<'_>, lines: &Lines<'_>) -> Vec<hd_check::tests::Te
     out
 }
 
-/// The init summaries of one folder's module cycles, by module, and their
+/// The init summaries of one unit's module cycles, by module, and their
 /// part key ([`Run::init_inputs`]).
 type InitInputs<'a> = (Vec<Vec<(usize, &'a [u8])>>, Hash128);
 
 /// The package's `graph` entry while this run fills it: its key, the
-/// folders whose init orders are its parts after coherence's, each part's
+/// units whose init orders are its parts after coherence's, each part's
 /// bytes (`None` for one that is blocked or reports a cycle), and how many
 /// parts are still running.
 struct GraphParts {
     key: Hash128,
-    folders: Vec<usize>,
+    units: Vec<usize>,
     slots: Vec<OnceLock<Option<Vec<u8>>>>,
     left: std::sync::atomic::AtomicUsize,
     /// Whether the entry's miss is claimed, which the last part ends:
@@ -12330,7 +12291,7 @@ fn decode_graph(sections: &[impl AsRef<[u8]>], n: usize) -> Option<Vec<Vec<u8>>>
     r.ok().then_some(parts)
 }
 
-/// [`FolderIface::names_hash`] over the encoded private-name and loop-name
+/// [`UnitIface::names_hash`] over the encoded private-name and loop-name
 /// sections of an interface entry.
 fn names_hash(private: &[u8], looped: &[u8]) -> Hash128 {
     let mut k = hd_base::StableHasher::new("iface-names");
@@ -12359,7 +12320,7 @@ fn decode_reads(b: &[u8]) -> Option<Vec<(String, bool)>> {
     (r.ok() && r.at_end()).then_some(reads)
 }
 
-/// `InitOrder`'s runs for one folder: one list per module cycle.
+/// `InitOrder`'s runs for one unit: one list per module cycle.
 fn encode_runs(cycles: &[Vec<InitRun>]) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(cycles);
@@ -12474,7 +12435,7 @@ struct InitQuery<'a> {
     now: usize,
     /// Each cycle's init bodies, once computed.
     bodies: Vec<Option<Vec<(DefId, &'a str)>>>,
-    /// The folders whose cycle runs `runs_of` holds.
+    /// The units whose cycle runs `runs_of` holds.
     indexed: HashSet<usize>,
     /// A multi-module cycle's runs, by the cycle.
     runs_of: HashMap<usize, &'a [InitRun]>,
@@ -12539,13 +12500,13 @@ fn strongly_connected(edges: &[Vec<usize>], starts: &[usize]) -> (Vec<Vec<usize>
 
 /// The package's coherence rows (`crates/hd_cache/DESIGN.md`, "Coherence
 /// runs per changed trait"): per trait, its findings under its `coh_key`;
-/// per folder, the head hashes of its impls under
-/// [`coherence_folder_key`]. Each name keeps its newest row and one older
+/// per unit, the head hashes of its impls under
+/// [`coherence_unit_key`]. Each name keeps its newest row and one older
 /// one.
 #[derive(Default)]
 struct CohRows {
     traits: Vec<CohRow>,
-    folders: Vec<CohFolder>,
+    units: Vec<CohUnit>,
 }
 
 /// One trait's row: its `coh_key`, its stable path, and its findings,
@@ -12557,30 +12518,30 @@ struct CohRow {
     found: Vec<(String, String, String)>,
 }
 
-/// One folder's row: its key, its path, and per trait it implements (by
+/// One unit's row: its key, its path, and per trait it implements (by
 /// stable path hash) the hash of the head hashes of its impls of it.
 #[derive(Clone)]
-struct CohFolder {
+struct CohUnit {
     key: Hash128,
-    folder: String,
+    unit: String,
     parts: Vec<(Hash128, Hash128)>,
 }
 
-/// The key of a folder's [`CohFolder`] row: everything its head hashes
-/// read. The folder's `heads_hash` covers its impl records (§4.10),
+/// The key of a unit's [`CohUnit`] row: everything its head hashes
+/// read. The unit's `heads_hash` covers its impl records (§4.10),
 /// stable paths included. An impl's rank, which `order` builds, reads two
 /// things outside the blob: the impl's anchor and, in a REPL session, its
 /// input's number. An impl another interface also carries takes its rank
 /// from the first carrier, so its rank itself goes into the key.
-fn coherence_folder_key(
-    iface: &FolderIface,
+fn coherence_unit_key(
+    iface: &UnitIface,
     impls: &[&Item],
-    holders: &HashMap<DefId, Vec<&FolderIface>>,
+    holders: &HashMap<DefId, Vec<&UnitIface>>,
     inputs: &HashMap<&str, u32>,
     order: &dyn Fn(DefId) -> String,
 ) -> Hash128 {
-    let mut k = hd_base::StableHasher::new("coh-folder");
-    k.str(&iface.folder);
+    let mut k = hd_base::StableHasher::new("coh-unit");
+    k.str(&iface.unit);
     k.hash(iface.heads_hash);
     for it in impls {
         if holders.get(&it.def).is_some_and(|h| h.len() == 1) {
@@ -12601,16 +12562,16 @@ fn coherence_folder_key(
     k.finish()
 }
 
-/// A folder's [`CohFolder`] row under `key`: per trait, the head hash of
-/// the folder's impls of it, from their records and their ranks `order`.
+/// A unit's [`CohUnit`] row under `key`: per trait, the head hash of
+/// the unit's impls of it, from their records and their ranks `order`.
 /// `None` when an impl does not encode.
-fn coherence_folder(
+fn coherence_unit(
     u: &hd_resolve::Universe<'_>,
-    iface: &FolderIface,
+    iface: &UnitIface,
     impls: &[&Item],
     key: Hash128,
     order: &dyn Fn(DefId) -> String,
-) -> Option<CohFolder> {
+) -> Option<CohUnit> {
     let mut by_trait: BTreeMap<Hash128, Vec<&Item>> = BTreeMap::new();
     for it in impls {
         if let ItemData::Impl { trait_, .. } = it.data {
@@ -12624,15 +12585,15 @@ fn coherence_folder(
         .into_iter()
         .map(|(t, group)| {
             let ranks: Vec<String> = group.iter().map(|i| order(i.def)).collect();
-            let mut k = hd_base::StableHasher::new("coh-folder-trait");
-            k.str(&iface.folder);
+            let mut k = hd_base::StableHasher::new("coh-unit-trait");
+            k.str(&iface.unit);
             k.hash(u.head_hash(&group, &ranks).ok()?);
             Some((t, k.finish()))
         })
         .collect::<Option<Vec<_>>>()?;
-    Some(CohFolder {
+    Some(CohUnit {
         key,
-        folder: iface.folder.clone(),
+        unit: iface.unit.clone(),
         parts,
     })
 }
@@ -12678,10 +12639,10 @@ fn encode_coh_rows(rows: &CohRows) -> Vec<u8> {
             w.str(msg);
         }
     }
-    w.len_of(&rows.folders);
-    for r in &rows.folders {
+    w.len_of(&rows.units);
+    for r in &rows.units {
         w.hash(r.key);
-        w.str(&r.folder);
+        w.str(&r.unit);
         w.len_of(&r.parts);
         for (t, h) in &r.parts {
             w.hash(*t);
@@ -12702,19 +12663,19 @@ fn decode_coh_rows(b: &[u8]) -> Option<CohRows> {
                 .collect(),
         })
         .collect();
-    let folders = (0..r.count())
-        .map(|_| CohFolder {
+    let units = (0..r.count())
+        .map(|_| CohUnit {
             key: r.hash(),
-            folder: r.str().to_owned(),
+            unit: r.str().to_owned(),
             parts: (0..r.count()).map(|_| (r.hash(), r.hash())).collect(),
         })
         .collect();
-    (r.ok() && r.at_end()).then_some(CohRows { traits, folders })
+    (r.ok() && r.at_end()).then_some(CohRows { traits, units })
 }
 
-/// The overlaps of a coherence run, each reported impl as its folder's
-/// index and its item's index in that folder's interface.
-fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<FolderIface>]) -> Option<Vec<u8>> {
+/// The overlaps of a coherence run, each reported impl as its unit's
+/// index and its item's index in that unit's interface.
+fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<UnitIface>]) -> Option<Vec<u8>> {
     // One index for both endpoints of every overlap, O(items + findings),
     // rather than scanning every interface for each endpoint.
     let locations: HashMap<_, _> = all
@@ -12743,7 +12704,7 @@ fn encode_overlaps(found: &[(DefId, DefId, String)], all: &[Arc<FolderIface>]) -
     Some(w.bytes)
 }
 
-fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, DefId, String)>> {
+fn decode_overlaps(b: &[u8], all: &[Arc<UnitIface>]) -> Option<Vec<(DefId, DefId, String)>> {
     let mut r = Reader::new(b);
     let mut out = Vec::new();
     for _ in 0..r.count() {
@@ -12758,8 +12719,8 @@ fn decode_overlaps(b: &[u8], all: &[Arc<FolderIface>]) -> Option<Vec<(DefId, Def
     (r.ok() && r.at_end()).then_some(out)
 }
 
-/// Stage-B findings by item index in the folder's interface.
-/// The folders an interface names, by path, for its entry.
+/// Stage-B findings by item index in the unit's interface.
+/// The units an interface names, by path, for its entry.
 fn encode_mentioned(mentions: &[(String, Hash128)]) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(mentions);

@@ -88,7 +88,7 @@ pub fn input_bindings(cx: &BodyCx<'_>) -> Vec<InputBinding> {
 
 /// The functions and types of a REPL input whose names an earlier input
 /// bound as top-level bindings (`cli.repl.redeclare.binding`,
-/// `cli.repl.redeclare.type`). The folder interface cannot see those
+/// `cli.repl.redeclare.type`). The unit interface cannot see those
 /// names: the bindings come from the earlier inputs' checks.
 pub fn earlier_binding_clashes(
     cx: &BodyCx<'_>,
@@ -197,7 +197,7 @@ pub struct InitSummary {
 
 /// The init summary of the module `cx` checked: its statements, its
 /// bindings, and its bodies' facts. Only the calls `keep` accepts stay: a
-/// module cycle never leaves its folder (`module.init.use-graph`), so a
+/// module cycle never leaves its unit (`module.init.use-graph`), so a
 /// call out of it reaches no binding of the cycle.
 #[must_use]
 pub fn summary(

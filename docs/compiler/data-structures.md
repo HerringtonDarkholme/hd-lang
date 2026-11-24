@@ -25,7 +25,7 @@ contract. §3.11 to §3.23 describe each structure.
 | green tree and its wire form | §3.13 | `hd_syntax::GreenTree` |
 | header skeleton, item index | §3.14 | `hd_syntax::HeaderSkeleton`, `ItemIndex` |
 | name-resolution tables | §3.15 | `hd_resolve::ModuleScope` |
-| folder interface and blob | §3.16 | `hd_resolve::FolderIface` |
+| unit interface and blob | §3.16 | `hd_resolve::UnitIface` |
 | impl tables | §3.17 | `hd_types::solver::ImplTable` |
 | TIR | §3.18, [§4.13.11](../../crates/hd_tir/DESIGN.md#41311-the-typed-ir-tir) | `hd_tir::ir::Body` |
 | per-body checker state | §3.19 | `hd_check::body::Ck`, `hd_types::unify::InferTable` |
@@ -47,7 +47,7 @@ does not compile.
 | `Symbol` | run | interned string (§3.3) | the string |
 | `PackageId` | run | resolved package | the package identity |
 | `FileId` | run | source file | package plus package-relative path |
-| `ModuleId`, `FolderId` | run | module, folder; dense | package plus path |
+| `ModuleId`, `UnitId` | run | module, unit; dense | package plus path |
 | `PathId` | run | a node of the stable-path trie (§3.2) | the printed path |
 | `DefId` | run | any declaration, member, variant or impl; a `PathId` whose node is an item | its path (§3.2) |
 | `Ty`, `TyList`, `RowId` | run (global) or body (local) | an InternPool item (§3.9.2) | the entry's own type table (§3.20.2) |
@@ -302,7 +302,7 @@ tokens ─► syntax tree ─► interface (cached) ─► TIR, one per body ─
 | --- | --- | --- |
 | tokens | the parser, skim, the formatter | columns (§3.11) |
 | syntax tree | the checker, `hd fmt`, the `--fix` modes, `hd doc` | columns with typed views (§3.13) |
-| folder interface | resolution, the checker, `hd doc`, collection | its blob, read in place (§3.16) |
+| unit interface | resolution, the checker, `hd doc`, collection | its blob, read in place (§3.16) |
 | TIR | collection and emission | tag + 8-byte data + `extra` (§3.18) |
 | Wasm code entries | the linker | bytes plus relocations (§3.22) |
 
@@ -484,7 +484,7 @@ its output.
 | tokens | token kinds and spans, line facts | decoded literal values, names, layout decisions |
 | syntax tree | full syntax, every layout token, every comment by position | names, types, desugaring |
 | item index | which syntax node each item is, its parent, its name lookup | anything the node already holds |
-| folder interface | every public signature as pool types; re-exports followed to the real declaration; impl heads; templates; hashes | bodies, private items (except hidden template items), fact values, doc text, layouts |
+| unit interface | every public signature as pool types; re-exports followed to the real declaration; impl heads; templates; hashes | bodies, private items (except hidden template items), fact values, doc text, layouts |
 | TIR | every name as a `DefId` or a local; every type; every callee (static, trait method with its choice, trait value, function value); every coercion as an instruction; operators on primitives as primitive instructions and all others as trait calls; indexing as calls; pipe, interpolation, string prefixes, literal suffixes, compound assignment, comprehensions and `?` desugared; evaluation order as instruction order; default and named arguments mapped to parameter slots; match decision trees; cleanup scopes with their `defer` suites; suspension points; providers per call; closure captures with their sharing mode; structured control flow | layouts; boxing; capture cells; vtables and dictionaries; frame layouts and state-machine dispatch; overflow and bounds check sequences (a profile choice); instantiation |
 | Wasm code entry | instructions, locals, symbolic relocations | indices, section layout |
 
@@ -586,31 +586,31 @@ tree on purpose: name lookup and "all functions" filters run before any
 view decode.
 
 Implementation differs: the design's skeleton also carried a header-only
-tree and the item index, so `FolderIface` built a folder's interface
+tree and the item index, so `UnitIface` built a unit's interface
 without parsing bodies, and skim stored no tokens. The code fully parses
-every file of a folder whose interface misses
+every file of a unit whose interface misses
 (`crates/hd_driver/src/lib.rs:2523`), and skim lexes the whole file
 (`crates/hd_syntax/src/skim.rs:44`). An interface rebuild costs a full
-parse of the folder.
+parse of the unit.
 
 That full parse is rarely wasted today (#214). The interface key holds
-the folder's API text and what its headers read: each read folder's
-deep hash and names hash (#248). Every check key of the folder's
+the unit's API text and what its headers read: each read unit's
+deep hash and names hash (#248). Every check key of the unit's
 modules holds the module's token hash and the deep hashes of the whole
-closure. A read folder is in the closure, so an API text edit or a
-read folder's deep hash change misses both keys. So a folder whose
+closure. A read unit is in the closure, so an API text edit or a
+read unit's deep hash change misses both keys. So a unit whose
 interface misses almost always rechecks its modules in the same run,
 and the check needs the full parse anyway.
 
-Two cases rebuild the interface while the checks hit. A read folder
+Two cases rebuild the interface while the checks hit. A read unit
 changes only its private names, which `names_hash` covers and no check
-key holds. Or the manifest changes the folder's use roots, say a new
+key holds. Or the manifest changes the unit's use roots, say a new
 dependency no module uses yet. Both are rare edits.
 
 A header-only build would add a pass: on the 200-function file of
 bench/profile-signature, the header pass takes 0.52 ms and the full
 parse 0.92 ms (release, best of 30). It pays only once a check key
-often hits while its folder's interface misses.
+often hits while its unit's interface misses.
 
 ### 3.15 Name-Resolution Tables
 
@@ -623,7 +623,7 @@ visible at module level, with `name`, `binding` (an 8-byte `Binding`:
 `Item | Module | Prelude | Ambiguous | Poison` plus a value), `origin`
 (`Own | Use | PubUse | Prelude`) and `use_row`; an `index` from name to
 row; `def`, the module's items as `DefId`s; and the module paths that
-`Module` bindings name. While a folder's interface is built, the scope
+`Module` bindings name. While a unit's interface is built, the scope
 also notes each name looked up (`looked_up`): only the uses that bind
 one of those names count among the reads that key the interface (#248).
 
@@ -631,18 +631,18 @@ one of those names count among the reads that key the interface (#248).
   stack (§3.19).
 - A second binding of a name from a different origin is ambiguous.
 
-A folder's exports are part of its interface (§3.16).
+A unit's exports are part of its interface (§3.16).
 
-### 3.16 The Folder Interface: In Memory And As A Blob
+### 3.16 The Unit Interface: In Memory And As A Blob
 
-A folder's interface is everything a dependent's check can read: public
+A unit's interface is everything a dependent's check can read: public
 items and their signatures, impl heads, templates, hidden template
 items, hashes. Resolution reads exports by name; the checker reads
 signatures, fields and variants by item; the solver reads impl heads
 through impl tables (§3.17); coherence reads all heads; `hd doc` reads
 items in order.
 
-**In memory.** `FolderIface` holds the decoded `items` (with a `by_def`
+**In memory.** `UnitIface` holds the decoded `items` (with a `by_def`
 index), `exports` (with an index by module and name), the `blob` bytes,
 `api_hash` and `deep_hash`, and, outside every hash, item anchors,
 private names, `pub use` loop names and a REPL input's module uses.
@@ -652,7 +652,7 @@ anchors, private names, loop names and module uses. The blob is the
 entry-local tables (§3.20.2), then the items, then the exports sorted by
 (module path, name).
 
-- `private_names` lets cross-folder lookup tell `private-import` from
+- `private_names` lets cross-unit lookup tell `private-import` from
   `unknown-import` without exposing a private item. Anchors keep
   positions out of the interface; no record stores a file offset. Both
   are outside `api_hash` and `deep_hash`. The hash of the private-name
@@ -679,7 +679,7 @@ memory-mapped it from the cache.
   trait, so coherence's `Universe`, the solver's impl tables, the
   conflict checks, template lookup and the method index decode only
   those records.
-- **Mentions.** An interface entry stores the folders its interface
+- **Mentions.** An interface entry stores the units its interface
   names, so a hit derives its deep hash without decoding.
 - **Cost.** A warm `println` check decodes std's impls, which the
   solver's tables hold whole, plus the three other records it names
@@ -833,7 +833,7 @@ The keys are recomputed from the skims, not stored.
 | --- | --- |
 | `iface` | §3.16 |
 | `check` | diagnostics; module meta; items (private signatures and inferred results); the TIR, one section of bodies; row results; the init summary; `dbg` references; frame names; a REPL input's bindings |
-| `graph` | one part: a folder's header findings (`hdr`), the coherence result (`coh`) or a folder's init order (`init`) |
+| `graph` | one part: a unit's header findings (`hdr`), the coherence result (`coh`) or a unit's init order (`init`) |
 | `depfiles` | the embedded std's file skims; a source set's last-run record (§3.20.3) |
 | `parse` | empty: the source parses cleanly |
 | `link` | the linked module |
@@ -864,7 +864,7 @@ an edge into a ready task leaves its entry dead, and a pop skips it.
   work-stealing pool; the graph sits behind one mutex, held only to add,
   edge, release or complete.
 - **Result slots** are per-kind `OnceLock`s in the driver, indexed by
-  the dense file, folder or module ID.
+  the dense file, unit or module ID.
 
 The design had atomic per-node counters and a lock per node's edge list.
 One mutex over the graph is simpler and sound, and a run has a few
@@ -892,7 +892,7 @@ key). An index maps `(item, sub, args, known)` to the instance.
   sorts the set (and would name the planned code entry).
 
 Planned, not built (#49, point 4): a code entry per instance and a
-`codepack` per folder group (crates/hd_cache/DESIGN.md §5.4). Today
+`codepack` per unit group (crates/hd_cache/DESIGN.md §5.4). Today
 `Link` emits every instance of the program in one task, and nothing
 between collection and the linked module is cached.
 
@@ -901,7 +901,7 @@ bytes (locals and instructions, index immediates as 5-byte padded LEBs),
 relocations sorted by offset, line anchors, and a suspending instance's
 other functions.
 
-**Code packs**, as designed: a folder group's code entries are one
+**Code packs**, as designed: a unit group's code entries are one
 `codepack` entry, never files of their own. Its first section lists the
 code keys. Its second holds one type table, one table of relocation
 targets, then the entries. A relocation is 8 bytes, its offset and its

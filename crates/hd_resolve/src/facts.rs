@@ -1,7 +1,7 @@
 //! Which decorators of a function attach a value (annotations, "Function
 //! Facts"): every decorator line but the ones the compiler reads itself.
 
-use hd_base::{DefId, FolderId, NodeIdx, PathId, Symbol};
+use hd_base::{DefId, NodeIdx, PathId, Symbol, UnitId};
 use hd_syntax::{NodeRef, SyntaxKind};
 use hd_types::AdtId;
 
@@ -210,7 +210,7 @@ pub fn never_a_list(kind: SyntaxKind) -> bool {
 #[derive(Clone, Copy)]
 pub struct DeclView<'v> {
     names: Names<'v>,
-    folder: FolderId,
+    unit: UnitId,
     scope: &'v ModuleScope,
     lookup: &'v Lookup<'v>,
     blocks: &'v [NodeIdx],
@@ -220,14 +220,14 @@ impl<'v> DeclView<'v> {
     #[must_use]
     pub const fn new(
         names: Names<'v>,
-        folder: FolderId,
+        unit: UnitId,
         scope: &'v ModuleScope,
         lookup: &'v Lookup<'v>,
         blocks: &'v [NodeIdx],
     ) -> Self {
         Self {
             names,
-            folder,
+            unit,
             scope,
             lookup,
             blocks,
@@ -270,15 +270,15 @@ impl<'v> DeclView<'v> {
     }
 
     /// The `@derive` implementations of nominal types that the module's
-    /// folder declares, as (target, trait) pairs: the module's own items,
-    /// then its folder's interface, which may repeat them. Cost: one pass
-    /// over the module's items and the folder's implementations.
+    /// unit declares, as (target, trait) pairs: the module's own items,
+    /// then its unit's interface, which may repeat them. Cost: one pass
+    /// over the module's items and the unit's implementations.
     pub fn derived(&self) -> impl Iterator<Item = (DefId, DefId)> + '_ {
-        let folder = self.lookup.folder(self.folder);
+        let unit = self.lookup.unit(self.unit);
         self.lookup
             .own
             .iter()
-            .chain(folder.into_iter().flat_map(|f| f.items.impls()))
+            .chain(unit.into_iter().flat_map(|f| f.items.impls()))
             .filter_map(|item| match &item.data {
                 ItemData::Impl {
                     trait_,

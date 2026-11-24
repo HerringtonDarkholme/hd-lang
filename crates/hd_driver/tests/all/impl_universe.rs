@@ -1,7 +1,7 @@
 //! Impl universes (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §14.2 memo invariance): two
 //! modules ask the same open goal, `Receiver: Pick[?]`, with the same
 //! traits in scope but different closures. Only `a`'s closure holds
-//! `impl Pick[Product] for Receiver`, which its folder owns only through
+//! `impl Pick[Product] for Receiver`, which its unit owns only through
 //! the trait argument, so `a` finds it through the candidate directory and
 //! `b` does not, whichever body runs first and on any thread count.
 //! A misplaced impl is left out of the program, so no closure holds an
@@ -24,7 +24,7 @@ fn analyze(executor: Executor, a_first: bool) -> String {
     let mut src = MemorySources::default();
     src.insert("base/defs.hd", BASE);
     src.insert("prod/defs.hd", PROD);
-    // File order decides module and folder order; swapping the folder
+    // File order decides module and unit order; swapping the unit
     // names swaps which body is checked first.
     let (fa, fb) = if a_first {
         ("a/main.hd", "b/main.hd")

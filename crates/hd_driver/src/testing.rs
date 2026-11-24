@@ -181,7 +181,7 @@ pub fn labels_round_trip(labels: &[Label]) -> (Vec<Label>, bool) {
     (got, r.ok() && r.at_end())
 }
 
-/// The overlap graph of `found` over no folder interfaces.
+/// The overlap graph of `found` over no unit interfaces.
 #[must_use]
 pub fn encode_overlaps(found: &[(hd_base::DefId, hd_base::DefId, String)]) -> Option<Vec<u8>> {
     crate::encode_overlaps(found, &[])
@@ -190,7 +190,7 @@ pub fn encode_overlaps(found: &[(hd_base::DefId, hd_base::DefId, String)]) -> Op
 /// One trait's coherence row: its key, stable path and findings.
 pub type CohRow = (hd_base::Hash128, String, Vec<(String, String, String)>);
 
-/// The coherence rows `traits`, with no folder rows, encoded.
+/// The coherence rows `traits`, with no unit rows, encoded.
 #[must_use]
 pub fn encode_coh_rows(traits: Vec<CohRow>) -> Vec<u8> {
     let rows = crate::CohRows {
@@ -198,7 +198,7 @@ pub fn encode_coh_rows(traits: Vec<CohRow>) -> Vec<u8> {
             .into_iter()
             .map(|(key, trait_, found)| crate::CohRow { key, trait_, found })
             .collect(),
-        folders: Vec::new(),
+        units: Vec::new(),
     };
     crate::encode_coh_rows(&rows)
 }

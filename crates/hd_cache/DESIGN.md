@@ -25,13 +25,13 @@ says.
 
 | Kind | Content | Written by | Read by |
 | --- | --- | --- | --- |
-| `iface` | a folder interface blob (§4.11), its anchored diagnostics, private and loop names, module uses; under `reads_key`, the folder's read list | `FolderIface` | dependents' keys, resolution, coherence, `hd doc` |
+| `iface` | a unit interface blob (§4.11), its anchored diagnostics, private and loop names, module uses; under `reads_key`, the unit's read list | `UnitIface` | dependents' keys, resolution, coherence, `hd doc` |
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the module's content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
-| `graph` | stage-B header findings and the folder's use diagnostics per folder (`hdr_key`); one entry per package run for the overlap findings and every folder's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
+| `graph` | stage-B header findings and the unit's use diagnostics per unit (`hdr_key`); one entry per package run for the overlap findings and every unit's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
 | `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file) and, per check run kind, its module rows; per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that changed a row or missed its result | every later run (§5.5) |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
-| `owned` | one body after the ownership passes, in the wire form's owned section, and its hash. A std body is keyed by the toolchain (std's hash), pipeline, build profile, the checked and verify settings and the checked body's TIR hash (#1423). A dev build's package body (#2028) and generic instance (#2106) add the root package's key and settings and the program's declarations, each non-std module's checked items hash and each folder's impl heads, so a body edit that infers the same signature keeps them; an instance adds its instance key. Their entry lists the bodies the passes read, each by path and TIR hash, checked on load | `Collect`, after the passes on a miss | `Collect`, before running them |
+| `owned` | one body after the ownership passes, in the wire form's owned section, and its hash. A std body is keyed by the toolchain (std's hash), pipeline, build profile, the checked and verify settings and the checked body's TIR hash (#1423). A dev build's package body (#2028) and generic instance (#2106) add the root package's key and settings and the program's declarations, each non-std module's checked items hash and each unit's impl heads, so a body edit that infers the same signature keeps them; an instance adds its instance key. Their entry lists the bodies the passes read, each by path and TIR hash, checked on load | `Collect`, after the passes on a miss | `Collect`, before running them |
 | `clpack` | the Cranelift machine code of every function of one module, by Cranelift's key, keyed by the module's bytes and the engine's compilation settings; a private entry (mode 0600, read only when the reader owns it alone) | `hd_run_wasmtime::code_cache`, after a compile that compiled a function | the next compile of the same module on wasmtime |
 
 `EntryKind` names only the kinds above; a kind's discriminant is part of
@@ -49,23 +49,23 @@ sections it needs.
 - **Graph parts.** Coherence and init order are parts of one `graph`
   entry per package run, keyed by the sorted keys of their parts. A part
   whose result is empty stores nothing; its key in the list is enough.
-  Header findings are the exception: one `graph` entry per folder, keyed
+  Header findings are the exception: one `graph` entry per unit, keyed
   by `hdr_key`. As built: the parts are coherence's (the coarse key over
-  every built interface) and each built folder's init order
+  every built interface) and each built unit's init order
   (`init_key`). `PackageResult` computes their keys and looks up the
   one entry. A hit runs neither task. On a miss it adds both tasks, and
   the last part to finish writes the entry, unless a part is blocked or
   reports an initialization cycle. So a change to one part reruns every
-  part: an interface change reruns each folder's init order too, and
+  part: an interface change reruns each unit's init order too, and
   `Coherence` then checks again only the traits whose `coh_key` changed
   (§5.3). `Coherence` runs after `PackageResult`, so the key can hold
   both kinds of part.
 - **Init order stays a part.** Measured on 2026-10-16 (#177; a generated
-  package of 24 folders with a two-module init cycle each, 28 init
+  package of 24 units with a two-module init cycle each, 28 init
   parts, dev build, median of 20 warm runs): computing the parts' keys
-  and reading the runs costs about 4.5 µs per folder, and running
+  and reading the runs costs about 4.5 µs per unit, and running
   `InitOrder` instead about 8.4 µs. The earlier measurement, 7.1 µs
-  cached against 1.0 µs, was of one entry per folder, gone since #249.
+  cached against 1.0 µs, was of one entry per unit, gone since #249.
 
 Planned, not built: a `reads` section for early cutoff (§5.3.1), a
 `pkgres` entry for a warm fast path (§5.3), and a no-emit `check` entry without TIR (header flag
@@ -82,18 +82,18 @@ toolchain_key = H("tc", compiler id, target ("wasm32"), layout version, "xxh3-12
 package key   = root: H("pkg", name), plus the traits of a non-default runtime profile;
                 a dependency: H("pkg", its identity); a dependency's module check
                 hashes both the root's key and its own
-reads_key(F)  = H("iface-reads", toolchain_key, package key, folder path,
+reads_key(F)  = H("iface-reads", toolchain_key, package key, unit path,
                   [(module path, role, api_text_hash) for each file of F], use roots hash)
 iface_key(F)  = H("iface", reads_key(F), [(module path, answer) for each read of F's lowering])
 check_key(m)  = H("check", toolchain_key, package key, module path, role, token_hash(m),
-                  [(folder path, deep_hash) for each folder in closure(m)],
+                  [(unit path, deep_hash) for each unit in closure(m)],
                   template text hashes, REPL library and earlier inputs)
 parse_key(f)  = H("parse", toolchain_key, source_hash(f))
-hdr_key(F)    = H("hdr", toolchain_key, package key, folder path,
+hdr_key(F)    = H("hdr", toolchain_key, package key, unit path,
                   H(own deep_hash, own heads_hash, reads_key(F), closure(F)'s names hashes),
-                  [(folder path, deep_hash) for each folder in closure(F)], tuple-template text hashes)
+                  [(unit path, deep_hash) for each unit in closure(F)], tuple-template text hashes)
 coh_key(T)    = H("coh", toolchain_key, stable path of T, sorted head hashes of T's impls)
-init_key(F)   = H("init", toolchain_key, folder path, [(module path, init summary hash)])
+init_key(F)   = H("init", toolchain_key, unit path, [(module path, init summary hash)])
 depfiles_key  = H("depfiles", toolchain_key, "std")
 prog_key      = H("prog", toolchain_key, pipeline, profile, entry, [(module, content hash)])
 code_key      = H("code", pipeline, profile, instance key, item TIR hash,
@@ -130,31 +130,31 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   connected group of modules, `crates/hd_resolve/DESIGN.md` §4.8) plus every
   unit reachable from it through the module graph's dependency edges,
   walked on demand. A
-  role-`test` `check_key` uses `test_closure(m)`, which adds every folder
+  role-`test` `check_key` uses `test_closure(m)`, which adds every unit
   that test code reaches, dev dependencies included. So each key lists
-  every folder whose impls its check can see. A `tests:` block's uses,
-  of the same package or another, make no folder edge
+  every unit whose impls its check can see. A `tests:` block's uses,
+  of the same package or another, make no unit edge
   (`module.cycle.test-code`), so they never widen `closure(m)`.
-- **Interface keys hold what the headers read.** A folder's `deep_hash`
-  folds its own `api_hash` and the deep hashes of the folders its
+- **Interface keys hold what the headers read.** A unit's `deep_hash`
+  folds its own `api_hash` and the deep hashes of the units its
   interface mentions (§4.11.3). The design keyed `iface_key(F)` by that
   same set. That set is known only after the build, and it misses what F's
-  lowering read without naming: a `pub use` chain's middle folder, a row
-  alias's folder, a lookup that failed. So the built key holds the
+  lowering read without naming: a `pub use` chain's middle unit, a row
+  alias's unit, a lookup that failed. So the built key holds the
   lowering's recorded reads (#248). `hd_resolve::Recorded` wraps the
-  run's `World` and notes each module path asked about and each folder
+  run's `World` and notes each module path asked about and each unit
   whose interface was opened. Binding F's uses reads quietly: a use's
   reads count only when a lookup during the lowering consults a name it
   binds, and are then read again, recorded. That read list is an `iface`
-  entry keyed by `reads_key(F)`. On a run, `FolderIface(F)` reads the list, answers each
+  entry keyed by `reads_key(F)`. On a run, `UnitIface(F)` reads the list, answers each
   read now, and looks up `iface_key(F)` over those answers. A miss builds
   F and rewrites the list when it changed.
-- **A read's answer.** For a module path: its folder, whether a use may
-  name it, whether it is test-only code, and, when its folder's
+- **A read's answer.** For a module path: its unit, whether a use may
+  name it, whether it is test-only code, and, when its unit's
   interface was opened, that interface's deep hash and names hash (the
   hash of its private-name and loop-name sections). The names hash is
   there because a failed lookup reads those names: `private-import` and
-  `re-export-loop` come from them. A folder that F's uses reach but its
+  `re-export-loop` come from them. A unit that F's uses reach but its
   headers never consult, such as one F or a dependency imports only for
   bodies, is in no read. So an API edit there rebuilds no interface of
   F's, and a name removed there is still reported, by `HeaderCheck(F)`.
@@ -164,20 +164,20 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   dependency names.
 - **A REPL input keeps its closure.** Its session scope reads the
   earlier inputs outside the `World`, so its `iface_key` lists every
-  other folder of its closure with its deep hash, as before #248, and it
+  other unit of its closure with its deep hash, as before #248, and it
   writes no read list.
-- **What a recorded read costs.** A warm `FolderIface` opens two entries,
+- **What a recorded read costs.** A warm `UnitIface` opens two entries,
   the read list and the interface, where a closure key needs one. The
   list is written only when it changes.
 - **Argument-owned impls need no extra hash.** A goal with an open trait
   argument reads impls owned only through a trait argument, from any
-  folder in the asking context's closure
-  ([crates/hd_check/DESIGN.md (trait solver) §3.2](../hd_check/DESIGN.md#32-owner-folders)).
-  Such an impl's head is in its folder's `api_hash` and deep hash
-  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)),
+  unit in the asking context's closure
+  ([crates/hd_check/DESIGN.md (trait solver) §3.2](../hd_check/DESIGN.md#32-owner-units)).
+  Such an impl's head is in its unit's `api_hash` and deep hash
+  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-unit-interface-construction)),
   which the closure lists hold. So adding one rechecks exactly the
-  contexts whose closure holds its folder.
-- **What the closure list costs.** Any public API edit in a folder misses
+  contexts whose closure holds its unit.
+- **What the closure list costs.** Any public API edit in a unit misses
   the key of every module whose closure holds it, even modules that never
   name the edited item. Early cutoff (§5.3.1) is the planned fix, and a
   planned `recheck-precision` metric would count these misses
@@ -209,18 +209,18 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
     traits the package's coherence rows lack.
   - **The coherence rows** are one `graph` entry per package, keyed by
     `H("coh-rows", toolchain_key, package key)` and rewritten when
-    `Coherence` hashes a folder or checks a trait. Per trait they hold
+    `Coherence` hashes a unit or checks a trait. Per trait they hold
     the findings under its `coh_key`, each naming the reported impl by
-    stable path. Each trait and folder keeps its newest row and one
+    stable path. Each trait and unit keeps its newest row and one
     older one, so undoing an edit checks nothing.
-  - **Head hashes per folder.** A head hash is
+  - **Head hashes per unit.** A head hash is
     `hd_resolve::Universe::head_hash`: the interface encoding of the
     impl records and the rank the check sorts them by, whose anchor
-    stands in for the item index. The rows keep each folder's head
+    stands in for the item index. The rows keep each unit's head
     hashes, one per trait it implements, under a key over its
     `heads_hash`, its impls' anchors and its REPL input numbers. So
-    only an edited folder's impls are encoded again. One impl edit in
-    the 24-folder package of "Init order stays a part": `Coherence`
+    only an edited unit's impls are encoded again. One impl edit in
+    the 24-unit package of "Init order stays a part": `Coherence`
     about 0.41 ms, against 0.90 ms checking every trait. A cold run
     encodes every impl: about 2.3 ms in all.
   - **Numeric families.** A trait's key also holds the head hashes of
@@ -242,16 +242,16 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   report when they name nothing: `unknown-import`, `private-import`,
   `unknown-module`, `ambiguous-import`, `test-only-use` and
   `cyclic-test-dependency` (`hd_resolve::use_diags`). They read every
-  folder F's uses reach, which `iface_key` no longer lists, and F's own
+  unit F's uses reach, which `iface_key` no longer lists, and F's own
   uses, which a body-only use edit changes without changing F's
   interface. So `hdr_key`'s own part adds `reads_key(F)` and the names
-  hash of every closure folder. They are a second section of the `graph`
+  hash of every closure unit. They are a second section of the `graph`
   entry, as anchors. No body waits for them: a module's `ModulePrep`
   notes whether a use of the module reported an error, which is what its
   `Body` and `ModuleFinish` ask. `re-export-loop` stays in the interface entry: it reads only F's
   own source, and is reported once per loop.
 - **Template text hashes.** No interface carries a template body yet
-  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)),
+  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-unit-interface-construction)),
   so a `check` key takes the template text hash of each user template
   module whose template the module may instantiate: every tuple
   template, and a derivation template when the module's text names
@@ -289,7 +289,7 @@ code_key      = H("code", pipeline, profile, instance key, item TIR hash,
   resolved dependency bindings, the executables and their roles, the
   required toolchain version and the manifest's diagnostics.
   Implementation differs: the key holds the package name (and a runtime
-  profile's traits) only; not judged, since dependency folders already
+  profile's traits) only; not judged, since dependency units already
   enter keys through their deep hashes.
 
 A warm `hd check`, `hd lint`, `hd build`, `hd run`, `hd FILE` or
@@ -300,7 +300,7 @@ result, or the CLI's stored report, artifact or build half (§5.5,
 #### 5.3.1 Early Cutoff By Recorded Reads
 
 Not built yet; see #49. The design: each `check` entry stores a read
-list (per-item interface hashes it used, name lookups into other folders
+list (per-item interface hashes it used, name lookups into other units
 including ones that found nothing, the impl tables it probed). On a
 `check_key` miss with an unchanged source, toolchain, package and role,
 the run compares every read with the current interfaces and reuses the
@@ -308,7 +308,7 @@ previous entry when all are equal. Verify mode (§5.6) would recheck
 every reuse.
 
 Interfaces already key on a coarser read list (§5.3, "Interface keys
-hold what the headers read"): per folder opened, not per item, and as
+hold what the headers read"): per unit opened, not per item, and as
 part of the key, not as a check after a miss.
 
 ### 5.4 Entry Format And Atomic Publish
@@ -519,10 +519,10 @@ obj/
   the same entry. Every place `hd_driver` misses a claimed kind, and what
   it reads while it holds the claim (`crates/hd_driver/src/lib.rs`):
   - `parses` (`parse`): it parses one module's text and reads no entry.
-  - `folder_iface` (`iface`, the reads record then the interface): it
-    returns blocked until every folder of its closure has an interface in
+  - `unit_iface` (`iface`, the reads record then the interface): it
+    returns blocked until every unit of its closure has an interface in
     memory. It resolves against those, reading no other entry.
-  - `header_check` (`graph`, a folder's findings): blocked until its own
+  - `header_check` (`graph`, a unit's findings): blocked until its own
     and its closure's interfaces and template sources are in memory; then
     it reads no entry.
   - `StdSkims::read` (`depfiles`, the std skims): it skims the embedded
@@ -616,23 +616,23 @@ obj/
 physical data packs. Current producers write `parse`, `check`, `iface`,
 `graph`, `depfiles`, `link`, `owned` and `clpack`; the `codepack` and
 `packhint` design below is not built. In it, code is stored in one
-`codepack` per folder group, so a build reads and publishes tens of files
+`codepack` per unit group, so a build reads and publishes tens of files
 instead of one per instance.
 - **The key** is the group's code keys in content order
   (`codepack_key`). Two programs that use the same instances of a
-  folder share its pack.
+  unit share its pack.
 - **An edit** changes one group's key. `Collect` then reads the packs
-  the package's `packhint` lists for that folder, newest first, and
+  the package's `packhint` lists for that unit, newest first, and
   takes the code of every instance whose code key they hold. Only the
   rest is emitted, and the group gets a new pack.
 - **The hint** is the one entry a later run rewrites with other bytes
   (`packhint_key`: pipeline, profile, package). Each code key is checked
   on read, so a stale or lost hint only costs emission. It keeps four
-  packs per folder, so an edit that is undone and made again still
+  packs per unit, so an edit that is undone and made again still
   finds the undone state's code.
-- **Cost.** A program whose instances of a folder differ from every
+- **Cost.** A program whose instances of a unit differ from every
   cached pack's, such as a new package's first build, emits that
-  folder's instances again: packs share whole groups only.
+  unit's instances again: packs share whole groups only.
 
 Planned, not built: precompiled modules cached across runs (`cwasm`),
 which wasmtime's `unsafe` deserialization rules out today
@@ -966,8 +966,8 @@ A warm run reads no source file it does not check, and hashes none
   parsed an entry module, its capability-row spans (`EntryFacts`). A
   module whose
   listed stamp is the recorded one takes its skim from the record, so
-  every key (`reads_key`, `check_key`, `hdr_key`, the folder deep
-  hashes) is computed without its text. The folder and module keys are
+  every key (`reads_key`, `check_key`, `hdr_key`, the unit deep
+  hashes) is computed without its text. The unit and module keys are
   recomputed from the skims each run, as hashes of hashes; they are not
   stored. A run writes the record again only when it skimmed a stamped
   file the record lacked or a recorded file is no longer listed, from
@@ -1008,7 +1008,7 @@ A warm run reads no source file it does not check, and hashes none
   or a missing capability's row.
 - **New and deleted files.** The listing finds them: a new path has no
   row and is read; a deleted one is not listed, and its row is dropped.
-  A renamed folder is new paths. Directory modification times would
+  A renamed unit is new paths. Directory modification times would
   spare the listing of an unchanged directory, but not the `stat` of
   each file that an edit needs, so the listing stays.
 - **The package result** (#1510, `hd_driver::package_result`). An
@@ -1054,7 +1054,7 @@ a binary search per module, with no `check` or `parse` entry read for a
 module whose row matches; the reads, skims and record rewrite of the k
 changed files (the rewrites are O(n) bytes, on a run that changed
 something); plus whatever those k changes make the checker redo. Still
-O(n) beyond the record reads: the folder interfaces each key's deep
+O(n) beyond the record reads: the unit interfaces each key's deep
 hashes come from. A no-change run reads no source
 file and writes nothing; an `hd check` run also makes one cache lookup
 per disk set (its stamp table) and one more (the package result), hashes
@@ -1216,7 +1216,7 @@ On macOS a publish costs about 340 µs and an open and read 60 to 120 µs
 one file per entry, a warm one-function edit opens one `check` entry per
 module, publishes the edited module's `check`, and on a build misses the
 program's `link` entry and emits the whole program again (code packs per
-folder group are planned, §5.4). The stat manifest (§5.5) keeps
+unit group are planned, §5.4). The stat manifest (§5.5) keeps
 source reads to the changed files; the planned early cutoff (§5.3.1)
 exists to cut the entry counts to a few files per edit.
 

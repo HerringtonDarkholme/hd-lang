@@ -3,7 +3,7 @@
 //! the header checks that need goals. Written header types against their
 //! declared bounds, each impl's supertraits, and delegation targets are
 //! `Implements` goals asked through the solver, under the item's
-//! environment (built as a body builds its own), with the folder's view
+//! environment (built as a body builds its own), with the unit's view
 //! of the impls: its closure's tables and impl universe (§3.2). Each
 //! item's goals share one fuel budget and one item memo.
 //!
@@ -31,7 +31,7 @@ use crate::dep_results::{Written, goal_tuple, written_escapes};
 const TYPE_TOO_LARGE: &str =
     "this type nests deeper than the compiler allows; name a struct to wrap part of it";
 
-/// What a folder's header check sees: the items of its closure, its view
+/// What a unit's header check sees: the items of its closure, its view
 /// of the impls, the run memo and the solver.
 pub struct HeaderCx<'a> {
     pub names: Names<'a>,
@@ -75,11 +75,11 @@ pub struct Finding {
     /// Empty for every other finding.
     pub ref_fix: Vec<u32>,
     /// Visibility choices, ranked: declaration and whether to expose it.
-    /// `DefId`s are remapped through the folder's existing own-item index.
+    /// `DefId`s are remapped through the unit's existing own-item index.
     pub visibility_fix: Vec<(DefId, bool)>,
 }
 
-/// Stage B over a folder's interface items that `HeaderCheck(F)` covers
+/// Stage B over a unit's interface items that `HeaderCheck(F)` covers
 /// ([`InterfaceCheck::checks`]), in item order: bounds of written header types
 /// (`trait.bound.no-implied`), the supertraits of each impl
 /// (`trait.super.impl-bounds`), and delegation targets.
@@ -88,7 +88,7 @@ pub fn stage_b(cx: &HeaderCx<'_>, items: &hd_resolve::Items) -> StageResult<Vec<
     stage_b_over(cx, items.iter().filter(|it| held.checks(it)))
 }
 
-/// Whether an interface item is part of its folder's API, not a private
+/// Whether an interface item is part of its unit's API, not a private
 /// type declaration carried for the solver's walks.
 fn api_item(it: &Item) -> bool {
     it.public

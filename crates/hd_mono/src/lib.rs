@@ -232,7 +232,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// The text of a string const argument (`hd_types::ConstValue::Str`).
     fn const_text(&self, p: hd_base::PathId) -> String;
     /// Where selection reads impls: owner lookup over the whole program's
-    /// folders (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §8.3), the program being the impl
+    /// units (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §8.3), the program being the impl
     /// universe.
     fn impls(&self) -> Impls<'_>;
     /// The program's impl universe and the run's proof memo, which

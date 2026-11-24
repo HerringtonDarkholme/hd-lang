@@ -172,8 +172,8 @@ impl Run<'_> {
                 path: &self.table.modules[m].path,
                 facts: facts.as_deref(),
                 decls: derives.then(|| {
-                    let folder = self.table.modules[m].folder;
-                    DeclView::new(cx.names, folder, cx.scope, cx.lookup, blocks)
+                    let unit = self.table.modules[m].unit;
+                    DeclView::new(cx.names, unit, cx.scope, cx.lookup, blocks)
                 }),
                 main_site: self.main_site(m),
             },

@@ -16,13 +16,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use hd_base::{
-    AppendVec, DefId, FolderId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult,
-    Symbol,
+    AppendVec, DefId, Fuel, InferVar, ModuleId, NotImplemented, Stage, StageResult, Symbol, UnitId,
 };
 
 pub use crate::lookup::{
-    FolderImpls, ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, TableAt, UniverseImpls,
-    UniverseReads, folder_table, open_arg,
+    ImplView, Impls, OWN_TABLE, OwnerMap, RefTable, TableAt, UnitImpls, UniverseImpls,
+    UniverseReads, open_arg, unit_table,
 };
 use crate::pool::{Inputs, ParamRef, Prim, Ty, TyData, TyList, Types};
 use crate::sealed::Row;
@@ -509,31 +508,28 @@ impl ParamEnv {
 }
 
 /// The impl universe of a solving context (§3.2; `crates/hd_sched/DESIGN.md` §6.1): the
-/// sorted folders of its closure whose `arg_impls` section is not empty.
+/// sorted units of its closure whose `arg_impls` section is not empty.
 /// A run ID: it keys the memo, never a cache key or output.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ImplUniverseId(pub u32);
 
 /// Interns impl universes once per run; equal lists share one id and one
-/// merged view of their folders' unowned rows and directory.
+/// merged view of their units' unowned rows and directory.
 #[derive(Default)]
 pub struct ImplUniverses {
     by_list: Mutex<UniverseMap>,
 }
 
-type UniverseMap = HashMap<Vec<FolderId>, (ImplUniverseId, Arc<UniverseImpls>)>;
+type UniverseMap = HashMap<Vec<UnitId>, (ImplUniverseId, Arc<UniverseImpls>)>;
 
 impl ImplUniverses {
-    /// The universe of a context: `folders` are the folders of its closure
+    /// The universe of a context: `units` are the units of its closure
     /// that hold `arg_impls` or unowned rows, in any order.
-    pub fn intern(
-        &self,
-        folders: &[(FolderId, &FolderImpls)],
-    ) -> (ImplUniverseId, Arc<UniverseImpls>) {
-        let mut list = folders.to_vec();
+    pub fn intern(&self, units: &[(UnitId, &UnitImpls)]) -> (ImplUniverseId, Arc<UniverseImpls>) {
+        let mut list = units.to_vec();
         list.sort_stable_by_key(|(f, _)| f.raw());
         list.dedup_by_key(|(f, _)| *f);
-        let key: Vec<FolderId> = list.iter().map(|(f, _)| *f).collect();
+        let key: Vec<UnitId> = list.iter().map(|(f, _)| *f).collect();
         let mut m = self.by_list.lock().unwrap_or_else(PoisonError::into_inner);
         let next = ImplUniverseId(crate::word(m.len()));
         m.entry(key)
@@ -921,7 +917,7 @@ pub type TraitNames<'n> = dyn Fn(DefId, &mut dyn FnMut(Symbol)) -> bool + 'n;
 /// A table's traits by head key code and method name: those of
 /// `traits_by_key` that declare the name, and those whose names were not
 /// known when it was made, which a caller asks itself. Made once per
-/// table, so a folder's table, which the run shares, is indexed once per
+/// table, so a unit's table, which the run shares, is indexed once per
 /// run: one step per (code, trait) entry and per method each declares.
 #[derive(Clone, Debug, Default)]
 pub struct NameIndex {
@@ -4352,7 +4348,7 @@ fn project_concrete(
     None
 }
 
-/// One probe per present key code, shared by owned and folder-backed tables.
+/// One probe per present key code, shared by owned and unit-backed tables.
 pub(crate) fn has_rows_at(rows: &HashMap<u64, Vec<DefId>>, codes: [Option<u64>; 3]) -> bool {
     codes.into_iter().flatten().any(|c| rows.contains_key(&c))
 }
@@ -4475,7 +4471,7 @@ mod tests {
         InternPool, LocalPool, Prim, RowData, RowParamRef, Ty, TyData, TyList, Types,
     };
     use crate::unify::{InferTable, VarKind};
-    use hd_base::{DefId, FolderId, Fuel, ModuleId};
+    use hd_base::{DefId, Fuel, ModuleId, UnitId};
 
     #[test]
     fn variable_collection_at_depth_1000_fits_a_small_stack() {
@@ -4581,20 +4577,20 @@ mod tests {
             .expect("no stack overflow");
     }
 
-    /// Folder 0 holding a test's impl rows, and owning every test id: the
-    /// impls a module of that folder solves with, read by owner lookup.
-    struct TestFolder {
+    /// Unit 0 holding a test's impl rows, and owning every test id: the
+    /// impls a module of that unit solves with, read by owner lookup.
+    struct TestUnit {
         paths: hd_intern::PathTable,
         owners: super::OwnerMap,
         extra: super::UniverseImpls,
-        impls: super::FolderImpls,
+        impls: super::UnitImpls,
     }
 
     fn no_arity(_: DefId) -> usize {
         0
     }
 
-    impl TestFolder {
+    impl TestUnit {
         fn new(p: Types<'_>, t: Option<&ImplTable>) -> Self {
             // The test ids name top-level items, whose module is the root.
             let paths = hd_intern::PathTable::new();
@@ -4606,10 +4602,10 @@ mod tests {
                 );
             }
             let mut owners = super::OwnerMap::default();
-            owners.insert(hd_base::PathId::NONE, FolderId::from_raw(0));
+            owners.insert(hd_base::PathId::NONE, UnitId::from_raw(0));
             let table = t.cloned().unwrap_or_default();
-            let impls = super::FolderImpls::new(FolderId::from_raw(0), table, p, &paths, &owners);
-            TestFolder {
+            let impls = super::UnitImpls::new(UnitId::from_raw(0), table, p, &paths, &owners);
+            TestUnit {
                 paths,
                 owners,
                 extra: super::UniverseImpls::default(),
@@ -4617,12 +4613,12 @@ mod tests {
             }
         }
 
-        fn view<'a>(&'a self, folders: &'a [(u32, &'a super::FolderImpls)]) -> super::ImplView<'a> {
+        fn view<'a>(&'a self, units: &'a [(u32, &'a super::UnitImpls)]) -> super::ImplView<'a> {
             super::ImplView {
                 paths: &self.paths,
                 owners: &self.owners,
                 own: None,
-                folders: crate::lookup::FolderSlots::new(folders),
+                units: crate::lookup::UnitSlots::new(units),
                 universe: ImplUniverses::default().intern(&[]).0,
                 extra: &self.extra,
                 arity: &no_arity,
@@ -4674,8 +4670,8 @@ mod tests {
     #[test]
     fn universes_dedup_sorted_lists() {
         let u = ImplUniverses::default();
-        let f = FolderId::from_raw;
-        let x = super::FolderImpls::default();
+        let f = UnitId::from_raw;
+        let x = super::UnitImpls::default();
         let a = u.intern(&[(f(2), &x), (f(1), &x)]).0;
         assert_eq!(a, u.intern(&[(f(1), &x), (f(2), &x), (f(2), &x)]).0);
         assert_ne!(a, u.intern(&[(f(1), &x)]).0);
@@ -5099,9 +5095,9 @@ mod tests {
         t.rank.push(0);
         t.by_trait.insert(tr.raw(), (0, 1));
         t.index();
-        let folder = TestFolder::new(p, Some(&t));
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, Some(&t));
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
@@ -5190,7 +5186,7 @@ mod tests {
     #[test]
     fn two_closures_asking_one_open_goal_keep_their_own_answers() {
         use super::{
-            Answer, EnvKey, Evidence, FolderImpls, ImplRef, ImplView, Impls, OwnerMap, folder_table,
+            Answer, EnvKey, Evidence, ImplRef, ImplView, Impls, OwnerMap, UnitImpls, unit_table,
         };
         use hd_base::PathId;
         use hd_intern::{PathKind, PathTable};
@@ -5207,7 +5203,7 @@ mod tests {
             item(mods[0], "Receiver"),
             item(mods[1], "Product"),
         );
-        let f = FolderId::from_raw;
+        let f = UnitId::from_raw;
         let mut owners = OwnerMap::default();
         for (i, m) in (0u32..).zip(mods) {
             owners.insert(m, f(i));
@@ -5225,20 +5221,20 @@ mod tests {
             (0, vec![]),
         );
         t.index();
-        let prod = FolderImpls::new(f(1), t, g, &paths, &owners);
+        let prod = UnitImpls::new(f(1), t, g, &paths, &owners);
         assert_eq!(prod.arg_impls, [0], "owned only through `Product`");
         assert!(prod.unowned.is_empty());
-        let empty = FolderImpls::default();
+        let empty = UnitImpls::default();
         let universes = ImplUniverses::default();
         let global = GlobalMemo::default();
 
-        // One context: its closure's folders, one open goal.
+        // One context: its closure's units, one open goal.
         let ask = |closure: &[u32]| -> (Answer, MemoKey) {
-            let mut folders: Vec<(u32, &FolderImpls)> = Vec::new();
+            let mut units: Vec<(u32, &UnitImpls)> = Vec::new();
             let mut members = Vec::new();
             for &c in closure {
                 let fi = if c == 1 { &prod } else { &empty };
-                folders.push((c, fi));
+                units.push((c, fi));
                 if fi.in_universe() {
                     members.push((f(c), fi));
                 }
@@ -5249,7 +5245,7 @@ mod tests {
                 paths: &paths,
                 owners: &owners,
                 own: None,
-                folders: crate::lookup::FolderSlots::new(&folders),
+                units: crate::lookup::UnitSlots::new(&units),
                 universe,
                 extra: &extra,
                 arity: &arity,
@@ -5296,7 +5292,7 @@ mod tests {
                 key,
             ) => {
                 let at = ImplRef {
-                    module: folder_table(f(1)),
+                    module: unit_table(f(1)),
                     row: 0,
                 };
                 assert_eq!(row, at);
@@ -5314,8 +5310,8 @@ mod tests {
         assert!(ka.universe.is_some() && kb.universe.is_some());
         assert_ne!(ka, kb, "the universe keeps the two answers apart");
         assert_eq!(ka.goal, kb.goal);
-        // Equal arg-impl folders share one universe: `a` without its own
-        // (empty) folder keys the same.
+        // Equal arg-impl units share one universe: `a` without its own
+        // (empty) unit keys the same.
         assert_eq!(ask(&[0, 1]).1, ka);
         std::thread::scope(|s| {
             for i in 0..8 {
@@ -5342,7 +5338,7 @@ mod tests {
     /// one entry for every universe.
     #[test]
     fn a_known_goal_that_read_unowned_rows_is_scoped_to_its_universe() {
-        use super::{Answer, EnvKey, FolderImpls, ImplView, Impls, OwnerMap};
+        use super::{Answer, EnvKey, ImplView, Impls, OwnerMap, UnitImpls};
         use hd_base::PathId;
         use hd_intern::{PathKind, PathTable};
 
@@ -5355,7 +5351,7 @@ mod tests {
         let item =
             |m: PathId, name: &str| DefId::from_raw(paths.intern(m, PathKind::Item, name).raw());
         let (tag, thing) = (item(mods[0], "Tag"), item(mods[0], "Thing"));
-        let f = FolderId::from_raw;
+        let f = UnitId::from_raw;
         let mut owners = OwnerMap::default();
         for (i, m) in (0u32..).zip(mods) {
             owners.insert(m, f(i));
@@ -5368,16 +5364,16 @@ mod tests {
             t.index();
             t
         };
-        let lib = FolderImpls::new(f(0), row(mods[0], thing_ty), g, &paths, &owners);
+        let lib = UnitImpls::new(f(0), row(mods[0], thing_ty), g, &paths, &owners);
         assert!(!lib.in_universe(), "`lib` owns `impl Tag for Thing`");
-        let prod = FolderImpls::new(f(1), row(mods[1], Ty::I32), g, &paths, &owners);
+        let prod = UnitImpls::new(f(1), row(mods[1], Ty::I32), g, &paths, &owners);
         assert_eq!(prod.unowned, [0], "`prod` owns neither `Tag` nor `i32`");
-        let empty = FolderImpls::default();
+        let empty = UnitImpls::default();
         let universes = ImplUniverses::default();
         let global = GlobalMemo::default();
 
         let ask = |closure: &[u32], self_ty: Ty| -> (Answer, MemoKey, super::ImplUniverseId) {
-            let mut folders: Vec<(u32, &FolderImpls)> = Vec::new();
+            let mut units: Vec<(u32, &UnitImpls)> = Vec::new();
             let mut members = Vec::new();
             for &c in closure {
                 let fi = match c {
@@ -5385,7 +5381,7 @@ mod tests {
                     1 => &prod,
                     _ => &empty,
                 };
-                folders.push((c, fi));
+                units.push((c, fi));
                 if fi.in_universe() {
                     members.push((f(c), fi));
                 }
@@ -5396,7 +5392,7 @@ mod tests {
                 paths: &paths,
                 owners: &owners,
                 own: None,
-                folders: crate::lookup::FolderSlots::new(&folders),
+                units: crate::lookup::UnitSlots::new(&units),
                 universe,
                 extra: &extra,
                 arity: &arity,
@@ -5498,7 +5494,7 @@ mod tests {
     /// implicit) is an internal error, not a silently shared answer.
     #[test]
     fn a_directory_read_under_a_key_without_a_universe_is_an_internal_error() {
-        use super::{FolderImpls, ImplView, Impls, MemoKey, OwnerMap, PlanStep, UniverseImpls};
+        use super::{ImplView, Impls, MemoKey, OwnerMap, PlanStep, UnitImpls, UniverseImpls};
         use crate::pool::ParamRef;
         use hd_base::PathId;
         use hd_intern::{PathKind, PathTable};
@@ -5519,7 +5515,7 @@ mod tests {
             item("impl"),
         );
         let mut owners = OwnerMap::default();
-        owners.insert(base, FolderId::from_raw(0));
+        owners.insert(base, UnitId::from_raw(0));
         let adt = |def, args: &[Ty]| g.intern_ty(&TyData::Adt(AdtId::Declared(def), g.list(args)));
         let param = g.intern_ty(&TyData::Param(ParamRef {
             owner: imp,
@@ -5544,8 +5540,8 @@ mod tests {
             (2, vec![bind]),
         );
         t.index();
-        let fi = FolderImpls::new(FolderId::from_raw(0), t, g, &paths, &owners);
-        let folders = [(0, &fi)];
+        let fi = UnitImpls::new(UnitId::from_raw(0), t, g, &paths, &owners);
+        let units = [(0, &fi)];
         let extra = UniverseImpls::default();
         let arity = |d: DefId| usize::from(d == sup || d == pick);
         let (universe, _) = ImplUniverses::default().intern(&[]);
@@ -5553,7 +5549,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            folders: crate::lookup::FolderSlots::new(&folders),
+            units: crate::lookup::UnitSlots::new(&units),
             universe,
             extra: &extra,
             arity: &arity,
@@ -5603,9 +5599,9 @@ mod tests {
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let folder = TestFolder::new(p, Some(t));
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, Some(t));
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
@@ -5946,9 +5942,9 @@ mod tests {
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let folder = TestFolder::new(p, Some(t));
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, Some(t));
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
@@ -6081,9 +6077,9 @@ mod tests {
         (global, body, fuel): (&GlobalMemo, &mut BodyMemo, &mut Fuel),
         goal: &Goal,
     ) -> super::Answer {
-        let folder = TestFolder::new(p, Some(t));
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, Some(t));
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let mut cx = SolveCx {
             pool: p,
             env,
@@ -6194,9 +6190,9 @@ mod tests {
         );
         t.assoc[2].push((out, proj(lp)));
         t.index();
-        let folder = TestFolder::new(p, Some(&t));
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, Some(&t));
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let impls = super::Impls::Owned(&view);
         let at_limit = proj(boxes(p, boxed, PROJECTION_DEPTH as usize - 1));
         assert_eq!(normalize_concrete(p, impls, at_limit), Ok(Ty::STRING));
@@ -6705,8 +6701,8 @@ mod tests {
     #[test]
     fn a_module_with_its_own_rows_keeps_its_own_answer() {
         use super::{
-            Answer, Evidence, FolderImpls, ImplRef, ImplView, Impls, OWN_TABLE, OwnerMap,
-            UniverseImpls, folder_table,
+            Answer, Evidence, ImplRef, ImplView, Impls, OWN_TABLE, OwnerMap, UnitImpls,
+            UniverseImpls, unit_table,
         };
         use hd_base::PathId;
         use hd_intern::{PathKind, PathTable};
@@ -6720,26 +6716,26 @@ mod tests {
         let item = |name: &str| DefId::from_raw(paths.intern(base, PathKind::Item, name).raw());
         let imp = |name: &str| DefId::from_raw(paths.intern(base, PathKind::Impl, name).raw());
         let (show, foo, bar) = (item("Show"), item("Foo"), item("Bar"));
-        let f0 = FolderId::from_raw(0);
+        let f0 = UnitId::from_raw(0);
         let mut owners = OwnerMap::default();
         owners.insert(base, f0);
-        owners.insert(user, FolderId::from_raw(1));
+        owners.insert(user, UnitId::from_raw(1));
         let (foo_ty, bar_ty) = (adt(g, foo, &[]), adt(g, bar, &[]));
         let row = |t: &mut ImplTable, d, s| {
             push_row(t, g, (show, d), s, TyList::EMPTY, (0, vec![]));
         };
         // `base` declares both impls; its own table holds only the first
         // here, so the probe for `Bar` misses it.
-        let mut folder = ImplTable::default();
-        row(&mut folder, imp("Foo"), foo_ty);
-        row(&mut folder, imp("Bar"), bar_ty);
-        folder.index();
-        let fi = FolderImpls::new(f0, folder, g, &paths, &owners);
+        let mut unit = ImplTable::default();
+        row(&mut unit, imp("Foo"), foo_ty);
+        row(&mut unit, imp("Bar"), bar_ty);
+        unit.index();
+        let fi = UnitImpls::new(f0, unit, g, &paths, &owners);
         let mut own = ImplTable::default();
         row(&mut own, imp("Foo"), foo_ty);
         own.index();
-        let empty = FolderImpls::default();
-        let folders = [(0, &fi), (1, &empty)];
+        let empty = UnitImpls::default();
+        let units = [(0, &fi), (1, &empty)];
         let extra = UniverseImpls::default();
         let arity = |_: DefId| 0;
         let (universe, _) = ImplUniverses::default().intern(&[]);
@@ -6747,7 +6743,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own,
-            folders: crate::lookup::FolderSlots::new(&folders),
+            units: crate::lookup::UnitSlots::new(&units),
             universe,
             extra: &extra,
             arity: &arity,
@@ -6788,23 +6784,23 @@ mod tests {
             module: OWN_TABLE,
             row: 0,
         };
-        let folder_row = |row| ImplRef {
-            module: folder_table(f0),
+        let unit_row = |row| ImplRef {
+            module: unit_table(f0),
             row,
         };
         for base_first in [true, false] {
             let global = GlobalMemo::default();
             let asks = if base_first {
-                [(&in_base, (mine, 1)), (&in_user, (folder_row(0), 0))]
+                [(&in_base, (mine, 1)), (&in_user, (unit_row(0), 0))]
             } else {
-                [(&in_user, (folder_row(0), 0)), (&in_base, (mine, 1))]
+                [(&in_user, (unit_row(0), 0)), (&in_base, (mine, 1))]
             };
             for (v, want) in asks {
                 assert_eq!(ask(&global, v, foo_ty), want);
             }
-            assert_eq!(ask(&global, &in_user, bar_ty), (folder_row(1), 0));
+            assert_eq!(ask(&global, &in_user, bar_ty), (unit_row(1), 0));
             let hits = global.stats().hits;
-            assert_eq!(ask(&global, &in_base, bar_ty), (folder_row(1), 0));
+            assert_eq!(ask(&global, &in_base, bar_ty), (unit_row(1), 0));
             assert_eq!(global.stats().hits, hits + 1, "`base` shares `Bar`'s entry");
         }
     }
@@ -6860,9 +6856,9 @@ mod tests {
         tref: TraitRef,
     ) -> super::Answer {
         let mut body = BodyMemo::default();
-        let folder = TestFolder::new(p, None);
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, None);
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let mut cx = SolveCx {
             pool: p,
             env,
@@ -7181,9 +7177,9 @@ mod tests {
         let env = ParamEnv::default();
         let global = GlobalMemo::default();
         let mut body = BodyMemo::default();
-        let folder = TestFolder::new(p, None);
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, None);
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let mut cx = SolveCx {
             pool: p,
             env: &env,
@@ -7255,7 +7251,7 @@ mod tests {
             paths: &paths,
             owners: &owners,
             own: None,
-            folders: crate::lookup::FolderSlots::default(),
+            units: crate::lookup::UnitSlots::default(),
             universe,
             extra: &extra,
             arity: &arity,
@@ -7267,7 +7263,7 @@ mod tests {
     }
 
     /// The paths and owners of the tuple-template tests: `Hash`, `List`,
-    /// the `List` impl and the tuple template, all in folder 0.
+    /// the `List` impl and the tuple template, all in unit 0.
     struct TupleWorld {
         paths: hd_intern::PathTable,
         owners: super::OwnerMap,
@@ -7284,7 +7280,7 @@ mod tests {
         let pkg = paths.intern(PathId::NONE, PathKind::Package, "pkg");
         let base = paths.intern(pkg, PathKind::Module, "base");
         let mut owners = super::OwnerMap::default();
-        owners.insert(base, FolderId::from_raw(0));
+        owners.insert(base, UnitId::from_raw(0));
         let item = |name: &str| DefId::from_raw(paths.intern(base, PathKind::Item, name).raw());
         let (hash, list, list_impl, template) = (
             item("Hash"),
@@ -7316,7 +7312,7 @@ mod tests {
         env: &ParamEnv,
         goal: &Goal,
     ) -> super::Answer {
-        use super::{FolderImpls, ImplView, Impls, MemberOn, MemberStep, UniverseImpls};
+        use super::{ImplView, Impls, MemberOn, MemberStep, UnitImpls, UniverseImpls};
         let mut t = ImplTable::default();
         for (i, self_ty) in [Ty::I32, Ty::STRING].into_iter().enumerate() {
             push_row(
@@ -7347,8 +7343,8 @@ mod tests {
         t.head_key[3] = HeadKey::TupleAny;
         t.origin[3] = ImplOrigin::TupleTemplate;
         t.index();
-        let fi = FolderImpls::new(FolderId::from_raw(0), t, p, &w.paths, &w.owners);
-        let folders = [(0, &fi)];
+        let fi = UnitImpls::new(UnitId::from_raw(0), t, p, &w.paths, &w.owners);
+        let units = [(0, &fi)];
         let extra = UniverseImpls::default();
         let arity = |_: DefId| 0;
         let step = |on| MemberStep {
@@ -7370,7 +7366,7 @@ mod tests {
             paths: &w.paths,
             owners: &w.owners,
             own: None,
-            folders: crate::lookup::FolderSlots::new(&folders),
+            units: crate::lookup::UnitSlots::new(&units),
             universe,
             extra: &extra,
             arity: &arity,
@@ -7771,9 +7767,9 @@ mod tests {
             ..Default::default()
         };
         let table = ImplTable::default();
-        let folder = TestFolder::new(p, Some(&table));
-        let folders = [(0, &folder.impls)];
-        let view = folder.view(&folders);
+        let unit = TestUnit::new(p, Some(&table));
+        let units = [(0, &unit.impls)];
+        let view = unit.view(&units);
         let (env, global, mut body) = (
             ParamEnv::default(),
             GlobalMemo::default(),

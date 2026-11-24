@@ -383,7 +383,7 @@ fn api_hash(
 ) -> Hash128 {
     // A function body that declares a local type, trait or impl stays in
     // the API text: those lift to module items, and a local impl is in
-    // the folder interface (`crates/hd_tir/DESIGN.md` "Local items lift to
+    // the unit interface (`crates/hd_tir/DESIGN.md` "Local items lift to
     // hidden module items").
     let decls = decl_line_starts(tokens);
     let declares = |start: u32, end: u32| declares_item(&decls, start, end);

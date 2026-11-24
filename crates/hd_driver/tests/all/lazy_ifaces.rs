@@ -1,5 +1,5 @@
 //! A warm check reads the interface records it touches, not every record
-//! of every folder it reads (docs/compiler/data-structures.md §3.9.1,
+//! of every unit it reads (docs/compiler/data-structures.md §3.9.1,
 //! #213). The solver's impl tables read every impl of the closure, and a
 //! method call's index every trait; any other item is decoded only when
 //! named.

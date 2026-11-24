@@ -12,13 +12,13 @@ Part of the [compiler design](ARCHITECTURE.md).
 | --- | --- |
 | file | one `.hd` source file |
 | module | one file's module ([`module.path.name`](../../spec/lang/10-modules.md#r-module.path.name)); the **cache unit** |
-| folder | the directory a module belongs to ([Folders](../../spec/lang/10-modules.md#folders)); the **interface unit** |
+| unit | a strongly connected group of modules of the module graph, in dependency order ([Module Graph](../../spec/lang/10-modules.md#module-graph)); the **interface unit** |
 | package | a manifest's library, executables, tests and tasks |
 | item | a declaration: function, method, data, enum, trait, impl, alias |
 | body | the executable part of an item, a top-level statement group, or a `tests:` block |
 | skeleton | what the header pass extracts from one file: hashes, uses, body ranges |
-| interface blob | a folder's serialized interface |
-| deep hash | a folder's interface hash folded with the deep hashes of every folder its blob mentions |
+| interface blob | a unit's serialized interface |
+| deep hash | a unit's interface hash folded with the deep hashes of every unit its blob mentions |
 | key | a 128-bit content hash naming a cache entry |
 | TIR | the one typed IR per body ([`crates/hd_tir/DESIGN.md`](../../crates/hd_tir/DESIGN.md)) |
 
@@ -27,9 +27,9 @@ Part of the [compiler design](ARCHITECTURE.md).
 ### 1.1 The Pipeline
 
 ```text
- SourceSet ──► Skim(f), per file ──► FolderGraph (uses only; cycles)
+ SourceSet ──► Skim(f), per file ──► UnitGraph (uses only; cycles)
                                           │
-                     FolderIface(F) per folder, in DAG order ═══► [iface entry]
+                     UnitIface(F) per unit, in DAG order ═══► [iface entry]
                        (resolve uses + headers, blob, deep hash)
                                           │ frozen interfaces + impl tables
               ┌───────────────────────────┼──────────────────────────────┐
@@ -63,19 +63,19 @@ edit from one key.
 | Skim (header pass) | file bytes | `HeaderSkeleton` | file | dependency packages only, in `depfiles` | |
 | Full parse | file bytes | `TokenBuf`, `GreenTree`, item index | file | a `parse` entry records that a source parses cleanly | `parse_key` |
 | Module graph | use lists of every file | units (strongly connected module groups) in dependency order, `module-cycle` | package | no | |
-| Folder interface | the folder's files, interfaces of used folders | `FolderIface`, blob, deep hash, header diagnostics | folder | `iface` | [§5.3](../../crates/hd_cache/DESIGN.md#53-key-composition) |
-| Header check | a folder's interface and its closure's interfaces | header bound, supertrait, newtype-base and delegation diagnostics | folder | one `graph` entry per folder | `hdr_key` |
-| Module prep | module tree, interfaces of the folder's closure | module scope, inferred results | module | inside `check` | |
+| Unit interface | the unit's files, interfaces of used units | `UnitIface`, blob, deep hash, header diagnostics | unit | `iface` | [§5.3](../../crates/hd_cache/DESIGN.md#53-key-composition) |
+| Header check | a unit's interface and its closure's interfaces | header bound, supertrait, newtype-base and delegation diagnostics | unit | one `graph` entry per unit | `hdr_key` |
+| Module prep | module tree, interfaces of the unit's closure | module scope, inferred results | module | inside `check` | |
 | Body check | body tree, frozen tables | TIR, diagnostics, facts | module (all its bodies) | inside `check` | |
 | Module finish | the module's body results | the `check` entry | module | `check` | `check_key` |
 | Test overlay | `tests:` block and doc tests of a module | TIR, diagnostics | module | see below | |
 | Coherence | impl heads of the traits whose `coh_key` changed | `overlapping-impl` | one task per changed trait | `coh` part of `graph` | trait path plus sorted head hashes |
-| Init order | init summaries of a folder's modules | statement order, `top-level-read-before-initialization` | folder | `init` part of `graph` | `init_key` |
+| Init order | init summaries of a unit's modules | statement order, `top-level-read-before-initialization` | unit | `init` part of `graph` | `init_key` |
 | Package result | all of the above | sorted diagnostics, summary | package | no | |
 | Collect, Link | TIR, interfaces | Wasm | program | `link` per program; `owned` per std or package body and per generic instance in a dev build | `prog_key`; `owned_std_key`, `package_owned_key`, `instance_owned_key` |
 
-Planned, not built: per-instance code entries packed per folder group
-(`codepack`, `packhint`) and one `Emit` task per folder group with a miss
+Planned, not built: per-instance code entries packed per unit group
+(`codepack`, `packhint`) and one `Emit` task per unit group with a miss
 (#49, point 4). Today `Link` emits and links every function of the
 program in one task on one thread (`hd_wasm::build`), and no code entry
 is written.
@@ -93,19 +93,19 @@ entries of role `test`; no `check-test` entry is written; not judged.
 ### 1.3 The Task Graph
 
 ```text
-Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) ──► Body(m) ──► ModuleFinish(m) ──┐
+Skim(f) ──► UnitGraph ──► UnitIface(F) ──► ModulePrep(m) ──► Body(m) ──► ModuleFinish(m) ──┐
                 │              │    └──► HeaderCheck(F) ─────────────────────────────────────────┤
                 │              └──► Coherence ───────────────────────────────────────────────────┤
-                └── FolderIface(G) for each folder G that F uses                                 ▼
+                └── UnitIface(G) for each unit G that F uses                                 ▼
                                                      Collect ◄── InitOrder(F) ◄── PackageResult
 ```
 
-- `FolderGraph` creates the rest of the front half. A `FolderIface(F)`
-  task waits for the interfaces of the folders `F` uses, never for
-  bodies, so a deep chain of folders does not stall wide levels.
+- `UnitGraph` creates the rest of the front half. A `UnitIface(F)`
+  task waits for the interfaces of the units `F` uses, never for
+  bodies, so a deep chain of units does not stall wide levels.
 - A `HeaderCheck(F)` task waits for the interfaces of F's closure. No
   check waits for it; `PackageResult` does.
-- A `ModulePrep(m)` task waits for the interfaces of its folder's
+- A `ModulePrep(m)` task waits for the interfaces of its unit's
   closure, then creates `Body(m)` and `ModuleFinish(m)`.
 - The driver interns one `ImplUniverseId` per solving context: the
   module's bodies, its test overlay, each `HeaderCheck(F)` and each
@@ -115,7 +115,7 @@ Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) �
   function with an omitted result type, which `ModulePrep` infers first.
 - `PackageResult` waits for every header check, `Coherence` and module
   finish. It creates one `InitOrder(F)` per built
-  folder, and, for a program with no error, `Collect` after them.
+  unit, and, for a program with no error, `Collect` after them.
   `Collect` creates one `Link`, which emits and links the whole program.
 - A file is parsed on demand, by the task that first needs its tree,
   and at most once per run. `hd check` and `hd doc` also add a
@@ -126,16 +126,16 @@ Skim(f) ──► FolderGraph ──► FolderIface(F) ──► ModulePrep(m) �
 
 | Situation | Files read | Tasks run | Entries written |
 | --- | --- | --- | --- |
-| private body edit in module `m` | every source file (hashing) | `FolderIface` is a key hit (api text unchanged); prep, bodies and finish of `m` | `check` of `m` |
-| private header edit in `m` | as above | as above, plus `FolderIface` of `m`'s folder, which yields the same deep hash | `iface`, `check` of `m` |
-| public signature edit in `m` | as above | `FolderIface` of the folder and of folders whose deep hash changes; every module whose key includes a changed deep hash | those entries |
+| private body edit in module `m` | every source file (hashing) | `UnitIface` is a key hit (api text unchanged); prep, bodies and finish of `m` | `check` of `m` |
+| private header edit in `m` | as above | as above, plus `UnitIface` of `m`'s unit, which yields the same deep hash | `iface`, `check` of `m` |
+| public signature edit in `m` | as above | `UnitIface` of the unit and of units whose deep hash changes; every module whose key includes a changed deep hash | those entries |
 
 The first row is the `recheck-precision` target: one module. The count
 is module `check` entries computed, the summary's `modules_checked`.
 Other necessary work is reported separately:
 
 - an edit to a top-level statement in a multi-module init group also
-  reruns that folder's `InitOrder`;
+  reruns that unit's `InitOrder`;
 - any interface change reruns `Coherence` (§1.2);
 - `hd build` and `hd test` also re-emit the changed instances.
 

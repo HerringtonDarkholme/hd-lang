@@ -117,7 +117,7 @@ struct Fixture {
     /// The package its sources are: `fixture`, or `std` for the hd tests
     /// of std's runtime modules ([`STD_RT_TESTS`]).
     package: &'static str,
-    /// The folder interfaces its first build decoded, which its later
+    /// The unit interfaces its first build decoded, which its later
     /// builds take instead of decoding them again.
     reuse: Reuse,
 }
@@ -281,9 +281,9 @@ fn load_tree(root: &Path, dir: &Path, sources: &mut MemorySources) {
     }
 }
 
-/// The tier folder of a case: the first folder of its path, `lang` or
-/// `std`. Each tier folder keeps its own `trees/` and `packages/`.
-fn folder_tier(case: &Case) -> &str {
+/// The tier unit of a case: the first unit of its path, `lang` or
+/// `std`. Each tier unit keeps its own `trees/` and `packages/`.
+fn unit_tier(case: &Case) -> &str {
     case.path.split('/').next().unwrap_or_default()
 }
 
@@ -351,7 +351,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         // The primary file is the root module of a package in the role,
         // which depends on every package under its tier's `packages/`,
         // each a library whose `lib.hd` is its root module.
-        deps = role_packages(folder_tier(case));
+        deps = role_packages(unit_tier(case));
         match role {
             "library" => "src/lib.hd".to_owned(),
             "root-application" => "src/main.hd".to_owned(),
@@ -361,10 +361,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         let Some((name, path)) = value.split_once('/') else {
             return Err("Discover".to_owned());
         };
-        let tree_root = suite_root()
-            .join(folder_tier(case))
-            .join("trees")
-            .join(name);
+        let tree_root = suite_root().join(unit_tier(case)).join("trees").join(name);
         load_tree(&tree_root, &tree_root, &mut sources);
         tree = true;
         path.to_owned()
@@ -2002,8 +1999,8 @@ fn checked_runtime() -> bool {
 /// may use a runtime module (`module.rt.std-only`), and module-private
 /// items must be tested in their declaring module. Each file
 /// under `tests/std_rt/` joins std's sources at the path given here: a
-/// folder `rt_tests` above the root std folder, since the tests use root
-/// modules and the runtime folder is a leaf (`module.rt.leaf`).
+/// unit `rt_tests` above the root std unit, since the tests use root
+/// modules and the runtime unit is a leaf (`module.rt.leaf`).
 const STD_RT_TESTS: &[(&str, &str)] = &[
     ("cmp.hd", include_str!("../../../lib/std/cmp.hd")),
     ("regex.hd", include_str!("../../../lib/std/regex.hd")),
