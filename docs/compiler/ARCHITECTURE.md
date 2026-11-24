@@ -123,7 +123,7 @@ Tools and front ends:
 - [data-structures.md](data-structures.md): IDs, interners, types, arenas,
   the data-oriented encoding and IR contracts (§3).
 - [std-bootstrap.md](std-bootstrap.md): the prelude, compiler-supplied
-  std names, intrinsics and std's folder graph.
+  std names, intrinsics and std's layers.
 - [lowering-catalog.md](lowering-catalog.md): the lowering of each data
   type and syntax form, with its cost.
 - [engines-and-test-runner.md](engines-and-test-runner.md): engines, tiers

@@ -1369,7 +1369,8 @@ with its per-item interface hash), for code keys.
 
 **A real primary span.** Every diagnostic carries a primary span into
 source text; a sentinel file or zero-width synthetic placeholder is not a
-publishable diagnostic. Not built yet for `folder-cycle`; see #171.
+publishable diagnostic; `module-cycle` is reported at the `use` line of
+the edge it names.
 
 **Order.** Every diagnostic is sorted by package order, file stable path,
 start offset, end offset, code and rendered message. The key is total, so
