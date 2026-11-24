@@ -3614,11 +3614,10 @@ fn direct_calls(
         .iter()
         .any(|d| matches!(d.1, Source::Param(_)))
         .then(|| body.inst_subs());
+    // The planner names CallValue instructions in this exact body; the scan
+    // above records other tags, so none has a target before this loop.
     for &(ix, source) in &plan.direct {
         let i = ix as usize;
-        if body.tags.get(i) != Some(&Tag::CallValue) || calls.contains_key(&ix) {
-            continue;
-        }
         let key = match source {
             Source::Made(m) => match calls.get(&m) {
                 Some(&Target::Closure(key)) => key,
