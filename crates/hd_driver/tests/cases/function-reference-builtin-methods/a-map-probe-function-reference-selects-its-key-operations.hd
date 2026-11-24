@@ -1,0 +1,19 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# A function-value adapter selects inline string hashing or tuple Eq/Hash.
+# Existing keys keep their value; insertion leaves a copied map unchanged.
+pub fn main() -> void $ Console:
+    let mut names: Map[string, i32] = { "old": +7 }
+    snapshot := names
+    string_probe := Map::[string, i32]::get_or_insert
+    println(*string_probe(&mut names, "new", +10))
+    println(*string_probe(&mut names, "new", +99))
+    println(names.len())
+    println(snapshot.len())
+    println(snapshot["old"])
+
+    let mut pairs: Map[(i32, i32), i32] = {}
+    tuple_probe := Map::[(i32, i32), i32]::get_or_insert
+    println(*tuple_probe(&mut pairs, (+1, +2), +20))
+    println(*tuple_probe(&mut pairs, (+1, +2), +99))
+    println(pairs.len())
