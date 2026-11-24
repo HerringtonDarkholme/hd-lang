@@ -1,0 +1,25 @@
+# @dump: stdout
+# @build: dev | checked | release | release checked
+# expected: a self-fixed associated binding remains valid when an adapter uses the implicit spelling
+trait Item:
+    type Value
+    fn label(&self) -> string
+
+trait SelfItem < Item[Value = Self]
+
+struct Named: pass
+
+impl Item for Named:
+    type Value = Named
+    fn label(&self) -> string:
+        "named"
+
+impl SelfItem for Named
+
+fn label() -> string $ SelfItem:
+    $.use(SelfItem).label()
+
+pub fn main() -> void $ Console:
+    let work: fn() -> string $ SelfItem[Value = Named] = label
+    $.with(SelfItem[Value = Named]=box(Named {})):
+        println(work())

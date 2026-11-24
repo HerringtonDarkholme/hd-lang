@@ -101,8 +101,10 @@ impl DynPaths {
     }
 
     /// Whole arguments and every requested associated binding must match.
-    /// A row may omit an associated binding it never uses; weakening that
-    /// constraint does not change a vtable's parent path. Valid trait
+    /// A supertrait's binding to `Self` counts as bound but stays implicit
+    /// in an erased key (`trait.dyn.binding.self-fixed`). An explicitly
+    /// bound supplier may therefore serve that implicit form. Weakening
+    /// the constraint does not change its vtable path. Valid trait
     /// declarations cannot give one trait instance contradictory bindings.
     #[must_use]
     pub fn key_path(&self, pool: &InternPool, to: Ty) -> Option<Vec<u32>> {
