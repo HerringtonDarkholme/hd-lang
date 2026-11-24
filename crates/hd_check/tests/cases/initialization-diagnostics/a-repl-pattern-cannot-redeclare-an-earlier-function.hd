@@ -1,0 +1,7 @@
+# @dump: tir
+# @repl: 2
+# Every name in a top-level pattern respects earlier input declarations.
+let (kept, other) = (1, 2)
+# @input: 1
+fn kept() -> i32:
+    0
