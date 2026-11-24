@@ -1,5 +1,5 @@
 //! `cargo run --release -p hd_driver --example bench [N] [THREADS]`: the
-//! synthetic two-folder package, cold, warm and edited runs, timed. Dev
+//! synthetic two-unit package, cold, warm and edited runs, timed. Dev
 //! tooling, not part of the `hd` command.
 
 use std::time::Instant;

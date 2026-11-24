@@ -10,7 +10,7 @@ mod tests {
         let s = FileSkim::of(text);
         assert!(s.has_tests_block && s.public_main.is_some() && s.private_main.is_none());
         assert_eq!(s.test_uses, ["pkg.other"]);
-        // The block's `use` line is no folder-edge line, and a line led by
+        // The block's `use` line is no unit-edge line, and a line led by
         // another name is no use line.
         let lines: Vec<&str> = s
             .use_lines

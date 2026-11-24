@@ -1,6 +1,6 @@
 //! Every `Env` reads the program's impls through one view (#2146): its
-//! folder list is built once per run, so its work counts the program's
-//! folders, not those times the bodies the passes own.
+//! unit list is built once per run, so its work counts the program's
+//! units, not those times the bodies the passes own.
 
 use std::fmt::Write as _;
 
@@ -9,8 +9,8 @@ use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-/// `k` folders of one module each, three functions a module, and a
-/// `main` that calls every module's `run`: the folder reads and the bodies
+/// `k` units of one module each, three functions a module, and a
+/// `main` that calls every module's `run`: the unit reads and the bodies
 /// owned for a cold build.
 fn view_work(k: usize) -> (usize, usize) {
     let mut src = MemorySources::default();
@@ -43,16 +43,16 @@ fn view_work(k: usize) -> (usize, usize) {
     };
     let out = build_packages(&host, "views", &Packages::default(), &goal);
     assert!(out.wasm.is_some(), "{}", out.render());
-    (out.counters.view_folders, out.counters.bodies_owned.len())
+    (out.counters.view_units, out.counters.bodies_owned.len())
 }
 
-/// Ten times the folders read each added folder once, while the bodies
+/// Ten times the units read each added unit once, while the bodies
 /// owned grow with the modules.
 #[test]
-fn the_program_view_reads_each_folder_once_per_run() {
+fn the_program_view_reads_each_unit_once_per_run() {
     let (small, small_bodies) = view_work(4);
     let (large, large_bodies) = view_work(40);
-    assert_eq!(large - small, 36, "{small} then {large} folder reads");
+    assert_eq!(large - small, 36, "{small} then {large} unit reads");
     assert!(
         large_bodies >= small_bodies + 3 * 36,
         "{small_bodies} then {large_bodies} bodies"

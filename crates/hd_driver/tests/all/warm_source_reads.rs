@@ -127,7 +127,7 @@ fn a_check_after_editing_k_files_reads_those_k_at_ten_times_the_modules() {
         sources.files.insert("gone/y.hd", "pub fn y() -> i32: 1\n");
         reads(&sources);
         // Two body edits, an added file and a deleted one. A file in a
-        // folder of its own changes no other folder's interface, so no
+        // unit of its own changes no other unit's interface, so no
         // other module is checked again.
         sources.files.insert("m0.hd", &module(0, 7));
         sources.files.insert("m1.hd", &module(1, 8));
@@ -139,7 +139,7 @@ fn a_check_after_editing_k_files_reads_those_k_at_ten_times_the_modules() {
 }
 
 #[test]
-fn a_signature_edit_checks_its_folder_again() {
+fn a_signature_edit_checks_its_unit_again() {
     let mut sources = package("signature", 3);
     sources.files.insert(
         "main.hd",
@@ -165,7 +165,7 @@ fn a_file_with_the_same_size_and_new_bytes_is_read_and_checked_again() {
 }
 
 #[test]
-fn a_renamed_folder_is_read_under_its_new_paths() {
+fn a_renamed_unit_is_read_under_its_new_paths() {
     let mut sources = package("rename", 2);
     sources.files.insert("a/x.hd", "pub fn x() -> i32: 1\n");
     sources.files.insert(
@@ -176,7 +176,7 @@ fn a_renamed_folder_is_read_under_its_new_paths() {
     sources.files.remove("a/x.hd");
     sources.files.insert("b/x.hd", "pub fn x() -> i32: 1\n");
     // `main` still uses `a.x`, now gone: the rename is seen, not a stale
-    // record of the old folder.
+    // record of the old unit.
     let out = check(&sources);
     assert!(!out.diags.is_empty(), "the use of the moved module fails");
 }

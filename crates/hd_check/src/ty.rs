@@ -153,7 +153,7 @@ impl Ck<'_, '_> {
     }
 
     /// `module.name` through the module's export. A declaration of the
-    /// body's own folder has no export yet, so it is found by its path,
+    /// body's own unit has no export yet, so it is found by its path,
     /// and only when it is `pub` or declared in the body's module
     /// (`module.vis.private-default`): an interface also carries the
     /// private types its headers reach, for markers and `Copy` only (#2349).

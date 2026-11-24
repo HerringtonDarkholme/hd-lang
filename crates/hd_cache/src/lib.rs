@@ -19,9 +19,9 @@ pub use store::{
 
 /// The entry layout version (`docs/compiler/data-structures.md` §3.20): part of every
 /// toolchain key, so a layout change misses instead of misreading.
-pub const LAYOUT_VERSION: u16 = 43;
+pub const LAYOUT_VERSION: u16 = 44;
 
-/// One file's part of a folder key: `(module, role, api_text_hash)`.
+/// One file's part of a unit key: `(module, role, api_text_hash)`.
 pub struct FileApi<'a> {
     pub module: &'a str,
     pub role: &'a str,
@@ -57,14 +57,14 @@ pub fn package_key(name: &str) -> Hash128 {
 pub fn reads_key(
     toolchain: Hash128,
     package: Hash128,
-    folder: &str,
+    unit: &str,
     files: &[FileApi<'_>],
     roots: Hash128,
 ) -> Hash128 {
     let mut k = StableHasher::new("iface-reads");
     k.hash(toolchain);
     k.hash(package);
-    k.str(folder);
+    k.str(unit);
     for f in files {
         k.str(f.module);
         k.str(f.role);
@@ -76,7 +76,7 @@ pub fn reads_key(
 
 /// `iface_key(F) = H("iface", reads_key(F), [(read, answer) for each
 /// read of F's header lowering])`: each module path it asked about, with
-/// what the run answers for it now, the deep hash of its folder's
+/// what the run answers for it now, the deep hash of its unit's
 /// interface included when the lowering opened that interface.
 #[must_use]
 pub fn iface_key(reads_key: Hash128, reads: &[(&str, Hash128)]) -> Hash128 {
@@ -90,7 +90,7 @@ pub fn iface_key(reads_key: Hash128, reads: &[(&str, Hash128)]) -> Hash128 {
 }
 
 /// `check_key(m) = H("check", toolchain, package, m, role, token_hash(m),
-/// [(folder, deep_hash) for closure(folder(m))])`. The token hash leaves
+/// [(unit, deep_hash) for closure(unit(m))])`. The token hash leaves
 /// out plain comments and blank lines, so the entry stores its positions
 /// by code line, and `parse_key` proves that the file's current bytes
 /// parse.
@@ -141,9 +141,9 @@ pub fn depfiles_key(toolchain: Hash128, identity: &str) -> Hash128 {
 }
 
 /// `hdr_key(F) = H("hdr", toolchain, package, F, own,
-/// [(folder, deep_hash) for every folder of closure(F)])`: a part key of
+/// [(unit, deep_hash) for every unit of closure(F)])`: a part key of
 /// the `graph` entry (stage-B header findings and F's use diagnostics,
-/// one entry per folder here). `own` is the driver's hash of F's deep and
+/// one entry per unit here). `own` is the driver's hash of F's deep and
 /// heads hashes, its `reads_key` and its closure's private names.
 /// The deep hashes cover the interfaces, impl heads and `arg_impls`, which
 /// fix the impl universe of the solving context. The driver adds the
@@ -153,14 +153,14 @@ pub fn depfiles_key(toolchain: Hash128, identity: &str) -> Hash128 {
 pub fn hdr_key(
     toolchain: Hash128,
     package: Hash128,
-    folder: &str,
+    unit: &str,
     own: Hash128,
     closure: &[(&str, Hash128)],
 ) -> Hash128 {
     let mut k = StableHasher::new("hdr");
     k.hash(toolchain);
     k.hash(package);
-    k.str(folder);
+    k.str(unit);
     k.hash(own);
     for (c, h) in closure {
         k.str(c);
@@ -171,12 +171,12 @@ pub fn hdr_key(
 
 /// `init_key(F) = H("init", toolchain, F, [(module, init summary hash)])`,
 /// the modules sorted by path: a part key of the `graph` entry
-/// (`InitOrder`'s statement order, one entry per folder here).
+/// (`InitOrder`'s statement order, one entry per unit here).
 #[must_use]
-pub fn init_key(toolchain: Hash128, folder: &str, modules: &[(&str, Hash128)]) -> Hash128 {
+pub fn init_key(toolchain: Hash128, unit: &str, modules: &[(&str, Hash128)]) -> Hash128 {
     let mut k = StableHasher::new("init");
     k.hash(toolchain);
-    k.str(folder);
+    k.str(unit);
     for (m, h) in modules {
         k.str(m);
         k.hash(*h);

@@ -1,5 +1,5 @@
-//! `cargo run -p hd_driver --example bench N`: a synthetic two-folder
-//! package with N functions per folder, compiled cold, warm, after a
+//! `cargo run -p hd_driver --example bench N`: a synthetic two-unit
+//! package with N functions per unit, compiled cold, warm, after a
 //! private body edit and after a comment edit; and `--example rebuild`:
 //! the rebuild scope of body and signature edits on a fan-out package
 //! (#49). Eyeballed, not gated. The example supplies the clock.
@@ -77,7 +77,7 @@ pub fn bench(n: usize, clock: &dyn Clock, executor: Executor) -> Result<(String,
     let lines = app.lines().count() + geo.lines().count();
     let _ = writeln!(
         out,
-        "bench: {n} functions per folder, {lines} lines, {executor:?}"
+        "bench: {n} functions per unit, {lines} lines, {executor:?}"
     );
     let store = MemoryStore::default();
     let goal = Goal::Program {
@@ -115,7 +115,7 @@ pub fn bench(n: usize, clock: &dyn Clock, executor: Executor) -> Result<(String,
     Ok((out, wasm))
 }
 
-/// A fan-out package: `core/util.hd`, imported by `n` leaf folders
+/// A fan-out package: `core/util.hd`, imported by `n` leaf units
 /// `f0/leaf.hd` .. `f{n-1}/leaf.hd`, each imported by `app/main.hd`.
 /// Every leaf calls all of `core.util`'s functions, one of them with a
 /// closure, so the optimized pipeline's `closure_spec` sees a cross-module

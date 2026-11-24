@@ -1,6 +1,6 @@
-//! `Packages::reuse` (#1423): a later build takes each folder interface an
+//! `Packages::reuse` (#1423): a later build takes each unit interface an
 //! earlier build of the caller left, instead of reading and decoding its
-//! `iface` entry again, and builds what a build without it builds. A folder
+//! `iface` entry again, and builds what a build without it builds. A unit
 //! whose key moved is read as usual.
 
 use hd_cache::MemoryStore;
@@ -61,7 +61,7 @@ fn a_program_build_takes_the_interfaces_its_check_build_left() {
 }
 
 #[test]
-fn a_folder_whose_key_moved_is_read_again() {
+fn a_unit_whose_key_moved_is_read_again() {
     let store = MemoryStore::default();
     let reuse = Reuse::default();
     build(MAIN, &store, &Goal::CheckTests, Some(&reuse));
@@ -70,7 +70,7 @@ fn a_folder_whose_key_moved_is_read_again() {
     let fresh = build(&edited, &MemoryStore::default(), &program(), None);
     assert!(fresh.wasm.is_some(), "{}", fresh.render());
     assert_eq!(reused.wasm, fresh.wasm);
-    // The root folder alone: std's interfaces are taken.
+    // The root unit alone: std's interfaces are taken.
     assert_eq!(reused.counters.ifaces_built, ["app"]);
     assert_eq!(iface_reads(&reused), 1);
 }

@@ -2474,9 +2474,9 @@ fn trait_impls(n: usize) -> String {
 }
 
 // Resolver: #1888, an implementation finds its trait, its part and its
-// trait's methods through the folder's index of items, one probe each,
+// trait's methods through the unit's index of items, one probe each,
 // and checks its methods against the trait's names hashed once: a scan
-// of every item of the folder per implementation cost n² / 2.
+// of every item of the unit per implementation cost n² / 2.
 #[test]
 fn trait_impls_find_their_traits_by_one_probe_each() {
     on_small_stack(|| {
@@ -4786,10 +4786,10 @@ fn unknown_method_hints_ask_only_the_receivers_methods() {
     });
 }
 
-/// `k` folders of one module each, every module calling `get` on the
-/// struct `S` of the root folder's `shared` module: lane 126's measure
-/// of the folder slots a module's view scans per receiver head.
-fn modules_in_many_folders_call_one_type(k: usize) -> MemorySources {
+/// `k` units of one module each, every module calling `get` on the
+/// struct `S` of the root unit's `shared` module: lane 126's measure
+/// of the unit slots a module's view scans per receiver head.
+fn modules_in_many_units_call_one_type(k: usize) -> MemorySources {
     let mut src = MemorySources::default();
     src.insert(
         "shared.hd",
@@ -4808,15 +4808,15 @@ fn modules_in_many_folders_call_one_type(k: usize) -> MemorySources {
     src
 }
 
-// Driver and solver: each module's impl view held a slot per folder of
+// Driver and solver: each module's impl view held a slot per unit of
 // the program, made per module (`closure_impls`) and scanned once per
-// receiver head (`Impls::tables_at`), so k modules in k folders cost
-// k^2. The view now holds its closure's folders alone (`FolderSlots`).
+// receiver head (`Impls::tables_at`), so k modules in k units cost
+// k^2. The view now holds its closure's units alone (`UnitSlots`).
 #[test]
-fn modules_in_many_folders_scan_their_view_once_per_head() {
+fn modules_in_many_units_scan_their_view_once_per_head() {
     on_test_stack(|| {
         let work = |k: usize| {
-            let src = modules_in_many_folders_call_one_type(k);
+            let src = modules_in_many_units_call_one_type(k);
             let store = crate::warm_store();
             let host = Host {
                 render_tir: &[],
@@ -4833,7 +4833,7 @@ fn modules_in_many_folders_scan_their_view_once_per_head() {
         let (small, large) = (work(100), work(1_000));
         assert!(
             small > 0 && large <= 12 * small,
-            "view slots at 100 and 1,000 folders: {small} and {large}"
+            "view slots at 100 and 1,000 units: {small} and {large}"
         );
     });
 }

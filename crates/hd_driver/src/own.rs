@@ -3566,24 +3566,24 @@ impl Run<'_> {
 
     /// Runs `f` with the passes' view of the program: every `Env` is built
     /// here. Its impls (`crates/hd_check/DESIGN.md` (trait solver) §3.2)
-    /// are owner lookup over every folder, read from the run's own table,
-    /// so no body pays for them: the built folders' ids are listed once
+    /// are owner lookup over every unit, read from the run's own table,
+    /// so no body pays for them: the built units' ids are listed once
     /// per run. A test program's `tests:` impls are its own table
     /// ([`ProgramTables::test_impls`]); a layout normalizes associated
     /// types through them.
     pub(super) fn with_env<T>(&self, p: &ProgramTables, f: impl FnOnce(&Env<'_>) -> T) -> T {
-        let built = self.built_folders.get_or_init(|| {
-            lock(&self.counters).view_folders += self.table.folders.len();
-            (0..self.table.folders.len())
+        let built = self.built_units.get_or_init(|| {
+            lock(&self.counters).view_units += self.table.units.len();
+            (0..self.table.units.len())
                 .map(super::u32_of)
-                .filter(|&f| self.folder_impls(hd_base::FolderId::from_raw(f)).is_some())
+                .filter(|&f| self.unit_impls(hd_base::UnitId::from_raw(f)).is_some())
                 .collect()
         });
         let view = hd_types::lookup::ImplView {
             paths: &self.paths,
             owners: self.owners(),
             own: (!p.test_impls.def.is_empty()).then_some(&p.test_impls),
-            folders: hd_types::lookup::FolderSlots::Program(&self.folder_impls, built),
+            units: hd_types::lookup::UnitSlots::Program(&self.unit_impls, built),
             universe: p.universe,
             extra: &p.extra,
             arity: &p.arity(),
@@ -3825,7 +3825,7 @@ impl Run<'_> {
     }
 
     /// One hash of every non-std module's checked declarations, private
-    /// ones included, and every non-std folder's interface with its impl
+    /// ones included, and every non-std unit's interface with its impl
     /// heads; once per run, linear in the modules. A module's part is the
     /// hash of its `check` entry's items section (`CheckOut::items`):
     /// signatures with each omitted result and row the checker inferred
@@ -3850,14 +3850,14 @@ impl Run<'_> {
                     k.hash(items);
                 }
             }
-            for (f, folder) in self.table.folders.iter().enumerate() {
-                if usize::from(folder.package) == std {
+            for (f, unit) in self.table.units.iter().enumerate() {
+                if usize::from(unit.package) == std {
                     continue;
                 }
-                k.str(&folder.path);
+                k.str(&unit.path);
                 let heads = u32::try_from(f)
                     .ok()
-                    .and_then(|f| self.iface_of(hd_base::FolderId::from_raw(f)));
+                    .and_then(|f| self.iface_of(hd_base::UnitId::from_raw(f)));
                 k.hash(heads.map_or(Hash128::default(), |i| i.heads_hash));
             }
             k.finish()

@@ -31,7 +31,7 @@ use hd_resolve::{
 };
 use hd_syntax::NodeRef;
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, TirBuilder};
-use hd_types::lookup::{FolderSlots, Unseen};
+use hd_types::lookup::{UnitSlots, Unseen};
 use hd_types::solver::{
     Answer, Candidate, Evidence, GlobalMemo, ImplUniverseId, ImplView, OwnerMap, ParamEnv,
     TableSolver, UniverseImpls,
@@ -90,7 +90,7 @@ pub fn with_checker_items(
         paths: &paths,
         owners: &owners,
         own: None,
-        folders: FolderSlots::default(),
+        units: UnitSlots::default(),
         universe: ImplUniverseId(0),
         extra: &extra,
         arity: &|_| 0,

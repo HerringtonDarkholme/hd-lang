@@ -1,8 +1,8 @@
 //! Where a goal's candidates come from (`crates/hd_check/DESIGN.md` (trait solver) §3.2, §3.3): the
-//! tables of its owner folders, one synthetic table of the impls that no
-//! owner folder holds, and the candidate directory of the impls owned only
+//! tables of its owner units, one synthetic table of the impls that no
+//! owner unit holds, and the candidate directory of the impls owned only
 //! through a trait argument. The last two are merged per impl universe, so
-//! a context sees only the folders of its own closure.
+//! a context sees only the units of its own closure.
 
 use std::sync::{Arc, OnceLock};
 
@@ -10,37 +10,37 @@ use crate::AdtId;
 use hd_base::HashMap;
 use hd_base::SliceSort as _;
 
-use hd_base::{DefId, FolderId, ModuleId, PathId};
+use hd_base::{DefId, ModuleId, PathId, UnitId};
 use hd_intern::{PathKind, PathTable};
 
 use crate::pool::{Ty, TyData, Types};
 use crate::solver::{HeadKey, ImplRef, ImplTable, ImplUniverseId, MemberStep, TuplePlans};
 
 /// The table id of the asking module's own impls. Its rows sit in its
-/// folder's table too; this table is read first, as before owner lookup.
+/// unit's table too; this table is read first, as before owner lookup.
 pub const OWN_TABLE: ModuleId = ModuleId::from_raw(u32::MAX - 1);
 
-/// The table id of a folder's impl table.
+/// The table id of a unit's impl table.
 #[must_use]
-pub fn folder_table(f: FolderId) -> ModuleId {
+pub fn unit_table(f: UnitId) -> ModuleId {
     ModuleId::from_raw(f.raw())
 }
 
-/// Which folder declares what: module path node to folder, built once per
+/// Which unit declares what: module path node to unit, built once per
 /// run from the module table.
 #[derive(Debug, Default)]
 pub struct OwnerMap {
-    by_module: HashMap<PathId, FolderId>,
+    by_module: HashMap<PathId, UnitId>,
 }
 
 impl OwnerMap {
-    pub fn insert(&mut self, module: PathId, folder: FolderId) {
-        self.by_module.insert(module, folder);
+    pub fn insert(&mut self, module: PathId, unit: UnitId) {
+        self.by_module.insert(module, unit);
     }
 
-    /// The folder of the module that declares `d`.
+    /// The unit of the module that declares `d`.
     #[must_use]
-    pub fn owner(&self, paths: &PathTable, d: DefId) -> Option<FolderId> {
+    pub fn owner(&self, paths: &PathTable, d: DefId) -> Option<UnitId> {
         let mut p = PathId::from_raw(d.raw());
         while p.get().is_some() && !matches!(paths.kind(p), PathKind::Module | PathKind::Package) {
             p = paths.parent(p);
@@ -48,11 +48,11 @@ impl OwnerMap {
         self.by_module.get(&p).copied()
     }
 
-    /// The folder that owns a type's outer constructor: a declared type or
+    /// The unit that owns a type's outer constructor: a declared type or
     /// a trait value's trait. Built-in heads, parameters and variables own
     /// nothing.
     #[must_use]
-    pub fn owner_of_ty(&self, paths: &PathTable, pool: Types<'_>, t: Ty) -> Option<FolderId> {
+    pub fn owner_of_ty(&self, paths: &PathTable, pool: Types<'_>, t: Ty) -> Option<UnitId> {
         match pool.get(t) {
             TyData::Adt(AdtId::Declared(def), _) | TyData::TraitValue { def, .. } => {
                 self.owner(paths, def)
@@ -72,31 +72,31 @@ pub fn open_arg(pool: Types<'_>, t: Ty) -> bool {
     )
 }
 
-/// One folder's impls, built once per run from its interface (§3.2).
+/// One unit's impls, built once per run from its interface (§3.2).
 #[derive(Debug, Default)]
-pub struct FolderImpls {
+pub struct UnitImpls {
     pub table: ImplTable,
-    /// The `arg_impls` section: rows the folder owns only through a trait
+    /// The `arg_impls` section: rows the unit owns only through a trait
     /// argument, in row order (trait, then impl, by content rank).
     pub arg_impls: Vec<u32>,
-    /// Rows no owner folder holds: std's impls for built-in targets kept
-    /// in another std folder, and impls the ownership check rejected
+    /// Rows no owner unit holds: std's impls for built-in targets kept
+    /// in another std unit, and impls the ownership check rejected
     /// (`nonlocal-impl`, `orphan-impl`), which stay visible so their uses
     /// add no second error.
     pub unowned: Vec<u32>,
 }
 
-impl FolderImpls {
-    /// Sorts a folder's rows by how owner lookup reaches them.
+impl UnitImpls {
+    /// Sorts a unit's rows by how owner lookup reaches them.
     #[must_use]
     pub fn new(
-        folder: FolderId,
+        unit: UnitId,
         table: ImplTable,
         pool: Types<'_>,
         paths: &PathTable,
         owners: &OwnerMap,
     ) -> Self {
-        let mine = |o: Option<FolderId>| o == Some(folder);
+        let mine = |o: Option<UnitId>| o == Some(unit);
         let mut arg_impls = Vec::new();
         let mut unowned = Vec::new();
         for r in 0..table.def.len() {
@@ -116,26 +116,26 @@ impl FolderImpls {
                 unowned.push(row);
             }
         }
-        FolderImpls {
+        UnitImpls {
             table,
             arg_impls,
             unowned,
         }
     }
 
-    /// Whether the folder joins the impl universe of a closure holding it.
+    /// Whether the unit joins the impl universe of a closure holding it.
     #[must_use]
     pub fn in_universe(&self) -> bool {
         !self.arg_impls.is_empty() || !self.unowned.is_empty()
     }
 }
 
-/// Rows that point into folder tables, grouped by trait and head key: the
+/// Rows that point into unit tables, grouped by trait and head key: the
 /// candidate directory, and the synthetic table of unowned rows.
 #[derive(Debug, Default)]
 pub struct RefTable {
     /// `(trait, head key code, row)`, sorted; the code groups, the row
-    /// (folder, then row) orders within a group.
+    /// (unit, then row) orders within a group.
     rows: Vec<(u32, u64, ImplRef)>,
     by_trait: HashMap<u32, (u32, u32)>,
     /// Each head key code's traits, each once (`ImplTable::traits_by_key`).
@@ -246,7 +246,7 @@ impl RefTable {
 
 /// What an impl universe adds to owner lookup (§3.2): the unowned rows
 /// (the synthetic `STD_BUILTIN_TABLE`, plus rejected impls) and the
-/// candidate directory, each over the universe's folders only.
+/// candidate directory, each over the universe's units only.
 #[derive(Debug, Default)]
 pub struct UniverseImpls {
     pub unowned: RefTable,
@@ -254,12 +254,12 @@ pub struct UniverseImpls {
 }
 
 impl UniverseImpls {
-    /// Merges the sections of a universe's folders, given in folder order.
+    /// Merges the sections of a universe's units, given in unit order.
     #[must_use]
-    pub fn new(folders: &[(FolderId, &FolderImpls)]) -> Self {
+    pub fn new(units: &[(UnitId, &UnitImpls)]) -> Self {
         let mut unowned = Vec::new();
         let mut directory = Vec::new();
-        for (f, fi) in folders {
+        for (f, fi) in units {
             let t = &fi.table;
             let at = |row: u32| {
                 let r = row as usize;
@@ -267,7 +267,7 @@ impl UniverseImpls {
                     t.trait_[r].raw(),
                     t.head_key[r].code(),
                     ImplRef {
-                        module: folder_table(*f),
+                        module: unit_table(*f),
                         row,
                     },
                 )
@@ -314,55 +314,55 @@ impl Unseen<'_> {
     }
 }
 
-/// The impl tables of a closure's folders, by folder id: the closure's
-/// folders alone, sorted by id, so a read is a binary search and a walk
-/// visits the closure, not every folder of the program. A dense slot per
-/// program folder made each module's view, and each walk of it, cost the
-/// program's folders: k modules in k folders cost k^2 (Cranelift's
+/// The impl tables of a closure's units, by unit id: the closure's
+/// units alone, sorted by id, so a read is a binary search and a walk
+/// visits the closure, not every unit of the program. A dense slot per
+/// program unit made each module's view, and each walk of it, cost the
+/// program's units: k modules in k units cost k^2 (Cranelift's
 /// `SparseMap` keeps members apart from the key space the same way).
-/// A program's view, whose closure is every folder, reads the run's own
-/// per-folder table instead, so building one costs nothing per body.
+/// A program's view, whose closure is every unit, reads the run's own
+/// per-unit table instead, so building one costs nothing per body.
 #[derive(Clone, Copy)]
-pub enum FolderSlots<'a> {
-    /// The closure's folders, sorted by folder id with no id twice.
-    Closure(&'a [(u32, &'a FolderImpls)]),
-    /// The run's table by folder id, and its built folders' ids in order.
-    Program(&'a [OnceLock<Option<Arc<FolderImpls>>>], &'a [u32]),
+pub enum UnitSlots<'a> {
+    /// The closure's units, sorted by unit id with no id twice.
+    Closure(&'a [(u32, &'a UnitImpls)]),
+    /// The run's table by unit id, and its built units' ids in order.
+    Program(&'a [OnceLock<Option<Arc<UnitImpls>>>], &'a [u32]),
 }
 
-impl Default for FolderSlots<'_> {
+impl Default for UnitSlots<'_> {
     fn default() -> Self {
-        FolderSlots::Closure(&[])
+        UnitSlots::Closure(&[])
     }
 }
 
-impl<'a> FolderSlots<'a> {
-    /// The slots `slots`, sorted by folder id with no id twice.
+impl<'a> UnitSlots<'a> {
+    /// The slots `slots`, sorted by unit id with no id twice.
     #[must_use]
-    pub fn new(slots: &'a [(u32, &'a FolderImpls)]) -> Self {
+    pub fn new(slots: &'a [(u32, &'a UnitImpls)]) -> Self {
         debug_assert!(slots.windows(2).all(|w| w[0].0 < w[1].0), "sorted slots");
-        FolderSlots::Closure(slots)
+        UnitSlots::Closure(slots)
     }
 
-    /// Folder `i`'s tables, when the closure holds it: a binary search,
+    /// Unit `i`'s tables, when the closure holds it: a binary search,
     /// or a program view's index.
     #[must_use]
-    pub fn get(self, i: usize) -> Option<&'a FolderImpls> {
+    pub fn get(self, i: usize) -> Option<&'a UnitImpls> {
         match self {
-            FolderSlots::Closure(slots) => {
+            UnitSlots::Closure(slots) => {
                 let i = u32::try_from(i).ok()?;
                 let at = slots.binary_search_by_key(&i, |s| s.0).ok()?;
                 Some(slots[at].1)
             }
-            FolderSlots::Program(table, _) => table.get(i)?.get()?.as_deref(),
+            UnitSlots::Program(table, _) => table.get(i)?.get()?.as_deref(),
         }
     }
 
-    /// The closure's folders in id order.
-    pub fn iter(self) -> impl Iterator<Item = (usize, &'a FolderImpls)> {
+    /// The closure's units in id order.
+    pub fn iter(self) -> impl Iterator<Item = (usize, &'a UnitImpls)> {
         let (slots, built): (&[_], &[u32]) = match self {
-            FolderSlots::Closure(slots) => (slots, &[]),
-            FolderSlots::Program(_, built) => (&[], built),
+            UnitSlots::Closure(slots) => (slots, &[]),
+            UnitSlots::Program(_, built) => (&[], built),
         };
         let built = built
             .iter()
@@ -372,14 +372,14 @@ impl<'a> FolderSlots<'a> {
 }
 
 /// A solving context's view of the impls (§3.2): its own module's table,
-/// the frozen tables of its closure's folders, read by owner, and its
+/// the frozen tables of its closure's units, read by owner, and its
 /// universe's unowned rows and directory.
 pub struct ImplView<'a> {
     pub paths: &'a PathTable,
     pub owners: &'a OwnerMap,
     pub own: Option<&'a ImplTable>,
-    /// The folders of the closure, by folder id ([`FolderSlots`]).
-    pub folders: FolderSlots<'a>,
+    /// The units of the closure, by unit id ([`UnitSlots`]).
+    pub units: UnitSlots<'a>,
     pub universe: ImplUniverseId,
     pub extra: &'a UniverseImpls,
     /// A trait's number of arguments: a projection that leaves them
@@ -405,7 +405,7 @@ impl<'a> ImplView<'a> {
             paths: self.paths,
             owners: self.owners,
             own: self.own,
-            folders: self.folders,
+            units: self.units,
             universe: self.universe,
             extra: self.extra,
             arity: self.arity,
@@ -425,14 +425,14 @@ pub enum Impls<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TableAt {
     Own,
-    /// The folder's table, by folder index.
-    Folder(usize),
+    /// The unit's table, by unit index.
+    Unit(usize),
     Unowned,
     Directory,
 }
 
 /// A table's place in the candidate order: the asking module's own table,
-/// then folders in path order. Owner lookup reads only the owners' tables,
+/// then units in path order. Owner lookup reads only the owners' tables,
 /// and this order keeps their rows where reading every table puts them.
 fn position(m: ModuleId) -> u32 {
     if m == OWN_TABLE { 0 } else { m.raw() + 1 }
@@ -446,7 +446,7 @@ impl<'a> Impls<'a> {
         if m == OWN_TABLE {
             return v.own;
         }
-        v.folders.get(m.raw() as usize).map(|f| &f.table)
+        v.units.get(m.raw() as usize).map(|f| &f.table)
     }
 
     /// The member steps of a tuple template's plan (§3.9), when this
@@ -484,10 +484,10 @@ impl<'a> Impls<'a> {
         if v.own.is_some_and(|t| t.has_rows_at(codes)) {
             out.push(TableAt::Own);
         }
-        for (i, f) in v.folders.iter() {
+        for (i, f) in v.units.iter() {
             crate::work::view_slots(1);
             if f.table.has_rows_at(codes) {
-                out.push(TableAt::Folder(i));
+                out.push(TableAt::Unit(i));
             }
         }
         if v.extra.unowned.has_rows_at(codes) {
@@ -503,7 +503,7 @@ impl<'a> Impls<'a> {
     /// codes `codes` ([`crate::solver::key_codes`]) may take that declare
     /// a method `sym`, and those `names` does
     /// not know, from the table's name index, made on the table's first
-    /// ask: one probe per key code. A folder's table is shared by the run,
+    /// ask: one probe per key code. A unit's table is shared by the run,
     /// so its index is made once per run.
     pub fn traits_named(
         self,
@@ -520,8 +520,8 @@ impl<'a> Impls<'a> {
                     t.traits_named(codes, sym, names, out);
                 }
             }
-            TableAt::Folder(i) => {
-                if let Some(f) = v.folders.get(i) {
+            TableAt::Unit(i) => {
+                if let Some(f) = v.units.get(i) {
                     f.table.traits_named(codes, sym, names, out);
                 }
             }
@@ -541,8 +541,8 @@ impl<'a> Impls<'a> {
                     t.traits_at(codes, out);
                 }
             }
-            TableAt::Folder(i) => {
-                if let Some(f) = v.folders.get(i) {
+            TableAt::Unit(i) => {
+                if let Some(f) = v.units.get(i) {
                     f.table.traits_at(codes, out);
                 }
             }
@@ -560,8 +560,8 @@ impl<'a> Impls<'a> {
             TableAt::Own => v
                 .own
                 .is_some_and(|t| t.candidates(trait_, key).next().is_some()),
-            TableAt::Folder(i) => v
-                .folders
+            TableAt::Unit(i) => v
+                .units
                 .get(i)
                 .is_some_and(|f| f.table.candidates(trait_, key).next().is_some()),
             TableAt::Unowned => v.extra.unowned.has(trait_, key),
@@ -570,7 +570,7 @@ impl<'a> Impls<'a> {
     }
 
     /// The candidate rows of `self_ty: trait_[args]` in content order (§3.2,
-    /// §3.3): the head-index buckets of the owner folders' tables (the
+    /// §3.3): the head-index buckets of the owner units' tables (the
     /// trait's, the self type's, each known argument's), the unowned
     /// rows and, when `open` (an argument's owner is unknown), the
     /// directory. `seen` records which universe-decided rows the probe read.
@@ -585,7 +585,7 @@ impl<'a> Impls<'a> {
     ) -> Vec<(ImplRef, &'a ImplTable)> {
         let key = HeadKey::of(pool, self_ty);
         let Impls::Owned(v) = self;
-        let mut owners: Vec<FolderId> = Vec::with_capacity(2 + args.len());
+        let mut owners: Vec<UnitId> = Vec::with_capacity(2 + args.len());
         owners.extend(v.owners.owner(v.paths, trait_));
         owners.extend(v.owners.owner_of_ty(v.paths, pool, self_ty));
         for a in args {
@@ -601,9 +601,9 @@ impl<'a> Impls<'a> {
             }));
         }
         for f in owners {
-            if let Some(fi) = v.folders.get(f.idx()) {
+            if let Some(fi) = v.units.get(f.idx()) {
                 refs.extend(fi.table.candidates(trait_, key).map(|row| ImplRef {
-                    module: folder_table(f),
+                    module: unit_table(f),
                     row,
                 }));
             }
@@ -630,7 +630,7 @@ impl<'a> Impls<'a> {
 }
 
 /// Keeps the first row of each impl. A module's own impls are rows of its
-/// own table and again of its folder's frozen table; they are one head
+/// own table and again of its unit's frozen table; they are one head
 /// (rule TS-2), found at its first place in content order.
 fn one_row_per_impl(mut rows: Vec<(ImplRef, &ImplTable)>) -> Vec<(ImplRef, &ImplTable)> {
     let mut seen: Vec<DefId> = Vec::with_capacity(rows.len());
@@ -647,26 +647,26 @@ fn one_row_per_impl(mut rows: Vec<(ImplRef, &ImplTable)>) -> Vec<(ImplRef, &Impl
 
 #[cfg(test)]
 mod coverage_contracts {
-    use super::{FolderImpls, FolderSlots};
+    use super::{UnitImpls, UnitSlots};
     use std::sync::{Arc, OnceLock};
 
     #[test]
-    fn program_folder_iteration_matches_the_built_closure_without_copying_tables() {
-        let slots: Vec<OnceLock<Option<Arc<FolderImpls>>>> =
+    fn program_unit_iteration_matches_the_built_closure_without_copying_tables() {
+        let slots: Vec<OnceLock<Option<Arc<UnitImpls>>>> =
             (0..5).map(|_| OnceLock::new()).collect();
-        let first = Arc::new(FolderImpls::default());
-        let second = Arc::new(FolderImpls::default());
+        let first = Arc::new(UnitImpls::default());
+        let second = Arc::new(UnitImpls::default());
         slots[1]
             .set(Some(Arc::clone(&first)))
-            .expect("publish folder 1");
-        slots[2].set(None).expect("publish failed folder 2");
+            .expect("publish unit 1");
+        slots[2].set(None).expect("publish failed unit 2");
         slots[3]
             .set(Some(Arc::clone(&second)))
-            .expect("publish folder 3");
+            .expect("publish unit 3");
         let built = [1, 3];
-        let program = FolderSlots::Program(&slots, &built);
+        let program = UnitSlots::Program(&slots, &built);
         let entries = [(1, first.as_ref()), (3, second.as_ref())];
-        let closure = FolderSlots::new(&entries);
+        let closure = UnitSlots::new(&entries);
         let actual: Vec<_> = program.iter().collect();
         let expected: Vec<_> = closure.iter().collect();
         assert_eq!(actual.iter().map(|(id, _)| *id).collect::<Vec<_>>(), [1, 3]);

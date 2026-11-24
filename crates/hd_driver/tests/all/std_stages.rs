@@ -45,7 +45,7 @@ fn every_stage_runs_on_std() {
         r.tally(Stage::Parse).ok + r.tally(Stage::Parse).not_implemented,
         files
     );
-    assert_eq!(r.tally(Stage::FolderGraph).ok, 1);
+    assert_eq!(r.tally(Stage::UnitGraph).ok, 1);
     for st in Stage::ALL {
         let t = r.tally(st);
         assert!(

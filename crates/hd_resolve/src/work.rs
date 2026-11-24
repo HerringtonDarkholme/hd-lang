@@ -130,7 +130,7 @@ pub(crate) fn hint_work(n: u64) {
     });
 }
 
-/// Count the work of matching the folder's implementations with their
+/// Count the work of matching the unit's implementations with their
 /// traits on this thread: one per item looked up by `DefId`, and one per
 /// implementation method checked against its trait's names. Use the
 /// driver's serial executor to measure a whole build.

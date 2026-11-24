@@ -6,7 +6,7 @@ the spec win.
 
 Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 
-### 4.7 Discovery, Module Identity And Folders
+### 4.7 Discovery, Module Identity And Units
 
 `hd_project` maps the file list to modules from paths only:
 
@@ -98,7 +98,7 @@ graph comes from manifests, and `package-cycle` is found the same way.
 
 ### 4.9 Name Resolution
 
-Resolution runs inside the `FolderIface` task for headers, and inside
+Resolution runs inside the `UnitIface` task for headers, and inside
 `ModulePrep` for the module's private signatures and bodies. What a use
 reports when it names nothing is reported by `HeaderCheck(F)`
 (`use_diags`, §4.10.1), which builds the same module scopes again.
@@ -110,15 +110,15 @@ declarations, with the shadowing and duplicate rules of
 binding is 8 bytes, a kind (`Item`, `Module`, `Prelude`, `Ambiguous`,
 `Poison`) and a value.
 
-**Uses into other folders.** The target folder's interface is complete and
+**Uses into other units.** The target unit's interface is complete and
 frozen. Its export index maps a name to the **real declaration**: a
 `pub use` re-export is followed to its end when the interface is built.
-A dependent never follows chains. The folder that declares the item is
+A dependent never follows chains. The unit that declares the item is
 a mention of the re-exporting interface, so the deep hash covers it
 (TypeScript #64386).
 
-**Uses inside the folder** may loop, and `pub use` chains may run through
-several sibling modules. One serial worklist per folder resolves them:
+**Uses inside the unit** may loop, and `pub use` chains may run through
+several sibling modules. One serial worklist per unit resolves them:
 
 ```text
 exports[m] = own pub declarations of m  ∪  { name -> Pending(use) : each pub use in m }
@@ -131,8 +131,8 @@ for each pending entry, in (module path, source order):
   whose name leads into one
   ([`module.pub-use.chain.loop-use`](../../spec/lang/10-modules.md#r-module.pub-use.chain.loop-use)).
   The interface keeps the looping names (`loop_names`), so a use through
-  another folder fails quietly.
-- The work is bounded by the folder's uses times the chain length.
+  another unit fails quietly.
+- The work is bounded by the unit's uses times the chain length.
 - Other use errors: `unknown-module`, `unknown-import`, `private-import`,
   `direct-variant-use`, `ambiguous-import`, `test-only-use`.
 
@@ -150,8 +150,8 @@ own cache-entry section outside every hash. A failed export lookup
 checks it: a matching row reports `private-import`; no row reports
 `unknown-import`. Dependents never see private items, and a private
 header edit does not invalidate their checks. It does rebuild the
-interface of a folder whose header lowering opened this one, and rerun
-the `HeaderCheck` of a folder whose closure holds it: their keys take the
+interface of a unit whose header lowering opened this one, and rerun
+the `HeaderCheck` of a unit whose closure holds it: their keys take the
 names hash, since a failed lookup reads these names
 ([crates/hd_cache/DESIGN.md §5.3](../hd_cache/DESIGN.md#53-key-composition)).
 
@@ -167,11 +167,11 @@ an owner is in the package, `orphan-impl` otherwise
 ([Implementation Ownership](../../spec/lang/09-traits.md#implementation-ownership)).
 The same facts make trait lookup local (§4.12.1).
 
-### 4.10 Folder Interface Construction
+### 4.10 Unit Interface Construction
 
 ```rust
-pub struct FolderIface {
-    pub folder: FolderId,
+pub struct UnitIface {
+    pub unit: UnitId,
     pub blob: Arc<[u8]>,                     // the canonical bytes; also the cache payload; mapped when read from disk
     pub reader: IfaceReader,                 // typed views over the blob's sections (§4.11.1)
     pub api_hash: Hash128,                   // shallow: the blob's api sections
@@ -184,20 +184,20 @@ The in-memory interface is its blob: the builder writes the sections as
 struct-of-arrays records, and every reader, the building run included,
 reads them in place. There is no second, decoded copy.
 
-Implementation differs: `FolderIface` (`src/iface.rs:652`) holds decoded
+Implementation differs: `UnitIface` (`src/iface.rs:652`) holds decoded
 `items` and `exports` vectors with hash-map indexes, the blob, `api_hash`,
 `deep_hash`, anchors (`spans`), `private_names`, `loop_names` and a REPL
 input's `module_uses`. A cache hit decodes every item
 (`decode_items`, `src/iface.rs:1146`). This is worse: a run that names a
-few items of a large std folder decodes all of them, and every interface
+few items of a large std unit decodes all of them, and every interface
 exists twice in memory.
 
-**Algorithm** for folder `F`, once the interfaces of the folders it uses
-are frozen (`build_folder`, `src/lower.rs`):
+**Algorithm** for unit `F`, once the interfaces of the units it uses
+are frozen (`build_unit`, `src/lower.rs`):
 
 1. Collect the items of `F`'s modules.
 2. Resolve uses (§4.9). The run records each module path asked about
-   and each other folder whose interface is opened (`Recorded`), from
+   and each other unit whose interface is opened (`Recorded`), from
    here to step 5, and keys the interface by those reads
    ([crates/hd_cache/DESIGN.md §5.3](../hd_cache/DESIGN.md#53-key-composition)).
    A use's own reads are held while it binds. The scope notes each name
@@ -226,8 +226,8 @@ are frozen (`build_folder`, `src/lower.rs`):
    only headers, F's own and its dependencies'.
 6. Write the blob, then compute `api_hash` and `deep_hash`.
 
-Each run builds a folder's impl table and its `arg_impls` rows from the
-interface's impl items (`impl_table`, `src/iface.rs`; `FolderImpls` in
+Each run builds a unit's impl table and its `arg_impls` rows from the
+interface's impl items (`impl_table`, `src/iface.rs`; `UnitImpls` in
 `crates/hd_types/src/lookup.rs`), including each impl's bound plan. A
 trait's `dyn` availability is computed on demand from its items. Both
 are cheap to derive, so the interface does not store them.
@@ -237,7 +237,7 @@ stage-B checks of §4.10.1 run next, in their own task, and no dependent
 reads their result.
 
 Planned, not built: validate on write. Every `DefId` the api sections
-mention is exported from its folder, or is a hidden item of this folder;
+mention is exported from its unit, or is a hidden item of this unit;
 a failure is an internal compiler error naming the item. Debug builds
 decode the written bytes and compare them with the in-memory interface.
 
@@ -259,7 +259,7 @@ blob; the encoding changed with `LAYOUT_VERSION` 38.
 **Row aliases and context types in interfaces.** A row alias is an alias
 item whose body is a row (`TyData::Row`). Every use in a header expands
 first (`req.row.alias.expand.first`), recursively, so headers store only
-expanded normalized rows; all aliases of a folder lower first, in
+expanded normalized rows; all aliases of a unit lower first, in
 dependency order. At use sites the same expansion runs before
 normalization, entailment and solving. Cycles are `alias-cycle`
 regardless of declaration order. `$.Context[$ R]` is its own type form,
@@ -278,7 +278,7 @@ ordinary body, doc comment or fact value.
 module-initialization state, not an interface item kind. Bodies in its
 declaring module may read it, where the body checker assigns its global
 slot and type, but another module cannot import or refer to it. So
-`FolderIface` carries neither its declaration nor its initializer.
+`UnitIface` carries neither its declaration nor its initializer.
 
 **Declaration locations.** Every item, impl head and stored header
 diagnostic carries an anchor (`src/anchor.rs`) relative to its
@@ -345,7 +345,7 @@ Its fields are in `api_hash`, so a field change there rechecks dependents.
 The rule covers impls owned through a trait argument too.
 `impl Pick[Product] for Receiver` in `Product`'s module has a nameable
 trait and target, whatever `Product`'s visibility, so its head is in
-`api_hash`. A module's `check` key holds the deep hash of every folder in
+`api_hash`. A module's `check` key holds the deep hash of every unit in
 its dependency closure, the same closure that filters the candidate
 directory (§4.12.1). So the deep hashes already cover every
 argument-owned impl a check can see.
@@ -355,15 +355,15 @@ Implementation differs:
 - **The two hashes.** `heads_hash` is the hash of the whole blob.
   `api_hash` is the hash of the blob re-encoded without
   `private_impl_items`: the impls whose trait, or whose target's head
-  type, is a private declaration of the folder, with their members. The
+  type, is a private declaration of the unit, with their members. The
   driver stores that hash in the interface entry.
-- **The readers.** Coherence and the folder's own header check key on
+- **The readers.** Coherence and the unit's own header check key on
   `heads_hash` too.
 - **Conservative.** A private type in an impl's arguments, as in
   `impl Show for List[Private]`, still counts toward `api_hash`.
 
-**Complexity.** Linear in the folder's header tokens plus the use worklist.
-A folder task cannot be split, so one very large folder bounds the wall
+**Complexity.** Linear in the unit's header tokens plus the use worklist.
+A unit task cannot be split, so one very large unit bounds the wall
 time of a cold run.
 
 #### 4.10.1 Header Validation Stages
@@ -372,7 +372,7 @@ Every header rule runs in exactly one of three stages:
 
 | Stage | Task | Reads | Rules |
 | --- | --- | --- | --- |
-| A | `FolderIface(F)`, step 5 | F's headers, its dependencies' interfaces | duplicate declarations; `private-type-leak`; `orphan-impl`; `nonlocal-impl`; `bare-parameter-impl-target`, `trait-value-impl-target`, `invalid-impl-target`; `unconstrained-impl-parameter` (projections included); `sealed-trait-implementation`; `ambiguous-row-pattern`; `misplaced-derivation`; a second template or a derive beside a written impl (`overlapping-impl`); `mixed-derived-law`; `duplicate-inherent-member`; `missing-result-type`; `default-order`; `generic-kind-mismatch`; cycles of aliases and supertraits (`supertrait-cycle`); `ambiguous-associated-type`; declared variance against every use in fields, payloads and methods, private inherent methods included; impl members against the trait: completeness (`missing-trait-method`), signature equality, associated-type bindings complete |
+| A | `UnitIface(F)`, step 5 | F's headers, its dependencies' interfaces | duplicate declarations; `private-type-leak`; `orphan-impl`; `nonlocal-impl`; `bare-parameter-impl-target`, `trait-value-impl-target`, `invalid-impl-target`; `unconstrained-impl-parameter` (projections included); `sealed-trait-implementation`; `ambiguous-row-pattern`; `misplaced-derivation`; a second template or a derive beside a written impl (`overlapping-impl`); `mixed-derived-law`; `duplicate-inherent-member`; `missing-result-type`; `default-order`; `generic-kind-mismatch`; cycles of aliases and supertraits (`supertrait-cycle`); `ambiguous-associated-type`; declared variance against every use in fields, payloads and methods, private inherent methods included; impl members against the trait: completeness (`missing-trait-method`), signature equality, associated-type bindings complete |
 | B | `HeaderCheck(F)`, after F's interface and its dependencies' interfaces | the solver over frozen impl tables | written types against their declared bounds, for every type written in a header (a `Set[K]` needs `K: Hash` from the item's own bounds: [`trait.bound.no-implied`](../../spec/lang/09-traits.md#r-trait.bound.no-implied)); supertraits of each impl and supertrait bindings (`missing-supertrait-implementation`); a derived newtype's base impl; a delegation target's impl |
 | C | body tasks | bodies | derive-instance member obligations; local impls; everything in [crates/hd_check/DESIGN.md (type checking)](../hd_check/DESIGN.md) |
 
@@ -382,9 +382,9 @@ Every header rule runs in exactly one of three stages:
   tasks. A run with a stage-B
   error fails as any run with an error does, and codegen waits for every
   `HeaderCheck` task of the program graph.
-- **Dependencies are checked too.** Stages A and B run for every folder
+- **Dependencies are checked too.** Stages A and B run for every unit
   of the program graph, std and dependencies included, whether or not
-  the run checks that folder's bodies. So an imported impl that misses a
+  the run checks that unit's bodies. So an imported impl that misses a
   member or a supertrait is reported, in the dependency's file, even by
   `hd check`.
 - **Private items.** The interface holds no private item record, so
@@ -396,15 +396,15 @@ Every header rule runs in exactly one of three stages:
 - **Caching.** Stage A's diagnostics are their own section of the
   interface entry, outside every hash. Stage B's are the `HeaderCheck(F)`
   task's result; its key is F's interface hashes plus the deep hashes of
-  the folders in F's dependency closure
+  the units in F's dependency closure
   ([crates/hd_cache/DESIGN.md](../hd_cache/DESIGN.md)).
 - **Use diagnostics.** `unknown-import`, `private-import`,
   `unknown-module`, `ambiguous-import`, `test-only-use` and
   `cyclic-test-dependency` at a `use` are no stage-A rule: they read every
-  folder F's uses reach, and F's interface key holds only the folders its
+  unit F's uses reach, and F's interface key holds only the units its
   headers read. `HeaderCheck(F)` reports them (`use_diags`, `src/lower.rs`):
-  it builds F's module scopes as `build_folder` does and keeps those
-  codes, which `build_folder` leaves out. Its key adds F's own API text
+  it builds F's module scopes as `build_unit` does and keeps those
+  codes, which `build_unit` leaves out. Its key adds F's own API text
   and use roots, so a body-only use edit still reports. A module's
   `ModulePrep` builds its scope too and notes whether a use reported an
   error, so its `Body` and `ModuleFinish` know the file has one without
@@ -423,7 +423,7 @@ Every header rule runs in exactly one of three stages:
 #### 4.11.1 Layout
 
 ```text
-header      magic "HDIF", format version, toolchain key, folder stable path,
+header      magic "HDIF", format version, toolchain key, unit stable path,
             flags, section count
 sections    (kind, offset, length, Hash128) per section
 strings     length-prefixed UTF-8, sorted, deduplicated
@@ -437,13 +437,13 @@ templates   template headers; bodies as token text plus a resolution table
             (path node -> stable path in the trait's module)
 hidden      hidden items and their private type closure, in the item record shape
 item_hash   (item index, shallow Hash128, deep Hash128)
-mentions    (folder stable path, deep hash) of every other folder named
+mentions    (unit stable path, deep hash) of every other unit named
 anchors     declaration-relative anchors for items and diagnostics
 diags       stage-A header diagnostics, spans relative to their declaration (outside every api hash)
 ```
 
 - Every section's row layout is in
-  [docs/compiler/data-structures.md §3.16](../../docs/compiler/data-structures.md#316-the-folder-interface-in-memory-and-as-a-blob).
+  [docs/compiler/data-structures.md §3.16](../../docs/compiler/data-structures.md#316-the-unit-interface-in-memory-and-as-a-blob).
 - Records are fixed-width, little-endian and 8-byte aligned, with `u32`
   offsets into the blob. A reader casts `&[u8]` to record slices after
   checking bounds and alignment once per section.
@@ -451,7 +451,7 @@ diags       stage-A header diagnostics, spans relative to their declaration (out
   `heads_hash`. They affect diagnostics only.
 - **Lazy decode.** `decode_lazy` reads a blob's tables, item index and
   exports, and leaves each item record to decode on first use (`Items`). A run that names 5 items of a 200-item
-  std folder decodes 5 items.
+  std unit decodes 5 items.
 - **Canonical bytes.** Records are ordered by stable content: module path,
   source order, sorted names. Never by run IDs or hash-map order. Two runs
   on the same inputs write the same bytes.
@@ -471,8 +471,8 @@ reason as §4.10: no lazy decode. Canonical bytes hold.
 #### 4.11.2 Per-Item Hashes
 
 Planned, not built: each item has a shallow hash (its record and the
-type records it reaches) and a deep hash folded per SCC of the folder's
-item-mention graph, stored with the interface. Keys stay per folder; the
+type records it reaches) and a deep hash folded per SCC of the unit's
+item-mention graph, stored with the interface. Keys stay per unit; the
 stored hashes would let a later switch to keys per used item (Pyrefly,
 gopls typerefs) change keys, not the format.
 
@@ -482,15 +482,15 @@ gopls typerefs) change keys, not the format.
 deep_hash(F) = H("deep", api_hash(F), sorted [(path(G), deep_hash(G)) for G in mentions(F)])
 ```
 
-- `mentions(F)` is every other folder, in any package or in std, whose
+- `mentions(F)` is every other unit, in any package or in std, whose
   items `F`'s interface names: in signatures, field types, bounds, impl
   heads and re-export targets (`mentioned_defs`, `src/iface.rs`).
-- The folder and package graphs are acyclic, so this is a Merkle hash
+- The unit and package graphs are acyclic, so this is a Merkle hash
   computed bottom-up in the order the tasks already run. A merged cycle
-  is one folder.
+  is one unit.
 - **What it fixes.** A module that calls `service.load_user()` and reads
   `.name` never names `user/types`. Its key holds the deep hash of
-  `service`'s folder, which mentions `user/types`. An edit to `User`
+  `service`'s unit, which mentions `user/types`. An edit to `User`
   changes the key.
 
 ### 4.12 Traits, Impls And Coherence
@@ -500,11 +500,11 @@ deep_hash(F) = H("deep", api_hash(F), sorted [(path(G), deep_hash(G)) for G in m
 hd's ownership rules say exactly where an impl may live: the module that
 declares the trait, the target's outer constructor, or a trait argument's
 outer constructor ([Implementation Modules](../../spec/lang/09-traits.md#implementation-modules)).
-So no global impl index is needed. Each folder gets an `ImplTable`
+So no global impl index is needed. Each unit gets an `ImplTable`
 (`crates/hd_types/src/solver.rs`), built once per run from its interface:
 
 ```rust
-pub struct ImplTable {                    // per folder, SoA
+pub struct ImplTable {                    // per unit, SoA
     pub trait_: Vec<DefId>,
     pub def: Vec<DefId>,
     pub head_key: Vec<HeadKey>,
@@ -528,20 +528,20 @@ rows. The column layout is in
 [docs/compiler/data-structures.md §3.17](../../docs/compiler/data-structures.md#317-impl-tables).
 
 To solve `Target: Trait[Args]` with known arguments, look in the tables
-of at most `2 + len(Args)` folders: the trait's, the target
+of at most `2 + len(Args)` units: the trait's, the target
 constructor's, and each argument constructor's. Blanket impls
 (`impl[T] Tr for T`) can only be in the trait's module. Block-local
 impls are rows of their module's own table, hidden from contexts that do
-not see them. `FolderImpls` (`crates/hd_types/src/lookup.rs`) sorts each
-folder's other rows into two lists that cover what owner lookup misses:
+not see them. `UnitImpls` (`crates/hd_types/src/lookup.rs`) sorts each
+unit's other rows into two lists that cover what owner lookup misses:
 
 - **Unowned rows.** std's impls for built-in targets kept in another std
-  folder, and impls the ownership check rejected, which stay visible so
+  unit, and impls the ownership check rejected, which stay visible so
   their uses add no second error.
 - **Open trait arguments.** An impl owned only through a trait argument
-  is in its folder's `arg_impls` list.
+  is in its unit's `arg_impls` list.
 
-An **impl universe** merges both lists over the folders of a dependency
+An **impl universe** merges both lists over the units of a dependency
 closure that hold any (`UniverseImpls`): the synthetic unowned table and
 the per-trait **candidate directory**. A goal with an open argument reads
 the directory of its own closure. The deep hashes of that closure already
@@ -549,11 +549,11 @@ cover those heads (§4.10, "Two hashes, two readers"), so the `check` key
 needs no extra hash. The solver memo keys the view by its
 `ImplUniverseId`.
 
-Every folder consulted declares something the goal mentions, or is in
+Every unit consulted declares something the goal mentions, or is in
 the asking module's dependency closure. Trait lookup therefore reads
 nothing that the module's cache key does not cover. And the table a goal
-needs is ready as soon as its one folder's interface is, so bodies can
-run while unrelated folders are still being resolved.
+needs is ready as soon as its one unit's interface is, so bodies can
+run while unrelated units are still being resolved.
 
 #### 4.12.2 Solving
 
@@ -572,7 +572,7 @@ reported as `trait-resolution-depth`.
   ([Overlap](../../spec/lang/09-traits.md#overlap)).
 - One `Coherence(trait)` task runs per trait with more than one impl in
   the program's graph (root package, dependencies, std). Its input is that
-  trait's heads from the `heads` sections of every folder interface,
+  trait's heads from the `heads` sections of every unit interface,
   derived, generated and delegated heads and tuple templates included.
   The task's key is the trait's stable path plus the sorted head hashes,
   so it reruns only when a head of that trait changes. A head hash covers

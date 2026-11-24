@@ -11,8 +11,8 @@ or the spec, the code and the spec win.
 
 `hd_driver` runs one task graph per package. Each source file is skimmed
 for its imports and header, and parsed on demand into a green tree
-(`hd_syntax`). `hd_project` maps files to modules, folders and packages.
-`hd_resolve` builds each folder's interface: names, signatures, impl
+(`hd_syntax`). `hd_project` maps files to modules, units and packages.
+`hd_resolve` builds each unit's interface: names, signatures, impl
 tables and content hashes. `hd_check` checks each module's bodies against
 those interfaces and emits one typed IR (TIR, `hd_tir`) per body; the
 driver's `Coherence` and `InitOrder` tasks add the overlap and
@@ -43,9 +43,9 @@ Front half:
 
 - `hd_syntax`: lexer, layout, skim, parser and green tree.
   [DESIGN.md](../../crates/hd_syntax/DESIGN.md)
-- `hd_project`: manifests, source discovery, modules, folders and the
+- `hd_project`: manifests, source discovery, modules, units and the
   package graph.
-- `hd_resolve`: name resolution, folder interfaces, interface blobs and
+- `hd_resolve`: name resolution, unit interfaces, interface blobs and
   their hashes, visibility. [DESIGN.md](../../crates/hd_resolve/DESIGN.md)
 - `hd_structure`: the compiler-supplied `Structure` generator that writes
   TIR bodies for derivations and tuples.

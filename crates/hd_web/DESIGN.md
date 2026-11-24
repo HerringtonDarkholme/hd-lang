@@ -50,7 +50,7 @@ std is embedded: `hd_driver/build.rs` `include_str!`s every `lib/std`
 file into `STD_FILES`, and `std_sources()` adds the virtual `rt/entry/mod.hd`. The
 browser build uses the same sources. The worker keeps one
 `MemoryStore` alive, so only its first compile parses std and builds the
-interfaces of the std folders a program reaches. A separately fetched
+interfaces of the std units a program reaches. A separately fetched
 std asset would gain nothing, since every compile needs std.
 
 Planned, not built: a prebuilt std pack of interface blobs, which would

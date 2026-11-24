@@ -18,7 +18,7 @@
 //! (`types.generic.instantiation-depth.error`). A parameter inside a
 //! projection (`T.Item`) adds no edge either, since the projection's
 //! size depends on the implementation. Each module contributes a compact
-//! summary; the driver checks the joined graph of its folder's modules.
+//! summary; the driver checks the joined graph of its unit's modules.
 
 use hd_base::SliceSort as _;
 use hd_base::{DefId, Hash128, HashMap, HashSet, NodeIdx, Span};

@@ -557,7 +557,7 @@ default-body instance. See
 [§13.13](../../crates/hd_mono/DESIGN.md#1313-omitted-arguments-default-bodies-and-derived-facts)
 and `default_call` in [emit.rs](../../crates/hd_wasm/src/emit.rs).
 
-### Module Initialization Across Folders
+### Module Initialization Across Units
 
 `hd.init` initializes reachable module storage in dependency order; each
 binding has globals for its scalar leaves. See

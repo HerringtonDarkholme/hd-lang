@@ -10,7 +10,7 @@ these sections of [COMPILER_DESIGN.md](../../docs/compiler/design-overview.md):
 - [§3 Core Data Structures](../../docs/compiler/data-structures.md#3-core-data-structures):
   IDs, interners, types, arenas, the poison type, diagnostics;
 - [§4.9 Name Resolution](../hd_resolve/DESIGN.md#49-name-resolution) and
-  [§4.10 Folder Interface Construction](../hd_resolve/DESIGN.md#410-folder-interface-construction):
+  [§4.10 Unit Interface Construction](../hd_resolve/DESIGN.md#410-unit-interface-construction):
   what the checker receives;
 - [§4.12 Traits, Impls And Coherence](../hd_resolve/DESIGN.md#412-traits-impls-and-coherence):
   what the checker asks the trait solver;
@@ -51,7 +51,7 @@ Section 1.6 states the interface between the two.
 
 | Component | Owns | Does not own |
 | --- | --- | --- |
-| Resolution (`hd_resolve`, before) | uses, module scope, paths in headers, folder interfaces, impl tables, derived heads, the header checks that need no goal, the overlap check | anything in a body except path lookup through the frozen scope |
+| Resolution (`hd_resolve`, before) | uses, module scope, paths in headers, unit interfaces, impl tables, derived heads, the header checks that need no goal, the overlap check | anything in a body except path lookup through the frozen scope |
 | **Type checker (`hd_check`, this document)** | name lookup of locals, every expression, statement and pattern in a body; inference variables; coercions; rows used by bodies; suspension checks; exhaustiveness and match decisions; mutability; definite initialization; omitted results and rows; parameter-environment elaboration (`body::add_bound`); normalization of projections; body diagnostics; the header checks that need goals (`hd_check::header`) | trait impl search, impl matching, TIR encoding, instantiation |
 | Trait solver (`hd_types::solver`, beside) | `Implements`, `Instantiations` and the trait part of `Methods`; its memo | inference variables (it reads them, never writes them), diagnostic text |
 | TIR builder (`hd_tir::ir::TirBuilder`, called by the checker) | the instruction encoding, checkpoints, the TIR verifier | types, names, any decision the checker makes |
@@ -288,7 +288,7 @@ pub struct SolveCx<'a> {
     pub pool: Types<'a>,
     pub env: &'a ParamEnv,                 // the item's elaborated environment
     pub universe: ImplUniverseId,          // trait solver §3.2
-    pub impls: Impls<'a>,                  // own table, owner folders, universe rows, hidden local impls
+    pub impls: Impls<'a>,                  // own table, owner units, universe rows, hidden local impls
     pub decls: &'a dyn Declarations,       // what the compiler-supplied rows read
     pub body_memo: &'a mut BodyMemo,
     pub global: &'a GlobalMemo,
@@ -1318,7 +1318,7 @@ items. A dependent needs each helper's signature from the interface, so a
 private function that a template body names follows the public signature
 rules ([`module.package.annotated`](../../spec/lang/10-modules.md#r-module.package.annotated)):
 it writes its result type, else `missing-result-type`
-(`results.rs`). With that rule, an omitted result never reaches a folder
+(`results.rs`). With that rule, an omitted result never reaches a unit
 interface.
 
 ### 9.2 The M1 Walk
@@ -1480,7 +1480,7 @@ Planned, not built:
 
 **Suggestions search only keyed inputs.** A did-you-mean or `use`
 fix-it may search only what the module's `check` key covers: its own
-syntax, the folders in its dependency closure, std and the prelude
+syntax, the units in its dependency closure, std and the prelude
 ([crates/hd_cache/DESIGN.md §5.3](../hd_cache/DESIGN.md#53-key-composition)).
 A cached diagnostic never names an item whose change would not
 invalidate it.
@@ -1771,8 +1771,8 @@ the interface that [crates/hd_check/DESIGN.md (type checking) §1.6](#16-the-tra
 fixes, and it refines these sections:
 
 - [§4.12 Traits, Impls And Coherence](../hd_resolve/DESIGN.md#412-traits-impls-and-coherence):
-  owner-folder impl tables, solving and coherence;
-- [§4.10 Folder Interface Construction](../hd_resolve/DESIGN.md#410-folder-interface-construction):
+  owner-unit impl tables, solving and coherence;
+- [§4.10 Unit Interface Construction](../hd_resolve/DESIGN.md#410-unit-interface-construction):
   what the interface records about traits and impls;
 - [§4.13.11 The Typed IR](../hd_tir/DESIGN.md#41311-the-typed-ir-tir):
   how a choice is recorded;
@@ -1834,7 +1834,7 @@ owning a second solver.
 | --- | --- | --- |
 | Resolution (`hd_resolve`) | impl heads, bound plans and derived heads in the interface; every header check that needs no solver: orphan, module ownership, targets, unconstrained parameters, sealed traits, per-member `dyn` availability, template placement, associated-type bindings; the overlap check (`Universe::trait_overlaps`) | goals |
 | **Trait solver (`hd_types::solver`, this document)** | `Implements`, `Instantiations` and the trait part of `Methods`; canonical goals and the memo; selection for codegen (`select`, `normalize_concrete`); `FailInfo` | inference variables (it reads them, never writes them), diagnostic text, spans |
-| Candidate lookup (`hd_types::lookup`) | owner folders, unowned rows, the candidate directory, impl universes | answers |
+| Candidate lookup (`hd_types::lookup`) | owner units, unowned rows, the candidate directory, impl universes | answers |
 | Header checks (`hd_check::header`, the `HeaderCheck(F)` task) | each impl's supertrait checks, newtype bases, delegation targets: goals under the item's environment ([crates/hd_resolve/DESIGN.md §4.10.1](../hd_resolve/DESIGN.md#4101-header-validation-stages)) | the answers |
 | Type checker (`hd_check`) | when to ask, environment elaboration, normalization of projections, applying learned bindings, pending goals, the instantiation choice by trial, every diagnostic | impl search |
 | Coherence (the `Coherence` task) | overlap across the program graph | goals |
@@ -2014,7 +2014,7 @@ order:
 | 1 | the parameter environment | `S` is a parameter with a clause on `Tr` |
 | 2 | a trait value as self (section 9.3) | `S` is a trait value of `Tr` or of a subtrait |
 | 3 | compiler-supplied rows (section 3.9) | `Tr` is a sealed, compiler-supplied trait |
-| 4 | impl tables: the asking module's own table, the owner folders, the universe's unowned rows and, for an open argument, the candidate directory (section 3.2) | written, derived, delegated and generated impls, numeric families, tuple templates; block-local impls not visible here are dropped (`ImplView::hidden`) |
+| 4 | impl tables: the asking module's own table, the owner units, the universe's unowned rows and, for an open argument, the candidate directory (section 3.2) | written, derived, delegated and generated impls, numeric families, tuple templates; block-local impls not visible here are dropped (`ImplView::hidden`) |
 
 **Rule TS-2. Commit on the head; never backtrack among impls (after
 GHC).** Overlap is decided from heads, and no two heads of one trait
@@ -2030,60 +2030,60 @@ environment and through std's `impl[N < Num] Add for N`. The environment
 wins, so the evidence is `Bound`. Codegen re-selects at the concrete type
 (rule TS-6).
 
-### 3.2 Owner Folders
+### 3.2 Owner Units
 
-An impl `impl Tr[Args] for Target` lives in a folder that declares `Tr`,
+An impl `impl Tr[Args] for Target` lives in a unit that declares `Tr`,
 the outer constructor of `Target`, or the outer constructor of one of
 `Args` ([Implementation Modules](../../spec/lang/09-traits.md#implementation-modules)).
-Each folder's interface holds one impl table, and lookup reads the tables
-of the owner folders
+Each unit's interface holds one impl table, and lookup reads the tables
+of the owner units
 ([§4.12.1](../hd_resolve/DESIGN.md#4121-owner-module-impl-tables)).
 `Impls::candidates` finds the owners through an `OwnerMap` (module path
-to folder) and reads the asking module's own table first.
+to unit) and reads the asking module's own table first.
 
-**Rows no owner reaches.** `FolderImpls::new` splits each folder's rows
+**Rows no owner reaches.** `UnitImpls::new` splits each unit's rows
 once per run:
 
-- **unowned rows**: the folder owns neither the trait, the target nor any
+- **unowned rows**: the unit owns neither the trait, the target nor any
   argument. These are std's impls for built-in targets kept in another
-  std folder (the synthetic `STD_BUILTIN_TABLE`) and impls the ownership
+  std unit (the synthetic `STD_BUILTIN_TABLE`) and impls the ownership
   check rejected (`nonlocal-impl`, `orphan-impl`), which stay visible so
   their uses add no second error;
-- **`arg_impls`**: the folder owns the impl only through a trait
+- **`arg_impls`**: the unit owns the impl only through a trait
   argument.
 
 **The gap: impls owned through a trait argument.** When an argument is
-still an inference variable, its owner folder is unknown. `Money:
-Add[?0]` may be answered by `impl Add[Cents] for Money` in the folder that
+still an inference variable, its owner unit is unknown. `Money:
+Add[?0]` may be answered by `impl Add[Cents] for Money` in the unit that
 declares `Cents`
 ([`trait.own.argument`](../../spec/lang/09-traits.md#r-trait.own.argument)).
 `Instantiations` and the trait part of `Methods` are the same case with
 every argument open. The fix is a **candidate directory**: per impl
-universe, the `arg_impls` rows of its folders, merged and grouped by
+universe, the `arg_impls` rows of its units, merged and grouped by
 trait and head key (`UniverseImpls`). A goal with an open argument (a
 variable, a placeholder or poison) reads the trait's directory rows for
 its target head key.
 
 Computing `arg_impls` from the frozen table once per run, rather than
 storing a section in the interface, is equal to the design: nothing
-persists the directory, and the folder's `api_hash` already covers the
+persists the directory, and the unit's `api_hash` already covers the
 impl's head, so the `check` key changes when an argument-owned impl is
-added in a folder of the closure
-([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)).
+added in a unit of the closure
+([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-unit-interface-construction)).
 
 **The impl universe.** The directory makes an answer depend on which
-folders the asking context sees. Two folders may both ask
+units the asking context sees. Two units may both ask
 `Instantiations { Receiver, Pick }` while only one's closure holds
 `impl Pick[Product] for Receiver`. So:
 
 - Every solving context carries an **`ImplUniverseId`** in `SolveCx`: the
-  interned, sorted list of the folders in its closure that have
+  interned, sorted list of the units in its closure that have
   `arg_impls` or unowned rows (`ImplUniverses::intern`). Contexts with
   equal lists share one id.
-- The contexts are a module's bodies, a folder's header checks (the
-  folder's closure universe, with no own table), and a program build.
+- The contexts are a module's bodies, a unit's header checks (the
+  unit's closure universe, with no own table), and a program build.
   A module's bodies in the test role use `test_closure(m)`, which adds
-  the folders its `tests:` block uses (crates/hd_sched/DESIGN.md §6.1).
+  the units its `tests:` block uses (crates/hd_sched/DESIGN.md §6.1).
 - **The id is part of the key of every goal that may read the
   directory** (`MemoKey::universe_for`): `Instantiations` and `Methods`
   always, and an `Implements` goal with an open argument.
@@ -2099,7 +2099,7 @@ depend on which downstream packages a program adds.
 ### 3.3 The Head Index
 
 ```rust
-pub struct ImplTable {                    // per folder (and per module for its own rows); columns
+pub struct ImplTable {                    // per unit (and per module for its own rows); columns
     pub trait_: Vec<DefId>, pub def: Vec<DefId>, pub head_key: Vec<HeadKey>,
     pub n_params: Vec<u8>,
     pub head_self: Vec<Ty>, pub head_args: Vec<TyList>,
@@ -2126,8 +2126,8 @@ impl seen in two tables is one head (`one_row_per_impl`).
 
 **Fast path (after MoonBit).** A non-generic trait (`Display`, `Eq`,
 `Hash`, `Debug`) with a known self constructor usually has one row per
-head key in all owner folders together, so the probe is one binary search
-per owner folder and a match of the few rows in the bucket. The memo
+head key in all owner units together, so the probe is one binary search
+per owner unit and a match of the few rows in the bucket. The memo
 makes the second probe free.
 
 ### 3.4 Matching A Head
@@ -2220,12 +2220,12 @@ pub enum PlanStep {
 The second row is sound because the header check proves every supertrait
 under the impl's own bounds
 ([`trait.super.impl-bounds`](../../spec/lang/09-traits.md#r-trait.super.impl-bounds)).
-That check runs in the folder's `HeaderCheck(F)` stage, from headers and
+That check runs in the unit's `HeaderCheck(F)` stage, from headers and
 impl tables only, so a dependency's impls are checked even when its
 bodies are not. `hd_check::header` asks each supertrait `Implements` goal
-through `TableSolver` under the item's environment, with the folder's
+through `TableSolver` under the item's environment, with the unit's
 closure universe and no own table. The findings are cached in one `graph`
-entry per folder keyed by `hdr_key`. Supertrait bindings are not asked
+entry per unit keyed by `hdr_key`. Supertrait bindings are not asked
 as `Project` goals, and an `Overflow` in a header goal reports nothing
 yet; see #192.
 
@@ -2315,7 +2315,7 @@ their own, and their impls are ordinary rows.
 
 The solver never reads a template body. It sees only heads.
 
-| Source | Head in the target folder's table | Bounds | Body checked by |
+| Source | Head in the target unit's table | Bounds | Body checked by |
 | --- | --- | --- | --- |
 | `@derive(X)` on `struct Box[T]` | `impl[T < X] X for Box[T]`, origin `Derived { template }` | `T < X` per walked parameter ([Derived Bounds](../../spec/lang/14-annotations.md#derived-bounds)) | the derive instance, checked with the module's bodies ([§4.13.9](../hd_tir/DESIGN.md#4139-derive-instances-templates-facts-and-test-overlays)) |
 | a derivation block with a header | the header as written | the header's bounds | same |
@@ -2335,7 +2335,7 @@ The solver never reads a template body. It sees only heads.
   ([`annot.bound.recursive`](../../spec/lang/14-annotations.md#r-annot.bound.recursive)):
   while checking `Tree[T]`'s members, `Tree[T]: Eq` is assumed. No
   mechanism is needed for that. The derived head
-  `impl[T < Eq] Eq for Tree[T]` is already in the target folder's table,
+  `impl[T < Eq] Eq for Tree[T]` is already in the target unit's table,
   and the solver never re-checks an impl's members at a use. So the member
   `children: List[Tree[T]]` asks `List[Tree[T]]: Eq`, which commits to
   `List`'s impl, then to the derived head, then proves `T: Eq` from the
@@ -2355,11 +2355,11 @@ rule and an evidence form.
 
 | Family | Descriptor (stable) | Head lives in | Invalidated by | Overlap | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| `@derive(X)`, derivation block | target path, trait path, `Derived` | the target folder's interface | the target folder's interface; the template body via the trait folder's deep hash | ordinary heads; beside a written impl, `overlapping-impl` | `Impl` |
-| tuple template of any trait | trait path, `TupleTemplate` | the trait folder's interface, head key `TupleAny` | the trait folder's interface; for the member steps, the template module's template text hash | a written tuple impl of the trait is `overlapping-impl` ([`annot.template.tuple.overlap`](../../spec/lang/14-annotations.md#r-annot.template.tuple.overlap)) | `Impl` of the template at the tuple type |
+| `@derive(X)`, derivation block | target path, trait path, `Derived` | the target unit's interface | the target unit's interface; the template body via the trait unit's deep hash | ordinary heads; beside a written impl, `overlapping-impl` | `Impl` |
+| tuple template of any trait | trait path, `TupleTemplate` | the trait unit's interface, head key `TupleAny` | the trait unit's interface; for the member steps, the template module's template text hash | a written tuple impl of the trait is `overlapping-impl` ([`annot.template.tuple.overlap`](../../spec/lang/14-annotations.md#r-annot.template.tuple.overlap)) | `Impl` of the template at the tuple type |
 | numeric family | impl path, `NumericFamily` | std's interface, head key `Param` | std's interface | expanded per member type | `Impl` |
-| `@error`, `@from`, `@source` | target path, trait path, member index | the target folder's interface | the target folder's interface | ordinary heads | `Impl` |
-| delegation `by E` | impl path, `Delegated` | written head | the folder's interface | ordinary head | `Impl` |
+| `@error`, `@from`, `@source` | target path, trait path, member index | the target unit's interface | the target unit's interface | ordinary heads | `Impl` |
+| delegation `by E` | impl path, `Delegated` | written head | the unit's interface | ordinary head | `Impl` |
 | `Any`, `AnyVal`, `AnyRef`, `Tuple`, `Inspectable` | the trait | the compiler (section 3.9) | the toolchain key | sealed: no user impl can exist | `Builtin` |
 | `Structure` | the template instance or the tuple type | the instance's environment; the compiler for tuples | the instance; the toolchain key | never an impl | `Bound`; `Builtin` at a tuple |
 | function types `Fn`, `SuspendFn` | not synthetic | ordinary heads | ordinary | ordinary | `Impl` |
@@ -2370,7 +2370,7 @@ tuple-template module in `closure(F)` joins the key of each module's
 `check` entry and of `HeaderCheck(F)` (`template_hashes`). That hash
 covers the module's API text, the template's method bodies, and the
 bodies whose signatures callers infer. An edit to a template body redoes the
-header check of each folder that reaches it, and the cached result of an
+header check of each unit that reaches it, and the cached result of an
 unrelated edit, in another module or in another body, stays.
 
 ## 4. Associated Types And Normalization
@@ -2506,16 +2506,16 @@ binding-constrained parameters the same way.
 
 | Check | Needs | Runs at | Error |
 | --- | --- | --- | --- |
-| orphan rule (package level) | the impl head and package ownership | folder interface | `orphan-impl` |
-| module ownership | the head and the declaring modules | folder interface | `nonlocal-impl` |
-| targets: bare parameter, trait value, invalid inherent target | the head | folder interface | `bare-parameter-impl-target`, `trait-value-impl-target`, `invalid-impl-target` |
-| unconstrained parameters and the bound plan | the head and bounds | folder interface | `unconstrained-impl-parameter` |
-| sealed traits | the trait | folder interface | `sealed-trait-implementation` |
-| a second template; `@derive` beside a written impl or a block for the same trait | the module's heads | folder interface | `overlapping-impl` |
-| law partners all derived or all written | the module's heads | folder interface | `mixed-derived-law` |
+| orphan rule (package level) | the impl head and package ownership | unit interface | `orphan-impl` |
+| module ownership | the head and the declaring modules | unit interface | `nonlocal-impl` |
+| targets: bare parameter, trait value, invalid inherent target | the head | unit interface | `bare-parameter-impl-target`, `trait-value-impl-target`, `invalid-impl-target` |
+| unconstrained parameters and the bound plan | the head and bounds | unit interface | `unconstrained-impl-parameter` |
+| sealed traits | the trait | unit interface | `sealed-trait-implementation` |
+| a second template; `@derive` beside a written impl or a block for the same trait | the module's heads | unit interface | `overlapping-impl` |
+| law partners all derived or all written | the module's heads | unit interface | `mixed-derived-law` |
 | supertraits of an impl | the solver, under the impl's environment | `HeaderCheck(F)` | `missing-supertrait-implementation` |
 | overlap between impls | heads of one trait across the program graph | `Coherence` task | `overlapping-impl` |
-| duplicate inherent members | inherent heads of one type, in its module | folder interface | `duplicate-inherent-member` |
+| duplicate inherent members | inherent heads of one type, in its module | unit interface | `duplicate-inherent-member` |
 | a written impl missing trait methods or binding an undeclared associated type | the impl and its trait | `Body(m)` | `missing-trait-method`, `extra-trait-member` |
 
 Only the header checks need goals. Everything else is a function of
@@ -2528,7 +2528,7 @@ impl in the program's graph
 ([§4.12.3](../hd_resolve/DESIGN.md#4123-coherence)), with a near-linear
 algorithm:
 
-1. **Collect** the trait's heads from every folder in the graph, in
+1. **Collect** the trait's heads from every unit in the graph, in
    content order, derived, generated and delegated heads and tuple
    templates included (section 3.11).
 2. **Expand** numeric-family heads to one head per member type.
@@ -2564,17 +2564,17 @@ heads still compare against compatible candidates.
 ### 5.3 Why No Global Index
 
 - **Selection needs no global view.** Ownership confines the impls a goal
-  can use to at most `2 + len(Args)` folders, plus the universe's unowned
+  can use to at most `2 + len(Args)` units, plus the universe's unowned
   rows and, for open arguments, the candidate directory (section 3.2).
 - **Coherence needs a per-trait view, not a global one.** Each trait is
   one task keyed by its sorted head hashes, so an edit reruns only the
   traits whose heads changed. A head hash is `H(head, rank)`: the rank
   decides which impl of a pair is reported, so swapping two overlapping
   impls reruns the task. As built, the key is coarser (section 5.2).
-- **A global index would be a shared mutable structure** built as folders
+- **A global index would be a shared mutable structure** built as units
   finish, and its state at a given moment would depend on the schedule.
-  The owner tables are frozen with their folder, so a body can solve
-  while unrelated folders are still being resolved.
+  The owner tables are frozen with their unit, so a body can solve
+  while unrelated units are still being resolved.
 
 ### 5.4 What The Solver Assumes
 
@@ -2717,7 +2717,7 @@ receiver does not implement adds nothing. The trait list comes from the
 module's method index (`hd_check::MethodIndex`), which maps a name to the
 available traits that declare it, so one goal is asked per trait with
 that name, not per available trait. A module's own items reach the index
-twice, as its own and again through its folder's interface; each
+twice, as its own and again through its unit's interface; each
 declaration enters it once, so one trait is never two candidates (#346).
 Inherent methods and the unavailable
 traits for the `use` hint are the checker's.
@@ -3136,7 +3136,7 @@ A stalled goal still open at the end of the body becomes
 **Rule TS-8. Every order the solver shows comes from content.**
 
 - Candidates come in table order (the asking module's own table, then
-  folders by id, which follows the folder table's order) and, within a
+  units by id, which follows the unit table's order) and, within a
   table, in row order, which is content rank: the module's rank in
   stable-path order, then the item index in source order. An item index
   does not move when a body above the impl is edited.
@@ -3157,8 +3157,8 @@ and environments are frozen and read through `&`.
 
 | Structure | Where | Lifetime |
 | --- | --- | --- |
-| `ImplTable` | one per folder interface, and one for a module's own rows | the folder interface; the body task |
-| `FolderImpls` (`arg_impls`, `unowned`) | per folder, built on first use | the run |
+| `ImplTable` | one per unit interface, and one for a module's own rows | the unit interface; the body task |
+| `UnitImpls` (`arg_impls`, `unowned`) | per unit, built on first use | the run |
 | `UniverseImpls` (unowned rows, directory) | per impl universe | the run |
 | `ParamEnv` | per item, interned by `EnvKey` | the body; keys for the run |
 | `MemoEntry` (12 B) and `MemoRecord` | global or body memo | global: the run; body: the body |

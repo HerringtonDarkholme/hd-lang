@@ -1,6 +1,6 @@
 //! Declaration-relative source positions for interface items
 //! (`docs/compiler/data-structures.md` §3.7 "Token anchors", `crates/hd_resolve/DESIGN.md`
-//! §4.10 `anchors`). A folder interface keeps no byte offsets: an anchor
+//! §4.10 `anchors`). A unit interface keeps no byte offsets: an anchor
 //! names the top-level declaration by its place among the file's
 //! declarations, an optional member of its block, and a token range inside
 //! that node. Whitespace and comments are not tokens, and a function body
@@ -322,8 +322,8 @@ pub(crate) fn collect(
                     }
                     // Every member `fn` has a name here: the parser reports
                     // `expected a function name` for one without, and the
-                    // driver builds no folder interface, so lowers nothing,
-                    // for a folder with a module that fails to parse.
+                    // driver builds no unit interface, so lowers nothing,
+                    // for a unit with a module that fails to parse.
                     let name = f.name(&src.parse.tokens).map_or("", |t| src.text(t));
                     let def = names.member(h.def, PathKind::Member, name);
                     let member = u32::try_from(i + 1).unwrap_or(u32::MAX);

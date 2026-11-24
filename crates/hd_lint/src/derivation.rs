@@ -115,7 +115,7 @@ struct Block {
     span: Span,
 }
 
-/// An ordinary `@derive` opt-in of the module's folder.
+/// An ordinary `@derive` opt-in of the module's unit.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Derived {
     target: DefId,

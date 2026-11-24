@@ -1,6 +1,6 @@
-//! A folder's `iface` entry is written before the read list that keys it,
+//! A unit's `iface` entry is written before the read list that keys it,
 //! so a concurrent build that waits for the list (`hd_cache::SingleFlight`)
-//! and then reads it finds the entry too, instead of building the folder
+//! and then reads it finds the entry too, instead of building the unit
 //! again (#1423).
 
 use std::sync::{Arc, Mutex};
@@ -35,7 +35,7 @@ impl CacheStore for Recording {
 }
 
 #[test]
-fn a_folder_writes_its_interface_before_the_read_list_that_keys_it() {
+fn a_unit_writes_its_interface_before_the_read_list_that_keys_it() {
     let mut src = MemorySources::default();
     src.insert("main.hd", include_str!("programs/iface_put_order/main.hd"));
     let store = Recording::default();

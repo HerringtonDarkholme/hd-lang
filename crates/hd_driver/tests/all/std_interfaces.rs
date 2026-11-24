@@ -1,5 +1,5 @@
 //! Slice 2's exit test (`f1c55020:future-work/compiler/build-order.md` §9) with std as a program's
-//! dependency: std's folder interfaces build with no diagnostic, blobs
+//! dependency: std's unit interfaces build with no diagnostic, blobs
 //! decode to equal interfaces, blob bytes are equal across shuffled serial
 //! orders, and a deep-hash edit reaches a dependent's key.
 
@@ -63,7 +63,7 @@ fn std_interfaces_build_with_no_diagnostic() {
     let out = run(&hello());
     assert!(out.diags.is_empty(), "{}", out.render());
     assert!(out.wasm.is_some(), "hello world links");
-    for st in [Stage::FolderIface, Stage::HeaderCheck, Stage::Coherence] {
+    for st in [Stage::UnitIface, Stage::HeaderCheck, Stage::Coherence] {
         let t = out.report.tally(st);
         assert_eq!(
             (t.not_implemented, t.blocked),
@@ -72,9 +72,9 @@ fn std_interfaces_build_with_no_diagnostic() {
             out.report.render()
         );
     }
-    let folders: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
+    let units: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
     assert_eq!(
-        folders,
+        units,
         [
             "app",
             "std",
@@ -89,7 +89,7 @@ fn std_interfaces_build_with_no_diagnostic() {
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::FolderIface).ok, 11);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 11);
 }
 
 #[test]
@@ -126,11 +126,11 @@ fn the_prelude_module_reexports_the_prelude_table() {
 #[test]
 fn std_interfaces_hold_no_poison_type() {
     let out = run(&hello());
-    for (folder, blob) in out.ifaces.iter().filter(|f| f.0.starts_with("std")) {
+    for (unit, blob) in out.ifaces.iter().filter(|f| f.0.starts_with("std")) {
         fresh(|n| {
             let (items, exports) = decode_items(n, blob).expect("decode");
             // The entry glue's items are all private.
-            assert!(!exports.is_empty() || folder == "std.rt.entry", "{folder}");
+            assert!(!exports.is_empty() || unit == "std.rt.entry", "{unit}");
             let mut bad = Vec::new();
             for it in &items {
                 let mut tys: Vec<hd_types::Ty> = it
@@ -170,7 +170,7 @@ fn std_interfaces_hold_no_poison_type() {
             }
             assert!(
                 bad.is_empty(),
-                "{folder}: {} items with poison: {:#?}",
+                "{unit}: {} items with poison: {:#?}",
                 bad.len(),
                 &bad[..bad.len().min(10)]
             );
@@ -182,23 +182,23 @@ fn std_interfaces_hold_no_poison_type() {
 fn blobs_decode_to_equal_interfaces() {
     let out = run(&hello());
     assert!(!out.ifaces.is_empty());
-    for (folder, blob) in &out.ifaces {
+    for (unit, blob) in &out.ifaces {
         let again = fresh(|n| {
             let (items, exports) = decode_items(n, blob).expect("decode");
             let (items2, exports2) = decode_items(n, blob).expect("decode twice");
-            assert_eq!((&items, &exports), (&items2, &exports2), "{folder}");
+            assert_eq!((&items, &exports), (&items2, &exports2), "{unit}");
             encode_items(n, &items, &exports).expect("encode")
         });
         assert_eq!(
             &again[..],
             &blob[..],
-            "{folder}: re-encoding changed the bytes"
+            "{unit}: re-encoding changed the bytes"
         );
         let third = fresh(|n| {
             let (items, exports) = decode_items(n, &again).expect("decode");
             encode_items(n, &items, &exports).expect("encode")
         });
-        assert_eq!(third, again, "{folder}");
+        assert_eq!(third, again, "{unit}");
     }
 }
 
@@ -243,7 +243,7 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
     assert_ne!(deep(&a, "app.user"), deep(&b, "app.user"));
     // `service` did not change, but its signature names `User`.
     assert_ne!(deep(&a, "app.service"), deep(&b, "app.service"));
-    // `main` names neither `User` nor its folder.
+    // `main` names neither `User` nor its unit.
     assert_ne!(
         a.counters.check_keys.get("app.main"),
         b.counters.check_keys.get("app.main")
@@ -303,7 +303,7 @@ fn std_typed_signatures_compile_through_headers() {
         include_str!("programs/std_interfaces/stats_main.hd"),
     );
     let out = run(&s);
-    let t = out.report.tally(Stage::FolderIface);
+    let t = out.report.tally(Stage::UnitIface);
     assert_eq!((t.ok, t.not_implemented, t.blocked), (12, 0, 0));
     assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 12);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);

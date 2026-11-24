@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use hd_base::{DefId, FolderId};
+use hd_base::{DefId, UnitId};
 use hd_intern::{PathTable, ShardedInterner};
 use hd_resolve::assoc::{
     Fault, LookupView, TraitView, assoc_decls, bound_clashes, reached_assocs, resolve_bindings,
@@ -10,7 +10,7 @@ use hd_resolve::assoc::{
 use hd_resolve::iface::IfaceIndex;
 use hd_resolve::{
     Items, KnownItems, Lookup, LookupDecls, Names, declares_assoc_function, decode_items,
-    encode_items, folder_iface,
+    encode_items, unit_iface,
 };
 use hd_types::sealed::Declarations;
 use hd_types::{InternPool, Ty};
@@ -30,7 +30,7 @@ fn with_lookups(mut test: impl FnMut(Names<'_>, &Lookup<'_>)) {
         super::const_generics::resolve_in(names, include_str!("inputs/trait_queries.hd"));
     let bytes = encode_items(&names, &items, &exports).expect("valid source interface");
     let (decoded, exports) = decode_items(&names, &bytes).expect("interface roundtrip");
-    let iface = folder_iface(
+    let iface = unit_iface(
         "app",
         Items::new(decoded),
         exports,
@@ -39,11 +39,11 @@ fn with_lookups(mut test: impl FnMut(Names<'_>, &Lookup<'_>)) {
         &[],
         Vec::new(),
     );
-    let folder = FolderId::from_raw(0);
+    let unit = UnitId::from_raw(0);
     let index = IfaceIndex::default();
-    index.insert(folder, &iface);
+    index.insert(unit, &iface);
     let local = Lookup::new(&items, [], &index);
-    let cached = Lookup::new(&[], [(folder, &iface)], &index);
+    let cached = Lookup::new(&[], [(unit, &iface)], &index);
     test(names, &local);
     test(names, &cached);
 }

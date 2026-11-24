@@ -15,7 +15,7 @@ interfaces and does not reach around them:
 | --- | --- | --- |
 | TIR per body (crates/hd_tir/DESIGN.md §4.13.11) | `hd_check` through `hd_tir` | the one typed IR: desugared, generic bodies with explicit coercions, dispatch, decision trees, cleanup scopes, suspension and hook points; read from the `check` entry |
 | the module's check result | `hd_check` | init summary, fact records, diagnostics; whether the module has errors |
-| folder interfaces (crates/hd_resolve/DESIGN.md §4.10) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes |
+| unit interfaces (crates/hd_resolve/DESIGN.md §4.10) | `hd_resolve` | signatures, impl tables, templates and hidden items, default and fact expressions, per-item hashes |
 | types and rows | `hd_types` | the intern pool, stable paths for every `DefId`, and `StableHash` |
 | init order | `InitOrder` | statement order per module cycle |
 | test plan | `hd_driver` | test programs and their statically registered cases |
@@ -57,7 +57,7 @@ compiles and runs outside the task graph.
 Implementation differs: there is no `Emit` task and no `code` entry.
 `Link` emits every instance of the program in one task, on one thread
 (`hd_wasm::build`), so every miss of the `link` entry emits the whole
-program again. The per-folder-group `Emit` and its code packs described
+program again. The per-unit-group `Emit` and its code packs described
 below in §11.2, §11.3 and §13.8 are planned, not built (#49, point 4).
 
 ### 11.2 Stages
@@ -69,8 +69,8 @@ below in §11.2, §11.3 and §13.8 are planned, not built (#49, point 4).
 | Compile (outside the task graph) | Wasm bytes, engine config | wasmtime's module | program and pipeline | no: one thread per module | Cranelift's code per function, in `clpack` entries (docs/compiler/engines-and-test-runner.md §18.2) | the module bytes and wasmtime's compatibility hash |
 | Instantiate and run | precompiled module, host | outcome, output | run or test case | test cases in parallel | no | none |
 
-Planned, not built (#49, point 4): an `Emit` stage per folder group (the
-folder of an instance's item) that writes each missed instance's Wasm
+Planned, not built (#49, point 4): an `Emit` stage per unit group (the
+unit of an instance's item) that writes each missed instance's Wasm
 body, relocations and line records into one `codepack` entry
 (crates/hd_cache/DESIGN.md §5.4), groups in parallel, and a `Link` that
 reads code entries.
@@ -93,12 +93,12 @@ pub enum ExtTask {   // hd_sched
 
 - `Collect` starts only after the `tir` entries of every module that the
   program's roots reach in the module use graph exist, and after the
-  `HeaderCheck` task of every folder they reach (crates/hd_sched/DESIGN.md §6.1). That set comes
+  `HeaderCheck` task of every unit they reach (crates/hd_sched/DESIGN.md §6.1). That set comes
   from the manifest's use lists, so it is known before any check runs.
 - `Collect` looks up the program's `link` entry by the program fast key
   below. On a miss it collects the instance set and creates one `Link`.
   Planned, not built (#49, point 4): code-entry lookups in `Collect` and
-  one `Emit` per folder group with a miss.
+  one `Emit` per unit group with a miss.
 - **The program fast key.** Before `Collect`, the driver computes
 
   ```text
@@ -782,7 +782,7 @@ growing type) has no finite instance set.
   bindings its supertrait lists fix, so `dyn Count` under `Count <
   Supplier[Item = i32]` is `dyn Count[Item = i32]`.
 - **Delegated implementations are ordinary ones.**
-  Once a folder's items are lowered, `impl Tr for C by E` gets, for each
+  Once a unit's items are lowered, `impl Tr for C by E` gets, for each
   associated type of `Tr`, the binding `<F as Tr[A]>::Name`, where `F` is
   the embedded field `E`'s type at `C`'s arguments (crates/hd_check/DESIGN.md (trait solver)
   §3.10), and, for each method of `Tr` with a receiver that its body does
@@ -931,7 +931,7 @@ lines), so a dev build without it would compile slower.
 ### 13.8 Code Entries
 
 `Emit(inst)` lowers one instance to Wasm with `wasm-encoder` into a
-code entry, `hd_wasm::Code`, which its folder group's `codepack` stores
+code entry, `hd_wasm::Code`, which its unit group's `codepack` stores
 (docs/compiler/data-structures.md §3.22):
 
 ```rust

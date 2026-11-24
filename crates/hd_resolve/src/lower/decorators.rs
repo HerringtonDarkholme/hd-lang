@@ -3,7 +3,7 @@
 //! A header check: a decorator's fact type is the result type of the
 //! function it calls, which is in the function's signature, and the type's
 //! `@annotate(...)` line is declaration metadata. Neither needs a body, so
-//! the check runs once the folder's items are lowered, with no checker run.
+//! the check runs once the unit's items are lowered, with no checker run.
 
 use hd_base::HashMap;
 

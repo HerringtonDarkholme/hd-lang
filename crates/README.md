@@ -19,10 +19,10 @@ in each crate's `Cargo.toml`.
 | `hd_diag` | Diagnostic codes and records | [Diagnostic records](../docs/compiler/data-structures.md#38-diagnostic-records), [diagnostics](hd_tir/DESIGN.md#414-diagnostics) |
 | `hd_syntax` | Lexer, layout, parser, green tree, and skeletons | [Front-half stages](hd_syntax/DESIGN.md#4-front-half-stages) |
 | `hd_fmt` | Green-tree formatter | [`hd fmt` and fixing](hd_command/DESIGN.md) |
-| `hd_project` | Manifests, source discovery, modules, folders, package graph | [Discovery and folders](hd_resolve/DESIGN.md#47-discovery-module-identity-and-folders) |
+| `hd_project` | Manifests, source discovery, modules, units, package graph | [Discovery and units](hd_resolve/DESIGN.md#47-discovery-module-identity-and-units) |
 | `hd_types` | Type storage, inference primitives, rows, solver data | [Types](../docs/compiler/data-structures.md#34-types), [type checking](hd_check/DESIGN.md) |
 | `hd_host_abi` | Host import and ABI descriptions | [Host interface](hd_run_wasmtime/DESIGN.md#17-host-interface-and-embedding) |
-| `hd_resolve` | Names, folder interfaces, hashes, ownership, visibility | [Resolution and interfaces](hd_resolve/DESIGN.md) |
+| `hd_resolve` | Names, unit interfaces, hashes, ownership, visibility | [Resolution and interfaces](hd_resolve/DESIGN.md) |
 | `hd_tir` | Typed IR, builder, verifier, printer, wire form | [TIR](hd_tir/DESIGN.md#41311-the-typed-ir-tir), [TIR storage](../docs/compiler/data-structures.md#318-tir) |
 | `hd_structure` | The compiler-supplied `Structure` generator for derivations and tuples | [Type checking](hd_check/DESIGN.md) |
 | `hd_check` | Body checking, trait solving, exhaustiveness, facts, coherence, initialization | [Body checking](hd_tir/DESIGN.md#413-body-checking), [trait solving](hd_check/DESIGN.md#new-compiler-the-trait-solver) |

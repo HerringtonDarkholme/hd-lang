@@ -3,7 +3,7 @@
 //! A std rename leaves a known path resolving to nothing declared, and
 //! every recognition site compares ids, so the check it backs silently
 //! turns off. This test builds a hello program (which joins all of std)
-//! through the driver harness, decodes every folder interface with its
+//! through the driver harness, decodes every unit interface with its
 //! own table, and asserts each known field resolves to a declared item,
 //! naming the field on failure.
 //!
@@ -61,9 +61,9 @@ fn every_known_item_is_declared() {
     };
     let mut defs = HashSet::default();
     let mut modules = HashSet::default();
-    for (folder, blob) in &out.ifaces {
+    for (unit, blob) in &out.ifaces {
         let (items, exports) = hd_resolve::decode_items(&names, blob)
-            .unwrap_or_else(|| panic!("undecodable interface for folder {folder}"));
+            .unwrap_or_else(|| panic!("undecodable interface for unit {unit}"));
         defs.extend(items.iter().map(|item| item.def));
         modules.extend(exports.iter().map(|export| export.module.clone()));
     }

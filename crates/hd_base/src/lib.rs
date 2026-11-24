@@ -71,7 +71,7 @@ id!(NodeIdx);
 id!(ItemIdx);
 id!(PackageId);
 id!(ModuleId);
-id!(FolderId);
+id!(UnitId);
 id!(PathId);
 id!(DefId);
 id!(InstId);

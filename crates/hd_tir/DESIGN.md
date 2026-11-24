@@ -105,7 +105,7 @@ records checked supertrait suppliers without changing row inference.
   and is `instantiation-too-deep` at the call. A body that stops with
   "not implemented" has the empty row.
 - **Cache.** `ModuleFinish` writes each solved row into the module's
-  items next to the inferred results. A row never enters a folder
+  items next to the inferred results. A row never enters a unit
   interface: only private callables infer, so no other module's
   `check_key` sees it, and a row changes only with the module's source,
   which `check_key(m)` covers. `row_keys` feeds the callable's own code
@@ -329,19 +329,19 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   template's names taken from its resolution table and the target's
   members known ([Templates](../../spec/lang/14-annotations.md#templates)).
   The result is part of the target module's `check` entry. A template edit
-  changes the trait folder's deep hash, which rechecks exactly the modules
+  changes the trait unit's deep hash, which rechecks exactly the modules
   that derive from it.
   Implementation differs: no interface carries template bodies. The
   driver lowers each foreign template module from source once per run
   (`template_mods`) and checks it under a fresh body context built from
-  its scope, the opt-in module's items, and both folders' closures. An
+  its scope, the opt-in module's items, and both units' closures. An
   opt-in module's check key takes the template text hash of each
   non-std template module in its closure whose trait the module's text
   names (`template_hashes`, `crates/hd_driver/src/lib.rs:4169`); a
   module whose text names neither `derive` nor `Structure` takes none.
   The hash covers the module's API text, the template's method bodies,
   and every body whose signature a caller infers
-  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-folder-interface-construction)).
+  ([crates/hd_resolve/DESIGN.md §4.10](../hd_resolve/DESIGN.md#410-unit-interface-construction)).
   This is worse: a header edit in a template's module rechecks every
   module that derives one of its templates.
 - **The instantiated-template check at each opt-in.** Every `@derive(X)`
@@ -388,7 +388,7 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   and the derived methods' items join the module's check entry.
 - **Header goals are not body work.** Supertraits of each impl,
   supertrait bindings, a derived newtype's base impl and a delegation
-  target's impl are checked by the folder's `HeaderCheck(F)` task
+  target's impl are checked by the unit's `HeaderCheck(F)` task
   ([crates/hd_resolve/DESIGN.md §4.10.1](../hd_resolve/DESIGN.md#4101-header-validation-stages),
   stage B; [crates/hd_sched/DESIGN.md §6.1](../hd_sched/DESIGN.md#61-tasks)), never by a
   body task.
@@ -402,7 +402,7 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   checked under `hd check --tests` and `hd test` by the module's
   test-role `ModulePrep(m)`, `Body(m)` and `ModuleFinish(m)` tasks
   ([crates/hd_sched/DESIGN.md §6.1](../hd_sched/DESIGN.md#61-tasks)).
-  Their uses make no folder edge, so the test role's `ModulePrep(m)`
+  Their uses make no unit edge, so the test role's `ModulePrep(m)`
   waits for the interfaces they use; the result is cached as
   `check-test`. Doc tests are
   extracted from `##` blocks into synthetic files whose spans map back to
@@ -470,27 +470,27 @@ Definite initialization of top-level bindings follows transitive read sets
 through function bodies
 ([`module.init.definite`](../../spec/lang/10-modules.md#r-module.init.definite)).
 Inside one module, the checker computes it while it checks. But a module
-cycle that spans several modules of a folder, through a use loop, needs
+cycle that spans several modules of a unit, through a use loop, needs
 the bodies of all of them: a body-derived fact across modules.
 
 So `ModuleFinish` writes an **init summary** per module
 (`hd_check::init::InitSummary`), from the facts the checker records
 while it checks (never from TIR): for each function and top-level
-statement, the top-level bindings it reads directly, the same-folder
+statement, the top-level bindings it reads directly, the same-unit
 functions it calls, and the dispatch sets it calls through
 ([`module.init.definite.dispatch`](../../spec/lang/10-modules.md#r-module.init.definite.dispatch)),
 each named by one key (a trait's method, or a trait for all of its
 methods). The summary lists each key's methods in the module's impls once,
 so its size is linear in the module's facts and impl methods, not their
 product.
-`InitOrder(F)` reads the summaries of each module cycle of the folder,
+`InitOrder(F)` reads the summaries of each module cycle of the unit,
 orders statements by
 [Order Inside A Cycle](../../spec/lang/10-modules.md#order-inside-a-cycle),
 and reports `top-level-read-before-initialization`. Its key (`init_key`)
 is over the summaries, so a body edit that does not change what a
-function reads reruns nothing. Groups never span folders, so the fact
-stays inside one folder. The driver adds one `InitOrder` task per built
-folder; a folder with no module cycle does no work. A module with errors
+function reads reruns nothing. Groups never span units, so the fact
+stays inside one unit. The driver adds one `InitOrder` task per built
+unit; a unit with no module cycle does no work. A module with errors
 writes an empty summary, since the build stops before collection.
 
 #### 4.13.11 The Typed IR (TIR)
@@ -1149,7 +1149,7 @@ Those test-only queries do not require a second checker-facing fact API.
   - 3: that no type is body-local, and no `Hole` or `Poison` in a module
     without errors. The second half runs in the driver's
     `ModuleFinish` (`poison_sites`), not in `finish`: an import's error
-    is reported at the folder, outside the body that reads its poisoned
+    is reported at the unit, outside the body that reads its poisoned
     name. It fires when neither the module nor the run so far reported
     an error.
   - 4: only a `Store` value into a bare local against its local, and a

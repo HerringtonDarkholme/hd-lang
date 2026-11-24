@@ -36,13 +36,13 @@ pub fn par_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync + Send)
 }
 
 /// Every task of the run (§6.1). Payloads are dense run IDs: a file,
-/// folder or module index, or a program or instance slot.
+/// unit or module index, or a program or instance slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TaskKind {
     Skim(u32),
     Parse(u32),
-    FolderGraph,
-    FolderIface(u32),
+    UnitGraph,
+    UnitIface(u32),
     HeaderCheck(u32),
     ModulePrep(u32),
     /// All of a module's bodies, as one task (the granularity rule).
@@ -70,8 +70,8 @@ impl TaskKind {
         match self {
             TaskKind::Skim(_) => "Skim",
             TaskKind::Parse(_) => "Parse",
-            TaskKind::FolderGraph => "FolderGraph",
-            TaskKind::FolderIface(_) => "FolderIface",
+            TaskKind::UnitGraph => "UnitGraph",
+            TaskKind::UnitIface(_) => "UnitIface",
             TaskKind::HeaderCheck(_) => "HeaderCheck",
             TaskKind::ModulePrep(_) => "ModulePrep",
             TaskKind::Body(_) => "Body",
@@ -440,7 +440,7 @@ mod tests {
     #[test]
     fn tasks_added_while_running_wait_for_their_edges() {
         let mut g = TaskGraph::default();
-        let first = g.add(TaskKind::FolderGraph, &[]);
+        let first = g.add(TaskKind::UnitGraph, &[]);
         g.add(TaskKind::PackageResult, &[first]);
         let order = Mutex::new(Vec::new());
         let left = SerialScheduler {
@@ -458,15 +458,15 @@ mod tests {
         assert_eq!(left, 0);
         assert_eq!(
             order.into_inner().expect("log"),
-            ["FolderGraph", "PackageResult", "Body", "Link"]
+            ["UnitGraph", "PackageResult", "Body", "Link"]
         );
     }
 
     fn diamond() -> TaskGraph {
         let mut g = TaskGraph::default();
         let a = g.add(TaskKind::Skim(0), &[]);
-        let b = g.add_with_priority(TaskKind::FolderIface(0), &[a], 1);
-        let c = g.add_with_priority(TaskKind::FolderIface(1), &[a], 5);
+        let b = g.add_with_priority(TaskKind::UnitIface(0), &[a], 1);
+        let c = g.add_with_priority(TaskKind::UnitIface(1), &[a], 5);
         g.add(TaskKind::PackageResult, &[b, c]);
         g
     }
@@ -488,7 +488,7 @@ mod tests {
             assert_eq!(seen[0], TaskKind::Skim(0));
             assert_eq!(seen[3], TaskKind::PackageResult);
             if order == SerialOrder::Priority {
-                assert_eq!(seen[1], TaskKind::FolderIface(1), "higher priority first");
+                assert_eq!(seen[1], TaskKind::UnitIface(1), "higher priority first");
             }
         }
     }
