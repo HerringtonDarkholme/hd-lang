@@ -72,7 +72,7 @@ enum InterpolationPiece {
 }
 
 #[derive(Clone, Copy)]
-enum InterpolationBuilder {
+pub(crate) enum InterpolationBuilder {
     Local(hd_base::LocalId),
     Existing(Ref),
 }
@@ -184,7 +184,7 @@ pub(crate) fn literal_text(src: &hd_resolve::Src<'_>, n: NodeRef<'_>) -> Option<
 }
 
 /// The approved builder owns one byte buffer, initialized through its constructor.
-fn interpolation_buffer_field(item: Option<&Item>) -> StageResult<Ty> {
+pub fn interpolation_buffer_field(item: Option<&Item>) -> StageResult<Ty> {
     if let Some(ItemData::Struct(fields, _)) = item.map(|item| &item.data)
         && let [field] = fields.as_slice()
     {
@@ -811,7 +811,10 @@ impl Ck<'_, '_> {
     }
 
     /// Makes an empty local builder through its byte field's constructor.
-    fn new_interpolation_builder(&mut self, n: NodeRef<'_>) -> StageResult<InterpolationBuilder> {
+    pub(crate) fn new_interpolation_builder(
+        &mut self,
+        n: NodeRef<'_>,
+    ) -> StageResult<InterpolationBuilder> {
         let pool = self.pool();
         let def = self.cx.names.known.string_builder;
         let buffer_ty = interpolation_buffer_field(self.cx.lookup.item(def))?;
@@ -868,7 +871,7 @@ impl Ck<'_, '_> {
     }
 
     /// A required std method, preserving the selected constructor's type arguments.
-    fn interpolation_inherent(
+    pub(crate) fn interpolation_inherent(
         &mut self,
         receiver: Ty,
         name: &str,
@@ -4629,7 +4632,7 @@ impl Ck<'_, '_> {
     }
 
     /// The slot-entry operation for the fixed key/value pair a map loop yields.
-    fn map_loop_entry(&self, item_ty: Ty) -> StageResult<IntrinsicOp> {
+    pub(crate) fn map_loop_entry(&self, item_ty: Ty) -> StageResult<IntrinsicOp> {
         let pool = self.pool();
         let TyData::Adt(AdtId::Product { rest: false }, elems) = pool.get(item_ty) else {
             return Err(invalid_map_loop_item());
@@ -6194,227 +6197,4 @@ pub(crate) struct ClosureParts<'t> {
     /// A local function's parameter names and default closures, kept for
     /// its calls (`fn.default.omit`, named arguments).
     pub form: Option<crate::local::LocalForm>,
-}
-
-#[cfg(test)]
-mod interpolation_metadata_tests {
-    use super::interpolation_buffer_field;
-    use hd_base::{DefId, Stage, Symbol};
-    use hd_resolve::{Field, Item, ItemData, TypeAttrs};
-    use hd_types::Ty;
-
-    fn item(data: ItemData) -> Item {
-        Item::new(DefId::from_raw(1), Symbol::from_raw(1), false, data)
-    }
-
-    fn field(ty: Ty) -> Field {
-        Field {
-            name: Symbol::from_raw(2),
-            ty,
-            public: false,
-            has_default: false,
-            embedded: false,
-            lifetimes: Vec::new(),
-            fn_lifetimes: Vec::new(),
-        }
-    }
-
-    #[test]
-    fn a_buffer_field_keeps_its_resolved_type() {
-        for ty in [Ty::I32, Ty::STRING] {
-            let declaration = item(ItemData::Struct(vec![field(ty)], TypeAttrs::default()));
-            assert_eq!(
-                interpolation_buffer_field(Some(&declaration)).expect("buffer"),
-                ty
-            );
-        }
-    }
-
-    #[test]
-    fn missing_or_wrong_builder_shapes_are_internal_errors() {
-        let builtin = item(ItemData::Builtin);
-        let empty = item(ItemData::Struct(vec![], TypeAttrs::default()));
-        let extra = item(ItemData::Struct(
-            vec![field(Ty::I32), field(Ty::STRING)],
-            TypeAttrs::default(),
-        ));
-        let enum_item = item(ItemData::Enum {
-            shared: vec![field(Ty::I32)],
-            variants: vec![],
-            attrs: TypeAttrs::default(),
-        });
-        for selected in [
-            None,
-            Some(&builtin),
-            Some(&empty),
-            Some(&extra),
-            Some(&enum_item),
-        ] {
-            let error = interpolation_buffer_field(selected).expect_err("invalid shape");
-            assert_eq!(error.stage, Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-        }
-    }
-
-    #[test]
-    fn missing_runtime_selections_propagate_without_emitting_tir() {
-        for has_builder in [false, true] {
-            crate::body::with_checker_items(
-                |names| {
-                    if has_builder {
-                        vec![Item::new(
-                            names.known.string_builder,
-                            names.syms.intern("StringBuilder"),
-                            false,
-                            ItemData::Struct(vec![field(Ty::I32)], TypeAttrs::default()),
-                        )]
-                    } else {
-                        Vec::new()
-                    }
-                },
-                |ck| {
-                    let node = ck.cx.src.parse.tree.root();
-                    let before = (
-                        ck.b.body().len(),
-                        ck.b.body().extra.len(),
-                        ck.b.body().local_ty.len(),
-                    );
-                    let results = [
-                        (
-                            if has_builder { "new" } else { "StringBuilder" },
-                            ck.new_interpolation_builder(node).map(|_| ()),
-                        ),
-                        (
-                            "value_new",
-                            ck.string_builder_helper("value_new").map(|_| ()),
-                        ),
-                        ("build", ck.builder_call("build", &[], node).map(|_| ())),
-                        ("new", ck.interpolation_inherent(Ty::I32, "new").map(|_| ())),
-                    ];
-                    for (needed, result) in results {
-                        let error = result.expect_err("missing runtime selection");
-                        assert_eq!(error.stage, Stage::Body);
-                        assert!(error.bug);
-                        assert!(!error.out_of_fuel);
-                        assert!(error.what.contains(needed), "{}", error.what);
-                    }
-                    assert_eq!(
-                        (
-                            ck.b.body().len(),
-                            ck.b.body().extra.len(),
-                            ck.b.body().local_ty.len()
-                        ),
-                        before,
-                    );
-                },
-            );
-        }
-    }
-}
-
-#[cfg(test)]
-mod map_loop_metadata_tests {
-    use hd_base::Stage;
-    use hd_tir::ir::{IntrinsicOp, NONE, Ref};
-    use hd_types::{Ty, TyData};
-
-    #[test]
-    fn map_pair_selects_the_existing_entry_operation() {
-        crate::body::with_checker(|ck| {
-            let pool = ck.pool();
-            for value in [Ty::I32, Ty::STRING] {
-                for (field, expected) in [
-                    (value, IntrinsicOp::MapSlotEntry),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: false,
-                            counted: false,
-                        }),
-                        IntrinsicOp::MapSlotEntry,
-                    ),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: true,
-                            counted: false,
-                        }),
-                        IntrinsicOp::MapSlotEntryMut,
-                    ),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: false,
-                            counted: true,
-                        }),
-                        IntrinsicOp::MapSlotEntry,
-                    ),
-                    (
-                        pool.intern_ty(&TyData::Ref {
-                            inner: value,
-                            mutable: true,
-                            counted: true,
-                        }),
-                        IntrinsicOp::MapSlotEntryMut,
-                    ),
-                ] {
-                    let pair = pool.product(pool.list(&[Ty::I32, field]), None);
-                    assert_eq!(ck.map_loop_entry(pair).expect("map pair"), expected);
-                }
-            }
-        });
-    }
-
-    #[test]
-    fn malformed_map_pair_fails_before_loop_state_or_callback() {
-        crate::body::with_checker(|ck| {
-            let pool = ck.pool();
-            let node = ck.cx.src.parse.tree.root();
-            let mut invalid = vec![Ty::I32, Ty::POISON];
-            for fields in [&[][..], &[Ty::I32][..], &[Ty::I32, Ty::I32, Ty::I32][..]] {
-                invalid.push(pool.product(pool.list(fields), None));
-            }
-            invalid.push(pool.product(pool.list(&[Ty::I32, Ty::STRING]), Some(Ty::I32)));
-            let before = (
-                ck.b.body().len(),
-                ck.b.body().extra.len(),
-                ck.b.body().local_ty.len(),
-                ck.scopes.depth(),
-                ck.loops.len(),
-                ck.infer.var_count(),
-            );
-            let mut calls = 0;
-            for item in invalid {
-                let error = ck
-                    .collection_loop(
-                        node,
-                        (Ref(NONE), Ty::POISON, item, true),
-                        (None, None),
-                        node,
-                        &mut |_| {
-                            calls += 1;
-                            Ok(())
-                        },
-                    )
-                    .expect_err("malformed map item");
-                assert_eq!(error.stage, Stage::Body);
-                assert!(error.bug);
-                assert!(!error.out_of_fuel);
-                assert_eq!(error.what, "map loop requires a fixed key/value pair item");
-                assert_eq!(
-                    (
-                        ck.b.body().len(),
-                        ck.b.body().extra.len(),
-                        ck.b.body().local_ty.len(),
-                        ck.scopes.depth(),
-                        ck.loops.len(),
-                        ck.infer.var_count()
-                    ),
-                    before
-                );
-            }
-            assert_eq!(calls, 0);
-        });
-    }
 }

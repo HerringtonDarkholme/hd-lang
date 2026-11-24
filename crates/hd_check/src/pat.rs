@@ -2896,7 +2896,7 @@ impl Ck<'_, '_> {
 
     /// Combine the comparisons of the written range bounds, in source order.
     /// A range pattern must have at least one bound (`flow.match.range.*`).
-    fn range_comparison(
+    pub(crate) fn range_comparison(
         &mut self,
         lo: Option<Ref>,
         hi: Option<Ref>,
@@ -3658,7 +3658,8 @@ pub(crate) fn binding_parts(s: NodeRef<'_>) -> (NodeRef<'_>, Option<NodeRef<'_>>
 /// The variants of an enum as `unknown-variant` lists them: all of a
 /// small enum, the first few and a count of the rest of a large one, so
 /// the message stays short for an enum of any size.
-fn variant_list(names: &[&str]) -> String {
+#[must_use]
+pub fn variant_list(names: &[&str]) -> String {
     const SHOWN: usize = 4;
     let dotted = |n: &&str| format!("`.{n}`");
     match names {
@@ -3675,123 +3676,32 @@ fn variant_list(names: &[&str]) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::variant_list;
-
-    #[test]
-    fn range_comparisons_preserve_single_bounds_and_reject_missing_bounds() {
-        crate::body::with_checker(|ck| {
-            let before = (ck.b.body().len(), ck.b.body().extra.len());
-            for (lo, hi, expected) in [
-                (Some(hd_tir::ir::Ref(31)), None, hd_tir::ir::Ref(31)),
-                (None, Some(hd_tir::ir::Ref(47)), hd_tir::ir::Ref(47)),
-            ] {
-                assert_eq!(
-                    ck.range_comparison(lo, hi, hd_base::NodeIdx::NONE)
-                        .expect("one written bound"),
-                    expected,
-                );
-            }
-            let error = ck
-                .range_comparison(None, None, hd_base::NodeIdx::NONE)
-                .expect_err("no written bounds");
-            assert_eq!(error.stage, hd_base::Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-            assert_eq!(
-                error.what,
-                "range-pattern comparison requires at least one bound"
-            );
-            assert_eq!((ck.b.body().len(), ck.b.body().extra.len()), before);
-        });
-    }
-
-    #[test]
-    fn two_range_comparisons_emit_one_ordered_and() {
-        use hd_tir::ir::PrimOp;
-        crate::body::with_checker(|ck| {
-            let lo = ck.b.const_value(hd_types::Ty::BOOL, 0);
-            let hi = ck.b.const_value(hd_types::Ty::BOOL, 1);
-            let before = ck.b.body().len();
-            let result = ck
-                .range_comparison(Some(lo), Some(hi), hd_base::NodeIdx::NONE)
-                .expect("two written bounds");
-            let body = ck.b.body();
-            assert_eq!(body.len(), before + 1);
-            assert_eq!(result.0 as usize, before);
-            assert_eq!(body.tags[before], hd_tir::ir::Tag::Prim);
-            assert_eq!(body.data[before][0], PrimOp::And as u32);
-            assert_eq!(body.ty[before], hd_types::Ty::BOOL);
-            let start = body.data[before][1] as usize;
-            assert_eq!(&body.extra[start..start + 3], &[2, lo.0, hi.0]);
-        });
-    }
-
-    #[test]
-    fn unsettled_non_pattern_input_returns_an_error_without_a_decision_chain() {
-        crate::body::with_checker(|ck| {
-            let node = ck.cx.src.parse.tree.root();
-            let rows = [super::Row::rest()];
-            let matrix = vec![super::DRow {
-                row: 0,
-                cells: vec![super::Cell::Pat(node)],
-                sets: Vec::new(),
-            }];
-            let before = (
-                ck.b.body().len(),
-                ck.b.body().extra.len(),
-                ck.b.body().local_ty.len(),
-                ck.infer.var_count(),
-            );
-            let mut stack = Vec::new();
-            let error = ck
-                .matrix(
-                    &rows,
-                    vec![super::Occ {
-                        v: hd_tir::ir::Ref(hd_tir::ir::NONE),
-                        t: hd_types::Ty::I32,
-                        place: hd_tir::ir::NONE,
-                        moves: false,
-                    }],
-                    matrix,
-                    &mut hd_base::HashMap::default(),
-                    &mut stack,
-                )
-                .expect_err("unsettled non-test cell");
-            assert_eq!(error.stage, hd_base::Stage::Body);
-            assert!(error.bug);
-            assert!(!error.out_of_fuel);
-            assert_eq!(
-                error.what,
-                format!(
-                    "pattern decision requires a settled test, found {:?}",
-                    node.kind()
-                )
-            );
-            assert!(stack.is_empty());
-            assert_eq!(
-                (
-                    ck.b.body().len(),
-                    ck.b.body().extra.len(),
-                    ck.b.body().local_ty.len(),
-                    ck.infer.var_count()
-                ),
-                before
-            );
-        });
-    }
-
-    #[test]
-    fn variant_lists_stay_short() {
-        assert_eq!(variant_list(&["Only"]), "its only variant is `.Only`");
-        assert_eq!(
-            variant_list(&["Ok", "Err"]),
-            "its variants are `.Ok` and `.Err`"
-        );
-        assert_eq!(
-            variant_list(&["A", "B", "C", "D", "E", "F"]),
-            "its variants are `.A`, `.B`, `.C`, `.D` and 2 more"
-        );
-    }
+/// A one-row decision over an `i32` whose only cell is the pattern node
+/// `pattern`, which no test has settled; with whether the decision stack
+/// stayed empty (`crate::testing::Checker::decide_unsettled`).
+#[cfg(feature = "testing")]
+pub(crate) fn decide_unsettled(
+    ck: &mut Ck<'_, '_>,
+    pattern: NodeRef<'_>,
+) -> (StageResult<()>, bool) {
+    let matrix = vec![DRow {
+        row: 0,
+        cells: vec![Cell::Pat(pattern)],
+        sets: Vec::new(),
+    }];
+    let occ = Occ {
+        v: Ref(hd_tir::ir::NONE),
+        t: Ty::I32,
+        place: hd_tir::ir::NONE,
+        moves: false,
+    };
+    let mut stack = Vec::new();
+    let result = ck.matrix(
+        &[Row::rest()],
+        vec![occ],
+        matrix,
+        &mut HashMap::default(),
+        &mut stack,
+    );
+    (result, stack.is_empty())
 }

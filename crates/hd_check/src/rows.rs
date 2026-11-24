@@ -138,7 +138,8 @@ pub(crate) fn supertrait_key_index(
 /// arguments (`req.row.entail.super.arguments`), and each binding `want`
 /// writes fixed so by `inst` (`req.key.binding.identity`). The listed key
 /// itself also fits a key that binds nothing.
-pub(crate) fn key_is(pool: hd_types::Types<'_>, have: Ty, inst: Ty, want: Ty) -> bool {
+#[must_use]
+pub fn key_is(pool: hd_types::Types<'_>, have: Ty, inst: Ty, want: Ty) -> bool {
     if inst == want {
         return true;
     }
@@ -187,7 +188,7 @@ pub(crate) fn key_supplies(cx: &BodyCx<'_>, pool: hd_types::Types<'_>, have: Ty,
 /// Ordered candidates, narrowed by the least-populated requested binding.
 /// Like rustc's typed impl buckets, this filters before checking candidates.
 #[derive(Default)]
-pub(crate) struct KeyCandidates {
+pub struct KeyCandidates {
     values: Vec<(Ty, Ty)>,
     bindings: hd_base::HashMap<(hd_base::DefId, Ty), Vec<Ty>>,
     groups: hd_base::HashMap<Ty, (usize, Option<usize>)>,
@@ -196,7 +197,7 @@ pub(crate) struct KeyCandidates {
 }
 
 impl KeyCandidates {
-    fn push(&mut self, pool: hd_types::Types<'_>, have: Ty, inst: Ty) {
+    pub fn push(&mut self, pool: hd_types::Types<'_>, have: Ty, inst: Ty) {
         let at = self.values.len();
         self.values.push((have, inst));
         let Some(bindings) = pool.trait_value_bindings(inst) else {
@@ -222,7 +223,8 @@ impl KeyCandidates {
         }
     }
 
-    fn supplier(&self, pool: hd_types::Types<'_>, want: Ty) -> Option<Ty> {
+    #[must_use]
+    pub fn supplier(&self, pool: hd_types::Types<'_>, want: Ty) -> Option<Ty> {
         if let Some(&(have, inst)) = self.values.first() {
             crate::work::scan_work(1);
             if key_is(pool, have, inst, want) {
@@ -1500,100 +1502,5 @@ impl Ck<'_, '_> {
             *t = self.zonk(*t);
         }
         e
-    }
-}
-
-#[cfg(test)]
-mod index_tests {
-    #[test]
-    fn nested_rows_pair_fixed_members_without_rewriting_rests() {
-        crate::body::with_checker(|ck| {
-            let pool = ck.pool();
-            for (fixed, rest) in [(true, false), (false, true), (true, true)] {
-                let var = ck.infer.fresh(pool, hd_types::unify::VarKind::General);
-                let row = pool.row(&hd_types::RowData {
-                    keys: vec![var],
-                    params: vec![],
-                });
-                let function = |row| {
-                    pool.intern_ty(&TyData::Fn {
-                        params: TyList::EMPTY,
-                        result: Ty::I32,
-                        row,
-                        suspends: false,
-                        inputs: hd_types::Inputs::Fixed,
-                        deps: hd_types::FnDeps::NONE,
-                    })
-                };
-                let left = function(row);
-                let right = function(hd_types::RowId::EMPTY);
-                let (left_members, right_members) = ([left], [right]);
-                let got = pool.product(
-                    pool.list(if fixed { &left_members } else { &[] }),
-                    rest.then_some(left),
-                );
-                let want = pool.product(
-                    pool.list(if fixed { &right_members } else { &[] }),
-                    Some(right),
-                );
-                ck.solve_nested_rows(got, want, 0);
-                assert_eq!(
-                    ck.infer.resolve_row(pool, row) == hd_types::RowId::EMPTY,
-                    fixed
-                );
-            }
-        });
-    }
-
-    use super::{KeyCandidates, key_is};
-    use hd_base::DefId;
-    use hd_types::{InternPool, Ty, TyData, TyList};
-
-    #[test]
-    fn candidate_binding_index_preserves_the_first_matching_supplier() {
-        let pool = InternPool::new();
-        let make = |def, bindings| {
-            pool.intern_ty(&TyData::TraitValue {
-                def: DefId::from_raw(def),
-                args: TyList::EMPTY,
-                bindings,
-            })
-        };
-        let a = DefId::from_raw(50);
-        let b = DefId::from_raw(51);
-        let first = make(20, vec![(a, Ty::I32), (b, Ty::STRING)]);
-        let second = make(20, vec![(a, Ty::I32), (b, Ty::I32)]);
-        let h1 = make(21, vec![]);
-        let h2 = make(22, vec![]);
-        let plain = make(20, vec![]);
-        let cases = [
-            vec![(first, first), (h2, second), (h1, first)],
-            vec![(h1, first), (h2, second), (plain, plain)],
-            vec![(plain, plain), (h2, second), (h1, first)],
-        ];
-        let wants = [
-            plain,
-            first,
-            second,
-            make(20, vec![(a, Ty::I32)]),
-            make(20, vec![(a, Ty::STRING)]),
-            make(20, vec![(b, Ty::STRING)]),
-        ];
-        for values in cases {
-            let mut index = KeyCandidates::default();
-            for &(have, inst) in &values {
-                index.push(pool.types(), have, inst);
-            }
-            for &want in &wants {
-                let expected = values.iter().find_map(|&(have, inst)| {
-                    key_is(pool.types(), have, inst, want).then_some(have)
-                });
-                assert_eq!(
-                    index.supplier(pool.types(), want),
-                    expected,
-                    "{values:?}, {want:?}"
-                );
-            }
-        }
     }
 }
