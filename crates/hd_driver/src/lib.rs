@@ -203,7 +203,10 @@ fn rt_roots(
         .module(hd_resolve::known::RUNTIME_MODULE)
         .into_iter()
         .chain(table.modules.iter().filter_map(|module| {
-            let child = module.path.strip_prefix("std.rt.")?;
+            let child = module
+                .path
+                .strip_prefix(hd_resolve::known::RUNTIME_MODULE)?
+                .strip_prefix('.')?;
             let own = !child.contains('.')
                 && ![
                     ENTRY_MODULE,
@@ -3482,23 +3485,24 @@ fn module_graph(
     let mut known = known;
     let skims: Vec<SkimOut> = {
         let t = &*table;
-        let mut made = par_files(executor, &modules, |m| {
-            if known.get(m).is_some_and(Option::is_some) {
-                return None;
-            }
+        let skim = |m: usize| {
             let file = if reached.is_some_and(|r| !r[m]) {
                 Arc::new(skims::FileSkim::of(&texts[m]))
             } else {
                 files.get(t, m, || Arc::clone(&texts[m]))
             };
-            Some(skim_module(t, m, file, session_uses(t, repl, m)))
+            skim_module(t, m, file, session_uses(t, repl, m))
+        };
+        let made = par_files(executor, &modules, |m| {
+            known.get(m).is_none_or(Option::is_none).then(|| skim(m))
         });
-        made.iter_mut()
-            .zip(known.iter_mut())
-            .map(|(made, known)| {
-                made.take()
-                    .or_else(|| known.take())
-                    .expect("every module is skimmed")
+        // Each module skipped above takes its known skim; one with neither
+        // is skimmed here, so every module has a skim whatever `known` holds.
+        made.into_iter()
+            .enumerate()
+            .map(|(m, made)| {
+                made.or_else(|| known.get_mut(m).and_then(Option::take))
+                    .unwrap_or_else(|| skim(m))
             })
             .collect()
     };
