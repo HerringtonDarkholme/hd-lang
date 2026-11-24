@@ -1359,6 +1359,7 @@ impl Ck<'_, '_> {
         }
         // ruled out: ref.box.object; no expression makes a counted
         // reference to an interior place.
+        #[cfg(debug_assertions)]
         debug_assert!(
             counted_refs_are_whole(pool, b),
             "a counted reference to an interior place"
@@ -1409,6 +1410,7 @@ fn is_literal(mut e: NodeRef<'_>) -> bool {
 /// (`ref.box.object`): a local's or a value's own storage, or what a
 /// counted reference refers to. The checker makes a counted one only for
 /// such a place, so the backend counts it as a payload start (§23.30).
+#[cfg(debug_assertions)]
 fn counted_refs_are_whole(pool: hd_types::Types<'_>, b: &hd_tir::ir::Body) -> bool {
     let counted = |t: Ty| matches!(pool.get(t), TyData::Ref { counted: true, .. });
     (0..b.tags.len()).all(|i| {
