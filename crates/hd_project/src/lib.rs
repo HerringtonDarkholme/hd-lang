@@ -14,7 +14,7 @@ use hd_base::SliceSort as _;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use hd_base::{FileId, FolderId, Hash128, ModuleId, Span};
+use hd_base::{FileId, FolderId, Hash128, HashMap, ModuleId, Span};
 use hd_diag::Code;
 
 pub use doctest::{BODY_INDENT, DocTest, doc_tests};
@@ -471,6 +471,10 @@ pub struct Module {
     pub id: ModuleId,
     pub file: FileId,
     pub path: String,
+    /// Its compile unit (`crates/hd_resolve/DESIGN.md` §4.8): a strongly
+    /// connected group of the module graph, once [`ModuleGraph::build`]
+    /// has grouped the table; until then the module alone, or its
+    /// package's test unit.
     pub folder: FolderId,
     pub role: Role,
     /// Index into `ModuleTable::packages`: 0 is the root package.
@@ -617,7 +621,8 @@ impl UseRoots {
     }
 }
 
-/// One folder: the interface unit.
+/// One compile unit: a strongly connected group of the module graph, its
+/// modules in path order (`crates/hd_resolve/DESIGN.md` §4.8).
 #[derive(Clone, Debug)]
 pub struct Folder {
     pub id: FolderId,
@@ -1140,14 +1145,6 @@ fn module_roots(packages: &[PackageIn<'_>]) -> Vec<String> {
     roots
 }
 
-/// The folder path of a module path: everything before its last segment.
-/// A module with child modules is in its own folder instead
-/// (`module.folder.parent-file`); `ModuleTable` applies that rule.
-#[must_use]
-pub fn folder_of(module: &str) -> &str {
-    module.rsplit_once('.').map_or(module, |(f, _)| f)
-}
-
 impl ModuleTable {
     /// Discovery (§4.7) of one package.
     #[must_use]
@@ -1165,9 +1162,9 @@ impl ModuleTable {
 
     /// Discovery (§4.7) of the root package (first) and the packages it
     /// reaches: every file in a package's scope is a module, its path from
-    /// `module_path`. Its directory is its folder, except that `x.hd`
-    /// beside a directory `x/` of source files is in folder `x/`
-    /// (`module.folder.parent-file`), and `x/mod.hd` is module `x`.
+    /// `module_path`, where `x/mod.hd` is module `x`. Each module starts as
+    /// its own unit, each package's test modules as one; the module graph
+    /// groups them ([`ModuleGraph::build`]).
     #[must_use]
     pub fn discover_all(packages: &[PackageIn<'_>]) -> Self {
         let roots = module_roots(packages);
@@ -1220,19 +1217,17 @@ impl ModuleTable {
                     && p.entries.contains(&module_below(&e.path));
                 let id = ModuleId::from_raw(u32::try_from(t.modules.len()).expect("modules"));
                 let stem = e.path.trim_end_matches(".hd");
-                let mod_file = e.path == "mod.hd" || e.path.ends_with("/mod.hd");
                 // The test unit (`crates/hd_resolve/DESIGN.md` §4.8): every
                 // test module of a package, wherever its file lies, is one
-                // folder, after the folders its uses reach; so no library
-                // folder holds test code (`module.cycle.test-code`).
-                let folder = if !executable && role_of(&e.path) == Role::Test {
+                // unit, after the units its uses reach; so no library unit
+                // holds test code (`module.cycle.test-code`). Any other
+                // module starts as its own unit.
+                let unit = if !executable && role_of(&e.path) == Role::Test {
                     format!("{root}.$tests")
-                } else if mod_file || dirs.contains(stem) || repl_input(&e.path).is_some() {
-                    path.clone()
                 } else {
-                    folder_of(&path).to_owned()
+                    path.clone()
                 };
-                folders.entry(folder).or_insert((pi, Vec::new())).1.push(id);
+                folders.entry(unit).or_insert((pi, Vec::new())).1.push(id);
                 let file = FileId::from_raw(id.raw());
                 let beside = match Root::of(&e.path) {
                     (Root::Test | Root::Task, rest) => !rest.contains('/') && dirs.contains(stem),
@@ -1529,53 +1524,20 @@ impl ModuleTable {
         out
     }
 
+    /// The unit whose path is `path`. Units are in path order, so this is
+    /// a binary search.
+    #[must_use]
+    pub fn unit_at(&self, path: &str) -> Option<FolderId> {
+        self.folders
+            .binary_search_by(|f| f.path.as_str().cmp(path))
+            .ok()
+            .map(|i| self.folders[i].id)
+    }
+
     /// The folder of a module path, if the module exists.
     #[must_use]
     pub fn folder_of_module(&self, path: &str) -> Option<FolderId> {
         self.module(path).map(|m| self.modules[m.idx()].folder)
-    }
-
-    /// Merges each group of folders into one folder, named after the
-    /// group's first folder in path order: folder-cycle recovery, which
-    /// resolves the folders of a cycle together as one folder
-    /// (`crates/hd_resolve/DESIGN.md` §4.8 rule 5). Groups that share a
-    /// folder become one. Folder IDs are renumbered in path order.
-    pub fn merge_folders(&mut self, groups: &[Vec<FolderId>]) {
-        let n = self.folders.len();
-        let mut parent: Vec<usize> = (0..n).collect();
-        for g in groups {
-            let Some(first) = g.first() else { continue };
-            for f in &g[1..] {
-                let (a, b) = (find(&mut parent, first.idx()), find(&mut parent, f.idx()));
-                // The folder first in path order stays.
-                let (keep, gone) = if a < b { (a, b) } else { (b, a) };
-                parent[gone] = keep;
-            }
-        }
-        let old = std::mem::take(&mut self.folders);
-        let mut new_id = vec![usize::MAX; n];
-        for i in 0..n {
-            let r = find(&mut parent, i);
-            if r == i {
-                new_id[i] = self.folders.len();
-                let mut f = old[i].clone();
-                f.id = FolderId::from_raw(u32::try_from(self.folders.len()).expect("folders"));
-                f.modules.clear();
-                self.folders.push(f);
-            }
-        }
-        for i in 0..n {
-            let target = new_id[find(&mut parent, i)];
-            self.folders[target]
-                .modules
-                .extend(old[i].modules.iter().copied());
-        }
-        for f in &mut self.folders {
-            f.modules.sort_stable_by_key(|m| m.raw());
-            for &m in &f.modules {
-                self.modules[m.idx()].folder = f.id;
-            }
-        }
     }
 
     /// The module a `use` path names: its longest prefix that is a module.
@@ -1591,152 +1553,364 @@ impl ModuleTable {
     }
 }
 
-/// The representative of `x` in a union-find forest, with path compression.
-fn find(parent: &mut [usize], x: usize) -> usize {
-    let mut r = x;
-    while parent[r] != r {
-        r = parent[r];
-    }
-    let mut y = x;
-    while parent[y] != r {
-        let next = parent[y];
-        parent[y] = r;
-        y = next;
-    }
-    r
+/// One `use` a module makes, its root resolved: what the module graph
+/// reads of it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UseRef {
+    /// The absolute path up to its group: `app.shop` for
+    /// `use pkg.shop.{x}`, `app.shop.x` for `use pkg.shop.x`.
+    pub path: String,
+    pub grouped: bool,
+    pub public: bool,
+    /// Each grouped name, with the local name it binds.
+    pub names: Vec<(String, String)>,
+    /// Its index among the module's written `use` lines; `None` for an
+    /// implicit use: a prelude row, the test runtime, a REPL session.
+    pub line: Option<u32>,
 }
 
-/// A bit set over the program graph's folders (`crates/hd_sched/DESIGN.md` §6.1).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct FolderSet(Vec<u64>);
-
-impl FolderSet {
-    #[must_use]
-    pub fn with_capacity(n: usize) -> Self {
-        Self(vec![0; n.div_ceil(64)])
-    }
-    pub fn insert(&mut self, f: FolderId) -> bool {
-        let (w, b) = (f.idx() / 64, f.idx() % 64);
-        if w >= self.0.len() {
-            self.0.resize(w + 1, 0);
-        }
-        let was = self.0[w] & (1 << b) != 0;
-        self.0[w] |= 1 << b;
-        !was
-    }
-    #[must_use]
-    pub fn contains(&self, f: FolderId) -> bool {
-        self.0
-            .get(f.idx() / 64)
-            .is_some_and(|w| w & (1 << (f.idx() % 64)) != 0)
-    }
-    pub fn union(&mut self, other: &FolderSet) {
-        if other.0.len() > self.0.len() {
-            self.0.resize(other.0.len(), 0);
-        }
-        for (a, b) in self.0.iter_mut().zip(&other.0) {
-            *a |= b;
-        }
-    }
-    pub fn iter(&self) -> impl Iterator<Item = FolderId> + '_ {
-        self.0.iter().enumerate().flat_map(|(w, &bits)| {
-            (0..64)
-                .filter(move |b| bits & (1u64 << b) != 0)
-                .map(move |b| FolderId::from_raw(u32::try_from(w * 64 + b).expect("folder")))
-        })
-    }
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.0.iter().map(|w| w.count_ones() as usize).sum()
-    }
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.0.iter().all(|w| *w == 0)
-    }
+/// A loop the sibling rule forbids (`module.cycle.siblings`), as its
+/// diagnostic shows it (`module.cycle.diagnostic.*`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModuleLoop {
+    /// The modules of its strongly connected group.
+    pub modules: usize,
+    /// The edges shown, each as (module, its use line, the module it
+    /// names): a shortest path from the group's first module `u`, in path
+    /// order, that is no sibling of some module of the group, to the first
+    /// such module `v`, then one back. The last edge enters `u` and is the
+    /// one reported.
+    pub walk: Vec<(ModuleId, u32, ModuleId)>,
+    /// The declarations to move and the module they are in: those of the
+    /// shown edge between two modules that are no siblings whose `use`
+    /// line names the fewest.
+    pub help: (ModuleId, Vec<String>),
 }
 
-/// The folder graph (§4.8): use edges between folders, a DAG order and
-/// `folder-cycle` diagnostics. Self edges are dropped.
+/// A policy edge: the module a use names, the first such use line, and
+/// the declarations that line names in it.
+pub type PolicyEdge = (ModuleId, u32, Vec<String>);
+
+/// The module graph. Two edge sets over the modules:
+/// - the dependency edges go to the module each use names, `pub use`,
+///   the prelude's rows, the test runtime and a REPL session included.
+///   They order initialization and group the compile units, so nothing is
+///   read before it is set. A facade's own `pub use` edge reaches the
+///   module that declares a name it re-exports, and naming a module makes
+///   the implementations it holds visible, std's implementations for
+///   primitives among them (`trait.own.module.inherent.std`);
+/// - the policy edges (`module.cycle.edge`) are the written library uses
+///   of one package, a `pub use` making none: the sibling rule
+///   (`module.cycle.siblings`) judges their loops.
+///
+/// Cost: O(modules + uses) for the edges, one Tarjan walk over the units
+/// and one over the policy edges, and a breadth-first search inside each
+/// forbidden group.
 #[derive(Clone, Debug, Default)]
-pub struct FolderGraph {
+pub struct ModuleGraph {
+    /// Per module: the modules it depends on, sorted, itself left out.
+    pub deps: Vec<Vec<ModuleId>>,
+    /// Per module: the edges the loop rule judges (`module.cycle.edge`),
+    /// sorted.
+    pub policy: Vec<Vec<PolicyEdge>>,
+    /// Per unit: the units it uses, sorted.
     pub uses: Vec<Vec<FolderId>>,
-    /// Folders in dependency order: every folder after the folders it uses.
+    /// Units in dependency order: every unit after the units it uses.
     pub order: Vec<FolderId>,
-    /// Each strongly connected component of more than one folder, its
-    /// members in path order (§4.8 rules 3 and 4).
-    pub cycles: Vec<Vec<FolderId>>,
-    /// `closure(F)`: F plus every folder its uses reach.
-    pub closure: Vec<FolderSet>,
-    /// Longest path to a sink: the `FolderIface` priority (`crates/hd_sched/DESIGN.md` §6.3).
+    /// Longest path to a sink: the interface task's priority
+    /// (`crates/hd_sched/DESIGN.md` §6.3).
     pub height: Vec<u32>,
+    /// Each forbidden loop, its group's first module in path order.
+    pub loops: Vec<ModuleLoop>,
+    /// Nodes entered plus edges followed, for cost tests.
+    pub work: u64,
 }
 
-impl FolderGraph {
-    /// Builds the graph from each module's non-test use paths.
-    #[must_use]
-    pub fn build(table: &ModuleTable, module_uses: &[Vec<String>]) -> Self {
-        let n = table.folders.len();
-        let mut g = FolderGraph {
-            uses: vec![Vec::new(); n],
+impl ModuleGraph {
+    /// Builds the graph from each module's uses and groups `table`'s units
+    /// into its strongly connected components.
+    pub fn build(table: &mut ModuleTable, uses: &[Vec<UseRef>]) -> Self {
+        let n = table.modules.len();
+        let mut g = ModuleGraph {
+            deps: vec![Vec::new(); n],
+            policy: vec![Vec::new(); n],
             ..Self::default()
         };
-        for (m, uses) in module_uses.iter().enumerate() {
-            let from = table.modules[m].folder;
-            let test_code = table.modules[m].role == Role::Test;
-            for u in uses {
-                if let Some(target) = table.module_of_use(u) {
-                    let to = table.modules[target.idx()].folder;
-                    // Only test code may use a test module; another use is
-                    // an error of its own and makes no edge.
-                    let into_tests = table.modules[target.idx()].role == Role::Test;
-                    if to != from && (test_code || !into_tests) {
-                        let u = &mut g.uses[from.idx()];
-                        if let Err(at) = u.binary_search_by_key(&to.raw(), |f| f.raw()) {
-                            u.insert(at, to);
-                        }
-                    }
+        for (m, list) in uses.iter().enumerate() {
+            let module = &table.modules[m];
+            let test = module.role == Role::Test;
+            let p = &mut g.policy[m];
+            let deps = &mut g.deps[m];
+            for u in list {
+                // The module the use names, the names it reaches there,
+                // and for a single use of a declaration, its name.
+                let (named, grouped, last): (ModuleId, &[(String, String)], Option<&str>) =
+                    if u.grouped {
+                        let Some(t) = table.module(&u.path) else {
+                            continue;
+                        };
+                        (t, &u.names, None)
+                    } else if let Some(t) = table.module(&u.path) {
+                        (t, &[], None)
+                    } else if let Some((parent, last)) = u.path.rsplit_once('.')
+                        && let Some(t) = table.module(parent)
+                    {
+                        (t, &[], Some(last))
+                    } else {
+                        continue;
+                    };
+                g.work += 1;
+                let target = &table.modules[named.idx()];
+                // Only test code may use a test module; another use is an
+                // error of its own and makes no edge.
+                if named.idx() == m || (!test && target.role == Role::Test) {
+                    continue;
+                }
+                deps.push(named);
+                if let Some(line) = u.line
+                    && !u.public
+                    && !test
+                    && target.package == module.package
+                {
+                    let written = match last {
+                        Some(last) => vec![last.to_owned()],
+                        None => grouped.iter().map(|(n, _)| n.clone()).collect(),
+                    };
+                    p.push((named, line, written));
                 }
             }
+            deps.sort_stable_by_key(|d| d.raw());
+            deps.dedup();
+            // The first line naming each module makes its edge.
+            p.sort_stable_by_key(|e| (e.0.raw(), e.1));
+            p.dedup_by(|b, a| a.0 == b.0);
         }
-        // Path-sorted roots and edges preserve DFS postorder, including
-        // within cycles, while the shared walk uses heap frames.
-        hd_base::scc::traverse(n, (0..n).map(hd_base::scc::node), |event| {
-            match event {
-                hd_base::scc::Event::Enter(f, out) => {
-                    out.extend(g.uses[f as usize].iter().map(|f| f.raw()));
-                }
-                hd_base::scc::Event::Finish(f) => g.order.push(FolderId::from_raw(f)),
-                hd_base::scc::Event::Component(members, _) if members.len() > 1 => {
-                    let mut members: Vec<_> =
-                        members.iter().copied().map(FolderId::from_raw).collect();
-                    members.sort_stable_by_key(|f| f.raw());
-                    g.cycles.push(members);
-                }
-                hd_base::scc::Event::Edge(_, _) | hd_base::scc::Event::Component(_, _) => {}
-            }
-            true
-        });
-        g.closure = vec![FolderSet::with_capacity(n); n];
-        g.height = vec![0; n];
-        for &f in &g.order {
-            let mut c = FolderSet::with_capacity(n);
-            c.insert(f);
-            let mut h = 0;
-            for &u in &g.uses[f.idx()] {
-                c.union(&g.closure[u.idx()]);
-                h = h.max(g.height[u.idx()] + 1);
-            }
-            g.closure[f.idx()] = c;
-            g.height[f.idx()] = h;
-        }
+        g.group_units(table);
+        g.find_loops(table);
         g
+    }
+
+    /// Makes each strongly connected group of units one unit, in path
+    /// order, and orders the units.
+    fn group_units(&mut self, table: &mut ModuleTable) {
+        let nf = table.folders.len();
+        let deps = &self.deps;
+        let sccs = {
+            let t = &*table;
+            hd_base::scc::sccs(nf, |f, out| {
+                for m in &t.folders[f as usize].modules {
+                    out.extend(
+                        deps[m.idx()]
+                            .iter()
+                            .map(|d| t.modules[d.idx()].folder.raw()),
+                    );
+                }
+            })
+        };
+        self.work += sccs.work;
+        // A unit takes the path and package of its first member: units
+        // stay in path order.
+        let mut new_id = vec![u32::MAX; sccs.len()];
+        let old = std::mem::take(&mut table.folders);
+        for (f, unit) in old.into_iter().enumerate() {
+            let c = sccs.comp[f] as usize;
+            let Folder {
+                path,
+                modules,
+                package,
+                ..
+            } = unit;
+            if new_id[c] == u32::MAX {
+                new_id[c] = u32::try_from(table.folders.len()).expect("units");
+                table.folders.push(Folder {
+                    id: FolderId::from_raw(new_id[c]),
+                    path,
+                    modules: Vec::new(),
+                    package,
+                });
+            }
+            table.folders[new_id[c] as usize].modules.extend(modules);
+        }
+        for unit in &mut table.folders {
+            unit.modules.sort_stable_by_key(|m| m.raw());
+            for m in &unit.modules {
+                table.modules[m.idx()].folder = unit.id;
+            }
+        }
+        let units = table.folders.len();
+        self.uses = vec![Vec::new(); units];
+        for (m, deps) in self.deps.iter().enumerate() {
+            let from = table.modules[m].folder;
+            let out = &mut self.uses[from.idx()];
+            out.extend(
+                deps.iter()
+                    .map(|d| table.modules[d.idx()].folder)
+                    .filter(|f| *f != from),
+            );
+        }
+        for out in &mut self.uses {
+            out.sort_stable_by_key(|f| f.raw());
+            out.dedup();
+        }
+        // Tarjan finishes each component after every one it reaches.
+        self.order = (0..sccs.len())
+            .map(|c| FolderId::from_raw(new_id[c]))
+            .collect();
+        self.height = vec![0; units];
+        for &f in &self.order {
+            let h = self.uses[f.idx()]
+                .iter()
+                .map(|u| self.height[u.idx()] + 1)
+                .max()
+                .unwrap_or(0);
+            self.height[f.idx()] = h;
+        }
+    }
+
+    /// The groups the sibling rule forbids (`module.cycle.siblings`):
+    /// strongly connected groups of the policy edges that no sibling group
+    /// holds. Module P's sibling group is P and its children, so a module
+    /// is in its parent's group and its own: a group of the graph is legal
+    /// when one of its first module's two groups holds every module, each
+    /// asked by a parent lookup.
+    fn find_loops(&mut self, table: &ModuleTable) {
+        let n = table.modules.len();
+        let policy = &self.policy;
+        let sccs = hd_base::scc::sccs(n, |m, out| {
+            out.extend(policy[m as usize].iter().map(|e| e.0.raw()));
+        });
+        self.work += sccs.work;
+        let path = |m: ModuleId| table.modules[m.idx()].path.as_str();
+        let parent = |m: ModuleId| path(m).rsplit_once('.').map_or("", |(p, _)| p);
+        // Whether `m` is in the sibling group of the module at `p`.
+        let in_group = |m: ModuleId, p: &str| path(m) == p || parent(m) == p;
+        let siblings = |a: ModuleId, b: ModuleId| {
+            parent(a) == parent(b) || parent(a) == path(b) || parent(b) == path(a)
+        };
+        for c in 0..sccs.len() {
+            if sccs.members(c).len() < 2 {
+                continue;
+            }
+            let mut members: Vec<ModuleId> = sccs
+                .members(c)
+                .iter()
+                .map(|&m| ModuleId::from_raw(m))
+                .collect();
+            let first = members[0];
+            if [parent(first), path(first)]
+                .iter()
+                .any(|p| members.iter().all(|m| in_group(*m, p)))
+            {
+                continue;
+            }
+            members.sort_stable_by_key(|m| m.raw());
+            // In a tree, sibling groups that meet pairwise share a member
+            // group, so some two modules of a forbidden group are no
+            // siblings. A module's siblings in the group are those of its
+            // parent's group and its own, counted per parent: linear.
+            let mut children: HashMap<&str, usize> = HashMap::default();
+            let mut paths: hd_base::HashSet<&str> = hd_base::HashSet::default();
+            for &m in &members {
+                *children.entry(parent(m)).or_default() += 1;
+                paths.insert(path(m));
+            }
+            let count = |p: &str| children.get(p).copied().unwrap_or(0);
+            let sibling_count = |m: ModuleId| {
+                count(parent(m)) + count(path(m)) + usize::from(paths.contains(parent(m)))
+            };
+            let Some(u) = members
+                .iter()
+                .copied()
+                .find(|&m| sibling_count(m) < members.len())
+            else {
+                continue;
+            };
+            let Some(v) = members.iter().copied().find(|&v| !siblings(u, v)) else {
+                continue;
+            };
+            let inside = |m: ModuleId| sccs.comp[m.idx()] as usize == c;
+            let mut walk = self.shortest_path(u, v, &inside);
+            walk.extend(self.shortest_path(v, u, &inside));
+            // The edge between two modules that are no siblings whose
+            // `use` line names the fewest declarations; a namespace use
+            // names none, so it is taken last. On a tie, the reported
+            // edge, then the first shown.
+            let names = |&(from, _, to): &(ModuleId, u32, ModuleId)| {
+                self.edge(from, to).map_or(&[][..], |e| &e.2[..])
+            };
+            let count = |e: &(ModuleId, u32, ModuleId)| match names(e).len() {
+                0 => usize::MAX,
+                k => k,
+            };
+            let last = walk.len().saturating_sub(1);
+            let pick = std::iter::once(last)
+                .chain(0..last)
+                .filter(|&i| !siblings(walk[i].0, walk[i].2))
+                .min_by_key(|&i| count(&walk[i]))
+                .unwrap_or(last);
+            let help = walk
+                .get(pick)
+                .map_or((u, Vec::new()), |e| (e.2, names(e).to_vec()));
+            self.loops.push(ModuleLoop {
+                modules: members.len(),
+                walk,
+                help,
+            });
+        }
+        self.loops
+            .sort_stable_by_key(|l| l.walk.last().map_or(0, |e| e.2.raw()));
+    }
+
+    /// The policy edge from `from` to `to`.
+    fn edge(&self, from: ModuleId, to: ModuleId) -> Option<&PolicyEdge> {
+        let p = &self.policy[from.idx()];
+        p.binary_search_by_key(&to.raw(), |e| e.0.raw())
+            .ok()
+            .map(|i| &p[i])
+    }
+
+    /// A shortest path of policy edges from `a` to `b` through modules
+    /// `inside` accepts, each edge as (module, use line, module reached).
+    /// Breadth-first over edges in path order; the parent map is the
+    /// visited set, so the cost is the group's size.
+    fn shortest_path(
+        &mut self,
+        a: ModuleId,
+        b: ModuleId,
+        inside: &dyn Fn(ModuleId) -> bool,
+    ) -> Vec<(ModuleId, u32, ModuleId)> {
+        let mut parent: HashMap<ModuleId, (ModuleId, u32)> = HashMap::default();
+        let mut queue = std::collections::VecDeque::from([a]);
+        while let Some(at) = queue.pop_front() {
+            for &(to, line, _) in &self.policy[at.idx()] {
+                self.work += 1;
+                if to == a || !inside(to) || parent.contains_key(&to) {
+                    continue;
+                }
+                parent.insert(to, (at, line));
+                if to == b {
+                    let mut path = Vec::new();
+                    let mut x = b;
+                    while x != a {
+                        let (p, line) = parent[&x];
+                        path.push((p, line, x));
+                        x = p;
+                    }
+                    path.reverse();
+                    return path;
+                }
+                queue.push_back(to);
+            }
+        }
+        Vec::new()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        FolderGraph, MemorySources, ModuleTable, PackageIn, Scope, UseRootError, parse_manifest,
+        MemorySources, ModuleGraph, ModuleTable, PackageIn, Scope, UseRef, UseRootError,
+        parse_manifest,
     };
 
     fn collisions(files: &[&str]) -> Vec<(String, hd_diag::Code)> {
@@ -1826,64 +2000,222 @@ mod tests {
         assert_eq!(collisions(&["src/x.hd", "src/x/mod.hd"]).len(), 1);
     }
 
-    #[test]
-    fn folders_order_closure_and_cycles() {
-        let mut s = MemorySources::default();
-        s.insert("main.hd", "");
-        s.insert("a/x.hd", "");
-        s.insert("b/y.hd", "");
-        let t = ModuleTable::discover("pkg", &s);
-        assert_eq!(
-            t.folders
+    /// A use naming `module`, grouped over `names`, written on line 0.
+    fn grouped(module: &str, names: &[&str]) -> UseRef {
+        UseRef {
+            path: module.to_owned(),
+            grouped: true,
+            public: false,
+            names: names
                 .iter()
-                .map(|f| f.path.as_str())
-                .collect::<Vec<_>>(),
-            ["pkg", "pkg.a", "pkg.b"]
-        );
-        let main = t.module("pkg.main").expect("main").idx();
-        let x = t.module("pkg.a.x").expect("x").idx();
-        let mut uses = vec![Vec::new(); 3];
-        uses[main] = vec!["pkg.a.x.thing".to_owned()];
-        uses[x] = vec!["pkg.b.y".to_owned()];
-        let g = FolderGraph::build(&t, &uses);
-        assert!(g.cycles.is_empty());
-        let names: Vec<&str> = g
+                .map(|n| ((*n).to_owned(), (*n).to_owned()))
+                .collect(),
+            line: Some(0),
+        }
+    }
+
+    /// The module graph of the files `files` of package `pkg`, each with
+    /// its uses.
+    fn graph_of(files: &[(&str, Vec<UseRef>)]) -> (ModuleTable, ModuleGraph) {
+        let mut s = MemorySources::default();
+        for (f, _) in files {
+            s.insert(f, "");
+        }
+        let mut t = ModuleTable::discover("pkg", &s);
+        let mut uses = vec![Vec::new(); t.modules.len()];
+        for (f, u) in files {
+            let m = t.files.iter().position(|x| x == f).expect("file");
+            uses[m] = u.clone();
+        }
+        let g = ModuleGraph::build(&mut t, &uses);
+        (t, g)
+    }
+
+    fn unit_paths(t: &ModuleTable) -> Vec<&str> {
+        t.folders.iter().map(|f| f.path.as_str()).collect()
+    }
+
+    /// Units are the dependency graph's strongly connected groups, in path
+    /// order, ordered with every unit after the units it uses.
+    #[test]
+    fn units_order_and_height() {
+        let (t, g) = graph_of(&[
+            ("src/app.hd", vec![grouped("pkg.a.x", &["thing"])]),
+            ("src/a/x.hd", vec![grouped("pkg.b.y", &["y"])]),
+            ("src/b/y.hd", Vec::new()),
+        ]);
+        assert!(g.loops.is_empty());
+        let order: Vec<&str> = g
             .order
             .iter()
             .map(|f| t.folders[f.idx()].path.as_str())
             .collect();
-        assert_eq!(names, ["pkg.b", "pkg.a", "pkg"]);
-        assert_eq!(g.closure[0].len(), 3);
-        assert_eq!(g.height[0], 2);
-        let y = t.module("pkg.b.y").expect("y").idx();
-        uses[y] = vec!["pkg.main".to_owned()];
-        let g = FolderGraph::build(&t, &uses);
-        assert_eq!(g.cycles.len(), 1);
-        assert_eq!(
-            g.cycles[0][0].raw(),
-            0,
-            "named from the first member in path order"
-        );
+        assert_eq!(order, ["pkg.b.y", "pkg.a.x", "pkg.app"]);
+        let main = t.folder_of_module("pkg.app").expect("main");
+        assert_eq!(g.height[main.idx()], 2);
     }
 
+    /// `module.cycle.edge`: a use's edge goes to the module it names, and a
+    /// `pub use` makes none. Its dependency edge goes there too, and the
+    /// facade's own `pub use` edge reaches the declaring module. A root
+    /// facade that a child folder's module uses back is one unit with it.
     #[test]
-    fn a_parent_file_lives_in_its_children_folder() {
-        let mut s = MemorySources::default();
-        s.insert("testing.hd", "");
-        s.insert("testing/arbitrary.hd", "");
-        s.insert("text.hd", "");
-        s.insert("shop/mod.hd", "");
-        s.insert("shop/cart.hd", "");
-        let t = ModuleTable::discover("std", &s);
-        let folder = |m: &str| {
-            let id = t.module(m).expect(m);
-            t.folders[t.modules[id.idx()].folder.idx()].path.clone()
-        };
-        assert_eq!(folder("std.testing"), "std.testing");
-        assert_eq!(folder("std.testing.arbitrary"), "std.testing");
-        assert_eq!(folder("std.text"), "std");
-        assert_eq!(folder("std.shop"), "std.shop");
-        assert_eq!(folder("std.shop.cart"), "std.shop");
+    fn facades_make_no_policy_edge() {
+        let mut reexport = grouped("pkg.shop", &["Cart"]);
+        reexport.public = true;
+        let (t, g) = graph_of(&[
+            ("src/lib.hd", vec![reexport]),
+            ("src/error.hd", Vec::new()),
+            ("src/shop/mod.hd", vec![grouped("pkg", &["Error"])]),
+        ]);
+        let shop = t.module("pkg.shop").expect("shop").idx();
+        let lib = t.module("pkg").expect("lib");
+        assert_eq!(
+            g.policy[shop].iter().map(|e| e.0).collect::<Vec<_>>(),
+            [lib]
+        );
+        assert!(g.policy[lib.idx()].is_empty(), "a pub use makes no edge");
+        assert!(g.loops.is_empty(), "shop and its parent are siblings");
+        assert_eq!(g.deps[shop], [lib]);
+        assert_eq!(
+            unit_paths(&t),
+            ["pkg", "pkg.error"],
+            "the facade loop is one unit"
+        );
+        let (t, g) = graph_of(&[
+            (
+                "src/lib.hd",
+                vec![{
+                    let mut u = grouped("pkg.error", &["Error"]);
+                    u.public = true;
+                    u
+                }],
+            ),
+            ("src/error.hd", Vec::new()),
+            ("src/shop/orders/mod.hd", vec![grouped("pkg", &["Error"])]),
+        ]);
+        let orders = t.module("pkg.shop.orders").expect("orders").idx();
+        let error = t.module("pkg.error").expect("error");
+        let lib = t.module("pkg").expect("lib");
+        assert_eq!(g.deps[orders], [lib]);
+        assert_eq!(g.deps[lib.idx()], [error]);
+        assert_eq!(unit_paths(&t).len(), 3);
+        assert!(g.loops.is_empty());
+    }
+
+    /// `module.cycle.siblings`: modules with one parent may loop, and so may
+    /// a parent and its children; cousins may not.
+    #[test]
+    fn only_siblings_loop() {
+        let (_, g) = graph_of(&[
+            ("src/text.hd", vec![grouped("pkg.format", &["f"])]),
+            ("src/format.hd", vec![grouped("pkg.text", &["t"])]),
+        ]);
+        assert!(g.loops.is_empty(), "siblings");
+        let (t, g) = graph_of(&[
+            ("src/shop/mod.hd", vec![grouped("pkg.shop.cart", &["c"])]),
+            ("src/shop/cart.hd", vec![grouped("pkg.shop", &["s"])]),
+        ]);
+        assert!(g.loops.is_empty(), "a parent and its child");
+        assert_eq!(unit_paths(&t), ["pkg.shop"], "one unit");
+        let (t, g) = graph_of(&[
+            ("src/billing.hd", vec![grouped("pkg.shop.cart", &["total"])]),
+            (
+                "src/shop/cart.hd",
+                vec![grouped("pkg.billing", &["bill", "tax"])],
+            ),
+        ]);
+        assert_eq!(g.loops.len(), 1);
+        let l = &g.loops[0];
+        assert_eq!(l.modules, 2);
+        let billing = t.module("pkg.billing").expect("billing");
+        let cart = t.module("pkg.shop.cart").expect("cart");
+        // From the first module in path order to the first that is no
+        // sibling of it, and back; the last edge is reported.
+        assert_eq!(l.walk, [(billing, 0, cart), (cart, 0, billing)]);
+        assert_eq!(l.help, (cart, vec!["total".to_owned()]));
+    }
+
+    /// A strongly connected group whose every loop is legal, but which no
+    /// sibling group holds, is still one error: the parent `p` loops with
+    /// its sibling `r` and with its child `p.c`.
+    #[test]
+    fn a_group_no_sibling_group_holds_is_an_error() {
+        let (t, g) = graph_of(&[
+            (
+                "src/p.hd",
+                vec![grouped("pkg.r", &["r"]), {
+                    let mut u = grouped("pkg.p.c", &["c"]);
+                    u.line = Some(1);
+                    u
+                }],
+            ),
+            ("src/p/c.hd", vec![grouped("pkg.p", &["p"])]),
+            ("src/r.hd", vec![grouped("pkg.p", &["p"])]),
+        ]);
+        assert_eq!(g.loops.len(), 1);
+        let c = t.module("pkg.p.c").expect("c");
+        let r = t.module("pkg.r").expect("r");
+        let walk = &g.loops[0].walk;
+        assert_eq!((walk[0].0, walk.last().map(|e| e.2)), (c, Some(c)));
+        assert!(walk.iter().any(|e| e.2 == r));
+    }
+
+    /// Cost (`.agents/skills/shared-rules.md`): a loop of 1000 sibling
+    /// modules, and 1000 uses of a `pub use` chain of depth 20, cost work
+    /// linear in modules plus edges.
+    #[test]
+    fn module_graph_work_is_linear() {
+        let n = 1000;
+        let files: Vec<(String, Vec<UseRef>)> = (0..n)
+            .map(|i| {
+                (
+                    format!("src/m{i}.hd"),
+                    vec![grouped(&format!("pkg.m{}", (i + 1) % n), &["x"])],
+                )
+            })
+            .collect();
+        let refs: Vec<(&str, Vec<UseRef>)> =
+            files.iter().map(|(f, u)| (f.as_str(), u.clone())).collect();
+        let (t, g) = graph_of(&refs);
+        assert!(g.loops.is_empty());
+        assert_eq!(t.folders.len(), 1);
+        assert!(g.work < 8 * n as u64, "work {}", g.work);
+        // A forbidden ring of 1000 cousins: one error, linear work.
+        let files: Vec<(String, Vec<UseRef>)> = (0..n)
+            .map(|i| {
+                (
+                    format!("src/a{i}/x.hd"),
+                    vec![grouped(&format!("pkg.a{}.x", (i + 1) % n), &["x"])],
+                )
+            })
+            .collect();
+        let refs: Vec<(&str, Vec<UseRef>)> =
+            files.iter().map(|(f, u)| (f.as_str(), u.clone())).collect();
+        let (_, g) = graph_of(&refs);
+        assert_eq!(g.loops.len(), 1);
+        assert_eq!(g.loops[0].walk.len(), n);
+        assert!(g.work < 8 * n as u64, "work {}", g.work);
+        // Depth 20: c0 re-exports from c1, ..., c19 declares; 1000 users.
+        let depth = 20;
+        let mut files: Vec<(String, Vec<UseRef>)> = (0..depth)
+            .map(|i| {
+                let mut u = grouped(&format!("pkg.c{}", i + 1), &["x"]);
+                u.public = true;
+                (
+                    format!("src/c{i}.hd"),
+                    if i + 1 < depth { vec![u] } else { Vec::new() },
+                )
+            })
+            .collect();
+        files.extend((0..n).map(|i| (format!("src/u{i}.hd"), vec![grouped("pkg.c0", &["x"])])));
+        let refs: Vec<(&str, Vec<UseRef>)> =
+            files.iter().map(|(f, u)| (f.as_str(), u.clone())).collect();
+        let (t, g) = graph_of(&refs);
+        let first = t.module("pkg.c0").expect("facade");
+        let user = t.module("pkg.u7").expect("user").idx();
+        assert_eq!(g.deps[user], [first]);
+        assert!(g.work < 12 * (n + depth) as u64, "work {}", g.work);
     }
 
     #[test]
@@ -2151,7 +2483,7 @@ mod tests {
 
     /// `tasks/shared.hd` beside `tasks/shared/` is one error on the file
     /// (`cli.task.beside-directory`); `src/x.hd` beside `src/x/` is the parent
-    /// file of folder `x` and no error (`module.folder.parent-file`).
+    /// of the modules in `x/` and no error (`module.path.directory`).
     #[test]
     fn a_task_file_beside_its_directory_is_a_duplicate_module() {
         let mut s = MemorySources::default();
@@ -2193,29 +2525,6 @@ mod tests {
             super::user_text("(in `shop/$tests/flow/main`)", &file_of),
             "(in `tests/flow/main`)"
         );
-    }
-
-    /// Folder-cycle recovery: two folders that use each other become one,
-    /// named after the first in path order.
-    #[test]
-    fn merged_folders_hold_both_modules() {
-        let mut s = MemorySources::default();
-        for f in ["src/a/x.hd", "src/b/y.hd", "src/c/z.hd"] {
-            s.insert(f, "");
-        }
-        let mut t = ModuleTable::discover("shop", &s);
-        let a = t.folder_of_module("shop.a.x").expect("a");
-        let b = t.folder_of_module("shop.b.y").expect("b");
-        t.merge_folders(&[vec![b, a]]);
-        assert_eq!(t.folders.len(), 2);
-        assert_eq!(
-            t.folder_of_module("shop.a.x"),
-            t.folder_of_module("shop.b.y")
-        );
-        let merged = t.folder_of_module("shop.a.x").expect("merged");
-        assert_eq!(t.folders[merged.idx()].path, "shop.a");
-        assert_eq!(t.folders[merged.idx()].modules.len(), 2);
-        assert_ne!(t.folder_of_module("shop.c.z"), Some(merged));
     }
 
     /// `module.test.non-test-use.dev-dependency`, `module.test.cyclic-dev-unit`:

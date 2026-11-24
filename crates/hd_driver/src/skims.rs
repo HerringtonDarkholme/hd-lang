@@ -28,6 +28,86 @@ pub(crate) struct EntryFacts {
     pub(crate) init: Option<(u32, u32)>,
 }
 
+/// A library `use` line past its path: whether it is `pub`, whether it is
+/// grouped, and each grouped name with the local name it binds
+/// (`use M.{a, b as c}` gives `(a, a)` and `(b, c)`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UseShape {
+    pub public: bool,
+    pub grouped: bool,
+    pub names: Vec<(String, String)>,
+}
+
+impl UseShape {
+    /// The shape of the `use` line at `lo..hi` of `text` (its range starts
+    /// at `use`, after any `pub`). Cost: one lex of the line.
+    fn of(text: &str, (lo, hi): Range) -> UseShape {
+        let (lo, hi) = (lo as usize, (hi as usize).min(text.len()));
+        let line_start = text[..lo].rfind('\n').map_or(0, |i| i + 1);
+        let public = text[line_start..lo].trim() == "pub";
+        let line = &text[lo..hi];
+        let Some(open) = line.find('{') else {
+            return UseShape {
+                public,
+                ..UseShape::default()
+            };
+        };
+        let group = &line[open + 1..];
+        let lexed = hd_syntax::lex(group.as_bytes());
+        let toks = &lexed.tokens;
+        let mut names = Vec::new();
+        // Each item is `name` or `name as local`, items split by commas.
+        let mut item: Vec<&str> = Vec::new();
+        let mut flush = |item: &mut Vec<&str>| {
+            if let Some(&name) = item.first() {
+                let local = if item.len() >= 3 && item[1] == "as" {
+                    item[2]
+                } else {
+                    name
+                };
+                names.push((name.to_owned(), local.to_owned()));
+            }
+            item.clear();
+        };
+        for i in 0..toks.kind.len() {
+            let t = &group[toks.start[i] as usize..toks.end[i] as usize];
+            match toks.kind[i] {
+                hd_syntax::TokenKind::Ident => item.push(t),
+                hd_syntax::TokenKind::RawIdent => item.push(t.trim_matches('`')),
+                hd_syntax::TokenKind::Comma | hd_syntax::TokenKind::RBrace => flush(&mut item),
+                // ruled out: a match on a token kind; whitespace, comments and line breaks inside a group name nothing.
+                _ => {}
+            }
+        }
+        flush(&mut item);
+        UseShape {
+            public,
+            grouped: true,
+            names,
+        }
+    }
+
+    fn write(&self, w: &mut Writer) {
+        w.u8(u8::from(self.public) | (u8::from(self.grouped) << 1));
+        w.len_of(&self.names);
+        for (name, local) in &self.names {
+            w.str(name);
+            w.str(local);
+        }
+    }
+
+    fn read(r: &mut Reader<'_>) -> UseShape {
+        let flags = r.u8();
+        UseShape {
+            public: flags & 1 != 0,
+            grouped: flags & 2 != 0,
+            names: (0..r.count())
+                .map(|_| (r.str().to_owned(), r.str().to_owned()))
+                .collect(),
+        }
+    }
+}
+
 /// What `hd_syntax::skim` gives a file's text, before its module's uses
 /// are resolved against the module table: a function of the text alone.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,6 +131,9 @@ pub struct FileSkim {
     /// The module path each of `use_lines` names as written, its root not
     /// yet resolved. Kept so a module's uses resolve without its text.
     pub use_paths: Vec<String>,
+    /// What each of `use_lines` names past its path ([`UseShape`]): the
+    /// module graph follows `pub use` chains through it without the text.
+    pub use_shapes: Vec<UseShape>,
     /// The path of each `use` line of a `tests:` block, as written. Test
     /// code makes no folder edge (`module.cycle.test-code`); these widen
     /// only the test role's closure.
@@ -100,6 +183,7 @@ impl FileSkim {
                 .map(|b| (b.header_start, b.body_start))
         };
         let use_paths = sk.uses.iter().map(path_of).collect();
+        let use_shapes = sk.uses.iter().map(|&r| UseShape::of(text, r)).collect();
         FileSkim {
             source_hash: sk.source_hash,
             api_text_hash: sk.api_text_hash,
@@ -124,6 +208,7 @@ impl FileSkim {
             code_lines: sk.code_lines,
             use_lines: sk.uses,
             use_paths,
+            use_shapes,
             test_uses,
         }
     }
@@ -146,6 +231,9 @@ impl FileSkim {
         }
         for p in &self.use_paths {
             w.str(p);
+        }
+        for shape in &self.use_shapes {
+            shape.write(w);
         }
         w.len_of(&self.test_uses);
         for u in &self.test_uses {
@@ -196,6 +284,7 @@ impl FileSkim {
         let code_lines = (0..r.count()).map(|_| r.u32()).collect();
         let use_lines: Vec<(u32, u32)> = (0..r.count()).map(|_| (r.u32(), r.u32())).collect();
         let use_paths = use_lines.iter().map(|_| r.str().to_owned()).collect();
+        let use_shapes = use_lines.iter().map(|_| UseShape::read(r)).collect();
         let test_uses = (0..r.count()).map(|_| r.str().to_owned()).collect();
         let has_tests_block = r.u8() != 0;
         let host_marker = r.u8() != 0;
@@ -225,6 +314,7 @@ impl FileSkim {
             code_lines,
             use_lines,
             use_paths,
+            use_shapes,
             test_uses,
             has_tests_block,
             host_marker,

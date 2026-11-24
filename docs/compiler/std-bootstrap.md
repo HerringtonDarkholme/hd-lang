@@ -167,10 +167,11 @@ needs no self-derivation.
 | `std.testing` (`lib/std/testing`) | `std.testing` from `testing.hd`, plus `std.testing.arbitrary` | `std` |
 | `std.prelude` (`lib/std/prelude`) | `std.prelude` from `prelude.hd`, plus `std.prelude.testing` | `std`; `std.testing`, through the test-only re-export of `it` |
 
-The graph is acyclic. Under
-[`module.folder.parent-file`](../../spec/lang/10-modules.md#r-module.folder.parent-file),
-`testing.hd` and `testing/arbitrary.hd` share folder `std.testing`, so the
-re-export between them adds no edge.
+The graph is acyclic. `testing.hd` and `testing/arbitrary.hd` are a parent
+and its child, so their loop is legal
+([`module.cycle.sibling-group.siblings`](../../spec/lang/10-modules.md#r-module.cycle.sibling-group.siblings)).
+The compiler's units are module groups, not these folders
+(`crates/hd_resolve/DESIGN.md` §4.8); the table shows std's layers.
 
 `std.core` and `std.rt` are std's leaf layer
 ([`module.core.leaf`](../../spec/lang/10-modules.md#r-module.core.leaf),
