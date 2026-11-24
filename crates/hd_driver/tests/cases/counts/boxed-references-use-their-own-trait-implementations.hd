@@ -1,6 +1,6 @@
 # @dump: stdout counts
 # @build: dev | checked | release | release checked
-# expected: 107, 107, 17, 17, 107, 17, 107, 17, 7; preserve the chosen impl.
+# expected: reference implementations return 107 or 17; the original value remains 7.
 trait Label:
     fn label(&self) -> i32
 
@@ -41,6 +41,11 @@ fn borrowed[T < Label](value: &T) -> i32:
     let out: &dyn Label = value
     out.label()
 
+fn borrowed_box[T < Label & 'static](value: T) -> i32:
+    outer := box(value)
+    let out: &dyn Label = outer
+    out.label()
+
 fn held[T < Label & 'static](value: T) -> Holder:
     Holder { value: box(value) }
 
@@ -55,4 +60,6 @@ pub fn main() -> void $ Console:
     println(borrowed(&value))
     println(held(concrete).value.label())
     println(held(value).value.label())
+    println(borrowed_box(concrete))
+    println(borrowed_box(value))
     println(value.value())
