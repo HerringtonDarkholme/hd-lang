@@ -1,0 +1,15 @@
+# @dump: diagnostics
+struct Plain:
+    value: i32
+
+struct Holder[T < Plain]:
+    value: T
+
+type Kept[T < Plain] = T
+
+fn direct(value: Plain) -> void:
+    let held = Holder::[Plain] { value }
+    let kept: Kept[Plain] = value
+
+fn local(value: Plain) -> void:
+    let kept: Kept[Plain] = value
