@@ -88,13 +88,15 @@ jobs:
       # asks (`Packages::report`, #2308), so `--all-features` emits the
       # modules a build without `checked-report` does. They are kept in
       # target/tools. The list of test binaries (package directory, target,
-      # executable) goes with them, for scripts/ci-tests.sh.
+      # executable) goes with them, for scripts/ci-tests.sh. `--timings`
+      # writes each unit's compile time (target/cargo-timings), kept below, so
+      # a slow unit is read from the run, never estimated.
       - name: Build
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/tools
-          cargo test --release --all-features --workspace --no-run --message-format=json-render-diagnostics > target/ci-build.json
+          cargo test --release --all-features --workspace --no-run --timings --message-format=json-render-diagnostics > target/ci-build.json
           cp target/release/hd target/release/examples/count_ops target/tools/
           jq -r --arg root "$PWD/" 'select(.reason == "compiler-artifact" and .executable != null)
             | [(.manifest_path | ltrimstr($root) | rtrimstr("/Cargo.toml")), .target.name,
@@ -112,6 +114,15 @@ jobs:
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
+
+      - name: Store the build timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-timings
+          path: target/cargo-timings/cargo-timing.html
+          retention-days: 7
+          if-no-files-found: warn
 
       # Doc tests compile at test time, against the libraries just built.
       - name: Doc tests
