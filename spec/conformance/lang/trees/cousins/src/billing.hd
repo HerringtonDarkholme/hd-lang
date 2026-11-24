@@ -1,0 +1,4 @@
+use pkg.shop.cart.{total}
+
+pub fn bill() -> i32:
+    total()

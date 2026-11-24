@@ -1,0 +1,10 @@
+# test: a shared module below the facade, which a child uses, makes no loop
+# Spec 10 Module Graph: module.cycle.siblings.
+# fixture-package-tree: facade-leaf/src/shop/mod.hd
+use pkg.error.{Error}
+
+pub struct Cart:
+    pub count: i32
+
+pub fn empty() -> Error:
+    Error.Empty

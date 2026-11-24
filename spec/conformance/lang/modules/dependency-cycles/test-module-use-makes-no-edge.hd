@@ -1,6 +1,6 @@
-# test: a use in test code makes no folder edge, so a test module may use a helper folder that uses its own folder
+# test: a use in test code makes no edge, so a test module may use a helper that uses its own parent's module
 # Spec 10 Test Modules: module.test.module.view, module.test.code.
-# Spec 10 Folder Graph: module.cycle.test-code (Dependency Cycles DC6, DC11).
+# Spec 10 Module Graph: module.cycle.test-code.
 # fixture-package-tree: test-edges/src/shop/cart_test.hd
 use pkg.testkit.{make}
 use std.testing.assert_equal

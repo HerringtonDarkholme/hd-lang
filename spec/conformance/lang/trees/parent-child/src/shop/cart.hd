@@ -1,0 +1,7 @@
+use pkg.shop.{open}
+
+pub struct Cart:
+    pub size: i32
+
+pub fn reopen() -> Cart:
+    open()

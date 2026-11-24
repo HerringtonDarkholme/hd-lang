@@ -1,0 +1,7 @@
+# test: a parent module and its child are siblings and may use each other
+# Spec 10 Module Graph: module.cycle.sibling-group, module.cycle.sibling-group.siblings.
+# fixture-package-tree: parent-child/src/shop/mod.hd
+use pkg.shop.cart.{Cart}
+
+pub fn open() -> Cart:
+    Cart { size: 0 }

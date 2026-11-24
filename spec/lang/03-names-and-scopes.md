@@ -307,8 +307,8 @@ use dep.billing.types.{UserId as BillingUserId}
 7. r[names.use.resolution-order] Use declarations are resolved before declarations are type checked.
 8. r[names.use.position] The textual position of a use declaration does not limit its visibility.
 9. r[names.use.style] Style tools should place use declarations before other top-level items.
-10. r[names.use.cycles-in-folder] The files of one folder may use each other in a loop.
-11. r[names.use.module-cycle] Modules of different folders must not use each other in a loop, as [Dependency Cycles](10-modules.md#dependency-cycles) defines. Error: `module-cycle`.
+10. r[names.use.cycles-siblings] Sibling modules, those of one parent and the parent itself, may use each other in a loop.
+11. r[names.use.module-cycle] Modules that are not siblings must not use each other in a loop, as [Dependency Cycles](10-modules.md#dependency-cycles) defines. Error: `module-cycle`.
 
 ### Public Use Declarations
 

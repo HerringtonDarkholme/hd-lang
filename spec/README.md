@@ -240,7 +240,6 @@ The stdlib chapters' terms are in the
 | **field lookup** | The steps that resolve `x.name` to one field from a module. See [Field Lookup](lang/03-names-and-scopes.md#field-lookup). |
 | **fixed elements** | The elements of a tuple type other than its rest element. See [`types.tuple.rest.form`](lang/04-type-system.md#r-types.tuple.rest.form). |
 | **flag method** | A static method with no parameters, no requirement row, and a `bool` result; a call of one made while the same instance evaluates is `true`. See [`annot.bound.recursive.flag`](lang/14-annotations.md#r-annot.bound.recursive.flag). |
-| **folder** | The directory that holds a source file, or for a file `x.hd` with child modules, the directory `x/` that holds them; nested directories are separate folders. See [`module.folder.holder`](lang/10-modules.md#r-module.folder.holder). |
 | **frozen loan** | A local reference that a crossing closure captures; nothing writes its place until its crossing's lifetime ends. See [`ref.frozen.definition`](lang/13-values-and-references.md#r-ref.frozen.definition). |
 | **generic call cycle** | A chain of calls that passes a type parameter on to the callee's type parameters until it reaches itself again. See [`types.generic.call-cycle`](lang/04-type-system.md#r-types.generic.call-cycle). |
 | **handle** | A compiler-generated constant naming one member (`Field[S, F]`) or variant (`Variant[S]`) of a derivation's target. See [Handles](lang/14-annotations.md#handles). |
@@ -284,7 +283,7 @@ The stdlib chapters' terms are in the
 | **method lookup** | The steps that resolve `x.name(args)` to an own inherent method or a candidate. See [Method Lookup](lang/03-names-and-scopes.md#method-lookup). |
 | **method reference** | A method or associated function named as a function value, written `Owner::name` or `value::name` without arguments. See [Method References](lang/07-functions.md#method-references). |
 | **module cycle** | A strongly connected component of the use graph: modules that use each other, or one module alone as a trivial cycle, initialized together. See [`module.init.cycle`](lang/10-modules.md#r-module.init.cycle). |
-| **module graph** | A package's modules, with an edge from a module to each module that declares a name its uses reach. A loop is allowed only among siblings. See [`module.cycle.edge`](lang/10-modules.md#r-module.cycle.edge). |
+| **module graph** | A package's modules, with an edge from a module to each module its uses name; a `pub use` makes none. A loop is allowed only among siblings. See [`module.cycle.edge`](lang/10-modules.md#r-module.cycle.edge). |
 | **minimal version selection** | Choosing, for each host path and compatibility line, the largest minimum that any reached manifest states. See [Version Selection](lang/10-modules.md#version-selection). |
 | **module names** | The name category of top-level types, traits, functions, and names introduced by use declarations. See [`names.category.module`](lang/03-names-and-scopes.md#r-names.category.module). |
 | **moves** | A `&mut` binding moves its value when the value goes to a site that keeps it; the binding is then unusable until it is assigned. See [`ref.move.sites`](lang/13-values-and-references.md#r-ref.move.sites). |
@@ -334,7 +333,7 @@ The stdlib chapters' terms are in the
 | **self reference** | A member's or variant's `self_ref`: whether its type needs the type being derived (`.Required`), only refers to it (`.Optional`), or neither (`.Absent`), computed from its type alone. See [Self References](lang/14-annotations.md#self-references). |
 | **shared test module** | A module in a subdirectory of the test root, which every integration test program may use. See [`module.test.integration.shared`](lang/10-modules.md#r-module.test.integration.shared). |
 | **shape** | In generic code, the machine representation a value occupies. See [Shapes and Generic Code](lang/04-type-system.md#shapes-and-generic-code). |
-| **siblings** | Modules whose source files are in one folder; only siblings may use each other in a loop. See [`module.folder.siblings`](lang/10-modules.md#r-module.folder.siblings). |
+| **siblings** | Modules that one sibling group holds: a module and its children, or children of one parent; only siblings may use each other in a loop. See [`module.cycle.sibling-group.siblings`](lang/10-modules.md#r-module.cycle.sibling-group.siblings). |
 | **signed literal** | An integer literal written directly after unary `-` or `+`, as in `-1` or `+5`. See [`types.literal.local.signed`](lang/04-type-system.md#r-types.literal.local.signed). |
 | **single-file program** | One source file compiled with no package, which may use only `std`. See [Single-File Programs](lang/10-modules.md#single-file-programs). |
 | **source** | The receiver or the parameter that a dependent result borrows from. See [`ref.dep.elide`](lang/13-values-and-references.md#r-ref.dep.elide). |

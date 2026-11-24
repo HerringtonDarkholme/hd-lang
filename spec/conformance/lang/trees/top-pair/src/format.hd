@@ -1,0 +1,7 @@
+use pkg.text.{Builder}
+
+pub struct Writer:
+    pub size: i32
+
+pub fn write(builder: Builder) -> Writer:
+    Writer { size: builder.size }

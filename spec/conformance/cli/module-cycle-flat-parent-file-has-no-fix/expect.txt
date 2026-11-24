@@ -1,5 +1,0 @@
-# `src/cart.hd` is in folder `src/cart` with its child module, as `src/cart/mod.hd`
-# would be, so moving it changes no folder and the diagnostic offers no fix-it.
-run: hd check --format json
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"module-cycle","severity":"error","message":null,"file":"src/shop/mod.hd","line":1,"column":1},{"kind":"summary","errors":1,"warnings":0,"status":101}]
