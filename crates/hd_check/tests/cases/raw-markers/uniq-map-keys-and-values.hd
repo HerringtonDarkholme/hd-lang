@@ -1,7 +1,6 @@
 # @dump: diagnostics
 # A `UniqMap` holds its keys and values in a `Buffer`, so it is `Send` or
 # `Sync` only when they are (`module.marker.structural`).
-# expected: unsatisfied-trait-bound on each of the four calls (#2345)
 use std.collections.UniqMap
 use std.hash.Hasher
 use std.marker.{Send, Sync}

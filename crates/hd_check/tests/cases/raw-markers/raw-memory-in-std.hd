@@ -1,9 +1,8 @@
 # @dump: diagnostics
 # @build: std
-# `Buffer[T]` and `Ptr[T]` hold values of `T` through an address, so a
-# marker counts those values as held, as Rust's auto-trait walk takes
-# `PhantomData<T>`'s `T` (`module.marker.structural`).
-# expected: unsatisfied-trait-bound on the four calls in `held`; `plain` is accepted (#2345)
+# A `Ptr[T]` holds the value of `T` at its address, and a `Buffer[T]` keeps
+# its room behind a `Ptr[T]` field, so a marker counts those values as
+# held (`module.marker.address`).
 use std.marker.{Send, Sync}
 use std.rt.memory.{Buffer, Ptr}
 
