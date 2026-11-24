@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn same['a, 'b](
+    value: fn(&'a i32, &i32, &'b i32) -> &'a i32,
+) -> fn(&'a i32, &i32, &'b i32) -> &'a i32:
+    value
