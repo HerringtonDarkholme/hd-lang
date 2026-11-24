@@ -123,26 +123,6 @@ impl ProgramItems {
     }
 }
 
-/// The shortest folder loop through `touch` in `adj`.
-#[must_use]
-pub fn shortest_loop(
-    table: &hd_project::ModuleTable,
-    adj: &[Vec<usize>],
-    touch: &hd_base::HashSet<usize>,
-) -> Vec<usize> {
-    crate::shortest_loop(table, adj, touch)
-}
-
-/// [`shortest_loop`], calling `work` once per unit of search work.
-pub fn shortest_loop_with_work(
-    table: &hd_project::ModuleTable,
-    adj: &[Vec<usize>],
-    touch: &hd_base::HashSet<usize>,
-    work: impl FnMut(),
-) -> Vec<usize> {
-    crate::shortest_loop_with_work(table, adj, touch, work)
-}
-
 /// Whether a run verifies its TIR.
 #[must_use]
 pub const fn verifies_tir(debug: bool, checked: bool, requested: bool) -> bool {

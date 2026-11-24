@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use hd_base::{DefId, FolderId, Hash128, HashSet};
+use hd_base::{DefId, Hash128};
 use hd_cache::{EntryKind, MemoryStore};
 use hd_diag::{Code, DiagBuf};
 use hd_project::{MemorySources, ModuleTable, PackageIn, Scope, SourceSet};
@@ -56,66 +56,6 @@ mod program_items_tests {
         program.add_checked(items(vec![item(11, true)]));
         assert_eq!(program.get(DefId::from_raw(11)), Some(&item(11, true)));
         assert_eq!(program.get(DefId::from_raw(4)), Some(&item(4, false)));
-    }
-}
-
-mod folder_cycle_loop_tests {
-    use super::*;
-
-    fn table(n: usize) -> ModuleTable {
-        let mut table = ModuleTable::default();
-        table.folders = (0..n)
-            .map(|i| hd_project::Folder {
-                id: FolderId::from_raw(u32::try_from(i).unwrap()),
-                path: format!("{i:05}"),
-                modules: Vec::new(),
-                package: 0,
-            })
-            .collect();
-        table
-    }
-
-    #[test]
-    fn the_shortest_loop_goes_through_the_least_path_folder() {
-        let mut table = table(5);
-        for (folder, path) in table.folders.iter_mut().zip(["d", "c", "b", "a", "z"]) {
-            folder.path = path.into();
-        }
-        // b <-> c is globally shorter; the chosen loop must include a.
-        // z is outside the tangle and must never enter the BFS queue.
-        let adj = vec![vec![3], vec![0, 2], vec![1, 4], vec![2], vec![4]];
-        let touch = HashSet::from_iter([0, 1, 2, 3]);
-        assert_eq!(shortest_loop(&table, &adj, &touch), [3, 2, 1, 0]);
-        assert!(shortest_loop(&table, &adj, &HashSet::default()).is_empty());
-        assert!(shortest_loop(&table, &[vec![]], &HashSet::from_iter([0])).is_empty());
-        assert_eq!(
-            shortest_loop(&table, &[vec![0]], &HashSet::from_iter([0])),
-            [0]
-        );
-    }
-
-    #[test]
-    fn loop_search_work_grows_with_the_tangle_not_the_package() {
-        std::thread::Builder::new()
-            .stack_size(96 << 10)
-            // cost: one small-stack thread, with linear generated graphs.
-            .spawn(|| {
-                for (width, total) in [(1_000, 1_001), (10_000, 10_001), (1_000, 10_001)] {
-                    let table = table(total);
-                    let mut adj = vec![Vec::new(); total];
-                    for (i, row) in adj.iter_mut().enumerate().take(width) {
-                        *row = vec![width, (i + 1) % width];
-                    }
-                    let touch = (0..width).collect();
-                    let mut work = 0;
-                    let path = shortest_loop_with_work(&table, &adj, &touch, || work += 1);
-                    assert_eq!(path, (0..width).collect::<Vec<_>>());
-                    assert_eq!(work, 5 * width - 1);
-                }
-            })
-            .unwrap()
-            .join()
-            .unwrap();
     }
 }
 

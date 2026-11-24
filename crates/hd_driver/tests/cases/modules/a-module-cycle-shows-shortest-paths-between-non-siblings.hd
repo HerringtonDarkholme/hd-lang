@@ -1,0 +1,31 @@
+# @dump: diagnostics
+# @main: src/main.hd
+# Spec 10 Cycle Diagnostic: module.cycle.diagnostic.entry, module.cycle.diagnostic.shortest-loop.
+# The loop runs from `a.x` to `b.x`, the first module that is no sibling of
+# it, and back by the shortest path, `b.x -> c.x -> d.x -> a.x`; the edge
+# `c.x -> b.x` makes the group but is not shown.
+use pkg.a.x.fa
+
+pub fn main() -> void:
+    _ := fa()
+
+# @file: src/a/x.hd
+use pkg.b.x.fb
+pub fn fa() -> i32:
+    0
+
+# @file: src/b/x.hd
+use pkg.c.x.fc
+pub fn fb() -> i32:
+    0
+
+# @file: src/c/x.hd
+use pkg.b.x.fb
+use pkg.d.x.fd
+pub fn fc() -> i32:
+    0
+
+# @file: src/d/x.hd
+use pkg.a.x.fa
+pub fn fd() -> i32:
+    0

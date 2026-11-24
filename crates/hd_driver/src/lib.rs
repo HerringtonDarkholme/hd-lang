@@ -39,7 +39,7 @@ use hd_intern::{PathTable, ShardedInterner};
 pub use hd_layout::Niche;
 use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, HostItems, ProgramEnv};
-use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Role, Scope, SourceSet};
+use hd_project::{MemorySources, ModuleGraph, ModuleTable, PackageIn, Role, Scope, SourceSet};
 use hd_resolve::iface::IfaceIndex;
 use hd_resolve::{FolderIface, Item, ItemData, Items, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
@@ -195,10 +195,29 @@ fn rt_roots(
         (true, false) => &[hd_wasm::CHECKED_MODULE],
         _ => &[],
     };
+    // The runtime's leaf layer (`module.rt.leaf`): `std.rt` and its
+    // children, whose functions emitted code and the compiler's own
+    // lowering call, whatever the program uses. The checked runtime and
+    // the entry's hd are rooted above.
+    let leaf = table
+        .module(hd_resolve::known::RUNTIME_MODULE)
+        .into_iter()
+        .chain(table.modules.iter().filter_map(|module| {
+            let child = module.path.strip_prefix("std.rt.")?;
+            let own = !child.contains('.')
+                && ![
+                    ENTRY_MODULE,
+                    hd_wasm::CHECKED_MODULE,
+                    hd_wasm::REPORT_MODULE,
+                ]
+                .contains(&module.path.as_str());
+            (own && module.role != Role::Test).then_some(module.id)
+        }));
     [ENTRY_MODULE, hd_wasm::RUNTIME_MODULE]
         .into_iter()
         .chain(checked_rt.iter().copied())
         .filter_map(|path| table.module(path))
+        .chain(leaf)
 }
 
 /// A source set with the virtual [`ENTRY_PATH`] added when it is missing: a
@@ -753,10 +772,9 @@ struct SkimOut {
     /// edge (`module.cycle.test-code`) and widen only the test role's
     /// closure ([`Run::module_closure`]).
     test_uses: Vec<String>,
-}
-
-struct GraphOut {
-    graph: FolderGraph,
+    /// Its library uses as the module graph reads them: the written ones,
+    /// then the implicit ones (`hd_project::UseRef`).
+    refs: Vec<hd_project::UseRef>,
 }
 
 /// A module's own items after `ModulePrep` (a check miss).
@@ -1224,7 +1242,8 @@ fn skim_module(
 ) -> SkimOut {
     let module = &table.modules[m].path;
     let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-    let mut uses = written_uses(&file, &roots);
+    let mut refs = written_refs(&file, &roots);
+    let mut uses: Vec<String> = refs.iter().map(|r| r.path.clone()).collect();
     // A `tests:` block's uses, of this package or another, such as a dev
     // dependency (`module.test.dev-dependency.in-tests`): the block is
     // test code, so they make no folder edge (`module.cycle.test-code`).
@@ -1244,6 +1263,7 @@ fn skim_module(
     if testing_elsewhere {
         if table.modules[m].role == hd_project::Role::Test {
             uses.push(hd_resolve::known::TESTING_MODULE.to_owned());
+            refs.push(namespace_ref(hd_resolve::known::TESTING_MODULE));
         } else if file.has_tests_block {
             test_uses.push(hd_resolve::known::TESTING_MODULE.to_owned());
         }
@@ -1254,20 +1274,81 @@ fn skim_module(
     // input uses the one before, so the closure, and every key and order
     // over it, is the same as with a use of each earlier input, at one
     // edge per input instead of one per pair of inputs.
+    refs.extend(session.iter().map(|s| namespace_ref(s)));
     uses.extend(session);
-    // The prelude's fixed uses (`module.prelude.fixed-uses`).
+    // The prelude's fixed uses (`module.prelude.fixed-uses`): each row is
+    // a grouped use of its names.
     if module != hd_resolve::known::CORE_MODULE {
-        uses.extend(
-            hd_resolve::prelude_modules(module)
-                .into_iter()
-                .map(str::to_owned),
-        );
+        for (row, names) in hd_resolve::known::prelude_rows(module) {
+            uses.push((*row).to_owned());
+            refs.push(hd_project::UseRef {
+                path: (*row).to_owned(),
+                grouped: true,
+                public: false,
+                names: names
+                    .iter()
+                    .map(|n| ((*n).to_owned(), (*n).to_owned()))
+                    .collect(),
+                line: None,
+            });
+        }
     }
     SkimOut {
         file,
         uses,
         test_uses,
+        refs,
     }
+}
+
+/// Whether module `m` is in std's language layer ([`module_graph`]): a
+/// top-level std module outside the core layer and the runtime, other
+/// than `std.testing`.
+fn std_layer(table: &ModuleTable, m: usize) -> bool {
+    let module = &table.modules[m];
+    table.roots[usize::from(module.package)] == "std"
+        && module.role != Role::Test
+        && module
+            .path
+            .strip_prefix("std.")
+            .is_some_and(|rest| !rest.contains('.'))
+        && ![
+            hd_resolve::known::CORE_MODULE,
+            hd_resolve::known::RUNTIME_MODULE,
+            hd_resolve::known::TESTING_MODULE,
+        ]
+        .contains(&module.path.as_str())
+}
+
+/// An implicit use of module `path` as a namespace.
+fn namespace_ref(path: &str) -> hd_project::UseRef {
+    hd_project::UseRef {
+        path: path.to_owned(),
+        ..hd_project::UseRef::default()
+    }
+}
+
+/// A file's written library uses as the module graph reads them, their
+/// roots replaced by the module paths they name. A path whose root names
+/// nothing makes no edge; resolution reports it.
+fn written_refs(file: &skims::FileSkim, roots: &hd_project::UseRoots) -> Vec<hd_project::UseRef> {
+    let mut out = Vec::new();
+    for (line, (path, shape)) in (0u32..).zip(file.use_paths.iter().zip(&file.use_shapes)) {
+        if path.is_empty() {
+            continue;
+        }
+        let segs: Vec<&str> = path.split('.').collect();
+        if let Ok(abs) = roots.absolute(&segs) {
+            out.push(hd_project::UseRef {
+                path: abs.join("."),
+                grouped: shape.grouped,
+                public: shape.public,
+                names: shape.names.clone(),
+                line: Some(line),
+            });
+        }
+    }
+    out
 }
 
 /// The roots a program's exports poll.
@@ -1513,6 +1594,9 @@ fn repl_texts(
     // The compiler roots `std.rt.entry` and the runtime after an entry, a
     // REPL input's too (`RT_SOURCE`).
     stack.extend(rt_roots(table, false, false).map(ModuleId::idx));
+    // And std's language layer, which every module sees with no `use`
+    // ([`module_graph`]).
+    stack.extend((0..n).filter(|&m| std_layer(table, m)));
     while let Some(m) = stack.pop() {
         if skims[m].is_some() {
             continue;
@@ -1525,13 +1609,9 @@ fn repl_texts(
                 stack.push(id.idx());
             }
         }
-        // Another package's folder is read whole: std and a dependency
-        // rely on the impls of every module of a folder they reach.
-        let module = &table.modules[m];
-        if module.package != 0 {
-            let folder = &table.folders[module.folder.idx()];
-            stack.extend(folder.modules.iter().map(|k| k.idx()));
-        }
+        // The walk follows every module a use names, `pub use` lines
+        // included, so it reaches every module the reached ones depend on:
+        // each unit it reaches is whole, as in a full build.
         skims[m] = Some(s);
     }
     let reached = Some(skims.iter().map(Option::is_some).collect());
@@ -1727,7 +1807,9 @@ struct Run<'a> {
     rows: rows::ModuleRows<'a>,
     skim: Vec<OnceLock<SkimOut>>,
     parse: Vec<OnceLock<Parse>>,
-    graph: OnceLock<GraphOut>,
+    /// The module graph and its units, built before the run
+    /// ([`module_graph`]).
+    graph: ModuleGraph,
     iface: Vec<OnceLock<Option<Arc<FolderIface>>>>,
     iface_index: IfaceIndex,
     /// Method maps shared only by exactly the same ordered visible interfaces.
@@ -1797,7 +1879,11 @@ struct Run<'a> {
     /// For a narrowed check, once the skims are in: per module whether a
     /// check root reaches it, and the folders of those modules' closures
     /// ([`Run::builds`], [`Run::builds_module`]).
-    check_scope: OnceLock<Option<(Vec<bool>, hd_project::FolderSet)>>,
+    check_scope: OnceLock<Option<(Vec<bool>, Vec<bool>)>>,
+    /// For a REPL input's build, per unit: whether the input's closure or
+    /// the runtime's holds it ([`Run::builds`]); `None` for every other
+    /// run.
+    repl_scope: OnceLock<Option<Vec<bool>>>,
     /// Per REPL input: its input interface's top-level bindings, read from
     /// its `check` entry (`cli.repl.declarations.bindings`).
     input_bindings: Vec<OnceLock<Vec<InputBinding>>>,
@@ -2695,15 +2781,17 @@ fn build_packages_inner(
             reached: None,
         }
     });
-    let cycles = phase("folder cycles");
-    let folder_cycles = recover_folder_cycles(
+    let graph_phase = phase("module graph");
+    let (graph, skims, module_cycles) = module_graph(
         &mut table,
         &texts,
         &files,
+        &repl_inputs,
+        skims,
         reached.as_deref(),
         host.executor,
     );
-    drop(cycles);
+    drop(graph_phase);
     let n = table.modules.len();
     let nf = table.folders.len();
     let pipeline = pipeline::key(packages.target, packages.level);
@@ -2874,12 +2962,9 @@ fn build_packages_inner(
             .collect(),
         files,
         rows,
-        skim: skims
-            .into_iter()
-            .map(|s| s.map_or_else(OnceLock::new, OnceLock::from))
-            .collect(),
+        skim: skims.into_iter().map(OnceLock::from).collect(),
         parse: (0..n).map(|_| OnceLock::new()).collect(),
-        graph: OnceLock::new(),
+        graph,
         iface: (0..nf).map(|_| OnceLock::new()).collect(),
         iface_index: IfaceIndex::default(),
         method_indexes: Mutex::default(),
@@ -2915,6 +3000,7 @@ fn build_packages_inner(
         reached,
         check_roots: packages.check_roots.clone(),
         check_scope: OnceLock::new(),
+        repl_scope: OnceLock::new(),
         input_bindings: (0..n).map(|_| OnceLock::new()).collect(),
         diags: Mutex::new(DiagBuf::default()),
         report: Mutex::new(PipelineReport {
@@ -2941,16 +3027,8 @@ fn build_packages_inner(
             )),
         );
     }
-    for cycle in &folder_cycles {
-        let mut diags = lock(&run.diags);
-        diags.error(Code::ModuleCycle, cycle.span, &cycle.message);
-        if let Some((from, to)) = &cycle.fix {
-            diags.add_fix(
-                &format!("move {from} to {to}"),
-                hd_diag::FixSafety::Suggestion,
-                &[],
-            );
-        }
+    for (span, message) in &module_cycles {
+        lock(&run.diags).error(Code::ModuleCycle, *span, message);
     }
     for cycle in run.table.package_cycles() {
         let names: Vec<&str> = cycle
@@ -3359,70 +3437,169 @@ fn stored_output(
     }
 }
 
-/// Folder-cycle recovery (`crates/hd_resolve/DESIGN.md` §4.8 rule 5): the
-/// folders of a cycle in the root package are merged into one folder, so
-/// they resolve together and their uses do not cascade; merging repeats
-/// until the folder graph is acyclic.
-///
-/// A folder cycle as its diagnostic shows it
-/// (`module.cycle.diagnostic.*`).
-struct FolderCycle {
-    /// The message: the shortest loop, each edge's `use`, then the
-    /// tangle size and the fix.
-    message: String,
-    /// The first edge's `use` line.
-    span: Span,
-    /// A single-file folder on the loop to move beside its own `mod.hd`,
-    /// as `(from, to)` files.
-    fix: Option<(String, String)>,
-}
-
-/// The folder cycles' diagnostics, recovering by merging as before: one
-/// error per cycle of the first graph, each with its shortest loop, its
-/// edges' uses, its tangle size and its fix
-/// (`module.cycle.diagnostic.*`). A module a REPL input's build does
-/// not reach (`reached`, [`repl_texts`]) holds placeholder text and makes
-/// no edge. It is not skimmed: `files` would keep the placeholder's skim
-/// as the file's in its source set's record, and a later run that reaches
-/// the file would read it.
+/// The module graph of the run (`hd_project::ModuleGraph`): each module's
+/// skim, read and made on the run's threads, its uses, the units it
+/// groups `table` into, and the `module-cycle` diagnostic of each loop the
+/// sibling rule forbids (`module.cycle.diagnostic.*`). A module a REPL
+/// input's build does not reach (`reached`, [`repl_texts`]) holds
+/// placeholder text and makes no edge. It is not skimmed through `files`,
+/// which would keep the placeholder's skim as the file's in its source
+/// set's record, and a later run that reaches the file would read it.
+/// Cost: one skim per module, then `ModuleGraph::build`, linear in the
+/// modules and uses.
 #[inline(never)]
-fn recover_folder_cycles(
+fn module_graph(
     table: &mut ModuleTable,
     texts: &Texts<'_>,
     files: &skims::FileSkims<'_>,
+    repl: &ReplInputs,
+    known: Vec<Option<SkimOut>>,
     reached: Option<&[bool]>,
     executor: Executor,
-) -> Vec<FolderCycle> {
-    // Each module's skim, read and made on the run's threads.
+) -> (ModuleGraph, Vec<SkimOut>, Vec<(Span, String)>) {
     let modules: Vec<usize> = (0..table.modules.len()).collect();
-    let module_uses: Vec<Vec<(String, u32, u32)>> = par_files(executor, &modules, |m| {
-        if table.modules[m].package != 0 || reached.is_some_and(|r| !r[m]) {
-            return Vec::new();
-        }
-        let roots = table.use_roots(ModuleId::from_raw(u32_of(m)));
-        written_use_lines(&files.get(table, m, || Arc::clone(&texts[m])), &roots)
-    });
-    let uses: Vec<Vec<String>> = module_uses
-        .iter()
-        .map(|v| v.iter().map(|(p, _, _)| p.clone()).collect())
+    let mut known = known;
+    let skims: Vec<SkimOut> = {
+        let t = &*table;
+        let mut made = par_files(executor, &modules, |m| {
+            if known.get(m).is_some_and(Option::is_some) {
+                return None;
+            }
+            let file = if reached.is_some_and(|r| !r[m]) {
+                Arc::new(skims::FileSkim::of(&texts[m]))
+            } else {
+                files.get(t, m, || Arc::clone(&texts[m]))
+            };
+            Some(skim_module(t, m, file, session_uses(t, repl, m)))
+        });
+        made.iter_mut()
+            .zip(known.iter_mut())
+            .map(|(made, known)| {
+                made.take()
+                    .or_else(|| known.take())
+                    .expect("every module is skimmed")
+            })
+            .collect()
+    };
+    // std's top-level modules are its language layer: the compiler names
+    // their items, their implementations for built-in types are visible
+    // with no `use` (`trait.own.inherent.std.no-use`), and their exports
+    // are the import hints' homes. So each module with the whole prelude
+    // depends on them all, except the core layer, the runtime and
+    // `std.testing`, which only test code sees. They depend on each other
+    // in a ring, one edge each, and every other module depends on the
+    // first: O(modules) edges, not modules x layer.
+    let unread = |m: usize| reached.is_some_and(|r| !r[m]);
+    let layer: Vec<usize> = (0..table.modules.len())
+        .filter(|&m| std_layer(table, m) && !unread(m))
         .collect();
-    let mut out: Option<Vec<FolderCycle>> = None;
-    loop {
-        let graph = FolderGraph::build(table, &uses);
-        let cycles: Vec<Vec<FolderId>> = graph
-            .cycles
-            .iter()
-            .filter(|c| c.iter().all(|f| table.folders[f.idx()].package == 0))
-            .cloned()
-            .collect();
-        if cycles.is_empty() {
-            return out.unwrap_or_default();
-        }
-        if out.is_none() {
-            out = Some(describe_cycles(table, texts, &module_uses, &cycles));
-        }
-        table.merge_folders(&cycles);
+    let mut place = vec![u32::MAX; table.modules.len()];
+    for (i, &m) in layer.iter().enumerate() {
+        place[m] = u32_of(i);
     }
+    let refs: Vec<Vec<hd_project::UseRef>> = skims
+        .iter()
+        .enumerate()
+        .map(|(m, s)| {
+            if unread(m) {
+                return Vec::new();
+            }
+            let mut refs = s.refs.clone();
+            let next = match place[m] {
+                u32::MAX => layer.first(),
+                i => layer.get(i as usize + 1).or(layer.first()),
+            };
+            if let Some(&next) = next.filter(|&&next| next != m)
+                && hd_resolve::known::prelude_rows(&table.modules[m].path).len() > 1
+            {
+                refs.push(namespace_ref(&table.modules[next].path));
+            }
+            refs
+        })
+        .collect();
+    let graph = ModuleGraph::build(table, &refs);
+    let cycles = graph
+        .loops
+        .iter()
+        .map(|l| describe_loop(table, texts, &skims, l))
+        .collect();
+    (graph, skims, cycles)
+}
+
+/// A forbidden loop's diagnostic (`module.cycle.diagnostic.*`): its span,
+/// the reported edge's `use` line, and its message: each edge shown with
+/// its `use` line, the group's size and the declarations to move.
+fn describe_loop(
+    table: &ModuleTable,
+    texts: &Texts<'_>,
+    skims: &[SkimOut],
+    l: &hd_project::ModuleLoop,
+) -> (Span, String) {
+    // The whole `use` line, `pub` included.
+    let line_of = |m: ModuleId, line: u32| {
+        let text = &texts[m.idx()];
+        let (lo, hi) = skims[m.idx()]
+            .file
+            .use_lines
+            .get(line as usize)
+            .copied()
+            .unwrap_or((0, 0));
+        let lo = text[..lo as usize].rfind('\n').map_or(0, |i| i + 1);
+        (u32_of(lo), hi)
+    };
+    let mut message = "modules that are not siblings use each other".to_owned();
+    for &(from, line, _) in &l.walk {
+        let (lo, hi) = line_of(from, line);
+        let text = &texts[from.idx()];
+        let decl = text.get(lo as usize..hi as usize).unwrap_or("").trim();
+        let (row, col) = line_col(text, lo);
+        let file = &table.files[from.idx()];
+        let _ = write!(message, "\n  {file}:{row}:{col}: {decl}");
+    }
+    let _ = write!(
+        message,
+        "\nloop of {} modules; only sibling modules may use each other in a loop",
+        l.modules
+    );
+    let (module, names) = &l.help;
+    let shown = {
+        let m = &table.modules[module.idx()];
+        let root = &table.roots[usize::from(m.package)];
+        m.path
+            .strip_prefix(root.as_str())
+            .and_then(|p| p.strip_prefix('.'))
+            .unwrap_or("pkg")
+            .to_owned()
+    };
+    if names.is_empty() {
+        let _ = write!(
+            message,
+            "\nhelp: move what the loop uses of `{shown}` into a module both use"
+        );
+    } else {
+        let names: Vec<String> = names.iter().map(|n| format!("`{n}`")).collect();
+        let _ = write!(
+            message,
+            "\nhelp: move {} out of `{shown}`, into a module both use",
+            names.join(", ")
+        );
+    }
+    let span = l.walk.last().map_or(
+        Span {
+            file: FileId::from_raw(u32::MAX),
+            lo: 0,
+            hi: 0,
+        },
+        |&(from, line, _)| {
+            let (lo, hi) = line_of(from, line);
+            Span {
+                file: table.modules[from.idx()].file,
+                lo,
+                hi,
+            }
+        },
+    );
+    (span, message)
 }
 
 /// The module paths a file's `use` lines name, their roots replaced by
@@ -3479,183 +3656,6 @@ fn line_col(text: &str, at: u32) -> (usize, usize) {
     (line, col)
 }
 
-/// The folder as cycle diagnostics show it: its `mod.hd` directory, or
-/// the `x` of a lone `x.hd` (`module.cycle.diagnostic.shortest-loop`).
-fn folder_display(table: &ModuleTable, f: usize) -> String {
-    let mut files: Vec<&str> = table.folders[f]
-        .modules
-        .iter()
-        .map(|m| table.files[m.idx()].as_str())
-        .collect();
-    files.sort_stable();
-    if let Some(dir) = files.iter().find_map(|p| p.strip_suffix("/mod.hd")) {
-        return dir.to_owned();
-    }
-    if let Some(stem) = files.iter().find_map(|p| p.strip_suffix(".hd")) {
-        return stem.to_owned();
-    }
-    table.folders[f].path.clone()
-}
-
-/// The shortest directed loop through the tangle's least-path folder,
-/// open (the message closes it). Adjacency is in deterministic folder order
-/// (`module.cycle.diagnostic.shortest-loop`).
-fn shortest_loop(table: &ModuleTable, adj: &[Vec<usize>], touch: &HashSet<usize>) -> Vec<usize> {
-    shortest_loop_with_work(table, adj, touch, || {})
-}
-
-fn shortest_loop_with_work(
-    table: &ModuleTable,
-    adj: &[Vec<usize>],
-    touch: &HashSet<usize>,
-    mut visit: impl FnMut(),
-) -> Vec<usize> {
-    // cost: one tangle scan, then one BFS over its folders and outgoing
-    // edges. The parent map is also the visited set: no package-sized arrays.
-    let Some(&start) = touch.iter().min_by_key(|&&f| {
-        visit();
-        table.folders[f].path.as_str()
-    }) else {
-        return Vec::new();
-    };
-    let mut parent = HashMap::from_iter([(start, None)]);
-    let mut queue = vec![start];
-    let mut at = 0;
-    while at < queue.len() {
-        let from = queue[at];
-        at += 1;
-        visit();
-        for &to in &adj[from] {
-            visit();
-            if !touch.contains(&to) {
-                continue;
-            }
-            if to == start {
-                let mut path = vec![from];
-                let mut from = from;
-                while let Some(&Some(previous)) = parent.get(&from) {
-                    visit();
-                    path.push(previous);
-                    from = previous;
-                }
-                path.reverse();
-                return path;
-            }
-            parent.entry(to).or_insert_with(|| {
-                queue.push(to);
-                Some(from)
-            });
-        }
-    }
-    Vec::new()
-}
-
-/// One diagnostic per cycle: its shortest loop through the least folder, each edge's `use`, the folders on some loop with them, and
-/// the fix.
-fn describe_cycles(
-    table: &ModuleTable,
-    texts: &Texts<'_>,
-    module_uses: &[Vec<(String, u32, u32)>],
-    cycles: &[Vec<FolderId>],
-) -> Vec<FolderCycle> {
-    let n = table.folders.len();
-    // The folder adjacency the graph built, restricted to this package,
-    // with the first `use` line making each edge.
-    let mut adj = vec![Vec::new(); n];
-    let mut edges: HashMap<(usize, usize), (usize, u32, u32)> = HashMap::default();
-    for (m, paths) in module_uses.iter().enumerate() {
-        if table.modules[m].package != 0 {
-            continue;
-        }
-        let from = table.modules[m].folder.idx();
-        let test_code = table.modules[m].role == Role::Test;
-        for (path, lo, hi) in paths {
-            let Some(target) = table.module_of_use(path) else {
-                continue;
-            };
-            let to = table.modules[target.idx()].folder.idx();
-            if to == from {
-                continue;
-            }
-            if table.folders[to].package != 0 {
-                continue;
-            }
-            let into_tests = table.modules[target.idx()].role == Role::Test;
-            if !test_code && into_tests {
-                continue;
-            }
-            adj[from].push(to);
-            edges.entry((from, to)).or_insert((m, *lo, *hi));
-        }
-    }
-    for out in &mut adj {
-        out.sort_stable();
-        out.dedup();
-    }
-    let files: HashSet<&str> = table.files.iter().map(String::as_str).collect();
-    cycles
-        .iter()
-        .map(|c| {
-            let touch: HashSet<usize> = c.iter().map(|f| f.idx()).collect();
-            let shown = shortest_loop(table, &adj, &touch);
-            let shown = if shown.is_empty() {
-                c.iter().map(|f| f.idx()).collect()
-            } else {
-                shown
-            };
-            let mut lines = Vec::new();
-            let mut spans = Vec::new();
-            for (i, f) in shown.iter().enumerate() {
-                let g = shown[(i + 1) % shown.len()];
-                if let Some((m, lo, hi)) = edges.get(&(*f, g)) {
-                    let text = &texts[*m];
-                    let decl = text.get(*lo as usize..*hi as usize).unwrap_or("").trim();
-                    let (line, col) = line_col(text, *lo);
-                    let file = &table.files[*m];
-                    lines.push(format!("  {file}:{line}:{col}: {decl}"));
-                    spans.push((table.modules[*m].file, *lo, *hi));
-                }
-            }
-            let names: Vec<String> = shown.iter().map(|f| folder_display(table, *f)).collect();
-            let mut message = names.join(" -> ");
-            if let Some(first) = names.first() {
-                message.push_str(" -> ");
-                message.push_str(first);
-            }
-            for line in &lines {
-                message.push('\n');
-                message.push_str(line);
-            }
-            // The tangle: the folders on some loop with the shown ones,
-            // which is their strongly connected component, `c`.
-            let tangle = c.len();
-            // The fix moves a lone `x.hd` on the loop beside its own
-            // `mod.hd`, which keeps its module name.
-            let mut fix = None;
-            for f in &shown {
-                let display = folder_display(table, *f);
-                let from = format!("{display}.hd");
-                if files.contains(from.as_str()) {
-                    fix = Some((from.clone(), format!("{display}/mod.hd")));
-                    break;
-                }
-            }
-            let _ = write!(message, "\ntangle of {tangle} folders");
-            if let Some((from, to)) = &fix {
-                let _ = write!(message, "; move {from} to {to}");
-            }
-            let span = spans.into_iter().next().map_or(
-                Span {
-                    file: FileId::from_raw(u32::MAX),
-                    lo: 0,
-                    hi: 0,
-                },
-                |(file, lo, hi)| Span { file, lo, hi },
-            );
-            FolderCycle { message, span, fix }
-        })
-        .collect()
-}
 #[must_use]
 pub fn has_tests_block(text: &str) -> bool {
     skim(text.as_bytes())
@@ -4262,69 +4262,20 @@ impl Run<'_> {
         }
     }
 
+    /// `FolderGraph`: schedules the run's tasks over the units the module
+    /// graph grouped before the run ([`module_graph`]). An interface task
+    /// waits for the interface tasks of the units its unit uses, so for its
+    /// whole closure; a header check and a module's prep wait only for the
+    /// interfaces they read directly. Cost: O(units + unit edges), plus a
+    /// closure walk per kept REPL unit a unit uses.
     #[inline(never)]
     fn folder_graph(&self, sp: &dyn Spawn) {
-        let uses: Vec<Vec<String>> = (0..self.table.modules.len())
-            .map(|m| self.skim_of(m).uses.clone())
-            .collect();
-        let graph = FolderGraph::build(&self.table, &uses);
+        let g = &self.graph;
         lock(&self.report).ok(Stage::FolderGraph);
         // `hd check FILE` checks only what FILE reaches (`Run::check_scope`).
-        let _ = self.check_scope.set(self.check_scope(&graph));
+        let _ = self.check_scope.set(self.check_scope());
         let checked = self.check_scope.get().and_then(Option::as_ref);
-        // A REPL input's build builds only its closure and the runtime's
-        // (`Run::builds`).
-        let scope = self.repl_inputs.input.map(|m| {
-            let mut s = graph.closure[self.table.modules[m].folder.idx()].clone();
-            for rt in self.rt_folders() {
-                s.union(&graph.closure[rt.idx()]);
-            }
-            s
-        });
-        let builds = |f: FolderId| {
-            scope.as_ref().is_none_or(|s| s.contains(f))
-                && checked.is_none_or(|(_, folders)| folders.contains(f))
-        };
-        let builds_module = |m: usize| {
-            builds(self.table.modules[m].folder)
-                && self.reached.as_ref().is_none_or(|r| r[m])
-                && checked.is_none_or(|(reach, _)| reach[m])
-        };
-        // The root package's loops were merged and reported above
-        // (`recover_folder_cycles`); a loop left in another package, std
-        // included, blocks every folder that reaches it, so it is reported
-        // here, with its package.
-        for c in &graph.cycles {
-            if c.iter().any(|f| !builds(*f)) {
-                continue;
-            }
-            let names: Vec<&str> = c
-                .iter()
-                .map(|f| self.table.folders[f.idx()].path.as_str())
-                .collect();
-            let package = self.table.folders[c[0].idx()].package;
-            let whose = if package == 0 {
-                String::new()
-            } else {
-                format!(
-                    " in package `{}`",
-                    self.table.packages[usize::from(package)]
-                )
-            };
-            let span = Span {
-                file: FileId::from_raw(u32::MAX),
-                lo: 0,
-                hi: 0,
-            };
-            lock(&self.diags).error(
-                Code::ModuleCycle,
-                span,
-                &format!("folders form a cycle{whose}: {}", names.join(" -> ")),
-            );
-        }
         let pr = sp.add_held(TaskKind::PackageResult, &[]);
-        let order = graph.order.clone();
-        let g = &self.graph.get_or_init(|| GraphOut { graph }).graph;
         // The earlier REPL inputs are the session's, read here: they get
         // no task, so a build's tasks do not grow with the session.
         let kept = self.kept.get_or_init(|| {
@@ -4332,69 +4283,65 @@ impl Run<'_> {
                 .map(|fi| self.read_kept(fi))
                 .collect()
         });
-        let mut iface_task: Vec<Option<TaskId>> = vec![None; self.table.folders.len()];
-        for &f in order.iter().filter(|f| !kept[f.idx()] && builds(**f)) {
-            // A folder read from the session has no task: a folder that
-            // uses one waits for the tasks of the folders it reaches.
+        let nf = self.table.folders.len();
+        let mut iface_task: Vec<Option<TaskId>> = vec![None; nf];
+        // The tasks building `units`: a unit read from the session has no
+        // task, so one that uses it waits for the tasks of its closure.
+        let tasks_of = |units: &[FolderId], iface_task: &[Option<TaskId>]| {
             let mut deps: Vec<TaskId> = Vec::new();
-            for u in &g.uses[f.idx()] {
+            for &u in units {
                 if kept[u.idx()] {
-                    for c in g.closure[u.idx()].iter() {
-                        if let Some(t) = iface_task[c.idx()]
-                            && !deps.contains(&t)
-                        {
-                            deps.push(t);
-                        }
-                    }
-                } else if let Some(t) = iface_task[u.idx()]
-                    && !deps.contains(&t)
-                {
-                    deps.push(t);
+                    deps.extend(self.closure(u).iter().filter_map(|c| iface_task[c.idx()]));
+                } else {
+                    deps.extend(iface_task[u.idx()]);
                 }
             }
+            deps.sort_stable_by_key(|t| t.0);
+            deps.dedup();
+            deps
+        };
+        for &f in g
+            .order
+            .iter()
+            .filter(|f| !kept[f.idx()] && self.builds(**f))
+        {
+            let deps = tasks_of(&g.uses[f.idx()], &iface_task);
             let t = sp.add(TaskKind::FolderIface(f.raw()), &deps);
             iface_task[f.idx()] = Some(t);
-            let closure: Vec<TaskId> = g.closure[f.idx()]
-                .iter()
-                .filter_map(|c| iface_task[c.idx()])
-                .collect();
-            let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &closure);
+            let hc = sp.add(TaskKind::HeaderCheck(f.raw()), &[t]);
             sp.edge(hc, pr);
         }
         // A program's collection crosses packages (`crates/hd_mono/DESIGN.md` §13.2): the
-        // std modules its folders reach are checked to TIR too.
-        let mut reached = hd_project::FolderSet::with_capacity(self.table.folders.len());
+        // std modules its units reach are checked to TIR too. The
+        // compiler roots `std.rt.entry`'s result functions after an entry
+        // or a test case (`RT_SOURCE`), and the runtime that emitted code
+        // calls, whatever the program uses.
+        let mut starts: Vec<FolderId> = Vec::new();
         for (m, module) in self.table.modules.iter().enumerate() {
-            if module.package == 0 && builds_module(m) {
-                reached.union(&self.module_closure_in(g, m));
+            if module.package == 0 && self.builds_module(m) {
+                starts.extend(self.module_units(m));
             }
         }
-        // The compiler roots `std.rt.entry`'s result functions after an entry or
-        // a test case (`RT_SOURCE`), and the runtime that emitted code calls,
-        // whatever the program uses.
         for rt in rt_roots(&self.table, self.checked(), self.report()) {
-            reached.union(&self.module_closure_in(g, rt.idx()));
+            starts.extend(self.module_units(rt.idx()));
         }
+        let reached = self.reach_mask(starts);
         let mut prep_task: Vec<Option<TaskId>> = vec![None; self.table.modules.len()];
         for (m, module) in self.table.modules.iter().enumerate() {
             // `hd check` needs fetched bodies too, to report their `dbg`
             // references. Local and std dependency bodies remain deferred
             // until a program needs them.
             if (module.package != 0
-                && (!reached.contains(module.folder)
+                && (!reached[module.folder.idx()]
                     || (self.analyze() && !self.fetched[usize::from(module.package)])))
-                || !builds_module(m)
+                || !self.builds_module(m)
                 || kept[module.folder.idx()]
             {
                 continue;
             }
-            // In the test role, `test_closure(m)`: its `tests:` block's
-            // lowering and check read those interfaces too.
-            let deps: Vec<TaskId> = self
-                .module_closure_in(g, m)
-                .iter()
-                .filter_map(|c| iface_task[c.idx()])
-                .collect();
+            // In the test role, its `tests:` block's lowering and check
+            // read the interfaces of the units it uses too.
+            let deps = tasks_of(&self.module_units(m), &iface_task);
             // A REPL input's task is held until its edges from the
             // earlier inputs' are in.
             let kind = TaskKind::ModulePrep(u32_of(m));
@@ -4406,6 +4353,7 @@ impl Run<'_> {
             sp.edge(prep, pr);
             prep_task[m] = Some(prep);
         }
+        let _ = checked;
         // A REPL input's bodies read the earlier inputs' bindings from their
         // `check` entries: its `ModulePrep` waits for theirs to finish
         // checking and publishing. An edge from the input
@@ -4437,37 +4385,69 @@ impl Run<'_> {
         sp.release(pr);
     }
 
-    fn closure(&self, folder: FolderId) -> Vec<FolderId> {
-        self.graph
-            .get()
-            .map(|g| g.graph.closure[folder.idx()].iter().collect())
-            .unwrap_or_default()
+    /// `closure(F)`: F and every unit its uses reach, in unit order, found
+    /// on demand (`crates/hd_sched/DESIGN.md` §6.1). Cost: O(the closure
+    /// and its edges) per call; no per-unit set is kept.
+    fn closure(&self, unit: FolderId) -> Vec<FolderId> {
+        self.closure_of([unit])
     }
 
-    /// The folders module `m`'s check reads, in folder order: in the test
-    /// role `test_closure(m)`, its folder's closure joined with the
-    /// closure of each module its `tests:` block uses; else `closure(m)`
-    /// (`crates/hd_cache/DESIGN.md` §5.3). A `tests:` block's use makes no
-    /// folder edge (`module.cycle.test-code`), so only this widens to it.
-    fn module_closure(&self, m: usize) -> Vec<FolderId> {
-        self.graph
-            .get()
-            .map(|g| self.module_closure_in(&g.graph, m).iter().collect())
-            .unwrap_or_default()
-    }
-
-    /// [`Self::module_closure`] over `graph`, as a set.
-    fn module_closure_in(&self, graph: &FolderGraph, m: usize) -> hd_project::FolderSet {
-        let folder = self.table.modules[m].folder;
-        let mut set = graph.closure[folder.idx()].clone();
-        if self.role(m) == "test" {
-            for u in &self.skim_of(m).test_uses {
-                if let Some(t) = self.table.module_of_use(u) {
-                    set.union(&graph.closure[self.table.modules[t.idx()].folder.idx()]);
+    /// The units `starts` reach, themselves included, in unit order.
+    fn closure_of(&self, starts: impl IntoIterator<Item = FolderId>) -> Vec<FolderId> {
+        let mut seen: HashSet<FolderId> = HashSet::default();
+        let mut stack: Vec<FolderId> = starts.into_iter().filter(|s| seen.insert(*s)).collect();
+        while let Some(f) = stack.pop() {
+            for &u in &self.graph.uses[f.idx()] {
+                if seen.insert(u) {
+                    stack.push(u);
                 }
             }
         }
-        set
+        let mut out: Vec<FolderId> = seen.into_iter().collect();
+        out.sort_stable_by_key(|f| f.raw());
+        out
+    }
+
+    /// The units `starts` reach, as a mask over the units: for the few
+    /// whole-run scopes. Cost: O(units + the reached edges).
+    fn reach_mask(&self, starts: impl IntoIterator<Item = FolderId>) -> Vec<bool> {
+        let mut mask = vec![false; self.table.folders.len()];
+        let mut stack: Vec<FolderId> = Vec::new();
+        for s in starts {
+            if !std::mem::replace(&mut mask[s.idx()], true) {
+                stack.push(s);
+            }
+        }
+        while let Some(f) = stack.pop() {
+            for &u in &self.graph.uses[f.idx()] {
+                if !std::mem::replace(&mut mask[u.idx()], true) {
+                    stack.push(u);
+                }
+            }
+        }
+        mask
+    }
+
+    /// The units module `m`'s check reads directly: its own, and in the
+    /// test role the units of the modules its `tests:` block uses. A
+    /// `tests:` block's use makes no edge (`module.cycle.test-code`), so
+    /// only this widens to it.
+    fn module_units(&self, m: usize) -> Vec<FolderId> {
+        let mut units = vec![self.table.modules[m].folder];
+        if self.role(m) == "test" {
+            for u in &self.skim_of(m).test_uses {
+                if let Some(t) = self.table.module_of_use(u) {
+                    units.push(self.table.modules[t.idx()].folder);
+                }
+            }
+        }
+        units
+    }
+
+    /// The units module `m`'s check reads, in unit order: the closure of
+    /// [`Self::module_units`] (`crates/hd_cache/DESIGN.md` §5.3).
+    fn module_closure(&self, m: usize) -> Vec<FolderId> {
+        self.closure_of(self.module_units(m))
     }
 
     fn iface_of(&self, f: FolderId) -> Option<Arc<FolderIface>> {
@@ -4560,8 +4540,8 @@ impl Run<'_> {
         let mut out = Vec::new();
         for _ in 0..r.count() {
             let path = r.str();
-            let f = self.table.folders.iter().find(|f| f.path == path)?;
-            out.push((path.to_owned(), self.iface_of(f.id)?.deep_hash));
+            let f = self.table.unit_at(path)?;
+            out.push((path.to_owned(), self.iface_of(f)?.deep_hash));
         }
         r.ok().then_some(out)
     }
@@ -5291,16 +5271,18 @@ impl Run<'_> {
             .check_scope
             .get()
             .and_then(Option::as_ref)
-            .is_none_or(|(_, folders)| folders.contains(f));
+            .is_none_or(|(_, units)| units[f.idx()]);
         scoped
-            && match (self.repl_inputs.input, self.graph.get()) {
-                (Some(m), Some(g)) => {
-                    let closure = &g.graph.closure;
-                    closure[self.table.modules[m].folder.idx()].contains(f)
-                        || self.rt_folders().any(|rt| closure[rt.idx()].contains(f))
-                }
-                _ => true,
-            }
+            && self
+                .repl_scope
+                .get_or_init(|| {
+                    let m = self.repl_inputs.input?;
+                    Some(self.reach_mask(
+                        std::iter::once(self.table.modules[m].folder).chain(self.rt_folders()),
+                    ))
+                })
+                .as_ref()
+                .is_none_or(|s| s[f.idx()])
     }
 
     /// The folders of [`rt_roots`], the hd the compiler roots after an
@@ -5336,7 +5318,7 @@ impl Run<'_> {
     /// is unscoped, since the compiler reaches std's items through its
     /// known items, not only through `use`. Cost: one walk over the
     /// reached modules' uses.
-    fn check_scope(&self, g: &FolderGraph) -> Option<(Vec<bool>, hd_project::FolderSet)> {
+    fn check_scope(&self) -> Option<(Vec<bool>, Vec<bool>)> {
         let n = self.table.modules.len();
         let file_of = |m: usize| &self.table.files[self.table.modules[m].file.idx()];
         let program = match &self.goal {
@@ -5381,20 +5363,19 @@ impl Run<'_> {
                     .map(ModuleId::idx),
             );
         }
-        let mut folders = hd_project::FolderSet::with_capacity(self.table.folders.len());
-        if program.is_some() {
+        let units = if program.is_some() {
             for (m, module) in self.table.modules.iter().enumerate() {
                 reach[m] |= module.package != 0;
             }
-            for f in 0..self.table.folders.len() {
-                folders.insert(FolderId::from_raw(u32_of(f)));
-            }
+            vec![true; self.table.folders.len()]
         } else {
-            for m in (0..n).filter(|&m| reach[m]) {
-                folders.union(&self.module_closure_in(g, m));
-            }
-        }
-        Some((reach, folders))
+            self.reach_mask(
+                (0..n)
+                    .filter(|&m| reach[m])
+                    .flat_map(|m| self.module_units(m)),
+            )
+        };
+        Some((reach, units))
     }
 
     /// The inputs before REPL input `m` that it sees, in order: not the
@@ -5971,19 +5952,11 @@ impl Run<'_> {
         (!stuck).then_some(bytes)
     }
 
-    /// The modules each module uses directly, by index, itself left out.
+    /// The modules module `m` depends on, by index, itself left out: the
+    /// module graph's dependency edges, which order initialization
+    /// (`module.init.use-graph`).
     fn use_edges(&self, m: usize) -> Vec<usize> {
-        let mut v: Vec<usize> = self
-            .skim_of(m)
-            .uses
-            .iter()
-            .filter_map(|u| self.table.module_of_use(u))
-            .map(hd_base::ModuleId::idx)
-            .filter(|x| *x != m)
-            .collect();
-        v.sort_stable();
-        v.dedup();
-        v
+        self.graph.deps[m].iter().map(|d| d.idx()).collect()
     }
 
     /// The module cycles of folder `fi` whose statements sit in several
@@ -11935,7 +11908,19 @@ impl hd_resolve::World for Run<'_> {
             .is_some_and(|m| self.table.modules[m.idx()].role == hd_project::Role::Test)
     }
     fn iface(&self, folder: u32) -> Option<Arc<FolderIface>> {
-        self.iface_of(FolderId::from_raw(folder))
+        // A use from outside the test unit never reads it: only test code
+        // may use test code, and it is all in that one unit
+        // (`module.test.non-test-use.test-module`). Whether it is built
+        // yet must not decide the answer.
+        let f = FolderId::from_raw(folder);
+        let tests = self.table.folders[f.idx()]
+            .modules
+            .first()
+            .is_some_and(|m| self.table.modules[m.idx()].role == hd_project::Role::Test);
+        if tests {
+            return None;
+        }
+        self.iface_of(f)
     }
 }
 

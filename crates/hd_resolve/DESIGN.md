@@ -8,7 +8,7 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 
 ### 4.7 Discovery, Module Identity And Folders
 
-`hd_project` maps the file list to modules and folders from paths only:
+`hd_project` maps the file list to modules from paths only:
 
 1. Walk the source root, the test root and `tasks` through `SourceSet`.
 2. Apply the module rules: `mod.hd`, `lib.hd`, `main.hd`, `_test.hd`,
@@ -17,9 +17,8 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
    [Test Modules](../../spec/lang/10-modules.md#test-modules)).
 3. Validate identities: NFC identifiers and case-folding collisions
    (`duplicate-module-name`, `invalid-module-path`, `reserved-module-name`).
-4. Assign folders, including the rule that `x.hd` beside a directory `x/`
-   of source files lives in folder `x/`
-   ([`module.folder.parent-file`](../../spec/lang/10-modules.md#r-module.folder.parent-file)).
+4. Start each module as its own compile unit; the module graph groups
+   them (§4.8).
 
 **Use roots.** `hd_project` owns one mapping, `module_path` (with
 `module_below` for the path below the root): the package identifier
@@ -49,44 +48,53 @@ takes files only from `src`, `tests` and `tasks`.
 The module set always comes from this scan, never from cache entries, so a
 deleted file is never served from the cache (Gleam #4320).
 
-### 4.8 Folder Graph
+### 4.8 Module Graph And Units
 
-1. For each non-test `use` in a file of folder `A`, find the module its
-   path reaches: the longest prefix of the path that names a module.
-   `use pkg.shop.Item` and `use pkg.shop.{Item}` both reach `shop`
+`ModuleGraph::build` (`crates/hd_project/src/lib.rs`) runs before the task
+graph, on every module's skim (`hd_driver`'s `module_graph`). Each `use`
+line names a module: the module of a grouped path, the module a single
+path names, or the module holding the declaration it names. The graph has
+two edge sets over modules:
+
+1. **Dependency edges** go to every module a use names, `pub use` lines,
+   the prelude's rows, the test runtime and a REPL session's modules
+   included. They order initialization (`module.init.use-graph`) and form
+   the compile units. A facade's own `pub use` edge reaches the module that
+   declares a name it re-exports, and naming a module makes the
+   implementations it holds visible to the trait solver. Every module with
+   the whole prelude also depends on std's language layer, the top-level
+   std modules outside the core layer, the runtime and `std.testing`: the
+   compiler names their items, their implementations for built-in types
+   need no `use`, and their exports are the import hints' homes. The layer
+   is linked in a ring and every other module depends on its first module,
+   so this adds O(modules) edges.
+2. **Policy edges** are the written library uses of one package, a
+   `pub use` making none
    ([`module.cycle.edge`](../../spec/lang/10-modules.md#r-module.cycle.edge)).
-2. Add the edge `A -> folder(module)` when the folders differ and the
-   module is in the same package. Fixed prelude uses participate exactly
-   like written uses, except that the virtual `std.core` module does not
-   import the prelude.
-3. Run Tarjan's algorithm with folders visited in path order, so the SCCs
-   and their order are deterministic.
-4. For each SCC with more than one folder, report `folder-cycle` once: the
-   shortest loop through the SCC's least folder in path order, found by
-   one breadth-first search restricted to that SCC, the `use` that makes each edge, the tangle size (the SCC's
-   size), and the fix-it that moves the first file `x.hd` on the loop to
-   `x/mod.hd` ([Cycle Diagnostic](../../spec/lang/10-modules.md#cycle-diagnostic)).
-5. **Recovery.** The folders of a cyclic SCC are resolved together as if
-   they were one folder. Bodies still check, and the cycle is the only
-   error. Before scheduling, the driver skims the root package, finds its
-   folder cycles, and merges each cycle's folders into one folder of the
-   module table (`ModuleTable::merge_folders`, named after the first in
-   path order), repeating until the graph is acyclic. The interface,
-   cache keys and scheduling then see one ordinary folder.
+   Each strongly connected group of them is checked against "one sibling
+   group holds every module": module P's group is P and its children, so
+   the two candidate groups are the first module's parent's and its own,
+   each answered by a parent lookup. A forbidden group reports
+   `module-cycle` once, with shortest paths found by breadth-first search
+   inside the group
+   ([Cycle Diagnostic](../../spec/lang/10-modules.md#cycle-diagnostic)).
 
-Implementation differs: `FolderGraph::build`
-(`crates/hd_project/src/lib.rs:1117`) takes its edges from written `use`
-lines only. Leaving out prelude edges matters only inside std; not
-judged.
+**Units.** Discovery starts each module as its own unit, every test module
+of a package in one unit, `PKG.$tests`, so no library unit holds test code.
+The strongly connected groups of the dependency edges, one Tarjan walk over
+the units, become the units, each named after its first module in path
+order, in path order. An illegal loop is just a unit with an error: its
+modules resolve together and their bodies still check, with no recovery
+step. `closure(U)` is found on demand by a walk over the unit edges, never
+kept per unit; the whole-run scopes (a REPL input's, `hd check FILE`'s,
+the std modules a program reaches) are one mask each.
 
 `tests:` blocks make no edges: they and doc tests are checked in a
-**test overlay** after the folders they use
-(`crates/hd_tir/DESIGN.md` §4.13.9). Discovery puts every test module of
-a package, wherever its file lies, in one folder, `PKG.$tests`, so no
-library folder holds test code, and that unit may loop internally. A use
-of a test module from non-test code is an error and makes no edge. Integration test
-programs are their own roots. The package graph comes from manifests,
-and `package-cycle` is found the same way.
+**test overlay** after the units they use
+(`crates/hd_tir/DESIGN.md` §4.13.9). A use of a test module from non-test
+code is an error and makes no edge, and no unit outside the test unit reads
+its interface. Integration test programs are their own roots. The package
+graph comes from manifests, and `package-cycle` is found the same way.
 
 ### 4.9 Name Resolution
 

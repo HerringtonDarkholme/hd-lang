@@ -48,7 +48,7 @@
       i32.const 8
       i32.add
       local.tee $threads
-      i32.const 88 ;; &empty-buffer
+      i32.const 176 ;; &empty-buffer
       i32.store $heap
       i32.const 0
       local.get $threads
@@ -165,9 +165,9 @@
       end
       local.get $stopped
       if
-        i32.const 112 ;; &"thread-stopped"
+        i32.const 200 ;; &"thread-stopped"
         i32.const 14
-        i32.const 126 ;; &"a scope's thread stopped before its closure returned"
+        i32.const 214 ;; &"a scope's thread stopped before its closure returned"
         i32.const 52
         i32.const 0
         call_indirect $table0 (param i32 i32 i32 i32)
@@ -228,9 +228,9 @@
     call $wait
     i32.eqz
     if
-      i32.const 112 ;; &"thread-stopped"
+      i32.const 200 ;; &"thread-stopped"
       i32.const 14
-      i32.const 178 ;; &"a thread stopped before its closure returned"
+      i32.const 266 ;; &"a thread stopped before its closure returned"
       i32.const 44
       i32.const 0
       call_indirect $table0 (param i32 i32 i32 i32)
