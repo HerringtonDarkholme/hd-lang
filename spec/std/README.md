@@ -226,6 +226,7 @@ file of its own.
 | [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or_insert`, `counts`, `Set`, `Deque`, and `Heap` |
 | [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, when host console output becomes visible, the host trait `ConsoleInput`, and `read_line!` and `read_all!` |
 | [`contract.md`](contract.md) | `std.contract` | `std-contract` | the always-checked precondition helper `require` |
+| [`convert.md`](convert.md) | `std.convert` | `std-convert` | explicit fallible conversions through `TryFrom` |
 | [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args`, `Env`, and `Sys`, the helpers `args` and `env`, the providers `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`, `HostError`, and the rules every host operation follows |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |

@@ -1358,3 +1358,4 @@ std/iter.md	15	complete	std/iter/double-ended-cursors/roots.hd
 std/num.md	23	complete	std/num/float-math/module-constants.hd|std/num/float-math/full-range-trig.hd|std/num/float-math/exp-ln-power.hd
 std/result.md	7	complete	std/result/borrowed-payloads/result-as-ref-copy-payloads.hd
 std/result.md	8	complete	std/result/borrowed-payloads/result-as-mut-copy-payloads.hd
+std/convert.md	1	complete	std/convert/try-from-works-through-a-generic-bound.hd

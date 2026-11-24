@@ -128,6 +128,7 @@ or list index, so reordering a list or a chapter renumbers nothing.
 | `std/collections.md` | `std-collections` |
 | `std/console.md` | `std-console` |
 | `std/contract.md` | `std-contract` |
+| `std/convert.md` | `std-convert` |
 | `std/host.md` | `std-host` |
 | `std/fs.md` | `std-fs` |
 | `std/path.md` | `std-path` |

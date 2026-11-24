@@ -804,3 +804,21 @@ The signs below are the sign of `y`, including the sign of zero:
 > argument order. Rust's [float methods](https://doc.rust-lang.org/std/primitive.f64.html)
 > leave transcendental precision implementation-dependent. Constant
 > functions use ordinary module paths without adding associated constants.
+
+## Fallible Integer Conversions
+
+`TryFrom` provides checked narrowing and changes of signedness without
+panicking on an out-of-range value.
+
+1. r[std-num.try-from.impls] Every narrowing pair and every signedness-changing pair among `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `usize`, and `u64` implements `std.convert.TryFrom[Source]` for its destination type.
+2. r[std-num.try-from.exact] If the source value is within the destination type's range, `try_from` returns `.Ok` with the same integer value.
+3. r[std-num.try-from.range] Otherwise, `try_from` returns `.Err(TryFromIntError {})`, without wrapping or panicking for the range failure.
+4. r[std-num.try-from.profiles] These range checks apply in every build profile, including release.
+5. r[std-num.try-from.error] `std.num.TryFromIntError` is an empty struct implementing `Copy`, `Eq`, `Debug`, `Display`, and `Error`, with no source error.
+6. r[std-num.try-from.message] Its `Display` text is `out of range integral type conversion attempted`.
+7. r[std-num.try-from.usize] Conversions involving `usize` use its target-dependent range, as [`std-num.u64.checked`](#r-std-num.u64.checked) does.
+8. r[std-num.try-from.panicking] `Integer.to_u64` and `Integer.from_u64` retain their panicking behavior specified in [Conversion To And From u64](#conversion-to-and-from-u64).
+
+> **Why.** An integer that does not fit is a normal fallible-conversion
+> result. The panicking methods remain useful where failure breaks a
+> program's assumption.

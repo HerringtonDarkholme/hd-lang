@@ -7363,6 +7363,11 @@ std/result/borrowed-payloads/result-as-mut-cannot-outlive-its-owner.hd	type	reje
 std/result/borrowed-payloads/result-as-mut-copy-payloads.hd	runtime	accept	std/result.md#r-std-result.as-mut
 std/result/borrowed-payloads/result-as-mut-err-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-mut.in-place
 std/result/borrowed-payloads/result-as-mut-ok-noncopy.hd	runtime	accept	std/result.md#r-std-result.as-mut.in-place
+std/convert/every-narrowing-and-sign-change-pair.hd	runtime	accept	std/num.md#r-std-num.try-from.impls
+std/convert/try-from-works-through-a-generic-bound.hd	runtime	accept	std/convert.md#r-std-convert.try-from.generic
+std/convert/a-user-type-can-define-a-fallible-conversion.hd	runtime	accept	std/convert.md#r-std-convert.try-from.ordinary
+std/convert/integer-conversion-errors-use-the-error-protocol.hd	runtime	accept	std/num.md#r-std-num.try-from.error
+std/convert/from-does-not-supply-a-try-from-bound.hd	type	reject:unsatisfied-trait-bound	std/convert.md#r-std-convert.try-from.independent
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path

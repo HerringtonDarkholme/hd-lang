@@ -1,0 +1,23 @@
+# test: integer conversion errors have the shared error type and stable display text
+# Spec std/num Fallible Integer Conversions: std-num.try-from.error, std-num.try-from.message.
+use std.convert.TryFrom
+use std.error.Error
+use std.num.TryFromIntError
+
+fn failure() -> TryFromIntError:
+    match u8::try_from(i64(-1)):
+        .Ok(_) => panic("expected a range error")
+        .Err(error) => error
+
+tests:
+    use std.testing.assert_equal
+
+    it("shared error value and message"):
+        error := failure()
+        assert_equal(error, TryFromIntError {}, reason="one error value")
+        assert_equal(
+            error.to_string(),
+            "out of range integral type conversion attempted",
+            reason="message",
+        )
+        assert_equal(error.source().is_none(), true, reason="no source")
