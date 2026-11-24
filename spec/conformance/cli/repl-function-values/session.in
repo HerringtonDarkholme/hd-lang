@@ -1,0 +1,4 @@
+fn double(value: i32) -> i32: value * 2
+double
+fn identity[T](value: T) -> T: value
+identity::[i32]

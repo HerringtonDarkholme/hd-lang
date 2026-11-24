@@ -1,0 +1,13 @@
+# @dump: wat
+# @repl: 4
+# A pure expression input shows the named function and its concrete signature.
+# Earlier-input declarations include both ordinary and generic functions.
+identity::[i32]
+# @input: 1
+fn double(value: i32) -> i32:
+    value * 2
+# @input: 2
+double
+# @input: 3
+fn identity[T](value: T) -> T:
+    value
