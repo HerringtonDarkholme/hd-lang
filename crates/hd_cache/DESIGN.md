@@ -29,7 +29,7 @@ says.
 | `check` | one module and role, in sections: diagnostics with severities and fix-its, metadata with the module's content hash, the module's items, TIR (only when the module has no error), test registrations, the init summary, `dbg` references, frame names; a REPL input adds its bindings | `ModuleFinish` | output, `InitOrder`, D2, `hd check --tests`, `hd test` |
 | `parse` | empty: its presence says a file's bytes parse with no diagnostic | `ModulePrep` | `ModulePrep`, before trusting a `check` hit |
 | `graph` | stage-B header findings and the unit's use diagnostics per unit (`hdr_key`); one entry per package run for the overlap findings and every unit's init order, keyed by their part keys; one entry per package for the coherence rows (§5.3) | `HeaderCheck`; the last of `Coherence` and the `InitOrder`s to finish; `Coherence` for the rows | output, `PackageResult`, D2; `Coherence` |
-| `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file) and, per check run kind, its module rows; per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that changed a row or missed its result | every later run (§5.5) |
+| `depfiles` | the skims of every embedded std file; per source set, its last-run record (stamp and skim per file) and, per check run kind, its module rows and unit rows; per run key, the stored package result and a caller's stored report (§5.5) | the first run of a toolchain; a run that changed the set's files; a check run that changed a row or missed its result | every later run (§5.5) |
 | `link` | the program's Wasm, keyed by `prog_key`; the REPL prelude with its session exports | `Link` | D2, the REPL |
 | `owned` | one body after the ownership passes, in the wire form's owned section, and its hash. A std body is keyed by the toolchain (std's hash), pipeline, build profile, the checked and verify settings and the checked body's TIR hash (#1423). A dev build's package body (#2028) and generic instance (#2106) add the root package's key and settings and the program's declarations, each non-std module's checked items hash and each unit's impl heads, so a body edit that infers the same signature keeps them; an instance adds its instance key. Their entry lists the bodies the passes read, each by path and TIR hash, checked on load | `Collect`, after the passes on a miss | `Collect`, before running them |
 | `clpack` | the Cranelift machine code of every function of one module, by Cranelift's key, keyed by the module's bytes and the engine's compilation settings; a private entry (mode 0600, read only when the reader owns it alone) | `hd_run_wasmtime::code_cache`, after a compile that compiled a function | the next compile of the same module on wasmtime |
@@ -998,6 +998,16 @@ A warm run reads no source file it does not check, and hashes none
   written again only when a row was made that it lacked, or a file it
   holds is gone; a module not checked keeps its row; a partial listing
   keeps the rows of the files it does not list.
+- **Unit rows** (#2347, `hd_driver::rows::UnitRows`). Beside the module
+  rows, under their own kind, one `depfiles` entry holds per unit, by
+  its path: its `reads_key`, its interface key, the read list and the
+  `iface` entry's sections, then its last header key and the `graph`
+  entry's findings. A unit whose `reads_key` matches and whose read
+  answers give the row's interface key takes its interface from the row;
+  a header check whose key matches takes the findings. So a warm run
+  reads no entry for an unchanged unit, as with folders it read one
+  unit's. The keys hash each unit's closure through a digest folded once
+  per unit (`Run::digest`), not its closure's units one by one.
 - **Texts on demand.** Module texts are read on first use
   (`hd_driver::Texts`): by a check that misses its entry, a parse whose
   `parse` entry misses, a module that may opt in to a user derivation
