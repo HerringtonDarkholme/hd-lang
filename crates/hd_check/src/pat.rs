@@ -511,6 +511,18 @@ impl Ck<'_, '_> {
         t: Ty,
         binds: &mut Vec<(NodeIdx, LocalId)>,
     ) -> StageResult<()> {
+        self.declare_pattern_subject(p, t, t, binds)
+    }
+
+    /// Retain the subject before implicit reference peeling for repairs that
+    /// edit the match expression, rather than its referent's pattern.
+    fn declare_pattern_subject(
+        &mut self,
+        p: NodeRef<'_>,
+        t: Ty,
+        subject: Ty,
+        binds: &mut Vec<(NodeIdx, LocalId)>,
+    ) -> StageResult<()> {
         let pool = self.pool();
         // `ref.match.read`: a pattern that tests its value reads through a
         // reference; a name or `_` takes the reference itself.
@@ -524,7 +536,7 @@ impl Ck<'_, '_> {
             if self.ref_counted(t) == Some(false) {
                 self.pattern_below_ref = Some(saved.map_or(mutable, |m| m && mutable));
             }
-            let r = self.declare_pattern(p, self.deref_ty(referent), binds);
+            let r = self.declare_pattern_subject(p, self.deref_ty(referent), subject, binds);
             self.pattern_below_ref = saved;
             return r;
         }
@@ -780,7 +792,7 @@ impl Ck<'_, '_> {
                             self.diags
                                 .add_typo_fix(self.cx.src.token_span(last), best.as_deref());
                         }
-                        self.result_pattern_fixes(t, p);
+                        self.result_pattern_fixes(subject, p);
                     }
                     self.pattern_rejected = true;
                     return self.declare_poisoned_fields(p, binds);

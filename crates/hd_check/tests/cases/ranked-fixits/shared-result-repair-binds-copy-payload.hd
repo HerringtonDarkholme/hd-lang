@@ -1,0 +1,9 @@
+# @dump: diagnostics fixed
+struct Item: pass
+
+impl !Copy for Item
+
+fn number(value: &Result[i32, Item]) -> i32:
+    match value:
+        .Some(number) => number
+        .None => 0

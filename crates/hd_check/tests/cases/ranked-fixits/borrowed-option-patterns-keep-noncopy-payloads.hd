@@ -1,0 +1,20 @@
+# @dump: diagnostics fixed
+# Option already uses its correct domain and keeps its non-Copy payload in place.
+struct Item: pass
+
+impl !Copy for Item
+
+fn shared(value: &Option[Item]) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false
+
+fn writable(value: &mut Option[Item]) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false
+
+fn generic[T < ?Copy](value: &Option[T]) -> bool:
+    match value:
+        .Some(_) => true
+        .None => false
