@@ -1,0 +1,19 @@
+# test: an infallible From implementation does not generate a TryFrom implementation
+# Spec std/convert Fallible Conversions: std-convert.try-from.independent.
+use std.convert.{From, TryFrom}
+
+struct Source:
+    value: i32
+
+struct Target:
+    value: i32
+
+impl From[Source] for Target:
+    fn from(value: Source) -> Target:
+        Target { value: value.value }
+
+fn require_conversion[U < TryFrom[Source]](value: Source) -> void:
+    _ := U::try_from(value)
+
+fn rejected() -> void:
+    require_conversion::[Target](Source { value: +1 }) # diagnostic: unsatisfied-trait-bound

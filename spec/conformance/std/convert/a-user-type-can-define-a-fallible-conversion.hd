@@ -1,0 +1,21 @@
+# test: an ordinary user type defines TryFrom and its own associated error
+# Spec std/convert Fallible Conversions: std-convert.try-from.decl, std-convert.try-from.result, std-convert.try-from.ordinary.
+use std.convert.TryFrom
+
+@derive(Debug, Eq)
+struct Positive:
+    value: i32
+
+impl TryFrom[i32] for Positive:
+    type Error = string
+    fn try_from(value: i32) -> Result[Positive, string]:
+        if value <= 0:
+            return .Err("not positive")
+        .Ok(Positive { value: value })
+
+tests:
+    use std.testing.assert_equal
+
+    it("a user conversion"):
+        assert_equal(Positive::try_from(+7), .Ok(Positive { value: 7 }), reason="positive")
+        assert_equal(Positive::try_from(+0), .Err("not positive"), reason="zero")

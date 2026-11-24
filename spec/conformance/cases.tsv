@@ -7386,6 +7386,11 @@ lang/modules/module-privacy/a-std-child-module-outside-its-parent-is-an-error.hd
 std/collections/uniqlist/the-facade-names-a-child-modules-type.hd	type	accept	std/collections.md#r-std-collections.uniq-list.type
 lang/modules/module-privacy/another-package-uses-an-unexported-top-level-module.hd	type	reject:private-module	lang/10-modules.md#r-module.vis.parent
 lang/modules/module-privacy/another-package-uses-a-re-exported-top-level-module.hd	type	accept	lang/10-modules.md#r-module.vis.parent
+std/convert/every-narrowing-and-sign-change-pair.hd	runtime	accept	std/num.md#r-std-num.try-from.impls
+std/convert/try-from-works-through-a-generic-bound.hd	runtime	accept	std/convert.md#r-std-convert.try-from.generic
+std/convert/a-user-type-can-define-a-fallible-conversion.hd	runtime	accept	std/convert.md#r-std-convert.try-from.ordinary
+std/convert/integer-conversion-errors-use-the-error-protocol.hd	runtime	accept	std/num.md#r-std-num.try-from.error
+std/convert/from-does-not-supply-a-try-from-bound.hd	type	reject:unsatisfied-trait-bound	std/convert.md#r-std-convert.try-from.independent
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-call.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
 lang/references/pointer-loans/expr/pointer-loan-expr-ref-local-write-through-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.excl.alias.untracked-path
