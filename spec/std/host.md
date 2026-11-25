@@ -5,29 +5,16 @@ Status: standard library specification draft.
 This chapter defines `std.host`, which `lib/std` writes in ordinary hd
 over the language tier:
 
-- the host capability traits `Args`, `Env`, and `Sys`;
-- the helpers `args`, `env`, `env_as`, and `env_decode`, and the shared `HostError`;
-- `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`, their deterministic providers;
+- the host capability traits `Env` and `Sys`;
+- the helpers `env`, `env_as`, and `env_decode`, and the shared `HostError`;
+- `ScriptedEnv` and `ScriptedSys`, their deterministic providers;
 - what every host operation does while it waits, when it is cancelled,
   and with the data it holds.
 
 Which provider a command binds for each trait is CLI tier
-([Host Capabilities](../cli/command-line.md#host-capabilities)).
-
-## Program Arguments
-
-`Args` reads the arguments the program was started with:
-
-```text
-pub trait Args:
-    fn program(self) -> string
-    fn list(self) -> List[string]
-```
-
-1. r[std-host.args.decl] `std.host` declares the host capability trait `Args` with the methods above. Code imports it, as in `use std.host.Args`.
-2. r[std-host.args.program] `program` returns the name the program was started with.
-3. r[std-host.args.list] `list` returns the program's arguments, in order, without the program name.
-4. r[std-host.args.helper] `std.host` declares `pub fn args() -> List[string] $ Args`, which returns `list()` of the `Args` provider that covers the call.
+([Host Capabilities](../cli/command-line.md#host-capabilities)). The
+program's arguments, `Args`, are read in `std.cli`
+([Program Arguments](cli.md#program-arguments)).
 
 ## Environment
 
@@ -130,10 +117,11 @@ For example, `port` reads `PORT` by default and `APP_PORT` with `prefix="APP_"`.
 
 ## Plain Reads
 
-1. r[std-host.plain-reads] Every method of `Args` and `Env`, and both helpers, are plain calls, not bang calls.
+1. r[std-host.plain-reads] Every method of `Env`, and the helper `env`, are plain calls, not bang calls.
 
 ```text
-use std.host.{Args, Env, args, env}
+use std.host.{Env, env}
+use std.cli.{Args, args}
 
 fn greeting() -> string $ Args + Env:
     let names = args()
@@ -148,11 +136,13 @@ fn greeting() -> string $ Args + Env:
 
 ## Map Providers
 
-`ScriptedArgs` and `ScriptedEnv` are the deterministic providers of `Args` and
-`Env`. A test supplies them with `$.with`:
+`ScriptedEnv` is the deterministic provider of `Env`. A test supplies it
+with `$.with`, here beside `std.cli`'s
+[`ScriptedArgs`](cli.md#r-std-cli.scripted-args.decl):
 
 ```text
-use std.host.{Args, Env, ScriptedArgs, ScriptedEnv, args, env}
+use std.host.{Env, ScriptedEnv, env}
+use std.cli.{Args, ScriptedArgs, args}
 fn greeting() -> string $ Args + Env:
     match env("GREETING"):
         .Some(word) => "${word}, ${args().len()}"
@@ -169,12 +159,10 @@ tests:
         assert_equal(vars.names().sorted(), ["GREETING", "HOME"], reason="both keys")
 ```
 
-1. r[std-host.map-args.decl] `std.host` declares `ScriptedArgs`, which implements `Args`, with private fields. Code imports it, as in `use std.host.ScriptedArgs`.
-2. r[std-host.map-args.new] `ScriptedArgs::new(program: string, values: List[string]) -> ScriptedArgs` returns a provider whose `program` returns `program` and whose `list` returns `values`.
-3. r[std-host.map-env.decl] `std.host` declares `ScriptedEnv`, which implements `Env`, with private fields. Code imports it, as in `use std.host.ScriptedEnv`.
-4. r[std-host.map-env.new] `ScriptedEnv::new(values: Map[string, string]) -> ScriptedEnv` returns a provider whose `get(name)` returns the value of the key `name` in `values`, or `.None` when there is no such key.
-5. r[std-host.map-env.names.order] `names` on a `ScriptedEnv` returns the keys of `values` in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
-6. r[std-host.map.no-host] Neither provider reads the host's arguments or environment.
+1. r[std-host.map-env.decl] `std.host` declares `ScriptedEnv`, which implements `Env`, with private fields. Code imports it, as in `use std.host.ScriptedEnv`.
+2. r[std-host.map-env.new] `ScriptedEnv::new(values: Map[string, string]) -> ScriptedEnv` returns a provider whose `get(name)` returns the value of the key `name` in `values`, or `.None` when there is no such key.
+3. r[std-host.map-env.names.order] `names` on a `ScriptedEnv` returns the keys of `values` in the map's [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
+4. r[std-host.map.no-host] `ScriptedEnv` never reads the host's environment.
 
 > **Why.** A test states every argument and variable that the code under
 > test reads, so nothing leaks in from the machine that runs it. Effect's

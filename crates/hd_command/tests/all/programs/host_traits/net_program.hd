@@ -1,5 +1,5 @@
 use std.net.{Net, NetError}
-use std.host.{Args, args}
+use std.cli.{Args, args}
 
 fn port(i: usize) -> u16 $ Args:
     match (args()[i]).parse::[u32]():

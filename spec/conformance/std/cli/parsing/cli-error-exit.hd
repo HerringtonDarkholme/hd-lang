@@ -3,7 +3,7 @@
 # expect-stdout: quiet
 use std.cli.{Arg, ArgParser, CliError}
 use std.console.MemoryConsole
-use std.host.{Args, ScriptedArgs}
+use std.cli.{Args, ScriptedArgs}
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:

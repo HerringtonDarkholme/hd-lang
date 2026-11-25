@@ -1,6 +1,7 @@
 # test: ScriptedArgs and ScriptedEnv cover Args and Env rows through $.with, and names lists the map's keys
-# Spec std/host Map Providers: std-host.map-args.new, std-host.map-env.new, and std-host.map-env.names.order (STDLIB decision 4, PROVIDER-SHAPES; task #220).
-use std.host.{Args, Env, ScriptedArgs, ScriptedEnv, args, env}
+# Spec std/host Map Providers: std-cli.scripted-args.new, std-host.map-env.new, and std-host.map-env.names.order (STDLIB decision 4, PROVIDER-SHAPES; task #220).
+use std.host.{Env, ScriptedEnv, env}
+use std.cli.{Args, ScriptedArgs, args}
 fn greeting() -> string $ Args + Env:
     match env("GREETING"):
         .Some(word) => "${word}, ${args().len()}"

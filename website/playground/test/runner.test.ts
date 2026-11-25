@@ -198,7 +198,7 @@ test("a program whose row names Clock and Random runs as with hd run", async () 
 
 test("Args gives the program's name and no arguments", async () => {
   const source = [
-    "use std.host.{Args, args}",
+    "use std.cli.{Args, args}",
     "",
     "pub fn main() -> void $ Console + Args:",
     "    println(args().len())",
@@ -633,7 +633,7 @@ test("Test builds each integration test file as a program of its own", async () 
     ].join("\n"),
     "tests/sums.hd": [
       "use pkg.{add}",
-      "use std.host.Args",
+      "use std.cli.Args",
       "use std.testing.assert_equal",
       "",
       'it("adds through the public API"):',

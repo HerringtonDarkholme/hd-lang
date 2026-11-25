@@ -1,5 +1,5 @@
 use std.http.{Http, HttpError, Method, Request, Response, Url, get}
-use std.host.{Args, args}
+use std.cli.{Args, args}
 
 fn show!(r: Result[Response, HttpError]) -> string:
     match r:

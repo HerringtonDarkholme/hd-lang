@@ -104,7 +104,7 @@ Save this as `volume.hd`:
 
 ```hd
 use std.cli.{Arg, ArgParser}
-use std.host.Args
+use std.cli.Args
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:

@@ -386,7 +386,7 @@ pub static TABLE: &[HostTrait] = &[
     },
     HostTrait {
         key: "Args",
-        std_path: "std.host.Args",
+        std_path: "std.cli.Args",
         methods: &[
             m("program", &[], B("string"), Wait::Never, None),
             m("list", &[], B("List[string]"), Wait::Never, None),

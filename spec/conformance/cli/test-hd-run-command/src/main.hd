@@ -1,6 +1,7 @@
 use std.console.{ConsoleInput, read_line}
 use std.fs.{FsRead, read_text}
-use std.host.{Args, Env, args, env}
+use std.host.{Env, env}
+use std.cli.{Args, args}
 use std.path.Path
 
 pub fn main!() -> void $ Console + ConsoleInput + FsRead + Args + Env:

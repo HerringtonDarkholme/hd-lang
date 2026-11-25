@@ -1,5 +1,5 @@
 use std.http.{Http, Request, Url, get}
-use std.host.{Args, args}
+use std.cli.{Args, args}
 
 pub fn main!() -> void $ Console + Http + Args:
     base := args()[0]

@@ -1,7 +1,7 @@
 # test: typed CLI records read flags, defaults, optional and repeated values
 # Spec std/cli: std-cli.typed.trait, std-cli.typed.fields, std-cli.typed.defaults, std-cli.typed.containers, std-cli.typed.nested-record.
 use std.cli.{Cli, CliError, Arg, ArgParser, Parsed}
-use std.host.{Args, ScriptedArgs}
+use std.cli.{Args, ScriptedArgs}
 use std.path.Path
 use std.time.{Duration, ms}
 

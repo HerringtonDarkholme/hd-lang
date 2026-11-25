@@ -290,7 +290,7 @@ hd notes.hd -- a b       # notes.hd gets the arguments a and b
 3. r[cli.args.extra-word] A further positional word before `--`, as in `hd run gen x`, is an error whose message suggests `--`.
 
 > **Note.** A program reads its arguments through the host capability
-> trait [`Args`](../std/host.md#program-arguments)
+> trait [`Args`](../std/cli.md#program-arguments)
 > ([`module.entry.host-facilities`](../lang/10-modules.md#r-module.entry.host-facilities)).
 
 ## Host Capabilities
@@ -304,7 +304,7 @@ profile**, which binds these traits:
 | --- | --- | --- |
 | `Console` | `std.console` | `write_sync` writes to standard output, and `write_error_sync` to standard error |
 | `ConsoleInput` | `std.console` | reads standard input |
-| `Args` | `std.host` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
+| `Args` | `std.cli` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
 | `Env` | `std.host` | the environment of the `hd` process |
 | `Clock` | `std.time` | the system's wall clock and monotonic clock; `sleep!` waits in real time |
 | `Random` | `std.random` | the operating system's random source |
@@ -380,7 +380,7 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 | `Env` | `std.host.Env` | variable names, or a prefix followed by `*` |
 | `Process` | `std.process.Process` | program names |
 | `Sys` | `std.host.Sys` | method names of `Sys` |
-| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args`, `std.remote.Workers` | none: only `true` or `false` |
+| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.cli.Args`, `std.remote.Workers` | none: only `true` or `false` |
 
 1. r[cli.cap.table] The `[capabilities]` table of `hd.toml` sets the grant of each host capability trait that it names.
 2. r[cli.cap.table.keys.with-package-host] Its keys are built-in capability names or quoted package capability paths beginning with `pkg.` or `dep.`.

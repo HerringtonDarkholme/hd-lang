@@ -1,6 +1,7 @@
 # test: args() and env(name) are plain calls on the covering Args and Env providers
-# Spec std/host: std-host.args.helper, std-host.env.helper, and std-host.plain-reads (batch 64, STD-2 and STD-3).
-use std.host.{Args, Env, args, env}
+# Spec std/host: std-cli.args.helper, std-cli.args.plain, std-host.env.helper, and std-host.plain-reads (batch 64, STD-2 and STD-3).
+use std.host.{Env, env}
+use std.cli.{Args, args}
 struct FixedArgs:
     values: List[string]
 

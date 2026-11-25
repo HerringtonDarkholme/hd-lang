@@ -185,7 +185,7 @@ tests:
 use pkg.commands.run
 use std.console.eprintln
 use std.fs.{FsRead, FsWrite}
-use std.host.{Args, args}
+use std.cli.{Args, args}
 use std.process.ExitCode
 
 pub fn main!() -> ExitCode $ Args + Console + FsRead + FsWrite:

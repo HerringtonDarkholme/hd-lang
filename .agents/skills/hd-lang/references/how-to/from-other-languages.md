@@ -75,7 +75,7 @@ that explains it.
 | `import x`, `use x::y`, `require` | `use std.fs.{read_text}`, `use pkg.cart.total`, at the top of the file |
 | `public` / `private`, `pub`, an exported name | `pub`; everything else is private to its file |
 | `if __name__ == "__main__"`, `fn main()`, `func main()` | `pub fn main() -> void $ Console:` |
-| `sys.argv`, `process.argv`, `os.Args` | `args()` from `std.host`, with `$ Args` |
+| `sys.argv`, `process.argv`, `os.Args` | `args()` from `std.cli`, with `$ Args` |
 | `os.environ`, `process.env` | `env("NAME")` from `std.host`, with `$ Env` |
 | `open(path).read()`, `fs.readFile` | `read_text!(Path(path))?`, with `$ FsRead` |
 | `subprocess.run`, `exec.Command` | `Command::new("git").args([...]).run!()`, with `$ Process` |

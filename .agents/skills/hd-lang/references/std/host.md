@@ -30,7 +30,8 @@ pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput:
 ## Arguments and environment
 
 ```hd
-use std.host.{Args, Env, args, env}
+use std.host.{Env, env}
+use std.cli.{Args, args}
 
 pub fn main() -> void $ Console + Args + Env:
     words := args()                             # the arguments after `--`
@@ -44,7 +45,7 @@ Run it as `hd greet.hd -- Ada`. For options, flags and `--help`, use
 
 ```hd
 use std.cli.{Arg, ArgParser}
-use std.host.Args
+use std.cli.Args
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:
