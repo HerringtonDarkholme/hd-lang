@@ -1,0 +1,24 @@
+# @dump: stdout
+# @build: dev | checked
+# A bound-dispatched reference cycle is checked after concrete selection.
+trait Recur:
+    fn recur(self) -> void
+
+struct Seed:
+    n: i32
+
+impl Recur for Seed:
+    fn recur(self) -> void:
+        let next: *Seed = box(self)
+        dispatch(next)
+
+impl[T < Recur] Recur for *T:
+    fn recur(self) -> void:
+        let next: *Self = box(self)
+        dispatch(next)
+
+fn dispatch[T < Recur](value: T) -> void:
+    value.recur()
+
+pub fn main() -> void:
+    dispatch(Seed { n: 0 })

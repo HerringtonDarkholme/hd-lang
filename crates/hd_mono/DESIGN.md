@@ -725,9 +725,10 @@ growing type) has no finite instance set.
   hand-written types stay far below it.
 - **Chain length** counts requests with type arguments after a root.
   Its default limit is **256**; ordinary non-generic calls consume none.
-  Each instance caches this count and its nearest generic ancestor, so
-  plain request chains cost constant work per instance. The polymorphic
-  recursion check visits only generic ancestors, at most 256 plus the root.
+  Each instance caches this count, so plain request chains cost constant
+  work per instance. A complete normalized specialization key already in
+  the instance table reuses that instance, including ordinary recursion.
+  A raw reference permission erased by classification does not grow the key.
 - The walk is breadth-first in content order, so the first instance over
   either limit is the same on every run.
 - The diagnostic `instantiation-too-deep` points at the generic call that grows the type, and shows the first
@@ -739,9 +740,8 @@ growing type) has no finite instance set.
   ([crates/hd_check/DESIGN.md (type checking) §5.5](../hd_check/DESIGN.md#55-private-rows-and-the-m3-fixpoint)),
   and a generic call cycle of one module whose type arguments grow
   (`types.generic.polymorphic-recursion`, `hd_check::inst_cycles`). So the
-  limit, and the stop when an instance re-enters an ancestor through
-  reference layouts, are left with growth through a bound or a trait
-  value, and with cycles that span files.
+  limit catches growing normalized instances reached through a bound or
+  a trait value, and cycles that span files.
 
 ### 13.5 Dictionaries: Trait Values And GADT Evidence
 
