@@ -1262,11 +1262,12 @@ impl Ck<'_, '_> {
                 .infer
                 .kind_of(pool, t)
                 .is_some_and(|k| k != VarKind::General),
-            TyData::Param(_) => self.env.clauses_of(t).iter().any(|&i| {
+            TyData::Param(_) => {
                 let known = self.cx.names.known;
                 [known.num, known.integer, known.float]
-                    .contains(&self.env.clause_trait()[i as usize])
-            }),
+                    .iter()
+                    .any(|&bound| self.env.first_clause(t, bound).is_some())
+            }
             TyData::Never | TyData::Poison => true,
             _ => false,
         }

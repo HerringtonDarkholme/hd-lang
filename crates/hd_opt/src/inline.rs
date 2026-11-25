@@ -1233,7 +1233,9 @@ impl dyn InlineEnv + '_ {
     /// its types do not settle.
     fn instance(&self, key: Key) -> Option<(Body, Hash128, bool)> {
         let (pool, def) = (self.pool(), key.def);
-        let (copy, hash) = if key.lifted {
+        let (copy, hash) = if !key.lifted && self.const_fold() && self.intrinsic(def).is_some() {
+            self.constant_numeric_intrinsic(key)?
+        } else if key.lifted {
             let made = self.lifted_body(def, key.args)?;
             (copy_metadata_fits(&made.0) && self.priced(&made.0, false)).then_some(made)?
         } else {
@@ -1250,6 +1252,31 @@ impl dyn InlineEnv + '_ {
         }
         let fits = self.fits(key, &copy);
         Some((copy, hash, fits))
+    }
+
+    /// Lower the existing constant bound intrinsics at concrete types before
+    /// branch folding. No copy of an intrinsic's placeholder HD body runs.
+    fn constant_numeric_intrinsic(&self, key: Key) -> Option<(Body, Hash128)> {
+        use hd_tir::ir::{BodyKind, TirBuilder, TirSink};
+        let minimum = match self.intrinsic(key.def)?.as_str() {
+            "int_min" => true,
+            "int_max" => false,
+            _ => return None,
+        };
+        let result = hd_mono::subst(self.pool(), self, key.def, key.args, self.result(key.def)?);
+        let bits = hd_mono::scalar::integer_bound(result, minimum)?;
+        let (source, hash) = self.checked_body(key.def)?;
+        let syn = source
+            .sub_root
+            .first()
+            .and_then(|&i| source.syn.get(i as usize))
+            .copied()?;
+        let mut build = TirBuilder::new(key.def, BodyKind::Fn);
+        let block = build.open_block();
+        let value = build.const_value(result, bits);
+        let root = build.close_block(block, Some(value), result, syn);
+        let body = build.finish(root, &[]).ok()?;
+        Some((body, *hash))
     }
 
     /// A larger return scope has not proved the call's loan-end

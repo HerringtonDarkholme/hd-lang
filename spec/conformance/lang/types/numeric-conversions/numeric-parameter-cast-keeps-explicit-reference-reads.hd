@@ -1,0 +1,6 @@
+# test: numeric parameter cast keeps explicit reference reads
+# Rule: types.cast.family.
+use std.num.Integer
+
+fn invalid[T < Integer](value: &i64) -> T:
+    T(value) # diagnostic: not-callable

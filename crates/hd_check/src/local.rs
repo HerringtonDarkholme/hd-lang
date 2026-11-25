@@ -101,7 +101,7 @@ impl Ck<'_, '_> {
         // `names.type-param.no-redeclare.body`, `names.local-type.duplicate`.
         let earlier = self.cx.locals.declared_earlier(&l);
         let value = self.scopes.top().contains_key(&l.name);
-        if self.gens.iter().any(|(g, _)| *g == l.name) {
+        if self.gens.contains(l.name) {
             let msg = format!("`{name}` is a type parameter in scope");
             self.err(Code::DuplicateBinding, s, &msg);
         } else if earlier || value {
@@ -190,7 +190,7 @@ impl Ck<'_, '_> {
                 }
                 if let Some(gt) = g.name(toks) {
                     let gs = src.symbol(gt, self.cx.names.syms);
-                    if self.gens.iter().any(|(x, _)| *x == gs) {
+                    if self.gens.contains(gs) {
                         let msg = format!("`{}` is a type parameter in scope", src.text(gt));
                         self.err(Code::DuplicateBinding, g, &msg);
                         reused = true;

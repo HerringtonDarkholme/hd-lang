@@ -1,0 +1,6 @@
+# test: float parameter integer literal must be exact
+# Rule: types.cast.family.
+use std.num.Float
+
+fn invalid[T < Float]() -> T:
+    T(16777217) # diagnostic: integer-literal-range

@@ -15,6 +15,7 @@ pub mod layout;
 pub mod opaque;
 pub mod plan;
 pub mod rows;
+pub mod scalar;
 pub mod work;
 
 use hd_base::SliceSort as _;

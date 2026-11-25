@@ -1,0 +1,77 @@
+# test: the numeric family covers every integer pair, with table-driven boundary checks
+# Spec std/num Fallible Integer Conversions: std-num.try-from.all-pairs, std-num.try-from.exact, std-num.try-from.range, std-num.try-from.profiles, std-num.try-from.usize.
+use std.convert.TryFrom
+use std.num.{Integer, TryFromIntError}
+use std.testing.assert_equal
+
+fn add_neighbors[S < Integer](values: &mut List[S], value: S) -> void:
+    values.push(value)
+    if value > S::min_value():
+        values.push(value - S::one())
+    if value < S::max_value():
+        values.push(value + S::one())
+
+fn check_pair[S < Integer, T < Integer & TryFrom[S, Error = TryFromIntError]]() -> void:
+    let mut values = [S::min_value(), S::max_value(), S::zero()]
+    # Test each destination boundary and its neighbors when the source can hold it.
+    low := i64(T::min_value())
+    if low < 0:
+        if low >= i64(S::min_value()):
+            add_neighbors(&mut values, S::from_i64(low))
+    else:
+        add_neighbors(&mut values, S::zero())
+    high := u64(T::max_value())
+    if high <= u64(S::max_value()):
+        add_neighbors(&mut values, S::from_u64(high))
+    # Independent bit-width oracle: exact signed/unsigned views, without the implementation's bound comparisons.
+    width := (~T::zero()).count_ones()
+    signed := T::min_value() < T::zero()
+    for value in values:
+        negative := value < S::zero()
+        let fits = false
+        if negative:
+            needed := 64 - u64(~i64(value)).leading_zeros() + 1
+            fits = signed && needed <= width
+        else:
+            needed := 64 - u64(value).leading_zeros()
+            usable := width - (if signed: 1 else: 0)
+            fits = needed <= usable
+        result := T::try_from(value)
+        assert_equal(result.is_ok(), fits, reason="range agrees with the value's bit width")
+        match result:
+            .Ok(converted) =>
+                if negative:
+                    assert_equal(i64(converted), i64(value), reason="negative value is exact")
+                else:
+                    assert_equal(u64(converted), u64(value), reason="nonnegative value is exact")
+            .Err(_) => pass
+
+fn check_source[S < Integer]() -> void:
+    check_pair::[S, i8]()
+    check_pair::[S, i16]()
+    check_pair::[S, i32]()
+    check_pair::[S, i64]()
+    check_pair::[S, u8]()
+    check_pair::[S, u16]()
+    check_pair::[S, u32]()
+    check_pair::[S, usize]()
+    check_pair::[S, u64]()
+
+tests:
+    use std.testing.it_each
+
+    it_each(
+        "source to every integer destination",
+        [
+            fn() -> void: check_source::[i8](),
+            fn() -> void: check_source::[i16](),
+            fn() -> void: check_source::[i32](),
+            fn() -> void: check_source::[i64](),
+            fn() -> void: check_source::[u8](),
+            fn() -> void: check_source::[u16](),
+            fn() -> void: check_source::[u32](),
+            fn() -> void: check_source::[usize](),
+            fn() -> void: check_source::[u64]()
+        ],
+        body=fn!(action: fn() -> void): action()
+    )

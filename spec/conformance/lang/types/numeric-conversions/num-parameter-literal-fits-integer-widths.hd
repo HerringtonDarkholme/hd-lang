@@ -1,0 +1,6 @@
+# test: num parameter literal fits integer widths
+# Rule: types.cast.family.
+use std.num.Num
+
+fn invalid[T < Num]() -> T:
+    T(128) # diagnostic: integer-literal-range

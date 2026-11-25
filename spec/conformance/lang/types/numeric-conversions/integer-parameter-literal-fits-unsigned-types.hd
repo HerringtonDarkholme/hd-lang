@@ -1,0 +1,6 @@
+# test: integer parameter literal fits unsigned types
+# Rule: types.cast.family.
+use std.num.Integer
+
+fn negative[T < Integer]() -> T:
+    T(-1) # diagnostic: integer-literal-range

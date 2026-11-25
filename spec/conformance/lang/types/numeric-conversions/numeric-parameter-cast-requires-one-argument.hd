@@ -1,0 +1,6 @@
+# test: numeric parameter cast requires one argument
+# Rule: types.cast.family.
+use std.num.Integer
+
+fn invalid[T < Integer]() -> T:
+    T() # diagnostic: argument-count
