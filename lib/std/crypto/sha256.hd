@@ -2,20 +2,20 @@
 # (spec/std/crypto.md).
 use std.crypto.{Digest}
 
-# The 32-byte SHA-256 digest of `bytes` (r-std-digest.sha256).
+# The 32-byte SHA-256 digest of `bytes` (r-std-crypto.sha256).
 ## The 32-byte SHA-256 digest of `bytes`, as FIPS 180-4 defines it.
-## See [std-digest.sha256](../../spec/std/digest.md#r-std-digest.sha256).
+## See [std-crypto.sha256](../../../spec/std/crypto.md#r-std-crypto.sha256).
 pub fn sha256(bytes: List[u8]) -> Digest:
     Sha256::new().update(bytes).finish()
 
-# A SHA-256 computation that takes its input in pieces (r-std-digest.sha256.decl-struct).
+# A SHA-256 computation that takes its input in pieces (r-std-crypto.sha256.decl-struct).
 # The fields are the eight state words, the bytes of the partial block
 # (always fewer than 64 between calls), the message length in bytes, and
 # the constants the rounds reuse. `outer` is empty for a plain hasher;
 # `hmac` sets it to the key block XOR 0x5c, which `finish` hashes ahead of
 # the inner digest (RFC 2104). A hasher is used as a box, `*mut`.
 ## A SHA-256 computation fed in pieces: `update` adds bytes and `finish` returns the digest.
-## See [std-digest.sha256.decl-struct](../../spec/std/digest.md#r-std-digest.sha256.decl-struct).
+## See [std-crypto.sha256.decl-struct](../../../spec/std/crypto.md#r-std-crypto.sha256.decl-struct).
 pub struct Sha256:
     state: List[u32]
     block: List[u8]
@@ -24,9 +24,9 @@ pub struct Sha256:
     outer: List[u8]
 
 impl Sha256:
-    # A new object, so `update` calls chain on it (r-std-digest.sha256.new-ref).
+    # A new object, so `update` calls chain on it (r-std-crypto.sha256.new-ref).
     ## Returns a hasher that has seen no bytes, a new object that `update` changes.
-    ## See [std-digest.sha256.new-ref](../../spec/std/digest.md#r-std-digest.sha256.new-ref).
+    ## See [std-crypto.sha256.new-ref](../../../spec/std/crypto.md#r-std-crypto.sha256.new-ref).
     pub fn new() -> *mut Sha256:
         # Boxed because the returned hasher is updated across later calls.
         box(
@@ -40,7 +40,7 @@ impl Sha256:
         )
 
     ## Returns a hasher whose `finish` gives HMAC-SHA256 of the message under `key`.
-    ## See [std-digest.hmac-ref](../../spec/std/digest.md#r-std-digest.hmac-ref).
+    ## See [std-crypto.hmac-ref](../../../spec/std/crypto.md#r-std-crypto.hmac-ref).
     pub fn hmac(key: List[u8]) -> *mut Sha256:
         # A key longer than the 64-byte block is hashed first; a shorter one
         # is padded with zeros to the block (RFC 2104, section 2).
@@ -65,7 +65,7 @@ impl Sha256:
     # The block and the state change in locals and are stored once, so a
     # write through the reference happens once per call, not once per byte.
     ## Adds `bytes` to the message and returns the hasher, so calls chain.
-    ## See [std-digest.sha256.update-ref](../../spec/std/digest.md#r-std-digest.sha256.update-ref).
+    ## See [std-crypto.sha256.update-ref](../../../spec/std/crypto.md#r-std-crypto.sha256.update-ref).
     pub fn update(*mut self, bytes: List[u8]) -> *mut Sha256:
         let mut block = self.block
         let state = self.state
@@ -81,7 +81,7 @@ impl Sha256:
         self
 
     ## Returns the digest of every byte added so far, or the HMAC-SHA256 under the key of `hmac`. The hasher is unchanged, so it can take more bytes.
-    ## See [std-digest.sha256.finish](../../spec/std/digest.md#r-std-digest.sha256.finish).
+    ## See [std-crypto.sha256.finish](../../../spec/std/crypto.md#r-std-crypto.sha256.finish).
     pub fn finish(self) -> Digest:
         inner := self.finish_plain()
         if self.outer.len() == 0:
