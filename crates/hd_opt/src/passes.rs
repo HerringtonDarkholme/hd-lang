@@ -315,7 +315,8 @@ pub static PASSES: &[PassSpec] = &[
     // Scalar replacement after inlining (#2365, `crate::sroa`): the
     // driver forwards each instance body's references to its own local
     // storage, so an inlined `&mut self` method leaves the local in Wasm
-    // locals, and spills it around a cold call that takes its address.
+    // locals, and spills it around a cold call that takes its address
+    // when `cold_spill` is 1.
     pass!(
         "sroa",
         TirDecision,
@@ -323,7 +324,8 @@ pub static PASSES: &[PassSpec] = &[
         [],
         gate::HAS_CALL,
         Optional,
-        Instance
+        Instance,
+        [cold_spill: 0..=1]
     ),
     pass!(
         "devirt_known",
@@ -442,6 +444,11 @@ pub static OPTIMIZED: Pipeline = Pipeline {
             name: "max_depth",
             value: 2,
         },
+        Knob {
+            pass: "sroa",
+            name: "cold_spill",
+            value: 1,
+        },
     ],
 };
 
@@ -455,20 +462,39 @@ pub static DEV_WASMTIME: Pipeline = Pipeline {
     link: &["inline_counts"],
     knobs: DEV.knobs,
 };
-/// [`OPTIMIZED`] for wasmtime, with `inline_counts` as [`DEV_WASMTIME`].
+/// [`OPTIMIZED`] for wasmtime, with `inline_counts` as [`DEV_WASMTIME`],
+/// and no `sroa` spill around a cold call (#2365, lane 276). Wasmtime's
+/// epoch check puts a call on every loop's back edge, so every value a
+/// loop carries is live across a call and needs one of the callee-saved
+/// registers (ten on aarch64, five on x86-64). A spill keeps the struct's
+/// fields in the loop as well as the frame of its copy: lane 274's
+/// `UniqList.push` loop then carries 14 values, and Cranelift keeps
+/// `len`, `buffer.ptr` and `buffer.capacity` on its stack with a load
+/// and a store each per element (200 to 319 ms), where the struct in its
+/// slot costs three loads and one store. On V8 the same spill takes the
+/// loop from 352 to 120 ms.
 pub static OPTIMIZED_WASMTIME: Pipeline = Pipeline {
     name: "optimized",
     tir: OPTIMIZED.tir,
     link: &["inline_counts"],
-    knobs: OPTIMIZED.knobs,
+    knobs: &[
+        OPTIMIZED.knobs[0],
+        OPTIMIZED.knobs[1],
+        Knob {
+            pass: "sroa",
+            name: "cold_spill",
+            value: 0,
+        },
+    ],
 };
 
 /// The pipeline of each (target, level) (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.1). The match
 /// is total with no wildcard, so a new target or level does not compile
 /// until it has a row (validator check 1). Every target has the same TIR
-/// passes and knobs: job (e) of #162 measured `closure_spec`'s knobs on V8
-/// and wasmtime and found one best value for both. Wasmtime's link also
-/// inlines the count fast paths (#644).
+/// passes: job (e) of #162 measured `closure_spec`'s knobs on V8 and
+/// wasmtime and found one best value for both. Wasmtime's link also
+/// inlines the count fast paths (#644), and its `sroa` spills nothing
+/// around a cold call ([`OPTIMIZED_WASMTIME`]).
 #[must_use]
 pub const fn pipeline(target: EngineTarget, level: OptLevel) -> &'static Pipeline {
     match (target, level) {
@@ -654,14 +680,26 @@ mod tests {
                 name: "max_depth",
                 value: 0,
             },
+            Knob {
+                pass: "sroa",
+                name: "cold_spill",
+                value: 1,
+            },
         ]);
         let err = validate(&zero_depth).expect_err("max_depth 0");
         assert!(err.contains("outside"), "{err}");
-        let missing = optimized_with(&[Knob {
-            pass: "closure_spec",
-            name: "max_insts",
-            value: 64,
-        }]);
+        let missing = optimized_with(&[
+            Knob {
+                pass: "closure_spec",
+                name: "max_insts",
+                value: 64,
+            },
+            Knob {
+                pass: "sroa",
+                name: "cold_spill",
+                value: 1,
+            },
+        ]);
         let err = validate(&missing).expect_err("no max_depth");
         assert!(err.contains("needs one"), "{err}");
         let unknown = Pipeline {
@@ -710,6 +748,11 @@ mod tests {
                 name: "max_depth",
                 value: 2,
             },
+            Knob {
+                pass: "sroa",
+                name: "cold_spill",
+                value: 1,
+            },
         ]);
         assert!(!wider.same_content(&OPTIMIZED));
         assert_ne!(validate(&wider), validate(&OPTIMIZED));
@@ -728,7 +771,7 @@ mod tests {
     /// and the link passes; the release summaries, argument promotion and
     /// `const_fold` changed the optimized one, and only it. Dropping the passes
     /// and link passes that nothing ran (draft 32) changed both; `sroa`
-    /// (#2365) changed the optimized one.
+    /// (#2365) and its `cold_spill` knob changed the optimized one.
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
@@ -738,7 +781,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 179_072_908_592_806_572_025_520_113_449_683_262_347,
+            optimized, 262_754_135_575_215_468_012_801_603_347_307_737_780,
             "optimized"
         );
     }

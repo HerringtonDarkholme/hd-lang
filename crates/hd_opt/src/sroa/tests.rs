@@ -56,7 +56,7 @@ fn work_of(k: usize) -> (usize, Body) {
     let pool = InternPool::default();
     let mut body = writers(&pool, k);
     WORK.with(|w| w.set(0));
-    assert_eq!(run(&mut body, &pool, &|_| true), Ok(true));
+    assert_eq!(run(&mut body, &pool, &|_| true, true), Ok(true));
     (WORK.with(std::cell::Cell::get), body)
 }
 
