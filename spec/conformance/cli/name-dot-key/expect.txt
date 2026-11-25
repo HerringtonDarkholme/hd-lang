@@ -1,0 +1,7 @@
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":"the dependency key `money.core` contains `.`; a dot separates modules, so rename the key","file":"hd.toml","line":5,"column":1},{"kind":"diagnostic","code":"invalid-requirement","severity":"error","message":"the dependency key `test.core` contains `.`; a dot separates modules, so rename the key","file":"hd.toml","line":8,"column":1},{"kind":"summary","errors":2,"status":101}]
+run: hd add --name money.core ../missing
+exit: 101
+stderr: error: invalid-requirement: the dependency key `money.core` contains `.`; a dot separates modules, so rename the key
+no-file: hd.sum

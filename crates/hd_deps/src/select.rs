@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 
 use hd_diag::{Code, Severity};
 use hd_project::{
-    HostPath, Manifest, Requirement, Version, compatibility_line, host_path, parse_manifest,
-    problems, std_name_problem,
+    HostPath, Manifest, Requirement, Version, compatibility_line, host_path, package_name_problem,
+    parse_manifest, problems,
 };
 
 use crate::cache::Entry;
@@ -392,7 +392,7 @@ fn select_graph(
     // (`module.toolchain.graph-minimum`, `cli.name.std.manifest`); a
     // member's are reported by the command that works on it.
     for node in &nodes[members_end..] {
-        if let Some(p) = std_name_problem(&node.manifest) {
+        if let Some(p) = package_name_problem(&node.manifest) {
             let at = Place {
                 dir: node.dir.clone(),
                 line: p.line.unwrap_or(0),
@@ -524,7 +524,7 @@ fn select_graph(
                     problem(&mut sel, Some(*code), &at, format!("{key}: {message}"));
                 }
             }
-            if let Some(p) = std_name_problem(&manifest) {
+            if let Some(p) = package_name_problem(&manifest) {
                 problem(&mut sel, p.code, &at, format!("{key}: {}", p.message));
             }
             // A fetched version's dev dependencies are never read
@@ -1084,32 +1084,40 @@ mod tests {
     }
 
     #[test]
-    fn a_path_dependency_named_std_is_invalid_at_its_name() {
-        let dir = temp("path-std");
-        let root = root_package(&dir, "[dependencies]\ncore = { path = \"../core\" }\n");
-        write(&dir, "core/hd.toml", "[package]\nname = \"std\"\n");
-        let mut fake = Fake::new(&dir);
-        let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
-        assert_eq!(codes(&sel), [(Some(Code::InvalidManifest), 2)]);
-        assert!(sel.problems[0].place.dir.ends_with("core"));
+    fn a_path_dependency_with_an_invalid_name_is_invalid_at_its_name() {
+        for name in ["std", "alpha.beta"] {
+            let dir = temp("path-name");
+            let root = root_package(&dir, "[dependencies]\ncore = { path = \"../core\" }\n");
+            write(
+                &dir,
+                "core/hd.toml",
+                &format!("[package]\nname = \"{name}\"\n"),
+            );
+            let mut fake = Fake::new(&dir);
+            let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+            assert_eq!(codes(&sel), [(Some(Code::InvalidManifest), 2)]);
+            assert!(sel.problems[0].place.dir.ends_with("core"));
+        }
     }
 
     #[test]
-    fn a_fetched_version_named_std_is_invalid_at_its_requirement() {
-        let dir = temp("fetched-std");
-        let root = root_package(
-            &dir,
-            "[dependencies]\ncore = \"github.com/acme/core@1.0.0\"\n",
-        );
-        let mut fake = Fake::new(&dir);
-        fake.version("github.com/acme/core@1.0.0", "std", "");
-        let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
-        assert_eq!(codes(&sel), [(Some(Code::InvalidManifest), 5)]);
-        assert!(
-            sel.problems[0]
-                .message
-                .starts_with("github.com/acme/core@1.0.0: ")
-        );
+    fn a_fetched_version_with_an_invalid_name_is_invalid_at_its_requirement() {
+        for name in ["std", "alpha.beta"] {
+            let dir = temp("fetched-name");
+            let root = root_package(
+                &dir,
+                "[dependencies]\ncore = \"github.com/acme/core@1.0.0\"\n",
+            );
+            let mut fake = Fake::new(&dir);
+            fake.version("github.com/acme/core@1.0.0", name, "");
+            let sel = select(&[root], &Sum::default(), Mode::Record, &mut fake, "9.9.9");
+            assert_eq!(codes(&sel), [(Some(Code::InvalidManifest), 5)]);
+            assert!(
+                sel.problems[0]
+                    .message
+                    .starts_with("github.com/acme/core@1.0.0: ")
+            );
+        }
     }
 
     #[test]

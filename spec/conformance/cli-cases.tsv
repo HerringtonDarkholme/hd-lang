@@ -396,3 +396,7 @@ panic-frames-track-caller	cli.exit.program,cli.engine.same-behavior,cli.wasm.run
 host-random	cli.file.run,cli.cap.total.refuse,cli.cap.total.message
 host-files-inside-grant	cli.file.run,cli.cap.flag.value
 test-runs-task-by-name	cli.test.tasks.run,cli.json.test.result.fields
+name-dot-manifest	cli.name.dot,cli.name.dot.manifest,cli.name.dot.diagnostic,cli.exit.hd-failure
+name-dot-dependency	cli.name.dot,cli.name.dot.manifest,cli.name.dot.diagnostic,cli.dep.reached,cli.exit.hd-failure
+name-dot-key	cli.name.dot.key,cli.name.dot.diagnostic,cli.dep.invalid,cli.dep.key.name-flag,cli.exit.hd-failure
+new-dot	cli.name.dot.new,cli.name.dot.diagnostic,cli.exit.hd-failure

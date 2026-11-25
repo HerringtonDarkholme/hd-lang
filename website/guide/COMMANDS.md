@@ -34,7 +34,8 @@ orders/src/main.hd
 orders/tests/orders.hd
 ```
 
-The manifest names the package; everything else is convention:
+Package names may contain hyphens, but not dots: `.` separates modules.
+Dependency keys also reject dots. The manifest names the package:
 
 ```toml
 [package]

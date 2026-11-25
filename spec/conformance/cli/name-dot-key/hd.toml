@@ -1,0 +1,8 @@
+[package]
+name = "root"
+
+[dependencies]
+"money.core" = { path = "missing" }
+
+[dev-dependencies]
+"test.core" = { path = "also-missing" }
