@@ -61,14 +61,12 @@
           local.set $xs
         end
         local.get $xs
-        i32.const 16
-        i32.add
         local.get $n'2
         i32.const 8
         i32.mul
         i32.add
         local.get $i
-        i64.store $heap
+        i64.store $heap offset=16
         local.get $xs
         local.get $n'2
         i32.const 1
