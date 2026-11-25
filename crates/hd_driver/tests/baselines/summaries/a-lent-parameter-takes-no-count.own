@@ -252,7 +252,7 @@ pub fn main() -> void $ Console:
 >     uses $13: %9 -> %10 lend last
 >   local $14 value: u64 [read] value
 >     uses $14: %1 -> %2 lend last
->   %0 = Prim Conv [1:usize] : u64
+>   %0 = Coerce 1:u64 [Identity -] : u64
 >   %1 = Store [$14] %0 : ()
 >   %2 = Read copy [$14] : u64
 >   %3 = Call std/rt.bytes/unsigned_width[] (%2) : usize

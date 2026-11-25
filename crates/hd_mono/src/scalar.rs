@@ -34,6 +34,18 @@ fn integer(p: Prim, bits: u64) -> Option<u64> {
     })
 }
 
+/// TIR stores every float literal as f64 bits, even when its type is f32.
+/// Match emission's rounding to the operand's width before using its value.
+#[allow(clippy::cast_possible_truncation)]
+fn float(p: Prim, bits: u64) -> f64 {
+    let value = f64::from_bits(bits);
+    if p == Prim::F32 {
+        f64::from(value as f32)
+    } else {
+        value
+    }
+}
+
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
@@ -44,7 +56,7 @@ pub(crate) fn convert(from: Prim, to: Prim, bits: u64) -> Option<u64> {
         return None;
     }
     if from.is_float() {
-        let value = f64::from_bits(bits);
+        let value = float(from, bits);
         return Some(match to {
             Prim::I8 => i64::from(value as i8).cast_unsigned(),
             Prim::I16 => i64::from(value as i16).cast_unsigned(),
@@ -55,7 +67,7 @@ pub(crate) fn convert(from: Prim, to: Prim, bits: u64) -> Option<u64> {
             Prim::U32 | Prim::Usize => u64::from(value as u32),
             Prim::U64 => value as u64,
             Prim::F32 => f64::from(value as f32).to_bits(),
-            Prim::F64 => bits,
+            Prim::F64 => value.to_bits(),
             _ => return None,
         });
     }
@@ -87,7 +99,7 @@ fn compare<T: PartialOrd + Copy>(op: PrimOp, left: T, right: T) -> Option<u64> {
 
 pub(crate) fn comparison(op: PrimOp, p: Prim, left: u64, right: u64) -> Option<u64> {
     if p.is_float() {
-        return compare(op, f64::from_bits(left), f64::from_bits(right));
+        return compare(op, float(p, left), float(p, right));
     }
     if p.is_integer() {
         let (left, right) = (integer(p, left)?, integer(p, right)?);
@@ -201,6 +213,50 @@ mod tests {
         );
         assert_eq!(
             comparison(PrimOp::Ne, Prim::F64, f64::NAN.to_bits(), 0),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn f32_operands_round_before_comparisons_and_casts() {
+        // These f64 payloads are not already rounded to the TIR type.
+        let near_one = 1.000_000_01f64.to_bits();
+        let one = 1.0f64.to_bits();
+        for (op, expected) in [
+            (PrimOp::Eq, 1),
+            (PrimOp::Ne, 0),
+            (PrimOp::Lt, 0),
+            (PrimOp::Le, 1),
+            (PrimOp::Gt, 0),
+            (PrimOp::Ge, 1),
+        ] {
+            assert_eq!(comparison(op, Prim::F32, near_one, one), Some(expected));
+            assert_eq!(comparison(op, Prim::F32, one, near_one), Some(expected));
+        }
+        assert_eq!(comparison(PrimOp::Eq, Prim::F64, near_one, one), Some(0));
+        assert_eq!(
+            convert(Prim::F32, Prim::F64, 16_777_217.0f64.to_bits()),
+            Some(16_777_216.0f64.to_bits())
+        );
+        for to in [
+            Prim::I8,
+            Prim::I16,
+            Prim::I32,
+            Prim::I64,
+            Prim::U8,
+            Prim::U16,
+            Prim::U32,
+            Prim::U64,
+            Prim::Usize,
+        ] {
+            assert_eq!(convert(Prim::F32, to, 1.999_999_99f64.to_bits()), Some(2));
+        }
+        assert_eq!(
+            convert(Prim::F32, Prim::I64, (-0.999_999_99f64).to_bits()),
+            Some(u64::MAX)
+        );
+        assert_eq!(
+            convert(Prim::F64, Prim::I64, 1.999_999_99f64.to_bits()),
             Some(1)
         );
     }
