@@ -57,7 +57,7 @@
       { "name": "get", "wait": "never", "resource": "env-name", "params": ["string"], "result": "string?" },
       { "name": "names", "wait": "never", "resource": null, "params": [], "result": "List[string]" }
     ]},
-    { "key": "Args", "std": "std.host.Args", "methods": [
+    { "key": "Args", "std": "std.cli.Args", "methods": [
       { "name": "program", "wait": "never", "resource": null, "params": [], "result": "string" },
       { "name": "list", "wait": "never", "resource": null, "params": [], "result": "List[string]" }
     ]}

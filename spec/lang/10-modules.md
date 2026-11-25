@@ -2486,7 +2486,7 @@ This `main` prints `usage: tool FILE` and exits with status 2.
 2. r[module.entry.host-facilities] Process arguments, console access, environment, and other host facilities are requirements supplied by the runtime through the requirement model.
 
 ```hd
-use std.host.Args
+use std.cli.Args
 
 pub fn main() -> void $ Args:
     args := $.use(Args).list()

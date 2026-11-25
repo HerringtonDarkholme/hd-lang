@@ -1,5 +1,5 @@
 use std.console.{ConsoleInput, read_all}
-use std.host.{Args, args}
+use std.cli.{Args, args}
 use std.process.ExitCode
 
 pub fn main!() -> ExitCode $ Args + ConsoleInput + Console:

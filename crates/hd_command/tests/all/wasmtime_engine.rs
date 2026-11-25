@@ -283,7 +283,7 @@ fn fold_cycle(lines: Vec<String>, cycle: &[&str]) -> Vec<String> {
 fn args_and_program() {
     let dir = program(
         "args",
-        "use std.host.{Args, args}\n\npub fn main() -> void $ Console + Args:\n    \
+        "use std.cli.{Args, args}\n\npub fn main() -> void $ Console + Args:\n    \
          println($.use(Args).program())\n    for word in args():\n        println(\"[${word}]\")\n",
     );
     let out = both(&dir, &["main.hd", "--", "a", "b c", ""]);

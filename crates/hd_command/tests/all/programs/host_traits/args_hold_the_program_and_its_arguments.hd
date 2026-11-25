@@ -1,4 +1,4 @@
-use std.host.{Args, args}
+use std.cli.{Args, args}
 
 pub fn main() -> void $ Console + Args:
     println($.use(Args).program())

@@ -226,7 +226,7 @@ file of its own.
 | [`collections.md`](collections.md) | `std.collections` | `std-collections` | the `List` methods `view` and `chunks`, the `ListView` type, the `List` helpers such as `sorted_by_key`, `group_by`, and `windows`, the `Map` methods `contains_key`, `keys`, `values`, and `get_or_insert`, `counts`, `Set`, `Deque`, and `Heap` |
 | [`console.md`](console.md) | `std.console` | `std-console` | `eprintln`, when host console output becomes visible, the host trait `ConsoleInput`, and `read_line!` and `read_all!` |
 | [`contract.md`](contract.md) | `std.contract` | `std-contract` | the always-checked precondition helper `require` |
-| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Args`, `Env`, and `Sys`, the helpers `args` and `env`, the providers `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`, `HostError`, and the rules every host operation follows |
+| [`host.md`](host.md) | `std.host` | `std-host` | the host traits `Env` and `Sys`, the helper `env`, the providers `ScriptedEnv` and `ScriptedSys`, `HostError`, and the rules every host operation follows |
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess`; child process inheritance, signal status, and cancellation |
@@ -241,7 +241,7 @@ file of its own.
 | [`crypto.md`](crypto.md) | `std.crypto`, `std.crypto.sha256` | `std-crypto` | `Digest` with constant-time equality; in `sha256`, the streaming `Sha256` with `Sha256::hmac`, and `sha256` |
 | [`json.md`](json.md) | `std.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode` |
 | [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
-| [`cli.md`](cli.md) | `std.cli` | `std-cli` | argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
+| [`cli.md`](cli.md) | `std.cli` | `std-cli` | the command line: the host trait `Args`, the helper `args`, the provider `ScriptedArgs`, and argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |
 | [`remote.md`](remote.md) | `std.remote` | `std-remote` | the homes `per_request` and `home`, served functions `Call` and `action`, and the HTTP adapters `http_transport` and `http_handler` |
 | [`validate.md`](validate.md) | `std.validate` | `std-validate` | post-reader value validation, typed rule facts, structural paths, issue caps, and reader-selected path names |

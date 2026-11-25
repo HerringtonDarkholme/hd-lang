@@ -6,7 +6,8 @@ use std.cmp.Reverse
 use std.encoding.{Base64, DecodeError}
 use std.error.{Error, ErrorReport}
 use std.fs.{Entry, EntryKind}
-use std.host.{HostError, ScriptedArgs}
+use std.host.HostError
+use std.cli.ScriptedArgs
 use std.http.{Method, Request, Response, Url}
 use std.json.{Json, Number}
 use std.net.{Datagram, NetError}

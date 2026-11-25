@@ -40,7 +40,8 @@ pub fn main() -> void $ Console + Clock:
 | --- | --- | --- |
 | `Console` | prelude | `println`, `print`, `eprintln` |
 | `ConsoleInput` | `std.console` | `read_line!`, `read_all!` |
-| `Args`, `Env`, `Sys` | `std.host` | arguments, environment variables, system facts |
+| `Args` | `std.cli` | the program's arguments |
+| `Env`, `Sys` | `std.host` | environment variables, system facts |
 | `Clock` | `std.time` | `now`, `sleep!` |
 | `Random` | `std.random` | random numbers |
 | `FsRead`, `FsWrite` | `std.fs` | reading and writing files |

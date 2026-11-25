@@ -10,7 +10,7 @@ an exit status.
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 use std.console.{MemoryConsole, eprintln}
 use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
-use std.host.{Args, ScriptedArgs}
+use std.cli.{Args, ScriptedArgs}
 use std.path.Path
 use std.process.ExitCode
 
@@ -110,7 +110,7 @@ options:
   as `value_as::[usize]("top")`.
 - **Exit status.** Return `ExitCode` from `main`. `error.exit()` on a
   `CliError` prints the usage and picks the status. Without `std.cli`,
-  `args()` from `std.host` gives the raw list
+  `args()` from `std.cli` gives the raw list
   ([std/host.md](../std/host.md)).
 - **Errors** go to standard error with `eprintln`, and the function
   returns a failing `ExitCode`.

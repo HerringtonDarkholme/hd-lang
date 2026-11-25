@@ -10,8 +10,11 @@ over the language tier:
 - `CliError`, the parse errors, and the exit status they give;
 - `usage`, the generated help text.
 
+- `Args`, the host capability that holds the program's arguments, with
+  the helper `args` and the deterministic provider `ScriptedArgs`.
+
 The arguments themselves come from `Args`
-([Program Arguments](host.md#program-arguments)). What `hd` passes as a
+([Program Arguments](#program-arguments)). What `hd` passes as a
 program's arguments is CLI tier
 ([Program Arguments](../cli/command-line.md#program-arguments)).
 
@@ -81,7 +84,7 @@ own:
 
 ```text
 use std.cli.{Arg, ArgParser, CliError}
-use std.host.Args
+use std.cli.Args
 
 fn tool() -> *mut ArgParser:
     ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
@@ -195,7 +198,7 @@ through `Error`. `main` reports a parse error and exits with its code:
 
 ```text
 use std.cli.{Arg, ArgParser}
-use std.host.Args
+use std.cli.Args
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:
@@ -532,6 +535,27 @@ options:
 > **Why.** One column of help text is the layout of Go's `flag` output and
 > of `hd help`. The four spaces keep the long names of every term aligned.
 
-See also: [Program Arguments](host.md#program-arguments),
-[Map Providers](host.md#map-providers),
+## Program Arguments
+
+`Args` reads the arguments the program was started with:
+
+```text
+pub trait Args:
+    fn program(self) -> string
+    fn list(self) -> List[string]
+```
+
+1. r[std-cli.args.decl] `std.cli` declares the host capability trait `Args` with the methods above. Code imports it, as in `use std.cli.Args`.
+2. r[std-cli.args.program] `program` returns the name the program was started with.
+3. r[std-cli.args.list] `list` returns the program's arguments, in order, without the program name.
+4. r[std-cli.args.helper] `std.cli` declares `pub fn args() -> List[string] $ Args`, which returns `list()` of the `Args` provider that covers the call.
+5. r[std-cli.args.plain] Every method of `Args`, and `args`, are plain calls, not bang calls.
+6. r[std-cli.scripted-args.decl] `std.cli` declares `ScriptedArgs`, the deterministic provider of `Args`, with private fields. Code imports it, as in `use std.cli.ScriptedArgs`.
+7. r[std-cli.scripted-args.new] `ScriptedArgs::new(program: string, values: List[string]) -> ScriptedArgs` returns a provider whose `program` returns `program` and whose `list` returns `values`.
+8. r[std-cli.scripted-args.no-host] `ScriptedArgs` never reads the host's arguments.
+
+> **Why.** The command line is one module: the raw arguments and the
+> parser that reads them. The host's other facts stay in `std.host`.
+
+See also: [Map Providers](host.md#map-providers),
 [Splitting And Padding](text.md#splitting-and-padding).

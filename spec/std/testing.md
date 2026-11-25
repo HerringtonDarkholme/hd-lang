@@ -554,7 +554,8 @@ test binds with `$.with` instead:
 | --- | --- | --- |
 | `Console` | `MemoryConsole` | [Buffer Console](console.md#buffer-console) |
 | `ConsoleInput` | `ScriptedInput` | [Scripted Input](console.md#scripted-input) |
-| `Args`, `Env` | `ScriptedArgs`, `ScriptedEnv` | [Map Providers](host.md#map-providers) |
+| `Args` | `ScriptedArgs` | [Program Arguments](cli.md#program-arguments) |
+| `Env` | `ScriptedEnv` | [Map Providers](host.md#map-providers) |
 | `Clock` | `ManualClock` | [Manual Clock](time.md#manual-clock) |
 | `Random` | `SeededRandom` | [Seeded Random](random.md#seeded-random) |
 | `FsRead`, `FsWrite` | `MemoryFs` | [Memory File System](fs.md#memory-file-system) |

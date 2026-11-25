@@ -43,7 +43,7 @@ fn write(path: &Path, content: &str) {
     std::fs::write(path, content).expect("write");
 }
 
-/// `Args` (`std-host.args.*`, `cli.args.pass`): `program` is the FILE the
+/// `Args` (`std-cli.args.*`, `cli.args.pass`): `program` is the FILE the
 /// command ran, and `list` the words after `--`, in order.
 #[test]
 fn args_hold_the_program_and_its_arguments() {

@@ -1,5 +1,5 @@
 use std.fs.{FsRead, read_text}
-use std.host.{Args, args}
+use std.cli.{Args, args}
 use std.path.Path
 use std.process.{Command, Process}
 
