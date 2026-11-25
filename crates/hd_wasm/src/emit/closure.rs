@@ -299,7 +299,7 @@ impl Em<'_, '_, '_> {
         let cyclic = self.cyclic_holding(&[ty]);
         let recursive = self.recursive_object(ty);
         let glue = self.cell_glue(ty, &m)?;
-        let obj = self.new_object(m.size, glue, cyclic, recursive);
+        let obj = self.new_object(Some(m.size), glue, cyclic, recursive);
         #[cfg(feature = "checked-report")]
         if self.input.runtime.report().is_some() && self.cells.contains_key(&l) {
             crate::rt::checked_kind(&mut self.f, self.m, 2);

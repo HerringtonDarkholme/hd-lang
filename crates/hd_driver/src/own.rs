@@ -716,19 +716,6 @@ impl OwnCx for Env<'_> {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("map_probe"))
     }
 
-    fn counted_op(&self, callee: &Callee) -> Option<hd_tir::own::CountedOp> {
-        use hd_tir::own::CountedOp as C;
-        let Callee::Item { def, .. } = callee else {
-            return None;
-        };
-        match self.intrinsic(*def).as_deref()? {
-            "counted_alloc" => Some(C::Alloc),
-            "counted_tail" => Some(C::Tail),
-            "counted_is_unique" => Some(C::IsUnique),
-            _ => None,
-        }
-    }
-
     fn keeps_unique(&self, callee: &Callee) -> bool {
         // `rt:list_reserve` copies a buffer it does not own.
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("list_reserve"))
