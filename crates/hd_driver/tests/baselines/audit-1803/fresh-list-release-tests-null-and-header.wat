@@ -38,7 +38,7 @@
       call $rt:release_ref
     end
   )
-  (func $fresh (result i32) (local $t0 i32) (local $t1 i32)
+  (func $fresh (result i32) (local $t0 i32)
     ;; 11 |     xs := [1, 2, 3]
     i32.const 3
     call $rt:list_buf
@@ -49,14 +49,11 @@
     i32.const 1
     i32.store $heap offset=16
     local.get $t0
-    i32.const 4
-    i32.add
-    local.tee $t1
     i32.const 2
-    i32.store $heap offset=16
-    local.get $t1
-    i32.const 3
     i32.store $heap offset=20
+    local.get $t0
+    i32.const 3
+    i32.store $heap offset=24
     local.get $t0
     ;; 13 |     ys.len()
     i32.load $heap offset=4

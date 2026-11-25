@@ -12,12 +12,10 @@
     local.get $env
     i32.load $heap
     local.tee $env
+    local.get $env
     i32.load $heap offset=8
     i32.const 1
     i32.add
-    local.set $ctx
-    local.get $env
-    local.get $ctx
     i32.store $heap offset=8
   )
   (func $local (param $xs i32) (result i32)

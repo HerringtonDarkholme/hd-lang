@@ -158,14 +158,11 @@
     i64.const 1
     i64.store $heap offset=16
     local.get $t3
-    i32.const 8
-    i32.add
-    local.tee $t1
     i64.const 2
-    i64.store $heap offset=16
-    local.get $t1
-    i64.const 3
     i64.store $heap offset=24
+    local.get $t3
+    i64.const 3
+    i64.store $heap offset=32
     local.get $t3
     call $copy_twice
     local.get $t3
@@ -192,14 +189,11 @@
     i64.const 1
     i64.store $heap offset=16
     local.get $t3
-    i32.const 8
-    i32.add
-    local.tee $t1
     i64.const 2
-    i64.store $heap offset=16
-    local.get $t1
-    i64.const 3
     i64.store $heap offset=24
+    local.get $t3
+    i64.const 3
+    i64.store $heap offset=32
     local.get $t3
     call $lent_between
     local.get $t3
@@ -226,14 +220,11 @@
     i64.const 1
     i64.store $heap offset=16
     local.get $t3
-    i32.const 8
-    i32.add
-    local.tee $t1
     i64.const 2
-    i64.store $heap offset=16
-    local.get $t1
-    i64.const 3
     i64.store $heap offset=24
+    local.get $t3
+    i64.const 3
+    i64.store $heap offset=32
     local.get $t3
     call $shrunk_between
     local.get $provider0

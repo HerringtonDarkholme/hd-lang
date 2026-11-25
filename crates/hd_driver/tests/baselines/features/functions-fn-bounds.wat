@@ -16,7 +16,7 @@
     ;; 11 |     s.len()
     local.get $s.1
   )
-  (func $fn_mut (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $x.1 i32)
+  (func $fn_mut (param $xs i32) (result i32) (local $n i32) (local $t0 i32) (local $t1 i32) (local $x.1 i32)
     ;; 24 |     let n: usize = 0
     global.get $stack
     global.get $stack_limit
@@ -30,30 +30,27 @@
     global.get $stack
     i32.const 16
     i32.sub
-    local.tee $t0
+    local.tee $n
     global.set $stack
-    local.get $t0
+    local.get $n
     i64.const 0
     i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $n
+    local.get $n
     i32.const 0
-    i32.store $heap
+    i32.store $heap offset=8
     ;; 25 |     each(xs, fn(x: string) -> void: n += x.len())
     local.get $xs
     i32.load $heap offset=4
-    local.set $t1
+    local.set $t0
     block
       loop
-        local.get $t2
         local.get $t1
+        local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
         local.get $xs
-        local.get $t2
+        local.get $t1
         i32.const 8
         i32.mul
         i32.add
@@ -63,28 +60,28 @@
         i32.load $heap offset=20
         local.set $x.1
         drop
-        local.get $t2
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t2
+        local.set $t1
         block
           br 0
           unreachable
         end
         local.get $n
         local.get $n
-        i32.load $heap
+        i32.load $heap offset=8
         local.get $x.1
         i32.add
-        i32.store $heap
+        i32.store $heap offset=8
         br 0
       end
     end
     ;; 26 |     n
     local.get $n
-    i32.load $heap
+    i32.load $heap offset=8
     ;; 24 |     let n: usize = 0
-    local.get $t0
+    local.get $n
     i32.const 16
     i32.add
     global.set $stack

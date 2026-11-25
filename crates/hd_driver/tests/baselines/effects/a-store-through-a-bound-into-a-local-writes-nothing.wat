@@ -4,7 +4,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $local_store (result i32) (local $t0 i32) (local $q i32)
+  (func $local_store (result i32) (local $t0 i32)
     ;; 21 |     p := Point { x: 3 }
     global.get $stack
     global.get $stack_limit
@@ -30,16 +30,13 @@
     i64.const 0
     i64.store $heap offset=16
     local.get $t0
-    i32.const 24
-    i32.add
-    local.tee $q
     ;; 22 |     q := Point { x: 4 }
     i32.const 4
-    i32.store $heap
-    ;; 24 |     fill(&mut k, &q)
-    local.get $q
+    i32.store $heap offset=24
+    ;; 21 |     p := Point { x: 3 }
+    local.get $t0
     ;; 25 |     k.last.x
-    i32.load $heap
+    i32.load $heap offset=24
     ;; 21 |     p := Point { x: 3 }
     local.get $t0
     i32.const 32

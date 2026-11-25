@@ -10,7 +10,7 @@
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32) (local $t2 i64) (local $value i64) (local $t3 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i64) (local $value i64) (local $t2 i32) (local $t3 i32)
     ;; 20 |     println("${total([1, 2, 3], 10)}")
     i32.const 3
     call $rt:list_buf
@@ -21,14 +21,11 @@
     i32.const 1
     i32.store $heap offset=16
     local.get $t0
-    i32.const 4
-    i32.add
-    local.tee $t1
     i32.const 2
-    i32.store $heap offset=16
-    local.get $t1
-    i32.const 3
     i32.store $heap offset=20
+    local.get $t0
+    i32.const 3
+    i32.store $heap offset=24
     local.get $t0
     i32.const 10
     call $total
@@ -44,7 +41,7 @@
       end
     end
     i64.extend_i32_s
-    local.tee $t2
+    local.tee $t1
     local.tee $value
     call $signed_magnitude
     call $unsigned_width
@@ -54,32 +51,32 @@
     i64.lt_s
     if
       i32.const 1
-      local.set $t3
+      local.set $t2
     end
     local.get $t0
-    local.get $t3
+    local.get $t2
     i32.add
-    local.tee $t3
+    local.tee $t2
     local.tee $t0
     i32.const 16
-    local.set $t1
+    local.set $t3
     if
       local.get $t0
       call $rt:str
-      local.set $t1
+      local.set $t3
     end
-    local.get $t2
     local.get $t1
     local.get $t3
+    local.get $t2
     call $write_signed_sized
-    local.get $t1
+    local.get $t3
     local.get $t0
     local.get $provider0
     local.get $provider0.vtable
     call $"println[string]"
-    local.get $t1
+    local.get $t3
     if
-      local.get $t1
+      local.get $t3
       call $rt:release_ref'2
     end
   )

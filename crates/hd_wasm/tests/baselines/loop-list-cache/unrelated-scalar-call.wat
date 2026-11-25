@@ -3,7 +3,7 @@
   (import "fixture" "ten" (func $ten (param i32) (result i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $write (param $n i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $i i32) (local $t3 i32)
+  (func $write (param $n i32) (result i32) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $i i32) (local $t3 i32)
     ;; ...
     ;; 14 |     for i in 0..n:
     local.tee $t0

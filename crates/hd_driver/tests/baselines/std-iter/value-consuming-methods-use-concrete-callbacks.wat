@@ -35,7 +35,7 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $self.source.at i32) (local $cursor i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $self.source.end i32) (local $self.source.items i32) (local $self.source.at i32) (local $cursor i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
@@ -49,17 +49,14 @@
     global.get $stack
     i32.const 48
     i32.sub
-    local.tee $t0
+    local.tee $total
     global.set $stack
-    local.get $t0
+    local.get $total
     i64.const 0
     i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $total
+    local.get $total
     i32.const 0
-    i32.store $heap
+    i32.store $heap offset=8
     ;; 10 |     values.iter()
     local.get $values
     i32.load $heap offset=4
@@ -75,10 +72,10 @@
     local.set $self.source.at
     local.set $self.source.items
     block
-      local.get $t0
+      local.get $total
       i64.const 0
       i64.store $heap offset=16
-      local.get $t0
+      local.get $total
       i32.const 24
       i32.add
       local.tee $cursor
@@ -112,10 +109,10 @@
             end
             local.get $total
             local.get $total
-            i32.load $heap
+            i32.load $heap offset=8
             local.get $values
             i32.add
-            i32.store $heap
+            i32.store $heap offset=8
             br 1
           end
           local.get $cursor
@@ -139,9 +136,9 @@
     end
     ;; 15 |     total
     local.get $total
-    i32.load $heap
+    i32.load $heap offset=8
     ;; 9 |     let total = +0
-    local.get $t0
+    local.get $total
     i32.const 48
     i32.add
     global.set $stack
@@ -256,7 +253,7 @@
     ;; 11 |         .filter_map(fn(value: i32) -> i32?:
     local.get $t0
   )
-  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $t0 i32) (local $self.source.end i32) (local $self.source.items i32) (local $self.source.at i32) (local $cursor i32)
+  (func $sum_positive (param $values i32) (result i32) (local $total i32) (local $self.source.end i32) (local $self.source.items i32) (local $self.source.at i32) (local $cursor i32)
     ;; 9 |     let total = +0
     global.get $stack
     global.get $stack_limit
@@ -270,17 +267,14 @@
     global.get $stack
     i32.const 48
     i32.sub
-    local.tee $t0
+    local.tee $total
     global.set $stack
-    local.get $t0
+    local.get $total
     i64.const 0
     i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $total
+    local.get $total
     i32.const 0
-    i32.store $heap
+    i32.store $heap offset=8
     ;; 10 |     values.iter()
     local.get $values
     i32.load $heap offset=4
@@ -296,10 +290,10 @@
     local.set $self.source.at
     local.set $self.source.items
     block
-      local.get $t0
+      local.get $total
       i64.const 0
       i64.store $heap offset=16
-      local.get $t0
+      local.get $total
       i32.const 24
       i32.add
       local.tee $cursor
@@ -333,10 +327,10 @@
             end
             local.get $total
             local.get $total
-            i32.load $heap
+            i32.load $heap offset=8
             local.get $values
             i32.add
-            i32.store $heap
+            i32.store $heap offset=8
             br 1
           end
           local.get $cursor
@@ -360,9 +354,9 @@
     end
     ;; 15 |     total
     local.get $total
-    i32.load $heap
+    i32.load $heap offset=8
     ;; 9 |     let total = +0
-    local.get $t0
+    local.get $total
     i32.const 48
     i32.add
     global.set $stack

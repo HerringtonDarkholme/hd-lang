@@ -91,7 +91,7 @@
     ;; (no span)
     i32.add
   )
-  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32) (local $n i32)
+  (func $copy_shares (param $s.0 i32) (param $s.1 i32) (result i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
@@ -111,29 +111,26 @@
     i64.const 0
     i64.store $heap
     local.get $s.0
-    i32.const 8
-    i32.add
-    local.tee $n
     ;; 22 |     let n: usize = 0
     i32.const 0
-    i32.store $heap
+    i32.store $heap offset=8
     ;; 26 |     again()
-    local.get $n
-    local.get $n
-    i32.load $heap
+    local.get $s.0
+    local.get $s.0
+    i32.load $heap offset=8
     local.get $s.1
     i32.add
-    i32.store $heap
+    i32.store $heap offset=8
     ;; 22 |     let n: usize = 0
-    local.get $n
-    local.get $n
-    i32.load $heap
+    local.get $s.0
+    local.get $s.0
+    i32.load $heap offset=8
     local.get $s.1
     i32.add
-    i32.store $heap
+    i32.store $heap offset=8
     ;; (no span)
-    local.get $n
-    i32.load $heap
+    local.get $s.0
+    i32.load $heap offset=8
     local.get $s.0
     i32.const 16
     i32.add

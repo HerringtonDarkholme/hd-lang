@@ -7,7 +7,7 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $value i32) (local $t0 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $value i32)
     ;; 9 |     change := fn(mut value: usize) -> usize:
     global.get $stack
     global.get $stack_limit
@@ -21,62 +21,53 @@
     global.get $stack
     i32.const 48
     i32.sub
-    local.tee $t0
+    local.tee $value
     global.set $stack
-    local.get $t0
+    local.get $value
     i64.const 0
     i64.store $heap offset=32
-    local.get $t0
-    i32.const 40
-    i32.add
-    local.tee $value
+    local.get $value
     ;; 13 |     println(change(3))
     i32.const 3
-    i32.store $heap
+    i32.store $heap offset=40
     local.get $value
     i32.const 91
-    i32.store $heap
+    i32.store $heap offset=40
     local.get $value
-    i32.load $heap
+    i32.load $heap offset=40
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
     ;; 19 |     println(local())
-    local.get $t0
+    local.get $value
     i64.const 0
     i64.store $heap offset=16
-    local.get $t0
-    i32.const 24
-    i32.add
-    local.tee $value
+    local.get $value
     i32.const 3
-    i32.store $heap
+    i32.store $heap offset=24
     local.get $value
     i32.const 92
-    i32.store $heap
+    i32.store $heap offset=24
     local.get $value
-    i32.load $heap
+    i32.load $heap offset=24
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
     ;; 9 |     change := fn(mut value: usize) -> usize:
-    local.get $t0
+    local.get $value
     i64.const 0
     i64.store $heap
-    local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $value
+    local.get $value
     ;; 25 |     println(two(3))
     i32.const 3
-    i32.store $heap
+    i32.store $heap offset=8
     local.get $value
     i32.const 46
-    i32.store $heap
+    i32.store $heap offset=8
     local.get $value
-    i32.load $heap
+    i32.load $heap offset=8
     local.get $value
-    i32.load $heap
+    i32.load $heap offset=8
     i32.const 1
     i32.add
     i32.add
@@ -92,7 +83,7 @@
     local.get $provider0.vtable
     call $"println[usize]"
     ;; 9 |     change := fn(mut value: usize) -> usize:
-    local.get $t0
+    local.get $value
     i32.const 48
     i32.add
     global.set $stack

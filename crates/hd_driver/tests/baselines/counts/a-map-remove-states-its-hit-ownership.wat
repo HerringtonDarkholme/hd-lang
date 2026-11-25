@@ -33,17 +33,15 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 12
       i32.mul
       i32.add
       local.tee $key.0
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.set $t1
       local.get $key.0
-      i32.load $heap
+      i32.load $heap offset=32
       local.tee $key.0
       if
         local.get $key.0
@@ -102,17 +100,15 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 16
       i32.mul
       i32.add
       local.tee $key.0
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.set $t1
       local.get $key.0
-      i32.load $heap
+      i32.load $heap offset=32
       local.tee $key.0
       if
         local.get $key.0
@@ -250,20 +246,18 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 16
       i32.mul
       i32.add
       local.tee $key.0
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.get $key.0
-      i32.load $heap offset=12
+      i32.load $heap offset=44
       local.set $t1
       local.set $t2
       local.get $key.0
-      i32.load $heap
+      i32.load $heap offset=32
       local.tee $key.0
       if
         local.get $key.0
@@ -323,17 +317,15 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $values
       i32.const 12
       i32.mul
       i32.add
       local.tee $t1
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.set $t2
       local.get $t1
-      i32.load $heap
+      i32.load $heap offset=32
       local.tee $t1
       if
         local.get $t1

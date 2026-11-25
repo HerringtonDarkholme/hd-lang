@@ -28,14 +28,11 @@
       unreachable
     end
     local.get $g
-    i32.const 16
-    i32.add
-    local.tee $g
     local.get $g
-    i32.load $heap
+    i32.load $heap offset=16
     i32.const 10
     i32.add
-    i32.store $heap
+    i32.store $heap offset=16
   )
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t1 i32) (local $c i32) (local $t0 i32)
     ;; 24 |     let mut c = Cells { items: [1, 2] }

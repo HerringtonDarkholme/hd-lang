@@ -132,16 +132,14 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $k.0
       i32.const 16
       i32.mul
       i32.add
       local.tee $v.1
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.get $v.1
-      i32.load $heap offset=12
+      i32.load $heap offset=44
       local.set $v.1
       local.set $t0
     end

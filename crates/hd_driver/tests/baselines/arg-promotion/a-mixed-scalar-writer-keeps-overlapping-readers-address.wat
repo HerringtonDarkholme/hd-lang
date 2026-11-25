@@ -16,15 +16,13 @@
     i64.extend_i32_u
     i64.store $heap
   )
-  (func $relay (param $value i32) (param $state i32) (local $t0 i32)
+  (func $relay (param $value i32) (param $state i32)
     ;; 13 |     write(value, state)
+    local.get $state
     local.get $state
     i32.load $heap offset=8
     i32.const 1
     i32.add
-    local.set $t0
-    local.get $state
-    local.get $t0
     i32.store $heap offset=8
     local.get $state
     local.get $value

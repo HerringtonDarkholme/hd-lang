@@ -144,18 +144,14 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $key.0
     i32.const 16
     i32.mul
     i32.add
-    i32.const 8
-    i32.add
     local.tee $key.1
-    i32.load $heap
+    i32.load $heap offset=40
     local.get $key.1
-    i32.load $heap offset=4
+    i32.load $heap offset=44
     local.set $key.1
     local.tee $t0
     if
@@ -202,14 +198,12 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $key.0
     i32.const 16
     i32.mul
     i32.add
     local.tee $words
-    i32.load $heap offset=8
+    i32.load $heap offset=40
     local.tee $key.0
     if
       local.get $key.0
@@ -217,10 +211,10 @@
     end
     local.get $words
     local.get $t2
-    i32.store $heap offset=8
+    i32.store $heap offset=40
     local.get $words
     local.get $t1
-    i32.store $heap offset=12
+    i32.store $heap offset=44
   )
   (func $changed_between (param $counts i32) (param $word.0 i32) (param $word.1 i32) (param $other.0 i32) (param $other.1 i32) (local $t0 i32) (local $t1 i32) (local $t3 i32) (local $t2 i64) (local $value i64)
     ;; 17 |     seen := counts.get(word).unwrap_or(0)

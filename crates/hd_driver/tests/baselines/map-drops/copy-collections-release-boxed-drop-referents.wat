@@ -65,16 +65,14 @@
           i32.const 14
           i32.mul
           i32.add
-          i32.const 32
-          i32.add
           local.get $t3
           i32.const 16
           i32.mul
           i32.add
           local.tee $t4
-          i32.load $heap
+          i32.load $heap offset=32
           local.get $t4
-          i32.load $heap offset=12
+          i32.load $heap offset=44
           local.set $t4
           call $rt:release_ref'2
           local.get $t4
@@ -155,16 +153,14 @@
           i32.const 14
           i32.mul
           i32.add
-          i32.const 32
-          i32.add
           local.get $t3
           i32.const 16
           i32.mul
           i32.add
           local.tee $t4
-          i32.load $heap
+          i32.load $heap offset=32
           local.get $t4
-          i32.load $heap offset=12
+          i32.load $heap offset=44
           local.set $t4
           call $rt:release_ref'2
           local.get $t4
