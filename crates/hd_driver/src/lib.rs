@@ -1766,6 +1766,9 @@ struct Run<'a> {
     /// Whether the pipeline replaces inlined references to local storage
     /// by the storage (`sroa`, `hd_opt::sroa`).
     sroa: bool,
+    /// Whether `sroa` spills a local around a cold call that takes its
+    /// address (its `cold_spill` knob; not on wasmtime).
+    sroa_spill: bool,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
     /// The selected optimization pipeline, separate from arithmetic semantics.
@@ -3003,6 +3006,9 @@ fn build_packages_inner(
         sroa: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"sroa"),
+        sroa_spill: hd_opt::passes::pipeline(packages.target, packages.level)
+            .knob("sroa", "cold_spill")
+            == Some(1),
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))

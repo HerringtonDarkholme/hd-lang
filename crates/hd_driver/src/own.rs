@@ -2752,7 +2752,7 @@ impl Env<'_> {
         // Scalar replacement needs copies to work on (`hd_opt::sroa`).
         if self.run.sroa && hash != facts {
             let copies = |t| hd_tir::own::OwnCx::copies(self, t) == hd_tir::own::Tri::Yes;
-            hd_opt::sroa::run(body, &self.run.pool, &copies)
+            hd_opt::sroa::run(body, &self.run.pool, &copies, self.run.sroa_spill)
                 // ruled out: each edit stands where the body's own topology puts it.
                 .expect("sroa renumbers an inlined body");
         }
