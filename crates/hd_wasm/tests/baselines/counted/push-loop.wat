@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl[T] PlainList[T].reserve_slow[i64]" (func $"impl[T] PlainList[T].reserve_slow[i64]" (param i32 i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $build (param $n'1 i64) (result i32) (local $h i32) (local $xs i32) (local $i i64) (local $n'2 i32)
+  (func $build (param $n'1 i64) (result i32) (local $n'2 i32) (local $xs i32) (local $i i64)
     ;; ...
     ;; 12 |     while i < n:
     block
@@ -15,7 +15,6 @@
     ;; 13 |         xs.push(i)
         local.get $xs
         i32.load $heap
-        local.tee $h
         i32.load $heap offset=4
         local.set $n'2
         block
@@ -28,7 +27,8 @@
           i32.eq
           if
             local.get $n'2
-            local.get $h
+            local.get $xs
+            i32.load $heap
             i32.load $heap
             i32.eq
             i32.eqz

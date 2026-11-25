@@ -1,0 +1,16 @@
+# @dump: wat
+# @build: v8 release
+# An index-sum loop over a `PlainList` (#2369): the bounds test reads the
+# length from the block's header and the value from its tail; compare
+# with the builtin list's loop, whose header and buffer stay in locals.
+use std.collections.PlainList
+
+fn sum_index(xs: &PlainList[i64]) -> i64:
+    let mut s: i64 = 0
+    let mut i: usize = 0
+    n := xs.len()
+    # subject
+    while i < n:
+        s += xs[i]
+        i += 1
+    s

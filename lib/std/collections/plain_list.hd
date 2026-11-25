@@ -75,13 +75,15 @@ impl[T] PlainList[T]:
     fn elems(&self) -> Ptr[T]:
         Ptr::[T] { address: tail_of(self.block, align_of::[T]()).address }
 
+    # Reads go through the `*ListHead[T]` itself: a field load the loop
+    # passes see (#2368); writes go through `head()`, to a unique block.
     @inline(.Always)
     pub fn len(&self) -> usize:
-        self.head().as_ref().len
+        self.block.len
 
     @inline(.Always)
     pub fn capacity(&self) -> usize:
-        self.head().as_ref().cap
+        self.block.cap
 
     @inline(.Always)
     pub fn is_empty(&self) -> bool:
@@ -98,9 +100,8 @@ impl[T] PlainList[T]:
     ## capacity compare; growth and the copy of a shared block are cold.
     @inline
     pub fn push(&mut self, value: T) -> void:
-        h := self.head().as_ref()
-        n := h.len
-        if !is_unique(self.block) || n == h.cap:
+        n := self.block.len
+        if !is_unique(self.block) || n == self.block.cap:
             self.reserve_slow(n + 1)
         self.elems().offset(n).write(value)
         self.head().as_mut().len = n + 1
