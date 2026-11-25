@@ -247,6 +247,11 @@ jobs:
           node scripts/check-change.ts "$base" HEAD
 
       # Each check runs under its time budget (scripts/check-budgets.tsv).
+      - name: Check bench packages and expected output
+        if: ${{ !cancelled() }}
+        timeout-minutes: 1
+        run: node scripts/check-budget.ts check:bench-packages -- node scripts/check-bench-packages.ts --hd target/tools/hd
+
       - name: Lint and format JS/TS
         if: ${{ !cancelled() }}
         run: |
