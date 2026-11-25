@@ -195,7 +195,7 @@ fn rt_roots(
         (true, false) => &[hd_wasm::CHECKED_MODULE],
         _ => &[],
     };
-    // The runtime's leaf layer (`module.rt.leaf`): `std.rt` and its
+    // The runtime's own modules (`module.rt.modules`): `std.rt` and its
     // children, whose functions emitted code and the compiler's own
     // lowering call, whatever the program uses. The checked runtime and
     // the entry's hd are rooted above.
