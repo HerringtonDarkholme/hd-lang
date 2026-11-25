@@ -319,14 +319,6 @@ pub trait OwnCx {
         let _ = callee;
         false
     }
-
-    /// Whether every result of this callee is a counted block nothing
-    /// else holds (`alloc_counted`, or a body whose `Summary::fresh`
-    /// holds), so a store of it makes its holder unique.
-    fn returns_unique(&self, callee: &Callee) -> bool {
-        let _ = callee;
-        false
-    }
     /// Whether a value of `ty` holds a counted leaf. The passes run over
     /// instances, whose types are concrete, and over a generic item's own
     /// body past the instance limit, where a type parameter's value counts.
@@ -637,7 +629,6 @@ pub fn scoped_provider_transfers(b: &Body, topo: &Topology) -> Vec<(u32, u32, u3
 pub mod return_loan;
 
 pub mod memory_effects;
-pub mod unique;
 
 pub use crate::ir::{Loc, Role};
 
@@ -1318,9 +1309,6 @@ pub struct Summary {
     /// Whether the body may write memory its caller can reach
     /// ([`writes`]).
     pub writes: bool,
-    /// Whether every result is a counted block nothing else holds
-    /// ([`unique::fresh_result`]).
-    pub fresh: bool,
 }
 
 /// The locals of `b`'s own parameters, the receiver first; a closure's are
@@ -2067,7 +2055,6 @@ pub fn summary(
         borrows,
         returns,
         writes: true,
-        fresh: unique::fresh_result(b, cx),
     })
 }
 

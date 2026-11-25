@@ -3,15 +3,8 @@
   (import "fixture" "impl[T] PlainList[T].grown[(i64, i64)]" (func $"impl[T] PlainList[T].grown[(i64, i64)]" (param i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $build (param $n'1 i64) (result i32) (local $xs i32) (local $i i64) (local $t0 i32) (local $n'2 i32) (local $t1 i32)
+  (func $build (param $n'1 i64) (result i32) (local $xs i32) (local $i i64) (local $n'2 i32) (local $t0 i32) (local $t1 i32)
     ;; ...
-    ;; 13 |         xs.push((i, n))
-    i32.const 8
-    i32.sub
-    i32.load $heap
-    i32.const 1
-    i32.eq
-    local.set $t0
     ;; 12 |     while i < n:
     block
       loop
@@ -25,7 +18,12 @@
         i32.load $heap offset=4
         local.set $n'2
         block
-          local.get $t0
+          local.get $xs
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          i32.const 1
+          i32.eq
           if
             local.get $n'2
             local.get $xs
@@ -34,11 +32,20 @@
             i32.eqz
             br_if 1
           end
-          local.get $xs
           local.get $n'2
           i32.const 1
           i32.add
+          local.set $t0
+          local.get $xs
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          i32.const 1
+          i32.eq
+          local.set $t1
+          local.get $xs
           local.get $t0
+          local.get $t1
           call $"impl[T] PlainList[T].grown[(i64, i64)]"
           local.get $xs
           if
@@ -51,23 +58,17 @@
               call $rt:release_ref
             end
           end
-          local.tee $xs
-          i32.const 8
-          i32.sub
-          i32.load $heap
-          i32.const 1
-          i32.eq
-          local.set $t0
+          local.set $xs
         end
         local.get $xs
         local.get $n'2
         i32.const 16
         i32.mul
         i32.add
-        local.tee $t1
+        local.tee $t0
         local.get $i
         i64.store $heap offset=16
-        local.get $t1
+        local.get $t0
         local.get $n'1
         i64.store $heap offset=24
         local.get $xs
