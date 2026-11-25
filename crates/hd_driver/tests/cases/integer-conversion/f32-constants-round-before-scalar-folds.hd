@@ -1,0 +1,31 @@
+# @dump: stdout wat
+# @build: dev | release | release checked
+# expected: f32 operands round before matching, comparing, promoting or truncating;
+# all builds print 7, true, false, false, 16777216 and 2.
+fn pick(value: f32) -> i32:
+    match value:
+        -0.1 => 7
+        _ => 9
+
+fn same(value: f32) -> bool:
+    value == 1.0
+
+fn different(value: f32) -> bool:
+    value != 1.0
+
+fn greater(value: f32) -> bool:
+    value > 1.0
+
+fn promoted(value: f32) -> i64:
+    i64(f64(value))
+
+fn truncated(value: f32) -> i64:
+    i64(value)
+
+pub fn main() -> void $ Console:
+    println(pick(-0.1))
+    println(same(1.00000001))
+    println(different(1.00000001))
+    println(greater(1.00000001))
+    println(promoted(16777217.0))
+    println(truncated(1.99999999))
