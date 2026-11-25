@@ -1,8 +1,7 @@
 # std.rt.bytes: the byte, text and panic primitives that several std
 # modules share (spec/std/README.md#standard-library-primitives), each
 # declared once. A runtime module, so only std may use it
-# (spec/lang/10-modules.md#r-module.rt.std-only), and it uses only std.core
-# (spec/lang/10-modules.md#r-module.rt.leaf), so every std module may use it.
+# (spec/lang/10-modules.md#r-module.rt.std-only).
 # The compiler supplies each body: the byte primitives come from the Wasm
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).

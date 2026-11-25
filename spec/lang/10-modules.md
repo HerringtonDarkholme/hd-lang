@@ -1753,9 +1753,8 @@ pub fn main() -> void:
 2. r[module.rt.std-only] Only a module of the standard library may use a runtime module, or a name declared in one.
 3. r[module.rt.std-only.error] So a use declaration in any other package whose path names a runtime module, or a name inside one, is an error. Error: `std-only-use`.
 4. r[module.rt.core-prelude] A runtime module sees only the `std.core` row of the [prelude](#prelude). It imports any other name it uses.
-5. r[module.rt.leaf] The runtime modules of the folder `lib/std/rt` use only `std.core` and each other, and every std module may use them.
-6. r[module.rt.bytes] `std.rt.bytes` declares, with `pub`, each byte, text, and panic [primitive](../std/README.md#standard-library-primitives) that more than one std module calls. Each std module that calls one imports it from there, so each primitive is declared once.
-7. r[module.rt.entry] `std.rt.entry` holds the hd that reports an entry's or a test case's result. It uses std modules outside the leaf layer, so it is a folder of its own, `rt/entry`, above them.
+5. r[module.rt.bytes] `std.rt.bytes` declares, with `pub`, each byte, text, and panic [primitive](../std/README.md#standard-library-primitives) that more than one std module calls. Each std module that calls one imports it from there, so each primitive is declared once.
+6. r[module.rt.entry] `std.rt.entry` holds the hd that reports an entry's or a test case's result. It uses std modules outside the runtime, so it is a folder of its own, `rt/entry`.
 
 > **Why.** The runtime can then change how it represents values, or what
 > its functions take, without breaking any program.
