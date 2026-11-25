@@ -5429,6 +5429,8 @@ impl Ck<'_, '_> {
                     Some(crate::local_rows::LocalRows::Discover(_))
                 ))
             .then(|| self.checkpoint());
+            let _result_scope = (n.kind() == SyntaxKind::FnDecl || parts.ret.is_some())
+                .then(|| crate::results::local_scope(self.cx, n, parts.ret.is_none(), ret));
             crate::work::local_body(self, n.index());
             let first = self.b.body().len();
             let mark = self.b.open_sub(&params);

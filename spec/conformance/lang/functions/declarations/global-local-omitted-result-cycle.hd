@@ -1,0 +1,6 @@
+# test: global local omitted result cycle
+# Rule: fn.decl.omitted-cycle.report.
+fn outer(): # diagnostic: recursive-function-needs-result-type
+    fn local():
+        outer()
+    local()

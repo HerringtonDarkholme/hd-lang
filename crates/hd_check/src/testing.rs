@@ -534,3 +534,10 @@ thread_local! {
 pub(crate) fn projection_pair_visited() {
     PROJECTION_PAIRS.set(PROJECTION_PAIRS.get() + 1);
 }
+
+/// Generated dependency graphs, including nested declaration scopes. Returns
+/// cyclic components, nodes plus edges walked, and work after the group clears.
+#[must_use]
+pub fn result_cycle_work(width: u32, depth: u32, nested: bool) -> (usize, u64, u64) {
+    crate::result_cycles::generated_work(width, depth, nested)
+}

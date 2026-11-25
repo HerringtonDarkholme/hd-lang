@@ -1,0 +1,8 @@
+# test: local omitted result cycle one annotated
+# Rule: fn.decl.omitted-cycle.resolve.
+fn outer() -> i32:
+    fn first(n: i32):
+        fn second(n: i32) -> i32:
+            if n == +0: +0 else: first(n - 1)
+        if n == +0: +0 else: second(n - 1)
+    first(+1)
