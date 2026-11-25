@@ -924,10 +924,10 @@ fn one[T < Integer]() -> T:
 use std.num.Integer
 
 fn too_large[T < Integer]() -> T:
-    T(300)          # error: integer-literal-range; does not fit i8
+    T(300)          # error: integer-literal-range
 
 fn negative[T < Integer]() -> T:
-    T(-1)           # error: integer-literal-range; does not fit unsigned types
+    T(-1)           # error: integer-literal-range
 ```
 
 The core numeric cast rules are:
