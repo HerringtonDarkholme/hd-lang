@@ -3,7 +3,7 @@
   (import "fixture" "heap" (memory $heap 17))
   (func $bound (param $k i64) (result i64) (local $tally i32)
     ;; ...
-    ;; 17 |     let mut tally = Tally { n: 0, name: "tally" }
+    ;; 20 |     let mut tally = Tally { n: 0, name: "tally" }
     i64.const 0
     i64.store $heap offset=8
     local.get $tally

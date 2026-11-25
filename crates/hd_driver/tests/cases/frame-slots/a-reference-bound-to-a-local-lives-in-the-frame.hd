@@ -5,10 +5,13 @@
 # lives in a slot of the function's frame (crates/hd_wasm/DESIGN.md
 # §23.38): no `rt:new` cell, and no count of the reference, in or out of
 # the loop. The one release is of the value in the slot.
+use std.meta.inline
+
 struct Tally:
     n: i64
     name: string
 
+@inline(.Never)
 fn bump(t: &mut Tally) -> void:
     t.n = t.n + 1
 

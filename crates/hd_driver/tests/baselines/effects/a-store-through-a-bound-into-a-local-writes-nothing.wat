@@ -4,19 +4,19 @@
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (func $local_store (result i32) (local $p i32) (local $t0 i32) (local $q i32) (local $k i32)
+  (func $local_store (result i32) (local $t0 i32) (local $q i32)
     ;; 21 |     p := Point { x: 3 }
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 48
+    i32.const 32
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 48
+    i32.const 32
     i32.sub
     local.tee $t0
     global.set $stack
@@ -24,11 +24,8 @@
     i64.const 0
     i64.store $heap
     local.get $t0
-    i32.const 8
-    i32.add
-    local.tee $p
     i32.const 3
-    i32.store $heap
+    i32.store $heap offset=8
     local.get $t0
     i64.const 0
     i64.store $heap offset=16
@@ -39,28 +36,13 @@
     ;; 22 |     q := Point { x: 4 }
     i32.const 4
     i32.store $heap
-    ;; 21 |     p := Point { x: 3 }
-    local.get $t0
-    i64.const 0
-    i64.store $heap offset=32
-    local.get $t0
-    i32.const 40
-    i32.add
-    local.tee $k
-    ;; 23 |     let mut k = Keep { last: &p }
-    local.get $p
-    i32.store $heap
     ;; 24 |     fill(&mut k, &q)
-    local.get $k
     local.get $q
-    i32.store $heap
     ;; 25 |     k.last.x
-    local.get $k
-    i32.load $heap
     i32.load $heap
     ;; 21 |     p := Point { x: 3 }
     local.get $t0
-    i32.const 48
+    i32.const 32
     i32.add
     global.set $stack
   )

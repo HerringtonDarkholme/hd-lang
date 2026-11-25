@@ -17,7 +17,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 5 funcref))
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $local.items i32) (local $buffers i32) (local $t0 i32) (local $t1 i64) (local $t2 i32) (local $t3 i64) (local $t4 i64) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t9 i32) (local $t8 i32)
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $local.items i32) (local $buffers i32) (local $t0 i32) (local $t1 i64) (local $t2 i32) (local $t3 i64) (local $t4 i32) (local $t5 i64) (local $t6 i32) (local $t7 i32) (local $t9 i32) (local $t8 i32)
     ;; 30 |     let mut buffers = Buffers { items: [7], count: 0 }
     global.get $stack
     global.get $stack_limit
@@ -88,7 +88,6 @@
     local.set $t2
     local.get $buffers
     i32.load $heap offset=4
-    i64.extend_i32_u
     local.set $t4
     local.get $buffers
     if
@@ -107,12 +106,14 @@
       end
     end
     local.get $t4
+    i64.extend_i32_u
+    local.tee $t5
     call $unsigned_width
     local.set $buffers
     local.get $local.items
     i32.const 1
     i32.add
-    local.tee $t5
+    local.tee $t4
     local.get $t2
     i32.add
     local.tee $t6
@@ -140,7 +141,7 @@
     i32.store8 $heap
     local.get $t3
     local.get $t9
-    local.get $t5
+    local.get $t4
     i32.add
     local.get $t2
     call $write_unsigned_sized
@@ -149,7 +150,7 @@
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t4
+    local.get $t5
     local.get $t9
     local.get $t7
     i32.add
@@ -212,13 +213,13 @@
       end
     end
     i64.extend_i32_u
-    local.tee $t4
+    local.tee $t5
     call $unsigned_width
     local.set $local.items
     local.get $buffers
     i32.const 1
     i32.add
-    local.tee $t5
+    local.tee $t4
     local.get $t2
     i32.add
     local.tee $t6
@@ -246,7 +247,7 @@
     i32.store8 $heap
     local.get $t3
     local.get $t9
-    local.get $t5
+    local.get $t4
     i32.add
     local.get $t2
     call $write_unsigned_sized
@@ -255,7 +256,7 @@
     i32.add
     i32.const 32
     i32.store8 $heap
-    local.get $t4
+    local.get $t5
     local.get $t9
     local.get $t7
     i32.add

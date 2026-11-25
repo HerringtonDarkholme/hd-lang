@@ -1763,6 +1763,9 @@ struct Run<'a> {
     /// Whether the pipeline folds the decisions an instance's own values
     /// decide after inlining (`const_fold`, `hd_mono::defaults::specialize`).
     const_fold: bool,
+    /// Whether the pipeline replaces inlined references to local storage
+    /// by the storage (`sroa`, `hd_opt::sroa`).
+    sroa: bool,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
     /// The selected optimization pipeline, separate from arithmetic semantics.
@@ -2997,6 +3000,9 @@ fn build_packages_inner(
         const_fold: hd_opt::passes::pipeline(packages.target, packages.level)
             .tir
             .contains(&"const_fold"),
+        sroa: hd_opt::passes::pipeline(packages.target, packages.level)
+            .tir
+            .contains(&"sroa"),
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))

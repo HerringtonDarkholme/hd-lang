@@ -128,37 +128,29 @@ fn use_generic(l: Logger) -> usize:
 fn qualified(l: Logger) -> usize:
     Describe::headline(&l).len()
 > app/main/qualified
->   local $0 l: Logger [param read captured] place
+>   local $0 l: Logger [param read captured] value
+>     uses $0: entry -> %0 consume last
 >   local $1 $ref: string [read assigned captured captured-assigned] value
->     uses $1: %14 -> %15 lend last
->   local $3 self: &Logger [read] value
->     uses $3: %3 -> %4 lend last
->   %0 = Box #0 #0 : ()
->   %1 = Ref local frame [$0] : &Logger
->   %2 = Coerce %1 [Weaken -] : &Logger
->   %3 = Store [$3] %2 : ()
->   %4 = Read borrow [$3] : &Logger
->   %5 = Read borrow [*%4 .name] : string
->   %6 = Break L1 %5 : never
->   %7 = Block - : string
->   %8 = Scope %7 [] : string
->   %9 = Intrinsic StrConcat ["* " %8] : string
->   %10 = Break L2 %9 : never
->   %11 = Block - : string
->   %12 = Scope %11 [] : string
->   %13 = LoanEnd [$3] : ()
->   %14 = Store [$1] %12 : ()
->   %15 = Read borrow [$1] : string
->   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
->   %17 = Break L0 %16 : never
->   %18 = Block - : usize
->   %19 = Scope %18 [] : usize
->   %20 = Drop [$1] : ()
->   %21 = Intrinsic ParamOwned [0:i32] : bool
->   %22 = Drop [$0] : ()
->   %23 = Block - : ()
->   %24 = If %21 [%23 -] : ()
->   %25 = Release %26 Exit local $0 #2 : ()
->   %26 = Block %19 : usize
->   storage sub 0: $0 slot
+>     uses $1: %8 -> %9 lend last
+>   %0 = Read borrow [$0 .name] : string
+>   %1 = Break L1 %0 : never
+>   %2 = Block - : string
+>   %3 = Scope %2 [] : string
+>   %4 = Intrinsic StrConcat ["* " %3] : string
+>   %5 = Break L2 %4 : never
+>   %6 = Block - : string
+>   %7 = Scope %6 [] : string
+>   %8 = Store [$1] %7 : ()
+>   %9 = Read borrow [$1] : string
+>   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = Drop [$1] : ()
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $0 #2 : ()
+>   %20 = Block %13 : usize
 >   summary kept [] borrows [$0]

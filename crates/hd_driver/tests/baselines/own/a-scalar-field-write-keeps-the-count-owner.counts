@@ -348,11 +348,10 @@ fn copied_parameter(before: Record) -> i64:
 
 fn counted_field(text: string) -> usize:
     let mut value = Record { text, n: 1 }
-> app/main/counted_field
->   release string (last use)
     view := &mut value
     view.text = "fresh"
->   release counted reference (overwritten)
+> app/main/counted_field
+>   release string (overwritten)
     value.text.len()
 
 @cold
@@ -394,9 +393,6 @@ pub fn main() -> void $ Console:
     println(direct(text))
     println(aliased(text))
     println(nested(text))
->   retain string (stored)
->   release app.main.Outer [inner.text.0] (last use)
->   release app.main.Outer [inner.text.0] (last use)
     println(snapshot(text))
 >   retain string (stored)
 >   retain app.main.Record [text.0] (second owner)
@@ -408,8 +404,7 @@ pub fn main() -> void $ Console:
     println(wide_snapshot((source, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)))
     println(counted_field(text))
 >   retain string (stored)
->   release counted reference (overwritten)
->   release string (last use)
+>   release string (overwritten)
     println(mutable_call(text))
 >   retain string (stored)
     println(heap(text))

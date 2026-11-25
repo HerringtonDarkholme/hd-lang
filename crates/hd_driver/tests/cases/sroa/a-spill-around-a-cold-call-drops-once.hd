@@ -1,0 +1,41 @@
+# @dump: stdout
+# @build: release std | release checked std
+# #2365: `add` is copied into the loop and `acc` splits; the cold `spill`
+# call gets a copy that moves back after it. The copy's store finds its
+# slot empty each round, so the `Drop` hook runs once, at the end.
+use std.meta.{cold, inline}
+use std.rt.{Drop}
+
+struct Acc:
+    total: i64
+    spills: i64
+    log: *mut List[i64]
+
+impl !Copy for Acc
+
+impl Drop for Acc:
+    fn drop(&mut self) -> void:
+        self.log.push(self.total)
+
+impl Acc:
+    @cold
+    fn spill(&mut self) -> void:
+        self.spills += 1
+
+    @inline
+    fn add(&mut self, x: i64) -> void:
+        if x % 4 == 0:
+            self.spill()
+        self.total += x
+
+fn run(n: i64, log: *mut List[i64]) -> i64:
+    let mut acc = Acc { total: 0, spills: 0, log: log }
+    let mut i: i64 = 0
+    while i < n:
+        acc.add(i)
+        i += 1
+    acc.total + acc.spills
+
+pub fn main() -> void $ Console:
+    let log: *mut List[i64] = box([])
+    println("${run(10, log)} ${log.len()} ${log[0]}")

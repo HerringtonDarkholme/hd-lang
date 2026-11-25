@@ -312,6 +312,19 @@ pub static PASSES: &[PassSpec] = &[
         Optional,
         Instance
     ),
+    // Scalar replacement after inlining (#2365, `crate::sroa`): the
+    // driver forwards each instance body's references to its own local
+    // storage, so an inlined `&mut self` method leaves the local in Wasm
+    // locals, and spills it around a cold call that takes its address.
+    pass!(
+        "sroa",
+        TirDecision,
+        [],
+        [],
+        gate::HAS_CALL,
+        Optional,
+        Instance
+    ),
     pass!(
         "devirt_known",
         TirDecision,
@@ -403,6 +416,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
     tir: &[
         "value_flow",
         "const_fold",
+        "sroa",
         "devirt_known",
         "closure_spec",
         "summaries",
@@ -713,7 +727,8 @@ mod tests {
     /// both: the hash dropped the pipeline name and gained the knob values
     /// and the link passes; the release summaries, argument promotion and
     /// `const_fold` changed the optimized one, and only it. Dropping the passes
-    /// and link passes that nothing ran (draft 32) changed both.
+    /// and link passes that nothing ran (draft 32) changed both; `sroa`
+    /// (#2365) changed the optimized one.
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
@@ -723,7 +738,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 287_426_176_041_767_063_452_556_693_868_884_101_925,
+            optimized, 179_072_908_592_806_572_025_520_113_449_683_262_347,
             "optimized"
         );
     }

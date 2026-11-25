@@ -2749,6 +2749,13 @@ impl Env<'_> {
         // expose constant decisions before the general folding pipeline.
         let decided = facts != hash;
         let hash = hd_opt::inline::inline_calls(self, body, args, facts);
+        // Scalar replacement needs copies to work on (`hd_opt::sroa`).
+        if self.run.sroa && hash != facts {
+            let copies = |t| hd_tir::own::OwnCx::copies(self, t) == hd_tir::own::Tri::Yes;
+            hd_opt::sroa::run(body, &self.run.pool, &copies)
+                // ruled out: each edit stands where the body's own topology puts it.
+                .expect("sroa renumbers an inlined body");
+        }
         if (decided || self.run.const_fold)
             && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
         {

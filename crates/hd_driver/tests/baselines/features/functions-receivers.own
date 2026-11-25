@@ -189,34 +189,30 @@ fn place_receiver(s: string) -> i64:
 >     uses $0: entry -> %0 consume last
 >   local $1 p: Vec2 [read assigned captured captured-assigned] place
 >   local $3 d: i64 [read] value
->     uses $3: %8 -> %10 lend last
+>     uses $3: %6 -> %8 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = NewStruct [%0 0:i64] : Vec2
 >   %2 = Break L1 %1 : never
 >   %3 = Block - : Vec2
 >   %4 = Scope %3 [] : Vec2
->   %5 = Box #1 #0 : ()
->   %6 = Store [$1] %4 : ()
->   %18 = Intrinsic ParamOwned [0:i32] : bool
->   %19 = Drop [$0] : ()
->   %20 = Block - : ()
->   %21 = If %18 [%20 -] : ()
->   %22 = Release %23 Exit local $0 #2 : ()
->   %23 = Block %17 : i64
+>   %5 = Store [$1] %4 : ()
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $0 #2 : ()
+>   %20 = Block %14 : i64
     p.shift(2)
->   %7 = Ref mut local frame [$1] : &mut Vec2
->   %8 = Store [$3] 2:i64 : ()
->   %9 = Read copy [*%7 .x] : i64
->   %10 = Read copy [$3] : i64
->   %11 = Prim Add [%9 %10] : i64
->   %12 = Store [*%7 .x] %11 : ()
->   %13 = Break L0 - : never
->   %14 = Block - : ()
->   %15 = Scope %14 [] : ()
->   %16 = LoanEnd [%7] : ()
+>   %6 = Store [$3] 2:i64 : ()
+>   %7 = Read copy [$1 .x] : i64
+>   %8 = Read copy [$3] : i64
+>   %9 = Prim Add [%7 %8] : i64
+>   %10 = Store [$1 .x] %9 : ()
+>   %11 = Break L0 - : never
+>   %12 = Block - : ()
+>   %13 = Scope %12 [] : ()
     p.x
->   %17 = Read copy [$1 .x] : i64
->   storage sub 0: $1 slot
+>   %14 = Read copy [$1 .x] : i64
 >   summary kept [] borrows [$0]
 
 fn mut_self(v: Vec2, n: string) -> usize:

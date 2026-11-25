@@ -1,0 +1,91 @@
+# @dump: wat
+# @build: v8 release
+# Every struct form splits once its `&mut self` method is copied into the
+# loop: an Option field, a nested struct, a generic struct, and a struct
+# that is an enum payload, read out and stored back.
+use std.meta.inline
+
+struct Best:
+    seen: i64?
+    count: i64
+
+impl Best:
+    @inline
+    fn see(&mut self, x: i64) -> void:
+        self.count += 1
+        self.seen = match self.seen:
+            .None => .Some(x)
+            .Some(y) => .Some(y)
+
+fn best(n: i64) -> i64:
+    let mut b = Best { seen: .None, count: 0 }
+    let mut i: i64 = 0
+    while i < n:
+        b.see(i)
+        i += 1
+    match b.seen:
+        .Some(y) => b.count + y
+        .None => b.count
+
+struct Span:
+    lo: i64
+    hi: i64
+
+struct Range2:
+    outer: Span
+    steps: i64
+
+impl Range2:
+    fn widen(&mut self, x: i64) -> void:
+        self.outer.hi += x
+        self.steps += 1
+
+fn widen(n: i64) -> i64:
+    let mut r = Range2 { outer: Span { lo: 0, hi: 0 }, steps: 0 }
+    let mut i: i64 = 0
+    while i < n:
+        r.widen(i)
+        i += 1
+    r.outer.hi + r.steps
+
+struct Pair[T]:
+    first: T
+    second: T
+
+impl[T] Pair[T]:
+    fn swap(&mut self) -> void:
+        t := self.first
+        self.first = self.second
+        self.second = t
+
+fn swaps(n: i64) -> i64:
+    let mut p = Pair::[i64] { first: 1, second: 2 }
+    let mut i: i64 = 0
+    while i < n:
+        p.swap()
+        i += 1
+    p.first
+
+struct Tally:
+    sum: i64
+
+impl Tally:
+    @inline
+    fn add(&mut self, x: i64) -> void:
+        self.sum += x
+
+enum Shape:
+    Tallied(Tally)
+    Empty
+
+fn tally(n: i64) -> i64:
+    let shape = Shape.Tallied(Tally { sum: 0 })
+    match shape:
+        .Tallied(t) =>
+            let mut u = t
+            let mut i: i64 = 0
+            while i < n:
+                u.add(i)
+                i += 1
+            u.sum
+        .Empty => 0

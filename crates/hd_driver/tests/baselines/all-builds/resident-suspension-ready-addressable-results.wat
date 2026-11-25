@@ -4021,7 +4021,7 @@
 == @build: release
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
   (import "fixture" "rt:free_frame" (func $rt:free_frame (param i32)))
   (import "fixture" "rt:poll_check" (func $rt:poll_check (param i32) (result i32)))
@@ -4029,8 +4029,6 @@
   (import "fixture" "rt:cancel_check" (func $rt:cancel_check (param i32) (result i32)))
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
-  (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
@@ -4042,7 +4040,6 @@
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $ready'1 (param $frame i32) (param $early i32) (result i32 i32 i32 i32) (local $tag.1 i32) (local $t5 i32) (local $t4 i32) (local $second i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 12 |     let value = +40
@@ -4231,7 +4228,7 @@
                   local.get $early
                   if
                     local.get $early
-                    call $rt:release_ref'1
+                    call $rt:release_ref
                   end
                 end
                 i32.const 0
@@ -4256,7 +4253,7 @@
                 local.get $tag.1
                 if
                   local.get $tag.1
-                  call $rt:release_ref'1
+                  call $rt:release_ref
                 end
               end
               i32.const 0
@@ -4355,7 +4352,7 @@
                 local.get $early
                 if
                   local.get $early
-                  call $rt:release_ref'1
+                  call $rt:release_ref
                 end
               end
               br 1
@@ -4378,7 +4375,7 @@
               local.get $tag.1
               if
                 local.get $tag.1
-                call $rt:release_ref'1
+                call $rt:release_ref
               end
             end
             i32.const 0
@@ -4653,7 +4650,7 @@
         local.get $t3
         if
           local.get $t3
-          call $rt:release_ref'1
+          call $rt:release_ref
         end
       end
     end
@@ -4671,7 +4668,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
   )
@@ -4683,7 +4680,7 @@
     i32.store $heap offset=40
     local.get $t0
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $text.1 i32) (local $t4 i32) (local $width i32) (local $second.0 i32) (local $second.1 i32) (local $value'1 i64) (local $value'2 i64) (local $text.0 i32) (local $t5 i32) (local $value.0'1 i32) (local $value.1 i32) (local $value.0'2 i32) (local $offset'1 i32) (local $offset'2 i32) (local $result.0 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $second.1 i32) (local $t4 i32) (local $offset'1 i32) (local $b i32) (local $width i32) (local $value'1 i64) (local $value'2 i64) (local $text.0 i32) (local $t5 i32) (local $value.0'1 i32) (local $value.1 i32) (local $value.0'2 i32) (local $offset'2 i32) (local $offset'3 i32) (local $result.0 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 21 |     let (a, first) = ready!(true)
     global.get $stack
     global.get $stack_limit
@@ -4747,21 +4744,21 @@
         if
           local.get $frame
           i32.load $heap offset=8
-          local.set $text.1
+          local.set $second.1
         end
         block
           block
             block
               block
-                local.get $text.1
+                local.get $second.1
                 i32.const 1
                 i32.ge_u
-                local.get $text.1
+                local.get $second.1
                 i32.const 2
                 i32.le_u
                 i32.and
                 if (result i32)
-                  local.get $text.1
+                  local.get $second.1
                   i32.const 2
                   i32.lt_u
                   if (result i32)
@@ -4777,7 +4774,7 @@
             end
             block
               block
-                local.get $text.1
+                local.get $second.1
                 i32.const 1
                 i32.eq
                 if
@@ -4789,7 +4786,7 @@
                 end
                 i32.const 0
                 local.set $provider0
-                local.get $text.1
+                local.get $second.1
                 i32.const 1
                 i32.eq
                 if
@@ -4801,9 +4798,9 @@
                 i32.const 1
                 call $ready'1
                 local.set $provider0.vtable
-                local.set $second.1
-                local.set $second.0
                 local.set $width
+                local.set $b
+                local.set $offset'1
                 local.get $provider0.vtable
                 if
                   local.get $provider0.vtable
@@ -4833,7 +4830,7 @@
                     br 2
                   end
                   i32.const 1
-                  local.set $text.1
+                  local.set $second.1
                   br 6
                 end
                 local.get $provider0
@@ -4844,11 +4841,11 @@
                   local.get $provider0
                   if
                     local.get $provider0
-                    call $rt:release_ref'1
+                    call $rt:release_ref
                   end
                 end
                 i32.const 0
-                local.set $text.1
+                local.set $second.1
                 br 1
               end
               local.get $frame
@@ -4858,7 +4855,7 @@
               local.set $provider0.vtable
               if
                 i32.const 1
-                local.set $text.1
+                local.set $second.1
                 br 5
               end
               local.get $provider0.vtable
@@ -4869,33 +4866,27 @@
                 local.get $provider0.vtable
                 if
                   local.get $provider0.vtable
-                  call $rt:release_ref'1
+                  call $rt:release_ref
                 end
               end
               i32.const 1
               local.set $t4
               br 2
             end
-            i32.const 4
-            i32.const 0
-            call $rt:new/class-1
-            local.set $provider0
-            local.get $t1
-            local.get $provider0
-            i32.store $heap offset=8
             block
               local.get $t1
-              i32.load $heap offset=8
+              local.get $offset'1
+              i32.store $heap offset=8
+              local.get $b
+              local.get $t1
               local.get $width
-              i32.store $heap
-              local.get $second.0
-              local.get $t1
-              local.get $second.1
               i32.store $heap offset=16
-              local.set $provider0
+              local.set $offset'1
               local.get $t1
-              local.get $provider0
+              local.get $offset'1
               i32.store $heap offset=12
+              i32.const 0
+              local.set $offset'1
               br 0
               unreachable
             end
@@ -4903,7 +4894,7 @@
     ;; 22 |     let (b, second) = ready!(false)
           block
             block
-              local.get $text.1
+              local.get $second.1
               i32.const 2
               i32.eq
               if
@@ -4913,23 +4904,21 @@
                 i32.and
                 br_if 1
               end
-              i32.const 0
-              local.set $provider0
-              local.get $text.1
+              local.get $second.1
               i32.const 2
               i32.eq
               if
                 local.get $frame
                 i32.load $heap offset=16
-                local.set $provider0
+                local.set $offset'1
               end
-              local.get $provider0
+              local.get $offset'1
               i32.const 0
               call $ready'1
               local.set $provider0.vtable
-              local.set $second.1
-              local.set $second.0
+              local.set $provider0
               local.set $width
+              local.set $b
               local.get $provider0.vtable
               if
                 local.get $provider0.vtable
@@ -4959,18 +4948,18 @@
                   br 2
                 end
                 i32.const 2
-                local.set $text.1
+                local.set $second.1
                 br 5
               end
-              local.get $provider0
+              local.get $offset'1
               if
                 local.get $frame
                 i32.const 0
                 i32.store $heap offset=16
-                local.get $provider0
+                local.get $offset'1
                 if
-                  local.get $provider0
-                  call $rt:release_ref'1
+                  local.get $offset'1
+                  call $rt:release_ref
                 end
               end
               br 1
@@ -4982,7 +4971,7 @@
             local.set $provider0.vtable
             if
               i32.const 2
-              local.set $text.1
+              local.set $second.1
               br 4
             end
             local.get $provider0.vtable
@@ -4993,95 +4982,55 @@
               local.get $provider0.vtable
               if
                 local.get $provider0.vtable
-                call $rt:release_ref'1
-              end
-            end
-            local.get $t1
-            i32.load $heap offset=8
-            local.tee $second.1
-            if
-              local.get $second.1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $second.1
-                call $rt:release_ref'2
+                call $rt:release_ref
               end
             end
             local.get $t1
             i32.load $heap offset=12
-            local.tee $second.0
+            local.tee $b
             if
-              local.get $second.0
-              call $rt:release_ref'1
+              local.get $b
+              call $rt:release_ref
             end
             i32.const 1
             local.set $t4
             br 1
           end
-    ;; 21 |     let (a, first) = ready!(true)
-          i32.const 4
-          i32.const 0
-          call $rt:new/class-1
-          local.set $provider0.vtable
-    ;; 22 |     let (b, second) = ready!(false)
           block
-            local.get $provider0.vtable
             local.get $width
-            i32.store $heap
+            local.get $provider0
+            local.set $second.1
+            local.set $provider0
             br 0
             unreachable
           end
     ;; 23 |     println("$a $first $b $second")
           local.get $t1
           i32.load $heap offset=8
-          i32.load $heap
           i64.extend_i32_s
-          local.set $value'1
-          local.get $t1
-          i32.load $heap offset=8
-          local.tee $provider0
-          if
-            local.get $provider0
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $provider0
-              call $rt:release_ref'2
-            end
-          end
-          local.get $t1
-          i32.const 0
-          i32.store $heap offset=8
-          local.get $value'1
+          local.tee $value'1
           call $signed_magnitude
           call $unsigned_width
-          local.set $provider0
+          local.set $offset'1
           local.get $value'1
           i64.const 0
           i64.lt_s
           if
             i32.const 1
-            local.set $text.1
+            local.set $provider0.vtable
           else
             i32.const 0
-            local.set $text.1
+            local.set $provider0.vtable
           end
-          local.get $provider0
-          local.get $text.1
+          local.get $offset'1
+          local.get $provider0.vtable
           i32.add
           local.set $width
           local.get $t1
           i32.load $heap offset=12
           local.get $t1
           i32.load $heap offset=16
-          local.set $text.1
+          local.set $provider0.vtable
           local.tee $text.0
           local.get $t1
           i32.const 0
@@ -5096,33 +5045,18 @@
           end
           local.get $t5
           local.tee $value.0'1
-          local.get $text.1
-          local.set $provider0
+          local.get $provider0.vtable
+          local.set $offset'1
           if
             local.get $value.0'1
-            call $rt:release_ref'1
+            call $rt:release_ref
           end
-          local.get $provider0.vtable
-          i32.load $heap
+          local.get $b
           i64.extend_i32_s
-          local.set $value'2
-          local.get $provider0.vtable
-          if
-            local.get $provider0.vtable
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $provider0.vtable
-              call $rt:release_ref'2
-            end
-          end
-          local.get $value'2
+          local.tee $value'2
           call $signed_magnitude
           call $unsigned_width
-          local.set $provider0.vtable
+          local.set $b
           local.get $value'2
           i64.const 0
           i64.lt_s
@@ -5133,44 +5067,44 @@
             i32.const 0
             local.set $t5
           end
-          local.get $provider0.vtable
+          local.get $b
           local.get $t5
           i32.add
-          local.set $provider0.vtable
-          local.get $second.0
+          local.set $b
+          local.get $provider0
           local.get $second.1
           local.set $t5
           local.tee $value.1
-          local.tee $second.0
+          local.tee $provider0
           if
-            local.get $second.0
+            local.get $provider0
             call $retain
           end
-          local.get $second.0
+          local.get $provider0
           local.tee $value.0'2
           local.get $t5
           local.set $second.1
           if
             local.get $value.0'2
-            call $rt:release_ref'1
+            call $rt:release_ref
           end
           local.get $width
-          local.tee $second.0
-          i32.const 1
-          i32.add
-          local.tee $value.0'1
-          local.get $provider0
-          i32.add
           local.tee $provider0
           i32.const 1
           i32.add
-          local.tee $value.0'2
-          local.get $provider0.vtable
+          local.tee $value.0'1
+          local.get $offset'1
           i32.add
           local.tee $offset'1
           i32.const 1
           i32.add
+          local.tee $value.0'2
+          local.get $b
+          i32.add
           local.tee $offset'2
+          i32.const 1
+          i32.add
+          local.tee $offset'3
           local.get $second.1
           i32.add
           local.tee $second.1
@@ -5186,57 +5120,57 @@
           local.get $width
           call $write_signed_sized
           local.get $result.0
-          local.get $second.0
-          i32.add
-          i32.const 32
-          i32.store8 $heap
-          i32.const 118 ;; &" "
-          call $rt:release_ref'1
-          local.get $result.0
-          local.get $value.0'1
-          i32.add
-          local.get $text.0
-          local.get $text.1
-          call $rt:memory_copy/0/0
-          local.get $text.0
-          if
-            local.get $text.0
-            call $rt:release_ref'1
-          end
-          local.get $result.0
           local.get $provider0
           i32.add
           i32.const 32
           i32.store8 $heap
           i32.const 118 ;; &" "
-          call $rt:release_ref'1
+          call $rt:release_ref
           local.get $result.0
-          local.get $value.0'2
+          local.get $value.0'1
           i32.add
-          local.set $text.1
-          local.get $value'2
-          local.get $text.1
+          local.get $text.0
           local.get $provider0.vtable
-          call $write_signed_sized
+          call $rt:memory_copy/0/0
+          local.get $text.0
+          if
+            local.get $text.0
+            call $rt:release_ref
+          end
           local.get $result.0
           local.get $offset'1
           i32.add
           i32.const 32
           i32.store8 $heap
           i32.const 118 ;; &" "
-          call $rt:release_ref'1
-          local.get $value.1
-          local.set $second.0
+          call $rt:release_ref
+          local.get $result.0
+          local.get $value.0'2
+          i32.add
+          local.set $provider0.vtable
+          local.get $value'2
+          local.get $provider0.vtable
+          local.get $b
+          call $write_signed_sized
           local.get $result.0
           local.get $offset'2
           i32.add
-          local.get $second.0
+          i32.const 32
+          i32.store8 $heap
+          i32.const 118 ;; &" "
+          call $rt:release_ref
+          local.get $value.1
+          local.set $b
+          local.get $result.0
+          local.get $offset'3
+          i32.add
+          local.get $b
           local.get $t5
           call $rt:memory_copy/0/0
-          local.get $second.0
+          local.get $b
           if
-            local.get $second.0
-            call $rt:release_ref'1
+            local.get $b
+            call $rt:release_ref
           end
           local.get $result.0
           local.get $second.1
@@ -5249,29 +5183,14 @@
           local.get $result.0
           if
             local.get $result.0
-            call $rt:release_ref'1
-          end
-          local.get $t1
-          i32.load $heap offset=8
-          local.tee $provider0.vtable
-          if
-            local.get $provider0.vtable
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $provider0.vtable
-              call $rt:release_ref'2
-            end
+            call $rt:release_ref
           end
           local.get $t1
           i32.load $heap offset=12
           local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'1
+            call $rt:release_ref
           end
         end
         local.get $frame
@@ -5352,7 +5271,7 @@
     local.get $provider0.vtable
     i32.store $heap offset=16
     local.get $frame
-    local.get $text.1
+    local.get $second.1
     i32.store $heap offset=8
     local.get $frame
     local.get $frame
@@ -5469,7 +5388,7 @@
     local.tee $t1
     if
       local.get $t1
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
     local.get $t0
     i32.load $heap offset=16
@@ -5479,7 +5398,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
   )
@@ -5530,7 +5449,7 @@
     local.get $t2
     if
       local.get $t2
-      call $rt:release_ref'1
+      call $rt:release_ref
     end
     local.get $value
     local.get $frame
@@ -5650,7 +5569,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       end
     end
   )
@@ -5789,7 +5708,7 @@
 == @build: release checked
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
+  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
   (import "fixture" "rt:cancel_child" (func $rt:cancel_child (param i32) (result i32)))
   (import "fixture" "rt:free_frame" (func $rt:free_frame (param i32)))
@@ -5799,8 +5718,6 @@
   (import "fixture" "rt:cancel_leave" (func $rt:cancel_leave (param i32 i32)))
   (import "fixture" "marking" (func $marking (result i32)))
   (import "fixture" "rt:frame'1" (func $rt:frame'1 (result i32)))
-  (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
-  (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "signed_magnitude" (func $signed_magnitude (param i64) (result i64)))
   (import "fixture" "unsigned_width" (func $unsigned_width (param i64) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
@@ -5812,7 +5729,6 @@
   (import "fixture" "rt:frame'3" (func $rt:frame'3 (result i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
-  (import "fixture" "tracing" (global $tracing (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $ready'1 (param $frame i32) (param $early i32) (result i32 i32 i32 i32) (local $tag.1 i32) (local $t5 i32) (local $t4 i32) (local $second i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 12 |     let value = +40
@@ -6001,7 +5917,7 @@
                   local.get $early
                   if
                     local.get $early
-                    call $rt:release_ref'1
+                    call $rt:release_ref
                   else
                     call $skipped_test
                   end
@@ -6028,7 +5944,7 @@
                 local.get $tag.1
                 if
                   local.get $tag.1
-                  call $rt:release_ref'1
+                  call $rt:release_ref
                 else
                   call $skipped_test
                 end
@@ -6129,7 +6045,7 @@
                 local.get $early
                 if
                   local.get $early
-                  call $rt:release_ref'1
+                  call $rt:release_ref
                 else
                   call $skipped_test
                 end
@@ -6154,7 +6070,7 @@
               local.get $tag.1
               if
                 local.get $tag.1
-                call $rt:release_ref'1
+                call $rt:release_ref
               else
                 call $skipped_test
               end
@@ -6431,7 +6347,7 @@
         local.get $t3
         if
           local.get $t3
-          call $rt:release_ref'1
+          call $rt:release_ref
         else
           call $skipped_test
         end
@@ -6467,7 +6383,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       else
         call $skipped_test
       end
@@ -6481,7 +6397,7 @@
     i32.store $heap offset=40
     local.get $t0
   )
-  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $text.1 i32) (local $t4 i32) (local $width i32) (local $second.0 i32) (local $second.1 i32) (local $value'1 i64) (local $value'2 i64) (local $text.0 i32) (local $t5 i32) (local $value.0'1 i32) (local $value.1 i32) (local $value.0'2 i32) (local $offset'1 i32) (local $offset'2 i32) (local $result.0 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
+  (func $main'1 (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i32) (local $second.1 i32) (local $t4 i32) (local $offset'1 i32) (local $b i32) (local $width i32) (local $value'1 i64) (local $value'2 i64) (local $text.0 i32) (local $t5 i32) (local $value.0'1 i32) (local $value.1 i32) (local $value.0'2 i32) (local $offset'2 i32) (local $offset'3 i32) (local $result.0 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
     ;; 21 |     let (a, first) = ready!(true)
     global.get $stack
     global.get $stack_limit
@@ -6545,21 +6461,21 @@
         if
           local.get $frame
           i32.load $heap offset=8
-          local.set $text.1
+          local.set $second.1
         end
         block
           block
             block
               block
-                local.get $text.1
+                local.get $second.1
                 i32.const 1
                 i32.ge_u
-                local.get $text.1
+                local.get $second.1
                 i32.const 2
                 i32.le_u
                 i32.and
                 if (result i32)
-                  local.get $text.1
+                  local.get $second.1
                   i32.const 2
                   i32.lt_u
                   if (result i32)
@@ -6575,7 +6491,7 @@
             end
             block
               block
-                local.get $text.1
+                local.get $second.1
                 i32.const 1
                 i32.eq
                 if
@@ -6587,7 +6503,7 @@
                 end
                 i32.const 0
                 local.set $provider0
-                local.get $text.1
+                local.get $second.1
                 i32.const 1
                 i32.eq
                 if
@@ -6599,9 +6515,9 @@
                 i32.const 1
                 call $ready'1
                 local.set $provider0.vtable
-                local.set $second.1
-                local.set $second.0
                 local.set $width
+                local.set $b
+                local.set $offset'1
                 local.get $provider0.vtable
                 if
                   local.get $provider0.vtable
@@ -6631,7 +6547,7 @@
                     br 2
                   end
                   i32.const 1
-                  local.set $text.1
+                  local.set $second.1
                   br 6
                 end
                 local.get $provider0
@@ -6642,13 +6558,13 @@
                   local.get $provider0
                   if
                     local.get $provider0
-                    call $rt:release_ref'1
+                    call $rt:release_ref
                   else
                     call $skipped_test
                   end
                 end
                 i32.const 0
-                local.set $text.1
+                local.set $second.1
                 br 1
               end
               local.get $frame
@@ -6658,7 +6574,7 @@
               local.set $provider0.vtable
               if
                 i32.const 1
-                local.set $text.1
+                local.set $second.1
                 br 5
               end
               local.get $provider0.vtable
@@ -6669,7 +6585,7 @@
                 local.get $provider0.vtable
                 if
                   local.get $provider0.vtable
-                  call $rt:release_ref'1
+                  call $rt:release_ref
                 else
                   call $skipped_test
                 end
@@ -6678,26 +6594,20 @@
               local.set $t4
               br 2
             end
-            i32.const 4
-            i32.const 0
-            call $rt:new
-            local.set $provider0
-            local.get $t1
-            local.get $provider0
-            i32.store $heap offset=8
             block
               local.get $t1
-              i32.load $heap offset=8
+              local.get $offset'1
+              i32.store $heap offset=8
+              local.get $b
+              local.get $t1
               local.get $width
-              i32.store $heap
-              local.get $second.0
-              local.get $t1
-              local.get $second.1
               i32.store $heap offset=16
-              local.set $provider0
+              local.set $offset'1
               local.get $t1
-              local.get $provider0
+              local.get $offset'1
               i32.store $heap offset=12
+              i32.const 0
+              local.set $offset'1
               br 0
               unreachable
             end
@@ -6705,7 +6615,7 @@
     ;; 22 |     let (b, second) = ready!(false)
           block
             block
-              local.get $text.1
+              local.get $second.1
               i32.const 2
               i32.eq
               if
@@ -6715,23 +6625,21 @@
                 i32.and
                 br_if 1
               end
-              i32.const 0
-              local.set $provider0
-              local.get $text.1
+              local.get $second.1
               i32.const 2
               i32.eq
               if
                 local.get $frame
                 i32.load $heap offset=16
-                local.set $provider0
+                local.set $offset'1
               end
-              local.get $provider0
+              local.get $offset'1
               i32.const 0
               call $ready'1
               local.set $provider0.vtable
-              local.set $second.1
-              local.set $second.0
+              local.set $provider0
               local.set $width
+              local.set $b
               local.get $provider0.vtable
               if
                 local.get $provider0.vtable
@@ -6761,18 +6669,18 @@
                   br 2
                 end
                 i32.const 2
-                local.set $text.1
+                local.set $second.1
                 br 5
               end
-              local.get $provider0
+              local.get $offset'1
               if
                 local.get $frame
                 i32.const 0
                 i32.store $heap offset=16
-                local.get $provider0
+                local.get $offset'1
                 if
-                  local.get $provider0
-                  call $rt:release_ref'1
+                  local.get $offset'1
+                  call $rt:release_ref
                 else
                   call $skipped_test
                 end
@@ -6786,7 +6694,7 @@
             local.set $provider0.vtable
             if
               i32.const 2
-              local.set $text.1
+              local.set $second.1
               br 4
             end
             local.get $provider0.vtable
@@ -6797,36 +6705,17 @@
               local.get $provider0.vtable
               if
                 local.get $provider0.vtable
-                call $rt:release_ref'1
+                call $rt:release_ref
               else
                 call $skipped_test
               end
-            end
-            local.get $t1
-            i32.load $heap offset=8
-            local.tee $second.1
-            if
-              local.get $second.1
-              i32.const 8
-              i32.sub
-              i32.load $heap
-              global.get $tracing
-              i32.or
-              if
-                local.get $second.1
-                call $rt:release_ref'2
-              else
-                call $skipped_test
-              end
-            else
-              call $skipped_test
             end
             local.get $t1
             i32.load $heap offset=12
-            local.tee $second.0
+            local.tee $b
             if
-              local.get $second.0
-              call $rt:release_ref'1
+              local.get $b
+              call $rt:release_ref
             else
               call $skipped_test
             end
@@ -6834,70 +6723,41 @@
             local.set $t4
             br 1
           end
-    ;; 21 |     let (a, first) = ready!(true)
-          i32.const 4
-          i32.const 0
-          call $rt:new
-          local.set $provider0.vtable
-    ;; 22 |     let (b, second) = ready!(false)
           block
-            local.get $provider0.vtable
             local.get $width
-            i32.store $heap
+            local.get $provider0
+            local.set $second.1
+            local.set $provider0
             br 0
             unreachable
           end
     ;; 23 |     println("$a $first $b $second")
           local.get $t1
           i32.load $heap offset=8
-          i32.load $heap
           i64.extend_i32_s
-          local.set $value'1
-          local.get $t1
-          i32.load $heap offset=8
-          local.tee $provider0
-          if
-            local.get $provider0
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $provider0
-              call $rt:release_ref'2
-            else
-              call $skipped_test
-            end
-          else
-            call $skipped_test
-          end
-          local.get $t1
-          i32.const 0
-          i32.store $heap offset=8
-          local.get $value'1
+          local.tee $value'1
           call $signed_magnitude
           call $unsigned_width
-          local.set $provider0
+          local.set $offset'1
           local.get $value'1
           i64.const 0
           i64.lt_s
           if
             i32.const 1
-            local.set $text.1
+            local.set $provider0.vtable
           else
             i32.const 0
-            local.set $text.1
+            local.set $provider0.vtable
           end
-          local.get $provider0
-          local.get $text.1
+          local.get $offset'1
+          local.get $provider0.vtable
           i32.add
           local.set $width
           local.get $t1
           i32.load $heap offset=12
           local.get $t1
           i32.load $heap offset=16
-          local.set $text.1
+          local.set $provider0.vtable
           local.tee $text.0
           local.get $t1
           i32.const 0
@@ -6914,39 +6774,20 @@
           end
           local.get $t5
           local.tee $value.0'1
-          local.get $text.1
-          local.set $provider0
+          local.get $provider0.vtable
+          local.set $offset'1
           if
             local.get $value.0'1
-            call $rt:release_ref'1
+            call $rt:release_ref
           else
             call $skipped_test
           end
-          local.get $provider0.vtable
-          i32.load $heap
+          local.get $b
           i64.extend_i32_s
-          local.set $value'2
-          local.get $provider0.vtable
-          if
-            local.get $provider0.vtable
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $provider0.vtable
-              call $rt:release_ref'2
-            else
-              call $skipped_test
-            end
-          else
-            call $skipped_test
-          end
-          local.get $value'2
+          local.tee $value'2
           call $signed_magnitude
           call $unsigned_width
-          local.set $provider0.vtable
+          local.set $b
           local.get $value'2
           i64.const 0
           i64.lt_s
@@ -6957,48 +6798,48 @@
             i32.const 0
             local.set $t5
           end
-          local.get $provider0.vtable
+          local.get $b
           local.get $t5
           i32.add
-          local.set $provider0.vtable
-          local.get $second.0
+          local.set $b
+          local.get $provider0
           local.get $second.1
           local.set $t5
           local.tee $value.1
-          local.tee $second.0
+          local.tee $provider0
           if
-            local.get $second.0
+            local.get $provider0
             call $retain
           else
             call $skipped_test
           end
-          local.get $second.0
+          local.get $provider0
           local.tee $value.0'2
           local.get $t5
           local.set $second.1
           if
             local.get $value.0'2
-            call $rt:release_ref'1
+            call $rt:release_ref
           else
             call $skipped_test
           end
           local.get $width
-          local.tee $second.0
-          i32.const 1
-          i32.add
-          local.tee $value.0'1
-          local.get $provider0
-          i32.add
           local.tee $provider0
           i32.const 1
           i32.add
-          local.tee $value.0'2
-          local.get $provider0.vtable
+          local.tee $value.0'1
+          local.get $offset'1
           i32.add
           local.tee $offset'1
           i32.const 1
           i32.add
+          local.tee $value.0'2
+          local.get $b
+          i32.add
           local.tee $offset'2
+          i32.const 1
+          i32.add
+          local.tee $offset'3
           local.get $second.1
           i32.add
           local.tee $second.1
@@ -7014,59 +6855,59 @@
           local.get $width
           call $write_signed_sized
           local.get $result.0
-          local.get $second.0
-          i32.add
-          i32.const 32
-          i32.store8 $heap
-          i32.const 124 ;; &" "
-          call $rt:release_ref'1
-          local.get $result.0
-          local.get $value.0'1
-          i32.add
-          local.get $text.0
-          local.get $text.1
-          call $rt:memory_copy/0/0
-          local.get $text.0
-          if
-            local.get $text.0
-            call $rt:release_ref'1
-          else
-            call $skipped_test
-          end
-          local.get $result.0
           local.get $provider0
           i32.add
           i32.const 32
           i32.store8 $heap
           i32.const 124 ;; &" "
-          call $rt:release_ref'1
+          call $rt:release_ref
           local.get $result.0
-          local.get $value.0'2
+          local.get $value.0'1
           i32.add
-          local.set $text.1
-          local.get $value'2
-          local.get $text.1
+          local.get $text.0
           local.get $provider0.vtable
-          call $write_signed_sized
+          call $rt:memory_copy/0/0
+          local.get $text.0
+          if
+            local.get $text.0
+            call $rt:release_ref
+          else
+            call $skipped_test
+          end
           local.get $result.0
           local.get $offset'1
           i32.add
           i32.const 32
           i32.store8 $heap
           i32.const 124 ;; &" "
-          call $rt:release_ref'1
-          local.get $value.1
-          local.set $second.0
+          call $rt:release_ref
+          local.get $result.0
+          local.get $value.0'2
+          i32.add
+          local.set $provider0.vtable
+          local.get $value'2
+          local.get $provider0.vtable
+          local.get $b
+          call $write_signed_sized
           local.get $result.0
           local.get $offset'2
           i32.add
-          local.get $second.0
+          i32.const 32
+          i32.store8 $heap
+          i32.const 124 ;; &" "
+          call $rt:release_ref
+          local.get $value.1
+          local.set $b
+          local.get $result.0
+          local.get $offset'3
+          i32.add
+          local.get $b
           local.get $t5
           call $rt:memory_copy/0/0
-          local.get $second.0
+          local.get $b
           if
-            local.get $second.0
-            call $rt:release_ref'1
+            local.get $b
+            call $rt:release_ref
           else
             call $skipped_test
           end
@@ -7081,26 +6922,7 @@
           local.get $result.0
           if
             local.get $result.0
-            call $rt:release_ref'1
-          else
-            call $skipped_test
-          end
-          local.get $t1
-          i32.load $heap offset=8
-          local.tee $provider0.vtable
-          if
-            local.get $provider0.vtable
-            i32.const 8
-            i32.sub
-            i32.load $heap
-            global.get $tracing
-            i32.or
-            if
-              local.get $provider0.vtable
-              call $rt:release_ref'2
-            else
-              call $skipped_test
-            end
+            call $rt:release_ref
           else
             call $skipped_test
           end
@@ -7109,7 +6931,7 @@
           local.tee $t1
           if
             local.get $t1
-            call $rt:release_ref'1
+            call $rt:release_ref
           else
             call $skipped_test
           end
@@ -7192,7 +7014,7 @@
     local.get $provider0.vtable
     i32.store $heap offset=16
     local.get $frame
-    local.get $text.1
+    local.get $second.1
     i32.store $heap offset=8
     local.get $frame
     local.get $frame
@@ -7325,7 +7147,7 @@
     local.tee $t1
     if
       local.get $t1
-      call $rt:release_ref'1
+      call $rt:release_ref
     else
       call $skipped_test
     end
@@ -7337,7 +7159,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       else
         call $skipped_test
       end
@@ -7392,7 +7214,7 @@
     local.get $t2
     if
       local.get $t2
-      call $rt:release_ref'1
+      call $rt:release_ref
     else
       call $skipped_test
     end
@@ -7523,7 +7345,7 @@
       local.tee $t0
       if
         local.get $t0
-        call $rt:release_ref'1
+        call $rt:release_ref
       else
         call $skipped_test
       end
