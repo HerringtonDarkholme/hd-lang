@@ -1,6 +1,6 @@
 # test: member lookups and Source.next use optional keys with usize metadata
 # Spec 14: annot.structure.members.at-option, annot.structure.members.find-option, annot.structure.members.lookup-none, annot.build.next-option, annot.member.position-usize, annot.variant.index-usize.
-use std.structure.{Field, Key, Member, Members, Source, Structure, Variant}
+use std.meta.{Field, Key, Member, Members, Source, Structure, Variant}
 use std.testing.{assert, assert_equal}
 
 struct Sparse[S]:

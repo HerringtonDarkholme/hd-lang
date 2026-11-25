@@ -1,7 +1,7 @@
 # test: a writer's first .Err ends the write: every standard and derived serialize returns it unchanged and calls nothing after it
 # Spec std/serde Data Model: std-serde.model.errors, std-serde.model.one-value.
 use std.serde.{Serialize, Serializer}
-use std.structure.{Facts, VariantInfo, Member}
+use std.meta.{Facts, VariantInfo, Member}
 # A log sink with room for a fixed number of calls; the call past it fails.
 struct Sink:
     pub room: i32

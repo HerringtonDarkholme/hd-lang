@@ -1,6 +1,6 @@
 # test: a frozen loan ends with the lifetime its marker bound names, so an element store after the scope's last use is valid
 # Spec 13 Frozen Loans: ref.frozen.lifetime.
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32

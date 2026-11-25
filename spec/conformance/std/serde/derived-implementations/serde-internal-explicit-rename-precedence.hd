@@ -1,7 +1,7 @@
 # test: a declaration Rename remains ahead of a per-trait RenameAll without a duplicate collision
 # Rule: std-serde.enum-tagging.internal-name-conflict.
 use std.serde.{RenameAll, RenameCase, Serialize, rename, tag}
-use std.structure.Structure
+use std.meta.Structure
 
 @tag("kind")
 enum Message:

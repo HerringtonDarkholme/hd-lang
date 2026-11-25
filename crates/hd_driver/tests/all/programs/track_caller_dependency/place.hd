@@ -1,4 +1,4 @@
-use std.debug.Location
+use std.meta.Location
 
 @track_caller
 pub fn report() -> string:

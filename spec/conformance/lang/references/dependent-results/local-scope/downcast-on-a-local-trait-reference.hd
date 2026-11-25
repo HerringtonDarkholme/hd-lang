@@ -1,6 +1,6 @@
 # test: a downcast result cannot outlive the local concrete value behind its trait reference
 # Spec 09 Recovering A Concrete Type: trait.downcast.local-receiver; Spec 13: ref.dep.scope.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     count: i32

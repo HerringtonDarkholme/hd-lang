@@ -1,6 +1,6 @@
 # test: a value of a fact type with the concrete pattern i32 on an i64 field is an error at the decorator
 # Spec 14 Member-Typed Facts: annot.typed-fact.pattern.concrete (batch 50, 2026-10-02).
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[i32](.Field)
 struct Port:

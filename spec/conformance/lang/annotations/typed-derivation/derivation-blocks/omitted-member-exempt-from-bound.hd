@@ -1,6 +1,6 @@
 # test: an omitted member's type need not satisfy the walker's bound
 # Spec 14 Omitted Members: annot.omit.exempt; Cache does not implement Shown.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 trait Shown:
     fn shown(self) -> string
 

@@ -5,7 +5,7 @@
 # identities.
 use dep.euro.{Coin as Euro}
 use dep.yen.{Coin as Yen}
-use std.inspect.TypeId
+use std.meta.TypeId
 
 pub fn main() -> void $ Console:
     println("${TypeId::of::[Euro]()} ${TypeId::of::[Yen]()}")

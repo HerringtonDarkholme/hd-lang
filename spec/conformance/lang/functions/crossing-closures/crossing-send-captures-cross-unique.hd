@@ -4,7 +4,7 @@
 # expect-stdout: abab 3 [["abab"]] ["x", "y"] 2
 # expect-stdout: ["abab"] Shape.Words(["abab"]) ("abab", Option.Some("abab"))
 # expect-stdout: {"k": ["abab"]} 1
-use std.marker.Send
+use std.meta.Send
 
 fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
     code()

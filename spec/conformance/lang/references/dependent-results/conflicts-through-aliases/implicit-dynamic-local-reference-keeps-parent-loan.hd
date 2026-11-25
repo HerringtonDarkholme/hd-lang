@@ -1,6 +1,6 @@
 # test: an implicitly lent dynamic result protects its counted field parent
 # Rule: ref.excl.alias.conflict.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 trait Read:

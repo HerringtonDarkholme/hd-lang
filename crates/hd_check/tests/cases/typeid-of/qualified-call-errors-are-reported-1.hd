@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # Errors of the owner, the member and the type arguments.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Box[T]:
     value: T

@@ -1,5 +1,5 @@
 # test: a source may strengthen the bound on member but not on missing
-use std.structure.{Field, Variant, Members, Key, Source}
+use std.meta.{Field, Variant, Members, Key, Source}
 
 struct Strict: pass
 

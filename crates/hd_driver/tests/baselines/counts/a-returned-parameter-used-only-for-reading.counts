@@ -3,7 +3,7 @@
 # @build: v8 release
 # expected: a returned parameter used only for reading borrows across the call.
 # An owned result and a function-value adapter keep the result's count.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn ident(s: string) -> string:

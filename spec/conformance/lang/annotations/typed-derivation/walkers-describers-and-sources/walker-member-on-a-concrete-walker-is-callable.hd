@@ -1,5 +1,5 @@
 # test: walker member on a concrete walker is callable
-use std.structure.{Field, Variant, Walker}
+use std.meta.{Field, Variant, Walker}
 
 struct Prober:
     out: string

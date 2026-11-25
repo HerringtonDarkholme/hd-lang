@@ -36,8 +36,8 @@
 //!   shared by every traversal. Their `Handle` bodies cache the handles
 //!   and metadata directories just like named derivations.
 //!
-//! The handles and information values are values of `std.structure`'s
-//! declarations (`lib/std/structure.hd`), built field by field; their
+//! The handles and information values are values of `std.meta`'s
+//! declarations (`lib/std/meta.hd`), built field by field; their
 //! hidden fields (`hd_get`, `hd_holds`, `hd_default`) are closures over the
 //! target. A member's handle `Field[S, F]` is a reference to its
 //! `FieldRecord`, held in a local's cell that a handle body keeps in static
@@ -69,7 +69,7 @@ use hd_tir::ir::{
 use hd_types::ANON_SUM;
 use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
-/// Where the generator reads declarations: `std.structure`'s structs
+/// Where the generator reads declarations: `std.meta`'s structs
 /// and protocol traits, `Structure` itself, `std.ops.panic_with`.
 pub trait Items {
     fn item(&self, def: DefId) -> Option<&Item>;
@@ -892,7 +892,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     fn std(&self, name: &str) -> DefId {
-        self.names.item(hd_resolve::known::STRUCTURE_MODULE, name)
+        self.names.item(hd_resolve::known::META_MODULE, name)
     }
 
     fn adt(&self, def: DefId, args: &[Ty]) -> Ty {
@@ -900,7 +900,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         pool.intern_ty(&TyData::Adt(AdtId::Declared(def), pool.list(args)))
     }
 
-    /// A shared reference to the `std.structure` record `def[args]`, the
+    /// A shared reference to the `std.meta` record `def[args]`, the
     /// type of a handle, key or member directory.
     fn record_ref(&self, def: DefId, args: &[Ty]) -> Ty {
         let record = self.adt(def, args);
@@ -929,7 +929,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.record_ref(self.std("MembersRecord"), &[self.target])
     }
 
-    /// The value at `path` in the `std.structure` record that `r` refers
+    /// The value at `path` in the `std.meta` record that `r` refers
     /// to, read in one place: each step is a struct and its field.
     fn record_path(&mut self, r: Ref, path: &[(DefId, &str)], t: Ty) -> Ref {
         let mut proj = vec![Proj::Deref];
@@ -975,7 +975,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         })
     }
 
-    /// The fields of a `std.structure` struct.
+    /// The fields of a `std.meta` struct.
     fn std_fields(&self, def: DefId) -> &'a [hd_resolve::Field] {
         let fields = self.cx.items.item(def).and_then(|i| match &i.data {
             ItemData::Struct(fields, _) => Some(fields.as_slice()),
@@ -1003,7 +1003,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         field.as_slice()[0]
     }
 
-    /// A nongeneric `std.structure` metadata field's declared type.
+    /// A nongeneric `std.meta` metadata field's declared type.
     fn field_ty(&self, def: DefId, field: &str) -> Ty {
         self.std_field(def, field).1.ty
     }

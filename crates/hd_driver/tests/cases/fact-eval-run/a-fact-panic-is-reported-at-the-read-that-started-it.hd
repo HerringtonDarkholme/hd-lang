@@ -2,8 +2,8 @@
 # The panic of a fact is `fact-evaluation-failed` at the first read. The
 # report names the facts and the original category, and the output before
 # the read is kept.
-use std.annotation.facts_of
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.facts_of
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

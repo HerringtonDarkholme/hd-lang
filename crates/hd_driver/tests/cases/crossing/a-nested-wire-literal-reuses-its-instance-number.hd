@@ -1,8 +1,8 @@
 # @dump: stdout wat
 # @build: dev | checked | release | release checked
 # A Wire literal in an ordinary stored callback retains its code identity.
-use std.annotation.inline
-use std.marker.Wire
+use std.meta.inline
+use std.meta.Wire
 
 @inline(.Never)
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:

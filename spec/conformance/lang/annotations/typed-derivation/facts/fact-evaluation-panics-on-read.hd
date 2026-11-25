@@ -1,6 +1,6 @@
 # test: a fact whose expression panics fails at run time, when a derivation first reads it
 # Spec 14 Facts: annot.fact.eval.lazy, annot.fact.eval.panic-runtime.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

@@ -1,6 +1,6 @@
 # test: a writable local reference is not Send
 # Spec 10 Markers: module.marker.table.writable.
-use std.marker.Send
+use std.meta.Send
 
 struct Point:
     x: i32

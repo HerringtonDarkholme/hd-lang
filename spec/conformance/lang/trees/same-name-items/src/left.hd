@@ -1,4 +1,4 @@
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 pub struct Item:
     pub label: string

@@ -20,14 +20,14 @@
       end
     end
     local.get $t0
-    i32.const 98 ;; &"1\u{1f}8\u{1f}48\u{1f}main.hd"
+    i32.const 100 ;; &"1\u{1f}8\u{1f}48\u{1f}main.hd"
     i32.const 14
     call $"dbg[(List[string]...)]"
   )
   (func $direct (param $values i32)
     ;; 5 |     dbg(values...)
     local.get $values
-    i32.const 112 ;; &"1\u{1f}5\u{1f}5\u{1f}main.hd"
+    i32.const 114 ;; &"1\u{1f}5\u{1f}5\u{1f}main.hd"
     i32.const 13
     call $"dbg[(List[string]...)]"
   )

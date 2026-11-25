@@ -5,7 +5,7 @@
 # release copy of `Outer::rank` takes its instance's own structure
 # folds, its calls copied, and makes one constant, so `entry` keeps only
 # the fast arm.
-use std.structure.{Structure, Describer, Variant, Field}
+use std.meta.{Structure, Describer, Variant, Field}
 
 trait Fast:
     fn regular() -> bool

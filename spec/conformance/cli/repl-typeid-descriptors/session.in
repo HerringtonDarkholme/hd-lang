@@ -1,4 +1,4 @@
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 old := TypeId::of::[i32]()
 old == TypeId::of::[i32]()
 value := box(+7)

@@ -5,7 +5,7 @@
 # expect-stdout: 2 5 4 true
 # expect-stdout: 0
 use std.collections.UniqList
-use std.marker.Wire
+use std.meta.Wire
 
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
     code()

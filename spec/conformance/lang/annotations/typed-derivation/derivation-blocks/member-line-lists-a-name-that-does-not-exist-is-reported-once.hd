@@ -1,6 +1,6 @@
 # test: a name that does not exist is reported once
-use std.inspect.Inspectable
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.Inspectable
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Tag:
     text: string

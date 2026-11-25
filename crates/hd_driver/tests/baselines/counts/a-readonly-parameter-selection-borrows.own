@@ -3,7 +3,7 @@
 # @build: v8 release
 # expected: conditional read-only selections take no count. A separate
 # owned use of any input prevents lending its connected selection group.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 > app/main/keep

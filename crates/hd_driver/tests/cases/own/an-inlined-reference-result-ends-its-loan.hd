@@ -3,7 +3,7 @@
 # expected: the reference expression's loan ends after its last use, before
 # the alias writes. Named and aggregate results transfer that loan to their
 # destination holder; nested inlining preserves the same lifetime.
-use std.annotation.{InlineHint, inline}
+use std.meta.{InlineHint, inline}
 
 struct Slots:
     items: List[string]

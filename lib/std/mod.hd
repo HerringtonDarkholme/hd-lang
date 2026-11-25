@@ -3,7 +3,6 @@
 # module is re-exported as it is; `std.rt` stays std's own
 # (spec/lang/10-modules.md#r-module.rt.std-only).
 pub use std.{
-    annotation,
     arena,
     cli,
     cmp,
@@ -13,7 +12,6 @@ pub use std.{
     convert,
     core,
     crypto,
-    debug,
     encoding,
     error,
     f32,
@@ -23,10 +21,9 @@ pub use std.{
     hash,
     host,
     http,
-    inspect,
     iter,
     json,
-    marker,
+    meta,
     net,
     num,
     ops,
@@ -39,7 +36,6 @@ pub use std.{
     remote,
     result,
     serde,
-    structure,
     sync,
     task,
     testing,

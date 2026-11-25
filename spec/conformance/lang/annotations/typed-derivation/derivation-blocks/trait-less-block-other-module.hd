@@ -2,6 +2,6 @@
 # test: a derivation block with no trait for a type of another package is an error
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.module; dep.models declares User.
 use dep.models.{User}
-use std.structure.Structure
+use std.meta.Structure
 
 impl User by Structure # diagnostic: misplaced-derivation

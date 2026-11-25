@@ -1,7 +1,7 @@
 # test: facts and member handles build lazily once and keep their counted results across reads
 # Spec 14 Facts and Field and Variant Handles: annot.fact.eval.lazy, annot.fact.eval.unread, annot.handle.constants.
 # expect: test
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 use std.testing.assert_equal
 
 let mut events: List[string] = []

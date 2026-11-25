@@ -2,7 +2,7 @@
 # @build: v8 release program
 # expected: physical dereference/variant borrows end loans; new objects and
 # captured copies retain their owners until the last use.
-use std.annotation.inline
+use std.meta.inline
 
 struct Holder:
     label: string

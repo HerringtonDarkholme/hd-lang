@@ -5,7 +5,7 @@
 # `defer` scope (the first or the second of two), in a nested scope, in a
 # loop, at a join and awaiting a function value. The checked runs' exit
 # audit fails on a leak or a double free.
-use std.annotation.inline
+use std.meta.inline
 use std.ops.defer
 use std.task.{join, race}
 use std.time.{Clock, Duration, sleep}

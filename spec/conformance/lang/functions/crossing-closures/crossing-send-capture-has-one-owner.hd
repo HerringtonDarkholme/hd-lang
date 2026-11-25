@@ -6,7 +6,7 @@
 # expect-stdout: 2 1 2 0 2 2
 # expect-stdout: 0
 use std.collections.UniqList
-use std.marker.Send
+use std.meta.Send
 use std.sync.Arc
 
 fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:

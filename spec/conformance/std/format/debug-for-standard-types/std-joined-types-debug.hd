@@ -1,6 +1,6 @@
-# test: Debug for public std types of std.annotation, std.collections, std.console, std.hash, std.ops, and std.format
+# test: Debug for public std types of std.meta, std.collections, std.console, std.hash, std.ops, and std.format
 # Spec std/format Debug For Standard Types: std-format.debug.std-types and std-format.debug.std-types.generic (STD-DEBUG; task #223).
-use std.annotation.{Annotate, Target}
+use std.meta.{Annotate, Target}
 use std.collections.ListView
 use std.console.MemoryConsole
 use std.format.{DebugList, DebugWriter}

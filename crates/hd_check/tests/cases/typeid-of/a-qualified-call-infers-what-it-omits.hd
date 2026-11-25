@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # A trailing slot is inferred from the value arguments
 # (fn.generic.explicit.trailing).
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Box[T]:
     value: T

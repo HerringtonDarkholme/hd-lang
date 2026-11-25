@@ -6,10 +6,10 @@ use std.host.Args
 use std.text.{Parse, StringBuilder}
 use std.process.ExitCode
 use std.console.eprintln
-use std.structure.{Structure, Describer, Source, Variant, Field, Members, Key}
+use std.meta.{Structure, Describer, Source, Variant, Field, Members, Key}
 use std.path.Path
 use std.time.Duration
-use std.annotation.annotate
+use std.meta.annotate
 
 @derive(Eq)
 pub enum ArgKind:

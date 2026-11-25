@@ -1,7 +1,7 @@
 # expect-stdout: 1 2
 # test: a local bound to a struct's list field and then copied shares that list, so a later push to the field leaves the copy unchanged
 # Spec 13 Copy: a copy of a collection is a value of its own.
-use std.annotation.inline
+use std.meta.inline
 
 struct Bag:
     items: List[i32]

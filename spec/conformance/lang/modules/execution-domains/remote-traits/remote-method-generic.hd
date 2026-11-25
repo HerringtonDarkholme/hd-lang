@@ -1,6 +1,6 @@
 # test: a generic method of a remote trait is rejected
 # Spec 10 Remote Traits: module.remote.r1.generic.
-use std.marker.Wire
+use std.meta.Wire
 use std.remote.{CrossError, Remote}
 
 enum StoreError:

@@ -2,7 +2,7 @@
 # Spec 14 Templates: annot.template.module.
 pub use std.format.{Debug}
 use std.format.DebugWriter
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 struct Count:
     n: i32

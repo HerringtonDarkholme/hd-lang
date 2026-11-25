@@ -1,7 +1,7 @@
 # test: a pattern argument must have type kind
-use std.annotation
-use std.annotation.annotate
-use std.annotation.annotate as targets
+use std.meta
+use std.meta.annotate
+use std.meta.annotate as targets
 
-@annotation.annotate::[1] # diagnostic: generic-kind-mismatch
+@meta.annotate::[1] # diagnostic: generic-kind-mismatch
 struct Fact: pass

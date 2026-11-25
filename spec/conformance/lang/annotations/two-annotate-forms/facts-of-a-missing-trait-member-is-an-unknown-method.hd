@@ -1,6 +1,6 @@
 # test: a trait-qualified name the trait does not declare is an unknown method, as any use of it is
 # Spec 14 facts_of: annot.facts-of.target.unresolved.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 trait Shape:
     fn area(self) -> i32

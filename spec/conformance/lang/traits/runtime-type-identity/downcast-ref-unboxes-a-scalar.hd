@@ -5,7 +5,7 @@
 # expect-stdout: i64 5000000000
 # expect-stdout: not i64
 # expect-stdout: not i64
-use std.inspect.{Inspectable}
+use std.meta.{Inspectable}
 
 fn small(value: *dyn Inspectable) -> string:
     match value.downcast_ref::[u8]().map(fn(found): *found):

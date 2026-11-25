@@ -1,6 +1,6 @@
 # test: a struct that holds a counted reference is not Send either
 # Spec 10 Markers: module.marker.table.counted, module.marker.unsatisfied.
-use std.marker.Send
+use std.meta.Send
 
 struct Point:
     x: i32

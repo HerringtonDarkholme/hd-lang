@@ -1,4 +1,4 @@
-hd> use std.inspect.{Inspectable, TypeId}
+hd> use std.meta.{Inspectable, TypeId}
 hd> old := TypeId::of::[i32]()
 hd> old == TypeId::of::[i32]()
 true : bool

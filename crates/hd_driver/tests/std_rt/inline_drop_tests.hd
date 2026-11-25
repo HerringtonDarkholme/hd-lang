@@ -1,7 +1,7 @@
 # A moved or uninitialized place must not run an inline Drop hook.
 # This module joins std because only std may implement its runtime trait.
 use std.rt.Drop
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 
 let drops: usize = 0

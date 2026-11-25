@@ -5,7 +5,7 @@
 # `STD_RT_TESTS`). A program that starts threads shares its heap with them.
 use std.collections.{UniqList, UniqMap}
 use std.core.{Eq, Hash}
-use std.marker.Send
+use std.meta.Send
 use std.rt.alloc.{alloc, block_of, free_block}
 use std.rt.memory.{
     atomic_add_u32,

@@ -4,7 +4,7 @@
 # function and owned by it alone, so its `Drop` is fresh (`drop_word::FRESH`)
 # and its release goes straight to the free path (`rt:release_fresh`), with no
 # null test or count-header load.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn fresh() -> usize:

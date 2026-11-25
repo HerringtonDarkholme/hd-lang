@@ -4,7 +4,7 @@
 # @build: v8 release
 # Two possible closures keep the call indirect. Each borrows its local
 # reference parameters without a referent count (#1343).
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn apply(by: fn(&i32, &i32) -> i32, left: &i32, right: &i32) -> i32:

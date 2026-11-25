@@ -1,9 +1,9 @@
 # test: resolved annotate names retain their generic type pattern
-use std.annotation
-use std.annotation.annotate
-use std.annotation.annotate as targets
+use std.meta
+use std.meta.annotate
+use std.meta.annotate as targets
 
-@annotation.annotate::[fn(T) -> R](.Field)
+@meta.annotate::[fn(T) -> R](.Field)
 struct Fact[T, R]: pass
 
 fn fact[T, R]() -> Fact[T, R]:

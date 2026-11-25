@@ -1,6 +1,6 @@
 # test: a fact whose evaluation exhausts the stack fails with fact-evaluation-failed, like any other panic in a fact
 # Spec 14 Facts: annot.fact.eval.panic-runtime. Spec 06 Runtime Panics: flow.panic.stack-exhausted.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Route:
     path: string

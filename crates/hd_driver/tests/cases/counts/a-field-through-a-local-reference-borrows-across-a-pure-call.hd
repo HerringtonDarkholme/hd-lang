@@ -6,7 +6,7 @@
 # whose raw-address copy writes only its own new string, so `name` borrows
 # the facts. `tally` writes through `self`, which may reach the same frame,
 # so `count` still copies them (#1285).
-use std.structure.{Facts, Member}
+use std.meta.{Facts, Member}
 use std.serde.member_name
 
 struct Frame:

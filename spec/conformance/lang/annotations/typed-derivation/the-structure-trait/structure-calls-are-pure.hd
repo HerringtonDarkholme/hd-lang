@@ -1,6 +1,6 @@
 # test: walk, describe and build need no requirement and do not suspend, so a pure method may call them
 # Spec 14 The Structure Trait: annot.structure.pure.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 trait Named:
     fn type_name() -> string

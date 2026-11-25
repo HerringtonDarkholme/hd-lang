@@ -2,7 +2,7 @@
 # @build: dev | release
 # expected: each never-inlined carrier forwards existing loan provenance;
 # expected: the aliasing push checks the live loan before changing storage.
-use std.annotation.inline
+use std.meta.inline
 
 pub struct Slots:
     items: List[string]

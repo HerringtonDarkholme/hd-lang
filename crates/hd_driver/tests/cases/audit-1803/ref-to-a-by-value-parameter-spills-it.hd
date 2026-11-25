@@ -5,7 +5,7 @@
 # stores and two loads, only to read two fields. The retain and release the
 # audit named are gone; this copy is the cost left. The fields should be read
 # from the parameter's scalars.
-use std.annotation.inline
+use std.meta.inline
 
 struct Point:
     x: i32

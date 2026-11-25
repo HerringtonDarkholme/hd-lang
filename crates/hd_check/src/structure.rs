@@ -572,7 +572,7 @@ fn invalid_structure_input() -> NotImplemented {
 
 /// The `Structure` bodies of `opt`, hidden methods of its
 /// `structure_owner`, whose facts `facts` builds. `cx` sees the target's
-/// module and `std.structure`.
+/// module and `std.meta`.
 pub fn structure_bodies(
     cx: &BodyCx<'_>,
     opt: &OptIn,

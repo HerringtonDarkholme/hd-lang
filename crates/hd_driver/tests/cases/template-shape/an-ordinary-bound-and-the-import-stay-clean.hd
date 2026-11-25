@@ -1,5 +1,5 @@
 # @dump: stdout
-use std.structure.Structure
+use std.meta.Structure
 
 trait Named:
     fn title() -> string

@@ -1,7 +1,7 @@
 # test: validation recurses through records and lists, applies payload facts to Some, skips None, and reports truncation
 # Standard Validation: std-validate.derive.structure, std-validate.container.list,
 # std-validate.container.map, std-validate.container.option, std-validate.validated.truncated
-use std.structure.Structure
+use std.meta.Structure
 use std.testing.{assert, assert_equal}
 use std.validate.{PathStep, Problem, Validate, ValidationContext, check, length, range}
 

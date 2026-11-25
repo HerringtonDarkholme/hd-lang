@@ -5,7 +5,7 @@
 # field read through a reference on every iteration)
 # The index check after an inlined helper's finite loop runs on every
 # normal return. The caller's repeated access needs no second bounds guard.
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 
 @inline(.Always)

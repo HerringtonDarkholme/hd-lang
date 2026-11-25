@@ -4,7 +4,7 @@
 # expected: chars.len borrows after whitespace ends its mutable loan (#1677).
 # A list read kept across a push remains an independent owner.
 use std.iter.{Iterable, Iterator}
-use std.annotation.inline
+use std.meta.inline
 
 struct Parser:
     chars: List[char]

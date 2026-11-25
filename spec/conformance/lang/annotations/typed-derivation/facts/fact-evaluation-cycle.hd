@@ -1,6 +1,6 @@
 # test: two facts that read each other fail at once with fact-evaluation-failed
 # Spec 14 Facts: annot.fact.eval.reentrant, annot.fact.eval.panic-runtime.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Route:
     path: string

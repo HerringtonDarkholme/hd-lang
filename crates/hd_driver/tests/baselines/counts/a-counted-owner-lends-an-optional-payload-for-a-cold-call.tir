@@ -3,7 +3,7 @@
 # expected: TIR borrows the counted pointee with Ref; ownership keeps the
 # declared owner through the cold callback, then releases it. The local
 # reference payload takes no count.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn read(value: (&i32)?) -> i32:

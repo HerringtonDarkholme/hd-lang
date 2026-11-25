@@ -2,7 +2,7 @@
 # Loops read a `UniqList` through the `*T` a struct holds: by a shared
 # reference, by value, from a local, and in a loop that replaces the
 # box, which reads the new one after each replacement.
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 
 struct Holder:

@@ -3,7 +3,7 @@
 # A fresh counted trait result weakened inside a cold frame must stay alive
 # through local and supertrait calls, then release at completion: the
 # checked runs' exit audit fails on a leaked owner.
-use std.annotation.cold
+use std.meta.cold
 
 trait Base:
     fn read(&self) -> i32

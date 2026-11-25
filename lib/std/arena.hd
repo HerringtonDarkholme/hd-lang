@@ -7,7 +7,7 @@
 # one writes nothing. Results stay disjoint because each `alloc` hands out
 # bytes no earlier result covers (`module.rt.ptr.as-ref`), so a `&self`
 # call's `&mut` result keeps the arena shared (`ref.excl.call`).
-use std.annotation.inline
+use std.meta.inline
 use std.rt.{Drop}
 use std.rt.{marking}
 use std.rt.{Ptr, align_of, free_room, needs_drop, room, size_of}

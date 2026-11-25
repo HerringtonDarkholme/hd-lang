@@ -1,7 +1,7 @@
 # test: a member whose type is an enum all of whose variants need the enclosing type is required
 # Spec 14 Self References: annot.self-ref.needs.enum, .needs.self, and .member (SIMPLE, owner decision
 # 2026-09-30). Choice's Skip needs no Expr, so Pick and choice are only optional.
-use std.structure.{Structure, Field, Variant, Describer, SelfRef}
+use std.meta.{Structure, Field, Variant, Describer, SelfRef}
 trait Shape:
     fn shape() -> string
 

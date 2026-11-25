@@ -1,6 +1,6 @@
 # test: an erased reference records its concrete type, and a concrete generic receiver records its static type
 # Spec 09 Inspectable And TypeId: trait.inspect.dynamic; a dynamic value's recorded type is the concrete type, never the trait.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 trait Named < Inspectable:
     fn name(self) -> string
 

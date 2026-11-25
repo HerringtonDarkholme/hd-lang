@@ -1,6 +1,6 @@
 # @dump: stdout
-use std.annotation.{annotate, facts_of}
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{annotate, facts_of}
+use std.meta.{Structure, Field, Variant, Describer}
 
 @annotate::[F](.Field, .Fn)
 struct Tag[F]:

@@ -7,7 +7,7 @@
 # tuple that calls the lifted function for `false` and gives the frame
 # (`crossing_frame`, out of line) for `true`. The callee's call passes
 # `false` and reads the `Ok`, so a call that runs here encodes nothing.
-use std.marker.Wire
+use std.meta.Wire
 
 struct Image:
     width: u32

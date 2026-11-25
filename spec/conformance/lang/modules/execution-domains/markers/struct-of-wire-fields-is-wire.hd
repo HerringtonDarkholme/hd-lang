@@ -1,6 +1,6 @@
 # test: a struct, an enum and a list whose parts are Wire are Wire
 # Spec 10 Markers: module.marker.structural, module.marker.supplied, module.marker.table.scalar, module.marker.table.composite.
-use std.marker.Wire
+use std.meta.Wire
 
 struct Point:
     x: f64

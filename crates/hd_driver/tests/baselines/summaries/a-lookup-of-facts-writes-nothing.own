@@ -5,7 +5,7 @@
 # callers reach. `member_name` can reach ordinary-hd `concat_all`, but its
 # raw-address copy writes only its own new string, so both callers borrow
 # their facts and have no `writes` summary (#1285).
-use std.structure.{Facts, Member}
+use std.meta.{Facts, Member}
 use std.serde.{RenameAll, member_name}
 
 struct Frame:
@@ -20,7 +20,7 @@ fn has_style(facts: Facts) -> bool:
 >   local $2 self: RenameAll? [read] value
 >     uses $2: %3 -> %4 lend last
 >   %0 = Read borrow [$0] : Facts
->   %1 = Call std/structure/impl Facts.find[RenameAll] (%0) : RenameAll?
+>   %1 = Call std/meta/impl Facts.find[RenameAll] (%0) : RenameAll?
 >   %2 = Retain %1 Operation operand 0 #0 : ()
 >   %3 = Store [$2] %1 : ()
 >   %4 = Read copy [$2] : RenameAll?

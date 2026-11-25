@@ -4,9 +4,9 @@
 # `Error` is not a prelude name (module.prelude.from-error). It extends
 # `Inspectable`, so its users need not import it
 # (module.prelude.error-inspectable).
-use std.inspect.Inspectable
+use std.meta.Inspectable
 use std.format.DebugWriter
-use std.structure.{Structure, UnionType, Walker, Variant, Field}
+use std.meta.{Structure, UnionType, Walker, Variant, Field}
 
 ## The standard error trait: a displayable, inspectable failure that may name its source.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).

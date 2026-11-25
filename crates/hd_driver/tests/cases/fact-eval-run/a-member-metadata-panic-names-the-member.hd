@@ -1,7 +1,7 @@
 # @dump: stdout
 # A member's metadata is a fact expression too: a panic in it, read through
 # the member's handle, names the member.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

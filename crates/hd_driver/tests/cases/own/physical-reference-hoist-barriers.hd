@@ -2,7 +2,7 @@
 # @build: v8 release program
 # expected: physical reference loops hoist once; copies, alias replacement,
 # and a call that replaces an alias keep their required in-loop checks.
-use std.annotation.inline
+use std.meta.inline
 
 struct Probes: pass
 

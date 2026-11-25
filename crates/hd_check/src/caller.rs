@@ -5,7 +5,7 @@
 //! `$site`, a `string`: the call site's record. Each direct call passes it: a constant the checker writes from the call's syntax, or,
 //! inside another `@track_caller` function, that function's own `$site`
 //! (`fn.caller.chain`). `Location::caller()` and `Location::caller_args()`
-//! read `$site` through ordinary `std.debug` decoders.
+//! read `$site` through ordinary `std.meta` decoders.
 //!
 //! The record's fields are separated by U+001F: the root-package bit, the
 //! line, the column and the file, then seven fields per argument (start line

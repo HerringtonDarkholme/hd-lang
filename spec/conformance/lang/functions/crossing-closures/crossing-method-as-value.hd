@@ -1,6 +1,6 @@
 # test: a method with a crossing parameter is only called, never a bound method value
 # Spec 07 Crossing Closures: fn.crossing.no-value.
-use std.marker.Wire
+use std.meta.Wire
 
 struct Pool:
     size: i32

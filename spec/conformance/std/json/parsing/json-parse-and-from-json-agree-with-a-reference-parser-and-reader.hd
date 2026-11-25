@@ -2,7 +2,7 @@
 # Spec std/json Parse, Strings, Numbers, Parse Errors, Objects, Decode Errors, Derived Deserialize: std-json.parse, std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.parse.string.lone-surrogate, std-json.parse.number.integer, std-json.parse.number.nonfinite-parse-result, std-json.parse.depth, std-json.parse.object.duplicate-last, std-json.parse.error-order, std-json.object.set-ref, std-json.error.path, std-json.derive.from-json.missing, std-json.derive.from-json.unknown-variant, std-json.std.item-path, std-json.from-json (issue 360).
 use std.json.{parse, from_json, decode, Json, JsonObject, JsonError, Number}
 use std.serde.{Deserialize, Deserializer, ValueKind}
-use std.structure.{Member, VariantInfo, Facts, SelfRef}
+use std.meta.{Member, VariantInfo, Facts, SelfRef}
 use std.testing.{assert_equal, Choices, it_prop_with}
 
 # The old parser and the old reader stay here as the reference: the parser

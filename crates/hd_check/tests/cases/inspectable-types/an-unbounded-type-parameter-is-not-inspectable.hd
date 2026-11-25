@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # trait.inspectable.not.parameter: a parameter without the bound.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

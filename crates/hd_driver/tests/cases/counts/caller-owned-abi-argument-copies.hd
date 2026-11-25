@@ -2,7 +2,7 @@
 # @build: v8 release
 # expected: the optional-string temporary's ABI copy is a stated operation count
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Members, Key, Describer, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Describer, Source}
 use std.testing.assert_equal
 
 trait Sample:

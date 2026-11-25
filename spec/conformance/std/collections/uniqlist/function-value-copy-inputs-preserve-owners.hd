@@ -1,6 +1,6 @@
 # test: Copy function-value inputs lend while callbacks retain their own owners
 # Functions: fn.type.values, fn.capture.copies; References: ref.copy.structure.
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 use std.ops.{Fn, Tuple}
 use std.http.Url

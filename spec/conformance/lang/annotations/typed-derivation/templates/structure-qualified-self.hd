@@ -2,7 +2,7 @@
 # Spec 14 Templates: annot.template.qualified-self and .receiverless (ST8-self and ST8-own, owner decisions 2026-09-30).
 # Structure::name() and Structure::facts() take no argument, so no inference gives their Self.
 # The derived trait declares its own receiverless `name`; Structure::name() is the generated one.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 struct Style:
     prefix: string = ""
 

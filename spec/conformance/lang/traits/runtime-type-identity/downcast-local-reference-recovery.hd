@@ -1,7 +1,7 @@
 # test: local and counted trait references use the same local-reference downcast methods
 # Spec 09 Recovering A Concrete Type: trait.downcast.local-receiver.
 use std.error.Error
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     count: i32

@@ -1,6 +1,6 @@
 # test: derivation a misplaced block does not count as the first for its type
 # fixture-package-tree: derivation-a-misplaced-block-does-not-count-as-the-first-for-its-type/src/beta.hd
-use std.structure.Structure
+use std.meta.Structure
 use pkg.alpha.Item
 
 impl Item by Structure # diagnostic: misplaced-derivation

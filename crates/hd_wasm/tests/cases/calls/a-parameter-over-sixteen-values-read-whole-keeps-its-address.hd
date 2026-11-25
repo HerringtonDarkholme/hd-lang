@@ -7,7 +7,7 @@
 # branch: the move clears the parameter's TIR flag, and the exit releases
 # it only while the flag is set. `loud_on` does the same for a value
 # with a `Drop` hook, whose exit runs the hook only when it did not move.
-use std.annotation.inline
+use std.meta.inline
 use std.rt.Drop
 
 struct Big:

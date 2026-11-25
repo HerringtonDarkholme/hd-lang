@@ -2,8 +2,8 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: both cache read and cache publication declare their copies; no new Wasm operation.
-use std.annotation.annotate
-use std.structure.{Field, Structure, Variant, Walker}
+use std.meta.annotate
+use std.meta.{Field, Structure, Variant, Walker}
 
 @annotate::[string](.Field)
 struct Mark:
@@ -94,7 +94,7 @@ impl[T] HasFacts for T by Structure:
 >   %61 = Drop [$0] : ()
 >   %5 = Ref local frame [$0] : &T
 >   %6 = Ref mut local frame [$1] : &mut Reader[T]
->   %7 = Call std/structure/Structure.walk for T [Reader[T]] via Bound (%5, %6) : Result[(), never]
+>   %7 = Call std/meta/Structure.walk for T [Reader[T]] via Bound (%5, %6) : Result[(), never]
 >   %8 = Drop [%6] : ()
 >   %9 = Drop [%5] : ()
 >   %10 = Drop [$0] : ()

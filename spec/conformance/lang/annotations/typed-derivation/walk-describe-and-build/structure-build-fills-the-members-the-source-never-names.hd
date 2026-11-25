@@ -23,7 +23,7 @@ impl Default for i32:
 impl Default for string:
     fn default() -> string:
         ""
-use std.structure.{Structure, Field, Variant, Members, Key, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Source}
 
 trait Make:
     fn make(log: &mut List[string]) -> Result[Self, string]

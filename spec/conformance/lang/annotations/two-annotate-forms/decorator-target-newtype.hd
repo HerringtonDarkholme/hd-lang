@@ -1,6 +1,6 @@
 # test: a newtype has the .Newtype kind, so a value limited to data types and enums is rejected before it
 # Spec 14 Target Kinds: annot.target.kind.newtype-kind and annot.target.limit.kind-error (Decorators D10).
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate(.Data, .Enum)
 struct Wire:

@@ -1,6 +1,6 @@
 # Read-only comparison parameters retain caller values and release fresh inputs.
 # std-cmp.derive.ord.data; std-cmp.derive.eq.eq; types.coll.value.
-use std.annotation.cold
+use std.meta.cold
 
 @derive(Eq, PartialOrd, Ord)
 struct Key:

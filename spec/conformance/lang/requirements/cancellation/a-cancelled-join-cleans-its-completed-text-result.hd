@@ -1,7 +1,7 @@
 # test: a cancelled join cleans its completed text result while another child is pending
 # fixture-runtime-profile: pending-gate
 # expect-empty-stdout: true
-use std.annotation.cold
+use std.meta.cold
 use std.task.{join, race}
 use std.testing.assert_equal
 

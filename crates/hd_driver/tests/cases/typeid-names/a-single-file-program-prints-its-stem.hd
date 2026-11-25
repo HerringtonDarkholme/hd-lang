@@ -2,7 +2,7 @@
 # @single-file: true
 # trait.typeid.name.single-file: a single-file program's declaration
 # prints under the file's stem, then the name.
-use std.inspect.TypeId
+use std.meta.TypeId
 
 struct User:
     name: string

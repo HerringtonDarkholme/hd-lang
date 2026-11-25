@@ -3,7 +3,7 @@
 # expected: the forwarding call still prints and the original box remains
 # readable in all builds. Release forwards the field read to its borrowed
 # argument with no string count; dev/checked retain their owning call ABI.
-use std.annotation.inline
+use std.meta.inline
 
 struct Item:
     text: string

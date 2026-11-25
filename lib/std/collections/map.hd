@@ -1,4 +1,4 @@
-use std.annotation.inline
+use std.meta.inline
 use std.collections.list.{before, list_reserve}
 use std.ops.FnMut
 use std.iter.MapEntries

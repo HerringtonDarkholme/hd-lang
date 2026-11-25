@@ -2,7 +2,7 @@
 # Spec 09 Runtime Type Identity: trait.identity.reference-permission, trait.typeid.name.counted-reference; Recovering A Concrete Type: trait.downcast.exact.reference-values.
 # expect-stdout: false
 # expect-stdout: false
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 struct User:
     count: i32
 fn kind[T < Inspectable](_value: T) -> TypeId:

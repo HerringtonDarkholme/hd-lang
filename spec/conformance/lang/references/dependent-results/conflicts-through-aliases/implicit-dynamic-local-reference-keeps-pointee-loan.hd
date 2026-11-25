@@ -1,6 +1,6 @@
 # test: an implicitly lent dynamic result protects its pointee
 # Rule: ref.excl.alias.conflict.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 trait Read:

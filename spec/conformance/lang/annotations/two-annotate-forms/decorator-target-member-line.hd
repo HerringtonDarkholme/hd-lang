@@ -1,7 +1,7 @@
 # test: a limited value attached by a member line is rejected on that line
 # Spec 14 Target Kinds: annot.target.limit.kind-error covers member lines.
-use std.annotation.annotate
-use std.structure.Structure
+use std.meta.annotate
+use std.meta.Structure
 
 @annotate(.Fn)
 struct Route:

@@ -3,7 +3,7 @@
 # `use std.testing.arbitrary`, and calls `arbitrary.with(gen)`. The template
 # of `Arbitrary` in `std.testing` reads a member's `With[F]` through its
 # handle.
-use std.annotation.annotate
+use std.meta.annotate
 use std.ops.Fn
 use std.testing.Choices
 

@@ -317,7 +317,7 @@ fn indent() -> Pixels:
 [typed fact type](14-annotations.md#member-typed-facts):
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 use std.num.Num
 
 @annotate::[F](.Fn)
@@ -472,7 +472,7 @@ fn by_id(id: i64) -> Query:
 `std.ops` declares the marker and the template:
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[F](.Fn)
 pub struct StrPrefix[F]: pass

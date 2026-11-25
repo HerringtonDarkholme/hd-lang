@@ -5,7 +5,7 @@ use std.host.{Env, ScriptedEnv, env_decode}
 use std.http.{HttpStatus, Response}
 use std.json.decode
 use std.serde.{Deserialize, rename}
-use std.structure.Structure
+use std.meta.Structure
 use std.validate.{PathStep, Validate, ValidationError, range}
 
 @derive(Deserialize, Cli)

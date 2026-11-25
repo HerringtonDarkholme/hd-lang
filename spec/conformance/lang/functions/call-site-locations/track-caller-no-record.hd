@@ -9,7 +9,7 @@
 # expect-stdout: 57:5
 # expect-stdout: 58:13
 # expect-stdout: 6
-use std.debug.Location
+use std.meta.Location
 
 # Reads nothing: its calls pass no record.
 @track_caller

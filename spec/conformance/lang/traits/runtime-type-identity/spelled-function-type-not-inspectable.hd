@@ -1,6 +1,6 @@
 # test: a spelled function type is not inspectable as a type argument, so a struct holding one does not erase to Inspectable
 use std.ops.Fn
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct Box[T]:
     value: T

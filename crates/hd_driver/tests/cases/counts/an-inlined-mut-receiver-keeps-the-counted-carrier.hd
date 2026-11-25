@@ -2,7 +2,7 @@
 # @build: v8 release
 # A counted receiver lent to an inlined `&mut self` method keeps its
 # whole-object carrier, so the borrow needs no retain or release.
-use std.annotation.inline
+use std.meta.inline
 
 trait Reject:
     fn reject(&mut self) -> void

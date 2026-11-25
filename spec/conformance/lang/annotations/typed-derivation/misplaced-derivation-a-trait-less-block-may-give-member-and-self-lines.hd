@@ -1,5 +1,5 @@
 # test: misplaced derivation a trait less block may give member and self lines
-use std.structure.Structure
+use std.meta.Structure
 
 struct Box[T]:
     item: T

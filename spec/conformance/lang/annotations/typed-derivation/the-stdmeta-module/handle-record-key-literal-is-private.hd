@@ -1,6 +1,6 @@
 # test: a user module cannot build a KeyRecord, even by copying an existing key record
 # Spec 14 Structure: annot.structure.opaque.
-use std.structure.{KeyRecord, Member}
+use std.meta.{KeyRecord, Member}
 
 struct Victim:
     value: i32

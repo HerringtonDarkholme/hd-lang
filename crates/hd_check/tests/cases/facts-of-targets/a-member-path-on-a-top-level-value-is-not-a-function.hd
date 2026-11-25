@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # `annot.facts-of.target.error`: `count::abs` names a bound method of a
 # top-level value, which is not a module-level function.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 count := 3
 

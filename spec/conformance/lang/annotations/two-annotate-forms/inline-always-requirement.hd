@@ -1,6 +1,6 @@
 # test: inline Always cannot have a requirement row
 # Spec 14 Inline And Cold: annot.inline.always-copyable.v3.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always) # diagnostic: inline-always-uncopyable
 fn write() -> void $ Console:

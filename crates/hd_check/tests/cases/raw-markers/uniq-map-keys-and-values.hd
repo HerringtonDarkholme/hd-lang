@@ -3,7 +3,7 @@
 # `Sync` only when they are (`module.marker.structural`).
 use std.collections.UniqMap
 use std.hash.Hasher
-use std.marker.{Send, Sync}
+use std.meta.{Send, Sync}
 
 # A key that holds a counted reference, so it is not `Send`.
 struct Key:

@@ -1,6 +1,6 @@
 # test: inline Always functions cannot form a call cycle
 # Spec 14 Inline And Cold: annot.inline.always-copyable.v3.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always) # diagnostic: inline-always-uncopyable
 fn depth(n: i32) -> i32:

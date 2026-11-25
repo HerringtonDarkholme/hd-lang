@@ -3,8 +3,8 @@
 # expect-stdout: 0 0 0 1 0 1 2 0 2 0 2 0 1 1 1
 # expect-stdout: 1 0 2 1
 # Spec 14 Typed Derivation: annot.variant.member-counts, annot.variant.included-positional.
-use std.annotation.annotate
-use std.structure.{Describer, Field, Structure, Variant, Walker, skips}
+use std.meta.annotate
+use std.meta.{Describer, Field, Structure, Variant, Walker, skips}
 
 struct Counts:
     variants: List[(usize, usize, usize)]

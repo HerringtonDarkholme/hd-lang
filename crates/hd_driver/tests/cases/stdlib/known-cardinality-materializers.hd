@@ -16,7 +16,7 @@
 # @helper: std/collections.view/impl[T] ListView[T].to_list
 # Exact reservations preserve values, aliases, view snapshots and callback order.
 use std.collections.UniqList
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn map_once(values: &List[i32], transform: fn(&i32) -> i32) -> List[i32]:

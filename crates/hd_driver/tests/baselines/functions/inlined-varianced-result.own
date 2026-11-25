@@ -2,7 +2,7 @@
 # @dump: own wat
 # @build: v8 release
 # expected: inlining preserves the declared function result view without a runtime wrapper.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn read(value: &i32) -> i32:

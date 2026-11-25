@@ -120,7 +120,7 @@ A decorator that names a function whose parameters all have defaults calls
 it, so a marker is written without parentheses:
 
 ```text
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Hidden: pass
 
@@ -189,7 +189,7 @@ checks and generates each requested implementation.
 They never change what a program does:
 
 ```text
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 
 # Runs only on bad input: never copy it, and keep the engine from copying it.
 @cold
@@ -212,8 +212,8 @@ fn first(input: &List[u8]) -> u8:
     input.get(0).unwrap_or(0)
 ```
 
-1. r[annot.inline.declared.v2] `std.core` declares the enum `InlineHint`, with the variants `Auto`, `Always`, and `Never`, the function `inline(hint: InlineHint = .Auto)`, the struct `Cold`, and the function `cold()`, so runtime modules can use them. `std.annotation` re-exports all four. They are not prelude names, so code imports them, usually from `std.annotation`.
-2. r[annot.inline.recognized] The compiler recognizes `std.core.inline` and `std.core.cold` by their qualified names, through an alias, a re-export such as `std.annotation.inline`, or a module path. Their lines are compiler decorators and attach no value.
+1. r[annot.inline.declared.v2] `std.core` declares the enum `InlineHint`, with the variants `Auto`, `Always`, and `Never`, the function `inline(hint: InlineHint = .Auto)`, the struct `Cold`, and the function `cold()`, so runtime modules can use them. `std.meta` re-exports all four. They are not prelude names, so code imports them, usually from `std.meta`.
+2. r[annot.inline.recognized] The compiler recognizes `std.core.inline` and `std.core.cold` by their qualified names, through an alias, a re-export such as `std.meta.inline`, or a module path. Their lines are compiler decorators and attach no value.
 3. r[annot.inline.targets] An `@inline` or `@cold` line must precede a module-level function or a method that has a body. Before a trait requirement without a default body, or before an `@intrinsic` declaration, it is an error. Error: `invalid-inline-decorator`.
 4. r[annot.inline.argument] The argument of `inline` must be `.Auto`, `.Always`, or `.Never`, or left out, and it is read as written. Any other argument of `inline`, and any argument of `cold`, is an error. Error: `invalid-inline-decorator`.
 5. r[annot.inline.bare] A bare `@inline` is `@inline(.Auto)`, by [`annot.decorator.bare-call-defaults`](#r-annot.decorator.bare-call-defaults).
@@ -228,7 +228,7 @@ fn first(input: &List[u8]) -> u8:
 14. r[annot.inline.always-copyable.v3] A function marked `@inline(.Always)` must not suspend, register cleanup, make a closure, have a requirement row, or contain `with`. Functions marked `@inline(.Always)` must not form a cycle consisting only of such functions. Error: `inline-always-uncopyable`.
 
 ```text
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 
 trait Step:
     @cold  # error: invalid-inline-decorator
@@ -330,7 +330,7 @@ module-level function `f`, as a [`Facts`](#r-annot.structure.reference-facts)
 value:
 
 ```text
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Route:
     path: string
@@ -348,14 +348,14 @@ fn users_path() -> string:
         .None => ""
 ```
 
-1. r[annot.facts-of.declared] `std.annotation` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.annotation.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
+1. r[annot.facts-of.declared] `std.meta` declares the compiler intrinsic `facts_of`. It is not a prelude name, so code imports it, as in `use std.meta.facts_of`. Its signature is `pub fn facts_of[F](f: F) -> Facts`.
 2. r[annot.facts-of.target] A use of `facts_of` must be a direct call whose one argument names a module-level function declaration. The name may go through a module qualifier or a `use` import. The argument is not evaluated.
 3. r[annot.facts-of.result.compiler-decorators.v2] The call returns a `Facts` that holds the values attached to that function, in source order. Missing or extra arguments follow the ordinary call rules. Compiler decorators attach no value, so the result leaves out `@derive`, `@error`, `@from`, `@source`, `@intrinsic`, `@annotate`, `@num_suffix`, `@str_prefix`, `@inline`, `@cold`, `@auto_closing`, and `@cfg` lines.
 4. r[annot.facts-of.target.error] Any other argument is an error. That covers a closure, a local binding, a parameter, a method, a field access, a call, a type, and a non-function binding. So is `facts_of` used as a value. Error: `invalid-facts-of-target`. `invalid-facts-of-target` covers only an argument that resolves to something other than a module-level function.
 5. r[annot.facts-of.target.unresolved] An argument that names nothing reports the error that the same name reports anywhere else, because name resolution fails first. A name that is not defined is `unknown-name`, a module member that its module does not declare is `unknown-import` by [`expr.name.qualified.missing`](05-expressions.md#r-expr.name.qualified.missing), and `Type::name` where the type has no member `name` is `unknown-method`.
 
 ```text
-use std.annotation.facts_of
+use std.meta.facts_of
 
 fn get_user(id: string) -> string: id
 
@@ -378,7 +378,7 @@ from the declaration in a
 [derivation block with no trait](#derivation-blocks-with-no-trait):
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct User:
     display_name: string
@@ -423,7 +423,7 @@ Otherwise the code that reads the value checks it.
 Reusable compositions are ordinary values or lists, not new language syntax:
 
 ```text
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 let email_metadata: List[*dyn Inspectable] = [
     box(min_len(3)),
@@ -442,7 +442,7 @@ A fact type may limit the kinds of target that its values attach to, with
 the standard `@annotate` decorator:
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate(.Field)
 struct MaxLen:
@@ -460,7 +460,7 @@ fn greet() -> string:
     "hi"
 ```
 
-`std.annotation` declares the kinds and the limiting fact type:
+`std.meta` declares the kinds and the limiting fact type:
 
 ```text
 pub enum Target:
@@ -498,11 +498,11 @@ Each target has one kind:
 | r[annot.target.kind.method] Method | a method or associated function of a trait or implementation | `.Method` |
 | r[annot.target.kind.newtype-kind] Newtype | a newtype declaration | `.Newtype` |
 
-1. r[annot.target.declarations] `std.annotation` declares `Target`, `Annotate`, and `annotate`. They are not prelude names, so code imports them, as in `use std.annotation.annotate`.
+1. r[annot.target.declarations] `std.meta` declares `Target`, `Annotate`, and `annotate`. They are not prelude names, so code imports them, as in `use std.meta.annotate`.
 2. r[annot.target.limit] A struct or enum `F` whose type-level facts include an `Annotate` value limits values of type `F` to targets whose kind that value lists.
 3. r[annot.target.limit.kind-error] A value of a limited type attached to a target of any other kind is an error. It is reported on the decorator or member line that attaches it. Error: `decorator-target-kind`.
 4. r[annot.target.unlimited] A type without an `Annotate` fact is not limited: its values may be attached to any target, as `@"note"` may.
-5. r[annot.target.recognized] The compiler recognizes `std.annotation.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
+5. r[annot.target.recognized] The compiler recognizes `std.meta.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
 6. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a struct or an enum.
 7. r[annot.target.kind-only.untyped] For an untyped fact type, one that is not [typed](#member-typed-facts), the compiler checks only the kind. Whether its value suits its target's type or signature is checked by the code that reads the value.
 
@@ -529,7 +529,7 @@ stands for the whole target type. Each value is then checked against the
 fact type at that target's type:
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 use std.num.Integer
 
 @annotate::[T](.Field)
@@ -582,7 +582,7 @@ The check has three steps:
 | 2 | Infers the pattern's parameters from that type, as a call infers them from its one argument | [`annot.typed-fact.infer`](#r-annot.typed-fact.infer) |
 | 3 | Checks the value at the fact type with the inferred arguments | [`annot.typed-fact.check`](#r-annot.typed-fact.check) |
 
-1. r[annot.typed-fact.declare] A struct or enum whose `@annotate` decorator writes a type argument, as in `@annotate::[T](.Field)`, is a **typed fact type**. The compiler recognizes `std.annotation.annotate` by its qualified name and reads that argument.
+1. r[annot.typed-fact.declare] A struct or enum whose `@annotate` decorator writes a type argument, as in `@annotate::[T](.Field)`, is a **typed fact type**. The compiler recognizes `std.meta.annotate` by its qualified name and reads that argument.
 2. r[annot.typed-fact.pattern] That type argument is the fact type's **pattern**, a type over the fact type's own type parameters, such as `T`, `List[T]`, or `fn(T) -> R`. It describes the type of each target that the fact type's values attach to.
 3. r[annot.typed-fact.pattern.scope] Names in the pattern see the fact type's type parameters, as the fact type's own fields do.
 4. r[annot.typed-fact.pattern.trivial] A pattern that is one of those parameters alone, as `T` in `@annotate::[T](.Field)`, is a **trivial pattern**. That parameter is the fact type's **target parameter**, and it is inferred as the target's whole type.
@@ -617,7 +617,7 @@ binding at `Range[i32, G]`, with `G` solved from the value as `string`.
 only to an `i32` target:
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[F](.Field)
 struct Range[F, G]:
@@ -651,7 +651,7 @@ example, `@handler` on `count` checks like
 `let f: Handler[fn(i64) -> i64] = handler()`:
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[F](.Fn)
 struct Handler[F]: pass
@@ -689,7 +689,7 @@ on `ms` infers `T = i32` and `R = Duration`, as a call
 value then checks like `let f: FnFact[i32, Duration] = fn_fact()`:
 
 ```text
-use std.annotation.annotate
+use std.meta.annotate
 use std.num.Num
 
 @annotate::[fn(T) -> R](.Fn, .Field)
@@ -807,7 +807,7 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 
 ```text
 use std.error.Error
-use std.structure.Structure
+use std.meta.Structure
 
 @derive(Error)  # error: underivable-trait
 enum LoadError:
@@ -828,9 +828,9 @@ impl Show for Point by Structure:  # error: overlapping-impl
 > **Note.** An error type uses the separate `@error` intrinsic, as
 > [Error Derivation](#error-derivation) defines.
 
-### The `std.structure` Module
+### The `std.meta` Module
 
-The module `std.structure` declares the derivation protocol. The compiler
+The module `std.meta` declares the derivation protocol. The compiler
 supplies every body written `pass`:
 
 ```text
@@ -929,7 +929,7 @@ pub trait Source[S < ?Copy] < ?Copy:
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
 
-1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `FieldRecord`, `Variant`, `VariantRecord`, `Members`, `MembersRecord`, `Key`, `KeyRecord`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo` and the four record types are struct values: a copy is independent of the value it was copied from. `Field`, `Variant`, `Members`, and `Key` are read-only counted references to a `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` respectively.
+1. r[annot.structure.decl] The standard module `std.meta` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `FieldRecord`, `Variant`, `VariantRecord`, `Members`, `MembersRecord`, `Key`, `KeyRecord`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo` and the four record types are struct values: a copy is independent of the value it was copied from. `Field`, `Variant`, `Members`, and `Key` are read-only counted references to a `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` respectively.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
 3. r[annot.structure.reference-facts] `Facts` holds shared references to the facts attached to one type, member, variant, or module-level function, in source order.
 4. r[annot.structure.find-copy] `facts.find::[F]()` copies the first fact of concrete type `F` through `downcast_ref`, or returns `.None`.
@@ -941,13 +941,13 @@ pub trait Source[S < ?Copy] < ?Copy:
 10. r[annot.structure.members.id] `members.id()` returns a `usize` that identifies the member directory `members` refers to. Two different directories in one program instance have different ids, and every call on one directory returns the same id.
 11. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information. The keys and the member directory of one variant live as long as the program.
 12. r[annot.structure.lookup-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
-13. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
+13. r[annot.structure.self-ref-enum] `std.meta` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
 14. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
-15. r[annot.structure.opaque] `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` are opaque outside `std.structure`: they have private fields that the declarations above omit. A literal of one, or a copy-update of one, in another module is an error. Error: `private-member`.
+15. r[annot.structure.opaque] `FieldRecord`, `VariantRecord`, `MembersRecord`, and `KeyRecord` are opaque outside `std.meta`: they have private fields that the declarations above omit. A literal of one, or a copy-update of one, in another module is an error. Error: `private-member`.
 
 ```text
-use std.inspect.Inspectable
-use std.structure.Facts
+use std.meta.Inspectable
+use std.meta.Facts
 
 fn fact_or[M < Inspectable](facts: Facts, fallback: M) -> M:
     match facts.find::[M]():
@@ -998,7 +998,7 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 > Borrowed fields let standard derivations inspect it without acquiring it.
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct Point:
     x: i64
@@ -1036,7 +1036,7 @@ A template is a trait's one derived implementation, written over
 `Structure`:
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 impl[T] Encode for T by Structure:
     fn encode(self) -> string:
@@ -1059,7 +1059,7 @@ impl[T] Encode for T by Structure:
 12. r[annot.template.checked] The instantiated implementation is type-checked at its opt-in, where the member types and the walker's bounds are both known.
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 trait Tagged:
     fn tag(self) -> string:
@@ -1102,7 +1102,7 @@ through the tuple's [Structure](#tuple-structure):
 
 ```text
 use std.ops.Tuple
-use std.structure.Structure
+use std.meta.Structure
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
@@ -1129,7 +1129,7 @@ impl[T < Tuple] Encode for T by Structure:
 A derivation block applies one template to one type and may configure it:
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct Order:
     id: i64
@@ -1145,7 +1145,7 @@ impl Encode for Order by Structure:
 1. r[annot.block.form] `impl Trait for X by Structure:` is a **derivation block**: it applies the template of `Trait` to `X`.
 2. r[annot.block.template] `Trait` must have a template. A block for a trait without one is an error, and so is a block for `Eq`, `PartialOrd`, `Ord`, or `Hash`, whose templates only `@derive` instantiates. Error: `underivable-trait`.
 3. r[annot.block.module] A derivation block must be declared in the module that declares `X`. One declared elsewhere is an error. Error: `misplaced-derivation`.
-4. r[annot.block.structure-use] In an implementation header, `Structure` after `by` must name `std.structure.Structure`, imported with `use std.structure.Structure` like any other name. Without that import, `Structure` is unknown. Error: `unknown-trait`.
+4. r[annot.block.structure-use] In an implementation header, `Structure` after `by` must name `std.meta.Structure`, imported with `use std.meta.Structure` like any other name. Without that import, `Structure` is unknown. Error: `unknown-trait`.
 5. r[annot.block.not-delegation] `by Structure` is never a delegation, as [`trait.by.structure`](09-traits.md#r-trait.by.structure) also states.
 6. r[annot.block.methods] A block may write a method of the trait. The written method replaces the template's method, as a written method replaces a default.
 7. r[annot.block.lines] A block may carry [member lines](#member-lines), which edit the `Structure` that this derivation sees.
@@ -1155,7 +1155,7 @@ impl Encode for Order by Structure:
 11. r[annot.block.newtype.error] A derivation block whose target is a newtype is an error, reported on the block. Error: `misplaced-derivation`.
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 type Meters(i64)
 
@@ -1201,7 +1201,7 @@ lines to write shared metadata, as
 9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block, with or without a trait, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct Pair:
     left: i64
@@ -1234,7 +1234,7 @@ impl Show for Reply by Structure:
 5. r[annot.omit.only-code] `= pass` is the only member line that changes generated code. Every other line changes only facts.
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct Audit:
     at: i64
@@ -1261,7 +1261,7 @@ so omitting one, as `Audit = pass` above, is always this error.
 
 ```hd
 use std.serde.{Deserialize, Serialize}
-use std.structure.Structure
+use std.meta.Structure
 
 struct Session:
     id: i64
@@ -1284,7 +1284,7 @@ A derivation block with no trait writes shared metadata for one type,
 away from its declaration. It names no trait and derives nothing:
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct User:
     @max_len(80)
@@ -1322,7 +1322,7 @@ change the type of a member.
 16. r[annot.no-trait.unique] A type has at most one derivation block with no trait. A second one is an error, reported on the second block. Error: `overlapping-impl`.
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct Token:
     text: string = ""
@@ -1386,7 +1386,7 @@ fn key_for(style: Style, m: Member) -> string:
 17. r[annot.fact.duplicate-decorator] Two decorators before one declaration whose type-level facts have one concrete type are an error, reported on the later decorator. Error: `duplicate-fact`.
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 @style(prefix="p_")
 struct Plain:
@@ -1498,7 +1498,7 @@ fn show(p: Point) -> string:
 3. r[annot.describe.error] The first `.Err` ends the traversal and is returned, as for `walk`.
 
 ```hd
-use std.structure.{Describer, Field, Structure, Variant}
+use std.meta.{Describer, Field, Structure, Variant}
 
 struct NameList:
     pub names: List[string]
@@ -1579,7 +1579,7 @@ fn demo() -> Config:
 19. r[annot.variant.included-positional-default] A manually constructed `VariantInfo` defaults `included_positional` to `0`.
 
 ```hd
-use std.structure.{Describer, Field, Structure, Variant}
+use std.meta.{Describer, Field, Structure, Variant}
 
 struct Info:
     pub lines: List[string]
@@ -1829,7 +1829,7 @@ A fact on a source implementation tells generated `build` which members
 the source never receives:
 
 ```hd
-use std.structure.{Source, Variant, Field, Members, Key, fills_defaults}
+use std.meta.{Source, Variant, Field, Members, Key, fills_defaults}
 
 trait Zero:
     fn zero() -> Self
@@ -1849,7 +1849,7 @@ A template that passes `Zeroes` to `build` gives a member written
 `label: Name = Name { text: "none" }` its declared default, so `Name` need
 not implement `Zero`.
 
-1. r[annot.impl-fact.fills-defaults.decl] `std.structure` declares the fact type `FillsDefaults`, limited to implementations by `@annotate(.Impl)`, and `fills_defaults() -> FillsDefaults`. The compiler recognizes `std.structure.fills_defaults` by its qualified name.
+1. r[annot.impl-fact.fills-defaults.decl] `std.meta` declares the fact type `FillsDefaults`, limited to implementations by `@annotate(.Impl)`, and `fills_defaults() -> FillsDefaults`. The compiler recognizes `std.meta.fills_defaults` by its qualified name.
 2. r[annot.impl-fact.fills-defaults] When a template's `build` call passes a source whose implementation carries `fills_defaults()`, generated `build` fills each member that declares a default from that default. It never offers such a member to the source.
 3. r[annot.impl-fact.fills-defaults.exempt] Such a member's type need not satisfy that source's bounds.
 4. r[annot.impl-fact.fills-defaults.scope] The fact changes only that derivation. Every other derivation of the type still walks, describes, and builds the member.
@@ -1859,8 +1859,8 @@ A walker, describer, or source may also name a field fact whose members it
 never receives:
 
 ```hd
-use std.annotation.annotate
-use std.structure.{Walker, Variant, Field, skips}
+use std.meta.annotate
+use std.meta.{Walker, Variant, Field, skips}
 
 @annotate(.Field)
 struct Skip: pass
@@ -1880,7 +1880,7 @@ impl[S] Walker[S] for Writing:  # variant elided
 A template that passes `Writing` never sees a member marked `@skip()`, so
 that member's type need not implement `Write`.
 
-6. r[annot.impl-fact.skips.decl] `std.structure` declares the fact type `Skips[F]`, limited to implementations by `@annotate(.Impl)`, and `skips[F]() -> Skips[F]`. The compiler recognizes `std.structure.skips` by its qualified name and reads its type argument.
+6. r[annot.impl-fact.skips.decl] `std.meta` declares the fact type `Skips[F]`, limited to implementations by `@annotate(.Impl)`, and `skips[F]() -> Skips[F]`. The compiler recognizes `std.meta.skips` by its qualified name and reads its type argument.
 7. r[annot.impl-fact.skips] When a template passes a walker, describer, or source whose implementation carries `skips::[F]()`, a member whose known facts hold a value of type `F` is omitted. It is omitted as `= pass` omits it, by [`annot.omit.skip`](#r-annot.omit.skip) and [`annot.omit.default`](#r-annot.omit.default).
 8. r[annot.impl-fact.skips.known] A member's **known facts** are its decorators' values and the elements of the list literals its member lines write. A fact that a named list or a spread brings is not known, as [`annot.line.duplicate`](#r-annot.line.duplicate) states.
 9. r[annot.impl-fact.skips.exempt] An omitted member's type need not satisfy any bound of that derivation's walkers, describers, or sources.
@@ -2108,7 +2108,7 @@ pub trait Deserializer:
         false
 ```
 
-1. r[annot.serde.module.v2] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.structure`](#the-stdstructure-module).
+1. r[annot.serde.module.v2] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.meta`](#the-stdmeta-module).
 2. r[annot.serde.known] The compiler knows `Serialize` and `Deserialize` by name, for the boundary rule [`module.boundary.out`](10-modules.md#r-module.boundary.out). It knows no other part of `std.serde`.
 3. r[annot.serde.not-sealed] None of the five items is sealed. Any package may implement the four traits.
 

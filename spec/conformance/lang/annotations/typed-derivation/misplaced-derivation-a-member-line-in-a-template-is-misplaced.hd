@@ -1,5 +1,5 @@
 # test: a member line in a template is misplaced
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 pub trait Show:
     fn show(self) -> string

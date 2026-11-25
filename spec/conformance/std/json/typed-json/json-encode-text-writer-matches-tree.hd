@@ -2,7 +2,7 @@
 # Spec std/json Encode And Decode, Compact Text, Pretty Text: std-json.encode, std-json.encode-pretty, std-json.display.text, std-json.display.escapes, std-json.pretty.layout, std-json.derive.to-json.included-enum-form, std-json.derive.to-json.unit-form, std-json.std.float-special (issue 359).
 use std.json.{encode, encode_pretty, to_json, Json, JsonObject, Number}
 use std.serde.{Serialize, Serializer}
-use std.structure.{Member, VariantInfo, Facts, SelfRef}
+use std.meta.{Member, VariantInfo, Facts, SelfRef}
 use std.testing.{assert_equal, Choices, it_prop_with}
 
 # The old renderer: every byte pushed onto a list, one at a time, and the

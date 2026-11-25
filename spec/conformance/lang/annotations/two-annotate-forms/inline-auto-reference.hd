@@ -1,6 +1,6 @@
 # test: inline Auto accepts a reference parameter
 # Spec 14 Inline And Cold: annot.inline.auto.
-use std.annotation.inline
+use std.meta.inline
 
 @inline
 fn first(values: &List[i32]) -> i32:

@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # annot.inline.declared.v2: named hint is accepted; wrong names and arities are rejected.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(hint=.Never)
 fn accepted() -> void:

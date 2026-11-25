@@ -4,8 +4,8 @@
 # expect-stdout: 1
 # expect-stdout: a=-/counted;
 # expect-stdout: 1
-use std.inspect.Inspectable
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.Inspectable
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Tag:
     text: string

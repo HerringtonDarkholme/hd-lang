@@ -5,7 +5,7 @@
 # `Inner`'s and `List[i32]`'s. The inliner's cycles are instances, not
 # functions, so none of these is a cycle, every copy folds, and `entry`
 # keeps only the fast arm.
-use std.structure.{Structure, Describer, Variant, Field}
+use std.meta.{Structure, Describer, Variant, Field}
 
 trait Fast:
     fn regular() -> bool

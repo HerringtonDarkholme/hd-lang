@@ -1,6 +1,6 @@
 # test: a closure is not inspectable
 # Spec 09 Inspectable Types: function types, closures, and function values are not inspectable.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 fn erase() -> void:
     let erased: &dyn Inspectable = &(fn(x: i32) -> i32: x + 1) # diagnostic: type-mismatch

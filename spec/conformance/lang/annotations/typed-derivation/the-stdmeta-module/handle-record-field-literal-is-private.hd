@@ -1,6 +1,6 @@
 # test: a user module cannot build a FieldRecord, even by copying an existing handle record
 # Spec 14 Structure: annot.structure.opaque.
-use std.structure.{FieldRecord, Member}
+use std.meta.{FieldRecord, Member}
 
 struct Victim:
     value: i32

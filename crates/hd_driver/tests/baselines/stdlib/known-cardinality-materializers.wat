@@ -109,7 +109,7 @@
         i32.eq
         if
           local.get $t7
-          i32.const 12
+          i32.const 10
           call_indirect $table0 (param i32) (result i32)
           local.tee $t7
           local.set $t0
@@ -143,7 +143,7 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 284 ;; &"windows: size must be positive"
+      i32.const 146 ;; &"windows: size must be positive"
       i32.const 30
       i32.const 7
       call_indirect $table0 (param i32 i32)
@@ -202,7 +202,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 16
+          i32.const 13
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -482,7 +482,7 @@
         i32.eq
         if
           local.get $t7
-          i32.const 22
+          i32.const 19
           call_indirect $table0 (param i32) (result i32)
           local.tee $t7
           local.set $t1
@@ -511,7 +511,7 @@
       end
     end
     local.get $t1
-    i32.const 23
+    i32.const 20
     i32.const 0
     call $"impl[T] List[T].sorted_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]"
     local.get $t1
@@ -885,7 +885,7 @@
           i32.eq
           if
             local.get $t7
-            i32.const 25
+            i32.const 22
             call_indirect $table0 (param i32) (result i32)
             local.tee $t7
             local.set $t1
@@ -1287,7 +1287,7 @@
           i32.eq
           if
             local.get $t8
-            i32.const 12
+            i32.const 10
             call_indirect $table0 (param i32) (result i32)
             local.tee $t8
             local.set $t1
@@ -1500,7 +1500,7 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 949 ;; &"chunks: size must be positive"
+      i32.const 880 ;; &"chunks: size must be positive"
       i32.const 29
       i32.const 7
       call_indirect $table0 (param i32 i32)
@@ -1583,7 +1583,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 16
+          i32.const 13
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -1708,7 +1708,7 @@
         i32.eq
         if
           local.get $t6
-          i32.const 22
+          i32.const 19
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
           local.set $t0
@@ -1849,7 +1849,7 @@
           i32.eq
           if
             local.get $t3
-            i32.const 22
+            i32.const 19
             call_indirect $table0 (param i32) (result i32)
             local.tee $t3
             local.set $t1
@@ -2144,7 +2144,7 @@
         i32.eq
         if
           local.get $t7
-          i32.const 12
+          i32.const 10
           call_indirect $table0 (param i32) (result i32)
           local.tee $t7
           local.set $t0
@@ -2178,7 +2178,7 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 290 ;; &"windows: size must be positive"
+      i32.const 152 ;; &"windows: size must be positive"
       i32.const 30
       i32.const 7
       call_indirect $table0 (param i32 i32)
@@ -2237,7 +2237,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 16
+          i32.const 13
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -2517,7 +2517,7 @@
         i32.eq
         if
           local.get $t7
-          i32.const 22
+          i32.const 19
           call_indirect $table0 (param i32) (result i32)
           local.tee $t7
           local.set $t1
@@ -2546,7 +2546,7 @@
       end
     end
     local.get $t1
-    i32.const 23
+    i32.const 20
     i32.const 0
     call $"impl[T] List[T].sorted_by[(i32, usize), fn(&(i32, usize), &(i32, usize)) -> Ordering]"
     local.get $t1
@@ -2932,7 +2932,7 @@
           i32.eq
           if
             local.get $t7
-            i32.const 25
+            i32.const 22
             call_indirect $table0 (param i32) (result i32)
             local.tee $t7
             local.set $t1
@@ -3334,7 +3334,7 @@
           i32.eq
           if
             local.get $t8
-            i32.const 12
+            i32.const 10
             call_indirect $table0 (param i32) (result i32)
             local.tee $t8
             local.set $t1
@@ -3547,7 +3547,7 @@
     local.get $t0
     i32.eqz
     if
-      i32.const 1285 ;; &"chunks: size must be positive"
+      i32.const 1216 ;; &"chunks: size must be positive"
       i32.const 29
       i32.const 7
       call_indirect $table0 (param i32 i32)
@@ -3630,7 +3630,7 @@
         i32.eq
         if
           local.get $t8
-          i32.const 16
+          i32.const 13
           call_indirect $table0 (param i32) (result i32)
           local.tee $t8
           local.set $t1
@@ -3755,7 +3755,7 @@
         i32.eq
         if
           local.get $t6
-          i32.const 22
+          i32.const 19
           call_indirect $table0 (param i32) (result i32)
           local.tee $t6
           local.set $t0
@@ -3896,7 +3896,7 @@
           i32.eq
           if
             local.get $t3
-            i32.const 22
+            i32.const 19
             call_indirect $table0 (param i32) (result i32)
             local.tee $t3
             local.set $t1

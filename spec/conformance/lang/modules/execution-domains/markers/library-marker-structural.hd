@@ -1,6 +1,6 @@
 # test: a struct whose fields have a library marker has it too, with no implementation written
 # Spec 10 Markers: module.marker.structural, module.marker.supplied.
-use std.marker.Marker
+use std.meta.Marker
 
 pub trait GpuData < Marker
 

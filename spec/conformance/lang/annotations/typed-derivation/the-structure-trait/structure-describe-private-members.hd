@@ -1,6 +1,6 @@
 # test: describe reaches every member of an opted-in type, private ones included
 # Spec 14 The Structure Trait: annot.structure.private.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 trait Named:
     fn type_name() -> string

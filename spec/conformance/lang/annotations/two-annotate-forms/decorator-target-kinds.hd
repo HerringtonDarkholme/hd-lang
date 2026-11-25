@@ -2,7 +2,7 @@
 # Spec 14 Target Kinds: annot.target.declarations, annot.target.limit,
 # annot.target.recognized, annot.target.kind-only.untyped.
 # `@annotate(.Fn, .Method, .Param)` allows functions, methods, and parameters.
-use std.annotation.{annotate, Target}
+use std.meta.{annotate, Target}
 
 @annotate(.Fn, .Method, .Param)
 struct Doc:

@@ -37,7 +37,7 @@ wins.
 | --- | --- | --- |
 | `std.task` | `all` | `join!` has no writable signature; the emitter lowers it through the `task_all` key |
 | `std.ops` | `Fn`, `SuspendFn` | function-type syntax lowers to these constructors; `Tuple` stays in `ops.hd` |
-| `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
+| `std.meta` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
 | `std.testing` | `it` | intrinsic body (`test_case`) |
 | `std.rt.entry` | `entry_status`, `entry_status_error`, `entry_status_dyn_ref`, `host_provider`, `entry_write` | hd functions in the virtual `rt/entry/mod.hd` (`hd_driver::RT_SOURCE`) report entry and test results over the `entry_write` intrinsic |
 
@@ -136,7 +136,7 @@ registry.
 | `@annotate::[F](.Fn)` | `std.ops.NumSuffix[F]`, `std.ops.StrPrefix[F]` |
 | `@annotate(.Variant)` | `std.ops.DefaultVariant` |
 | `@annotate::[F](.Field)` | `std.testing.arbitrary.With[F]` |
-| `@annotate(.Data, .Enum)` | `std.annotation.Annotate` itself (the spec's self-bootstrap rule) |
+| `@annotate(.Data, .Enum)` | `std.meta.Annotate` itself (the spec's self-bootstrap rule) |
 | `@str_prefix` | `std.text.r` |
 | `@num_suffix` | `std.time.ms`, `s`, `min`, `h` |
 

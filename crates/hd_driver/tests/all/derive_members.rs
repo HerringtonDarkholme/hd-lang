@@ -34,7 +34,7 @@ fn messages(out: &Output) -> Vec<String> {
 /// template, which gets its walker from `WALKER` (an expression).
 fn show_lib(walker: &str) -> String {
     format!(
-        "use std.structure.{{Structure, Field, Variant, Walker}}
+        "use std.meta.{{Structure, Field, Variant, Walker}}
 
 trait Show:
     fn show(self) -> string

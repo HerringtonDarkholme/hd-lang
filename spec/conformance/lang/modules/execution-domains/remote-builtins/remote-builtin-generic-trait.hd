@@ -1,6 +1,6 @@
 # test: remote::[T] takes a generic remote trait with its type arguments written
 # Spec 10 Remote Built-Ins: module.remote.builtin.remote.trait.
-use std.marker.Wire
+use std.meta.Wire
 use std.remote.{CrossError, Remote, Transport, remote}
 
 enum StoreError:

@@ -1,6 +1,6 @@
 # test: each type's block with no trait applies to that type alone, whichever derivation reads its facts
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.form, annot.no-trait.after-decorators.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

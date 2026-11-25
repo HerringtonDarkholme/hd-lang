@@ -1,6 +1,6 @@
 # test: an embedded part has no default syntax, so omitting it is always an error
 # Spec 14 Omitted Members: annot.omit.no-default, with data.default.embedded (M27).
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

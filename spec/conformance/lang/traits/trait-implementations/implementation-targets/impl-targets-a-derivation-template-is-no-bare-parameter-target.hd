@@ -1,5 +1,5 @@
 # test: a derivation template is no bare parameter target
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

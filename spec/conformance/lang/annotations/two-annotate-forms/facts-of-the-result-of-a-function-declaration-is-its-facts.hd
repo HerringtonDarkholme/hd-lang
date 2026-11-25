@@ -1,5 +1,5 @@
 # test: facts of the result of a function declaration is its facts
-use std.annotation.facts_of
+use std.meta.facts_of
 
 @"label"
 fn tagged() -> void:

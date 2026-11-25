@@ -6,7 +6,7 @@
 # traversal and the describer's hooks are copied, the `?` arms that a
 # known `.Ok(())` rules out are dead, and the copy makes one constant,
 # so `entry` keeps only the fast arm, for a nested type too.
-use std.structure.{Structure, Describer, Variant, Field}
+use std.meta.{Structure, Describer, Variant, Field}
 
 trait Fast:
     fn regular() -> bool

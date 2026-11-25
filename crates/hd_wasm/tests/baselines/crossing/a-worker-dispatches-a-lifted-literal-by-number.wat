@@ -203,7 +203,7 @@
                 end
               end
               local.get $provider0.vtable
-              i32.const 2336 ;; &vtable[rt:dyn_slot, rt:drive]
+              i32.const 2328 ;; &vtable[rt:dyn_slot, rt:drive]
               local.set $provider0.vtable
               local.get $t1
               local.get $provider0.vtable
@@ -213,7 +213,7 @@
               local.get $provider0.vtable
               i32.store $heap offset=8
     ;; 16 |     name := "thumb"
-              i32.const 704 ;; &"thumb"
+              i32.const 736 ;; &"thumb"
               local.get $t1
               i32.const 5
               i32.store $heap offset=20
@@ -241,7 +241,7 @@
                 local.get $provider0.vtable
                 call $retain
               end
-              i32.const 21
+              i32.const 22
               local.get $t1
               i32.const 0
               i32.store $heap offset=36
@@ -260,7 +260,7 @@
               local.get $provider0.vtable
               call $"crossing_number[fn((u32)) -> u32]"
               local.set $t3
-              i32.const 22
+              i32.const 23
               i32.const 24
               i32.const -2147483646
               call $rt:new/class-2
@@ -517,7 +517,7 @@
             local.get $t1
             local.get $provider0.vtable
             i32.store $heap offset=68
-            i32.const 23
+            i32.const 24
             local.get $t1
             i32.const 0
             i32.store $heap offset=80
@@ -536,7 +536,7 @@
             local.get $provider0.vtable
             call $"crossing_number[fn((string)) -> string]"
             local.set $t3
-            i32.const 24
+            i32.const 25
             i32.const 24
             i32.const -2147483645
             call $rt:new/class-2
@@ -870,7 +870,7 @@
           i32.add
           i32.const 32
           i32.store8 $heap
-          i32.const 709 ;; &" "
+          i32.const 741 ;; &" "
           call $rt:release_ref'2
           local.get $self.2
           local.get $provider0

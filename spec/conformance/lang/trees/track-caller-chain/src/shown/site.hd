@@ -1,4 +1,4 @@
-use std.debug.Location
+use std.meta.Location
 
 # Reads only its call's location, so its records hold no argument texts.
 @track_caller

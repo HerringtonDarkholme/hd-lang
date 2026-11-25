@@ -3,7 +3,7 @@
 # expect-stdout: false
 # expect-stdout: true
 # Spec 09 Inspectable Types: trait.inspectable.collections, trait.inspectable.union.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 type Choice = i32 | string
 

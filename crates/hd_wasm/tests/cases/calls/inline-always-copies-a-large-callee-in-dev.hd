@@ -1,6 +1,6 @@
 # @dump: wat
 # `@inline(.Always)` has no instruction limit, including in a dev build.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always)
 fn mix(value: i32) -> i32:

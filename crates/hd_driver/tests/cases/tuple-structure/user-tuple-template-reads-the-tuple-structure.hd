@@ -4,7 +4,7 @@
 # `name()` is `""`, the one variant is named `""` with `of_data` true, and
 # the members are `_0`, `_1`... positional, not embedded.
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Walker, Describer}
+use std.meta.{Structure, Field, Variant, Walker, Describer}
 
 trait Shape:
     fn shape(self) -> string

@@ -110,12 +110,12 @@
   (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const -1240979003453888366
-    i32.const 6
+    i32.const 8
     local.tee $t0
     i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 7
+    i32.const 9
     i32.const 24
     i32.const -2147483647
     call $rt:new/class-2
@@ -321,12 +321,12 @@
   (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const -1240979003453888366
-    i32.const 6
+    i32.const 8
     local.tee $t0
     i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 7
+    i32.const 9
     i32.const 24
     i32.const -2147483647
     call $rt:new
@@ -537,12 +537,12 @@
   (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const -1240979003453888366
-    i32.const 6
+    i32.const 8
     local.tee $t0
     i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 7
+    i32.const 9
     i32.const 24
     i32.const -2147483647
     call $rt:new/class-2
@@ -764,12 +764,12 @@
   (func $"apply[u64]" (param $t1 i64) (param $n i32) (result i32) (local $t0 i32) (local $t2 i32)
     ;; 14 |     run(fn() -> i32: n + 1)
     i64.const -1240979003453888366
-    i32.const 6
+    i32.const 8
     local.tee $t0
     i32.const 0
     call $"crossing_number[fn((i32)) -> i32]"
     local.set $t1
-    i32.const 7
+    i32.const 9
     i32.const 24
     i32.const -2147483647
     call $rt:new

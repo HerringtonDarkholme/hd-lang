@@ -1,7 +1,7 @@
 # test: inlined factories preserve function result variance
 # Spec: fn.type.declared-variance; fn.type.variance-repr.
 # expect: test
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn read(value: &i32) -> i32:

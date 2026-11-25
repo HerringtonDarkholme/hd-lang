@@ -1104,7 +1104,7 @@ for it is a **crossing closure**, which runs in another
 [execution domain](10-modules.md#execution-domains):
 
 ```text
-use std.marker.Wire
+use std.meta.Wire
 
 struct Image:
     width: u32
@@ -1162,7 +1162,7 @@ the closure. The mode is never written:
 4. r[fn.crossing.global.runtime] The storage of the runtime modules, by [`module.rt.leaf`](10-modules.md#r-module.rt.leaf), is not such a binding: it is the instance's own, not the program's.
 
 ```text
-use std.marker.{Send, Wire}
+use std.meta.{Send, Wire}
 
 fn run[T < Wire](code: fn() -> T + Wire) -> T:
     code()
@@ -1544,10 +1544,10 @@ pub fn main() -> void:
 ## Call-Site Locations
 
 A `@track_caller` function knows where it was called. Two accessors on
-`std.debug.Location` read that call site:
+`std.meta.Location` read that call site:
 
 ```hd
-use std.debug.Location
+use std.meta.Location
 
 @track_caller
 fn check_positive(value: i32) -> void:
@@ -1568,9 +1568,9 @@ pub fn main() -> void:
 7. r[fn.caller.record.args] A record holds argument texts only when its callee calls `Location::caller_args()`, directly or through a chain of `@track_caller` functions.
 8. r[fn.caller.chain] Inside a `@track_caller` function, a direct call of another `@track_caller` function passes the outer call's record on. So both accessors describe the outermost call.
 9. r[fn.caller.value] A `@track_caller` function used as a value binds the record of the place where the value is created, with no argument texts. A call through a function value passes no hidden argument.
-10. r[fn.caller.accessor.location] `std.debug` declares `@intrinsic pub fn caller() -> Location` on `Location`. It returns the location of the call whose record the function received.
+10. r[fn.caller.accessor.location] `std.meta` declares `@intrinsic pub fn caller() -> Location` on `Location`. It returns the location of the call whose record the function received.
 11. r[fn.caller.location] A `Location` holds the file as diagnostics name it, and the 1-based line and column where the call begins. The column counts characters.
-12. r[fn.caller.accessor.args] `std.debug` declares `@intrinsic pub fn caller_args() -> List[CallArg]` on `Location`. It returns one `CallArg` for each argument of that call, in order, with its source text, `start`, and `end`.
+12. r[fn.caller.accessor.args] `std.meta` declares `@intrinsic pub fn caller_args() -> List[CallArg]` on `Location`. It returns one `CallArg` for each argument of that call, in order, with its source text, `start`, and `end`.
 13. r[fn.caller.accessor.args.complete] The argument texts are known for a call with no spread and no trailing block, its named arguments included. For any other call, the list is empty.
 14. r[fn.caller.accessor.args.name] The list holds the call's arguments in source order, positional and named. A `CallArg`'s `name` is the parameter name of a named argument, and none for a positional one. Its text and span are the argument's value, without the name.
 15. r[fn.caller.accessor.args.end] A `CallArg`'s `end` is the location just after the argument's last character.
@@ -1579,7 +1579,7 @@ pub fn main() -> void:
 18. r[fn.caller.frames] A panic report's frame list leaves out each frame in the body of a `@track_caller` function, the closures it contains included. So the list names the caller where the function was called.
 
 ```hd
-use std.debug.Location
+use std.meta.Location
 
 fn plain() -> u32:
     Location::caller().line  # error: caller-outside-track-caller

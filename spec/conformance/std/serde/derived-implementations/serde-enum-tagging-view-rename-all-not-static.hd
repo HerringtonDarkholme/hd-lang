@@ -1,7 +1,7 @@
 # test: a per-trait RenameAll on a tagged enum names its style directly
 # Rule: std-serde.enum-tagging.view-rename-all-static.
 use std.serde.{RenameAll, RenameCase, Serialize, tag}
-use std.structure.Structure
+use std.meta.Structure
 
 fn style() -> RenameCase:
     .CamelCase

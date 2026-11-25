@@ -1,7 +1,7 @@
 # @dump: wat
 # @build: release std
 # expected: entry-path growth, cold and host wrappers remain calls; conditional fast paths and Always still inline
-use std.annotation.{inline, cold}
+use std.meta.{inline, cold}
 use std.rt.memory.grow
 
 fn reserve_pages(count: usize) -> usize:

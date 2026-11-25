@@ -9,7 +9,7 @@
 use std.collections.UniqList
 use std.format.DebugWriter
 use std.serde.{Deserialize, Deserializer, ValueKind, member_name}
-use std.structure.{Facts, Member, VariantInfo}
+use std.meta.{Facts, Member, VariantInfo}
 use std.rt.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
 
 # A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of

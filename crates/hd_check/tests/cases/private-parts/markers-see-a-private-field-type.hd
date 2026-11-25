@@ -2,7 +2,7 @@
 # A public struct whose fields are a private struct and a private enum of
 # another module has each marker its parts have (`module.marker.structural`).
 use pkg.shapes.{Wrapper, make}
-use std.marker.{Send, Sync, Wire}
+use std.meta.{Send, Sync, Wire}
 
 fn need[T < ?Copy & Send & Sync & Wire]() -> void:
     pass

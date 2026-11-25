@@ -1,6 +1,6 @@
 # test: a derivation block may state generic parameters and bounds, and the derived implementation has those bounds
 # Spec 14 Derivation Blocks: annot.block.header; the bound T < Shown meets the walker's bound on the member.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 trait Shown:
     fn shown(self) -> string
 

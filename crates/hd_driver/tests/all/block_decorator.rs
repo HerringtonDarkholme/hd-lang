@@ -45,7 +45,7 @@ const STYLE: &str = include_str!("programs/block_decorator/style.hd");
 fn cached_rebuild_stays_quiet() {
     // Ordinary cold and warm checks do not retain lint-only advice.
     let src = format!(
-        "use std.structure.Structure
+        "use std.meta.Structure
 
 {STYLE}
 struct Loud:
