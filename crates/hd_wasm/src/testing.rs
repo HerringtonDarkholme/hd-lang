@@ -91,6 +91,42 @@ pub mod cycle_graph {
     pub use crate::cycle_graph::{Graph, Ranks, Shape};
 }
 pub mod emit {
+    use hd_tir::ir::Body;
+
+    type BodyTransform = fn(&str, &Body) -> Option<Body>;
+    thread_local! {
+        static BODY_TRANSFORM: std::cell::Cell<Option<BodyTransform>> = const { std::cell::Cell::new(None) };
+    }
+
+    /// Run a backend stage over hand-built TIR with real program metadata.
+    /// Test-only: one TLS read per link when unarmed; transforms only
+    /// selected bodies when armed. No shipped build contains the hook.
+    pub fn with_body_transform<R>(transform: BodyTransform, run: impl FnOnce() -> R) -> R {
+        struct Restore(Option<BodyTransform>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                BODY_TRANSFORM.set(self.0);
+            }
+        }
+        let _restore = Restore(BODY_TRANSFORM.replace(Some(transform)));
+        run()
+    }
+
+    pub(crate) fn transformed_bodies(
+        input: &crate::Input<'_>,
+    ) -> Option<hd_base::HashMap<hd_base::InstId, Body>> {
+        let transform = BODY_TRANSFORM.get()?;
+        Some(
+            input
+                .order
+                .iter()
+                .filter_map(|&id| {
+                    let original = (input.body)(id)?;
+                    transform(&(input.path)(original.item), original).map(|body| (id, body))
+                })
+                .collect(),
+        )
+    }
     pub use crate::emit::{Ctl, FrameRefs, OnceCell, int_range, operand_range};
     pub mod borrow {
         pub use crate::emit::borrow::{ANY_FRAME, Borrows, CaptureOrigins};

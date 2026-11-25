@@ -647,7 +647,57 @@ pub fn build_session_extension(
 }
 
 /// Every entry point runs this link with the same layout cache.
+#[cfg(not(feature = "testing"))]
+use link_prepared as link;
+
+#[cfg(feature = "testing")]
 fn link(
+    input: &Input<'_>,
+    track_origins: bool,
+    session: Option<&mut Session>,
+    previous: Option<&Session>,
+) -> StageResult<MappedModule> {
+    let Some(transformed) = testing::emit::transformed_bodies(input) else {
+        return link_prepared(input, track_origins, session, previous);
+    };
+    // Replace final TIR before shared body facts and its ownership boundary.
+    // The hook's local input keeps both consistent throughout emission.
+    let body = |id| transformed.get(&id).or_else(|| (input.body)(id));
+    let boundary = |id| {
+        if transformed.contains_key(&id) {
+            None
+        } else {
+            (input.boundary)(id)
+        }
+    };
+    let test_input = Input {
+        pool: input.pool,
+        env: input.env,
+        shim: input.shim,
+        path: input.path,
+        package_host: input.package_host,
+        package_trait: input.package_trait,
+        package_selectors: input.package_selectors,
+        collected: input.collected,
+        order: input.order,
+        body: &body,
+        boundary: &boundary,
+        float_ops: input.float_ops,
+        entry: input.entry.clone(),
+        release: input.release,
+        optimized: input.optimized,
+        promote_args: input.promote_args,
+        runtime: input.runtime,
+        inline_counts: input.inline_counts,
+        host_refs: input.host_refs,
+        own_cx: input.own_cx,
+        mutation_targets: input.mutation_targets,
+        coinductive_flags: input.coinductive_flags,
+    };
+    link_prepared(&test_input, track_origins, session, previous)
+}
+
+fn link_prepared(
     input: &Input<'_>,
     track_origins: bool,
     session: Option<&mut Session>,
