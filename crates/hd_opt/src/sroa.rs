@@ -25,7 +25,10 @@
 //!    the argument becomes `Ref [$tmp]`, with `$tmp = $x .path` before the
 //!    call and `$x .path = $tmp` after it. Only a call under a condition
 //!    inside its innermost loop qualifies, so the copies stay off the hot
-//!    path, and straight-line code keeps its one address. Only a call
+//!    path, and straight-line code keeps its one address. A loop's exit
+//!    test is no such condition: the arm every round that goes on runs
+//!    (a `for` or `while` body, whose test's other arm breaks) is the
+//!    loop body. Only a call
 //!    whose other arguments are primitives and whose result is `void` or
 //!    `bool` qualifies, so no place the caller can reach may keep the
 //!    address past the call (a local reference parameter outlives nothing
@@ -525,6 +528,9 @@ struct Cold<'a> {
     topo: &'a Topology,
     /// Per block: whether it is cold, once judged.
     memo: Vec<Option<bool>>,
+    /// Per branch: its arms, and how many of them leave the loop's round
+    /// ([`Cold::others_leave`]), once counted.
+    exits: Vec<Option<(u32, u32)>>,
 }
 
 impl<'a> Cold<'a> {
@@ -533,6 +539,7 @@ impl<'a> Cold<'a> {
             b,
             topo,
             memo: vec![None; b.len()],
+            exits: vec![None; b.len()],
         }
     }
 
@@ -566,7 +573,11 @@ impl<'a> Cold<'a> {
                     | Tag::SwitchTag
                     | Tag::SwitchInt
                     | Tag::SwitchChar
-                    | Tag::SwitchStr => break true,
+                    | Tag::SwitchStr
+                        if !self.others_leave(owner as usize, at) =>
+                    {
+                        break true;
+                    }
                     _ => self.topo.blk[owner as usize],
                 }
             };
@@ -579,6 +590,76 @@ impl<'a> Cold<'a> {
             self.memo[c] = Some(answer);
         }
         answer
+    }
+
+    /// Whether every arm of branch `o` but `arm` leaves the round of `o`'s
+    /// innermost loop, so every round that goes on runs `arm`: a loop's
+    /// exit test, the `If` of a `for` or `while` loop whose other arm
+    /// breaks, or a `match` on `next()` whose `None` arm breaks. Such an
+    /// arm is as hot as the loop body around it. Each branch's arms are
+    /// judged once (`exits`), so a `match` of `k` arms costs `k` looks,
+    /// not `k` squared.
+    fn others_leave(&mut self, o: usize, arm: usize) -> bool {
+        let lp = self.topo.loop_of[o];
+        if self.exits[o].is_none() {
+            let (mut arms, mut leaving) = (0u32, 0u32);
+            // An absent arm (an `if` with no `else`) falls through.
+            slots(self.b, o, |_, x, w| {
+                if w == Word::Block {
+                    arms += 1;
+                    leaving += u32::from(
+                        self.b.tags.get(x as usize) == Some(&Tag::Block)
+                            && self.leaves(x as usize, lp),
+                    );
+                }
+            });
+            self.exits[o] = Some((arms, leaving));
+        }
+        let (arms, leaving) = self.exits[o].unwrap_or_default();
+        leaving - u32::from(self.leaves(arm, lp)) == arms - 1
+    }
+
+    /// Whether block `blk` never reaches its end and never comes back to
+    /// loop `lp`'s next round: one of its statements diverges, and is not
+    /// a `Continue` or a `Break` to a label inside `lp`.
+    fn leaves(&self, blk: usize, lp: u32) -> bool {
+        let b = self.b;
+        b.record(b.data[blk][0]).iter().any(|&s| {
+            charge(1);
+            let s = s as usize;
+            s < b.len()
+                && b.ty[s] == Ty::NEVER
+                && match b.tags[s] {
+                    Tag::Continue => false,
+                    Tag::Break => b
+                        .label_inst
+                        .get(b.data[s][0] as usize)
+                        .is_some_and(|&t| !self.within(t, lp)),
+                    _ => true,
+                }
+        })
+    }
+
+    /// Whether instruction `t` lies inside loop `lp` (`lp` itself is not):
+    /// a walk up its owners and blocks, as long as the nesting.
+    fn within(&self, t: u32, lp: u32) -> bool {
+        if lp == NONE || t == lp {
+            return false;
+        }
+        let mut at = t;
+        while (at as usize) < self.b.len() {
+            charge(1);
+            if at == lp {
+                return true;
+            }
+            let owner = self.topo.owner[at as usize];
+            at = if owner == NONE {
+                self.topo.blk[at as usize]
+            } else {
+                owner
+            };
+        }
+        false
     }
 }
 

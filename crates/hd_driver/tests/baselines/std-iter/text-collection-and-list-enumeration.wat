@@ -8,7 +8,7 @@
   (import "fixture" "write_char_sized" (func $write_char_sized (param i32 i32)))
   (import "fixture" "impl ByteBuffer for UniqList[u8].take_text" (func $"impl ByteBuffer for UniqList[u8].take_text" (param i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32 i32)))
+  (import "fixture" "release_value[std.collections.uniq_list.UniqList[u8]]" (func $"release_value[std.collections.uniq_list.UniqList[u8]]" (param i32)))
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -23,19 +23,19 @@
     local.get $t0
     call $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]"
   )
-  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t6 i32) (local $t7 i32) (local $t5 i32) (local $t8 i32)
+  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t5 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 104
+    i32.const 64
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 104
+    i32.const 64
     i32.sub
     local.tee $t0
     global.set $stack
@@ -59,14 +59,44 @@
       i32.const 1
       call $room
       local.set $t2
+      local.get $t0
+      i64.const 0
+      i64.store $heap offset=24
+      local.get $t0
+      i32.const 32
+      i32.add
+      local.tee $t3
+      local.get $t2
+      i32.store $heap
+      local.get $t3
+      i32.const 0
+      i32.store $heap offset=4
+      local.get $t3
+      i32.const 0
+      i32.store $heap offset=8
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=28
       loop
         local.get $t1
         call $"impl[T] Iterator[T] for ListIter[T].next[char]"
-        local.set $t3
+        local.set $t2
         block
           block
             block
-              local.get $t3
+              local.get $t2
               i32.const 1114112
               i32.ne
               i32.eqz
@@ -74,19 +104,19 @@
               br 0
               unreachable
             end
-            local.get $t3
+            local.get $t2
             i32.const 128
             i32.lt_u
             if (result i32)
               i32.const 1
             else
-              local.get $t3
+              local.get $t2
               i32.const 2048
               i32.lt_u
               if (result i32)
                 i32.const 2
               else
-                local.get $t3
+                local.get $t2
                 i32.const 65536
                 i32.lt_u
                 if (result i32)
@@ -98,161 +128,125 @@
             end
             local.tee $t4
             local.tee $t5
-            local.get $t6
-            local.get $t7
+            local.get $t3
+            i32.load $heap offset=4
+            local.get $t3
+            i32.load $heap offset=8
             i32.sub
             i32.gt_u
             if
-              local.get $t0
-              i64.const 0
-              i64.store $heap offset=24
-              local.get $t0
-              i32.const 32
-              i32.add
-              local.tee $t8
-              local.get $t2
-              i32.store $heap
-              local.get $t8
-              local.get $t6
-              i32.store $heap offset=4
-              local.get $t8
-              local.get $t7
-              i32.store $heap offset=8
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=12
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=16
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=20
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=24
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=28
-              local.get $t8
+              local.get $t3
               local.get $t5
               call $"impl UniqList[u8].grow_bytes"
-              local.get $t8
-              i32.load $heap
-              local.get $t8
-              i32.load $heap offset=4
-              local.get $t8
-              i32.load $heap offset=8
-              local.get $t8
-              i32.const 0
-              i32.store $heap
-              local.get $t8
-              i32.const 0
-              i32.store $heap offset=4
-              local.get $t8
-              i32.const 0
-              i32.store $heap offset=8
-              local.set $t7
-              local.set $t6
-              local.set $t2
             end
             local.get $t3
+            i32.load $heap offset=8
+            local.set $t5
             local.get $t2
-            local.get $t7
+            local.get $t3
+            i32.load $heap
+            local.get $t5
             i32.add
             call $write_char_sized
-            local.get $t7
+            local.get $t3
+            local.get $t3
+            i32.load $heap offset=8
             local.get $t4
             i32.add
-            local.set $t7
+            i32.store $heap offset=8
             br 1
           end
-          local.get $t0
-          i64.const 0
-          i64.store $heap offset=64
-          local.get $t0
-          i32.const 72
-          i32.add
-          local.tee $t3
-          local.get $t2
-          i32.store $heap
-          local.get $t3
-          local.get $t6
-          i32.store $heap offset=4
-          local.get $t3
-          local.get $t7
-          i32.store $heap offset=8
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=12
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=16
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=20
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=24
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=28
           local.get $t3
           call $"impl ByteBuffer for UniqList[u8].take_text"
           local.set $t4
           local.set $t5
-          local.get $t3
-          i32.load $heap
-          local.get $t3
-          i32.load $heap offset=4
-          local.get $t3
-          i32.load $heap offset=8
-          local.get $t3
-          i32.const 0
-          i32.store $heap
-          local.get $t3
-          i32.const 0
-          i32.store $heap offset=4
-          local.get $t3
-          i32.const 0
-          i32.store $heap offset=8
-          local.set $t7
-          local.set $t6
-          local.set $t2
-          i32.const 1
-          local.set $t3
           local.get $t1
           if
             local.get $t1
             i32.load $heap
-            local.tee $t1
+            local.tee $t2
             if
-              local.get $t1
+              local.get $t2
               i32.const 8
               i32.sub
               i32.load $heap
               if
-                local.get $t1
+                local.get $t2
                 call $rt:release_ref
               end
             end
           end
           local.get $t3
           if
-            local.get $t2
-            local.get $t6
-            local.get $t7
-            call $rt:release_spilled
+            local.get $t3
+            call $"release_value[std.collections.uniq_list.UniqList[u8]]"
           end
           br 2
         end
         br 0
+      end
+      local.get $t3
+      if
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
+      end
+      i32.const 0
+      local.set $t3
+      local.get $t1
+      if
+        local.get $t1
+        i32.load $heap
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t1
+            call $rt:release_ref
+          end
+        end
+      end
+      i32.const 0
+      local.tee $t1
+      local.get $t2
+      if
+        local.get $t2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t2
+          call $rt:release_ref
+        end
+      end
+      if
+        local.get $t1
+        i32.load $heap
+        local.tee $t0
+        if
+          local.get $t0
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t0
+            call $rt:release_ref
+          end
+        end
+      end
+      local.get $t3
+      if
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
       unreachable
     end
     local.get $t5
     local.get $t4
     local.get $t0
-    i32.const 104
+    i32.const 64
     i32.add
     global.set $stack
   )
@@ -354,7 +348,7 @@
   (import "fixture" "impl ByteBuffer for UniqList[u8].take_text" (func $"impl ByteBuffer for UniqList[u8].take_text" (param i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
-  (import "fixture" "rt:release_spilled" (func $rt:release_spilled (param i32 i32 i32)))
+  (import "fixture" "release_value[std.collections.uniq_list.UniqList[u8]]" (func $"release_value[std.collections.uniq_list.UniqList[u8]]" (param i32)))
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -369,19 +363,19 @@
     local.get $t0
     call $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]"
   )
-  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t6 i32) (local $t7 i32) (local $t5 i32) (local $t8 i32)
+  (func $"impl FromIterator[char] for string.from_iter[std.iter.ListIter[char]]" (param $t2 i32) (param $t3 i32) (param $t4 i32) (result i32 i32) (local $t1 i32) (local $t0 i32) (local $t5 i32)
     ;; (no span)
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 104
+    i32.const 64
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 104
+    i32.const 64
     i32.sub
     local.tee $t0
     global.set $stack
@@ -405,14 +399,44 @@
       i32.const 1
       call $room
       local.set $t2
+      local.get $t0
+      i64.const 0
+      i64.store $heap offset=24
+      local.get $t0
+      i32.const 32
+      i32.add
+      local.tee $t3
+      local.get $t2
+      i32.store $heap
+      local.get $t3
+      i32.const 0
+      i32.store $heap offset=4
+      local.get $t3
+      i32.const 0
+      i32.store $heap offset=8
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=12
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=16
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=20
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=24
+      local.get $t3
+      i32.const 1
+      i32.store $heap offset=28
       loop
         local.get $t1
         call $"impl[T] Iterator[T] for ListIter[T].next[char]"
-        local.set $t3
+        local.set $t2
         block
           block
             block
-              local.get $t3
+              local.get $t2
               i32.const 1114112
               i32.ne
               i32.eqz
@@ -420,19 +444,19 @@
               br 0
               unreachable
             end
-            local.get $t3
+            local.get $t2
             i32.const 128
             i32.lt_u
             if (result i32)
               i32.const 1
             else
-              local.get $t3
+              local.get $t2
               i32.const 2048
               i32.lt_u
               if (result i32)
                 i32.const 2
               else
-                local.get $t3
+                local.get $t2
                 i32.const 65536
                 i32.lt_u
                 if (result i32)
@@ -444,140 +468,50 @@
             end
             local.tee $t4
             local.tee $t5
-            local.get $t6
-            local.get $t7
+            local.get $t3
+            i32.load $heap offset=4
+            local.get $t3
+            i32.load $heap offset=8
             i32.sub
             i32.gt_u
             if
-              local.get $t0
-              i64.const 0
-              i64.store $heap offset=24
-              local.get $t0
-              i32.const 32
-              i32.add
-              local.tee $t8
-              local.get $t2
-              i32.store $heap
-              local.get $t8
-              local.get $t6
-              i32.store $heap offset=4
-              local.get $t8
-              local.get $t7
-              i32.store $heap offset=8
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=12
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=16
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=20
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=24
-              local.get $t8
-              i32.const 1
-              i32.store $heap offset=28
-              local.get $t8
+              local.get $t3
               local.get $t5
               call $"impl UniqList[u8].grow_bytes"
-              local.get $t8
-              i32.load $heap
-              local.get $t8
-              i32.load $heap offset=4
-              local.get $t8
-              i32.load $heap offset=8
-              local.get $t8
-              i32.const 0
-              i32.store $heap
-              local.get $t8
-              i32.const 0
-              i32.store $heap offset=4
-              local.get $t8
-              i32.const 0
-              i32.store $heap offset=8
-              local.set $t7
-              local.set $t6
-              local.set $t2
             end
             local.get $t3
+            i32.load $heap offset=8
+            local.set $t5
             local.get $t2
-            local.get $t7
+            local.get $t3
+            i32.load $heap
+            local.get $t5
             i32.add
             call $write_char_sized
-            local.get $t7
+            local.get $t3
+            local.get $t3
+            i32.load $heap offset=8
             local.get $t4
             i32.add
-            local.set $t7
+            i32.store $heap offset=8
             br 1
           end
-          local.get $t0
-          i64.const 0
-          i64.store $heap offset=64
-          local.get $t0
-          i32.const 72
-          i32.add
-          local.tee $t3
-          local.get $t2
-          i32.store $heap
-          local.get $t3
-          local.get $t6
-          i32.store $heap offset=4
-          local.get $t3
-          local.get $t7
-          i32.store $heap offset=8
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=12
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=16
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=20
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=24
-          local.get $t3
-          i32.const 1
-          i32.store $heap offset=28
           local.get $t3
           call $"impl ByteBuffer for UniqList[u8].take_text"
           local.set $t4
           local.set $t5
-          local.get $t3
-          i32.load $heap
-          local.get $t3
-          i32.load $heap offset=4
-          local.get $t3
-          i32.load $heap offset=8
-          local.get $t3
-          i32.const 0
-          i32.store $heap
-          local.get $t3
-          i32.const 0
-          i32.store $heap offset=4
-          local.get $t3
-          i32.const 0
-          i32.store $heap offset=8
-          local.set $t7
-          local.set $t6
-          local.set $t2
-          i32.const 1
-          local.set $t3
           local.get $t1
           if
             local.get $t1
             i32.load $heap
-            local.tee $t1
+            local.tee $t2
             if
-              local.get $t1
+              local.get $t2
               i32.const 8
               i32.sub
               i32.load $heap
               if
-                local.get $t1
+                local.get $t2
                 call $rt:release_ref
               else
                 call $skipped_test
@@ -588,21 +522,87 @@
           end
           local.get $t3
           if
-            local.get $t2
-            local.get $t6
-            local.get $t7
-            call $rt:release_spilled
+            local.get $t3
+            call $"release_value[std.collections.uniq_list.UniqList[u8]]"
           end
           br 2
         end
         br 0
+      end
+      local.get $t3
+      if
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
+      end
+      i32.const 0
+      local.set $t3
+      local.get $t1
+      if
+        local.get $t1
+        i32.load $heap
+        local.tee $t1
+        if
+          local.get $t1
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t1
+            call $rt:release_ref
+          else
+            call $skipped_test
+          end
+        else
+          call $skipped_test
+        end
+      end
+      i32.const 0
+      local.tee $t1
+      local.get $t2
+      if
+        local.get $t2
+        i32.const 8
+        i32.sub
+        i32.load $heap
+        if
+          local.get $t2
+          call $rt:release_ref
+        else
+          call $skipped_test
+        end
+      else
+        call $skipped_test
+      end
+      if
+        local.get $t1
+        i32.load $heap
+        local.tee $t0
+        if
+          local.get $t0
+          i32.const 8
+          i32.sub
+          i32.load $heap
+          if
+            local.get $t0
+            call $rt:release_ref
+          else
+            call $skipped_test
+          end
+        else
+          call $skipped_test
+        end
+      end
+      local.get $t3
+      if
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
       unreachable
     end
     local.get $t5
     local.get $t4
     local.get $t0
-    i32.const 104
+    i32.const 64
     i32.add
     global.set $stack
   )
