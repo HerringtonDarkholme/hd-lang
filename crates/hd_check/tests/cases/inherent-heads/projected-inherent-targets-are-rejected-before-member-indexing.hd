@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# @build: std
+trait Source:
+    type Item
+
+impl[T < Source] (T::Item):
+    fn projected_member_probe(self) -> i32:
+        +1
+
+impl[U < Source] (U::Item):
+    fn projected_member_probe(self) -> i32:
+        +2
