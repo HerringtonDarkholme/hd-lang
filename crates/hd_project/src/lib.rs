@@ -1682,9 +1682,13 @@ pub type PolicyEdge = (ModuleId, u32, Vec<String>);
 ///   read before it is set. A facade's own `pub use` edge reaches the
 ///   module that declares a name it re-exports, and naming a module makes
 ///   the implementations it holds visible, std's implementations for
-///   primitives among them (`trait.own.module.inherent.std`). A single
-///   use of a module also has one to the module's parent, whose exports
-///   its binding reads (`module.use.ambiguous`);
+///   primitives among them (`trait.own.module.inherent.std`). A written
+///   single use of a module also has one to the module's parent, whose
+///   exports its binding reads (`module.use.ambiguous`), unless the
+///   parent exports no item at all: it declares nothing, and its only
+///   `pub use` lines publish its own children. Such a facade, std's root
+///   among them, holds no name the use could also mean, and an edge to it
+///   would join the user to whatever the facade's own unit depends on;
 /// - the policy edges (`module.cycle.edge`) are the written library uses
 ///   of one package, a `pub use` making none: the sibling rule
 ///   (`module.cycle.siblings`) judges their loops.
@@ -1714,8 +1718,10 @@ pub struct ModuleGraph {
 
 impl ModuleGraph {
     /// Builds the graph from each module's uses and groups `table`'s units
-    /// into its strongly connected components.
-    pub fn build(table: &mut ModuleTable, uses: &[Vec<UseRef>]) -> Self {
+    /// into its strongly connected components. `declares` tells, per
+    /// module, whether its text may declare an item: `false` only when
+    /// every code line is a `use` line.
+    pub fn build(table: &mut ModuleTable, uses: &[Vec<UseRef>], declares: &[bool]) -> Self {
         let n = table.modules.len();
         let mut g = ModuleGraph {
             deps: vec![Vec::new(); n],
@@ -1727,6 +1733,29 @@ impl ModuleGraph {
         for module in &mut table.modules {
             module.published = false;
         }
+        // Per module, whether its export table may hold an item: it
+        // declares one, or a `pub use` of it re-exports something other
+        // than its own children (`module.use.facade.module`).
+        let exports_items: Vec<bool> = (0..n)
+            .map(|m| {
+                let path = &table.modules[m].path;
+                declares.get(m).copied().unwrap_or(true)
+                    || uses.get(m).is_some_and(|list| {
+                        list.iter().any(|u| {
+                            u.public
+                                && !(u.grouped
+                                    && u.path == *path
+                                    && u.names.iter().all(|(name, _)| {
+                                        child.clear();
+                                        child.push_str(path);
+                                        child.push('.');
+                                        child.push_str(name);
+                                        table.module(&child).is_some()
+                                    }))
+                        })
+                    })
+            })
+            .collect();
         let mut named: Vec<(ModuleId, Option<Vec<String>>)> = Vec::new();
         for (m, list) in uses.iter().enumerate() {
             let module = &table.modules[m];
@@ -1761,13 +1790,17 @@ impl ModuleGraph {
                     named.push((t, Some(decls)));
                 } else if let Some(t) = table.module(&u.path) {
                     named.push((t, None));
-                    // A single use of a module also reads its parent's
-                    // exports, which may declare the same name
+                    // A written single use of a module also reads its
+                    // parent's exports, which may declare the same name
                     // (`module.use.ambiguous`): a dependency edge, so the
                     // parent's interface is built before the use is bound,
                     // and no policy edge, since the use names the module.
-                    if let Some((parent, _)) = u.path.rsplit_once('.')
+                    // An implicit use binds through no `use` line, and a
+                    // parent that exports no item has no name to clash.
+                    if u.line.is_some()
+                        && let Some((parent, _)) = u.path.rsplit_once('.')
                         && let Some(above) = table.module(parent)
+                        && exports_items[above.idx()]
                         && above.idx() != m
                         && (test || table.modules[above.idx()].role != Role::Test)
                     {
@@ -2136,6 +2169,11 @@ mod tests {
     /// The module graph of the files `files` of package `pkg`, each with
     /// its uses.
     fn graph_of(files: &[(&str, Vec<UseRef>)]) -> (ModuleTable, ModuleGraph) {
+        graph_with(files, &[])
+    }
+
+    /// As [`graph_of`], with the files `bare` declaring nothing.
+    fn graph_with(files: &[(&str, Vec<UseRef>)], bare: &[&str]) -> (ModuleTable, ModuleGraph) {
         let mut s = MemorySources::default();
         for (f, _) in files {
             s.insert(f, "");
@@ -2146,7 +2184,12 @@ mod tests {
             let m = t.files.iter().position(|x| x == f).expect("file");
             uses[m] = u.clone();
         }
-        let g = ModuleGraph::build(&mut t, &uses);
+        let declares: Vec<bool> = t
+            .files
+            .iter()
+            .map(|f| !bare.contains(&f.as_str()))
+            .collect();
+        let g = ModuleGraph::build(&mut t, &uses, &declares);
         (t, g)
     }
 
@@ -2194,6 +2237,62 @@ mod tests {
             .collect();
         let at = |p: &str| order.iter().position(|o| *o == p).expect(p);
         assert!(at("pkg") < at("pkg.main"), "{order:?}");
+    }
+
+    /// The parent edge serves only a written use's binding, and only a
+    /// parent that may export an item. Here the facade `pkg` declares
+    /// nothing and publishes its children; it reads `pkg.words` without a
+    /// line, as std's root reads its language layer. `words` naming
+    /// `pkg.shop` joins no loop with it. An implicit use, a REPL input's
+    /// of an earlier input, makes no parent edge either. A facade
+    /// re-exporting an item, `pkg.shop`, keeps the edge.
+    #[test]
+    fn a_parent_exporting_no_item_takes_no_parent_edge() {
+        let single = |path: &str| UseRef {
+            grouped: false,
+            names: Vec::new(),
+            ..grouped(path, &[])
+        };
+        let implicit = |path: &str| UseRef {
+            line: None,
+            ..single(path)
+        };
+        let facade = UseRef {
+            public: true,
+            ..grouped("pkg", &["words", "shop"])
+        };
+        let item = UseRef {
+            public: true,
+            ..grouped("pkg.shop.ledger", &["count"])
+        };
+        let (t, g) = graph_with(
+            &[
+                ("src/lib.hd", vec![facade, implicit("pkg.words")]),
+                ("src/words.hd", vec![single("pkg.shop")]),
+                ("src/main.hd", vec![implicit("pkg.shop.cart")]),
+                ("src/shop/mod.hd", vec![item]),
+                ("src/shop/cart.hd", vec![single("pkg.shop.ledger")]),
+                ("src/shop/ledger.hd", Vec::new()),
+            ],
+            &["src/lib.hd", "src/shop/mod.hd"],
+        );
+        let id = |p: &str| t.module(p).expect(p);
+        let deps = |p: &str| -> Vec<&str> {
+            let mut d: Vec<&str> = g.deps[id(p).idx()]
+                .iter()
+                .map(|d| t.modules[d.idx()].path.as_str())
+                .collect();
+            hd_base::SliceSort::sort_stable(&mut d[..]);
+            d
+        };
+        assert_eq!(deps("pkg.words"), ["pkg.shop"]);
+        assert_eq!(deps("pkg.main"), ["pkg.shop.cart"]);
+        assert_eq!(deps("pkg.shop.cart"), ["pkg.shop", "pkg.shop.ledger"]);
+        assert!(
+            unit_paths(&t).contains(&"pkg.words"),
+            "{:?}",
+            unit_paths(&t)
+        );
     }
 
     /// Units are the dependency graph's strongly connected groups, in path
