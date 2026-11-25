@@ -2230,7 +2230,9 @@ impl Em<'_, '_, '_> {
         if tail != NONE
             && let Some(d) = dest
         {
-            self.tail_into(tail, d, blk)?;
+            // Every incoming edge writes the labelled block's join locals.
+            // The copy after the label merges Break and fall-through values.
+            self.tail_into(tail, if labelled { blk } else { d }, blk)?;
         }
         if labelled {
             self.close();
