@@ -1614,18 +1614,15 @@ pub(crate) fn finish_local_results(cx: &BodyCx<'_>, diags: &mut DiagBuf) {
 
 impl Ck<'_, '_> {
     pub(crate) fn read_local_result(&mut self, l: hd_base::LocalId) -> bool {
+        // Registered declaration locals own result dependencies. Parameters
+        // and generated temporaries can share the same declaration's span.
         let at = self.b.body().local_syn[l.idx()];
         let node = self.cx.src.parse.tree.node(at);
         if self.b.body().local_flags[l.idx()] & hd_tir::ir::local_flags::PARAM != 0
             || node.kind() != SyntaxKind::FnDecl
             || Src::type_child(node).is_some()
+            || !self.local_forms.contains_key(&l)
         {
-            return false;
-        }
-        let name = node
-            .name(&self.cx.src.parse.tokens)
-            .map(|t| self.cx.names.syms.intern(self.cx.src.text(t)));
-        if name != Some(self.b.body().local_name[l.idx()]) {
             return false;
         }
         let unfinished = self
