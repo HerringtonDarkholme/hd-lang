@@ -458,49 +458,23 @@ pub enum SlotRecv {
     ReadThrough,
 }
 
-/// A reference whose immediate referent is an erased trait can widen to
-/// that trait or a declared supertrait without wrapping its referent again.
-/// Nested references still erase their reference-valued referent normally.
-fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
-    let TyData::Ref { inner, .. } = pool.get(from) else {
-        return false;
-    };
-    let (TyData::TraitValue { def: from, .. }, TyData::TraitValue { def: to, .. }) =
-        (pool.get(inner), pool.get(to))
-    else {
-        return false;
-    };
-    let mut todo = vec![from];
-    let mut seen = HashSet::default();
-    while let Some(trait_) = todo.pop() {
-        if trait_ == to {
-            return true;
-        }
-        if !seen.insert(trait_) {
-            continue;
-        }
-        for sup in env.decls().supertraits(trait_) {
-            if let TyData::TraitValue { def, .. } = pool.get(*sup) {
-                todo.push(def);
-            }
-        }
-    }
-    false
-}
-
-/// Whether this conversion reads the erased referent's data and vtable,
-/// rather than constructing a table for the source reference's own
-/// referent. Ownership and collection must choose the same owner.
+/// Whether a fresh reference coercion reads an erased referent's data and
+/// vtable. Materialized supertrait coercions are handled by the caller.
+/// Identity erasure describes the immediate referent, including a reference
+/// value; it does not peel through that value to its erased referent.
 #[must_use]
 pub fn trait_value_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
+    let sealed = env.decls().sealed();
+    if matches!(pool.get(to), TyData::TraitValue { def, .. }
+        if def == sealed.inspectable || def == sealed.any)
+    {
+        return false;
+    }
     let mut value = from;
     while let TyData::Ref { inner, .. } = pool.get(value) {
         value = inner;
     }
-    let sealed = env.decls().sealed();
-    let identity = matches!(pool.get(to), TyData::TraitValue { def, .. }
-        if def == sealed.inspectable || def == sealed.any);
-    (!identity || trait_reference_widens(pool, env, from, to)) && is_trait_value(pool, value)
+    is_trait_value(pool, value)
 }
 
 #[derive(Clone, Copy, Debug)]
