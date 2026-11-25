@@ -2763,6 +2763,12 @@ impl Env<'_> {
             hd_opt::sroa::run(body, &self.run.pool, &copies, self.run.sroa_spill)
                 .map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
         }
+        // A match on an inlined body's constructors jumps to its arms.
+        if self.run.known_ctor && hash != facts {
+            let copies = |t| hd_tir::own::OwnCx::copies(self, t) == hd_tir::own::Tri::Yes;
+            hd_opt::known_ctor::run(body, &copies)
+                .map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
+        }
         if (decided || self.run.const_fold)
             && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
         {

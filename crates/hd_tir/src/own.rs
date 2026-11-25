@@ -95,7 +95,7 @@ pub use elaborate::{cell_drop, elaborate};
 mod self_store;
 pub mod short;
 pub(crate) mod splice;
-pub use splice::{BatchInsert, edit_batch, insert_batch};
+pub use splice::{BatchInsert, edit_batch, insert_batch, reorder};
 mod storage;
 mod temporaries;
 pub use storage::RecursiveBindings;

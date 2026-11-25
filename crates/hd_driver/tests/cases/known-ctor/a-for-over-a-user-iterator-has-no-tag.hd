@@ -1,0 +1,26 @@
+# @dump: own wat
+# @build: v8 release
+# #2367: `next` is copied into the `for`, and each of its `return`s
+# builds an `Option` that the loop's match takes apart at once. Each
+# exit jumps to its arm: `.Some(value)` stores `x` and runs the body,
+# `.None` leaves the loop, so no tag local and no dispatch block is left.
+use std.meta.inline
+
+struct Cursor:
+    end: i64
+    at: i64
+
+impl Iterator[i64] for Cursor:
+    @inline
+    fn next(&mut self) -> i64?:
+        if self.at >= self.end:
+            return .None
+        value := self.at * 3
+        self.at += 1
+        .Some(value)
+
+pub fn total(n: i64) -> i64:
+    let mut s: i64 = 0
+    for x in Cursor { end: n, at: 0 }:
+        s += x
+    s

@@ -327,6 +327,18 @@ pub static PASSES: &[PassSpec] = &[
         Instance,
         [cold_spill: 0..=1]
     ),
+    // Case of a known constructor after inlining (#2367,
+    // `crate::known_ctor`): the driver sends each way out of an inlined
+    // body that builds an enum straight to the arm of the match on it.
+    pass!(
+        "known_ctor",
+        TirDecision,
+        [],
+        [],
+        gate::HAS_CALL,
+        Optional,
+        Instance
+    ),
     pass!(
         "devirt_known",
         TirDecision,
@@ -419,6 +431,7 @@ pub static OPTIMIZED: Pipeline = Pipeline {
         "value_flow",
         "const_fold",
         "sroa",
+        "known_ctor",
         "devirt_known",
         "closure_spec",
         "summaries",
@@ -771,7 +784,8 @@ mod tests {
     /// and the link passes; the release summaries, argument promotion and
     /// `const_fold` changed the optimized one, and only it. Dropping the passes
     /// and link passes that nothing ran (draft 32) changed both; `sroa`
-    /// (#2365) and its `cold_spill` knob changed the optimized one.
+    /// (#2365) and its `cold_spill` knob changed the optimized one, and so
+    /// did `known_ctor` (#2367).
     #[test]
     fn pipeline_hashes_are_pinned() {
         let dev = validate(&DEV).expect("dev validates").0;
@@ -781,7 +795,7 @@ mod tests {
             "dev"
         );
         assert_eq!(
-            optimized, 262_754_135_575_215_468_012_801_603_347_307_737_780,
+            optimized, 257_780_930_882_122_535_904_159_613_892_609_176_707,
             "optimized"
         );
     }

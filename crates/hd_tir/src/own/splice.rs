@@ -396,6 +396,30 @@ pub(crate) fn apply(b: &mut Body, topo: &Topology, t: &mut Tables) -> Result<(),
     )
 }
 
+/// Keeps the instructions of `order`, in that order, and renumbers the
+/// body: a pass that rebuilds block records (moving members between
+/// blocks, adding blocks) lists the result in evaluation order, a
+/// block's members before the block, and every instruction it leaves out
+/// is deleted with its side rows. Cost: one pass over the columns and
+/// the operand words.
+///
+/// # Errors
+/// A surviving operand that names a deleted instruction.
+pub fn reorder(b: &mut Body, order: &[u32]) -> Result<(), String> {
+    let mut new_of = vec![NONE; b.len()];
+    for (new, &old) in order.iter().enumerate() {
+        new_of[old as usize] = u32_of(new);
+    }
+    permute_columns(b, order);
+    crate::ir::renumber(
+        b,
+        &mut crate::ir::Through {
+            new_of: &new_of,
+            konst: 0,
+        },
+    )
+}
+
 /// Puts the instruction columns in `order`: row `k` becomes old row
 /// `order[k]`.
 pub(crate) fn permute_columns(b: &mut Body, order: &[u32]) {

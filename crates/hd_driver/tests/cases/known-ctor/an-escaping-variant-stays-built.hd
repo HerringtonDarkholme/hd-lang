@@ -1,0 +1,21 @@
+# @dump: own wat
+# @build: v8 release
+# #2367: the inlined result is stored in a local that the match reads and
+# that is returned too, so the value escapes the match: it stays built,
+# and the match keeps its dispatch.
+use std.meta.inline
+
+@inline
+fn half(k: i64) -> i64?:
+    if k % 2 == 0:
+        return .Some(k / 2)
+    .None
+
+pub fn kept(k: i64) -> i64?:
+    h := half(k)
+    match h:
+        .Some(v) =>
+            if v > 100:
+                return .None
+        .None => return .Some(-1)
+    h
