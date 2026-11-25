@@ -251,6 +251,9 @@ pub struct KnownItems {
     /// `std.rt.memory.Ptr`, an address that may point into what a
     /// reference reaches (`module.rt.ptr.as-ref`).
     pub ptr: DefId,
+    /// `std.collections.PlainList`, whose `push` is the built-in
+    /// `ListPush` over its block (#2369: the block is a list buffer).
+    pub plain_list: DefId,
     /// `std.rt.Drop`, whose implementation a value's release glue calls
     /// before releasing its fields (`module.rt.drop.glue`).
     pub drop_trait: DefId,
@@ -434,6 +437,7 @@ impl KnownItems {
             map: item(CORE_MODULE, "Map"),
             buffer: item("std.rt.memory", "Buffer"),
             ptr: item("std.rt.memory", "Ptr"),
+            plain_list: item("std.collections.plain_list", "PlainList"),
             drop_trait,
             drop_method: trait_method(drop_trait, "drop"),
             room: item("std.rt.memory", "room"),

@@ -1,8 +1,8 @@
 # @dump: wat
 # @build: v8 release
 # A push loop of two-leaf values over a `PlainList` (#2369): the value's
-# address is held in a local for its two stores, and the tail's offset 16
-# moves into both, `offset=16` and `offset=24`, as the builtin list's.
+# value's two leaves are stored at `offset=16` and `offset=24`, through
+# the built-in `ListPush` as the builtin list's are.
 use std.collections.PlainList
 
 fn build(n: i64) -> PlainList[(i64, i64)]:
