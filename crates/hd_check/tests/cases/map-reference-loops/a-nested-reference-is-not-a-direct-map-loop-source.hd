@@ -1,0 +1,5 @@
+# @dump: diagnostics
+fn reject() -> void:
+    let mut nested = box(box({ +1: +2 }))
+    for (_, value) in &mut nested:
+        *value += 1

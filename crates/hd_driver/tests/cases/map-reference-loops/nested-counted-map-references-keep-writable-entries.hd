@@ -1,0 +1,12 @@
+# @dump: stdout
+# @build: dev | checked
+pub fn main() -> void $ Console:
+    let mut twice = box(box({ +1: +2 }))
+    for (key, value) in &mut *twice:
+        *value = *value + *key
+    println((*(*twice))[+1])
+
+    let mut thrice = box(box(box({ +2: +4 })))
+    for (key, value) in &mut *(*thrice):
+        *value = *value + *key
+    println((*(*(*thrice)))[+2])
