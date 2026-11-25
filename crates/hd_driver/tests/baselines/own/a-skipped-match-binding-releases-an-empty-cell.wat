@@ -16,7 +16,7 @@
   (func $$test0 (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i64) (local $t1 f64) (local $t0 i32) (local $value i32)
     ;; ...
     ;; 20 |         assert(read("[1]").get("a").is_none())
-    i32.const 283 ;; &"[1]"
+    i32.const 294 ;; &"[1]"
     i32.const 3
     call $read
     local.set $t0
@@ -44,7 +44,7 @@
     local.get $t0
     i32.store $heap offset=12
     local.get $value
-    i32.const 286 ;; &"a"
+    i32.const 297 ;; &"a"
     i32.const 1
     call $"impl Json.get"
     local.set $t0
@@ -216,7 +216,7 @@
   (func $$test0 (local $value.2'1 i32) (local $t6 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $reason.0'2 i32) (local $t1 i64) (local $t0 f64) (local $value i32) (local $value.2'2 i32) (local $value.3 i64) (local $value.4 f64) (local $value.5 i32) (local $reason.0'1 i32) (local $t2 i32) (local $t7 i32)
     ;; ...
     ;; 20 |         assert(read("[1]").get("a").is_none())
-    i32.const 299 ;; &"[1]"
+    i32.const 310 ;; &"[1]"
     i32.const 3
     call $parse
     local.set $reason.0'1
@@ -262,7 +262,7 @@
         end
         br 1
       end
-      i32.const 270 ;; &"invalid JSON"
+      i32.const 281 ;; &"invalid JSON"
       i32.const 12
       i32.const 9
       call_indirect $table0 (param i32 i32)
@@ -297,7 +297,7 @@
     local.get $t6
     i32.store $heap offset=12
     local.get $reason.0'1
-    i32.const 302 ;; &"a"
+    i32.const 313 ;; &"a"
     i32.const 1
     call $"impl Json.get"
     local.set $t2
@@ -377,7 +377,7 @@
     local.get $t7
     i32.eqz
     if
-      i32.const 283 ;; &"assertion-failed"
+      i32.const 294 ;; &"assertion-failed"
       i32.const 16 ;; &"heap-exhausted"
       local.get $reason.0'1
       i32.const 0

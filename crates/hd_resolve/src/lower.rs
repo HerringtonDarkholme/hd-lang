@@ -6325,6 +6325,7 @@ impl Lower<'_, '_, '_> {
                 (self.module, session),
                 (DefId::NONE, TyList::EMPTY, self_ty),
                 ImplKind::Written,
+                false,
             )
             .is_none();
         let msg = if trait_ != self.names.known.copy {
@@ -6579,10 +6580,11 @@ impl Lower<'_, '_, '_> {
         // (`trait.target.bare-parameter`). A derivation template is no
         // implementation (`trait.target.template`), and a standard-library
         // numeric family is the one exception (`trait.target.numeric-family`).
-        if bare_param
+        let numeric_family = bare_param
             && by.as_deref() != Some("Structure")
-            && !(self.in_std() && self.numeric_family(&generics))
-        {
+            && self.in_std()
+            && self.numeric_family(&generics);
+        if bare_param && by.as_deref() != Some("Structure") && !numeric_family {
             if self.r.frozen.is_none() {
                 self.diags.error(
                     Code::BareParameterImplTarget,
@@ -6638,6 +6640,7 @@ impl Lower<'_, '_, '_> {
             (self.module, session),
             (trait_, trait_args, self_ty),
             kind,
+            numeric_family,
         ) {
             if self.r.frozen.is_none() {
                 let name = self.names.display_name(h.def);
@@ -8325,12 +8328,11 @@ pub fn impl_placement(
     (module, session): (&str, &[String]),
     (trait_, trait_args, self_ty): (DefId, TyList, Ty),
     kind: ImplKind,
+    numeric_family: bool,
 ) -> Option<Code> {
     let pool = names.pool;
-    let package = module.split('.').next().unwrap_or("");
-    if package == "std" {
-        return None;
-    }
+    let std_package = module.split('.').next() == Some("std");
+    let numeric_family = std_package && numeric_family;
     let module = names.module(module);
     let session: Vec<PathId> = session.iter().map(|m| names.module(m)).collect();
     let package = names.package_node(DefId::from_raw(module.raw()));
@@ -8345,6 +8347,9 @@ pub fn impl_placement(
             | TyData::Adt(AdtId::Product { .. }, _)
             | TyData::Fn { .. }
             | TyData::Ref { .. } => Some(names.known.core_module),
+            // `trait.target.numeric-family.each`: the validated family
+            // stands for primitive types, all declared by the core module.
+            TyData::Param(_) if numeric_family => Some(names.known.core_module),
             _ => None,
         }
     };
@@ -8353,6 +8358,25 @@ pub fn impl_placement(
         // `trait.own.inherent`, `trait.own.module.inherent-target`: only
         // a written inherent block, and only the target's own module.
         if kind != ImplKind::Written {
+            return None;
+        }
+        // `trait.own.module.inherent.std`: only the built-in constructors
+        // may place inherent blocks anywhere in std. A validated numeric
+        // family stands for those primitive constructors, not any type.
+        let builtin = std_package
+            && match pool.get(self_ty) {
+                TyData::Prim(_) => true,
+                TyData::Param(_) => numeric_family,
+                TyData::Adt(AdtId::Declared(def), _) => [
+                    names.known.list,
+                    names.known.map,
+                    names.known.option,
+                    names.known.result,
+                ]
+                .contains(&def),
+                _ => false,
+            };
+        if builtin {
             return None;
         }
         owners.extend(ctor_module(self_ty));

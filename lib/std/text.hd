@@ -11,9 +11,8 @@ use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
-use std.num.Integer
+use std.num.{Integer, ParseNumberError}
 use std.collections.UniqList
-use std.iter.FromIterator
 use std.rt.{new_string, string_bytes, copy, load_u64, store_u8}
 use std.meta.inline
 use std.rt.{
@@ -764,16 +763,6 @@ impl StringBuilder:
     ## See [std-text.builder.build-local](../../spec/std/text.md#r-std-text.builder.build-local).
     pub fn build(&mut self) -> string:
         self.bytes.take_text()
-
-# Rust's String::from_iter<char>: encode scalars into one growing UTF-8 buffer.
-impl FromIterator[char] for string:
-    fn from_iter[I < ?Copy & Iterator[char]](items: I) -> string:
-        let mut cursor = items
-        let mut output = StringBuilder { bytes: UniqList::[u8].new() }
-        while true:
-            match cursor.next():
-                .Some(value) => output.push_char(value)
-                .None => return output.build()
 
 # The Display.write port uses this private protocol for allocation-free numbers.
 impl TextSink for StringBuilder:
@@ -1573,3 +1562,236 @@ impl Bytes:
     ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn rev(self) -> Rev[Self, u8]:
         DoubleEndedIterator::[u8]::rev(self)
+
+# Parsing accepts an optional `+` or `-` and then decimal digits only.
+# Every scalar before the first invalid one is ASCII, so the scalar index
+# that `InvalidDigit` reports is also its byte offset (Strings STR10).
+# Reads the digits toward the sign, so the minimum value parses. Each step
+# checks the bound first, so the arithmetic stays inside `low` to `high`.
+# It reads the text's UTF-8 bytes: a non-ASCII byte is no digit, and every
+# byte before the first invalid one is ASCII, so the byte index is the
+# reported position.
+fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberError]:
+    size := text.len()
+    if size == 0:
+        return .Err(ParseNumberError.Empty)
+    negative := text[0] == 45
+    let index: usize = if negative || text[0] == 43: 1 else: 0
+    # A lone sign ends where a digit must follow: the end-of-text index.
+    if index == size:
+        return .Err(ParseNumberError.InvalidDigit(index))
+    let value: i64 = 0
+    while index < size:
+        byte := text[index]
+        if byte < 48 || byte > 57:
+            return .Err(ParseNumberError.InvalidDigit(index))
+        digit := i64(byte - 48)
+        # Division truncates toward zero, so each bound is exact.
+        if negative:
+            if value < (low + digit) / 10:
+                return .Err(ParseNumberError.OutOfRange)
+            value = value * 10 - digit
+        else:
+            if value > (high - digit) / 10:
+                return .Err(ParseNumberError.OutOfRange)
+            value = value * 10 + digit
+        index = index + 1
+    .Ok(value)
+
+# Unsigned parsing (r-std-num.parse.unsigned-type-grammar): the signed grammar without
+# `-`, which is an invalid digit at position 0. A `u64` holds every result,
+# so one reader serves every width.
+fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
+    size := text.len()
+    if size == 0:
+        return .Err(ParseNumberError.Empty)
+    let index: usize = if text[0] == 43: 1 else: 0
+    if index == size:
+        return .Err(ParseNumberError.InvalidDigit(index))
+    let value: u64 = 0
+    while index < size:
+        byte := text[index]
+        if byte < 48 || byte > 57:
+            return .Err(ParseNumberError.InvalidDigit(index))
+        digit := u64(byte - 48)
+        # Division truncates, so the bound is exact and the product cannot overflow.
+        if value > (high - digit) / 10:
+            return .Err(ParseNumberError.OutOfRange)
+        value = value * 10 + digit
+        index = index + 1
+    .Ok(value)
+
+# `Parse` for the numbers (r-std-num.parse.trait-impls): each impl reads the
+# grammar and the range of its type, and the error is `ParseNumberError`.
+impl Parse for i8:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i8, ParseNumberError]:
+        match parse_integer(text, -128, 127):
+            .Ok(value) => .Ok(i8(value))
+            .Err(error) => .Err(error)
+
+impl Parse for i16:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i16, ParseNumberError]:
+        match parse_integer(text, -32768, 32767):
+            .Ok(value) => .Ok(i16(value))
+            .Err(error) => .Err(error)
+
+impl Parse for i32:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i32, ParseNumberError]:
+        match parse_integer(text, -2147483648, 2147483647):
+            .Ok(value) => .Ok(i32(value))
+            .Err(error) => .Err(error)
+
+impl Parse for i64:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[i64, ParseNumberError]:
+        parse_integer(text, i64::min_value(), i64::max_value())
+
+impl Parse for u8:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u8, ParseNumberError]:
+        match parse_unsigned(text, 255):
+            .Ok(value) => .Ok(u8(value))
+            .Err(error) => .Err(error)
+
+impl Parse for u16:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u16, ParseNumberError]:
+        match parse_unsigned(text, 65535):
+            .Ok(value) => .Ok(u16(value))
+            .Err(error) => .Err(error)
+
+impl Parse for u32:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u32, ParseNumberError]:
+        match parse_unsigned(text, 4294967295):
+            .Ok(value) => .Ok(u32(value))
+            .Err(error) => .Err(error)
+
+impl Parse for u64:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[u64, ParseNumberError]:
+        parse_unsigned(text, 18446744073709551615)
+
+# `usize` has the target's width, 32 bits on Wasm32 (r-std-num.parse.usize-type-range).
+impl Parse for usize:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[usize, ParseNumberError]:
+        match parse_unsigned(text, 4294967295):
+            .Ok(value) => .Ok(usize(value))
+            .Err(error) => .Err(error)
+
+impl Parse for f64:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[f64, ParseNumberError]:
+        read_float64(text)
+
+# The `f32` is the `f64` that `f64.parse` reads, rounded to `f32`
+# (r-std-num.parse.float32).
+impl Parse for f32:
+    type Error = ParseNumberError
+
+    fn parse(text: string) -> Result[f32, ParseNumberError]:
+        match read_float64(text):
+            .Ok(value) => .Ok(f32(value))
+            .Err(error) => .Err(error)
+
+# Float parsing (spec/std/num.md#float-parsing), in the grammar of Rust's
+# `str::parse::<f64>`. The sign, the grammar, and the words `nan`, `inf`,
+# and `infinity` are read here, so every error and its position are std's.
+# The host hook only rounds an unsigned decimal number, and has no error
+# signal (r-std-num.parse-f64.hook.total).
+fn read_float64(text: string) -> Result[f64, ParseNumberError]:
+    size := text.len()
+    if size == 0:
+        return .Err(ParseNumberError.Empty)
+    negative := text[0] == 45
+    let start: usize = if negative || text[0] == 43: 1 else: 0
+    if start == size:
+        return .Err(ParseNumberError.InvalidDigit(start))
+    first := text[start]
+    let magnitude = 0.0
+    # `n`, `N`, `i`, `I`: a special word.
+    if first == 110 || first == 78 || first == 105 || first == 73:
+        match word_error(text, start):
+            .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
+            .None => pass
+        magnitude = if first == 110 || first == 78: 0.0 / 0.0 else: 1.0 / 0.0
+    else:
+        match decimal_error(text, start):
+            .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
+            .None => pass
+        # The sign is one ASCII byte, so the unsigned text starts at byte 1.
+        magnitude = round_decimal(if start == 0: text else: text.slice(1, size))
+    if negative: .Ok(-magnitude) else: .Ok(magnitude)
+
+# Where the bytes of `text` from `start` first break a decimal number
+# (r-std-num.parse-f64.decimal): the offset of the byte no continuation
+# allows, or the text's length when it ends where more must follow.
+# `.None` when all of it matches. Every byte before the first invalid one
+# is ASCII, so the byte offset is the position the spec reports.
+fn decimal_error(text: string, start: usize) -> usize?:
+    size := text.len()
+    let at = after_digits(text, start)
+    let digits = at > start
+    if at < size && text[at] == 46:
+        fraction := after_digits(text, at + 1)
+        digits = digits || fraction > at + 1
+        at = fraction
+    # Either side of the point may be empty, but not both.
+    if !digits:
+        return .Some(at)
+    if at < size && (text[at] == 101 || text[at] == 69):
+        at = at + 1
+        if at < size && (text[at] == 43 || text[at] == 45):
+            at = at + 1
+        if at >= size:
+            return .Some(size)
+        if text[at] < 48 || text[at] > 57:
+            return .Some(at)
+        at = after_digits(text, at)
+    if at < size: .Some(at) else: .None
+
+# Where the bytes of `text` from `start` first break the word `nan`, `inf`,
+# or `infinity`, each letter in either case (r-std-num.parse-f64.special):
+# the offset of the byte no word allows, or the text's length when it ends
+# inside a word. `.None` when the rest is one whole word.
+fn word_error(text: string, start: usize) -> usize?:
+    nan := text[start] == 110 || text[start] == 78
+    word := if nan: "nan" else: "infinity"
+    size := text.len()
+    let index: usize = 0
+    while start + index < size:
+        byte := text[start + index]
+        # An upper-case letter is 32 below its lower-case letter.
+        if index >= word.len() || (byte != word[index] && byte != word[index] - 32):
+            return .Some(start + index)
+        index = index + 1
+    # `inf` is a whole word as well as the start of `infinity`.
+    if index == word.len() || (!nan && index == 3): .None else: .Some(size)
+
+# The offset after the run of decimal digits that starts at `at`.
+fn after_digits(text: string, at: usize) -> usize:
+    let index = at
+    while index < text.len() && text[index] >= 48 && text[index] <= 57:
+        index = index + 1
+    index
+
+# The correctly rounded `f64` of an unsigned decimal number, ties to
+# even: positive infinity past the range and `0.0` below it. Callers pass
+# only text in the grammar (spec/std/README.md#standard-library-primitives).
+@intrinsic("parse_f64")
+fn round_decimal(text: string) -> f64:
+    panic("intrinsic")
