@@ -33,6 +33,8 @@ struct Frame {
     /// One past the nearest written-result frame, or zero.
     boundary: usize,
     live: Option<Ty>,
+    /// Only lexical body reads add edges, not row-settling queries after it.
+    recording: bool,
 }
 
 impl Cycles {
@@ -48,7 +50,11 @@ impl Cycles {
     }
 
     fn edge(&mut self, to: u32) {
-        if let Some(from) = self.frames.last().and_then(|f| f.vertex)
+        if let Some(from) = self
+            .frames
+            .last()
+            .filter(|f| f.recording)
+            .and_then(|f| f.vertex)
             && self.unique.insert((from, to))
         {
             self.edges[from as usize].push(to);
@@ -83,6 +89,7 @@ impl Cycles {
             vertex,
             boundary,
             live,
+            recording: true,
         });
         mark
     }
@@ -96,6 +103,7 @@ impl Cycles {
     pub(crate) fn live(&mut self, at: NodeIdx, live: Option<Ty>) {
         if let Some(&i) = self.active.get(&at) {
             self.frames[i].live = live;
+            self.frames[i].recording = live.is_some();
         }
     }
 

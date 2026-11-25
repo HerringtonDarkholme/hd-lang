@@ -4676,6 +4676,7 @@ lang/functions/declarations/local-omitted-result-cycle-one-annotated.hd	type	acc
 lang/functions/declarations/generic-local-written-result-recursion.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
 lang/functions/declarations/global-local-omitted-result-cycle-one-annotated.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
 lang/functions/declarations/local-omitted-result-cycle-through-annotated-closure.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
+lang/functions/declarations/omitted-result-value-read-through-a-written-result-cycle.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
 lang/functions/declarations/omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
 lang/functions/declarations/omitted-result-mutual-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
 lang/functions/declarations/omitted-result-cycle-reported-once.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle.report
