@@ -2,3 +2,6 @@
 error: rt_tests/stage_case.hd:8:1: nonlocal-impl: `impl TextRoom` belongs in the module of its trait or target
 error: rt_tests/stage_case.hd:12:1: nonlocal-impl: `impl Disposable for TextRoom` belongs in the module of its trait or target
 error: rt_tests/stage_case.hd:16:1: nonlocal-impl: `impl[N < Integer] Ord for N` belongs in the module of its trait or target
+error: rt_tests/stage_case.hd:20:1: nonlocal-impl: `impl bool` belongs in the module of its trait or target
+error: rt_tests/stage_case.hd:24:1: nonlocal-impl: `impl[N < Integer] N` belongs in the module of its trait or target
+error: rt_tests/stage_case.hd:28:1: nonlocal-impl: `impl List[i32]` belongs in the module of its trait or target

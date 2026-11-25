@@ -242,13 +242,8 @@ impl[T, 'a] SpanIter[T, 'a]:
     pub fn rev(self) -> Rev[Self, (&'a T)]:
         DoubleEndedIterator::[_]::rev(self)
 
-impl[T] List[T]:
-    ## Returns a read-only live view of this list. The span cannot outlive the list.
-    ## See [std-collections.span.list](../../../spec/std/collections.md#r-std-collections.span.list).
-    pub fn span['a](&'a self) -> Span[T, 'a]:
-        Span { items: self, start: 0, end: self.len() }
+pub fn list_span[T, 'a](items: &'a List[T]) -> Span[T, 'a]:
+    Span { items: items, start: 0, end: items.len() }
 
-    ## Returns a mutable live view of this list. The span cannot outlive the list.
-    ## See [std-collections.span-mut.list](../../../spec/std/collections.md#r-std-collections.span-mut.list).
-    pub fn span_mut['a](&'a mut self) -> SpanMut[T, 'a]:
-        SpanMut { items: self, start: 0, end: self.len() }
+pub fn list_span_mut[T, 'a](items: &'a mut List[T]) -> SpanMut[T, 'a]:
+    SpanMut { items: items, start: 0, end: items.len() }

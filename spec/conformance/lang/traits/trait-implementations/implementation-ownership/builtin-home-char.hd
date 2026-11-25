@@ -1,0 +1,6 @@
+# test: char inherent implementation outside its std home module is nonlocal
+# fixture-package-role: standard-library
+
+impl char: # diagnostic: nonlocal-impl
+    fn home_probe(self) -> void:
+        pass

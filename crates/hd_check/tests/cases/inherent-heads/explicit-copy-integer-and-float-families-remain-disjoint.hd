@@ -1,5 +1,6 @@
 # @dump: diagnostics
 # @build: std
+# @std-module: num.hd
 # expected: no diagnostics; explicit Copy preserves disjoint numeric families.
 use std.num.{Integer, Float}
 impl[N < Copy & Integer] N:

@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# expected: the internal value factory adds no public StringBuilder constructor.
+use std.text.StringBuilder
+
+fn probe() -> void:
+    _ := StringBuilder::new_value()

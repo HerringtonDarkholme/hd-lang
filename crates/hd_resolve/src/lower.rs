@@ -310,6 +310,10 @@ pub trait World {
     /// (`module.use.facade.module`); `None` when no module has that path.
     fn published(&self, module: &str) -> Option<bool>;
     fn iface(&self, unit: u32) -> Option<Arc<UnitIface>>;
+    /// Complete std import advice, when the host supplies an immutable index.
+    fn import_hint(&self, _name: &str) -> Option<crate::iface::ImportHint> {
+        None
+    }
     /// Holds (`true`) or resumes the recording of the reads that follow,
     /// in a world that records them ([`Recorded`]): binding a use reads
     /// quietly, since its reads count only once a lookup consults a name
@@ -377,6 +381,9 @@ impl<'a> Recorded<'a> {
 }
 
 impl World for Recorded<'_> {
+    fn import_hint(&self, name: &str) -> Option<crate::iface::ImportHint> {
+        self.world.import_hint(name)
+    }
     fn module_path_node(&self, module: PathId) -> Option<&str> {
         self.world.module_path_node(module)
     }
@@ -1514,16 +1521,8 @@ impl Resolver<'_, '_> {
         self.cx.world.usable(module)
     }
 
-    fn export(&self, module: &str, name: Symbol) -> Res {
-        let Some(f) = self
-            .cx
-            .world
-            .module_unit(module)
-            .filter(|_| self.cx.world.usable(module) || self.inputs.contains(module))
-        else {
-            return Err(Code::UnknownModule);
-        };
-        let frozen = |i: &UnitIface| {
+    fn export<'s>(&'s self, mut module: &'s str, mut name: Symbol) -> Res {
+        let frozen = |i: &UnitIface, module: &str, name: Symbol| {
             i.export(module, name)
                 .map(|e| (e.def, e.kind))
                 .ok_or(if i.is_private(module, name) {
@@ -1536,50 +1535,66 @@ impl Resolver<'_, '_> {
                     Code::UnknownImport
                 })
         };
-        if f != self.cx.unit {
-            let Some(i) = self.cx.world.iface(f) else {
-                // A test-only module has no interface outside a test
-                // build; naming it from non-test code is test-only-use,
-                // not unknown-module (`module.test.non-test-use`).
-                if self.cx.world.test_only(module) {
-                    return Err(Code::TestOnlyUse);
-                }
-                return Err(Code::UnknownModule);
+        // A re-export has one successor. Walk it once, then memoize the
+        // result for every link: no native stack depth or chain rescans.
+        // Direct declarations and memo hits allocate no chain storage.
+        let mut chain = Vec::new();
+        let result = loop {
+            let Some(f) = self
+                .cx
+                .world
+                .module_unit(module)
+                .filter(|_| self.cx.world.usable(module) || self.inputs.contains(module))
+            else {
+                break Err(Code::UnknownModule);
             };
-            return frozen(&i);
-        }
-        if let Some(i) = &self.frozen {
-            return frozen(i);
-        }
-        // An unfrozen unit normally supplies every module. If a caller
-        // supplies a subset, preserve its previous absent-head lookup result.
-        let Some(&module) = self.module_keys.get(module) else {
-            return Err(Code::UnknownImport);
-        };
-        let key = (module, name);
-        if let Some(r) = self.memo.borrow().get(&key) {
-            return *r;
-        }
-        let r = if let Some(&(d, k, public)) = self.own.get(&key) {
-            if public {
-                Ok((d, k))
-            } else {
-                Err(Code::PrivateImport)
+            if f != self.cx.unit {
+                break match self.cx.world.iface(f) {
+                    Some(i) => frozen(&i, module, name),
+                    None if self.cx.world.test_only(module) => Err(Code::TestOnlyUse),
+                    None => Err(Code::UnknownModule),
+                };
             }
-        } else if let Some((m, n)) = self.pub_uses.get(&key) {
+            if let Some(i) = &self.frozen {
+                break frozen(i, module, name);
+            }
+            let Some(&node) = self.module_keys.get(module) else {
+                break Err(Code::UnknownImport);
+            };
+            let key = (node, name);
+            if let Some(result) = self.memo.borrow().get(&key) {
+                break *result;
+            }
+            if let Some(&(def, kind, public)) = self.own.get(&key) {
+                let result = if public {
+                    Ok((def, kind))
+                } else {
+                    Err(Code::PrivateImport)
+                };
+                self.memo.borrow_mut().insert(key, result);
+                break result;
+            }
+            let Some(&(next, next_name)) = self.pub_uses.get(&key) else {
+                let result = Err(if self.broken.contains(&key) {
+                    Code::SyntaxError
+                } else {
+                    Code::UnknownImport
+                });
+                self.memo.borrow_mut().insert(key, result);
+                break result;
+            };
             if !self.visiting.borrow_mut().insert(key) {
-                return Err(Code::ReExportLoop);
+                break Err(Code::ReExportLoop);
             }
-            let r = self.export(self.module_text(*m), *n);
-            self.visiting.borrow_mut().remove(&key);
-            r
-        } else if self.broken.contains(&key) {
-            Err(Code::SyntaxError)
-        } else {
-            Err(Code::UnknownImport)
+            chain.push(key);
+            module = self.module_text(next);
+            name = next_name;
         };
-        self.memo.borrow_mut().insert(key, r);
-        r
+        for key in chain {
+            self.memo.borrow_mut().insert(key, result);
+            self.visiting.borrow_mut().remove(&key);
+        }
+        result
     }
 
     /// Whether `module` lives in the unit being lowered: only then did
@@ -3049,10 +3064,12 @@ impl Lower<'_, '_, '_> {
             return crate::iface::ImportHint::default();
         }
         let world = self.r.cx.world;
-        // std's root unit holds the public modules and their export
-        // index; `std.core` is a unit of its own, whose traits the root
-        // modules re-export. Prelude has child modules, so its own unit
-        // is only re-exports.
+        if let Some(hint) = world.import_hint(name) {
+            return hint;
+        }
+        // A small world without a complete advice provider can use the
+        // interface containing Ordering, as before. The project driver
+        // supplies immutable advice without widening checked interfaces.
         let root = self.names.module_node(self.names.known.ordering);
         world
             .module_unit_node(&self.names, root)
@@ -8317,9 +8334,9 @@ fn components(edges: &[Vec<usize>]) -> Vec<Vec<usize>> {
 /// The placement error of an implementation head, if it is outside its
 /// owners (`trait.own.*`): `OrphanImpl` when no owner is in the impl's
 /// package, `NonlocalImpl` when one is but not in this module. An
-/// inherent implementation is owned by its target alone. `None` for the
-/// standard library, and for what is no implementation of its own: a
-/// template or a derivation block.
+/// inherent implementation is owned by its target's declaring module,
+/// or its fixed built-in std home. `None` for what is no implementation
+/// of its own: a template or a derivation block.
 ///
 /// `session` holds the modules that count as `module` too: for a REPL
 /// input, `src/lib.hd` and the earlier inputs, since a session is one
@@ -8362,26 +8379,22 @@ pub fn impl_placement(
         if kind != ImplKind::Written {
             return None;
         }
-        // `trait.own.module.inherent.std`: only the built-in constructors
-        // may place inherent blocks anywhere in std. A validated numeric
-        // family stands for those primitive constructors, not any type.
-        let builtin = std_package
-            && match pool.get(self_ty) {
-                TyData::Prim(_) => true,
-                TyData::Param(_) => numeric_family,
-                TyData::Adt(AdtId::Declared(def), _) => [
-                    names.known.list,
-                    names.known.map,
-                    names.known.option,
-                    names.known.result,
-                ]
-                .contains(&def),
-                _ => false,
-            };
-        if builtin {
-            return None;
+        // Built-in inherent implementations use their fixed std home;
+        // a numeric family expands only to the primitives of std.num.
+        let home = std_package
+            .then(|| {
+                if numeric_family && matches!(pool.get(self_ty), TyData::Param(_)) {
+                    Some(crate::known::NUM_MODULE)
+                } else {
+                    names.known.inherent_home(pool, self_ty)
+                }
+            })
+            .flatten();
+        if let Some(home) = home {
+            owners.push(names.module(home));
+        } else {
+            owners.extend(ctor_module(self_ty));
         }
-        owners.extend(ctor_module(self_ty));
     } else {
         if !kind.is_impl() {
             return None;
@@ -9518,6 +9531,64 @@ impl TopBindings {
     }
 }
 
+/// Public declaration and re-export names, grouped by input module.
+/// Cost: one pass over the own names and written uses, not an own-name scan
+/// per module. Resolution itself shares the resolver's export-chain memo.
+fn public_names(
+    r: &Resolver<'_, '_>,
+    mods: &[ModIn<'_>],
+    uses: &[Vec<UseDecl>],
+) -> Vec<Vec<Symbol>> {
+    let mut own: HashMap<PathId, Vec<Symbol>> = HashMap::default();
+    for (&(module, name), &(_, _, public)) in &r.own {
+        if public {
+            own.entry(module).or_default().push(name);
+        }
+    }
+    mods.iter()
+        .zip(uses)
+        .map(|(m, us)| {
+            let mut names = own
+                .remove(&r.module_keys[m.path.as_str()])
+                .unwrap_or_default();
+            for u in us {
+                names.extend(reexports(r, m, u).into_iter().map(|(local, _, _)| local));
+            }
+            names
+        })
+        .collect()
+}
+
+/// Resolve only public names and their declaration identities: no type or
+/// body lowering, interface construction, or implementation indexing.
+/// The same name resolver and public-use rules serve ordinary interfaces.
+#[must_use]
+pub fn public_exports(cx: &Cx<'_>, mods: &[ModIn<'_>]) -> Vec<Export> {
+    let all_heads: Vec<_> = mods
+        .iter()
+        .map(|m| heads(&cx.names, &m.src, &m.path, false))
+        .collect();
+    let all_uses: Vec<_> = mods.iter().map(|m| use_decls(&m.src, &m.roots)).collect();
+    let r = resolver(cx, mods, &all_heads, &all_uses, None);
+    let mut seen = HashSet::default();
+    let mut exports = Vec::new();
+    for (m, names) in mods.iter().zip(public_names(&r, mods, &all_uses)) {
+        for name in names {
+            if seen.insert((m.path.as_str(), name))
+                && let Ok((def, kind)) = r.export(&m.path, name)
+            {
+                exports.push(Export {
+                    module: m.path.clone(),
+                    name,
+                    def,
+                    kind,
+                });
+            }
+        }
+    }
+    exports
+}
+
 /// Resolves and lowers the modules of one unit (§4.10 steps 1 to 4).
 /// Without `frozen`, `mods` must be every module of the unit: sibling
 /// uses resolve through their heads, and the unit's exports are
@@ -9780,17 +9851,12 @@ pub fn build_unit(
     if r.frozen.is_none() {
         decls::check(&r, mods, &all_heads, &out.modules, diags);
         let mut seen = HashSet::default();
-        for (m, us) in mods.iter().zip(&all_uses) {
+        for ((m, us), publics) in mods
+            .iter()
+            .zip(&all_uses)
+            .zip(public_names(&r, mods, &all_uses))
+        {
             let module = r.module_keys[m.path.as_str()];
-            let mut publics: Vec<Symbol> = r
-                .own
-                .iter()
-                .filter(|((mp, _), (_, _, p))| *mp == module && *p)
-                .map(|((_, n), _)| *n)
-                .collect();
-            for u in us {
-                publics.extend(reexports(&r, m, u).into_iter().map(|(local, _, _)| local));
-            }
             for name in publics {
                 if !seen.insert((module, name)) {
                     continue;
@@ -10413,10 +10479,15 @@ mod module_key_tests {
     use hd_types::InternPool;
     use std::sync::Arc;
 
+    std::thread_local! {
+        static EXPORT_LOOKUPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+
     struct Modules;
 
     impl World for Modules {
         fn module_unit(&self, module: &str) -> Option<u32> {
+            EXPORT_LOOKUPS.with(|count| count.set(count.get() + 1));
             match module {
                 "app" | "app.a" | "app.z" => Some(0),
                 "dep.mod" => Some(1),
@@ -10555,6 +10626,48 @@ mod module_key_tests {
             assert_eq!(r.export("missing", hidden), Err(Code::UnknownModule));
             assert_eq!(r.export("dep.mod", hidden), Err(Code::UnknownModule));
         });
+    }
+
+    #[test]
+    fn reexport_chains_share_linear_work_without_native_recursion() {
+        for (width, depth) in [(100, 2), (1000, 20), (1, 20_000)] {
+            with_resolver(|r| {
+                let module = r.intern_module("app.a");
+                let names = &r.cx.names;
+                let tail: Vec<_> = (0..=depth)
+                    .map(|i| names.syms.intern(&format!("step_{i}")))
+                    .collect();
+                let def = names.item("app.a", "value");
+                r.own
+                    .insert((module, tail[depth]), (def, HeadKind::Fn, true));
+                for pair in tail.windows(2) {
+                    r.pub_uses.insert((module, pair[0]), (module, pair[1]));
+                }
+                let roots: Vec<_> = (0..width)
+                    .map(|i| names.syms.intern(&format!("entry_{i}")))
+                    .collect();
+                for &root in &roots {
+                    r.pub_uses.insert((module, root), (module, tail[0]));
+                }
+                EXPORT_LOOKUPS.with(|count| count.set(0));
+                for &root in &roots {
+                    assert_eq!(r.export("app.a", root), Ok((def, HeadKind::Fn)));
+                }
+                // Each new link is resolved once. Later roots share the
+                // tail's memo; module_unit and usable each query the world.
+                let cold = EXPORT_LOOKUPS.with(std::cell::Cell::get);
+                assert!(
+                    cold <= 2 * (2 * width + depth + 1),
+                    "{width}/{depth}: {cold}"
+                );
+                EXPORT_LOOKUPS.with(|count| count.set(0));
+                for &root in &roots {
+                    assert_eq!(r.export("app.a", root), Ok((def, HeadKind::Fn)));
+                }
+                assert_eq!(EXPORT_LOOKUPS.with(std::cell::Cell::get), 2 * width);
+                assert!(r.visiting.borrow().is_empty());
+            });
+        }
     }
 
     #[test]

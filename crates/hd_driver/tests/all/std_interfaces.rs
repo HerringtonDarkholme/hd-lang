@@ -75,38 +75,49 @@ fn std_interfaces_build_with_no_diagnostic() {
     let units: Vec<&str> = out.ifaces.iter().map(|f| f.0.as_str()).collect();
     assert_eq!(
         units,
-        // Each unit is a strongly connected module group, named after its
-        // first module. The top-level language-layer ring joins core,
-        // num/ops/meta and runtime dependencies in `std.arena` (#2355).
-        // #2363 replaces that ring with real dependencies; these counts
-        // describe the current graph, rather than promising granularity.
+        // Only real-use SCCs and fixed implicit providers are built.
         [
             "app.main",
-            "std",
-            "std.arena",
-            "std.prelude.testing",
+            "std.cmp",
+            "std.crypto",
+            "std.crypto.sha256",
+            "std.encoding.base64",
+            "std.encoding.hex",
+            "std.encoding.json",
+            "std.host",
+            "std.http",
+            "std.option",
+            "std.path",
+            "std.process",
+            "std.random",
+            "std.remote",
+            "std.result",
             "std.rt.checked",
-            "std.rt.checked_report",
-            "std.rt.checked_report.pairs",
             "std.rt.crossing",
             "std.rt.entry",
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::UnitIface).ok, 10);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 19);
 }
 
 #[test]
 fn the_prelude_module_reexports_the_prelude_table() {
-    let out = run(&hello());
-    // `std.prelude` is in std's language-layer unit.
-    let (_, blob) = out
-        .ifaces
-        .iter()
-        .find(|f| f.0 == "std.arena")
-        .expect("std's language layer");
+    let mut sources = MemorySources::default();
+    sources.insert(
+        "main.hd",
+        include_str!("programs/std_interfaces/prelude.hd"),
+    );
+    let out = run(&sources);
+    assert!(out.diags.is_empty(), "{}", out.render());
+    // An unused facade no longer joins every program's implicit layer.
+    // This program uses it explicitly; find its actual SCC by its exports.
     fresh(|n| {
-        let (_, exports) = decode_items(n, blob).expect("decode");
+        let exports: Vec<_> = out
+            .ifaces
+            .iter()
+            .flat_map(|(_, blob)| decode_items(n, blob).expect("decode").1)
+            .collect();
         // A row's name is declared in its origin module, or in `std.core`
         // when the origin re-exports it (`module.core.re-exports`).
         let mut got: Vec<(String, String)> = exports
@@ -133,15 +144,9 @@ fn std_interfaces_hold_no_poison_type() {
     let out = run(&hello());
     for (unit, blob) in out.ifaces.iter().filter(|f| f.0.starts_with("std")) {
         fresh(|n| {
-            let (items, exports) = decode_items(n, blob).expect("decode");
-            // The entry glue's items and the crossing runtime's, which
-            // the compiler calls, are all private; std's root re-exports
-            // modules only, which bind no name.
-            assert!(
-                !exports.is_empty()
-                    || ["std", "std.rt.entry", "std.rt.crossing"].contains(&unit.as_str()),
-                "{unit}"
-            );
+            let (items, _) = decode_items(n, blob).expect("decode");
+            // A real SCC can hold only inherent impls or namespace exports;
+            // neither requires a public item export. Check its types directly.
             let mut bad = Vec::new();
             for it in &items {
                 let mut tys: Vec<hd_types::Ty> = it
@@ -223,7 +228,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 10);
+    assert_eq!(base.len(), 19);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -265,7 +270,12 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
             .ifaces_built
             .contains(&"app.service.load".to_owned())
     );
-    assert!(!b.counters.ifaces_built.contains(&"std.arena".to_owned()));
+    assert!(
+        b.counters
+            .ifaces_built
+            .iter()
+            .all(|m| !m.starts_with("std."))
+    );
 }
 
 #[test]
@@ -321,8 +331,8 @@ fn std_typed_signatures_compile_through_headers() {
     crate::add_facades(&mut s);
     let out = run(&s);
     let t = out.report.tally(Stage::UnitIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (12, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 12);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (20, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 20);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(
@@ -377,4 +387,64 @@ fn written_lifetimes_map_reference_slots() {
             ]
         );
     });
+}
+
+/// Unused std files are not implicit interface/body roots (#2363).
+/// Count actual work at tenfold width and depth20, not elapsed time.
+#[test]
+fn unreachable_std_growth_does_not_expand_parsing_or_checking() {
+    let mut before = None;
+    for (width, depth) in [(100, 2), (1000, 20)] {
+        let mut sources = hd_driver::std_sources();
+        sources.insert(
+            "conformance/probe.hd",
+            include_str!("programs/std_interfaces/hello.hd"),
+        );
+        for item in 0..width {
+            let mut path = format!("unrelated_{item}");
+            for _ in 1..depth {
+                path.push_str("/nested");
+            }
+            path.push_str("/leaf.hd");
+            sources.insert(&path, include_str!("programs/std_interfaces/one.hd"));
+        }
+        let store = MemoryStore::default();
+        let host = Host {
+            render_tir: &[],
+            sources: &sources,
+            store: &store,
+            clock: &NoClock,
+            executor: Executor::Serial(SerialOrder::Shuffled(7)),
+        };
+        let (out, hint_work) = hd_resolve::work::count_hint_work(|| {
+            build_packages(
+                &host,
+                "std",
+                &Packages::default(),
+                &Goal::Program {
+                    entry: "conformance.probe".to_owned(),
+                },
+            )
+        });
+        assert_eq!(hint_work, 0, "valid code never asks the std advice index");
+        assert!(out.diags.is_empty(), "{}", out.render());
+        assert!(out.wasm.is_some(), "std-root probe links");
+        assert!(
+            out.counters
+                .parsed
+                .iter()
+                .all(|m| !m.starts_with("std.unrelated_"))
+        );
+        let work = (
+            out.counters.parsed.len(),
+            out.counters.ifaces_built.len(),
+            out.counters.modules_checked.len(),
+            out.report.tally(Stage::HeaderCheck).ok,
+        );
+        if let Some(before) = before {
+            assert_eq!(work, before, "width{width}/depth{depth}");
+        } else {
+            before = Some(work);
+        }
+    }
 }

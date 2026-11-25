@@ -347,14 +347,24 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
     let mut sources = MemorySources::default();
     let mut tree = false;
     let mut deps = Vec::new();
+    let mut package = "fixture";
     let primary = if let Some(role) = directive(&text, "fixture-package-role") {
         // The primary file is the root module of a package in the role,
         // which depends on every package under its tier's `packages/`,
         // each a library whose `lib.hd` is its root module.
-        deps = role_packages(unit_tier(case));
+        if role == "standard-library" {
+            sources = hd_driver::std_sources();
+            package = "std";
+        } else {
+            deps = role_packages(unit_tier(case));
+        }
         match role {
             "library" => "src/lib.hd".to_owned(),
             "root-application" => "src/main.hd".to_owned(),
+            "standard-library" => format!(
+                "conformance/{}.hd",
+                file.file_stem().ok_or("Discover")?.to_string_lossy()
+            ),
             _ => return Err("Discover".to_owned()),
         }
     } else if let Some(value) = directive(&text, "fixture-package-tree") {
@@ -383,7 +393,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         tree,
         deps,
         checked: checked_runtime(),
-        package: "fixture",
+        package,
         reuse: Reuse::default(),
     })
 }
@@ -638,7 +648,7 @@ fn build_for(
 /// `Console`. `console`, the profile of a fixture that names none, selects
 /// no profile.
 fn profile(fixture: &Fixture) -> Option<Vec<String>> {
-    let module = hd_project::module_path("fixture", &fixture.primary);
+    let module = hd_project::module_path(fixture.package, &fixture.primary);
     hd_testkit::profile_traits(
         directive(&fixture.text, "fixture-runtime-profile")?,
         &module,

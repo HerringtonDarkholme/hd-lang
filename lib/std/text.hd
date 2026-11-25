@@ -1,3 +1,5 @@
+use std.rt.TextBuilderValue
+use std.core.string_to_bytes
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # std.text: the `string` methods, `join`, and `StringBuilder`
 # (spec/lang/10-modules.md#string-methods for the intrinsics, spec/std/text.md for
@@ -236,6 +238,12 @@ impl Parse for string:
         .Ok(text)
 
 impl string:
+    ## Returns the string's bytes as a new list.
+    ## See [std-text.utf8.round-trip](../../spec/std/text.md#r-std-text.utf8.round-trip).
+    @inline(.Always)
+    pub fn to_utf8(self) -> List[u8]:
+        string_to_bytes(self)
+
     # The number of bytes (spec/lang/04-type-system.md#r-types.string.len-bytes).
     ## Returns the number of bytes in the string.
     ## See [ilt-in-methods](../../spec/lang/10-modules.md#built-in-methods).
@@ -671,24 +679,15 @@ impl char:
     pub fn to_u32(self) -> u32:
         char_scalar(self)
 
-impl[T < Display] List[T]:
-    ## Joins each element's Display text with `separator` between elements.
-    ## See [std-text.join.display-list](../../spec/std/text.md#r-std-text.join.display-list).
-    pub fn join(&self, separator: string) -> string:
-        let mut output = StringBuilder { bytes: TextBuffer::new() }
-        let first = true
-        for part in self:
-            if !first:
-                output.push(separator)
-            first = false
-            part.write(&mut output)
-        output.build()
-
 ## Joins many pieces of text by pushing them, cheaper than repeated concatenation.
 ## See [std-text.builder.decl-struct](../../spec/std/text.md#r-std-text.builder.decl-struct).
 pub struct StringBuilder:
     # The UTF-8 bytes pushed since the last build, the string `build` takes over.
     bytes: TextBuffer
+
+impl TextBuilderValue for StringBuilder:
+    fn new_value() -> StringBuilder:
+        StringBuilder { bytes: TextBuffer::new() }
 
 impl StringBuilder:
     # Ordinary private helpers for a value interpolation's single result.

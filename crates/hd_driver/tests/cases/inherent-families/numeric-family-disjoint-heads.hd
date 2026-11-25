@@ -1,7 +1,8 @@
 # @dump: diagnostics
 # @build: std
+# @std-module: num.hd
 # Spec: trait.target.numeric-family.each, trait.inherent.unique-unifying.
-# The sealed numeric family membership is independent of the declaration folder.
+# The sealed numeric family overlaps are checked in their std.num home.
 use std.num.{Integer, Float, Num}
 
 struct Local: pass
@@ -18,35 +19,11 @@ impl f64:
     fn disjoint_integer_0(self) -> string:
         "member"
 
-impl bool:
-    fn disjoint_integer_0(self) -> string:
-        "member"
-
-impl char:
-    fn disjoint_integer_0(self) -> string:
-        "member"
-
-impl string:
-    fn disjoint_integer_0(self) -> string:
-        "member"
-
 impl Local:
     fn disjoint_integer_0(self) -> string:
         "member"
 
 impl Local:
-    fn disjoint_integer_1(self) -> string:
-        "member"
-
-impl string:
-    fn disjoint_integer_1(self) -> string:
-        "member"
-
-impl char:
-    fn disjoint_integer_1(self) -> string:
-        "member"
-
-impl bool:
     fn disjoint_integer_1(self) -> string:
         "member"
 
@@ -102,35 +79,11 @@ impl usize:
     fn disjoint_float_0(self) -> string:
         "member"
 
-impl bool:
-    fn disjoint_float_0(self) -> string:
-        "member"
-
-impl char:
-    fn disjoint_float_0(self) -> string:
-        "member"
-
-impl string:
-    fn disjoint_float_0(self) -> string:
-        "member"
-
 impl Local:
     fn disjoint_float_0(self) -> string:
         "member"
 
 impl Local:
-    fn disjoint_float_1(self) -> string:
-        "member"
-
-impl string:
-    fn disjoint_float_1(self) -> string:
-        "member"
-
-impl char:
-    fn disjoint_float_1(self) -> string:
-        "member"
-
-impl bool:
     fn disjoint_float_1(self) -> string:
         "member"
 
@@ -178,35 +131,11 @@ impl[N < Num] N:
     fn disjoint_num_0(self) -> string:
         "member"
 
-impl bool:
-    fn disjoint_num_0(self) -> string:
-        "member"
-
-impl char:
-    fn disjoint_num_0(self) -> string:
-        "member"
-
-impl string:
-    fn disjoint_num_0(self) -> string:
-        "member"
-
 impl Local:
     fn disjoint_num_0(self) -> string:
         "member"
 
 impl Local:
-    fn disjoint_num_1(self) -> string:
-        "member"
-
-impl string:
-    fn disjoint_num_1(self) -> string:
-        "member"
-
-impl char:
-    fn disjoint_num_1(self) -> string:
-        "member"
-
-impl bool:
     fn disjoint_num_1(self) -> string:
         "member"
 
@@ -228,4 +157,78 @@ impl[N < Float] N:
 
 impl[N < Integer] N:
     fn disjoint_families_1(self) -> string:
+        "member"
+
+# @file: core/mod.hd
+impl bool:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl bool:
+    fn disjoint_num_1(self) -> string:
+        "member"
+
+# @file: text.hd
+impl char:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_integer_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_integer_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_float_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_float_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_num_0(self) -> string:
+        "member"
+
+impl string:
+    fn disjoint_num_1(self) -> string:
+        "member"
+
+impl char:
+    fn disjoint_num_1(self) -> string:
         "member"

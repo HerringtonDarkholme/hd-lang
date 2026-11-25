@@ -79,15 +79,10 @@ impl[T] ListViewIter[T]:
     pub fn rev(self) -> Rev[Self, T]:
         DoubleEndedIterator::[T]::rev(self)
 
-impl[T] List[T]:
-    # A read-only window on the elements from `start` up to `end`, with no
-    # copy (spec/std/collections.md#views).
-    ## A read-only window on the elements from `start` up to `end`, with no copy.
-    ## See [std-collections.view](../../../spec/std/collections.md#r-std-collections.view).
-    pub fn view(&self, start: usize, end: usize) -> ListView[T]:
-        if end > self.len() || start > end:
-            panic_with(
-                "index-out-of-bounds",
-                "list view start ${start} end ${end} out of bounds for length ${self.len()}",
-            )
-        ListView::[T] { items: *self, start: start, end: end }
+pub fn list_view[T](items: &List[T], start: usize, end: usize) -> ListView[T]:
+    if end > items.len() || start > end:
+        panic_with(
+            "index-out-of-bounds",
+            "list view start $start end $end out of bounds for length ${items.len()}",
+        )
+    ListView::[T] { items: *items, start: start, end: end }

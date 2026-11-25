@@ -1,0 +1,6 @@
+# test: list inherent implementation outside its std home module is nonlocal
+# fixture-package-role: standard-library
+
+impl[T] List[T]: # diagnostic: nonlocal-impl
+    fn home_probe(self) -> void:
+        pass

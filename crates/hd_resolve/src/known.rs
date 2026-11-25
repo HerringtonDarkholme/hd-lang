@@ -34,6 +34,63 @@ pub const UNIQ_LIST_MODULE: &str = "std.collections.uniq_list";
 pub const UNIQ_MAP_MODULE: &str = "std.collections.uniq_map";
 /// The module of std's inherent `List` methods.
 pub const LIST_MODULE: &str = "std.collections.list";
+pub const MAP_MODULE: &str = "std.collections.map";
+pub const OPTION_MODULE: &str = "std.option";
+pub const RESULT_MODULE: &str = "std.result";
+pub const TEXT_MODULE: &str = "std.text";
+pub const NUM_MODULE: &str = "std.num";
+
+/// A built-in constructor whose inherent implementations have one home.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BuiltinHome {
+    Primitive(hd_types::Prim),
+    List,
+    Map,
+    Option,
+    Result,
+}
+
+/// The fixed homes of the built-in constructors. Ordinary nominal types
+/// keep their declaring module as their home. Numeric-family targets all
+/// expand to primitives with the same home, `NUM_MODULE`.
+pub const BUILTIN_HOMES: &[(BuiltinHome, &str)] = &[
+    (BuiltinHome::Primitive(hd_types::Prim::I8), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::I16), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::I32), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::I64), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U8), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U16), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U32), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::U64), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::Usize), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::F32), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::F64), NUM_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::Bool), CORE_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::Char), TEXT_MODULE),
+    (BuiltinHome::Primitive(hd_types::Prim::String), TEXT_MODULE),
+    (BuiltinHome::List, LIST_MODULE),
+    (BuiltinHome::Map, MAP_MODULE),
+    (BuiltinHome::Option, OPTION_MODULE),
+    (BuiltinHome::Result, RESULT_MODULE),
+];
+
+/// Declaring modules of every compiler-known item, including ancestors.
+/// This process-wide constant is derived from the known-item constructor,
+/// never from an accumulating run's path table. Cost: O(K * D) once, for
+/// the fixed K known paths of fixed depth D; no scan of program state.
+#[must_use]
+pub fn item_modules() -> &'static [String] {
+    static MODULES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+        let paths = PathTable::new();
+        let _ = KnownItems::new(&paths);
+        (0..paths.len())
+            .map(PathId::from_raw)
+            .filter(|&id| paths.kind(id) == PathKind::Module)
+            .map(|id| paths.display(id).to_string().replace('/', "."))
+            .collect()
+    });
+    &MODULES
+}
 
 /// The modules with compiler-supplied declarations, in seed order.
 pub const SEEDED_MODULES: &[&str] = &[
@@ -60,7 +117,7 @@ pub struct KnownItems {
     pub map: DefId,
     // std.ops
     pub ops_module: PathId,
-    /// The `std.core` module, which owns every built-in type's methods.
+    /// The `std.core` module, which declares the built-in type identities.
     pub core_module: PathId,
     /// The `Fn[I, O, $R]` trait. In a type position the same declaration
     /// remains the compiler's `Fn[I, O, $R]` function type constructor.
@@ -316,6 +373,35 @@ pub struct KnownItems {
 }
 
 impl KnownItems {
+    /// The std home of a built-in target's inherent implementations.
+    /// Alias expansion has already supplied its semantic constructor.
+    #[must_use]
+    pub fn inherent_home(
+        &self,
+        pool: &hd_types::InternPool,
+        ty: hd_types::Ty,
+    ) -> Option<&'static str> {
+        let target = match pool.get(ty) {
+            hd_types::TyData::Prim(p) => BuiltinHome::Primitive(p),
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.list => {
+                BuiltinHome::List
+            }
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.map => {
+                BuiltinHome::Map
+            }
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.option => {
+                BuiltinHome::Option
+            }
+            hd_types::TyData::Adt(hd_types::AdtId::Declared(def), _) if def == self.result => {
+                BuiltinHome::Result
+            }
+            _ => return None,
+        };
+        BUILTIN_HOMES
+            .iter()
+            .find_map(|&(key, module)| (key == target).then_some(module))
+    }
+
     /// A `Wire` crossing parameter of type `fn(..) -> T` as its callee holds
     /// it (`fn.crossing.lift`): `fn(bool, ..) -> Result[C, List[u8]]`, where
     /// `C` is the call's value, `T` or its cold `Suspend[T]`. For `false` it

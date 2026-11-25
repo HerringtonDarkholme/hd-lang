@@ -859,7 +859,7 @@ fn empty_controls() -> void:
 >   %60 = NewList - [%58 "pt"] : List[string]
 >   %62 = Store [$4] %60 : ()
 >   %63 = Ref local frame [$4] : &List[string]
->   %64 = Call std/text/impl[T < Display] List[T].join[string] (%63, "") : string
+>   %64 = Call std/collections.list/impl[T < Display] List[T].join[string] (%63, "") : string
 >   %65 = LoanEnd [%63] : ()
 >   %66 = Drop [$4] : ()
 >   %67 = Store [$5] %64 : ()

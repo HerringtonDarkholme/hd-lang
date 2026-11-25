@@ -76,7 +76,7 @@ pub trait Hasher:
     ## Writes the UTF-8 bytes of `text`, with no length, as `write` would.
     ## See [trait.hash.typed-methods](../../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
     fn write_str(&mut self, text: string) -> void:
-        self.write(text.to_utf8())
+        self.write(string_to_bytes(text))
 
 ## A type whose values write their hash bytes to a `Hasher`; a map key needs it with `Eq`.
 ## See [trait.hash.module](../../../spec/lang/09-traits.md#r-trait.hash.module).
@@ -108,13 +108,10 @@ fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
         index = index + 1
     bytes
 
-impl string:
-    # A copy of the bytes, in one sized allocation and one copy.
-    ## Returns the string's bytes as a new list.
-    ## See [std-text.utf8.round-trip](../../../spec/std/text.md#r-std-text.utf8.round-trip).
-    @intrinsic("string_to_bytes")
-    pub fn to_utf8(self) -> List[u8]:
-        panic("intrinsic")
+# A copy of the UTF-8 bytes, in one sized allocation and one copy.
+@intrinsic("string_to_bytes")
+pub fn string_to_bytes(text: string) -> List[u8]:
+    panic("intrinsic")
 
 # Equality and order of the primitives (spec/lang/05-expressions.md#r-expr.eq.std,
 # #r-expr.ord.std). The number types, `char`, and `bool` compare through
