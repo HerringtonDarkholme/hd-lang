@@ -257,6 +257,7 @@ fn every_runtime_helper_validates() {
             counted: hd_wasm::testing::rt::Counted::None,
             parts: vec![],
             cyclic: false,
+            block: None,
         },
         counts: Box::new(hd_wasm::testing::rt::HostCounts {
             borrowed: Vec::new(),
@@ -315,6 +316,7 @@ fn string_area() -> Elem {
             },
         )],
         cyclic: false,
+        block: None,
     }
 }
 
@@ -380,6 +382,7 @@ fn every_boundary_type() -> LTy {
                 counted: hd_wasm::testing::rt::Counted::None,
                 parts: vec![],
                 cyclic: false,
+                block: None,
             },
             ty: LTy::Str,
         })),
@@ -1457,6 +1460,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         counted: hd_wasm::testing::rt::Counted::None,
         parts: vec![],
         cyclic: false,
+        block: None,
     };
     for part in 0..=5 {
         check(Helper::All {
@@ -1497,6 +1501,7 @@ fn ungenerated_helper_shapes_match_their_constructed_functions() {
         counted: hd_wasm::testing::rt::Counted::None,
         parts: vec![],
         cyclic: false,
+        block: None,
     };
     let cold = |res| Helper::HostCold {
         module: "hd:Probe".into(),
@@ -1844,6 +1849,7 @@ fn lists_use_the_allocators_room_before_reallocating() -> Result<(), Box<dyn std
         counted: hd_wasm::testing::rt::Counted::None,
         parts: vec![],
         cyclic: false,
+        block: None,
     };
     // Record each allocation's byte size in the exchange memory, indexed by
     // its first page. Test blocks span whole pages and never share a page.

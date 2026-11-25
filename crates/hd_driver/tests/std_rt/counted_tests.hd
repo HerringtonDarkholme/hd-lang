@@ -79,6 +79,12 @@ fn strings(n: usize) -> *Head[string]:
         i += 1
     block
 
+# The kind of list `xs`'s block: its descriptor's glue slot and CYCLIC
+# bit, without the allocator class, collector and loan bits.
+fn kind_of[T](xs: &PlainList[T]) -> u32:
+    block := usize(load_u32(address_of(xs)))
+    load_u32(block - 4) & 0x8000ffff
+
 fn release_cycle() -> void:
     node := box(Node { kids: PlainList::[*mut Node].new() })
     again := node
@@ -142,3 +148,27 @@ tests:
         cycle_drops = 0
         release_cycle()
         assert(cycle_drops == 1, "the collected cycle drops once: $cycle_drops")
+
+    it("every block of a list is one kind, whichever path made it"):
+        made := PlainList::[string].with_capacity(1)
+        let mut xs = PlainList::[string].new()
+        for i in 0..40:
+            xs.push("v${i}")
+        assert(kind_of(&xs) == kind_of(&made), "a pushed block is an alloc_counted one")
+        let mut copy = xs
+        copy.push("w")
+        assert(kind_of(&copy) == kind_of(&made), "a copied block too")
+        xs.insert(0, "z")
+        assert(kind_of(&xs) == kind_of(&made), "and an inserted one")
+        assert(xs.len() == 41 && copy.len() == 41, "lengths: ${xs.len()} ${copy.len()}")
+        assert(xs.get(1) == "v0" && copy.get(40) == "w", "values")
+        # A cycle-capable list's pushed blocks take part in collection
+        # (the cycle case below collects them); a `*mut` element's
+        # instances may name `H` through either permission, so its two
+        # paths can give two glues of one body (hd_wasm stage case
+        # counted/a-mut-element-lists-blocks-share-one-glue).
+        let mut kids = PlainList::[*mut Node].new()
+        node := box(Node { kids: PlainList::[*mut Node].new() })
+        for _ in 0..9:
+            kids.push(node)
+        assert(kind_of(&kids) & 0x80000000 != 0, "a pushed block of a cycle-capable list takes part")

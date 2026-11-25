@@ -111,6 +111,29 @@ pub fn product_fields(
     }
 }
 
+/// `H` of a std list type `t` over one counted block (#2369): a struct
+/// whose one field is a counted `*H`, as `PlainList[T]` over
+/// `*ListHead[T]`. The backend's list glue grows such a list's block as
+/// an `H` object, so both the glue's descriptor and mono's release hooks
+/// follow `H`. `None` for any other type, the builtin `List` among them.
+#[must_use]
+pub fn list_block_head(pool: &InternPool, env: &dyn crate::ProgramEnv, t: Ty) -> Option<Ty> {
+    let TyData::Adt(id @ AdtId::Declared(_), args) = pool.get(strip_newtype(pool, env, t)) else {
+        return None;
+    };
+    let [field] = product_fields(pool, env, id, args)[..] else {
+        return None;
+    };
+    match pool.get(field) {
+        TyData::Ref {
+            inner,
+            counted: true,
+            ..
+        } => Some(inner),
+        _ => None,
+    }
+}
+
 /// What layouts need to know about declared types (enum shapes).
 pub trait LayoutEnv {
     /// Variant payload types of an enum, or `None` for a data type.

@@ -174,12 +174,16 @@ impl Em<'_, '_, '_> {
         let et = self.elem_ty(t);
         let m = mem_of(self.pool(), self.env(), et)?;
         let counted = crate::rt::counted_of(self.input, self.m, et)?;
+        let block = hd_mono::layout::list_block_head(self.pool(), self.env(), t)
+            .map(|h| self.object_desc(h).map(Box::new))
+            .transpose()?;
         let elem = Elem {
             size: m.size,
             leaves: m.leaves,
             counted,
             parts: Vec::new(),
             cyclic: self.cyclic_object(t),
+            block,
         };
         Ok((et, elem))
     }

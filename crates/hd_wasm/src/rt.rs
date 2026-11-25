@@ -745,6 +745,29 @@ pub struct Elem {
     /// its type counts, hooks in its shims; none for a list's element.
     pub parts: Vec<(u32, Counted)>,
     pub cyclic: bool,
+    /// The descriptor of a list block that a std struct over one counted
+    /// `*H` names (#2369): `H`'s object descriptor, as `alloc_counted[H]`
+    /// gives it, so every block of one list is one kind whichever path
+    /// made it. `None` for the builtin buffer, whose glue is
+    /// [`Helper::DropElems`] and whose collector bit is `cyclic`.
+    pub block: Option<Box<ObjectDesc>>,
+}
+
+/// An object's descriptor: its release glue (none when it counts
+/// nothing), whether it takes part in cycle collection, and whether its
+/// glue can reach itself again ([`push_desc_recursive`]).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ObjectDesc {
+    pub glue: Option<Sym>,
+    pub cyclic: bool,
+    pub recursive: bool,
+}
+
+impl ObjectDesc {
+    /// Pushes the descriptor word.
+    pub fn push(&self, f: &mut Func) {
+        push_desc_recursive(f, self.glue.clone(), self.cyclic, self.recursive);
+    }
 }
 
 /// Count ownership of a host slot's argument record. Value indices refer
@@ -1107,6 +1130,7 @@ pub fn ctx_elem() -> Elem {
         },
         parts: Vec::new(),
         cyclic: true,
+        block: None,
     }
 }
 
@@ -3902,9 +3926,13 @@ fn list_buf(m: &Module, elem: &Elem) -> Func {
     f.op(Instruction::I32Mul);
     f.u32(LIST_ELEMS);
     f.op(Instruction::I32Add);
-    let glue =
-        (elem.counted.counts()).then(|| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
-    push_desc(&mut f, glue, elem.cyclic);
+    if let Some(desc) = &elem.block {
+        desc.push(&mut f);
+    } else {
+        let glue =
+            (elem.counted.counts()).then(|| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
+        push_desc(&mut f, glue, elem.cyclic);
+    }
     f.helper(Helper::New);
     f.set(b);
     f.get(b);

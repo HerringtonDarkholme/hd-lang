@@ -49,6 +49,7 @@ mod tests {
                     counted: hd_wasm::testing::rt::Counted::None,
                     parts: vec![],
                     cyclic: false,
+                    block: None,
                 },
                 counts: Box::new(hd_wasm::testing::rt::HostCounts {
                     borrowed: Vec::new(),
@@ -101,6 +102,7 @@ mod tests {
             counted: hd_wasm::testing::rt::Counted::None,
             parts: vec![],
             cyclic: false,
+            block: None,
         };
         for blocking in [false, true] {
             for (name, helper) in [
@@ -267,6 +269,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
                 },
             )],
             cyclic: false,
+            block: None,
         };
         for blocking in [false, true] {
             let f = hd_wasm::testing::task::host_drive(
@@ -372,6 +375,7 @@ assert.deepEqual(finished, [h1, h3, h1 + 0x100000, h2 + 0x200000]);
             counted: hd_wasm::testing::rt::Counted::None,
             parts: vec![],
             cyclic: false,
+            block: None,
         };
         for (name, part) in [("all", 0), ("poll", 1), ("cancel", 2)] {
             m.export(
@@ -688,6 +692,7 @@ mod native_leaf_drop_tests {
             counted: hd_wasm::testing::rt::Counted::None,
             parts: vec![(0, part.clone())],
             cyclic: false,
+            block: None,
         };
         let Some(Sym::Helper(Helper::DropParts { leaves, parts })) = leaf_drop(&area) else {
             return Err("a leaf with a counted argument must have release glue".into());

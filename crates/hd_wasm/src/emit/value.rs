@@ -231,17 +231,28 @@ impl Em<'_, '_, '_> {
             // ruled out: the intrinsic table's `counted_` keys are these three.
             _ => {
                 let header = self.retain_src(&Src::Ref(args[0]), t)?;
-                let glue = parts_glue(&m, self.typed_parts(t)?);
-                let (cyclic, recursive) = (self.cyclic_object(t), self.recursive_object(t));
+                let desc = self.object_desc(t)?;
                 self.tail_offset(m.size, args[2])?;
                 self.push(args[1])?;
                 self.f.op(I::I32Add);
-                let at = self.new_object(None, glue, cyclic, recursive);
+                let at = self.new_object(None, desc.glue, desc.cyclic, desc.recursive);
                 self.write_new(Dst::Mem(at, 0, &m.leaves), &header)?;
                 self.f.get(at);
             }
         }
         self.store(i)
+    }
+
+    /// The descriptor of an object holding one `t` value: its parts' glue
+    /// and collector bits. `alloc_counted[H]` and the list glue's blocks
+    /// of a std list over `*H` both take `H`'s (#2369).
+    pub(super) fn object_desc(&mut self, t: Ty) -> StageResult<crate::rt::ObjectDesc> {
+        let m = crate::layout::mem(self.pool(), self.env(), t)?;
+        Ok(crate::rt::ObjectDesc {
+            glue: parts_glue(&m, self.typed_parts(t)?),
+            cyclic: self.cyclic_object(t),
+            recursive: self.recursive_object(t),
+        })
     }
 
     /// Pushes the offset from a block's payload to its tail at alignment

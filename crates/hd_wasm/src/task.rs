@@ -1366,6 +1366,7 @@ pub fn thread_watch() -> Helper {
             counted: crate::rt::Counted::None,
             parts: Vec::new(),
             cyclic: false,
+            block: None,
         },
         counts: Box::default(),
         res: HostRes::Void,

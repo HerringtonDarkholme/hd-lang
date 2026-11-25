@@ -466,6 +466,7 @@ fn of_at(
                         counted,
                         parts: Vec::new(),
                         cyclic: crate::cycle::object(pool, env, t),
+                        block: None,
                     };
                     let ty = of_at(input, m, e, path, at)?;
                     LTy::List(Box::new(LList { elem, ty }))
@@ -618,6 +619,7 @@ fn object_of(
         counted,
         parts: Vec::new(),
         cyclic: tracked,
+        block: None,
     };
     let ty = of_at(input, m, target, path, at)?;
     Ok(LTy::Object(Box::new(LObject {
@@ -1250,6 +1252,7 @@ fn args_area(
         // The leaf frame that keeps a host call's arguments takes part as
         // they say: only an open value holds the frame.
         cyclic: crate::cycle::holding(pool, env, types),
+        block: None,
     };
     Ok((area, crate::rt::HostCounts { borrowed, owned }))
 }
@@ -1276,6 +1279,7 @@ fn synchronous_owned_arguments(
         counted: crate::rt::Counted::None,
         parts,
         cyclic: false,
+        block: None,
     }))
 }
 
@@ -2680,6 +2684,7 @@ fn byte_elem() -> Elem {
         counted: crate::rt::Counted::None,
         parts: Vec::new(),
         cyclic: false,
+        block: None,
     }
 }
 

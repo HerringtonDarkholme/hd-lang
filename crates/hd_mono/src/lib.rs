@@ -3126,6 +3126,19 @@ impl Cx<'_> {
             let ix = hd_tir::ir::u32_of(i);
             let [a, b] = body.data[i];
             match body.tags[i] {
+                // A push on a std list over `*H` may grow its block in the
+                // backend's glue: an `H` object that no body names, whose
+                // release glue runs `H`'s hook (#2369).
+                Tag::Intrinsic if IntrinsicOp::from_u32(a) == Some(IntrinsicOp::ListPush) => {
+                    let list = body
+                        .record(b)
+                        .first()
+                        .and_then(|&r| hd_tir::ir::Ref(r).as_inst());
+                    let list = list.map(|r| s(body.ty[r.0 as usize]));
+                    if let Some(h) = list.and_then(|t| layout::list_block_head(pool, env, t)) {
+                        self.note_drop(h, id)?;
+                    }
+                }
                 Tag::Call | Tag::Await => {
                     let Some(c) = Callee::from_words(body.record(a)) else {
                         return err("a malformed callee record");
