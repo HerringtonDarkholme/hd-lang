@@ -69,6 +69,8 @@ pub use std.rt.memory.{
 }
 pub use std.rt.thread.{abandon, new_block, release, run, run_here, running, share, take, wait}
 pub use std.rt.wait.{WaitCell, idle_hook, wait_cell, wait_signal}
+# The inline and cold decorators, which std.meta re-exports.
+pub use std.rt.hint.{InlineHint, inline, Cold, cold}
 # std's runtime tests (crates/hd_driver/tests/std_rt) name these children by
 # path (spec/lang/10-modules.md#r-module.use.facade.module). Here `alloc` and
 # `wait` name the modules; the functions above keep those names for every

@@ -1728,7 +1728,7 @@ where snapshot files live.
 `std.core` holds the primitives and the declarations that the standard
 library builds on. Its imports follow the ordinary module rules.
 
-1. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds. It also declares the inline and cold decorators ([`annot.inline.declared.v2`](14-annotations.md#r-annot.inline.declared.v2)), so the runtime modules can use them.
+1. r[module.core.traits] `std.core` declares `Copy`, `Eq`, `Hash`, and `Hasher`, the traits that `List[T]` and `Map[K, V]` name in their bounds.
 2. r[module.core.re-exports] `std.ops` re-exports `Copy`, `std.cmp` re-exports `Eq`, and `std.hash` re-exports `Hash` and `Hasher`, so `use std.hash.Hasher` names the declaration in `std.core`.
 3. r[module.core.prelude] `std.core` sees only its own prelude names, the `std.core` row of the [prelude](#prelude).
 4. r[module.core.hint] An import hint for a name that `std.core` declares and another std module re-exports names the re-exporting module.

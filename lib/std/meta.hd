@@ -6,8 +6,6 @@ use std.format.{Debug, DebugWriter}
 use std.hash.Hasher
 use std.rt.{address_of, Ptr}
 
-pub use std.core.{InlineHint, inline, Cold, cold}
-
 # std.meta: the markers that say what may cross into another execution
 # domain (spec/lang/10-modules.md#markers). The compiler answers `Send`,
 # `Sync` and `Wire` from a type's parts, as it answers `Copy`; only std
@@ -90,9 +88,10 @@ pub struct Annotate:
 pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 
-# The inline and cold decorators live in std's leaf layer, so runtime
-# modules can use them; this module re-exports them
-# (r-annot.inline.declared.v2).
+# The inline and cold decorators (r-annot.inline.declared.v2), declared
+# in the runtime (`std.rt.hint`) so runtime modules use them without
+# joining std's language layer.
+pub use std.rt.{InlineHint, inline, Cold, cold}
 
 # std.meta, the part written in hd: runtime type identity
 # (spec/lang/09-traits.md#runtime-type-identity). Importing any `std.meta`

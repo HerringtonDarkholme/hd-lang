@@ -178,18 +178,18 @@
         i32.add
         i32.load $heap
         local.set $t0
-        i32.const 672
+        i32.const 692
         local.get $t0
         i32.add
         i32.load8_u $heap
         i32.eqz
         if
-          i32.const 672
+          i32.const 692
           local.get $t0
           i32.add
           i32.const 1
           i32.store8 $heap
-          i32.const 592
+          i32.const 604
           local.get $t3
           i32.const 2
           i32.shl
@@ -217,14 +217,14 @@
         i32.const -1
         i32.add
         local.set $t3
-        i32.const 592
+        i32.const 604
         local.get $t3
         i32.const 2
         i32.shl
         i32.add
         i32.load $heap
         local.set $t0
-        i32.const 632
+        i32.const 648
         local.get $t4
         i32.const 2
         i32.shl
@@ -270,18 +270,18 @@
             i32.add
             i32.load $heap
             local.set $t5
-            i32.const 672
+            i32.const 692
             local.get $t5
             i32.add
             i32.load8_u $heap
             i32.eqz
             if
-              i32.const 672
+              i32.const 692
               local.get $t5
               i32.add
               i32.const 1
               i32.store8 $heap
-              i32.const 592
+              i32.const 604
               local.get $t3
               i32.const 2
               i32.shl
@@ -334,7 +334,7 @@
             local.get $t4
             i32.lt_u
             if
-              i32.const 632
+              i32.const 648
               local.get $t5
               i32.const 2
               i32.shl
@@ -344,7 +344,7 @@
               i32.const 1
               i32.add
               local.set $t0
-              i32.const 632
+              i32.const 648
               local.get $t0
               i32.const 2
               i32.shl
@@ -356,13 +356,13 @@
                 local.set $t5
               end
             end
-            i32.const 632
+            i32.const 648
             local.get $t3
             i32.const 2
             i32.shl
             i32.add
             i32.load $heap
-            i32.const 632
+            i32.const 648
             local.get $t5
             i32.const 2
             i32.shl
@@ -370,26 +370,26 @@
             i32.load $heap
             i32.ge_u
             br_if 1
-            i32.const 632
+            i32.const 648
             local.get $t3
             i32.const 2
             i32.shl
             i32.add
             i32.load $heap
             local.set $t0
-            i32.const 632
+            i32.const 648
             local.get $t3
             i32.const 2
             i32.shl
             i32.add
-            i32.const 632
+            i32.const 648
             local.get $t5
             i32.const 2
             i32.shl
             i32.add
             i32.load $heap
             i32.store $heap
-            i32.const 632
+            i32.const 648
             local.get $t5
             i32.const 2
             i32.shl
@@ -418,18 +418,18 @@
         local.set $t2
         i32.const 0
         local.set $t3
-        i32.const 632
+        i32.const 648
         i32.load $heap
         local.set $t0
-        i32.const 632
-        i32.const 632
+        i32.const 648
+        i32.const 648
         local.get $t2
         i32.const 2
         i32.shl
         i32.add
         i32.load $heap
         i32.store $heap
-        i32.const 632
+        i32.const 648
         local.get $t2
         i32.const 2
         i32.shl
@@ -453,7 +453,7 @@
             local.get $t2
             i32.lt_u
             if
-              i32.const 632
+              i32.const 648
               local.get $t5
               i32.const 2
               i32.shl
@@ -463,7 +463,7 @@
               i32.const 1
               i32.add
               local.set $t0
-              i32.const 632
+              i32.const 648
               local.get $t0
               i32.const 2
               i32.shl
@@ -475,13 +475,13 @@
                 local.set $t5
               end
             end
-            i32.const 632
+            i32.const 648
             local.get $t3
             i32.const 2
             i32.shl
             i32.add
             i32.load $heap
-            i32.const 632
+            i32.const 648
             local.get $t5
             i32.const 2
             i32.shl
@@ -489,26 +489,26 @@
             i32.load $heap
             i32.ge_u
             br_if 1
-            i32.const 632
+            i32.const 648
             local.get $t3
             i32.const 2
             i32.shl
             i32.add
             i32.load $heap
             local.set $t0
-            i32.const 632
+            i32.const 648
             local.get $t3
             i32.const 2
             i32.shl
             i32.add
-            i32.const 632
+            i32.const 648
             local.get $t5
             i32.const 2
             i32.shl
             i32.add
             i32.load $heap
             i32.store $heap
-            i32.const 632
+            i32.const 648
             local.get $t5
             i32.const 2
             i32.shl
@@ -531,7 +531,7 @@
         local.get $t4
         i32.ge_u
         br_if 1
-        i32.const 632
+        i32.const 648
         local.get $t1
         i32.const 2
         i32.shl
