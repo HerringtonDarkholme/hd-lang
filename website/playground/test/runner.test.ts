@@ -367,6 +367,9 @@ test("a two-file project with a package use compiles and runs", async () => {
         "pub fn main() -> void $ Console:",
         '    println(describe(User { name: "Ada", age: 36 }))',
       ].join("\n"),
+      // A module is private to its folder unless the folder's mod.hd re-exports it
+      // (module.vis.parent).
+      "src/models/mod.hd": "pub use self.{user}\n",
       "src/models/user.hd": [
         "pub struct User:",
         "    pub name: string",
@@ -468,6 +471,7 @@ test("without main, a multi-file project runs the entry module", async () => {
         'ada := User { name: "Ada", age: 36 }',
         "println(describe(ada))",
       ].join("\n"),
+      "src/models/mod.hd": "pub use self.{user}\n",
       "src/models/user.hd": [
         "pub struct User:",
         "    pub name: string",
