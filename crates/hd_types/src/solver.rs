@@ -5226,6 +5226,122 @@ mod tests {
         assert!(prod.unowned.is_empty());
         let empty = UnitImpls::default();
         let universes = ImplUniverses::default();
+        // Probe the reference directory itself, including head kinds that
+        // the concrete receiver in the solver queries below does not use.
+        let blanket = item(mods[0], "Blanket");
+        let tuple_pick = item(mods[0], "TuplePick");
+        let blanket_impl = DefId::from_raw(paths.intern(mods[1], PathKind::Impl, "Blanket").raw());
+        let tuple_impl = DefId::from_raw(paths.intern(mods[1], PathKind::Impl, "TuplePick").raw());
+        let mut probes = prod.table.clone();
+        push_row(
+            &mut probes,
+            g,
+            (blanket, blanket_impl),
+            param(g, blanket_impl, 0),
+            g.list(&[prod_ty]),
+            (1, vec![]),
+        );
+        let tuple = g.product(TyList::EMPTY, Some(param(g, tuple_impl, 0)));
+        push_row(
+            &mut probes,
+            g,
+            (tuple_pick, tuple_impl),
+            tuple,
+            g.list(&[prod_ty]),
+            (1, vec![]),
+        );
+        probes.index();
+        let probes = UnitImpls::new(f(1), probes, g, &paths, &owners);
+        assert_eq!(probes.arg_impls, [0, 1, 2]);
+        let (universe, extra) = universes.intern(&[(f(1), &probes)]);
+        let all_slots = [(0, &empty), (1, &probes)];
+        let arity = |_: DefId| 1;
+        let view = ImplView {
+            paths: &paths,
+            owners: &owners,
+            own: None,
+            units: crate::lookup::UnitSlots::new(&all_slots),
+            universe,
+            extra: &extra,
+            arity: &arity,
+            hidden: crate::lookup::Unseen::default(),
+            plans: None,
+        };
+        let indexed = Impls::Owned(&view);
+        for (key, expected) in [
+            (HeadKey::Any, true),
+            (HeadKey::Param, false),
+            (HeadKey::Tuple(2), false),
+            (HeadKey::of(g, recv_ty), true),
+        ] {
+            assert_eq!(
+                indexed.has_rows(crate::lookup::TableAt::Directory, pick, key),
+                expected
+            );
+        }
+        let mut rows = Vec::new();
+        extra
+            .directory
+            .candidates(blanket, HeadKey::Param, &mut rows);
+        assert_eq!(
+            rows,
+            [ImplRef {
+                module: unit_table(f(1)),
+                row: 1
+            }],
+            "the parameter bucket is appended once"
+        );
+        rows.clear();
+        extra
+            .directory
+            .candidates(tuple_pick, HeadKey::Tuple(2), &mut rows);
+        assert_eq!(
+            rows,
+            [ImplRef {
+                module: unit_table(f(1)),
+                row: 2
+            }],
+            "a fixed tuple reaches the variadic tuple head"
+        );
+        rows.clear();
+        extra
+            .directory
+            .candidates(tuple_pick, HeadKey::Any, &mut rows);
+        assert_eq!(
+            rows,
+            [ImplRef {
+                module: unit_table(f(1)),
+                row: 2
+            }]
+        );
+        let mut full_reads = crate::lookup::UniverseReads::default();
+        let full: Vec<_> = indexed
+            .candidates(g, pick, recv_ty, &[prod_ty], false, &mut full_reads)
+            .into_iter()
+            .map(|(row, _)| row)
+            .collect();
+        assert_eq!(
+            full,
+            [ImplRef {
+                module: unit_table(f(1)),
+                row: 0
+            }]
+        );
+        // The owner map still knows unit 0, but omitting its empty impl
+        // table must not discard the row owned through Product in unit 1.
+        let sparse_slots = [(1, &probes)];
+        let sparse = ImplView {
+            units: crate::lookup::UnitSlots::new(&sparse_slots),
+            ..view
+        };
+        let mut sparse_reads = crate::lookup::UniverseReads::default();
+        let found: Vec<_> = Impls::Owned(&sparse)
+            .candidates(g, pick, recv_ty, &[prod_ty], false, &mut sparse_reads)
+            .into_iter()
+            .map(|(row, _)| row)
+            .collect();
+        assert_eq!(found, full);
+        assert!(!sparse_reads.dir && !sparse_reads.unowned);
         let global = GlobalMemo::default();
 
         // One context: its closure's units, one open goal.
@@ -5370,6 +5486,36 @@ mod tests {
         assert_eq!(prod.unowned, [0], "`prod` owns neither `Tag` nor `i32`");
         let empty = UnitImpls::default();
         let universes = ImplUniverses::default();
+        // Unowned rows are visible through the same indexed query APIs
+        // as owned tables, without requiring a full solve to enumerate them.
+        let (universe, extra) = universes.intern(&[(f(1), &prod)]);
+        let slots = [(0, &lib), (1, &prod)];
+        let view = ImplView {
+            paths: &paths,
+            owners: &owners,
+            own: None,
+            units: crate::lookup::UnitSlots::new(&slots),
+            universe,
+            extra: &extra,
+            arity: &no_arity,
+            hidden: crate::lookup::Unseen::default(),
+            plans: None,
+        };
+        let indexed = Impls::Owned(&view);
+        let integer = HeadKey::Prim(Prim::I32);
+        assert!(indexed.has_rows(crate::lookup::TableAt::Unowned, tag, integer));
+        assert!(!indexed.has_rows(
+            crate::lookup::TableAt::Unowned,
+            tag,
+            HeadKey::Prim(Prim::Bool)
+        ));
+        let mut traits = Vec::new();
+        indexed.traits_at(
+            crate::lookup::TableAt::Unowned,
+            [Some(integer.code()), None, None],
+            &mut traits,
+        );
+        assert_eq!(traits, [tag]);
         let global = GlobalMemo::default();
 
         let ask = |closure: &[u32], self_ty: Ty| -> (Answer, MemoKey, super::ImplUniverseId) {
