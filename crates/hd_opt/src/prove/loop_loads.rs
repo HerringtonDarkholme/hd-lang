@@ -209,8 +209,9 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
         let read = u32_of(n + inserts.len());
         let (block, pos) = (topo.blk[l as usize], topo.pos[l as usize]);
         let syn = b.syn[l as usize];
+        let mode = b.data[loads[0] as usize][1];
         for (tag, data, ty) in [
-            (Tag::Read, [word, ReadMode::Copy as u32], ty),
+            (Tag::Read, [word, mode], ty),
             (Tag::Store, [local | place::BARE_LOCAL, read], Ty::VOID),
         ] {
             inserts.push(hd_tir::own::BatchInsert {
@@ -224,7 +225,7 @@ pub(super) fn run(b: &mut Body, cx: &dyn super::Cx) -> Result<(), String> {
         }
         for x in loads {
             b.tags[x as usize] = Tag::Read;
-            b.data[x as usize] = [local | place::BARE_LOCAL, ReadMode::Copy as u32];
+            b.data[x as usize] = [local | place::BARE_LOCAL, mode];
         }
     }
     hd_tir::own::insert_batch(b, &topo, &inserts).map(|_| ())
@@ -327,7 +328,16 @@ impl LoopFacts<'_, '_> {
     /// local on its way changes after `from`.
     fn place_key(&self, word: u32, at: u32, from: u32, depth: usize) -> Option<Key> {
         let p = self.lists.b.decode_place(word)?;
+        // A reference local set once is keyed by what it refers to, so two
+        // copies of one reference (an inlined `self` each) name one place.
+        let through = |k: LocalId| {
+            (p.proj.first() == Some(&Proj::Deref))
+                .then(|| self.single_value(k.idx(), at))
+                .flatten()
+                .and_then(|v| self.target(v, from, depth))
+        };
         let (mut key, rest) = match p.root {
+            PlaceRoot::Local(k) if let Some(key) = through(k) => (key, &p.proj[1..]),
             PlaceRoot::Local(k) if self.steady(k.idx(), from) => (
                 Key {
                     local: k.raw(),
@@ -335,10 +345,6 @@ impl LoopFacts<'_, '_> {
                 },
                 &p.proj[..],
             ),
-            PlaceRoot::Local(k) if p.proj.first() == Some(&Proj::Deref) => {
-                let v = self.single_value(k.idx(), at)?;
-                (self.target(v, from, depth)?, &p.proj[1..])
-            }
             PlaceRoot::Value(v) if p.proj.first() == Some(&Proj::Deref) => {
                 (self.target(v.0, from, depth)?, &p.proj[1..])
             }
@@ -359,16 +365,15 @@ impl LoopFacts<'_, '_> {
         let b = self.lists.b;
         let i = Ref(v).as_inst()?.0 as usize;
         match b.tags[i] {
-            Tag::Read if let Some(k) = b.local_read(i) => {
-                if self.steady(k.idx(), from) {
-                    Some(Key {
+            Tag::Read if let Some(k) = b.local_read(i) => self
+                .single_value(k.idx(), v)
+                .and_then(|w| self.target(w, from, depth))
+                .or_else(|| {
+                    self.steady(k.idx(), from).then(|| Key {
                         local: k.raw(),
                         path: vec![Proj::Deref],
                     })
-                } else {
-                    self.target(self.single_value(k.idx(), v)?, from, depth)
-                }
-            }
+                }),
             Tag::Read => {
                 let mut key = self.place_key(b.data[i][0], v, from, depth)?;
                 key.path.push(Proj::Deref);
@@ -396,10 +401,12 @@ impl LoopFacts<'_, '_> {
     fn load_key(&self, x: u32, from: u32) -> Option<Key> {
         let b = self.lists.b;
         let i = Ref(x).as_inst()?.0 as usize;
+        // A borrow counts nothing, and its place does not change in the
+        // loop, so a counted pointer's borrow leaves it as a copy does.
+        let copy = b.data[i][1] == ReadMode::Copy as u32 && !self.lists.cx.tracked(b.ty[i]);
         if b.tags[i] != Tag::Read
             || b.data[i][0] & place::BARE_LOCAL != 0
-            || b.data[i][1] != ReadMode::Copy as u32
-            || self.lists.cx.tracked(b.ty[i])
+            || !(copy || b.data[i][1] == ReadMode::Borrow as u32)
         {
             return None;
         }
@@ -431,7 +438,9 @@ impl LoopFacts<'_, '_> {
             }
             claimed[x as usize] = true;
             let ty = b.ty[x as usize];
-            match out.iter_mut().find(|(k, t, _)| *k == key && *t == ty) {
+            match out.iter_mut().find(|(k, t, l)| {
+                *k == key && *t == ty && b.data[l[0] as usize][1] == b.data[x as usize][1]
+            }) {
                 Some((_, _, loads)) => loads.push(x),
                 None => out.push((key, ty, vec![x])),
             }
