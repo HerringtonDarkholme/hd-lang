@@ -8,6 +8,7 @@
 
 // module.profile.panic-status).
 
+import { signalSource } from "./signals.ts";
 import { receiveReply } from "./worker-control.ts";
 import type { MessagePort, Worker as NodeWorker } from "node:worker_threads";
 import type { CoreEnv, Host, Sink } from "./core.ts";
@@ -1176,6 +1177,25 @@ export const nodeLayer = {
         traits: {
           "hd:ConsoleInput": consoleInputProvider({ env, flush, inputClient: client(input) }),
           "hd:Sys": sysProvider({ grant }),
+          "hd:Signals": {
+            wait: (kind: { tag: import("./signals.ts").SignalKind }) => {
+              if (!grant.allows("Signals")) {
+                throw new HostContract("capability not granted: Signals");
+              }
+              let delivered = false;
+              return pendingOperation(
+                () => delivered,
+                () => undefined,
+                null,
+                null,
+                (notify) =>
+                  signalSource()!.wait(kind.tag, () => {
+                    delivered = true;
+                    notify();
+                  }),
+              );
+            },
+          },
           "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
           "hd:Net": netProvider({ grant, netClient }),
           "hd:Env": envProvider({ grant, sink, st, flush }),
@@ -1237,7 +1257,7 @@ export const nodeLayer = {
     let platform: Dynamic;
     const get = () => (platform ??= initialize());
     const traits: DynamicRecord = {};
-    for (const module of NODE_PROVIDER_MODULES) {
+    for (const module of [...NODE_PROVIDER_MODULES, ...(signalSource() ? ["hd:Signals"] : [])]) {
       Object.defineProperty(traits, module, {
         enumerable: true,
         get: () => get().traits[module],

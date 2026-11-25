@@ -1,5 +1,5 @@
 //! A host's cancellation of the entry (`req.entry.cancel`,
-//! `cli.cancel.ctrl-c`): a request, as a Ctrl-C makes, that finds the
+//! `cli.cancel.unhandled-ctrl-c`): a request, as a Ctrl-C makes, that finds the
 //! root suspension waiting on the host cancels it through `hd.cancel`, as
 //! `cancel!()` does with the host as the waiter. The run then goes on
 //! through the root's cleanup. The next request, or the cleanup bound
@@ -8,7 +8,7 @@
 //! host waits for it as for a timer of its own, so a cleanup that waits on
 //! nothing else is abandoned at the deadline instead of deadlocking. A
 //! request while Wasm runs stops the run at once, as a REPL stop does
-//! (`cli.cancel.computing`). `instance.rs` drives all of this.
+//! (`cli.cancel.unhandled-computing`). `instance.rs` drives all of this.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};

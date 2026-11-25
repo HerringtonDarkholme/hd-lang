@@ -5551,6 +5551,9 @@ std/task/retry-with-backoff/task-retry-policy.hd	runtime	accept	std/task.md#retr
 std/task/retry/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.policy.retry.clock
 std/collections/list-helpers/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-borrow
 std/host/environment/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.typed-env-decl
+std/host/signals/signal-kinds.hd	runtime	accept	std/host.md#signals
+std/host/signals/scripted-per-kind.hd	runtime	accept	std/host.md#signals
+std/host/signals/exhausted-waits-cancel.hd	runtime	accept	std/host.md#signals
 std/http/request-builder/http-typed-request-bodies.hd	runtime	accept	std/http.md#r-std-http.request.set-form
 std/http/scripted-http/http-scripted-used-reply.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.scripted.reply-used-panic
 lang/modules/prelude/test-prelude-assertions.hd	runtime	accept	lang/10-modules.md#r-module.prelude.test-assertions

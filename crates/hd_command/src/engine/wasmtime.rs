@@ -210,7 +210,7 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
 
 /// Runs a built program to its end with the process's standard streams.
 /// With a cleanup bound, each Ctrl-C is a request to cancel its entry
-/// (`cli.cancel.ctrl-c`).
+/// (`cli.cancel.unhandled-ctrl-c`).
 pub(crate) fn run_program(
     level: hd_driver::OptLevel,
     wasm: &[u8],
@@ -224,7 +224,7 @@ pub(crate) fn run_program(
     };
     let interrupt = hd_run_wasmtime::HostInterrupt::new();
     let handler = interrupt.clone();
-    super::on_ctrl_c(move || handler.request());
+    let _signals = super::on_ctrl_c(move |_| handler.request());
     hd_run_wasmtime::run_cancellable(
         config,
         wasm,

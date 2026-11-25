@@ -1,0 +1,13 @@
+use std.cli.{Args, args}
+use std.host.{Signal, Signals}
+use std.ops.defer
+
+pub fn main!() -> void $ Args + Console + Signals:
+    let kind: Signal = match args().get(0).unwrap_or("Interrupt"):
+        "Terminate" => .Terminate
+        "Hangup" => .Hangup
+        _ => .Interrupt
+    defer(fn() -> void: println("cleanup"))
+    println("ready")
+    $.use(Signals).wait!(kind)
+    println("handled")

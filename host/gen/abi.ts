@@ -145,6 +145,11 @@ export const PropertyCase = data({
   size: signed,
   replay: list(signed64),
 });
+export const Signal = variants({
+  Interrupt: {},
+  Terminate: {},
+  Hangup: {},
+});
 export const TcpListener = handle;
 export const TcpStream = handle;
 export const UdpSocket = handle;
@@ -509,6 +514,14 @@ export const METHODS = {
       resource: "sys-name",
       params: [],
       result: result(unsigned, HostError),
+    },
+  },
+  "hd:Signals": {
+    wait: {
+      wait: "may",
+      resource: null,
+      params: [Signal],
+      result: "void",
     },
   },
   "hd:Env": {

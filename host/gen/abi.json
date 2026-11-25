@@ -53,6 +53,9 @@
       { "name": "hostname", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, HostError]" },
       { "name": "cpu_count", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[u32, HostError]" }
     ]},
+    { "key": "Signals", "std": "std.host.Signals", "methods": [
+      { "name": "wait", "wait": "may", "resource": null, "params": ["Signal"], "result": "void" }
+    ]},
     { "key": "Env", "std": "std.host.Env", "methods": [
       { "name": "get", "wait": "never", "resource": "env-name", "params": ["string"], "result": "string?" },
       { "name": "names", "wait": "never", "resource": null, "params": [], "result": "List[string]" }
@@ -200,6 +203,11 @@
     ] },
     "ProcessOutput": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "stdout", "type": "string" }, { "name": "stderr", "type": "string" }, { "name": "status", "type": "i32" }, { "name": "program", "type": "string" }] },
     "PropertyCase": { "kind": "data", "module": "lib/std/testing.hd", "generics": [], "fields": [{ "name": "example", "type": "usize?" }, { "name": "seed", "type": "i64" }, { "name": "size", "type": "i32" }, { "name": "replay", "type": "List[i64]" }] },
+    "Signal": { "kind": "enum", "module": "lib/std/host.hd", "generics": [], "variants": [
+      { "name": "Interrupt", "fields": [] },
+      { "name": "Terminate", "fields": [] },
+      { "name": "Hangup", "fields": [] }
+    ] },
     "TcpListener": { "kind": "handle" },
     "TcpStream": { "kind": "handle" },
     "Timestamp": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },

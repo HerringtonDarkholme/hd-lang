@@ -23,7 +23,7 @@ export interface RunConfig extends DynamicRecord {
   framesFile?: string;
   grants?: Record<string, boolean | string[]>;
   hostProviders?: HostProviderConfig[];
-  interruptSignal?: NodeJS.Signals;
+  signalFile?: string;
   processLauncher?: string;
   profile?: string;
   program?: string;

@@ -1123,6 +1123,11 @@ function buildCoreImports(options: Dynamic): Dynamic {
     "hd:Console": consoleProvider({ st, sink, flush, grant }),
     "hd:Clock": clockProvider(),
     "hd:Random": randomProvider(st.random),
+    "hd:Signals": {
+      wait: () => {
+        throw new HostContract("capability not granted: Signals");
+      },
+    },
     "hd:Args": argsProvider({ program, args }),
     "hd:TestRunner": testRunnerProvider({ env, st, files: env.files ?? layer?.files }),
     "hd:PropertyRunner": propertyRunnerProvider({ env }),

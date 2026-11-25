@@ -365,7 +365,7 @@ pub(crate) fn from_env() -> Result<EngineKind, String> {
 /// options.
 ///
 /// A run with a cleanup bound (`Limits::cleanup_ms`) hears Ctrl-C
-/// (`cli.cancel.ctrl-c`): on wasmtime the handler asks the run to cancel
+/// (`cli.cancel.unhandled-ctrl-c`): on wasmtime the handler asks the run to cancel
 /// its entry; on Node the program's own process hears the same Ctrl-C from
 /// the terminal, so `hd` passes each interrupt on to it
 /// (`cli.cancel.forward`) and keeps itself alive until it ends.
@@ -378,9 +378,6 @@ pub(crate) fn run(
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
-            if host.limits.cleanup_ms.is_some() {
-                on_ctrl_c(crate::node::forward_interrupt);
-            }
             let store = crate::disk_store();
             let node = crate::node::NodeEngine {
                 host_providers: providers.to_vec(),
@@ -397,29 +394,18 @@ pub(crate) fn run(
     }
 }
 
-/// Calls `handler` on each interrupt from now on, in place of ending `hd`:
-/// a Ctrl-C, and on Unix a SIGTERM too (`cli.cancel.signals`). One that
-/// cannot be installed leaves the default action, and says so.
-#[cfg(unix)]
-pub(crate) fn on_ctrl_c(mut handler: impl FnMut() + Send + 'static) {
-    use signal_hook::consts::{SIGINT, SIGTERM};
-    let installed = signal_hook::iterator::Signals::new([SIGINT, SIGTERM])
-        .and_then(|mut signals| {
-            std::thread::Builder::new()
-                .name("interrupt".into())
-                .spawn(move || signals.forever().for_each(|_| handler()))
-        })
-        .map(drop);
-    if let Err(e) = installed {
-        eprintln!("warning: Ctrl-C cannot cancel the program: {e}");
-    }
-}
-
-/// As on Unix, for the console's Ctrl-C and Ctrl-Break.
-#[cfg(not(unix))]
-pub(crate) fn on_ctrl_c(handler: impl FnMut() + Send + 'static) {
-    if let Err(e) = ctrlc::set_handler(handler) {
-        eprintln!("warning: Ctrl-C cannot cancel the program: {e}");
+/// Scoped cancellation when no program wait owns the delivered kind.
+#[cfg(feature = "wasmtime")]
+pub(crate) fn on_ctrl_c(
+    handler: impl Fn(hd_run::signals::Kind) + Send + Sync + 'static,
+) -> Vec<hd_run::signals::Subscription> {
+    use hd_run::signals::Kind;
+    match hd_run::signals::fallback(&[Kind::Interrupt, Kind::Terminate], handler) {
+        Ok(subscriptions) => subscriptions,
+        Err(error) => {
+            eprintln!("warning: Ctrl-C cannot cancel the program: {error}");
+            Vec::new()
+        }
     }
 }
 

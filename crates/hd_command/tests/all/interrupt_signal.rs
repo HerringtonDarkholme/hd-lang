@@ -1,5 +1,5 @@
 //! A SIGINT or SIGTERM sent to the `hd` process alone is a Ctrl-C
-//! (`cli.cancel.signals`, `cli.cancel.forward`, #534). On the Node engine
+//! (`cli.cancel.unhandled-signals`, `cli.cancel.forward`, #534). On the Node engine
 //! the program runs in a child process that `hd` must pass the interrupt
 //! on to; on wasmtime `hd` cancels the run itself. Both end with
 //! `cancelled` on standard error and status 130, after the dispose's wait.
@@ -57,7 +57,7 @@ impl Run {
         let line = heard.recv_timeout(Duration::from_mins(2));
         assert_eq!(line, Ok(Some("ready".to_owned())), "the program is running");
         // A signal in the instant between `ready` and the wait would find
-        // the program computing, which a Ctrl-C stops (`cli.cancel.computing`).
+        // the program computing, which a Ctrl-C stops (`cli.cancel.unhandled-computing`).
         std::thread::sleep(Duration::from_millis(200));
         Self { child, _dir: dir }
     }

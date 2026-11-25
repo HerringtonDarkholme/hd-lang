@@ -1,0 +1,36 @@
+# test: scripted Terminate consumption preserves an earlier Interrupt and each kind's remaining entries
+# Spec std/host Signals: std-host.signals.scripted, std-host.signals.exhausted.
+# expect-empty-stdout: true
+use std.host.{Signal, Signals, ScriptedSignals}
+use std.task.race
+use std.testing.assert_equal
+
+fn receive!(kind: Signal) -> i32 $ Signals:
+    $.use(Signals).wait!(kind)
+    7
+
+fn ready!() -> i32:
+    9
+
+pub fn main!() -> void:
+    script := ScriptedSignals::new([.Interrupt, .Terminate])
+    $.with(Signals=script):
+        assert_equal(
+            receive!(.Terminate),
+            7,
+            reason="waiting for Terminate keeps earlier Interrupt",
+        )
+        assert_equal(receive!(.Interrupt), 7, reason="earlier Interrupt remains available")
+        assert_equal(
+            race!(receive(.Terminate), ready()),
+            9,
+            reason="exhausted Terminate stays pending and cancels",
+        )
+        assert_equal(race!(receive(.Interrupt), ready()), 9, reason="Interrupt was consumed")
+        assert_equal(race!(receive(.Hangup), ready()), 9, reason="an absent kind stays pending")
+    duplicates := ScriptedSignals::new([.Hangup, .Interrupt, .Hangup])
+    $.with(Signals=duplicates):
+        assert_equal(receive!(.Interrupt), 7, reason="a third kind is independent")
+        assert_equal(receive!(.Hangup), 7, reason="first duplicate")
+        assert_equal(receive!(.Hangup), 7, reason="second duplicate")
+        assert_equal(race!(receive(.Hangup), ready()), 9, reason="both duplicates were consumed")

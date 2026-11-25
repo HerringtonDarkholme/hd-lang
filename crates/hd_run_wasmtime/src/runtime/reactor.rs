@@ -77,6 +77,10 @@ pub enum Work {
     FixtureRead { file: i32 },
     /// `pending-gate` `wait!`: never completes, dropped at cancel.
     Gate,
+    /// A process signal subscription; dropping the operation releases it.
+    Signal {
+        _subscription: hd_run::signals::Subscription,
+    },
     /// An operation offloaded to the `hd-io` runtime: its result, once
     /// its task delivers it.
     Offloaded(Option<Done>),
@@ -302,6 +306,22 @@ impl Reactor {
         self.start(None, Work::Gate)
     }
 
+    /// A one-shot process notification uses the same inbox and wake path as
+    /// native completions. Its lease is owned by the pending operation.
+    pub fn signal(&mut self, kind: hd_run::signals::Kind) -> Result<i32, String> {
+        let wake = Wake {
+            inbox: Arc::clone(&self.inbox),
+            handle: self.next_handle,
+        };
+        let subscription = hd_run::signals::wait(kind, move || wake.wake())?;
+        Ok(self.start(
+            None,
+            Work::Signal {
+                _subscription: subscription,
+            },
+        ))
+    }
+
     /// An operation whose work is `work`, run as a task on the `hd-io`
     /// runtime, which starts on the first call. The task delivers its
     /// `Done` into the inbox, to complete at the next `due`; ending the
@@ -523,7 +543,7 @@ impl Reactor {
         for h in woken {
             if let Some(op) = self.ops.get(&h)
                 && !op.completed
-                && matches!(op.work, Work::Native { .. })
+                && matches!(op.work, Work::Native { .. } | Work::Signal { .. })
             {
                 self.ready.push((now_ns(), h));
             }
@@ -675,14 +695,24 @@ impl Reactor {
     /// while the abort ran, comes back in the operation, for a caller
     /// that keeps what it holds (`std-net.cancel.read`).
     pub fn remove(&mut self, h: i32) -> Option<Op> {
-        self.reads.retain(|r| r.0 != h);
         let mut op = self.ops.remove(&h)?;
+        // Only reads occupy the input FIFO. Other kinds never scan it.
+        if matches!(op.work, Work::Read(_)) {
+            self.reads.retain(|r| r.0 != h);
+        }
         if !op.completed {
             self.open -= 1;
             if let Some(at) = op.at {
                 self.timers.remove(&(at, h));
             }
-            self.ready.retain(|&(_, r)| r != h);
+            // These kinds can enter ready outside due(). Timers and
+            // notifications enter it only while due() also completes them.
+            if matches!(
+                op.work,
+                Work::Read(_) | Work::Native { .. } | Work::Offloaded(_)
+            ) {
+                self.ready.retain(|&(_, r)| r != h);
+            }
         }
         if let Some(task) = op.task.take() {
             task.abort();

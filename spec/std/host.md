@@ -253,3 +253,35 @@ fn both!(left: string, right: string) -> (Result[Response, HttpError], Result[Re
 
 See also: [Program Arguments](../cli/command-line.md#program-arguments),
 [Entry Arguments](../lang/10-modules.md#entry-arguments).
+
+
+## Signals
+
+`Signals` lets a program await an operating-system notification, for example
+before closing a server's listeners.
+
+```text
+pub enum Signal:
+    Interrupt
+    Terminate
+    Hangup
+
+pub trait Signals:
+    fn wait!(self, kind: Signal) -> void
+```
+
+1. r[std-host.signal.decl] `std.host` declares `Signal` as above, with `Eq` and `Debug`.
+2. r[std-host.signal.kinds] `Interrupt`, `Terminate`, and `Hangup` represent SIGINT, SIGTERM, and SIGHUP respectively; `Interrupt` also represents a console Ctrl-C.
+3. r[std-host.signals.decl] `std.host` declares the host capability trait `Signals` as above.
+4. r[std-host.signals.next] `wait!(kind)` completes on the next notification of `kind` after the wait starts.
+5. r[std-host.signals.broadcast] One notification completes every current wait for its kind, without completing waits for other kinds.
+6. r[std-host.signals.handled] While a wait owns its kind, a notification of that kind is handled instead of cancelling the entry or taking the default action.
+7. r[std-host.signals.release] Completing or cancelling a wait releases its ownership; without another owner, the host's default handling resumes.
+8. r[std-host.signals.unavailable] A host without signals does not grant `Signals`; asking for it reports a grant error instead of waiting indefinitely.
+9. r[std-host.signals.scripted] `ScriptedSignals::new(script: List[Signal]) -> *mut ScriptedSignals` implements `Signals`, with each wait consuming its kind's next scripted entry and retaining other kinds.
+10. r[std-host.signals.exhausted] A scripted wait with no remaining entry of its kind stays pending until cancelled, without reading host signals.
+
+
+> **Why.** Signal ownership follows [Go's `os/signal`](https://pkg.go.dev/os/signal):
+> notification handling is scoped to interested consumers, and releasing the
+> final consumer restores ordinary handling.

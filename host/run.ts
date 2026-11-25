@@ -23,21 +23,18 @@
 // input belongs to the input provider's I/O worker in both profiles.
 //
 // The configuration's `cleanupMs`, which `hd` always writes, is the cleanup
-// bound of a Ctrl-C (cli.cancel.ctrl-c, cli.cancel.bound): a Ctrl-C that
+// bound of a Ctrl-C (cli.cancel.unhandled-ctrl-c, cli.cancel.bound): a Ctrl-C that
 // finds the program waiting on the host cancels its entry, and the run
 // goes on through the entry's cleanup until it ends, the next Ctrl-C, or
 // the bound, which abandon it (core.ts `entryCancel`). A Ctrl-C while
-// Wasm runs stops the program at once (cli.cancel.computing). On this
+// Wasm runs stops the program at once (cli.cancel.unhandled-computing). On this
 // thread that is the interrupt signal's default action, since the listener
 // is on only while the host waits, and `hd` reports the signal as
 // `stopped`; a supervising thread stops its worker and reports it itself.
 //
-// The interrupt is SIGINT, unless the configuration's `interruptSignal`
-// names another signal. `hd` names one on Unix (cli.cancel.forward): it
-// hears the interrupt itself, from a terminal or from a signal sent to it
-// alone, and passes it on as that signal, once. A terminal's Ctrl-C also
-// reaches this process, so a process told of such a signal ignores SIGINT
-// (the listener below), else the one interrupt would arrive twice.
+// The CLI's signalFile retains original signal kinds; SIGUSR2 is only its
+// wake hint. Signals and cancellation share the source in signals.ts.
+import { cancelSignals, configureSignalRelay, connectSignals, serveSignals } from "./signals.ts";
 import { createOutput } from "./output.ts";
 import { runHere } from "./run-here.ts";
 import {
@@ -63,9 +60,6 @@ const { isMainThread, MessageChannel, receiveMessageOnPort, Worker, workerData }
 // How long past the deadline the main thread waits for the host to end
 // the run on its own before it stops the worker.
 const GRACE_MS = 50;
-
-// The signal that is a Ctrl-C to this process (see the header).
-const interruptOf = (config: RunConfig): NodeJS.Signals => config.interruptSignal ?? "SIGINT";
 
 // The wall clock, comparable across threads.
 const now = () => performance.timeOrigin + performance.now();
@@ -129,11 +123,24 @@ function supervise({
     // The Ctrl-C requests passed on, and whether the worker's host waits
     // (`sharedCancel`).
     const cell = config.cleanupMs == null ? null : new Int32Array(new SharedArrayBuffer(8));
-    const signal = interruptOf(config);
+    const { port1: signals, port2: workerSignals } = new MessageChannel();
+    const signalFlag = new Int32Array(new SharedArrayBuffer(4));
+    const releaseSignals = serveSignals(signals, signalFlag);
+    let releaseCancel = () => {};
     const outputConnection = output.connection();
     const worker = new Worker(new URL(import.meta.url), {
-      workerData: { module, config, args, limit, port: port2, cell, outputConnection },
-      transferList: [port2, outputConnection.port],
+      workerData: {
+        module,
+        config,
+        args,
+        limit,
+        port: port2,
+        cell,
+        outputConnection,
+        signals: workerSignals,
+        signalFlag,
+      },
+      transferList: [port2, outputConnection.port, workerSignals],
     });
     let status: number | null = null;
     let ended = false;
@@ -165,9 +172,8 @@ function supervise({
       }
       ended = true;
       clearTimeout(timer);
-      if (cell) {
-        process.off(signal, interrupt);
-      }
+      releaseCancel();
+      releaseSignals();
       port.close();
       output.drain().then(() => {
         exitPast([worker], value, config.statusFile);
@@ -176,7 +182,7 @@ function supervise({
     };
     // A Ctrl-C reaches a worker whose host waits, which cancels or
     // abandons the entry; one that computes is stopped at once, after what
-    // it sent is written (cli.cancel.computing).
+    // it sent is written (cli.cancel.unhandled-computing).
     const interrupt = () => {
       if (ended) {
         return;
@@ -197,7 +203,7 @@ function supervise({
       end(CANCEL_STATUS);
     };
     if (cell) {
-      process.on(signal, interrupt);
+      releaseCancel = cancelSignals(interrupt);
     }
     // What the worker sent before the deadline is written first; a worker
     // that ended the run itself is not stopped. The limit counts from when
@@ -236,9 +242,8 @@ function supervise({
       }
       ended = true;
       clearTimeout(timer);
-      if (cell) {
-        process.off(signal, interrupt);
-      }
+      releaseCancel();
+      releaseSignals();
       port.close();
       fail(error);
     });
@@ -257,20 +262,15 @@ if (isMainThread) {
   const config: RunConfig = spec.endsWith(".json") ? JSON.parse(readFileSync(spec, "utf8")) : {};
   const args = process.argv.slice(spec.endsWith(".json") ? 4 : 3);
   const limit = config.timeLimitMs ?? null;
-  // A Ctrl-C is heard only while the host waits (`entryCancel`'s `onWait`).
-  const signal = interruptOf(config);
-  // `hd` passes the interrupt on as another signal: ignore the terminal's
-  // own SIGINT for good, so it is not heard twice.
-  if (config.cleanupMs != null && signal !== "SIGINT") {
-    process.on("SIGINT", () => {});
-  }
+  const releaseRelay = configureSignalRelay(config.signalFile);
+  let releaseCancel = () => {};
   let cancel: EntryCancel | null = null;
   if (config.cleanupMs != null) {
     cancel = entryCancel(config.cleanupMs, (waiting) => {
       if (waiting) {
-        process.on(signal, cancel!.request);
+        releaseCancel = cancelSignals(cancel!.request);
       } else {
-        process.off(signal, cancel!.request);
+        releaseCancel();
       }
     });
   }
@@ -293,10 +293,14 @@ if (isMainThread) {
             output,
           });
   } finally {
+    releaseCancel();
+    releaseRelay();
     await output.close();
   }
 } else {
-  const { module, config, args, limit, port, cell, outputConnection } = workerData;
+  const { module, config, args, limit, port, cell, outputConnection, signals, signalFlag } =
+    workerData;
+  const releaseSignals = connectSignals(signals, signalFlag);
   const output = createOutput(outputConnection);
   // The program's time starts now (`supervise`'s `arm`).
   const deadline = now() + limit;
@@ -315,6 +319,7 @@ if (isMainThread) {
     deadline,
     cancel: cell ? sharedCancel(config.cleanupMs, cell) : null,
   });
+  releaseSignals();
   port.postMessage({ status });
   port.close();
 }

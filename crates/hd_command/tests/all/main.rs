@@ -88,6 +88,8 @@ mod property_tests;
 mod resource_limits;
 mod run;
 mod same_size_edit;
+#[cfg(unix)]
+mod signals;
 mod spread_position;
 mod stat_manifest;
 mod test_bodies;

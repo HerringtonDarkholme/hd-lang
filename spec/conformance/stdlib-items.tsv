@@ -135,3 +135,6 @@ std.http.WireHttpError	std/http.md#r-std-http.wire.error
 std.collections.MapKeys	std/collections.md#map-methods
 std.collections.MapValues	std/collections.md#map-methods
 std.thread	std/thread.md#scope
+std.host.Signal	std/host.md#signals
+std.host.Signals	std/host.md#signals
+std.host.ScriptedSignals	std/host.md#signals

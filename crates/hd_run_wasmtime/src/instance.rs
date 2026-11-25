@@ -323,7 +323,7 @@ impl WasmtimeInstance {
 
     /// Reports a trap as the Node host does and ends the run with status 3,
     /// or with 130 for a run the host may cancel that a request stopped
-    /// while Wasm ran (`cli.cancel.computing`).
+    /// while Wasm ran (`cli.cancel.unhandled-computing`).
     pub(crate) fn trapped(&mut self, e: &wasmtime::Error) -> Outcome {
         if matches!(e.downcast_ref::<Stop>(), Some(Stop::EndCase)) {
             return self.end(0);

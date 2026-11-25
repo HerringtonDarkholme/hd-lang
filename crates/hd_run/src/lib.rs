@@ -10,6 +10,8 @@ mod grant;
 mod imports;
 pub mod journal;
 pub mod replay;
+#[cfg(any(unix, windows))]
+pub mod signals;
 pub mod tests_model;
 
 pub use grant::{

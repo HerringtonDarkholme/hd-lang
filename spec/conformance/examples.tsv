@@ -1126,6 +1126,7 @@ std/host.md	6	complete	std/host/map-providers/map-args-env.hd
 std/host.md	7	type-fragment	-
 std/host.md	8	complete	std/host/map-sys/map-sys.hd
 std/host.md	9	complete	-
+std/host.md	10	type-fragment	-
 std/http.md	1	type-fragment	-
 std/http.md	2	fragment	std/http/multipart-forms/http-multipart.hd
 std/http.md	3	complete	-
