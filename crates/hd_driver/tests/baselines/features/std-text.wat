@@ -2,7 +2,7 @@
 (module
   (import "fixture" "impl string.split" (func $"impl string.split" (param i32 i32 i32 i32) (result i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[u8]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[u8]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "impl TextBuffer.new" (func $"impl TextBuffer.new" (result i32 i32 i32)))
   (import "fixture" "rt:new/class-3" (func $rt:new/class-3 (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_coll" (func $rt:retain_coll (param i32)))
   (import "fixture" "impl StringBuilder.push" (func $"impl StringBuilder.push" (param i32 i32 i32)))
@@ -69,8 +69,7 @@
   )
   (func $build (param $parts i32) (result i32 i32) (local $p.0 i32) (local $p.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
     ;; 10 |     sb := StringBuilder::new()
-    i32.const 0
-    call $"impl[T < ?Copy] UniqList[T].with_capacity[u8]"
+    call $"impl TextBuffer.new"
     local.set $t0
     local.set $p.1
     local.set $p.0

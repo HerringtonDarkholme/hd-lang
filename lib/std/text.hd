@@ -12,7 +12,7 @@ use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
 use std.num.{Integer, ParseNumberError}
-use std.collections.UniqList
+use std.rt.TextBuffer
 use std.rt.{new_string, string_bytes, copy, load_u64, store_u8}
 use std.meta.inline
 use std.rt.{
@@ -22,8 +22,8 @@ use std.rt.{
     bytes_concat,
     concat_all,
     string_from_bytes,
-    ByteBuffer,
     TextSink,
+    ByteBuffer,
     host_lower,
     host_upper,
     char_from_scalar,
@@ -675,7 +675,7 @@ impl[T < Display] List[T]:
     ## Joins each element's Display text with `separator` between elements.
     ## See [std-text.join.display-list](../../spec/std/text.md#r-std-text.join.display-list).
     pub fn join(&self, separator: string) -> string:
-        let mut output = StringBuilder { bytes: UniqList::[u8].new() }
+        let mut output = StringBuilder { bytes: TextBuffer::new() }
         let first = true
         for part in self:
             if !first:
@@ -688,7 +688,7 @@ impl[T < Display] List[T]:
 ## See [std-text.builder.decl-struct](../../spec/std/text.md#r-std-text.builder.decl-struct).
 pub struct StringBuilder:
     # The UTF-8 bytes pushed since the last build, the string `build` takes over.
-    bytes: UniqList[u8]
+    bytes: TextBuffer
 
 impl StringBuilder:
     # Ordinary private helpers for a value interpolation's single result.
@@ -720,7 +720,7 @@ impl StringBuilder:
     ## See [std-text.builder.new-ref](../../spec/std/text.md#r-std-text.builder.new-ref).
     pub fn new() -> *mut StringBuilder:
         # Boxed because the returned builder is mutated across later calls.
-        box(StringBuilder { bytes: UniqList::[u8].new() })
+        box(StringBuilder { bytes: TextBuffer::new() })
 
     ## Appends `text` to the builder.
     ## See [std-text.builder.push-local](../../spec/std/text.md#r-std-text.builder.push-local).
@@ -733,26 +733,26 @@ impl StringBuilder:
     pub fn push_char(&mut self, c: char) -> void:
         point := i32(char_scalar(c))
         if point < 128:
-            ByteBuffer::push_byte(&mut self.bytes, u8(point))
+            self.bytes.push_byte(u8(point))
         else if point < 2048:
-            ByteBuffer::push_byte(&mut self.bytes, u8(192 + point / 64))
-            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point % 64))
+            self.bytes.push_byte(u8(192 + point / 64))
+            self.bytes.push_byte(u8(128 + point % 64))
         else if point < 65536:
-            ByteBuffer::push_byte(&mut self.bytes, u8(224 + point / 4096))
-            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point / 64 % 64))
-            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point % 64))
+            self.bytes.push_byte(u8(224 + point / 4096))
+            self.bytes.push_byte(u8(128 + point / 64 % 64))
+            self.bytes.push_byte(u8(128 + point % 64))
         else:
-            ByteBuffer::push_byte(&mut self.bytes, u8(240 + point / 262144))
-            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point / 4096 % 64))
-            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point / 64 % 64))
-            ByteBuffer::push_byte(&mut self.bytes, u8(128 + point % 64))
+            self.bytes.push_byte(u8(240 + point / 262144))
+            self.bytes.push_byte(u8(128 + point / 4096 % 64))
+            self.bytes.push_byte(u8(128 + point / 64 % 64))
+            self.bytes.push_byte(u8(128 + point % 64))
 
     ## Appends the ASCII byte `byte`. A byte of 128 or more panics.
     ## See [std-text.builder.push-ascii-local](../../spec/std/text.md#r-std-text.builder.push-ascii-local).
     pub fn push_ascii(&mut self, byte: u8) -> void:
         if byte >= 128:
             panic("push_ascii: the byte must be ASCII, below 128")
-        ByteBuffer::push_byte(&mut self.bytes, byte)
+        self.bytes.push_byte(byte)
 
     ## Makes room for at least `count` more bytes and appends nothing.
     ## See [std-text.builder.reserve-local](../../spec/std/text.md#r-std-text.builder.reserve-local).
