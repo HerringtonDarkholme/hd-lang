@@ -11,7 +11,7 @@ struct Named:
 fn word(i: i32) -> string:
     "held$i"
 > app/main/word
->   local $0 i: i32 [param read captured] value
+>   local $0 i: i32 [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
 >     uses $1: %48 -> %53 lend last

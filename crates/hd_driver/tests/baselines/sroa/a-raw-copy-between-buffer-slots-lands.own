@@ -14,7 +14,7 @@ use std.rt.memory.{Buffer, copy, size_of}
 pub fn main() -> void:
     slots := Buffer::[Buffer[u8]].new(2)
 > std/rt_tests.stage_case/main
->   local $0 slots: Buffer[Buffer[u8]] [:= read assigned captured] value
+>   local $0 slots: Buffer[Buffer[u8]] [:= read assigned] value
 >     uses $0: %10 -> %12 lend, %31 lend, %39 lend, %49 lend, %58 lend last
 >   local $2 index: usize [read] value
 >     uses $2: %57 -> %59 lend last

@@ -12,7 +12,7 @@ use std.meta.{InlineHint, cold, inline}
 fn unexpected(at: usize) -> string:
     "unexpected byte at $at"
 > app/main/unexpected
->   local $0 at: usize [param read captured] value
+>   local $0 at: usize [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
 >     uses $1: %36 -> %41 lend last

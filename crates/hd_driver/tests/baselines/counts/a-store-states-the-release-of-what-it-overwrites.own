@@ -16,7 +16,7 @@ struct P:
 fn make(n: i32) -> string:
     "s$n"
 > app/main/make
->   local $0 n: i32 [param read captured] value
+>   local $0 n: i32 [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
 >     uses $1: %48 -> %53 lend last
@@ -201,7 +201,7 @@ fn declared(c: bool) -> usize:
 > app/main/declared
 >   local $0 c: bool [param read] value
 >     uses $0: entry -> %3 lend last
->   local $1 u: UniqList[i32] [:= read assigned captured] value
+>   local $1 u: UniqList[i32] [:= read assigned] value
 >     uses $1: %1 -> %4 consume last
 >   local $3 $temporary_owner: bool [read assigned] value
 >     uses $3: entry -> %8 lend last, %15 lend, %20 lend last

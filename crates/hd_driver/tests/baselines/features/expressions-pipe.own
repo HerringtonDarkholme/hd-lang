@@ -125,7 +125,7 @@ fn tag(label: string, level: i64) -> string:
 > app/main/tag
 >   local $0 label: string [param read] value
 >     uses $0: entry -> %0 lend last
->   local $1 level: i64 [param read captured] value
+>   local $1 level: i64 [param read] value
 >     uses $1: entry -> %8 lend last
 >   local $2 result: string [read] value
 >     uses $2: %76 -> %81 lend last
@@ -295,7 +295,7 @@ fn chain(raw: string) -> string:
 >     uses $0: entry -> %0 lend last
 >   local $1 label: string [read] value
 >     uses $1: %20 -> %22 lend last
->   local $2 level: i64 [read captured] value
+>   local $2 level: i64 [read] value
 >     uses $2: %21 -> %25 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
@@ -358,7 +358,7 @@ fn direct(raw: string) -> string:
 >     uses $0: entry -> %0 lend last
 >   local $1 label: string [read] value
 >     uses $1: %20 -> %22 lend last
->   local $2 level: i64 [read captured] value
+>   local $2 level: i64 [read] value
 >     uses $2: %21 -> %25 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = Call std/text/impl StringBuilder.text_width[] (%0) : usize
