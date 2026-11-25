@@ -323,7 +323,7 @@ fn chain(raw: string) -> string:
 >   %23 = Call std/text/impl StringBuilder.text_width[] (%22) : usize
 >   %24 = Retain %23 Operation operand 0 #0 : ()
 >   %25 = Read copy [$2] : i64
->   %26 = Prim Conv [%25] : i64
+>   %26 = Coerce 2:i64 [Identity -] : i64
 >   %27 = Call std/text/impl StringBuilder.signed_width[] (%26) : usize
 >   %28 = Prim Add [0:usize %23] : usize
 >   %29 = Prim Add [%28 1:usize] : usize
@@ -386,7 +386,7 @@ fn direct(raw: string) -> string:
 >   %23 = Call std/text/impl StringBuilder.text_width[] (%22) : usize
 >   %24 = Retain %23 Operation operand 0 #0 : ()
 >   %25 = Read copy [$2] : i64
->   %26 = Prim Conv [%25] : i64
+>   %26 = Coerce 2:i64 [Identity -] : i64
 >   %27 = Call std/text/impl StringBuilder.signed_width[] (%26) : usize
 >   %28 = Prim Add [0:usize %23] : usize
 >   %29 = Prim Add [%28 1:usize] : usize
