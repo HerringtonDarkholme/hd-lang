@@ -38,58 +38,46 @@
     ;; 18 |         value := self.list[self.at]
     local.get $t0
   )
-  (func $total (param $xs i32) (result i64) (local $s i64) (local $t0 i32) (local $t1 i32) (local $x i64)
+  (func $total (param $xs i32) (result i64) (local $s i64) (local $t0 i32) (local $x i64)
     ;; 24 |     for x in Cursor { list: xs, at: 0 }:
     block
       loop
         block
-          local.get $t0
-          local.get $xs
-          i32.load $heap offset=8
-          i32.ge_u
-          if
-            i32.const 0
-            i64.const 0
-            local.set $x
-            local.set $t1
-            br 1
-          end
-          local.get $t0
-          local.get $xs
-          i32.load $heap offset=8
-          i32.ge_u
-          if
-            i32.const 16 ;; &"index-out-of-bounds"
-            i32.const 19
-            i32.const 35 ;; &"uniq list index out of bounds"
-            i32.const 29
-            i32.const 0
-            call_indirect $table0 (param i32 i32 i32 i32)
-            unreachable
-          end
-          local.get $xs
-          i32.load $heap
-          local.get $t0
-          i32.const 8
-          i32.mul
-          i32.add
-          i64.load $heap
-          local.set $x
-          local.get $t0
-          i32.const 1
-          i32.add
-          local.set $t0
-          i32.const 1
-          local.set $t1
-        end
-        block
           block
             block
-              local.get $t1
-              i32.eqz
-              br_if 1
-              br 0
-              unreachable
+              block
+                local.get $t0
+                local.get $xs
+                i32.load $heap offset=8
+                i32.ge_u
+                br_if 2
+                local.get $t0
+                local.get $xs
+                i32.load $heap offset=8
+                i32.ge_u
+                if
+                  i32.const 16 ;; &"index-out-of-bounds"
+                  i32.const 19
+                  i32.const 35 ;; &"uniq list index out of bounds"
+                  i32.const 29
+                  i32.const 0
+                  call_indirect $table0 (param i32 i32 i32 i32)
+                  unreachable
+                end
+                local.get $xs
+                i32.load $heap
+                local.get $t0
+                i32.const 8
+                i32.mul
+                i32.add
+                i64.load $heap
+                local.get $t0
+                i32.const 1
+                i32.add
+                local.set $t0
+                local.set $x
+                br 1
+              end
             end
     ;; 25 |         s += x
             local.get $s
@@ -99,7 +87,9 @@
     ;; 24 |     for x in Cursor { list: xs, at: 0 }:
             br 1
           end
-          br 2
+          block
+            br 3
+          end
         end
         br 0
       end

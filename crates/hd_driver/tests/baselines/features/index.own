@@ -149,7 +149,7 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %1 consume last
 >   local $2 s: &string [read assigned] value
->     uses $2: %33 -> %28 lend last
+>     uses $2: %22 -> %30 lend last
 >   local $3 self: &UniqList[string] [read] value
 >     uses $3: %2 -> %5 lend, %9 lend last
 >   local $4 index: usize [read] value
@@ -163,8 +163,8 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %4 = Read copy [$4] : usize
 >   %5 = Read copy [*$3 .len] : usize
 >   %6 = Prim Ge [%4 %5] : bool
->   %7 = NewVariant #0 [] : &string?
->   %8 = Block %7 : &string?
+>   %7 = Break L3 - : never
+>   %8 = Block - : never
 >   %9 = Ref local [*$3 .buffer] : &Buffer[string]
 >   %10 = LoanBegin %9 #0 : ()
 >   %11 = Read copy [$4] : usize
@@ -178,26 +178,30 @@ fn uniq_read(xs: &UniqList[string], i: usize) -> usize:
 >   %19 = LoanClose %10 : ()
 >   %20 = LoanEnd [%9] : ()
 >   %21 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_ref[string] (%18) : &string
->   %22 = NewVariant #1 [%21] : &string?
->   %23 = Block %22 : &string?
->   %24 = If %6 [%8 %23] : &string?
->   %25 = Break L1 %24 : never
->   %26 = Block - : &string?
->   %27 = Scope %26 [] : &string?
->   %39 = Block - : never
->   %40 = Match %27 [%39 %30 %31] : usize
->   %41 = LoanEnd [%27] : ()
->   %42 = Block %40 : usize
+>   %23 = Break L2 - : never
+>   %24 = Block - : never
+>   %25 = If %6 [%8 %24] : never
+>   %26 = Block - : never
+>   %27 = Scope %26 [] : never
+>   %28 = Block - : ()
+>   %29 = Scope %28 [] : ()
+>   %33 = Scope %32 [] : usize
+>   %34 = LoanEnd [$2] : ()
+>   %35 = Break L4 %33 : never
+>   %36 = Block - : ()
+>   %37 = Scope %36 [] : ()
+>   %39 = Scope %38 [] : usize
+>   %40 = Break L4 %39 : never
+>   %41 = Block - : usize
+>   %42 = Scope %41 [] : usize
+>   %43 = Block %42 : usize
         .Some(s) => s.len()
->   %28 = Read borrow [$2] : &string
->   %29 = Call std/text/impl string.len[] (%28) : usize
->   %30 = Block %29 : usize
->   %32 = Read borrow [%27 as #1 .0] : &string
->   %33 = Store [$2] %32 : ()
->   %35 = Block - : never
->   %38 = SwitchTag %27 [#1 %35 %37] : never
+>   %22 = Store [$2] %21 : ()
+>   %30 = Read borrow [$2] : &string
+>   %31 = Call std/text/impl string.len[] (%30) : usize
+>   %32 = Block %31 : usize
         .None => 0
->   %31 = Block 0:usize : usize
+>   %38 = Block 0:usize : usize
 >   summary kept []
 
 fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
@@ -207,9 +211,9 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   local $1 i: usize [param read] value
 >     uses $1: entry -> %2 consume last
 >   local $2 s: string [param read] value
->     uses $2: entry -> %29 consume last
+>     uses $2: entry -> %31 consume last
 >   local $3 r: &mut string [read assigned] value
->     uses $3: %37 -> %31 lend last
+>     uses $3: %23 -> %33 lend last
 >   local $4 self: &mut UniqList[string] [read] value
 >     uses $4: %3 -> %6 lend, %10 lend last
 >   local $5 index: usize [read] value
@@ -225,8 +229,8 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %5 = Read copy [$5] : usize
 >   %6 = Read copy [*$4 .len] : usize
 >   %7 = Prim Ge [%5 %6] : bool
->   %8 = NewVariant #0 [] : &mut string?
->   %9 = Block %8 : &mut string?
+>   %8 = Break L3 - : never
+>   %9 = Block - : never
 >   %10 = Ref local [*$4 .buffer] : &Buffer[string]
 >   %11 = LoanBegin %10 #0 : ()
 >   %12 = Read copy [$5] : usize
@@ -240,30 +244,33 @@ fn uniq_write(xs: &mut UniqList[string], i: usize, s: string) -> void:
 >   %20 = LoanClose %11 : ()
 >   %21 = LoanEnd [%10] : ()
 >   %22 = Call std/rt.memory/impl[T < ?Copy] Ptr[T].as_mut[string] (%19) : &mut string
->   %23 = NewVariant #1 [%22] : &mut string?
->   %24 = Block %23 : &mut string?
->   %25 = If %7 [%9 %24] : &mut string?
->   %26 = Break L1 %25 : never
->   %27 = Block - : &mut string?
->   %28 = Scope %27 [] : &mut string?
->   %43 = Block - : never
->   %44 = Match %28 [%43 %33 %35] : ()
->   %45 = LoanEnd [%28] : ()
+>   %24 = Break L2 - : never
+>   %25 = Block - : never
+>   %26 = If %7 [%9 %25] : never
+>   %27 = Block - : never
+>   %28 = Scope %27 [] : never
+>   %29 = Block - : ()
+>   %30 = Scope %29 [] : ()
+>   %36 = Scope %35 [] : ()
+>   %37 = LoanEnd [$3] : ()
+>   %38 = Break L4 - : never
+>   %39 = Block - : ()
+>   %40 = Scope %39 [] : ()
+>   %43 = Scope %42 [] : never
+>   %44 = Block - : ()
+>   %45 = Scope %44 [] : ()
 >   %46 = Drop [$2] : ()
 >   %47 = Drop [$2] : ()
 >   %48 = Block - : ()
         .Some(r) => *r = s
->   %29 = Read move [$2] : string
->   %30 = Intrinsic Empty [] : ()
->   %31 = Store [*$3] %29 : ()
->   %32 = Release %31 Operation #3 : ()
->   %33 = Block - : ()
->   %36 = Read borrow [%28 as #1 .0] : &mut string
->   %37 = Store [$3] %36 : ()
->   %39 = Block - : never
->   %42 = SwitchTag %28 [#1 %39 %41] : never
+>   %23 = Store [$3] %22 : ()
+>   %31 = Read move [$2] : string
+>   %32 = Intrinsic Empty [] : ()
+>   %33 = Store [*$3] %31 : ()
+>   %34 = Release %33 Operation #3 : ()
+>   %35 = Block - : ()
         .None => panic("index")
->   %34 = Call std/core/panic[] ("index") : never
->   %35 = Block - : never
+>   %41 = Call std/core/panic[] ("index") : never
+>   %42 = Block - : never
 >   exit sub 0 drops [$2]
 >   summary kept [$2] writes

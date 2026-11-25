@@ -1,0 +1,23 @@
+# @dump: stdout wat
+# @build: release
+# #2367: `make`'s three constructors reach the match through two joined
+# `if`s; `.Text` jumps to its arm with `text` bound, and the other two
+# jump to the wildcard's. Prints 5, 0, 0.
+use std.console.println
+
+enum Shape:
+    Text(string)
+    Pair(string, string)
+    Empty
+
+fn make(n: usize) -> Shape:
+    if n == 0: .Text("hello") else if n == 1: .Pair("hi", "there") else: .Empty
+
+fn wildcard(n: usize) -> usize:
+    match make(n):
+        .Text(text) => text.len()
+        _ => 0
+
+pub fn main() -> void $ Console:
+    for n in 0..3:
+        println("${wildcard(n)}")

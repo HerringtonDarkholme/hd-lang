@@ -10,6 +10,7 @@
 
 pub mod fact_specialize;
 pub mod inline;
+pub mod known_ctor;
 pub mod passes;
 pub mod planner;
 pub mod prove;

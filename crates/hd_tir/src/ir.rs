@@ -26,7 +26,7 @@ pub(crate) use copy::{
     Remap, SideRows, Through, copy_rows, grow, local_words, push_frame, renumber,
 };
 pub use lift::{Lifting, function_template, item_template, scopes as local_function_scopes};
-pub use nest::Nest;
+pub use nest::{Nest, buckets};
 pub use owned::verify_owned;
 pub use root::{RootTables, root_places};
 pub use slots::{Loc, Role, Word, slot_words, slots};
