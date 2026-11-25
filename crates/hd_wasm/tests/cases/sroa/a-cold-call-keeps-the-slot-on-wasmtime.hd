@@ -1,0 +1,18 @@
+# @dump: wat
+# @build: wasmtime release
+# #2365, lane 276: on wasmtime `sroa` spills nothing around a cold call
+# (`hd_opt::passes::OPTIMIZED_WASMTIME`): wasmtime's epoch check puts a
+# call on the loop's back edge, so the fields and the copy's frame would
+# all be live across it. `push`'s cold `reserve_for` takes `xs`'s address,
+# so `xs` keeps its frame slot and the loop reads its fields there. V8's
+# build of this loop is `a-mut-self-method-inlined-in-a-loop-keeps-its-
+# fields-in-locals`.
+use std.collections.UniqList
+
+fn build(n: i64) -> UniqList[i64]:
+    let mut xs: UniqList[i64] = UniqList::[i64].new()
+    let mut i: i64 = 0
+    while i < n:
+        xs.push(i)
+        i += 1
+    xs
