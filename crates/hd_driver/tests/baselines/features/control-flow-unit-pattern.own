@@ -10,7 +10,7 @@ fn save(s: string) -> Result[void, string]:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend, %15 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -45,7 +45,7 @@ fn report(s: string) -> string:
 >   local $1 message: string [read assigned] value
 >     uses $1: %24 -> %17 consume last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize

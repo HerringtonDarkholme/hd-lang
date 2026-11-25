@@ -33,7 +33,7 @@ fn change!(n: *mut Note) -> usize:
 >   %5 = LoanBegin %4 #0 : ()
 >   %6 = Store [$1] %4 : ()
 >   %7 = Read borrow [$1] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %8 = Call std/core/bytes_len[] (%7) : usize
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize

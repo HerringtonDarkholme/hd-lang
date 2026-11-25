@@ -56,7 +56,7 @@ fn phrase_len(s: HttpStatus) -> usize:
 >   %12 = SwitchTag %0 [#0 %3 %11] : string
 >   %13 = Store [$1] %12 : ()
 >   %14 = Read borrow [$1] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %15 = Call std/core/bytes_len[] (%14) : usize
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize

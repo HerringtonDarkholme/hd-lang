@@ -34,7 +34,7 @@ fn read_user(u: User) -> usize:
 >   %22 = Block %16 : usize
     name.len() + tags.len()
 >   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %10 = Call std/core/bytes_len[] (%9) : usize
 >   %11 = Break L0 %10 : never
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
@@ -92,12 +92,12 @@ fn pair(p: (string, string)) -> usize:
 >   %25 = Block %19 : usize
     a.len() + b.len()
 >   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %10 = Call std/core/bytes_len[] (%9) : usize
 >   %11 = Break L1 %10 : never
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
 >   %14 = Read borrow [$2] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %15 = Call std/core/bytes_len[] (%14) : usize
 >   %16 = Break L0 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize
@@ -135,7 +135,7 @@ fn present(o: string?) -> usize:
 >   %7 = Return 0:usize : never
     s.len()
 >   %18 = Read borrow [$1] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %19 = Call std/core/bytes_len[] (%18) : usize
 >   %20 = Break L0 %19 : never
 >   %21 = Block - : usize
 >   %22 = Scope %21 [] : usize

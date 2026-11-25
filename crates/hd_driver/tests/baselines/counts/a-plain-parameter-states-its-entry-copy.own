@@ -79,7 +79,7 @@ fn word(i: i32) -> string:
 >   %38 = Call std/rt.memory/string_bytes[] (%37) : Ptr[u8]
 >   %39 = Read copy [%38 .address] : usize
 >   %40 = Read borrow [$7] : string
->   %41 = Call std/rt.bytes/bytes_len[] (%40) : usize
+>   %41 = Call std/core/bytes_len[] (%40) : usize
 >   %42 = Call std/rt.memory/copy[] (%36, %39, %41) : ()
 >   %43 = Break L1 - : never
 >   %44 = Block - : ()
@@ -163,7 +163,7 @@ fn read(value: &string) -> usize:
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : &string
 >   %1 = Read borrow [*%0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize

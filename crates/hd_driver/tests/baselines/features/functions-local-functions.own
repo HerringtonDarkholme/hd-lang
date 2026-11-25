@@ -59,12 +59,12 @@ fn local_capture(prefix: string, xs: List[string]) -> usize:
         total += width(x)
 >   %13 = Read copy [$2] : usize
 >   %14 = Read borrow [$0] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %15 = Call std/core/bytes_len[] (%14) : usize
 >   %16 = Break L3 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize
 >   %19 = Read borrow [$7] : string
->   %20 = Call std/rt.bytes/bytes_len[] (%19) : usize
+>   %20 = Call std/core/bytes_len[] (%19) : usize
 >   %21 = Break L2 %20 : never
 >   %22 = Block - : usize
 >   %23 = Scope %22 [] : usize
@@ -103,7 +103,7 @@ fn local_plain(xs: List[string]) -> usize:
 >   %3 = Read borrow [$0 [0:usize]] : string
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L1 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize

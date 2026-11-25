@@ -160,7 +160,7 @@ fn generic_first(xs: List[string]) -> usize:
 >   %19 = Scope %18 [] : string
 >   %20 = Store [$1] %19 : ()
 >   %21 = Read borrow [$1] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %22 = Call std/core/bytes_len[] (%21) : usize
 >   %23 = Break L0 %22 : never
 >   %24 = Block - : usize
 >   %25 = Scope %24 [] : usize

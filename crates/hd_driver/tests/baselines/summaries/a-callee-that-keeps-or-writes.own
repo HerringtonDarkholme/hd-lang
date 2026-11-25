@@ -56,7 +56,7 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %1 = Read borrow [%0] : string
 >   %2 = Store [$9] %1 : ()
 >   %3 = Read borrow [$9] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L3 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
@@ -82,7 +82,7 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %27 = Call std/rt.memory/string_bytes[] (%26) : Ptr[u8]
 >   %28 = Read copy [%27 .address] : usize
 >   %29 = Read borrow [$7] : string
->   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+>   %30 = Call std/core/bytes_len[] (%29) : usize
 >   %31 = Call std/rt.memory/copy[] (%25, %28, %30) : ()
 >   %32 = Break L1 - : never
 >   %33 = Block - : ()
@@ -100,7 +100,7 @@ fn rename(target: &mut Member, m: Member) -> void:
 >   %45 = Call std/rt.memory/string_bytes[] (%44) : Ptr[u8]
 >   %46 = Read copy [%45 .address] : usize
 >   %47 = Read borrow [$4] : string
->   %48 = Call std/rt.bytes/bytes_len[] (%47) : usize
+>   %48 = Call std/core/bytes_len[] (%47) : usize
 >   %49 = Call std/rt.memory/copy[] (%43, %46, %48) : ()
 >   %50 = Break L0 - : never
 >   %51 = Block - : ()
@@ -148,7 +148,7 @@ fn other(a: string, b: string) -> string:
 >   %1 = Retain %31 Entry local $1 #0 : ()
     if a.len() > 3:
 >   %2 = Read borrow [$0] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %3 = Call std/core/bytes_len[] (%2) : usize
 >   %4 = Break L1 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize
@@ -174,7 +174,7 @@ fn other(a: string, b: string) -> string:
 >   %19 = Retain %18 Value #0 : ()
 >   %20 = Store [$2] %18 : ()
 >   %21 = Read borrow [$2] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %22 = Call std/core/bytes_len[] (%21) : usize
 >   %23 = Break L0 %22 : never
 >   %24 = Block - : usize
 >   %25 = Scope %24 [] : usize

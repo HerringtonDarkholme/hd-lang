@@ -46,7 +46,7 @@ fn fetch!() -> usize $ Store:
 >   %7 = Call app/main/Store.get for Store [] via TraitValue (%5) : string
 >   %8 = Store [$1] %7 : ()
 >   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %10 = Call std/core/bytes_len[] (%9) : usize
 >   %11 = Break L0 %10 : never
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize

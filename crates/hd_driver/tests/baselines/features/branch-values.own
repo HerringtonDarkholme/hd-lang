@@ -65,7 +65,7 @@ fn pick_len(c: bool, a: string, b: string) -> usize:
 >   %23 = Block %12 : usize
     s.len()
 >   %8 = Read borrow [$3] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L0 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize

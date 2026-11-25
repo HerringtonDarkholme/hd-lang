@@ -30,7 +30,7 @@ fn lens(xs: List[string]) -> List[usize]:
 >   %8 = Scope %7 [] : ListIter[string]
 >   %9 = Retain %17 Entry local $1 #0 : ()
 >   %10 = Read borrow [$1] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %11 = Call std/core/bytes_len[] (%10) : usize
 >   %12 = Break L2 %11 : never
 >   %13 = Block - : usize
 >   %14 = Scope %13 [] : usize
@@ -122,7 +122,7 @@ fn loud(xs: List[string]) -> List[string]:
 >   %9 = Retain %19 Entry local $1 #0 : ()
 >   %10 = Read borrow [$1] : &string
 >   %11 = Read borrow [*%10] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %12 = Call std/core/bytes_len[] (%11) : usize
 >   %13 = Break L3 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize

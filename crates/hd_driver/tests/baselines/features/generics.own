@@ -103,7 +103,7 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %6 = Scope %5 [] : string
 >   %7 = Store [$2] %6 : ()
 >   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L5 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -154,7 +154,7 @@ fn use_generic(s: string, xs: List[string]) -> usize:
 >   %60 = Drop [$8] : ()
 >   %61 = Store [$3] %59 : ()
 >   %62 = Read borrow [$3] : string
->   %63 = Call std/rt.bytes/bytes_len[] (%62) : usize
+>   %63 = Call std/core/bytes_len[] (%62) : usize
 >   %64 = Break L1 %63 : never
 >   %65 = Block - : usize
 >   %66 = Scope %65 [] : usize

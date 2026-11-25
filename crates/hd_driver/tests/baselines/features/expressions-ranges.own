@@ -79,7 +79,7 @@ fn lens(xs: List[string]) -> usize:
 >   %20 = Read borrow [$0 [%19]] : string
 >   %21 = Store [$6] %20 : ()
 >   %22 = Read borrow [$6] : string
->   %23 = Call std/rt.bytes/bytes_len[] (%22) : usize
+>   %23 = Call std/core/bytes_len[] (%22) : usize
 >   %24 = Break L1 %23 : never
 >   %25 = Block - : usize
 >   %26 = Scope %25 [] : usize

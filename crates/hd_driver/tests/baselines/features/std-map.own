@@ -31,7 +31,7 @@ fn lookup(m: &Map[string, string], k: string) -> usize:
 >   %26 = Block %19 : usize
         .Some(v) => v.len()
 >   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %5 = Call std/core/bytes_len[] (%4) : usize
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize

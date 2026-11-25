@@ -13,13 +13,13 @@ fn join2(first: string, second: string) -> usize:
 >   local $1 second: string [param read] value
 >     uses $1: entry -> %6 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L1 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
 >   %5 = Prim Mul [%4 3:usize] : usize
 >   %6 = Read borrow [$1] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %7 = Call std/core/bytes_len[] (%6) : usize
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize

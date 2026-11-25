@@ -55,7 +55,7 @@ fn until_long(xs: List[string]) -> usize:
 >   %15 = Store [$7] %14 : ()
         if t.len() < 3:
 >   %16 = Read borrow [$7] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %17 = Call std/core/bytes_len[] (%16) : usize
 >   %18 = Break L3 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize
@@ -67,7 +67,7 @@ fn until_long(xs: List[string]) -> usize:
 >   %24 = Block - : never
         if t.len() > 9:
 >   %26 = Read borrow [$7] : string
->   %27 = Call std/rt.bytes/bytes_len[] (%26) : usize
+>   %27 = Call std/core/bytes_len[] (%26) : usize
 >   %28 = Break L2 %27 : never
 >   %29 = Block - : usize
 >   %30 = Scope %29 [] : usize
@@ -80,7 +80,7 @@ fn until_long(xs: List[string]) -> usize:
         n += t.len()
 >   %36 = Read copy [$1] : usize
 >   %37 = Read borrow [$7] : string
->   %38 = Call std/rt.bytes/bytes_len[] (%37) : usize
+>   %38 = Call std/core/bytes_len[] (%37) : usize
 >   %39 = Break L1 %38 : never
 >   %40 = Block - : usize
 >   %41 = Scope %40 [] : usize

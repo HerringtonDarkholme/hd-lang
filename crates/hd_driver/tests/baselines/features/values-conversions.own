@@ -30,7 +30,7 @@ fn view(p: &Point) -> usize:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Store [$1] %0 : ()
 >   %3 = Read borrow [$1] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize
@@ -87,7 +87,7 @@ fn lend(h: *mut Point) -> usize:
 >   %14 = LoanBegin %13 #0 : ()
 >   %15 = Store [$2] %13 : ()
 >   %16 = Read borrow [$2] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %17 = Call std/core/bytes_len[] (%16) : usize
 >   %18 = Break L0 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize
@@ -143,7 +143,7 @@ fn local(s: string) -> usize:
 >   %24 = LoanBegin %23 #0 : ()
 >   %25 = Store [$4] %23 : ()
 >   %26 = Read borrow [$4] : string
->   %27 = Call std/rt.bytes/bytes_len[] (%26) : usize
+>   %27 = Call std/core/bytes_len[] (%26) : usize
 >   %28 = Break L0 %27 : never
 >   %29 = Block - : usize
 >   %30 = Scope %29 [] : usize

@@ -6,6 +6,7 @@
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
 use std.core.{Copy}
+pub use std.core.{bytes_len, bytes_mismatch, char_scalar}
 use std.rt.hint.inline
 use std.rt.memory.{
     Buffer,
@@ -19,11 +20,6 @@ use std.rt.memory.{
     string_bytes,
     store_u8,
 }
-
-## The number of bytes in `text`.
-@intrinsic("bytes_len")
-pub fn bytes_len(text: string) -> usize:
-    panic("intrinsic")
 
 ## The byte at offset `index`, which must be below `bytes_len(text)`.
 @intrinsic("bytes_at")
@@ -305,11 +301,6 @@ pub fn host_upper(text: string) -> string:
 pub fn char_from_scalar(point: u32) -> char?:
     panic("intrinsic")
 
-## The scalar value of `value`: a `char` is its scalar value at run time.
-@intrinsic("char_scalar")
-pub fn char_scalar(value: char) -> u32:
-    panic("intrinsic")
-
 ## The checked runtime panic of `category`, such as `index-out-of-bounds`, showing `message`, or no message when it is empty; it does not return.
 @intrinsic("panic")
 pub fn panic_with(category: string, message: string) -> void:
@@ -349,16 +340,3 @@ pub fn bytes_index_pair(text: string, from: usize, first: u8, last: u8, gap: usi
             return index
         index = index + 1
     size
-
-## The offset of the first position where `left` and `right` differ; when one is a prefix of the other, the shorter length, and when they are equal, their common length.
-@intrinsic("bytes_mismatch")
-pub fn bytes_mismatch(left: string, right: string) -> usize:
-    left_size := bytes_len(left)
-    right_size := bytes_len(right)
-    shorter := if left_size < right_size: left_size else: right_size
-    let index: usize = 0
-    while index < shorter:
-        if bytes_at(left, index) != bytes_at(right, index):
-            return index
-        index = index + 1
-    shorter

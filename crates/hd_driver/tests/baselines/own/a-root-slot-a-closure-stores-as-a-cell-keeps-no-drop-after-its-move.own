@@ -11,7 +11,7 @@ fn eat(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -146,7 +146,7 @@ fn rounds(n: usize) -> usize:
 >   %49 = Call std/rt.memory/string_bytes[] (%48) : Ptr[u8]
 >   %50 = Read copy [%49 .address] : usize
 >   %51 = Read borrow [$31] : string
->   %52 = Call std/rt.bytes/bytes_len[] (%51) : usize
+>   %52 = Call std/core/bytes_len[] (%51) : usize
 >   %53 = Call std/rt.memory/copy[] (%47, %50, %52) : ()
 >   %54 = Break L9 - : never
 >   %55 = Block - : ()
@@ -199,7 +199,7 @@ fn rounds(n: usize) -> usize:
 >   %101 = Drop [$9] : ()
 >   %102 = Store [$24] %99 : ()
 >   %103 = Read borrow [$24] : string
->   %104 = Call std/rt.bytes/bytes_len[] (%103) : usize
+>   %104 = Call std/core/bytes_len[] (%103) : usize
 >   %105 = Break L6 %104 : never
 >   %106 = Block - : usize
 >   %107 = Scope %106 [] : usize
@@ -209,7 +209,7 @@ fn rounds(n: usize) -> usize:
 >   %111 = Retain %110 Value #0 : ()
 >   %112 = Store [$23] %110 : ()
 >   %113 = Read borrow [$23] : string
->   %114 = Call std/rt.bytes/bytes_len[] (%113) : usize
+>   %114 = Call std/core/bytes_len[] (%113) : usize
 >   %115 = Break L5 %114 : never
 >   %116 = Block - : usize
 >   %117 = Scope %116 [] : usize
@@ -237,7 +237,7 @@ fn rounds(n: usize) -> usize:
 >   %139 = Call std/rt.memory/string_bytes[] (%138) : Ptr[u8]
 >   %140 = Read copy [%139 .address] : usize
 >   %141 = Read borrow [$21] : string
->   %142 = Call std/rt.bytes/bytes_len[] (%141) : usize
+>   %142 = Call std/core/bytes_len[] (%141) : usize
 >   %143 = Call std/rt.memory/copy[] (%137, %140, %142) : ()
 >   %144 = Break L3 - : never
 >   %145 = Block - : ()
@@ -258,7 +258,7 @@ fn rounds(n: usize) -> usize:
 >   %160 = Call std/rt.memory/string_bytes[] (%159) : Ptr[u8]
 >   %161 = Read copy [%160 .address] : usize
 >   %162 = Read borrow [$18] : string
->   %163 = Call std/rt.bytes/bytes_len[] (%162) : usize
+>   %163 = Call std/core/bytes_len[] (%162) : usize
 >   %164 = Call std/rt.memory/copy[] (%158, %161, %163) : ()
 >   %165 = Break L2 - : never
 >   %166 = Block - : ()

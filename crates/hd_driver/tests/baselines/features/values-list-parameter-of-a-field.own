@@ -274,7 +274,7 @@ pub fn main() -> void $ Console:
 >   %128 = Call std/rt.memory/string_bytes[] (%127) : Ptr[u8]
 >   %129 = Read copy [%128 .address] : usize
 >   %130 = Read borrow [$20] : string
->   %131 = Call std/rt.bytes/bytes_len[] (%130) : usize
+>   %131 = Call std/core/bytes_len[] (%130) : usize
 >   %132 = Call std/rt.memory/copy[] (%126, %129, %131) : ()
 >   %133 = Break L4 - : never
 >   %134 = Block - : ()
@@ -308,7 +308,7 @@ pub fn main() -> void $ Console:
 >   %162 = Call std/rt.memory/string_bytes[] (%161) : Ptr[u8]
 >   %163 = Read copy [%162 .address] : usize
 >   %164 = Read borrow [$13] : string
->   %165 = Call std/rt.bytes/bytes_len[] (%164) : usize
+>   %165 = Call std/core/bytes_len[] (%164) : usize
 >   %166 = Call std/rt.memory/copy[] (%160, %163, %165) : ()
 >   %167 = Break L2 - : never
 >   %168 = Block - : ()

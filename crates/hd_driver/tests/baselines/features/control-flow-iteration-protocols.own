@@ -77,7 +77,7 @@ fn user_cursor(words: Words) -> usize:
         n += w.len()
 >   %10 = Read copy [$1] : usize
 >   %11 = Read borrow [$4] : string
->   %12 = Call std/rt.bytes/bytes_len[] (%11) : usize
+>   %12 = Call std/core/bytes_len[] (%11) : usize
 >   %13 = Break L1 %12 : never
 >   %14 = Block - : usize
 >   %15 = Scope %14 [] : usize
@@ -140,7 +140,7 @@ fn twice(xs: List[string]) -> usize:
         n += x.len()
 >   %16 = Read copy [$1] : usize
 >   %17 = Read borrow [$4] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %18 = Call std/core/bytes_len[] (%17) : usize
 >   %19 = Break L4 %18 : never
 >   %20 = Block - : usize
 >   %21 = Scope %20 [] : usize
@@ -175,7 +175,7 @@ fn twice(xs: List[string]) -> usize:
         n += x.len()
 >   %55 = Read copy [$1] : usize
 >   %56 = Read borrow [$7] : string
->   %57 = Call std/rt.bytes/bytes_len[] (%56) : usize
+>   %57 = Call std/core/bytes_len[] (%56) : usize
 >   %58 = Break L2 %57 : never
 >   %59 = Block - : usize
 >   %60 = Scope %59 [] : usize

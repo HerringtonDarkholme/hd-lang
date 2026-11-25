@@ -100,7 +100,7 @@ fn ret_new(n: i64) -> string:
 >   %38 = Call std/rt.memory/string_bytes[] (%37) : Ptr[u8]
 >   %39 = Read copy [%38 .address] : usize
 >   %40 = Read borrow [$7] : string
->   %41 = Call std/rt.bytes/bytes_len[] (%40) : usize
+>   %41 = Call std/core/bytes_len[] (%40) : usize
 >   %42 = Call std/rt.memory/copy[] (%36, %39, %41) : ()
 >   %43 = Break L1 - : never
 >   %44 = Block - : ()
@@ -160,7 +160,7 @@ fn use_rets(r: Rec) -> usize:
 >   %6 = Scope %5 [] : string
 >   %7 = Store [$1] %6 : ()
 >   %8 = Read borrow [$1] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L3 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -172,7 +172,7 @@ fn use_rets(r: Rec) -> usize:
 >   %18 = Scope %17 [] : string
 >   %19 = Store [$2] %18 : ()
 >   %20 = Read borrow [$2] : string
->   %21 = Call std/rt.bytes/bytes_len[] (%20) : usize
+>   %21 = Call std/core/bytes_len[] (%20) : usize
 >   %22 = Break L1 %21 : never
 >   %23 = Block - : usize
 >   %24 = Scope %23 [] : usize

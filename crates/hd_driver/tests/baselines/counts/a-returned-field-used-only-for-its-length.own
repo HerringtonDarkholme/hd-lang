@@ -46,7 +46,7 @@ app/main/query
   %27 = Scope %26 [] : string
   %28 = Store [$7] %27 : ()
   %29 = Read borrow [$7] : string
-  %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+  %30 = Call std/core/bytes_len[] (%29) : usize
   %31 = Break L1 %30 : never
   %32 = Block - : usize
   %33 = Scope %32 [] : usize

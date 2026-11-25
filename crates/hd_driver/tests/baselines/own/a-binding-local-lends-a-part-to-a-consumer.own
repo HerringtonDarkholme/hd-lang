@@ -45,7 +45,7 @@ fn read_again(m: Member) -> usize:
 >   %6 = Drop [$0] : ()
 >   %7 = Store [$2] %4 : ()
 >   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L0 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -72,7 +72,7 @@ fn last_read(m: Member) -> usize:
 >   %6 = Drop [$0] : ()
 >   %7 = Store [$2] %4 : ()
 >   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L0 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize

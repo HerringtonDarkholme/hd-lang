@@ -44,7 +44,7 @@ fn size!(text: &string) -> usize $ Clock:
     text.len()
 >   %17 = Read borrow [$0] : &string
 >   %18 = Read borrow [*%17] : string
->   %19 = Call std/rt.bytes/bytes_len[] (%18) : usize
+>   %19 = Call std/core/bytes_len[] (%18) : usize
 >   %20 = Break L0 %19 : never
 >   %21 = Block - : usize
 >   %22 = Scope %21 [] : usize

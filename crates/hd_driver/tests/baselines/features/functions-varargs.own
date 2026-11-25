@@ -51,7 +51,7 @@ fn total(parts...: List[string]) -> usize:
         n += p.len()
 >   %13 = Read copy [$1] : usize
 >   %14 = Read borrow [$6] : string
->   %15 = Call std/rt.bytes/bytes_len[] (%14) : usize
+>   %15 = Call std/core/bytes_len[] (%14) : usize
 >   %16 = Break L1 %15 : never
 >   %17 = Block - : usize
 >   %18 = Scope %17 [] : usize

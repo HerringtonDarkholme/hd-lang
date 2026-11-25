@@ -59,7 +59,7 @@ fn read_cell(c: Cell) -> usize:
 >   %3 = Scope %2 [] : string
 >   %4 = Store [$1] %3 : ()
 >   %5 = Read borrow [$1] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize

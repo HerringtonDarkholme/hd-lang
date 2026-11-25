@@ -68,7 +68,7 @@ fn must(s: string, n: i32) -> usize:
 >   %6 = Read borrow [%5] : string
 >   %7 = Store [$11] %6 : ()
 >   %8 = Read borrow [$11] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L4 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -93,7 +93,7 @@ fn must(s: string, n: i32) -> usize:
 >   %31 = Call std/rt.memory/string_bytes[] (%30) : Ptr[u8]
 >   %32 = Read copy [%31 .address] : usize
 >   %33 = Read borrow [$9] : string
->   %34 = Call std/rt.bytes/bytes_len[] (%33) : usize
+>   %34 = Call std/core/bytes_len[] (%33) : usize
 >   %35 = Call std/rt.memory/copy[] (%29, %32, %34) : ()
 >   %36 = Break L2 - : never
 >   %37 = Block - : ()
@@ -113,7 +113,7 @@ fn must(s: string, n: i32) -> usize:
 >   %51 = Call std/rt.memory/string_bytes[] (%50) : Ptr[u8]
 >   %52 = Read copy [%51 .address] : usize
 >   %53 = Read borrow [$6] : string
->   %54 = Call std/rt.bytes/bytes_len[] (%53) : usize
+>   %54 = Call std/core/bytes_len[] (%53) : usize
 >   %55 = Call std/rt.memory/copy[] (%49, %52, %54) : ()
 >   %56 = Break L1 - : never
 >   %57 = Block - : ()
@@ -123,7 +123,7 @@ fn must(s: string, n: i32) -> usize:
 >   %61 = Block - : never
     t.len()
 >   %63 = Read borrow [$2] : string
->   %64 = Call std/rt.bytes/bytes_len[] (%63) : usize
+>   %64 = Call std/core/bytes_len[] (%63) : usize
 >   %65 = Break L0 %64 : never
 >   %66 = Block - : usize
 >   %67 = Scope %66 [] : usize
@@ -176,7 +176,7 @@ fn guarded(log: *mut List[string], s: string, n: i32) -> usize:
 >   %13 = Read borrow [$3 .name] : string
 >   %14 = Store [$4] %13 : ()
 >   %15 = Read borrow [$4] : string
->   %16 = Call std/rt.bytes/bytes_len[] (%15) : usize
+>   %16 = Call std/core/bytes_len[] (%15) : usize
 >   %17 = Break L0 %16 : never
 >   %18 = Block - : usize
 >   %19 = Scope %18 [] : usize
