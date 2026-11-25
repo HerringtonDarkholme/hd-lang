@@ -1001,7 +1001,7 @@ The host supplies the raw transport through a public trait over wire
 messages. The ordinary HTTP adapter translates its responses and errors.
 
 ```hd
-use std.http_wire.{Http as WireHttp, WireHttpError, WireRequest, WireResponse}
+use std.http.{WireHttp, WireHttpError, WireRequest, WireResponse}
 
 struct ExampleHost:
     calls: usize
@@ -1012,13 +1012,13 @@ impl WireHttp for ExampleHost:
         .Ok(WireResponse { status: 200, headers: request.headers, body: request.body, url: request.url })
 ```
 
-1. r[std-http.wire.host] `std.http_wire.Http` is a public `@host` trait whose host-supplied method exchanges wire messages with the signature below.
+1. r[std-http.wire.host] `std.http.WireHttp` is a public `@host` trait whose host-supplied method exchanges wire messages with the signature below.
 
 | Method | Parameter | Result |
 | --- | --- | --- |
 | `send!(&mut self, request)` | `request: WireRequest` | `Result[WireResponse, WireHttpError]` |
 
-2. r[std-http.wire.error] `std.http_wire.WireHttpError` carries the transport failures and payloads in the following table.
+2. r[std-http.wire.error] `std.http.WireHttpError` carries the transport failures and payloads in the following table.
 
 | Variant | Payload |
 | --- | --- |
@@ -1052,7 +1052,7 @@ Conversions use the public `std.http` message types.
 
 ```hd
 use std.http.{Response, request_from_wire, response_to_wire}
-use std.http_wire.WireRequest
+use std.http.WireRequest
 
 pub fn main() -> void:
     wire := WireRequest { method: .Get, url: "https://example.test/" }
@@ -1061,8 +1061,8 @@ pub fn main() -> void:
     _ := response_to_wire(&response).expect("valid response with an unread body")
 ```
 
-1. r[std-http.wire.identity] `std.http_wire.WireIdentity` has public `certificate_chain: string` and `private_key: string` fields.
-2. r[std-http.wire.request] `std.http_wire.WireRequest` has the public fields in the following table, with the listed defaults.
+1. r[std-http.wire.identity] `std.http.WireIdentity` has public `certificate_chain: string` and `private_key: string` fields.
+2. r[std-http.wire.request] `std.http.WireRequest` has the public fields in the following table, with the listed defaults.
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -1079,7 +1079,7 @@ pub fn main() -> void:
 | `response_header_timeout` | `std.time.Duration?` | `.None` |
 | `body_read_timeout` | `std.time.Duration?` | `.None` |
 
-3. r[std-http.wire.response] `std.http_wire.WireResponse` has the public fields in the following table, with the listed defaults.
+3. r[std-http.wire.response] `std.http.WireResponse` has the public fields in the following table, with the listed defaults.
 
 | Field | Type | Default |
 | --- | --- | --- |
@@ -1092,8 +1092,8 @@ The conversion functions are in `std.http`, with these signatures.
 
 | Function | Parameter | Result |
 | --- | --- | --- |
-| `request_from_wire` | `request: std.http_wire.WireRequest` | `Result[Request, HttpError]` |
-| `response_to_wire` | `response: &Response` | `Result[std.http_wire.WireResponse, HttpError]` |
+| `request_from_wire` | `request: std.http.WireRequest` | `Result[Request, HttpError]` |
+| `response_to_wire` | `response: &Response` | `Result[std.http.WireResponse, HttpError]` |
 
 4. r[std-http.wire.request-from] `request_from_wire` parses the wire URL with `Url::parse` and preserves the method, header pairs, and body bytes.
 5. r[std-http.wire.response-to] `response_to_wire` validates headers before reading the shared body once, returning any header or body error.

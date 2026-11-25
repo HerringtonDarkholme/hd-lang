@@ -68,7 +68,7 @@ narrower than `pub` in every split case (2, 6).
 | --- | --- | --- | --- | --- |
 | root | annotation, cmp, collections, format, hash, inspect, iter, num, ops, structure, text | `lib/std` | legal | legal |
 | runtime | rt.alloc, rt.cycle, rt.memory | `lib/std/rt` | legal | legal |
-| http | http, http_wire | `lib/std` | legal | legal |
+| http | http | `lib/std` | legal | legal |
 | testing | testing, testing.arbitrary | `lib/std`, `lib/std/testing` | `module-cycle` | legal |
 
 The testing edges are `testing.hd:20: pub use std.testing.arbitrary.{With, with}`

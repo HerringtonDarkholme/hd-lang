@@ -1,6 +1,6 @@
 # test: the public wire request conversion parses the URL and preserves message values
 use std.http.{Method, request_from_wire}
-use std.http_wire.WireRequest
+use std.http.WireRequest
 
 tests:
     use std.testing.{assert, assert_equal}

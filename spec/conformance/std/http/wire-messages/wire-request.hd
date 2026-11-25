@@ -1,5 +1,5 @@
 # test: wire requests expose their message fields and default transport settings
-use std.http_wire.WireRequest
+use std.http.WireRequest
 use std.time.Duration
 
 tests:

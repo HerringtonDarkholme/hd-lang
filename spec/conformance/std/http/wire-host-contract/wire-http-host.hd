@@ -1,5 +1,5 @@
 # test: an application can implement the public wire HTTP transport contract
-use std.http_wire.{Http as WireHttp, WireHttpError, WireRequest, WireResponse}
+use std.http.{WireHttp, WireHttpError, WireRequest, WireResponse}
 
 struct Echo:
     received: List[WireRequest]

@@ -837,7 +837,7 @@ impl Wire for Timestamp {
 /// `UdpSocket`, a host handle: its handle number.
 pub type UdpSocket = Handle;
 
-/// `WireHttpError` of `lib/std/http_wire.hd`.
+/// `WireHttpError` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WireHttpError {
     NotGranted { host: String },
@@ -955,7 +955,7 @@ impl Wire for WireHttpError {
     }
 }
 
-/// `WireIdentity` of `lib/std/http_wire.hd`.
+/// `WireIdentity` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WireIdentity {
     pub certificate_chain: String,
@@ -975,7 +975,7 @@ impl Wire for WireIdentity {
     }
 }
 
-/// `WireRequest` of `lib/std/http_wire.hd`.
+/// `WireRequest` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WireRequest {
     pub method: Method,
@@ -1025,7 +1025,7 @@ impl Wire for WireRequest {
     }
 }
 
-/// `WireResponse` of `lib/std/http_wire.hd`.
+/// `WireResponse` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WireResponse {
     pub status: u16,
