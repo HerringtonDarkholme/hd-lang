@@ -4,10 +4,9 @@
 # shares the block, so the next change's `is_unique` test fails and the
 # change copies the block instead of writing into the snapshot. Each
 # snapshot keeps its own length and last value; the last line is the
-# list's own.
-# expected: the checked build's last line is `4 3 30`, as release's; it
-# prints a garbage last value (lane 288 issue 5), with or without the
-# offset folds, so the bug predates them.
+# list's own. The last line's `xs[3]` is the list's last use: the
+# block stays until the element's read (the checked build frees and
+# poisons a block at once, so an early drop would print garbage).
 use std.collections.PlainList
 
 pub fn main() -> void $ Console:

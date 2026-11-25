@@ -120,6 +120,10 @@ pub(crate) struct Tables {
     /// Per value and per local: whether it may become an address
     /// ([`addresses`]).
     addr: Vec<bool>,
+    /// Per value: whether it is a counted reference read out of a local's
+    /// storage that a derived address is taken from (`tail_of(self.block,
+    /// ..)`), or a coercion between them ([`addresses`]).
+    src: Vec<bool>,
     /// Per local, the places in it a read of which may become an address:
     /// records of a length and that many step codes
     /// ([`PlaceView::push_steps`]).
@@ -784,12 +788,46 @@ pub fn store_finds_empty(b: &Body, topo: &Topology, i: usize) -> bool {
 /// passes can name, as the local a reference to it would be had the read
 /// gone through one (`[*$self .buffer .ptr]` before sroa forwards
 /// `self`). A tracked value, a reference or one that owns what it points
-/// to, carries its origin or its ownership itself.
+/// to, carries its origin or its ownership itself, but for a counted
+/// reference a derived address is taken from ([`counted_source`]).
 fn address_read(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     b.tags[i] == Tag::Read
         && b.view(b.data[i][0]).in_place(b)
         && b.view(b.data[i][0]).local().is_some()
         && raw_address(cx, b.ty[i])
+}
+
+/// Marks in `src` value `v`, an argument a compiler-supplied call derives
+/// an address from (`CallMemory::Derive`), when it is a counted reference
+/// (`*H`) read out of a local's storage, and each coercion between them.
+/// The address holds no count, and a borrowed read of the reference none
+/// either, so the local is the owner the passes can name (rule 7). Cost:
+/// the length of the coercion chain.
+fn counted_source(b: &Body, cx: &dyn OwnCx, src: &mut [bool], v: u32) {
+    let mut chain = Vec::new();
+    let mut x = v;
+    while let Some(i) = Ref(x)
+        .as_inst()
+        .map(|r| r.0 as usize)
+        .filter(|&i| i < b.len())
+    {
+        if !cx.counted_refs_only(b.ty[i]) {
+            return;
+        }
+        chain.push(i);
+        match b.tags[i] {
+            Tag::Coerce => x = b.data[i][0],
+            Tag::Read
+                if b.view(b.data[i][0]).in_place(b) && b.view(b.data[i][0]).local().is_some() =>
+            {
+                for &c in &chain {
+                    src[c] = true;
+                }
+                return;
+            }
+            _ => return,
+        }
+    }
 }
 
 /// Whether a value of `ty` is a raw address, when it is one: the passes
@@ -1160,6 +1198,7 @@ fn grow(set: &mut Origins, m: Origins) -> bool {
 /// field path, element steps merged), not the body.
 fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     fill(&mut t.addr, b.len(), false);
+    fill(&mut t.src, b.len(), false);
     t.laddr.truncate(b.local_ty.len());
     t.laddr.iter_mut().for_each(Vec::clear);
     t.laddr.resize_with(b.local_ty.len(), Vec::new);
@@ -1235,6 +1274,7 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                         && let Some(&v) = b.call_args(i).get(usize::from(k))
                     {
                         ops.push(v);
+                        counted_source(b, cx, &mut t.src, v);
                     }
                 }
                 Tag::Prim
@@ -1340,7 +1380,11 @@ fn overlaps(held: &[u32], path: &[u32]) -> bool {
 /// its value's uses and a local it is stored into keep the place's
 /// locals alive (`dep`).
 fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>, i: usize) -> bool {
+    // A counted reference a derived address is taken from (`src`) is
+    // followed: the address holds no count, so it lives on the local the
+    // reference was read out of.
     if t.roots
+        && !t.src[i]
         && (cx.counted_refs_only(b.ty[i])
             || matches!(b.tags[i], Tag::Call | Tag::CallValue)
                 && cx.counted(b.ty[i])
@@ -1368,7 +1412,7 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
             // through a reference to it does: the local owns what the
             // address points to.
             let through = p.steps(b).any(|s| s == Proj::Deref)
-                || (b.tags[i] == Tag::Read && t.addr[i] && address_read(b, cx, i));
+                || (b.tags[i] == Tag::Read && (t.src[i] || t.addr[i] && address_read(b, cx, i)));
             root | if through {
                 t.place(b, a)
                     .map_or_else(Origins::default, |(lies, _)| lies)
