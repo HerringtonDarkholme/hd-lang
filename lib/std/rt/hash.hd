@@ -249,7 +249,7 @@ impl FoldHasher:
         FoldHasher { accumulator: 589684135938649225u64, low: 0, high: 0, bits: 0 }
 
     @inline(.Always)
-    fn with_seed(seed: u64) -> FoldHasher:
+    pub fn with_seed(seed: u64) -> FoldHasher:
         FoldHasher { accumulator: seed, low: 0, high: 0, bits: 0 }
 
     # hd Hash names one byte stream, independent of write boundaries.
@@ -356,6 +356,7 @@ impl Hasher for FoldHasher:
         self.write_num(u64(value), 64)
 
 # A single numeric key has one typed word in an otherwise empty sponge.
+@inline(.Always)
 pub fn hash_integer(value: u64, seed: u64) -> u32:
     u32(folded_multiply(value ^ seed, fold_seed0()))
 

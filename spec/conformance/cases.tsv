@@ -4896,6 +4896,7 @@ std/testing/property-tests/choices-int-range.hd	runtime	accept	std/testing.md#r-
 std/hash/default-hasher/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.typed-writes
 lang/traits/trait-implementations/comparison-traits/hasher-struct-ref-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.hash.generic-hasher
 lang/traits/trait-implementations/comparison-traits/hash-self-borrows.hd	runtime	accept	lang/09-traits.md#r-trait.hash.self-ref
+lang/traits/trait-implementations/comparison-traits/hash-one-default-and-override.hd	runtime	accept	lang/09-traits.md#r-trait.hash.hash-one
 std/hash/default-hasher/default-hasher-local.hd	runtime	accept	std/hash.md#r-std-hash.default.new-empty
 lang/types/numeric-conversions/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
 lang/data/shared-enum-constructor-data/shared-enum-type-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.type-parameter

@@ -310,6 +310,7 @@ trait Hasher:
 
 trait Hash < ?Copy:
     fn hash[H < Hasher](&self, state: &mut H) -> void
+    fn hash_one(&self, seed: u64) -> u32
 ```
 
 1. r[trait.hash.module] The standard library declares `Hash` and `Hasher` in [`std.core`](10-modules.md#core-layer), and `std.hash` re-exports them.
@@ -325,6 +326,7 @@ trait Hash < ?Copy:
 11. r[trait.hash.generic-hasher] `Hash.hash` declares `H < Hasher` and takes `&mut H`, so calls to `H`'s `Hasher` methods dispatch statically.
 12. r[trait.hash.self-ref] `Hash.hash` takes its value as `&self`, so `value.hash(state)` lends `value` to the call, as any `&self` receiver is lent, and copies nothing.
 13. r[trait.hash.noncopy] `Hash` is declared `< ?Copy`, so a non-copyable type may implement hashing.
+14. r[trait.hash.hash-one] `Hash` supplies a default method `hash_one`, a 32-bit hash of the value under `seed` for a hash table's buckets. An implementation may override it, as the standard library's integer and `string` implementations do.
 
 > **Note.** A key that holds a reference can still change through another
 > reference to the same place, potentially leaving its map entry unreachable.
