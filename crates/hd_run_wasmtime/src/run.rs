@@ -158,7 +158,7 @@ pub fn run_traced(
 }
 
 /// [`run_traced`] for a run that `interrupt` may cancel, as a Ctrl-C does
-/// (`cli.cancel.ctrl-c`): a request while the program waits on the host
+/// (`cli.cancel.unhandled-ctrl-c`): a request while the program waits on the host
 /// cancels its entry, and the next one, or `bound` after that cancel,
 /// abandons it; a request while Wasm runs stops it (`cancel.rs`).
 pub fn run_cancellable(

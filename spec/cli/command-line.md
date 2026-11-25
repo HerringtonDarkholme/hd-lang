@@ -313,6 +313,7 @@ profile**, which binds these traits:
 | `Http` | `std.http` | sends each request from the host |
 | `Net` | `std.net` | the host's DNS resolver, and its TCP and UDP sockets |
 | `Sys` | `std.host` | the host's operating system, architecture, host name, and processor count |
+| `Signals` | `std.host` | operating-system notifications awaited by the program |
 | `Workers` | `std.remote` | runs each crossing in a worker, a second instance of the program's module on a thread of its own |
 
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
@@ -380,7 +381,7 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 | `Env` | `std.host.Env` | variable names, or a prefix followed by `*` |
 | `Process` | `std.process.Process` | program names |
 | `Sys` | `std.host.Sys` | method names of `Sys` |
-| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.cli.Args`, `std.remote.Workers` | none: only `true` or `false` |
+| `Console`, `ConsoleInput`, `Clock`, `Random`, `Args`, `Workers`, `Signals` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.cli.Args`, `std.remote.Workers`, `std.host.Signals` | none: only `true` or `false` |
 
 1. r[cli.cap.table] The `[capabilities]` table of `hd.toml` sets the grant of each host capability trait that it names.
 2. r[cli.cap.table.keys.with-package-host] Its keys are built-in capability names or quoted package capability paths beginning with `pkg.` or `dep.`.
@@ -1399,16 +1400,16 @@ hd run --cleanup-limit 30s      # Ctrl-C: cleanup runs, up to 30 seconds
 hd run --cleanup-limit 0s       # Ctrl-C: cleanup is abandoned at once
 ```
 
-1. r[cli.cancel.ctrl-c] A Ctrl-C while the program of `hd FILE`, `hd FILE.wasm`, or `hd run` waits on the host cancels its entry suspension, by [`req.entry.cancel`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel).
+1. r[cli.cancel.unhandled-ctrl-c] A Ctrl-C not handled by an active `Signals` wait while the program of `hd FILE`, `hd FILE.wasm`, or `hd run` waits on the host cancels its entry suspension, by [`req.entry.cancel`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel).
 2. r[cli.cancel.bound] The [cleanup bound](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound) of that cancel is the `--cleanup-limit` value.
 3. r[cli.cancel.flag] `--cleanup-limit DURATION` takes a DURATION of the forms in [Program Limits](#program-limits). Those three commands take the flag, before the `--` of the program arguments.
 4. r[cli.cancel.default] Without the flag, the cleanup bound is ten seconds.
 5. r[cli.cancel.zero] A cleanup bound of zero abandons the entry at the first moment it waits on the host after the cancel, by [`req.entry.cancel.bound.cooperative`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound.cooperative).
 6. r[cli.cancel.second] A second Ctrl-C after the cancel abandons the entry at once, by [`req.entry.cancel.abandon`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.abandon). A later one does nothing more.
-7. r[cli.cancel.computing] A Ctrl-C while the program computes stops it, as [`cli.repl.stop`](#r-cli.repl.stop) stops an input. It then writes `stopped` to standard error.
+7. r[cli.cancel.unhandled-computing] A Ctrl-C not handled by an active `Signals` wait while the program computes stops it, as [`cli.repl.stop`](#r-cli.repl.stop) stops an input. It then writes `stopped` to standard error.
 8. r[cli.cancel.end] A cancelled entry, by [`req.entry.cancelled`](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled), writes `cancelled` to standard error when its cleanup ran to its end, and `cancelled, cleanup abandoned` when it was abandoned.
 9. r[cli.cancel.status] A run that is cancelled or stopped exits with status 130, its [cancellation status](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled.status), on every platform.
-10. r[cli.cancel.signals] On Unix, a SIGINT or a SIGTERM that is sent to `hd` alone is a Ctrl-C in every rule above, on every engine.
+10. r[cli.cancel.unhandled-signals] On Unix, a SIGINT or a SIGTERM sent to `hd` alone, without an active `Signals` wait for its kind, is a Ctrl-C in every rule above, on every engine.
 11. r[cli.cancel.forward] On the Node engine, `hd` passes each Ctrl-C it hears on to the process that runs the program. That process hears each one once, from a terminal or from a signal sent to `hd` alone.
 12. r[cli.cancel.windows] On Windows, `hd` passes nothing on, since the console delivers a Ctrl-C to every process attached to it, the Node process included. A Ctrl-Break is not a Ctrl-C there on the Node engine, and the in-process engine takes it as one.
 

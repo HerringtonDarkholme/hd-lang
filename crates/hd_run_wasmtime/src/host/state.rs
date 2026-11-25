@@ -287,7 +287,7 @@ impl Host {
                 (3, close)
             }
             // A stopped run's are ended the same way; its status is a
-            // cancelled run's (`cli.cancel.computing`).
+            // cancelled run's (`cli.cancel.unhandled-computing`).
             Control::Stop { close } => {
                 self.drop_pending();
                 (crate::instance::CANCEL_STATUS, close)

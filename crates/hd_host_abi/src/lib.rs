@@ -371,6 +371,11 @@ pub static TABLE: &[HostTrait] = &[
         ],
     },
     HostTrait {
+        key: "Signals",
+        std_path: "std.host.Signals",
+        methods: &[m("wait", &[B("Signal")], V, Wait::May, None)],
+    },
+    HostTrait {
         key: "Env",
         std_path: "std.host.Env",
         methods: &[

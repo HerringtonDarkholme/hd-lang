@@ -44,6 +44,7 @@ fn host(
         Id::ClockNow
         | Id::ClockMonotonic
         | Id::ClockSleep
+        | Id::SignalsWait
         | Id::SysOs
         | Id::SysArch
         | Id::SysHostname

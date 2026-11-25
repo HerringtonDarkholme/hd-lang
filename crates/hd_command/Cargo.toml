@@ -45,9 +45,6 @@ hd_run_wasmtime = { workspace = true, optional = true }
 hd_sched = { workspace = true, features = ["threads"] }
 hd_resolve = { workspace = true }
 hd_syntax = { workspace = true }
-# The REPL (`cli.repl.*`): the prompt's line editor with in-memory history,
-# and SIGINT while an input runs, which stops it (`cli.repl.stop`).
-ctrlc = "=3.5.2"
 # The global allocator under `work::Counting` (#1802 draft 07). Its `v2`
 # C library, as uv pins it: v3.3.2 crashes on x86 CPUs without POPCNT.
 mimalloc = { version = "=0.1.52", default-features = false, features = ["v2"] }
@@ -56,6 +53,7 @@ serde_json = "1"
 wasmparser = { version = "0.261.0", default-features = false, features = ["std"] }
 wasmprinter = { version = "0.261.0", default-features = false }
 sha2 = { version = "0.10", default-features = false }
+# The REPL prompt uses the shared process signal broker.
 rustyline = { version = "=18.0.1", default-features = false, optional = true }
 
 # Unix: an interrupt that `hd` hears (SIGINT or SIGTERM) is passed on to the
@@ -65,7 +63,7 @@ rustyline = { version = "=18.0.1", default-features = false, optional = true }
 # `getloadavg`, which sizes the default pool (`cli.jobs.default`).
 libc = "=0.2.190"
 nix = { version = "=0.31.3", default-features = false, features = ["signal"] }
-signal-hook = "=0.3.18"
+rustix = { version = "=1.1.5", default-features = false, features = ["process", "std"] }
 
 [target.'cfg(windows)'.dependencies]
 # The Node engine's process helper owns its child's Job before it runs.

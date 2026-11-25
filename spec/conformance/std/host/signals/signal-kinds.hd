@@ -1,0 +1,16 @@
+# test: the portable Signal cases are distinct Eq and Debug values
+# Spec std/host Signals: std-host.signal.decl, std-host.signal.kinds.
+# expect-empty-stdout: true
+use std.host.Signal
+use std.testing.assert_equal
+
+pub fn main() -> void:
+    let interrupt: Signal = .Interrupt
+    let terminate: Signal = .Terminate
+    let hangup: Signal = .Hangup
+    assert_equal(interrupt, .Interrupt, reason="Interrupt is an Eq and Debug value")
+    assert_equal(terminate, .Terminate, reason="Terminate is an Eq and Debug value")
+    assert_equal(hangup, .Hangup, reason="Hangup is an Eq and Debug value")
+    assert_equal(interrupt == .Terminate, false, reason="different portable kinds")
+    assert_equal(terminate == .Hangup, false, reason="different portable kinds")
+    assert_equal(hangup == .Interrupt, false, reason="different portable kinds")

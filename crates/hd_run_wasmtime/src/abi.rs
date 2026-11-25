@@ -811,6 +811,37 @@ impl Wire for PropertyCase {
     }
 }
 
+/// `Signal` of `lib/std/host.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Signal {
+    Interrupt,
+    Terminate,
+    Hangup,
+}
+
+impl Wire for Signal {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::Interrupt => {
+                e.leb(0);
+            }
+            Self::Terminate => {
+                e.leb(1);
+            }
+            Self::Hangup => {
+                e.leb(2);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(3)? {
+            0 => Self::Interrupt,
+            1 => Self::Terminate,
+            _ => Self::Hangup,
+        })
+    }
+}
+
 /// `TcpListener`, a host handle: its handle number.
 pub type TcpListener = Handle;
 
@@ -1085,6 +1116,7 @@ pub enum Id {
     SysArch,
     SysHostname,
     SysCpuCount,
+    SignalsWait,
     EnvGet,
     EnvNames,
     ArgsProgram,
@@ -1414,6 +1446,15 @@ pub static METHODS: &[HostMethod] = &[
         resource: Some(ResourceArg::SysName),
         params: &[],
         result: Codec::Buffer("Result[u32, HostError]"),
+    },
+    HostMethod {
+        id: Id::SignalsWait,
+        module: "hd:Signals",
+        name: "wait",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Buffer("Signal")],
+        result: Codec::Void,
     },
     HostMethod {
         id: Id::EnvGet,

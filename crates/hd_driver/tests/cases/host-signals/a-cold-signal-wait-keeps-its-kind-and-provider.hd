@@ -1,0 +1,12 @@
+# @dump: wat
+# @build: dev | checked
+# A cold signal wait passes its kind and provider to the suspension constructor.
+use std.host.Signals
+
+# subject
+fn arm(provider: &dyn Signals) -> Suspend[void]:
+    provider.wait(.Terminate)
+
+pub fn main!() -> void $ Signals:
+    let pending: Suspend[void] = arm($.use(Signals))
+    pending!()

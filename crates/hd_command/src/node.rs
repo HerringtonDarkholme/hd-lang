@@ -297,6 +297,11 @@ impl NodeInstance {
         let config = dir.0.join("config.json");
         let frames = dir.0.join("frames.json");
         let killed = dir.0.join("status.txt");
+        #[cfg(unix)]
+        let relay = match SignalRelay::new(dir.0.join("signals.bin")) {
+            Ok(relay) => relay,
+            Err(error) => return Outcome::Internal(error),
+        };
         let text = run_config(
             &self.program,
             &self.grants,
@@ -304,6 +309,17 @@ impl NodeInstance {
             Some((&frames, &killed)),
             &self.host_providers,
         );
+        #[cfg(unix)]
+        let text = {
+            let mut text = text;
+            text.pop();
+            let _ = write!(
+                text,
+                ",\"signalFile\":{}}}",
+                quote(&relay.path.to_string_lossy())
+            );
+            text
+        };
         if let Err(e) = std::fs::write(&config, text) {
             return Outcome::Internal(format!("{}: {e}", config.display()));
         }
@@ -316,10 +332,14 @@ impl NodeInstance {
             .args(&self.args)
             .spawn()
             .and_then(|mut child| {
-                RUN_CHILD.store(child.id(), Ordering::Relaxed);
-                let status = child.wait();
-                RUN_CHILD.store(0, Ordering::Relaxed);
-                status
+                #[cfg(unix)]
+                {
+                    relay.wait(&mut child)
+                }
+                #[cfg(not(unix))]
+                {
+                    child.wait()
+                }
             });
         if let Ok(text) = std::fs::read_to_string(&frames)
             && let Some((raw, _)) = json_frames(&text)
@@ -332,14 +352,24 @@ impl NodeInstance {
         {
             return Outcome::Exit(code);
         }
+        #[cfg(unix)]
+        if let Some(error) = relay.error() {
+            return Outcome::Internal(error);
+        }
         match status {
             Ok(s) if s.success() => Outcome::Exit(0),
             // A Ctrl-C while Wasm ran ended Node with SIGINT's default
             // action, since its host listens only while it waits
-            // (`run.ts`): the program was stopped (`cli.cancel.computing`).
+            // (`run.ts`): the program was stopped (`cli.cancel.unhandled-computing`).
             Ok(s) if interrupted(s) => {
-                eprintln!("stopped");
-                Outcome::Exit(crate::engine::CANCEL_STATUS)
+                #[cfg(unix)]
+                let code = relay.stopped_status(s);
+                #[cfg(not(unix))]
+                let code = crate::engine::CANCEL_STATUS;
+                if code == crate::engine::CANCEL_STATUS {
+                    eprintln!("stopped");
+                }
+                Outcome::Exit(code)
             }
             Ok(s) => Outcome::Exit(u8::try_from(s.code().unwrap_or(1).clamp(1, 255)).unwrap_or(1)),
             // Nothing ran: name the engine that is missing, which `hd` may
@@ -353,38 +383,138 @@ impl NodeInstance {
     }
 }
 
-/// The process id of the Node child that runs the program, while it runs,
-/// else 0.
-static RUN_CHILD: AtomicU32 = AtomicU32::new(0);
-
-/// The signal that is a Ctrl-C to the Node child on Unix
-/// (`cli.cancel.forward`). It is not SIGINT: a terminal's Ctrl-C reaches
-/// the child by its process group as well as `hd`, so the child ignores
-/// SIGINT and hears the interrupt once, from `hd`.
+/// SIGUSR2 only announces new bytes; the queue retains each original kind.
 #[cfg(unix)]
 const FORWARD: nix::sys::signal::Signal = nix::sys::signal::Signal::SIGUSR2;
 
-/// Passes an interrupt that `hd` heard on to the Node child, if one runs
-/// (`cli.cancel.forward`). Windows has nothing to pass: the console
-/// delivers a Ctrl-C to the child itself (`cli.cancel.windows`).
-pub(crate) fn forward_interrupt() {
-    #[cfg(unix)]
-    if let Ok(pid) = i32::try_from(RUN_CHILD.load(Ordering::Relaxed))
-        && pid != 0
-    {
-        // The child may have just ended; a signal then has no one to reach.
-        let _ = nix::sys::signal::kill(nix::unistd::Pid::from_raw(pid), FORWARD);
+#[cfg(unix)]
+struct SignalRelay {
+    state: std::sync::Arc<std::sync::Mutex<SignalRelayState>>,
+    _subscriptions: Vec<hd_run::signals::Subscription>,
+    path: PathBuf,
+}
+#[cfg(unix)]
+struct SignalRelayState {
+    pid: Option<nix::unistd::Pid>,
+    file: std::fs::File,
+    last: Option<hd_run::signals::Kind>,
+    error: Option<String>,
+}
+#[cfg(unix)]
+impl SignalRelay {
+    fn new(path: PathBuf) -> Result<Self, String> {
+        use std::sync::{Arc, Mutex, PoisonError};
+        let file = std::fs::File::create(&path).map_err(|error| error.to_string())?;
+        let state = Arc::new(Mutex::new(SignalRelayState {
+            pid: None,
+            file,
+            last: None,
+            error: None,
+        }));
+        let target = Arc::clone(&state);
+        let subscriptions = hd_run::signals::forward(&hd_run::signals::Kind::ALL, move |kind| {
+            let mut state = target.lock().unwrap_or_else(PoisonError::into_inner);
+            // cost: append only this notification; the child reads new bytes
+            // from its offset, never rescanning the signal history.
+            if let Err(error) = state.file.write_all(&[kind as u8]) {
+                state.error = Some(format!("signal relay: {error}"));
+                if let Some(pid) = state.pid {
+                    let _ = nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGKILL);
+                }
+                return;
+            }
+            state.last = Some(kind);
+            if let Some(pid) = state.pid {
+                let _ = nix::sys::signal::kill(pid, FORWARD);
+            }
+        })?;
+        Ok(Self {
+            state,
+            _subscriptions: subscriptions,
+            path,
+        })
+    }
+    fn wait(&self, child: &mut std::process::Child) -> std::io::Result<std::process::ExitStatus> {
+        use std::sync::PoisonError;
+        let raw = i32::try_from(child.id()).map_err(std::io::Error::other)?;
+        {
+            let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+            let pid = nix::unistd::Pid::from_raw(raw);
+            state.pid = Some(pid);
+            if state.last.is_some() {
+                let _ = nix::sys::signal::kill(pid, FORWARD);
+            }
+        }
+        // Keep the PID waitable until forwarding is disabled. This prevents a
+        // late broker callback from signalling a reused PID after reaping.
+        let id = rustix::process::Pid::from_child(child);
+        loop {
+            match rustix::process::waitid(
+                rustix::process::WaitId::Pid(id),
+                rustix::process::WaitIdOptions::EXITED | rustix::process::WaitIdOptions::NOWAIT,
+            ) {
+                Ok(_) => break,
+                Err(rustix::io::Errno::INTR) => {
+                    // A signal interrupted the wait; retry without reaping.
+                }
+                Err(error) => {
+                    self.state
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .pid = None;
+                    return Err(error.into());
+                }
+            }
+        }
+        self.state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pid = None;
+        child.wait()
+    }
+    fn error(&self) -> Option<String> {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .error
+            .clone()
+    }
+    fn stopped_status(&self, status: std::process::ExitStatus) -> u8 {
+        use hd_run::signals::Kind;
+        use std::os::unix::process::ExitStatusExt as _;
+        let original = status
+            .signal()
+            .filter(|signal| *signal != FORWARD as i32)
+            .and_then(|signal| {
+                Kind::ALL
+                    .into_iter()
+                    .find(|kind| kind.os_number() == signal)
+            })
+            .or_else(|| {
+                self.state
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .last
+            });
+        match original {
+            Some(Kind::Hangup) => u8::try_from(128 + Kind::Hangup.os_number()).unwrap_or(1),
+            _ => crate::engine::CANCEL_STATUS,
+        }
     }
 }
 
-/// Whether a Ctrl-C ended a process: the forwarded signal on Unix (the
-/// child ignores SIGINT), and on Windows the status
-/// `STATUS_CONTROL_C_EXIT` of a console process that has no handler.
+/// Whether an unhandled portable signal ended the child: its original
+/// kind or the relay wake on Unix, and `STATUS_CONTROL_C_EXIT` on Windows.
 fn interrupted(status: std::process::ExitStatus) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt as _;
-        status.signal() == Some(FORWARD as i32)
+        status.signal().is_some_and(|signal| {
+            signal == FORWARD as i32
+                || hd_run::signals::Kind::ALL
+                    .into_iter()
+                    .any(|kind| kind.os_number() == signal)
+        })
     }
     #[cfg(windows)]
     {
@@ -674,8 +804,6 @@ fn run_config(
     let mut limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
     if let Some(ms) = cleanup_ms {
         let _ = write!(limit, ",\"cleanupMs\":{ms}");
-        #[cfg(unix)]
-        let _ = write!(limit, ",\"interruptSignal\":\"{}\"", FORWARD.as_str());
     }
     let files = files.map_or(String::new(), |(frames, status)| {
         format!(

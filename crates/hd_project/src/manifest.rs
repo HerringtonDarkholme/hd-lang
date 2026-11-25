@@ -142,6 +142,7 @@ pub const CAPABILITY_KEYS: &[(&str, bool)] = &[
     ("Http", true),
     ("Net", true),
     ("Sys", true),
+    ("Signals", false),
     ("Workers", false),
 ];
 
@@ -1080,6 +1081,12 @@ mod tests {
         );
         let lines: Vec<Option<u32>> = problems(&m, "0.1.0").into_iter().map(|p| p.line).collect();
         assert_eq!(lines, [Some(6), Some(7), Some(8)]);
+        assert!(super::grant_problem("Signals", &super::Grant::All).is_none());
+        assert!(super::grant_problem("Signals", &super::Grant::Deny).is_none());
+        assert!(
+            super::grant_problem("Signals", &super::Grant::Scopes(vec!["Interrupt".into()]))
+                .is_some()
+        );
     }
 
     #[test]

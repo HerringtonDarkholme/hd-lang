@@ -691,7 +691,6 @@ dependencies = [
 name = "hd_command"
 version = "0.0.1"
 dependencies = [
- "ctrlc",
  "hd_base",
  "hd_cache",
  "hd_check",
@@ -713,10 +712,10 @@ dependencies = [
  "mimalloc",
  "nix",
  "process-wrap",
+ "rustix",
  "rustyline",
  "serde_json",
  "sha2",
- "signal-hook",
  "tokio",
  "wasmparser 0.261.0",
  "wasmprinter 0.261.0",
@@ -886,9 +885,11 @@ dependencies = [
 name = "hd_run"
 version = "0.0.1"
 dependencies = [
+ "ctrlc",
  "hd_base",
  "hd_cache",
  "hd_host_abi",
+ "signal-hook",
 ]
 
 [[package]]

@@ -1,13 +1,74 @@
-# std.host: the host capability traits `Env` and `Sys`, their helpers,
-# the deterministic providers `ScriptedEnv` and `ScriptedSys`, and the
+# std.host: the host capability traits `Env`, `Sys`, and `Signals`, their helpers,
+# the deterministic providers `ScriptedEnv`, `ScriptedSys`, and `ScriptedSignals`, and the
 # host wire format of private-field boundary types
 # (spec/std/host.md). `Args` is in std.cli.
-# The default profile binds host `Args`, `Env`, and `Sys`
-# (src/commands/default-profile.ts).
+# The default profile binds host `Env`, `Sys`, and `Signals`
+# (spec/cli/command-line.md#host-capabilities).
 use std.error.Error
 use std.encoding.{Deserialize, Deserializer, ValueKind}
 use std.meta.{Facts, Member, VariantInfo}
+use std.rt.{WaitCell, wait_cell}
 use std.text.Parse
+
+## A portable operating-system notification.
+## See [std-host.signal.decl](../../spec/std/host.md#r-std-host.signal.decl).
+@derive(Eq, Debug)
+pub enum Signal:
+    Interrupt
+    Terminate
+    Hangup
+
+## The host capability to await the next notification of one kind.
+## See [std-host.signals.decl](../../spec/std/host.md#r-std-host.signals.decl).
+pub trait Signals:
+    fn wait!(self, kind: Signal) -> void
+
+## The deterministic Signals provider: each kind has its own scripted supply.
+## See [std-host.signals.scripted](../../spec/std/host.md#r-std-host.signals.scripted).
+pub struct ScriptedSignals:
+    remaining: *mut SignalCounts
+
+struct SignalCounts:
+    interrupt: usize
+    terminate: usize
+    hangup: usize
+
+impl ScriptedSignals:
+    ## Returns a provider that consumes the supplied signals by requested kind.
+    ## See [std-host.signals.scripted](../../spec/std/host.md#r-std-host.signals.scripted).
+    pub fn new(script: List[Signal]) -> *mut ScriptedSignals:
+        let mut remaining = SignalCounts { interrupt: 0, terminate: 0, hangup: 0 }
+        for kind in script:
+            match kind:
+                .Interrupt => remaining.interrupt += 1
+                .Terminate => remaining.terminate += 1
+                .Hangup => remaining.hangup += 1
+        box(ScriptedSignals { remaining: box(remaining) })
+
+impl Signals for ScriptedSignals:
+    fn wait!(self, kind: Signal) -> void:
+        match kind:
+            .Interrupt =>
+                if self.remaining.interrupt > 0:
+                    self.remaining.interrupt -= 1
+                    return
+            .Terminate =>
+                if self.remaining.terminate > 0:
+                    self.remaining.terminate -= 1
+                    return
+            .Hangup =>
+                if self.remaining.hangup > 0:
+                    self.remaining.hangup -= 1
+                    return
+        # No event of this kind remains. This cell has no signal source;
+        # cancelling the wait drops its frame through the ordinary task path.
+        let pending: Suspend[void] = signal_wait_frame(wait_cell())
+        pending!()
+
+# Existing runtime wait-cell operation, also used by std.time and std.task.
+@intrinsic("task_wait_frame")
+fn signal_wait_frame(cell: *mut WaitCell) -> Suspend[void]:
+    panic("intrinsic")
 
 ## The host capability to read the process's environment variables.
 ## See [std-host.env.decl](../../spec/std/host.md#r-std-host.env.decl).
