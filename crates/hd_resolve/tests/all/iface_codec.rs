@@ -131,12 +131,16 @@ fn auxiliary_sections_reject_invalid_utf8() -> Result<(), &'static str> {
 
 #[test]
 fn lazy_index_and_configured_iteration_decode_only_requested_records() -> Result<(), &'static str> {
+    // Exercise the public query itself, even when MIR can fold the known
+    // vector length. A function pointer keeps coverage independent of that
+    // pre-instrumentation optimization, without decoding any item.
+    let is_empty = std::hint::black_box(Items::is_empty as fn(&Items) -> bool);
     let run = Run::new();
     let names = run.names();
     let wanted = run.items();
     let bytes = encode_items(&names, &wanted, &[]).map_err(|_| "encode")?;
     let (items, exports) = decode_lazy(&names, Arc::from(bytes)).ok_or("lazy index")?;
-    assert!(!items.is_empty());
+    assert!(!is_empty(&items));
     assert_eq!(items.len(), 2);
     assert!(exports.is_empty());
     assert_eq!(items.defs(), &[wanted[0].def, wanted[1].def]);
@@ -157,17 +161,18 @@ fn lazy_index_and_configured_iteration_decode_only_requested_records() -> Result
 
 #[test]
 fn empty_interface_and_eager_items_have_consistent_empty_indexes() -> Result<(), &'static str> {
+    let is_empty = std::hint::black_box(Items::is_empty as fn(&Items) -> bool);
     let run = Run::new();
     let names = run.names();
     let bytes = encode_items(&names, &[], &[]).map_err(|_| "encode")?;
     let (items, exports) = decode_lazy(&names, Arc::from(bytes)).ok_or("empty interface")?;
-    assert!(items.is_empty());
+    assert!(is_empty(&items));
     assert_eq!(items.len(), 0);
     assert_eq!(items.iter().count(), 0);
     assert!(items.get(0).is_none());
     assert!(exports.is_empty());
     let eager = Items::new(run.items());
-    assert!(!eager.is_empty());
+    assert!(!is_empty(&eager));
     assert_eq!(eager.decoded_other(), 0);
     assert_eq!(eager.configured().count(), 1);
     Ok(())
