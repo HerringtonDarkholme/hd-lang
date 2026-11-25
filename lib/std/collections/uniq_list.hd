@@ -563,12 +563,13 @@ pub struct UniqListIter[T < ?Copy, 'a]:
 
 impl[T < ?Copy, 'a] Iterator[&'a T] for UniqListIter[T, 'a]:
     fn next(&mut self) -> (&'a T)?:
-        if self.at >= self.end:
+        at := self.at
+        if at >= self.end:
             return .None
-        item := self.items.get_ref(self.at)
-        if item.is_some():
-            self.at += 1
-        item
+        # `end` is the length when the cursor was made, and the shared
+        # borrow keeps the list as it was, so `at` is in the list.
+        self.at = at + 1
+        .Some(self.items.buffer.at(at).as_ref())
 
 ## A borrowing cursor that moves a list range out and restores the remaining tail on drop.
 ## See [std-collections.uniq-list.drain](../../../spec/std/collections.md#r-std-collections.uniq-list.drain).
@@ -684,7 +685,7 @@ impl[T < ?Copy, 'a] DoubleEndedIterator[(&'a T)] for UniqListIter[T, 'a]:
         if self.at >= self.end:
             return .None
         self.end -= 1
-        self.items.get_ref(self.end)
+        .Some(self.items.buffer.at(self.end).as_ref())
 
 impl[T < ?Copy, 'a] ExactSizeIterator[(&'a T)] for UniqListIter[T, 'a]:
     fn len(&self) -> usize:
