@@ -344,6 +344,10 @@ impl Values {
                     let chosen = out.chosen(body, i);
                     arms.decide(i, chosen);
                     if let Some(k) = chosen {
+                        // A scalar-pattern decision can be an If chain as
+                        // well as a switch. Its selected block may end in
+                        // the enclosing match's ToArm marker.
+                        out.decision[i] = out.decision[k as usize];
                         out.word(body, k)
                     } else {
                         // An undecided decision whose every arm makes one
@@ -517,7 +521,13 @@ impl Values {
                 Tag::Block => {}
                 Tag::Read if self.pure[i] & PURE != 0 || self.val[i].is_some() => {}
                 Tag::ToArm => return a,
-                Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => return self.decision[i],
+                Tag::If | Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
+                    return self.decision[i];
+                }
+                // Scalar folding can leave pure operations and identity
+                // coercions before a switch or arm marker. They do not
+                // change its decision; a known but effectful call still does.
+                _ if self.pure[i] & PURE != 0 => {}
                 _ => return NONE,
             }
         }
@@ -1948,14 +1958,27 @@ mod tests {
         for _ in 0..width {
             let marks: Vec<_> = (0..depth).map(|_| b.open_block()).collect();
             let leaf = b.open_block();
+            // Scalar folds can leave a pure operation or its identity copy
+            // before the arm marker. Neither changes the selected arm.
+            let args = b.refs_record(&[selector, selector]);
+            let equal = b.emit(Tag::Prim, PrimOp::Eq as u32, args, Ty::BOOL, n);
+            let identity = b.words_record(&[Coercion::Identity as u32, NONE]);
+            b.emit(Tag::Coerce, equal.0, identity, Ty::BOOL, n);
             b.emit(Tag::ToArm, 0, NONE, Ty::NEVER, n);
             let mut decision = b.close_block(leaf, None, Ty::NEVER, n);
-            for mark in marks.into_iter().rev() {
+            for (level, mark) in marks.into_iter().rev().enumerate() {
                 let fallback = b.open_block();
                 b.emit(Tag::ToArm, 1, NONE, Ty::NEVER, n);
                 let fallback = b.close_block(fallback, None, Ty::NEVER, n);
-                let cases = b.words_record(&[7, decision.0, fallback.0]);
-                b.emit(Tag::SwitchInt, selector.0, cases, Ty::NEVER, n);
+                if level % 2 == 0 {
+                    let cases = b.words_record(&[7, decision.0, fallback.0]);
+                    b.emit(Tag::SwitchInt, selector.0, cases, Ty::NEVER, n);
+                } else {
+                    let args = b.refs_record(&[selector, selector]);
+                    let equal = b.emit(Tag::Prim, PrimOp::Eq as u32, args, Ty::BOOL, n);
+                    let arms = b.refs_record(&[decision, fallback]);
+                    b.emit(Tag::If, equal.0, arms, Ty::NEVER, n);
+                }
                 decision = b.close_block(mark, None, Ty::NEVER, n);
             }
             decisions.push(decision.0);

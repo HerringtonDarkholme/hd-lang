@@ -42,7 +42,7 @@ greeting := "hello ${1}"
 >     uses $16: %9 -> %10 lend last
 >   local $17 value: u64 [read] value
 >     uses $17: %1 -> %2 lend last
->   %0 = Prim Conv [1:usize] : u64
+>   %0 = Coerce 1:u64 [Identity -] : u64
 >   %1 = Store [$17] %0 : ()
 >   %2 = Read copy [$17] : u64
 >   %3 = Call std/rt.bytes/unsigned_width[] (%2) : usize
@@ -96,7 +96,7 @@ greeting := "hello ${1}"
 >   %51 = Store [@app/main/greeting] %49 : ()
 
 names := ["a${1}", "b"]
->   %52 = Prim Conv [1:usize] : u64
+>   %52 = Coerce 1:u64 [Identity -] : u64
 >   %53 = Store [$8] %52 : ()
 >   %54 = Read copy [$8] : u64
 >   %55 = Call std/rt.bytes/unsigned_width[] (%54) : usize
