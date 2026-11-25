@@ -1,9 +1,10 @@
 # @dump: wat
 # @build: v8 release
 # A push loop over a `PlainList` (#2369): the block stays in a local, since
-# the cold `grown` takes it and gives the new one by value; one count load,
-# one length and capacity compare, the store and the length store per
-# value.
+# the cold `grown` takes it and gives the new one by value. Its
+# `is_unique` test runs before the loop and after the cold call; each push
+# reads the flag, then one length and capacity compare, the store and the
+# length store.
 use std.collections.PlainList
 
 fn build(n: i64) -> PlainList[i64]:

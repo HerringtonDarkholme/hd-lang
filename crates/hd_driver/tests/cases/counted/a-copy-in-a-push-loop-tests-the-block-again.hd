@@ -1,0 +1,27 @@
+# @dump: stdout
+# @build: release | release checked
+# A push loop that copies its list each iteration (#2369): the copy
+# shares the block, so the next push's `is_unique` flag is tested again
+# and the push copies the block instead of writing into the snapshot.
+# Each snapshot keeps its own length and last value; the last line is
+# the list's own.
+# expected: the checked build's last line is `4 3 30`, as release's; it
+# prints a garbage last value (lane 288 issue 5), with or without the
+# uniqueness flag and the offset folds, so the bug predates them.
+use std.collections.PlainList
+
+pub fn main() -> void $ Console:
+    let mut xs = PlainList::[i64].new()
+    let mut snaps = PlainList::[PlainList[i64]].new()
+    let mut i: i64 = 0
+    while i < 4:
+        xs.push(i * 10)
+        snaps.push(xs)
+        xs.set(0, i)
+        i += 1
+    let mut k: usize = 0
+    while k < snaps.len():
+        s := snaps[k]
+        println("${s.len()} ${s[0]} ${s[s.len() - 1]}")
+        k += 1
+    println("${xs.len()} ${xs[0]} ${xs[3]}")
