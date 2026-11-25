@@ -1,0 +1,21 @@
+# @dump: stdout own
+# @build: release checked std
+# `Ptr.write` of a slot as the buffer's last use (`buf.at(1).write(..)`).
+# Once sroa forwards the inlined `at(&self)` to `[$0 .ptr]`, the write is
+# `Store [ptr %p]` through an address taken out of `buf`'s storage, so
+# `buf`'s `Drop [$0]` must come after that store, never between the
+# address read and it. Nothing reads the slot again, so only the own
+# dump shows the order.
+use std.meta.inline
+use std.rt.memory.Buffer
+
+@inline(.Never)
+fn last_write() -> usize:
+    buf := Buffer::[usize].new(2)
+    buf.at(0).write(5)
+    first := buf.at(0).read()
+    buf.at(1).write(first + 12)
+    first
+
+pub fn main() -> void $ Console:
+    println("first ${last_write()}")

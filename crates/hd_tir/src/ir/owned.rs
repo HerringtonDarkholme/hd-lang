@@ -1011,8 +1011,10 @@ impl<'a> Empties<'a> {
                 .iter()
                 .map(|&(k, l)| (l, b.data[at[k as usize] as usize][0]))
                 .collect();
-            crate::own::frame::part_uses(b, own, &mut t, &targets, |i, n| {
-                part_uses.push((i, chunk[n].0));
+            crate::own::frame::part_uses(b, own, &mut t, &targets, |i, n, kind| {
+                if kind == crate::own::frame::UseKind::Access {
+                    part_uses.push((i, chunk[n].0));
+                }
             });
         }
         part_uses.sort_stable();
@@ -1523,8 +1525,12 @@ fn borrow_spans(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     // A reference into what a binding holds holds no count of it, so each use
     // of what may point there is a use of the borrow the binding holds.
     let mut root_uses = Vec::new();
-    crate::own::frame::roots(b, own, |i, l| {
-        if holds[l as usize] != NONE && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd) {
+    // A use through raw addresses alone holds no borrow (`DropOnly`).
+    crate::own::frame::roots(b, own, |i, l, kind| {
+        if holds[l as usize] != NONE
+            && kind == crate::own::frame::UseKind::Access
+            && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd)
+        {
             root_uses.push((i, l));
         }
     });

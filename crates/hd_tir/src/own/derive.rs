@@ -1917,9 +1917,13 @@ pub(crate) fn run(b: &mut Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables)
     super::frame_reference_uses(b, topo, cx, &mut t.frame_uses);
     if t.l.iter().any(|f| f.bit != NONE) {
         let mut roots = std::mem::take(&mut t.root_uses);
-        super::frame::roots(b, cx, |i, l| {
+        // A use through raw addresses alone blocks no move (`DropOnly`).
+        super::frame::roots(b, cx, |i, l, kind| {
             let bit = t.l[l as usize].bit;
-            if bit != NONE && b.tags[i as usize] != Tag::Drop {
+            if bit != NONE
+                && kind == super::frame::UseKind::Access
+                && b.tags[i as usize] != Tag::Drop
+            {
                 roots.push((i, bit));
             }
         });

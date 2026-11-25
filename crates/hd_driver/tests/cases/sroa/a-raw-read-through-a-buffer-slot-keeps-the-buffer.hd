@@ -1,0 +1,18 @@
+# @dump: stdout
+# @build: release std | release checked std
+# `Ptr.read` of a slot as the buffer's last use (`buf.at(1).read()`).
+# Once sroa forwards the inlined `at(&self)` to `[$0 .ptr]`, the read
+# goes through `[ptr %p]`, an address taken out of `buf`'s storage, and
+# `buf`'s `Drop` must follow it. A checked build fills a freed room with
+# 0xDE bytes, so an early drop prints 3739147998.
+use std.meta.inline
+use std.rt.memory.Buffer
+
+@inline(.Never)
+fn last_read() -> usize:
+    buf := Buffer::[usize].new(2)
+    buf.at(1).write(17)
+    buf.at(1).read()
+
+pub fn main() -> void $ Console:
+    println("read ${last_read()}")

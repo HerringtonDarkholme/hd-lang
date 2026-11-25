@@ -826,6 +826,15 @@ impl OwnCx for Env<'_> {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("ptr_ref"))
     }
 
+    fn raw_addresses(&self, callee: &Callee) -> u32 {
+        let Callee::Item { def, .. } = callee else {
+            return 0;
+        };
+        self.intrinsic(*def).map_or(0, |key| {
+            u32::from(hd_resolve::intrinsics::raw_addresses(&key))
+        })
+    }
+
     fn tracked(&self, ty: Ty) -> bool {
         hd_layout::tracked(&self.run.pool, self, ty)
     }

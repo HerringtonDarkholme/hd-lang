@@ -49,6 +49,11 @@ pub struct Shape {
     /// The parameters in order, the receiver first.
     pub params: &'static [Kind],
     pub ret: Kind,
+    /// The parameters, by bit, that hold a raw address the intrinsic reads
+    /// or writes memory through, or makes a reference from (`load_u32`,
+    /// both of `copy`'s, `Ptr.read`, `Ptr.as_ref`): an access through one
+    /// is an access of whatever owns that memory ([`raw_addresses`]).
+    pub addresses: u8,
 }
 
 use Kind::{Any, Fn, Is, Named, Opt, Tuple};
@@ -87,6 +92,16 @@ const fn s(generics: u8, params: &'static [Kind], ret: Kind) -> Shape {
         generics,
         params,
         ret,
+        addresses: 0,
+    }
+}
+
+/// [`s`] for an intrinsic that accesses memory through the parameters
+/// `addresses` marks by bit ([`Shape::addresses`]).
+const fn raw(addresses: u8, generics: u8, params: &'static [Kind], ret: Kind) -> Shape {
+    Shape {
+        addresses,
+        ..s(generics, params, ret)
     }
 }
 
@@ -157,28 +172,34 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("map_hash_seed", &[s(0, &[], U64)]),
     ("map_probe", &[s(0, &[REF_MUT, Any, Any], REF_MUT)]),
     ("map_steps", &[s(2, &[Named("Map")], Fn)]),
-    ("mem_atomic_add_u32", &[s(0, &[USIZE, U32], U32)]),
-    ("mem_atomic_cmpxchg_u32", &[s(0, &[USIZE, U32, U32], U32)]),
+    ("mem_atomic_add_u32", &[raw(0b1, 0, &[USIZE, U32], U32)]),
+    (
+        "mem_atomic_cmpxchg_u32",
+        &[raw(0b1, 0, &[USIZE, U32, U32], U32)],
+    ),
     ("mem_atomic_fence", &[s(0, &[], VOID)]),
-    ("mem_atomic_load_u32", &[s(0, &[USIZE], U32)]),
-    ("mem_atomic_notify", &[s(0, &[USIZE, U32], U32)]),
-    ("mem_atomic_store_u32", &[s(0, &[USIZE, U32], VOID)]),
-    ("mem_atomic_sub_u32", &[s(0, &[USIZE, U32], U32)]),
-    ("mem_atomic_wait_u32", &[s(0, &[USIZE, U32, I64], U32)]),
-    ("mem_copy", &[s(0, &[USIZE, USIZE, USIZE], VOID)]),
-    ("mem_fill", &[s(0, &[USIZE, U8, USIZE], VOID)]),
+    ("mem_atomic_load_u32", &[raw(0b1, 0, &[USIZE], U32)]),
+    ("mem_atomic_notify", &[raw(0b1, 0, &[USIZE, U32], U32)]),
+    ("mem_atomic_store_u32", &[raw(0b1, 0, &[USIZE, U32], VOID)]),
+    ("mem_atomic_sub_u32", &[raw(0b1, 0, &[USIZE, U32], U32)]),
+    (
+        "mem_atomic_wait_u32",
+        &[raw(0b1, 0, &[USIZE, U32, I64], U32)],
+    ),
+    ("mem_copy", &[raw(0b11, 0, &[USIZE, USIZE, USIZE], VOID)]),
+    ("mem_fill", &[raw(0b1, 0, &[USIZE, U8, USIZE], VOID)]),
     ("mem_grow", &[s(0, &[USIZE], Opt)]),
-    ("mem_load_u16", &[s(0, &[USIZE], U16)]),
-    ("mem_load_u32", &[s(0, &[USIZE], U32)]),
-    ("mem_load_u64", &[s(0, &[USIZE], U64)]),
-    ("mem_load_u8", &[s(0, &[USIZE], U8)]),
+    ("mem_load_u16", &[raw(0b1, 0, &[USIZE], U16)]),
+    ("mem_load_u32", &[raw(0b1, 0, &[USIZE], U32)]),
+    ("mem_load_u64", &[raw(0b1, 0, &[USIZE], U64)]),
+    ("mem_load_u8", &[raw(0b1, 0, &[USIZE], U8)]),
     ("mem_new_string", &[s(0, &[USIZE], STR)]),
     ("mem_pages", &[s(0, &[], USIZE)]),
     ("mem_ref_address", &[s(1, &[REF], USIZE)]),
-    ("mem_store_u16", &[s(0, &[USIZE, U16], VOID)]),
-    ("mem_store_u32", &[s(0, &[USIZE, U32], VOID)]),
-    ("mem_store_u64", &[s(0, &[USIZE, U64], VOID)]),
-    ("mem_store_u8", &[s(0, &[USIZE, U8], VOID)]),
+    ("mem_store_u16", &[raw(0b1, 0, &[USIZE, U16], VOID)]),
+    ("mem_store_u32", &[raw(0b1, 0, &[USIZE, U32], VOID)]),
+    ("mem_store_u64", &[raw(0b1, 0, &[USIZE, U64], VOID)]),
+    ("mem_store_u8", &[raw(0b1, 0, &[USIZE, U8], VOID)]),
     ("mem_string_bytes", &[s(0, &[STR], PTR)]),
     (
         "panic",
@@ -186,13 +207,13 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ),
     ("parse_f64", &[s(0, &[STR], F64)]),
     ("ptr_align_of", &[s(1, &[], USIZE)]),
-    ("ptr_mut", &[s(0, &[PTR], REF_MUT)]),
+    ("ptr_mut", &[raw(0b1, 0, &[PTR], REF_MUT)]),
     ("ptr_needs_drop", &[s(1, &[], BOOL)]),
     ("ptr_offset", &[s(0, &[PTR, USIZE], PTR)]),
-    ("ptr_read", &[s(0, &[PTR], Any)]),
-    ("ptr_ref", &[s(0, &[PTR], REF)]),
+    ("ptr_read", &[raw(0b1, 0, &[PTR], Any)]),
+    ("ptr_ref", &[raw(0b1, 0, &[PTR], REF)]),
     ("ptr_size_of", &[s(1, &[], USIZE)]),
-    ("ptr_write", &[s(0, &[PTR, Any], VOID)]),
+    ("ptr_write", &[raw(0b1, 0, &[PTR, Any], VOID)]),
     ("ref_identity", &[s(1, &[REF], Named("RefIdentity"))]),
     ("repl_write", &[s(0, &[STR], VOID)]),
     ("serve", &[s(1, &[REF_MUT, Named("Served")], LIST)]),
@@ -235,6 +256,16 @@ pub fn shapes(key: &str) -> Option<&'static [Shape]> {
         .binary_search_by(|(k, _)| (*k).cmp(key))
         .ok()
         .map(|i| INTRINSICS[i].1)
+}
+
+/// The parameters of intrinsic `key`, by bit, that hold an address it
+/// accesses memory through ([`Shape::addresses`]), over all its shapes; 0
+/// for any other key.
+#[must_use]
+pub fn raw_addresses(key: &str) -> u8 {
+    shapes(key).map_or(0, |shapes| {
+        shapes.iter().fold(0, |m, shape| m | shape.addresses)
+    })
 }
 
 /// Whether `t` has kind `k`.

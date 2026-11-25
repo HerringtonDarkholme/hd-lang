@@ -403,6 +403,15 @@ pub trait OwnCx {
         let _ = callee;
         false
     }
+    /// The arguments of a call of `callee`, by bit, that hold a raw address
+    /// the call reads or writes memory through, or makes a reference from
+    /// (`load_u32`, both of `copy`'s, `Ptr.as_ref`): the intrinsic table's
+    /// `addresses`. Such an access is an access of what owns that memory
+    /// (`frame::addresses`). The default answers none.
+    fn raw_addresses(&self, callee: &Callee) -> u32 {
+        let _ = callee;
+        0
+    }
     /// How argument `k` of `n` of a `Call` or `Await` of `callee` is
     /// passed. `Lent` whenever it is not `Owned`: a lent argument the
     /// callee's instance owns takes a count at the call, and an owned one
@@ -1267,8 +1276,11 @@ pub(crate) fn frame_reference_uses(
     }
     let mut t = frame::Tables::default();
     // Ending a reference reads nothing through it.
-    frame::uses(b, topo, cx, &mut t, |i, l, in_frame| {
-        if in_frame && wanted[l as usize] && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd)
+    frame::uses(b, topo, cx, &mut t, |i, l, in_frame, kind| {
+        if in_frame
+            && kind == frame::UseKind::Access
+            && wanted[l as usize]
+            && !matches!(b.tags[i as usize], Tag::Drop | Tag::LoanEnd)
         {
             out.push((i, l));
         }
@@ -4035,7 +4047,7 @@ pub(crate) mod tests {
                     &topo,
                     &Cx,
                     &mut super::frame::Tables::default(),
-                    |i, l, frame| {
+                    |i, l, frame, _| {
                         if i == use_at {
                             assert!(!frame);
                             used.push(l);

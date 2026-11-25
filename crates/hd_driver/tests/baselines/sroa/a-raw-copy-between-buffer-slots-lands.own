@@ -4,12 +4,11 @@
 # A raw copy of one slot's `Buffer[u8]` into the next slot of an outer
 # buffer, then a read of each (the room-audit probe of
 # `checked_rooms_reject_leaks_and_double_frees`).
-# expected: the second read's `Drop` reports "double free of the block".
-# Known failure (target/lane280/issues/sroa-drops-owner-before-raw-read.md):
-# sroa forwards `at`'s `&self` to `[$0 .ptr]`, so the last use of `slots`
-# is that copy and its `Drop [$0]` frees the room before
-# `Read move [ptr %63]` reads slot 1 through the raw address: the read
-# gives the freed room's poison bytes.
+# Each slot then owns the same inner room, so the second read's `Drop`
+# reports "double free of the block". sroa forwards `at`'s `&self` to
+# `[$0 .ptr]`; the read through `[ptr %p]` is an access of `slots`'
+# room, so `Drop [$0]` follows it (before the fix it came first, and the
+# read gave the freed room's poison bytes).
 use std.rt.memory.{Buffer, copy, size_of}
 
 pub fn main() -> void:
@@ -100,7 +99,7 @@ pub fn main() -> void:
 >   %61 = Break L0 %60 : never
 >   %62 = Block - : Ptr[Buffer[u8]]
 >   %63 = Scope %62 [] : Ptr[Buffer[u8]]
->   %64 = Drop [$0] : ()
->   %65 = Read move [ptr %63] : Buffer[u8]
->   %66 = Drop [%65] : ()
+>   %64 = Read move [ptr %63] : Buffer[u8]
+>   %65 = Drop [%64] : ()
+>   %66 = Drop [$0] : ()
 >   summary kept [] writes
