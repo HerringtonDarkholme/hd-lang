@@ -8962,3 +8962,5 @@ lang/references/pointer-loans/same-root/pointer-loan-same-root-dependent-call.hd
 lang/references/pointer-loans/same-root/pointer-loan-same-root-dependent-method.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.dep.call.pointer
 lang/references/pointer-loans/same-root/pointer-loan-same-root-observer-notify.hd	type	reject:conflicting-access	lang/13-values-and-references.md#r-ref.excl.place
 lang/references/pointer-loans/same-root/pointer-loan-same-root-dependent-outlives-root.hd	type	reject:local-reference-outlives-local	lang/13-values-and-references.md#r-ref.dep.call.pointer
+std/collections/plain-list-and-map/a-plain-list-copy-is-a-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+std/collections/plain-list-and-map/a-plain-map-copy-is-a-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value

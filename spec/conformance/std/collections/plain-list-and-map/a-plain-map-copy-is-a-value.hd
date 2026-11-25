@@ -1,0 +1,37 @@
+# test: a PlainMap copy is a value: insert, replace and remove through one copy leave the others unchanged, and removed buckets are reused
+# expect-stdout: 500 5 100 100|66 false true 100 true|91 28437|25
+# Spec 04 Type System: types.coll.value. The std map over one counted block (#2369) keeps the builtin Map's value semantics; removal leaves a tombstone.
+use std.collections.PlainMap
+use std.console.print
+
+pub fn main() -> void $ Console:
+    let mut m = PlainMap::[string, i64].new()
+    for i in 0..100:
+        m.insert("k${i}", i64(i))
+    c := m
+    m.insert("k5", 500)
+    print("${m.get(&"k5").unwrap_or(-1)} ${c.get(&"k5").unwrap_or(-1)} ${m.len()} ${c.len()}|")
+    for i in 0..100:
+        if i % 3 == 0:
+            _ := m.remove(&"k${i}")
+    print("${m.len()} ${m.contains_key(&"k3")} ${m.contains_key(&"k4")} ${c.len()} ${c.contains_key(&"k3")}|")
+    for i in 0..1000:
+        m.insert("x${i % 50}", i64(i))
+        _ := m.remove(&"x${(i + 25) % 50}")
+    let mut s: i64 = 0
+    for (k, v) in m.iter():
+        s += v
+    print("${m.len()} $s|")
+    let mut ints = PlainMap::[i64, i64].new()
+    for round in 0..40:
+        for i in 0..25:
+            ints.insert(i64(i), i64(round))
+        for i in 0..25:
+            _ := ints.remove(&i64(i))
+        for i in 0..25:
+            ints.insert(i64(i + 1000 * round), 1)
+        for i in 0..25:
+            _ := ints.remove(&i64(i + 1000 * round))
+    for i in 0..25:
+        ints.insert(i64(i), 1)
+    println("${ints.len()}")

@@ -13364,7 +13364,9 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn raw_buffer(&self, def: DefId) -> bool {
-        def.get().is_some() && def == self.run.known.buffer
+        // A `Ptr[T]` field names the values a counted block's tail holds
+        // (#2369), as a buffer's room does.
+        def.get().is_some() && (def == self.run.known.buffer || def == self.run.known.ptr)
     }
     fn has_drop(&self, def: DefId) -> bool {
         let drop_trait = self.run.known.drop_trait;

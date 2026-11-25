@@ -196,6 +196,16 @@ pub enum CallMemory {
 /// The facts the passes read besides the body (`docs/compiler/tir-v2.md`,
 /// "What the passes read"): layout and signature facts, never another
 /// body's.
+/// A `std.rt.counted` block intrinsic (#2369), for [`hoist`]'s fresh
+/// blocks: an allocation is a block nothing else holds, and a tail address
+/// or a uniqueness test lends the block without sharing it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CountedOp {
+    Alloc,
+    Tail,
+    IsUnique,
+}
+
 pub trait OwnCx {
     /// The count convention of one concrete declaration/function-value input.
     fn parameter_mode(&self, _ty: Ty, _function: bool) -> ParameterMode {
@@ -318,6 +328,11 @@ pub trait OwnCx {
     fn keeps_unique(&self, callee: &Callee) -> bool {
         let _ = callee;
         false
+    }
+    /// Which `std.rt.counted` block intrinsic (#2369) this callee is.
+    fn counted_op(&self, callee: &Callee) -> Option<CountedOp> {
+        let _ = callee;
+        None
     }
     /// Whether a value of `ty` holds a counted leaf. The passes run over
     /// instances, whose types are concrete, and over a generic item's own

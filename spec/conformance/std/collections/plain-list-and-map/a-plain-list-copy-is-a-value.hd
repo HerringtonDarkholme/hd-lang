@@ -1,0 +1,40 @@
+# test: a PlainList copy is a value: a change through one copy, of scalars or strings, leaves the others unchanged, and every value is released once
+# expect-stdout: 100 0 10 10|3 2 a b c|a b|z 1 a|45 3
+# Spec 04 Type System: types.coll.value. The std list over one counted block (#2369) keeps the builtin List's value semantics.
+use std.collections.PlainList
+use std.console.print
+
+fn grown(xs: PlainList[string]) -> PlainList[string]:
+    let mut out = xs
+    out.push("c")
+    out
+
+pub fn main() -> void $ Console:
+    let mut xs = PlainList::[i64].new()
+    for i in 0..10:
+        xs.push(i64(i))
+    ys := xs
+    xs.set(0, 100)
+    print("${xs.get(0)} ${ys.get(0)} ${xs.len()} ${ys.len()}|")
+    let mut ss = PlainList::[string].with_capacity(2)
+    ss.push("a")
+    ss.push("b")
+    tt := grown(ss)
+    print("${tt.len()} ${ss.len()} ${tt.get(0)} ${tt.get(1)} ${tt.get(2)}|")
+    let mut uu = tt
+    _ := uu.pop()
+    uu.truncate(2)
+    print("${uu.get(0)} ${uu[1]}|")
+    let mut vv = uu
+    vv.insert(0, "z")
+    _ := vv.remove(1)
+    vv.truncate(2)
+    print("${vv.get(0)} ${uu.len() - 1} ${uu.get(0)}|")
+    let mut sum: i64 = 0
+    for x in ys.iter():
+        sum += x
+    let mut big = PlainList::[PlainList[string]].new()
+    big.push(ss)
+    big.push(tt)
+    big.push(uu)
+    println("$sum ${big.len()}")

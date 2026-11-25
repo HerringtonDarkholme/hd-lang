@@ -133,10 +133,10 @@ pub trait LayoutEnv {
     /// Which built-in std type `def` is, if any. Required: a default of
     /// `Other` would lay out `List`, `Map` and `Suspend` as plain data.
     fn std_kind(&self, def: DefId) -> StdKind;
-    /// Whether `def` is `std.rt.memory.Buffer`: an ordinary struct of an
-    /// address and a capacity, whose room holds values of its type
-    /// argument (`module.rt.buffer.type`), so a type that holds one holds
-    /// those values too.
+    /// Whether `def` is `std.rt.memory.Buffer` or `Ptr`: an ordinary struct
+    /// of an address (and a capacity), whose memory holds values of its
+    /// type argument (`module.rt.buffer.type`; a counted block's tail,
+    /// #2369), so a type that holds one holds those values too.
     fn raw_buffer(&self, def: DefId) -> bool;
     /// Whether `def` implements `std.rt.Drop`, so that releasing one of
     /// its values has work even when it holds no counted reference

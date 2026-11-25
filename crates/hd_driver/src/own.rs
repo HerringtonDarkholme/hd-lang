@@ -298,6 +298,8 @@ const PURE_INTRINSICS: &[&str] = &[
     "ptr_offset",
     "mem_string_bytes",
     "mem_ref_address",
+    "counted_tail",
+    "counted_is_unique",
     "ptr_size_of",
     "ptr_align_of",
     "ptr_needs_drop",
@@ -349,8 +351,9 @@ fn pure_float_method(path: &str) -> bool {
 /// argument is the buffer's one holder (`crates/hd_wasm/DESIGN.md`
 /// §23.17), so the call consumes the list, moved in at its last use;
 /// `thread_spawn` keeps its closure's environment in the thread's block,
-/// whose thread runs it (`module.rt.thread.spawn`).
-const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "thread_spawn"];
+/// whose thread runs it (`module.rt.thread.spawn`); `alloc_counted` stores
+/// its header in the new block (#2369).
+const OWNING_INTRINSICS: &[&str] = &["string_from_bytes", "thread_spawn", "counted_alloc"];
 
 impl Env<'_> {
     /// The compiler-known raw-memory relation of an intrinsic. This names
@@ -700,7 +703,7 @@ impl OwnCx for Env<'_> {
 
     fn call_reads_storage_only(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if matches!(self.intrinsic(*def).as_deref(),
-            Some("sqrt" | "ptr_offset" | "mem_string_bytes" | "mem_ref_address" | "ptr_size_of" | "ptr_align_of" | "ptr_needs_drop" | "ptr_ref" | "ptr_mut"
+            Some("sqrt" | "ptr_offset" | "mem_string_bytes" | "mem_ref_address" | "counted_tail" | "counted_is_unique" | "ptr_size_of" | "ptr_align_of" | "ptr_needs_drop" | "ptr_ref" | "ptr_mut"
                 | "type_id_of" | "bytes_len" | "bytes_at" | "bytes_index"
                 | "bytes_index_pair" | "bytes_mismatch" | "utf8_valid_len" | "char_scalar" | "char_from_scalar")))
     }
@@ -711,6 +714,19 @@ impl OwnCx for Env<'_> {
 
     fn is_map_probe(&self, callee: &Callee) -> bool {
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("map_probe"))
+    }
+
+    fn counted_op(&self, callee: &Callee) -> Option<hd_tir::own::CountedOp> {
+        use hd_tir::own::CountedOp as C;
+        let Callee::Item { def, .. } = callee else {
+            return None;
+        };
+        match self.intrinsic(*def).as_deref()? {
+            "counted_alloc" => Some(C::Alloc),
+            "counted_tail" => Some(C::Tail),
+            "counted_is_unique" => Some(C::IsUnique),
+            _ => None,
+        }
     }
 
     fn keeps_unique(&self, callee: &Callee) -> bool {

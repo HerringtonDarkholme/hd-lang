@@ -3312,6 +3312,9 @@ impl Em<'_, '_, '_> {
                 TargetKind::Intrinsic(key) if key.starts_with("ptr_") => {
                     self.ptr(i, key, ct.args, &args)
                 }
+                TargetKind::Intrinsic(key) if key.starts_with("counted_") => {
+                    self.counted_block(i, key, ct.args, &args)
+                }
                 TargetKind::Intrinsic(key) => self.intrinsic(i, key, &args),
                 TargetKind::Builtin { self_ty, .. } => {
                     let path = (self.input.path)(ct.item);
