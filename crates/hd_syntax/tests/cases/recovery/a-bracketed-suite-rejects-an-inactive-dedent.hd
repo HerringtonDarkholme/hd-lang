@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# expected: the dedent between the header and body reports invalid-dedent.
+fn sample() -> void:
+    value := (if true:
+            +1
+        else: +2)
