@@ -134,6 +134,10 @@ thread_local! {
     /// What a checked count report names the program being built by: a
     /// test harness sets it before each build ([`copy_report_label`]).
     static COPY_LABEL: RefCell<String> = const { RefCell::new(String::new()) };
+    /// The items whose made-block level ([`OwnCx::made_block`]) this
+    /// thread is working out: one asked again is a recursive result,
+    /// which makes no fresh block.
+    static MAKING: RefCell<Vec<DefId>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Names the builds this thread runs next in a checked count report: a
@@ -719,6 +723,40 @@ impl OwnCx for Env<'_> {
     fn keeps_unique(&self, callee: &Callee) -> bool {
         // `rt:list_reserve` copies a buffer it does not own.
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("list_reserve"))
+    }
+
+    fn made_block(&self, callee: &Callee) -> u8 {
+        let Callee::Item { def, .. } = *callee else {
+            return 0;
+        };
+        if let Some(key) = self.intrinsic(def) {
+            return if key == "counted_alloc" {
+                hd_tir::own::UNIQUE
+            } else {
+                0
+            };
+        }
+        if let Some(&level) = lock(&self.run.made_blocks).get(&def) {
+            return level;
+        }
+        // Once per item, from its checked body: a result is one whatever
+        // the instance. A cycle's members make none, so they are not kept.
+        if MAKING.with(|m| m.borrow().contains(&def)) {
+            return 0;
+        }
+        MAKING.with(|m| m.borrow_mut().push(def));
+        let level = self
+            .checked_body(def)
+            .map_or(0, |(body, _)| hd_tir::own::result_level(body, self));
+        MAKING.with(|m| m.borrow_mut().pop());
+        if level > 0 || MAKING.with(|m| m.borrow().is_empty()) {
+            lock(&self.run.made_blocks).insert(def, level);
+        }
+        level
+    }
+
+    fn block_list(&self, ty: Ty) -> bool {
+        hd_mono::layout::list_block_head(&self.run.pool, self, ty).is_some()
     }
 
     fn counted(&self, ty: Ty) -> bool {

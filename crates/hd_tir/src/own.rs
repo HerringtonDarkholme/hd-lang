@@ -36,7 +36,7 @@ use crate::ir::{
     Word, slots, u32_of,
 };
 
-pub use hoist::{EntryTest, entry_test, loop_statements, loop_test};
+pub use hoist::{EntryTest, UNIQUE, entry_test, loop_statements, loop_test, result_level};
 
 pub(crate) mod abi;
 pub(crate) mod append_copy;
@@ -317,6 +317,19 @@ pub trait OwnCx {
     /// a shared one: a reserve.
     fn keeps_unique(&self, callee: &Callee) -> bool {
         let _ = callee;
+        false
+    }
+    /// The level ([`hoist::result_level`]) of the block a call of `callee`
+    /// returns that no other holder has: `std.rt.alloc_counted`'s new
+    /// block, or a body whose every result is one (#2369). 0 when unknown.
+    fn made_block(&self, callee: &Callee) -> u8 {
+        let _ = callee;
+        0
+    }
+    /// Whether `ty` is a struct whose one field is a counted block, a std
+    /// list over `*H` (#2369): it holds that block and nothing else.
+    fn block_list(&self, ty: Ty) -> bool {
+        let _ = ty;
         false
     }
     /// Whether a value of `ty` holds a counted leaf. The passes run over

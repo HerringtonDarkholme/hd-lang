@@ -815,7 +815,7 @@ fn repeats_through(b: &Body, topo: &Topology, i: usize) -> bool {
 
 /// [`fresh_buffers`]' levels: a buffer nothing else holds, maybe static
 /// and empty; and a nonempty one this body allocated, one count.
-pub(crate) const UNIQUE: u8 = 1;
+pub const UNIQUE: u8 = 1;
 pub(crate) const OWNED: u8 = 2;
 
 /// The [`fresh_buffers`] level of all of the local or value `word` names.
@@ -844,6 +844,96 @@ fn new_level(b: &Body, v: usize) -> u8 {
     }
 }
 
+/// The level, [`UNIQUE`] at most, of the block that value `v` of `b` is,
+/// made here or by a callee (#2369): a call that makes one
+/// ([`OwnCx::made_block`]), a struct whose one field is a counted block
+/// around one ([`OwnCx::block_list`]), or a scope whose one exit carries
+/// one, each step the only use of the value before it (`once`), so
+/// nothing else holds the block. A new collection is [`new_level`]'s; 0
+/// otherwise. Linear in the chain.
+pub(crate) fn made_level(
+    b: &Body,
+    mut v: u32,
+    cx: &dyn OwnCx,
+    once: &mut dyn FnMut(u32) -> bool,
+) -> u8 {
+    for _ in 0..b.len() {
+        let Some(i) = Ref(v).as_inst().map(|i| i.0 as usize) else {
+            return 0;
+        };
+        v = match b.tags[i] {
+            Tag::NewList | Tag::NewMap => return new_level(b, i),
+            Tag::Call => {
+                return Callee::from_words(b.record(b.data[i][0]))
+                    .map_or(0, |c| cx.made_block(&c).min(UNIQUE));
+            }
+            Tag::NewStruct if cx.block_list(b.ty[i]) => match *b.record(b.data[i][1]) {
+                [x] => x,
+                _ => return 0,
+            },
+            Tag::Scope => match b.wrapper_value(i) {
+                Some(x) => x,
+                None => return 0,
+            },
+            _ => return 0,
+        };
+        if !once(v) {
+            return 0;
+        }
+    }
+    0
+}
+
+/// The level ([`made_level`]) of the block every result of `b` is: its
+/// root's tail and each `Return` of its own sub-body; 0 when one is no
+/// such block. A root with no tail must never complete.
+#[must_use]
+pub fn result_level(b: &Body, cx: &dyn OwnCx) -> u8 {
+    let Some(&root) = b.sub_root.first() else {
+        return 0;
+    };
+    let mut uses = Uses::default();
+    let mut once = |v: u32| uses.once(b, v);
+    let mut level = match b.data[root as usize][1] {
+        NONE if b.ty[root as usize] == Ty::NEVER => UNIQUE,
+        NONE => return 0,
+        tail => made_level(b, tail, cx, &mut once),
+    };
+    if level == 0 || !b.tags.contains(&Tag::Return) {
+        return level;
+    }
+    let topo = Topology::new(b);
+    for i in (0..b.len()).filter(|&i| b.tags[i] == Tag::Return && topo.sub[i] == 0) {
+        level = level.min(made_level(b, b.data[i][0], cx, &mut once));
+    }
+    level
+}
+
+/// Each value's count of uses as an operand, counted at the first ask.
+#[derive(Default)]
+struct Uses(Vec<u32>);
+
+impl Uses {
+    /// Whether value `v` has exactly one use.
+    fn once(&mut self, b: &Body, v: u32) -> bool {
+        if self.0.is_empty() {
+            self.0 = vec![0; b.len()];
+            let mut ops = Vec::new();
+            for i in 0..b.len() {
+                operands(b, i, &mut ops);
+                for op in &ops {
+                    if let Some(c) = self.0.get_mut(op.value as usize) {
+                        *c += 1;
+                    }
+                }
+            }
+        }
+        Ref(v)
+            .as_inst()
+            .is_some_and(|i| self.0.get(i.0 as usize) == Some(&1))
+    }
+}
+
 /// The **fresh buffers** of `b` (step 15a, #2201): per local, then per
 /// value, the level of the buffer it holds, for an `IsUnique` with no
 /// check and a `Drop` that frees. A value is a new collection
@@ -865,9 +955,14 @@ pub(crate) fn fresh_buffers(b: &Body, cx: &dyn OwnCx) -> Vec<u8> {
     let n = b.len();
     let locals = b.local_ty.len();
     let mut level = vec![0; locals + n];
-    if !b.tags.contains(&Tag::NewList) && !b.tags.contains(&Tag::NewMap) {
+    if !b
+        .tags
+        .iter()
+        .any(|t| matches!(t, Tag::NewList | Tag::NewMap | Tag::IsUnique))
+    {
         return level;
     }
+    let mut uses = Uses::default();
     for (l, flags) in b.local_flags.iter().enumerate() {
         // An address taken sets `CAPTURED` too: a capture is judged by
         // the captures below, an address by its `Ref`s.
@@ -922,7 +1017,12 @@ pub(crate) fn fresh_buffers(b: &Body, cx: &dyn OwnCx) -> Vec<u8> {
                     continue;
                 }
                 let inst = Ref(b.data[i][1]).as_inst().is_some() && v < n;
-                level[li] = level[li].min(if inst { new_level(b, v) } else { 0 });
+                let made = if inst {
+                    made_level(b, u32_of(v), cx, &mut |x| uses.once(b, x))
+                } else {
+                    0
+                };
+                level[li] = level[li].min(made);
             }
             Tag::Ref if p.whole() => ref_of[i] = l,
             Tag::Ref => level[li] = 0,

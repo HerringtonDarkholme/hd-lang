@@ -1829,6 +1829,8 @@ struct Run<'a> {
     /// Each template's generic local functions (`hd_tir::ir::Lifting`),
     /// once per item.
     liftings: Mutex<HashMap<DefId, Arc<hd_tir::ir::Lifting>>>,
+    /// Each item's made-block level (`OwnCx::made_block`), once per item.
+    made_blocks: Mutex<HashMap<DefId, u8>>,
     /// The roots only the entry calls (`OwnCx::entry_root`): `main`, or the
     /// test cases. Collection sets them before it asks for a body.
     entry_roots: OnceLock<hd_base::HashSet<DefId>>,
@@ -2997,6 +2999,7 @@ fn build_packages_inner(
         instances: Mutex::new(HashMap::default()),
         lifted: Mutex::new(HashMap::default()),
         liftings: Mutex::new(HashMap::default()),
+        made_blocks: Mutex::new(HashMap::default()),
         entry_roots: OnceLock::new(),
         program_api: OnceLock::new(),
         own_canons: Mutex::new(hd_mono::layout::CanonMemo::default()),

@@ -3,11 +3,10 @@
   (import "fixture" "rt:panic'1" (func $rt:panic'1))
   (import "fixture" "rt:new" (func $rt:new (param i32 i32) (result i32)))
   (import "fixture" "rt:retain_known" (func $rt:retain_known (param i32)))
-  (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "block_bytes" (func $block_bytes (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 11 funcref))
+  (import "fixture" "table0" (table $table0 10 funcref))
   (func $"impl[T] PlainList[T].alloc[*Node]" (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; (no span)
     i32.const 4
@@ -68,7 +67,7 @@
     i32.const 1
     i32.const 0
     call $"impl[T] PlainList[T].alloc[*Node]"
-    local.set $xs
+    local.tee $xs
     ;; 21 |     xs.push(node)
     local.get $node
     if
@@ -81,11 +80,6 @@
         call $rt:retain_known
       end
     end
-    ;; 20 |     let mut xs = PlainList::[*mut Node].with_capacity(1)
-    local.get $xs
-    ;; 21 |     xs.push(node)
-    call $rt:list_unique
-    local.tee $xs
     local.tee $t0
     i32.load $heap offset=4
     local.tee $t1
@@ -113,8 +107,6 @@
     i32.store $heap offset=4
     ;; 22 |     xs.push(node)
     local.get $xs
-    call $rt:list_unique
-    local.tee $xs
     local.tee $t0
     i32.load $heap offset=4
     local.tee $t1

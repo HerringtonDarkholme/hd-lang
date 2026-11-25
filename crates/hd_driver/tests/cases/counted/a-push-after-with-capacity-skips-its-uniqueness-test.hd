@@ -1,0 +1,12 @@
+# @dump: own
+# @build: v8 release
+# The push's `IsUnique` is `fresh` (#2369): `with_capacity(4)` inlines
+# to a call of `alloc`, whose every result is `alloc_counted`'s new block
+# (`OwnCx::made_block`), wrapped in a `PlainList` and the inlined
+# scope's one exit, each the only use of the one before.
+use std.collections.PlainList
+
+fn build() -> PlainList[i64]:
+    let mut xs = PlainList::[i64].with_capacity(4)
+    xs.push(7)
+    xs

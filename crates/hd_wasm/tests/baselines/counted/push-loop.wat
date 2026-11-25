@@ -5,7 +5,7 @@
   (import "fixture" "table0" (table $table0 5 funcref))
   (func $build (param $n i64) (result i32) (local $xs i32) (local $i i64) (local $t0 i32) (local $t1 i32)
     ;; ...
-    ;; 14 |     while i < n:
+    ;; 17 |     while i < n:
     local.get $n
     i64.lt_s
     if
@@ -20,7 +20,7 @@
         i64.lt_s
         i32.eqz
         br_if 1
-    ;; 15 |         xs.push(i)
+    ;; 18 |         xs.push(i)
         local.get $xs
         local.tee $t0
         i32.load $heap offset=4
@@ -47,12 +47,12 @@
         i32.const 1
         i32.add
         i32.store $heap offset=4
-    ;; 16 |         i += 1
+    ;; 19 |         i += 1
         local.get $i
         i64.const 1
         i64.add
         local.set $i
-    ;; 14 |     while i < n:
+    ;; 17 |     while i < n:
         br 0
       end
     end

@@ -3,8 +3,11 @@
 # A push loop over a `PlainList` (#2369): its `push` is the built-in
 # `ListPush`, so the loop is the builtin list's instruction for
 # instruction: one length and capacity compare, the store and the length
-# store per value, growth through the cold `rt:list_grow`. The uniqueness
-# test runs once, before the loop (`new()` is a call, so not `FRESH`).
+# store per value, growth through the cold `rt:list_grow`.
+# expected: no uniqueness test before the loop, as for the builtin `[]`
+# (issue: `new()`'s static empty block is not proven fresh). The test
+# runs once, before the loop: `new()` returns `empty_block()`'s static
+# block, which no body's result proves fresh (`OwnCx::made_block`).
 use std.collections.PlainList
 
 fn build(n: i64) -> PlainList[i64]:
