@@ -1,0 +1,108 @@
+# @dump: stdout
+# @build: release std | release checked std
+# A store into a slot local whose value the round may have moved out. A
+# call that is not inlined takes the local's address each round, so the
+# local lives in a frame slot. The store releases the old value only when
+# it is there: the `Drop` hook runs once per value made, never on the
+# zeroes a move left.
+use std.meta.{cold, inline}
+use std.rt.{Drop}
+
+struct Tok:
+    id: i64
+    log: *mut List[i64]
+
+impl !Copy for Tok
+
+impl Drop for Tok:
+    fn drop(&mut self) -> void:
+        self.log.push(self.id)
+
+impl Tok:
+    @cold
+    fn grow(&mut self) -> void:
+        self.id += 1000
+
+    @inline
+    fn step(&mut self, x: i64) -> void:
+        if x % 2 == 1:
+            self.grow()
+        self.id += 1
+
+@inline(.Never)
+fn bump(t: &mut Tok) -> void:
+    t.id += 100
+
+@inline(.Never)
+fn consume(t: Tok) -> i64:
+    t.id
+
+# Every round moves `t` out, then stores a new value into its slot.
+fn always(n: i64, log: *mut List[i64]) -> i64:
+    let mut t = Tok { id: 0, log: log }
+    let mut s: i64 = 0
+    let mut i: i64 = 0
+    while i < n:
+        bump(&mut t)
+        s += consume(t)
+        t = Tok { id: i + 1, log: log }
+        i += 1
+    s
+
+# Even rounds move `t` out; odd rounds overwrite the live value, which the
+# store drops.
+fn sometimes(n: i64, log: *mut List[i64]) -> i64:
+    let mut t = Tok { id: 0, log: log }
+    let mut s: i64 = 0
+    let mut i: i64 = 0
+    while i < n:
+        bump(&mut t)
+        if i % 2 == 0:
+            s += consume(t)
+        t = Tok { id: i + 1, log: log }
+        i += 1
+    s
+
+# Each round moves `t` out before the call takes its address, so every
+# store finds the slot empty.
+fn moved_first(n: i64, log: *mut List[i64]) -> i64:
+    let mut t = Tok { id: 0, log: log }
+    let mut s: i64 = 0
+    let mut i: i64 = 0
+    while i < n:
+        s += consume(t)
+        t = Tok { id: i + 1, log: log }
+        bump(&mut t)
+        i += 1
+    s
+
+# `step` is copied into the loop, so `t` has no address but the cold
+# `grow` call's, which a release build may spill around. Some rounds move
+# `t` out and store anew, one overwrites the live value.
+fn stepped(n: i64, log: *mut List[i64]) -> i64:
+    let mut t = Tok { id: 0, log: log }
+    let mut s: i64 = 0
+    let mut i: i64 = 0
+    while i < n:
+        t.step(i)
+        if i % 3 == 0:
+            s += consume(t)
+            t = Tok { id: (i + 1) * 10, log: log }
+        else if i == 2:
+            t = Tok { id: 7, log: log }
+        i += 1
+    s
+
+pub fn main() -> void $ Console:
+    let a: *mut List[i64] = box([])
+    println("always ${always(4, a)}: ${a.len()} hooks")
+    println("${a[0]} ${a[1]} ${a[2]} ${a[3]} ${a[4]}")
+    let b: *mut List[i64] = box([])
+    println("sometimes ${sometimes(4, b)}: ${b.len()} hooks")
+    println("${b[0]} ${b[1]} ${b[2]} ${b[3]} ${b[4]}")
+    let c: *mut List[i64] = box([])
+    println("moved_first ${moved_first(4, c)}: ${c.len()} hooks")
+    println("${c[0]} ${c[1]} ${c[2]} ${c[3]} ${c[4]}")
+    let d: *mut List[i64] = box([])
+    println("stepped ${stepped(4, d)}: ${d.len()} hooks")
+    println("${d[0]} ${d[1]} ${d[2]} ${d[3]}")
