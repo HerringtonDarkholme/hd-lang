@@ -1,0 +1,30 @@
+# @dump: stdout
+# @build: dev | checked
+# A bitwise expression is not a family-wide checked sign-prefixed literal.
+use std.num.{Integer, Float, Num}
+
+fn bitwise[T < Integer](value: i64) -> T:
+    T(~value)
+
+fn literal[T < Integer]() -> T:
+    T(~0)
+
+fn signed_chain[T < Integer](value: i64) -> T:
+    T(-(+~value))
+
+fn floating[T < Float](value: i64) -> T:
+    T((~value))
+
+fn numeric[T < Num](value: i64) -> T:
+    type Target = T
+    Target(~value)
+
+pub fn main() -> void $ Console:
+    println(bitwise::[i8](0))
+    println(bitwise::[u8](0))
+    println(literal::[i8]())
+    println(literal::[u8]())
+    println(signed_chain::[u8](0))
+    println(floating::[f32](0))
+    println(numeric::[i16](+6))
+    println(numeric::[f64](0))

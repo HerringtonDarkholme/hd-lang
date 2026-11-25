@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# Logical negation follows ordinary expression typing, then rejects bool as a numeric source.
+use std.num.Integer
+
+fn rejected[T < Integer](flag: bool) -> T:
+    T(!flag)
