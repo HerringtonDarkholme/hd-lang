@@ -1,6 +1,6 @@
 # test: a Serializer method must take &mut self, as the trait declares; the former mut self receiver is a signature mismatch
 # Spec std/serde Data Model: std-serde.model.ref-receivers.
-use std.serde.Serializer
+use std.encoding.Serializer
 use std.meta.{Facts, VariantInfo, Member}
 
 struct Count:

@@ -1,9 +1,9 @@
-# The hd tests of `std.json.decode`'s one-pass key-loop reader (#1809): it
+# The hd tests of `std.encoding.json.decode`'s one-pass key-loop reader (#1809): it
 # names each key's member in text order, skips unknown values once, and
 # lets a syntax error anywhere in the text win over a typed error.
 # The conformance runner adds this file to std as `std.rt_tests.json_tests`.
-use std.json.{decode, parse, Json, JsonError}
-use std.serde.{Deserialize, Deserializer, Serialize}
+use std.encoding.json.{decode, parse, Json, JsonError}
+use std.encoding.{Deserialize, Deserializer, Serialize}
 
 @derive(Serialize, Deserialize, Debug, Eq)
 struct Point:

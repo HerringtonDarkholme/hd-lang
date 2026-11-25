@@ -1,6 +1,6 @@
-# test: std.json keeps the RFC 8259 number grammar, so float text that parse_f64 accepts is still a JSON error
+# test: std.encoding.json keeps the RFC 8259 number grammar, so float text that parse_f64 accepts is still a JSON error
 # Spec std/json Number Syntax: std-json.parse.number.grammar and std-json.parse.strict (owner decision PARSE-F64-GRAMMAR, 2026-10-03).
-use std.json.{parse, JsonError}
+use std.encoding.json.{parse, JsonError}
 fn failure(text: string) -> JsonError?:
     match parse(text):
         .Ok(_) => .None

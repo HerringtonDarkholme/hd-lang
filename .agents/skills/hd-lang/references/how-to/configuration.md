@@ -9,9 +9,9 @@ and reports a bad value with its name.
 ```hd
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, stat, write_text}
 use std.host.{Env, HostError, ScriptedEnv, env, env_as}
-use std.json.{JsonError, decode, encode_pretty}
+use std.encoding.json.{JsonError, decode, encode_pretty}
 use std.path.Path
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize, Eq, Debug)
 struct Limits:

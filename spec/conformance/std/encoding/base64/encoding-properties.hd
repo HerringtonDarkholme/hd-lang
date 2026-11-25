@@ -4,7 +4,9 @@
 # std-encoding.base64.encode.padding, std-encoding.base64.encode.no-pad,
 # std-encoding.base64.decode.value, std-encoding.base64.decode.order,
 # std-encoding.base64.decode.pad-bits, std-encoding.error.position-bytes.
-use std.encoding.{Base64, DecodeError, hex_decode, hex_encode}
+use std.encoding.DecodeError
+use std.encoding.base64.Base64
+use std.encoding.hex.{hex_decode, hex_encode}
 use std.testing.{assert_equal, it_each, it_prop}
 
 fn alphabet(encoding: Base64) -> string:

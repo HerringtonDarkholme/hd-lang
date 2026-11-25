@@ -3,7 +3,7 @@
 # A mutable reference can replace the list after its one whole assignment,
 # so the pass must leave the lookup and both branches in the WAT subject.
 use std.meta.Inspectable
-use std.serde.{EnumTagging, RenameCase, rename_all, tag}
+use std.encoding.{EnumTagging, RenameCase, rename_all, tag}
 use std.meta.Facts
 
 fn add_tag(facts: &mut Facts) -> void:

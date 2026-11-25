@@ -1,7 +1,7 @@
 # test: a derived enum's externally tagged payload follows its declaration: unit text, one positional value, positional array, or named object
 # Spec std/json Derived Serialize, Derived Deserialize: std-json.derive.to-json.included-enum-form, std-json.derive.to-json.unit-form, std-json.derive.from-json.enum, std-json.derive.from-json.included-payload-form.
-use std.json.{encode, encode_pretty, decode, to_json, from_json}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{encode, encode_pretty, decode, to_json, from_json}
+use std.encoding.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
 enum Shape:
     Circle(u32)

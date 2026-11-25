@@ -1,6 +1,6 @@
 # test: validation rejects unsafe fields and pending query errors before provider calls or body reads
 use std.http.{BodyError, FormError, Http, HttpError, Request, Response, ScriptedHttp, Url, post}
-use std.serde.Serialize
+use std.encoding.Serialize
 use std.testing.{assert, assert_equal}
 
 struct Counting:

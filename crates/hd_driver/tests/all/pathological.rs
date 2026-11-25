@@ -2442,7 +2442,7 @@ fn import_hints_name_a_module_and_several_homes_from_the_index() {
     );
     let shown = out.render();
     assert!(
-        shown.contains("`json` is not defined; add `use std.json`"),
+        shown.contains("`json` is not defined; add `use std.encoding.json`"),
         "{shown}"
     );
     assert!(
@@ -3031,7 +3031,7 @@ fn crossing_reach_is_linear_in_calls_and_closures() {
 /// `n` enums, each with a `Serialize` derivation block of its own.
 fn enum_views(n: usize) -> String {
     let mut s = String::from(
-        "use std.serde.Serialize\nuse std.meta.Structure\n\npub fn main() -> void: pass\n",
+        "use std.encoding.Serialize\nuse std.meta.Structure\n\npub fn main() -> void: pass\n",
     );
     for i in 0..n {
         let _ = write!(

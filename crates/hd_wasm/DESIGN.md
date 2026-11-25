@@ -693,7 +693,7 @@ String operations are emitted by `emit/text.rs` and runtime helpers
 - **Scans.** `bytes_index_set` calls `rt:bytes_index_set` (`scan.rs`,
   #428), linked only when reached, one per constant set. A constant set
   that a few compares cover (flipped blocks, spans, single bytes, chosen
-  greedily) tests each lane with them; std.json's escape set is
+  greedily) tests each lane with them; std.encoding.json's escape set is
   `(b ^ 2) < 0x21 | b == 0x5C`. Any other set looks each byte up in its
   32-byte bit table with three swizzles. It reads 16 bytes per step with
   `v128.load` and `i8x16.bitmask` while 16 remain, then the string's last
@@ -1732,8 +1732,8 @@ handles and runtime-profile traits, so programs that use `fs`, `process`,
 
   Public-field structs and enum payloads cross structurally
   (`module.boundary.public`). At a profile boundary, private-field types
-  use the collected `std.serde.Serialize` instance when leaving hd and
-  `std.serde.Deserialize` when entering, crossing as that codec's string.
+  use the collected `std.encoding.Serialize` instance when leaving hd and
+  `std.encoding.Deserialize` when entering, crossing as that codec's string.
   Newtypes use their field's representation; only a lone `string`
   argument crosses as its bytes alone.
 

@@ -1,6 +1,6 @@
 # test: a skipped positional payload needs its type's Default implementation under derived Deserialize
 # Spec std/serde Skipped Members: std-serde.skip.positional-no-default.
-use std.serde.{Deserialize, skip}
+use std.encoding.{Deserialize, skip}
 
 struct Cached:
     hits: i32

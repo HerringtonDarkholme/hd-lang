@@ -1,7 +1,7 @@
 # test: Serialize and Deserialize derive for a type whose parameter declares both traits, and a value round-trips through JSON
 # Spec std/serde Derived Implementations; Spec 14 Derived Bounds: annot.bound.declared.
-use std.json.{decode, encode}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{decode, encode}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 struct Example[T < Serialize & Deserialize]:

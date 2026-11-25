@@ -592,7 +592,7 @@ pub struct Output {
     /// Package-relative file paths, indexed by a diagnostic's `FileId`.
     pub files: Vec<String>,
     /// Per file, the text the run read: the text its spans index. A
-    /// dependency's file (`<std>/serde.hd`) is not in the root package's
+    /// dependency's file (`<std>/encoding/serde.hd`) is not in the root package's
     /// sources, so positions are located in this text.
     pub texts: Texts<'static>,
     /// Per file, the files of the modules its `use`s reach, its `tests:`

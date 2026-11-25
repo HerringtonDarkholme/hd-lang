@@ -1,8 +1,8 @@
 # test: rename_all applies the eight field case styles through one helper and composes with member rename in every std format
 # Spec std/serde Member Names: std-serde.rename-all.styles, std-serde.rename-all.fact, std-serde.rename-all.constructor, std-serde.member-name.helper.local-ref, std-serde.member-name.precedence.
-use std.serde.{Serialize, Deserialize, RenameCase, rename, rename_all, member_name}
+use std.encoding.{Serialize, Deserialize, RenameCase, rename, rename_all, member_name}
 use std.meta.{Member, Facts, Structure}
-use std.json.{decode, encode, encode_pretty, from_json, parse, to_json}
+use std.encoding.json.{decode, encode, encode_pretty, from_json, parse, to_json}
 use std.http.{Request, Url}
 use std.regex.Regex
 

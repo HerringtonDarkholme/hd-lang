@@ -6,7 +6,7 @@
 # raw-address copy writes only its own new string, so both callers borrow
 # their facts and have no `writes` summary (#1285).
 use std.meta.{Facts, Member}
-use std.serde.{RenameAll, member_name}
+use std.encoding.{RenameAll, member_name}
 
 struct Frame:
     facts: Facts
@@ -51,7 +51,7 @@ fn name_of(m: &Member, frames: &List[Frame]) -> string:
 >     uses $1: entry -> %1 lend last
 >   %0 = Read borrow [$0] : &Member
 >   %1 = Read borrow [*$1 [0:usize] .facts] : Facts
->   %2 = Call std/serde/member_name[] (%0, %1) : string
+>   %2 = Call std/encoding.serde/member_name[] (%0, %1) : string
 >   %3 = Retain %2 Operation operand 1 #0 : ()
 >   %4 = Block %2 : string
 >   summary kept []

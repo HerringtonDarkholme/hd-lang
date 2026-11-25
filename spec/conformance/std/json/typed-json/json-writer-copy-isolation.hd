@@ -1,8 +1,8 @@
 # test: generic serializer writer copies preserve JSON encode's tree equivalence
 # expect: test
 # Spec std/json: std-json.encode, std-json.encode-pretty.
-use std.serde.{Serialize, Serializer}
-use std.json.{encode, encode_pretty, to_json}
+use std.encoding.{Serialize, Serializer}
+use std.encoding.json.{encode, encode_pretty, to_json}
 
 struct CopyWriter:
     nested: bool

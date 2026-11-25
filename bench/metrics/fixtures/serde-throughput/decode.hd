@@ -1,6 +1,6 @@
 # Decodes the document `repeat` times.
 use pkg.orders.{Order, orders}
-use std.json.{decode, encode}
+use std.encoding.json.{decode, encode}
 
 pub fn main() -> void $ Console:
     docs := orders(200) # param: orders

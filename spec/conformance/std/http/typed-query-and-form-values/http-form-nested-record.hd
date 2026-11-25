@@ -1,7 +1,7 @@
 # Spec std/http Request Builder: std-http.request.form-preparation-error.
 use std.http.{BodyError, FormError, Request, Url}
 use std.testing.assert_equal
-use std.serde.Serialize
+use std.encoding.Serialize
 
 @derive(Serialize)
 struct Child:

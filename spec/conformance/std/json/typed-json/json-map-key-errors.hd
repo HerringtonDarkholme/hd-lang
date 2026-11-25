@@ -1,8 +1,8 @@
 # test: JSON map keys follow serde_json's scalar text grammar and report the key path
 # Spec std/json Standard Implementations: std-json.std.map-key-bool, std-json.std.map-key-char, std-json.std.map-key-integer-grammar, std-json.std.map-key-integer-range, std-json.std.map-key-wrong-type.
-use std.json.{decode, JsonError}
+use std.encoding.json.{decode, JsonError}
 use std.hash.Hash
-use std.serde.MapKey
+use std.encoding.MapKey
 
 fn failure[T < Eq & Hash & MapKey](text: string) -> JsonError:
     match decode::[Map[T, i32]](text):

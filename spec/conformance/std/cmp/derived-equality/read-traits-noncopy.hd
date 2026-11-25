@@ -1,7 +1,7 @@
 # Read traits borrow non-copyable structs, enum payloads and generic fields.
 use std.hash.hash_of
-use std.json.encode
-use std.serde.Serialize
+use std.encoding.json.encode
+use std.encoding.Serialize
 use std.testing.{assert, assert_equal}
 
 @derive(Debug, Serialize, Eq, PartialOrd, Ord, Hash)

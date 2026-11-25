@@ -80,7 +80,7 @@ pub enum HostError:
 
 ```text
 use std.host.{Env, HostError, env_decode}
-use std.serde.Deserialize
+use std.encoding.Deserialize
 
 @derive(Deserialize)
 struct Config:

@@ -5,8 +5,8 @@
 # expect-stdout: true
 # expect-stdout: error
 
-use std.json.{encode, decode}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{encode, decode}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize, Eq)
 type OrderId(u64)

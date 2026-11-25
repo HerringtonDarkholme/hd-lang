@@ -1,6 +1,6 @@
 # Spec 09 Union Trait Templates: trait.target.union.conditional,
 # trait.target.union.enum-shape.
-use std.json.{decode, encode}
+use std.encoding.json.{decode, encode}
 
 type Choice = i32 | string
 

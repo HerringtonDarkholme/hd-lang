@@ -1,5 +1,5 @@
 use std.meta.inline
-use std.serde.Serializer
+use std.encoding.Serializer
 use std.meta.{Facts, Field, Member, Structure, Variant, VariantInfo, Walker}
 
 trait Add:

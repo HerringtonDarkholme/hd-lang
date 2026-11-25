@@ -1,8 +1,8 @@
 # test: a type with private fields round trips through JSON by its derived implementation, private fields included
 # Spec std/json Typed JSON, Derived Serialize: std-json.derive.to-json.private, std-json.to-json, std-json.from-json (task #320).
 # Spec 14 Serialization: annot.serde.definition, annot.serde.private-library-view.
-use std.json.{encode, decode, to_json, from_json, Json, JsonError}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{encode, decode, to_json, from_json, Json, JsonError}
+use std.encoding.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
 struct Session:
     pub user: string

@@ -8,8 +8,8 @@
 # Spec std/serde: std-serde.skip.named-read-default, std-serde.std.tuple-length, std-serde.std.range,
 # std-serde.std.set-elements (a Set reads a list with each repeated element once).
 use std.collections.Set
-use std.json.{Json, JsonError, decode, encode, from_json, parse}
-use std.serde.{Deserialize, Serialize, skip}
+use std.encoding.json.{Json, JsonError, decode, encode, from_json, parse}
+use std.encoding.{Deserialize, Serialize, skip}
 use std.testing.{assert, assert_equal, it_each}
 
 fn failure[T](result: Result[T, JsonError]) -> JsonError:

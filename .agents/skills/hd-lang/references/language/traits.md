@@ -119,7 +119,7 @@ first four rows need no import.
 | `Eq, PartialOrd, Ord` | `<`, `>`, `sorted()`, `max` (list all three) |
 | `Eq, Hash` | use as a map key or set element |
 | `Debug` | `debug(x)`, and `assert_equal` on the type |
-| `Serialize, Deserialize` | JSON; `use std.serde.{Deserialize, Serialize}` |
+| `Serialize, Deserialize` | JSON; `use std.encoding.{Deserialize, Serialize}` |
 
 ```hd
 @derive(Eq, PartialOrd, Ord, Hash, Debug)

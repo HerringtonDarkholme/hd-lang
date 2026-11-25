@@ -1,9 +1,9 @@
 # @dump: functions
 # @build: release
 # Two members renamed to one key make an irregular walk, so the derived
-# serializer keeps the tree fallback and searches for `std.serde.Rename`.
-use std.json.encode
-use std.serde.{Serialize, rename}
+# serializer keeps the tree fallback and searches for `std.encoding.Rename`.
+use std.encoding.json.encode
+use std.encoding.{Serialize, rename}
 
 @derive(Serialize)
 struct Pair:

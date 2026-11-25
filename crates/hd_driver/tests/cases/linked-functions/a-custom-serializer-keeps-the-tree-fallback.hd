@@ -2,8 +2,8 @@
 # @build: release
 # A hand-written serializer may make an irregular walk (two values for
 # one struct), so `json.encode` keeps its tree fallback (#921).
-use std.json.encode
-use std.serde.{Serialize, Serializer}
+use std.encoding.json.encode
+use std.encoding.{Serialize, Serializer}
 
 struct Odd:
     value: i64

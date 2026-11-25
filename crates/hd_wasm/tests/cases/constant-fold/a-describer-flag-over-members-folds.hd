@@ -1,6 +1,6 @@
 # @dump: wat
 # @build: v8 release
-# A per-type flag derived through a describer, as std.serde derives
+# A per-type flag derived through a describer, as std.encoding derives
 # `regular` (#1445): the template runs `T::describe` with a describer
 # whose `member` answers each member type's flag. The generated
 # traversal and the describer's hooks are copied, the `?` arms that a

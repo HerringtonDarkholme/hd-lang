@@ -1,4 +1,4 @@
-# std.serde: the format-neutral opt-in to serialization
+# std.encoding: the format-neutral opt-in to serialization
 # (spec/lang/14-annotations.md#serialization). A type opts in once with
 # `Serialize` and `Deserialize`, derived or written by hand, and every
 # format reads the implementation through `Serializer` and `Deserializer`: JSON
@@ -28,38 +28,38 @@ use std.meta.{
 use std.rt.{string_from_bytes}
 
 ## A member's or variant's document name, independent of its hd source name.
-## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+## See [std-serde.rename.variant-fact](../../../spec/std/serde.md#r-std-serde.rename.variant-fact).
 @annotate(.Field, .Variant)
 pub struct Rename:
     pub name: string
 
 ## Names a member or variant on the document wire.
-## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+## See [std-serde.rename.variant-fact](../../../spec/std/serde.md#r-std-serde.rename.variant-fact).
 pub fn rename(name: string) -> Rename:
     Rename { name: name }
 
 ## Omits an optional member when it is None.
-## See [std-serde.skip-none.fact.phantom](../../spec/std/serde.md#r-std-serde.skip-none.fact.phantom).
+## See [std-serde.skip-none.fact.phantom](../../../spec/std/serde.md#r-std-serde.skip-none.fact.phantom).
 @annotate::[F](.Field)
 pub struct SkipNone[F < ?Copy]: pass
 
 ## Marks an optional member for omission when absent.
-## See [std-serde.skip-none.constructor](../../spec/std/serde.md#r-std-serde.skip-none.constructor).
+## See [std-serde.skip-none.constructor](../../../spec/std/serde.md#r-std-serde.skip-none.constructor).
 pub fn skip_none[T < ?Copy]() -> SkipNone[T?]:
     SkipNone::[T?] {}
 
 ## Omits a member from serialization and restores its declared default.
-## See [std-serde.skip.fact](../../spec/std/serde.md#r-std-serde.skip.fact).
+## See [std-serde.skip.fact](../../../spec/std/serde.md#r-std-serde.skip.fact).
 @annotate(.Field)
 pub struct Skip: pass
 
 ## Marks a member as skipped in this serde derivation.
-## See [std-serde.skip.constructor](../../spec/std/serde.md#r-std-serde.skip.constructor).
+## See [std-serde.skip.constructor](../../../spec/std/serde.md#r-std-serde.skip.constructor).
 pub fn skip() -> Skip:
     Skip {}
 
 ## The eight document member-name styles.
-## See [std-serde.rename-all.styles](../../spec/std/serde.md#r-std-serde.rename-all.styles).
+## See [std-serde.rename-all.styles](../../../spec/std/serde.md#r-std-serde.rename-all.styles).
 @derive(Debug, Eq)
 pub enum RenameCase:
     Lowercase
@@ -72,18 +72,18 @@ pub enum RenameCase:
     ScreamingKebabCase
 
 ## The default naming style for a record's members or an enum's variants and members.
-## See [std-serde.rename-all.fact](../../spec/std/serde.md#r-std-serde.rename-all.fact).
+## See [std-serde.rename-all.fact](../../../spec/std/serde.md#r-std-serde.rename-all.fact).
 @annotate(.Data, .Enum)
 pub struct RenameAll:
     pub style: RenameCase
 
 ## Configures the default document member-name style.
-## See [std-serde.rename-all.constructor](../../spec/std/serde.md#r-std-serde.rename-all.constructor).
+## See [std-serde.rename-all.constructor](../../../spec/std/serde.md#r-std-serde.rename-all.constructor).
 pub fn rename_all(style: RenameCase) -> RenameAll:
     RenameAll { style: style }
 
 ## How an enum is represented on a document wire.
-## See [std-serde.enum-tagging.fact](../../spec/std/serde.md#r-std-serde.enum-tagging.fact).
+## See [std-serde.enum-tagging.fact](../../../spec/std/serde.md#r-std-serde.enum-tagging.fact).
 @derive(Debug, Eq)
 @annotate(.Enum)
 pub enum EnumTagging:
@@ -92,19 +92,19 @@ pub enum EnumTagging:
     Untagged
 
 ## Places the variant name under `tag`; `content` selects adjacent form when present.
-## See [std-serde.enum-tagging.constructors](../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
+## See [std-serde.enum-tagging.constructors](../../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
 pub fn tag(tag: string, content: string? = .None) -> EnumTagging:
     match content:
         .Some(name) => EnumTagging.Adjacent(tag, name)
         .None => EnumTagging.Internal(tag)
 
 ## Writes only the variant payload and tries variants in declaration order when reading.
-## See [std-serde.enum-tagging.constructors](../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
+## See [std-serde.enum-tagging.constructors](../../../spec/std/serde.md#r-std-serde.enum-tagging.constructors).
 pub fn untagged() -> EnumTagging:
     EnumTagging.Untagged
 
 ## Resolves a wire name: member rename, then container rename_all, then source name.
-## See [std-serde.member-name.precedence](../../spec/std/serde.md#r-std-serde.member-name.precedence).
+## See [std-serde.member-name.precedence](../../../spec/std/serde.md#r-std-serde.member-name.precedence).
 pub fn member_name(member: &Member, container: Facts) -> string:
     # Most members and containers have no facts, so the searches are skipped.
     if !member.facts.items.is_empty():
@@ -118,7 +118,7 @@ pub fn member_name(member: &Member, container: Facts) -> string:
         .None => member.name
 
 ## Resolves a variant wire name: variant rename, then enum rename_all, then source name.
-## See [std-serde.rename.variant-fact](../../spec/std/serde.md#r-std-serde.rename.variant-fact).
+## See [std-serde.rename.variant-fact](../../../spec/std/serde.md#r-std-serde.rename.variant-fact).
 fn variant_name(variant: &VariantInfo, container: Facts) -> string:
     if !variant.facts.items.is_empty():
         match variant.facts.find::[Rename]():
@@ -249,7 +249,7 @@ fn joined_name(name: string, camel: bool) -> string:
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).
 ## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
-## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Serialize < ?Copy:
     fn serialize[W < Serializer](&self, out: &mut W) -> Result[void, W::Error]
 
@@ -257,19 +257,19 @@ pub trait Serialize < ?Copy:
         false
 
     ## Whether every value's `serialize` makes a regular walk, so a format may write it directly: one value, a key before each map or member value, every key new in its object, and each end matching its begin.
-    ## See [std-serde.regular](../../spec/std/serde.md#r-std-serde.regular).
+    ## See [std-serde.regular](../../../spec/std/serde.md#r-std-serde.regular).
     fn regular() -> bool:
         false
 
 # A value that opts in to be built by every format
 # (r-annot.serde.definition).
 ## A type that can read itself from a `Deserializer`; the compiler knows it for the boundary rule.
-## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Deserialize:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Self, R::Error]
 
 ## The scalar kinds a serialization format may preserve for a map key.
-## See [std-serde.map-key.value](../../spec/std/serde.md#r-std-serde.map-key.value).
+## See [std-serde.map-key.value](../../../spec/std/serde.md#r-std-serde.map-key.value).
 pub enum MapKeyValue:
     Bool(value: bool)
     Int(value: i64)
@@ -285,20 +285,20 @@ impl MapKeyValue:
             .Text(value) => value
 
 ## A value that a serialization format may use as a map key.
-## See [std-serde.map-key.trait](../../spec/std/serde.md#r-std-serde.map-key.trait).
+## See [std-serde.map-key.trait](../../../spec/std/serde.md#r-std-serde.map-key.trait).
 pub trait MapKey:
     fn to_key(&self) -> MapKeyValue
     fn from_key(value: MapKeyValue) -> Self?
 
     ## Whether two different keys always write different `to_key` values, so a map's keys stay new in its object.
-    ## See [std-serde.regular](../../spec/std/serde.md#r-std-serde.regular).
+    ## See [std-serde.regular](../../../spec/std/serde.md#r-std-serde.regular).
     fn distinct() -> bool:
         false
 
 # A format's writer: one call per value of the data model
 # (r-std-serde.model.one-value).
 ## The format side of writing: it receives a value's parts, or fails with an error of its own type.
-## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Serializer:
     type Error
     fn null(&mut self) -> Result[void, Self::Error]
@@ -333,7 +333,7 @@ pub trait Serializer:
 
 # What a self-describing format holds next (r-std-serde.read.peek).
 ## The kind of a single value a `Deserializer` offers.
-## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub enum ValueKind:
     Null
     Bool
@@ -347,7 +347,7 @@ pub enum ValueKind:
 # A format's reader: it pulls one value of the data model at a time
 # (r-std-serde.read.one-value).
 ## The format side of reading: it offers a value's parts, or fails with an error of its own type.
-## See [annot.serde.module.v2](../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
+## See [annot.serde.module.v2](../../../spec/lang/14-annotations.md#r-annot.serde.module.v2).
 pub trait Deserializer:
     type Error
     fn peek(&mut self) -> Result[ValueKind, Self::Error]
@@ -904,7 +904,7 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for DeserializeSource[S, R, 'a]:
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
         if h.fact::[Skip]().is_none():
-            panic("std.serde: the source names every unskipped member")
+            panic("std.encoding: the source names every unskipped member")
         match h.default():
             .Some(value) => .Ok(value)
             .None =>
@@ -1190,7 +1190,7 @@ impl[T < Deserialize, E < Deserialize] Deserialize for Result[T, E]:
         let found: Result[T, E] = match index:
             0 => Result.Ok(T::deserialize(input)?)
             1 => Result.Err(E::deserialize(input)?)
-            _ => panic("std.serde: invalid Result variant index")
+            _ => panic("std.encoding: invalid Result variant index")
         input.end_variant()?
         .Ok(found)
 
@@ -1657,4 +1657,4 @@ impl['a, S < ?Copy, R < Deserializer] Source[S] for TupleReader[S, R, 'a]:
         F::deserialize(&mut *self.input)
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
-        panic("std.serde: the source names every member")
+        panic("std.encoding: the source names every member")

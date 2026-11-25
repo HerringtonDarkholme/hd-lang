@@ -601,8 +601,8 @@ See also: [Decode Errors](encoding.md#decode-errors),
 whole milliseconds, and `Timestamp` as its RFC 3339 text:
 
 ```text
-use std.json.encode
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.encode
+use std.encoding.{Serialize, Deserialize}
 use std.time.{Duration, Timestamp}
 
 @derive(Serialize, Deserialize)
@@ -615,7 +615,7 @@ fn record(lease: Lease) -> string:
     encode(lease)  # {"holder":"ada","granted_at":"2023-11-14T22:13:20Z","term":30000}
 ```
 
-1. r[std-time.serde.impls] `Duration`, `Timestamp`, and `Instant` each implement `std.serde.Serialize` and `std.serde.Deserialize`.
+1. r[std-time.serde.impls] `Duration`, `Timestamp`, and `Instant` each implement `std.encoding.Serialize` and `std.encoding.Deserialize`.
 2. r[std-time.serde.int-form] A `Duration` and an `Instant` each write one `int` holding their milliseconds, as `as_milliseconds()` gives.
 3. r[std-time.serde.text-form] A `Timestamp` writes one text: its RFC 3339 text in UTC with milliseconds, the same text its `Display` gives.
 4. r[std-time.serde.int-read] An `Instant`, and a `Duration` whose value is a number, each read one `int` with the type's name as `expected`, as in `"Duration"`, and hold that many milliseconds.

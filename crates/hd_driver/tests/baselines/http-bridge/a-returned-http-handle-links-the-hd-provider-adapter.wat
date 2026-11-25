@@ -80,7 +80,7 @@
     local.get $t1
     i32.store $heap offset=84
     local.get $t14
-    i32.const 48 ;; &empty-buffer
+    i32.const 64 ;; &empty-buffer
     i32.store $heap offset=80
     local.get $t14
     local.get $t5
@@ -119,7 +119,7 @@
     local.get $t12
     i64.store $heap offset=56
     local.get $t14
-    i32.const 2028 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    i32.const 2048 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
   )
 )
 == @build: checked program
@@ -214,7 +214,7 @@
     local.get $t1
     i32.store $heap offset=84
     local.get $t14
-    i32.const 48 ;; &empty-buffer
+    i32.const 64 ;; &empty-buffer
     i32.store $heap offset=80
     local.get $t14
     local.get $t5
@@ -253,7 +253,7 @@
     local.get $t12
     i64.store $heap offset=56
     local.get $t14
-    i32.const 2372 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    i32.const 2392 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
   )
 )
 == @build: release program
@@ -337,7 +337,7 @@
     local.get $t1
     i32.store $heap offset=84
     local.get $t14
-    i32.const 48 ;; &empty-buffer
+    i32.const 64 ;; &empty-buffer
     i32.store $heap offset=80
     local.get $t14
     local.get $t5
@@ -376,7 +376,7 @@
     local.get $t12
     i64.store $heap offset=56
     local.get $t14
-    i32.const 1944 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    i32.const 1956 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
   )
 )
 == @build: release checked program
@@ -471,7 +471,7 @@
     local.get $t1
     i32.store $heap offset=84
     local.get $t14
-    i32.const 48 ;; &empty-buffer
+    i32.const 64 ;; &empty-buffer
     i32.store $heap offset=80
     local.get $t14
     local.get $t5
@@ -510,6 +510,6 @@
     local.get $t12
     i64.store $heap offset=56
     local.get $t14
-    i32.const 2284 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
+    i32.const 2296 ;; &vtable[rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot, rt:dyn_slot]
   )
 )

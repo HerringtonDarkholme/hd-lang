@@ -58,7 +58,7 @@
     local.get $provider1
     call $rt:release_fresh
     ;; 14 |     println("{sum}")
-    i32.const 183 ;; &"{sum}"
+    i32.const 175 ;; &"{sum}"
     i32.const 5
     local.get $provider0
     local.get $provider0.vtable

@@ -1,6 +1,6 @@
 # std.crypto: cryptographic hashes over bytes (spec/std/crypto.md):
 # `Digest`, the result of a hash, here, and SHA-256 in `std.crypto.sha256`.
-use std.encoding.hex_encode
+use std.encoding.hex.hex_encode
 
 pub use std.crypto.{sha256}
 

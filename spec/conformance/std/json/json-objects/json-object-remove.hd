@@ -1,6 +1,6 @@
 # test: JsonObject.remove gives the removed value, keeps the order of the other members, gives none for a missing key, and keeps lookups right in an object with an index
 # Spec std/json Json Objects: std-json.object.remove-ref, std-json.object.order.
-use std.json.{Json, JsonObject}
+use std.encoding.json.{Json, JsonObject}
 
 tests:
     use std.testing.{assert, assert_equal}

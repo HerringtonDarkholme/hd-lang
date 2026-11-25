@@ -1,6 +1,6 @@
 # test: attaching EnumTagging.Internal directly still applies the internal-shape check
 # Rule: std-serde.enum-tagging.internal-shapes.
-use std.serde.{EnumTagging, Serialize}
+use std.encoding.{EnumTagging, Serialize}
 
 @derive(Serialize)
 @EnumTagging.Internal("kind")

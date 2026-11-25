@@ -160,8 +160,8 @@ fn existing_read_only_string_helpers_keep_their_effects() {
         clock: &NoClock,
         executor: Executor::Serial(SerialOrder::Priority),
         render_tir: &[
-            "std/serde/member_name",
-            "std/serde/case_name",
+            "std/encoding.serde/member_name",
+            "std/encoding.serde/case_name",
             "std/text/concat_all",
             "app/main/impl Reader.name",
         ],
@@ -180,7 +180,7 @@ fn existing_read_only_string_helpers_keep_their_effects() {
         },
     );
     assert!(!out.diags.has_errors(), "{}", out.render());
-    let owned = &out.own_text["std/serde/member_name"].text;
+    let owned = &out.own_text["std/encoding.serde/member_name"].text;
     assert!(
         owned
             .lines()

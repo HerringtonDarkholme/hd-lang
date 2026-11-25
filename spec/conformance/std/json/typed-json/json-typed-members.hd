@@ -2,8 +2,8 @@
 # Spec std/json Derived Serialize, Derived Deserialize, Encode And Decode: std-json.derive.to-json.embedded-wire-name, std-json.derive.to-json.shared, std-json.derive.from-json.inverse, std-json.from-json.root.
 # Spec std/serde Derived Implementations: std-serde.derive.shared, std-serde.derive.serialize.template, std-serde.derive.deserialize.template.
 # Spec 09 Derived Newtypes: trait.derive.newtype.templated, trait.derive.newtype.self-positions.
-use std.json.{encode, decode, from_json, parse, Json, JsonError}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{encode, decode, from_json, parse, Json, JsonError}
+use std.encoding.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
 type OrderId(u64)
 

@@ -50,7 +50,7 @@ impl Eq for Digest
 ```text
 use std.crypto.{Digest}
 use std.crypto.sha256.{sha256}
-use std.encoding.hex_decode
+use std.encoding.hex.hex_decode
 
 fn signature_matches(body: List[u8], sent_hex: string) -> bool:
     match hex_decode(sent_hex):
@@ -152,7 +152,7 @@ impl Sha256:
 ```text
 use std.crypto.{Digest}
 use std.crypto.sha256.{Sha256}
-use std.encoding.hex_decode
+use std.encoding.hex.hex_decode
 
 fn signature_ok(secret: string, body: string, sent_hex: string) -> bool:
     match hex_decode(sent_hex):

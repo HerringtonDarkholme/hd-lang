@@ -1,7 +1,7 @@
 # test: regex named groups decode records through Deserialize, including optional groups and decode errors
 # expect: test
 use std.regex.{Regex, RegexError}
-use std.serde.{Deserialize, rename}
+use std.encoding.{Deserialize, rename}
 use std.text.r
 use std.testing.assert_equal
 

@@ -1,6 +1,6 @@
 # test: a direct Rename fact still participates in internal tag collision checks
 # Rule: std-serde.enum-tagging.internal-name-conflict.
-use std.serde.{Rename, Serialize, tag}
+use std.encoding.{Rename, Serialize, tag}
 
 @derive(Serialize)
 @tag("kind")

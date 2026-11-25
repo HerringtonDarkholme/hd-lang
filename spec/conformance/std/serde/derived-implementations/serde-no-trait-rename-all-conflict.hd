@@ -1,6 +1,6 @@
 # test: no-trait metadata and direct qualified RenameAll facts participate in tag collision checks
 # Rule: std-serde.enum-tagging.internal-name-conflict.
-use std.serde.{RenameAll, RenameCase, Serialize, tag}
+use std.encoding.{RenameAll, RenameCase, Serialize, tag}
 use std.meta.Structure
 
 @derive(Serialize)

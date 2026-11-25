@@ -42,14 +42,14 @@ use std.hash.Hasher
 use std.host.{Env, Sys, env}
 use std.cli.{Args, args}
 use std.meta.Inspectable
-use std.json.{Json, JsonError, decode, encode, encode_pretty, parse}
+use std.encoding.json.{Json, JsonError, decode, encode, encode_pretty, parse}
 use std.num.ParseNumberError
 use std.ops.{Add, Disposable, Div, Index, Mul, Neg, Sub, defer}
 use std.path.Path
 use std.process.{Command, ExitCode, Process}
 use std.random.{Random, Rng, SeededRandom, rng}
 use std.regex.Regex
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 use std.task.{Backoff, TimedOut, apply, fallback, join, race, retry, timeout, with_timeout}
 use std.testing.{hd_run, it_each, it_prop, snapshot, snapshot_file, temp_dir}
 use std.text.{StringBuilder, r}

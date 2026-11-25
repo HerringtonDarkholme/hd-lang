@@ -158,7 +158,7 @@
       { "name": "InvalidValue", "fields": [{ "name": "name", "type": "string" }, { "name": "reason", "type": "string" }] },
       { "name": "Missing", "fields": [{ "name": "name", "type": "string" }] }
     ] },
-    "JsonError": { "kind": "enum", "module": "lib/std/json.hd", "generics": [], "variants": [
+    "JsonError": { "kind": "enum", "module": "lib/std/encoding/json.hd", "generics": [], "variants": [
       { "name": "UnexpectedEnd", "fields": [{ "name": "position", "type": "usize" }] },
       { "name": "UnexpectedCharacter", "fields": [{ "name": "position", "type": "usize" }] },
       { "name": "InvalidEscape", "fields": [{ "name": "position", "type": "usize" }] },

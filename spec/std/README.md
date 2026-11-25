@@ -237,10 +237,10 @@ file of its own.
 | [`result.md`](result.md) | `std.result` | `std-result` | the methods `and_then`, `map_err`, `unwrap_or`, `map`, `ok`, `err`, `is_ok`, `is_err`, and `expect` of `Result[T, E]` |
 | [`num.md`](num.md) | `std.num` | `std-num` | checked, wrapping, and saturating integer methods, `abs_diff`, and the bit counts on every integer type; `is_nan` and `is_finite`; integer parsing with `ParseNumberError`; `parse_f64`; `to_fixed` |
 | [`error.md`](error.md) | `std.error` | `std-error` | the cause chain `chain`, what `root_cause` and `find` return, the boundary-safe `ErrorReport`, `report_of`, and `Result.context` with private error wrappers |
-| [`encoding.md`](encoding.md) | `std.encoding` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, the enum `Base64` with `encode` and `decode`, and `DecodeError` |
+| [`encoding.md`](encoding.md) | `std.encoding`, `std.encoding.hex`, `std.encoding.base64` | `std-encoding` | hex and base64 text for bytes: `hex_encode`, `hex_decode`, the enum `Base64` with `encode` and `decode`, and `DecodeError` |
 | [`crypto.md`](crypto.md) | `std.crypto`, `std.crypto.sha256` | `std-crypto` | `Digest` with constant-time equality; in `sha256`, the streaming `Sha256` with `Sha256::hmac`, and `sha256` |
-| [`json.md`](json.md) | `std.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode` |
-| [`serde.md`](serde.md) | `std.serde` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
+| [`json.md`](json.md) | `std.encoding.json` | `std-json` | the untyped `Json` value, `Number`, `parse`, `JsonError`, `pretty`, and the `Display` text; JSON as a format over the serialization opt-in: `to_json`, `from_json`, `encode`, and `decode` |
+| [`serde.md`](serde.md) | `std.encoding` | `std-serde` | the data model of `Serializer` and `Deserializer`, the calls of derived `Serialize` and `Deserialize`, and the standard implementations |
 | [`cli.md`](cli.md) | `std.cli` | `std-cli` | the command line: the host trait `Args`, the helper `args`, the provider `ScriptedArgs`, and argument parsing for scripts: the `Cli` builder, `parse`, `parse_args`, `Parsed`, `CliError`, and `usage` |
 | [`regex.md`](regex.md) | `std.regex` | `std-regex` | regular expressions in the RE2 subset: `Regex`, `is_match`, `find`, `Match`, and `RegexError` |
 | [`remote.md`](remote.md) | `std.remote` | `std-remote` | the homes `per_request` and `home`, served functions `Call` and `action`, and the HTTP adapters `http_transport` and `http_handler` |

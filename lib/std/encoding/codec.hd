@@ -1,0 +1,27 @@
+# The parts std.encoding's hex and base64 codecs share: `DecodeError`,
+# which std.encoding re-exports, and a zero-filled buffer. The module is
+# private to std.encoding (spec/std/encoding.md).
+
+# Why decoding failed, at a byte offset into the text
+# (r-std-encoding.error.position-bytes).
+## Why decoding failed: the kind, and the byte position.
+## See [std-encoding.error.declared](../../../spec/std/encoding.md#r-std-encoding.error.declared).
+@error
+@derive(Debug, Eq)
+pub enum DecodeError:
+    # A character outside the alphabet.
+    @error("invalid character at position $position")
+    InvalidCharacter(position: usize)
+    # The text stops inside a unit; `position` is its length.
+    @error("invalid length: the text ends at position $position")
+    InvalidLength(position: usize)
+    # A misplaced `=`, or nonzero pad bits in the last symbol.
+    @error("invalid padding at position $position")
+    InvalidPadding(position: usize)
+
+# A list of `count` zero bytes, written once by index.
+pub fn zeroes(count: usize) -> List[u8]:
+    let mut values: List[u8] = []
+    while values.len() < count:
+        values.push(0)
+    values

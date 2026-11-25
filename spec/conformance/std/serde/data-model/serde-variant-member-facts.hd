@@ -1,7 +1,7 @@
 # test: begin_variant gets the type's facts and the variant's VariantInfo, and member gets each member's Member with the facts its derivation sees
 # Spec std/serde Data Model: std-serde.model.data-args.local-ref, std-serde.model.variant-args.local-ref, std-serde.model.member-args.local-ref, std-serde.model.data-record, std-serde.model.enum-record.
 # Spec 14 Structure: annot.structure.per-derivation.
-use std.serde.{Serialize, Serializer}
+use std.encoding.{Serialize, Serializer}
 use std.meta.{Structure, Facts, VariantInfo, Member}
 struct Topic:
     name: string

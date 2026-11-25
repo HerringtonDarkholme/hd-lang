@@ -2,25 +2,29 @@
 
 Status: standard library specification draft.
 
-This chapter defines `std.encoding`, which `lib/std` writes in ordinary hd
-over the language tier:
+This chapter defines bytes as text in `std.encoding`, which `lib/std`
+writes in ordinary hd over the language tier:
 
-- hex text for bytes: `hex_encode` and `hex_decode`;
-- base64 text for bytes, in the four encodings of
+- hex text for bytes in `std.encoding.hex`: `hex_encode` and `hex_decode`;
+- base64 text for bytes in `std.encoding.base64`, in the four encodings of
   [RFC 4648](https://www.rfc-editor.org/rfc/rfc4648) sections 4 and 5,
   as the enum `Base64` with `encode` and `decode`;
-- `DecodeError`, the error that both decoders return.
+- `DecodeError` in `std.encoding`, the error that both decoders return.
+
+`std.encoding` also holds the serialization opt-in
+([Serde](serde.md)) and JSON in `std.encoding.json`
+([JSON](json.md)).
 
 Nothing in it is language tier. Bytes are a `List[u8]`. The bytes of a
 string come from the language-tier `bytes` method
 ([`module.string.bytes`](../lang/10-modules.md#r-module.string.bytes)), as
 in `text.bytes().collect()`.
 
-1. r[std-encoding.import] `std.encoding` declares `DecodeError`, `Base64`, `hex_encode`, and `hex_decode`. None is a prelude name; code imports them, as in `use std.encoding.hex_encode`.
+1. r[std-encoding.import] `std.encoding.hex` declares `hex_encode` and `hex_decode`, `std.encoding.base64` declares `Base64`, and `std.encoding` exports `DecodeError`. None is a prelude name; code imports them, as in `use std.encoding.hex.hex_encode`.
 2. r[std-encoding.no-panic] None of these functions panics.
 
 ```text
-use std.encoding.hex_encode
+use std.encoding.hex.hex_encode
 
 fn hex_of(text: string) -> string:
     hex_encode(text.bytes().collect())
@@ -31,7 +35,8 @@ fn hex_of(text: string) -> string:
 Hex text writes each byte as two digits:
 
 ```text
-use std.encoding.{hex_decode, hex_encode, DecodeError}
+use std.encoding.DecodeError
+use std.encoding.hex.{hex_decode, hex_encode}
 
 fn fingerprint(text: string) -> string:
     hex_encode(text.bytes().collect())  # "666f6f" for "foo"
@@ -77,7 +82,8 @@ pub enum Base64:
 ```
 
 ```text
-use std.encoding.{Base64, DecodeError}
+use std.encoding.DecodeError
+use std.encoding.base64.Base64
 
 fn token(bytes: List[u8]) -> string:
     Base64.Standard.encode(bytes)  # "Zm9vYg==" for the bytes of "foob"
@@ -89,7 +95,7 @@ fn payload(text: string) -> Result[List[u8], DecodeError]:
     Base64.UrlNoPad.decode(text)
 ```
 
-1. r[std-encoding.base64.variants] `std.encoding` declares the enum `Base64` with the variants `Standard`, `StandardNoPad`, `Url`, and `UrlNoPad`, none with a field. `Base64` implements `Eq` and `Debug`.
+1. r[std-encoding.base64.variants] `std.encoding.base64` declares the enum `Base64` with the variants `Standard`, `StandardNoPad`, `Url`, and `UrlNoPad`, none with a field. `Base64` implements `Eq` and `Debug`.
 
 | Variant | Alphabet | Padding | Used by |
 | --- | --- | --- | --- |
@@ -121,7 +127,7 @@ fn payload(text: string) -> Result[List[u8], DecodeError]:
 4. r[std-encoding.base64.encode.pad-bits] The low bits of the last symbol that encode no byte, the **pad bits**, are zero.
 
 ```text
-use std.encoding.Base64
+use std.encoding.base64.Base64
 
 fn token(bytes: List[u8]) -> string:
     Base64.Standard.encode(bytes)
@@ -149,7 +155,8 @@ fn padded() -> List[string]:
 7. r[std-encoding.base64.decode.order] The length is checked first. Among the other errors, the one at the smallest position is the result.
 
 ```text
-use std.encoding.{Base64, DecodeError}
+use std.encoding.DecodeError
+use std.encoding.base64.Base64
 
 fn problem(text: string) -> DecodeError?:
     match Base64.Standard.decode(text):
@@ -204,7 +211,7 @@ pub enum DecodeError:
     InvalidPadding(position: usize)
 ```
 
-1. r[std-encoding.error.declared] `std.encoding` declares the enum `DecodeError` with the variants `InvalidCharacter`, `InvalidLength`, and `InvalidPadding`, each with one field `position: usize`.
+1. r[std-encoding.error.declared] `std.encoding` exports the enum `DecodeError` with the variants `InvalidCharacter`, `InvalidLength`, and `InvalidPadding`, each with one field `position: usize`.
 2. r[std-encoding.error.position-bytes] A `position` is a byte offset into the text, counted in bytes of its UTF-8 encoding from 0, as [`slice`](../lang/10-modules.md#r-module.string.byte-offsets) counts.
 3. r[std-encoding.error.traits] `DecodeError` implements `Eq`, `Debug`, and `Display`.
 

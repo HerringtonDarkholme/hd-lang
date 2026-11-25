@@ -178,7 +178,7 @@ The compiler's units are module groups, not these layers
 Core and runtime modules see only `std.core`'s prelude row; explicit
 imports determine their other dependencies. The entry
 glue (`hd_driver::RT_SOURCE`, module `std.rt.entry`) and the checked
-runtime use `std.format`, `std.process`, `std.error` and `std.json`, so
+runtime use `std.format`, `std.process`, `std.error` and `std.encoding.json`, so
 each is a layer of its own under `rt/`, above the root. Every other
 prelude origin is in layer `std`, so the fixed uses give every other
 layer an edge to `std`.

@@ -1,6 +1,6 @@
 # @dump: diagnostics
 use std.meta.Structure
-use std.serde.Serialize
+use std.encoding.Serialize
 
 struct Session:
     id: i64

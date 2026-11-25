@@ -3,7 +3,7 @@
 # The lookup is known absent, but reading `T::facts()` must still call the
 # once-evaluated fact body and preserve its panic.
 use std.meta.annotate
-use std.serde.EnumTagging
+use std.encoding.EnumTagging
 use std.meta.{Field, Structure, Variant, Walker}
 
 @annotate(.Data)

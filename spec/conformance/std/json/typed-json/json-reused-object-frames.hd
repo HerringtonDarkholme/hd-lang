@@ -1,7 +1,7 @@
 # test: successive JSON objects retain only their own active keys and last values
 # Spec std/json Encode And Decode: std-json.decode.direct.v2, std-json.decode.no-tree, std-json.parse.object.duplicate-last, std-json.object.order, std-json.derive.duplicate-field.
-use std.json.{decode, parse, from_json, JsonError}
-use std.serde.Deserialize
+use std.encoding.json.{decode, parse, from_json, JsonError}
+use std.encoding.Deserialize
 use std.testing.assert_equal
 
 @derive(Deserialize, Eq, Debug)

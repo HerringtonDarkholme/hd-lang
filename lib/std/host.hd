@@ -5,7 +5,7 @@
 # The default profile binds host `Args`, `Env`, and `Sys`
 # (src/commands/default-profile.ts).
 use std.error.Error
-use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.encoding.{Deserialize, Deserializer, ValueKind}
 use std.meta.{Facts, Member, VariantInfo}
 use std.text.Parse
 
@@ -260,8 +260,8 @@ impl Sys for ScriptedSys:
 # multiply nesting depth. A value that does not deserialize is the
 # `host-contract` panic the caller sees. These stay last so they change no
 # existing item ID.
-use std.json.{Json, JsonError, JsonObject, Number, to_json, from_json, encode, decode}
-use std.serde.Serialize
+use std.encoding.json.{Json, JsonError, JsonObject, Number, to_json, from_json, encode, decode}
+use std.encoding.Serialize
 
 @intrinsic("panic")
 fn contract_panic(category: string, message: string) -> never:
