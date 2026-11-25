@@ -23,6 +23,11 @@ mod tests {
                 name: "max_depth",
                 value: 2,
             },
+            Knob {
+                pass: "sroa",
+                name: "cold_spill",
+                value: 1,
+            },
         ],
     };
 
@@ -60,9 +65,9 @@ mod tests {
     }
 
     /// `V8` and `Browser` share keys while their content is equal.
-    /// `Wasmtime` shares their TIR passes and knobs, but its link inlines
-    /// the count fast paths (#644), which splits its key. A knob splits a
-    /// key too.
+    /// `Wasmtime` shares their TIR passes, but its link inlines the count
+    /// fast paths (#644) and its `sroa` spills nothing around a cold call,
+    /// which split its key. A knob splits a key too.
     #[test]
     fn equal_content_shares_a_key_and_a_knob_splits_it() {
         for level in OptLevel::ALL {
