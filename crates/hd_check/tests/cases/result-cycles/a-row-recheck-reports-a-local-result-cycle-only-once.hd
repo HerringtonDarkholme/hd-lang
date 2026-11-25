@@ -1,0 +1,13 @@
+# @dump: diagnostics
+# Solving Console rechecks first; report grow at its source only once.
+fn first(n: i32) -> void:
+    fn grow():
+        [grow()]
+    _ := grow
+    if n > 0:
+        second(n - 1)
+
+fn second(n: i32) -> void:
+    if n > 0:
+        first(n - 1)
+    println("done")
