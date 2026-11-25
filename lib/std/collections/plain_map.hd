@@ -70,7 +70,7 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
 
     @inline(.Always)
     pub fn len(&self) -> usize:
-        self.head().as_ref().len
+        self.block.len
 
     @inline(.Always)
     pub fn is_empty(&self) -> bool:
@@ -84,12 +84,12 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
 
     @inline(.Always)
     fn slots(&self) -> Ptr[Slot[K, V]]:
-        slots_of::[K, V](self.ctrl(), self.head().as_ref().mask)
+        slots_of::[K, V](self.ctrl(), self.block.mask)
 
     # The bucket holding `key`, or `buckets` (mask + 1) when none does.
     @inline(.Always)
     fn find(&self, key: &K, hash: u32) -> usize:
-        mask := self.head().as_ref().mask
+        mask := self.block.mask
         ctrl := self.ctrl()
         slots := slots_of::[K, V](ctrl, mask)
         tag := u64(hash >> 25) * LO
@@ -132,9 +132,9 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
     pub fn get(&self, key: &K) -> V?:
         if self.len() == 0:
             return .None
-        hash := hash_key(*key, self.head().as_ref().seed)
+        hash := hash_key(*key, self.block.seed)
         at := self.find(key, hash)
-        if at > self.head().as_ref().mask:
+        if at > self.block.mask:
             return .None
         .Some(self.slots().offset(at).as_ref().value)
 
@@ -142,28 +142,28 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
     pub fn contains_key(&self, key: &K) -> bool:
         if self.len() == 0:
             return false
-        hash := hash_key(*key, self.head().as_ref().seed)
-        self.find(key, hash) <= self.head().as_ref().mask
+        hash := hash_key(*key, self.block.seed)
+        self.find(key, hash) <= self.block.mask
 
     ## Inserts or replaces; a shared block is copied first.
     pub fn insert(&mut self, key: K, value: V) -> void:
         if !is_unique(self.block):
             self.rebuild(0, false)
-        hash := hash_key(key, self.head().as_ref().seed)
+        hash := hash_key(key, self.block.seed)
         if self.len() != 0:
             at := self.find(&key, hash)
-            if at <= self.head().as_ref().mask:
+            if at <= self.block.mask:
                 self.slots().offset(at).as_mut().value = value
                 return
         let mut ctrl = self.ctrl()
-        let mut mask = self.head().as_ref().mask
+        let mut mask = self.block.mask
         let mut at = PlainMap::[K, V].find_empty(ctrl, mask, hash)
         # A tombstone takes the entry with no room spent; an empty bucket
         # spends room, and with none left the table is rebuilt first.
-        if load_u8(ctrl + at) == EMPTY && self.head().as_ref().left == 0:
+        if load_u8(ctrl + at) == EMPTY && self.block.left == 0:
             self.rebuild(self.len() + 1, true)
             ctrl = self.ctrl()
-            mask = self.head().as_ref().mask
+            mask = self.block.mask
             at = PlainMap::[K, V].find_empty(ctrl, mask, hash)
         h := self.head().as_mut()
         if load_u8(ctrl + at) == EMPTY:
@@ -177,13 +177,13 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
     pub fn remove(&mut self, key: &K) -> V?:
         if self.len() == 0:
             return .None
-        hash := hash_key(*key, self.head().as_ref().seed)
-        if self.find(key, hash) > self.head().as_ref().mask:
+        hash := hash_key(*key, self.block.seed)
+        if self.find(key, hash) > self.block.mask:
             return .None
         if !is_unique(self.block):
             self.rebuild(0, false)
         ctrl := self.ctrl()
-        mask := self.head().as_ref().mask
+        mask := self.block.mask
         at := self.find(key, hash)
         PlainMap::[K, V].set_ctrl(ctrl, mask, at, DELETED)
         self.head().as_mut().len -= 1
@@ -194,7 +194,7 @@ impl[K < Eq & Hash, V] PlainMap[K, V]:
     ## order.
     pub fn iter['a](&'a self) -> PlainMapIter[K, V, 'a]:
         ctrl := self.ctrl()
-        mask := self.head().as_ref().mask
+        mask := self.block.mask
         n := if self.len() == 0: 0 else: mask + 1
         PlainMapIter { map: self, ctrl: ctrl, slots: slots_of::[K, V](ctrl, mask), at: 0, end: n }
 
