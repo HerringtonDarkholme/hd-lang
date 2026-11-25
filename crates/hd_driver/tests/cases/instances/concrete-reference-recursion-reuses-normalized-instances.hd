@@ -1,0 +1,29 @@
+# @dump: stdout wat
+# @build: dev | checked
+# Finite concrete calls share unobserved reference permissions, including cycles.
+fn shared[T < ?Copy](n: i32) -> i32:
+    if n == 0:
+        return 0
+    shared::[&i32](n - 1) + 1
+
+fn changing[T < ?Copy](n: i32) -> i32:
+    if n == 0:
+        return 0
+    changing::[&mut i32](n - 1) + 1
+
+fn left[T < ?Copy](n: i32) -> i32:
+    if n == 0:
+        return 0
+    right::[&mut i32](n - 1) + 1
+
+fn right[T < ?Copy](n: i32) -> i32:
+    if n == 0:
+        return 0
+    left::[&i32](n - 1) + 1
+
+# subject
+pub fn main() -> void $ Console:
+    println(shared::[&mut i32](+3))
+    println(changing::[&i32](+4))
+    println(left::[&mut i32](+5))
+    println(right::[&i32](+6))

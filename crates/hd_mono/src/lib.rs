@@ -1519,21 +1519,15 @@ impl Cx<'_> {
     }
 
     /// Pushes an instance that `parent` requests; returns its key. A new
-    /// instance over a limit of `crates/hd_mono/DESIGN.md` §13.4 stops collection. `raw`
-    /// is the request's type arguments before A1 classification: when a
-    /// request re-enters an ancestor instance with a differently shaped
-    /// request, the recursion grows concrete types through erased
-    /// positions, which is polymorphic recursion
-    /// (`types.generic.polymorphic-recursion`).
+    /// instance over a limit of `crates/hd_mono/DESIGN.md` §13.4 stops collection.
     fn push(
         &mut self,
         item: DefId,
         sub: Sub,
         args: TyList,
-        raw: TyList,
         parent: InstId,
     ) -> StageResult<Hash128> {
-        self.push_known(item, sub, args, raw, &[], parent)
+        self.push_known(item, sub, args, &[], parent)
     }
 
     /// [`Self::push`] of the instance specialized on `known` (option A2 of
@@ -1543,11 +1537,10 @@ impl Cx<'_> {
         item: DefId,
         sub: Sub,
         args: TyList,
-        raw: TyList,
         known: &[(u32, Hash128)],
         parent: InstId,
     ) -> StageResult<Hash128> {
-        self.push_specialized(item, sub, args, raw, known, &[], parent)
+        self.push_specialized(item, sub, args, known, &[], parent)
     }
 
     fn push_specialized(
@@ -1555,26 +1548,15 @@ impl Cx<'_> {
         item: DefId,
         sub: Sub,
         args: TyList,
-        raw: TyList,
         known: &[(u32, Hash128)],
         defaults: &[(u32, defaults::Value)],
         parent: InstId,
     ) -> StageResult<Hash128> {
         let table = &self.out.table;
         if let Some(id) = table.get_with_defaults(item, sub, args, known, defaults) {
-            let key = table.key[id.idx()];
-            // Re-entering an ancestor instance with a differently shaped
-            // request passes ever larger concrete types through
-            // reference layouts that classify alike: each cycle wraps
-            // again, so collection would never reach a limit on its own
-            // (`types.generic.polymorphic-recursion`). An identical
-            // request is ordinary recursion; a hit outside the
-            // requester's ancestry is a shared instance, not a cycle.
-            let changed = raw != table.args[id.idx()];
-            if changed && table.is_generic_ancestor(id, parent) {
-                return Err(self.stop_poly_recursion(item, raw, parent));
-            }
-            return Ok(key);
+            // The lookup compares the complete normalized specialization key.
+            // A raw permission difference does not grow the instance graph.
+            return Ok(table.key[id.idx()]);
         }
         let table = &self.out.table;
         let chain = table.request_chain_len(parent, args);
@@ -1633,8 +1615,7 @@ impl Cx<'_> {
             return Ok(t);
         }
         let mark = [defaults::EXCLUSIVE];
-        let key =
-            self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], &mark, caller)?;
+        let key = self.push_specialized(t.item, Sub::Body(0), t.args, &[], &mark, caller)?;
         let table = &self.out.table;
         if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], &mark) {
             self.out.instance_bodies.entry(id).or_insert(copy);
@@ -1696,7 +1677,7 @@ impl Cx<'_> {
         // promotion facts have not changed, so this subset is already proved.
         let marks = [defaults::promoted(by_value), defaults::EXCLUSIVE];
         let mark = if exclusive { &marks[..] } else { &marks[..1] };
-        let key = self.push_specialized(t.item, Sub::Body(0), t.args, t.args, &[], mark, caller)?;
+        let key = self.push_specialized(t.item, Sub::Body(0), t.args, &[], mark, caller)?;
         let table = &self.out.table;
         if let Some(id) = table.get_with_defaults(t.item, Sub::Body(0), t.args, &[], mark) {
             self.out.instance_bodies.entry(id).or_insert(copy);
@@ -1746,8 +1727,7 @@ impl Cx<'_> {
         let Some(transformed) = defaults::specialize(callee, &values) else {
             return Ok(None);
         };
-        let raw = rowless(self.pool, self.env, def, targs);
-        let key = self.push_specialized(def, Sub::Body(0), inst, raw, &[], &values, parent)?;
+        let key = self.push_specialized(def, Sub::Body(0), inst, &[], &values, parent)?;
         if let Some(id) = self
             .out
             .table
@@ -1824,54 +1804,6 @@ impl Cx<'_> {
         };
         let message = format!(
             "instantiating {last} does not end: {why}; the chain: {}",
-            shown.join(" -> ")
-        );
-        self.too_deep = Some(TooDeep {
-            at: self.at,
-            message,
-        });
-        NotImplemented::new(Stage::Collect, "instantiation-too-deep")
-    }
-
-    /// Records polymorphic recursion through reference layouts
-    /// (`types.generic.polymorphic-recursion`): the request of `item`
-    /// re-enters an ancestor instance with a differently shaped request,
-    /// so concrete types grow through positions that classify alike and
-    /// no depth limit trips. Same `instantiation-too-deep` error as
-    /// [`Self::stop_too_deep`].
-    fn stop_poly_recursion(&mut self, item: DefId, args: TyList, parent: InstId) -> NotImplemented {
-        let table = &self.out.table;
-        let mut ids = Vec::new();
-        let mut p = parent;
-        while p != InstId::NONE {
-            ids.push(p);
-            p = table.parent[p.idx()];
-        }
-        ids.reverse();
-        let name = |item: DefId, args: TyList| {
-            let args = self.pool.list_items(args);
-            if args.is_empty() {
-                format!("`{}`", self.env.describe(item))
-            } else {
-                let shown: Vec<String> = args
-                    .iter()
-                    .map(|&t| shown_type(self.pool, self.env, t))
-                    .collect();
-                format!("`{}[{}]`", self.env.describe(item), shown.join(", "))
-            }
-        };
-        let mut shown: Vec<String> = ids
-            .iter()
-            .take(3)
-            .map(|id| name(table.item[id.idx()], table.args[id.idx()]))
-            .collect();
-        if ids.len() > 3 {
-            shown.push("...".to_owned());
-        }
-        shown.push(name(item, args));
-        let last = format!("`{}`", self.env.describe(item));
-        let message = format!(
-            "instantiating {last} does not end: its type arguments grow through reference layouts that classify alike; the chain: {}",
             shown.join(" -> ")
         );
         self.too_deep = Some(TooDeep {
@@ -2108,7 +2040,7 @@ impl Cx<'_> {
             .first()
             .is_some_and(|&self_ty| self.out.supplied.contains_key(&(def, self_ty)))
         {
-            let key = self.push(def, Sub::Body(0), args, args, parent)?;
+            let key = self.push(def, Sub::Body(0), args, parent)?;
             return Ok(CallTarget {
                 key,
                 item: def,
@@ -2153,20 +2085,13 @@ impl Cx<'_> {
             ));
         }
         let own_from = self.env.parent(def).map_or(0, |p| p.1);
-        let raw = args;
         let args = self.classify(def, self.pool.list_items(args), own_from);
         // One instance serves every row of the item's own row parameters
         // (`req.poly.one-body`, §12.4): it is keyed at the open row, and
         // the target keeps the call's rows, whose keys the caller passes
         // in the context.
         let (pool, env) = (self.pool, self.env);
-        let key = self.push(
-            def,
-            Sub::Body(0),
-            rowless(pool, env, def, args),
-            rowless(pool, env, def, raw),
-            parent,
-        )?;
+        let key = self.push(def, Sub::Body(0), rowless(pool, env, def, args), parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -2457,7 +2382,7 @@ impl Cx<'_> {
             }
         }
         let args = self.pool.list(&[&[self_ty], targs].concat());
-        let key = self.push(method, Sub::Body(0), args, args, parent)?;
+        let key = self.push(method, Sub::Body(0), args, parent)?;
         Ok(Some(CallTarget {
             key,
             item: method,
@@ -2494,7 +2419,7 @@ impl Cx<'_> {
             let body = self.env.dbg_body(def, key, ty, debug)?;
             self.out.supplied.insert((def, ty), Arc::new(body));
         }
-        let key = self.push(def, Sub::Body(0), args, args, parent)?;
+        let key = self.push(def, Sub::Body(0), args, parent)?;
         Ok(CallTarget {
             key,
             item: def,
@@ -2890,7 +2815,7 @@ impl Cx<'_> {
             return Ok(Specialize::Plain);
         }
         let inst = rowless(pool, env, def, cargs);
-        let key = self.push_known(def, Sub::Body(0), inst, inst, &known, id)?;
+        let key = self.push_known(def, Sub::Body(0), inst, &known, id)?;
         let ret = env.ret(def).unwrap_or(Ty::VOID);
         // As in `target`: keyed at the open row, called at the call's rows.
         Ok(Specialize::Copy(CallTarget {
@@ -3444,15 +3369,8 @@ impl Cx<'_> {
                     } else {
                         args
                     };
-                    let key = self.push_specialized(
-                        item,
-                        Sub::Body(sub_k),
-                        at,
-                        at,
-                        &carried,
-                        &defaults,
-                        id,
-                    )?;
+                    let key =
+                        self.push_specialized(item, Sub::Body(sub_k), at, &carried, &defaults, id)?;
                     let shared = if at == args {
                         instance_body.clone()
                     } else {
@@ -3482,7 +3400,7 @@ impl Cx<'_> {
                     let targs: Vec<Ty> =
                         pool.list_items(TyList(l)).iter().copied().map(s).collect();
                     let pushed = pool.list(&targs);
-                    let key = self.push(DefId::from_raw(d), Sub::Adapter, pushed, pushed, id)?;
+                    let key = self.push(DefId::from_raw(d), Sub::Adapter, pushed, id)?;
                     calls.insert(ix, Target::Closure(key));
                 }
                 Tag::Coerce => {
@@ -3954,16 +3872,10 @@ impl Cx<'_> {
         extra: &[(DefId, TyList)],
     ) -> StageResult<()> {
         if let Some(root) = root {
-            self.push(
-                root,
-                Sub::Body(0),
-                TyList::EMPTY,
-                TyList::EMPTY,
-                InstId::NONE,
-            )?;
+            self.push(root, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
         }
         for i in inits {
-            let k = self.push(*i, Sub::Body(0), TyList::EMPTY, TyList::EMPTY, InstId::NONE)?;
+            let k = self.push(*i, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             self.out.inits.push(k);
         }
         // Extra roots with type arguments: the test cases after the first
@@ -3997,13 +3909,7 @@ impl Cx<'_> {
         if self.worker_sends
             && let Some((.., serve, _)) = self.env.crossing_items()
         {
-            let key = self.push(
-                serve,
-                Sub::Body(0),
-                TyList::EMPTY,
-                TyList::EMPTY,
-                InstId::NONE,
-            )?;
+            let key = self.push(serve, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             self.out.worker = Some((serve, key));
             while next < self.work.len() {
                 let id = self.work[next];
@@ -4032,13 +3938,7 @@ impl Cx<'_> {
             }
             let body = self.env.crossing_run_body(def, &arms)?;
             self.out.supplied.insert((def, Ty::VOID), Arc::new(body));
-            self.push(
-                def,
-                Sub::Body(0),
-                TyList::EMPTY,
-                TyList::EMPTY,
-                InstId::NONE,
-            )?;
+            self.push(def, Sub::Body(0), TyList::EMPTY, InstId::NONE)?;
             while next < self.work.len() {
                 let id = self.work[next];
                 next += 1;
