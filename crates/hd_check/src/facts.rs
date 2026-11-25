@@ -963,7 +963,12 @@ fn check_annotate(
         .children()
         .filter(|d| d.kind() == SyntaxKind::Decorator)
         .filter(|d| decorator_def(cx, *d) == Some(cx.names.known.annotate))
-        .filter_map(|d| d.children().next())
+        .filter_map(|d| {
+            Some((
+                d.children().next()?,
+                cx.lookup.item(cx.names.known.annotate)?,
+            ))
+        })
         .peekable();
     if expressions.peek().is_none() {
         return Ok(());
@@ -980,7 +985,7 @@ fn check_annotate(
         diags,
     );
     let block = ck.b.open_block();
-    for e in expressions {
+    for (e, item) in expressions {
         ck.move_to(cx.src.span(e).lo);
         let callee = match e.kind() {
             SyntaxKind::CallExpr => e.children().next(),
@@ -996,12 +1001,12 @@ fn check_annotate(
             // then check the value arguments at annotate's default T. In
             // particular, a pattern may mention a `?Copy` parameter.
             let explicit = ck.callee_targs(path, list)?;
-            if let Some(sig) = cx.lookup.item(cx.names.known.annotate).and_then(Item::sig) {
+            if let Some(sig) = item.sig() {
                 ck.fresh_generics(sig, &explicit, e)?;
             }
         }
         let args = ck.args_of(hd_resolve::Src::child(e, SyntaxKind::ArgumentList));
-        ck.call_item(cx.names.known.annotate, &[], &args, e, false, None)?;
+        ck.call_item(item, &[], &args, e, false, None)?;
     }
     let root = ck.b.close_block(block, None, Ty::VOID, node.index());
     ck.finish_body(root)?;
@@ -1458,10 +1463,8 @@ impl Ck<'_, '_> {
         if e.kind() == SyntaxKind::NameExpr {
             let text = self.cx.src.text(self.cx.src.first(e)).to_owned();
             if let Some(Named::Item(def)) = self.scope_name(&text)
-                && matches!(
-                    self.cx.lookup.item(def).map(|i| &i.data),
-                    Some(ItemData::Fn(_, _))
-                )
+                && let Some(item) = self.cx.lookup.item(def)
+                && matches!(&item.data, ItemData::Fn(_, _))
             {
                 let args = Args {
                     positional: vec![],
@@ -1470,7 +1473,7 @@ impl Ck<'_, '_> {
                     named: vec![],
                     trailing: None,
                 };
-                return self.call_item(def, &[], &args, e, false, want);
+                return self.call_item(item, &[], &args, e, false, want);
             }
         }
         self.expr(e, want)
