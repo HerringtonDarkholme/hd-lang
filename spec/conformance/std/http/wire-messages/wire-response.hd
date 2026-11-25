@@ -1,5 +1,5 @@
 # test: wire responses expose their message fields and defaults
-use std.http_wire.WireResponse
+use std.http.WireResponse
 
 tests:
     use std.testing.{assert, assert_equal}

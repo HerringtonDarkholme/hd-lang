@@ -25,7 +25,7 @@
       call $rt:release_ref
     end
   )
-  (func $"host_provider[std.http_wire.Http]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
+  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0
     local.get $t0
@@ -151,7 +151,7 @@
       call $skipped_test
     end
   )
-  (func $"host_provider[std.http_wire.Http]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
+  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0
     local.get $t0
@@ -282,7 +282,7 @@
       call $rt:release_ref
     end
   )
-  (func $"host_provider[std.http_wire.Http]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
+  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0
     local.get $t0
@@ -408,7 +408,7 @@
       call $skipped_test
     end
   )
-  (func $"host_provider[std.http_wire.Http]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
+  (func $"host_provider[std.http.WireHttp]" (param $t0 i32) (param $t15 i32) (result i32 i32) (local $t5 i32) (local $t4 i32) (local $t3 i32) (local $t2 i32) (local $t7 i32) (local $t6 i64) (local $t9 i32) (local $t8 i64) (local $t11 i32) (local $t10 i64) (local $t13 i32) (local $t12 i64) (local $t14 i32) (local $t1 i32)
     ;; (no span)
     local.get $t0
     local.get $t0

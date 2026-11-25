@@ -1,5 +1,5 @@
 # test: every public wire HTTP error variant retains its typed payload
-use std.http_wire.{WireHttpError, WireResponse}
+use std.http.{WireHttpError, WireResponse}
 
 fn payload(error: WireHttpError) -> string:
     match error:
