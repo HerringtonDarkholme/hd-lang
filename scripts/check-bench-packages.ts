@@ -17,7 +17,7 @@ const started = performance.now();
 let passed = 0;
 
 function run(packageDir: string, args: string[], capture = false): string | undefined {
-  // Cost: one bounded compiler invocation for this package and operation.
+  // cost: one invocation for this package; compilation scales with its source.
   const result = spawnSync(hd, args, {
     cwd: packageDir,
     encoding: "utf8",
