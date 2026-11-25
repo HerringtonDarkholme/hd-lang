@@ -1,6 +1,6 @@
 # test: a streaming Sha256 gives the one-shot digest however the message is split, including at block boundaries
-# Spec std/digest SHA-256: std-digest.sha256.decl-struct, std-digest.sha256.new-ref, std-digest.sha256.update-ref, std-digest.sha256.finish, std-digest.sha256.oneshot (task #481).
-use std.digest.{Sha256, sha256}
+# Spec std/crypto SHA-256: std-crypto.sha256.decl-struct, std-crypto.sha256.new-ref, std-crypto.sha256.update-ref, std-crypto.sha256.finish, std-crypto.sha256.oneshot (task #481).
+use std.crypto.sha256.{Sha256, sha256}
 
 fn counting(size: usize) -> List[u8]:
     let mut bytes: List[u8] = []

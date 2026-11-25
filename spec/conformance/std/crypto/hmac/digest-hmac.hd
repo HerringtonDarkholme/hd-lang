@@ -1,6 +1,7 @@
 # test: Sha256::hmac gives HMAC-SHA256 (RFC 2104) with the RFC 4231 vectors, streams like sha256, and a received signature checks with ==
-# Spec std/digest HMAC: std-digest.hmac-ref, std-digest.hmac.key, std-digest.hmac.finish, std-digest.hmac.verify (task #497).
-use std.digest.{Digest, Sha256}
+# Spec std/crypto HMAC: std-crypto.hmac-ref, std-crypto.hmac.key, std-crypto.hmac.finish, std-crypto.hmac.verify (task #497).
+use std.crypto.{Digest}
+use std.crypto.sha256.{Sha256}
 use std.encoding.hex_decode
 
 fn repeated(byte: u8, count: usize) -> List[u8]:

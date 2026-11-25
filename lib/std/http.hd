@@ -4,7 +4,7 @@
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
 use std.convert.From
-use std.digest.Sha256
+use std.crypto.sha256.Sha256
 use std.task.TimedOut
 use std.time.{Clock, Duration, Timestamp}
 use std.text.{StringBuilder, Parse}

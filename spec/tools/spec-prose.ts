@@ -70,7 +70,7 @@ export const CHAPTER_PREFIXES: Readonly<Record<string, string>> = {
   "std/num.md": "std-num",
   "std/error.md": "std-error",
   "std/encoding.md": "std-encoding",
-  "std/digest.md": "std-digest",
+  "std/crypto.md": "std-crypto",
   "std/json.md": "std-json",
   "std/serde.md": "std-serde",
   "std/cli.md": "std-cli",
