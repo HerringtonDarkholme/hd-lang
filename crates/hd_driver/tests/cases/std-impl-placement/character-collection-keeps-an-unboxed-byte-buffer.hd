@@ -1,0 +1,6 @@
+# @dump: wat counts
+# @build: release | checked release
+# @helper: std/iter/impl FromIterator[char] for string.from_iter
+# expected: collecting characters owns its byte buffer without boxing a StringBuilder.
+fn rebuild(text: string) -> string:
+    text.chars().collect()

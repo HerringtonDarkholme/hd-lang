@@ -1,0 +1,37 @@
+# @dump: diagnostics
+# @build: std
+# expected: the three misplaced impls report nonlocal-impl; the builtin inherent controls are valid.
+use std.rt.TextRoom
+use std.ops.Disposable
+use std.num.Integer
+
+impl TextRoom:
+    fn misplaced_probe(&self) -> void:
+        pass
+
+impl Disposable for TextRoom:
+    fn dispose(&mut self) -> void:
+        pass
+
+impl[N < Integer] Ord for N:
+    fn cmp(&self, other: &N) -> Ordering:
+        .Equal
+
+impl bool:
+    fn std_placement_bool_probe(&self) -> void:
+        pass
+
+impl[N < Integer] N:
+    fn std_placement_numeric_probe(&self) -> void:
+        pass
+
+impl List[i32]:
+    fn std_placement_list_probe(&self) -> void:
+        pass
+
+fn accepted_controls() -> void:
+    let number: i32 = +1
+    number.std_placement_numeric_probe()
+    let values: List[i32] = [+1]
+    values.std_placement_list_probe()
+    false.std_placement_bool_probe()

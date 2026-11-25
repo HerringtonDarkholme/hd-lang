@@ -1,3 +1,9 @@
+use std.num.Num
+use std.ops.Tuple
+use std.meta.inline
+use std.meta.{Structure, UnionType, Walker, Variant, Field}
+use std.rt.{bytes_len, char_scalar, bytes_mismatch}
+
 # std.core: the language's core declarations
 # (spec/lang/10-modules.md#core-layer). The compiler supplies the
 # primitives, `List`, `Map`, `Option`, `Result`, the `Any` traits, `panic`
@@ -95,3 +101,345 @@ impl string:
     @intrinsic("string_to_bytes")
     pub fn to_utf8(self) -> List[u8]:
         panic("intrinsic")
+
+# Equality and order of the primitives (spec/lang/05-expressions.md#r-expr.eq.std,
+# #r-expr.ord.std). The number types, `char`, and `bool` compare through
+# intrinsic methods (spec/lang/09-traits.md#intrinsic-methods), whose bodies
+# the compiler supplies, so no body is written with the operator it
+# implements. Floats follow IEEE 754: NaN is unequal to itself and
+# unordered, and they have no `Ord` (#r-expr.eq.float, #r-expr.ord.total).
+# Characters order by scalar value (#r-expr.ord.std.char-scalar), and
+# `bool` has `Eq` only.
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
+impl[N < Num] Eq for N:
+    @intrinsic
+    fn eq(&self, other: &N) -> bool
+
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
+impl Eq for char:
+    @intrinsic
+    fn eq(&self, other: &char) -> bool
+
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
+impl Eq for bool:
+    @intrinsic
+    fn eq(&self, other: &bool) -> bool
+
+# Strings are hd over their bytes, not intrinsics, and order by byte
+# (#r-expr.ord.std.string-bytes).
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
+impl Eq for string:
+    fn eq(&self, other: &string) -> bool:
+        self.len() == other.len() && bytes_mismatch(*self, *other) == self.len()
+
+# Equality and order of the built-in composites
+# (spec/lang/05-expressions.md#r-expr.eq.std, #r-expr.ord.std). `==`, `<`, and
+# the other comparison operators call these through `Eq.eq` and
+# `PartialOrd.partial_cmp`. Tuples compare through the tuple templates
+# at the end of this module.
+
+# Lists are equal when they have the same length and equal elements in order.
+# Keep handwritten Eq: compare logical entries rather than backing storage.
+impl[T < Eq] Eq for List[T]:
+    fn eq(&self, other: &List[T]) -> bool:
+        if self.len() != other.len():
+            return false
+        let index: usize = 0
+        while index < self.len():
+            if self[index] != other[index]:
+                return false
+            index = index + 1
+        true
+
+# Keep handwritten Eq: compare the builtin variants, which have no derivable declaration.
+impl[T < ?Copy & Eq] Eq for T?:
+    fn eq(&self, other: &Self) -> bool:
+        match self:
+            .Some(left) =>
+                match other:
+                    .Some(right) => left.eq(right)
+                    .None => false
+            .None =>
+                match other:
+                    .Some(_) => false
+                    .None => true
+
+# A reference is equal to another when the values they refer to are, so a
+# derived `Eq` compares through a reference field
+# (r-std-cmp.ref.eq-noncopy). `==` written between two references is
+# an error (lang/13 ref.identity.no-equality): a generic `==` and a derived
+# `Eq` reach this impl.
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Eq] Eq for *T:
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
+
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Eq] Eq for *mut T:
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
+
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Eq] Eq for &T:
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
+
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Eq] Eq for &mut T:
+    fn eq(&self, other: &Self) -> bool:
+        *(*self) == *(*other)
+
+# Keep handwritten Eq: compare the builtin variants, which have no derivable declaration.
+impl[T < ?Copy & Eq, E < ?Copy & Eq] Eq for Result[T, E]:
+    fn eq(&self, other: &Result[T, E]) -> bool:
+        match self:
+            .Ok(left) =>
+                match other:
+                    .Ok(right) => left.eq(right)
+                    .Err(_) => false
+            .Err(left) =>
+                match other:
+                    .Err(right) => left.eq(right)
+                    .Ok(_) => false
+
+# Maps are equal when they have the same keys, each with an equal value, in
+# any order (spec/lang/05-expressions.md#r-expr.eq.map-order).
+# Keep handwritten Eq: compare logical entries rather than backing storage.
+impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
+    fn eq(&self, other: &Map[K, V]) -> bool:
+        if self.len() != other.len():
+            return false
+        for (key, value) in self:
+            found := match other.get(*key):
+                .Some(hit) => hit
+                .None => return false
+            if found != value:
+                return false
+        true
+
+# Derived `Eq` (spec/std/cmp.md#derived-equality): `self` and `other` are
+# equal when they hold the same variant and every member of `self` equals
+# the same member of `other`. The walk stops at the first difference.
+impl[T < ?Copy] Eq for T by Structure:
+    fn eq(&self, other: &T) -> bool:
+        let mut w = EqualWalker::[T] { other: other }
+        match Structure::walk(self, &mut w):
+            .Ok(_) => true
+            .Err(_) => false
+
+# Union `Eq`: the ordinary enum derivation over the active positional case.
+impl[T < ?Copy & UnionType] Eq for T by Structure:
+    fn eq(&self, other: &T) -> bool:
+        let mut w = EqualWalker::[T] { other: other }
+        match Structure::walk(self, &mut w):
+            .Ok(_) => true
+            .Err(_) => false
+
+# The fields are public because the prototype checks the instantiated
+# walker in the deriving module. A walk's `.Err` only stops it.
+struct EqualWalker[S < ?Copy, 'a]:
+    pub other: &'a S
+
+impl['a, S < ?Copy] Walker[S] for EqualWalker[S, 'a]:
+    type Error = bool
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, bool]:
+        if v.holds(self.other):
+            return .Ok(())
+        .Err(false)
+
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Eq` here, as `member` needs `F < Eq`.
+    fn rest[T < Eq](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, bool]:
+        self.member(h, items)
+
+    fn member[F < ?Copy & Eq](&mut self, h: Field[S, F], value: &F) -> Result[void, bool]:
+        if value.eq(h.get(self.other)):
+            return .Ok(())
+        .Err(false)
+
+# Tuple comparison (spec/std/cmp.md#tuple-comparison): the derived walkers,
+# element by element, in order, at every size. A tuple has one variant, so
+# no walk reads `other`'s variant index. A rest element compares as its
+# list (r-std-cmp.tuple.rest).
+impl[T < ?Copy & Tuple] Eq for T by Structure:
+    fn eq(&self, other: &T) -> bool:
+        let mut w = EqualWalker::[T] { other: other }
+        match Structure::walk(self, &mut w):
+            .Ok(_) => true
+            .Err(_) => false
+
+# `never` has no value, so `eq` never runs (r-std-text.parse.never-traits).
+# Keep handwritten Eq: this uninhabited builtin has no value or derivable declaration.
+impl Eq for never:
+    fn eq(&self, other: &never) -> bool:
+        match *self:
+            _ => panic("never has no value")
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for string:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u64(u64(bytes_len(*self)))
+        state.write_str(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for char:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        char_scalar(*self).hash(state)
+
+# An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
+# Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
+impl[T < ?Copy & Hash] Hash for T?:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        match self:
+            .None => state.write_u8(0)
+            .Some(value) =>
+                state.write_u8(1)
+                value.hash(state)
+
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Hash] Hash for *T:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        (*(*self)).hash(state)
+
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Hash] Hash for *mut T:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        (*(*self)).hash(state)
+
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Hash] Hash for &T:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        (*(*self)).hash(state)
+
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
+impl[T < ?Copy & Hash] Hash for &mut T:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        (*(*self)).hash(state)
+
+# A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
+# its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
+# Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
+impl[T < ?Copy & Hash, E < ?Copy & Hash] Hash for Result[T, E]:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        match self:
+            .Ok(value) =>
+                state.write_u8(0)
+                value.hash(state)
+            .Err(error) =>
+                state.write_u8(1)
+                error.hash(state)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for bool:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        let byte: u8 = 0
+        if *self:
+            byte = 1
+        state.write_u8(byte)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for i8:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_i8(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for i16:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_i16(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for i32:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_i32(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for i64:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_i64(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for u8:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u8(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for u16:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u16(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for u32:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u32(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for usize:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_usize(*self)
+
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
+impl Hash for u64:
+    @inline(.Always)
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u64(*self)
+
+# A list hashes its length as a `u64`, then each item in order
+# (spec/std/hash.md#list-hashing), so equal lists hash the same.
+# Keep handwritten Hash: hash the logical length and entries, not backing storage.
+impl[T < Hash] Hash for List[T]:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        state.write_u64(u64(self.len()))
+        for item in self:
+            item.hash(state)
+
+# Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
+# as a `u32`, then each member in declaration order.
+impl[T < ?Copy] Hash for T by Structure:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        let mut w = HashWalker::[T, H] { state: state }
+        _ := Structure::walk(self, &mut w)
+
+# Union `Hash`: the ordinary enum derivation, including the active case index.
+impl[T < ?Copy & UnionType] Hash for T by Structure:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        let mut w = HashWalker::[T, H] { state: state }
+        _ := Structure::walk(self, &mut w)
+
+# The field is public because the prototype checks the instantiated walker
+# in the deriving module.
+struct HashWalker[S < ?Copy, H < Hasher, 'a]:
+    pub state: &'a mut H
+
+impl['a, S < ?Copy, H < Hasher] Walker[S] for HashWalker[S, H, 'a]:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        if !v.info.of_data:
+            u32(v.info.index).hash(&mut *self.state)
+        .Ok(())
+
+    # A rest member is one `List[T]` member (annot.walk.rest.default),
+    # which needs `T < Hash` here, as `member` needs `F < Hash`.
+    fn rest[T < Hash](&mut self, h: Field[S, List[T]], items: &List[T]) -> Result[void, never]:
+        self.member(h, items)
+
+    fn member[F < ?Copy & Hash](&mut self, h: Field[S, F], value: &F) -> Result[void, never]:
+        value.hash(&mut *self.state)
+        .Ok(())
+
+# Tuple hashing (spec/std/hash.md#tuple-hashing): each element in order, at
+# every size. A rest element hashes as its `List`, so a rest tuple is
+# hashable when its rest's items are (r-std-hash.tuple.rest-list).
+impl[T < ?Copy & Tuple] Hash for T by Structure:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        let mut w = HashWalker::[T, H] { state: state }
+        _ := Structure::walk(self, &mut w)

@@ -1,24 +1,8 @@
-use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
+pub use std.iter.{OptionIter}
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 use std.meta.inline
 use std.ops.FnMut
-
-## A cursor yielding an optional's payload once, if present.
-## See [std-iter.option.iterable-cursor](../../spec/std/iter.md#r-std-iter.option.iterable-cursor).
-pub struct OptionIter[T]:
-    value: T?
-
-impl[T] Iterator[T] for OptionIter[T]:
-    fn next(&mut self) -> T?:
-        value := self.value
-        self.value = .None
-        value
-
-impl[T] Iterable[T] for T?:
-    type IntoIter = OptionIter[T]
-    fn iter(self) -> OptionIter[T]:
-        OptionIter { value: self }
 
 impl[T < ?Copy] T?:
     ## `.Some` of `transform(value)` for a `.Some`, and `.None` for a `.None`.
@@ -131,17 +115,3 @@ impl[T < ?Copy] T?:
             .Some(value) =>
                 if predicate(&value): .Some(value) else: .None
             .None => .None
-
-impl[T] DoubleEndedIterator[T] for OptionIter[T]:
-    fn next_back(&mut self) -> T?:
-        self.next()
-
-impl[T] ExactSizeIterator[T] for OptionIter[T]:
-    fn len(&self) -> usize:
-        if self.value.is_some(): 1 else: 0
-
-impl[T] OptionIter[T]:
-    ## Reverses the remaining sequence without advancing or buffering it.
-    ## See [std-iter.double-ended.rev](../../spec/std/iter.md#r-std-iter.double-ended.rev).
-    pub fn rev(self) -> Rev[Self, T]:
-        DoubleEndedIterator::[T]::rev(self)
