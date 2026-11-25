@@ -1,0 +1,7 @@
+# @dump: diagnostics
+fn outer() -> void:
+    fn first(n: i32):
+        if n == +0: +0 else: first(n - 1)
+    fn second(n: i32):
+        if n == +0: +0 else: second(n - 1)
+    let _ = (first, second)

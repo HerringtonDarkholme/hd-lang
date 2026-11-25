@@ -753,6 +753,9 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
         from_call: bool,
     ) -> Option<Vec<Ty>> {
+        if self.read_local_result(l) {
+            return None;
+        }
         let g = self.local_generics.get(&l).cloned()?;
         let pool = self.pool();
         // `types.impl-parameter.explicit`: the anonymous parameters, last,

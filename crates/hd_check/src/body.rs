@@ -1708,6 +1708,7 @@ fn fn_body_steps(
         ck.public_ret = want.and_then(|raw| crate::remote::public_result(cx, ck.pool(), def, raw));
         let (tail, ret) = ck.join_site(want, |ck, ret| {
             *ck.rets.base_mut() = ret;
+            crate::results::live_result(cx, node.index(), ret);
             let (tail, _) = ck.block_value(body, Some(ret))?;
             ck.finish_tries(ret)?;
             Ok((tail, ret))
@@ -2188,7 +2189,7 @@ impl Ck<'_, '_> {
         if self.local_generics.contains_key(&l) {
             return self.local_generic_value(l, &[], n);
         }
-        if !self.note_read(l, depth, n) {
+        if self.read_local_result(l) || !self.note_read(l, depth, n) {
             return self.poison_value(n);
         }
         // `fn.crossing.parameter.uses`: a crossing parameter is called or
@@ -5464,6 +5465,10 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
+        crate::results::finish_local_results(self.cx, self.diags);
+        // Queries over completed TIR are not reads by the enclosing body:
+        // the instruction's lexical result scope already recorded them.
+        let _result_scope = crate::results::finish_scope(self.cx);
         self.finish_bindings()?;
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;

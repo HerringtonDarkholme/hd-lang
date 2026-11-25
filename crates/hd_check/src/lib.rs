@@ -58,6 +58,7 @@ mod regions;
 pub mod remote;
 mod render;
 mod repair;
+mod result_cycles;
 pub mod results;
 mod rows;
 pub mod stages;

@@ -150,3 +150,18 @@ fn a_signature_change_visits_only_its_readers() {
         assert_eq!(r.dirty().len(), 2);
     }
 }
+
+#[test]
+fn result_cycles_visit_each_node_and_edge_once_and_drop_finished_groups() {
+    for (width, depth) in [(1_000, 20), (10_000, 20), (1, 20_000)] {
+        let n = u64::from(width * depth);
+        assert_eq!(
+            hd_check::testing::result_cycle_work(width, depth, false),
+            (depth as usize, 3 * n - u64::from(width), 0),
+        );
+        assert_eq!(
+            hd_check::testing::result_cycle_work(width, depth, true),
+            (1, 2 * n, 0),
+        );
+    }
+}

@@ -4666,6 +4666,16 @@ lang/control-flow/for-loops/for-mut-root-readonly-element.hd	type	reject:not-wri
 lang/control-flow/for-loops/for-map-snapshot-grow.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 lang/control-flow/for-loops/map-value-replace-during-iteration.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
 lang/control-flow/for-loops/list-replace-not-seen-by-loop.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
+lang/functions/declarations/local-omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
+lang/functions/declarations/local-omitted-result-mutual-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
+lang/functions/declarations/generic-local-omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
+lang/functions/declarations/generic-omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
+lang/functions/declarations/local-omitted-result-through-global-callback.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
+lang/functions/declarations/global-local-omitted-result-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle.report
+lang/functions/declarations/local-omitted-result-cycle-one-annotated.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
+lang/functions/declarations/generic-local-written-result-recursion.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
+lang/functions/declarations/global-local-omitted-result-cycle-one-annotated.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
+lang/functions/declarations/local-omitted-result-cycle-through-annotated-closure.hd	type	accept	lang/07-functions.md#r-fn.decl.omitted-cycle.resolve
 lang/functions/declarations/omitted-result-self-recursion.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-recursion
 lang/functions/declarations/omitted-result-mutual-cycle.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle
 lang/functions/declarations/omitted-result-cycle-reported-once.hd	type	reject:recursive-function-needs-result-type	lang/07-functions.md#r-fn.decl.omitted-cycle.report

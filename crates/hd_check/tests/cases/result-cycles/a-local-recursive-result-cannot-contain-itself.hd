@@ -1,0 +1,6 @@
+# @dump: diagnostics
+fn outer() -> void:
+    fn grow():
+        [grow()]
+
+    let _ = grow

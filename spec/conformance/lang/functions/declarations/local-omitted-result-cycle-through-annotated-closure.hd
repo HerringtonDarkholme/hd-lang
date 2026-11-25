@@ -1,0 +1,7 @@
+# test: local omitted result cycle through annotated closure
+# Rule: fn.decl.omitted-cycle.resolve.
+fn outer():
+    fn local():
+        action := fn() -> i32: local()
+        if true: +0 else: action()
+    local()
