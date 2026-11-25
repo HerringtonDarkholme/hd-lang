@@ -1,0 +1,144 @@
+# The hd tests of std.rt.counted's blocks (#2369): one counted object
+# `[count | descriptor | H | pad | tail]` named by a `*H`. The conformance
+# runner adds this file to std as `std.rt_tests.counted_tests`, since only
+# std may use a runtime module.
+use std.rt.{Drop, Ptr, address_of, alloc_counted, empty_block, is_unique, size_of, tail_of}
+use std.rt.memory.load_u32
+use std.rt.cycle.marking
+use std.collections.PlainList
+
+let token_drops: usize = 0
+let cycle_drops: usize = 0
+
+# A header naming its tail of `T`s, as a list's does; its hook drops the
+# first `len` of them, once, at the block's last release.
+struct Head[T < ?Copy]:
+    len: usize
+    elems: Ptr[T]
+
+impl[T < ?Copy] !Copy for Head[T]
+
+impl[T < ?Copy] Drop for Head[T]:
+    fn drop(&mut self) -> void:
+        e := Ptr::[T] { address: address_of(self) + 8 }
+        let mut i: usize = 0
+        while i < self.len:
+            _ := e.offset(i).read()
+            i += 1
+
+struct Token:
+    id: usize
+
+impl !Copy for Token
+
+impl Drop for Token:
+    fn drop(&mut self) -> void:
+        token_drops += 1
+
+# A wide header: 8 bytes, with a 16-aligned tail.
+struct Wide:
+    a: u64
+
+struct Node:
+    kids: PlainList[*mut Node]
+
+impl !Copy for Node
+
+impl Drop for Node:
+    fn drop(&mut self) -> void:
+        # A trace runs the hook to mark and scan; only the free counts.
+        if !marking():
+            cycle_drops += 1
+
+struct Pressure:
+    kids: PlainList[*mut Pressure]
+
+# The count of the block `block` holds, and whether it is unique, read
+# through a `&mut`, so the caller's copies stay holders of their own.
+fn count_of[H < ?Copy](block: &mut *H) -> u32:
+    load_u32(tail_of(*block, 1).address - size_of::[H]() - 8)
+
+fn unique[H < ?Copy](block: &mut *H) -> bool:
+    is_unique(*block)
+
+fn tokens(n: usize) -> *Head[Token]:
+    block := alloc_counted::[Head[Token]](Head::[Token] { len: n, elems: Ptr::[Token] { address: 0 } }, n * size_of::[Token](), 4)
+    e := Ptr::[Token] { address: tail_of(block, 4).address }
+    let mut i: usize = 0
+    while i < n:
+        e.offset(i).write(Token { id: i })
+        i += 1
+    block
+
+fn strings(n: usize) -> *Head[string]:
+    block := alloc_counted::[Head[string]](Head::[string] { len: n, elems: Ptr::[string] { address: 0 } }, n * size_of::[string](), 4)
+    e := Ptr::[string] { address: tail_of(block, 4).address }
+    let mut i: usize = 0
+    while i < n:
+        e.offset(i).write("s${i}")
+        i += 1
+    block
+
+fn release_cycle() -> void:
+    node := box(Node { kids: PlainList::[*mut Node].new() })
+    again := node
+    node.kids.push(again)
+    for _ in 0..200000:
+        pressure := box(Pressure { kids: PlainList::[*mut Pressure].new() })
+        again := pressure
+        pressure.kids.push(again)
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a new block has one holder and is unique"):
+        let mut block = tokens(0)
+        assert(count_of(&mut block) == 1, "count 1")
+        assert(unique(&mut block), "unique")
+
+    it("a copy is a retain and a drop a release"):
+        let mut block = tokens(2)
+        let mut other = block
+        assert(count_of(&mut block) == 2, "a copy counts")
+        assert(!unique(&mut other), "shared")
+        token_drops = 0
+        _ := other
+        assert(token_drops == 0, "the tail lives while a holder does")
+        assert(count_of(&mut block) == 1, "a drop releases")
+        assert(unique(&mut block), "unique again")
+
+    it("the last release drops the tail's values exactly once"):
+        token_drops = 0
+        block := tokens(5)
+        copy := block
+        _ := block
+        _ := copy
+        assert(token_drops == 5, "each value once: $token_drops")
+
+    it("a tail of strings is released once, with its block"):
+        block := strings(3)
+        e := Ptr::[string] { address: tail_of(block, 4).address }
+        assert(*e.offset(2).as_ref() == "s2", "the tail holds the values")
+        kept := *e.offset(1).as_ref()
+        _ := block
+        assert(kept == "s1", "a copied value outlives the block")
+
+    it("a tail at alignment 16 starts on a multiple of 16"):
+        block := alloc_counted::[Wide](Wide { a: 7 }, 32, 16)
+        at := tail_of(block, 16).address
+        assert(at % 16 == 0, "aligned: $at")
+        assert(at >= tail_of(block, 1).address, "past the header")
+        assert(tail_of(block, 8).address == tail_of(block, 1).address, "8 past an 8-byte header")
+        assert(block.a == 7, "the header holds its value")
+
+    it("the static empty block has count 0 and is never unique"):
+        let mut block = empty_block::[Head[Token]]()
+        let mut other = block
+        assert(count_of(&mut block) == 0, "count 0")
+        assert(!unique(&mut other), "never unique")
+        assert(other.len == 0, "a zero header")
+
+    it("a cycle through a block's tail is collected and dropped once"):
+        cycle_drops = 0
+        release_cycle()
+        assert(cycle_drops == 1, "the collected cycle drops once: $cycle_drops")

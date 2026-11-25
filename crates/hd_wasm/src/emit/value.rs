@@ -7,7 +7,7 @@
 use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_types::AdtId;
-use hd_types::{Ty, TyData};
+use hd_types::{Ty, TyData, TyList};
 use std::rc::Rc;
 
 use super::Em;
@@ -198,6 +198,90 @@ impl Em<'_, '_, '_> {
         }
         self.f.set(at);
         at
+    }
+
+    /// The counted-block intrinsics of `std.rt.counted` (#2369). A block
+    /// is one counted object, `[count | descriptor | H | pad | tail]`, and
+    /// a `*H` names it by its payload's address: a copy is a retain, a drop
+    /// a release. Blocks are 16-aligned, so a payload is 8 past a multiple
+    /// of 16 and the tail at alignment `a <= 16` starts at the constant
+    /// [`Em::tail_offset`].
+    /// - `alloc_counted[H](header, tail_bytes, align)`: a new block of
+    ///   count 1 holding `header`, whose descriptor is an `H` object's:
+    ///   `H`'s release glue (its `Drop` hook drops the tail once, at count
+    ///   0, and the collector's trace runs it once per block) and cycle bit.
+    /// - `tail_of[H](block, align)`: the tail's first byte.
+    /// - `is_unique[H](block)`: the count is 1; a static block's is 0.
+    pub(super) fn counted_block(
+        &mut self,
+        i: u32,
+        key: &str,
+        targs: TyList,
+        args: &[u32],
+    ) -> StageResult<()> {
+        // ruled out: the intrinsic table gives each `counted_` key one type
+        // parameter, `H`, which instances fill.
+        let targs = self.pool().list_items(targs);
+        let t = targs[targs.len() - 1];
+        let m = crate::layout::mem(self.pool(), self.env(), t)?;
+        match key {
+            "counted_is_unique" => {
+                self.push(args[0])?;
+                self.f.u32(crate::module::HEADER);
+                self.f.op(I::I32Sub);
+                crate::rt::unique_count(&mut self.f, self.m);
+                self.f.i32(1);
+                self.f.op(I::I32Eq);
+            }
+            "counted_tail" => {
+                self.push(args[0])?;
+                self.tail_offset(m.size, args[1])?;
+                self.f.op(I::I32Add);
+            }
+            // ruled out: the intrinsic table's `counted_` keys are these three.
+            _ => {
+                let header = self.retain_src(&Src::Ref(args[0]), t)?;
+                let parts = self.typed_parts(t)?;
+                let glue = (!parts.is_empty()).then(|| {
+                    Sym::Helper(Helper::DropParts {
+                        leaves: m.leaves.clone(),
+                        parts,
+                    })
+                });
+                let (cyclic, recursive) = (self.cyclic_object(t), self.recursive_object(t));
+                let at = self.f.local(Val::I32);
+                self.tail_offset(m.size, args[2])?;
+                self.push(args[1])?;
+                self.f.op(I::I32Add);
+                crate::rt::push_desc_recursive(&mut self.f, glue, cyclic, recursive);
+                self.f.helper(Helper::New);
+                self.f.set(at);
+                self.write_new(Dst::Mem(at, 0, &m.leaves), &header)?;
+                self.f.get(at);
+            }
+        }
+        self.store(i)
+    }
+
+    /// Pushes the offset from a block's payload to its tail at alignment
+    /// `align` past an `H` of `size` bytes: `round_up(8 + size, align) - 8`,
+    /// a constant when `align` is one, as after inlining.
+    fn tail_offset(&mut self, size: u32, align: u32) -> StageResult<()> {
+        let header = crate::module::HEADER;
+        if let Some(a) = self.const_u32(align).filter(|a| a.is_power_of_two()) {
+            self.f.u32((header + size).next_multiple_of(a) - header);
+            return Ok(());
+        }
+        self.f.u32(header + size - 1);
+        self.push(align)?;
+        self.f.op(I::I32Add);
+        self.f.i32(0);
+        self.push(align)?;
+        self.f.op(I::I32Sub);
+        self.f.op(I::I32And);
+        self.f.u32(header);
+        self.f.op(I::I32Sub);
+        Ok(())
     }
 
     /// The parts of a payload that is one `t` value: the value whole,

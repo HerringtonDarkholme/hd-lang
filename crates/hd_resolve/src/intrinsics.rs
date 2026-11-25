@@ -82,6 +82,10 @@ const REF_MUT: Kind = Kind::Ref {
     mutable: true,
     counted: false,
 };
+const COUNTED: Kind = Kind::Ref {
+    mutable: false,
+    counted: true,
+};
 const COUNTED_MUT: Kind = Kind::Ref {
     mutable: true,
     counted: true,
@@ -129,6 +133,9 @@ pub static INTRINSICS: &[(&str, &[Shape])] = &[
     ("char_scalar", &[s(0, &[CHAR], U32)]),
     ("count_release", &[s(1, &[Any], VOID)]),
     ("count_retain", &[s(1, &[Any], VOID)]),
+    ("counted_alloc", &[s(1, &[Any, USIZE, USIZE], COUNTED)]),
+    ("counted_is_unique", &[s(1, &[COUNTED], BOOL)]),
+    ("counted_tail", &[s(1, &[COUNTED, USIZE], PTR)]),
     ("crossing_run", &[s(0, &[U64, LIST], Opt)]),
     ("crossing_sent", &[s(1, &[Any], LIST)]),
     ("crossing_unique", &[s(1, &[REF_MUT], VOID)]),

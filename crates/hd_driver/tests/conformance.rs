@@ -2088,11 +2088,16 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
         "rt_tests/json_tests.hd",
         include_str!("std_rt/json_tests.hd"),
     ),
+    (
+        "rt_tests/counted_tests.hd",
+        include_str!("std_rt/counted_tests.hd"),
+    ),
 ];
 
 /// The [`STD_RT_TESTS`] files that require checked ownership coverage or
 /// read `std.rt.checked.allocated()`: they also run checked in every mode.
 const STD_RT_CHECKED_TOO: &[&str] = &[
+    "rt_tests/counted_tests.hd",
     "rt_tests/drop_tests.hd",
     "rt_tests/dyn_call_tests.hd",
     "rt_tests/inline_drop_tests.hd",

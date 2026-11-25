@@ -40,6 +40,7 @@ pub use std.rt.bytes.{
     write_signed_sized,
     write_unsigned_sized,
 }
+pub use std.rt.counted.{alloc_counted, empty_block, is_unique, tail_of}
 pub use std.rt.cycle.{marking}
 pub use std.rt.hash.{FoldHasher, hash_key}
 pub use std.rt.memory.{

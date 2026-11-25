@@ -52,6 +52,7 @@ const DEPTH: usize = 16;
 
 /// The intrinsic calls that write no memory and always return.
 const PURE: &[&str] = &[
+    "counted_tail",
     "ptr_offset",
     "ptr_ref",
     "ptr_mut",

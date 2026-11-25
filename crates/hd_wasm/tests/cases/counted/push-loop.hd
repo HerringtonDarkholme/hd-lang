@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# A push loop over a `PlainList` (#2369): one count load, one length and
+# capacity compare, the store and the length store per value; the growth
+# and the copy of a shared block are the cold `reserve_slow` call.
+use std.collections.PlainList
+
+fn build(n: i64) -> PlainList[i64]:
+    let mut xs = PlainList::[i64].new()
+    let mut i: i64 = 0
+    # subject
+    while i < n:
+        xs.push(i)
+        i += 1
+    xs

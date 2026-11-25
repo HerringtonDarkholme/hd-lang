@@ -1,0 +1,56 @@
+# std.rt.counted: one counted block, `[count | descriptor | H | pad | tail]`,
+# named by a plain `*H` (#2369), as Swift's `ManagedBuffer` and triomphe's
+# `ThinArc`. A runtime module, so only std may use it
+# (spec/lang/10-modules.md#r-module.rt.std-only).
+#
+# The block is a counted object (crates/hd_wasm/DESIGN.md §23.4): a copy of
+# the `*H` is one more count, a drop one less, and the last release runs the
+# release glue of `H`, so `H`'s `Drop` hook drops the tail's live values
+# once. The collector traces an object by running that glue, so it visits
+# the tail once per block. `H` names the tail's value type through a
+# `Ptr[T]` field, as `Buffer[T]` does, so the cycle analysis reads the
+# tail's values as `H`'s parts. Nothing writes `H` through a `*mut`: a
+# writer tests `is_unique` first and writes through a raw `Ptr`, so a shared
+# block never changes and the reference is a value edge, as the
+# copy-on-write buffer of a builtin list.
+#
+# A block is 16-aligned, so its payload is 8 past a multiple of 16 and the
+# tail at alignment `align` (a power of two, at most 16) starts
+# `round_up(8 + size_of[H], align) - 8` bytes into the payload: a constant
+# per `H` and `align`.
+use std.core.Copy
+use std.rt.hint.inline
+use std.rt.memory.{Ptr, address_of, size_of, string_bytes}
+
+## A new block holding `header`, its count 1, with `tail_bytes` raw bytes
+## after it at alignment `align` (a power of two, at most 16), which hold
+## no value yet. The compiler supplies the body.
+@intrinsic("counted_alloc")
+pub fn alloc_counted[H < ?Copy](header: H, tail_bytes: usize, align: usize) -> *H:
+    panic("intrinsic")
+
+## The first byte of `block`'s tail at alignment `align`. The compiler
+## supplies the body.
+@intrinsic("counted_tail")
+pub fn tail_of[H < ?Copy](block: *H, align: usize) -> Ptr[u8]:
+    panic("intrinsic")
+
+## Whether `block` has one holder, so a write through a raw pointer changes
+## no other holder's value. A static block has count 0: never unique. The
+## compiler supplies the body, and proves it `true` for a block nothing
+## else holds (crates/hd_tir/src/own/hoist.rs, `fold_fresh_blocks`).
+@intrinsic("counted_is_unique")
+pub fn is_unique[H < ?Copy](block: *H) -> bool:
+    panic("intrinsic")
+
+## The static empty block of an `H` of at most 48 bytes, whose header bytes
+## are zero: count 0, so it is never unique and no retain or release
+## changes it, and its tail is never read. Every empty value over a block
+## shares it, so reading its length needs no null test.
+@inline(.Never)
+pub fn empty_block[H < ?Copy]() -> *H:
+    if size_of::[H]() > 48:
+        panic("an empty block holds a header of at most 48 bytes")
+    # 56 zero bytes: the block's count, descriptor and header.
+    payload := string_bytes("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0").address + 8
+    Ptr::[*H] { address: address_of(&payload) }.read()
