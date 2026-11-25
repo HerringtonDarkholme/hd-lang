@@ -69,8 +69,8 @@ mod tests;
 
 use super::{OwnCx, Role, fill, operands};
 use crate::ir::{
-    Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceView, Proj, Ref, Root, Tag, Topology, Word,
-    is_suspension, local_flags, slots, u32_of,
+    Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root, Tag, Topology,
+    Word, is_suspension, local_flags, slots, u32_of,
 };
 
 enum Mark {
@@ -673,8 +673,9 @@ fn closure_caps(
 /// holds no value on any path to it, so the store releases nothing: `i`
 /// is `l`'s only whole store, and either no loop of its sub-body runs it
 /// again, or every path from it back to the loop drops `l`. That holds
-/// when a block around `i`, inside the loop's body, drops `l` after the
-/// statement holding `i`, and each `Break` or `Continue` under that block
+/// when a block around `i`, inside the loop's body, drops or moves all of
+/// `l` after the statement holding `i` (a move leaves it empty as a drop
+/// does), and each `Break` or `Continue` under that block
 /// that leaves it either comes right after drops that include `l`'s or
 /// is a `Break` that lands outside every loop. A `Return` ends the body,
 /// whose exit set drops `l`; a `ToArm` counts as leaving.
@@ -700,13 +701,18 @@ pub fn store_finds_empty(b: &Body, topo: &Topology, i: usize) -> bool {
     // the loop's body.
     let mut chain = Vec::new();
     super::values::statement_chain(topo, u32_of(i), &mut chain);
+    // A move of all of `l` empties it as its drop does.
+    let empties = |x: usize| {
+        whole_local(x, Tag::Drop) == Some(l)
+            || (whole_local(x, Tag::Read) == Some(l) && b.data[x][1] == ReadMode::Move as u32)
+    };
     let dropped_in = chain
         .iter()
         .take_while(|&&(_, _, x)| x != lp)
         .find(|&&(blk, pos, _)| {
             b.record(b.data[blk as usize][0])[pos as usize + 1..]
                 .iter()
-                .any(|&x| whole_local(x as usize, Tag::Drop) == Some(l))
+                .any(|&x| empties(x as usize))
         });
     let Some(&(h, _, _)) = dropped_in else {
         return false;
@@ -754,6 +760,20 @@ pub fn store_finds_empty(b: &Body, topo: &Topology, i: usize) -> bool {
         }
     }
     true
+}
+
+/// Whether instruction `i` reads, out of a local's own storage, a plain
+/// value that owns nothing and holds no reference (an integer), which may
+/// then become an address into what the local owns (`Arc.block`). A value
+/// that owns what it points to carries that ownership itself.
+fn address_read(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
+    let ty = b.ty[i];
+    b.tags[i] == Tag::Read
+        && b.view(b.data[i][0]).in_place(b)
+        && b.view(b.data[i][0]).local().is_some()
+        && !cx.counted(ty)
+        && !cx.holds_ref(ty)
+        && cx.holds_drop(ty) == super::Tri::No
 }
 
 /// The place word of value `v` when it is a read of all of a local
@@ -844,9 +864,21 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
     }
     lent_reads.sort_stable();
     lent_reads.dedup();
+    // A local that owns what an address read out of it points to (an
+    // `Arc` whose `block` field becomes a `Ptr`) roots that address too.
+    let mut probe = Tables::default();
+    addresses(b, cx, &mut probe);
     for i in 0..b.len() {
         if !matches!(b.tags[i], Tag::Ref | Tag::Read) {
             continue;
+        }
+        if probe.addr[i]
+            && address_read(b, cx, i)
+            && let Some(l) = b.local_in_place(b.data[i][0])
+            && (cx.counted(b.local_ty[l.idx()])
+                || cx.holds_drop(b.local_ty[l.idx()]) != super::Tri::No)
+        {
+            locals.push(l.raw());
         }
         let p = b.view(b.data[i][0]);
         // A read of a counted local, or of a counted part it holds in
@@ -1131,7 +1163,13 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
                 Root::Value(v) => dep(t, v),
                 _ => Origins::default(),
             };
-            let through = p.steps(b).any(|s| s == Proj::Deref);
+            // An address read out of a local's own storage
+            // (`Ptr { address: self.block + VALUE }` once inlining forwards
+            // `self` to the local) lives on that storage, as one read
+            // through a reference to it does: the local owns what the
+            // address points to.
+            let through = p.steps(b).any(|s| s == Proj::Deref)
+                || (b.tags[i] == Tag::Read && t.addr[i] && address_read(b, cx, i));
             root | if through {
                 t.place(b, a)
                     .map_or_else(Origins::default, |(lies, _)| lies)

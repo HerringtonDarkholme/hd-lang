@@ -1,0 +1,26 @@
+# @dump: wat
+# @build: v8 release
+# #2366: a user iterator holding a `&'a` field splits like any struct: its
+# `next` is copied into the `for`, so `at` and `list` are Wasm locals and no
+# frame slot is reserved.
+use std.collections.UniqList
+use std.meta.inline
+
+struct Cursor['a]:
+    list: &'a UniqList[i64]
+    at: usize
+
+impl['a] Iterator[i64] for Cursor['a]:
+    @inline
+    fn next(&mut self) -> i64?:
+        if self.at >= self.list.len():
+            return .None
+        value := self.list[self.at]
+        self.at += 1
+        .Some(value)
+
+fn total(xs: &UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    for x in Cursor { list: xs, at: 0 }:
+        s += x
+    s

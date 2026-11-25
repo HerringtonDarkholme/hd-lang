@@ -2,7 +2,7 @@
 (module
   (import "fixture" "heap" (memory $heap 17))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $multiply (param $n i32) (result f64) (local $b i32) (local $capacity i32) (local $c i32) (local $t0 i32) (local $value'1 f64) (local $value'2 f64) (local $key'1 i32) (local $j i32) (local $idx i32) (local $key'2 i32)
+  (func $multiply (param $n i32) (result f64) (local $b.buffer.ptr i32) (local $b.len i32) (local $c i32) (local $t0 i32) (local $value'1 f64) (local $a i32) (local $value'2 f64) (local $key'1 i32) (local $j i32) (local $idx i32) (local $key'2 i32) (local $t1 f64)
     ;; ...
     block
       loop
@@ -56,14 +56,13 @@
                 f64.load $heap
                 local.set $value'1
     ;; 29 |                 add := aik * b[k * n + j]
-                local.get $capacity
+                local.get $a
                 local.get $n
                 i32.mul
                 local.get $j
                 i32.add
                 local.tee $j
-                local.get $b
-                i32.load $heap offset=8
+                local.get $b.len
                 i32.ge_u
                 if
                   i32.const 65 ;; &"index-out-of-bounds"
@@ -74,19 +73,18 @@
                   call_indirect $table0 (param i32 i32 i32 i32)
                   unreachable
                 end
-                local.get $b
-                i32.load $heap
+                local.get $b.buffer.ptr
                 local.get $j
                 i32.const 8
                 i32.mul
                 i32.add
-                local.set $j
+                f64.load $heap
+                local.set $t1
     ;; 30 |                 c[idx] = prev + add
                 local.get $value'1
     ;; 29 |                 add := aik * b[k * n + j]
                 local.get $value'2
-                local.get $j
-                f64.load $heap
+                local.get $t1
                 f64.mul
     ;; 30 |                 c[idx] = prev + add
                 f64.add

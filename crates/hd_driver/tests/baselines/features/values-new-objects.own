@@ -27,38 +27,32 @@ fn temp_ref(s: string) -> usize:
 > app/main/temp_ref
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 $ref: Named [read assigned captured captured-assigned] place
->   local $2 n: &Named [:= read assigned] value
->     uses $2: %8 -> %9 lend last
+>   local $1 $ref: Named [read assigned captured captured-assigned] value
+>     uses $1: %5 -> %6 consume last
 >   local $3 self: string [read] value
->     uses $3: %11 -> %12 lend last
+>     uses $3: %8 -> %9 lend last
 >   %0 = Read borrow [$0] : string
 >   %1 = NewStruct [%0] : Named
 >   %2 = Break L1 %1 : never
 >   %3 = Block - : Named
 >   %4 = Scope %3 [] : Named
->   %5 = Box #1 #0 : ()
->   %6 = Store [$1] %4 : ()
->   %7 = Ref local frame [$1] : &Named
->   %8 = Store [$2] %7 : ()
->   %19 = Intrinsic ParamOwned [0:i32] : bool
->   %20 = Drop [$0] : ()
->   %21 = Block - : ()
->   %22 = If %19 [%21 -] : ()
->   %23 = Release %24 Exit local $0 #2 : ()
->   %24 = Block %16 : usize
+>   %5 = Store [$1] %4 : ()
+>   %15 = Intrinsic ParamOwned [0:i32] : bool
+>   %16 = Drop [$0] : ()
+>   %17 = Block - : ()
+>   %18 = If %15 [%17 -] : ()
+>   %19 = Release %20 Exit local $0 #2 : ()
+>   %20 = Block %13 : usize
     n.name.len()
->   %9 = Read borrow [*$2 .name] : string
->   %10 = LoanBegin %9 #0 : ()
->   %11 = Store [$3] %9 : ()
->   %12 = Read borrow [$3] : string
->   %13 = Call std/core/bytes_len[] (%12) : usize
->   %14 = Break L0 %13 : never
->   %15 = Block - : usize
->   %16 = Scope %15 [] : usize
->   %17 = LoanClose %10 : ()
->   %18 = LoanEnd [$2] : ()
->   storage sub 0: $1 slot
+>   %6 = Read borrow [$1 .name] : string
+>   %7 = LoanBegin %6 #0 : ()
+>   %8 = Store [$3] %6 : ()
+>   %9 = Read borrow [$3] : string
+>   %10 = Call std/core/bytes_len[] (%9) : usize
+>   %11 = Break L0 %10 : never
+>   %12 = Block - : usize
+>   %13 = Scope %12 [] : usize
+>   %14 = LoanClose %7 : ()
 >   summary kept [] borrows [$0]
 
 fn new_mut(s: string, t: string) -> usize:
@@ -66,44 +60,39 @@ fn new_mut(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %9 consume last
->   local $2 $ref: Named [read assigned captured captured-assigned] place
->   local $3 m: &mut Named [:= read assigned] value
->     uses $3: %8 -> %11 lend, %13 lend last
+>     uses $1: entry -> %6 consume last
+>   local $2 $ref: Named [read assigned captured captured-assigned] value ×2
+>     uses $2: %8 -> %10 consume last
 >   local $4 self: string [read] value
->     uses $4: %15 -> %16 lend last
->   %0 = Retain %26 Entry local $0 #0 : ()
->   %1 = Retain %26 Entry local $1 #0 : ()
+>     uses $4: %13 -> %14 lend last
+>   %0 = Retain %23 Entry local $0 #0 : ()
+>   %1 = Retain %23 Entry local $1 #0 : ()
     m := &mut Named { name: s }
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic Empty [] : ()
 >   %4 = NewStruct [%2] : Named
->   %5 = Box #2 #0 : ()
->   %6 = Store [$2] %4 : ()
->   %7 = Ref mut local frame [$2] : &mut Named
->   %8 = Store [$3] %7 : ()
->   %24 = Drop [$0] : ()
->   %25 = Drop [$1] : ()
->   %26 = Block %20 : usize
+>   %5 = Store [$2] %4 : ()
+>   %21 = Drop [$0] : ()
+>   %22 = Drop [$1] : ()
+>   %23 = Block %18 : usize
     m.name = t
->   %9 = Read move [$1] : string
->   %10 = Intrinsic Empty [] : ()
->   %11 = Store [*$3 .name] %9 : ()
->   %12 = Release %11 Operation #3 : ()
+>   %6 = Read move [$1] : string
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = Store [$2 .name] %6 : ()
+>   %9 = Release %8 Operation #3 : ()
     m.name.len()
->   %13 = Read borrow [*$3 .name] : string
->   %14 = LoanBegin %13 #0 : ()
->   %15 = Store [$4] %13 : ()
->   %16 = Read borrow [$4] : string
->   %17 = Call std/core/bytes_len[] (%16) : usize
->   %18 = Break L0 %17 : never
->   %19 = Block - : usize
->   %20 = Scope %19 [] : usize
->   %21 = LoanClose %14 : ()
->   %22 = LoanEnd [$3] : ()
->   %23 = Drop [$2] : ()
+>   %10 = Read move [$2 .name] : string
+>   %11 = Intrinsic Empty [] : ()
+>   %12 = LoanBegin %10 #0 : ()
+>   %13 = Store [$4] %10 : ()
+>   %14 = Read borrow [$4] : string
+>   %15 = Call std/core/bytes_len[] (%14) : usize
+>   %16 = Break L0 %15 : never
+>   %17 = Block - : usize
+>   %18 = Scope %17 [] : usize
+>   %19 = LoanClose %12 : ()
+>   %20 = Drop [$4] : ()
 >   exit sub 0 drops [$0 $1]
->   storage sub 0: $2 slot
 >   summary kept [$0 $1]
 
 fn field_ref(s: string, t: string) -> usize:
@@ -111,42 +100,36 @@ fn field_ref(s: string, t: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %2 consume last
 >   local $1 t: string [param read] value
->     uses $1: entry -> %9 consume last
->   local $2 p: Named [read assigned captured captured-assigned] place
->   local $3 q: &mut string [:= read assigned] value
->     uses $3: %8 -> %11 lend last
+>     uses $1: entry -> %6 consume last
+>   local $2 p: Named [read assigned captured captured-assigned] value ×2
+>     uses $2: %8 -> %10 consume last
 >   local $4 self: string [read] value
->     uses $4: %16 -> %17 lend last
->   %0 = Retain %25 Entry local $0 #0 : ()
->   %1 = Retain %25 Entry local $1 #0 : ()
+>     uses $4: %12 -> %13 lend last
+>   %0 = Retain %21 Entry local $0 #0 : ()
+>   %1 = Retain %21 Entry local $1 #0 : ()
     let mut p = Named { name: s }
 >   %2 = Read move [$0] : string
 >   %3 = Intrinsic Empty [] : ()
 >   %4 = NewStruct [%2] : Named
->   %5 = Box #2 #0 : ()
->   %6 = Store [$2] %4 : ()
->   %23 = Drop [$0] : ()
->   %24 = Drop [$1] : ()
->   %25 = Block %21 : usize
+>   %5 = Store [$2] %4 : ()
+>   %19 = Drop [$0] : ()
+>   %20 = Drop [$1] : ()
+>   %21 = Block %17 : usize
     q := &mut p.name
->   %7 = Ref mut local frame [$2 .name] : &mut string
->   %8 = Store [$3] %7 : ()
     *q = t
->   %9 = Read move [$1] : string
->   %10 = Intrinsic Empty [] : ()
->   %11 = Store [*$3] %9 : ()
->   %12 = Release %11 Operation #3 : ()
->   %13 = LoanEnd [$3] : ()
+>   %6 = Read move [$1] : string
+>   %7 = Intrinsic Empty [] : ()
+>   %8 = Store [$2 .name] %6 : ()
+>   %9 = Release %8 Operation #3 : ()
     p.name.len()
->   %14 = Read move [$2 .name] : string
->   %15 = Intrinsic Empty [] : ()
->   %16 = Store [$4] %14 : ()
->   %17 = Read borrow [$4] : string
->   %18 = Call std/core/bytes_len[] (%17) : usize
->   %19 = Break L0 %18 : never
->   %20 = Block - : usize
->   %21 = Scope %20 [] : usize
->   %22 = Drop [$4] : ()
+>   %10 = Read move [$2 .name] : string
+>   %11 = Intrinsic Empty [] : ()
+>   %12 = Store [$4] %10 : ()
+>   %13 = Read borrow [$4] : string
+>   %14 = Call std/core/bytes_len[] (%13) : usize
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Drop [$4] : ()
 >   exit sub 0 drops [$0 $1]
->   storage sub 0: $2 slot
 >   summary kept [$0 $1]

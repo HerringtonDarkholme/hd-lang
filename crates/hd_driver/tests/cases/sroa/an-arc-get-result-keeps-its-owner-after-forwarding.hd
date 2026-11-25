@@ -1,0 +1,18 @@
+# @dump: stdout
+# @build: release | release checked
+# An inlined `Arc.get` reads `self.block` straight out of the local once
+# its reference is forwarded; the address made from it still lives on `a`,
+# so `a` drops after the call that uses the result.
+use std.sync.Arc
+
+struct Flat:
+    edges: *mut List[i32]
+
+fn run(f: &Flat) -> void $ Console:
+    e := f.edges
+    e.push(8)
+    println("${e.len()}")
+
+pub fn main() -> void $ Console:
+    a := Arc::new(Flat { edges: box([1]) })
+    run(a.get())
