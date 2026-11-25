@@ -30,13 +30,13 @@ std/rt.cycle/takes_part#0
 std/encoding.json/impl TextWriter.spaced_key#0
 std/encoding.json/impl Display for Json.to_string#0
 std/encoding.json/impl JsonObject.position#0
+std/rt.bytes/impl ByteBuffer for TextBuffer.take_text#0
 app/main/Pair.structure handle 0#1
 std/encoding.json/push_escaped#0
 std/rt.alloc/release#0
 std/rt.alloc/block_of#0
 std/encoding.json/impl Serializer for JsonWriter.member#0
 app/main/main#0
-std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
 std/meta/impl Facts.find#0 [std.encoding.serde.SkipNone[i64]]
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
@@ -80,7 +80,6 @@ std/rt.entry/host_provider#0 [Console]
 std/encoding.serde/skipped#0 [app.main.Pair, i64]
 std/encoding.json/impl JsonObject.set#0
 std/rt.alloc/retain_known#0
-std/collections.uniq_list/impl ByteBuffer for UniqList[u8].take_text#0
 std/rt.memory/room#0
 std/collections.list/impl[T] List[T].pop#0 [string]
 std/encoding.json/impl TextWriter.open#0
@@ -104,6 +103,7 @@ std/rt.memory/impl[T < ?Copy] Buffer[T].grow#0 [u8]
 std/rt.bytes/impl TextSink for TextRoom.append_unsigned#0
 std/rt.cycle/hold_room#0
 app/main/Pair.structure handle 0 0#2
+std/rt.bytes/impl TextBuffer #2.grow_bytes#0
 std/encoding.json/impl Serializer for JsonWriter.end_variant#0
 std/encoding.json/object_of#0
 std/collections.list/impl[T] List[T].pop#0 [std.encoding.json.OpenFrame]
@@ -125,13 +125,11 @@ std/encoding.json/impl Serializer for TextWriter.end_variant#0
 std/rt.cycle/mark#0
 std/encoding.json/impl Serializer for TextWriter.member#0
 std/encoding.json/impl TextWriter.add_key#0
-std/collections.uniq_list/impl UniqList[u8].grow_bytes#0
 std/encoding.json/key_print#0
 std/text/impl string.replace#0
 std/rt.hash/hash_bytes#0
 std/encoding.json/encode_fallback#0 [app.main.Pair]
 std/encoding.json/impl TextWriter.give_up#0
-std/collections.uniq_list/impl[T < ?Copy] Drop for UniqList[T].drop#0 [u8]
 app/main/Pair.structure handle 0 1#1
 std/meta/impl Facts.find#0 [std.encoding.serde.RenameAll]
 std/rt.cycle/visit#0
@@ -153,9 +151,9 @@ std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.encoding.json.Json?]
 std/rt.alloc/release_value#0 [std.encoding.serde.EnumTagging]
 std/rt.alloc/retain_value#0 [std.encoding.serde.EnumTagging]
-std/rt.alloc/release_value#0 [std.collections.uniq_list.UniqList[u8]]
 std/rt.alloc/release_value#0 [std.encoding.json.ObjectEntry?]
 std/rt.alloc/release_value#0 [std.encoding.json.JsonWriter]
+std/rt.alloc/release_value#0 [std.rt.bytes.TextBuffer]
 std/rt.alloc/release_value#0 [std.encoding.json.TextWriter]
 std/rt.alloc/release_value#0 [(std.encoding.json.OpenFrame, List[string], List[std.encoding.json.Json])]
 std/rt.alloc/release_value#0 [std.rt.memory.Buffer[u8]]

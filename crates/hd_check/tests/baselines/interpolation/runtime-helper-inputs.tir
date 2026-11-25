@@ -50,7 +50,7 @@ fn value(n: i64, u: u64, c: char, b: bool, f: f64, text: string, mark: Mark) -> 
 >   %17 = Read [$5] : string
 >   %18 = Call std/text/impl StringBuilder.text_width[] (%17) : usize
 >   %19 = Ref local [$6] : &Mark
->   %20 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].new[u8] () : UniqList[u8]
+>   %20 = Call std/rt.bytes/impl TextBuffer.new[] () : TextBuffer
 >   %21 = NewStruct [%20] : StringBuilder
 >   %22 = Store [$7] %21 : ()
 >   %23 = Ref mut local [$7] : &mut StringBuilder
