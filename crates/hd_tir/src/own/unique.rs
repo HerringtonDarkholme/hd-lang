@@ -368,7 +368,9 @@ pub fn fresh_result(b: &Body, cx: &dyn OwnCx) -> bool {
             Some(Effect::Shares | Effect::Kept) => return false,
             Some(Effect::Fresh) => stored = true,
             Some(Effect::Ends) if !moves.contains(&crate::ir::u32_of(i)) => return false,
-            _ => {}
+            // A release lets another block go; the returned move is the
+            // result itself.
+            Some(Effect::Ends | Effect::Releases) | None => {}
         }
     }
     stored

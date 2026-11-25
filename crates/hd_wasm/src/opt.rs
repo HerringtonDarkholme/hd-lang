@@ -3041,19 +3041,14 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
     let mut order = None;
     for i in 0..f.body.len() {
         visit();
-        match f.body[i] {
-            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
-                numbered += 1;
-                constructs.push(numbered);
-            }
-            Ins::Op(I::Else) => {
-                numbered += 1;
-                *constructs.last_mut().expect("an arm") = numbered;
-            }
-            Ins::Op(I::End) => {
+        if let Ins::Op(I::Block(_) | I::Loop(_) | I::If(_) | I::Else) = f.body[i] {
+            numbered += 1;
+            if matches!(f.body[i], Ins::Op(I::Else)) {
                 constructs.pop();
             }
-            _ => {}
+            constructs.push(numbered);
+        } else if let Ins::Op(I::End) = f.body[i] {
+            constructs.pop();
         }
         let Some((pops, pushes)) = effect(&f.body[i], arity, &f.symbols) else {
             depth = 0;
