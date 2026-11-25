@@ -20,7 +20,7 @@
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
   (import "fixture" "heap" (memory $heap 17))
   (func $used_after (param $items i32) (param $i i32) (result i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32)
-    ;; 32 |     previous := items[i]
+    ;; 38 |     previous := items[i]
     local.get $items
     i32.load $heap
     local.set $t0
@@ -49,7 +49,7 @@
     local.get $t1
     local.get $t0
     call $"retain_value[Item]"
-    ;; 33 |     items[i] = Item { ...previous, r: 1 }
+    ;; 39 |     items[i] = Item { ...previous, r: 1 }
     local.get $items
     i32.load $heap
     call $rt:list_unique
@@ -78,23 +78,23 @@
     i32.load $heap offset=24
     call $"release_value[Item]"
     local.get $items
-    ;; 32 |     previous := items[i]
+    ;; 38 |     previous := items[i]
     local.get $t2
-    ;; 33 |     items[i] = Item { ...previous, r: 1 }
+    ;; 39 |     items[i] = Item { ...previous, r: 1 }
     i32.store $heap offset=16
     local.get $items
-    ;; 32 |     previous := items[i]
+    ;; 38 |     previous := items[i]
     local.get $t1
-    ;; 33 |     items[i] = Item { ...previous, r: 1 }
+    ;; 39 |     items[i] = Item { ...previous, r: 1 }
     i32.store $heap offset=20
     local.get $items
     i32.const 1
     i32.store $heap offset=24
-    ;; 32 |     previous := items[i]
+    ;; 38 |     previous := items[i]
     local.get $t0
   )
-  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $shared i32) (local $o.tag.1 i32) (local $o.tag.0 i32) (local $t0 i32) (local $o.item.r i32) (local $o.item.depots i32) (local $o.item.batches i32) (local $t1 i32)
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
+  (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $items i32) (local $shared i32) (local $o.tag.1 i32) (local $o.tag.0 i32) (local $t0 i32) (local $o.item.depots i32) (local $o.item.batches i32) (local $o.item.r i32) (local $t1 i32)
+    ;; 50 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     global.get $stack
     global.get $stack_limit
     i32.sub
@@ -164,16 +164,16 @@
     local.tee $items
     local.get $o.tag.1
     i32.store $heap
-    ;; 45 |     shared := items
+    ;; 51 |     shared := items
     local.get $items
     i32.load $heap
     local.tee $shared
     call $rt:retain_coll
-    ;; 46 |     element(&mut items, 0)
+    ;; 52 |     element(&mut items, 0)
     local.get $items
     i32.const 0
     call $element
-    ;; 47 |     through_reference(&mut items[0])
+    ;; 53 |     through_reference(&mut items[0])
     local.get $items
     local.get $items
     i32.load $heap
@@ -194,7 +194,7 @@
     i32.const 16
     i32.add
     call $through_reference
-    ;; 48 |     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
+    ;; 54 |     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
     i32.const 1
     call $rt:list_buf'1
     local.tee $o.tag.1
@@ -212,47 +212,31 @@
     local.get $o.tag.0
     i64.load $heap offset=24
     call $rt:map_hash
-    local.set $o.item.r
+    local.set $o.item.depots
     local.get $o.tag.0
-    local.get $o.item.r
+    local.get $o.item.depots
     i32.const 65 ;; &"a"
     i32.const 1
     call $rt:map_find
-    local.set $o.item.depots
+    local.set $o.item.batches
     local.get $o.tag.1
     local.get $o.tag.0
-    local.get $o.item.r
     local.get $o.item.depots
+    local.get $o.item.batches
     i32.const 65 ;; &"a"
     i32.const 1
     i64.const 1
     call $rt:map_put
-    i32.const 0
     i32.const 66 ;; &"t"
     i32.const 1
     local.set $o.tag.1
     local.set $o.tag.0
-    local.set $o.item.r
     local.set $o.item.depots
-    local.tee $o.item.batches
-    ;; 49 |     field(&mut o)
-    local.tee $t1
-    local.get $o.item.depots
-    local.get $o.item.r
-    call $"retain_value[Item]"
-    local.get $t1
-    local.get $o.item.r
-    i32.const 1
-    i32.add
-    local.set $t1
-    local.get $o.item.batches
-    local.get $o.item.depots
-    local.get $o.item.r
-    call $"release_value[Item]"
-    local.get $t1
-    local.set $o.item.r
     local.set $o.item.batches
-    ;; 50 |     replaced(&mut items[0])
+    i32.const 1
+    ;; 55 |     field(&mut o)
+    local.set $o.item.r
+    ;; 56 |     replaced(&mut items[0])
     local.get $items
     local.get $items
     i32.load $heap
@@ -273,11 +257,11 @@
     i32.const 16
     i32.add
     call $replaced
-    ;; 51 |     call_between(&mut items, 0)
+    ;; 57 |     call_between(&mut items, 0)
     local.get $items
     i32.const 0
     call $call_between
-    ;; 52 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+    ;; 58 |     println(used_after(&mut items, 0) + o.item.r + shared[0].r + local_part())
     local.get $items
     i32.const 0
     call $used_after
@@ -329,17 +313,19 @@
       end
     end
     i32.add
+    call $local_part
+    i32.add
     local.get $provider0
     local.get $provider0.vtable
     call $"println[usize]"
-    ;; 44 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
+    ;; 50 |     let mut items = [Item { batches: [0], depots: { "a": 1 }, r: 0 }]
     local.get $t0
     i32.const 16
     i32.add
     global.set $stack
   )
   (func $through_reference (param $p i32)
-    ;; 23 |     *p = Item { ...*p, r: p.r + 1 }
+    ;; 24 |     *p = Item { ...*p, r: p.r + 1 }
     local.get $p
     local.get $p
     i32.load $heap offset=8
@@ -348,7 +334,7 @@
     i32.store $heap offset=8
   )
   (func $call_between (param $items i32) (param $i i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
-    ;; 41 |     items[i] = Item { ...items[i], r: grow(items, i) }
+    ;; 47 |     items[i] = Item { ...items[i], r: grow(items, i) }
     local.get $items
     i32.load $heap
     local.set $t0
@@ -416,7 +402,7 @@
     i32.store $heap offset=24
   )
   (func $replaced (param $p i32) (local $t0 i32)
-    ;; 29 |     *p = Item { ...*p, batches: [1] }
+    ;; 35 |     *p = Item { ...*p, batches: [1] }
     i32.const 1
     call $rt:list_buf'1
     local.tee $t0
@@ -442,8 +428,72 @@
       end
     end
   )
+  (func $local_part (result i32) (local $o.item.depots i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+    ;; 30 |     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
+    i32.const 1
+    call $rt:list_buf'1
+    local.tee $o.item.depots
+    i32.const 1
+    i32.store $heap offset=4
+    local.get $o.item.depots
+    i64.const 0
+    i64.store $heap offset=16
+    i32.const 4
+    call $rt:map_seed
+    call $rt:map_table
+    local.set $t0
+    i32.const 65 ;; &"a"
+    i32.const 1
+    local.get $t0
+    i64.load $heap offset=24
+    call $rt:map_hash
+    local.set $t1
+    local.get $t0
+    local.get $t1
+    i32.const 65 ;; &"a"
+    i32.const 1
+    call $rt:map_find
+    local.set $t2
+    local.get $o.item.depots
+    local.get $t0
+    local.get $t1
+    local.get $t2
+    i32.const 65 ;; &"a"
+    i32.const 1
+    i64.const 1
+    call $rt:map_put
+    local.set $o.item.depots
+    ;; 32 |     o.item.r + o.item.batches.len()
+    local.tee $t0
+    i32.const 0
+    local.get $o.item.depots
+    ;; 30 |     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
+    i32.const 1
+    i32.const 66 ;; &"t"
+    i32.const 1
+    ;; 32 |     o.item.r + o.item.batches.len()
+    call $"release_value[Outer]"
+    i32.load $heap offset=4
+    local.set $o.item.depots
+    local.get $t0
+    if
+      local.get $t0
+      i32.const 8
+      i32.sub
+      i32.load $heap
+      if
+        local.get $t0
+        call $rt:release_ref
+      end
+    end
+    ;; 30 |     let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
+    i32.const 1
+    ;; 32 |     o.item.r + o.item.batches.len()
+    local.get $o.item.depots
+    i32.add
+  )
   (func $grow (param $items i32) (param $i i32) (result i32) (local $t0 i32) (local $t1 i32)
-    ;; 37 |     items[i].batches = [9]
+    ;; 43 |     items[i].batches = [9]
     i32.const 1
     call $rt:list_buf'1
     local.tee $t0
@@ -491,7 +541,7 @@
     i32.const 7
   )
   (func $element (param $items i32) (param $i i32) (local $previous.r i32) (local $t0 i32)
-    ;; 19 |     previous := items[i]
+    ;; 20 |     previous := items[i]
     local.get $items
     i32.load $heap
     local.set $previous.r
@@ -517,7 +567,7 @@
     local.set $previous.r
     drop
     drop
-    ;; 20 |     items[i] = Item { ...previous, r: previous.r + 1 }
+    ;; 21 |     items[i] = Item { ...previous, r: previous.r + 1 }
     local.get $previous.r
     i32.const 1
     i32.add
@@ -546,7 +596,7 @@
     i32.store $heap offset=24
   )
   (func $field (param $o i32)
-    ;; 26 |     o.item = Item { ...o.item, r: o.item.r + 1 }
+    ;; 27 |     o.item = Item { ...o.item, r: o.item.r + 1 }
     local.get $o
     local.get $o
     i32.load $heap offset=8

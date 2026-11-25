@@ -1,11 +1,12 @@
 # @dump: own wat counts
 # @build: v8 release
-# expected: `element`, `through_reference` and `field` store only `.r`, with no
-# copy of `batches` or `depots` and no release. `replaced` stores `.batches`
-# and releases the old one, and copies nothing. `used_after` reads its old
-# value after the store and `call_between`'s call may write the place, so both
-# keep their copies and the whole store. `element` keeps its uniqueness check,
-# as `main` shares the buffer.
+# expected: `element`, `through_reference`, `field` and `local_part` store only
+# `.r`, with no copy of `batches` or `depots` and no release; so does `field`
+# copied into `main`, where it spreads `o.item` of the local itself.
+# `replaced` stores `.batches` and releases the old one, and copies nothing.
+# `used_after` reads its old value after the store and `call_between`'s call
+# may write the place, so both keep their copies and the whole store.
+# `element` keeps its uniqueness check, as `main` shares the buffer.
 struct Item:
     batches: List[i64]
     depots: Map[string, i64]
@@ -24,6 +25,11 @@ fn through_reference(p: &mut Item) -> void:
 
 fn field(o: &mut Outer) -> void:
     o.item = Item { ...o.item, r: o.item.r + 1 }
+
+fn local_part() -> usize:
+    let mut o = Outer { item: Item { batches: [0], depots: { "a": 1 }, r: 0 }, tag: "t" }
+    o.item = Item { ...o.item, r: o.item.r + 1 }
+    o.item.r + o.item.batches.len()
 
 fn replaced(p: &mut Item) -> void:
     *p = Item { ...*p, batches: [1] }
@@ -49,4 +55,4 @@ pub fn main() -> void $ Console:
     field(&mut o)
     replaced(&mut items[0])
     call_between(&mut items, 0)
-    println(used_after(&mut items, 0) + o.item.r + shared[0].r)
+    println(used_after(&mut items, 0) + o.item.r + shared[0].r + local_part())

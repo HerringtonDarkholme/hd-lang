@@ -10,7 +10,17 @@
 //! read the store itself would change it, so a value used after the store is
 //! no borrow here and keeps its copies.
 //!
+//! A chain may also start at a snapshot: a `copy` read of the place whose
+//! only uses are the kept reads of its fields and its `Drop`, as a spread
+//! of a local's own part gets (`o.item = Item { ...o.item, r: 1 }`), whose
+//! read the derivation leaves a copy where a later read of `o.item.r`
+//! keeps the move pass from taking it. Nothing writes the place from the
+//! snapshot to the store, so the snapshot holds what the place holds: it
+//! goes with its `Drop` and its kept reads, moves out of it included.
+//!
 //! A `data` value's copy is a new object, so it isn't one of these.
+
+use hd_base::SliceSort as _;
 
 use super::values::{self, Local};
 use super::{OwnCx, operands, splice};
@@ -26,6 +36,11 @@ struct Resolved {
 
 struct Facts {
     uses: Vec<u32>,
+    /// Per value: whether every use of it is a read rooted at it, and it
+    /// has at most one `Drop`, of all of it ([`Facts::drops`]).
+    snapshots: Vec<bool>,
+    /// Per value: its `Drop`, or `NONE`.
+    drops: Vec<u32>,
     /// The one `Store` of all of each local, if it has just one store.
     stored: Vec<u32>,
     classes: Vec<Local>,
@@ -35,6 +50,8 @@ impl Facts {
     fn of(b: &Body) -> Self {
         let mut facts = Facts {
             uses: vec![0; b.len()],
+            snapshots: vec![true; b.len()],
+            drops: vec![NONE; b.len()],
             stored: vec![NONE; b.local_ty.len()],
             classes: Vec::new(),
         };
@@ -42,8 +59,20 @@ impl Facts {
         let mut ops = Vec::new();
         for i in 0..b.len() {
             operands(b, i, &mut ops);
+            let read = (b.tags[i] == Tag::Read).then(|| b.view(b.data[i][0]).root);
             for op in &ops {
                 facts.uses[op.value as usize] += 1;
+                if read != Some(Root::Value(op.value)) {
+                    facts.snapshots[op.value as usize] = false;
+                }
+            }
+            if b.tags[i] == Tag::Drop
+                && let p = b.view(b.data[i][0])
+                && let Root::Value(v) = p.root
+            {
+                let v = v as usize;
+                facts.snapshots[v] &= facts.drops[v] == NONE && p.whole();
+                facts.drops[v] = u32_of(i);
             }
             if b.tags[i] == Tag::Store
                 && let Some(l) = b.view(b.data[i][0]).local()
@@ -78,7 +107,10 @@ impl Facts {
             own.append(&mut steps);
             steps = own;
             let next = match p.root {
-                Root::Value(v) if borrowed_read(b, v) && topo.blk[v as usize] == topo.blk[at] => {
+                Root::Value(v)
+                    if (borrowed_read(b, v) || self.snapshot(b, v))
+                        && topo.blk[v as usize] == topo.blk[at] =>
+                {
                     Some(v)
                 }
                 Root::Local(l) => self.binding(b, topo, l, at),
@@ -92,6 +124,15 @@ impl Facts {
             };
             word = b.data[next as usize][0];
         }
+    }
+
+    /// Whether value `v` is a snapshot: a `copy` read of a place whose
+    /// uses are reads of its parts, dropped at most once and whole
+    /// ([`rewrite`] counts the reads).
+    fn snapshot(&self, b: &Body, v: u32) -> bool {
+        b.tags.get(v as usize) == Some(&Tag::Read)
+            && b.data[v as usize][1] == ReadMode::Copy as u32
+            && self.snapshots[v as usize]
     }
 
     /// Whether two index values are one value: the same value or constant,
@@ -181,10 +222,12 @@ fn leaves(
     }
 }
 
-/// One store's rewrite: its kept reads, its changed (field, value) pairs.
+/// One store's rewrite: its kept reads, its changed (field, value) pairs,
+/// and the snapshots the kept reads read, each with its `Drop`.
 struct Narrowed {
     kept: Vec<u32>,
     changed: Vec<(u32, u32)>,
+    snapshot: Vec<u32>,
 }
 
 /// The rewrite of store `s`, if it keeps a counted field of its own place.
@@ -215,11 +258,18 @@ fn rewrite(b: &Body, cx: &dyn OwnCx, topo: &Topology, f: &Facts, s: usize) -> Op
         counts = cx.counted(b.ty[a]);
     }
     let (mut kept, mut changed) = (Vec::new(), Vec::new());
+    // The snapshot a kept read is rooted at, if any: a move out of it is
+    // kept as a copy of the place is.
+    let snapshot_of = |r: usize| match b.view(b.data[r][0]).root {
+        Root::Value(v) if f.snapshot(b, v) => Some(v),
+        _ => None,
+    };
     for &(field, value) in &pairs {
         let read = Ref(value).as_inst().map(|r| r.0 as usize);
         let is_kept = read.is_some_and(|r| {
             b.tags[r] == Tag::Read
-                && b.data[r][1] == ReadMode::Copy as u32
+                && (b.data[r][1] == ReadMode::Copy as u32
+                    || b.data[r][1] == ReadMode::Move as u32 && snapshot_of(r).is_some())
                 && f.uses[r] == 1
                 && topo.blk[r] == topo.blk[s]
                 && {
@@ -232,19 +282,65 @@ fn rewrite(b: &Body, cx: &dyn OwnCx, topo: &Topology, f: &Facts, s: usize) -> Op
                 }
         });
         if let (true, Some(r)) = (is_kept, read) {
-            counts |= cx.counted(b.ty[r]);
-            kept.push(u32_of(r));
+            kept.push((field, u32_of(r)));
         } else {
             changed.push((field, value));
         }
     }
+    // Each snapshot goes whole: its uses are the kept reads of it, and its
+    // one `Drop` lies between it and the store. Its read is when the
+    // place's contents were taken, so nothing may write the place from
+    // there. A snapshot something else reads stays, and the fields read
+    // out of it are changed ones.
+    let mut roots: Vec<u32> = kept
+        .iter()
+        .filter_map(|&(_, r)| snapshot_of(r as usize))
+        .collect();
+    roots.sort_stable();
+    let mut gone = Vec::new();
+    let mut snapshot = Vec::new();
+    let mut stays = Vec::new();
+    for run in roots.chunk_by(|x, y| x == y) {
+        let (v, reads) = (run[0], run.len());
+        let drop = f.drops[v as usize];
+        if f.uses[v as usize] as usize != reads
+            || drop != NONE && (drop as usize > s || topo.blk[drop as usize] != topo.blk[s])
+        {
+            stays.push(v);
+            continue;
+        }
+        first = first.min(v as usize);
+        gone.push(v);
+        snapshot.push(v);
+        if drop != NONE {
+            gone.push(drop);
+            snapshot.push(drop);
+        }
+    }
+    let kept: Vec<u32> = kept
+        .into_iter()
+        .filter_map(|(field, r)| {
+            if snapshot_of(r as usize).is_some_and(|v| stays.binary_search(&v).is_ok()) {
+                changed.push((field, r));
+                return None;
+            }
+            counts |= cx.counted(b.ty[r as usize]);
+            Some(r)
+        })
+        .collect();
     if !counts || changed.is_empty() {
         return None;
     }
     let first = kept.iter().fold(first, |at, &r| at.min(r as usize));
+    gone.extend_from_slice(&kept);
+    gone.sort_stable();
     (first..s)
-        .all(|i| leaves(b, cx, topo, f, i, &target))
-        .then_some(Narrowed { kept, changed })
+        .all(|i| gone.binary_search(&u32_of(i)).is_ok() || leaves(b, cx, topo, f, i, &target))
+        .then_some(Narrowed {
+            kept,
+            changed,
+            snapshot,
+        })
 }
 
 /// A record for place `word` with one more field step.
@@ -282,7 +378,12 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
         if b.tags[s] != Tag::Store {
             continue;
         }
-        let Some(Narrowed { kept, changed }) = rewrite(b, cx, topo, &f, s) else {
+        let Some(Narrowed {
+            kept,
+            changed,
+            snapshot,
+        }) = rewrite(b, cx, topo, &f, s)
+        else {
             continue;
         };
         let a = b.data[s][1] as usize;
@@ -304,7 +405,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, topo: &Topology, edits: &mut spl
             }
         }
         edits.remove(u32_of(a));
-        for r in kept {
+        for r in kept.into_iter().chain(snapshot) {
             edits.remove(r);
         }
     }
