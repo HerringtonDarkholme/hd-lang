@@ -83,7 +83,7 @@ pub struct ProviderBridge {
 
 pub static PROVIDER_BRIDGES: &[ProviderBridge] = &[ProviderBridge {
     public_path: "std.http.Http",
-    wire_path: "std.http_wire.Http",
+    wire_path: "std.http.WireHttp",
     adapter: "std.http.host_provider",
 }];
 
@@ -271,7 +271,7 @@ pub static TABLE: &[HostTrait] = &[
     },
     HostTrait {
         key: "Http",
-        std_path: "std.http_wire.Http",
+        std_path: "std.http.WireHttp",
         methods: &[m(
             "send",
             &[B("WireRequest")],

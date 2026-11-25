@@ -23,7 +23,6 @@ pub use std.{
     hash,
     host,
     http,
-    http_wire,
     inspect,
     iter,
     json,

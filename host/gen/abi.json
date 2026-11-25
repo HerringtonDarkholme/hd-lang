@@ -32,7 +32,7 @@
       { "name": "next_u64", "wait": "never", "resource": null, "params": [], "result": "i64" },
       { "name": "fill", "wait": "never", "resource": null, "params": ["i32"], "result": "List[u8]" }
     ]},
-    { "key": "Http", "std": "std.http_wire.Http", "methods": [
+    { "key": "Http", "std": "std.http.WireHttp", "methods": [
       { "name": "send", "wait": "may", "resource": "host", "params": ["WireRequest"], "result": "Result[WireResponse, WireHttpError]" }
     ]},
     { "key": "Workers", "std": "std.remote.Workers", "methods": [
@@ -204,7 +204,7 @@
     "TcpStream": { "kind": "handle" },
     "Timestamp": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },
     "UdpSocket": { "kind": "handle" },
-    "WireHttpError": { "kind": "enum", "module": "lib/std/http_wire.hd", "generics": [], "variants": [
+    "WireHttpError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
       { "name": "NotGranted", "fields": [{ "name": "host", "type": "string" }] },
       { "name": "InvalidUrl", "fields": [{ "name": "url", "type": "string" }] },
       { "name": "Dns", "fields": [{ "name": "host", "type": "string" }] },
@@ -220,8 +220,8 @@
       { "name": "OutputTooLarge", "fields": [] },
       { "name": "UnsupportedSetting", "fields": [{ "name": "name", "type": "string" }] }
     ] },
-    "WireIdentity": { "kind": "data", "module": "lib/std/http_wire.hd", "generics": [], "fields": [{ "name": "certificate_chain", "type": "string" }, { "name": "private_key", "type": "string" }] },
-    "WireRequest": { "kind": "data", "module": "lib/std/http_wire.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "redirects", "type": "usize" }, { "name": "dns_servers", "type": "List[string]?" }, { "name": "tls_roots", "type": "List[string]" }, { "name": "tls_identity", "type": "WireIdentity?" }, { "name": "connect_timeout", "type": "Duration?" }, { "name": "tls_handshake_timeout", "type": "Duration?" }, { "name": "response_header_timeout", "type": "Duration?" }, { "name": "body_read_timeout", "type": "Duration?" }] },
-    "WireResponse": { "kind": "data", "module": "lib/std/http_wire.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] }
+    "WireIdentity": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "certificate_chain", "type": "string" }, { "name": "private_key", "type": "string" }] },
+    "WireRequest": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "redirects", "type": "usize" }, { "name": "dns_servers", "type": "List[string]?" }, { "name": "tls_roots", "type": "List[string]" }, { "name": "tls_identity", "type": "WireIdentity?" }, { "name": "connect_timeout", "type": "Duration?" }, { "name": "tls_handshake_timeout", "type": "Duration?" }, { "name": "response_header_timeout", "type": "Duration?" }, { "name": "body_read_timeout", "type": "Duration?" }] },
+    "WireResponse": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] }
   }
 }
