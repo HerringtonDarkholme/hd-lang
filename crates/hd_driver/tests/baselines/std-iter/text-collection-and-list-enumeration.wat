@@ -2,12 +2,13 @@
 == @build: release
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[u8]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[u8]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[char]" (func $"impl[T] Iterator[T] for ListIter[T].next[char]" (param i32) (result i32)))
-  (import "fixture" "impl StringBuilder.push_char" (func $"impl StringBuilder.push_char" (param i32 i32)))
-  (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
+  (import "fixture" "impl UniqList[u8].grow_bytes" (func $"impl UniqList[u8].grow_bytes" (param i32 i32)))
+  (import "fixture" "write_char_sized" (func $write_char_sized (param i32 i32)))
+  (import "fixture" "impl ByteBuffer for UniqList[u8].take_text" (func $"impl ByteBuffer for UniqList[u8].take_text" (param i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
-  (import "fixture" "release_value[std.text.StringBuilder]" (func $"release_value[std.text.StringBuilder]" (param i32)))
+  (import "fixture" "release_value[std.collections.uniq_list.UniqList[u8]]" (func $"release_value[std.collections.uniq_list.UniqList[u8]]" (param i32)))
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -27,14 +28,14 @@
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 72
+    i32.const 64
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 72
+    i32.const 64
     i32.sub
     local.tee $t0
     global.set $stack
@@ -55,43 +56,39 @@
       local.get $t4
       i32.store $heap offset=8
       i32.const 0
-      call $"impl[T < ?Copy] UniqList[T].with_capacity[u8]"
+      i32.const 1
+      call $room
       local.set $t2
-      local.set $t3
-      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap offset=24
       local.get $t0
       i32.const 32
       i32.add
-      local.tee $t5
-      local.get $t4
-      i32.store $heap
-      local.get $t5
-      local.get $t3
-      i32.store $heap offset=4
-      local.get $t5
+      local.tee $t3
       local.get $t2
+      i32.store $heap
+      local.get $t3
+      i32.const 0
+      i32.store $heap offset=4
+      local.get $t3
+      i32.const 0
       i32.store $heap offset=8
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=12
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=16
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=20
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=24
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=28
-      local.get $t5
-      i32.const 1
-      i32.store $heap offset=32
       loop
         local.get $t1
         call $"impl[T] Iterator[T] for ListIter[T].next[char]"
@@ -107,15 +104,62 @@
               br 0
               unreachable
             end
-            local.get $t5
             local.get $t2
-            call $"impl StringBuilder.push_char"
+            i32.const 128
+            i32.lt_u
+            if (result i32)
+              i32.const 1
+            else
+              local.get $t2
+              i32.const 2048
+              i32.lt_u
+              if (result i32)
+                i32.const 2
+              else
+                local.get $t2
+                i32.const 65536
+                i32.lt_u
+                if (result i32)
+                  i32.const 3
+                else
+                  i32.const 4
+                end
+              end
+            end
+            local.tee $t4
+            local.tee $t5
+            local.get $t3
+            i32.load $heap offset=4
+            local.get $t3
+            i32.load $heap offset=8
+            i32.sub
+            i32.gt_u
+            if
+              local.get $t3
+              local.get $t5
+              call $"impl UniqList[u8].grow_bytes"
+            end
+            local.get $t3
+            i32.load $heap offset=8
+            local.set $t5
+            local.get $t2
+            local.get $t3
+            i32.load $heap
+            local.get $t5
+            i32.add
+            call $write_char_sized
+            local.get $t3
+            local.get $t3
+            i32.load $heap offset=8
+            local.get $t4
+            i32.add
+            i32.store $heap offset=8
             br 1
           end
-          local.get $t5
-          call $"impl StringBuilder.build"
-          local.set $t3
+          local.get $t3
+          call $"impl ByteBuffer for UniqList[u8].take_text"
           local.set $t4
+          local.set $t5
           local.get $t1
           if
             local.get $t1
@@ -132,22 +176,22 @@
               end
             end
           end
-          local.get $t5
+          local.get $t3
           if
-            local.get $t5
-            call $"release_value[std.text.StringBuilder]"
+            local.get $t3
+            call $"release_value[std.collections.uniq_list.UniqList[u8]]"
           end
           br 2
         end
         br 0
       end
-      local.get $t5
+      local.get $t3
       if
-        local.get $t5
-        call $"release_value[std.text.StringBuilder]"
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
       i32.const 0
-      local.set $t5
+      local.set $t3
       local.get $t1
       if
         local.get $t1
@@ -192,17 +236,17 @@
           end
         end
       end
-      local.get $t5
+      local.get $t3
       if
-        local.get $t5
-        call $"release_value[std.text.StringBuilder]"
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
       unreachable
     end
+    local.get $t5
     local.get $t4
-    local.get $t3
     local.get $t0
-    i32.const 72
+    i32.const 64
     i32.add
     global.set $stack
   )
@@ -297,13 +341,14 @@
 == @build: release checked
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
-  (import "fixture" "impl[T < ?Copy] UniqList[T].with_capacity[u8]" (func $"impl[T < ?Copy] UniqList[T].with_capacity[u8]" (param i32) (result i32 i32 i32)))
+  (import "fixture" "room" (func $room (param i32 i32) (result i32)))
   (import "fixture" "impl[T] Iterator[T] for ListIter[T].next[char]" (func $"impl[T] Iterator[T] for ListIter[T].next[char]" (param i32) (result i32)))
-  (import "fixture" "impl StringBuilder.push_char" (func $"impl StringBuilder.push_char" (param i32 i32)))
-  (import "fixture" "impl StringBuilder.build" (func $"impl StringBuilder.build" (param i32) (result i32 i32)))
+  (import "fixture" "impl UniqList[u8].grow_bytes" (func $"impl UniqList[u8].grow_bytes" (param i32 i32)))
+  (import "fixture" "write_char_sized" (func $write_char_sized (param i32 i32)))
+  (import "fixture" "impl ByteBuffer for UniqList[u8].take_text" (func $"impl ByteBuffer for UniqList[u8].take_text" (param i32) (result i32 i32)))
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "skipped_test" (func $skipped_test))
-  (import "fixture" "release_value[std.text.StringBuilder]" (func $"release_value[std.text.StringBuilder]" (param i32)))
+  (import "fixture" "release_value[std.collections.uniq_list.UniqList[u8]]" (func $"release_value[std.collections.uniq_list.UniqList[u8]]" (param i32)))
   (import "fixture" "impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (func $"impl[I < ?Copy & Iterator[T], T < ?Copy] Iterator[(usize, T)] for Enumerate[I, T].next[std.iter.ListIter[i32], i32]" (param i32) (result i32 i32 i32)))
   (import "fixture" "stack" (global $stack (mut i32)))
   (import "fixture" "stack_limit" (global $stack_limit (mut i32)))
@@ -323,14 +368,14 @@
     global.get $stack
     global.get $stack_limit
     i32.sub
-    i32.const 72
+    i32.const 64
     i32.lt_u
     if
       call $rt:panic
       unreachable
     end
     global.get $stack
-    i32.const 72
+    i32.const 64
     i32.sub
     local.tee $t0
     global.set $stack
@@ -351,43 +396,39 @@
       local.get $t4
       i32.store $heap offset=8
       i32.const 0
-      call $"impl[T < ?Copy] UniqList[T].with_capacity[u8]"
+      i32.const 1
+      call $room
       local.set $t2
-      local.set $t3
-      local.set $t4
       local.get $t0
       i64.const 0
       i64.store $heap offset=24
       local.get $t0
       i32.const 32
       i32.add
-      local.tee $t5
-      local.get $t4
-      i32.store $heap
-      local.get $t5
-      local.get $t3
-      i32.store $heap offset=4
-      local.get $t5
+      local.tee $t3
       local.get $t2
+      i32.store $heap
+      local.get $t3
+      i32.const 0
+      i32.store $heap offset=4
+      local.get $t3
+      i32.const 0
       i32.store $heap offset=8
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=12
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=16
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=20
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=24
-      local.get $t5
+      local.get $t3
       i32.const 1
       i32.store $heap offset=28
-      local.get $t5
-      i32.const 1
-      i32.store $heap offset=32
       loop
         local.get $t1
         call $"impl[T] Iterator[T] for ListIter[T].next[char]"
@@ -403,15 +444,62 @@
               br 0
               unreachable
             end
-            local.get $t5
             local.get $t2
-            call $"impl StringBuilder.push_char"
+            i32.const 128
+            i32.lt_u
+            if (result i32)
+              i32.const 1
+            else
+              local.get $t2
+              i32.const 2048
+              i32.lt_u
+              if (result i32)
+                i32.const 2
+              else
+                local.get $t2
+                i32.const 65536
+                i32.lt_u
+                if (result i32)
+                  i32.const 3
+                else
+                  i32.const 4
+                end
+              end
+            end
+            local.tee $t4
+            local.tee $t5
+            local.get $t3
+            i32.load $heap offset=4
+            local.get $t3
+            i32.load $heap offset=8
+            i32.sub
+            i32.gt_u
+            if
+              local.get $t3
+              local.get $t5
+              call $"impl UniqList[u8].grow_bytes"
+            end
+            local.get $t3
+            i32.load $heap offset=8
+            local.set $t5
+            local.get $t2
+            local.get $t3
+            i32.load $heap
+            local.get $t5
+            i32.add
+            call $write_char_sized
+            local.get $t3
+            local.get $t3
+            i32.load $heap offset=8
+            local.get $t4
+            i32.add
+            i32.store $heap offset=8
             br 1
           end
-          local.get $t5
-          call $"impl StringBuilder.build"
-          local.set $t3
+          local.get $t3
+          call $"impl ByteBuffer for UniqList[u8].take_text"
           local.set $t4
+          local.set $t5
           local.get $t1
           if
             local.get $t1
@@ -432,22 +520,22 @@
               call $skipped_test
             end
           end
-          local.get $t5
+          local.get $t3
           if
-            local.get $t5
-            call $"release_value[std.text.StringBuilder]"
+            local.get $t3
+            call $"release_value[std.collections.uniq_list.UniqList[u8]]"
           end
           br 2
         end
         br 0
       end
-      local.get $t5
+      local.get $t3
       if
-        local.get $t5
-        call $"release_value[std.text.StringBuilder]"
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
       i32.const 0
-      local.set $t5
+      local.set $t3
       local.get $t1
       if
         local.get $t1
@@ -504,17 +592,17 @@
           call $skipped_test
         end
       end
-      local.get $t5
+      local.get $t3
       if
-        local.get $t5
-        call $"release_value[std.text.StringBuilder]"
+        local.get $t3
+        call $"release_value[std.collections.uniq_list.UniqList[u8]]"
       end
       unreachable
     end
+    local.get $t5
     local.get $t4
-    local.get $t3
     local.get $t0
-    i32.const 72
+    i32.const 64
     i32.add
     global.set $stack
   )
