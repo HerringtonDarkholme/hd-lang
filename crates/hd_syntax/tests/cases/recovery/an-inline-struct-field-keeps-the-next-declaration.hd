@@ -1,0 +1,6 @@
+# @dump: tree diagnostics
+# expected: a struct's same-line member is rejected; the following declaration is preserved.
+struct Broken: value: i32
+
+fn after_bad_struct() -> i32:
+    +3
