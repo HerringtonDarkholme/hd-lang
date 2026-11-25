@@ -1,0 +1,52 @@
+# @dump: wat
+# @build: v8 release
+# A loop's exit test is no condition a call is cold under: the arm every
+# round that goes on runs is the loop's body. `c` keeps its frame slot in
+# each form, with no copy of its fields around the call, as in a `while`
+# body: a `for` over a list of strings (whose element match has an arm
+# that never runs), a `for` over a range, and `next()` matched by hand
+# with a `None` arm that breaks. The inlined `total` gives the pass a
+# reference to forward, so it looks for spills at all.
+use std.meta.inline
+
+struct Counter:
+    hits: i64
+    misses: i64
+
+impl Counter:
+    @inline
+    fn total(&self) -> i64:
+        self.hits + self.misses
+
+@inline(.Never)
+fn bump(c: &mut Counter, x: i64) -> void:
+    c.hits += x
+
+@inline(.Never)
+fn note(c: &mut Counter, s: string) -> void:
+    c.hits += 1
+
+fn over_list(xs: List[string]) -> i64:
+    let mut c = Counter { hits: 0, misses: 0 }
+    for s in xs:
+        note(&mut c, s)
+        c.misses += 1
+    c.total()
+
+fn over_range(n: i64) -> i64:
+    let mut c = Counter { hits: 0, misses: 0 }
+    for i in 0..n:
+        bump(&mut c, i)
+        c.misses += 1
+    c.total()
+
+fn by_hand(xs: List[i64]) -> i64:
+    let mut c = Counter { hits: 0, misses: 0 }
+    let mut it = xs.iter()
+    while true:
+        match it.next():
+            .Some(x) =>
+                bump(&mut c, x)
+                c.misses += 1
+            .None => break
+    c.total()
