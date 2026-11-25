@@ -250,6 +250,19 @@ impl Counts {
                 h.u32(1);
                 h.u32(index);
                 h.u32(u32::from(known));
+                // The emitter counts one address three ways, and a shim
+                // body is its parts' counts: under a null test for an
+                // optional whose empty variant is the null address, out of
+                // line for a collection's buffer, else plainly. Types that
+                // differ there share no shim, or the first type to ask
+                // for one would decide every other's body.
+                h.u32(if variants(pool, env, t).is_some() {
+                    1
+                } else if hd_mono::holds_coll(pool, env, t) {
+                    2
+                } else {
+                    0
+                });
             }
             c @ (Count::Parts | Count::Call) => {
                 h.u32(if c == Count::Parts { 2 } else { 3 });
