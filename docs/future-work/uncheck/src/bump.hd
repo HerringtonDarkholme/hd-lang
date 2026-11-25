@@ -1,0 +1,85 @@
+# A user's bumpalo over the proposed `std.ptr`. `Bump::new` needs
+# `Uncheck`, so whoever makes an arena shows it in a row and the program
+# grants it in `hd.toml`. The arena keeps the `Grant`, so `alloc` and
+# `reset` need nothing: the `$.with` block in `alloc` is the one unchecked
+# region, as an `unsafe` block in a safe Rust method. As bumpalo, values
+# are never dropped; the chunks are freed with the arena.
+use pkg.ptr.{Buffer, Grant, Ptr, Uncheck, align_of, size_of}
+
+FIRST := usize(4096)
+LARGEST := usize(1048576)
+
+# The bump state, which `alloc` changes through a shared arena: the next
+# free address, the end of the newest chunk, its size, and every chunk.
+struct State:
+    next: usize
+    end: usize
+    size: usize
+    chunks: List[*mut Buffer[u8]]
+
+## Values of any types that live together; each `alloc` result lives
+## while the arena is lent. Neither `Send` nor `Sync`: `state` is a `*mut`.
+pub struct Bump:
+    state: *mut State
+    grant: Grant
+
+impl !Copy for Bump
+
+impl Bump:
+    ## An empty arena; the first `alloc` takes its first chunk.
+    pub fn new() -> Bump $ Uncheck:
+        # `next` past `end` makes the first `alloc` refill, even for a
+        # value with no bytes.
+        Bump { state: box(State { next: 1, end: 0, size: 0, chunks: [] }), grant: Grant::new() }
+
+    ## Moves `val` into the arena and lends it writable while the arena is
+    ## lent. Its drop never runs, as in bumpalo.
+    pub fn alloc[T < ?Copy](&self, val: T) -> &mut T:
+        at := Ptr::[T] { address: self.bump(size_of::[T](), align_of::[T]()) }
+        $.with(Uncheck=self.grant):
+            place(at, val)
+
+    ## Frees every chunk but the newest, which later values reuse.
+    pub fn reset(&mut self) -> void:
+        match self.state.chunks.pop():
+            .Some(newest) =>
+                self.state.chunks.clear()
+                self.state.next = newest.at(0).address
+                self.state.chunks.push(newest)
+            .None => pass
+
+    # The address of `size` free bytes at `align`, from the newest chunk
+    # or a new one. Plain arithmetic: no `Uncheck`.
+    fn bump(&self, size: usize, align: usize) -> usize:
+        at := round_up(self.state.next, align)
+        if at + size <= self.state.end:
+            self.state.next = at + size
+            return at
+        self.refill(size, align)
+
+    # A new chunk with room for `size` bytes at `align`: the newest
+    # chunk's size doubled up to `LARGEST`, or one larger value's.
+    fn refill(&self, size: usize, align: usize) -> usize:
+        let mut bytes = if self.state.size == 0: FIRST else: self.state.size * 2
+        if bytes > LARGEST:
+            bytes = LARGEST
+        if bytes < size + align:
+            bytes = size + align
+        chunk := box(Buffer::[u8]::new(bytes))
+        start := chunk.at(0).address
+        self.state.chunks.push(chunk)
+        self.state.size = bytes
+        self.state.end = start + bytes
+        at := round_up(start, align)
+        self.state.next = at + size
+        at
+
+# Writes `val` to `at` and lends it for as long as the caller says. The
+# caller keeps the bytes fresh, aligned for `T`, and reached by no other
+# result; so the row keeps `Uncheck`, as a Rust `unsafe fn` would.
+fn place['a, T < ?Copy](at: Ptr[T], val: T) -> &'a mut T $ Uncheck:
+    at.write(val)
+    at.as_mut()
+
+fn round_up(n: usize, align: usize) -> usize:
+    (n + align - 1) & ~(align - 1)

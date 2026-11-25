@@ -1,0 +1,37 @@
+# The shape of std.arena under the proposal: std's own grant (std-only,
+# in `std.rt`; `stub_grant` here) discharges `Uncheck`, so `Arena::new`
+# and `alloc` keep today's rows and no user of std.arena grants anything.
+# One chunk only, to keep the shape short; lib/std/arena.hd has the rest.
+use pkg.ptr.{Buffer, Ptr, Uncheck, align_of, size_of, stub_grant}
+
+struct State:
+    next: usize
+    end: usize
+    chunk: Buffer[u8]
+
+## Values of any types that live together, as std.arena's `Arena`.
+pub struct Arena:
+    state: *mut State
+
+impl !Copy for Arena
+
+impl Arena:
+    ## An empty arena with one chunk of `bytes` bytes. No `Uncheck`: std
+    ## holds its own grant.
+    pub fn new(bytes: usize) -> Arena:
+        chunk := Buffer::[u8]::new(bytes)
+        start := chunk.at(0).address
+        Arena { state: box(State { next: start, end: start + bytes, chunk: chunk }) }
+
+    ## Moves `val` into the arena and lends it writable while the arena is
+    ## lent; panics when the chunk is full.
+    pub fn alloc[T < ?Copy](&self, val: T) -> &mut T:
+        align := align_of::[T]()
+        at := (self.state.next + align - 1) & ~(align - 1)
+        if at + size_of::[T]() > self.state.end:
+            panic("arena full")
+        self.state.next = at + size_of::[T]()
+        p := Ptr::[T] { address: at }
+        $.with(Uncheck=stub_grant()):
+            p.write(val)
+            p.as_mut()

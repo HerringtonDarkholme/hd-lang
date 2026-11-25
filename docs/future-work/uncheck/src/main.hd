@@ -1,22 +1,36 @@
-# The arena and the slab in use: std/arena.md's bank example on the user
-# arena, and a slab of open connections keyed by slot.
+# The user arena, the slab and std.arena's shape in use. Under the
+# proposal `main`'s row is `$ Console + Uncheck` and hd.toml says
+# `Uncheck = true`; today `Uncheck` is no host capability, so `main`
+# installs the stub grant instead (`run` is what the proposal's `main` is).
+use pkg.arena.Arena
 use pkg.bump.Bump
+use pkg.ptr.{Uncheck, stub_grant}
 use pkg.slab.Slab
 
 struct Account:
     owner: string
     balance: i64
 
+# No `Uncheck`: the arena already holds its grant.
 fn open(bank: &Bump, owner: string, balance: i64) -> &mut Account:
     bank.alloc(Account { owner: owner, balance: balance })
 
-fn settle() -> i64:
+# `Bump::new` needs `Uncheck`, so `settle` names it and its callers see it.
+fn settle() -> i64 $ Uncheck:
     bank := Bump::new()
     alice := open(&bank, "alice", 100)
     bob := open(&bank, "bob", 5)
     alice.balance -= 30
     bob.balance += 30
     alice.balance + bob.balance
+
+# std.arena's users name nothing.
+fn tally() -> i64:
+    arena := Arena::new(256)
+    a := arena.alloc(i64(40))
+    b := arena.alloc(i64(2))
+    *a += *b
+    *a
 
 # A connection holds a buffer that is not `Copy`, so `List` cannot hold it.
 struct Conn:
@@ -25,7 +39,7 @@ struct Conn:
 
 impl !Copy for Conn
 
-fn serve() -> string:
+fn serve() -> string $ Uncheck:
     let mut conns = Slab::[Conn]::new()
     a := conns.insert(Conn { peer: "10.0.0.1", pending: [] })
     b := conns.insert(Conn { peer: "10.0.0.2", pending: [1, 2] })
@@ -37,6 +51,10 @@ fn serve() -> string:
     conns.clear()
     "$peer reused slot ${c == a}"
 
-pub fn main() -> void $ Console:
-    println("${settle()}")
+fn run() -> void $ Console + Uncheck:
+    println("${settle()} ${tally()}")
     println(serve())
+
+pub fn main() -> void $ Console:
+    $.with(Uncheck=stub_grant()):
+        run()

@@ -1,18 +1,21 @@
 # A slab of values that need not be `Copy`, as Rust's `slab` crate: keys
 # are slot numbers, and a removed slot is reused. `List[T]` needs `Copy`
-# elements, so the values live in one `Buffer[T]` room. Lines marked
-# `unchecked:` are where the doc's copy wraps the call.
-use pkg.ptr.Buffer
+# elements, so the values live in one `Buffer[T]` room. As in bump.hd,
+# `new` takes the caller's `Uncheck` and the methods discharge it.
+use pkg.ptr.{Buffer, Grant, Uncheck}
 
 pub struct Slab[T < ?Copy]:
     room: Buffer[T]
     full: List[bool]
     free: List[usize]
+    grant: Grant
+
+impl[T < ?Copy] !Copy for Slab[T]
 
 impl[T < ?Copy] Slab[T]:
     ## An empty slab.
-    pub fn new() -> Slab[T]:
-        Slab::[T] { room: Buffer::[T]::new(0), full: [], free: [] }
+    pub fn new() -> Slab[T] $ Uncheck:
+        Slab::[T] { room: Buffer::[T]::new(0), full: [], free: [], grant: Grant::new() }
 
     ## Moves `value` in and gives its key.
     pub fn insert(&mut self, value: T) -> usize:
@@ -24,8 +27,9 @@ impl[T < ?Copy] Slab[T]:
                     self.room.grow(if slot == 0: 4 else: slot * 2)
                 self.full.push(false)
                 slot
-        # unchecked: the slot is room for a `T` and holds no value.
-        self.room.at(key).write(value)
+        $.with(Uncheck=self.grant):
+            # The slot is room for a `T` and holds no value.
+            self.room.at(key).write(value)
         self.full[key] = true
         key
 
@@ -33,8 +37,9 @@ impl[T < ?Copy] Slab[T]:
     pub fn get(&self, key: usize) -> &T?:
         if key >= self.full.len() || !self.full[key]:
             return .None
-        # unchecked: the slot holds a value, which `&self` keeps there.
-        .Some(self.room.at(key).as_ref())
+        $.with(Uncheck=self.grant):
+            # The slot holds a value, which `&self` keeps there.
+            .Some(self.room.at(key).as_ref())
 
     ## Moves the value at `key` out, if one is there.
     pub fn remove(&mut self, key: usize) -> T?:
@@ -42,8 +47,9 @@ impl[T < ?Copy] Slab[T]:
             return .None
         self.full[key] = false
         self.free.push(key)
-        # unchecked: the slot held a value, and is now marked empty.
-        .Some(self.room.at(key).read())
+        $.with(Uncheck=self.grant):
+            # The slot held a value, and is now marked empty.
+            .Some(self.room.at(key).read())
 
     ## Drops every value. Without a user drop hook, a slab dropped while
     ## full leaks its values, as a bumpalo value's `Drop` never runs.

@@ -1,0 +1,95 @@
+# The proposed public module `std.ptr`, as signatures (bodies are stubs).
+# In std it re-exports std.rt.memory's `Ptr`, `Buffer`, `size_of` and
+# `align_of`, and declares `Uncheck` and `Grant`. This copy lets the user
+# code next to it check today. Two things it cannot show: only std may
+# write `impl Uncheck` (a sealed trait), and `stub_grant` stands for the
+# two grants user code never calls as a function.
+
+## The capability to read, write and lend through a `Ptr`, which the
+## checker cannot follow. A builtin capability: `main` gets it from
+## `Uncheck = true` in `hd.toml`. Only std implements it, and its provider
+## passes nothing at run time.
+pub trait Uncheck
+
+## The value that provides `Uncheck` in `$.with(Uncheck=grant)`. User code
+## gets one only from `Grant::new`, which needs `Uncheck` itself. It is
+## `Send` and `Sync`, never `Wire`, and has no bytes.
+pub struct Grant:
+    sealed: void
+
+impl Uncheck for Grant
+
+impl Grant:
+    ## The grant of the caller's own `Uncheck`, to keep in a value whose
+    ## methods then need no `Uncheck` in their rows.
+    pub fn new() -> Grant $ Uncheck:
+        Grant { sealed: () }
+
+## Stands for the entry grant (`main() $ Uncheck` with `Uncheck = true`)
+## in main.hd, and for std's own grant (std-only, in `std.rt`) in
+## arena.hd; not part of the proposal.
+pub fn stub_grant() -> Grant:
+    Grant { sealed: () }
+
+## The address of a value of type `T`. Copying it copies the address. It
+## is neither `Send`, `Sync` nor `Wire`, whatever `T` is.
+pub struct Ptr[T < ?Copy]:
+    ## The address of the value's first byte.
+    pub address: usize
+
+impl[T < ?Copy] Ptr[T]:
+    ## The address `count` values of `T` past this one.
+    pub fn offset(self, count: usize) -> Ptr[T]:
+        Ptr::[T] { address: self.address + count * size_of::[T]() }
+
+    ## Moves the value at the address out; the bytes there then hold none.
+    pub fn read(self) -> T $ Uncheck:
+        panic("todo")
+
+    ## Moves `value` to the address, dropping nothing there.
+    pub fn write(self, value: T) -> void $ Uncheck:
+        panic("todo")
+
+    ## Lends the value at the address for `'a`.
+    pub fn as_ref['a](self) -> &'a T $ Uncheck:
+        panic("todo")
+
+    ## Lends the value at the address writable for `'a`.
+    pub fn as_mut['a](self) -> &'a mut T $ Uncheck:
+        panic("todo")
+
+## The bytes one value of `T` takes.
+pub fn size_of[T < ?Copy]() -> usize:
+    panic("todo")
+
+## The alignment of a value of `T`: a power of two, at most 8.
+pub fn align_of[T < ?Copy]() -> usize:
+    panic("todo")
+
+## Raw memory with one owner, room for `capacity()` values of `T`.
+## Dropping it frees the room and drops none of the values in it. It is
+## `Send` or `Sync` when `T` is, by std's explicit implementations.
+pub struct Buffer[T < ?Copy]:
+    ptr: Ptr[T]
+    capacity: usize
+
+impl[T < ?Copy] !Copy for Buffer[T]
+
+impl[T < ?Copy] Buffer[T]:
+    ## Room for `capacity` values of `T`, none of which holds a value yet.
+    pub fn new(capacity: usize) -> Buffer[T]:
+        Buffer::[T] { ptr: Ptr::[T] { address: 0 }, capacity: capacity }
+
+    ## How many values of `T` the buffer has room for.
+    pub fn capacity(&self) -> usize:
+        self.capacity
+
+    ## The place of value `index` of the room; no bound is checked.
+    pub fn at(&self, index: usize) -> Ptr[T]:
+        self.ptr.offset(index)
+
+    ## Moves the room's bytes to room for `capacity` values; a smaller
+    ## `capacity` has no effect.
+    pub fn grow(&mut self, capacity: usize) -> void:
+        if capacity > self.capacity:
+            self.capacity = capacity

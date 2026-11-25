@@ -1,5 +1,5 @@
 [package]
-name = "unchecked"
+name = "uncheck"
 
 [capabilities]
 Console = true
