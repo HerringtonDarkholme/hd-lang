@@ -170,6 +170,25 @@ pub struct FileSkim {
 }
 
 impl FileSkim {
+    /// Whether every code line is part of a `use` line, so the file
+    /// declares nothing: the line holding each use's start through its
+    /// end, a group continued on later lines included. Comment lines are
+    /// no code lines; a documentation comment is one, so it counts as a
+    /// declaration. Cost: two binary searches per `use` line.
+    #[must_use]
+    pub fn only_uses(&self) -> bool {
+        let lines = &self.code_lines;
+        let covered: usize = self
+            .use_lines
+            .iter()
+            .map(|&(lo, hi)| {
+                let first = lines.partition_point(|&c| c <= lo).saturating_sub(1);
+                lines.partition_point(|&c| c < hi).saturating_sub(first)
+            })
+            .sum();
+        covered >= lines.len()
+    }
+
     #[must_use]
     pub fn of(text: &str) -> FileSkim {
         let sk = skim(text.as_bytes());

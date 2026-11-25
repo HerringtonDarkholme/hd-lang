@@ -3566,7 +3566,12 @@ fn module_graph(
             refs
         })
         .collect();
-    let graph = ModuleGraph::build(table, &refs);
+    let declares: Vec<bool> = skims
+        .iter()
+        .enumerate()
+        .map(|(m, s)| !unread(m) && !s.file.only_uses())
+        .collect();
+    let graph = ModuleGraph::build(table, &refs, &declares);
     let cycles = graph
         .loops
         .iter()
