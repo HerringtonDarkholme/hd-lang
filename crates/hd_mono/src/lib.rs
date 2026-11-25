@@ -169,6 +169,18 @@ pub trait ProgramEnv: LayoutEnv {
     /// The compiler-known `std.rt.Drop` trait and its one method. `None`
     /// lets a partial environment omit std's runtime declaration.
     fn drop_items(&self) -> Option<(DefId, DefId)>;
+    /// The `drop` method of `def`'s `std.rt.Drop` implementation when it
+    /// is for every instance (`impl[T] Drop for D[T]`), so its body at an
+    /// instance's arguments is that instance's hook; `None` otherwise.
+    fn drop_hook(&self, _def: DefId) -> Option<DefId> {
+        None
+    }
+    /// Whether releasing a concrete `t` runs a `Drop` hook with work to do
+    /// (`hd_layout::hook_runs`): one that does nothing for `t` is no hook,
+    /// so no glue calls it and collection takes no instance of it.
+    fn hook_runs(&self, _t: Ty) -> bool {
+        true
+    }
     /// Whether `impl_` is a `@derive` implementation on a nominal
     /// newtype: its methods forward to the base type's implementation,
     /// so with erased newtypes calls use the base method directly and
@@ -2459,6 +2471,7 @@ impl Cx<'_> {
         }
         // ruled out: module.rt.drop.not-copy requires a declaration; payloads follow below.
         if self.pool.adt(ty).is_some()
+            && self.env.hook_runs(ty)
             && let Some((trait_, method)) = self.env.drop_items()
             && self.select(trait_, ty, TyList::EMPTY, None).is_ok()
         {

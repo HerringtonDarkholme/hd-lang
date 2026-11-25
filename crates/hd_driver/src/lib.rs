@@ -924,8 +924,10 @@ struct ProgramTables {
     /// (`hd_mono::layout::recursive_instance`), found once per instance.
     recursive_instances: Mutex<HashMap<(DefId, TyList), bool>>,
     /// The declarations with a `std.rt.Drop` implementation, found once
-    /// on the first layout that asks.
-    drop_defs: OnceLock<hd_base::HashSet<DefId>>,
+    /// on the first layout that asks, each with its `drop` method when
+    /// the implementation is generic and for every instance
+    /// (`ProgramEnv::drop_hook`).
+    drop_defs: OnceLock<hd_base::HashMap<DefId, Option<DefId>>>,
 }
 
 /// The items collected for one program, each decoded on first use: a program reads
@@ -12034,7 +12036,7 @@ impl Run<'_> {
                     .entry(portion)
                     .or_insert_with(|| hd_layout::shims::Counts::new(portion));
                 let count = counts.of(&self.pool, env, t)?;
-                let shape = counts.shape(&self.pool, env, t)?;
+                let shape = counts.shape(&self.pool, env, &hooks, t)?;
                 if let Some(b) = made.get(&(t, kind, portion, by_value)) {
                     return Ok((count, shape, b.clone()));
                 }
@@ -13372,25 +13374,7 @@ impl LayoutEnv for Env<'_> {
         def.get().is_some() && (def == self.run.known.buffer || def == self.run.known.ptr)
     }
     fn has_drop(&self, def: DefId) -> bool {
-        let drop_trait = self.run.known.drop_trait;
-        self.p
-            .drop_defs
-            .get_or_init(|| {
-                self.p
-                    .items
-                    .impls(|_, inherent| !inherent)
-                    .filter_map(|item| match &item.data {
-                        ItemData::Impl {
-                            trait_, self_ty, ..
-                        } if *trait_ == drop_trait => match self.run.pool.get(*self_ty) {
-                            TyData::Adt(def, _) => def.get(),
-                            _ => None,
-                        },
-                        _ => None,
-                    })
-                    .collect()
-            })
-            .contains(&def)
+        self.drop_defs().contains_key(&def)
     }
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
         match &self.p.items.get(def.get()?)?.data {
@@ -13488,6 +13472,38 @@ impl hd_opt::whole::ObjectLayout for Env<'_> {
 impl Env<'_> {
     fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
         self.p.items.get(def)?.sig()
+    }
+
+    /// [`ProgramTables::drop_defs`]: one pass over the impls. A generic
+    /// implementation whose self type is its declaration over the impl's
+    /// parameters in order (`impl[T] Drop for D[T]`) gives its `drop`.
+    fn drop_defs(&self) -> &hd_base::HashMap<DefId, Option<DefId>> {
+        let (drop_trait, pool) = (self.run.known.drop_trait, &self.run.pool);
+        self.p.drop_defs.get_or_init(|| {
+            let identity = |it: &hd_resolve::Item, args: TyList| {
+                let args = pool.list_items(args);
+                !args.is_empty()
+                    && args.len() == it.generics.len()
+                    && (0u16..).zip(args).all(|(index, &a)| {
+                        matches!(pool.get(a), TyData::Param(p) if p.owner == it.def && p.index == index)
+                    })
+            };
+            let impls = self.p.items.impls(|_, inherent| !inherent);
+            impls
+                .filter_map(|it| match &it.data {
+                    ItemData::Impl { trait_, self_ty, .. } if *trait_ == drop_trait => {
+                        let TyData::Adt(def, args) = pool.get(*self_ty) else {
+                            return None;
+                        };
+                        let hook = identity(it, args)
+                            .then(|| self.impl_method(it.def, self.run.known.drop_method))
+                            .flatten();
+                        Some((def.get()?, hook))
+                    }
+                    _ => None,
+                })
+                .collect()
+        })
     }
 
     /// A declared type as the backend reads it: with no function type's
@@ -13959,6 +13975,12 @@ impl ProgramEnv for Env<'_> {
     }
     fn drop_items(&self) -> Option<(DefId, DefId)> {
         Some((self.run.known.drop_trait, self.run.known.drop_method))
+    }
+    fn drop_hook(&self, def: DefId) -> Option<DefId> {
+        self.drop_defs().get(&def).copied().flatten()
+    }
+    fn hook_runs(&self, t: Ty) -> bool {
+        hd_layout::hook_runs(&self.run.pool, self, t)
     }
     fn is_derived_newtype_impl(&self, impl_: DefId) -> bool {
         let Some(it) = self.p.items.get(impl_) else {

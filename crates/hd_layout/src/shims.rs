@@ -225,6 +225,7 @@ impl Counts {
         &mut self,
         pool: &InternPool,
         env: &dyn ProgramEnv,
+        hooks: &Hooks<'_>,
         t: Ty,
     ) -> StageResult<Hash128> {
         if let Some(&h) = self.shapes.get(&t) {
@@ -239,9 +240,12 @@ impl Counts {
         let vals = crate::vals(pool, env, t)?;
         let mut h = StableHasher::new("count-shape");
         h.u32(self.portion as u32);
-        // A type with a hook has its own: its hook is its type's.
+        // A type's own hooks are its shim's calls: by instance, so types
+        // whose hooks collection keyed as one (`ListHead[*mut T]` and
+        // `ListHead[*T]`) share one shim, and their blocks one glue.
         if crate::holds_drop(pool, env, t) {
-            h.u32(t.0);
+            crate::newtype_layers(pool, env, t, &mut |layer| h.hash(hook_key(hooks, layer)));
+            h.hash(hook_key(hooks, strip_newtype(pool, env, t)));
         }
         h.u64(std_hash(&|s| std::hash::Hash::hash(&vals, s)));
         match self.of(pool, env, t)? {
@@ -282,7 +286,7 @@ impl Counts {
                             h.u32(v);
                             h.u32(k);
                             h.u64(std_hash(&|x| std::hash::Hash::hash(&at, x)));
-                            h.hash(self.shape(pool, env, p)?);
+                            h.hash(self.shape(pool, env, hooks, p)?);
                         }
                     }
                 } else {
@@ -297,7 +301,7 @@ impl Counts {
                         }
                         h.u64(u64::try_from(at[k].first).unwrap_or(u64::MAX));
                         h.u32(at[k].offset);
-                        h.hash(self.shape(pool, env, p)?);
+                        h.hash(self.shape(pool, env, hooks, p)?);
                     }
                 }
             }
@@ -538,6 +542,16 @@ pub fn shim(
 /// The `std.rt.Drop.drop` instance of a type that implements it: the impl
 /// method and its type arguments (`Collected::drop_glue`).
 pub type Hooks<'a> = dyn Fn(Ty) -> Option<(DefId, TyList)> + 'a;
+
+/// The identity of `layer`'s own hook instance, zero for none.
+fn hook_key(hooks: &Hooks<'_>, layer: Ty) -> Hash128 {
+    let mut h = StableHasher::new("hook");
+    if let Some((def, args)) = hooks(layer) {
+        h.u32(def.raw());
+        h.u32(args.0);
+    }
+    h.finish()
+}
 
 /// Calls the hooks of `t` on the value `x` refers to, each newtype
 /// layer's outermost first, then its base's (`module.rt.drop.glue`, as

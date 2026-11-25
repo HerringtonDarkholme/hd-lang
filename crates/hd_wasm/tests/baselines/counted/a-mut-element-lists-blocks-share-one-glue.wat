@@ -6,7 +6,7 @@
   (import "fixture" "rt:panic'2" (func $rt:panic'2))
   (import "fixture" "block_bytes" (func $block_bytes (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (import "fixture" "table0" (table $table0 10 funcref))
+  (import "fixture" "table0" (table $table0 9 funcref))
   (func $"impl[T] PlainList[T].alloc[*Node]" (param $t2 i32) (param $t3 i32) (result i32) (local $t0 i32) (local $t1 i32)
     ;; (no span)
     i32.const 4
@@ -37,7 +37,7 @@
       i32.const 14
       i32.const 65 ;; &"a list does not fit the heap"
       i32.const 28
-      i32.const 2
+      i32.const 1
       call_indirect $table0 (param i32 i32 i32 i32)
       unreachable
     end
@@ -63,12 +63,12 @@
     local.get $t0
   )
   (func $build (param $node i32) (result i32) (local $xs i32) (local $t0 i32) (local $t1 i32)
-    ;; 20 |     let mut xs = PlainList::[*mut Node].with_capacity(1)
+    ;; 18 |     let mut xs = PlainList::[*mut Node].with_capacity(1)
     i32.const 1
     i32.const 0
     call $"impl[T] PlainList[T].alloc[*Node]"
     local.tee $xs
-    ;; 21 |     xs.push(node)
+    ;; 19 |     xs.push(node)
     local.get $node
     if
       local.get $node
@@ -88,7 +88,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 3
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.tee $t0
       local.set $xs
@@ -105,7 +105,7 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    ;; 22 |     xs.push(node)
+    ;; 20 |     xs.push(node)
     local.get $xs
     local.tee $t0
     i32.load $heap offset=4
@@ -115,7 +115,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 3
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.tee $t0
       local.set $xs
@@ -132,7 +132,7 @@
     i32.const 1
     i32.add
     i32.store $heap offset=4
-    ;; 23 |     xs
+    ;; 21 |     xs
     local.get $xs
   )
   (func $rt:list_buf (param $t0 i32) (result i32)
@@ -149,7 +149,7 @@
     i32.mul
     i32.const 16
     i32.add
-    i32.const -2147483646
+    i32.const -2147483647
     call $rt:new
     local.tee $t0
     local.get $t0

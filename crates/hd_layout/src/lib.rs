@@ -465,6 +465,9 @@ thread_local! {
     static TRACKS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static COUNTS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static DROPS: Memo<bool> = const { std::cell::RefCell::new(None) };
+    static HOOKS: Memo<bool> = const { std::cell::RefCell::new(None) };
+    /// The types whose hooks [`hook_runs`] is asking, innermost last.
+    static OPEN_HOOKS: std::cell::RefCell<Vec<Ty>> = const { std::cell::RefCell::new(Vec::new()) };
     static THIN_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static LOCAL_REFS: Memo<bool> = const { std::cell::RefCell::new(None) };
     static FLATS: Memo<StageResult<std::rc::Rc<Flat>>> = const { std::cell::RefCell::new(None) };
@@ -497,6 +500,7 @@ struct Scope {
     tracks: Option<hd_base::HashMap<Ty, bool>>,
     counts: Option<hd_base::HashMap<Ty, bool>>,
     drops: Option<hd_base::HashMap<Ty, bool>>,
+    hooks: Option<hd_base::HashMap<Ty, bool>>,
     thin_refs: Option<hd_base::HashMap<Ty, bool>>,
     local_refs: Option<hd_base::HashMap<Ty, bool>>,
     flats: Option<hd_base::HashMap<Ty, StageResult<std::rc::Rc<Flat>>>>,
@@ -513,6 +517,7 @@ impl Scope {
             tracks: TRACKS.take(),
             counts: COUNTS.take(),
             drops: DROPS.take(),
+            hooks: HOOKS.take(),
             thin_refs: THIN_REFS.take(),
             local_refs: LOCAL_REFS.take(),
             flats: FLATS.take(),
@@ -529,6 +534,7 @@ impl Scope {
             tracks: Some(hd_base::HashMap::default()),
             counts: Some(hd_base::HashMap::default()),
             drops: Some(hd_base::HashMap::default()),
+            hooks: Some(hd_base::HashMap::default()),
             thin_refs: Some(hd_base::HashMap::default()),
             local_refs: Some(hd_base::HashMap::default()),
             flats: Some(hd_base::HashMap::default()),
@@ -544,6 +550,7 @@ impl Scope {
         TRACKS.set(self.tracks);
         COUNTS.set(self.counts);
         DROPS.set(self.drops);
+        HOOKS.set(self.hooks);
         THIN_REFS.set(self.thin_refs);
         LOCAL_REFS.set(self.local_refs);
         FLATS.set(self.flats);
@@ -892,7 +899,7 @@ fn holds_one(
                 None => value_parts(pool, env, t).into_iter().any(part),
             };
             // module.rt.drop.not-copy requires a declaration; payload hooks are in `any`.
-            any || def.get().is_some_and(|d| env.has_drop(d))
+            any || hook_runs(pool, env, t)
         }
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => true,
         _ => false,
@@ -1786,6 +1793,57 @@ pub fn holds_drop(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     got
 }
 
+/// Whether releasing a `t` runs a `Drop` hook with work to do
+/// (`module.rt.drop.glue`): `t`'s declaration implements `std.rt.Drop`,
+/// and the hook's body at `t`'s arguments is not inert
+/// ([`hd_tir::ir::inert_block`]) once each `needs_drop::[U]()` in it is
+/// [`counted`]`(U)`, the value the backend gives it. A hook with nothing
+/// to do is none: the type releases, and its objects' descriptors read,
+/// as a hookless type's (`ListHead[i64]` drops no values, #2369). An
+/// open type, a hook not written for every instance, and a type met
+/// again while its own hook is asked keep the hook. O(hook body) per
+/// type, memoized per link.
+pub fn hook_runs(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    let TyData::Adt(AdtId::Declared(def), args) = pool.get(t) else {
+        return false;
+    };
+    if !env.has_drop(def) {
+        return false;
+    }
+    let hook = env
+        .drop_hook(def)
+        .and_then(|m| Some((m, env.shape_body(m)?)));
+    let Some((m, body)) = hook.filter(|_| !pool.has_param(t) && !pool.has_assoc(t)) else {
+        return true;
+    };
+    if let Some(got) = HOOKS.with(|h| h.borrow().as_ref().and_then(|h| h.get(&t).copied())) {
+        return got;
+    }
+    if OPEN_HOOKS.with(|o| o.borrow().contains(&t)) {
+        return true;
+    }
+    OPEN_HOOKS.with(|o| o.borrow_mut().push(t));
+    let fold = |i: usize| {
+        let hd_tir::ir::Callee::Item { def: f, targs } =
+            hd_tir::ir::Callee::from_words(body.record(body.data[i][0]))?
+        else {
+            return None;
+        };
+        let u = *pool.list_items(targs).last()?;
+        (env.intrinsic(f).as_deref() == Some("ptr_needs_drop"))
+            .then(|| counted(pool, env, subst(pool, env, m, args, u)))
+    };
+    let root = body.sub_root.first().copied().unwrap_or(hd_tir::ir::NONE);
+    let got = !hd_tir::ir::inert_block(body, root, &fold);
+    OPEN_HOOKS.with(|o| o.borrow_mut().pop());
+    HOOKS.with(|h| {
+        if let Some(h) = h.borrow_mut().as_mut() {
+            h.insert(t, got);
+        }
+    });
+    got
+}
+
 /// [`holds_drop`] over `memo`, a map the caller keeps across links and
 /// bodies: each type is answered once per map, so asking it of the
 /// growing types of many bodies costs each new type once (#1912).
@@ -1835,7 +1893,7 @@ fn drops_by_parts(
         }
         crate::work::member_layouts(1);
         // ruled out: anonymous sums have no declaration-level Drop hook.
-        let own = matches!(pool.get(u), TyData::Adt(AdtId::Declared(def), _) if env.has_drop(def));
+        let own = hook_runs(pool, env, u);
         let got = own || parts.iter().any(|p| done.get(p).copied().unwrap_or(false));
         open.remove(&u);
         done.insert(u, got);

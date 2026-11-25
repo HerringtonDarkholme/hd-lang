@@ -579,7 +579,7 @@ impl OwnCx for Env<'_> {
                     Tri::No
                 };
             };
-            if self.has_drop(def) {
+            if hd_layout::hook_runs(pool, self, layer) {
                 return Tri::Yes;
             }
             if layer == base {
@@ -1226,11 +1226,11 @@ impl OwnCx for Env<'_> {
         // An enum's own runtime Drop hook still runs for an empty
         // variant; its fields alone do not describe its ownership.
         if variant.is_some()
-            && let TyData::Adt(AdtId::Declared(def), _) = self
-                .run
-                .pool
-                .get(hd_layout::strip_newtype(&self.run.pool, self, ty))
-            && self.has_drop(def)
+            && hd_layout::hook_runs(
+                &self.run.pool,
+                self,
+                hd_layout::strip_newtype(&self.run.pool, self, ty),
+            )
         {
             out.clear();
             return false;
@@ -1241,9 +1241,10 @@ impl OwnCx for Env<'_> {
     fn empty_variants(&self, ty: Ty, out: &mut Vec<bool>) -> bool {
         out.clear();
         if self.is_open(ty)
-            || matches!(
-                self.run.pool.get(hd_layout::strip_newtype(&self.run.pool, self, ty)),
-                TyData::Adt(AdtId::Declared(def), _) if self.has_drop(def)
+            || hd_layout::hook_runs(
+                &self.run.pool,
+                self,
+                hd_layout::strip_newtype(&self.run.pool, self, ty),
             )
         {
             return true;

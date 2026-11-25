@@ -1,0 +1,19 @@
+# @dump: wat
+# @build: v8 release
+# @helpers: drop
+# @helper: std/collections.plain_list/impl[T] PlainList[T].alloc
+# A `PlainList` block's release (#2369). `ListHead[T]`'s `Drop` hook
+# drops its values under `if needs_drop::[T]()`, so for `i64` it does
+# nothing: the type has no hook, the block's descriptor names no glue
+# (`i32.const 0` before `rt:new`), and its last release calls nothing, as
+# the builtin buffer of scalars. For `string` the hook runs: the
+# descriptor names one `rt:drop` glue, which calls the hook once.
+use std.collections.PlainList
+
+fn scalars(n: usize) -> usize:
+    xs := PlainList::[i64].with_capacity(n)
+    xs.len()
+
+fn strings(n: usize) -> usize:
+    xs := PlainList::[string].with_capacity(n)
+    xs.len()

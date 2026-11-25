@@ -2,15 +2,13 @@
 # @build: v8 release
 # @helpers: list_buf
 # @helper: std/collections.plain_list/impl[T] PlainList[T].alloc
-# expected: every block of one list carries one release glue (issue: a
-# `*mut` element list's grown and allocated blocks get two glues of one
-# body)
 # A `PlainList[*mut Node]` (#2369). `with_capacity` is an instance keyed
 # by its element's shared permission, so its `alloc_counted` names
 # `ListHead[*Node]`; the push's growth (`rt:list_buf`) takes
-# `ListHead[*mut Node]` from the list's type. Both glues release alike,
-# but the descriptors name two glue slots: `i32.const -2147483647` in
-# `alloc`, `-2147483646` in `rt:list_buf`.
+# `ListHead[*mut Node]` from the list's type. Collection keys both hooks
+# as one instance, and a shim's shape names its hooks by instance, so
+# both blocks carry one glue: `i32.const -2147483647` in `alloc` and in
+# `rt:list_buf`.
 use std.collections.PlainList
 
 struct Node:

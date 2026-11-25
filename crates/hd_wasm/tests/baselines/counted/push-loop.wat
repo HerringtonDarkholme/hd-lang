@@ -2,7 +2,7 @@
 (module
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32) (result i32)))
   (import "fixture" "heap" (memory $heap 17))
-  (import "fixture" "table0" (table $table0 5 funcref))
+  (import "fixture" "table0" (table $table0 4 funcref))
   (func $build (param $n i64) (result i32) (local $xs i32) (local $i i64) (local $t0 i32) (local $t1 i32)
     ;; ...
     ;; 17 |     while i < n:
@@ -30,7 +30,7 @@
         i32.eq
         if
           local.get $t0
-          i32.const 2
+          i32.const 1
           call_indirect $table0 (param i32) (result i32)
           local.tee $t0
           local.set $xs
