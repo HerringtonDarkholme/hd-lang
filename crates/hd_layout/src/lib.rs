@@ -1895,25 +1895,71 @@ fn cached_variants(t: Ty, build: impl FnOnce() -> Option<Vec<Vec<Ty>>>) -> Optio
     got
 }
 
+/// A scalar width supported by the target's arithmetic representation.
+/// Like `rustc_abi::Integer`, the variants make invalid widths unrepresentable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum NumWidth {
+    W8 = 8,
+    W16 = 16,
+    W32 = 32,
+    W64 = 64,
+}
+
+impl NumWidth {
+    /// The representation is the bit count: projecting it adds no conversion.
+    #[must_use]
+    pub const fn bits(self) -> u8 {
+        self as u8
+    }
+
+    /// The integer limit's bits in the emitter's sign-extended representation.
+    /// All variants have native limits; no raw-width validation is needed.
+    #[must_use]
+    pub fn integer_bound(self, signed: bool, minimum: bool) -> u64 {
+        let (low, high) = match self {
+            Self::W8 => (i64::from(i8::MIN), u64::from(u8::MAX)),
+            Self::W16 => (i64::from(i16::MIN), u64::from(u16::MAX)),
+            Self::W32 => (i64::from(i32::MIN), u64::from(u32::MAX)),
+            Self::W64 => (i64::MIN, u64::MAX),
+        };
+        match (signed, minimum) {
+            (true, true) => low.cast_unsigned(),
+            (true, false) => high >> 1,
+            (false, true) => 0,
+            (false, false) => high,
+        }
+    }
+}
+
 /// The width, signedness and float kind of a primitive type, as
 /// arithmetic sees it: `bool` is an unsigned byte, `char` and `usize`
 /// unsigned 32-bit words.
-pub fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
+#[inline]
+pub fn num_width(pool: &InternPool, t: Ty) -> (NumWidth, bool, bool) {
+    use NumWidth::{W8, W16, W32, W64};
     match pool.get(t) {
         TyData::Prim(p) => match p {
-            Prim::I8 => (8, true, false),
-            Prim::U8 | Prim::Bool => (8, false, false),
-            Prim::I16 => (16, true, false),
-            Prim::U16 => (16, false, false),
-            Prim::I32 | Prim::String => (32, true, false),
-            Prim::U32 | Prim::Usize | Prim::Char => (32, false, false),
-            Prim::I64 => (64, true, false),
-            Prim::U64 => (64, false, false),
-            Prim::F32 => (32, true, true),
-            Prim::F64 => (64, true, true),
+            Prim::I8 => (W8, true, false),
+            Prim::U8 | Prim::Bool => (W8, false, false),
+            Prim::I16 => (W16, true, false),
+            Prim::U16 => (W16, false, false),
+            Prim::I32 | Prim::String => (W32, true, false),
+            Prim::U32 | Prim::Usize | Prim::Char => (W32, false, false),
+            Prim::I64 => (W64, true, false),
+            Prim::U64 => (W64, false, false),
+            Prim::F32 => (W32, true, true),
+            Prim::F64 => (W64, true, true),
         },
-        _ => (32, false, false),
+        _ => (W32, false, false),
     }
+}
+
+/// The numeric view with its width in bits, for existing arithmetic callers.
+#[inline]
+pub fn num(pool: &InternPool, t: Ty) -> (u8, bool, bool) {
+    let (width, signed, float) = num_width(pool, t);
+    (width.bits(), signed, float)
 }
 
 #[cfg(test)]
@@ -1921,6 +1967,77 @@ mod tests {
     use std::panic::{AssertUnwindSafe, catch_unwind};
 
     use super::*;
+
+    #[test]
+    fn typed_numeric_widths_preserve_primitive_and_fallback_views() {
+        let pool = InternPool::new();
+        for primitive in Prim::ALL {
+            let ty = Ty::prim(primitive);
+            let (width, signed, float) = num_width(&pool, ty);
+            if primitive.is_integer() {
+                assert!(!float);
+                for minimum in [false, true] {
+                    assert_eq!(
+                        Some(width.integer_bound(signed, minimum)),
+                        hd_mono::scalar::integer_bound(ty, minimum),
+                        "{primitive:?}, minimum={minimum}"
+                    );
+                }
+            }
+        }
+        for (primitive, expected) in [
+            (Prim::Bool, (NumWidth::W8, false, false)),
+            (Prim::Char, (NumWidth::W32, false, false)),
+            (Prim::String, (NumWidth::W32, true, false)),
+            (Prim::F32, (NumWidth::W32, true, true)),
+            (Prim::F64, (NumWidth::W64, true, true)),
+        ] {
+            assert_eq!(num_width(&pool, Ty::prim(primitive)), expected);
+        }
+        for ty in [Ty::NEVER, Ty::POISON, Ty::VOID] {
+            assert_eq!(num_width(&pool, ty), (NumWidth::W32, false, false));
+            assert_eq!(num(&pool, ty), (32, false, false));
+        }
+    }
+
+    #[test]
+    fn typed_integer_bounds_match_native_limits_and_raw_width_folding() {
+        for (width, low, high, unsigned_high) in [
+            (
+                NumWidth::W8,
+                i64::from(i8::MIN),
+                i64::from(i8::MAX),
+                u64::from(u8::MAX),
+            ),
+            (
+                NumWidth::W16,
+                i64::from(i16::MIN),
+                i64::from(i16::MAX),
+                u64::from(u16::MAX),
+            ),
+            (
+                NumWidth::W32,
+                i64::from(i32::MIN),
+                i64::from(i32::MAX),
+                u64::from(u32::MAX),
+            ),
+            (NumWidth::W64, i64::MIN, i64::MAX, u64::MAX),
+        ] {
+            for (signed, minimum, expected) in [
+                (true, true, low.cast_unsigned()),
+                (true, false, high.cast_unsigned()),
+                (false, true, 0),
+                (false, false, unsigned_high),
+            ] {
+                let actual = width.integer_bound(signed, minimum);
+                assert_eq!(actual, expected, "{width:?}, {signed}, {minimum}");
+                assert_eq!(
+                    hd_mono::scalar::integer_bound_bits(u32::from(width.bits()), signed, minimum),
+                    Some(actual)
+                );
+            }
+        }
+    }
 
     fn caches_are_absent() -> bool {
         MEMS.with(|m| m.borrow().is_none())
