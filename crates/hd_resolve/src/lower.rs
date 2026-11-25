@@ -282,13 +282,6 @@ pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
         .map(|(module, _)| names.item(module, name))
 }
 
-/// The modules the prelude's names come from: each module's unit gets an
-/// edge to theirs (`module.prelude.fixed-uses`).
-#[must_use]
-pub fn prelude_modules(module: &str) -> Vec<&'static str> {
-    prelude_rows(module).iter().map(|p| p.0).collect()
-}
-
 /// The outside of one unit: which unit holds a module, and the frozen
 /// interfaces of other units.
 pub trait World {

@@ -1,0 +1,6 @@
+# @dump: diagnostics
+# expected: malformed enum members and stray indentation cannot stall recovery.
+enum Broken:
+        let value = 0
+                return +1
+            .Good => false

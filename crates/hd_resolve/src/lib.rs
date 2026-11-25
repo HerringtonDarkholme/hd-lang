@@ -47,8 +47,8 @@ pub use lower::{
     Cx, EnclosingParams, Head, Kinds, LocalItem, LocalSite, ModIn, ModOut, NameRole, PRELUDE,
     Reads, Recorded, SessionScope, TopBindings, USE_CODES, UnitOut, UseDecl, World,
     bare_in_row_slot, body_nodes, build_unit, head_name_span, heads, inputs_tuple, is_prelude_name,
-    is_test_prelude_name, local_items, prelude_modules, prelude_rows, row_slot, runtime_module,
-    test_prelude_item, test_use_decls, tests_items, traitless_block, ty_form, use_decls, use_diags,
+    is_test_prelude_name, local_items, prelude_rows, row_slot, runtime_module, test_prelude_item,
+    test_use_decls, tests_items, traitless_block, ty_form, use_decls, use_diags,
 };
 pub use view::Src;
 
