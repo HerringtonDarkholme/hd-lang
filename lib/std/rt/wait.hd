@@ -2,8 +2,8 @@
 # so only std may use it: std.task's channels and std.time's ManualClock.
 # The compiler supplies the cell, the signal and the idle hook, since every
 # other suspension waits for a host operation
-# (r-req.combinator.intrinsic). A runtime module uses only std.core
-# (r-module.rt.leaf), so each user declares the wait frame,
+# (r-req.combinator.intrinsic). The wait cell knows no task type, so each
+# user declares the wait frame,
 # `@intrinsic("task_wait_frame")`, whose result is a `std.task.Suspend`.
 
 ## A cell that frames wait on and hd code signals.

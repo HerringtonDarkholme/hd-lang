@@ -2000,7 +2000,7 @@ fn checked_runtime() -> bool {
 /// items must be tested in their declaring module. Each file
 /// under `tests/std_rt/` joins std's sources at the path given here: a
 /// unit `rt_tests` above the root std unit, since the tests use root
-/// modules and the runtime unit is a leaf (`module.rt.leaf`).
+/// modules, which the runtime unit does not reach.
 const STD_RT_TESTS: &[(&str, &str)] = &[
     ("cmp.hd", include_str!("../../../lib/std/cmp.hd")),
     ("regex.hd", include_str!("../../../lib/std/regex.hd")),

@@ -1159,7 +1159,7 @@ the closure. The mode is never written:
 1. r[fn.crossing.fn-value] A function value that is not the crossing closure itself is neither `Send` nor `Wire`. A crossing closure that captures one, or a struct, list or `&T` that holds one, is an error. Error: `unsatisfied-trait-bound`.
 2. r[fn.crossing.global] Every top-level binding that a crossing closure reaches, directly or through a callee, must be immutable. Error: `crossing-top-level-binding`.
 3. r[fn.crossing.global.send] For the marker `Send`, every such binding must also be `Send` and [`Sync`](10-modules.md#r-module.marker.sync), since every thread reads it at once. Error: `crossing-top-level-binding`.
-4. r[fn.crossing.global.runtime] The storage of the runtime modules, by [`module.rt.leaf`](10-modules.md#r-module.rt.leaf), is not such a binding: it is the instance's own, not the program's.
+4. r[fn.crossing.global.runtime] The storage of the [runtime modules](10-modules.md#r-module.rt.modules) is not such a binding: it is the instance's own, not the program's.
 
 ```text
 use std.meta.{Send, Wire}

@@ -553,9 +553,9 @@ issue-backed exceptions; there is no per-backend rollout pass list.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).
-- **The unit `std.rt`.** `lib/std/rt/` is a leaf below the root std
-  unit (`module.rt.leaf`): its modules see only `std.core`'s names, so
-  root std modules may use them. The entry glue `std.rt.entry` (the
+- **The unit `std.rt`.** `lib/std/rt/`'s modules see only `std.core`'s
+  prelude row (`module.rt.core-prelude`), and root std modules may use
+  them. The entry glue `std.rt.entry` (the
   virtual `rt/entry/mod.hd`) and the checked runtime (`rt/checked/`,
   `rt/checked_report/`) use root modules, so each is a unit of its own
   above the root. The driver reaches `std.rt.entry` and the allocator's

@@ -175,8 +175,6 @@ The compiler's units are module groups, not these layers
 
 `std.core` declares the traits that `List` and `Map` name, which `std.ops`,
 `std.cmp` and `std.hash` re-export. It follows ordinary module imports.
-Runtime modules still import only core and each other
-([`module.rt.leaf`](../../spec/lang/10-modules.md#r-module.rt.leaf)).
 Core and runtime modules see only `std.core`'s prelude row; explicit
 imports determine their other dependencies. The entry
 glue (`hd_driver::RT_SOURCE`, module `std.rt.entry`) and the checked
