@@ -185,7 +185,7 @@ impl[T] PlainList[T]:
     # A unique block with room for `need` values in place of `old`, which
     # the caller replaces with it: a unique `old` (`unique`, tested by the
     # caller before this call's copy of it) grows geometrically (the most
-    # of need, twice the capacity, and 4) and its values move; a shared
+    # of need and twice the capacity plus 4) and its values move; a shared
     # one is copied at the most of need and the length. The block goes in
     # and out by value, so a caller's loop never lends its list to this
     # cold call and keeps the block in a local.
@@ -196,11 +196,10 @@ impl[T] PlainList[T]:
         let mut want = n
         if want < need:
             want = need
-        if unique:
-            if want < cap * 2:
-                want = cap * 2
-            if want < 4:
-                want = 4
+        if unique && want < cap * 2 + 4:
+            # The builtin's growth: with the block's 24 bytes before the
+            # values, 8-byte values fill a block of a power of two less 8.
+            want = cap * 2 + 4
         fresh := PlainList::[T].alloc(want, n)
         to := Ptr::[T] { address: tail_of(fresh, align_of::[T]()).address }
         from := Ptr::[T] { address: tail_of(old, align_of::[T]()).address }
