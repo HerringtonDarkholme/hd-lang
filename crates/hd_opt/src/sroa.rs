@@ -149,18 +149,14 @@ pub fn run(
     }
     for i in 0..n {
         charge(1);
-        match b.tags[i] {
-            Tag::Store => {
-                if let Some(l) = bare_local(b.data[i][0]) {
-                    stores[l.idx()] += 1;
-                }
-            }
-            Tag::Ref => {
-                if let Some(l) = b.local_in_place(b.data[i][0]) {
-                    pinned[l.idx()] = true;
-                }
-            }
-            _ => {}
+        if b.tags[i] == Tag::Store
+            && let Some(l) = bare_local(b.data[i][0])
+        {
+            stores[l.idx()] += 1;
+        } else if b.tags[i] == Tag::Ref
+            && let Some(l) = b.local_in_place(b.data[i][0])
+        {
+            pinned[l.idx()] = true;
         }
     }
     let topo = Topology::new(b);
@@ -527,8 +523,8 @@ fn spill_type(b: &Body, pool: &InternPool, v: usize, c: usize, cold: &mut Cold) 
 struct Cold<'a> {
     b: &'a Body,
     topo: &'a Topology,
-    /// Per block: 0 unknown, 1 cold, 2 hot.
-    memo: Vec<u8>,
+    /// Per block: whether it is cold, once judged.
+    memo: Vec<Option<bool>>,
 }
 
 impl<'a> Cold<'a> {
@@ -536,7 +532,7 @@ impl<'a> Cold<'a> {
         Cold {
             b,
             topo,
-            memo: vec![0; b.len()],
+            memo: vec![None; b.len()],
         }
     }
 
@@ -550,10 +546,8 @@ impl<'a> Cold<'a> {
         let mut at = start;
         let answer = loop {
             charge(1);
-            match self.memo[at] {
-                1 => break true,
-                2 => break false,
-                _ => {}
+            if let Some(cold) = self.memo[at] {
+                break cold;
             }
             chain.push(at);
             // No loop around it: a spill would cost as much as the address
@@ -582,7 +576,7 @@ impl<'a> Cold<'a> {
             at = up as usize;
         };
         for c in chain {
-            self.memo[c] = if answer { 1 } else { 2 };
+            self.memo[c] = Some(answer);
         }
         answer
     }
