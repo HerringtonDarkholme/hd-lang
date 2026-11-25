@@ -695,11 +695,14 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
                 };
                 (pure && identity).then_some((i, Fold::Right))
             }
-            Tag::Prim if total_primitive(body.data[i][0]) && values.pure[i] & PURE != 0 => {
-                values.val[i].and_then(|v| match v {
-                    Value::Scalar(bits) => Some((i, Fold::Scalar(bits))),
-                    Value::Variant(_) => None,
-                })
+            // Primitive evaluation records scalar bits or no value. Share
+            // the fallback with every other operation that cannot fold.
+            Tag::Prim
+                if total_primitive(body.data[i][0])
+                    && values.pure[i] & PURE != 0
+                    && let Some(Value::Scalar(bits)) = values.val[i] =>
+            {
+                Some((i, Fold::Scalar(bits)))
             }
             // A literal condition is the backend's to fold, as it folds
             // `if true:` (with no block left around the arm): this pass
@@ -1283,6 +1286,66 @@ mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_tir::ir::{BodyKind, Callee, Providers, TirBuilder, TirSink};
     use hd_types::TyList;
+
+    #[test]
+    fn primitive_folding_requires_known_scalar_inputs_and_a_total_operation() -> Result<(), String>
+    {
+        for (op, input_ty, result_ty, bits, expected) in [
+            (PrimOp::Not, Ty::BOOL, Ty::BOOL, 0, Some(1)),
+            (PrimOp::Not, Ty::BOOL, Ty::BOOL, 1, Some(0)),
+            (
+                PrimOp::Conv,
+                Ty::I32,
+                Ty::prim(hd_types::Prim::I64),
+                7,
+                Some(7),
+            ),
+            (PrimOp::Eq, Ty::I32, Ty::BOOL, 1, Some(1)),
+            (PrimOp::Eq, Ty::I32, Ty::BOOL, 2, Some(0)),
+            (
+                PrimOp::Add,
+                Ty::I32,
+                Ty::I32,
+                u64::from(i32::MAX.cast_unsigned()),
+                None,
+            ),
+        ] {
+            let n = NodeIdx::NONE;
+            let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+            let root = b.open_block();
+            let parameter = b.local(input_ty, Symbol::from_raw(0), local_flags::PARAM, n);
+            let input = b.get(parameter, input_ty, n);
+            let args = if matches!(op, PrimOp::Eq | PrimOp::Add) {
+                let one = b.const_value(input_ty, 1);
+                b.refs_record(&[input, one])
+            } else {
+                b.refs_record(&[input])
+            };
+            let operation = b.emit(Tag::Prim, op as u32, args, result_ty, n);
+            let root = b.close_block(root, Some(operation), result_ty, n);
+            let body = b.finish(root, &[]).map_err(|e| format!("{e:?}"))?;
+            assert_eq!(hd_tir::ir::verify(&body), []);
+            assert!(specialize(&body, &[]).is_none(), "unknown {op:?}");
+            let folded = specialize(&body, &[(0, Value::Scalar(bits))]);
+            if let Some(expected) = expected {
+                let out = folded.ok_or_else(|| format!("known total {op:?} must fold"))?;
+                assert_eq!(out.tags[operation.0 as usize], Tag::Coerce);
+                let value = out.data[operation.0 as usize][0];
+                assert_ne!(value & Ref::CONST_BIT, 0);
+                assert_eq!(
+                    out.consts[(value & !Ref::CONST_BIT) as usize],
+                    (result_ty, expected)
+                );
+                assert_eq!(hd_tir::ir::verify(&out), []);
+            } else {
+                assert!(
+                    folded.is_none(),
+                    "checked {op:?} must retain its possible panic"
+                );
+            }
+        }
+        Ok(())
+    }
 
     #[test]
     fn constant_result_after_a_call_is_not_a_constant_default() {
