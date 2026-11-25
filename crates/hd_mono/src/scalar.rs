@@ -52,9 +52,7 @@ fn float(p: Prim, bits: u64) -> f64 {
     clippy::cast_precision_loss
 )]
 pub(crate) fn convert(from: Prim, to: Prim, bits: u64) -> Option<u64> {
-    if !(from.is_integer() || from.is_float()) || !(to.is_integer() || to.is_float()) {
-        return None;
-    }
+    // The typed conversion paths below reject nonnumeric families themselves.
     if from.is_float() {
         let value = float(from, bits);
         return Some(match to {
@@ -139,6 +137,61 @@ pub fn integer_bound_bits(width: u32, signed: bool, minimum: bool) -> Option<u64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn conversions_accept_exactly_the_numeric_primitive_pairs() {
+        for from in Prim::ALL {
+            for to in Prim::ALL {
+                let numeric =
+                    (from.is_integer() || from.is_float()) && (to.is_integer() || to.is_float());
+                assert_eq!(
+                    convert(from, to, 0),
+                    numeric.then_some(0),
+                    "{from:?} -> {to:?}"
+                );
+                if !numeric {
+                    for bits in [1, u64::MAX, f64::NAN.to_bits()] {
+                        assert_eq!(convert(from, to, bits), None, "{from:?} -> {to:?}");
+                    }
+                }
+            }
+        }
+        for p in [Prim::F32, Prim::F64, Prim::Bool, Prim::Char, Prim::String] {
+            for minimum in [false, true] {
+                assert_eq!(integer_bound(Ty::prim(p), minimum), None, "{p:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn comparisons_keep_noncomparison_operations_and_strings_unfolded() {
+        for op in PrimOp::ALL {
+            if matches!(
+                op,
+                PrimOp::Eq | PrimOp::Ne | PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge
+            ) {
+                continue;
+            }
+            for p in Prim::ALL {
+                assert_eq!(comparison(op, p, 0, 1), None, "{op:?} on {p:?}");
+            }
+        }
+        for op in [
+            PrimOp::Eq,
+            PrimOp::Ne,
+            PrimOp::Lt,
+            PrimOp::Le,
+            PrimOp::Gt,
+            PrimOp::Ge,
+        ] {
+            assert_eq!(comparison(op, Prim::String, 0, 1), None, "{op:?}");
+        }
+        for p in [Prim::Bool, Prim::Char] {
+            assert_eq!(comparison(PrimOp::Eq, p, 1, 1), Some(1));
+            assert_eq!(comparison(PrimOp::Ne, p, 1, 1), Some(0));
+            assert_eq!(comparison(PrimOp::Lt, p, 0, 1), Some(1));
+        }
+    }
 
     #[test]
     fn integer_canonicalization_and_wrapping_cover_every_width() {
