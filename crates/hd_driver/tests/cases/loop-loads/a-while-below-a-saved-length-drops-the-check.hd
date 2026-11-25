@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: wasmtime release
+# #2368: `n` holds the length the index check loads again on each
+# iteration; nothing in the loop writes memory, so the check goes and the
+# buffer pointer loads once before the loop.
+use std.collections.UniqList
+
+pub fn sum_index(xs: &UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    let mut i: usize = 0
+    n := xs.len()
+    while i < n:
+        s += xs[i]
+        i += 1
+    s

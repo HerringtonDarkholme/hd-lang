@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: wasmtime release
+# #2368: `i <= n` lets `i` reach the length, so the index keeps its
+# bounds check.
+use std.collections.UniqList
+
+pub fn sum_through(xs: &UniqList[i64]) -> i64:
+    let mut s: i64 = 0
+    let mut i: usize = 0
+    n := xs.len()
+    while i <= n:
+        s += xs[i]
+        i += 1
+    s

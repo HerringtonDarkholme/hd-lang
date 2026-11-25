@@ -13,24 +13,29 @@
     call $"impl[T < ?Copy] Index[usize] for UniqList[T].index[i64]"
     i64.load $heap
   )
-  (func $by_value (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t0 i32) (local $key i32)
+  (func $by_value (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t1 i32) (local $t0 i32) (local $key i32)
     ;; 33 |     for i in 0..n:
+    local.get $h
+    i32.load $heap offset=8
+    local.set $t0
+    local.get $h
+    i32.load $heap
+    local.set $h
     block
       loop
-        local.get $t0
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t0
-        local.get $t0
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $t1
     ;; 34 |         s = s + h.at(i)
         local.tee $key
-        local.get $h
-        i32.load $heap offset=8
+        local.get $t0
         i32.ge_u
         if
           i32.const 16 ;; &"index-out-of-bounds"
@@ -43,7 +48,6 @@
         end
         local.get $s
         local.get $h
-        i32.load $heap
         local.get $key
         i32.const 8
         i32.mul
@@ -58,27 +62,31 @@
     ;; 35 |     s
     local.get $s
   )
-  (func $by_reference (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t0 i32) (local $self i32) (local $key i32)
+  (func $by_reference (param $h i32) (param $n i32) (result i64) (local $s i64) (local $t1 i32) (local $t0 i32) (local $key i32)
     ;; 27 |     for i in 0..n:
+    local.get $h
+    i32.load $heap
+    i32.load $heap offset=8
+    local.set $t0
+    local.get $h
+    i32.load $heap
+    i32.load $heap
+    local.set $h
     block
       loop
-        local.get $t0
+        local.get $t1
         local.get $n
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t0
-        local.get $t0
+        local.get $t1
+        local.get $t1
         i32.const 1
         i32.add
-        local.set $t0
+        local.set $t1
     ;; 28 |         s = s + h.at(i)
-        local.get $h
-        i32.load $heap
-        local.set $self
         local.tee $key
-        local.get $self
-        i32.load $heap offset=8
+        local.get $t0
         i32.ge_u
         if
           i32.const 16 ;; &"index-out-of-bounds"
@@ -90,8 +98,7 @@
           unreachable
         end
         local.get $s
-        local.get $self
-        i32.load $heap
+        local.get $h
         local.get $key
         i32.const 8
         i32.mul
@@ -135,7 +142,13 @@
     local.get $t0
     i32.const 1
     i32.store $heap offset=28
+    local.get $t0
     ;; 40 |     for i in 0..n:
+    i32.load $heap offset=8
+    local.set $u.buffer.ptr
+    local.get $t0
+    i32.load $heap
+    local.set $u.buffer.capacity
     block
       loop
         local.get $t1
@@ -149,9 +162,8 @@
         i32.add
         local.set $t1
     ;; 41 |         s = s + h.store[i]
-        local.tee $u.buffer.ptr
-        local.get $t0
-        i32.load $heap offset=8
+        local.tee $u.len
+        local.get $u.buffer.ptr
         i32.ge_u
         if
           i32.const 16 ;; &"index-out-of-bounds"
@@ -163,9 +175,8 @@
           unreachable
         end
         local.get $s
-        local.get $t0
-        i32.load $heap
-        local.get $u.buffer.ptr
+        local.get $u.buffer.capacity
+        local.get $u.len
         i32.const 8
         i32.mul
         i32.add

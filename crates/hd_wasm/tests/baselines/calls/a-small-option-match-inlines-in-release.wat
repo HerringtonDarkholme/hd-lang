@@ -180,27 +180,32 @@
     end
     i32.const 0
   )
-  (func $std_sum (param $xs i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $index i32) (local $value f64) (local $fallback f64)
+  (func $std_sum (param $xs i32) (result f64) (local $total f64) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $index i32) (local $value f64) (local $fallback f64)
     ;; 22 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap offset=8
     local.set $t0
+    local.get $xs
+    i32.load $heap offset=8
+    local.set $t1
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       loop
-        local.get $t1
+        local.get $t2
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
-        local.get $t1
+        local.get $t2
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t2
     ;; 23 |         total += xs.get(i).unwrap_or(0.0)
         local.tee $index
-        local.get $xs
-        i32.load $heap offset=8
+        local.get $t1
         i32.ge_u
         if (result i32)
           i32.const 0
@@ -209,7 +214,6 @@
         else
           i32.const 1
           local.get $xs
-          i32.load $heap
           local.get $index
           i32.const 8
           i32.mul
@@ -300,27 +304,32 @@
     end
     local.get $value.1
   )
-  (func $user_sum (param $xs i32) (result f64) (local $total f64) (local $t1 i32) (local $t0 i32) (local $index i32) (local $v f64) (local $fallback f64)
+  (func $user_sum (param $xs i32) (result f64) (local $total f64) (local $t2 i32) (local $t0 i32) (local $t1 i32) (local $index i32) (local $v f64) (local $fallback f64)
     ;; 16 |     for i in 0..xs.len():
     local.get $xs
     i32.load $heap offset=8
     local.set $t0
+    local.get $xs
+    i32.load $heap offset=8
+    local.set $t1
+    local.get $xs
+    i32.load $heap
+    local.set $xs
     block
       loop
-        local.get $t1
+        local.get $t2
         local.get $t0
         i32.lt_u
         i32.eqz
         br_if 1
-        local.get $t1
-        local.get $t1
+        local.get $t2
+        local.get $t2
         i32.const 1
         i32.add
-        local.set $t1
+        local.set $t2
     ;; 17 |         total += pick(xs.get(i), 0.0)
         local.tee $index
-        local.get $xs
-        i32.load $heap offset=8
+        local.get $t1
         i32.ge_u
         if (result i32)
           i32.const 0
@@ -329,7 +338,6 @@
         else
           i32.const 1
           local.get $xs
-          i32.load $heap
           local.get $index
           i32.const 8
           i32.mul

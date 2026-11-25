@@ -1,11 +1,9 @@
 # @dump: wat
 # @build: v8 release
-# expected: an unchanged field read through a reference loads once, not
-# per read or per iteration (issue: a loop reloads an unchanged struct
-# field read through a reference on every iteration)
 # A shared reference's field that holds two values, a struct of two
-# `u32`s, is no one load: the loop reads it where it was (#1706). Its
-# one-value fields load once, before the loop.
+# `u32`s, is no one load (#1706), yet each of its values loads once
+# before the loop that writes no memory, as its one-value fields do
+# (#2368).
 struct Pair:
     low: u32
     high: u32

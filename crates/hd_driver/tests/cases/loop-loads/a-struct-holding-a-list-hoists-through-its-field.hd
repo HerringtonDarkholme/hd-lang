@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: wasmtime release
+# #2368: a user struct's list field: the load of `bag.items`'s buffer
+# pointer leaves the loop, and its bounds check goes.
+use std.collections.UniqList
+
+pub struct Bag:
+    label: i64
+    items: UniqList[i64]
+
+pub fn total(bag: &Bag) -> i64:
+    let mut s: i64 = bag.label
+    for i in 0..bag.items.len():
+        s += bag.items[i]
+    s

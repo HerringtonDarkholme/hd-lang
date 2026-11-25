@@ -2,7 +2,8 @@
 (module
   (import "fixture" "heap" (memory $heap 1))
   (import "fixture" "table0" (table $table0 2 funcref))
-  (func $deep_falling (param $items i32) (result i32) (local $total i32) (local $j17 i32)
+  (func $deep_falling (param $items i32) (result i32) (local $total i32) (local $t0 i32) (local $j17 i32)
+    ;; ...
     block
       loop
         ;; ...
@@ -62,8 +63,7 @@
                                                                                 ;; ...
     ;; 52 |                                                                                     + items[j17]
                                                                                 local.get $j17
-                                                                                local.get $items
-                                                                                i32.load $heap offset=8
+                                                                                local.get $t0
                                                                                 i32.ge_u
                                                                                 if
                                                                                   i32.const 65 ;; &"index-out-of-bounds"
@@ -78,7 +78,6 @@
                                                                                 local.get $total
     ;; 52 |                                                                                     + items[j17]
                                                                                 local.get $items
-                                                                                i32.load $heap
                                                                                 local.get $j17
                                                                                 i32.const 4
                                                                                 i32.mul
