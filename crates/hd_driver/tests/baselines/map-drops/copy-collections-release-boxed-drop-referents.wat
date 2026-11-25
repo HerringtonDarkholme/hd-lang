@@ -52,13 +52,11 @@
         i32.const 10
         i32.mul
         i32.add
-        i32.const 32
-        i32.add
         local.get $t3
         i32.const 4
         i32.mul
         i32.add
-        i32.load $heap
+        i32.load $heap offset=32
         i32.const 0
         i32.ge_s
         if
@@ -144,13 +142,11 @@
         i32.const 10
         i32.mul
         i32.add
-        i32.const 32
-        i32.add
         local.get $t3
         i32.const 4
         i32.mul
         i32.add
-        i32.load $heap
+        i32.load $heap offset=32
         i32.const 0
         i32.ge_s
         if

@@ -29,7 +29,8 @@
 //!    address is its offset (a store's is rule 8's);
 //! 8. `i32.const c; i32.add; R; store`, where `R` is a straight-line run
 //!    that pushes one value over what it found, is `R` and the store at
-//!    `c` more offset;
+//!    `c` more offset; through a later `R; i32.add` (`x + c + y` is
+//!    `x + y + c`) the constant reaches a store or a load of the sum;
 //! 9. `X; local.set a; P; local.get a`, where those are `a`'s only write
 //!    and read, `X` is a straight-line run that pushes one value and `P`
 //!    pushes a local, a global or a constant that `X` cannot change, is
@@ -3028,6 +3029,16 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
         } else {
             None
         };
+        // The top value's candidate: a load's address, or an addition's
+        // right operand.
+        let top = (pops > 0)
+            .then(|| {
+                active
+                    .last()
+                    .filter(|&&(d, _)| d == depth)
+                    .map(|&(_, id)| id)
+            })
+            .flatten();
         let below = depth.saturating_sub(pops);
         while active.last().is_some_and(|&(d, _)| d > below) {
             visit();
@@ -3045,10 +3056,9 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
                 parent: address,
             });
         } else if let Ins::Op(mut op) = f.body[i]
-            && !is_load(&op)
             && with_offset(&op, 0).is_some()
         {
-            let mut address = address;
+            let mut address = if is_load(&op) { top } else { address };
             while let Some(id) = address {
                 visit();
                 let StoreOffset { at, addend, parent } = offsets[id];
@@ -3065,6 +3075,12 @@ fn schedule_stores(f: &mut Func, arity: &Arity, visit: &mut impl FnMut()) -> boo
                 address = parent;
             }
             f.body[i] = Ins::Op(op);
+        } else if matches!(f.body[i], Ins::Op(I::I32Add))
+            && let Some(id) = address.or(top)
+        {
+            // `x + c + y` is `x + y + c`: the constant goes on to the load
+            // or store of the sum.
+            active.push((depth, id));
         }
     }
     let Some(order) = order else {

@@ -32,13 +32,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $key.0
       i32.const 12
       i32.mul
       i32.add
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.tee $values
       call $rt:retain_coll
       local.get $values
@@ -64,13 +62,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $key.0
       i32.const 12
       i32.mul
       i32.add
-      i32.load $heap offset=8
+      i32.load $heap offset=40
       local.set $t0
     else
       i32.const 0

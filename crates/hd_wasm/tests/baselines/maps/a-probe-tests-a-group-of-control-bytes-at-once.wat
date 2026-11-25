@@ -105,13 +105,11 @@
           i32.const 10
           i32.mul
           i32.add
-          i32.const 32
-          i32.add
           local.get $t9
           i32.const 4
           i32.mul
           i32.add
-          i32.load $heap
+          i32.load $heap offset=32
           local.get $t3
           i32.eq
           if
@@ -120,13 +118,11 @@
             i32.const 14
             i32.mul
             i32.add
-            i32.const 32
-            i32.add
             local.get $t9
             i32.const 8
             i32.mul
             i32.add
-            i32.load $heap
+            i32.load $heap offset=32
             local.get $t10
             i32.eq
             if
@@ -188,14 +184,12 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $t3
       i32.const 8
       i32.mul
       i32.add
       local.get $t4
-      i32.store $heap offset=4
+      i32.store $heap offset=36
       local.get $t0
       return
     end
@@ -220,14 +214,12 @@
     i32.const 10
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $t3
     i32.const 4
     i32.mul
     i32.add
     local.get $t6
-    i32.store $heap
+    i32.store $heap offset=32
     local.get $t0
     local.get $t1
     i32.const 14
