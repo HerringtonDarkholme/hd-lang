@@ -675,11 +675,7 @@ impl Ck<'_, '_> {
     // ------------------------------------------------------------ names
 
     pub(crate) fn import_hint(&self, name: &str) -> hd_resolve::iface::ImportHint {
-        hd_resolve::iface::std_import_hint(
-            &self.cx.names,
-            self.cx.lookup.ifaces.iter().copied(),
-            name,
-        )
+        self.cx.lookup.import_hint(&self.cx.names, name)
     }
 
     /// `unknown-name` at `n` for `text`, with its import hint and the

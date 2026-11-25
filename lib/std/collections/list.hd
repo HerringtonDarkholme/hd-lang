@@ -1,7 +1,12 @@
+use std.rt.inline
+use std.rt.TextBuilderValue
+use std.text.StringBuilder
+use std.collections.uniq_list.{UniqList, finish_sorted_list}
+use std.collections.span.{Span, SpanMut, list_span, list_span_mut}
 use std.collections.set.Set
-use std.collections.view.ListView
+use std.collections.view.{ListView, list_view}
 use std.ops.FnMut
-use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
+use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev, Enumerate, ListIter}
 use std.num.Num
 use std.ops.Range
 use std.rt.{Drop}
@@ -401,6 +406,40 @@ impl[T] List[T]:
             start = start + 1
         runs
 
+    ## A lazy snapshot of `(index, item)` pairs, starting at zero.
+    ## See [std-iter.list.enumerate.borrow](../../../spec/std/iter.md#r-std-iter.list.enumerate.borrow).
+    pub fn enumerate(&self) -> Enumerate[ListIter[T], T]:
+        self.iter().enumerate()
+
+    # A read-only window on the elements from `start` up to `end`, with no
+    # copy (spec/std/collections.md#views).
+    ## A read-only window on the elements from `start` up to `end`, with no copy.
+    ## See [std-collections.view](../../../spec/std/collections.md#r-std-collections.view).
+    @inline(.Always)
+    pub fn view(&self, start: usize, end: usize) -> ListView[T]:
+        list_view(self, start, end)
+
+    ## Returns a read-only live view of this list. The span cannot outlive the list.
+    ## See [std-collections.span.list](../../../spec/std/collections.md#r-std-collections.span.list).
+    @inline(.Always)
+    pub fn span['a](&'a self) -> Span[T, 'a]:
+        list_span(self)
+
+    ## Returns a mutable live view of this list. The span cannot outlive the list.
+    ## See [std-collections.span-mut.list](../../../spec/std/collections.md#r-std-collections.span-mut.list).
+    @inline(.Always)
+    pub fn span_mut['a](&'a mut self) -> SpanMut[T, 'a]:
+        list_span_mut(self)
+
+    ## Returns a new list in ascending order by `compare`. The sort is stable.
+    ## See [std-collections.access.sorted-by](../../../spec/std/collections.md#r-std-collections.access.sorted-by).
+    pub fn sorted_by[F < ?Copy & FnMut(&T, &T) -> Ordering](&self, compare: F) -> List[T]:
+        if self.len() <= 1:
+            return *self
+        let mut sorted = UniqList::[T].from_list(*self)
+        sorted.sort_by(compare)
+        finish_sorted_list(&mut sorted)
+
 impl[T < Eq] List[T]:
     ## True exactly when the list has an element equal to `value`.
     ## See [std-collections.helper.contains-borrowed](../../../spec/std/collections.md#r-std-collections.helper.contains-borrowed).
@@ -497,6 +536,16 @@ impl[T < Ord] List[T]:
                 best = index
             index = index + 1
         .Some(self[best])
+
+    # A stable sort in ascending order.
+    ## Returns the elements in ascending order by `Ord`.
+    ## See [std-collections.helper.sorted](../../../spec/std/collections.md#r-std-collections.helper.sorted).
+    pub fn sorted(&self) -> List[T]:
+        if self.len() <= 1:
+            return *self
+        let mut sorted = UniqList::[T].from_list(*self)
+        sorted.sort()
+        finish_sorted_list(&mut sorted)
 
 impl[T < Eq & Hash] List[T]:
     ## Returns the list with each element after its first occurrence dropped, in list order.
@@ -625,3 +674,16 @@ impl[T, 'a] ListDrain[T, 'a]:
     ## See [std-iter.double-ended.rev](../../../spec/std/iter.md#r-std-iter.double-ended.rev).
     pub fn rev(self) -> Rev[Self, T]:
         DoubleEndedIterator::[T]::rev(self)
+
+impl[T < Display] List[T]:
+    ## Joins each element's Display text with `separator` between elements.
+    ## See [std-text.join.list-home](../../../spec/std/text.md#r-std-text.join.list-home).
+    pub fn join(&self, separator: string) -> string:
+        let mut output = StringBuilder::new_value()
+        let first = true
+        for part in self:
+            if !first:
+                output.push(separator)
+            first = false
+            part.write(&mut output)
+        output.build()

@@ -1,0 +1,10 @@
+# @dump: diagnostics
+# @build: dev tests
+# expected: complete std advice does not depend on this file's checked interfaces.
+fn body() -> void:
+    _ := json
+    _ := min
+    _ := max
+
+tests:
+    max(+1, +2)

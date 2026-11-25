@@ -1,3 +1,4 @@
+use std.error.{Error, message}
 pub use std.iter.{OptionIter}
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
@@ -115,3 +116,11 @@ impl[T < ?Copy] T?:
             .Some(value) =>
                 if predicate(&value): .Some(value) else: .None
             .None => .None
+
+impl[T] T?:
+    ## `.Ok` of the value for a `.Some`, and `.Err` of `message(text)` for a `.None`.
+    ## See [std-option.context.reference-result](../../spec/std/option.md#r-std-option.context.reference-result).
+    pub fn context(self, text: string) -> Result[T, *dyn Error]:
+        match self:
+            .Some(value) => .Ok(value)
+            .None => .Err(message(text))

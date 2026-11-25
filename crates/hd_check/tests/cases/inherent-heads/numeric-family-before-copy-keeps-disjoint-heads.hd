@@ -1,5 +1,6 @@
 # @dump: diagnostics
 # @build: std
+# @std-module: num.hd
 use std.num.{Integer, Float}
 
 impl[N < Integer & Copy] N:

@@ -1,0 +1,6 @@
+# test: u16 inherent implementation outside its std home module is nonlocal
+# fixture-package-role: standard-library
+
+impl u16: # diagnostic: nonlocal-impl
+    fn home_probe(self) -> void:
+        pass
