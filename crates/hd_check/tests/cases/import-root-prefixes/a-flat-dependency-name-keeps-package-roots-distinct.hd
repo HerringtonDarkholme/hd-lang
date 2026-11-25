@@ -1,0 +1,16 @@
+# @dump: diagnostics
+# @package: root-prefix-flat-control
+use dep.deep.hidden.{take}
+
+pub fn probe() -> i32:
+    take()
+# @dependency: ancestor=alpha_beta
+# @file: src/lib.hd
+pub fn marker() -> i32:
+    +0
+# @dependency: deep=alpha_beta_gamma_delta
+# @file: src/lib.hd
+pub use self.{hidden}
+# @file: src/hidden.hd
+pub fn take() -> i32:
+    +1
