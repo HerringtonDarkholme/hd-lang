@@ -1,0 +1,2463 @@
+{
+  "hd": "target/dist/hd",
+  "commit": "ecc9f92e65d2eea4ee125013121b947a8db06713",
+  "finished": "2026-11-25T06:15:39.187Z",
+  "results": [
+    {
+      "metric": "edit-latency",
+      "name": "p50 check after an edit",
+      "value": "22 ms",
+      "target": "≤ 50 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "edit-latency",
+      "name": "p95 check after an edit",
+      "value": "25 ms",
+      "target": "≤ 200 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "cold-check",
+      "name": "median cold check, 10k lines",
+      "value": "252 ms",
+      "target": "≤ 1000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "test-latency",
+      "name": "median edit-then-test",
+      "value": "79 ms",
+      "target": "≤ 300 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "mistakes",
+      "name": "programs with exactly one diagnostic",
+      "value": "100.0%",
+      "target": "≥ 95.0%",
+      "status": "pass",
+      "note": "69 of 69"
+    },
+    {
+      "metric": "mistakes",
+      "name": "one diagnostic with the expected code",
+      "value": "100.0%",
+      "target": "≥ 95.0%",
+      "status": "pass",
+      "note": "69 of 69"
+    },
+    {
+      "metric": "mistakes",
+      "name": "fix-it makes hd check pass",
+      "value": "53.6%",
+      "target": "≥ 80.0%",
+      "status": "fail",
+      "note": "37 of 69 resolved; 37 offered a fix-it"
+    },
+    {
+      "metric": "mistakes",
+      "name": "largest diagnostic text (bytes / 4)",
+      "value": "74 tokens",
+      "target": "≤ 60 tokens",
+      "status": "fail",
+      "note": "largest: interpolate-optional; median 35 tokens, 139 B; 63 of 69 within"
+    },
+    {
+      "metric": "mistakes",
+      "name": "largest diagnostic JSON (bytes / 4)",
+      "value": "197 tokens",
+      "target": "≤ 60 tokens",
+      "status": "fail",
+      "note": "largest: interpolate-optional, 787 B; median 76 tokens, 303 B; 69 diagnostics"
+    },
+    {
+      "metric": "answer-size",
+      "name": "hd doc of a data type",
+      "value": "153 B",
+      "target": "≤ 1000 B",
+      "status": "pass"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one failing hd test, text",
+      "value": "318 B",
+      "target": "≤ 800 B",
+      "status": "pass"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one failing test, JSON object",
+      "value": "139 B",
+      "target": "≤ 400 B",
+      "status": "pass"
+    },
+    {
+      "metric": "answer-size",
+      "name": "one diagnostic, JSON object",
+      "value": "159 B",
+      "target": "≤ 600 B",
+      "status": "pass"
+    },
+    {
+      "metric": "determinism",
+      "name": "inputs with byte-identical output",
+      "value": "8 of 8",
+      "target": "all identical",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: time at 4x",
+      "value": "39 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: peak RSS at 4x",
+      "value": "45.6 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "overlapping-from: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 28 → 39 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: time at 4x",
+      "value": "20 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: peak RSS at 4x",
+      "value": "41.4 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-blocks: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 19 → 20 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: time at 4x",
+      "value": "20 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: peak RSS at 4x",
+      "value": "41.6 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-parens: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 22 → 20 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: time at 4x",
+      "value": "22 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: peak RSS at 4x",
+      "value": "41.7 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "method-chain: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 20 → 22 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: time at 4x",
+      "value": "24 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: peak RSS at 4x",
+      "value": "41.6 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "iterator-chain: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 25 → 24 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: time at 4x",
+      "value": "36 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: peak RSS at 4x",
+      "value": "47.9 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "wide-list-literal: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 28 → 36 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: time at 4x",
+      "value": "31 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: peak RSS at 4x",
+      "value": "43.5 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "large-enum-match: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 21 → 31 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: time at 4x",
+      "value": "26 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: peak RSS at 4x",
+      "value": "42.1 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "deep-generic: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 23 → 26 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: time at 4x",
+      "value": "23 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: peak RSS at 4x",
+      "value": "43.9 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "question-chain: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 22 → 23 ms, start-up 20 ms"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: time at 4x",
+      "value": "89 ms",
+      "target": "≤ 2000 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: peak RSS at 4x",
+      "value": "87.6 MB",
+      "target": "≤ 200.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "pathological",
+      "name": "big-file: growth exponent",
+      "value": "noise",
+      "target": "≤ 1.3",
+      "status": "pass",
+      "note": "2x→4x; 55 → 89 ms, start-up 20 ms"
+    },
+    {
+      "metric": "scale",
+      "name": "fn-items check",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 200029 → 806961 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "fn-items fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "fn-items build",
+      "value": "4.02x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 511087 → 2052516 (4.02x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-items check",
+      "value": "4.05x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 203329 → 823905 (4.05x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-items fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-items build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 624643 → 2506266 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "enum-items check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 23500 → 94000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "enum-items fmt",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 7576 → 30328 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "enum-items build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1386371 → 5548607 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "trait-items check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 19500 → 78000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "trait-items fmt",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 7576 → 30328 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "trait-items build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1780326 → 7143419 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "impl-methods check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 10000 → 40000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "impl-methods fmt",
+      "value": "3.97x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 4045 → 16057 (3.97x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "impl-methods build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 704019 → 2824092 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "traits-of-one-struct check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 15000 → 60000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "traits-of-one-struct fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "traits-of-one-struct build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 15000 → 60000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "impls-of-one-trait check",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 605789 → 2428433 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "impls-of-one-trait fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "impls-of-one-trait build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1446631 → 5794910 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "operator-impls check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 738087 → 2955971 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "operator-impls fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "operator-impls build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 25000 → 100000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "derive-items check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "trait_lookup 16998 → 67998 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "derive-items fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "derive-items build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "trait_lookup 16998 → 67998 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "dyn-values check",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 786010 → 3151211 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "dyn-values fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "dyn-values build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1884932 → 7549550 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "consts check",
+      "value": "3.97x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 63462 → 251818 (3.97x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "consts fmt",
+      "value": "3.89x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 2087 → 8109 (3.89x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "consts build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "loan_queries 4506 → 18006 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "local-items check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 19000 → 76000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "local-items fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "local-items build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 19000 → 76000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "syntax-items check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "item_body_checks 1700 → 6800 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "syntax-items fmt",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 17960 → 71864 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "syntax-items build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "item_body_checks 1700 → 6800 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-chain check",
+      "value": "4.04x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 151890 → 613946 (4.04x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-chain fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-chain-values check",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 117409 → 472969 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-chain-values fmt",
+      "value": "4.02x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 2082 → 8370 (4.02x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "struct-chain-values build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 4700 → 18800 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "modules check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 5773039 → 23096023 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "modules fmt",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1500 → 6000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "modules build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 10000 → 40000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "use-names check",
+      "value": "4.04x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 217192 → 876816 (4.04x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "use-names fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3783 → 15159 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "use-names build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 10000 → 40000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-fns check",
+      "value": "4.02x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 305908 → 1229724 (4.02x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-fns fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-fns build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 948260 → 3801581 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-params check",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 15846 → 63843 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-params fmt",
+      "value": "4.10x",
+      "target": "≤ 10x",
+      "status": "pass",
+      "note": "alloc_bytes 350594 → 1438988 (4.10x, limit 10.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-params build",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 20492 → 82505 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "param-bounds check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 1500 → 6000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "param-bounds fmt",
+      "value": "4.04x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 616 → 2488 (4.04x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "param-bounds build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 1500 → 6000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "type-defaults check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 30500 → 122000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "type-defaults fmt",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 7576 → 30328 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "type-defaults build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "control 138017 → 553517 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "alias-chain check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "type_nodes 3399 → 13599 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "alias-chain fmt",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1234 → 4978 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "alias-chain build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "type_nodes 3399 → 13599 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "row-chain check",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 223372 → 899624 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "row-chain fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "row-chain build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 583869 → 2344187 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "row-traits check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 2100 → 8400 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "row-traits fmt",
+      "value": "4.04x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 616 → 2488 (4.04x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "row-traits build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 2100 → 8400 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "closures check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "local_body_checks 1000 → 4000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "closures fmt",
+      "value": "3.94x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 3061 → 12073 (3.94x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "closures build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "local_body_checks 1000 → 4000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-local-fns check",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 237875 → 958683 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-local-fns fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-local-fns build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 945041 → 3790161 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "let-statements check",
+      "value": "3.96x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 25349 → 100450 (3.96x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "let-statements fmt",
+      "value": "3.94x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 2554 → 10066 (3.94x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "let-statements build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "control 68499 → 273999 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "matches check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "decision_rows 6000 → 24000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "matches fmt",
+      "value": "3.97x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 6057 → 24069 (3.97x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "matches build",
+      "value": "4.06x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 919016 → 3731575 (4.06x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "enum-arms check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 4500 → 18000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "enum-arms fmt",
+      "value": "3.91x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 1551 → 6065 (3.91x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "enum-arms build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 213698 → 855058 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "tuple-patterns check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 91665 → 367065 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "tuple-patterns fmt",
+      "value": "3.95x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 3054 → 12066 (3.95x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "tuple-patterns build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 432856 → 1734389 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "range-patterns check",
+      "value": "4.02x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 257718 → 1036982 (4.02x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "range-patterns fmt",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3784 → 15160 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "range-patterns build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 848120 → 3400069 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "wide-struct check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 4500 → 18000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "wide-struct fmt",
+      "value": "3.95x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 2544 → 10056 (3.95x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "wide-struct build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 4500 → 18000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "call-args check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "scope_probes 1100 → 4400 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "call-args fmt",
+      "value": "4.10x",
+      "target": "≤ 10x",
+      "status": "pass",
+      "note": "alloc_bytes 361569 → 1482933 (4.10x, limit 10.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "call-args build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "control 4999 → 19999 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "binary-chain check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 2500 → 10000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "binary-chain fmt",
+      "value": "3.78x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 545 → 2060 (3.78x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "binary-chain build",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 24506 → 98822 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "interpolation check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "trait_lookup 2501 → 10001 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "interpolation fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "interpolation build",
+      "value": "4.03x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 3404827 → 13735152 (4.03x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "list-literal check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 7392 → 29580 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "list-literal fmt",
+      "value": "3.82x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 533 → 2038 (3.82x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "list-literal build",
+      "value": "4.04x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 38074 → 153766 (4.04x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "method-chain check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "trait_lookup 500 → 2000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "method-chain fmt",
+      "value": "4.04x",
+      "target": "≤ 10x",
+      "status": "pass",
+      "note": "alloc_bytes 838129 → 3386711 (4.04x, limit 10.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "method-chain build",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "trait_lookup 500 → 2000 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "pipe-chain check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 16017 → 64017 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "pipe-chain fmt",
+      "value": "3.77x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 546 → 2056 (3.77x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "pipe-chain build",
+      "value": "3.98x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 103697 → 412577 (3.98x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "question-chain check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 42028 → 168028 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "question-chain fmt",
+      "value": "3.94x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "allocs 1533 → 6044 (3.94x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "question-chain build",
+      "value": "3.99x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 222127 → 886891 (3.99x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "if-nest check",
+      "value": "3.92x",
+      "target": "≤ 15.11x",
+      "status": "pass",
+      "note": "hashes 756 → 2964 (3.92x, limit 15.11x)"
+    },
+    {
+      "metric": "scale",
+      "name": "if-nest fmt",
+      "value": "-",
+      "target": "≤ 15.11x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "if-nest build",
+      "value": "4.03x",
+      "target": "≤ 15.11x",
+      "status": "pass",
+      "note": "hashes 5373 → 21645 (4.03x, limit 15.11x)"
+    },
+    {
+      "metric": "scale",
+      "name": "block-nest check",
+      "value": "3.95x",
+      "target": "≤ 15.29x",
+      "status": "pass",
+      "note": "hashes 814 → 3214 (3.95x, limit 15.29x)"
+    },
+    {
+      "metric": "scale",
+      "name": "block-nest fmt",
+      "value": "-",
+      "target": "≤ 15.29x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "block-nest build",
+      "value": "4.00x",
+      "target": "≤ 15.29x",
+      "status": "pass",
+      "note": "hashes 5873 → 23465 (4.00x, limit 15.29x)"
+    },
+    {
+      "metric": "scale",
+      "name": "for-nest check",
+      "value": "5.14x",
+      "target": "≤ 14.5x",
+      "status": "pass",
+      "note": "hashes 3627 → 18627 (5.14x, limit 14.50x)"
+    },
+    {
+      "metric": "scale",
+      "name": "for-nest fmt",
+      "value": "-",
+      "target": "≤ 14.5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "for-nest build",
+      "value": "4.64x",
+      "target": "≤ 14.5x",
+      "status": "pass",
+      "note": "hashes 26105 → 121001 (4.64x, limit 14.50x)"
+    },
+    {
+      "metric": "scale",
+      "name": "while-nest check",
+      "value": "3.88x",
+      "target": "≤ 15.11x",
+      "status": "pass",
+      "note": "hashes 1033 → 4009 (3.88x, limit 15.11x)"
+    },
+    {
+      "metric": "scale",
+      "name": "while-nest fmt",
+      "value": "-",
+      "target": "≤ 15.11x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "while-nest build",
+      "value": "4.00x",
+      "target": "≤ 15.11x",
+      "status": "pass",
+      "note": "use_facts 1232 → 4928 (4.00x, limit 15.11x)"
+    },
+    {
+      "metric": "scale",
+      "name": "match-nest check",
+      "value": "4.72x",
+      "target": "≤ 16.03x",
+      "status": "pass",
+      "note": "hashes 1984 → 9372 (4.72x, limit 16.03x)"
+    },
+    {
+      "metric": "scale",
+      "name": "match-nest fmt",
+      "value": "-",
+      "target": "≤ 16.03x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "match-nest build",
+      "value": "4.25x",
+      "target": "≤ 16.03x",
+      "status": "pass",
+      "note": "hashes 7448 → 31649 (4.25x, limit 16.03x)"
+    },
+    {
+      "metric": "scale",
+      "name": "closure-nest check",
+      "value": "3.95x",
+      "target": "≤ 11.45x",
+      "status": "pass",
+      "note": "hashes 2039 → 8049 (3.95x, limit 11.45x)"
+    },
+    {
+      "metric": "scale",
+      "name": "closure-nest fmt",
+      "value": "-",
+      "target": "≤ 11.45x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "closure-nest build",
+      "value": "4.00x",
+      "target": "≤ 11.45x",
+      "status": "pass",
+      "note": "use_facts 560 → 2240 (4.00x, limit 11.45x)"
+    },
+    {
+      "metric": "scale",
+      "name": "option-nest check",
+      "value": "4.18x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1832 → 7664 (4.18x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "option-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "option-nest build",
+      "value": "4.14x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 10764 → 44535 (4.14x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "list-type-nest check",
+      "value": "4.26x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1257 → 5360 (4.26x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "list-type-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "list-type-nest build",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "fail",
+      "note": "control 0 → 2040 (∞x, limit 5.00x); allocs 1306 → 7740 (5.93x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-nest check",
+      "value": "4.32x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1590 → 6874 (4.32x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "generic-nest build",
+      "value": "4.21x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 6433 → 27104 (4.21x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "paren-nest check",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "paren-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "paren-nest build",
+      "value": "4.08x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "control 795 → 3243 (4.08x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "arith-nest check",
+      "value": "4.00x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 440 → 1760 (4.00x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "arith-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "arith-nest build",
+      "value": "4.04x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 5617 → 22688 (4.04x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "bool-nest check",
+      "value": "3.95x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 391 → 1543 (3.95x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "bool-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "bool-nest build",
+      "value": "4.09x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "use_facts 490 → 2002 (4.09x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "bit-nest check",
+      "value": "3.99x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 818 → 3266 (3.99x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "bit-nest fmt",
+      "value": "5.84x",
+      "target": "≤ 10x",
+      "status": "pass",
+      "note": "alloc_bytes 206985 → 1209058 (5.84x, limit 10.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "bit-nest build",
+      "value": "4.12x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 7529 → 31055 (4.12x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "tuple-nest check",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 2070 → 8294 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "tuple-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "tuple-nest build",
+      "value": "4.01x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 10938 → 43874 (4.01x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "if-expr-nest check",
+      "value": "3.76x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 322 → 1210 (3.76x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "if-expr-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "if-expr-nest build",
+      "value": "3.82x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "use_facts 357 → 1365 (3.82x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "call-nest check",
+      "value": "3.90x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 529 → 2065 (3.90x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "call-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "call-nest build",
+      "value": "3.28x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 4328 → 14192 (3.28x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "index-nest check",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "index-nest fmt",
+      "value": "-",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "index-nest build",
+      "value": "4.68x",
+      "target": "≤ 5x",
+      "status": "pass",
+      "note": "hashes 1690 → 7915 (4.68x, limit 5.00x)"
+    },
+    {
+      "metric": "scale",
+      "name": "fn-nest check",
+      "value": "3.98x",
+      "target": "≤ 13.42x",
+      "status": "pass",
+      "note": "hashes 2946 → 11726 (3.98x, limit 13.42x)"
+    },
+    {
+      "metric": "scale",
+      "name": "fn-nest fmt",
+      "value": "-",
+      "target": "≤ 13.42x",
+      "status": "pass",
+      "note": "no counter reached the floor"
+    },
+    {
+      "metric": "scale",
+      "name": "fn-nest build",
+      "value": "4.00x",
+      "target": "≤ 13.42x",
+      "status": "pass",
+      "note": "use_facts 896 → 3584 (4.00x, limit 13.42x)"
+    },
+    {
+      "metric": "scale",
+      "name": "module-path-nest check",
+      "value": "4.30x",
+      "target": "≤ 14.36x",
+      "status": "pass",
+      "note": "allocs 60449 → 260130 (4.30x, limit 14.36x)"
+    },
+    {
+      "metric": "scale",
+      "name": "module-path-nest fmt",
+      "value": "9.99x",
+      "target": "≤ 28.72x",
+      "status": "pass",
+      "note": "alloc_bytes 158233 → 1580610 (9.99x, limit 28.72x)"
+    },
+    {
+      "metric": "scale",
+      "name": "module-path-nest build",
+      "value": "5.02x",
+      "target": "≤ 14.36x",
+      "status": "pass",
+      "note": "hashes 19715 → 98981 (5.02x, limit 14.36x)"
+    },
+    {
+      "metric": "scale",
+      "name": "coverage: node kinds",
+      "value": "122/122",
+      "target": "122/122",
+      "status": "pass",
+      "note": "exempt: Error"
+    },
+    {
+      "metric": "scale",
+      "name": "coverage: node kinds repeated",
+      "value": "113/122",
+      "target": "reported",
+      "status": "pass",
+      "note": "in no repeat shape: ReturnStmt, RangeExpr, LogicalOrExpr, LogicalAndExpr, BitwiseOrExpr, BitwiseXorExpr, BitwiseAndExpr, ShiftExpr, WhileExpr; exempt: Error"
+    },
+    {
+      "metric": "scale",
+      "name": "coverage: node kinds nested",
+      "value": "59/122",
+      "target": "reported",
+      "status": "pass",
+      "note": "in no nest shape: EnumDecl, TraitDecl, ImplDecl, TypeDecl, TestsBlock, Decorator, DefaultValue, ConstParameter, LifetimeParameter, BoundList, WhereClause, WhereBound, TypeDefault, ConstArgument, AssociatedTypeBinding, NamedArgument, EmbeddedField, EnumVariant, VariantSharedData, AssociatedTypeDecl, Derivation, DiscardStmt, BreakStmt, ContinueStmt, UsingStmt, ElseIfClause, MatchGuard, PipeExpr, RefExpr, DerefExpr, PowerExpr, TryExpr, SuspendExpr, PathExpr, TypeArgsExpr, TrailingCallExpr, PlaceholderExpr, MapExpr, MapEntry, SpreadExpr, ComprehensionExpr, ComprehensionFor, ComprehensionIf, ContextExpr, ContextEntry, Interpolation, LiteralPattern, NamedPattern, DataPattern, DataPatternField, SpreadPattern, RangePattern, DynType, ImplType, RefType, UnionType, ParenType, FunctionType, ProjectionType, ContextType, RestType, InferType, MarkerBound; exempt: Error"
+    },
+    {
+      "metric": "recheck-precision",
+      "name": "modules rechecked, private body edit",
+      "value": "1",
+      "target": "≤ 1",
+      "status": "pass"
+    },
+    {
+      "metric": "recheck-precision",
+      "name": "modules rechecked, public signature edit",
+      "value": "4",
+      "target": "≤ 3",
+      "status": "fail",
+      "note": "m004 and its dependents"
+    },
+    {
+      "metric": "errors-per-run",
+      "name": "semantic: 10 mistakes reported once",
+      "value": "10 of 10",
+      "target": "all, once",
+      "status": "pass",
+      "note": "0 reported twice or more; 0 on other lines"
+    },
+    {
+      "metric": "errors-per-run",
+      "name": "mixed: 10 mistakes reported once",
+      "value": "10 of 10",
+      "target": "all, once",
+      "status": "pass",
+      "note": "0 reported twice or more; 0 on other lines"
+    },
+    {
+      "metric": "diag-location",
+      "name": "diagnostics on the mistake's line",
+      "value": "98.6%",
+      "target": "≥ 95.0%",
+      "status": "pass",
+      "note": "68 of 69; misses: operator-line-break@9"
+    },
+    {
+      "metric": "fixit-safety",
+      "name": "fix-its that add no error",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "37 of 37 safe"
+    },
+    {
+      "metric": "fmt",
+      "name": "hd fmt, 10k lines",
+      "value": "21 ms",
+      "target": "≤ 200 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "fmt",
+      "name": "second hd fmt changes nothing",
+      "value": "no change",
+      "target": "idempotent",
+      "status": "pass"
+    },
+    {
+      "metric": "check-cost",
+      "name": "checked run time / unchecked run time",
+      "value": "2.35x",
+      "target": "≤ 1.30x",
+      "status": "fail",
+      "note": "checked 274 ms, unchecked 117 ms"
+    },
+    {
+      "metric": "dev-speed",
+      "name": "geomean dev / optimized",
+      "value": "1.57x",
+      "target": "≤ 4.00x",
+      "status": "pass",
+      "note": "fib 0.77x, sum 2.12x, string-build 1.62x, map 1.13x, sort 3.13x"
+    },
+    {
+      "metric": "dev-speed",
+      "name": "worst case dev / optimized",
+      "value": "3.13x",
+      "target": "≤ 10.00x",
+      "status": "pass",
+      "note": "sort"
+    },
+    {
+      "metric": "resources",
+      "name": "warm check, 10k lines: CPU time",
+      "value": "0.0 ms",
+      "target": "≤ 200 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "resources",
+      "name": "warm check, 10k lines: peak RSS",
+      "value": "21.7 MB",
+      "target": "≤ 50.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "resources",
+      "name": "check, small, cold",
+      "value": "0.09 CPU-s, 61.9 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 106 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, small, warm",
+      "value": "0.00 CPU-s, 21.5 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 7.6 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, small, cold",
+      "value": "0.55 CPU-s, 126.7 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 563 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, small, warm",
+      "value": "0.01 CPU-s, 42.2 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 23 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, small, cold",
+      "value": "0.48 CPU-s, 107.3 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 488 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, small, warm",
+      "value": "0.00 CPU-s, 21.7 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 6.8 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 10k, cold",
+      "value": "0.23 CPU-s, 108.0 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 246 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 10k, warm",
+      "value": "0.00 CPU-s, 21.7 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 8.9 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 10k, cold",
+      "value": "0.87 CPU-s, 175.6 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 878 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 10k, warm",
+      "value": "0.03 CPU-s, 57.3 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 44 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 10k, cold",
+      "value": "0.45 CPU-s, 113.5 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 461 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 10k, warm",
+      "value": "0.00 CPU-s, 21.7 MB",
+      "target": "completes ≤ 30 s",
+      "status": "pass",
+      "note": "wall 8.0 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 50k, cold",
+      "value": "0.91 CPU-s, 330.1 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 928 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "check, 50k, warm",
+      "value": "0.00 CPU-s, 31.0 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 13 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 50k, cold",
+      "value": "2.40 CPU-s, 459.7 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 2407 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "test, 50k, warm",
+      "value": "0.13 CPU-s, 116.8 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 145 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 50k, cold",
+      "value": "0.59 CPU-s, 137.4 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 603 ms"
+    },
+    {
+      "metric": "resources",
+      "name": "build, 50k, warm",
+      "value": "0.00 CPU-s, 31.2 MB",
+      "target": "completes ≤ 150 s",
+      "status": "pass",
+      "note": "wall 13 ms"
+    },
+    {
+      "metric": "long-session",
+      "name": "RSS growth, REPL inputs 100 to 1000",
+      "value": "103.3 MB",
+      "target": "≤ 22.0 MB",
+      "status": "fail",
+      "note": "RSS 91.2 MB at input 100, 188.7 MB at input 1000; build per input 88 ms at 50, 1264 ms at 1000; 4 KiB pages"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): wall time",
+      "value": "5.2 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): CPU time",
+      "value": "0.0 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd help (no version command): peak RSS",
+      "value": "9.8 MB",
+      "target": "≤ 10.0 MB",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd, just written: wall time",
+      "value": "7.7 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd, just written: CPU time",
+      "value": "0.0 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd, just written: peak RSS",
+      "value": "21.1 MB",
+      "target": "≤ 10.0 MB",
+      "status": "fail"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd, settled: wall time",
+      "value": "6.9 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd, settled: CPU time",
+      "value": "0.0 ms",
+      "target": "≤ 20 ms",
+      "status": "pass"
+    },
+    {
+      "metric": "startup",
+      "name": "hd check empty.hd, settled: peak RSS",
+      "value": "21.0 MB",
+      "target": "≤ 10.0 MB",
+      "status": "fail"
+    },
+    {
+      "metric": "concurrency",
+      "name": "p95 latency at N = 4 vs N = 1",
+      "value": "1.69x",
+      "target": "≤ 1.50x",
+      "status": "fail",
+      "note": "p95 92 ms at N = 1; 4 cores; total CPU 210 ms"
+    },
+    {
+      "metric": "concurrency",
+      "name": "p95 latency at N = 16 vs N = 1",
+      "value": "3.11x",
+      "target": "≤ 6.00x",
+      "status": "pass",
+      "note": "p95 92 ms at N = 1; 4 cores; total CPU 450 ms"
+    },
+    {
+      "metric": "concurrency",
+      "name": "total CPU growth exponent, N = 1 to 16",
+      "value": "0.48",
+      "target": "< 1.00 (sublinear)",
+      "status": "pass",
+      "note": "120 ms at N = 1, 450 ms at N = 16"
+    },
+    {
+      "metric": "disk",
+      "name": "artifacts per worktree",
+      "value": "0.0 MB",
+      "target": "≤ 10.0 MB",
+      "status": "pass",
+      "note": "10 files; HD_CACHE 13.0 MB, shared per user, not counted"
+    },
+    {
+      "metric": "disk",
+      "name": "toolchain, once per machine",
+      "value": "33.0 MB",
+      "target": "recorded, no target",
+      "status": "pass",
+      "note": "toolchain files: /home/runner/work/hd-lang/hd-lang/target/dist/hd"
+    },
+    {
+      "metric": "parallel-speedup",
+      "name": "speedup, 50k lines, 4 threads vs 1",
+      "value": "1.82x",
+      "target": "≥ 2.40x",
+      "status": "fail",
+      "note": "by --jobs"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "dependency cache, 8 concurrent fetches: no corruption",
+      "value": "intact",
+      "target": "no corruption",
+      "status": "pass"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "dependency cache, 8 concurrent fetches: fetched once",
+      "value": "16",
+      "target": "≤ 2, one check's connections",
+      "status": "fail",
+      "note": "connections to the remote"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "compilation cache, 8 concurrent checks: no corruption",
+      "value": "intact",
+      "target": "no corruption",
+      "status": "pass"
+    },
+    {
+      "metric": "cache-contention",
+      "name": "compilation cache, 8 concurrent checks: written once",
+      "value": "314 files",
+      "target": "the files of one check's cache",
+      "status": "fail",
+      "note": "one check alone: 36 files"
+    },
+    {
+      "metric": "cache-growth",
+      "name": "cache size after 100 edits, cap 5 MB",
+      "value": "13.4 MB",
+      "target": "≤ 5.0 MB",
+      "status": "fail",
+      "note": "cap set by HD_CACHE_MAX_SIZE"
+    },
+    {
+      "metric": "io-per-check",
+      "name": "source files read, warm check after one edit",
+      "value": "1",
+      "target": "≤ 1",
+      "status": "pass",
+      "note": "80 stat'ed; 79 source files; edited src/m039.hd"
+    },
+    {
+      "metric": "fetch-dedup",
+      "name": "connections to the remote, 4 worktrees",
+      "value": "2",
+      "target": "= the first worktree's",
+      "status": "pass",
+      "note": "the first worktree's: 2"
+    },
+    {
+      "metric": "proptest-perf",
+      "name": "property cases per second",
+      "value": "126k/s",
+      "target": "≥ 100k/s",
+      "status": "pass",
+      "note": "6000 extra cases took 48 ms; hd test, median of 3"
+    },
+    {
+      "metric": "proptest-perf",
+      "name": "time to shrink a known failure",
+      "value": "12 ms",
+      "target": "≤ 1000 ms",
+      "status": "pass",
+      "note": "shrink=500 minus shrink=0, median of 3"
+    },
+    {
+      "metric": "unit-test-perf",
+      "name": "1,000 unit tests, warm",
+      "value": "45 ms",
+      "target": "≤ 1000 ms",
+      "status": "pass",
+      "note": "the run reports 1000 of 1000 passed"
+    },
+    {
+      "metric": "unit-test-perf",
+      "name": "overhead per unit test",
+      "value": "0.0 ms",
+      "target": "≤ 1.0 ms",
+      "status": "pass",
+      "note": "100 tests: 19 ms"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "setup per integration test program",
+      "value": "6.4 ms",
+      "target": "≤ 20 ms",
+      "status": "pass",
+      "note": "10 programs: 80 ms for 21 tests, 3.8 ms per test"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "total time growth in programs",
+      "value": "0.804",
+      "target": "exponent < 1 (sublinear)",
+      "status": "pass",
+      "note": "beyond the 0-program run: 18 ms at 2, 67 ms at 10 programs"
+    },
+    {
+      "metric": "integration-test-perf",
+      "name": "cost per doc test",
+      "value": "3.5 ms",
+      "target": "≤ 20 ms",
+      "status": "pass",
+      "note": "10 doc tests: 51 ms; the run reports 11 of 11 passed"
+    },
+    {
+      "metric": "runtime",
+      "name": "geomean hd / Node",
+      "value": "0.50x",
+      "target": "≤ 1.50x",
+      "status": "pass",
+      "note": "5 cases"
+    },
+    {
+      "metric": "runtime",
+      "name": "fib: hd / Node",
+      "value": "0.67x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 3.5 ms (p10 3.4, p90 3.6), Node 5.2 ms, Python 49 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "sum: hd / Node",
+      "value": "0.13x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 4.7 ms (p10 4.6, p90 4.7), Node 36 ms, Python 155 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "string-build: hd / Node",
+      "value": "0.86x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 2.9 ms (p10 2.8, p90 2.9), Node 3.4 ms, Python 7.9 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "map: hd / Node",
+      "value": "0.77x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 3.8 ms (p10 3.7, p90 3.9), Node 5.0 ms, Python 10 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "runtime",
+      "name": "sort: hd / Node",
+      "value": "0.56x",
+      "target": "≤ 3.00x",
+      "status": "pass",
+      "note": "hd 7.8 ms (p10 7.5, p90 7.9), Node 14 ms, Python 9.9 ms; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "allocations",
+      "name": "counted loop, bytes per iteration",
+      "value": "-",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "n/a",
+      "note": "not supported by this hd: the program does not run on Node, so V8 heap statistics are out of reach, and no other allocation counter is known"
+    },
+    {
+      "metric": "allocations",
+      "name": "list loop, bytes per iteration",
+      "value": "-",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "n/a",
+      "note": "not supported by this hd: the program does not run on Node, so V8 heap statistics are out of reach, and no other allocation counter is known"
+    },
+    {
+      "metric": "allocations",
+      "name": "map loop, bytes per iteration",
+      "value": "-",
+      "target": "0 allocations (< 1 B/iter)",
+      "status": "n/a",
+      "note": "not supported by this hd: the program does not run on Node, so V8 heap statistics are out of reach, and no other allocation counter is known"
+    },
+    {
+      "metric": "allocations",
+      "name": "iterator chain, bytes per iteration",
+      "value": "-",
+      "target": "≤ 1 allocation (≤ 32 B/iter)",
+      "status": "n/a",
+      "note": "not supported by this hd: the program does not run on Node, so V8 heap statistics are out of reach, and no other allocation counter is known"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "tiny program, release Wasm size",
+      "value": "5017 B",
+      "target": "≤ 2048 B",
+      "status": "fail",
+      "note": "benchmarks: fib 5141 B, sum 4917 B, string-build 8090 B, map 7095 B, sort 13206 B"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "tiny program, start to first output",
+      "value": "7.5 ms",
+      "target": "≤ 5.0 ms",
+      "status": "fail",
+      "note": "release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "peak heap, map: hd / Node",
+      "value": "0.94x",
+      "target": "≤ 2.00x",
+      "status": "pass",
+      "note": "hd +13.6 MB, Node +14.4 MB over an empty program"
+    },
+    {
+      "metric": "size-startup-heap",
+      "name": "peak heap, string-build: hd / Node",
+      "value": "0.49x",
+      "target": "≤ 2.00x",
+      "status": "pass",
+      "note": "hd +9.9 MB, Node +20.1 MB over an empty program"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "Console println, per call",
+      "value": "2.2 µs",
+      "target": "≤ 1.0 µs",
+      "status": "fail",
+      "note": "100000 calls; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "Fs read_text!, per call",
+      "value": "8.1 µs",
+      "target": "≤ 10 µs",
+      "status": "pass",
+      "note": "10000 calls; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "host-call-overhead",
+      "name": "serde boundary (list_dir!), per call",
+      "value": "13 µs",
+      "target": "≤ 5.0 µs",
+      "status": "fail",
+      "note": "10000 calls; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "await of a ready value, per await",
+      "value": "2.4 ns",
+      "target": "≤ 100 ns",
+      "status": "pass",
+      "note": "2.4 ns per iteration; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "all! of two ready tasks, throughput",
+      "value": "12.3M/s",
+      "target": "≥ 1.0M/s",
+      "status": "pass",
+      "note": "163 ns per iteration; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "suspension-overhead",
+      "name": "race! of two ready tasks, throughput",
+      "value": "9.5M/s",
+      "target": "≥ 1.0M/s",
+      "status": "pass",
+      "note": "210 ns per iteration; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "serde-throughput",
+      "name": "JSON encode, hd / Node MB/s",
+      "value": "0.13x",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd 115 MB/s (45488 B document), Node 884 MB/s; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "serde-throughput",
+      "name": "JSON decode, hd / Node MB/s",
+      "value": "0.14x",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd 46 MB/s (45488 B document), Node 337 MB/s; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "string build, hd / Node MB/s",
+      "value": "1.79x",
+      "target": "≥ 0.50x",
+      "status": "pass",
+      "note": "hd 344 MB/s, Node 193 MB/s; 100000 words, 1088890 bytes per text; hd StringBuilder, Node Array.join; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "split, hd / Node MB/s",
+      "value": "1.19x",
+      "target": "≥ 0.50x",
+      "status": "pass",
+      "note": "hd 431 MB/s, Node 361 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "text-throughput",
+      "name": "regex find_all, hd / Node MB/s",
+      "value": "0.25x",
+      "target": "≥ 0.50x",
+      "status": "fail",
+      "note": "hd 45 MB/s, Node 179 MB/s; 100000 words, 1088890 bytes per text; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "dead-code",
+      "name": "Wasm bytes per 1,000 lines",
+      "value": "6516 B",
+      "target": "≤ 10240 B",
+      "status": "pass",
+      "note": "12607 B at 1075 lines, 71255 B at 10076 lines; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "dead-code",
+      "name": "no unused std in the program",
+      "value": "none",
+      "target": "none",
+      "status": "pass",
+      "note": "915 B either way; checked sizes, and import and export names"
+    },
+    {
+      "metric": "long-run-memory",
+      "name": "RSS growth after warm-up, 1 min",
+      "value": "0.0 MB",
+      "target": "≤ 10.0 MB",
+      "status": "pass",
+      "note": "19090000 requests; RSS 90.2 MB after warm-up, 90.2 MB at the end; release build, run as hd FILE.wasm"
+    },
+    {
+      "metric": "conformance",
+      "name": "pass rate, known failures excluded",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "9339 of 9339 unlisted cases passed"
+    },
+    {
+      "metric": "conformance",
+      "name": "listed known failures",
+      "value": "0",
+      "target": "≤ 0",
+      "status": "pass",
+      "note": "KNOWN_FAILURES.tsv"
+    },
+    {
+      "metric": "incremental-soundness",
+      "name": "incremental equals clean, after each edit",
+      "value": "100.0%",
+      "target": "≥ 100.0%",
+      "status": "pass",
+      "note": "20 of 20 runs matched over 16 edits"
+    }
+  ],
+  "machine": {
+    "runner": "ubuntu-latest",
+    "cpus": 4,
+    "cpu": "AMD EPYC 9V45 96-Core Processor"
+  }
+}
