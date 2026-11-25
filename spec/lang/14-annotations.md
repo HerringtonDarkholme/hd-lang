@@ -212,8 +212,8 @@ fn first(input: &List[u8]) -> u8:
     input.get(0).unwrap_or(0)
 ```
 
-1. r[annot.inline.declared.v2] `std.core` declares the enum `InlineHint`, with the variants `Auto`, `Always`, and `Never`, the function `inline(hint: InlineHint = .Auto)`, the struct `Cold`, and the function `cold()`, so runtime modules can use them. `std.meta` re-exports all four. They are not prelude names, so code imports them, usually from `std.meta`.
-2. r[annot.inline.recognized] The compiler recognizes `std.core.inline` and `std.core.cold` by their qualified names, through an alias, a re-export such as `std.meta.inline`, or a module path. Their lines are compiler decorators and attach no value.
+1. r[annot.inline.declared.v2] `std.meta` exports the enum `InlineHint`, with the variants `Auto`, `Always`, and `Never`, the function `inline(hint: InlineHint = .Auto)`, the struct `Cold`, and the function `cold()`. The runtime declares them, so its own modules can use them. They are not prelude names, so code imports them from `std.meta`.
+2. r[annot.inline.recognized] The compiler recognizes `std.meta.inline` and `std.meta.cold` by their qualified names, through an alias, a re-export, or a module path. Their lines are compiler decorators and attach no value.
 3. r[annot.inline.targets] An `@inline` or `@cold` line must precede a module-level function or a method that has a body. Before a trait requirement without a default body, or before an `@intrinsic` declaration, it is an error. Error: `invalid-inline-decorator`.
 4. r[annot.inline.argument] The argument of `inline` must be `.Auto`, `.Always`, or `.Never`, or left out, and it is read as written. Any other argument of `inline`, and any argument of `cold`, is an error. Error: `invalid-inline-decorator`.
 5. r[annot.inline.bare] A bare `@inline` is `@inline(.Auto)`, by [`annot.decorator.bare-call-defaults`](#r-annot.decorator.bare-call-defaults).

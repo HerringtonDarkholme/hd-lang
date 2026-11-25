@@ -79,6 +79,9 @@ fn std_interfaces_build_with_no_diagnostic() {
         // first module: std's language layer is one (`std.arena`), and
         // `std.rt` holds the runtime children its re-exports read and that
         // use it back. `std` is std's root, which re-exports the rest.
+        // `std.rt.hint` holds the inline and cold decorators, which both
+        // the runtime and the language layer use, so neither joins the
+        // other's unit.
         [
             "app.main",
             "std",
@@ -93,11 +96,12 @@ fn std_interfaces_build_with_no_diagnostic() {
             "std.rt.checked_report.pairs",
             "std.rt.crossing",
             "std.rt.entry",
+            "std.rt.hint",
             "std.rt.wait",
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::UnitIface).ok, 15);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 16);
 }
 
 #[test]
@@ -227,7 +231,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 15);
+    assert_eq!(base.len(), 16);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -325,8 +329,8 @@ fn std_typed_signatures_compile_through_headers() {
     crate::add_facades(&mut s);
     let out = run(&s);
     let t = out.report.tally(Stage::UnitIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (17, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 17);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (18, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 18);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

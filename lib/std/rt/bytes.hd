@@ -5,7 +5,8 @@
 # The compiler supplies each body: the byte primitives come from the Wasm
 # runtime and the case mappings from the host. Where a body below is hd, it
 # defines the result, and the compiler supplies a SIMD128 one (#428).
-use std.core.{Copy, inline}
+use std.core.{Copy}
+use std.rt.hint.inline
 use std.rt.memory.{
     Buffer,
     Ptr,
