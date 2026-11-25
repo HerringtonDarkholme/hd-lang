@@ -9,12 +9,12 @@ std/rt.alloc/grown#0
 std/rt.alloc/block_bytes#0
 std/encoding.json/push_quoted#0
 std/encoding.json/impl TextWriter.spaced_key#0
+std/encoding.json/impl Display for Json.to_string#0
 std/rt.alloc/release_acyclic#0
 std/encoding.json/push_escaped#0
 std/rt.alloc/block_of#0
 app/main/main#0
 std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity#0 [u8]
-std/format/Display.write#0 [std.encoding.json.Json]
 std/encoding.json/encode_fallback#0 [app.main.Odd]
 std/rt.alloc/full#0
 std/rt.alloc/move_table#0
@@ -40,7 +40,6 @@ std/rt.alloc/alloc#0
 std/rt.bytes/impl TextRoom.grow#0
 std/rt.alloc/extend#0
 std/rt.memory/impl[T < ?Copy] Drop for Buffer[T].drop#0 [u8]
-std/encoding.json/impl Display for Json.to_string#0
 std/encoding.json/to_json#0 [app.main.Odd]
 std/rt.alloc/start#0
 std/rt.alloc/free_block#0
@@ -50,6 +49,7 @@ std/rt.cycle/hold_room#0
 std/rt.alloc/init.init#0
 std/encoding.json/line_break#0
 std/format/impl Display for f64.to_string#0
+std/format/Display.write#0 [std.encoding.json.Json]
 std/text/impl StringBuilder.build#0
 std/rt.alloc/release_known_acyclic#0
 std/encoding.json/impl TextWriter.add_key#0
@@ -66,10 +66,9 @@ std/rt.alloc/take#0
 std/rt.cycle/init.init#0
 std/rt.bytes/impl TextSink for TextRoom.append_text#0
 std/rt.alloc/release_value#0 [std.encoding.json.JsonWriter]
-std/rt.alloc/release_value#0 [(string, std.encoding.json.Json)]
+std/rt.alloc/release_value#0 [(string, std.encoding.json.Json)?]
 std/rt.alloc/release_value#0 [std.encoding.json.ObjectEntry]
 std/rt.alloc/retain_value#0 [std.encoding.json.ObjectEntry]
-std/rt.alloc/release_value#0 [std.encoding.json.JsonObject]
 std/rt.alloc/release_value#0 [std.encoding.json.ObjectEntry?]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
 std/rt.alloc/release_value#0 [std.text.StringBuilder]
