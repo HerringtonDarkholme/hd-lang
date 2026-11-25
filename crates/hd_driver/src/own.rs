@@ -2732,7 +2732,15 @@ impl Env<'_> {
     /// inlined trait method's constant among them, #1518). The result's
     /// hash: the fold is a function of the inlined body and the pipeline,
     /// whose hash every code key carries.
-    pub(super) fn fold_and_inline(&self, body: &mut Body, args: TyList, hash: Hash128) -> Hash128 {
+    ///
+    /// # Errors
+    /// A compiler bug: scalar replacement's splice refused the body.
+    pub(super) fn fold_and_inline(
+        &self,
+        body: &mut Body,
+        args: TyList,
+        hash: Hash128,
+    ) -> StageResult<Hash128> {
         // A body with no type arguments gets no `hd_mono::instantiate`,
         // so its bound calls at a closed receiver are chosen here, as
         // collection selects them: at an opaque result's hidden type, or
@@ -2753,15 +2761,14 @@ impl Env<'_> {
         if self.run.sroa && hash != facts {
             let copies = |t| hd_tir::own::OwnCx::copies(self, t) == hd_tir::own::Tri::Yes;
             hd_opt::sroa::run(body, &self.run.pool, &copies, self.run.sroa_spill)
-                // ruled out: each edit stands where the body's own topology puts it.
-                .expect("sroa renumbers an inlined body");
+                .map_err(|e| NotImplemented::bug(Stage::Collect, e))?;
         }
         if (decided || self.run.const_fold)
             && let Some(specialized) = hd_mono::defaults::specialize(body, &[])
         {
             *body = specialized;
         }
-        hash
+        Ok(hash)
     }
 
     /// Instance `(def, args)` as collection keys it ([`Node`]).
@@ -2945,23 +2952,32 @@ impl Env<'_> {
     /// calls); then folded and inlined
     /// ([`Env::fold_and_inline`]). A non-generic item's own body is its
     /// one instance's. Dev and release run these stages in one order.
-    pub(super) fn inlined_instance(&self, (def, args): Node) -> Option<(Body, Hash128)> {
+    ///
+    /// # Errors
+    /// [`Env::fold_and_inline`]'s.
+    pub(super) fn inlined_instance(
+        &self,
+        (def, args): Node,
+    ) -> StageResult<Option<(Body, Hash128)>> {
         // A compiler-supplied method's or factory's instance runs its
         // generated body at the instance's arguments; an intrinsic with
         // none has no instance body here (its source body is a
         // placeholder, and collection supplies a `dbg` body itself).
         let supplied = self.supplied_member((def, args));
         if supplied.is_none() && ProgramEnv::intrinsic(self, def).is_some() {
-            return None;
+            return Ok(None);
         }
         let walk = supplied.is_some() && self.supplied_walk_family((def, args)).is_some();
         let (generic, hash) = if let Some((family, at)) = &supplied {
             (&family.bodies[*at], family.hash)
         } else {
-            let (raw, hash) = self
+            let Some((raw, hash)) = self
                 .run
                 .lazy_body(self.p, def)
-                .and_then(|b| self.run.decode(b))?;
+                .and_then(|b| self.run.decode(b))
+            else {
+                return Ok(None);
+            };
             (raw, *hash)
         };
         // A lifted generic local function's instance starts from its own
@@ -3000,8 +3016,8 @@ impl Env<'_> {
         } else {
             hash
         };
-        let hash = self.fold_and_inline(&mut body, args, hash);
-        Some((body, hash))
+        let hash = self.fold_and_inline(&mut body, args, hash)?;
+        Ok(Some((body, hash)))
     }
 
     /// Generic instance `node`'s body after the passes
@@ -3036,7 +3052,7 @@ impl Env<'_> {
         }
         let (owned, reads) = reading(|| {
             // The walk keeps no error: the passes' refusal is reported here.
-            let Some((body, hash)) = self.inlined_instance(node) else {
+            let Some((body, hash)) = self.inlined_instance(node)? else {
                 return Ok(None);
             };
             lock(&self.run.counters)
@@ -3619,7 +3635,7 @@ impl Run<'_> {
         lock(&self.counters).bodies_owned.push(path);
         let owned = self.with_env(p, |env| {
             let mut body = body;
-            let hash = env.fold_and_inline(&mut body, TyList::EMPTY, hash);
+            let hash = env.fold_and_inline(&mut body, TyList::EMPTY, hash)?;
             env.own_inlined(body, hash, TyList::EMPTY)
         });
         match owned {
@@ -3969,7 +3985,8 @@ impl Run<'_> {
         self.with_env(p, |env| {
             let inlined = RefCell::new(HashMap::default());
             let mut callees = |n: Node| {
-                let Some((body, hash)) = env.inlined_instance(n) else {
+                // A refused body stays unowned: `owned_instance` reports it.
+                let Ok(Some((body, hash))) = env.inlined_instance(n) else {
                     return env.borrowed_effect_callees(n);
                 };
                 let out = env.summarized_callees(&body);
