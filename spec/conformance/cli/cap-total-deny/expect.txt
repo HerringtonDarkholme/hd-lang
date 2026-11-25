@@ -21,7 +21,7 @@ stderr-json: [{"kind":"diagnostic","code":"denied-capability","severity":"error"
 # (`cli.cap.flag.unknown.with-package-host`, `cli.cap.flag.unscoped`).
 run: hd run --cap Time=true
 exit: 101
-stderr: error: `--cap Time=true`: `Time` is no host capability trait; a grant names one of Console, ConsoleInput, Args, Env, Clock, Random, FsRead, FsWrite, Process, Http, Net, Sys, Workers
+stderr: error: `--cap Time=true`: `Time` is no host capability trait; a grant names one of Console, ConsoleInput, Args, Env, Clock, Random, FsRead, FsWrite, Process, Http, Net, Sys, Signals, Workers
 run: hd run --cap Console=a,b
 exit: 101
 stderr: error: `--cap Console=a,b`: `Console` has no scope entries, so its grant is `true` or `false`, not a list
