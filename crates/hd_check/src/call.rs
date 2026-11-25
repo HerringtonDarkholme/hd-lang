@@ -1312,6 +1312,14 @@ impl Ck<'_, '_> {
                 if let Some(p) = Prim::ALL.iter().find(|p| p.name() == text) {
                     return self.conversion(Ty::prim(*p), args, n);
                 }
+                // `types.cast.family`: the numeric bound establishes a cast
+                // target; monomorphization supplies its concrete primitive.
+                if let Some(to) = self.type_param(&text)
+                    && matches!(self.pool().get(to), TyData::Param(_))
+                    && self.cast_numeric(to)
+                {
+                    return self.conversion(to, args, n);
+                }
                 if let Some(Named::Item(def)) = self.scope_name(&text) {
                     return self.call_item(def, &[], args, n, bang, want);
                 }
@@ -1555,6 +1563,104 @@ impl Ck<'_, '_> {
             .add_fix(&title, hd_diag::FixSafety::Suggestion, &[(at, "*")]);
     }
 
+    /// Check an unsuffixed integer literal against every primitive admitted
+    /// by a numeric parameter. Inspect only its unary/parenthesis spine and
+    /// digits: O(spine + literal bytes), without instance obligations.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    fn family_integer_literal(
+        &mut self,
+        to: Ty,
+        e: NodeRef<'_>,
+        n: NodeRef<'_>,
+    ) -> Option<(Ref, Ty)> {
+        let to = self.resolved(to);
+        if !matches!(self.pool().get(to), TyData::Param(_)) || !self.cast_numeric(to) {
+            return None;
+        }
+        let mut core = e;
+        let mut negative = false;
+        loop {
+            match core.kind() {
+                SyntaxKind::ParenExpr => core = core.children().next()?,
+                SyntaxKind::UnaryExpr => {
+                    match self.cx.src.tkind(self.cx.src.first(core))? {
+                        TokenKind::Plus => {}
+                        TokenKind::Minus => negative = !negative,
+                        _ => return None,
+                    }
+                    core = core.children().next()?;
+                }
+                _ => break,
+            }
+        }
+        if core.kind() != SyntaxKind::LiteralExpr
+            || self.cx.src.tkind(self.cx.src.first(core)) != Some(TokenKind::Number)
+        {
+            return None;
+        }
+        let text = self.cx.src.text(self.cx.src.first(core));
+        let (digits, suffix) = crate::literals::split_suffix(text);
+        if !suffix.is_empty() {
+            return None;
+        }
+        let digits = digits.replace('_', "");
+        let radix = crate::literals::radix_digits(&digits);
+        if radix.is_none() && !crate::literals::decimal_digits(&digits) {
+            return None;
+        }
+        let known = self.cx.names.known;
+        let integer = self.env.first_clause(to, known.integer).is_some();
+        let float = self.env.first_clause(to, known.float).is_some();
+        let magnitude = match radix {
+            Some((radix, digits)) => u128::from_str_radix(digits, radix).ok(),
+            None => digits.parse::<u128>().ok(),
+        };
+        // Integer is the common interval of signed i8 and unsigned types.
+        // Num admits those integers as well as both float widths.
+        let fits = magnitude.is_some_and(|m| {
+            if integer || !float {
+                !negative && m <= i8::MAX as u128
+            } else {
+                // Every finite f32 integer fits u128 (f32::MAX < 2^128).
+                // The finite guard excludes saturating-cast false positives.
+                let value = m as f32;
+                value.is_finite() && value as u128 == m
+            }
+        });
+        if !fits {
+            let reason = if integer || !float {
+                "the signed i8 and unsigned integer types"
+            } else {
+                "f32 exactly and finitely"
+            };
+            let msg = format!(
+                "integer literal must fit every type admitted by `{}`: it must fit {reason}",
+                self.show(to)
+            );
+            self.err(Code::IntegerLiteralRange, e, &msg);
+            return Some(self.poison(e));
+        }
+        let magnitude = magnitude?;
+        let (source, bits) = if integer || !float {
+            (Ty::prim(Prim::U64), u64::try_from(magnitude).ok()?)
+        } else {
+            let value = f64::from(magnitude as f32);
+            (
+                Ty::prim(Prim::F64),
+                if negative { -value } else { value }.to_bits(),
+            )
+        };
+        let value = self.b.const_value(source, bits);
+        Some((
+            self.b.prim(PrimOp::Conv as u32, &[value], to, n.index()),
+            to,
+        ))
+    }
+
     /// `i64(x)`: a numeric conversion.
     fn conversion(&mut self, to: Ty, args: &Args<'_>, n: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
         if let Some(spread) = args.spread {
@@ -1581,6 +1687,9 @@ impl Ck<'_, '_> {
         let Some(e) = self.one_argument(args, &self.show(to), n)? else {
             return Ok((Ref(NONE), Ty::POISON));
         };
+        if let Some(value) = self.family_integer_literal(to, e, n) {
+            return Ok(value);
+        }
         let (r, t) = self.expr(e, None)?;
         // A newtype converts to the type it wraps (`string(path)`), and
         // to no other: `f64(m)` of a newtype over `i32` is no cast
@@ -3284,6 +3393,7 @@ impl Ck<'_, '_> {
                         self.call_item(base, pool.list_items(a), args, n, bang, want)
                     }
                     TyData::Prim(_) => self.conversion(to, args, n),
+                    TyData::Param(_) if self.cast_numeric(to) => self.conversion(to, args, n),
                     _ => self.type_name_call(&name, to, args, n),
                 }
             }

@@ -1,0 +1,36 @@
+# @dump: wat diagnostics
+# @build: release
+# @helper: std/convert/impl[S < Integer, T < Integer] TryFrom[S] for T.try_from
+use std.convert.TryFrom
+use std.num.TryFromIntError
+
+fn widen(value: i8) -> Result[i64, TryFromIntError]:
+    i64::try_from(value)
+
+fn widen_hand(value: i8) -> Result[i64, TryFromIntError]:
+    .Ok(i64(value))
+
+fn narrow(value: i64) -> Result[i8, TryFromIntError]:
+    i8::try_from(value)
+
+fn narrow_hand(value: i64) -> Result[i8, TryFromIntError]:
+    if value < -128 || value > 127:
+        return .Err(TryFromIntError {})
+    .Ok(i8(value))
+
+fn sign_change(value: i64) -> Result[u64, TryFromIntError]:
+    u64::try_from(value)
+
+fn sign_change_hand(value: i64) -> Result[u64, TryFromIntError]:
+    if value < 0:
+        return .Err(TryFromIntError {})
+    .Ok(u64(value))
+
+fn widening_value() -> fn(i8) -> Result[i64, TryFromIntError]:
+    i64::try_from
+
+fn narrowing_value() -> fn(i64) -> Result[i8, TryFromIntError]:
+    i8::try_from
+
+fn sign_change_value() -> fn(i64) -> Result[u64, TryFromIntError]:
+    u64::try_from

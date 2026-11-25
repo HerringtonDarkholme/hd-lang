@@ -808,7 +808,7 @@ The signs below are the sign of `y`, including the sign of zero:
 `TryFrom` provides checked narrowing and changes of signedness without
 panicking on an out-of-range value.
 
-1. r[std-num.try-from.impls] Every narrowing pair and every signedness-changing pair among `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `usize`, and `u64` implements `std.convert.TryFrom[Source]` for its destination type.
+1. r[std-num.try-from.all-pairs] Every pair among `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `usize`, and `u64` implements `std.convert.TryFrom[Source]` for its destination type.
 2. r[std-num.try-from.exact] If the source value is within the destination type's range, `try_from` returns `.Ok` with the same integer value.
 3. r[std-num.try-from.range] Otherwise, `try_from` returns `.Err(TryFromIntError {})`, without wrapping or panicking for the range failure.
 4. r[std-num.try-from.profiles] These range checks apply in every build profile, including release.

@@ -377,7 +377,7 @@ pub(crate) struct Ck<'a, 'c> {
     pub opaque_annotation: Option<(u32, bool)>,
     pub recursive_returns: Vec<Ty>,
     /// Type parameters by name: the impl's, then the function's.
-    pub gens: Vec<(Symbol, Ty)>,
+    pub gens: hd_resolve::GenericScope<(Symbol, Ty)>,
     /// The const parameters among them, with their declared types
     /// (`types.generic.const.parameter`).
     pub const_gens: Vec<(Symbol, ParamRef, Prim)>,
@@ -884,7 +884,7 @@ pub(crate) fn new_ck<'a, 'c>(
         opaque_rets: vec![],
         opaque_annotation: None,
         recursive_returns: vec![],
-        gens: Vec::new(),
+        gens: hd_resolve::GenericScope::default(),
         const_gens: Vec::new(),
         using_bind: false,
         using_locals: Vec::new(),
@@ -2331,7 +2331,7 @@ impl Ck<'_, '_> {
     /// `names.type-param.no-redeclare`: a local value must not reuse an
     /// enclosing type parameter's name.
     pub(crate) fn check_local_name(&mut self, name: Symbol, at: NodeRef<'_>) {
-        if self.gens.iter().any(|(g, _)| *g == name) {
+        if self.gens.contains(name) {
             let msg = format!(
                 "`{}` is a type parameter in scope",
                 self.cx.names.text(name)

@@ -1,0 +1,6 @@
+# test: numeric parameter cast rejects a string
+# Rule: types.cast.family.
+use std.num.Integer
+
+fn invalid[T < Integer](value: string) -> T:
+    T(value) # diagnostic: not-callable
