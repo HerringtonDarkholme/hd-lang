@@ -876,21 +876,20 @@ pub fn package_name(root: &Path) -> Result<String, String> {
     }
 }
 
-/// The package name of a single-file program in `dir`, and the problem
-/// of a manifest there that names `std` (`cli.name.std.manifest`), at its
-/// path below `written`, the directory as the command line wrote it. The
-/// name `std` would make the file std itself, so the program takes the
-/// prefixed name a directory named `std` takes (`default_name`), and the
-/// problem stops the command before any check.
+/// A single file uses its directory's manifest name when valid. A reserved
+/// or dotted name stops the command at the manifest's name line, before
+/// checking; use a safe directory-derived identity while reporting it.
 fn single_file_package(dir: &Path, written: &Path) -> Result<(String, Vec<Diag>), String> {
-    let package = package_name(dir)?;
-    if package != "std" {
-        return Ok((package, Vec::new()));
+    let Some(manifest) = manifest_of(dir)? else {
+        return Ok((default_name(dir), Vec::new()));
+    };
+    if let Some(problem) = hd_project::package_name_problem(&manifest) {
+        let file = written.join("hd.toml").to_string_lossy().replace('\\', "/");
+        let d = Diag::error(problem.code, &problem.message)
+            .at(&file, problem.line.map(|line| line as usize));
+        return Ok((default_name(dir), vec![d]));
     }
-    let line = manifest_of(dir)?.map(|m| m.name_line as usize);
-    let file = written.join("hd.toml").to_string_lossy().replace('\\', "/");
-    let d = Diag::error(Some(Code::InvalidManifest), hd_project::STD_NAME).at(&file, line);
-    Ok(("pstd".to_owned(), vec![d]))
+    Ok((manifest.name, Vec::new()))
 }
 
 /// The sources and the package name of a root directory. A package with a

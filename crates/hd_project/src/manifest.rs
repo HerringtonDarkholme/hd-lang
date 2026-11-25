@@ -726,6 +726,11 @@ fn version_problem(text: &str) -> Option<String> {
 /// TOML key has only letters, digits, `_` and `-`.
 #[must_use]
 pub fn key_problem(key: &str) -> Option<String> {
+    if key.contains('.') {
+        return Some(format!(
+            "the dependency key `{key}` contains `.`; a dot separates modules, so rename the key"
+        ));
+    }
     let name = key.replace('-', "_");
     let bare = !key.is_empty()
         && key
@@ -794,16 +799,26 @@ fn identity(r: &Requirement) -> Option<String> {
 pub const STD_NAME: &str =
     "no package is named `std`, the standard library's name; rename the package";
 
-/// The problem of a manifest that names its package `std`, at the line of
-/// its `name` key (`cli.name.std.manifest`): the driver and the module
-/// table read a package named `std` as the standard library itself.
+/// A reserved or dotted package name, at its `name` key
+/// (`cli.name.std.manifest`, `cli.name.dot.manifest`). Package roots must
+/// not overlap the module path separator or the standard library.
 #[must_use]
-pub fn std_name_problem(m: &Manifest) -> Option<Problem> {
-    (m.name == "std").then(|| Problem {
+pub fn package_name_problem(m: &Manifest) -> Option<Problem> {
+    let message = if m.name == "std" {
+        STD_NAME.to_owned()
+    } else if m.name.contains('.') {
+        format!(
+            "the package name `{}` contains `.`; a dot separates modules, so rename the package",
+            m.name
+        )
+    } else {
+        return None;
+    };
+    Some(Problem {
         code: Some(Code::InvalidManifest),
         severity: Severity::Error,
         line: Some(m.name_line),
-        message: STD_NAME.to_owned(),
+        message,
     })
 }
 
@@ -812,7 +827,8 @@ pub fn std_name_problem(m: &Manifest) -> Option<Problem> {
 /// (`cli.dep.invalid`), a minimum toolchain above `toolchain`
 /// (`module.toolchain.graph-minimum`), each `[capabilities]` and
 /// `[dev-capabilities]` key and value (`cli.cap.table.keys.with-package-host`,
-/// `cli.cap.value.unscoped`), a package named `std` (`cli.name.std`), an
+/// `cli.cap.value.unscoped`), a reserved or dotted package name
+/// (`cli.name.std`, `cli.name.dot`), an
 /// `[[executable]]` table without a string `name` and `module`
 /// (`cli.manifest.known-key`), and a warning for each
 /// unknown table or key (`cli.manifest.unknown-key.error`).
@@ -946,7 +962,7 @@ pub fn problems(m: &Manifest, toolchain: &str) -> Vec<Problem> {
             });
         }
     }
-    out.extend(std_name_problem(m));
+    out.extend(package_name_problem(m));
     for e in &m.executables {
         if e.name.is_none() || e.module.is_none() {
             out.push(Problem {
@@ -1024,6 +1040,21 @@ mod tests {
             .map(|p| (p.code, p.line))
             .collect();
         assert_eq!(got, [(Some(Code::InvalidManifest), Some(4))]);
+    }
+
+    #[test]
+    fn dotted_package_names_are_invalid_at_the_name_line() {
+        for name in ["alpha.beta", ".alpha", "alpha.", "a..b"] {
+            let text = format!("[package]\nname = \"{name}\"\n");
+            let m = parse_manifest(&text).expect("manifest");
+            let got = problems(&m, "0.1.0");
+            assert_eq!(got.len(), 1, "{name}");
+            assert_eq!(got[0].code, Some(Code::InvalidManifest));
+            assert_eq!(got[0].line, Some(2));
+            assert!(got[0].message.contains("contains `.`"));
+        }
+        let m = parse_manifest("[package]\nname = \"alpha-beta\"\n").expect("manifest");
+        assert!(problems(&m, "0.1.0").is_empty());
     }
 
     #[test]

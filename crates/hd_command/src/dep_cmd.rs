@@ -195,6 +195,9 @@ fn invalid_diags(
             Err(e) => return Err(format!("{}: {e}", path.display())),
         };
         let file = disk::shown_from(shown, &hd_run::canonicalize(&path).unwrap_or(path));
+        if let Some(p) = hd_project::package_name_problem(&m) {
+            diags.push(Diag::error(p.code, &p.message).at(&file, p.line.map(|l| l as usize)));
+        }
         let own = hd_project::problems(&m, disk::TOOLCHAIN);
         for p in &own {
             if p.code == Some(Code::InvalidRequirement) && p.severity == Severity::Error {

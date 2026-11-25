@@ -1578,6 +1578,11 @@ cd libs/ui && hd test -p shared    # from inside member ui, the tests of shared
 3. r[cli.name.std] No package is named `std`, the standard library's name.
 4. r[cli.name.std.manifest] An `hd.toml` whose `[package]` table names the package `std` is an error at the line of its `name` key, for every command that reads it. Error: `invalid-manifest`.
 5. r[cli.name.std.new] `hd new` with a package directory named `std` is an error, and it writes nothing.
+6. r[cli.name.dot] A package name must not contain `.`.
+7. r[cli.name.dot.manifest] A dotted package name is an error at its `name` line in every command reading that manifest. Error: `invalid-manifest`.
+8. r[cli.name.dot.key] A dependency key containing `.` is an error at its manifest line. Error: `invalid-requirement`.
+9. r[cli.name.dot.diagnostic] A diagnostic rejecting a dotted package name or dependency key names the character `.`.
+10. r[cli.name.dot.new] `hd new` with a package directory name containing `.` is an error, and it writes nothing.
 
 ```sh
 hd new my-app       # a package's name may contain -
@@ -1590,6 +1595,17 @@ hd new std          # error: no package is named std
 [package]
 name = "std"        # error: invalid-manifest
 ```
+
+```toml
+[package]
+name = "alpha.beta" # error: invalid-manifest
+
+[dependencies]
+"money.core" = { path = "money" } # error: invalid-requirement
+```
+
+> **Why.** A dot separates modules, so forbidding it in package names
+> keeps distinct package identities from becoming module ancestors.
 
 > **Why.** The name `std` is the standard library's identity, so a package
 > with that name would stand for std itself. Cargo refuses `cargo new std`
