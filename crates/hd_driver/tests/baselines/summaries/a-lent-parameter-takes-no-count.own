@@ -280,7 +280,7 @@ pub fn main() -> void $ Console:
 >   %25 = Call std/rt.memory/string_bytes[] (%24) : Ptr[u8]
 >   %26 = Read copy [%25 .address] : usize
 >   %27 = Read borrow [$12] : string
->   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %28 = Call std/core/bytes_len[] (%27) : usize
 >   %29 = Call std/rt.memory/copy[] (%23, %26, %28) : ()
 >   %30 = Break L4 - : never
 >   %31 = Block - : ()

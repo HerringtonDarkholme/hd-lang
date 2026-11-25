@@ -710,7 +710,7 @@ fn mixed_size(
 >   %3 = LoanEnd [%1] : ()
 >   %4 = Drop [$1] : ()
 >   %5 = Read borrow [$3] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize

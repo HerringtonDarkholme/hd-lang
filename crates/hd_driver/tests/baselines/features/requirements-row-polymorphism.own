@@ -38,7 +38,7 @@ fn read_tag() -> usize $ Tag:
 >   %4 = Call app/main/Tag.name for Tag [] via TraitValue (%2) : string
 >   %5 = Store [$0] %4 : ()
 >   %6 = Read borrow [$0] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %7 = Call std/core/bytes_len[] (%6) : usize
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
@@ -136,7 +136,7 @@ fn run(s: string) -> usize:
 >   %26 = Call app/main/Tag.name for Tag [] via TraitValue (%24) : string
 >   %27 = Store [$3] %26 : ()
 >   %28 = Read borrow [$3] : string
->   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %29 = Call std/core/bytes_len[] (%28) : usize
 >   %30 = Break L1 %29 : never
 >   %31 = Block - : usize
 >   %32 = Scope %31 [] : usize
@@ -193,7 +193,7 @@ fn closure(s: string) -> usize:
 >   %23 = Call app/main/Tag.name for Tag [] via TraitValue (%21) : string
 >   %24 = Store [$2] %23 : ()
 >   %25 = Read borrow [$2] : string
->   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %26 = Call std/core/bytes_len[] (%25) : usize
 >   %27 = Break L0 %26 : never
 >   %28 = Block - : usize
 >   %29 = Scope %28 [] : usize

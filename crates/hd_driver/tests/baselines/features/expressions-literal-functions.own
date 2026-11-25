@@ -81,7 +81,7 @@ fn lbl(n: i64) -> Label:
 >   %38 = Call std/rt.memory/string_bytes[] (%37) : Ptr[u8]
 >   %39 = Read copy [%38 .address] : usize
 >   %40 = Read borrow [$7] : string
->   %41 = Call std/rt.bytes/bytes_len[] (%40) : usize
+>   %41 = Call std/core/bytes_len[] (%40) : usize
 >   %42 = Call std/rt.memory/copy[] (%36, %39, %41) : ()
 >   %43 = Break L1 - : never
 >   %44 = Block - : ()

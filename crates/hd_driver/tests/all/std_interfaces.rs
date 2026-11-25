@@ -76,30 +76,24 @@ fn std_interfaces_build_with_no_diagnostic() {
     assert_eq!(
         units,
         // Each unit is a strongly connected module group, named after its
-        // first module: std's language layer is one (`std.arena`), and
-        // `std.rt` holds the runtime children its re-exports read and that
-        // use it back. `std` is std's root, which re-exports the rest.
-        // `std.rt.hint` holds the inline and cold decorators, which both
-        // the runtime and the language layer use, so neither joins the
-        // other's unit.
+        // first module. The top-level language-layer ring joins core,
+        // num/ops/meta and runtime dependencies in `std.arena` (#2355).
+        // #2363 replaces that ring with real dependencies; these counts
+        // describe the current graph, rather than promising granularity.
         [
             "app.main",
             "std",
             "std.arena",
-            "std.core",
             "std.prelude.testing",
-            "std.rt",
             "std.rt.checked",
             "std.rt.checked_report",
             "std.rt.checked_report.pairs",
             "std.rt.crossing",
             "std.rt.entry",
-            "std.rt.hint",
-            "std.rt.wait",
             "std.testing"
         ]
     );
-    assert_eq!(out.report.tally(Stage::UnitIface).ok, 14);
+    assert_eq!(out.report.tally(Stage::UnitIface).ok, 10);
 }
 
 #[test]
@@ -229,7 +223,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
             .collect()
     };
     let base = blobs(SerialOrder::Priority);
-    assert_eq!(base.len(), 14);
+    assert_eq!(base.len(), 10);
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
@@ -327,8 +321,8 @@ fn std_typed_signatures_compile_through_headers() {
     crate::add_facades(&mut s);
     let out = run(&s);
     let t = out.report.tally(Stage::UnitIface);
-    assert_eq!((t.ok, t.not_implemented, t.blocked), (16, 0, 0));
-    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 16);
+    assert_eq!((t.ok, t.not_implemented, t.blocked), (12, 0, 0));
+    assert_eq!(out.report.tally(Stage::HeaderCheck).ok, 12);
     assert_eq!(out.report.tally(Stage::Coherence).ok, 1);
     let text = out.render();
     assert!(

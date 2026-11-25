@@ -46,7 +46,7 @@ fn first_long(xs: List[string]) -> string:
 >   %40 = Block %34 : string
         if x.len() > 3:
 >   %12 = Read borrow [$5] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %13 = Call std/core/bytes_len[] (%12) : usize
 >   %14 = Break L1 %13 : never
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
@@ -92,7 +92,7 @@ fn first_index(xs: List[string]) -> usize:
 >   %6 = Read borrow [$0 [%5]] : string
 >   %7 = Store [$2] %6 : ()
 >   %8 = Read borrow [$2] : string
->   %9 = Call std/rt.bytes/bytes_len[] (%8) : usize
+>   %9 = Call std/core/bytes_len[] (%8) : usize
 >   %10 = Break L1 %9 : never
 >   %11 = Block - : usize
 >   %12 = Scope %11 [] : usize
@@ -139,7 +139,7 @@ fn forever(s: string) -> string:
 >   %4 = Read borrow [$1] : string
 >   %5 = Store [$2] %4 : ()
 >   %6 = Read borrow [$2] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %7 = Call std/core/bytes_len[] (%6) : usize
 >   %8 = Break L1 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize

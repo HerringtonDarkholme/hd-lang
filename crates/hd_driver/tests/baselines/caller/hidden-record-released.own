@@ -11,7 +11,7 @@ fn take(text: string) -> void:
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -28,7 +28,7 @@ fn plain(text: string) -> void:
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -106,7 +106,7 @@ pub fn main() -> void:
 >   %25 = Call std/rt.memory/string_bytes[] (%24) : Ptr[u8]
 >   %26 = Read copy [%25 .address] : usize
 >   %27 = Read borrow [$15] : string
->   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %28 = Call std/core/bytes_len[] (%27) : usize
 >   %29 = Call std/rt.memory/copy[] (%23, %26, %28) : ()
 >   %30 = Break L5 - : never
 >   %31 = Block - : ()
@@ -160,7 +160,7 @@ pub fn main() -> void:
 >   %77 = Call std/rt.memory/string_bytes[] (%76) : Ptr[u8]
 >   %78 = Read copy [%77 .address] : usize
 >   %79 = Read borrow [$6] : string
->   %80 = Call std/rt.bytes/bytes_len[] (%79) : usize
+>   %80 = Call std/core/bytes_len[] (%79) : usize
 >   %81 = Call std/rt.memory/copy[] (%75, %78, %80) : ()
 >   %82 = Break L1 - : never
 >   %83 = Block - : ()

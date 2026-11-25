@@ -13,7 +13,7 @@ fn later(name: string) -> fn() -> usize:
     fn() -> usize: name.len()
 >   %0 = Retain %9 Entry captures #0 : ()
 >   %2 = Read borrow [$0] : string
->   %3 = Call std/rt.bytes/bytes_len[] (%2) : usize
+>   %3 = Call std/core/bytes_len[] (%2) : usize
 >   %4 = Break L0 %3 : never
 >   %5 = Block - : usize
 >   %6 = Scope %5 [] : usize

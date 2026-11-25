@@ -28,7 +28,7 @@ impl Parser:
 >   %5 = Read copy [*$0 .chars [%4]] : char
 >   %6 = Store [$1] %5 : ()
 >   %7 = Read copy [$1] : char
->   %8 = Call std/rt.bytes/char_scalar[] (%7) : u32
+>   %8 = Call std/core/char_scalar[] (%7) : u32
 >   %9 = Prim Conv [%8] : i32
 >   %10 = Store [$2] %9 : ()
 >   %11 = Read copy [$2] : i32
@@ -151,7 +151,7 @@ fn length_after_loan(text: string) -> Result[*i32, string]:
 >   %0 = Retain %56 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Read move [$0] : string
 >   %4 = Intrinsic Empty [] : ()
 >   %5 = NewStruct [%3 0:usize %2] : Chars
@@ -228,7 +228,7 @@ fn length_across_write(text: string) -> usize:
 >   %0 = Retain %30 Entry local $0 #0 : ()
     let mut parser = Parser { chars: text.chars().collect(), at: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Read move [$0] : string
 >   %4 = Intrinsic Empty [] : ()
 >   %5 = NewStruct [%3 0:usize %2] : Chars

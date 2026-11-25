@@ -19,7 +19,7 @@ fn map_index(m: Map[string, string], k: string) -> usize:
 >   %3 = Read borrow [$0 [%2]] : string
 >   %4 = Store [$2] %3 : ()
 >   %5 = Read borrow [$2] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
@@ -93,7 +93,7 @@ fn ref_list_index(xs: &List[string], i: usize) -> usize:
 >   %2 = LoanBegin %1 #0 : ()
 >   %3 = Store [$2] %1 : ()
 >   %4 = Read borrow [$2] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %5 = Call std/core/bytes_len[] (%4) : usize
 >   %6 = Break L0 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize

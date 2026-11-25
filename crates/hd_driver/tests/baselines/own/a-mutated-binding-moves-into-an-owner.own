@@ -140,7 +140,7 @@ fn make_owner(text: string) -> Owner:
 >   %0 = Retain %13 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
@@ -295,7 +295,7 @@ fn make_owner(text: string) -> Owner:
 >   %0 = Retain %13 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize
@@ -498,7 +498,7 @@ fn make_owner(text: string) -> Owner:
 >   %0 = Retain %13 Entry local $0 #0 : ()
     p := Record { text: text, size: text.len(), at: 0, index: [], pending: [], held: 0 }
 >   %1 = Read borrow [$0] : string
->   %2 = Call std/rt.bytes/bytes_len[] (%1) : usize
+>   %2 = Call std/core/bytes_len[] (%1) : usize
 >   %3 = Break L0 %2 : never
 >   %4 = Block - : usize
 >   %5 = Scope %4 [] : usize

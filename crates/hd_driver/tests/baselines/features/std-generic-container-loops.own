@@ -265,7 +265,7 @@ pub fn names(a: string, b: string) -> usize:
 >   %27 = Drop [$2] : ()
 >   %28 = Store [$5] %25 : ()
 >   %29 = Read borrow [$5] : string
->   %30 = Call std/rt.bytes/bytes_len[] (%29) : usize
+>   %30 = Call std/core/bytes_len[] (%29) : usize
 >   %31 = Break L1 %30 : never
 >   %32 = Block - : usize
 >   %33 = Scope %32 [] : usize
@@ -275,7 +275,7 @@ pub fn names(a: string, b: string) -> usize:
 >   %37 = Drop [$3] : ()
 >   %38 = Store [$4] %35 : ()
 >   %39 = Read borrow [$4] : string
->   %40 = Call std/rt.bytes/bytes_len[] (%39) : usize
+>   %40 = Call std/core/bytes_len[] (%39) : usize
 >   %41 = Break L0 %40 : never
 >   %42 = Block - : usize
 >   %43 = Scope %42 [] : usize

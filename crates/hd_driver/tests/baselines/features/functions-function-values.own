@@ -17,7 +17,7 @@ fn width(s: string) -> usize:
 >   local $0 s: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -63,7 +63,7 @@ fn named_value(s: string) -> usize:
 >   %1 = Store [$1] %0 : ()
 >   %2 = Read borrow [$1] : fn(string) -> usize
 >   %3 = Read borrow [$0] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L1 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize

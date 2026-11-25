@@ -70,14 +70,14 @@ fn drain(parcels: UniqMap[string, Parcel]) -> usize:
         n += key.len() + parcel.label.len()
 >   %16 = Read copy [$1] : usize
 >   %17 = Read borrow [$4] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %18 = Call std/core/bytes_len[] (%17) : usize
 >   %19 = Break L2 %18 : never
 >   %20 = Block - : usize
 >   %21 = Scope %20 [] : usize
 >   %22 = Read borrow [$5 .label] : string
 >   %23 = Store [$6] %22 : ()
 >   %24 = Read borrow [$6] : string
->   %25 = Call std/rt.bytes/bytes_len[] (%24) : usize
+>   %25 = Call std/core/bytes_len[] (%24) : usize
 >   %26 = Break L1 %25 : never
 >   %27 = Block - : usize
 >   %28 = Scope %27 [] : usize

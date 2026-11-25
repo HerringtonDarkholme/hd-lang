@@ -56,7 +56,7 @@ fn name_len(s: string) -> usize:
 >   %5 = Read borrow [%4 .text] : string
 >   %6 = Store [$1] %5 : ()
 >   %7 = Read borrow [$1] : string
->   %8 = Call std/rt.bytes/bytes_len[] (%7) : usize
+>   %8 = Call std/core/bytes_len[] (%7) : usize
 >   %9 = Break L0 %8 : never
 >   %10 = Block - : usize
 >   %11 = Scope %10 [] : usize

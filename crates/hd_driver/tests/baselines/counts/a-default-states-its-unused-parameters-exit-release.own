@@ -128,7 +128,7 @@ fn join(
 >   %2 = Read borrow [%1] : string
 >   %3 = Store [$23] %2 : ()
 >   %4 = Read borrow [$23] : string
->   %5 = Call std/rt.bytes/bytes_len[] (%4) : usize
+>   %5 = Call std/core/bytes_len[] (%4) : usize
 >   %6 = Break L8 %5 : never
 >   %7 = Block - : usize
 >   %8 = Scope %7 [] : usize
@@ -136,7 +136,7 @@ fn join(
 >   %10 = Read borrow [%9] : string
 >   %11 = Store [$22] %10 : ()
 >   %12 = Read borrow [$22] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %13 = Call std/core/bytes_len[] (%12) : usize
 >   %14 = Break L7 %13 : never
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
@@ -176,7 +176,7 @@ fn join(
 >   %50 = Call std/rt.memory/string_bytes[] (%49) : Ptr[u8]
 >   %51 = Read copy [%50 .address] : usize
 >   %52 = Read borrow [$19] : string
->   %53 = Call std/rt.bytes/bytes_len[] (%52) : usize
+>   %53 = Call std/core/bytes_len[] (%52) : usize
 >   %54 = Call std/rt.memory/copy[] (%48, %51, %53) : ()
 >   %55 = Break L4 - : never
 >   %56 = Block - : ()
@@ -194,7 +194,7 @@ fn join(
 >   %68 = Call std/rt.memory/string_bytes[] (%67) : Ptr[u8]
 >   %69 = Read copy [%68 .address] : usize
 >   %70 = Read borrow [$16] : string
->   %71 = Call std/rt.bytes/bytes_len[] (%70) : usize
+>   %71 = Call std/core/bytes_len[] (%70) : usize
 >   %72 = Call std/rt.memory/copy[] (%66, %69, %71) : ()
 >   %73 = Break L3 - : never
 >   %74 = Block - : ()
@@ -214,7 +214,7 @@ fn join(
 >   %88 = Call std/rt.memory/string_bytes[] (%87) : Ptr[u8]
 >   %89 = Read copy [%88 .address] : usize
 >   %90 = Read borrow [$13] : string
->   %91 = Call std/rt.bytes/bytes_len[] (%90) : usize
+>   %91 = Call std/core/bytes_len[] (%90) : usize
 >   %92 = Call std/rt.memory/copy[] (%86, %89, %91) : ()
 >   %93 = Break L2 - : never
 >   %94 = Block - : ()
@@ -232,7 +232,7 @@ fn join(
 >   %106 = Call std/rt.memory/string_bytes[] (%105) : Ptr[u8]
 >   %107 = Read copy [%106 .address] : usize
 >   %108 = Read borrow [$10] : string
->   %109 = Call std/rt.bytes/bytes_len[] (%108) : usize
+>   %109 = Call std/core/bytes_len[] (%108) : usize
 >   %110 = Call std/rt.memory/copy[] (%104, %107, %109) : ()
 >   %111 = Break L1 - : never
 >   %112 = Block - : ()

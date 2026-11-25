@@ -71,7 +71,7 @@ fn change_then_read(name: string) -> usize:
 >   %24 = Store [$2] %23 : ()
     kept.len() + b.items.len()
 >   %25 = Read borrow [$2] : string
->   %26 = Call std/rt.bytes/bytes_len[] (%25) : usize
+>   %26 = Call std/core/bytes_len[] (%25) : usize
 >   %27 = Break L0 %26 : never
 >   %28 = Block - : usize
 >   %29 = Scope %28 [] : usize

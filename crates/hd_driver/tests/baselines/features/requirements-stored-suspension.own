@@ -67,7 +67,7 @@ fn tagged!() -> usize $ Tag:
 >   %7 = Call app/main/Tag.name for Tag [] via TraitValue (%5) : string
 >   %8 = Store [$1] %7 : ()
 >   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %10 = Call std/core/bytes_len[] (%9) : usize
 >   %11 = Break L0 %10 : never
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
@@ -136,7 +136,7 @@ fn blocking(key: string) -> usize:
 >   %24 = Block %21 : usize
         .Completed(v) => v.len()
 >   %6 = Read borrow [$1] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %7 = Call std/core/bytes_len[] (%6) : usize
 >   %8 = Break L0 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize

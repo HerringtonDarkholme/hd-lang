@@ -82,7 +82,7 @@ impl Display for YamlError:
 >   %42 = Call std/rt.memory/string_bytes[] (%41) : Ptr[u8]
 >   %43 = Read copy [%42 .address] : usize
 >   %44 = Read borrow [$7] : string
->   %45 = Call std/rt.bytes/bytes_len[] (%44) : usize
+>   %45 = Call std/core/bytes_len[] (%44) : usize
 >   %46 = Call std/rt.memory/copy[] (%40, %43, %45) : ()
 >   %47 = Break L1 - : never
 >   %48 = Block - : ()
@@ -140,7 +140,7 @@ enum FsError:
 >   %4 = Read borrow [%2] : string
 >   %5 = Store [$10] %4 : ()
 >   %6 = Read borrow [$10] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %7 = Call std/core/bytes_len[] (%6) : usize
 >   %8 = Break L3 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
@@ -165,7 +165,7 @@ enum FsError:
 >   %29 = Call std/rt.memory/string_bytes[] (%28) : Ptr[u8]
 >   %30 = Read copy [%29 .address] : usize
 >   %31 = Read borrow [$8] : string
->   %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
+>   %32 = Call std/core/bytes_len[] (%31) : usize
 >   %33 = Call std/rt.memory/copy[] (%27, %30, %32) : ()
 >   %34 = Break L1 - : never
 >   %35 = Block - : ()
@@ -186,7 +186,7 @@ enum FsError:
 >   %50 = Call std/rt.memory/string_bytes[] (%49) : Ptr[u8]
 >   %51 = Read copy [%50 .address] : usize
 >   %52 = Read borrow [$5] : string
->   %53 = Call std/rt.bytes/bytes_len[] (%52) : usize
+>   %53 = Call std/core/bytes_len[] (%52) : usize
 >   %54 = Call std/rt.memory/copy[] (%48, %51, %53) : ()
 >   %55 = Break L0 - : never
 >   %56 = Block - : ()
@@ -270,7 +270,7 @@ enum LoadError:
 >   %4 = Read borrow [%2] : string
 >   %5 = Store [$14] %4 : ()
 >   %6 = Read borrow [$14] : string
->   %7 = Call std/rt.bytes/bytes_len[] (%6) : usize
+>   %7 = Call std/core/bytes_len[] (%6) : usize
 >   %8 = Break L4 %7 : never
 >   %9 = Block - : usize
 >   %10 = Scope %9 [] : usize
@@ -295,7 +295,7 @@ enum LoadError:
 >   %29 = Call std/rt.memory/string_bytes[] (%28) : Ptr[u8]
 >   %30 = Read copy [%29 .address] : usize
 >   %31 = Read borrow [$12] : string
->   %32 = Call std/rt.bytes/bytes_len[] (%31) : usize
+>   %32 = Call std/core/bytes_len[] (%31) : usize
 >   %33 = Call std/rt.memory/copy[] (%27, %30, %32) : ()
 >   %34 = Break L2 - : never
 >   %35 = Block - : ()
@@ -316,7 +316,7 @@ enum LoadError:
 >   %50 = Call std/rt.memory/string_bytes[] (%49) : Ptr[u8]
 >   %51 = Read copy [%50 .address] : usize
 >   %52 = Read borrow [$9] : string
->   %53 = Call std/rt.bytes/bytes_len[] (%52) : usize
+>   %53 = Call std/core/bytes_len[] (%52) : usize
 >   %54 = Call std/rt.memory/copy[] (%48, %51, %53) : ()
 >   %55 = Break L1 - : never
 >   %56 = Block - : ()
@@ -424,7 +424,7 @@ fn parse(text: string) -> Result[i64, YamlError]:
 >   local $0 text: string [param read] value
 >     uses $0: entry -> %0 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L0 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -458,7 +458,7 @@ fn load(text: string) -> Result[i64, LoadError]:
 >   local $2 value: YamlError value
 >     uses $2: %18 -> %19 consume last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L1 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
@@ -511,7 +511,7 @@ fn message(e: &LoadError) -> usize:
 >   %1 = Call std/format/Display.to_string for LoadError [] via Impl (%0) : string
 >   %2 = Store [$1] %1 : ()
 >   %3 = Read borrow [$1] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize

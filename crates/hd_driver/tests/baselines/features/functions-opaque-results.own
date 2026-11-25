@@ -84,7 +84,7 @@ fn count_long(xs: List[string]) -> usize:
         n += x.len()
 >   %26 = Read copy [$1] : usize
 >   %27 = Read borrow [$4] : string
->   %28 = Call std/rt.bytes/bytes_len[] (%27) : usize
+>   %28 = Call std/core/bytes_len[] (%27) : usize
 >   %29 = Break L1 %28 : never
 >   %30 = Block - : usize
 >   %31 = Scope %30 [] : usize

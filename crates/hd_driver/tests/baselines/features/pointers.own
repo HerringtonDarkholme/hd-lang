@@ -41,7 +41,7 @@ fn read_ptr(p: *Node) -> usize:
 >   %1 = LoanBegin %0 #0 : ()
 >   %2 = Store [$1] %0 : ()
 >   %3 = Read borrow [$1] : string
->   %4 = Call std/rt.bytes/bytes_len[] (%3) : usize
+>   %4 = Call std/core/bytes_len[] (%3) : usize
 >   %5 = Break L0 %4 : never
 >   %6 = Block - : usize
 >   %7 = Scope %6 [] : usize

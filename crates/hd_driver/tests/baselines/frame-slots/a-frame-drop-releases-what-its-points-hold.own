@@ -76,7 +76,7 @@ fn text(n: i32) -> string:
 >   %38 = Call std/rt.memory/string_bytes[] (%37) : Ptr[u8]
 >   %39 = Read copy [%38 .address] : usize
 >   %40 = Read borrow [$7] : string
->   %41 = Call std/rt.bytes/bytes_len[] (%40) : usize
+>   %41 = Call std/core/bytes_len[] (%40) : usize
 >   %42 = Call std/rt.memory/copy[] (%36, %39, %41) : ()
 >   %43 = Break L1 - : never
 >   %44 = Block - : ()
@@ -111,12 +111,12 @@ fn total(a: string, b: string) -> usize:
 >   local $1 b: string [param read] value
 >     uses $1: entry -> %5 lend last
 >   %0 = Read borrow [$0] : string
->   %1 = Call std/rt.bytes/bytes_len[] (%0) : usize
+>   %1 = Call std/core/bytes_len[] (%0) : usize
 >   %2 = Break L1 %1 : never
 >   %3 = Block - : usize
 >   %4 = Scope %3 [] : usize
 >   %5 = Read borrow [$1] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L0 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize

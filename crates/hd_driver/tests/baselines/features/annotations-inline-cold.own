@@ -61,7 +61,7 @@ fn unexpected(at: usize) -> string:
 >   %26 = Call std/rt.memory/string_bytes[] (%25) : Ptr[u8]
 >   %27 = Read copy [%26 .address] : usize
 >   %28 = Read borrow [$7] : string
->   %29 = Call std/rt.bytes/bytes_len[] (%28) : usize
+>   %29 = Call std/core/bytes_len[] (%28) : usize
 >   %30 = Call std/rt.memory/copy[] (%24, %27, %29) : ()
 >   %31 = Break L1 - : never
 >   %32 = Block - : ()
@@ -132,7 +132,7 @@ fn checksum(xs: &List[string]) -> usize:
         n += x.len()
 >   %15 = Read copy [$1] : usize
 >   %16 = Read borrow [$6] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %17 = Call std/core/bytes_len[] (%16) : usize
 >   %18 = Break L1 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize
@@ -164,7 +164,7 @@ fn first_len(xs: &List[string]) -> usize:
 >   %7 = LoanBegin %6 #0 : ()
 >   %8 = Store [$1] %6 : ()
 >   %9 = Read borrow [$1] : string
->   %10 = Call std/rt.bytes/bytes_len[] (%9) : usize
+>   %10 = Call std/core/bytes_len[] (%9) : usize
 >   %11 = Break L0 %10 : never
 >   %12 = Block - : usize
 >   %13 = Scope %12 [] : usize
@@ -192,7 +192,7 @@ fn use_first(xs: List[string]) -> usize:
 >   %10 = LoanBegin %9 #0 : ()
 >   %11 = Store [$2] %9 : ()
 >   %12 = Read borrow [$2] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %13 = Call std/core/bytes_len[] (%12) : usize
 >   %14 = Break L0 %13 : never
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize

@@ -2,7 +2,6 @@ use std.num.Num
 use std.ops.Tuple
 use std.meta.inline
 use std.meta.{Structure, UnionType, Walker, Variant, Field}
-use std.rt.{bytes_len, char_scalar, bytes_mismatch}
 
 # std.core: the language's core declarations
 # (spec/lang/10-modules.md#core-layer). The compiler supplies the
@@ -83,6 +82,21 @@ pub trait Hasher:
 ## See [trait.hash.module](../../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hash < ?Copy:
     fn hash[H < Hasher](&self, state: &mut H) -> void
+
+## The number of bytes in `text`.
+@intrinsic("bytes_len")
+pub fn bytes_len(text: string) -> usize:
+    panic("intrinsic")
+
+## The offset of the first differing byte, or the shorter length when one string is a prefix of the other.
+@intrinsic("bytes_mismatch")
+pub fn bytes_mismatch(left: string, right: string) -> usize:
+    panic("intrinsic")
+
+## The scalar value of `value`: a `char` is its scalar value at run time.
+@intrinsic("char_scalar")
+pub fn char_scalar(value: char) -> u32:
+    panic("intrinsic")
 
 fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
     let mut bytes: List[u8] = []

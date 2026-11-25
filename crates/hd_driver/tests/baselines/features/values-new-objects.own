@@ -52,7 +52,7 @@ fn temp_ref(s: string) -> usize:
 >   %10 = LoanBegin %9 #0 : ()
 >   %11 = Store [$3] %9 : ()
 >   %12 = Read borrow [$3] : string
->   %13 = Call std/rt.bytes/bytes_len[] (%12) : usize
+>   %13 = Call std/core/bytes_len[] (%12) : usize
 >   %14 = Break L0 %13 : never
 >   %15 = Block - : usize
 >   %16 = Scope %15 [] : usize
@@ -95,7 +95,7 @@ fn new_mut(s: string, t: string) -> usize:
 >   %14 = LoanBegin %13 #0 : ()
 >   %15 = Store [$4] %13 : ()
 >   %16 = Read borrow [$4] : string
->   %17 = Call std/rt.bytes/bytes_len[] (%16) : usize
+>   %17 = Call std/core/bytes_len[] (%16) : usize
 >   %18 = Break L0 %17 : never
 >   %19 = Block - : usize
 >   %20 = Scope %19 [] : usize
@@ -142,7 +142,7 @@ fn field_ref(s: string, t: string) -> usize:
 >   %15 = Intrinsic Empty [] : ()
 >   %16 = Store [$4] %14 : ()
 >   %17 = Read borrow [$4] : string
->   %18 = Call std/rt.bytes/bytes_len[] (%17) : usize
+>   %18 = Call std/core/bytes_len[] (%17) : usize
 >   %19 = Break L0 %18 : never
 >   %20 = Block - : usize
 >   %21 = Scope %20 [] : usize

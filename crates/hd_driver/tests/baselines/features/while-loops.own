@@ -38,7 +38,7 @@ fn count_while(xs: List[string]) -> usize:
 >   %8 = Read borrow [$0 [%7]] : string
 >   %9 = Store [$3] %8 : ()
 >   %10 = Read borrow [$3] : string
->   %11 = Call std/rt.bytes/bytes_len[] (%10) : usize
+>   %11 = Call std/core/bytes_len[] (%10) : usize
 >   %12 = Break L1 %11 : never
 >   %13 = Block - : usize
 >   %14 = Scope %13 [] : usize

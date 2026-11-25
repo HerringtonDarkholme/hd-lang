@@ -28,7 +28,7 @@ fn read_copy(r: &User) -> usize:
 >   %3 = LoanBegin %2 #0 : ()
 >   %4 = Store [$3] %2 : ()
 >   %5 = Read borrow [$3] : string
->   %6 = Call std/rt.bytes/bytes_len[] (%5) : usize
+>   %6 = Call std/core/bytes_len[] (%5) : usize
 >   %7 = Break L1 %6 : never
 >   %8 = Block - : usize
 >   %9 = Scope %8 [] : usize
@@ -36,7 +36,7 @@ fn read_copy(r: &User) -> usize:
 >   %11 = Read borrow [$1 .name] : string
 >   %12 = Store [$2] %11 : ()
 >   %13 = Read borrow [$2] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %14 = Call std/core/bytes_len[] (%13) : usize
 >   %15 = Break L0 %14 : never
 >   %16 = Block - : usize
 >   %17 = Scope %16 [] : usize

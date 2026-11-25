@@ -84,7 +84,7 @@ fn tagged!(value: Input[(&i32, i32)]) -> i32:
 >   %11 = Read borrow [$2] : string
 >   %12 = Store [$3] %11 : ()
 >   %13 = Read borrow [$3] : string
->   %14 = Call std/rt.bytes/bytes_len[] (%13) : usize
+>   %14 = Call std/core/bytes_len[] (%13) : usize
 >   %15 = Break L0 %14 : never
 >   %16 = Block - : usize
 >   %17 = Scope %16 [] : usize

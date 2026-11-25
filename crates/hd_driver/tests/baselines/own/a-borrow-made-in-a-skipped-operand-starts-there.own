@@ -89,7 +89,7 @@ fn greeting(input: string) -> string:
 >   %19 = Read borrow [%18] : string
 >   %20 = Store [$24] %19 : ()
 >   %21 = Read borrow [$24] : string
->   %22 = Call std/rt.bytes/bytes_len[] (%21) : usize
+>   %22 = Call std/core/bytes_len[] (%21) : usize
 >   %23 = Break L9 %22 : never
 >   %24 = Block - : usize
 >   %25 = Scope %24 [] : usize
@@ -114,7 +114,7 @@ fn greeting(input: string) -> string:
 >   %44 = Call std/rt.memory/string_bytes[] (%43) : Ptr[u8]
 >   %45 = Read copy [%44 .address] : usize
 >   %46 = Read borrow [$22] : string
->   %47 = Call std/rt.bytes/bytes_len[] (%46) : usize
+>   %47 = Call std/core/bytes_len[] (%46) : usize
 >   %48 = Call std/rt.memory/copy[] (%42, %45, %47) : ()
 >   %49 = Break L7 - : never
 >   %50 = Block - : ()
@@ -134,7 +134,7 @@ fn greeting(input: string) -> string:
 >   %64 = Call std/rt.memory/string_bytes[] (%63) : Ptr[u8]
 >   %65 = Read copy [%64 .address] : usize
 >   %66 = Read borrow [$19] : string
->   %67 = Call std/rt.bytes/bytes_len[] (%66) : usize
+>   %67 = Call std/core/bytes_len[] (%66) : usize
 >   %68 = Call std/rt.memory/copy[] (%62, %65, %67) : ()
 >   %69 = Break L6 - : never
 >   %70 = Block - : ()
@@ -143,7 +143,7 @@ fn greeting(input: string) -> string:
 >   %76 = Read borrow [%75] : string
 >   %78 = Store [$16] %76 : ()
 >   %79 = Read borrow [$16] : string
->   %80 = Call std/rt.bytes/bytes_len[] (%79) : usize
+>   %80 = Call std/core/bytes_len[] (%79) : usize
 >   %81 = Break L5 %80 : never
 >   %82 = Block - : usize
 >   %83 = Scope %82 [] : usize
@@ -182,7 +182,7 @@ fn greeting(input: string) -> string:
 >   %116 = Call std/rt.memory/string_bytes[] (%115) : Ptr[u8]
 >   %117 = Read copy [%116 .address] : usize
 >   %118 = Read borrow [$13] : string
->   %119 = Call std/rt.bytes/bytes_len[] (%118) : usize
+>   %119 = Call std/core/bytes_len[] (%118) : usize
 >   %120 = Call std/rt.memory/copy[] (%114, %117, %119) : ()
 >   %121 = Break L2 - : never
 >   %122 = Block - : ()
@@ -201,7 +201,7 @@ fn greeting(input: string) -> string:
 >   %135 = Call std/rt.memory/string_bytes[] (%134) : Ptr[u8]
 >   %136 = Read copy [%135 .address] : usize
 >   %137 = Read borrow [$10] : string
->   %138 = Call std/rt.bytes/bytes_len[] (%137) : usize
+>   %138 = Call std/core/bytes_len[] (%137) : usize
 >   %139 = Call std/rt.memory/copy[] (%133, %136, %138) : ()
 >   %140 = Break L1 - : never
 >   %141 = Block - : ()
