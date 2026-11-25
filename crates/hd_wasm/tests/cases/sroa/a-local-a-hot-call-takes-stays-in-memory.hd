@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: v8 release
+# A call that stays a call takes `c`'s address on every round, so `c` keeps
+# its frame slot: a spill there would copy every field twice per round.
+use std.meta.inline
+
+struct Counter:
+    hits: i64
+    misses: i64
+
+@inline(.Never)
+fn bump(c: &mut Counter) -> void:
+    c.hits += 1
+
+fn count(n: i64) -> i64:
+    let mut c = Counter { hits: 0, misses: 0 }
+    let mut i: i64 = 0
+    while i < n:
+        bump(&mut c)
+        c.misses += 1
+        i += 1
+    c.hits + c.misses

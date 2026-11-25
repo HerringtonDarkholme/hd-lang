@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# #2365: `push` is copied into the loop, so `xs` has no address there; its
+# fields are Wasm locals (`xs.len`, `xs.buffer.ptr`), and only the cold
+# `reserve_for` call gets a spilled copy, stored before it and loaded after.
+use std.collections.UniqList
+
+fn build(n: i64) -> UniqList[i64]:
+    let mut xs: UniqList[i64] = UniqList::[i64].new()
+    let mut i: i64 = 0
+    while i < n:
+        xs.push(i)
+        i += 1
+    xs

@@ -79,4 +79,5 @@ pub fn main() -> void $ Console:
 >   release *mut app.main.Named (last use)
     items.push(7)
     println(unique(items).len())
+>   release std.collections.uniq_list.UniqList[i32] (last use)
     println(original)

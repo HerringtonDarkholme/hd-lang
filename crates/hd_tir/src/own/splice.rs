@@ -44,10 +44,27 @@ pub fn insert_batch(
     topo: &Topology,
     inserts: &[BatchInsert],
 ) -> Result<Vec<u32>, String> {
-    if inserts.is_empty() {
+    edit_batch(b, topo, inserts, &[])
+}
+
+/// [`insert_batch`], which also deletes the instructions of `removed`:
+/// statements and pure values that no surviving instruction uses.
+///
+/// # Errors
+/// An invalid insertion position or a malformed operand during renumbering.
+pub fn edit_batch(
+    b: &mut Body,
+    topo: &Topology,
+    inserts: &[BatchInsert],
+    removed: &[u32],
+) -> Result<Vec<u32>, String> {
+    if inserts.is_empty() && removed.is_empty() {
         return Ok((0..u32_of(b.len())).collect());
     }
     let mut tables = Tables::default();
+    for &x in removed {
+        tables.remove(x);
+    }
     for edit in inserts {
         let block = edit.block as usize;
         if b.tags.get(block) != Some(&Tag::Block)

@@ -10,17 +10,13 @@
           ;; ...
     ;; 19 |     bump(&mut tally)
           local.get $t0
-          i32.load $heap offset=8
-          local.tee $provider0
-          i64.load $heap
+          i64.load $heap offset=8
           i64.const 1
           i64.add
           local.set $count
-          local.get $provider0
+          local.get $t0
           local.get $count
-          i64.store $heap
-          ;; ...
-          i32.const 0
+          i64.store $heap offset=8
           ;; ...
         end
         ;; ...

@@ -84,15 +84,15 @@ impl Bytes:
 >     uses $0: entry -> %0 lend, %3 lend, %4 lend last
 >   local $1 size: usize [:= read assigned] value
 >     uses $1: %1 -> %10 consume last
->   local $2 bytes: Buffer[u8] [read captured] place
+>   local $2 bytes: Buffer[u8] [read captured] value
+>     uses $2: %11 -> %14 consume, %20 consume last
 >   local $3 len: usize [read] value
->     uses $3: %14 -> %26 lend last
+>     uses $3: %13 -> %23 lend last
 >   local $5 $temporary_owner: bool [read assigned] value
->     uses $5: entry -> %33 lend last
+>     uses $5: entry -> %30 lend last
 >   %0 = Read copy [*$0 .size] : usize
 >   %1 = Store [$1] %0 : ()
->   %11 = Box #2 #0 : ()
->   %37 = Block %32 : string
+>   %35 = Block %29 : string
         self.size = 0
 >   %2 = Coerce 0:usize [Weaken -] : usize
 >   %3 = Store [*$0 .size] %2 : ()
@@ -104,30 +104,28 @@ impl Bytes:
 >   %8 = LoanClose %5 : ()
 >   %9 = LoanEnd [%4] : ()
 >   %10 = Read copy [$1] : usize
->   %12 = Store [$2] %7 : ()
->   %13 = FlagSet [$2] #5 : ()
->   %14 = Store [$3] %10 : ()
->   %15 = Ref local frame [$2] : &Buffer[u8]
->   %16 = Read copy [*%15 .capacity] : usize
->   %17 = Break L0 %16 : never
->   %18 = Block - : usize
->   %19 = Scope %18 [] : usize
->   %20 = LoanEnd [%15] : ()
->   %21 = Prim Eq [%19 0:usize] : bool
->   %22 = Block "" : string
->   %23 = FlagClear [$2] #5 : ()
->   %24 = Read move [$2] : Buffer[u8]
->   %25 = Intrinsic Empty [] : ()
->   %26 = Read copy [$3] : usize
->   %27 = Call std/rt.bytes/take_buffer_text[] (%24, %26) : string
->   %28 = Block %27 : string
->   %29 = If %21 [%22 %28] : string
->   %30 = Break L1 %29 : never
->   %31 = Block - : string
->   %32 = Scope %31 [] : string
->   %33 = Read copy [$5] : bool
->   %34 = Drop [$2] : ()
->   %35 = Block - : ()
->   %36 = If %33 [%35 -] : ()
->   storage sub 0: $2 slot
+>   %11 = Store [$2] %7 : ()
+>   %12 = FlagSet [$2] #5 : ()
+>   %13 = Store [$3] %10 : ()
+>   %14 = Read copy [$2 .capacity] : usize
+>   %15 = Break L0 %14 : never
+>   %16 = Block - : usize
+>   %17 = Scope %16 [] : usize
+>   %18 = Prim Eq [%17 0:usize] : bool
+>   %19 = Block "" : string
+>   %20 = Read move [$2] : Buffer[u8]
+>   %21 = Intrinsic Empty [] : ()
+>   %22 = FlagClear [$2] #5 : ()
+>   %23 = Read copy [$3] : usize
+>   %24 = Call std/rt.bytes/take_buffer_text[] (%20, %23) : string
+>   %25 = Block %24 : string
+>   %26 = If %18 [%19 %25] : string
+>   %27 = Break L1 %26 : never
+>   %28 = Block - : string
+>   %29 = Scope %28 [] : string
+>   %30 = Read copy [$5] : bool
+>   %31 = Drop [$2] : ()
+>   %32 = Block - : ()
+>   %33 = If %30 [%32 -] : ()
+>   %34 = FlagClear [$2] #5 : ()
 >   summary kept [] writes
