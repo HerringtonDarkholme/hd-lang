@@ -1,0 +1,14 @@
+# @dump: diagnostics fixed
+# @package: grouped-private-import-keeps-aliases-in-its-facade-fix
+use pkg.api.hidden.{take as grab, extra}
+
+pub fn probe() -> i32:
+    grab() + extra()
+# @file: api/mod.hd
+pub use self.hidden.{take, extra}
+# @file: api/hidden.hd
+pub fn take() -> i32:
+    +1
+
+pub fn extra() -> i32:
+    +2

@@ -1,0 +1,12 @@
+# @dump: diagnostics
+# @package: missing-facade-declaration-is-not-an-import-fix
+use pkg.api.hidden.take
+
+pub fn probe() -> i32:
+    take()
+# @file: api/mod.hd
+pub fn other() -> i32:
+    +0
+# @file: api/hidden.hd
+pub fn take() -> i32:
+    +1

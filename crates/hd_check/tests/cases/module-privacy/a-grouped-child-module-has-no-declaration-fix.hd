@@ -1,0 +1,11 @@
+# @dump: diagnostics
+# @package: grouped-child-module-has-no-declaration-fix
+use pkg.api.hidden.{child}
+# @file: api/mod.hd
+pub fn other() -> i32:
+    +0
+# @file: api/hidden/mod.hd
+pub use self.{child}
+# @file: api/hidden/child.hd
+pub fn take() -> i32:
+    +1
