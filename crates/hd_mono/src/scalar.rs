@@ -121,7 +121,7 @@ pub fn integer_bound(ty: Ty, minimum: bool) -> Option<u64> {
     integer_bound_bits(width, signed, minimum)
 }
 
-/// Shared bound bits for constant folding and emission. Invalid metadata
+/// Bound bits for constant folding and raw-width queries. Invalid metadata
 /// returns no bound instead of shifting beyond the `u64` representation.
 #[must_use]
 pub fn integer_bound_bits(width: u32, signed: bool, minimum: bool) -> Option<u64> {

@@ -28,7 +28,7 @@ use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::BlockType;
 
 use crate::Input;
-use crate::layout::{Enc, Is, IsOps as _, Pass, Test, num, vals};
+use crate::layout::{Enc, Is, IsOps as _, NumWidth, Pass, Test, num_width, vals};
 use crate::module::{Func, GLUE, Global, HEAP, Import, Ins, Module, Part, Stored, Sym, Val, mem};
 use crate::rt::Helper;
 use hd_layout::shims::Portion;
@@ -1730,8 +1730,13 @@ impl Em<'_, '_, '_> {
 
     /// The arithmetic view of a type: its width, signedness and float kind.
     fn num(&self, t: Ty) -> (u8, bool, bool) {
+        let (width, signed, float) = self.num_width(t);
+        (width.bits(), signed, float)
+    }
+
+    fn num_width(&self, t: Ty) -> (NumWidth, bool, bool) {
         let t = hd_mono::layout::strip_newtype(self.pool(), self.env(), t);
-        num(self.pool(), t)
+        num_width(self.pool(), t)
     }
 
     /// Pushes every value of `r`. `NONE` is the unit value, which has none.
@@ -3739,16 +3744,9 @@ impl Em<'_, '_, '_> {
             // Bounds need no operand or bit loop: the result's type fixes
             // their width and signedness, including 32-bit `usize`.
             "int_min" | "int_max" => {
-                let (bits, signed, _) = self.num(self.ty_of(i));
-                let minimum = key == "int_min";
-                let value = hd_mono::scalar::integer_bound_bits(u32::from(bits), signed, minimum)
-                    .ok_or_else(|| {
-                    hd_base::NotImplemented::bug(
-                        hd_base::Stage::Emit,
-                        "integer-bound intrinsic has an invalid integer width",
-                    )
-                })?;
-                if bits == 64 {
+                let (width, signed, _) = self.num_width(self.ty_of(i));
+                let value = width.integer_bound(signed, key == "int_min");
+                if width == NumWidth::W64 {
                     self.f.op(I::I64Const(value.cast_signed()));
                 } else {
                     let [a, b, c, d, ..] = value.to_le_bytes();

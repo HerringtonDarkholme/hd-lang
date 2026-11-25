@@ -1,6 +1,6 @@
 # @dump: wat
-# @build: release | release checked
-# expected: limits fold without helper calls; u64 zero uses a zero-initialized local
+# @build: dev | checked | release | release checked
+# expected: optimized limits fold; every build preserves the integer limit bits
 use std.num.Integer
 
 fn high[N < Integer]() -> N:
