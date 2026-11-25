@@ -1,0 +1,15 @@
+# @dump: diagnostics
+struct Packet[T]:
+    value: T
+
+fn aggregate() -> void:
+    for item in Packet { value: +1 }:
+        pass
+
+fn tuple() -> void:
+    for item in (+1, 2.5):
+        pass
+
+fn counted() -> void:
+    for item in Packet { value: box(+1) }:
+        pass
