@@ -129,7 +129,7 @@ writer or reader with a value's members. For the `Session` of
 
 ```text
 use std.serde.{Serialize, Deserialize}
-use std.structure.Structure
+use std.meta.Structure
 
 struct Cache:
     hits: i64

@@ -2,7 +2,7 @@
 # expect-stdout: Run:a,b,stop@2
 # expect-stdout: Go:first,second,ok
 # expect-stdout: Halt:stop@0
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Trace:
     fn trace(self) -> string

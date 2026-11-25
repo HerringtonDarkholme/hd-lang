@@ -4,7 +4,7 @@
 # expect-stdout: 1
 # expect-stdout: 1
 # expect-stdout: 2
-use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
+use std.meta.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
 
 struct Keeper:
     pub variants: List[VariantInfo]

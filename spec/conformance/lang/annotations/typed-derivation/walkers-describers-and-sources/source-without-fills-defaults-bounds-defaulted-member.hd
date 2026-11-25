@@ -1,6 +1,6 @@
 # test: without fills_defaults(), a member that declares a default still owes the source's member bound
 # Spec 14 Implementation Facts: annot.impl-fact.fills-defaults.exempt; annot.walker.obligation.error.
-use std.structure.{Structure, Source, Variant, Field, Members, Key}
+use std.meta.{Structure, Source, Variant, Field, Members, Key}
 
 trait Zero:
     fn zero() -> Self

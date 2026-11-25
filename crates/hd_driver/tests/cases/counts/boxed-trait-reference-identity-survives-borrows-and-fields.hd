@@ -1,7 +1,7 @@
 # @dump: stdout
 # @build: dev | checked | release | release checked
 # Direct, borrowed, stored and mutable reference values keep their static identity.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 trait Score:
     fn value(&self) -> i32

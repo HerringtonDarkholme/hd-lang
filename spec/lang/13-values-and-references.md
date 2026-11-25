@@ -791,7 +791,7 @@ until its crossing's lifetime ends, nothing writes the place it refers
 to, not even an element store:
 
 ```text
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32
@@ -812,7 +812,7 @@ fn demo(players: List[Player]) -> i32:
 6. r[ref.frozen.alias.lender] That run-time loan stays with the thread that lent the reference: it begins and ends there, never on the thread that runs the closure.
 
 ```text
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32

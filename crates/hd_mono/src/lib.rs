@@ -830,7 +830,7 @@ mod collection_tests;
 /// The printable name of `t`'s runtime identity (trait.typeid.name.*),
 /// which a `TypeId` holds as its key (its printable name is
 /// [`printed_type_name`]). Equality of `TypeId`s compares keys
-/// (`lib/std/inspect.hd`), so the name spells exactly what runtime
+/// (`lib/std/meta.hd`), so the name spells exactly what runtime
 /// identity compares (trait.identity.*): each declaration by its qualified
 /// name, applied to its arguments; an inner `mut`, never the outer one;
 /// `T?` for `Option[T]`. Types are concrete here, aliases expanded.

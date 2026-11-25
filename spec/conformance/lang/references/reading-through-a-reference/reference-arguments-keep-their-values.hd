@@ -6,7 +6,7 @@
 # expect-stdout: kept
 # expect-stdout: 8
 # expect-stdout: 8
-use std.annotation.inline
+use std.meta.inline
 
 type Meters(i32)
 

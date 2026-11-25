@@ -1,5 +1,5 @@
 # test: one block per type is valid
-use std.structure.Structure
+use std.meta.Structure
 
 struct Tag:
     text: string

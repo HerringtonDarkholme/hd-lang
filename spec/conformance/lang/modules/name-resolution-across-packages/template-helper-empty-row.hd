@@ -1,6 +1,6 @@
 # test: a private function that a template body names and that writes no requirement clause has the empty row, so a call needing a key is an error in its own body
 # Spec 10 Fully Annotated Declarations: module.package.template-private, module.package.template-private.row.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 trait Named:
     fn title() -> string

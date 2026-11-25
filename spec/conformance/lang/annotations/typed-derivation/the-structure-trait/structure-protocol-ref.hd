@@ -4,7 +4,7 @@
 # expect-stdout: 4
 # expect-stdout: 2 x,y
 # expect-stdout: 7 8
-use std.structure.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
 
 trait Summary:
     fn summary(self) -> string

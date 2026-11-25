@@ -1,6 +1,6 @@
 # test: every union type meets the sealed trait UnionType and no other type does
 # Spec 09 Sealed Traits: trait.sealed.union-type.
-use std.structure.UnionType
+use std.meta.UnionType
 
 fn only[T < UnionType](x: T) -> void:
     pass

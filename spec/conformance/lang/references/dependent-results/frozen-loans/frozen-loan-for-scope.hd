@@ -1,6 +1,6 @@
 # test: a Send crossing closure captures a shared reference lent for the lifetime its marker bound names
 # Spec 13 Frozen Loans: ref.frozen.definition, ref.frozen.lifetime; Spec 07 Crossing Closures: fn.crossing.parameter.lifetime.
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32

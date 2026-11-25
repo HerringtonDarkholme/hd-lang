@@ -1,7 +1,7 @@
 # @dump: stdout
 # The rows answer use sites: a reference type is no `AnyVal`, a newtype
 # over one is no `AnyVal` either, and a function type is not inspectable.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     name: string

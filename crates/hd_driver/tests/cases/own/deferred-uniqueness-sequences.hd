@@ -1,7 +1,7 @@
 # @dump: own counts stdout
 # @build: release checked
 # expected: sequential deferred uniqueness decisions for one list have disjoint loop ranges.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 @cold

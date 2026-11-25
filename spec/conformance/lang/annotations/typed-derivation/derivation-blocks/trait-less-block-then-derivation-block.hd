@@ -1,6 +1,6 @@
 # test: a derivation block's lines edit the facts of the block with no trait, for that block only
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.then-blocks.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

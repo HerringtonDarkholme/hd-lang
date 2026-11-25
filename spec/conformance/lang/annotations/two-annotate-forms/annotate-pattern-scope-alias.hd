@@ -1,7 +1,7 @@
 # test: resolved annotate names retain their generic type pattern
-use std.annotation
-use std.annotation.annotate
-use std.annotation.annotate as targets
+use std.meta
+use std.meta.annotate
+use std.meta.annotate as targets
 
 @targets::[List[T]](.Field)
 struct Fact[T]: pass

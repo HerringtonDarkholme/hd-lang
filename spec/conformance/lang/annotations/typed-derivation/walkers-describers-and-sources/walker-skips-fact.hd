@@ -1,7 +1,7 @@
 # test: a walker that carries skips::[F]() omits each member carrying an F fact, whose type then owes the walker nothing
 # Spec 14 Implementation Facts: annot.impl-fact.skips, annot.impl-fact.skips.exempt, annot.impl-fact.skips.scope.
-use std.annotation.annotate
-use std.structure.{Structure, Walker, Variant, Field, skips}
+use std.meta.annotate
+use std.meta.{Structure, Walker, Variant, Field, skips}
 
 @annotate(.Field)
 struct Skip: pass

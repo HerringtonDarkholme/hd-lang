@@ -2226,7 +2226,7 @@ fn reexported_path(r: &Resolver<'_, '_>, u: &UseDecl, k: usize, parent: &str) ->
 /// The grouped name `g` of `u` names a child module of `u`'s module that
 /// declares no such name. In a `pub use` in that module it re-exports the
 /// child and binds no name (`module.use.facade.module`): a root facade
-/// re-exports modules named like prelude names, such as `std.debug` and
+/// re-exports modules named like prelude names, such as `std.meta` and
 /// `std.f64`. Any other module may not re-export it
 /// (`module.use.facade.module.own`), and a plain grouped use names
 /// declarations only (`module.use.grouped`): the namespace is `use M.child`.
@@ -6461,7 +6461,7 @@ impl Lower<'_, '_, '_> {
             .and_then(|i| toks.get(i + 1))
             .map(|t| self.src.text(*t).to_owned());
         // `annot.block.structure-use`: `by Structure` must name
-        // `std.structure.Structure`, imported with `use` like any other
+        // `std.meta.Structure`, imported with `use` like any other
         // name.
         if by.as_deref() == Some("Structure")
             && self.r.frozen.is_none()
@@ -6476,7 +6476,7 @@ impl Lower<'_, '_, '_> {
             self.diags.error(
                 Code::UnknownTrait,
                 at,
-                "`Structure` is unknown without `use std.structure.Structure`",
+                "`Structure` is unknown without `use std.meta.Structure`",
             );
         }
         let bare_param = matches!(pool.get(self_ty), TyData::Param(p) if p.owner == h.def);
@@ -8953,7 +8953,7 @@ fn related_derives(
     true
 }
 
-/// Whether `Structure` in `scope` names `std.structure.Structure`
+/// Whether `Structure` in `scope` names `std.meta.Structure`
 /// (`annot.block.structure-use`).
 #[must_use]
 pub fn names_std_structure(names: &Names<'_>, scope: &ModuleScope) -> bool {

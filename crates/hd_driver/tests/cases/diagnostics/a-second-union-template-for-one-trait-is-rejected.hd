@@ -2,7 +2,7 @@
 # @build: std
 # annot.template.unique: each trait has at most one template of each kind.
 # Distinct traits may have union templates; the second Probe template is rejected.
-use std.structure.{Field, Structure, UnionType, Variant, Walker}
+use std.meta.{Field, Structure, UnionType, Variant, Walker}
 
 trait Probe < ?Copy:
     fn probe(&self) -> bool

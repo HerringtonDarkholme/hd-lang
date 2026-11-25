@@ -1,9 +1,9 @@
 # @dump: diagnostics
 # @build: dev | checked
 # test: consumed annotate specializations require a type in both called and bare forms
-use std.annotation
-use std.annotation.annotate
-use std.annotation.annotate as targets
+use std.meta
+use std.meta.annotate
+use std.meta.annotate as targets
 
 @annotate::[1](.Field) # diagnostic: generic-kind-mismatch
 struct PlainCall: pass
@@ -11,7 +11,7 @@ struct PlainCall: pass
 @targets::[1](.Field) # diagnostic: generic-kind-mismatch
 struct AliasCall: pass
 
-@annotation.annotate::[1](.Field) # diagnostic: generic-kind-mismatch
+@meta.annotate::[1](.Field) # diagnostic: generic-kind-mismatch
 struct QualifiedCall: pass
 
 @annotate::[1] # diagnostic: generic-kind-mismatch
@@ -20,5 +20,5 @@ struct PlainBare: pass
 @targets::[1] # diagnostic: generic-kind-mismatch
 struct AliasBare: pass
 
-@annotation.annotate::[1] # diagnostic: generic-kind-mismatch
+@meta.annotate::[1] # diagnostic: generic-kind-mismatch
 struct QualifiedBare: pass

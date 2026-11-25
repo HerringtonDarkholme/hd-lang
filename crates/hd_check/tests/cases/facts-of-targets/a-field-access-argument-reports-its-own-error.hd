@@ -8,7 +8,7 @@
 # `invalid-facts-of-target` (`annot.facts-of.target.error`), as a call's
 # field `make().name` is, which names no path at all.
 use pkg.routes
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct User:
     name: string

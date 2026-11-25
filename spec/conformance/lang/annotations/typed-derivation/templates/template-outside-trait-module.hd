@@ -1,7 +1,7 @@
 # test: a template outside its trait's module is an error
 # Spec 14 Templates: annot.template.module.
 use std.format.DebugWriter
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 struct Count:
     n: i32

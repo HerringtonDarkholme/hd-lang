@@ -1,6 +1,6 @@
 # test: a counted copy gives a dependent loan its own root
 # Rules: ref.box.root, ref.excl.alias.conflict.
-use std.annotation.inline
+use std.meta.inline
 use std.testing.assert_equal
 
 struct P:

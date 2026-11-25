@@ -1,5 +1,5 @@
 # test: an enum's derivation block names whole variants, never payload members
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

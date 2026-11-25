@@ -4,7 +4,7 @@
 # before the `IsUnique` of a change in the first statement, which stays
 # right before the change's read (invariant 23, #2200). Each reader sees
 # the later change: 2 four times.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 # subject

@@ -1,7 +1,7 @@
 # test: closures observe mutations of collection parameters
 # Spec 07: fn.capture.cell.writes.
 # expect: test
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn list_size(mut items: List[usize]) -> usize:

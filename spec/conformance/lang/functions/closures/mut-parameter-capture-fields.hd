@@ -1,7 +1,7 @@
 # test: closures observe field writes to captured mutable parameters
 # Spec 07: fn.capture.cell.writes.
 # expect: test
-use std.annotation.inline
+use std.meta.inline
 
 struct Point:
     x: usize

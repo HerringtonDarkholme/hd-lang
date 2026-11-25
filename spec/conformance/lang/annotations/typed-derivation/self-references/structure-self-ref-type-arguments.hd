@@ -1,7 +1,7 @@
 # test: the enclosing type applied to other type arguments is still the enclosing type
 # Spec 14 Self References: annot.self-ref.enclosing.arguments, .needs.self, and .member
 # (SIMPLE, owner decision 2026-09-30). Nest[List[T]] inside enum Nest[T] makes Deep required.
-use std.structure.{Structure, Field, Variant, Describer, SelfRef}
+use std.meta.{Structure, Field, Variant, Describer, SelfRef}
 trait Shape:
     fn shape() -> string
 

@@ -1,7 +1,7 @@
 # test: @inline before a struct
 # Spec 14 Inline And Cold: the compiler limits inline and cold to functions and
 # methods (annot.inline.targets), reported as annot.target.limit.kind-error.
-use std.annotation.inline
+use std.meta.inline
 
 @inline # diagnostic: decorator-target-kind
 struct Point:

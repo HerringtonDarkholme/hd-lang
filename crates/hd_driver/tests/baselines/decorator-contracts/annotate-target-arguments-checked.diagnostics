@@ -2,8 +2,8 @@
 == @build: dev
 error: main.hd:8:11: unknown-variant: no variant `Missing` of Target
 error: main.hd:11:17: unknown-variant: no variant `Missing` of Target
-error: main.hd:14:23: unknown-variant: no variant `Missing` of Target
+error: main.hd:14:17: unknown-variant: no variant `Missing` of Target
 == @build: checked
 error: main.hd:8:11: unknown-variant: no variant `Missing` of Target
 error: main.hd:11:17: unknown-variant: no variant `Missing` of Target
-error: main.hd:14:23: unknown-variant: no variant `Missing` of Target
+error: main.hd:14:17: unknown-variant: no variant `Missing` of Target

@@ -64,7 +64,7 @@ the per-target walk, a compile-time saving.
 **Built** in 424dcdfb7, net +327: the markers only. The codec moved to
 stage 3 (section 5).
 
-**What.** `std.marker` declares `Marker`, `Send` and `Wire`. The solver
+**What.** `std.meta` declares `Marker`, `Send` and `Wire`. The solver
 answers them from the type's form, as it answers `Copy`
 (`module.marker.structural`). A library marker answers through explicit
 impls and the same structural walk. B5's codecs become TIR functions.
@@ -75,7 +75,7 @@ impls and the same structural walk. B5's codecs become TIR functions.
 | --- | --- | --- | --- |
 | `hd_types` | `src/sealed.rs` | `SealedTraits`, `row`, `copy_parts` | add `send` and `wire`; turn `copy_parts` into one memoized parts walk parameterized by the marker, so `Copy`, `Send` and `Wire` share it |
 | `hd_types` | `src/solver.rs` | `Reads::candidates` and the goal search | a library marker with no matching explicit impl falls back to the structural walk, whose parts become subgoals, as rustc's auto-trait candidates do |
-| `hd_resolve` | `src/known.rs` | `sealed`, the known-item table | the `std.marker` items and `std.remote.Remote` |
+| `hd_resolve` | `src/known.rs` | `sealed`, the known-item table | the `std.meta` items and `std.remote.Remote` |
 | `hd_resolve` | `src/lower/decls.rs`, `src/lower.rs` | `sealed_impl_rejected` | reuse for `Send` and `Wire`; reject a member of a marker trait (`invalid-marker-trait`) |
 | `lib/std` | `marker.hd` (new) | | the three declarations |
 | `hd_tir` | `src/codec.rs` (new) | | one encoder and one decoder body per `Wire` type reached, over TIR byte-buffer statements; decoders return a `Result`, never trap |
@@ -791,7 +791,7 @@ or overturn; overturning one changes its rule and its cases.
 | Q2 | a trait's `Self` is `Copy` (`ref.copy.trait.default`), which would bar the `impl !Copy` image of program 1 | a marker does not bound `Self` by `Copy` | `module.marker.not-copy` |
 | Q3 | may user code implement `Send` or `Wire`? | no: both are sealed | `module.marker.sealed` |
 | Q4 | may an explicit impl give a struct a library marker, as `GpuData` for `Texture`? | yes; that is what keeps a texture `GpuData` but neither `Wire` nor `Send` | `module.marker.explicit` |
-| Q5 | which module declares the markers | `std.marker`, outside the prelude | `module.marker.std` |
+| Q5 | which module declares the markers | `std.meta`, outside the prelude | `module.marker.std` |
 | Q6 | `Remote` is called a marker, but its traits have methods | `Remote` is sealed and supplied for every type, so no `impl Remote` is written | `module.remote.std` |
 | Q7 | section 6 puts `CrossError`, `Transport` and `Home` in the stdlib tier, but generated code names them | language tier; `per_request`, `home` and the HTTP parts stay stdlib | `module.remote.items` |
 | Q8 | `E \| CrossError` when `E` is itself a union | exactly two members; a union `E` is grouped | `module.remote.r2.result` |

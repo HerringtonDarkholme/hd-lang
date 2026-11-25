@@ -3,7 +3,7 @@
 # A `&self` method inlined into a `&mut self` one binds the weakened
 # receiver as a borrow, and a reference to a field through it is lent,
 # so neither takes a count of the receiver.
-use std.annotation.inline
+use std.meta.inline
 
 struct Bag:
     items: List[i32]

@@ -2,7 +2,7 @@
 # A value erased to `&dyn Inspectable` reports its recorded type through
 # the vtable's `runtime_type` slot, a `&self` slot whose body the compiler
 # supplies, so the reference needs no payload (trait.inspect.dynamic).
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct User:
     name: string

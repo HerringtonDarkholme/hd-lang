@@ -1,6 +1,6 @@
 # test: a newtype derives a templated trait with @derive, through its base type's implementation
 # Spec 14 Derivation Blocks: annot.block.newtype.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

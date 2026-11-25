@@ -5,7 +5,7 @@
 # (#895): keeping a copy or looking up a key counts one address, which the
 # runtime skips for static data. No count reaches a record's
 # information, facts list or closures.
-use std.structure.{Key, Members, Variant}
+use std.meta.{Key, Members, Variant}
 
 struct Point:
     x: i32

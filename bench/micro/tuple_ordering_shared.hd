@@ -1,6 +1,6 @@
 # #1379: shared generated tuple comparisons, with non-inlined value-parameter calls.
 # Four activations print checksum and guest milliseconds; discard the first.
-use std.annotation.cold
+use std.meta.cold
 use std.time.{Clock, elapsed, monotonic}
 
 type Words = (

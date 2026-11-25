@@ -1,5 +1,5 @@
 # test: a derivation block may not target a newtype; a newtype derives only through its base
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

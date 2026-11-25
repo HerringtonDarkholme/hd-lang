@@ -1,6 +1,6 @@
 # test: a typed fact attaches only to a field or a function, even when its target kinds allow more
 # Spec 14 Member-Typed Facts: annot.typed-fact.targets (owner decisions O7, batch 36, and ANNOTATE-TYPED, batch 39, 2026-10-01).
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[F](.Field, .Variant)
 struct Example[F]:

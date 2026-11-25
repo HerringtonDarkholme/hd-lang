@@ -4,7 +4,7 @@
 # function value and prints no `keeps` line; `keep` returns `f`, so its
 # call keeps the closure (`%c keeps %v`), as a call through a function
 # value keeps every argument (`g`). Frame planning will read this (#1399 19a).
-use std.annotation.inline
+use std.meta.inline
 
 fn each(xs: List[string], f: fn(string) -> void) -> void:
     for x in xs:

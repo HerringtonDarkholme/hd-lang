@@ -593,7 +593,7 @@ fn stack_exhaustion_is_a_panic() {
 fn a_host_raised_panic_in_a_fact_is_wrapped() {
     let dir = program(
         "fact-stack",
-        "use std.annotation.facts_of\n\nstruct Route:\n    path: string\n\nfn deep(n: i32) -> i32:\n    deep(n + 1) + 1\n\nfn route(path: string) -> Route:\n    Route { path: \"${deep(+0)}\" }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+        "use std.meta.facts_of\n\nstruct Route:\n    path: string\n\nfn deep(n: i32) -> i32:\n    deep(n + 1) + 1\n\nfn route(path: string) -> Route:\n    Route { path: \"${deep(+0)}\" }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
     );
     let out = run(hd(&dir), &["--engine", "wasmtime", "main.hd"], "");
     assert_eq!(out.status.code(), Some(3));
@@ -611,7 +611,7 @@ fn a_host_raised_panic_in_a_fact_is_wrapped() {
 fn a_time_limit_in_a_fact_is_wrapped() {
     let dir = program(
         "fact-spin",
-        "use std.annotation.facts_of\n\nstruct Route:\n    path: string\n\nfn spin() -> string:\n    while true:\n        pass\n    \"x\"\n\nfn route(path: string) -> Route:\n    Route { path: spin() }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+        "use std.meta.facts_of\n\nstruct Route:\n    path: string\n\nfn spin() -> string:\n    while true:\n        pass\n    \"x\"\n\nfn route(path: string) -> Route:\n    Route { path: spin() }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
     );
     let out = run(
         hd(&dir),

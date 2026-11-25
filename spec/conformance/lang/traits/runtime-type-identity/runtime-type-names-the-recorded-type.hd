@@ -3,7 +3,7 @@
 # expect-stdout: true
 # expect-stdout: true
 # expect-stdout: true
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 use std.error.Error
 
 struct DiskError:

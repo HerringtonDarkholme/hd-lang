@@ -4,7 +4,7 @@
 # expect-stdout: false
 # expect-stdout: Box { value: Box { value: true, count: 0 }, count: 2 }
 # expect-stdout: Box:Box#0(value=four;count=3;)
-use std.structure.{Structure, Field, Variant, Walker, Describer}
+use std.meta.{Structure, Field, Variant, Walker, Describer}
 
 trait Listing:
     fn listing(self) -> string

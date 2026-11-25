@@ -6,7 +6,7 @@
 # released each one whole, zeroed, through its release shim, and the
 # tuple's `Token` hook ran on zeros: one hook too many (std runtime test
 # `inline_drop_tests.hd`). `identity` must release nothing.
-use std.annotation.inline
+use std.meta.inline
 use std.rt.Drop
 
 let drops: usize = 0

@@ -1,7 +1,7 @@
 # @dump: stdout
 # A panic the host raises after a trap, as `stack-exhausted` for
 # recursion that never ends, is wrapped like one the program raises.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Route:
     path: string

@@ -2,7 +2,7 @@
 # @dump: own counts wat
 # @build: v8 release program
 # expected: a map probe states its deferred table-uniqueness action; hit/miss timing is unchanged, and a local indexed borrow keeps its separate place-based IsUnique and LoanEnd.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn bump(items: &mut Map[string, i32], key: string) -> void:

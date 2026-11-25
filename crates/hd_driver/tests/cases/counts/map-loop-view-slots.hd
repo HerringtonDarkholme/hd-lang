@@ -2,7 +2,7 @@
 # @build: v8 release program
 # expected: uniqueness takes the original map header from a view and
 # restores it through the setter, without retaining a second header.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn bump(items: &mut Map[usize, usize]) -> usize:

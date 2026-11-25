@@ -1,5 +1,5 @@
 # test: member metadata lines for direct members self and variants are valid
-use std.structure.Structure
+use std.meta.Structure
 
 struct User:
     name: string

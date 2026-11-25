@@ -4,7 +4,7 @@
 # @build: dev | checked | release
 # expected: scalar field writes borrow the constructor's count owner in release.
 # Copies keep independent scalar storage; counted, heap and buffer writes keep ownership.
-use std.annotation.cold
+use std.meta.cold
 
 struct Record:
     text: string
@@ -145,7 +145,7 @@ pub fn main() -> void $ Console:
 # @build: dev | checked | release
 # expected: scalar field writes borrow the constructor's count owner in release.
 # Copies keep independent scalar storage; counted, heap and buffer writes keep ownership.
-use std.annotation.cold
+use std.meta.cold
 
 struct Record:
     text: string
@@ -286,7 +286,7 @@ pub fn main() -> void $ Console:
 # @build: dev | checked | release
 # expected: scalar field writes borrow the constructor's count owner in release.
 # Copies keep independent scalar storage; counted, heap and buffer writes keep ownership.
-use std.annotation.cold
+use std.meta.cold
 
 struct Record:
     text: string

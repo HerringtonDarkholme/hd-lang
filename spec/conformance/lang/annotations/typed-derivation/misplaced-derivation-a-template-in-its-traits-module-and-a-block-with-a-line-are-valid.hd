@@ -1,5 +1,5 @@
 # test: misplaced derivation a template in its traits module and a block with a line are valid
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 pub trait Show:
     fn show(self) -> string

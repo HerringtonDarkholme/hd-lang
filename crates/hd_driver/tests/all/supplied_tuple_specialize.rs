@@ -109,7 +109,7 @@ fn tuple_effect_summaries_borrow_small_and_shared_wide_operands() {
             .collect::<Vec<_>>()
             .join(", ");
         let source = format!(
-            "use std.annotation.cold\ntype Words = ({fields})\n@cold\nfn ordered(left: Words, right: Words) -> bool:\n    left < right\npub fn main() -> void:\n    pass\n"
+            "use std.meta.cold\ntype Words = ({fields})\n@cold\nfn ordered(left: Words, right: Words) -> bool:\n    left < right\npub fn main() -> void:\n    pass\n"
         );
         let mut sources = MemorySources::default();
         sources.insert("main.hd", &source);

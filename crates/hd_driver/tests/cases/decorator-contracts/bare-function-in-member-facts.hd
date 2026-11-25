@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # annot.metadata.value: member facts may be ordinary function values.
-use std.annotation.annotate
-use std.structure.Structure
+use std.meta.annotate
+use std.meta.Structure
 
 @annotate(.Field)
 struct Note: pass

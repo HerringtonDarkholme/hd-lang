@@ -5,7 +5,7 @@
 # branch releases the cell, so its `FlagClear` stands before the
 # `Read move` and writes the cell before it can be freed. Its `Drop`
 # releases the cell, so it clears nothing, and no flag local is read.
-use std.annotation.inline
+use std.meta.inline
 use std.rt.Drop
 
 struct Token:

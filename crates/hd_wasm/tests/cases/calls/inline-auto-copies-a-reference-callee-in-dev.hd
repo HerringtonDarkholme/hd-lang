@@ -1,6 +1,6 @@
 # @dump: wat
 # `@inline(.Auto)` copies in a dev build and allows a reference parameter.
-use std.annotation.inline
+use std.meta.inline
 
 @inline
 fn first(values: &List[i32]) -> i32:

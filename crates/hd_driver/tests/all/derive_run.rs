@@ -65,7 +65,7 @@ fn template_edits_change_the_derived_output_on_rebuild() {
     let show = |sep: &str, prefix: &str| {
         format!(
             "\
-use std.structure.{{Structure, Field, Variant, Walker}}
+use std.meta.{{Structure, Field, Variant, Walker}}
 
 pub trait Show:
     fn show(self) -> string

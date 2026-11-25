@@ -1,6 +1,6 @@
 # test: a generic owner has one handle per instantiation
 # expect-stdout: true true true true
-use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
+use std.meta.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
 
 struct Keeper:
     pub variants: List[VariantInfo]

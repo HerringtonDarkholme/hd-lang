@@ -8,7 +8,7 @@
 # count differently; checked mode audits every block.
 # expected: both builds print the four lines, and no block leaks.
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Members, Key, Describer, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Describer, Source}
 
 trait Sample:
     fn seed(start: usize) -> Self

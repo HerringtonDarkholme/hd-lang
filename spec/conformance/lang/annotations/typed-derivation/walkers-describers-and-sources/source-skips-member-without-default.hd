@@ -1,7 +1,7 @@
 # test: a member that a source's skips::[F]() omits must declare a default for build
 # Spec 14 Implementation Facts: annot.impl-fact.skips.no-default.
-use std.annotation.annotate
-use std.structure.{Structure, Source, Variant, Field, Members, Key, skips}
+use std.meta.annotate
+use std.meta.{Structure, Source, Variant, Field, Members, Key, skips}
 
 @annotate(.Field)
 struct Skip: pass

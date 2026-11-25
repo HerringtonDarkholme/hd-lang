@@ -1,6 +1,6 @@
 # test: Debug and Eq derived for a phantom struct do not require its type parameter to implement either trait
 # Standard Validation: std-validate.rule.declarations
-use std.annotation.annotate
+use std.meta.annotate
 use std.format.debug
 
 struct Opaque: pass

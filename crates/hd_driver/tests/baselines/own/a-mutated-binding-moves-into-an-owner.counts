@@ -6,7 +6,7 @@
 # expected: the final read of the mutated binding moves its count into Owner.
 # expected: an inlined nonconsuming read through its mutable frame address borrows text.
 use std.rt.bytes.bytes_at
-use std.structure.Facts
+use std.meta.Facts
 
 struct Record:
     text: string
@@ -67,7 +67,7 @@ fn make_owner(text: string) -> Owner:
 # expected: the final read of the mutated binding moves its count into Owner.
 # expected: an inlined nonconsuming read through its mutable frame address borrows text.
 use std.rt.bytes.bytes_at
-use std.structure.Facts
+use std.meta.Facts
 
 struct Record:
     text: string
@@ -128,7 +128,7 @@ fn make_owner(text: string) -> Owner:
 # expected: the final read of the mutated binding moves its count into Owner.
 # expected: an inlined nonconsuming read through its mutable frame address borrows text.
 use std.rt.bytes.bytes_at
-use std.structure.Facts
+use std.meta.Facts
 
 struct Record:
     text: string

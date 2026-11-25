@@ -1,6 +1,6 @@
 # test: a member line other than = pass changes only facts, so x = [] still walks x
 # Spec 14 Omitted Members: annot.omit.only-code.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

@@ -1,6 +1,6 @@
 # test: generated walk and describe visit members in declaration order with their facts
 
-use std.structure.{Structure, Facts, Member, Field, Variant, Walker, Describer}
+use std.meta.{Structure, Facts, Member, Field, Variant, Walker, Describer}
 struct Style:
     prefix: string = ""
     tag: string = "type"

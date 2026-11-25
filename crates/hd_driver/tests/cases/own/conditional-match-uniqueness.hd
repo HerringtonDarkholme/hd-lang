@@ -1,7 +1,7 @@
 # @dump: own stdout
 # @build: release checked
 # expected: an exhaustive single-arm pattern keeps uniqueness valid in each loop iteration.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 enum Choice:

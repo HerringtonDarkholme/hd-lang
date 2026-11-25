@@ -3,7 +3,7 @@
 # expect-stdout: Order { id: 11, label: "#12" }
 # expect-stdout: Event.Move(dx=1, dy=2)
 # expect-stdout: Box { value: "#5" }
-use std.structure.{Structure, Field, Variant, Members, Key, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Source}
 
 trait Fill:
     fn fill(seed: i64) -> Self

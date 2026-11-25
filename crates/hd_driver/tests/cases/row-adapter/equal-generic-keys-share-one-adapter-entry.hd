@@ -2,7 +2,7 @@
 # @build: dev | checked | release | release checked
 # Equal type arguments collapse the checked recipe to one provider entry.
 # The converted callable still reads the provider selected at invocation.
-use std.annotation.inline
+use std.meta.inline
 
 trait Store[T]:
     fn get(&self) -> T

@@ -9,7 +9,7 @@
 # `own_list` is that check: `rt:list_truncate` at the length copies a
 # buffer with another holder, and the empty list is the static one.
 # `scalar` captures no buffer, and the crossing adds nothing.
-use std.marker.Send
+use std.meta.Send
 
 fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
     code()

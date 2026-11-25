@@ -3,7 +3,7 @@
 # expected: target and list_copy borrow the source and keep the needed local copy.
 # only_copy and early copies keep the consuming ABI for temporary count donation.
 # take_payload preserves the returned payload's owner through the match.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn target(a: string, b: string) -> usize:

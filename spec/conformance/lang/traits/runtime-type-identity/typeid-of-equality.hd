@@ -2,7 +2,7 @@
 # Spec 09 Inspectable And TypeId: type arguments are part of identity; Display spells
 # prelude names with T? and tuple sugar.
 # Spec 09 Traits: trait.inspect.static, trait.inspect.runtime-type, trait.typeid.traits, trait.typeid.of, trait.typeid.equality, trait.identity.no-conversion.reference-values, trait.typeid.name, trait.typeid.name.prelude, trait.typeid.name.option, trait.typeid.name.tuple, trait.typeid.name.separator.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 struct User:
     name: string
 

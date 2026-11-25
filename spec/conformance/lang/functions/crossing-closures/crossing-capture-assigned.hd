@@ -1,6 +1,6 @@
 # test: a crossing closure that assigns a captured variable is rejected
 # Spec 07 Crossing Closures: fn.crossing.no-write.
-use std.marker.Send
+use std.meta.Send
 
 fn spawn[T < ?Copy & Send](code: fn() -> T + Send) -> T:
     code()

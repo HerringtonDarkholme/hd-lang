@@ -463,7 +463,7 @@ fn notes() -> Notes:
 
 ### Documentation In Typed Help
 
-Typed CLI help uses the declaration documentation carried by `std.structure`.
+Typed CLI help uses the declaration documentation carried by `std.meta`.
 
 ```text
 use std.cli.Cli

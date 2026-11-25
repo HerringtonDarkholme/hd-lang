@@ -2,7 +2,7 @@
 # test: a per-trait block may write a fact from a package that supplies no template for the trait
 # Spec 14 Member Lines: annot.line.self; dead-fact warnings are parked.
 use dep.models.{User}
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

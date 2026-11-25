@@ -1,7 +1,7 @@
 # @dump: own stdout
 # @build: release checked
 # expected: a copied parameter stays borrowed while an unrelated global owner is replaced.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 let saved = "old"

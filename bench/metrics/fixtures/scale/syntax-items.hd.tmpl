@@ -1,9 +1,9 @@
 {{! One copy per `items` entry of the item, type, statement, expression and pattern forms no other shape holds, each used from main. }}
-use std.inspect.{Inspectable, TypeId}
-use std.marker.Send
+use std.meta.{Inspectable, TypeId}
+use std.meta.Send
 use std.ops.Disposable
 use std.serde.{Serialize, rename_all}
-use std.structure.Structure
+use std.meta.Structure
 
 {{#each items}}
 type Pair{{i}} = (i32, i32)

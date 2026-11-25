@@ -8,8 +8,8 @@
 # Walkers: annot.walker.strengthen-member-hook, annot.walker.not-sealed,
 # annot.walker.obligation.
 # (owner decisions O7, batch 36, and ANNOTATE-TYPED, batch 39, 2026-10-01).
-use std.annotation.annotate
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.annotate
+use std.meta.{Structure, Field, Variant, Walker}
 
 @annotate::[F](.Field)
 struct Fallback[F]:

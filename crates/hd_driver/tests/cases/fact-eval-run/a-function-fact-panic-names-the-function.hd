@@ -1,7 +1,7 @@
 # @dump: stdout
 # A function's facts name the function.
-use std.annotation.facts_of
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.facts_of
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

@@ -8,9 +8,9 @@
 # a toolchain but not across toolchains, and `hash_of` hashes a value into a
 # new one (spec/std/hash.md#default-hasher). `Fnv1a` is 64-bit FNV-1a, whose
 # digests are published (spec/std/hash.md#fnv-1a-hasher).
-use std.annotation.inline
+use std.meta.inline
 use std.ops.Tuple
-use std.structure.{Structure, UnionType, Walker, Variant, Field}
+use std.meta.{Structure, UnionType, Walker, Variant, Field}
 use std.rt.{bytes_len, bytes_at, char_scalar}
 
 # `Hash` and `Hasher` are declared in std.core, which `Map` names.

@@ -1,6 +1,6 @@
 # test: a counted trait value reference of a remote trait is Wire
 # Spec 10 Markers: module.marker.table.remote; Spec 10 Remote References: module.remote.ref.wire.
-use std.marker.Wire
+use std.meta.Wire
 use std.remote.{CrossError, Remote}
 
 trait Users < Remote:

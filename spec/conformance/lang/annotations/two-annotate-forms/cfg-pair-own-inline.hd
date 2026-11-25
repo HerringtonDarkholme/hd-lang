@@ -1,7 +1,7 @@
 # test: the two bodies of a configured callable may differ in @inline and @cold
 # Spec 14 Build-Profile Bodies: annot.cfg.signature compares signatures,
 # not the bodies' own decorators.
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 
 @cfg(.Debug)
 @inline(.Never)

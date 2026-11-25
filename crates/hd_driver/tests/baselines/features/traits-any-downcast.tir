@@ -5,7 +5,7 @@
 # To Inspectable, Recovering A Concrete Type (spec/lang/09-traits.md, #1364).
 # expected: `user_name` compares one type id and retains only the
 # returned `name`; `is_user` counts nothing; `erase` boxes once.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct User:
     name: string
@@ -16,7 +16,7 @@ fn user_name(value: &dyn Inspectable) -> string:
 >   local $0 value: &dyn Inspectable [param read]
 >   local $1 user: &User [read assigned]
 >   %0 = Read [$0] : &dyn Inspectable
->   %1 = Call std/inspect/impl dyn Inspectable.downcast_ref[User] (%0) : &User?
+>   %1 = Call std/meta/impl dyn Inspectable.downcast_ref[User] (%0) : &User?
 >   %12 = Block - : never
 >   %13 = Match %1 [%12 %3 %4] : string
 >   %14 = Block %13 : string
@@ -37,9 +37,9 @@ fn is_user(value: &dyn Inspectable) -> bool:
 >   local $2 $ref: TypeId [read assigned captured captured-assigned]
 >   %0 = Read [*$0] : Inspectable
 >   %1 = LoanBegin %0 #0 : ()
->   %2 = Call std/inspect/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
+>   %2 = Call std/meta/Inspectable.runtime_type for Inspectable [] via TraitValue (%0) : TypeId
 >   %3 = LoanClose %1 : ()
->   %4 = Call std/inspect/impl TypeId.of[User] () : TypeId
+>   %4 = Call std/meta/impl TypeId.of[User] () : TypeId
 >   %5 = Store [$1] %2 : ()
 >   %6 = Ref local [$1] : &TypeId
 >   %7 = Store [$2] %4 : ()

@@ -7,7 +7,7 @@
 # which a copy would count in a local; `make` creates a closure; `down`
 # calls itself: each of those calls stays a call. `need` has a requirement
 # row and explicitly requests `.Never`, so its call stays a call too.
-use std.annotation.inline
+use std.meta.inline
 fn half(x: i64) -> i64:
     x / 2
 

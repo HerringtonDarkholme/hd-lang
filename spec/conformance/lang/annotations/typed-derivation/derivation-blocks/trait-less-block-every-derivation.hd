@@ -1,6 +1,6 @@
 # test: the facts of a block with no trait are declaration facts, which every derivation of the type sees
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.declaration-facts.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

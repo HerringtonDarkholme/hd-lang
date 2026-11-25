@@ -1,6 +1,6 @@
 # test: a second template for one trait is an error
 # Spec 14 Templates: annot.template.unique.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 trait Named:
     fn type_name() -> string

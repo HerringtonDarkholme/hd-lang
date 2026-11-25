@@ -1,7 +1,7 @@
 # test: a consumed annotate call checks Target values
-use std.annotation
-use std.annotation.annotate
-use std.annotation.annotate as targets
+use std.meta
+use std.meta.annotate
+use std.meta.annotate as targets
 
-@annotation.annotate([.Missing]...) # diagnostic: unknown-variant
+@meta.annotate([.Missing]...) # diagnostic: unknown-variant
 struct Fact: pass

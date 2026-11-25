@@ -1,5 +1,5 @@
 # Blocks with the same member lines don't warn.
-use std.structure.Structure
+use std.meta.Structure
 use std.serde.Serialize
 
 struct Session:

@@ -7,7 +7,7 @@
 # no cell, and releases them after `size'1` returns, not before. `named`
 # lends `w` from its frame, `param` its by-value parameter, and `nums`
 # a temporary holding a list, each with no frame slot or count.
-use std.annotation.inline
+use std.meta.inline
 
 struct Wrap:
     name: string

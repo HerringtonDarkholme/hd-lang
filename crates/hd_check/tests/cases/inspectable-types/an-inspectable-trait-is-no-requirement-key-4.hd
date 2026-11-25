@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # req.key.inspectable.error: every place a key is written is an error at
 # the key, once.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 trait Storage < Inspectable:
     fn get(self, key: string) -> string?

@@ -2,7 +2,7 @@
 # @build: std
 # annot.template.unique: templates are unique per trait and per kind.
 # Each trait has one union template, and all traversal bodies check.
-use std.structure.{Field, Structure, UnionType, Variant, Walker}
+use std.meta.{Field, Structure, UnionType, Variant, Walker}
 
 trait Probe < ?Copy:
     fn probe(&self) -> bool

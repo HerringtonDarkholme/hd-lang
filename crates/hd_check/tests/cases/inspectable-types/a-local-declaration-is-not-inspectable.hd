@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # trait.inspectable.not.local: a declaration local to a block suite.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

@@ -2,7 +2,7 @@
 # Spec 14 Handles and Tuple Structure: annot.handle.shared-target, annot.template.tuple.instance,
 # annot.tuple.members, annot.tuple.rest, annot.tuple.build, annot.structure.protocol-ref.
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
 
 trait Sample:
     fn render(self) -> string

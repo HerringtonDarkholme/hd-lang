@@ -116,7 +116,7 @@ impl Lower<'_, '_, '_> {
         self.annotate_line(n).map(|(mask, _)| mask)
     }
 
-    /// Whether the implementation `n` carries `std.structure`'s
+    /// Whether the implementation `n` carries `std.meta`'s
     /// `fills_defaults()` (`annot.impl-fact.fills-defaults.decl`): only
     /// std's own function counts, including through an alias or a
     /// qualified path.
@@ -127,7 +127,7 @@ impl Lower<'_, '_, '_> {
     }
 
     /// The fact types that the implementation `n` names with
-    /// `std.structure`'s `skips::[F]()` (`annot.impl-fact.skips.decl`),
+    /// `std.meta`'s `skips::[F]()` (`annot.impl-fact.skips.decl`),
     /// lowered among its parameters `gn`; std's own function only.
     pub(super) fn skips(&mut self, n: NodeRef<'_>, gn: &super::Gen) -> Vec<Ty> {
         let known = self.names.known.skips;

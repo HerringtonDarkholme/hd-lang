@@ -2,6 +2,7 @@
 std/console/println#0 [string]
 std/rt.cycle/compact#0
 std/rt.alloc/class_of#0
+std/meta/impl Facts.find#0 [std.serde.Rename]
 std/rt.cycle/push#0
 std/rt.cycle/scan#0
 app/main/Row.structure handle 0 1#0
@@ -48,7 +49,6 @@ std/rt.alloc/reclaim#0
 std/rt.alloc/claim#0
 std/text/searcher#0
 std/json/impl TextWriter.open#0
-std/structure/impl Facts.find#0 [std.serde.RenameAll]
 std/json/impl Serializer for TextWriter.begin_list#0
 std/json/key_print#0
 std/serde/case_name#0
@@ -75,10 +75,10 @@ std/json/impl Serializer for TextWriter.int#0
 std/text/search_from#0
 std/rt.cycle/mark#0
 std/text/impl string.replace#0
+std/meta/impl Facts.find#0 [std.serde.RenameAll]
 std/rt.cycle/visit#0
 std/json/impl TextWriter.add_key#0
 std/serde/uppercase_name#0
-std/structure/impl Facts.find#0 [std.serde.Rename]
 std/rt.cycle/collect#0
 std/rt.cycle/due#0
 std/text/pair_windows#0

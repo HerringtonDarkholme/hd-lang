@@ -1,7 +1,7 @@
 # @dump: own wat
 # @build: release
 # expected: the one-call forwarder preserves a writer just above the ordinary copy budget.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always)
 fn write(state: &mut usize, value: usize) -> void:

@@ -1,6 +1,6 @@
 # test: a crossing closure for a parameter whose marker bound names no lifetime may not capture a local reference
 # Spec 13 Frozen Loans: ref.frozen.no-lifetime.
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32

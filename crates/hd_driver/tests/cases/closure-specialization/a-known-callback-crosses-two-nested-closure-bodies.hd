@@ -1,7 +1,7 @@
 # @dump: stdout wat
 # @build: dev | checked | release | release checked
 # A known callback is captured through two nested closure bodies.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn invoke(callback: fn() -> i32) -> i32:

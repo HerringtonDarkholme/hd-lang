@@ -1,6 +1,6 @@
 # test: a member omitted with = pass is not described
 # Spec 14 Omitted Members: annot.omit.skip; walk is in member-line-omit.hd, and build in omitted-member-default.hd.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 struct Counter:
     total: i32
 

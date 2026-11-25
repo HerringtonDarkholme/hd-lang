@@ -4,7 +4,7 @@
 # expect-stdout: missing a.txt
 # expect-stdout: true
 use std.error.Error
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Missing:
     path: string

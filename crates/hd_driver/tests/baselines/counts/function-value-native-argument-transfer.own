@@ -2,7 +2,7 @@
 # @dump: own counts
 # @build: std checked
 # Native Drop ownership transfers once while thin reference counts are lent.
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 use std.ops.{Fn, Tuple}
 use std.rt.Drop

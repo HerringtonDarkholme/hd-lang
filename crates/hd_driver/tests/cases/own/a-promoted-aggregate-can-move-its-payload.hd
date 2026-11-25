@@ -2,7 +2,7 @@
 # @build: dev | checked | release
 # expected: option_len retains only the element returned from its list.
 # Promoted enum payloads survive branches, repeated loop uses and alias writes.
-use std.annotation.cold
+use std.meta.cold
 
 struct Names:
     left: string

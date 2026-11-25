@@ -5,13 +5,13 @@
 # bodies that the compiler gives an `it_each`, `it_prop`, or `it_prop_with`
 # test case and the runner capabilities they use. `std.testing.arbitrary`
 # is `lib/std/testing/arbitrary.hd`.
-use std.debug.{CallArg, Location}
+use std.meta.{CallArg, Location}
 use std.format.debug
 use std.hash.Hash
 use std.num.{Float, Integer}
 use std.ops.Range
 use std.random.{Random, SeededRandom}
-use std.structure.{Structure, Variant, Field, Members, Key, Source, SelfRef}
+use std.meta.{Structure, Variant, Field, Members, Key, Source, SelfRef}
 use std.rt.{panic_with}
 # `std.testing.arbitrary` stays a child module: after `use std.testing` the
 # path `testing.arbitrary.x` is an error
@@ -358,7 +358,7 @@ pub trait Arbitrary:
 # builds the value through an `ArbitrarySource`, which draws each member
 # with its `arbitrary.with` generator, or else with its type's `Arbitrary`.
 # Each derivation instantiates it with the `Source` implementation below,
-# which, like the template, names `std.structure`, a std module whose
+# which, like the template, names `std.meta`, a std module whose
 # compiler-supplied items resolution seeds (crates/hd_resolve/src/seed.rs).
 impl[T] Arbitrary for T by Structure:
     fn arbitrary(c: &mut Choices) -> T:

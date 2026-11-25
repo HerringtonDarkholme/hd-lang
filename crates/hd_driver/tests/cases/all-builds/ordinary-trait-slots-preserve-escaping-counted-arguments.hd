@@ -2,7 +2,7 @@
 # @build: dev | checked | release | release checked
 # trait.dyn.value-methods and fn.capture.locals. The checked runs' exit audit
 # fails on any owner these calls leak, and a freed target's poison fails each read.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 struct Held[T]:

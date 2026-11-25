@@ -554,7 +554,7 @@ The standard library declares the standard error trait `Error` in
 12. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
 13. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
 14. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
-15. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
+15. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.meta`.
 
 ```text
 use std.error.Error
@@ -2320,7 +2320,7 @@ compiler and the standard library supply.
 
 ```text
 use std.ops.Fn
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct User:
     name: string
@@ -2348,7 +2348,7 @@ impl Fn[(i32,), i32, $()] for Handle:  # error: sealed-trait-implementation
 8. r[trait.sealed.inherent-lookup] Ordinary method lookup finds that inherent method on the concrete type, and it changes nothing that the compiler-supplied implementation reports.
 
 ```hd
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     name: string
@@ -2364,7 +2364,7 @@ fn id_of(value: User) -> string:
 3. r[trait.sealed.extend.missing] When the target is not a type the compiler supplies the sealed trait for, the implementation is an error, as for any missing supertrait. Error: `missing-supertrait-implementation`.
 
 ```hd
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 trait Named < Inspectable:
     fn type_name(self) -> string
@@ -2477,7 +2477,7 @@ See also: [Operator Traits](05-expressions.md#operator-traits),
 
 ## Runtime Type Identity
 
-The standard module `std.inspect` lets a program erase a value so that its
+The standard module `std.meta` lets a program erase a value so that its
 concrete type can be recovered later:
 
 ```text
@@ -2492,8 +2492,8 @@ impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId
 ```
 
-1. r[trait.rtti.module] The standard module `std.inspect` lets a program erase a value so that its concrete type can be recovered later.
-2. r[trait.rtti.reference-imports] Its names are not prelude names; code imports them, as in `use std.inspect.{Inspectable, TypeId}`.
+1. r[trait.rtti.module] The standard module `std.meta` lets a program erase a value so that its concrete type can be recovered later.
+2. r[trait.rtti.reference-imports] Its names are not prelude names; code imports them, as in `use std.meta.{Inspectable, TypeId}`.
 3. r[trait.rtti.reference-surface] The block above lists the public surface.
 4. r[trait.rtti.reference-bodies] The compiler supplies the bodies of `downcast_ref` and `downcast_mut`.
 
@@ -2511,7 +2511,7 @@ impl TypeId:
 10. r[trait.inspect.relaxed] `Inspectable` is declared `< ?Copy`, so a type declared `impl !Copy` is inspectable and has `runtime_type()`. See [`ref.copy.trait.relaxed`](13-values-and-references.md#r-ref.copy.trait.relaxed).
 
 ```hd
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 fn id_of[T < Inspectable](value: T) -> string:
     "${value.runtime_type()}"
@@ -2529,7 +2529,7 @@ See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 6. r[trait.typeid.no-trait-query] A `TypeId` cannot answer whether a type implements a trait, and nothing can be constructed or called through it.
 
 ```hd
-use std.inspect.TypeId
+use std.meta.TypeId
 
 fn same_type() -> bool:
     TypeId::of::[i32]() == TypeId::of::[i32]()
@@ -2556,7 +2556,7 @@ The rules have these consequences:
 See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes).
 
 ```hd
-use std.inspect.TypeId
+use std.meta.TypeId
 
 fn demo() -> bool:
     TypeId::of::[List[i32]]() == TypeId::of::[List[i32]]()
@@ -2587,7 +2587,7 @@ fn demo() -> bool:
 > versioning.
 
 ```hd
-use std.inspect.TypeId
+use std.meta.TypeId
 
 fn demo() -> string:
     "${TypeId::of::[i32]()}"   # "i32"
@@ -2615,7 +2615,7 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 5. r[trait.inspectable.argument-examples.reference-values] `List[*dyn Display]`, `Result[void, FsError]`, and `Map[string, *dyn Any]` are inspectable.
 
 ```hd
-use std.inspect.TypeId
+use std.meta.TypeId
 
 fn demo() -> string:
     "${TypeId::of::[List[i32]]()}"   # inspectable: a collection of an inspectable argument
@@ -2640,7 +2640,7 @@ These types are not inspectable, as values or as type arguments:
 > `'static` for the same reason.
 
 ```text
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 fn erase() -> void:
     let erased: &dyn Inspectable = fn(x: i32) -> i32: x + 1   # error: type-mismatch
@@ -2662,7 +2662,7 @@ A concrete reference converts to `&dyn Inspectable` by an expected type.
 9. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice.
 
 ```text
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Box[T]:
     value: T
@@ -2687,7 +2687,7 @@ returns `true` for it and `read_box` returns `1`. `erase(1)` records
 branch.
 
 ```text
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 fn erase[T](value: T) -> *dyn Inspectable:
     value  # error: type-mismatch
@@ -2708,7 +2708,7 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 9. r[trait.downcast.non-copy-copy-out] Copying such a recovered value out with `*found` reads it from behind a reference, which [`ref.move.out-of-place`](13-values-and-references.md#r-ref.move.out-of-place) rejects. Error: `move-out-of-place`.
 
 ```hd
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     name: string
@@ -2742,7 +2742,7 @@ fn number(value: &dyn Inspectable) -> i32:
 11. r[trait.downcast.concrete-target] The target is the referent's type; a reference-valued referent requires its reference type as the target.
 
 ```hd
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
     value.downcast_ref()
@@ -2773,7 +2773,7 @@ fn after_scope(use_inner: bool) -> i32:
 5. r[trait.limit.reference-deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast_ref` are pure functions of the build and the value, and call no provider.
 
 ```hd
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     name: string

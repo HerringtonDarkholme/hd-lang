@@ -1,6 +1,6 @@
 # Spec 14 Line Drift: annot.line.drift.lint. Traits of this package: the later
 # block, `Count`, configures different member lines than `Show`.
-use std.structure.{Structure, Field, Variant, Walker, Describer}
+use std.meta.{Structure, Field, Variant, Walker, Describer}
 
 trait Show:
     fn show(self) -> string

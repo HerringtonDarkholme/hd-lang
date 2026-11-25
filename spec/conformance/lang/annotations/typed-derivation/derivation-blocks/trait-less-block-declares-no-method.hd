@@ -1,6 +1,6 @@
 # test: a derivation block with no trait is not an inherent implementation, so its member line declares no method
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.not-inherent.
-use std.structure.Structure
+use std.meta.Structure
 
 struct Tag:
     text: string

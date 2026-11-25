@@ -1,7 +1,7 @@
 # @dump: own counts stdout
 # @build: checked | release checked
 # expected: a weakened local reference aliases the original writable place.
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 use std.collections.UniqList
 use std.testing.assert_equal
 

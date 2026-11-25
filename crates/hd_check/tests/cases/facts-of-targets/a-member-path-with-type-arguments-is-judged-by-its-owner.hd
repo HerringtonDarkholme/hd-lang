@@ -2,7 +2,7 @@
 # `annot.facts-of.target.unresolved` and `annot.facts-of.target.error`:
 # `Box::[i32]::name` is resolved through its owner `Box`, never through a
 # local that shares the member's name.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Box[T]:
     item: T

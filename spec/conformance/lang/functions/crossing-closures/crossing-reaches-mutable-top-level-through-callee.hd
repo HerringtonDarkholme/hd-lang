@@ -1,6 +1,6 @@
 # test: a crossing closure that calls a function reading a let top-level binding is rejected at the closure
 # Spec 07 Crossing Closures: fn.crossing.global.
-use std.marker.Wire
+use std.meta.Wire
 
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
     code()

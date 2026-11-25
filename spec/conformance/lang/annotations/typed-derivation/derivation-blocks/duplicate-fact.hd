@@ -1,5 +1,5 @@
 # test: += with a fact whose concrete type is already present is rejected
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

@@ -6,7 +6,7 @@
 # no frame slot, and `label'2` neither retains nor releases them.
 # `Show for string` returns `*self`, a copy, so `show'1` takes a count
 # of the value it returns; `shown[string]` lends `value` with none.
-use std.annotation.inline
+use std.meta.inline
 
 trait Show:
     fn show(&self) -> string

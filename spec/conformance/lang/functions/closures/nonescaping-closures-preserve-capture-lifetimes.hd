@@ -1,6 +1,6 @@
 # test: literal-call elimination preserves capture snapshots and target lifetime
 # Spec functions: fn.capture.copy.using-split and fn.capture.cell.writes.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert
 
 fn copied_window() -> bool:

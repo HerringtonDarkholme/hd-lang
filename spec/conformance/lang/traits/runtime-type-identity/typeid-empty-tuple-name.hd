@@ -1,7 +1,7 @@
 # test: the TypeId name of the empty tuple, void included, is ()
 # expect: test
 # Spec 09 Stability And Printing: trait.typeid.name.tuple.
-use std.inspect.TypeId
+use std.meta.TypeId
 tests:
     use std.testing.assert_equal
 

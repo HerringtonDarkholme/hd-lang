@@ -1,7 +1,7 @@
 # @dump: stdout wat
 # @build: dev | checked | release | release checked
 # A non-inlined callback chain retains an escaping nested closure.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn leaf(callback: fn() -> i32) -> i32:

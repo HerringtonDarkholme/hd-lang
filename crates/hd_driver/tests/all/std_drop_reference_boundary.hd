@@ -4,7 +4,7 @@
 # their own storage or write an exclusively borrowed collection. Global-writing
 # test hooks are valid only when no caller holds a snapshot or reference there.
 # The poisoned observation documents the boundary; it is not accepted behavior.
-use std.annotation.cold
+use std.meta.cold
 use std.core.Copy
 use std.rt.Drop
 

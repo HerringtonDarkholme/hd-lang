@@ -2,8 +2,8 @@
 # @dump: own counts wat
 # @build: v8 release
 # expected: both cache read and cache publication declare their copies; no new Wasm operation.
-use std.annotation.annotate
-use std.structure.{Field, Structure, Variant, Walker}
+use std.meta.annotate
+use std.meta.{Field, Structure, Variant, Walker}
 
 @annotate::[string](.Field)
 struct Mark:
@@ -31,8 +31,8 @@ impl[T] HasFacts for T by Structure:
 
 struct Record:
 > app/main/impl HasFacts for Record by Structure.structure member facts 0 0
->   retain std.structure.Facts (stored)
->   retain std.structure.Facts (stored)
+>   retain std.meta.Facts (stored)
+>   retain std.meta.Facts (stored)
     name: string
 
 impl HasFacts for Record by Structure:

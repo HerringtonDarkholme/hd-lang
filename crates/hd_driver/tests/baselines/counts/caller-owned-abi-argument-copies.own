@@ -9,7 +9,7 @@ app/main/impl[S] Describer[S] for Layout.member
   %7 = Coerce %5 [Weaken -] : *FieldRecord[S, F]
   %8 = Call app/main/Sample.seed for F [] via Bound (7:usize) : F
   %9 = NewVariant #1 [%8] : F?
-  %10 = Call std/structure/Source.member for Seeds [S, F] via Impl (%4, %7, %9) : Result[F, never]
+  %10 = Call std/meta/Source.member for Seeds [S, F] via Impl (%4, %7, %9) : Result[F, never]
   %11 = LoanEnd [%4] : ()
   %12 = Drop [$2] : ()
   exit sub 0 drops [$1]

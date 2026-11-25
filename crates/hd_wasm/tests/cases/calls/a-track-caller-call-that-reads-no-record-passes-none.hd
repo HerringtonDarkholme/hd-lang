@@ -3,7 +3,7 @@
 # `@track_caller` (fn.caller.site-argument): a function whose body reads neither
 # `Location::caller()` nor `Location::caller_args()`, directly or through a
 # chain, takes no record, so its call passes only the written arguments.
-use std.annotation.inline
+use std.meta.inline
 
 @track_caller
 @inline(.Never)

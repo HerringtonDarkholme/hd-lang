@@ -1,5 +1,5 @@
 # test: mutable recovery writes the original place
-use std.inspect.Inspectable
+use std.meta.Inspectable
 struct Counter:
     count: i32
 fn bump(value: *mut dyn Inspectable) -> bool:

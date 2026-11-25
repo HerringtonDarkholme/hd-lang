@@ -1,6 +1,6 @@
 # test: a reference to a value of an unbounded type parameter does not erase to Inspectable
 # Spec 09 Erasure To Inspectable: erasing a reference to a type parameter requires T < Inspectable.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 fn erase[T](value: &T) -> &dyn Inspectable:
     value # diagnostic: type-mismatch

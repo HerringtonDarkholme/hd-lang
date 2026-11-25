@@ -1,6 +1,6 @@
 # test: a const char argument of a displayed type uses its escaped literal spelling: a backslash, a carriage return, a NUL and a newline
 # Spec 04 Const Generic Arguments: types.generic.const.display.
-use std.inspect.TypeId
+use std.meta.TypeId
 
 struct Tag[C < const char]:
     pass

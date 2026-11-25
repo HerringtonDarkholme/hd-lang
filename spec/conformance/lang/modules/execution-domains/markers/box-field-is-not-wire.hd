@@ -1,6 +1,6 @@
 # test: a struct that holds a counted reference is not Wire
 # Spec 10 Markers: module.marker.table.counted, module.marker.unsatisfied.
-use std.marker.Wire
+use std.meta.Wire
 
 struct Point:
     x: i32

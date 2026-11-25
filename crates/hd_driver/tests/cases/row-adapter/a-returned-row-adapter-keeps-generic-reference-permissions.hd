@@ -1,7 +1,7 @@
 # @dump: functions stdout
 # @build: dev | checked | release | release checked
 # Both generic callback signatures and destination keys keep reference permissions.
-use std.annotation.inline
+use std.meta.inline
 
 trait Supply:
     fn get(&self) -> usize

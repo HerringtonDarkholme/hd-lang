@@ -28,7 +28,7 @@ name and call it with the bang: `use std.fs.read_text`, then
 `read_text!(...)`.
 
 ```hd
-use std.annotation.{cold, inline}                     # @inline, @cold hints
+use std.meta.{cold, inline}                     # @inline, @cold hints
 use std.cli.{Arg, ArgParser}                          # command-line options and --help
 use std.cmp.{clamp, max, min}
 use std.collections.{Deque, Heap, Set, counts}
@@ -40,7 +40,7 @@ use std.fs.{FsError, FsRead, FsWrite, MemoryFs, append_text, create_dir_all, lis
 use std.ops.{Fn, FnMut}                          # bounds for closures that are kept
 use std.hash.Hasher
 use std.host.{Args, Env, Sys, args, env}
-use std.inspect.Inspectable
+use std.meta.Inspectable
 use std.json.{Json, JsonError, decode, encode, encode_pretty, parse}
 use std.num.ParseNumberError
 use std.ops.{Add, Disposable, Div, Index, Mul, Neg, Sub, defer}

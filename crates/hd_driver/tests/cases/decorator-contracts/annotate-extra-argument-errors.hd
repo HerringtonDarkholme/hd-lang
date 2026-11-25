@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # @build: dev | checked
 # Argument count, argument type, and generic kind checks use the same call machinery.
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[i32, string](.Field)
 struct ExtraPattern: pass

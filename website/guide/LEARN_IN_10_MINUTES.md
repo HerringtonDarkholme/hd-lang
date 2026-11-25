@@ -132,7 +132,7 @@ A pipe feeds a value into the next step, and `_` marks where it goes
 
 A URL validator calls its tiny prefix test on every request, while malformed
 input is rare. Inlining changes that code layout, never program behavior.
-Import `inline` or `cold` from `std.annotation`. `@inline(.Always)` asks the
+Import `inline` or `cold` from `std.meta`. `@inline(.Always)` asks the
 compiler to copy a copyable function at each direct call even past its normal
 size and reference rules; an uncopyable function is an
 `inline-always-uncopyable` error.
@@ -141,7 +141,7 @@ routes each direct call through the function table. Bare `@inline` is
 `@inline(.Auto)`.
 
 ```hd
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 
 @inline(.Always)
 fn has_scheme(text: string) -> bool:
@@ -266,7 +266,7 @@ struct Point:
     y: i32
 ```
 
-Typed derivation is ordinary library code over `std.structure`. Its `Field`,
+Typed derivation is ordinary library code over `std.meta`. Its `Field`,
 `Variant`, `Members`, and `Key` values are read-only handles to per-type
 metadata that lives for the whole program. Passing a handle copies the small
 reference, not the member or variant metadata it names.

@@ -1,7 +1,7 @@
 # @dump: wat
 # @build: v8 release
 # An inherited impl row travels through the existing context argument.
-use std.annotation.inline
+use std.meta.inline
 
 struct Task[$ R]:
     job: fn(i32) -> void $ R

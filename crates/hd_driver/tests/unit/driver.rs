@@ -1082,7 +1082,7 @@ mod instantiation_chain_tests {
         ] {
             let built = |n: usize| {
                 let mut source = String::from(
-                    "use std.annotation.inline\n\
+                    "use std.meta.inline\n\
                      @inline(.Never)\n\
                      fn depth[T](x: T, k: i32) -> i32:\n    \
                      if k == 0: 0 else: depth(x, k - 1) + 1\n",

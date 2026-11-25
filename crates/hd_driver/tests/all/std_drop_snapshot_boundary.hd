@@ -2,7 +2,7 @@
 # It documents the checked failure boundary, not a valid user program or a
 # guarantee about arbitrary invariant-violating hooks. Public drain borrowing
 # excludes this snapshot/read sequence; no compiler ceiling is being added.
-use std.annotation.cold
+use std.meta.cold
 use std.core.Copy
 use std.rt.Drop
 use std.rt.alloc.block_size

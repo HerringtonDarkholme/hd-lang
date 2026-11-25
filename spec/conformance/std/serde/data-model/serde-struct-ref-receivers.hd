@@ -5,7 +5,7 @@
 # expect-stdout: 9 -9 x y 2
 # expect-stdout: 4 3
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
-use std.structure.{Facts, VariantInfo, Member}
+use std.meta.{Facts, VariantInfo, Member}
 
 @derive(Serialize, Deserialize)
 struct Point:

@@ -1,7 +1,7 @@
 # test: a Wire crossing closure that takes arguments, run here or awaited, gets them alongside its captures
 # Spec 07 Crossing Closures: fn.crossing.lift, fn.crossing.parameter.row.
 # expect-stdout: 47 thumb-2
-use std.marker.Wire
+use std.meta.Wire
 
 fn twice[T < ?Copy & Wire](code: fn(i32, string) -> T + Wire) -> T:
     code(2, "-")

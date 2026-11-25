@@ -3,7 +3,7 @@
 use std.serde.{Serialize, Deserialize, skip_none}
 use std.json.{decode, encode, from_json, parse, to_json}
 use std.http.{Request, Url}
-use std.structure.Structure
+use std.meta.Structure
 
 @derive(Serialize, Deserialize)
 struct Record:

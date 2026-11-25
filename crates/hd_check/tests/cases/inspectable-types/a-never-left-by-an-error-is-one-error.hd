@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # A `never` that an earlier error left adds no second error.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

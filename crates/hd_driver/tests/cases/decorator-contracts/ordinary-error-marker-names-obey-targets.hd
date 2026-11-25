@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # annot.error.marker.outside and annot.target.limit.kind-error.
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate(.Field)
 struct FieldOnly: pass

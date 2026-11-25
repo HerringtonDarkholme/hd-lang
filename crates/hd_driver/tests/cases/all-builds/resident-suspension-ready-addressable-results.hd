@@ -2,7 +2,7 @@
 # @build: dev | checked | release | release checked
 # Addressable cells force own_frame before an all-Ready exit. Tuple results
 # must be loaded before that frame is freed, on explicit and tail returns.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn read!(value: &i32) -> i32:

@@ -5,7 +5,7 @@
 # and no value row. `holds`'s temporary has a row at the point, so the body's
 # cancelled way out releases it (`release string (cancelled)`); `gone`'s
 # temporary ends before the point, so nothing releases it there.
-use std.annotation.inline
+use std.meta.inline
 use std.time.{Clock, ms, sleep}
 
 @inline(.Never)

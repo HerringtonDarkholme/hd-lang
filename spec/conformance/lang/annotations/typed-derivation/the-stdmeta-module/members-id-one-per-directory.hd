@@ -9,7 +9,7 @@
 # expect-stdout: same struct, two templates: true
 # expect-stdout: same variant, two templates: true
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Members, Key, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Source}
 
 # Picks variant `pick`, records the id of the directory it is offered,
 # and names no member, so the build stops at the first missing one.

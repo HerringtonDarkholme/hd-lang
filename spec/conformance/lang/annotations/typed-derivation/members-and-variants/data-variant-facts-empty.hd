@@ -1,6 +1,6 @@
 # test: a data type's one variant has no facts of its own
 # Spec 14 Members And Variants: a template reads type-level facts through T::facts().
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Style:
     prefix: string = ""
 

@@ -3094,8 +3094,8 @@ lang/annotations/two-annotate-forms/typed-fact-chain-mismatch.hd	type	reject:typ
 lang/annotations/typed-derivation/templates/tuple-template.hd	type	accept	lang/14-annotations.md#r-annot.template.tuple.form
 lang/annotations/typed-derivation/templates/tuple-template-overlap.hd	type	reject:overlapping-impl	lang/14-annotations.md#r-annot.template.tuple.overlap
 lang/annotations/typed-derivation/opting-in/derive-trait-without-template.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.derive.other
-lang/annotations/typed-derivation/the-stdstructure-module/structure-module-names.hd	type	accept	lang/14-annotations.md#r-annot.structure.decl
-lang/annotations/typed-derivation/the-stdstructure-module/members-id-one-per-directory.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.members.id
+lang/annotations/typed-derivation/the-stdmeta-module/structure-module-names.hd	type	accept	lang/14-annotations.md#r-annot.structure.decl
+lang/annotations/typed-derivation/the-stdmeta-module/members-id-one-per-directory.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.members.id
 lang/annotations/typed-derivation/the-structure-trait/structure-describe-private-members.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.private
 lang/annotations/typed-derivation/the-structure-trait/structure-calls-are-pure.hd	type	accept	lang/14-annotations.md#r-annot.structure.pure
 lang/annotations/typed-derivation/the-structure-trait/describer-method-with-requirement.hd	type	reject:trait-method-signature	lang/14-annotations.md#r-annot.structure.pure.impl
@@ -3133,8 +3133,8 @@ lang/annotations/two-annotate-forms/typed-fact-concrete-pattern-mismatch.hd	type
 lang/annotations/two-annotate-forms/typed-fact-pattern-other-params.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.check.other-params
 lang/annotations/two-annotate-forms/untyped-fact-default.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.untyped.reference-values
 std/testing/derived-arbitrary/arbitrary-with-generic-generator.hd	type	accept	std/testing.md#r-std-testing.arbitrary.with.checked-bound
-lang/annotations/typed-derivation/the-stdstructure-module/facts-find-generic-key.hd	type	accept	lang/14-annotations.md#r-annot.structure.find-key
-lang/annotations/typed-derivation/the-stdstructure-module/facts-find-unbounded-key.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.structure.find-key
+lang/annotations/typed-derivation/the-stdmeta-module/facts-find-generic-key.hd	type	accept	lang/14-annotations.md#r-annot.structure.find-key
+lang/annotations/typed-derivation/the-stdmeta-module/facts-find-unbounded-key.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.structure.find-key
 lang/modules/path-inferred-modules/integration-shared-use.hd	runtime	accept	lang/10-modules.md#r-module.test.integration.shared
 lang/modules/use-roots/integration-super-above-test-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.root-file.super
 lang/modules/use-roots/single-file-self-use.hd	type	reject:unknown-module	lang/10-modules.md#r-module.single-file.roots
@@ -6558,10 +6558,10 @@ lang/grammar/requirements-and-provider-contexts/context-use-without-a-key.hd	par
 lang/requirements/requirement-rows/requirement-keys/a-primitive-type-as-a-use-key-is-an-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.in-scope
 lang/requirements/requirement-rows/requirement-keys/a-primitive-type-as-a-provider-key-is-an-unknown-trait.hd	type	reject:unknown-trait	lang/11-requirements-and-suspension.md#r-req.key.in-scope
 lang/names/name-categories/a-context-type-used-as-a-value.hd	type	reject:type-used-as-value	lang/03-names-and-scopes.md#r-names.type-as-value
-lang/annotations/typed-derivation/the-stdstructure-module/handle-record-field-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
-lang/annotations/typed-derivation/the-stdstructure-module/handle-record-variant-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
-lang/annotations/typed-derivation/the-stdstructure-module/handle-record-key-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
-lang/annotations/typed-derivation/the-stdstructure-module/handle-record-members-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
+lang/annotations/typed-derivation/the-stdmeta-module/handle-record-field-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
+lang/annotations/typed-derivation/the-stdmeta-module/handle-record-variant-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
+lang/annotations/typed-derivation/the-stdmeta-module/handle-record-key-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
+lang/annotations/typed-derivation/the-stdmeta-module/handle-record-members-literal-is-private.hd	type	reject:private-member	lang/14-annotations.md#r-annot.structure.opaque
 lang/data/shared-enum-constructor-data/shared-initializer-enum-type-parameter-is-unknown.hd	type	reject:unknown-name	lang/08-data-and-enums.md#r-data.shared.type-parameter-scope
 lang/data/shared-enum-constructor-data/shared-default-enum-type-parameter-is-unknown.hd	type	reject:unknown-name	lang/08-data-and-enums.md#r-data.shared.type-parameter-scope
 lang/expressions/primary-expressions/display-write-destination-builder.hd	runtime	accept	lang/05-expressions.md#r-expr.interp.builder.push.destination

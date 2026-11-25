@@ -3,7 +3,7 @@
 # expect-stdout: user Ada
 # expect-stdout: tag hi
 # expect-stdout: other
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     name: string

@@ -1,4 +1,4 @@
-use std.annotation.inline
+use std.meta.inline
 
 struct Header['a]:
     items: &'a List[usize]

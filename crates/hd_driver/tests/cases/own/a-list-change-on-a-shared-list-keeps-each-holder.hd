@@ -6,7 +6,7 @@
 # the extend read the local by value with no frame, rt:list_reserve copies
 # the shared buffer, and the copy keeps its one element.
 
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn captured(count: usize) -> usize:

@@ -2,7 +2,7 @@
 # A struct has a marker when every field does, so one that holds a
 # `UniqList[*mut i32]` is neither `Send` nor `Sync`.
 use std.collections.UniqList
-use std.marker.{Send, Sync}
+use std.meta.{Send, Sync}
 
 struct Holder:
     items: UniqList[*mut i32]

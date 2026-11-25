@@ -6,7 +6,7 @@
 # `transform` while it runs, and nothing stops that write. The callee
 # read keeps its count, so the running closure's environment (`tag`)
 # outlives the replacement. The checked build finds no leak.
-use std.annotation.inline
+use std.meta.inline
 
 struct Mapper:
     transform: fn(&mut Mapper, i32) -> i32
@@ -44,7 +44,7 @@ pub fn main() -> void $ Console:
 # `transform` while it runs, and nothing stops that write. The callee
 # read keeps its count, so the running closure's environment (`tag`)
 # outlives the replacement. The checked build finds no leak.
-use std.annotation.inline
+use std.meta.inline
 
 struct Mapper:
     transform: fn(&mut Mapper, i32) -> i32
@@ -82,7 +82,7 @@ pub fn main() -> void $ Console:
 # `transform` while it runs, and nothing stops that write. The callee
 # read keeps its count, so the running closure's environment (`tag`)
 # outlives the replacement. The checked build finds no leak.
-use std.annotation.inline
+use std.meta.inline
 
 struct Mapper:
     transform: fn(&mut Mapper, i32) -> i32

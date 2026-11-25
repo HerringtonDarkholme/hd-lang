@@ -2,7 +2,7 @@
 # `TypeId::of` equals itself, differs between types, and equals the
 # `runtime_type` of a value of the type (trait.typeid.of,
 # trait.typeid.equality, trait.inspect.static).
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct User:
     name: string

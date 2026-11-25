@@ -1,6 +1,6 @@
 # test: inline Always cannot make a closure
 # Spec 14 Inline And Cold: annot.inline.always-copyable.v3.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always) # diagnostic: inline-always-uncopyable
 fn make() -> i32:

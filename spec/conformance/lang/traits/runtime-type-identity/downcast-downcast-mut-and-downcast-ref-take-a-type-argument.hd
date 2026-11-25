@@ -1,5 +1,5 @@
 # test: downcast_mut and downcast_ref take a type argument
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct Counter:
     count: i32

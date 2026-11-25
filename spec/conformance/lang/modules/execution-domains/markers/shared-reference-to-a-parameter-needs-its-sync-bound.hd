@@ -1,6 +1,6 @@
 # test: a shared reference to a type parameter is Send only when the parameter's bound makes it Send and Sync
 # Spec 10 Markers: module.marker.table.shared-sync, module.marker.parameter.
-use std.marker.{Send, Sync}
+use std.meta.{Send, Sync}
 
 fn share[T < ?Copy & Send](value: T) -> void:
     pass

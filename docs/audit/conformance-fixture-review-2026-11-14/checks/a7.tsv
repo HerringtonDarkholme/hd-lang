@@ -1313,7 +1313,7 @@ lang/annotations/typed-derivation/derivation-blocks/fact-line-keeps-member-walke
 lang/annotations/typed-derivation/self-references/structure-self-ref.hd	accept	lang/14-annotations.md#r-annot.self-ref.member	-4	
 lang/annotations/typed-derivation/self-references/structure-self-ref-enum.hd	accept	lang/14-annotations.md#r-annot.self-ref.needs.enum	-4	
 lang/annotations/typed-derivation/self-references/structure-self-ref-omitted.hd	accept	lang/14-annotations.md#r-annot.self-ref.variant.omitted	-4	
-lang/annotations/typed-derivation/the-stdstructure-module/structure-module-names.hd	accept	lang/14-annotations.md#r-annot.structure.decl	-12	
+lang/annotations/typed-derivation/the-stdmeta-module/structure-module-names.hd	accept	lang/14-annotations.md#r-annot.structure.decl	-12	
 lang/annotations/typed-derivation/the-structure-trait/structure-protocol-ref.hd	accept	lang/14-annotations.md#r-annot.structure.protocol-ref	-1	
 lang/annotations/two-annotate-forms/decorator-target-kinds.hd	accept	lang/14-annotations.md#r-annot.target.limit	-4	
 lang/annotations/typed-derivation/members-and-variants/data-variant-facts-empty.hd	accept	lang/14-annotations.md#r-annot.variant.data-facts	-4	

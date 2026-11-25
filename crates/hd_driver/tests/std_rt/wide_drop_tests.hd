@@ -10,7 +10,7 @@
 # instance, and a callee that may panic. This module joins std because
 # only std may implement its runtime trait; checked runs find no leak.
 use std.rt.Drop
-use std.annotation.inline
+use std.meta.inline
 
 let trace: string = ""
 

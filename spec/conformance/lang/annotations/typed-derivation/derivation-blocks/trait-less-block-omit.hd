@@ -1,5 +1,5 @@
 # test: a block with no trait writes only metadata, so it cannot omit a member
-use std.structure.Structure
+use std.meta.Structure
 
 struct Token:
     text: string = ""

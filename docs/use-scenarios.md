@@ -291,7 +291,7 @@ type and have that policy checked against the storage it uses.
 standalone syntax:
 
 ```text
-use std.structure.Structure
+use std.meta.Structure
 
 struct User:
     id: UserId

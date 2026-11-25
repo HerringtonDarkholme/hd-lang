@@ -1,6 +1,6 @@
 # test: std derivations preserve structural output and behavior-specific impls
 # Spec std/format: std-format.debug.std-types, std-format.debug.std-types.generic.
-use std.annotation.{Annotate, Target}
+use std.meta.{Annotate, Target}
 use std.cli.{Arg, ArgKind, CliError}
 use std.cmp.Reverse
 use std.encoding.{Base64, DecodeError}
@@ -14,7 +14,7 @@ use std.ops.RangeFull
 use std.path.Path
 use std.process.{ExitCode, ProcessError, ProcessOutput}
 use std.regex.Match
-use std.structure.SelfRef
+use std.meta.SelfRef
 use std.task.{CleanupEnd, TimedOut}
 use std.time.{Date, ParseTimeError, ms}
 

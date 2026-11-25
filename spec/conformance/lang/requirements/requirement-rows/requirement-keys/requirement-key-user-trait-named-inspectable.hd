@@ -1,5 +1,5 @@
 # test: a user trait that happens to be named Inspectable is an ordinary requirement key
-# Spec 11 Requirement Keys: req.key.inspectable names only std.inspect.Inspectable and its subtraits.
+# Spec 11 Requirement Keys: req.key.inspectable names only std.meta.Inspectable and its subtraits.
 
 trait Inspectable:
     fn report(self) -> string

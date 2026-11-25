@@ -5,8 +5,8 @@
 # expect-stdout: 11
 # expect-stdout: b_
 # expect-stdout: 11
-use std.annotation.facts_of
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.facts_of
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

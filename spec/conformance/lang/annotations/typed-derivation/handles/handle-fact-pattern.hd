@@ -1,6 +1,6 @@
 # test: h.fact::[D]() matches D's pattern against the handle's F and returns D[inferred]?
-use std.annotation.annotate
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.annotate
+use std.meta.{Structure, Field, Variant, Walker}
 
 @annotate::[List[T]](.Field)
 struct MaxLen[T]:

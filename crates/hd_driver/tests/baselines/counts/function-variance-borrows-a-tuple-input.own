@@ -6,7 +6,7 @@
 # borrows every input that holds a thin reference by value, so `invoke`
 # drops its tuple after the call, and its caller's box with it (#1693).
 # `read_cold` keeps its frame's own count of the tuple's referent.
-use std.annotation.cold
+use std.meta.cold
 
 fn read(value: (&i32, i32)) -> i32:
     *value._0 + value._1

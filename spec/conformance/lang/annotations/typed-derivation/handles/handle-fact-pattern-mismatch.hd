@@ -1,6 +1,6 @@
 # test: h.fact::[D]() on a handle whose F does not fit D's pattern is an error
-use std.annotation.annotate
-use std.structure.Field
+use std.meta.annotate
+use std.meta.Field
 
 @annotate::[List[T]](.Field)
 struct MaxLen[T]:

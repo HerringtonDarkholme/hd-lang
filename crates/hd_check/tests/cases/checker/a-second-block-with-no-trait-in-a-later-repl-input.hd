@@ -4,7 +4,7 @@
 # so one in a later input is a second one (annot.no-trait.unique,
 # cli.repl.redefine.impl). Its `use std.cmp`, which input 1 also writes,
 # is not recorded as this input's own use again.
-use std.structure.Structure
+use std.meta.Structure
 use std.cmp
 
 impl Point by Structure:
@@ -20,6 +20,6 @@ fn tag(text: string) -> Tag:
 struct Point:
     x: i64
 # @input: 2
-use std.structure.Structure
+use std.meta.Structure
 impl Point by Structure:
     x += [tag("first")]

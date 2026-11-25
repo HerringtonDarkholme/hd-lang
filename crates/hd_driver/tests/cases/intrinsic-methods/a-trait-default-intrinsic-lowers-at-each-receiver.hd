@@ -1,7 +1,7 @@
 # @dump: stdout wat
 # @build: std dev | std checked | std release | std release checked
 # A std trait member uses an existing intrinsic at its instantiated Self type.
-use std.annotation.inline
+use std.meta.inline
 
 trait Wrapping:
     @intrinsic("int_wrapping_add")

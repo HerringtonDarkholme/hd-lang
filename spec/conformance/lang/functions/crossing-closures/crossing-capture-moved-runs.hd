@@ -1,7 +1,7 @@
 # test: a crossing closure that moves a capture that is not Copy runs with it, and a later write to a copied capture's source does not reach it
 # Spec 07 Crossing Closures: fn.crossing.mode.move, fn.crossing.mode.copy, fn.crossing.move-out.
 # expect-stdout: a 64 3 b
-use std.marker.Wire
+use std.meta.Wire
 
 struct Image:
     width: u32

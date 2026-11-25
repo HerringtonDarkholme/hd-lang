@@ -3,7 +3,7 @@
 # expect-stdout: 40
 # expect-stdout: 80
 # expect-stdout: 50
-use std.annotation.inline
+use std.meta.inline
 
 enum Weight:
     Small(value: u32)

@@ -4,7 +4,7 @@
 # @helpers: enc
 # expected: the opaque encoder borrows a local-stack payload; no copied
 # Drop owner is made. The cold leaf takes the collection's existing count.
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 use std.serde.{Serialize, Serializer}
 

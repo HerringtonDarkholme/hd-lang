@@ -1,15 +1,15 @@
 # test: @inline and @cold attach no value, through an alias or a module path
 # Spec 14 Inline And Cold: annot.inline.recognized, annot.inline.meaning,
 # annot.facts-of.result.compiler-decorators.v2.
-use std.annotation
-use std.annotation.{Cold, InlineHint, facts_of}
-use std.annotation.inline as hint
+use std.meta
+use std.meta.{Cold, InlineHint, facts_of}
+use std.meta.inline as hint
 
 @hint(.Always)
 fn double(x: i32) -> i32:
     x * 2
 
-@annotation.cold
+@meta.cold
 fn describe(code: i32) -> string:
     "code $code"
 

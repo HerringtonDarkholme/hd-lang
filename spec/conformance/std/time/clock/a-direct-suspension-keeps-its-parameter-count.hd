@@ -1,6 +1,6 @@
 # test: a direct suspension owns its parameters while pending and transfers the resumed result
 # expect-stdout: value1 value2 9
-use std.annotation.inline
+use std.meta.inline
 use std.time.{Clock, ms, sleep}
 
 @inline(.Never)

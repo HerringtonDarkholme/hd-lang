@@ -3,7 +3,7 @@
 # table's first slots, so `box(Leaf ...)` writes a small descriptor (glue
 # slot plus one, plus the cycle bit when set), while the closure's code
 # takes a slot past 32,767.
-use std.annotation.inline
+use std.meta.inline
 
 struct Leaf:
     value: i32

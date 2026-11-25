@@ -2,7 +2,7 @@
 == @build: dev
 # @dump: stdout wat counts
 # @build: dev | release
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -97,7 +97,7 @@ pub fn main!() -> void $ Console + Clock:
 == @build: release
 # @dump: stdout wat counts
 # @build: dev | release
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]

@@ -1,5 +1,5 @@
 # test: facts_of rejects a binding that holds a function value
-use std.annotation.facts_of
+use std.meta.facts_of
 
 fn get_user(id: string) -> string:
     id

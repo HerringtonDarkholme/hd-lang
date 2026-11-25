@@ -1,7 +1,7 @@
 # @dump: stdout wat
 # @build: dev | checked | release | release checked
 # A void default supplies no scalar constant to the caller.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn take(value: void = ()) -> i32:

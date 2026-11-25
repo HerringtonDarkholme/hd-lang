@@ -1,6 +1,6 @@
 # test: a remote trait may be generic, and a served type fixes its type argument
 # Spec 10 Remote Traits: module.remote.r1.trait-generic.
-use std.marker.Wire
+use std.meta.Wire
 use std.remote.{CrossError, Remote}
 
 enum StoreError:

@@ -1,6 +1,6 @@
 # test: a derivation block's member lines are local to it, so another derivation of the type sees only the declaration facts
 # Spec 14 Derivation Blocks: annot.block.local.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

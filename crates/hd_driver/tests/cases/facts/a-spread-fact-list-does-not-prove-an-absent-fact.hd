@@ -2,9 +2,9 @@
 # @build: v8 release
 # A spread can add any concrete fact at run time, so the fixed-absence pass
 # must leave the `EnumTagging` search and both branches in the WAT subject.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 use std.serde.EnumTagging
-use std.structure.Facts
+use std.meta.Facts
 
 pub fn unknown(unrelated: List[*dyn Inspectable], value: i64) -> i64:
     let facts = Facts { items: [unrelated...] }

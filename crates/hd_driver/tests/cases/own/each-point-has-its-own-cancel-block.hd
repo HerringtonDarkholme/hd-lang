@@ -7,7 +7,7 @@
 # branch releases its own string before it sets the ladder's exit code. The
 # runtime fixture
 # `all-builds/a-cancelled-point-releases-what-it-holds` cancels each form.
-use std.annotation.inline
+use std.meta.inline
 use std.ops.defer
 use std.time.{Clock, Duration, sleep}
 

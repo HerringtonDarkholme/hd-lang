@@ -973,7 +973,7 @@ lang/14-annotations.md	20	mixed	lang/annotations/two-annotate-forms/typed-fact-f
 lang/14-annotations.md	21	fragment	lang/annotations/typed-derivation/typed-derivation.hd
 lang/14-annotations.md	22	error-fragment	lang/annotations/typed-derivation/opting-in/derive-error-trait.hd|lang/annotations/typed-derivation/opting-in/derive-and-block-overlap.hd|lang/annotations/typed-derivation/opting-in/derive-unknown-trait.hd
 lang/14-annotations.md	23	type-fragment	-
-lang/14-annotations.md	24	mixed	lang/annotations/typed-derivation/the-stdstructure-module/facts-find-generic-key.hd|lang/annotations/typed-derivation/the-stdstructure-module/facts-find-unbounded-key.hd
+lang/14-annotations.md	24	mixed	lang/annotations/typed-derivation/the-stdmeta-module/facts-find-generic-key.hd|lang/annotations/typed-derivation/the-stdmeta-module/facts-find-unbounded-key.hd
 lang/14-annotations.md	25	mixed	lang/annotations/typed-derivation/the-structure-trait/structure-outside-template.hd
 lang/14-annotations.md	26	fragment	lang/annotations/typed-derivation/typed-derivation.hd
 lang/14-annotations.md	27	mixed	lang/annotations/typed-derivation/templates/marker-template.hd

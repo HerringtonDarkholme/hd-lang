@@ -11,14 +11,13 @@ use hd_intern::{PathKind, PathTable};
 
 /// Shared module spellings for source seeding, runtime roots and textual import hints.
 pub const CORE_MODULE: &str = "std.core";
-/// `Marker`, `Send` and `Wire` (`module.marker.std`).
-pub const MARKER_MODULE: &str = "std.marker";
+/// `Marker`, `Send` and `Wire` (`module.marker.std`), `Inspectable`,
+/// `Structure` and its records, `annotate`, and the call-site decoders.
+pub const META_MODULE: &str = "std.meta";
 /// `std.remote`, whose language items stubs and dispatchers name.
 pub const REMOTE_MODULE: &str = "std.remote";
 pub const TASK_MODULE: &str = "std.task";
 pub const OPS_MODULE: &str = "std.ops";
-pub const INSPECT_MODULE: &str = "std.inspect";
-pub const STRUCTURE_MODULE: &str = "std.structure";
 pub const TESTING_MODULE: &str = "std.testing";
 pub const ENTRY_MODULE: &str = "std.rt.entry";
 pub const CHECKED_MODULE: &str = "std.rt.checked";
@@ -41,8 +40,7 @@ pub const SEEDED_MODULES: &[&str] = &[
     CORE_MODULE,
     TASK_MODULE,
     OPS_MODULE,
-    INSPECT_MODULE,
-    STRUCTURE_MODULE,
+    META_MODULE,
     TESTING_MODULE,
 ];
 
@@ -74,7 +72,7 @@ pub struct KnownItems {
     /// `FnMut.call_mut`, lowered as `Fn.call` is.
     pub fn_mut_call: DefId,
     pub tuple: DefId,
-    // std.structure
+    // std.meta
     pub structure: DefId,
     pub union_type: DefId,
     /// The `'static` bound (`ref.generic.static`), a sealed trait no
@@ -113,7 +111,7 @@ pub struct KnownItems {
     /// implementation omits the members that carry a fact type
     /// (`annot.impl-fact.skips.decl`).
     pub skips: DefId,
-    // std.inspect
+    // std.meta
     pub inspectable: DefId,
     // std.num
     pub num: DefId,
@@ -167,12 +165,12 @@ pub struct KnownItems {
     pub map_integer_hash: DefId,
     pub display: DefId,
     pub debug: DefId,
-    /// `std.debug`'s private decoders of a call-site record
+    /// `std.meta`'s private decoders of a call-site record
     /// (spec/lang/07-functions.md "Call-Site Locations"): the checker lowers
     /// `Location::caller()` and `Location::caller_args()` to calls of them.
     pub site_location: DefId,
     pub site_args: DefId,
-    /// `std.debug.site_function_text`: `dbg`'s `<fn name(..)>` from a
+    /// `std.meta.site_function_text`: `dbg`'s `<fn name(..)>` from a
     /// call-site record (`module.dbg.value.function`).
     pub site_function_text: DefId,
     /// `std.format.dbg`, each reference to which the checker notes for the
@@ -286,7 +284,7 @@ pub struct KnownItems {
     /// `std.task.all_list`, the engine of `join!`'s list form
     /// (`req.combinator.join-list`).
     pub all_list: DefId,
-    // std.annotation, std.testing
+    // std.meta, std.testing
     pub annotate: DefId,
     /// `inline` and `cold`, the decorators that choose how calls of a
     /// function are compiled (`annot.inline.recognized`).
@@ -406,23 +404,23 @@ impl KnownItems {
         let any = item(CORE_MODULE, "Any");
         let any_val = item(CORE_MODULE, "AnyVal");
         let any_ref = item(CORE_MODULE, "AnyRef");
-        let structure = item(STRUCTURE_MODULE, "Structure");
-        let union_type = item(STRUCTURE_MODULE, "UnionType");
+        let structure = item(META_MODULE, "Structure");
+        let union_type = item(META_MODULE, "UnionType");
         let static_bound = item(CORE_MODULE, "'static");
-        let walker = item(STRUCTURE_MODULE, "Walker");
+        let walker = item(META_MODULE, "Walker");
         let tuple = item(OPS_MODULE, "Tuple");
         let fn_trait = item(OPS_MODULE, "Fn");
         let fn_mut_trait = item(OPS_MODULE, "FnMut");
         let suspend = item(TASK_MODULE, "Suspend");
-        let inspectable = item(INSPECT_MODULE, "Inspectable");
+        let inspectable = item(META_MODULE, "Inspectable");
         let num = item("std.num", "Num");
         let integer = item("std.num", "Integer");
         let float = item("std.num", "Float");
         let copy = item(CORE_MODULE, "Copy");
-        let marker = item(MARKER_MODULE, "Marker");
-        let send = item(MARKER_MODULE, "Send");
-        let sync = item(MARKER_MODULE, "Sync");
-        let wire = item(MARKER_MODULE, "Wire");
+        let marker = item(META_MODULE, "Marker");
+        let send = item(META_MODULE, "Send");
+        let sync = item(META_MODULE, "Sync");
+        let wire = item(META_MODULE, "Wire");
         let remote = item(REMOTE_MODULE, "Remote");
         let drop_trait = item(RUNTIME_MODULE, "Drop");
         Self {
@@ -462,25 +460,25 @@ impl KnownItems {
             union_type,
             static_bound,
             alias_params: item(CORE_MODULE, "'alias"),
-            facts: item(STRUCTURE_MODULE, "Facts"),
-            field: item(STRUCTURE_MODULE, "FieldRecord"),
+            facts: item(META_MODULE, "Facts"),
+            field: item(META_MODULE, "FieldRecord"),
             field_get: inherent_method(
-                STRUCTURE_MODULE,
+                META_MODULE,
                 "impl[HdS < ?Copy, HdF < ?Copy] FieldRecord[HdS, HdF]",
                 "get",
             ),
             variant_holds: inherent_method(
-                STRUCTURE_MODULE,
+                META_MODULE,
                 "impl[HdS < ?Copy] VariantRecord[HdS]",
                 "holds",
             ),
             walker,
             walker_data_variant: trait_method(walker, "data_variant"),
             walker_data_member: trait_method(walker, "data_member"),
-            describer: item(STRUCTURE_MODULE, "Describer"),
-            source: item(STRUCTURE_MODULE, "Source"),
-            fills_defaults: item(STRUCTURE_MODULE, "fills_defaults"),
-            skips: item(STRUCTURE_MODULE, "skips"),
+            describer: item(META_MODULE, "Describer"),
+            source: item(META_MODULE, "Source"),
+            fills_defaults: item(META_MODULE, "fills_defaults"),
+            skips: item(META_MODULE, "skips"),
             inspectable,
             num,
             integer,
@@ -527,9 +525,9 @@ impl KnownItems {
             map_integer_hash: item(HASH_RUNTIME_MODULE, "hash_integer"),
             display: item(FORMAT_MODULE, "Display"),
             debug: item(FORMAT_MODULE, "Debug"),
-            site_location: item("std.debug", "site_location"),
-            site_args: item("std.debug", "site_args"),
-            site_function_text: item("std.debug", "site_function_text"),
+            site_location: item(META_MODULE, "site_location"),
+            site_args: item(META_MODULE, "site_args"),
+            site_function_text: item(META_MODULE, "site_function_text"),
             dbg: item(FORMAT_MODULE, "dbg"),
             default_marker: item("std.ops", "default"),
             debug_fn: item(FORMAT_MODULE, "debug"),
@@ -565,7 +563,7 @@ impl KnownItems {
             block_on: item(TASK_MODULE, "block_on"),
             race: item(TASK_MODULE, "race"),
             all_list: item(TASK_MODULE, "all_list"),
-            annotate: item("std.annotation", "annotate"),
+            annotate: item(META_MODULE, "annotate"),
             inline: item("std.core", "inline"),
             cold: item("std.core", "cold"),
             testing_module: module(TESTING_MODULE),

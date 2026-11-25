@@ -1,6 +1,6 @@
 # test: a struct with a part that has no library marker, by structure or by an explicit implementation, lacks it
 # Spec 10 Markers: module.marker.structural, module.marker.explicit.
-use std.marker.Marker
+use std.meta.Marker
 
 pub trait GpuData < Marker
 

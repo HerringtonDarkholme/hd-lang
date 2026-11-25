@@ -1,6 +1,6 @@
 # test: a Describer method that declares a requirement is an error
 # Spec 14 The Structure Trait: annot.structure.pure.impl.
-use std.structure.{Field, Variant, Describer}
+use std.meta.{Field, Variant, Describer}
 
 trait Log:
     fn line(self, text: string) -> void

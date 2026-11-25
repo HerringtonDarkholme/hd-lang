@@ -2,4 +2,4 @@
 error: main.hd:7:1: misplaced-derivation: a derivation block with no trait declares the target's own parameters, without bounds
 error: main.hd:7:18: generic-kind-mismatch: argument 1 of `Holder` is a row parameter: write its row after `$`
   fix (exact): write the row after `$`
-    edit main.hd:7:18 117..117: "$ "
+    edit main.hd:7:18 112..112: "$ "

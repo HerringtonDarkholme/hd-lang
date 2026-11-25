@@ -1,5 +1,5 @@
 # test: generic recovery matches concrete type arguments exactly
-use std.inspect.Inspectable
+use std.meta.Inspectable
 struct Box[T]:
     value: T
 fn recover[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
