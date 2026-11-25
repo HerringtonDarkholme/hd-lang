@@ -112,13 +112,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $t1
     i32.const 12
     i32.mul
     i32.add
-    i32.load $heap offset=8
+    i32.load $heap offset=40
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -144,13 +142,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $t1
     i32.const 12
     i32.mul
     i32.add
-    i32.load $heap offset=8
+    i32.load $heap offset=40
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -172,13 +168,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $t1
     i32.const 12
     i32.mul
     i32.add
-    i32.load $heap offset=8
+    i32.load $heap offset=40
     local.get $saved
     if
       local.get $saved
@@ -310,13 +304,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $saved
     i32.const 8
     i32.mul
     i32.add
-    i32.load $heap offset=4
+    i32.load $heap offset=36
     local.get $provider0
     local.get $provider0.vtable
     call $"println[i32]"
@@ -341,13 +333,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $saved
     i32.const 8
     i32.mul
     i32.add
-    i32.load $heap offset=4
+    i32.load $heap offset=36
     local.set $saved
     local.get $items
     if

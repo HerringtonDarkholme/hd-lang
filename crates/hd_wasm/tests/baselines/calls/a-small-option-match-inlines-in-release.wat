@@ -390,13 +390,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $key
       i32.const 16
       i32.mul
       i32.add
-      f64.load $heap
+      f64.load $heap offset=32
       local.set $value
       local.set $t0
     end

@@ -47,13 +47,11 @@
         i32.const 14
         i32.mul
         i32.add
-        i32.const 32
-        i32.add
         local.get $k
         i32.const 16
         i32.mul
         i32.add
-        i64.load $heap
+        i64.load $heap offset=32
         i64.add
         local.set $s
     ;; 13 |     for k in 0..3usize:

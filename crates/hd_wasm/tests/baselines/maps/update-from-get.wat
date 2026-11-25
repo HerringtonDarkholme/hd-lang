@@ -36,13 +36,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $t1
     i32.const 16
     i32.mul
     i32.add
-    i64.load $heap offset=8
+    i64.load $heap offset=40
     local.get $counts
     local.get $other.0
     local.get $other.1
@@ -244,13 +242,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $t1
       i32.const 16
       i32.mul
       i32.add
-      i64.load $heap offset=8
+      i64.load $heap offset=40
       local.set $t2
       local.set $t3
     end
@@ -363,13 +359,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $t2
       i32.const 16
       i32.mul
       i32.add
-      i64.load $heap offset=8
+      i64.load $heap offset=40
       local.set $seen
       local.set $t3
     end
@@ -439,13 +433,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $word.0
     i32.const 16
     i32.mul
     i32.add
-    i64.load $heap offset=8
+    i64.load $heap offset=40
     i64.const 1
     i64.add
     local.set $t1
@@ -462,14 +454,12 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $word.0
     i32.const 16
     i32.mul
     i32.add
     local.get $t1
-    i64.store $heap offset=8
+    i64.store $heap offset=40
   )
   (func $tally (param $counts i32) (param $word.0 i32) (param $word.1 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t4 i32) (local $t3 i64) (local $value i64)
     ;; 6 |     counts[word] = counts.get(word).unwrap_or(0) + 1
@@ -492,13 +482,11 @@
       i32.const 14
       i32.mul
       i32.add
-      i32.const 32
-      i32.add
       local.get $t2
       i32.const 16
       i32.mul
       i32.add
-      i64.load $heap offset=8
+      i64.load $heap offset=40
       local.set $t3
       local.set $t4
     end

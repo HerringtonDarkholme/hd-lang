@@ -17,13 +17,11 @@
     ;; 15 |         s += xs[i]
         local.get $s
         local.get $xs
-        i32.const 16
-        i32.add
         local.get $i
         i32.const 8
         i32.mul
         i32.add
-        i64.load $heap
+        i64.load $heap offset=16
         i64.add
         local.set $s
     ;; 16 |         i += 1

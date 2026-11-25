@@ -133,8 +133,6 @@
             i32.eqz
             br_if 1
             local.get $t11
-            i32.const 8
-            i32.add
             local.get $t4
             i64.ctz
             i32.wrap_i64
@@ -143,7 +141,7 @@
             i32.const 4
             i32.mul
             i32.add
-            i32.load $heap
+            i32.load $heap offset=8
             local.set $t12
             local.get $t0
             i32.load $heap

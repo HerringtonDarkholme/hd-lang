@@ -149,13 +149,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $k.0
     i32.const 16
     i32.mul
     i32.add
-    i64.load $heap offset=8
+    i64.load $heap offset=40
     i64.const 1
     i64.add
     local.set $t1
@@ -172,13 +170,11 @@
     i32.const 14
     i32.mul
     i32.add
-    i32.const 32
-    i32.add
     local.get $k.0
     i32.const 16
     i32.mul
     i32.add
     local.get $t1
-    i64.store $heap offset=8
+    i64.store $heap offset=40
   )
 )

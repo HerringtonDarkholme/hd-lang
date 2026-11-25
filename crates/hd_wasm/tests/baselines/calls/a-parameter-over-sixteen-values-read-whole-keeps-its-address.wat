@@ -72,8 +72,6 @@
     i64.const 0
     i64.store $heap
     local.get $t1
-    i32.const 8
-    i32.add
     ;; 69 |     let n = Named { big: make(2), name: "n" }
     i32.const 2
     local.get $t0
@@ -97,8 +95,9 @@
     i32.store $heap offset=148
     i32.const 1
     local.set $t2
+    ;; 68 |     let b = keep(make(1))
+    i32.load $heap offset=72
     ;; 71 |     println("${b.f16} ${moved_on(n, true)} ${loud_on(l, false)}")
-    i32.load $heap offset=64
     i64.extend_i32_s
     local.tee $t3
     local.tee $value'1
