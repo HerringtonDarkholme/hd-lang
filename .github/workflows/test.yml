@@ -461,6 +461,14 @@ jobs:
       - name: Test
         run: scripts/ci-tests.sh ${{ matrix.invert }} '^crates/(hd_command|hd_run_wasmtime)/' --skip specification_conformance_passes_except_known_failures
 
+      - name: Keep CLI resource diagnostics
+        if: always() && matrix.shard == 'cli and host'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-resource-diagnostics-${{ github.run_attempt }}
+          path: target/ci-resources
+          if-no-files-found: ignore
+
   # `cargo install hd-lang` builds the published packages, and a package
   # holds only its own directory (crates/README.md, "Publishing"). The dry
   # run packages every published crate, builds each package against the
