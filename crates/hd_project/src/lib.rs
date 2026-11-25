@@ -1689,11 +1689,16 @@ pub type PolicyEdge = (ModuleId, u32, Vec<String>);
 ///   `pub use` lines publish its own children. Such a facade, std's root
 ///   among them, holds no name the use could also mean, and an edge to it
 ///   would join the user to whatever the facade's own unit depends on;
+///   A written hidden-module use also depends on the facade above its
+///   first private prefix, whose exports its exact repair reads
+///   (`module.vis.parent.fix`). Both binding queries use the same parent
+///   dependency machinery after publication facts are complete;
 /// - the policy edges (`module.cycle.edge`) are the written library uses
 ///   of one package, a `pub use` making none: the sibling rule
 ///   (`module.cycle.siblings`) judges their loops.
 ///
-/// Cost: O(modules + uses) for the edges, one Tarjan walk over the units
+/// Cost: O(modules + uses + written path-prefix lookups) for the edges,
+/// at most two candidate parent edges per written use, one Tarjan walk over the units
 /// and one over the policy edges, and a breadth-first search inside each
 /// forbidden group.
 #[derive(Clone, Debug, Default)]
@@ -1729,33 +1734,36 @@ impl ModuleGraph {
             ..Self::default()
         };
         let mut child = String::new();
-        let mut published: Vec<ModuleId> = Vec::new();
-        for module in &mut table.modules {
-            module.published = false;
-        }
-        // Per module, whether its export table may hold an item: it
-        // declares one, or a `pub use` of it re-exports something other
-        // than its own children (`module.use.facade.module`).
-        let exports_items: Vec<bool> = (0..n)
-            .map(|m| {
-                let path = &table.modules[m].path;
-                declares.get(m).copied().unwrap_or(true)
-                    || uses.get(m).is_some_and(|list| {
-                        list.iter().any(|u| {
-                            u.public
-                                && !(u.grouped
-                                    && u.path == *path
-                                    && u.names.iter().all(|(name, _)| {
-                                        child.clear();
-                                        child.push_str(path);
-                                        child.push('.');
-                                        child.push_str(name);
-                                        table.module(&child).is_some()
-                                    }))
-                        })
-                    })
-            })
+        let mut published = vec![false; n];
+        let mut exports_items: Vec<bool> = (0..n)
+            .map(|m| declares.get(m).copied().unwrap_or(true))
             .collect();
+        // Publication facts must precede dependency edges: a private-use
+        // repair reads the facade above its first hidden prefix.
+        // Cost: one pass over public uses and their written names.
+        for (m, list) in uses.iter().enumerate() {
+            let path = &table.modules[m].path;
+            for u in list.iter().filter(|u| u.public) {
+                if u.grouped && u.path == *path {
+                    for (name, _) in &u.names {
+                        child.clear();
+                        child.push_str(path);
+                        child.push('.');
+                        child.push_str(name);
+                        if let Some(module) = table.module(&child) {
+                            published[module.idx()] = true;
+                        } else {
+                            exports_items[m] = true;
+                        }
+                    }
+                } else {
+                    exports_items[m] = true;
+                }
+            }
+        }
+        for (module, &published) in table.modules.iter_mut().zip(&published) {
+            module.published = published;
+        }
         let mut named: Vec<(ModuleId, Option<Vec<String>>)> = Vec::new();
         for (m, list) in uses.iter().enumerate() {
             let module = &table.modules[m];
@@ -1768,6 +1776,37 @@ impl ModuleGraph {
                 // declaration it names. With the names its `use` line writes
                 // there, `None` for a namespace.
                 named.clear();
+                // The two binding queries share dependency-edge machinery:
+                // a namespace can clash with its parent's item, and a hidden
+                // path can be repaired by the facade above its hidden prefix.
+                // Neither is a written policy edge. At most two parents per
+                // written use; hidden_prefix visits its path segments once.
+                if u.line.is_some() {
+                    let namespace = !u.grouped && table.module(&u.path).is_some();
+                    let ambiguous = namespace
+                        .then(|| u.path.rsplit_once('.').and_then(|(p, _)| table.module(p)))
+                        .flatten();
+                    // A namespace has no declaration repair; only its
+                    // ambiguity query above reads a facade's exports.
+                    let repair = if namespace {
+                        None
+                    } else {
+                        let segments: Vec<&str> = u.path.split('.').collect();
+                        hidden_prefix(&module.path, &segments, |p| {
+                            table.module(p).map(|id| table.modules[id.idx()].published)
+                        })
+                        .and_then(|hidden| table.module(&segments[..hidden - 1].join(".")))
+                    };
+                    for above in ambiguous.into_iter().chain(repair) {
+                        if exports_items[above.idx()]
+                            && above.idx() != m
+                            && (test || table.modules[above.idx()].role != Role::Test)
+                        {
+                            g.work += 1;
+                            deps.push(above);
+                        }
+                    }
+                }
                 if u.grouped {
                     let Some(t) = table.module(&u.path) else {
                         continue;
@@ -1782,31 +1821,13 @@ impl ModuleGraph {
                         child.push_str(&u.path);
                         child.push('.');
                         child.push_str(name);
-                        match table.module(&child) {
-                            Some(c) if u.public && u.path == module.path => published.push(c),
-                            _ => decls.push(name.clone()),
+                        if !u.public || u.path != module.path || table.module(&child).is_none() {
+                            decls.push(name.clone());
                         }
                     }
                     named.push((t, Some(decls)));
                 } else if let Some(t) = table.module(&u.path) {
                     named.push((t, None));
-                    // A written single use of a module also reads its
-                    // parent's exports, which may declare the same name
-                    // (`module.use.ambiguous`): a dependency edge, so the
-                    // parent's interface is built before the use is bound,
-                    // and no policy edge, since the use names the module.
-                    // An implicit use binds through no `use` line, and a
-                    // parent that exports no item has no name to clash.
-                    if u.line.is_some()
-                        && let Some((parent, _)) = u.path.rsplit_once('.')
-                        && let Some(above) = table.module(parent)
-                        && exports_items[above.idx()]
-                        && above.idx() != m
-                        && (test || table.modules[above.idx()].role != Role::Test)
-                    {
-                        g.work += 1;
-                        deps.push(above);
-                    }
                 } else if let Some((parent, last)) = u.path.rsplit_once('.')
                     && let Some(t) = table.module(parent)
                 {
@@ -1837,9 +1858,6 @@ impl ModuleGraph {
             // The first line naming each module makes its edge.
             p.sort_stable_by_key(|e| (e.0.raw(), e.1));
             p.dedup_by(|b, a| a.0 == b.0);
-        }
-        for c in published {
-            table.modules[c.idx()].published = true;
         }
         g.group_units(table);
         g.find_loops(table);

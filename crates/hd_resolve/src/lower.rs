@@ -2170,7 +2170,13 @@ fn report_private(r: &Resolver<'_, '_>, importer: &str, u: &UseDecl, diags: &mut
         "`{hidden}` is a child module of `{parent}`, which does not re-export it, so only `{parent}` and the modules below it may use it{hint}"
     );
     diags.error(Code::PrivateModule, u.span, &msg);
-    if let Some(path) = reexported_path(r, u, k, &parent) {
+    // Unlike ordinary use binding, this query contributes to the interface's
+    // diagnostic and exact repair. Record the facade exports it reads so a
+    // redirect invalidates the finding even when no header uses that facade.
+    world.hold_reads(false);
+    let repair = reexported_path(r, u, k, &parent);
+    world.hold_reads(true);
+    if let Some(path) = repair {
         let shown = match &u.group {
             Some(group) => {
                 let names: Vec<&str> = group.iter().map(|g| g.name.as_str()).collect();
