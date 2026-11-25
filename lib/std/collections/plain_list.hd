@@ -1,0 +1,372 @@
+# std.collections.plain_list: lane 274 experiment, never merged.
+#
+# `Counted[H]` emulates the proposed primitive in plain hd: one counted
+# block, one pointer, `[count | header H | tail bytes]`, the tail raw bytes
+# that the owner casts to its element types. `PlainList[T]` is
+# `Counted[ListHead]` with its `T`s in the tail, written the way Swift's
+# `ContiguousArray` is: a static empty block so no path tests for null,
+# one combined fast-path test (unique and room left), and a cold path
+# that grows or copies, geometric with the allocator's slack used.
+#
+# hd has no copy hook, so a copy is an explicit `share` (count + 1) and the
+# last `Drop` drops the elements and frees the block.
+use std.meta.inline
+use std.ops.Index
+use std.rt.{Drop, Ptr, align_of, copy_bytes, free_room, marking, needs_drop, panic_with, room, size_of}
+use std.rt.alloc.block_bytes
+use std.rt.memory.string_bytes
+
+# The block is a buffer room (`std.rt.memory.room`): the 8 bytes before it
+# are the room's own uncounted header, so the collector and the checked
+# ledger treat it as a buffer's. The count is the first word of the room.
+ROOM := usize(8)
+COUNT := usize(4)
+
+# A static block of zero bytes: count 0 (immortal, never unique), and a
+# zero header. Every empty list points at it, so `len` and indexing never
+# test for null, and the first push takes the cold path because the count
+# is not 1. Swift's `_swiftEmptyArrayStorage`.
+fn empty_block() -> usize:
+    string_bytes("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0").address
+
+## One counted block, `[count | H | tail]`, named by one address.
+pub struct Counted[H]:
+    pub at: usize
+
+impl[H] Counted[H]:
+    @inline(.Always)
+    fn header_offset() -> usize:
+        round_up(COUNT, align_of::[H]())
+
+    @inline(.Always)
+    fn tail_offset(align: usize) -> usize:
+        round_up(Counted::[H].header_offset() + size_of::[H](), align)
+
+    ## A new block holding `header` with count 1 and room for at least
+    ## `tail_bytes` tail bytes at `align` (at most 8); gives the block and
+    ## the tail bytes it really has, the allocator's slack included.
+    pub fn new(header: H, tail_bytes: usize, align: usize) -> (Counted[H], usize):
+        off := Counted::[H].tail_offset(align)
+        at := room(off + tail_bytes, 1)
+        Ptr::[usize] { address: at }.write(1)
+        Ptr::[H] { address: at + Counted::[H].header_offset() }.write(header)
+        have := block_bytes(at - ROOM) - ROOM - off
+        (Counted::[H] { at: at }, have)
+
+    @inline(.Always)
+    pub fn count(self) -> usize:
+        Ptr::[usize] { address: self.at }.read()
+
+    @inline(.Always)
+    pub fn set_count(self, count: usize) -> void:
+        Ptr::[usize] { address: self.at }.write(count)
+
+    @inline(.Always)
+    pub fn is_unique(self) -> bool:
+        self.count() == 1
+
+    @inline(.Always)
+    pub fn header['a](self) -> &'a H:
+        Ptr::[H] { address: self.at + Counted::[H].header_offset() }.as_ref()
+
+    # Unique blocks only.
+    @inline(.Always)
+    pub fn header_mut['a](self) -> &'a mut H:
+        Ptr::[H] { address: self.at + Counted::[H].header_offset() }.as_mut()
+
+    @inline(.Always)
+    pub fn tail(self, align: usize) -> Ptr[u8]:
+        Ptr::[u8] { address: self.at + Counted::[H].tail_offset(align) }
+
+    # Frees the block; its tail's values are the caller's to drop first.
+    pub fn free(self) -> void:
+        free_room(self.at)
+
+struct ListHead:
+    len: usize
+    cap: usize
+
+## A copy-on-write list in plain hd over one counted block.
+pub struct PlainList[T]:
+    block: Counted[ListHead]
+
+impl[T] !Copy for PlainList[T]
+
+impl[T] PlainList[T]:
+    pub fn new() -> PlainList[T]:
+        PlainList::[T] { block: Counted::[ListHead] { at: empty_block() } }
+
+    pub fn with_capacity(capacity: usize) -> PlainList[T]:
+        let mut out = PlainList::[T].new()
+        if capacity > 0:
+            out.realloc(capacity)
+        out
+
+    ## Another holder of the same block: the copy that a copy hook would make.
+    pub fn share(&self) -> PlainList[T]:
+        c := self.block.count()
+        if c != 0:
+            self.block.set_count(c + 1)
+        PlainList::[T] { block: self.block }
+
+    @inline(.Always)
+    fn elems(&self) -> Ptr[T]:
+        Ptr::[T] { address: self.block.tail(align_of::[T]()).address }
+
+    @inline(.Always)
+    pub fn len(&self) -> usize:
+        self.block.header().len
+
+    @inline(.Always)
+    pub fn capacity(&self) -> usize:
+        self.block.header().cap
+
+    @inline(.Always)
+    pub fn is_empty(&self) -> bool:
+        self.len() == 0
+
+    @inline(.Always)
+    pub fn get(&self, index: usize) -> T:
+        if index >= self.len():
+            panic_with("index-out-of-bounds", "plain list index out of bounds")
+        *self.elems().offset(index).as_ref()
+
+    ## Moves `value` onto the end. Fast path: one count load, one length
+    ## and capacity compare; everything else is the cold `reserve_slow`.
+    @inline(.Always)
+    pub fn push(&mut self, value: T) -> void:
+        h := self.block.header()
+        n := h.len
+        if !self.block.is_unique() || n == h.cap:
+            self.reserve_slow(n + 1)
+        self.elems().offset(n).write(value)
+        self.block.header_mut().len = n + 1
+
+    ## Replaces the element at `index`; a shared block is copied first.
+    @inline(.Always)
+    pub fn set(&mut self, index: usize, value: T) -> void:
+        if index >= self.len():
+            panic_with("index-out-of-bounds", "plain list index out of bounds")
+        if !self.block.is_unique():
+            self.reserve_slow(0)
+        at := self.elems().offset(index)
+        if needs_drop::[T]():
+            _ := at.read()
+        at.write(value)
+
+    pub fn pop(&mut self) -> T?:
+        n := self.len()
+        if n == 0:
+            return .None
+        if !self.block.is_unique():
+            self.reserve_slow(0)
+        self.block.header_mut().len = n - 1
+        .Some(self.elems().offset(n - 1).read())
+
+    pub fn reserve(&mut self, additional: usize) -> void:
+        need := self.len() + additional
+        if !self.block.is_unique() || need > self.capacity():
+            self.reserve_slow(need)
+
+    ## A cursor yielding the elements by value, as `for x in list` does.
+    pub fn iter['a](&'a self) -> PlainListIter[T, 'a]:
+        start := self.elems()
+        PlainListIter { list: self, at: start, end: start.offset(self.len()).address }
+
+    # Makes the block unique with room for `need` elements: a unique block
+    # grows geometrically (max of need, twice the capacity, 4) and moves
+    # its bytes; a shared one is copied at max(need, len), its elements
+    # taking their own counts, and loses one holder.
+    @inline(.Never)
+    fn reserve_slow(&mut self, need: usize) -> void:
+        old := self.block
+        n := old.header().len
+        cap := old.header().cap
+        if old.is_unique():
+            if need <= cap:
+                return
+            let mut want = cap * 2
+            if want < need:
+                want = need
+            if want < 4:
+                want = 4
+            self.realloc(want)
+            return
+        let mut want = n
+        if want < need:
+            want = need
+        self.realloc(want)
+
+    # Moves or copies the elements into a new block of at least `want`.
+    fn realloc(&mut self, want: usize) -> void:
+        old := self.block
+        n := old.header().len
+        size := size_of::[T]()
+        if want > 0xfffe0000 / (if size == 0: 1 else: size):
+            panic_with("heap-exhausted", "a list does not fit the heap")
+        made := Counted::[ListHead].new(ListHead { len: n, cap: 0 }, want * size, align_of::[T]())
+        fresh := made._0
+        fresh.header_mut().cap = if size == 0: 0x7fffffff else: made._1 / size
+        to := Ptr::[T] { address: fresh.tail(align_of::[T]()).address }
+        from := self.elems()
+        c := old.count()
+        if c == 1:
+            copy_bytes(to.address, from.address, n * size)
+            old.free()
+        else:
+            if needs_drop::[T]():
+                let mut i: usize = 0
+                while i < n:
+                    to.offset(i).write(*from.offset(i).as_ref())
+                    i += 1
+            else:
+                copy_bytes(to.address, from.address, n * size)
+            if c != 0:
+                old.set_count(c - 1)
+        self.block = fresh
+
+impl[T] Index[usize] for PlainList[T]:
+    type Out = T
+    @inline(.Always)
+    fn index(&self, key: usize) -> &T:
+        if key >= self.len():
+            panic_with("index-out-of-bounds", "plain list index out of bounds")
+        self.elems().offset(key).as_ref()
+
+impl[T] Drop for PlainList[T]:
+    fn drop(&mut self) -> void:
+        b := self.block
+        c := b.count()
+        if c == 0:
+            return
+        # While the collector traces a holder, only a sole holder shows it
+        # the elements; the count and the block stay. A shared block's
+        # elements are hidden from the trace: a real primitive makes the
+        # block itself a collector object with its own glue.
+        if marking():
+            if c == 1 && needs_drop::[T]():
+                self.drop_elems()
+            return
+        if c > 1:
+            b.set_count(c - 1)
+            return
+        if needs_drop::[T]():
+            self.drop_elems()
+        b.free()
+
+impl[T] PlainList[T]:
+    fn drop_elems(&self) -> void:
+        e := self.elems()
+        n := self.len()
+        let mut i: usize = 0
+        while i < n:
+            _ := e.offset(i).read()
+            i += 1
+
+## A cursor over a `PlainList`, a raw element pointer and its end.
+pub struct PlainListIter[T, 'a]:
+    list: &'a PlainList[T]
+    at: Ptr[T]
+    end: usize
+
+impl[T, 'a] Iterator[T] for PlainListIter[T, 'a]:
+    @inline(.Always)
+    fn next(&mut self) -> T?:
+        if self.at.address >= self.end:
+            return .None
+        v := *self.at.as_ref()
+        self.at = self.at.offset(1)
+        .Some(v)
+
+fn round_up(n: usize, align: usize) -> usize:
+    (n + align - 1) & ~(align - 1)
+
+# Measurement variants (lane 274): a by-value view with the header read
+# once, and a cursor with no reference field.
+pub struct PlainSpan[T]:
+    at: Ptr[T]
+    len: usize
+
+impl[T] PlainSpan[T]:
+    @inline(.Always)
+    pub fn len(self) -> usize:
+        self.len
+
+    @inline(.Always)
+    pub fn get(self, index: usize) -> T:
+        if index >= self.len:
+            panic_with("index-out-of-bounds", "plain list index out of bounds")
+        *self.at.offset(index).as_ref()
+
+pub struct PlainRawIter[T]:
+    at: Ptr[T]
+    end: usize
+
+impl[T] Iterator[T] for PlainRawIter[T]:
+    @inline(.Always)
+    fn next(&mut self) -> T?:
+        if self.at.address >= self.end:
+            return .None
+        v := *self.at.as_ref()
+        self.at = self.at.offset(1)
+        .Some(v)
+
+impl[T] PlainList[T]:
+    @inline(.Always)
+    pub fn span(&self) -> PlainSpan[T]:
+        PlainSpan::[T] { at: self.elems(), len: self.len() }
+
+    @inline(.Always)
+    pub fn raw_iter(&self) -> PlainRawIter[T]:
+        start := self.elems()
+        PlainRawIter::[T] { at: start, end: start.offset(self.len()).address }
+
+# Ceiling shapes (lane 274): the code the compiler would emit for `push`
+# and `for` if it kept the list in a local (scalar replacement) and fused
+# the inlined `next`'s Option with the loop's match.
+@inline(.Never)
+pub fn ceiling_build(n: i64) -> PlainList[i64]:
+    let mut out = PlainList::[i64].new()
+    let mut b = out.block
+    let mut i: i64 = 0
+    while i < n:
+        h := b.header()
+        len := h.len
+        if !b.is_unique() || len == h.cap:
+            out.block = b
+            out.reserve_slow(len + 1)
+            b = out.block
+        Ptr::[i64] { address: b.tail(8).address }.offset(len).write(i)
+        b.header_mut().len = len + 1
+        i += 1
+    out.block = b
+    out
+
+# As above, with uniqueness proven (the builtin's own-pass fact).
+@inline(.Never)
+pub fn ceiling_build_known_unique(n: i64) -> PlainList[i64]:
+    let mut out = PlainList::[i64].new()
+    let mut b = out.block
+    let mut i: i64 = 0
+    while i < n:
+        h := b.header()
+        len := h.len
+        if len == h.cap:
+            out.block = b
+            out.reserve_slow(len + 1)
+            b = out.block
+        Ptr::[i64] { address: b.tail(8).address }.offset(len).write(i)
+        b.header_mut().len = len + 1
+        i += 1
+    out.block = b
+    out
+
+@inline(.Never)
+pub fn ceiling_sum(xs: &PlainList[i64]) -> i64:
+    let mut p = xs.elems()
+    end := p.offset(xs.len()).address
+    let mut s: i64 = 0
+    while p.address < end:
+        s += *p.as_ref()
+        p = p.offset(1)
+    s

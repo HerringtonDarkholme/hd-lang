@@ -1,0 +1,233 @@
+# std.collections.plain_map: lane 274 experiment, never merged.
+#
+# A copy-on-write hash map in plain hd over one counted block
+# (`Counted[MapHead]`): the header, then `buckets + 8` control bytes, then
+# the slots, two typed regions of the raw tail. Open addressing as
+# hashbrown's portable (SWAR) group: 8 control bytes per probe, EMPTY =
+# 0xFF, a full byte is the hash's top 7 bits; triangular probing over
+# groups; a load of at most 7/8; at least 8 buckets, so the 8 control
+# bytes after the table mirror its first 8 and every group load is one
+# unaligned u64 load. Insert and lookup only (no removal, so no
+# tombstones).
+use std.meta.inline
+use std.collections.plain_list.Counted
+use std.rt.{Drop, Ptr, align_of, copy_bytes, fill, hash_key, load_u64, load_u8, map_hash_seed, marking, needs_drop, size_of, store_u8, string_bytes}
+
+EMPTY := u8(0xff)
+GROUP := usize(8)
+LO := u64(0x0101010101010101)
+HI := u64(0x8080808080808080)
+
+struct MapHead:
+    len: usize
+    mask: usize
+    left: usize
+    seed: u64
+
+struct Slot[K, V]:
+    key: K
+    value: V
+
+# A static zero block: count 0 (never unique), len 0, so lookups end at
+# the length test and the first insert takes the cold path.
+fn empty_block() -> usize:
+    string_bytes("\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0").address
+
+## A copy-on-write hash map in plain hd over one counted block.
+pub struct PlainMap[K < Eq & Hash, V]:
+    block: Counted[MapHead]
+
+impl[K < Eq & Hash, V] !Copy for PlainMap[K, V]
+
+impl[K < Eq & Hash, V] PlainMap[K, V]:
+    pub fn new() -> PlainMap[K, V]:
+        PlainMap::[K, V] { block: Counted::[MapHead] { at: empty_block() } }
+
+    pub fn share(&self) -> PlainMap[K, V]:
+        c := self.block.count()
+        if c != 0:
+            self.block.set_count(c + 1)
+        PlainMap::[K, V] { block: self.block }
+
+    @inline(.Always)
+    pub fn len(&self) -> usize:
+        self.block.header().len
+
+    @inline(.Always)
+    fn ctrl(&self) -> usize:
+        self.block.tail(8).address
+
+    @inline(.Always)
+    fn slots(&self) -> Ptr[Slot[K, V]]:
+        PlainMap::[K, V].slots_of(self.ctrl(), self.block.header().mask)
+
+    @inline(.Always)
+    fn slots_of(ctrl: usize, mask: usize) -> Ptr[Slot[K, V]]:
+        Ptr::[Slot[K, V]] { address: round_up(ctrl + mask + 1 + GROUP, align_of::[Slot[K, V]]()) }
+
+    # The bucket holding `key`, or `buckets` (mask + 1) when none does.
+    @inline(.Always)
+    fn find(&self, key: K, hash: u32) -> usize:
+        h := self.block.header()
+        mask := h.mask
+        ctrl := self.ctrl()
+        slots := PlainMap::[K, V].slots_of(ctrl, mask)
+        tag := u64(hash >> 25) * LO
+        let mut pos = usize(hash) & mask
+        let mut stride: usize = 0
+        while true:
+            group := load_u64(ctrl + pos)
+            x := group ^ tag
+            let mut bits = x.wrapping_sub(LO) & ~x & HI
+            while bits != 0:
+                at := (pos + usize(bits.trailing_zeros() >> 3)) & mask
+                if slots.offset(at).as_ref().key == key:
+                    return at
+                bits = bits & bits.wrapping_sub(1)
+            if (group & (group << 1) & HI) != 0:
+                return mask + 1
+            stride += GROUP
+            pos = (pos + stride) & mask
+        mask + 1
+
+    # The first empty bucket on `hash`'s probe sequence.
+    @inline(.Always)
+    fn find_empty(ctrl: usize, mask: usize, hash: u32) -> usize:
+        let mut pos = usize(hash) & mask
+        let mut stride: usize = 0
+        while true:
+            group := load_u64(ctrl + pos)
+            empties := group & (group << 1) & HI
+            if empties != 0:
+                return (pos + usize(empties.trailing_zeros() >> 3)) & mask
+            stride += GROUP
+            pos = (pos + stride) & mask
+        0
+
+    @inline(.Always)
+    fn set_ctrl(ctrl: usize, mask: usize, at: usize, byte: u8) -> void:
+        store_u8(ctrl + at, byte)
+        store_u8(ctrl + ((at.wrapping_sub(GROUP)) & mask) + GROUP, byte)
+
+    pub fn get(&self, key: K) -> V?:
+        if self.len() == 0:
+            return .None
+        hash := hash_key(key, self.block.header().seed)
+        at := self.find(key, hash)
+        if at > self.block.header().mask:
+            return .None
+        .Some(self.slots().offset(at).as_ref().value)
+
+    pub fn contains_key(&self, key: &K) -> bool:
+        if self.len() == 0:
+            return false
+        hash := hash_key(*key, self.block.header().seed)
+        self.find(*key, hash) <= self.block.header().mask
+
+    ## Inserts or replaces; a shared block is copied first.
+    pub fn insert(&mut self, key: K, value: V) -> void:
+        if !self.block.is_unique():
+            self.rebuild(0)
+        hash := hash_key(key, self.block.header().seed)
+        if self.len() != 0:
+            at := self.find(key, hash)
+            if at <= self.block.header().mask:
+                slot := self.slots().offset(at).as_mut()
+                slot.value = value
+                return
+        if self.block.header().left == 0:
+            self.rebuild(self.len() + 1)
+        h := self.block.header_mut()
+        mask := h.mask
+        ctrl := self.ctrl()
+        at := PlainMap::[K, V].find_empty(ctrl, mask, hash)
+        PlainMap::[K, V].set_ctrl(ctrl, mask, at, u8(hash >> 25))
+        PlainMap::[K, V].slots_of(ctrl, mask).offset(at).write(Slot::[K, V] { key: key, value: value })
+        h.len += 1
+        h.left -= 1
+
+    # A unique block with room for `need` entries: the same bucket count
+    # when it has room (a shared block's copy), else double. Entries move
+    # from a unique block, and are copied with their counts from a shared
+    # one, which loses a holder.
+    @inline(.Never)
+    fn rebuild(&mut self, need: usize) -> void:
+        old := self.block
+        oh := old.header()
+        old_buckets := if oh.len == 0 && oh.mask == 0: 0 else: oh.mask + 1
+        let mut buckets = if old_buckets == 0: 8 else: old_buckets
+        while need > buckets / 8 * 7:
+            buckets *= 2
+        seed := if old_buckets == 0: map_hash_seed() else: oh.seed
+        mask := buckets - 1
+        slot_off := round_up(mask + 1 + GROUP, align_of::[Slot[K, V]]())
+        made := Counted::[MapHead].new(
+            MapHead { len: oh.len, mask: mask, left: buckets / 8 * 7 - oh.len, seed: seed },
+            slot_off + buckets * size_of::[Slot[K, V]](),
+            8,
+        )
+        fresh := made._0
+        nctrl := fresh.tail(8).address
+        nslots := PlainMap::[K, V].slots_of(nctrl, mask)
+        c := old.count()
+        if old_buckets == 0:
+            fill(nctrl, EMPTY, buckets + GROUP)
+            self.block = fresh
+            return
+        octrl := old.tail(8).address
+        oslots := PlainMap::[K, V].slots_of(octrl, oh.mask)
+        if buckets == old_buckets:
+            # A copy at the same size: same control bytes, same buckets.
+            copy_bytes(nctrl, octrl, buckets + GROUP)
+            if needs_drop::[Slot[K, V]]():
+                let mut i: usize = 0
+                while i < buckets:
+                    if load_u8(octrl + i) != EMPTY:
+                        nslots.offset(i).write(*oslots.offset(i).as_ref())
+                    i += 1
+            else:
+                copy_bytes(nslots.address, oslots.address, buckets * size_of::[Slot[K, V]]())
+        else:
+            fill(nctrl, EMPTY, buckets + GROUP)
+            let mut i: usize = 0
+            while i < old_buckets:
+                if load_u8(octrl + i) != EMPTY:
+                    slot := oslots.offset(i)
+                    hash := hash_key(slot.as_ref().key, seed)
+                    at := PlainMap::[K, V].find_empty(nctrl, mask, hash)
+                    PlainMap::[K, V].set_ctrl(nctrl, mask, at, u8(hash >> 25))
+                    if c == 1:
+                        nslots.offset(at).write(slot.read())
+                    else:
+                        nslots.offset(at).write(*slot.as_ref())
+                i += 1
+        if c == 1:
+            old.free()
+        else if c != 0:
+            old.set_count(c - 1)
+        self.block = fresh
+
+impl[K < Eq & Hash, V] Drop for PlainMap[K, V]:
+    fn drop(&mut self) -> void:
+        b := self.block
+        c := b.count()
+        if c == 0:
+            return
+        if marking():
+            return
+        if c > 1:
+            b.set_count(c - 1)
+            return
+        if needs_drop::[Slot[K, V]]():
+            ctrl := self.ctrl()
+            slots := self.slots()
+            n := self.block.header().mask + 1
+            let mut i: usize = 0
+            while i < n:
+                if load_u8(ctrl + i) != EMPTY:
+                    _ := slots.offset(i).read()
+                i += 1
+        b.free()
+
+fn round_up(n: usize, align: usize) -> usize:
+    (n + align - 1) & ~(align - 1)
