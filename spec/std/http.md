@@ -30,7 +30,7 @@ A `Body` is a value whose copies share private consumption state.
 6. r[std-http.body.claim-before-decode] Every reader claims the body before decoding; a decoding failure leaves it used.
 7. r[std-http.body.empty-claim] Reading an empty body also claims it.
 8. r[std-http.body.text] `text(&self) -> Result[string, BodyError]` reads UTF-8, replacing malformed sequences with U+FFFD.
-9. r[std-http.body.json] `json[T < Deserialize](&self) -> Result[T, BodyError]` decodes the body's text through `std.json`.
+9. r[std-http.body.json] `json[T < Deserialize](&self) -> Result[T, BodyError]` decodes the body's text through `std.encoding.json`.
 10. r[std-http.body.json-error] A JSON decoding failure returns `BodyError.Json` containing the decoder's error.
 11. r[std-http.body.form] `form[T < Deserialize](&self) -> Result[T, BodyError]` decodes a URL-encoded form using [Typed Query And Form Values](#typed-query-and-form-values).
 12. r[std-http.body.form-error] A form decoding failure returns `BodyError.Form` containing its `FormError`.
@@ -345,7 +345,7 @@ Message writers return changed values for chaining; readers borrow locally.
 3. r[std-http.request.post-value] `Request::post(url: Url) -> Request` returns `Request::new(.Post, url)`.
 4. r[std-http.message.writer-value] Every `set_*` message writer takes `mut self` and returns the changed message value.
 5. r[std-http.message.writer-detach] Replacing a message's body creates a fresh unread body without changing copies of the earlier message.
-6. r[std-http.message.set-json] Request and response `set_json[T < Serialize]` replace the body with UTF-8 bytes from `std.json.encode(value)`.
+6. r[std-http.message.set-json] Request and response `set_json[T < Serialize]` replace the body with UTF-8 bytes from `std.encoding.json.encode(value)`.
 7. r[std-http.message.json-once] `set_json` serializes its value once.
 8. r[std-http.message.json-content-type] `set_json` replaces `Content-Type` with `application/json`.
 9. r[std-http.message.set-text] Request and response `set_text(text: string)` replace the body with the text's UTF-8 bytes.
@@ -861,7 +861,7 @@ error; the free `get!` calls it automatically:
 ```text
 use std.error.Error
 use std.http.{Http, HttpError, Request, Url, get}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize)
 struct NewUser:

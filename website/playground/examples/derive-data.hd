@@ -20,8 +20,8 @@ pub fn main() -> void $ Console:
 #   $.email: must be a valid email address
 
 # ── plumbing ──────────
-use std.json.{decode, encode}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.{decode, encode}
+use std.encoding.{Deserialize, Serialize}
 use std.meta.{Describer, Field, Structure, Variant}
 use std.validate.{Validate, email}
 

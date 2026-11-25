@@ -77,7 +77,7 @@ They are never written inside a function.
 | --- | --- |
 | `use std.cmp.max` | one name |
 | `use std.fs.{FsRead, read_text}` | several names |
-| `use std.json.{decode as from_json}` | a name under another name |
+| `use std.encoding.json.{decode as from_json}` | a name under another name |
 | `use pkg.pricing` | the module, used as `pricing.total(...)` |
 | `pub use self.format.{receipt}` | re-exports names; `pub use` always takes the braced form |
 

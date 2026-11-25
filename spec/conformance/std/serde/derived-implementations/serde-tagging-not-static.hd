@@ -1,6 +1,6 @@
 # test: a computed EnumTagging fact cannot hide its representation from declaration checks
 # Rule: std-serde.enum-tagging.static-names.
-use std.serde.{EnumTagging, Serialize}
+use std.encoding.{EnumTagging, Serialize}
 
 fn computed_tagging() -> EnumTagging:
     EnumTagging.Internal("kind")

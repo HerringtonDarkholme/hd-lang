@@ -6,8 +6,8 @@
 # std-serde.std.tuple, std-serde.std.set-elements, std-serde.member-name.precedence,
 # std-serde.skip.named-read-default, std-serde.skip.write, std-serde.skip-none.named-omit.v2.
 use std.collections.Set
-use std.json.{decode, encode}
-use std.serde.{Deserialize, Serialize, rename, rename_all, skip, skip_none}
+use std.encoding.json.{decode, encode}
+use std.encoding.{Deserialize, Serialize, rename, rename_all, skip, skip_none}
 use std.testing.{Arbitrary, Choices, assert_equal, it_each, it_prop}
 use std.testing.arbitrary
 

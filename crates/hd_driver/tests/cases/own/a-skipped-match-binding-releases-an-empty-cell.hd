@@ -1,10 +1,10 @@
 # @dump: tests wat
 # @build: dev tests | release tests
-# @helper: std/json/impl Json.get
+# @helper: std/encoding.json/impl Json.get
 # A match payload is boxed before the match so its arm can borrow it.
 # Another arm reaches the scope's release without filling that box (#2195).
 # The skipped binding must start empty even when that arm does not return.
-use std.json.{parse, Json}
+use std.encoding.json.{parse, Json}
 
 fn read(text: string) -> Json:
     match parse(text):

@@ -1,6 +1,6 @@
 # test: every kind of Json round trips through its compact text, and the accessors read each kind
 # Spec std/json Json Values, Writing: std-json.value.decl, std-json.value.accessors, std-json.display.compact (JSON-SURFACE; task #226).
-use std.json.{parse, Json}
+use std.encoding.json.{parse, Json}
 fn read(text: string) -> Json:
     match parse(text):
         .Ok(value) => value

@@ -6,7 +6,7 @@
 # Drop owner is made. The cold leaf takes the collection's existing count.
 use std.meta.inline
 use std.collections.UniqList
-use std.serde.{Serialize, Serializer}
+use std.encoding.{Serialize, Serializer}
 
 pub struct Payload:
     values: List[string]

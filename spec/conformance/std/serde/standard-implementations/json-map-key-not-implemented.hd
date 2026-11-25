@@ -1,7 +1,7 @@
 # test: a map whose key type has no MapKey implementation has no Serialize
 # Spec std/serde Standard Implementations: std-serde.std.map-key-missing.
 use std.hash.Hash
-use std.json.encode
+use std.encoding.json.encode
 
 @derive(Eq, Hash)
 struct Point:

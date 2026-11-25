@@ -1,7 +1,7 @@
 # test: HTTP message conversion errors retain typed payloads and original input.
 # Spec: std-http.body-error.declaration, std-http.url-error.into-http.
 use std.http.{BodyError, FormError, UrlError, HttpError}
-use std.json.JsonError
+use std.encoding.json.JsonError
 use std.convert.From
 
 tests:

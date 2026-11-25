@@ -3,13 +3,14 @@
 use std.meta.{Annotate, Target}
 use std.cli.{Arg, ArgKind, CliError}
 use std.cmp.Reverse
-use std.encoding.{Base64, DecodeError}
+use std.encoding.DecodeError
+use std.encoding.base64.Base64
 use std.error.{Error, ErrorReport}
 use std.fs.{Entry, EntryKind}
 use std.host.HostError
 use std.cli.ScriptedArgs
 use std.http.{Method, Request, Response, Url}
-use std.json.{Json, Number}
+use std.encoding.json.{Json, Number}
 use std.net.{Datagram, NetError}
 use std.ops.RangeFull
 use std.path.Path

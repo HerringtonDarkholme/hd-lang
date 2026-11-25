@@ -1236,9 +1236,9 @@ build/doc/llms.txt        # the index for agents
 
 ```sh
 # in the doc comments of src/text.hd:
-# /// Reads what [`slugify`] wrote.      # a link to #slugify on this page
-# /// See [`std.json.parse`].            # a link to the standard library reference
-# /// See [`sluggify`].                  # warning: broken-doc-link
+# /// Reads what [`slugify`] wrote.         # a link to #slugify on this page
+# /// See [`std.encoding.json.parse`].     # a link to the standard library reference
+# /// See [`sluggify`].                     # warning: broken-doc-link
 ```
 
 ### Looking Up One Item
@@ -1252,9 +1252,9 @@ build/doc/llms.txt        # the index for agents
 7. r[cli.doc.name.missing] A NAME that names no documented item is an error. That includes a `std` NAME that names no item the standard library reference specifies.
 
 ```sh
-hd doc text.slugify      # the slugify section of text.md, on standard output
-hd doc text              # the whole page of module text
-hd doc std.json.parse    # parse's signature, summary, and reference link
+hd doc text.slugify             # the slugify section of text.md, on standard output
+hd doc text                     # the whole page of module text
+hd doc std.encoding.json.parse  # parse's signature, summary, and reference link
 ```
 
 > **Why.** The Markdown pages let an agent fetch one module in one

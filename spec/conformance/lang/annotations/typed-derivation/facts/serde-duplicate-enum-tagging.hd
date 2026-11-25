@@ -1,6 +1,6 @@
 # test: an enum has at most one representation fact
 # Spec std/serde Enum Names And Tagging and Annotations, Facts.
-use std.serde.{Serialize, tag, untagged}
+use std.encoding.{Serialize, tag, untagged}
 
 @derive(Serialize)
 @tag("type")

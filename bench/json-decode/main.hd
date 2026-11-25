@@ -3,8 +3,8 @@
 # size, so `run.ts` rebuilds the same texts for every compiler it compares.
 # Each cell prints 7 batches of at least 150 ms as
 # `shape order objects bytes nanoseconds-per-decode`.
-use std.json.decode
-use std.serde.{Deserialize, rename}
+use std.encoding.json.decode
+use std.encoding.{Deserialize, rename}
 use std.time.{Clock, elapsed, monotonic}
 
 @derive(Deserialize)

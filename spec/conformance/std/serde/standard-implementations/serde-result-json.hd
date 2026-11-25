@@ -1,8 +1,8 @@
 # test: Result writes and reads Rust serde's newtype-variant form, and rejects an unknown variant name
 # Spec std/serde Standard Implementations: std-serde.std.result.
 # Spec std/json Standard Implementations: std-json.std.result.
-use std.json.{encode, encode_pretty, decode, to_json, from_json, parse, Json, JsonError}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{encode, encode_pretty, decode, to_json, from_json, parse, Json, JsonError}
+use std.encoding.{Serialize, Deserialize}
 use std.testing.assert_equal
 
 @derive(Serialize, Deserialize)

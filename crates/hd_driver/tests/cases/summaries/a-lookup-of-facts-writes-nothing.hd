@@ -5,7 +5,7 @@
 # raw-address copy writes only its own new string, so both callers borrow
 # their facts and have no `writes` summary (#1285).
 use std.meta.{Facts, Member}
-use std.serde.{RenameAll, member_name}
+use std.encoding.{RenameAll, member_name}
 
 struct Frame:
     facts: Facts

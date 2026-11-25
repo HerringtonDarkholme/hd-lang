@@ -74,8 +74,8 @@ equality. Each derive is a template written in plain hd, and you can write
 your own ([Annotations](spec/lang/14-annotations.md)).
 
 ```hd
-use std.json.{decode, encode}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.{decode, encode}
+use std.encoding.{Deserialize, Serialize}
 use std.testing.{Arbitrary, assert_equal, it_prop}
 
 # JSON in and out, random values for tests, debug printing, and ==.

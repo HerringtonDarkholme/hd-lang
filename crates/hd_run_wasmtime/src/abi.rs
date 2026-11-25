@@ -460,7 +460,7 @@ impl Wire for HostError {
     }
 }
 
-/// `JsonError` of `lib/std/json.hd`.
+/// `JsonError` of `lib/std/encoding/json.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JsonError {
     UnexpectedEnd { position: usize },

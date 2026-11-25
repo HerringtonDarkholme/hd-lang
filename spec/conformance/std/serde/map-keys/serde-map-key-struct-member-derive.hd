@@ -1,6 +1,6 @@
 # test: MapKey derivation rejects a struct with a member
 # Spec std/serde Map Keys: std-serde.map-key.derive-payload-reject.
-use std.serde.MapKey
+use std.encoding.MapKey
 
 @derive(MapKey) # diagnostic: member-not-derivable
 struct PayloadStruct:

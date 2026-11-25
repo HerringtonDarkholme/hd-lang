@@ -8,7 +8,7 @@ const FIELDS: usize = 64;
 
 #[test]
 fn shuffled_keys_of_a_wide_record_cost_linear_key_work() -> Result<(), String> {
-    let json = include_str!("../../../../lib/std/json.hd");
+    let json = include_str!("../../../../lib/std/encoding/json.hd");
     // Every key comparison or key copy the reader makes goes through one of
     // these two Parser methods, and the name table is filled in `table_for`.
     let hooks = [
@@ -43,8 +43,8 @@ fn shuffled_keys_of_a_wide_record_cost_linear_key_work() -> Result<(), String> {
         format!("{{{}}}", keys.join(","))
     };
     let program = format!(
-        r#"use std.json.{{decode, key_steps_for_test}}
-use std.serde.Deserialize
+        r#"use std.encoding.json.{{decode, key_steps_for_test}}
+use std.encoding.Deserialize
 use std.testing.assert_equal
 
 @derive(Deserialize)
@@ -70,7 +70,7 @@ pub fn main() -> void $ Console:
 "#
     );
     let mut sources = hd_driver::std_sources();
-    sources.insert("json.hd", &instrumented);
+    sources.insert("encoding/json.hd", &instrumented);
     sources.insert("rt_tests/json_keyed_work.hd", &program);
     let store = crate::warm_store();
     let host = Host {

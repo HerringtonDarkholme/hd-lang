@@ -8,7 +8,7 @@
 # the facts. `tally` writes through `self`, which may reach the same frame,
 # so `count` still copies them (#1285).
 use std.meta.{Facts, Member}
-use std.serde.member_name
+use std.encoding.member_name
 
 struct Frame:
     next: usize

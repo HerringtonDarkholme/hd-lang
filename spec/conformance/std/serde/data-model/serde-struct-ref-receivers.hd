@@ -4,7 +4,7 @@
 # expect-stdout: 10 list:2 int:1 text:a end-list
 # expect-stdout: 9 -9 x y 2
 # expect-stdout: 4 3
-use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
+use std.encoding.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
 use std.meta.{Facts, VariantInfo, Member}
 
 @derive(Serialize, Deserialize)

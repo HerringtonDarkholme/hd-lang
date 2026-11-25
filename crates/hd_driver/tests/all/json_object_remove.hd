@@ -1,5 +1,5 @@
-use std.serde.{Deserialize, Deserializer}
-use std.json.{
+use std.encoding.{Deserialize, Deserializer}
+use std.encoding.json.{
     from_json,
     Json,
     JsonObject,

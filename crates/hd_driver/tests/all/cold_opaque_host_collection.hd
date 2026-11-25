@@ -1,7 +1,7 @@
 # module.boundary.codec; fn.suspension.hold: the opaque payload moves into
 # the cold leaf before the caller changes its own list and suspends.
 use std.collections.UniqList
-use std.serde.{Serialize, Serializer}
+use std.encoding.{Serialize, Serializer}
 use std.task.block_on
 use std.testing.assert_equal
 

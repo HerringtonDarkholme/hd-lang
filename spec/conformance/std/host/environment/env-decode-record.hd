@@ -5,7 +5,7 @@
 # std-host.env-decode.scalar, std-host.env-decode.list-separator, std-host.env-decode.list-no-trim,
 # std-host.env-decode.list-empty, std-host.env-decode.custom-deserialize, std-host.env-decode.declared-reads.
 use std.host.{Env, HostError, ScriptedEnv, env_decode}
-use std.serde.{Deserialize, Deserializer, rename}
+use std.encoding.{Deserialize, Deserializer, rename}
 
 struct Token:
     text: string

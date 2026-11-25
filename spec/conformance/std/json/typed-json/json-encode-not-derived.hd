@@ -1,6 +1,6 @@
 # test: encoding a type that does not implement Serialize is an error
 # Spec std/json Encode And Decode: std-json.encode.serialize (task #241, #320).
-use std.json.encode
+use std.encoding.json.encode
 
 struct Plain:
     id: i32

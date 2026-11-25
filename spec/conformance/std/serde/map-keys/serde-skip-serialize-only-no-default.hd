@@ -1,7 +1,7 @@
 # test: under Serialize alone, a skipped member needs no declared default and no Serialize
 # Spec std/serde Skipped Members: std-serde.skip.no-bound, std-serde.skip.write.
-use std.json.encode
-use std.serde.{Serialize, skip}
+use std.encoding.json.encode
+use std.encoding.{Serialize, skip}
 
 struct Cached:
     hits: i32

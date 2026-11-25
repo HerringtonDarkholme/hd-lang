@@ -8,7 +8,7 @@
 # the text between.
 use std.collections.UniqList
 use std.format.DebugWriter
-use std.serde.{Deserialize, Deserializer, ValueKind, member_name}
+use std.encoding.{Deserialize, Deserializer, ValueKind, member_name}
 use std.meta.{Facts, Member, VariantInfo}
 use std.rt.{bytes_len, bytes_at, bytes_slice, char_scalar, bytes_index}
 

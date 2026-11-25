@@ -1,8 +1,8 @@
 # test: direct typed decoding preserves the tree reader's values and errors
 # Spec std/json: std-json.decode.direct.v2, std-json.decode.no-tree, std-json.decode.parse-error.v2,
 # std-json.derive.duplicate-field, std-json.derive.variant-object-one-key.
-use std.json.{decode, parse, from_json, JsonError, Json}
-use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.encoding.json.{decode, parse, from_json, JsonError, Json}
+use std.encoding.{Deserialize, Deserializer, ValueKind}
 use std.testing.assert_equal
 
 @derive(Deserialize, Eq, Debug)

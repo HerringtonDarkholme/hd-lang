@@ -4,7 +4,8 @@
 # std-encoding.base64.encode, std-encoding.base64.decode,
 # std-encoding.base64.alphabet, std-encoding.base64.encode.groups,
 # std-encoding.base64.encode.pad-bits, and std-encoding.base64.encode.no-pad.
-use std.encoding.{Base64, DecodeError}
+use std.encoding.DecodeError
+use std.encoding.base64.Base64
 fn bytes_of(text: string) -> List[u8]:
     text.bytes().collect()
 

@@ -1,6 +1,6 @@
 # test: the free fill returns the covering provider's fill bytes, and hex_encode of it is the token
 # Spec std/random Random Source: std-random.fill-free (stdlib redesign #474).
-use std.encoding.hex_encode
+use std.encoding.hex.hex_encode
 use std.random.{Random, SeededRandom, fill}
 
 struct FixedBytes:

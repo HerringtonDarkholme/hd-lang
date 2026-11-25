@@ -53,7 +53,7 @@ Process = true          # the integration test runs the built program
 
 <!-- file: todo/src/tasks/mod.hd -->
 ```hd
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize, Eq, Debug)
 pub struct Task:
@@ -107,7 +107,7 @@ tests:
 ```hd
 use pkg.tasks.Task
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, stat, write_text}
-use std.json.{JsonError, decode, encode_pretty}
+use std.encoding.json.{JsonError, decode, encode_pretty}
 use std.path.Path
 
 @error

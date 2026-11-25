@@ -51,8 +51,8 @@ app.main.Rows size=568 align=8 cycle-capable=false niche=0:4/0x0..=0x1
   outer.x: app.main.A? offset=488 size=8 align=4 counted=none niche=488:4/0x0..=0x3
   outer.y: u8 offset=496 size=1 align=1 counted=none
   outer_1: app.main.Outer? offset=500 size=12 align=4 counted=none niche=500:4/0x0..=0x4
-  json: std.json.Json offset=328 size=16 align=8 counted=336?, 340? niche=328:4/0x0..=0x8
-  json_1: std.json.Json? offset=344 size=16 align=8 counted=352?, 356? niche=344:4/0x0..=0x9
+  json: std.encoding.json.Json offset=328 size=16 align=8 counted=336?, 340? niche=328:4/0x0..=0x8
+  json_1: std.encoding.json.Json? offset=344 size=16 align=8 counted=352?, 356? niche=344:4/0x0..=0x9
   cookie: std.http.Cookie offset=72 size=72 align=8 counted=104, 112, 120?, 128? niche=72:4/0x0..=0x1
   cookie.name: string offset=104 size=8 align=4 counted=104 niche=104:4/0x1..=0xffffffff
   cookie.value: string offset=112 size=8 align=4 counted=112 niche=112:4/0x1..=0xffffffff

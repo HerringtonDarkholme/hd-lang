@@ -1,6 +1,6 @@
 # test: an internal tag cannot equal a member wire name selected by rename_all
 # Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.internal-name-conflict.
-use std.serde.{Serialize, rename_all, tag}
+use std.encoding.{Serialize, rename_all, tag}
 
 @derive(Serialize)
 @rename_all(.CamelCase)

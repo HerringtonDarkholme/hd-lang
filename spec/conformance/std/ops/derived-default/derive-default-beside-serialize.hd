@@ -1,8 +1,8 @@
 # test: a derived Default fills a declared default without hiding the member from another derivation
 # Spec std/ops Derived Default: std-ops.default.derive.source-fact, std-ops.default.derive.data.declared.
-use std.json.encode
+use std.encoding.json.encode
 use std.ops.Default
-use std.serde.{Serialize, Serializer}
+use std.encoding.{Serialize, Serializer}
 
 struct Secret:
     value: i32

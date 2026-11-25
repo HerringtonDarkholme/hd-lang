@@ -4,8 +4,8 @@
 # expect-stdout: false false false false
 # expect-stdout: true {"v":1,"kids":[{"v":2,"kids":[]}]}
 # expect-stdout: {"name":"a"}
-use std.json.encode
-use std.serde.{MapKey, MapKeyValue, Serialize, Serializer, rename}
+use std.encoding.json.encode
+use std.encoding.{MapKey, MapKeyValue, Serialize, Serializer, rename}
 
 @derive(Serialize)
 struct Point:

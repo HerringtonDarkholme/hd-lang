@@ -1,6 +1,6 @@
 # test: a function named like an EnumTagging variant is still a computed fact
 # Rule: std-serde.enum-tagging.static-names.
-use std.serde.{EnumTagging, Serialize}
+use std.encoding.{EnumTagging, Serialize}
 
 fn Internal(tag: string) -> EnumTagging:
     EnumTagging.Internal(tag)

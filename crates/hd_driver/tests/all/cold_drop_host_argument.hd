@@ -1,7 +1,7 @@
 # module.rt.drop.glue; fn.suspension.hold: host argument cleanup calls
 # each inline Drop hook before releasing fields, including on cancellation.
 use std.rt.Drop
-use std.serde.{Serialize, Serializer}
+use std.encoding.{Serialize, Serializer}
 use std.task.block_on
 
 pub struct Counter:

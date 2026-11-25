@@ -1,6 +1,6 @@
 # json: encode records to JSON text, decode them back, check the sums.
-use std.json.{decode, encode}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.{decode, encode}
+use std.encoding.{Deserialize, Serialize}
 
 N := 170_000
 

@@ -126,8 +126,8 @@ Derive `Serialize` and `Deserialize`, then `decode::[T](text)` and
 extra field is ignored; a field with a default may be left out.
 
 ```hd
-use std.json.{JsonError, decode, encode, parse}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.json.{JsonError, decode, encode, parse}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize, Debug)
 struct Limits:

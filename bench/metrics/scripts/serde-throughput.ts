@@ -4,8 +4,8 @@
 // The document is a list of 200 orders, each with an id, a customer name,
 // a flag, an optional note, a list of tags, and 3 line records: about
 // 45 KB of JSON. In hd (fixtures/serde-throughput/) the types derive
-// Serialize and Deserialize, and the program encodes (`std.json.encode`)
-// or decodes (`std.json.decode`) the document N times. Two builds, N = SMALL and N = LARGE, give the time
+// Serialize and Deserialize, and the program encodes (`std.encoding.json.encode`)
+// or decodes (`std.encoding.json.decode`) the document N times. Two builds, N = SMALL and N = LARGE, give the time
 // per operation as the median of (large run i - small run i) / (LARGE -
 // SMALL), after a warm-up. Node builds the same objects and times
 // JSON.stringify and JSON.parse in its own process.

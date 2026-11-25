@@ -1,63 +1,11 @@
-# std.encoding: bytes as hex and base64 text (spec/std/encoding.md).
-
+# std.encoding.base64: bytes as base64 text (spec/std/encoding.md#base64).
+use std.encoding.codec.{DecodeError, zeroes}
 use std.rt.{bytes_len, bytes_at, string_from_bytes}
-
-# Why decoding failed, at a byte offset into the text
-# (r-std-encoding.error.position-bytes).
-## Why decoding failed: the kind, and the byte position.
-## See [std-encoding.error.declared](../../spec/std/encoding.md#r-std-encoding.error.declared).
-@error
-@derive(Debug, Eq)
-pub enum DecodeError:
-    # A character outside the alphabet.
-    @error("invalid character at position $position")
-    InvalidCharacter(position: usize)
-    # The text stops inside a unit; `position` is its length.
-    @error("invalid length: the text ends at position $position")
-    InvalidLength(position: usize)
-    # A misplaced `=`, or nonzero pad bits in the last symbol.
-    @error("invalid padding at position $position")
-    InvalidPadding(position: usize)
-
-# Lowercase hex, two digits per byte (r-std-encoding.hex.encode).
-## The bytes as lowercase hex text, two digits per byte.
-## See [std-encoding.hex.encode](../../spec/std/encoding.md#r-std-encoding.hex.encode).
-pub fn hex_encode(bytes: List[u8]) -> string:
-    let mut codes: List[u8] = zeroes(bytes.len() * 2)
-    let index: usize = 0
-    while index < bytes.len():
-        byte := bytes[index]
-        codes[index * 2] = hex_symbol(byte >> 4)
-        codes[index * 2 + 1] = hex_symbol(byte & 15)
-        index += 1
-    # Every written byte is an ASCII hex digit.
-    string_from_bytes(codes)
-
-# Either case; the length is checked first, then each character from the
-# left (r-std-encoding.hex.decode.order).
-## Reads hex text into bytes, or returns the first error.
-## See [std-encoding.hex.decode](../../spec/std/encoding.md#r-std-encoding.hex.decode).
-pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
-    size := bytes_len(text)
-    if size % 2 != 0:
-        return .Err(DecodeError.InvalidLength(size))
-    let mut bytes: List[u8] = zeroes(size / 2)
-    let index: usize = 0
-    while index < size:
-        high := hex_value(i32(bytes_at(text, index)))
-        if high < 0:
-            return .Err(DecodeError.InvalidCharacter(index))
-        low := hex_value(i32(bytes_at(text, index + 1)))
-        if low < 0:
-            return .Err(DecodeError.InvalidCharacter(index + 1))
-        bytes[index / 2] = u8(high * 16 + low)
-        index = index + 2
-    .Ok(bytes)
 
 # The four base64 encodings of RFC 4648 sections 4 and 5, after Go's
 # `base64.Encoding` values (r-std-encoding.base64.variants).
 ## A base64 encoding: the standard or URL-safe alphabet, with or without `=` padding.
-## See [std-encoding.base64.variants](../../spec/std/encoding.md#r-std-encoding.base64.variants).
+## See [std-encoding.base64.variants](../../../spec/std/encoding.md#r-std-encoding.base64.variants).
 @derive(Debug, Eq)
 pub enum Base64:
     # RFC 4648 section 4, padded.
@@ -72,7 +20,7 @@ impl Base64:
     # into the text without a second UTF-8 check
     # (r-std-encoding.base64.encode.groups).
     ## The bytes as text in this encoding.
-    ## See [std-encoding.base64.encode](../../spec/std/encoding.md#r-std-encoding.base64.encode).
+    ## See [std-encoding.base64.encode](../../../spec/std/encoding.md#r-std-encoding.base64.encode).
     pub fn encode(self, bytes: List[u8]) -> string:
         size := bytes.len()
         whole := size / 3
@@ -116,7 +64,7 @@ impl Base64:
     # The text is read in place by byte offset, and the result is one
     # buffer of exactly the decoded size.
     ## Reads text in this encoding into bytes, or returns the first error.
-    ## See [std-encoding.base64.decode](../../spec/std/encoding.md#r-std-encoding.base64.decode).
+    ## See [std-encoding.base64.decode](../../../spec/std/encoding.md#r-std-encoding.base64.decode).
     pub fn decode(self, text: string) -> Result[List[u8], DecodeError]:
         size := bytes_len(text)
         let end: usize = size
@@ -192,23 +140,3 @@ impl Base64:
             63
         else:
             -1
-
-fn hex_symbol(value: u8) -> u8:
-    if value < 10: 48 + value else: 87 + value
-
-fn hex_value(code: i32) -> i32:
-    if code >= 48 && code <= 57:
-        code - 48
-    else if code >= 97 && code <= 102:
-        code - 87
-    else if code >= 65 && code <= 70:
-        code - 55
-    else:
-        -1
-
-# A list of `count` zero bytes, written once by index.
-fn zeroes(count: usize) -> List[u8]:
-    let mut values: List[u8] = []
-    while values.len() < count:
-        values.push(0)
-    values

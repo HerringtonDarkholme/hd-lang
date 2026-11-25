@@ -2286,7 +2286,7 @@ See also: [Field Visibility](08-data-and-enums.md#field-visibility).
 5. r[module.package.separate] Implementations may compile packages separately.
 
 ```hd
-use std.json.parse
+use std.encoding.json.parse
 ```
 
 ### Fully Annotated Declarations
@@ -2660,7 +2660,7 @@ type's `Serialize` and `Deserialize` implementations
 ([serialization opt-in](14-annotations.md#serialization)):
 
 ```text
-use std.serde.{Serialize, Deserialize}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 pub struct Token:
@@ -2676,10 +2676,10 @@ pub trait Vault:  # a host capability of the selected runtime profile
     fn badge(self) -> Badge  # error: boundary-private-field
 ```
 
-1. r[module.boundary.out] A value of a struct type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.serde.Serialize`.
-2. r[module.boundary.in] Such a value crosses a boundary into hd only when the type implements `std.serde.Deserialize`.
-3. r[module.boundary.serialize.exact] A value of a type that implements `std.serde.Serialize` crosses out of hd as exactly what its `serialize` writes: private fields the implementation does not write do not cross.
-4. r[module.boundary.deserialize.exact] A value crosses into hd only as built by its type's `std.serde.Deserialize` implementation; a `deserialize` error is a `host-contract` panic the caller sees.
+1. r[module.boundary.out] A value of a struct type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.encoding.Serialize`.
+2. r[module.boundary.in] Such a value crosses a boundary into hd only when the type implements `std.encoding.Deserialize`.
+3. r[module.boundary.serialize.exact] A value of a type that implements `std.encoding.Serialize` crosses out of hd as exactly what its `serialize` writes: private fields the implementation does not write do not cross.
+4. r[module.boundary.deserialize.exact] A value crosses into hd only as built by its type's `std.encoding.Deserialize` implementation; a `deserialize` error is a `host-contract` panic the caller sees.
 5. r[module.boundary.deserialize.no-dyn] Deserialization at a boundary never selects a type from the data: the target type comes from the signature.
 6. r[module.boundary.public] A struct type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
 7. r[module.boundary.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.

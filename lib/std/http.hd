@@ -10,10 +10,10 @@ use std.time.{Clock, Duration, Timestamp}
 use std.text.{StringBuilder, Parse}
 use std.hash.Hasher
 use std.format.DebugWriter
-use std.json.{JsonError, decode, encode}
-use std.serde.{Deserialize, Serialize, Serializer, Deserializer, ValueKind, member_name}
+use std.encoding.json.{JsonError, decode, encode}
+use std.encoding.{Deserialize, Serialize, Serializer, Deserializer, ValueKind, member_name}
 use std.meta.{Facts, VariantInfo, Member}
-use std.encoding.Base64
+use std.encoding.base64.Base64
 
 ## A standard HTTP status or another numeric code.
 @derive(Debug)

@@ -1,6 +1,6 @@
 # test: Serializer.begin_variant borrows VariantInfo metadata instead of taking its value
 # Spec std/serde Data Model: std-serde.model.variant-args.local-ref.
-use std.serde.Serializer
+use std.encoding.Serializer
 use std.meta.{Facts, VariantInfo, Member}
 
 struct Count:

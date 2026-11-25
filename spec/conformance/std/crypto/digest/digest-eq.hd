@@ -3,7 +3,7 @@
 # The constant-time property is not observable by a test; this fixture checks the result at each difference position.
 use std.crypto.{Digest}
 use std.crypto.sha256.{sha256}
-use std.encoding.hex_decode
+use std.encoding.hex.hex_decode
 
 fn signature_matches(body: List[u8], sent_hex: string) -> bool:
     match hex_decode(sent_hex):

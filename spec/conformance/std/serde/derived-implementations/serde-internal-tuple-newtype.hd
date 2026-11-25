@@ -1,6 +1,6 @@
 # test: internal tagging rejects a tuple newtype payload before code generation
 # Spec std/serde Enum Names And Tagging: std-serde.enum-tagging.internal-shapes.
-use std.serde.{Serialize, tag}
+use std.encoding.{Serialize, tag}
 
 @derive(Serialize)
 @tag("type")

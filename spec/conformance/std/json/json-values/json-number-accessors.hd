@@ -1,6 +1,6 @@
 # test: Json.as_i64, as_u64 and as_f64 read a Number as Number's accessors do; a float with no fraction is not an integer, and any other kind is .None
 # Spec std/json Json Values: std-json.value.accessors.i64, std-json.value.accessors.u64, std-json.value.accessors.f64, std-json.value.accessors.integer-exact (issue 371).
-use std.json.{parse, Json}
+use std.encoding.json.{parse, Json}
 
 fn read(text: string) -> Json:
     match parse(text):

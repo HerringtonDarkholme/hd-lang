@@ -1,7 +1,7 @@
 # test: an internally tagged newtype panics when its handwritten payload serializer writes a non-object
 # Rule: std-json.derive.internal.payload-object-panic.
-use std.json.encode
-use std.serde.{Serialize, Serializer, tag}
+use std.encoding.json.encode
+use std.encoding.{Serialize, Serializer, tag}
 
 struct ScalarPayload:
     value: i32

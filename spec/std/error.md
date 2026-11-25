@@ -243,7 +243,7 @@ fn width(text: string) -> Result[i32, *dyn Error]:
 | `DecodeError` | `std.encoding` |
 | `FsError` | `std.fs` |
 | `ProcessError` | `std.process` |
-| `JsonError` | `std.json` |
+| `JsonError` | `std.encoding.json` |
 | `ParseTimeError` | `std.time` |
 | `CliError` | `std.cli` |
 | `HostError` | `std.host` |

@@ -969,7 +969,7 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 > identity to `downcast_ref`, so the lookup reuses it.
 
 > **Note.** Standard walkers, describers, and sources, such as the ones a
-> `std.json` would use, are library design.
+> `std.encoding.json` would use, are library design.
 > The archived STDLIB draft sketches the standard modules.
 
 ### The Structure Trait
@@ -1260,7 +1260,7 @@ so omitting one, as `Audit = pass` above, is always this error.
 3. r[annot.line.drift.legal] Different member lines stay legal: configuration may differ per direction, such as encoding and decoding.
 
 ```hd
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 use std.meta.Structure
 
 struct Session:
@@ -1995,10 +1995,10 @@ An implementation must not guess them:
 
 A type opts into serialization for every format at once, to write its
 values or to build them, private members included, by deriving or
-implementing two traits of `std.serde`:
+implementing two traits of `std.encoding`:
 
 ```text
-use std.serde.{Serialize, Deserialize}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 struct Session:
@@ -2007,16 +2007,16 @@ struct Session:
     expires_at: i64
 ```
 
-1. r[annot.serde.definition] A type opts into serialization when it implements `std.serde.Serialize`, and into deserialization when it implements `std.serde.Deserialize`.
+1. r[annot.serde.definition] A type opts into serialization when it implements `std.encoding.Serialize`, and into deserialization when it implements `std.encoding.Deserialize`.
 2. r[annot.serde.private-library-view] The opt-in covers private members, as [`annot.structure.private`](#r-annot.structure.private) allows.
-3. r[annot.serde.derivable] `std.serde` declares the [template](#templates) of each trait. So `@derive(Serialize)`, `@derive(Deserialize)`, and a derivation block for either trait are valid.
+3. r[annot.serde.derivable] `std.encoding` declares the [template](#templates) of each trait. So `@derive(Serialize)`, `@derive(Deserialize)`, and a derivation block for either trait are valid.
 4. r[annot.serde.members] Every member that a derived `Serialize` walks must implement `Serialize`, and every member that a derived `Deserialize` builds must implement `Deserialize`.
 5. r[annot.serde.members.error] A member that does not is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.
 6. r[annot.serde.by-hand] A type may implement either trait by hand instead. A written implementation opts in too.
 7. r[annot.serde.no-dyn] No format selects a type from the data: deserialization never constructs a polymorphic or `dyn` value from a payload. A payload that names its own type is data, not instructions: Java's gadget chains show where trusting it leads.
 
 ```text
-use std.serde.Serialize
+use std.encoding.Serialize
 
 struct Secret:
     value: i32
@@ -2038,15 +2038,15 @@ struct Account:
 > [Serialization Formats](https://github.com/HerringtonDarkholme/hd-lang/issues/833).
 
 > **Note.** Document member names may be configured by the ordinary
-> [`std.serde.Rename` field fact](../std/serde.md#member-names).
+> [`std.encoding.Rename` field fact](../std/serde.md#member-names).
 > It adds no language annotation form.
 
 See also: [Boundary Encoding](10-modules.md#boundary-encoding),
 [Serde](../std/serde.md), [Typed JSON](../std/json.md#typed-json).
 
-### The `std.serde` Module
+### The `std.encoding` Module
 
-The module `std.serde` declares the two serialization traits and the format
+The module `std.encoding` declares the two serialization traits and the format
 protocol they drive. The block below is abridged: it shows the core of each
 trait, and [Serde](../std/serde.md) lists every method, with the data-type,
 variant-form, keyed-reading and `skip` hooks it leaves out.
@@ -2108,8 +2108,8 @@ pub trait Deserializer:
         false
 ```
 
-1. r[annot.serde.module.v2] The standard module `std.serde` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.meta`](#the-stdmeta-module).
-2. r[annot.serde.known] The compiler knows `Serialize` and `Deserialize` by name, for the boundary rule [`module.boundary.out`](10-modules.md#r-module.boundary.out). It knows no other part of `std.serde`.
+1. r[annot.serde.module.v2] The standard module `std.encoding` declares `Serialize`, `Deserialize`, `Serializer`, `Deserializer`, and `ValueKind`, as above. `Facts`, `VariantInfo`, and `Member` are those of [`std.meta`](#the-stdmeta-module).
+2. r[annot.serde.known] The compiler knows `Serialize` and `Deserialize` by name, for the boundary rule [`module.boundary.out`](10-modules.md#r-module.boundary.out). It knows no other part of `std.encoding`.
 3. r[annot.serde.not-sealed] None of the five items is sealed. Any package may implement the four traits.
 
 > **Why.** `Structure` may be named only inside a template, so a format

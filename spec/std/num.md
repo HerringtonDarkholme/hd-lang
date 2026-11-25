@@ -469,7 +469,7 @@ fn ratio(text: string) -> f64:
 > rounding is what Rust and `serde_json` give. It needs big-number
 > arithmetic, so the host supplies it, as it supplies `format_f64`.
 
-> **Note.** `std.json` checks its own grammar, that of RFC 8259, before it
+> **Note.** `std.encoding.json` checks its own grammar, that of RFC 8259, before it
 > calls `text.parse::[f64]()`. So JSON text still rejects `NaN`, `+1`, `.5`, and
 > `5.`, by [`std-json.parse.number.grammar`](json.md#r-std-json.parse.number.grammar).
 

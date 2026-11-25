@@ -1,8 +1,8 @@
 # test: a derived Deserialize builds a struct with no fields from an empty JSON object
 # Spec std/serde Derived Implementations: std-serde.derive.deserialize.template, std-serde.derive.deserialize.data-and-enum-forms.
 # Spec 14 Walk, Describe, And Build: annot.build.construct.
-use std.json.decode
-use std.serde.Deserialize
+use std.encoding.json.decode
+use std.encoding.Deserialize
 
 # A marker message: its type is all it carries.
 @derive(Deserialize)

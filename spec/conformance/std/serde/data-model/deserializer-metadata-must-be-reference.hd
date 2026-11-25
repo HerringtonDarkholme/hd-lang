@@ -1,6 +1,6 @@
 # test: Deserializer.member borrows Member metadata instead of taking its value
 # Spec std/serde Reading: std-serde.read.member.local-ref.
-use std.serde.{Deserializer, ValueKind}
+use std.encoding.{Deserializer, ValueKind}
 use std.meta.{Facts, VariantInfo, Member}
 
 struct Reader: pass

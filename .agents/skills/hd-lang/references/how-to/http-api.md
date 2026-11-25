@@ -8,7 +8,7 @@ network.
 
 ```hd
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, Url, get}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 
 @derive(Serialize, Deserialize, Eq, Debug)
 struct Repo:

@@ -3,7 +3,7 @@
 # std-host.env-decode.prefixed-field-name, std-host.env-decode.missing,
 # std-host.env-decode.invalid-value, std-host.error.missing-display.
 use std.host.{Env, HostError, ScriptedEnv, env_decode}
-use std.serde.Deserialize
+use std.encoding.Deserialize
 
 @derive(Deserialize)
 struct Amount:

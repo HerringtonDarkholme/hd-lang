@@ -569,7 +569,7 @@ fn rename_style_value(
     .flatten()
 }
 
-/// Validates std.serde's internal and adjacent enum shapes against the
+/// Validates std.encoding's internal and adjacent enum shapes against the
 /// declaration facts after its no-trait metadata block has edited them
 /// (`std-serde.enum-tagging.*`).
 fn check_enum_tagging(

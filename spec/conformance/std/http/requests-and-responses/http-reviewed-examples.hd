@@ -4,10 +4,10 @@
 use std.testing.{assert, assert_equal}
 use std.convert.From
 use std.fs.{FsError, FsRead, FsWrite, MemoryFs, read_text, write_text}
-use std.json.{decode, encode}
+use std.encoding.json.{decode, encode}
 use std.path.Path
 use std.time.{Clock, ManualClock, Timestamp}
-use std.serde.{Deserialize, Serialize}
+use std.encoding.{Deserialize, Serialize}
 use std.http.{
     Body,
     BodyError,

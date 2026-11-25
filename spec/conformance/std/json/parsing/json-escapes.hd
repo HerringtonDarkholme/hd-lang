@@ -1,6 +1,6 @@
 # test: string escapes decode, including \uXXXX and surrogate pairs, and encode as the writer spells them
 # Spec std/json Parsing, Writing: std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.display.text (JSON-SURFACE; task #226).
-use std.json.{parse, Json, JsonError}
+use std.encoding.json.{parse, Json, JsonError}
 fn read(text: string) -> Json:
     match parse(text):
         .Ok(value) => value

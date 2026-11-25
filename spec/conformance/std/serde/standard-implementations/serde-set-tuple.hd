@@ -1,8 +1,8 @@
 # test: a Set writes and reads a list in its iteration order, and a tuple writes and reads a list of its members; a wrong length is a decode error with the path
 # Spec std/serde Standard Implementations: std-serde.std.set-elements, std-serde.std.tuple, std-serde.std.tuple-length, std-serde.std.tuple-rest.
-use std.json.{encode, decode, JsonError}
+use std.encoding.json.{encode, decode, JsonError}
 use std.collections.Set
-use std.serde.{Serialize, Deserialize}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 struct Order:

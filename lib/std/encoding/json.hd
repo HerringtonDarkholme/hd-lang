@@ -1,11 +1,11 @@
-# std.json: the untyped JSON value, its parser, and its writers, and
-# typed JSON over the `std.serde` opt-in: `to_json`, `from_json`,
+# std.encoding.json: the untyped JSON value, its parser, and its writers, and
+# typed JSON over the `std.encoding` opt-in: `to_json`, `from_json`,
 # `encode`, `encode_pretty`, and `decode` (spec/std/json.md).
 use std.format.DebugWriter
 use std.iter.ListIter
 use std.error.Error
 use std.meta.cold
-use std.serde.{
+use std.encoding.{
     Serialize,
     Deserialize,
     Serializer,
@@ -44,7 +44,7 @@ fn enum_tagging(facts: Facts) -> EnumTagging?:
 # One JSON value (r-std-json.value.decl). An object keeps its members in
 # insertion order (r-std-json.object.order).
 ## A JSON value: `null`, `Bool`, `Number`, `Text`, `Array`, or `Object`.
-## See [std-json.value.decl](../../spec/std/json.md#r-std-json.value.decl).
+## See [std-json.value.decl](../../../spec/std/json.md#r-std-json.value.decl).
 @derive(Debug, Eq)
 pub enum Json:
     Null
@@ -64,19 +64,19 @@ enum ObjectEntry:
     Metadata(live: usize, next: Map[usize, usize])
 
 ## The members of a JSON object, in insertion order.
-## See [std-json.object.decl-struct](../../spec/std/json.md#r-std-json.object.decl-struct).
+## See [std-json.object.decl-struct](../../../spec/std/json.md#r-std-json.object.decl-struct).
 pub struct JsonObject:
     entries: List[ObjectEntry]
     index: Map[string, usize]
 
 impl JsonObject:
     ## Returns an object with no members.
-    ## See [std-json.object.new-value](../../spec/std/json.md#r-std-json.object.new-value).
+    ## See [std-json.object.new-value](../../../spec/std/json.md#r-std-json.object.new-value).
     pub fn new() -> JsonObject:
         JsonObject { entries: [], index: {} }
 
     ## Returns the number of members.
-    ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
+    ## See [std-json.object.len](../../../spec/std/json.md#r-std-json.object.len).
     pub fn len(&self) -> usize:
         if self.index.is_empty():
             return self.entries.len()
@@ -85,24 +85,24 @@ impl JsonObject:
             _ => self.entries.len()
 
     ## True exactly when the object has no members.
-    ## See [std-json.object.len](../../spec/std/json.md#r-std-json.object.len).
+    ## See [std-json.object.len](../../../spec/std/json.md#r-std-json.object.len).
     pub fn is_empty(&self) -> bool:
         self.len() == 0
 
     ## The value of `key`, or `.None` when the object has no such key.
-    ## See [std-json.object.get](../../spec/std/json.md#r-std-json.object.get).
+    ## See [std-json.object.get](../../../spec/std/json.md#r-std-json.object.get).
     pub fn get(&self, key: string) -> Json?:
         match self.position(key):
             .Some(at) => self.value_at(at)
             .None => .None
 
     ## True exactly when the object has the key.
-    ## See [std-json.object.get](../../spec/std/json.md#r-std-json.object.get).
+    ## See [std-json.object.get](../../../spec/std/json.md#r-std-json.object.get).
     pub fn contains_key(&self, key: string) -> bool:
         self.position(key).is_some()
 
     ## Sets `key` to `value`. A new key goes last, and an existing key keeps its place.
-    ## See [std-json.object.set-ref](../../spec/std/json.md#r-std-json.object.set-ref).
+    ## See [std-json.object.set-ref](../../../spec/std/json.md#r-std-json.object.set-ref).
     pub fn set(&mut self, key: string, value: Json) -> void:
         match self.position(key):
             .Some(at) => self.entries[at] = .Member(key, value)
@@ -118,7 +118,7 @@ impl JsonObject:
                 if !self.index.is_empty(): self.index[key] = at else if at >= 8: self.index_dense()
 
     ## Removes `key` and returns its value, or `.None` when the object has no such key. The other members keep their order.
-    ## See [std-json.object.remove-ref](../../spec/std/json.md#r-std-json.object.remove-ref).
+    ## See [std-json.object.remove-ref](../../../spec/std/json.md#r-std-json.object.remove-ref).
     pub fn remove(&mut self, key: string) -> Json?:
         # A duplicate-preserving tree writer can construct a dense, large
         # object without an index. Pay for that index once before deletion.
@@ -240,7 +240,7 @@ impl JsonObject:
         *self = object
 
     ## The keys, in insertion order.
-    ## See [std-json.object.order](../../spec/std/json.md#r-std-json.object.order).
+    ## See [std-json.object.order](../../../spec/std/json.md#r-std-json.object.order).
     pub fn keys(&self) -> List[string]:
         let mut keys: List[string] = []
         for entry in self.entries:
@@ -292,33 +292,33 @@ enum NumberRepr:
 # A JSON number that keeps 64-bit integers exact, modeled on
 # `serde_json::Number` (r-std-json.number.decl-struct).
 ## A JSON number, exact for 64-bit integers: integers in the `i64` and `u64` ranges are exact, and every other number is an `f64`.
-## See [std-json.number.decl-struct](../../spec/std/json.md#r-std-json.number.decl-struct).
+## See [std-json.number.decl-struct](../../../spec/std/json.md#r-std-json.number.decl-struct).
 @derive(Eq)
 pub struct Number:
     repr: NumberRepr
 
 impl Number:
     ## Returns the integer `value` as a `Number`.
-    ## See [std-json.number.constructors.i64](../../spec/std/json.md#r-std-json.number.constructors.i64).
+    ## See [std-json.number.constructors.i64](../../../spec/std/json.md#r-std-json.number.constructors.i64).
     pub fn from_i64(value: i64) -> Number:
         if value < 0:
             return Number { repr: NumberRepr.Negative(value) }
         Number { repr: NumberRepr.NonNegative(u64(value)) }
 
     ## Returns the integer `value` as a `Number`.
-    ## See [std-json.number.constructors.u64](../../spec/std/json.md#r-std-json.number.constructors.u64).
+    ## See [std-json.number.constructors.u64](../../../spec/std/json.md#r-std-json.number.constructors.u64).
     pub fn from_u64(value: u64) -> Number:
         Number { repr: NumberRepr.NonNegative(value) }
 
     ## Returns the float `value` as a `Number`, or `.None` for a NaN or an infinity.
-    ## See [std-json.number.constructors.f64](../../spec/std/json.md#r-std-json.number.constructors.f64).
+    ## See [std-json.number.constructors.f64](../../../spec/std/json.md#r-std-json.number.constructors.f64).
     pub fn from_f64(value: f64) -> Number?:
         if !value.is_finite():
             return .None
         .Some(Number { repr: NumberRepr.Float(value) })
 
     ## The integer when it is in the `i64` range, and `.None` for a float.
-    ## See [std-json.number.accessors.i64](../../spec/std/json.md#r-std-json.number.accessors.i64).
+    ## See [std-json.number.accessors.i64](../../../spec/std/json.md#r-std-json.number.accessors.i64).
     pub fn as_i64(&self) -> i64?:
         match self.repr:
             .Negative(value) => .Some(value)
@@ -327,14 +327,14 @@ impl Number:
             .Float(_) => .None
 
     ## The integer when it is from zero up, and `.None` for a negative integer or a float.
-    ## See [std-json.number.accessors.u64](../../spec/std/json.md#r-std-json.number.accessors.u64).
+    ## See [std-json.number.accessors.u64](../../../spec/std/json.md#r-std-json.number.accessors.u64).
     pub fn as_u64(&self) -> u64?:
         match self.repr:
             .NonNegative(value) => .Some(value)
             _ => .None
 
     ## `.Some` of the float, or of the integer converted to the nearest `f64`.
-    ## See [std-json.number.accessors.f64](../../spec/std/json.md#r-std-json.number.accessors.f64).
+    ## See [std-json.number.accessors.f64](../../../spec/std/json.md#r-std-json.number.accessors.f64).
     pub fn as_f64(&self) -> f64?:
         match self.repr:
             .Negative(value) => .Some(f64(value))
@@ -352,21 +352,21 @@ impl Display for Number:
 impl Json:
     # JSON text with two-space indentation (r-std-json.value.pretty).
     ## The pretty text of the value: each item of an array and each entry of an object on its own line, indented by two spaces for each level of nesting.
-    ## See [std-json.value.pretty](../../spec/std/json.md#r-std-json.value.pretty).
+    ## See [std-json.value.pretty](../../../spec/std/json.md#r-std-json.value.pretty).
     pub fn pretty(&self) -> string:
         let mut out = TextRoom::new()
         render(*self, &mut out, true, 0)
         out.take_text()
 
     ## The value of `key` when the value is an `Object` with that key.
-    ## See [std-json.value.accessors.get](../../spec/std/json.md#r-std-json.value.accessors.get).
+    ## See [std-json.value.accessors.get](../../../spec/std/json.md#r-std-json.value.accessors.get).
     pub fn get(&self, key: string) -> Json?:
         match self:
             .Object(fields) => fields.get(key)
             _ => .None
 
     ## The item at `index` when the value is an `Array` and `index` is from 0 up to its length.
-    ## See [std-json.value.accessors.at-index](../../spec/std/json.md#r-std-json.value.accessors.at-index).
+    ## See [std-json.value.accessors.at-index](../../../spec/std/json.md#r-std-json.value.accessors.at-index).
     pub fn at(&self, index: usize) -> Json?:
         match self:
             .Array(items) =>
@@ -374,42 +374,42 @@ impl Json:
             _ => .None
 
     ## The string of a `Text` value.
-    ## See [std-json.value.accessors.text](../../spec/std/json.md#r-std-json.value.accessors.text).
+    ## See [std-json.value.accessors.text](../../../spec/std/json.md#r-std-json.value.accessors.text).
     pub fn as_text(&self) -> string?:
         match self:
             .Text(value) => .Some(value)
             _ => .None
 
     ## The value of a `Bool`.
-    ## See [std-json.value.accessors.bool](../../spec/std/json.md#r-std-json.value.accessors.bool).
+    ## See [std-json.value.accessors.bool](../../../spec/std/json.md#r-std-json.value.accessors.bool).
     pub fn as_bool(&self) -> bool?:
         match self:
             .Bool(value) => .Some(value)
             _ => .None
 
     ## `true` exactly for `Null`.
-    ## See [std-json.value.accessors.null](../../spec/std/json.md#r-std-json.value.accessors.null).
+    ## See [std-json.value.accessors.null](../../../spec/std/json.md#r-std-json.value.accessors.null).
     pub fn is_null(&self) -> bool:
         match self:
             .Null => true
             _ => false
 
     ## The integer of a `Number` that is an integer in the `i64` range; a float, even `1.0`, gives `.None`.
-    ## See [std-json.value.accessors.i64](../../spec/std/json.md#r-std-json.value.accessors.i64).
+    ## See [std-json.value.accessors.i64](../../../spec/std/json.md#r-std-json.value.accessors.i64).
     pub fn as_i64(&self) -> i64?:
         match self:
             .Number(value) => value.as_i64()
             _ => .None
 
     ## The integer of a `Number` that is an integer from zero up in the `u64` range; a float gives `.None`.
-    ## See [std-json.value.accessors.u64](../../spec/std/json.md#r-std-json.value.accessors.u64).
+    ## See [std-json.value.accessors.u64](../../../spec/std/json.md#r-std-json.value.accessors.u64).
     pub fn as_u64(&self) -> u64?:
         match self:
             .Number(value) => value.as_u64()
             _ => .None
 
     ## The `f64` of any `Number`, an integer converted to the nearest `f64`.
-    ## See [std-json.value.accessors.f64](../../spec/std/json.md#r-std-json.value.accessors.f64).
+    ## See [std-json.value.accessors.f64](../../../spec/std/json.md#r-std-json.value.accessors.f64).
     pub fn as_f64(&self) -> f64?:
         match self:
             .Number(value) => value.as_f64()
@@ -420,7 +420,7 @@ impl Json:
     # at the next `/` and decoded at once; `/` and `~` are ASCII, so every
     # cut is on a scalar boundary.
     ## The value at the JSON Pointer `path` (RFC 6901), such as `/db/pool/0`, or `.None` when no value is there.
-    ## See [std-json.pointer](../../spec/std/json.md#r-std-json.pointer).
+    ## See [std-json.pointer](../../../spec/std/json.md#r-std-json.pointer).
     pub fn pointer(&self, path: string) -> Json?:
         size := bytes_len(path)
         if size == 0:
@@ -613,7 +613,7 @@ fn duplicate_field_message(path: string) -> string:
 # decoding failed, at a path such as `$.users[2].name`
 # (r-std-json.error.variants.v2).
 ## The error that `parse` and `decode` return: seven parse errors at a byte position, and four decode errors at a path.
-## See [std-json.error.variants.v2](../../spec/std/json.md#r-std-json.error.variants.v2).
+## See [std-json.error.variants.v2](../../../spec/std/json.md#r-std-json.error.variants.v2).
 @error
 @derive(Debug, Eq)
 pub enum JsonError:
@@ -655,7 +655,7 @@ pub enum JsonError:
 
 # Strict RFC 8259 text to a `Json` (r-std-json.parse).
 ## Reads one JSON text, strictly as RFC 8259 defines it, and returns `.Ok` of the value or `.Err` of the first error.
-## See [std-json.parse](../../spec/std/json.md#r-std-json.parse).
+## See [std-json.parse](../../../spec/std/json.md#r-std-json.parse).
 pub fn parse(text: string) -> Result[Json, JsonError]:
     parser := &mut Parser { text: text, size: bytes_len(text), at: 0 }
     value := parser.value(0)?
@@ -1221,7 +1221,7 @@ fn float_number(text: string, start: usize, end: usize) -> Result[Json, JsonErro
     # Name the string method explicitly beside this module's JSON parse entry.
     value := match string::parse::[f64](bytes_slice(text, start, end)):
         .Ok(found) => found
-        .Err(_) => panic("std.json: a JSON number is valid f64 text")
+        .Err(_) => panic("std.encoding.json: a JSON number is valid f64 text")
     match Number::from_f64(value):
         .Some(number) => .Ok(Json.Number(number))
         .None => .Err(JsonError.NumberOutOfRange(start))
@@ -1245,13 +1245,13 @@ impl Debug for JsonObject:
 
 # ---------------------------------------------------------------------------
 # Typed JSON (spec/std/json.md#typed-json): JSON as a format that reads the
-# `std.serde` opt-in. `to_json` writes a value through `JsonWriter`,
+# `std.encoding` opt-in. `to_json` writes a value through `JsonWriter`,
 # `encode` writes its text through `TextWriter`, and `from_json` reads one
 # through `JsonReader`.
 
 # The `Json` of a value (r-std-json.to-json).
 ## The `Json` that `value`'s `serialize` writes.
-## See [std-json.to-json](../../spec/std/json.md#r-std-json.to-json).
+## See [std-json.to-json](../../../spec/std/json.md#r-std-json.to-json).
 pub fn to_json[T < Serialize](value: T) -> Json:
     writer := &mut JsonWriter {
         result: Json.Null,
@@ -1263,12 +1263,12 @@ pub fn to_json[T < Serialize](value: T) -> Json:
     }
     match value.serialize(writer):
         .Ok(_) => writer.result
-        .Err(_) => panic("std.json: the JSON writer never fails")
+        .Err(_) => panic("std.encoding.json: the JSON writer never fails")
 
 # The value that a `Json` describes, or the first decode error
 # (r-std-json.from-json).
 ## The `T` that `T::deserialize` reads from `value`, or the first error it finds.
-## See [std-json.from-json](../../spec/std/json.md#r-std-json.from-json).
+## See [std-json.from-json](../../../spec/std/json.md#r-std-json.from-json).
 pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
     let mut reader = JsonReader::new(value)
     T::deserialize(&mut reader)
@@ -1277,7 +1277,7 @@ pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]:
 # writes that text during the walk, with no `Json` in between; a walk it
 # does not write directly goes through the tree, which defines the text.
 ## The compact JSON text of `value`, with no whitespace outside strings.
-## See [std-json.encode](../../spec/std/json.md#r-std-json.encode).
+## See [std-json.encode](../../../spec/std/json.md#r-std-json.encode).
 pub fn encode[T < Serialize](value: T) -> string:
     let mut writer = TextWriter::new(false)
     writer.trusted = T::regular()
@@ -1294,7 +1294,7 @@ pub fn encode[T < Serialize](value: T) -> string:
 # by `TextWriter` in its spaced layout, or through the tree as `encode`
 # falls back.
 ## The pretty JSON text of `value`: `to_json(value).pretty()`.
-## See [std-json.encode-pretty](../../spec/std/json.md#r-std-json.encode-pretty).
+## See [std-json.encode-pretty](../../../spec/std/json.md#r-std-json.encode-pretty).
 pub fn encode_pretty[T < Serialize](value: T) -> string:
     let mut writer = TextWriter::new(true)
     writer.trusted = T::regular()
@@ -1309,7 +1309,7 @@ pub fn encode_pretty[T < Serialize](value: T) -> string:
 
 # Read the text once through the typed deserializer (r-std-json.decode.direct.v2).
 ## Reads a typed value from JSON text in one pass.
-## See [std-json.decode.direct.v2](../../spec/std/json.md#r-std-json.decode.direct.v2).
+## See [std-json.decode.direct.v2](../../../spec/std/json.md#r-std-json.decode.direct.v2).
 pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
     # One pass: the key-loop reader reads the text in order, and the
     # derived walk takes the keys in any order. Only a failed or unfinished
@@ -1443,7 +1443,7 @@ impl JsonWriter:
     fn close(&mut self) -> (OpenFrame, List[string], List[Json]):
         frame := match self.frames.pop():
             .Some(found) => found
-            .None => panic("std.json: a close without an open container")
+            .None => panic("std.encoding.json: a close without an open container")
         let mut keys: List[string] = []
         let mut values: List[Json] = []
         let index = frame.start
@@ -1560,7 +1560,7 @@ impl Serializer for JsonWriter:
         if frame.kind >= 4:
             tagging := match enum_tagging(frame.facts):
                 .Some(found) => found
-                .None => panic("std.json: tagged frame without an enum representation")
+                .None => panic("std.encoding.json: tagged frame without an enum representation")
             closed := self.close()
             return self.put(tagged_json(closed._0, closed._1, closed._2, tagging))
         if frame.name != "" && frame.kind == 0:
@@ -1604,7 +1604,7 @@ fn tagged_json(
                 .Object(found) => found
                 _ =>
                     panic(
-                        "std.json: internally tagged variant `${frame.name}` payload must write an object",
+                        "std.encoding.json: internally tagged variant `${frame.name}` payload must write an object",
                     )
             let mut entries: List[ObjectEntry] = [.Member(tag, Json.Text(frame.name))]
             for (key, value) in fields:
@@ -2223,7 +2223,7 @@ impl JsonReader:
     # The innermost frame.
     fn top(&self) -> usize:
         if self.open == 0:
-            panic("std.json: no open container")
+            panic("std.encoding.json: no open container")
         self.open - 1
 
     # Closes the innermost frame; the cursor's path is its container's
@@ -2431,7 +2431,7 @@ impl Deserializer for JsonReader:
                 match self.containers[last]:
                     .Array(items) =>
                         if index < items.len():
-                            panic("std.json: next_key in a list")
+                            panic("std.encoding.json: next_key in a list")
                     _ => pass
             _ => pass
         self.leave()
@@ -2946,7 +2946,7 @@ impl StreamReader:
 
     fn top(&self) -> usize:
         if self.open == 0:
-            panic("std.json: no open container")
+            panic("std.encoding.json: no open container")
         self.open - 1
 
     # A tuple variant's payload with another item count, at the variant.
@@ -3407,7 +3407,7 @@ impl Deserializer for StreamReader:
             .Items =>
                 self.settle()?
                 if self.byte() != 93:
-                    panic("std.json: next_key in a list")
+                    panic("std.encoding.json: next_key in a list")
                 self.end_variant()?
                 return .Ok(.None)
             _ =>

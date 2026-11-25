@@ -2,8 +2,8 @@
 # Spec std/serde Standard Implementations: std-serde.std.counted-reference. Spec std/json Encode And Decode: std-json.encode.
 # expect-stdout: {"value":1,"next":{"value":2,"next":null}}
 # expect-stdout: 2
-use std.json.{encode, decode}
-use std.serde.{Serialize, Deserialize}
+use std.encoding.json.{encode, decode}
+use std.encoding.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
 struct Cell:
