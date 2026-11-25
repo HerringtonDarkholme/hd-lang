@@ -2734,6 +2734,12 @@ impl Module {
         let mut taken: hd_base::HashMap<&str, u32> = hd_base::HashMap::default();
         let mut own: Vec<(u32, String)> = Vec::new();
         for (s, f) in &defined {
+            // A release helper delegates its caller's already-counted operation.
+            // Explicit internal ownership sites and other actions stay visible.
+            let release_wrapper = self.track_origins
+                && matches!(&*self.symbols.get(*s), Sym::Helper(_))
+                && crate::views::helper_count_action(&self.symbols.get(*s))
+                    == Some(crate::views::CountAction::Release);
             let name = if f.name.starts_with("rt:") && seen[f.name.as_str()] > 1 {
                 let k = taken.entry(f.name.as_str()).or_default();
                 *k += 1;
@@ -2791,6 +2797,9 @@ impl Module {
                         _ => None,
                     };
                     if let Some(action) = action
+                        && !(release_wrapper
+                            && action == crate::views::CountAction::Release
+                            && note.is_none())
                         && note.is_none_or(|n| count_sites.insert(n.site))
                     {
                         mapped_counts.push(crate::views::CountOperation {
