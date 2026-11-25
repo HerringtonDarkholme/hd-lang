@@ -13,7 +13,7 @@
 # block stores and its body block borrows, is boxed before the match, and
 # the other arm's return makes it start zero. The parameter `p` is boxed
 # at the root.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn bang(s: &mut string) -> void:

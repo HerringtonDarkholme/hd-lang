@@ -1,5 +1,5 @@
 # test: a parameter is not a function declaration
-use std.annotation.facts_of
+use std.meta.facts_of
 
 @"label"
 fn tagged() -> void:

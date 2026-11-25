@@ -11,7 +11,7 @@
 # expected: `in_a_local`'s holder is a plain local that holds a value the
 # body built, no root of the proof, so its loop still loads the header on
 # each read (/tmp/lt46/box-in-a-plain-local-reloads-its-header.md).
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 
 struct Holder:

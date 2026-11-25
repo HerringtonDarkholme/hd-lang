@@ -2,7 +2,7 @@
 # Spec annotations: annot.member.documentation, annot.variant.type-documentation, annot.variant.documentation.
 # fixture-package-tree: doc-tests/src/structure_metadata.hd
 use std.ops.Tuple
-use std.structure.{Structure, Describer, Field, Variant}
+use std.meta.{Structure, Describer, Field, Variant}
 
 struct Docs:
     pub types: List[string?]

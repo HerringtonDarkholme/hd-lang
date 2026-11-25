@@ -2,7 +2,7 @@ use dep.euro
 use dep.yen
 use dep.euro.{Coin as Euro}
 use dep.yen.{Coin as Yen}
-use std.inspect.TypeId
+use std.meta.TypeId
 
 pub fn main() -> void $ Console:
     println(euro.make(1).cents + yen.make(1).cents)

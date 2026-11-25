@@ -1,6 +1,6 @@
 # test: a template claims no implementation, so a hand-written implementation of its trait does not overlap it
 # Spec 14 Templates: annot.template.not-impl.
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 trait Named:
     fn type_name() -> string

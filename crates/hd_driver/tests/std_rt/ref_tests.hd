@@ -9,7 +9,7 @@
 # stays 0, and the cases that compare it check nothing.
 use std.rt.memory.pages
 use std.rt.checked.{allocated, released, retained, live}
-use std.annotation.inline
+use std.meta.inline
 
 fn label(n: i32) -> string:
     "r$n"

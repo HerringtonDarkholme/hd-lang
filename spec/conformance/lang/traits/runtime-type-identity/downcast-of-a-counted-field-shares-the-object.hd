@@ -2,7 +2,7 @@
 # Spec 09 Recovering A Concrete Type: trait.downcast.local-receiver, trait.downcast.reference-identity.
 # expect-stdout: 2 true
 # expect-stdout: 3
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct User:
     count: i32

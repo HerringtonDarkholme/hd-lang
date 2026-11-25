@@ -2,7 +2,7 @@
 # Spec std/serde Enum Names And Tagging and std/json Tagged Enum Forms.
 use std.json.{decode, encode, encode_pretty, from_json, parse, to_json, JsonError}
 use std.serde.{Deserialize, Rename, Serialize, Serializer, rename, rename_all, skip, tag, untagged}
-use std.structure.Structure
+use std.meta.Structure
 
 @derive(Serialize, Deserialize)
 @rename_all(.SnakeCase)

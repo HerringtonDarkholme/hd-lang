@@ -1,6 +1,6 @@
 # test: a user module cannot build a VariantRecord, even by copying an existing variant record
 # Spec 14 Structure: annot.structure.opaque.
-use std.structure.{VariantInfo, VariantRecord}
+use std.meta.{VariantInfo, VariantRecord}
 
 struct Victim:
     value: i32

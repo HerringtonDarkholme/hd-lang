@@ -787,11 +787,11 @@ pub enum ItemData {
         assoc_lifetimes: Vec<Vec<u16>>,
         by: Option<Symbol>,
         kind: ImplKind,
-        /// Carries `std.structure`'s `fills_defaults()`
+        /// Carries `std.meta`'s `fills_defaults()`
         /// (`annot.impl-fact.fills-defaults`): as a derivation's source, its
         /// `build` fills each member that declares a default from it.
         fills_defaults: bool,
-        /// The fact types the implementation names with `std.structure`'s
+        /// The fact types the implementation names with `std.meta`'s
         /// `skips::[F]()` (`annot.impl-fact.skips`): as a derivation's
         /// walker, describer or source, it omits each member whose known
         /// facts hold a value of one of them.

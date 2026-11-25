@@ -1,6 +1,6 @@
 # test: += extends a list and cannot take pass
 # Spec 14 Member Lines: annot.line.right.error.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

@@ -1,6 +1,6 @@
 # test: a typed fact's literal argument takes the annotated field's type
 # Spec 04 Type System: types.literal.local.form.fact.
-use std.annotation.annotate
+use std.meta.annotate
 
 @annotate::[F](.Field)
 struct Floor[F]:

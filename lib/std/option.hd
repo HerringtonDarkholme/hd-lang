@@ -1,7 +1,7 @@
 use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
-use std.annotation.inline
+use std.meta.inline
 use std.ops.FnMut
 
 ## A cursor yielding an optional's payload once, if present.

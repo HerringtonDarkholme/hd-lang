@@ -1,5 +1,5 @@
 # test: a counted scan still checks an out-of-range access reached before its bound
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn scan[T < Eq](items: List[T], start: usize, end: usize, needle: T) -> usize:

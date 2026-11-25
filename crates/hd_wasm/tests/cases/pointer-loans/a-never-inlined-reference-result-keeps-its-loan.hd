@@ -1,7 +1,7 @@
 # @dump: own wat
 # expected: the never-inlined call forwards the element loan to its result;
 # the aliasing grow must panic borrow-conflict before any element read (#2120).
-use std.annotation.inline
+use std.meta.inline
 
 struct Slots:
     items: List[string]

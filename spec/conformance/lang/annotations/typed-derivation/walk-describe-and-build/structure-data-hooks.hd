@@ -4,7 +4,7 @@
 # expect-stdout: 107 108
 # Spec 14 Typed Derivation: annot.walk.data-variant-hook, annot.walk.data-member-hook,
 # annot.build.data-variant-hook, annot.build.data-member-hook.
-use std.structure.{Structure, Field, Variant, Members, Key, Walker, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Walker, Source}
 
 struct Trace:
     data_variants: usize

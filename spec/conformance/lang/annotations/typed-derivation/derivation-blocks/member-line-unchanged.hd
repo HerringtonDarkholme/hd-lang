@@ -1,6 +1,6 @@
 # test: a member without a line keeps its declaration facts
 # Spec 14 Member Lines: annot.line.unchanged.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

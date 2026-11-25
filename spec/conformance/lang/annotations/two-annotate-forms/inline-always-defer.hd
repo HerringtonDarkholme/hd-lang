@@ -1,7 +1,7 @@
 # test: inline Always cannot copy cleanup registration
 # Spec 14 Inline And Cold: annot.inline.always-copyable.v3.
 use std.ops.defer
-use std.annotation.inline
+use std.meta.inline
 
 fn cleanup() -> void:
     pass

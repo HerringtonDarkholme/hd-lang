@@ -10,7 +10,7 @@
 # move zeroes it, so its release finds zeros. A slot no move empties gets
 # none (`kept`). The checked runtime cases are in
 # `std_rt/drop_tests.hd`.
-use std.annotation.inline
+use std.meta.inline
 use std.rt.Drop
 
 struct Held:

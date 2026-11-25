@@ -1,5 +1,5 @@
 # test: a get_or_insert probe on a map a copy shares changes only the probed map, for a hit and a miss, with string and integer keys
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 @cold

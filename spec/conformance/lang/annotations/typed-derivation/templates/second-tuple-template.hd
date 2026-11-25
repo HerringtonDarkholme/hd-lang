@@ -1,7 +1,7 @@
 # test: the uniqueness rule applies to a tuple template: a second one for the trait is an error
 # Spec 14 Tuple Templates: annot.template.tuple.rules.
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

@@ -1,6 +1,6 @@
 # test: a library marker reaches a type that holds a box through an explicit implementation, which Wire does not
 # Spec 10 Markers: module.marker.explicit, module.marker.kind.
-use std.marker.Marker
+use std.meta.Marker
 
 pub trait GpuData < Marker
 

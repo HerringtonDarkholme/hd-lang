@@ -4,7 +4,7 @@
 # To Inspectable, Recovering A Concrete Type (spec/lang/09-traits.md, #1364).
 # expected: `user_name` compares one type id and retains only the
 # returned `name`; `is_user` counts nothing; `erase` boxes once.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct User:
     name: string

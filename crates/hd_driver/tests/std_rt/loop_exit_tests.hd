@@ -1,5 +1,5 @@
 # Checked allocation counts prove skipped writes do not copy a shared buffer.
-use std.annotation.inline
+use std.meta.inline
 use std.rt.checked.{allocated, unique_checks}
 
 @inline(.Never)

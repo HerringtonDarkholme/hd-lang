@@ -1,5 +1,5 @@
 # A decorator before a trait's derivation block is unread too.
-use std.structure.Structure
+use std.meta.Structure
 
 struct Style:
     prefix: string = ""

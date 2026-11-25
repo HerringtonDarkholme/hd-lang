@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # Ordinary call controls for the compiler-consumed annotate declaration forms.
-use std.annotation.annotate
+use std.meta.annotate
 
 fn unknown_target() -> void:
     _ := annotate(.Missing)

@@ -1,6 +1,6 @@
 # test: built-in validation facts run in their declared order and custom checks run last
 # Standard Validation: std-validate.rule.builtin-order
-use std.structure.Structure
+use std.meta.Structure
 use std.testing.assert_equal
 use std.validate.{Problem, Validate, check, max, at_least}
 

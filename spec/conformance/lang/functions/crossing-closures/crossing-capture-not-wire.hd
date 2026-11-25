@@ -1,6 +1,6 @@
 # test: a crossing closure that captures a counted reference for a Wire parameter is rejected
 # Spec 07 Crossing Closures: fn.crossing.captures.
-use std.marker.Wire
+use std.meta.Wire
 
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
     code()

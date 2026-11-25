@@ -4,7 +4,7 @@
 # collected instance of its own: the emitter's fallback boundary. That
 # boundary runs the same short-loan marking as `settled`
 # (`promote::short_loans`), so both show the same counts.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn lookup_direct!(values: *Map[string, string], key: string) -> usize:

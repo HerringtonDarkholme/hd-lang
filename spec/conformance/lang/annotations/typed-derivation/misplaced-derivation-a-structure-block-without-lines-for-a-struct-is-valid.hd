@@ -1,5 +1,5 @@
 # test: misplaced derivation a structure block without lines for a struct is valid
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 pub trait Show:
     fn show(self) -> string

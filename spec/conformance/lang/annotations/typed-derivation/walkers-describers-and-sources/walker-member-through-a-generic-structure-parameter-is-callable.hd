@@ -1,5 +1,5 @@
 # test: walker member through a generic structure parameter is callable
-use std.structure.{Field, Variant, Walker}
+use std.meta.{Field, Variant, Walker}
 
 struct Prober:
     out: string

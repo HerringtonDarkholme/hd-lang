@@ -7,7 +7,7 @@
 # none; in a loop each round's box ends the last one's. A match binding's
 # box stands before the match, so another arm's return leaves it unfilled
 # and zero. The checked runs' exit audit fails on a leak or a double free.
-use std.annotation.inline
+use std.meta.inline
 use std.task.race
 use std.time.{Clock, Duration, sleep}
 

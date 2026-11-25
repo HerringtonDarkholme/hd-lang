@@ -1,6 +1,6 @@
 # test: a method written in a derivation block replaces the template's method, and the others still come from the template
 # Spec 14 Derivation Blocks: annot.block.methods.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

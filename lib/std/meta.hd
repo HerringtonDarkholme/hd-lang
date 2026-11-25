@@ -1,5 +1,183 @@
-# std.structure, the part written in hd
-# (spec/lang/14-annotations.md#the-stdstructure-module): the handles, facts,
+# std.meta: what the compiler knows about code, in five parts below:
+# the domain markers, function facts and the inline and cold decorators,
+# runtime type identity, typed derivation's structure, and the call site
+# of a `@track_caller` function.
+use std.format.{Debug, DebugWriter}
+use std.hash.Hasher
+use std.rt.{address_of, Ptr}
+
+pub use std.core.{InlineHint, inline, Cold, cold}
+
+# std.meta: the markers that say what may cross into another execution
+# domain (spec/lang/10-modules.md#markers). The compiler answers `Send`,
+# `Sync` and `Wire` from a type's parts, as it answers `Copy`; only std
+# implements them.
+
+## A trait with no members that says what may cross into one kind of domain.
+## A trait that names it as a supertrait is a marker.
+## See [module.marker.definition](../../spec/lang/10-modules.md#r-module.marker.definition).
+pub trait Marker < ?Copy
+
+## A value that may be copied, moved or lent to another thread of the same memory.
+## See [module.marker.send](../../spec/lang/10-modules.md#r-module.marker.send).
+pub trait Send < Marker
+
+## A value that threads may read at once: it holds no counted buffer, so
+## reading it changes no count.
+## See [module.marker.sync](../../spec/lang/10-modules.md#r-module.marker.sync).
+pub trait Sync < Marker
+
+## A value that crosses into separate memory as a self-contained tree.
+## See [module.marker.wire](../../spec/lang/10-modules.md#r-module.marker.wire).
+pub trait Wire < Marker
+
+# std.meta: function facts (spec/lang/14-annotations.md#function-facts),
+# the target kinds (#target-kinds), and the inline and cold decorators
+# (#inline-and-cold). `facts_of`, `Target`, `Annotate`, `annotate`,
+# `InlineHint`, `inline`, `Cold`, and `cold` are imported, not prelude names
+# (r-annot.facts-of.declared, r-annot.target.declarations,
+# r-annot.inline.declared.v2).
+
+# The facts that decorators attach to the module-level function `f`, in
+# source order, as a `std.meta.Facts` (r-annot.facts-of.result.compiler-decorators.v2). The
+# compiler checks that the argument names such a function, without
+# evaluating it, and lowers each call to that function's facts, so this body
+# never runs.
+@intrinsic("facts_of")
+## The facts attached to the module-level function `f`; a compiler intrinsic.
+## See [annot.facts-of.declared](../../spec/lang/14-annotations.md#r-annot.facts-of.declared).
+pub fn facts_of[F](f: F) -> Facts:
+    panic("intrinsic")
+
+# The kinds of target a decorator value attaches to (r-annot.target.kind.fn
+# and the rows after it); a newtype is `.Newtype` (Decorators D10).
+## The kind of declaration a fact value may be attached to.
+## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
+@derive(Debug)
+pub enum Target:
+    Fn
+    Data
+    Enum
+    Newtype
+    Field
+    Variant
+    Param
+    Trait
+    Impl
+    Method
+
+# A fact on a fact type that limits its values to the listed kinds
+# (r-annot.target.limit). The compiler recognizes this type by its qualified
+# name, and it limits itself to data types and enums (r-annot.target.bootstrap).
+@annotate(.Data, .Enum)
+## The fact that limits a fact type's values to targets of the listed kinds.
+## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
+@derive(Debug)
+pub struct Annotate:
+    ## The target kinds the fact type allows.
+    ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
+    pub kinds: List[Target]
+
+# `T`, when written as in `@annotate::[F](.Field)` or
+# `@annotate::[fn(T) -> R](.Fn)`, is a pattern over the fact type's own
+# parameters that describes its target's type, which makes it a typed fact
+# type (r-annot.typed-fact.declare, r-annot.typed-fact.pattern). The compiler
+# reads it and checks each value (src/checker/typed-facts.ts). When omitted,
+# it takes the default `Any`, and the fact type is untyped
+# (r-annot.typed-fact.untyped.reference-values).
+## The `@annotate` decorator: it attaches an `Annotate` fact listing the target `kinds`.
+## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
+pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate:
+    Annotate { kinds: kinds }
+
+# The inline and cold decorators live in std's leaf layer, so runtime
+# modules can use them; this module re-exports them
+# (r-annot.inline.declared.v2).
+
+# std.meta, the part written in hd: runtime type identity
+# (spec/lang/09-traits.md#runtime-type-identity). Importing any `std.meta`
+# name, or `std.error.Error`, declares these under their standard names
+# (checker/standard-traits.ts); aliases are not supported. The compiler
+# implements the sealed `Inspectable` for every type, and supplies the
+# inherent `downcast_ref` and `downcast_mut` methods, so its dictionary holds
+# `runtime_type` alone. `TypeId::of` is declared below; only its body is the
+# compiler's.
+
+## The sealed trait of types with a runtime identity, which the compiler supplies.
+## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
+pub trait Inspectable < ?Copy:
+    fn runtime_type(&self) -> TypeId
+
+impl dyn Inspectable:
+    ## Recovers the original shared reference when its concrete type is `T`.
+    @intrinsic("downcast_ref")
+    pub fn downcast_ref[T < ?Copy & Inspectable](&self) -> (&T)?:
+        panic("intrinsic")
+
+    ## Recovers the original mutable reference when its concrete type is `T`.
+    @intrinsic("downcast_mut")
+    pub fn downcast_mut[T < ?Copy & Inspectable](&mut self) -> (&mut T)?:
+        panic("intrinsic")
+
+# One canonical descriptor per identity in the compiled program. The
+# compiler keeps its key and printable name in static storage; TypeId
+# carries only the descriptor's address, with no owned string counts.
+struct TypeInfo:
+    key: string
+    name: string
+
+## The runtime identity of an inspectable type.
+## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
+pub struct TypeId:
+    info: Ptr[TypeInfo]
+
+# Its descriptor is static storage that no count reaches, so threads may
+# share a `TypeId` though `TypeInfo` holds strings
+# (`module.marker.explicit.only`); it is never `Wire`: an address means
+# nothing in another memory.
+impl Send for TypeId
+
+impl Sync for TypeId
+
+impl TypeId:
+    ## The `TypeId` of `T`.
+    @intrinsic("type_id_of")
+    pub fn of[T < Inspectable]() -> TypeId:
+        panic("intrinsic")
+
+# Keep handwritten Eq: descriptor identity ignores the descriptive name.
+impl Eq for TypeId:
+    fn eq(&self, other: &TypeId) -> bool:
+        self.info.address == other.info.address
+
+# The descriptor address is deterministic within a build, as TypeId's
+# equality and hash promise. It is not a cross-build or boundary tag.
+impl Hash for TypeId:
+    fn hash[H < Hasher](&self, state: &mut H) -> void:
+        self.info.address.hash(state)
+
+# Keep handwritten Display: display only the descriptive type name; this is not an Error.
+impl Display for TypeId:
+    fn to_string(&self) -> string:
+        self.info.as_ref().name
+
+# Keep the existing key/name debug representation instead of exposing
+# the private descriptor address.
+impl Debug for TypeId:
+    fn debug(&self, out: *mut DebugWriter) -> void:
+        info := self.info.as_ref()
+        let mut record = out.debug_struct("TypeId")
+        record.field("key", info.key)
+        record.field("name", info.name)
+        record.finish()
+
+# `Debug` for this module's public types (r-std-format.debug.std-types),
+# written by hand with the builder calls that `@derive(Debug)` generates
+# (r-std-format.debug.derive-builders.source): a `@derive` on a std
+# declaration has no effect in the prototype.
+
+# std.meta, the part written in hd
+# (spec/lang/14-annotations.md#the-stdmeta-module): the handles, facts,
 # and member information that typed derivation passes to a template, and
 # the protocol traits `Walker`, `Describer`, and `Source`
 # (#walkers-describers-and-sources). The compiler supplies `Structure` and
@@ -10,9 +188,6 @@
 # The handle declarations name their parameters `HdS` and `HdF`: the
 # prototype cannot infer an inherent method's parameters from a receiver
 # whose type arguments are the caller's parameters of the same names.
-use std.annotation.annotate
-use std.inspect.Inspectable
-use std.rt.{address_of}
 
 # A member's or variant's facts. The prototype holds `Inspectable` values
 # rather than `Any`.
@@ -287,3 +462,110 @@ pub struct Skips[F]: pass
 ## See [annot.impl-fact.skips.decl](../../spec/lang/14-annotations.md#r-annot.impl-fact.skips.decl).
 pub fn skips[F]() -> Skips[F]:
     Skips::[F] {}
+
+# std.meta: the call site of a `@track_caller` function
+# (spec/lang/07-functions.md#call-site-locations).
+#
+# A `@track_caller` function that reads its call site (fn.caller.reads) gets
+# one hidden argument, a `string` constant that is the call site's record
+# (fn.caller.record). Its fields are separated
+# by U+001F: the root-package bit, the line, the column and the file, then
+# seven fields for each argument when the record holds argument texts: the
+# start line and column, the end line and column, the name of a named
+# argument or nothing, the source text, and the name of the function a
+# positional argument names or nothing (for `dbg`'s `<fn name(..)>`). The
+# record is static data; only an accessor reads it, at run time.
+
+## Where a call begins in source: the file as diagnostics name it, and the
+## 1-based line and column, counted in characters.
+## See [fn.caller.location](../../spec/lang/07-functions.md#r-fn.caller.location).
+pub struct Location:
+    pub file: string
+    pub line: u32
+    pub column: u32
+    # Whether the call site is in the user's own code (fn.caller.root-package).
+    root: bool
+
+impl Location:
+    ## The location of the call of the enclosing `@track_caller` function.
+    ## See [fn.caller.accessor.location](../../spec/lang/07-functions.md#r-fn.caller.accessor.location).
+    @intrinsic("caller_location")
+    pub fn caller() -> Location:
+        panic("intrinsic")
+
+    ## The source text and span of each argument of the call of the
+    ## enclosing `@track_caller` function; empty when they are unknown.
+    ## See [fn.caller.accessor.args](../../spec/lang/07-functions.md#r-fn.caller.accessor.args).
+    @intrinsic("caller_args")
+    pub fn caller_args() -> List[CallArg]:
+        panic("intrinsic")
+
+    ## Whether the call site is in the user's own code.
+    ## See [fn.caller.root-package](../../spec/lang/07-functions.md#r-fn.caller.root-package).
+    pub fn in_root_package(self) -> bool:
+        self.root
+
+## One argument of a call: its source text, where it starts and ends, and
+## its name when it is a named argument.
+## See [fn.caller.accessor.args](../../spec/lang/07-functions.md#r-fn.caller.accessor.args).
+pub struct CallArg:
+    pub text: string
+    pub start: Location
+    pub end: Location
+    ## See [fn.caller.accessor.args.name](../../spec/lang/07-functions.md#r-fn.caller.accessor.args.name).
+    pub name: string?
+
+# A decimal field of a record, which the compiler writes.
+fn site_number(text: string) -> u32:
+    let value: u32 = 0
+    for c in text.chars():
+        value = value * 10 + c.to_u32() - '0'.to_u32()
+    value
+
+# What `Location::caller()` is, given the record.
+fn site_location(record: string) -> Location:
+    fields := record.split("\u{1f}")
+    Location {
+        file: fields[3],
+        line: site_number(fields[1]),
+        column: site_number(fields[2]),
+        root: fields[0] == "1",
+    }
+
+# What `Location::caller_args()` is, given the record.
+fn site_args(record: string) -> List[CallArg]:
+    fields := record.split("\u{1f}")
+    file := fields[3]
+    root := fields[0] == "1"
+    let mut args: List[CallArg] = []
+    let at: usize = 4
+    while at + 7 <= fields.len():
+        start := Location {
+            file: file,
+            line: site_number(fields[at]),
+            column: site_number(fields[at + 1]),
+            root: root,
+        }
+        end := Location {
+            file: file,
+            line: site_number(fields[at + 2]),
+            column: site_number(fields[at + 3]),
+            root: root,
+        }
+        let name: string? = .None
+        if fields[at + 4] != "":
+            name = .Some(fields[at + 4])
+        args.push(CallArg { text: fields[at + 5], start: start, end: end, name: name })
+        at = at + 7
+    args
+
+# `text`, how `dbg` prints a function value, `<fn(..)>`, with the name of the
+# function that argument `at` of the call names, if it names one
+# (spec/lang/10-modules.md#r-module.dbg.value.function). `debug_texts` calls
+# it for each element of a function type. Cost: one split of the record.
+fn site_function_text(record: string, at: usize, text: string) -> string:
+    fields := record.split("\u{1f}")
+    field := 4 + at * 7 + 6
+    if field >= fields.len() || fields[field] == "" || !text.starts_with("<fn"):
+        return text
+    "<fn ${fields[field]}${text.slice(3, text.len())}"

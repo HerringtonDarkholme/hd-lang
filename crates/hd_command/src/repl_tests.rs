@@ -377,7 +377,7 @@ fn a_later_input_derives_for_an_earlier_type() {
         "    pub x: i32",
         "    pub y: i32",
         "",
-        "use std.structure.Structure",
+        "use std.meta.Structure",
         "",
         "impl Debug for Point by Structure",
         "",
@@ -401,7 +401,7 @@ const MEMBER_LINES: &[&str] = &[
     "    total: i32",
     "    cache: i32 = +0",
     "",
-    "use std.structure.Structure",
+    "use std.meta.Structure",
     "",
     "impl Row by Structure:",
     "    total += [column(\"sum_total\")]",
@@ -454,7 +454,7 @@ impl[T] Columns2 for T by Structure:
             &[("src/lib.hd", &lib)],
         );
         let script = Script::of(&[
-            "use std.structure.Structure",
+            "use std.meta.Structure",
             "struct Row:",
             "    id: i32",
             "    total: i32",

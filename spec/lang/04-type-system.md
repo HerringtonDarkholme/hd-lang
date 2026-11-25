@@ -2192,7 +2192,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 3. r[types.any.never] `never` satisfies `Any` too. A `void` value needs no rule of its own, because it is the tuple `()`.
 4. r[types.any.erase.reference-values] The reference type `&dyn Any` hides the concrete type of its referent.
 5. r[types.any.one-way] `Any` erasure is one-way.
-6. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
+6. r[types.any.inspectable] A value erased to the sealed trait `std.meta.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
 
 ```hd
 fn demo(value: &dyn Any) -> string:

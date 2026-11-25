@@ -843,11 +843,11 @@ fn helper() -> void:
 3. r[module.prelude.from-error] The conversion trait `std.convert.From` and the error trait `std.error.Error` are not prelude names.
 4. r[module.prelude.own-from-error] A module may therefore declare its own `From` or `Error`.
 5. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
-6. r[module.prelude.inspect-reference-api] Likewise `std.inspect` declares `Inspectable` and `TypeId`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
+6. r[module.prelude.inspect-reference-api] Likewise `std.meta` declares `Inspectable` and `TypeId`, which code imports, as in `use std.meta.{Inspectable, TypeId}`.
 7. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
 8. r[module.prelude.function-items] `std.ops` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.ops.{Fn, Tuple}`.
 9. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
-10. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
+10. r[module.prelude.annotation-targets] `std.meta` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.meta.annotate`.
 11. r[module.prelude.ops-literal-markers] `std.ops` declares `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a literal function, as in `use std.ops.num_suffix` or `use std.ops.{Template, str_prefix}`.
 12. r[module.prelude.no-literal-fn] The prelude supplies no literal suffix and no string prefix.
 13. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
@@ -2600,7 +2600,7 @@ Registered boundaries initially allow recursively structural values:
 
 1. r[module.boundary.allowed] Registered boundaries initially allow the recursively structural values in the list above.
 2. r[module.boundary.never-result] A host capability method may also declare `never` as its whole result: its call never returns. If the host answers it anyway, the call panics with a message that names the trait and the method, as for a result that fails its check. Panic: `host-contract`. `never` crosses nowhere else, neither as an argument nor inside another type.
-3. r[module.boundary.not-safe] Dynamic trait values (including `Inspectable` values), `std.inspect.TypeId`, closures, and live runtime handles are not boundary-safe.
+3. r[module.boundary.not-safe] Dynamic trait values (including `Inspectable` values), `std.meta.TypeId`, closures, and live runtime handles are not boundary-safe.
 4. r[module.boundary.rows] Requirement-row entries are host bindings and are not serialized parameters.
 5. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
 6. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
@@ -2823,7 +2823,7 @@ defines what may cross into another domain, and how a call reaches code
 of another target.
 
 ```text
-use std.marker.Wire
+use std.meta.Wire
 
 struct Photo:
     width: u32
@@ -2858,7 +2858,7 @@ A **marker** is a trait with no members that extends `Marker`. Each kind
 of domain names the marker its values need:
 
 ```text
-use std.marker.{Marker, Send, Wire}
+use std.meta.{Marker, Send, Wire}
 
 pub trait GpuData < Marker   # a library's marker for one kind of device
 
@@ -2878,7 +2878,7 @@ fn demo(p: Point) -> void:
 ```
 
 1. r[module.marker.definition] A marker is a trait that extends `Marker` and declares no members. Its implementations say what may cross into one kind of domain.
-2. r[module.marker.std] `std.marker` declares `Marker`, `Send` and `Wire`, and `Send` and `Wire` extend `Marker`. Code imports them where it writes them, as in `use std.marker.Wire`.
+2. r[module.marker.std] `std.meta` declares `Marker`, `Send` and `Wire`, and `Send` and `Wire` extend `Marker`. Code imports them where it writes them, as in `use std.meta.Wire`.
 3. r[module.marker.members] A trait that extends `Marker` and declares a member is an error, reported on the member. Error: `invalid-marker-trait`.
 4. r[module.marker.not-copy] A marker does not bound its `Self` by `Copy`, unlike [`ref.copy.trait.default`](13-values-and-references.md#r-ref.copy.trait.default). A type that is not `Copy` may have a marker.
 5. r[module.marker.structural] A struct, enum, tuple, union, optional, `Result`, `List`, `Map`, `Set` or newtype has a marker when every field, payload, member, element, key and base type has it.
@@ -2892,7 +2892,7 @@ fn demo(p: Point) -> void:
 13. r[module.marker.kind] A marker names a kind of domain, never one domain. Which device or worker holds a value is known only at run time.
 14. r[module.marker.wire] A `Wire` value crosses into separate memory as a self-contained tree, by [`module.boundary.tree`](#r-module.boundary.tree).
 15. r[module.marker.send] A `Send` value may be copied, moved or lent to another thread of the same memory.
-16. r[module.marker.sync] `std.marker` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
+16. r[module.marker.sync] `std.meta` also declares `Sync`, which extends `Marker`. It is sealed as `Send` is: only the compiler and the standard library supply its implementations.
 17. r[module.marker.sync.meaning] A `Sync` value holds no counted buffer, so threads that read it at once change no count.
 18. r[module.marker.sync.leaf] Numbers, `bool`, `char` and `never` are `Sync`. `string`, `List`, `Map` and `Set` hold counted buffers and are not `Sync`.
 19. r[module.marker.sync.structural] A struct, enum, tuple, union, optional, `Result` or newtype is `Sync` when every field, payload, member and base type is.
@@ -2915,7 +2915,7 @@ the other:
 | r[module.marker.table.fn-value] Function values | every other value of a function type | no | no |
 
 ```text
-use std.marker.{Marker, Wire}
+use std.meta.{Marker, Wire}
 
 trait Tagged < Marker:
     fn tag(&self) -> string  # error: invalid-marker-trait

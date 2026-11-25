@@ -1,6 +1,6 @@
 # test: an `@inline` function's `&mut` parameter, given a variable a closure shares, holds the loan a call would, so the closure's write while the parameter is live panics
 # Spec 13 Conflicts Through Aliases: ref.excl.alias.shared-variable, ref.excl.alias.conflict.
-use std.annotation.inline
+use std.meta.inline
 
 struct Counter:
     value: i32

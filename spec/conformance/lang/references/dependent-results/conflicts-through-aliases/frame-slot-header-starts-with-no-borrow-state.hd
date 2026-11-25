@@ -3,7 +3,7 @@
 # expect-stdout: 7 b
 # expect-stdout: ok
 use std.serde.{Deserialize, Deserializer, ValueKind}
-use std.structure.{Facts, VariantInfo, Member}
+use std.meta.{Facts, VariantInfo, Member}
 
 # One scripted value or step of a sensor feed.
 enum Tok:

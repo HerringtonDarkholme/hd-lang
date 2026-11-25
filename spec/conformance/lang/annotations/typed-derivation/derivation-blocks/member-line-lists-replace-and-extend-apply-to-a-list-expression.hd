@@ -1,7 +1,7 @@
 # test: replace and extend apply to a list expression
 # expect-stdout: a=-/n;b=decl/n;c=-/made;d=t/n;
-use std.inspect.Inspectable
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.Inspectable
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Tag:
     text: string

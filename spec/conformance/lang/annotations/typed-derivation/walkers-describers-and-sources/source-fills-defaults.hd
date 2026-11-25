@@ -1,6 +1,6 @@
 # test: a source that carries fills_defaults() is offered no member that declares a default, and other derivations still see the member
 # Spec 14 Implementation Facts: annot.impl-fact.fills-defaults, annot.impl-fact.fills-defaults.exempt, annot.impl-fact.fills-defaults.scope.
-use std.structure.{Structure, Source, Walker, Variant, Field, Members, Key, fills_defaults}
+use std.meta.{Structure, Source, Walker, Variant, Field, Members, Key, fills_defaults}
 
 trait Zero:
     fn zero() -> Self

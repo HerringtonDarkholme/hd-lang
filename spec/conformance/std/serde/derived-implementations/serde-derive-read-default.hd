@@ -2,7 +2,7 @@
 # Spec std/serde Reading, Derived Implementations: std-serde.read.absent, std-serde.derive.deserialize.unskipped-default, std-serde.derive.deserialize.data-and-enum-forms (issue 371).
 # Spec 14 Serialization: annot.serde.module.v2.
 use std.serde.{Deserialize, Deserializer, ValueKind}
-use std.structure.{Facts, VariantInfo, Member}
+use std.meta.{Facts, VariantInfo, Member}
 
 # A reader of `uint` values in order. A member named in `gaps` has no
 # value. It logs each call as a word.

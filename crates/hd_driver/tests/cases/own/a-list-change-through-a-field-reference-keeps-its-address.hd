@@ -6,7 +6,7 @@
 # struct that no other reference reaches is a part of that local, so
 # `local_field` reserves its list by value, in Wasm locals with no frame.
 
-use std.annotation.inline
+use std.meta.inline
 
 struct Buffers:
     items: List[usize]

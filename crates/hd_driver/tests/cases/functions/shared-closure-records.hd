@@ -1,7 +1,7 @@
 # @dump: own wat stdout
 # @build: checked | release checked
 # expected: shared capture descriptors survive removal of a separate immediately-called closure.
-use std.annotation.{cold, inline}
+use std.meta.{cold, inline}
 use std.testing.assert_equal
 
 trait Base:

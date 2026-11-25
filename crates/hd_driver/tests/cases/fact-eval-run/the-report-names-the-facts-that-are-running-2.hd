@@ -1,8 +1,8 @@
 # @dump: stdout
 # Facts read while another fact is evaluated report the fact that
 # panicked. After a fact ends, an ordinary panic is reported plainly.
-use std.annotation.facts_of
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.facts_of
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

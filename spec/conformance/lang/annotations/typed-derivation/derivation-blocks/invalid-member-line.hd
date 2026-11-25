@@ -1,5 +1,5 @@
 # test: a whole variant cannot be omitted with = pass
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

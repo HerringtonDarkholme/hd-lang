@@ -248,7 +248,7 @@ and the [collection rules](../../crates/hd_mono/DESIGN.md#132-collection).
 name. Producing it allocates nothing. See
 [§23.19 Inspection](../../crates/hd_wasm/DESIGN.md#2319-closure-and-trait-values),
 [dyn_value.rs](../../crates/hd_wasm/src/emit/dyn_value.rs) and
-[inspect.hd](../../lib/std/inspect.hd).
+[inspect.hd](../../lib/std/meta.hd).
 
 ### Host Handles
 

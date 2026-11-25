@@ -3,7 +3,7 @@
 # expected: first_len and wide_len borrow the indexed value in release.
 # A dependent result keeps the constructor's snapshot through later writes.
 use std.ops.Index
-use std.annotation.cold
+use std.meta.cold
 
 struct Names:
     first: string

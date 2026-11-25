@@ -2,7 +2,7 @@
 # A parameter bounded by `Inspectable` or by a user trait is still `Copy`
 # by default: each call's proof stops at an instance of an enum that
 # holds itself, and the impl for its optional adds nothing (#2013).
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 enum G[T]:
     More(G[(T, T)])

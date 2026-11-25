@@ -2,7 +2,7 @@
 # expect-stdout: '' 0< facts=0 shared=0> _0=1 _1=a
 # expect-stdout: Size 0<Large facts=0 shared=1> scale=3
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Shape:
     fn shape(self) -> string

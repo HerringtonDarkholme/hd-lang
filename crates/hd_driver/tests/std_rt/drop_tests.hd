@@ -1,7 +1,7 @@
 # The release-glue tests for std.rt.Drop. The conformance runner adds this
 # file to std as `std.rt_tests.drop_tests`, since only std may implement the
 # runtime trait.
-use std.annotation.inline
+use std.meta.inline
 use std.rt.Drop
 use std.rt.cycle.marking
 use std.collections.{UniqList, UniqListIntoIter, UniqMap}

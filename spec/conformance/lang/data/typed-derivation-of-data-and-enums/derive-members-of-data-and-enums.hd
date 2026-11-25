@@ -1,7 +1,7 @@
 # test: derivation members are the fields in order with embedded fields, unnamed payloads as _0 and _1, no shared data, and a newtype through its base
 # Spec 08 Typed Derivation Of Data And Enums: data.derive.members, data.derive.payload-names, data.derive.shared, data.derive.newtype.
 use std.serde.{Serialize, Serializer}
-use std.structure.{Facts, VariantInfo, Member}
+use std.meta.{Facts, VariantInfo, Member}
 # Records every serializer call so a test can read the member sequence.
 struct Log:
     pub text: string

@@ -6,7 +6,7 @@
 # receives may have a shared list stored through it, so `replaced`'s
 # pushes keep their check (hoisted, not fresh), as do `copied`'s, whose
 # list shares its buffer with its copy.
-use std.annotation.inline
+use std.meta.inline
 
 let shared: List[usize] = [1, 2, 3]
 > app/main/init.init

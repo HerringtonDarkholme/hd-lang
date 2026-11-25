@@ -5,7 +5,7 @@
 # for its owned declaration; keep itself returns its incoming owner.
 # Nested variance changes no function code or element representation.
 # Cold helpers keep the callable ABI visible; #1692 tracks return-view inlining.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn read(value: &i32) -> i32:

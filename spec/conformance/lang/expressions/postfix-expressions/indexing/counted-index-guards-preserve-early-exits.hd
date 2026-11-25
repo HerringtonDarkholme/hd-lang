@@ -1,5 +1,5 @@
 # test: counted reads preserve a zero trip and an early exit before a later out-of-range access
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn scan[T < Eq](items: List[T], start: usize, end: usize, needle: T) -> usize:

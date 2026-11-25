@@ -1,6 +1,6 @@
 # test: by Structure derives from the members and never forwards to an embedded part that implements the trait
 # Spec 14 Derivation Blocks: annot.block.not-delegation.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

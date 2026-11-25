@@ -460,14 +460,14 @@ function forwarder(kind: Kind, throughCall: boolean, callForm?: "generic" | "car
     return {
       description: ", through a never-inlined generic forwarder",
       source:
-        "use std.annotation.inline\n\n@inline(.Never)\nfn hold_generic[T < ?Copy](value: T) -> T:\n    value\n\n",
+        "use std.meta.inline\n\n@inline(.Never)\nfn hold_generic[T < ?Copy](value: T) -> T:\n    value\n\n",
     };
   }
   if (callForm === "carrier") {
     return {
       description: ", through a never-inlined padded tuple carrier",
       source:
-        "use std.annotation.inline\n\n@inline(.Never)\nfn hold_carrier[T < ?Copy](value: (usize, T)) -> T:\n    value._1\n\n",
+        "use std.meta.inline\n\n@inline(.Never)\nfn hold_carrier[T < ?Copy](value: (usize, T)) -> T:\n    value._1\n\n",
     };
   }
   if (!throughCall) {
@@ -476,7 +476,7 @@ function forwarder(kind: Kind, throughCall: boolean, callForm?: "generic" | "car
   const referenceType = `&'a${kind === "mut" ? " mut" : ""} string`;
   return {
     description: ", through a never-inlined forwarder",
-    source: `use std.annotation.inline\n\n@inline(.Never)\nfn ${kind === "mut" ? "hold_mut" : "hold_ref"}['a](value: ${referenceType}) -> ${referenceType}:\n    value\n\n`,
+    source: `use std.meta.inline\n\n@inline(.Never)\nfn ${kind === "mut" ? "hold_mut" : "hold_ref"}['a](value: ${referenceType}) -> ${referenceType}:\n    value\n\n`,
   };
 }
 

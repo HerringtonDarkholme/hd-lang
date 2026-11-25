@@ -1,6 +1,6 @@
 # test: templates a generic pair impl overlaps the tuple template
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

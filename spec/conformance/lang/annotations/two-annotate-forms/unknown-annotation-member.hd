@@ -1,5 +1,5 @@
 # test: the member line of a block with no trait must name a direct member
-use std.structure.Structure
+use std.meta.Structure
 
 struct User:
     name: string

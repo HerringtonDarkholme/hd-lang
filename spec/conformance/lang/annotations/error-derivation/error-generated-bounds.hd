@@ -4,7 +4,7 @@
 # bound. annot.error.bound.transparent-source and annot.error.bound.error give a
 # transparent or source member's parameter Error.
 use std.error.Error
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 @error("disk full")
 struct DiskError:

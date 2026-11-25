@@ -1,6 +1,6 @@
 # test: build fills an omitted member by evaluating its declared default, and never offers it to the source
 # Spec 14 Omitted Members: annot.omit.default, annot.omit.skip.
-use std.structure.{Structure, Field, Variant, Members, Key, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Source}
 
 struct Recorder:
     offered: string

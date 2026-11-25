@@ -1,5 +1,5 @@
 # test: a template must have a body that walks, describes, or builds
-use std.structure.Structure
+use std.meta.Structure
 
 trait Tagged:
     fn tag(self) -> string:

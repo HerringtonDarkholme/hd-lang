@@ -2,7 +2,7 @@
 # @build: v8 release
 # A reader too large to promote keeps its reference. The stored field
 # loan takes no count when the copy uses its evaluated argument (#1346).
-use std.annotation.inline
+use std.meta.inline
 use std.collections.UniqList
 
 struct Room:

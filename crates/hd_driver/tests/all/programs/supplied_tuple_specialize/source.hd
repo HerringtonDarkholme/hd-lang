@@ -1,7 +1,7 @@
 
-use std.annotation.cold
+use std.meta.cold
 use std.ops.Tuple
-use std.structure.{Field, Structure, Variant, Walker}
+use std.meta.{Field, Structure, Variant, Walker}
 
 fn check(value: bool) -> void:
     if !value:

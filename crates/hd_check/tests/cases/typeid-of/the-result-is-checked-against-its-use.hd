@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # The result of a qualified call is an ordinary call: it fits its
 # expected type like any other.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Box[T]:
     value: T

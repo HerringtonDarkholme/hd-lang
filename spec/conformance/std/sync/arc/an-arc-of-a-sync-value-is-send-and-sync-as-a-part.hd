@@ -1,6 +1,6 @@
 # test: an Arc of a value that is Send and Sync is both, alone and as a part of a struct, a tuple and an optional
 # Spec std/sync: std-sync.arc.send, std-sync.weak.send. Spec lang/10 Markers: module.marker.explicit.only.
-use std.marker.{Send, Sync}
+use std.meta.{Send, Sync}
 use std.sync.{Arc, Weak}
 
 struct Holder:

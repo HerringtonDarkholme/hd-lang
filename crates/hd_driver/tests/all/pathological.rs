@@ -2020,7 +2020,7 @@ fn locating_many_diagnostics_indexes_their_file_once() {
 /// argument texts.
 fn tracked_calls(n: usize) -> String {
     let mut s = String::from(
-        "use std.debug.Location\n\n@track_caller\nfn at(x: i32) -> i32:\n    if Location::caller_args().is_empty(): 0 else: x\n\npub fn run() -> i32:\n    let s = 0\n",
+        "use std.meta.Location\n\n@track_caller\nfn at(x: i32) -> i32:\n    if Location::caller_args().is_empty(): 0 else: x\n\npub fn run() -> i32:\n    let s = 0\n",
     );
     for _ in 0..n {
         s.push_str("    s = at(s + 1)\n");
@@ -2749,7 +2749,7 @@ fn inherent_members_are_compared_by_target_head() {
 /// `Debug`: `3n` derivations, each finding its template, its heads and
 /// its target's block.
 fn derived_types(n: usize) -> String {
-    let mut s = String::from("use std.structure.Structure\n\n");
+    let mut s = String::from("use std.meta.Structure\n\n");
     for i in 0..n {
         let _ = write!(
             s,
@@ -2955,7 +2955,7 @@ fn copy_goals_down_a_generic_chain_walk_each_level_once() {
 /// to a library marker's (`module.marker.structural`).
 fn marker_doubled(library: bool, n: usize) -> String {
     let mut s = String::from(
-        "use std.marker.{Marker, Wire}\n\npub trait Gpu < Marker\n\nimpl Gpu for string\n\nstruct Two[T]:\n    a: T\n    b: T\n\nfn post[T < Wire](v: T) -> void: pass\n\nfn launch[T < Gpu](v: T) -> void: pass\n\npub fn main() -> void:\n    x0 := \"a\"\n",
+        "use std.meta.{Marker, Wire}\n\npub trait Gpu < Marker\n\nimpl Gpu for string\n\nstruct Two[T]:\n    a: T\n    b: T\n\nfn post[T < Wire](v: T) -> void: pass\n\nfn launch[T < Gpu](v: T) -> void: pass\n\npub fn main() -> void:\n    x0 := \"a\"\n",
     );
     for i in 1..=n {
         let _ = writeln!(s, "    x{i} := Two {{ a: x{}, b: x{} }}", i - 1, i - 1);
@@ -2994,7 +2994,7 @@ fn marker_goals_walk_each_distinct_node_once() {
 /// (`fn.crossing.global`).
 fn crossing_chain(n: usize) -> String {
     let mut s = String::from(
-        "use std.marker.Wire\n\nfn run(code: fn() -> i32 + Wire) -> i32:\n    code()\n\nlet counter = +0\n\n",
+        "use std.meta.Wire\n\nfn run(code: fn() -> i32 + Wire) -> i32:\n    code()\n\nlet counter = +0\n\n",
     );
     let _ = writeln!(s, "fn g{n}() -> i32:\n    counter\n");
     for i in (0..n).rev() {
@@ -3031,7 +3031,7 @@ fn crossing_reach_is_linear_in_calls_and_closures() {
 /// `n` enums, each with a `Serialize` derivation block of its own.
 fn enum_views(n: usize) -> String {
     let mut s = String::from(
-        "use std.serde.Serialize\nuse std.structure.Structure\n\npub fn main() -> void: pass\n",
+        "use std.serde.Serialize\nuse std.meta.Structure\n\npub fn main() -> void: pass\n",
     );
     for i in 0..n {
         let _ = write!(
@@ -3430,7 +3430,7 @@ fn let_statements(n: usize) -> String {
 /// that only reads it: `n` argument promotion sites.
 fn promoted_calls(n: usize) -> String {
     let mut s = String::from(
-        "use std.annotation.inline\n\nstruct Wrap:\n    name: string\n\n@inline(.Never)\nfn label(w: &Wrap) -> usize:\n    w.name.len() + 1\n\npub fn main() -> void $ Console:\n    let w = Wrap { name: \"x\" }\n    let t = +0\n",
+        "use std.meta.inline\n\nstruct Wrap:\n    name: string\n\n@inline(.Never)\nfn label(w: &Wrap) -> usize:\n    w.name.len() + 1\n\npub fn main() -> void $ Console:\n    let w = Wrap { name: \"x\" }\n    let t = +0\n",
     );
     for _ in 0..n {
         s.push_str("    t = t + label(&w)\n");
@@ -5170,7 +5170,7 @@ fn newtype_nest_drop_walks_are_linear() {
 /// `newtype`, each level is a newtype over the next instead.
 fn declaration_chain(n: usize, newtype: bool) -> String {
     let mut s = String::from(
-        "use std.annotation.inline\n\nstruct Bottom:\n    id: i32\n\nimpl !Copy for Bottom\n\n",
+        "use std.meta.inline\n\nstruct Bottom:\n    id: i32\n\nimpl !Copy for Bottom\n\n",
     );
     for i in 0..n {
         let (next, inner) = if i + 1 < n {

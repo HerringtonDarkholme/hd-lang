@@ -1,6 +1,6 @@
 # @dump: diagnostics
-use std.annotation.annotate
-use std.structure.Structure
+use std.meta.annotate
+use std.meta.Structure
 
 struct Rename:
     name: string

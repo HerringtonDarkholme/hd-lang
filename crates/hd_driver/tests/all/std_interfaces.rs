@@ -76,13 +76,13 @@ fn std_interfaces_build_with_no_diagnostic() {
     assert_eq!(
         units,
         // Each unit is a strongly connected module group, named after its
-        // first module: std's language layer is one (`std.annotation`), and
+        // first module: std's language layer is one (`std.meta`), and
         // `std.rt` holds the runtime children its re-exports read and that
         // use it back. `std` is std's root, which re-exports the rest.
         [
             "app.main",
             "std",
-            "std.annotation",
+            "std.meta",
             "std.core",
             "std.f32.consts",
             "std.f64.consts",
@@ -107,7 +107,7 @@ fn the_prelude_module_reexports_the_prelude_table() {
     let (_, blob) = out
         .ifaces
         .iter()
-        .find(|f| f.0 == "std.annotation")
+        .find(|f| f.0 == "std.meta")
         .expect("std's language layer");
     fresh(|n| {
         let (_, exports) = decode_items(n, blob).expect("decode");
@@ -269,11 +269,7 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
             .ifaces_built
             .contains(&"app.service.load".to_owned())
     );
-    assert!(
-        !b.counters
-            .ifaces_built
-            .contains(&"std.annotation".to_owned())
-    );
+    assert!(!b.counters.ifaces_built.contains(&"std.meta".to_owned()));
 }
 
 #[test]

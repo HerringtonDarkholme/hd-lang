@@ -12,7 +12,7 @@ use std.hash.Hasher
 use std.format.DebugWriter
 use std.json.{JsonError, decode, encode}
 use std.serde.{Deserialize, Serialize, Serializer, Deserializer, ValueKind, member_name}
-use std.structure.{Facts, VariantInfo, Member}
+use std.meta.{Facts, VariantInfo, Member}
 use std.encoding.Base64
 
 ## A standard HTTP status or another numeric code.

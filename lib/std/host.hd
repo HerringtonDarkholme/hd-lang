@@ -6,7 +6,7 @@
 # (src/commands/default-profile.ts).
 use std.error.Error
 use std.serde.{Deserialize, Deserializer, ValueKind}
-use std.structure.{Facts, Member, VariantInfo}
+use std.meta.{Facts, Member, VariantInfo}
 use std.text.Parse
 
 ## The host capability to read the process's arguments.

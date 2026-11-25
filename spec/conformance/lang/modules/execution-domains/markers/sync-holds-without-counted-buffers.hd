@@ -1,6 +1,6 @@
 # test: a type with no counted buffer is Sync, through composites and local references
 # Spec 10 Markers: module.marker.sync, module.marker.sync.leaf, module.marker.sync.structural, module.marker.sync.refs.
-use std.marker.Sync
+use std.meta.Sync
 
 struct Point:
     x: i32

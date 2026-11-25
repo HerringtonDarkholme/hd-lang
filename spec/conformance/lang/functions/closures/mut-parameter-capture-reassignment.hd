@@ -1,7 +1,7 @@
 # test: closures observe whole assignments to captured mutable parameters
 # Spec 07: fn.capture.cell, fn.capture.cell.writes, fn.capture.cell.closures.
 # expect: test
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn replace[T < 'static](mut value: T, next: T) -> (T, T):

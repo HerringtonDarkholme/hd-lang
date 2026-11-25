@@ -1,6 +1,6 @@
 # test: a function with a crossing parameter is only called, never a function value, so no closure reaches it unchecked
 # Spec 07 Crossing Closures: fn.crossing.no-value.
-use std.marker.Wire
+use std.meta.Wire
 
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
     code()

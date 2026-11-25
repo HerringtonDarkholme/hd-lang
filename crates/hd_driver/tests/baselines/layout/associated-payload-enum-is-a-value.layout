@@ -4,7 +4,7 @@
 # i32 (#1544): a value enum of tag and payload, 8 bytes inline in Holder.
 # wrap returns the two values, unwrap tests the tag and returns the
 # payload, with no allocation and no release. Runtime output is 42.
-use std.annotation.inline
+use std.meta.inline
 
 trait Value:
     type Item

@@ -3,7 +3,7 @@ use std.rt.checked.{allocate, allocated, free, live}
 use std.rt.memory.{Buffer, Ptr, load_u8, load_u32, store_u32}
 use std.rt.bytes.string_from_buffer
 use std.rt.cycle.{collect, suspect, visit}
-use std.annotation.inline
+use std.meta.inline
 use std.testing.assert
 
 struct Empty: pass

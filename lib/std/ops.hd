@@ -13,10 +13,10 @@ use std.iter.{DoubleEndedIterator, ExactSizeIterator, Rev}
 # `std.ops.StrPrefix`, and `std.ops.Template` by their qualified names
 # (r-expr.literal-fn.marker), and `@annotate::[F](.Fn)` limits
 # each marker to functions (r-expr.literal-fn.fn-only).
-use std.annotation.annotate
+use std.meta.annotate
 use std.hash.Hash
 use std.num.{Num, Integer, Float}
-use std.structure.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
+use std.meta.{Structure, Source, Variant, Field, Members, Key, fills_defaults}
 use std.rt.{panic_with}
 use std.rt.{string_bytes}
 

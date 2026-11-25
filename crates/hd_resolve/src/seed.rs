@@ -330,7 +330,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             );
             out.push(call);
         }
-        known::STRUCTURE_MODULE => {
+        known::META_MODULE => {
             // `Structure` (annotations, "The Structure Trait"): sealed; the
             // compiler supplies it to a target while a template runs.
             let tr = names.item(module, "Structure");

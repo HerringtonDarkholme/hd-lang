@@ -1,8 +1,8 @@
 # @dump: stdout
 # The original category is the panic's own: an integer overflow in a fact
 # expression is reported as such, inside `fact-evaluation-failed`.
-use std.annotation.facts_of
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.facts_of
+use std.meta.{Structure, Field, Variant, Walker}
 
 struct Style:
     prefix: string = ""

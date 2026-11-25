@@ -2,7 +2,7 @@
 # @build: v8 release
 # A cycle through an undecorated function breaks at that function; the
 # `@inline(.Always)` call still copies.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Always)
 fn always(n: i32) -> i32:

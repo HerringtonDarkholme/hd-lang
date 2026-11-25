@@ -1,6 +1,6 @@
 # test: inline Always cannot contain with
 # Spec 14 Inline And Cold: annot.inline.always-copyable.v3.
-use std.annotation.inline
+use std.meta.inline
 use std.console.MemoryConsole
 
 @inline(.Always) # diagnostic: inline-always-uncopyable

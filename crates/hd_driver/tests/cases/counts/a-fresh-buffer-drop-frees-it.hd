@@ -10,7 +10,7 @@
 # of its own too (only a top-level binding's is static data): `literal`'s
 # element store needs no uniqueness check (`rt:list_unique`), and its drop
 # frees it.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn count(xs: List[i32]) -> usize: xs.len()

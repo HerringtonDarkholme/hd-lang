@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # req.key.inspectable.bound: such a trait stays valid as a bound and as a
 # value type, and an ordinary trait is still a key.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 trait Storage < Inspectable:
     fn get(self, key: string) -> string?

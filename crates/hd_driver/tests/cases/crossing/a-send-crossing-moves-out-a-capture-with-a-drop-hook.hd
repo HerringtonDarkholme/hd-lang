@@ -5,7 +5,7 @@
 # from the closure's environment to the body, which takes it on entry
 # (`sub_flags::ONCE`), and is freed once.
 use std.collections.UniqList
-use std.marker.Send
+use std.meta.Send
 
 fn run[T < ?Copy & Send](code: fn() -> T + Send) -> T:
     code()

@@ -1,4 +1,4 @@
-# test: by Structure needs use std.structure.Structure; without it Structure is an unknown trait
+# test: by Structure needs use std.meta.Structure; without it Structure is an unknown trait
 trait Show:
     fn show(self) -> string
 

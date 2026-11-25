@@ -2,7 +2,7 @@
 # Spec 09 Implementation Ownership: trait.own.rule, trait.own.orphan.
 use std.hash.Hasher
 
-use std.inspect.TypeId
+use std.meta.TypeId
 
 impl Hash for TypeId: # diagnostic: orphan-impl
     fn hash[H < Hasher](&self, hasher: &mut H) -> void:

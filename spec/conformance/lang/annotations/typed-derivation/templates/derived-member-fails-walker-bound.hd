@@ -1,6 +1,6 @@
 # test: the derived implementation is checked at the opt-in, where a member that fails the walker's bound is an error
 # Spec 14 Templates: annot.template.checked.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Encode:
     fn encode(self) -> string

@@ -97,7 +97,7 @@ impl string:
         panic("intrinsic")
 
 # The inline and cold decorators, here in std's leaf layer so runtime
-# modules can use them (r-annot.inline.declared.v2); `std.annotation`
+# modules can use them (r-annot.inline.declared.v2); `std.meta`
 # re-exports all four names. The compiler recognizes `inline` and `cold` by
 # their qualified names and checks their targets itself
 # (r-annot.inline.targets).

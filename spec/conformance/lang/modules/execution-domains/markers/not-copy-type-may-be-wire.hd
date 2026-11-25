@@ -1,6 +1,6 @@
 # test: a type declared impl !Copy is Wire when its fields are, and moves into a Wire parameter
 # Spec 10 Markers: module.marker.not-copy.
-use std.marker.Wire
+use std.meta.Wire
 
 struct Image:
     width: u32

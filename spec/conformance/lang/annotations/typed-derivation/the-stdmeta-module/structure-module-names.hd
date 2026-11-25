@@ -1,6 +1,6 @@
-# test: std.structure declares the Structure trait and its handle and helper types
+# test: std.meta declares the Structure trait and its handle and helper types
 # Spec 14 The Structure Trait: annot.structure.decl.
-use std.structure.{
+use std.meta.{
     Structure,
     Facts,
     Member,

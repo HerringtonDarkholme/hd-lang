@@ -1,5 +1,5 @@
 # @dump: diagnostics
 # `annot.facts-of.target.unresolved`: `i32::missing` names nothing.
-use std.annotation.facts_of
+use std.meta.facts_of
 
 value := facts_of(i32::missing)

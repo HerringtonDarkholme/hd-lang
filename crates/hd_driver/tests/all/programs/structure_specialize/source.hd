@@ -1,6 +1,6 @@
-use std.annotation.inline
+use std.meta.inline
 use std.serde.Serializer
-use std.structure.{Facts, Field, Member, Structure, Variant, VariantInfo, Walker}
+use std.meta.{Facts, Field, Member, Structure, Variant, VariantInfo, Walker}
 
 trait Add:
     fn add(self, total: *mut i32) -> void

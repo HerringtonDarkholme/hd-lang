@@ -4,7 +4,7 @@
   (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (func $main (param $provider0 i32) (param $provider0.vtable i32) (local $t0 i32) (local $t1 i32)
     ;; 13 |     println(line_of())
-    i32.const 65 ;; &"1\u{1f}13\u{1f}13\u{1f}main.hd"
+    i32.const 67 ;; &"1\u{1f}13\u{1f}13\u{1f}main.hd"
     i32.const 15
     call $site_location
     drop

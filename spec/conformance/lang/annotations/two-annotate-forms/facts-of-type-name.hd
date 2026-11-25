@@ -1,5 +1,5 @@
 # test: facts_of rejects a name that resolves to a type
-use std.annotation.facts_of
+use std.meta.facts_of
 
 @"user"
 struct User:

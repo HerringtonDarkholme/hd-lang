@@ -3,7 +3,7 @@
 # expected: audit #1803 draft 57 no longer holds. Each copy's `rt:retain`
 # takes its four operands from their own locals, not through one shared
 # scratch local. This case keeps it that way.
-use std.annotation.inline
+use std.meta.inline
 
 struct Pair:
     a: string

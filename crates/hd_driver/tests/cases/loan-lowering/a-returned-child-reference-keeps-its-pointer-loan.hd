@@ -4,7 +4,7 @@
 # counted child (a reference through it would be local to the callee,
 # `ref.local.pointer`); the caller's own reference through it borrows the
 # child, so the aliased child write panics borrow-conflict (#2174, #2339).
-use std.annotation.inline
+use std.meta.inline
 
 struct Node:
     value: usize

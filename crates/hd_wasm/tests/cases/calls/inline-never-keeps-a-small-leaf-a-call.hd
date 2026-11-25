@@ -2,7 +2,7 @@
 # @build: v8 release
 # `@inline(.Never)`: the leaf is small enough to copy, but its call stays
 # a call, so the function keeps a body V8 can optimize between calls.
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn a(i: usize, j: usize) -> f64:

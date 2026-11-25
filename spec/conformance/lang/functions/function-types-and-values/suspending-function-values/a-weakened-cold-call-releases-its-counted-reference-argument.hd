@@ -1,7 +1,7 @@
 # test: weakened cold function values release their counted reference argument exactly once
 # Spec functions: fn.type.suspend.weaken and fn.type.suspend.ctor. The checked runs' audit fails on
 # a leaked owner, and a freed referent's poison fails each read.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 @cold

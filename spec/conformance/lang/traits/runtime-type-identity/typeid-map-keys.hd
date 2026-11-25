@@ -1,5 +1,5 @@
 # test: TypeId hashes consistently with equality and can key a map
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 use std.testing.{assert, assert_equal}
 
 struct User:

@@ -1,6 +1,6 @@
 # test: a member line whose right side is not list-typed is invalid-member-line, not a type mismatch
 # Spec 14 Member Lines: annot.line.right.not-list (M29).
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

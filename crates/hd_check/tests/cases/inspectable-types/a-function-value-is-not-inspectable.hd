@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # A function value is not inspectable as an argument either.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

@@ -2,7 +2,7 @@
 # Overflow is checked by default; the arithmetic methods make the other
 # behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
-use std.annotation.inline
+use std.meta.inline
 use std.cmp.Ordering
 use std.text.Parse
 use std.rt.{string_from_bytes, panic_with, bytes_at}

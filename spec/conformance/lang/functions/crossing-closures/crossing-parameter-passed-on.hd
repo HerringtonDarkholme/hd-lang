@@ -1,6 +1,6 @@
 # test: a callee passes its own crossing parameter on whole to another crossing parameter of the same marker
 # Spec 07 Crossing Closures: fn.crossing.literal, fn.crossing.parameter.uses.
-use std.marker.Wire
+use std.meta.Wire
 
 fn run[T < ?Copy & Wire](code: fn() -> T + Wire) -> T:
     code()

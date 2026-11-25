@@ -2,7 +2,7 @@
 # trait.inspectable.not.never: a `never` argument solves the parameter
 # as `never` when nothing else does, so the bound fails there. Another
 # argument that solves it keeps the bound satisfied.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

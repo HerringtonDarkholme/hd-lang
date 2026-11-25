@@ -1,5 +1,5 @@
 use std.ops.Tuple
-use std.structure.{Structure, Field, Variant, Members, Key, Describer, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Describer, Source}
 use std.testing.assert_equal
 
 trait Sample:

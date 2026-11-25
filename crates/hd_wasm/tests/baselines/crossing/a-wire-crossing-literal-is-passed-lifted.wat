@@ -44,12 +44,12 @@
   (func $demo (param $photo.width i32) (param $photo.pixels i32) (param $side i32) (result i32) (local $t0 i32) (local $t1 i64) (local $code.1 i32)
     ;; 22 |     small := run(fn() -> Image: Image { width: side, pixels: photo.pixels })
     i64.const -2549619231260123173
-    i32.const 10
+    i32.const 16
     local.tee $t0
     i32.const 0
     call $"crossing_number[fn((u32, Image)) -> Image]"
     local.set $t1
-    i32.const 11
+    i32.const 17
     i32.const 32
     i32.const -2147483647
     call $rt:new/class-3

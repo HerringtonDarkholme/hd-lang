@@ -1,7 +1,7 @@
 # test: a derived walk passes an embedded field as one member named by its type, and walks a generic target's members
 # Spec 14 Members: annot.member.embedded; an embedded field is one member, named by its embedded type's final name.
 # Derived Bounds: annot.bound.params.
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 trait Show:
     fn show(self) -> string
 

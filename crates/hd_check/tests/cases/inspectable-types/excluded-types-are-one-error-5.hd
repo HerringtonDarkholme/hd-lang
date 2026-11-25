@@ -1,7 +1,7 @@
 # @dump: diagnostics
 # Each excluded kind is one `unsatisfied-trait-bound`, with nothing after
 # it (trait.inspectable.not.*).
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 struct Plain:
     name: string

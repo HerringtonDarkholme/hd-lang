@@ -2,7 +2,7 @@
 # Spec 14 The Structure Trait: annot.structure.protocol-move.
 # expect-stdout: x=1;y=2;
 # expect-stdout: 7 8 2
-use std.structure.{Structure, Field, Variant, Members, Key, Walker, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Walker, Source}
 
 trait Report:
     fn report(self, log: &mut string) -> void

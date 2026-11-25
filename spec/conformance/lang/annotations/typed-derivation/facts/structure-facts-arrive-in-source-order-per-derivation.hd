@@ -11,8 +11,8 @@ fn joined(parts: List[string], separator: string) -> string:
 # expect-stdout: [tag:t note:n mark:m] Point[] x[flag:x1 tag:x2 note:x3] y[tag:y1] z[]
 # expect-stdout: [tag:e] Start[note:v0] at[flag:p0] by[]
 # expect-stdout: [tag:e] Stop[]
-use std.inspect.{Inspectable}
-use std.structure.{Structure, Facts, Field, Variant, Walker}
+use std.meta.{Inspectable}
+use std.meta.{Structure, Facts, Field, Variant, Walker}
 
 struct Tag:
     text: string

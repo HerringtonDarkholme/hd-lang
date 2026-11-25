@@ -1,6 +1,6 @@
 # test: while a frozen loan lives, a store to the element it refers to is rejected
 # Spec 13 Frozen Loans: ref.frozen.write, ref.frozen.lifetime.
-use std.marker.Send
+use std.meta.Send
 
 struct Player:
     score: i32

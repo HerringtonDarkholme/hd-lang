@@ -4,8 +4,8 @@
 # `trait.sealed.user-impl`) on the impl, structure-outside-template
 # (`annot.structure.named-positions.error`) on the trait name. Each form:
 # plain, generic, module-qualified, with a body, and negative.
-use std.structure
-use std.structure.Structure
+use std.meta
+use std.meta.Structure
 
 struct Point:
     x: i64
@@ -24,7 +24,7 @@ impl Structure for Point
 
 impl[T] Structure for Cell[T]
 
-impl structure.Structure for Handle
+impl meta.Structure for Handle
 
 impl Structure for Named:
     fn name() -> string: "Named"

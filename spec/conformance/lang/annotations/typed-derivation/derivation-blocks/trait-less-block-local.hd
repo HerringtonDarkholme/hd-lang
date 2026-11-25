@@ -1,5 +1,5 @@
 # test: a block with no trait is not permitted in a local scope
-use std.structure.Structure
+use std.meta.Structure
 
 fn run() -> void:
     struct Request:

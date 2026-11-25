@@ -5,7 +5,7 @@
 # expect-stdout: lists users
 # expect-stdout: true
 # expect-stdout: false
-use std.annotation.facts_of
+use std.meta.facts_of
 
 struct Route:
     path: string

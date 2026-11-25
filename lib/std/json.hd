@@ -4,7 +4,7 @@
 use std.format.DebugWriter
 use std.iter.ListIter
 use std.error.Error
-use std.annotation.cold
+use std.meta.cold
 use std.serde.{
     Serialize,
     Deserialize,
@@ -16,7 +16,7 @@ use std.serde.{
     member_name,
     Skip,
 }
-use std.structure.{VariantInfo, Member, Facts}
+use std.meta.{VariantInfo, Member, Facts}
 use std.rt.{string_bytes}
 use std.rt.{
     bytes_len,

@@ -9,7 +9,7 @@
 # expect-stdout: 49:13 root
 # expect-stdout: [a @51:11-51:12][y=b @51:16-51:17]
 # expect-stdout: 0 texts
-use std.debug.Location
+use std.meta.Location
 
 @track_caller
 fn here() -> void:

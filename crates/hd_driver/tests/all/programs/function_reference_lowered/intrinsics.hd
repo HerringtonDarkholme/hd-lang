@@ -1,4 +1,4 @@
-use std.inspect.TypeId
+use std.meta.TypeId
 use std.ops.{Add, Neg}
 
 fn apply(f: fn(i32, i32) -> i32, a: i32, b: i32) -> i32:

@@ -1,6 +1,6 @@
 # test: a two-parameter function does not fit the pattern fn(T) -> R
 # Spec 14 Member-Typed Facts: annot.typed-fact.infer.mismatch, reported at the decorator (batch 50, 2026-10-02).
-use std.annotation.annotate
+use std.meta.annotate
 use std.num.Num
 
 @annotate::[fn(T) -> R](.Fn, .Field)

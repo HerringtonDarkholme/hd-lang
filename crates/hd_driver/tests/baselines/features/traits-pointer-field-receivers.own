@@ -7,7 +7,7 @@
 # caller's receiver is a local: the trait value lives on the pointer's
 # count, which the exclusive receiver keeps for the call; `total`
 # allocates nothing and counts only the source it drops.
-use std.annotation.inline
+use std.meta.inline
 
 trait Step:
     fn step(&mut self) -> i64?

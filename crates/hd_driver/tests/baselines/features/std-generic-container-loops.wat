@@ -33,7 +33,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 4
+      i32.const 2
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
@@ -338,7 +338,7 @@
     ;; 49 |     q.settle(0, "z")
     local.get $q
     i32.const 0
-    i32.const 236 ;; &"z"
+    i32.const 168 ;; &"z"
     i32.const 1
     call $"impl[T < Ord] Queue[T].settle[string]"
     ;; 50 |     q.items[0].len() + saved.items[0].len()
@@ -710,7 +710,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 9
+      i32.const 6
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self
@@ -856,7 +856,7 @@
     i32.eq
     if
       local.get $t0
-      i32.const 10
+      i32.const 7
       call_indirect $table0 (param i32) (result i32)
       local.set $t0
       local.get $self

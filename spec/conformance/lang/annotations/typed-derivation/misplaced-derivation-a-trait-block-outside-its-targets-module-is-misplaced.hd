@@ -1,7 +1,7 @@
 # test: misplaced derivation a trait block outside its targets module is misplaced
 # fixture-package-tree: misplaced-derivation-point/src/main.hd
 use pkg.lib.shapes.Point
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 pub trait Show:
     fn show(self) -> string

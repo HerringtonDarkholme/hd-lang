@@ -2,7 +2,7 @@
 # test: a derivation block for a type of another package is an error, even beside the trait's template
 # Spec 14 Derivation Blocks: annot.block.module; dep.models declares User.
 use dep.models.{User}
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

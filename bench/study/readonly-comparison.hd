@@ -1,7 +1,7 @@
 # #1379: repeated ordinary value parameters addressed only by read-only
 # comparisons. Keep the wrappers visible so the benchmark exercises their
 # borrowed-parameter contract rather than only an inlined comparison.
-use std.annotation.inline
+use std.meta.inline
 
 @derive(Eq, PartialOrd, Ord)
 struct Key:

@@ -1,7 +1,7 @@
 # @dump: own counts wat stdout
 # @build: release checked
 # expected: an immutable collection view preserves the roots of a short lookup loan.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 @cold

@@ -1,7 +1,7 @@
 # test: a per-trait replacement cannot remove declaration enum tagging
 # Rule: std-serde.enum-tagging.declaration-fact.
 use std.serde.{Serialize, tag}
-use std.structure.Structure
+use std.meta.Structure
 
 @tag("kind")
 enum Message:

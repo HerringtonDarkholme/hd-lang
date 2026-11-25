@@ -1,6 +1,6 @@
 # test: an immutable reference loop reads its snapshot across surrounding copy-on-write changes
 # Spec control flow: flow.for.ref; values: types.coll.value.
-use std.annotation.cold
+use std.meta.cold
 
 @cold
 fn count(values: &List[string]) -> usize:

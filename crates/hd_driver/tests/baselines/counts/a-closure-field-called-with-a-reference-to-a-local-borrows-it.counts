@@ -8,7 +8,7 @@
 # reference (`Gate[*mut Cell].admit`) gives the closure a way back to
 # memory, so its callee keeps the count, as does
 # a-closure-that-receives-its-own-struct-keeps-its-count.
-use std.annotation.inline
+use std.meta.inline
 
 struct Cell:
     value: i64

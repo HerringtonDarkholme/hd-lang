@@ -1181,7 +1181,7 @@ pub fn main() -> void $ Console:
     panic: true,
     rule: "ref.excl.alias.loan",
     what: "a never-inlined call returns its left reference and an alias grows that source",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -1216,7 +1216,7 @@ pub fn main() -> void $ Console:
     panic: true,
     rule: "ref.excl.alias.loan",
     what: "a never-inlined call returns its right reference and an alias grows that source",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -1254,7 +1254,7 @@ pub fn main() -> void $ Console:
     panic: true,
     rule: "ref.excl.alias.loan",
     what: "a reference returned through a function-value keeps its loan across an aliasing grow",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 
 struct Slots:
     items: List[string]
@@ -1287,7 +1287,7 @@ pub fn main() -> void $ Console:
     panic: true,
     rule: "ref.excl.alias.loan",
     what: "a reference returned through a trait-value keeps its loan across an aliasing grow",
-    source: `use std.annotation.inline
+    source: `use std.meta.inline
 
 struct Slots:
     items: List[string]

@@ -5,7 +5,7 @@
 # rt:list_reserve takes the list's value and its result goes back into the
 # local, with no stack frame.
 
-use std.annotation.inline
+use std.meta.inline
 
 @inline(.Never)
 fn unreserved(count: usize, transform: fn(usize) -> usize) -> List[usize]:

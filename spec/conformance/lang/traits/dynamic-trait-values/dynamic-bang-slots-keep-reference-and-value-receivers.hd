@@ -2,7 +2,7 @@
 # Spec Traits: trait.dyn.ref.member; Suspension: req.drive.block-on.completed.
 # expect-stdout: 11
 # expect-stdout: 19
-use std.annotation.inline
+use std.meta.inline
 use std.task.block_on
 
 trait Borrowed:

@@ -1,6 +1,6 @@
 # test: recovering a non-Copy type works, but copying it out with `*found` moves out of the reference
 # Spec 09 Traits: trait.downcast.non-copy-copy-out; Spec 13 Values And References: ref.move.out-of-place.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 struct Photo:
     width: u32

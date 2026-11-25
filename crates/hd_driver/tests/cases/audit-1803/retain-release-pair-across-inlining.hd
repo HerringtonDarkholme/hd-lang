@@ -3,7 +3,7 @@
 # expected: audit #1803 draft 59 no longer holds in this shape. With `id`
 # inlined, `twice` has no retain and release pair left: it reads `s` twice.
 # This case keeps it that way.
-use std.annotation.inline
+use std.meta.inline
 
 fn id(s: string) -> string:
     s

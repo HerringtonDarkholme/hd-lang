@@ -566,7 +566,7 @@ candidates is section 2.5's instantiation choice.
 ### 2.5 Methods And Operators
 
 **Typed structure facts.** The resolved inherent call `h.fact::[D]()` on
-`std.structure.Field` is a typed fact lookup: the explicit argument `D`
+`std.meta.Field` is a typed fact lookup: the explicit argument `D`
 is checked against the handled member's type, without the ordinary
 `D < Inspectable` method bound. The checker recognizes it by the resolved
 `Field.fact` identity, not by spelling.

@@ -1,4 +1,4 @@
-use std.annotation.cold
+use std.meta.cold
 
 type Words = (FIELDS,)
 

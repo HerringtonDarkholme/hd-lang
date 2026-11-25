@@ -1,5 +1,5 @@
-use std.annotation.annotate
-use std.structure.{Facts, Field, Structure, Variant, Walker}
+use std.meta.annotate
+use std.meta.{Facts, Field, Structure, Variant, Walker}
 
 trait Rule[F]:
     fn apply(&self, value: &F, context: *mut ValidationContext) -> void

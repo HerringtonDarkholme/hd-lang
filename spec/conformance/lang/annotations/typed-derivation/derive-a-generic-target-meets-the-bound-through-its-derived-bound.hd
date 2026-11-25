@@ -1,5 +1,5 @@
 # test: derive members generic target meets the bound through its derived bound
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 
 trait Show:
     fn show(self) -> string

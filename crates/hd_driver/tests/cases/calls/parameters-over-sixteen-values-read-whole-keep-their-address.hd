@@ -11,7 +11,7 @@
 # twice to an owning callee, moved whole as the result, moved on one
 # branch only, stored whole in a list, and kept generically. The
 # checked builds find no leak at exit.
-use std.annotation.inline
+use std.meta.inline
 
 struct Big:
     f0: i32

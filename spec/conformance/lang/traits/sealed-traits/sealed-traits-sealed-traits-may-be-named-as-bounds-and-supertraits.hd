@@ -1,5 +1,5 @@
 # test: sealed traits sealed traits may be named as bounds and supertraits
-use std.inspect.Inspectable
+use std.meta.Inspectable
 use std.num.{Float, Integer, Num}
 
 fn double[N < Num](n: N) -> N:

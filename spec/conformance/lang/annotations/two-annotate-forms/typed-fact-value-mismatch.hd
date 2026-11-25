@@ -1,6 +1,6 @@
 # test: a value of the fact type at another type argument does not check against the fact type at the target's type
 # Spec 14 Member-Typed Facts: annot.typed-fact.check (owner decision ANNOTATE-TYPED, batch 39, 2026-10-01).
-use std.annotation.annotate
+use std.meta.annotate
 use std.num.Integer
 
 @annotate::[F](.Field)

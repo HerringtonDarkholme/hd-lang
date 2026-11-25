@@ -2,15 +2,15 @@
 # generated stubs and dispatchers name (spec/lang/10-modules.md#remote-built-ins),
 # and the plain std over them (spec/std/remote.md): `per_request`, `home`,
 # `action` and the HTTP adapters.
-use std.annotation.inline
+use std.meta.inline
 use std.ops.Fn
 use std.hash.Hash
 use std.http.{Http, HttpError, Request, Response, Url}
-use std.marker.Wire
+use std.meta.Wire
 use std.num.Integer
 use std.random.Random
 use std.rt.{char_from_scalar}
-use std.structure.{Field, Key, Members, Source, Structure, Variant, Walker}
+use std.meta.{Field, Key, Members, Source, Structure, Variant, Walker}
 use std.time.Clock
 
 ## A marker for interface traits whose methods another target may run.
@@ -864,7 +864,7 @@ impl['a, S < ?Copy] Source[S] for WireTake[S, 'a]:
 # the host's tree format, and malformed frames, which decode to `.None`.
 tests:
     use std.http.{Method, ScriptedHttp}
-    use std.marker.Wire
+    use std.meta.Wire
     use std.random.SeededRandom
     use std.testing.{assert, assert_equal}
     use std.time.{Duration, ManualClock, Timestamp, sleep}

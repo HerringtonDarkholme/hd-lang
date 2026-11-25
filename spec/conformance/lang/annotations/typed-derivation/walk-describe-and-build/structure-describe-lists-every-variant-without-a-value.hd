@@ -1,7 +1,7 @@
 # test: describe lists every variant without a value
 # expect-stdout: <Dot><Pair> _0 _1<Box> width height
 # expect-stdout: <Cached> id
-use std.structure.{Structure, Field, Variant, Describer}
+use std.meta.{Structure, Field, Variant, Describer}
 
 trait Fields:
     fn fields() -> string

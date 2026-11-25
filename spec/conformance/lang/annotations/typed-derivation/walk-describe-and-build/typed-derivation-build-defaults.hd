@@ -1,10 +1,10 @@
 # test: a derived build whose source names no member fills every member from its declared default
 # Spec 14 Walk, Describe, And Build: annot.build.missing-after-none; after `.None`,
 # build calls missing once per member, and the source reads the default.
-# Also annot.build.construct. The std.structure Module:
+# Also annot.build.construct. The std.meta Module:
 # annot.structure.members.at-option. Handles: annot.handle.member-type,
 # annot.handle.default.
-use std.structure.{Structure, Field, Variant, Members, Key, Source}
+use std.meta.{Structure, Field, Variant, Members, Key, Source}
 trait Defaults:
     fn defaults() -> Self
 

@@ -2,7 +2,7 @@
 # @dump: counts
 # @build: v8 release program
 # The CI gate must detect one additional owner/release per loop iteration.
-use std.annotation.cold
+use std.meta.cold
 
 EXTRA := true
 

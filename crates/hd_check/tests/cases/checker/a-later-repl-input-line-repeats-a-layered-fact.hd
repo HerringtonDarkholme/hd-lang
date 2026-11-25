@@ -10,7 +10,7 @@ impl Probe for Point by Structure:
     x += [note("n")]
     y += [tag("again")]
 # @input: 1
-use std.structure.{Structure, Field, Variant, Walker}
+use std.meta.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
 

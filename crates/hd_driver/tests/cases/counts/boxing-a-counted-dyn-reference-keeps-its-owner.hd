@@ -1,7 +1,7 @@
 # @dump: stdout counts wat
 # @build: dev | checked | release | release checked
 # expected: true, 7, true, 7; both reference erasures must retain their owners.
-use std.inspect.{Inspectable, TypeId}
+use std.meta.{Inspectable, TypeId}
 
 trait Score:
     fn value(&self) -> i32

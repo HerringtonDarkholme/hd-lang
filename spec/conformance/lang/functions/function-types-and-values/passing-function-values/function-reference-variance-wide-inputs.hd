@@ -1,6 +1,6 @@
 # test: function variance borrows a reference at input index 64 for plain and cold calls
 # Spec functions: fn.type.declared-variance, fn.type.variance-repr.
-use std.annotation.cold
+use std.meta.cold
 use std.testing.assert_equal
 
 @cold

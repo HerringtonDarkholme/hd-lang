@@ -1,6 +1,6 @@
 # @dump: diagnostics
 # One error per written key, none for the others around it.
-use std.inspect.Inspectable
+use std.meta.Inspectable
 
 trait Storage < Inspectable:
     fn get(self, key: string) -> string?

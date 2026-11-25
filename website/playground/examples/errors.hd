@@ -17,7 +17,7 @@ tests:
             _ => assert(false, reason="expected Missing")
 
 # ── plumbing ──────────
-use std.annotation.cold
+use std.meta.cold
 use std.error.{Error, report_of}
 use std.num.{ParseNumberError}
 @error
