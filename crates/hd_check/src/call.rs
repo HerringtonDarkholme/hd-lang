@@ -5319,6 +5319,12 @@ impl Ck<'_, '_> {
         let known = self.cx.names.known;
         let which = if def == known.list {
             1
+        } else if def == known.plain_list && def.get().is_some() {
+            // Only `push`: its other methods are std code (#2369).
+            if name != "push" {
+                return None;
+            }
+            1
         } else if def == known.map {
             2
         } else {

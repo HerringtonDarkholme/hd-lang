@@ -161,7 +161,8 @@ impl Em<'_, '_, '_> {
         let (def, args) = self
             .pool()
             .adt_parts(strip_newtype(self.pool(), self.env(), t));
-        debug_assert_eq!(self.env().std_kind(def), StdKind::List);
+        // A `List`, or a `PlainList` whose `push` is a `ListPush` (#2369).
+        debug_assert_ne!(self.env().std_kind(def), StdKind::Map);
         let items = self.pool().list_items(args);
         // ruled out: the seeded List[T] has one completed generic argument.
         debug_assert_eq!(items.len(), 1);

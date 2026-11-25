@@ -96,15 +96,10 @@ impl[T] PlainList[T]:
             panic_with("index-out-of-bounds", "list index out of bounds")
         *self.elems().offset(index).as_ref()
 
-    ## Moves `value` onto the end: one count load and one length and
-    ## capacity compare; growth and the copy of a shared block are cold.
-    @inline
-    pub fn push(&mut self, value: T) -> void:
-        n := self.block.len
-        if !is_unique(self.block) || n == self.block.cap:
-            self.block = PlainList::[T].grown(self.block, n + 1, is_unique(self.block))
-        self.elems().offset(n).write(value)
-        self.head().as_mut().len = n + 1
+    # `push` is the built-in list push over the block (#2369): the
+    # checker reads `xs.push(v)` as `ListPush`, whose uniqueness test the
+    # ownership passes hoist out of a loop, and the backend grows the block
+    # as it grows a list's buffer, the same layout.
 
     ## Replaces the value at `index`; a shared block is copied first.
     @inline(.Always)

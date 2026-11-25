@@ -1,9 +1,10 @@
 # @dump: wat
 # @build: v8 release
-# A push loop over a `PlainList` (#2369): the block stays in a local, since
-# the cold `grown` takes it and gives the new one by value; one count load,
-# one length and capacity compare, the store and the length store per
-# value.
+# A push loop over a `PlainList` (#2369): its `push` is the built-in
+# `ListPush`, so the loop is the builtin list's instruction for
+# instruction: one length and capacity compare, the store and the length
+# store per value, growth through the cold `rt:list_grow`. The uniqueness
+# test runs once, before the loop (`new()` is a call, so not `FRESH`).
 use std.collections.PlainList
 
 fn build(n: i64) -> PlainList[i64]:

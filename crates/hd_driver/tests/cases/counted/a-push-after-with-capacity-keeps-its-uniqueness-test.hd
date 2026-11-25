@@ -1,9 +1,8 @@
 # @dump: own
 # @build: v8 release
-# expected: the push's `is_unique` test stays (#2369 gap): the fresh
-# analysis sees whole locals only, and the block comes from calls
-# (`alloc`, not yet inlined here, and the cold `grown`) whose results the
-# own pass does not know to be fresh.
+# expected: the push's `IsUnique` stays (#2369 gap): the block comes from
+# `with_capacity`'s `alloc_counted`, a call whose result the own pass does
+# not know to be fresh, so it is not `FRESH`. In a loop it is hoisted.
 use std.collections.PlainList
 
 fn build() -> PlainList[i64]:
