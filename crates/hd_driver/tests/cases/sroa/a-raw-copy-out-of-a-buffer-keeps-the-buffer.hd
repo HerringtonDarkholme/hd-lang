@@ -1,0 +1,20 @@
+# @dump: stdout
+# @build: release std | release checked std
+# `copy` from a slot of `src` into a slot of `dst`, as `src`'s last use.
+# Once sroa forwards the inlined `at(&self)` calls, `copy`'s source
+# operand is an address read out of `src`'s storage, so `src`'s `Drop`
+# must follow the copy. A checked build fills a freed room with 0xDE
+# bytes, so an early drop copies them and prints 3739147998.
+use std.meta.inline
+use std.rt.memory.{Buffer, copy, size_of}
+
+@inline(.Never)
+fn copied() -> usize:
+    src := Buffer::[usize].new(1)
+    src.at(0).write(17)
+    dst := Buffer::[usize].new(1)
+    copy(dst.at(0).address, src.at(0).address, size_of::[usize]())
+    dst.at(0).read()
+
+pub fn main() -> void $ Console:
+    println("copy ${copied()}")

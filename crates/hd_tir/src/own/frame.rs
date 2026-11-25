@@ -58,6 +58,14 @@
 //!    reuses the slot) added. Its captures become
 //!    `CaptureMode::Frame`, and every use of what may point into it is
 //!    its use, so insertion drops it after the closure's last use.
+//! 7. **Raw uses** ([`UseKind::DropOnly`]). A use that reaches a local
+//!    only through raw addresses (a `usize` or a `Ptr` computed from an
+//!    address read out of it, then `load_u32`, `copy`, `[ptr %p]`) holds
+//!    no loan of it: the memory such an address names moves with the
+//!    local's value. It delays the local's drop (insertion counts it) but
+//!    never makes a read of the local a copy (the move and derivation
+//!    passes skip it). A local moved out before such a use has no drop,
+//!    and one still owned there drops after it.
 
 use hd_base::SliceSort as _;
 
@@ -67,7 +75,7 @@ use origins::{Column, Origins, Worklist};
 #[cfg(test)]
 mod tests;
 
-use super::{OwnCx, Role, fill, operands};
+use super::{CallMemory, OwnCx, Role, fill, operands};
 use crate::ir::{
     Body, BodyKind, Callee, IntrinsicOp, NONE, PlaceView, Proj, ReadMode, Ref, Root, Tag, Topology,
     Word, is_suspension, local_flags, slots, u32_of,
@@ -76,6 +84,17 @@ use crate::ir::{
 enum Mark {
     Reference(usize),
     Capture(usize),
+}
+
+/// How an instruction uses a local through what may point into it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UseKind {
+    /// Through a reference, or a value read through one: a borrow of the
+    /// local, which neither its drop nor a move of it may precede.
+    Access,
+    /// Through raw addresses alone (rule 7): only the local's drop waits
+    /// for it.
+    DropOnly,
 }
 
 /// Frame locals' dense tables, reused across bodies.
@@ -357,13 +376,14 @@ fn bits(mut m: u64) -> impl Iterator<Item = usize> {
 /// Finds the body's frame locals, sets `ref_word::FRAME` on their `Ref`s,
 /// and calls `uses` with each instruction that uses a tracked local (a
 /// frame local or a cell local, rule 4) through a value or a local that
-/// may point into it: (instruction, local, whether it is a frame local).
+/// may point into it: (instruction, local, whether it is a frame local,
+/// how it uses it).
 pub(crate) fn run(
     b: &mut Body,
     topo: &Topology,
     cx: &dyn OwnCx,
     t: &mut Tables,
-    uses: impl FnMut(u32, u32, bool),
+    uses: impl FnMut(u32, u32, bool, UseKind),
 ) {
     let mut marks = std::mem::take(&mut t.marks);
     marks.clear();
@@ -383,7 +403,7 @@ pub(crate) fn uses(
     topo: &Topology,
     cx: &dyn OwnCx,
     t: &mut Tables,
-    uses: impl FnMut(u32, u32, bool),
+    uses: impl FnMut(u32, u32, bool, UseKind),
 ) {
     analyze(b, topo, cx, t, uses, &mut |_| {});
 }
@@ -393,7 +413,7 @@ fn analyze(
     topo: &Topology,
     cx: &dyn OwnCx,
     t: &mut Tables,
-    mut uses: impl FnMut(u32, u32, bool),
+    mut uses: impl FnMut(u32, u32, bool, UseKind),
     marks: &mut impl FnMut(Mark),
 ) {
     let (n, locals) = (b.len(), b.local_ty.len());
@@ -469,20 +489,18 @@ fn analyze(
     let tracked = Origins::Small(u64::MAX >> (64 - t.cands.len()));
     let frame = tracked.without(&t.out);
     t.frame = frame.clone();
+    let mut ops = std::mem::take(&mut t.ops);
     for i in 0..n {
         let a = b.data[i][0];
-        let mut m = Origins::default();
-        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
-            && let Some(l) = b.view(a).local()
-        {
-            m |= t.fact(Column::Held, l as usize) | t.fact(Column::LocalDependency, l as usize);
-        }
-        operands(b, i, &mut t.ops);
-        for op in &t.ops {
-            m |= t.of(op.value) | t.fact(Column::Dependency, op.value as usize);
-        }
+        let (m, raw) = used_at(b, cx, t, i, &mut ops);
         for k in (m & tracked.clone()).bits() {
-            uses(u32_of(i), t.cands[k], frame.clone() & Origins::bit(k) != 0);
+            let kind = use_kind(&raw, k);
+            uses(
+                u32_of(i),
+                t.cands[k],
+                frame.clone() & Origins::bit(k) != 0,
+                kind,
+            );
         }
         if b.tags[i] == Tag::Ref
             && let Some(l) = b.local_in_place(a)
@@ -491,6 +509,7 @@ fn analyze(
             marks(Mark::Reference(i));
         }
     }
+    t.ops = ops;
     extra_cell_uses(b, cx, t, |_| true, &mut uses);
     root_uses(b, cx, &mut uses);
 }
@@ -610,12 +629,12 @@ fn plan_cells(b: &Body, topo: &Topology, cx: &dyn OwnCx, t: &mut Tables) -> Orig
 /// Rule 6 in a body with no suspension point in its root: each frame
 /// cell's captures become `CaptureMode::Frame`, and `uses` gets each
 /// instruction that uses a value or a local that may point into one, as
-/// (instruction, local, true), so its drop follows the closure's last use.
+/// (instruction, local, true, how), so its drop follows the closure's last use.
 fn cell_uses(
     b: &Body,
     topo: &Topology,
     cx: &dyn OwnCx,
-    uses: &mut impl FnMut(u32, u32, bool),
+    uses: &mut impl FnMut(u32, u32, bool, UseKind),
     marks: &mut impl FnMut(Mark),
 ) {
     if !b.cap_mode.iter().any(|m| m.shares()) {
@@ -626,19 +645,11 @@ fn cell_uses(
     if frame == 0 {
         return;
     }
+    let mut ops = std::mem::take(&mut t.ops);
     for i in 0..b.len() {
-        let mut m = Origins::default();
-        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
-            && let Some(l) = b.view(b.data[i][0]).local()
-        {
-            m |= t.fact(Column::Held, l as usize) | t.fact(Column::LocalDependency, l as usize);
-        }
-        operands(b, i, &mut t.ops);
-        for op in &t.ops {
-            m |= t.of(op.value) | t.fact(Column::Dependency, op.value as usize);
-        }
+        let (m, raw) = used_at(b, cx, &t, i, &mut ops);
         for k in (m & frame.clone()).bits() {
-            uses(u32_of(i), t.cands[k], true);
+            uses(u32_of(i), t.cands[k], true, use_kind(&raw, k));
         }
         if b.tags[i] == Tag::Closure {
             let rec = b.record(b.data[i][1]);
@@ -799,9 +810,9 @@ fn whole_local_read(b: &Body, v: u32) -> Option<u32> {
 /// `Ref` that is no frame slot's addresses) or a root local through what may
 /// point into it, as (instruction, local). The move pass reads them, so
 /// neither is moved, nor its cell taken, before a reference's last use.
-pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32)) {
+pub(crate) fn roots(b: &Body, cx: &dyn OwnCx, mut uses: impl FnMut(u32, u32, UseKind)) {
     let t = Tables::default();
-    let mut each = |i, l, _| uses(i, l);
+    let mut each = |i, l, _, kind| uses(i, l, kind);
     extra_cell_uses(
         b,
         cx,
@@ -864,7 +875,7 @@ pub(super) fn read_roots(b: &Body, mut measure: impl FnMut(usize)) -> Vec<u32> {
 /// holds no count of that object. Each use of such a value is a use of
 /// the root, so its drop, or a move of it, follows the reference's last
 /// use, in a suspending body's frame too.
-fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
+fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool, UseKind)) {
     let read_roots = read_roots(b, |_| {});
     let mut locals = Vec::new();
     let mut lent_reads: Vec<u32> = Vec::new();
@@ -927,8 +938,8 @@ fn root_uses(b: &Body, cx: &dyn OwnCx, uses: &mut impl FnMut(u32, u32, bool)) {
         .iter()
         .map(|&l| (l, l | crate::ir::place::BARE_LOCAL))
         .collect();
-    origin_uses(b, cx, &mut extra, &targets, |i, k| {
-        uses(i, locals[k], false);
+    origin_uses(b, cx, &mut extra, &targets, |i, k, kind| {
+        uses(i, locals[k], false, kind);
     });
 }
 
@@ -955,7 +966,7 @@ fn extra_cell_uses(
     cx: &dyn OwnCx,
     t: &Tables,
     eligible: impl Fn(usize) -> bool,
-    uses: &mut impl FnMut(u32, u32, bool),
+    uses: &mut impl FnMut(u32, u32, bool, UseKind),
 ) {
     let mut locals = Vec::new();
     for (i, &tag) in b.tags.iter().enumerate() {
@@ -984,7 +995,7 @@ fn extra_cell_uses(
             ..Tables::default()
         },
         &targets,
-        |i, k| uses(i, locals[k], false),
+        |i, k, kind| uses(i, locals[k], false, kind),
     );
 }
 
@@ -997,7 +1008,7 @@ pub(crate) fn part_uses(
     cx: &dyn OwnCx,
     t: &mut Tables,
     targets: &[(u32, u32)],
-    mut uses: impl FnMut(u32, usize),
+    mut uses: impl FnMut(u32, usize, UseKind),
 ) -> u64 {
     debug_assert!(targets.len() <= 64);
     origin_uses(b, cx, t, targets, &mut uses);
@@ -1009,7 +1020,7 @@ fn origin_uses(
     cx: &dyn OwnCx,
     t: &mut Tables,
     targets: &[(u32, u32)],
-    mut uses: impl FnMut(u32, usize),
+    mut uses: impl FnMut(u32, usize, UseKind),
 ) {
     t.out = Origins::default();
     if targets.is_empty() {
@@ -1046,22 +1057,67 @@ fn origin_uses(
         if b.tags[i] == Tag::Drop {
             continue;
         }
-        let mut origins = Origins::default();
-        if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
-            && let Some(l) = b.view(b.data[i][0]).local()
-        {
-            origins |=
-                t.fact(Column::Held, l as usize) | t.fact(Column::LocalDependency, l as usize);
-        }
-        operands(b, i, &mut ops);
-        for op in &ops {
-            origins |= t.of(op.value) | t.fact(Column::Dependency, op.value as usize);
-        }
+        let (origins, raw) = used_at(b, cx, t, i, &mut ops);
         for k in origins.bits() {
-            uses(u32_of(i), k);
+            uses(u32_of(i), k, use_kind(&raw, k));
         }
     }
     t.ops = ops;
+}
+
+/// The candidates instruction `i` uses through what may point into them
+/// (what the local it reads, writes or lends holds or lives on, and what
+/// its operands point into or live on), and those of them it reaches
+/// through raw addresses alone (rule 7). What a local holds or a value
+/// points into (`Held`, `Value`) is a reference's, a loan. What one
+/// lives on (`LocalDependency`, `Dependency`) is a loan's only when it
+/// may hold a reference: one of a type that tracks nothing
+/// ([`raw_address`]) carries an address's.
+fn used_at(
+    b: &Body,
+    cx: &dyn OwnCx,
+    t: &Tables,
+    i: usize,
+    ops: &mut Vec<super::Operand>,
+) -> (Origins, Origins) {
+    let (mut access, mut raw) = (Origins::default(), Origins::default());
+    if matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref | Tag::IsUnique)
+        && let Some(l) = b.view(b.data[i][0]).local()
+    {
+        access |= t.fact(Column::Held, l as usize);
+        let lives = t.fact(Column::LocalDependency, l as usize);
+        if raw_address(cx, b.local_ty[l as usize]) {
+            raw |= lives;
+        } else {
+            access |= lives;
+        }
+    }
+    operands(b, i, ops);
+    for op in ops.iter() {
+        access |= t.of(op.value);
+        let lives = t.fact(Column::Dependency, op.value as usize);
+        if Ref(op.value).as_inst().is_some()
+            && (op.value as usize) < b.len()
+            && !matches!(b.tags[op.value as usize], Tag::Ref | Tag::Coerce)
+            && raw_address(cx, b.ty[op.value as usize])
+        {
+            raw |= lives;
+        } else {
+            access |= lives;
+        }
+    }
+    let only = raw.without(&access);
+    (access | raw, only)
+}
+
+/// How a use reaches candidate `k`, given the candidates `raw` it reaches
+/// through raw addresses alone ([`used_at`]).
+fn use_kind(raw: &Origins, k: usize) -> UseKind {
+    if raw.clone() & Origins::bit(k) != 0 {
+        UseKind::DropOnly
+    } else {
+        UseKind::Access
+    }
 }
 
 /// Returned values outlive the ordinary instruction sequence, in both
@@ -1085,9 +1141,11 @@ fn grow(set: &mut Origins, m: Origins) -> bool {
 /// Marks in `t.addr` each value that may become an address, and in
 /// `t.laddr` each local: a field of a value built that may hold a
 /// reference (`Ptr { address: .. }`, where an integer gains a referent),
-/// the pointer a reference is made from (`Ptr.as_ref`, `Ptr.as_mut`:
-/// [`OwnCx::plain_result`]), and, backward, an operand of a `Prim` or a call that is one
-/// (`address_of(&x) + 8`), the tail of a block and the blocks of a
+/// each raw address an access goes through ([`raw_access`]: a
+/// `[ptr %p]` place, `load_u32`'s address, the pointer `Ptr.as_ref` makes
+/// a reference from), the raw address value a part read out of one is
+/// part of (`[%p .address]`), and, backward, an operand of a `Prim` or a
+/// call that is one (`address_of(&x) + 8`), the tail of a block and the blocks of a
 /// branch that is one, the value a `Break` gives one, and the value
 /// stored where a read of one may find it: a store whose place overlaps
 /// such a read's (one's steps a prefix of the other's, an element step
@@ -1122,6 +1180,7 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         for i in (0..b.len()).rev() {
             let ([a, w], tag) = (b.data[i], b.tags[i]);
             ops.clear();
+            raw_access(b, cx, i, &mut ops);
             match tag {
                 Tag::Break
                     if b.label_inst
@@ -1137,10 +1196,13 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                     ops.push(w);
                 }
                 // A tracked value read whole (a `UniqList` copied around a
-                // spill) carries its parts' origins itself (`step`), so
-                // only a raw address names the place it came from.
+                // spill) carries its parts' origins itself (`step`), and a
+                // read through a reference (`[*$r .buffer .ptr]`) lives on
+                // what the reference points into, so only a raw address
+                // read out of a local's own storage names a place in it.
                 Tag::Read if t.addr[i] => {
                     if raw_address(cx, b.ty[i])
+                        && b.view(a).in_place(b)
                         && let Some(l) = steps(a, &mut path)
                     {
                         let held = &mut t.laddr[l as usize];
@@ -1150,12 +1212,30 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                             again = true;
                         }
                     }
+                    // A part of a raw address value (`[%p .address]` of a
+                    // `Ptr`) is that value's address.
+                    if let Root::Value(v) = b.view(a).root
+                        && (v as usize) < b.len()
+                        && raw_address(cx, b.ty[v as usize])
+                    {
+                        ops.push(v);
+                    }
                 }
                 Tag::NewStruct if cx.holds_ref(b.ty[i]) => value_operands(i, &mut ops),
+                // A compiler-supplied call whose result derives its address
+                // from one argument (`Ptr.offset`'s pointer, never its
+                // count) or is a fresh allocation names only that one.
                 Tag::Call
-                    if Callee::from_words(b.record(a)).is_some_and(|c| cx.plain_result(&c)) =>
+                    if t.addr[i]
+                        && let Some(c) = Callee::from_words(b.record(a))
+                        && let memory @ (CallMemory::Derive(_) | CallMemory::Allocate) =
+                            cx.call_memory(&c) =>
                 {
-                    value_operands(i, &mut ops);
+                    if let CallMemory::Derive(k) = memory
+                        && let Some(&v) = b.call_args(i).get(usize::from(k))
+                    {
+                        ops.push(v);
+                    }
                 }
                 Tag::Prim
                 | Tag::Block
@@ -1167,7 +1247,7 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 {
                     value_operands(i, &mut ops);
                 }
-                _ if !t.addr[i] => continue,
+                _ if !t.addr[i] => {}
                 // A branch's value is its blocks'.
                 _ => slots(b, i, |_, x, word| {
                     if word == Word::Block {
@@ -1176,13 +1256,63 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 }),
             }
             for &v in &ops {
-                if Ref(v).as_inst().is_some() && (v as usize) < b.len() {
+                if Ref(v).as_inst().is_some()
+                    && (v as usize) < b.len()
+                    && !numeric(b.ty[v as usize])
+                {
                     t.addr[v as usize] = true;
                 }
             }
         }
     }
     t.ops = found;
+}
+
+/// Whether `ty` is a scalar other than `usize`, which holds no address:
+/// an address is a `usize` (`Ptr.address`, `load_u32`'s), so a value of
+/// another scalar type an address is computed from (a number's digit
+/// count in `${total}`, an `i32` field) is a count or a value, never one.
+fn numeric(ty: hd_types::Ty) -> bool {
+    use hd_types::Prim;
+    Prim::ALL
+        .iter()
+        .any(|&p| !matches!(p, Prim::Usize | Prim::String) && hd_types::Ty::prim(p) == ty)
+}
+
+/// Pushes onto `ops` each raw address instruction `i` accesses memory
+/// through: the pointer of a place `[ptr %p]` a `Read`, `Store`, `Ref`,
+/// `Drop` or `IsUnique` reads, writes, lends or drops (`Ptr.read` and
+/// `Ptr.write` once checking lowers them), and each argument of a call
+/// the intrinsic table marks ([`OwnCx::raw_addresses`]: `load_u32`,
+/// `copy`'s two, `fill`, the atomics, `Ptr.as_ref`). Every raw memory
+/// access reaches the passes in one of these two forms, so each such
+/// address is an address ([`addresses`]) and the access is a use of what
+/// owns its memory.
+fn raw_access(b: &Body, cx: &dyn OwnCx, i: usize, ops: &mut Vec<u32>) {
+    let a = b.data[i][0];
+    let tag = b.tags[i];
+    if matches!(
+        tag,
+        Tag::Read | Tag::Store | Tag::Ref | Tag::Drop | Tag::IsUnique
+    ) && let Root::Ptr(p) = b.view(a).root
+    {
+        ops.push(p);
+    }
+    let Some(callee) = (tag == Tag::Call)
+        .then(|| Callee::from_words(b.record(a)))
+        .flatten()
+    else {
+        return;
+    };
+    let mut mask = cx.raw_addresses(&callee);
+    let args = b.call_args(i);
+    while mask != 0 {
+        let k = mask.trailing_zeros() as usize;
+        mask &= mask - 1;
+        if let Some(&v) = args.get(k) {
+            ops.push(v);
+        }
+    }
 }
 
 /// The step-code records of a local's addressed places ([`addresses`]).
@@ -1276,10 +1406,18 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
         let m = dep(t, w);
         changed |= t.grow_fact(Column::Dependency, x as usize, m);
     }
+    // What a local holds never keeps the local itself alive (a `Buffer`
+    // storing `Ptr { address: room(self.capacity, ..) }` into itself): an
+    // address into its storage or memory read back out of it is an
+    // address read (`through` above), and a move of it takes that memory
+    // along. With its own bit, every access of the local, a store that
+    // ends its old value too, would use it, and a move before such a
+    // store (sroa's spill around a call) could never be its last use.
     if let (Tag::Store, Root::Local(l)) = (b.tags[i], p.root)
         && p.in_place(b)
     {
-        let m = dep(t, w);
+        let own = t.bit.get(l as usize).cloned().unwrap_or_default();
+        let m = dep(t, w).without(&own);
         changed |= t.grow_fact(Column::LocalDependency, l as usize, m);
     }
     changed | step_val(b, cx, t, ops, i)

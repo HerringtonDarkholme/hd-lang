@@ -1,0 +1,24 @@
+# @dump: stdout own
+# @build: release checked std
+# `address_of(&pair.n)`, then `load_u32` and `store_u32` through that
+# address after `pair`'s last named use. The address points into
+# `pair`'s own storage, so `pair`'s `Drop` (its `Buffer`'s) must follow
+# the store, the last access through the address. The local's storage
+# is not a freed room, so only the own dump shows the order.
+use std.meta.inline
+use std.rt.memory.{Buffer, address_of, load_u32, store_u32}
+
+struct Pair:
+    buf: Buffer[u32]
+    n: u32
+
+@inline(.Never)
+fn through_address() -> u32:
+    pair := Pair { buf: Buffer::[u32].new(1), n: 17 }
+    at := address_of(&pair.n)
+    v := load_u32(at)
+    store_u32(at, v + 1)
+    v
+
+pub fn main() -> void $ Console:
+    println("address ${through_address()}")

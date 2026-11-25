@@ -704,6 +704,19 @@ jobs:
           HD_CONFORMANCE_PHASE: ${{ matrix.phase }}
         run: scripts/ci-tests.sh '^crates/hd_driver/conformance$' --exact specification_conformance_passes_except_known_failures
 
+      # The room audit's probes and std's runtime modules under the optimized
+      # pipeline, with the checked runtime's asserts in the checked job (the
+      # two tests run at once): an optimization that drops a buffer before a
+      # raw read through it frees the room early there only (sroa's
+      # forwarding, lane 281), and one that lets such a read keep the buffer
+      # turns a move into a copy (lane 282).
+      - name: Room audit and std runtime modules (optimized)
+        if: ${{ !cancelled() && matrix.pipeline == 'optimized' }}
+        env:
+          HD_CONFORMANCE_PIPELINE: optimized
+          HD_CONFORMANCE_CHECKED: ${{ matrix.checked }}
+        run: scripts/ci-tests.sh '^crates/hd_driver/conformance$' --exact checked_rooms_reject_leaks_and_double_frees std_runtime_modules_pass_their_hd_tests_on_the_linear_backend
+
       # Runs std's runtime modules with the checked runtime's asserts too; the
       # Rust tests job runs them plain.
       - name: Std runtime modules (checked)
