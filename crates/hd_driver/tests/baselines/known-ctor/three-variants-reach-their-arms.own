@@ -109,7 +109,7 @@ pub fn area(k: i64) -> i64:
 pub fn main() -> void $ Console:
     let mut s: i64 = 0
 > app/main/main
->   local $0 s: i64 [read assigned mutated captured] place
+>   local $0 s: i64 [read assigned mutated] place
 >   local $1 $coll: List[i64] [assigned] value
 >     uses $1: %7 -> %8 lend, %12 lend last
 >   local $3 $pos: usize [assigned] place

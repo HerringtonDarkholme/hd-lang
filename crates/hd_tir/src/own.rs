@@ -1141,6 +1141,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
     scopes::lower(b)?;
     return_loan::forward_places(b, cx);
     local_refs::run(b, cx, &mut scratch.topo, &mut scratch.splice)?;
+    local_refs::unflag_unreached(b);
     copy_struct::expand(b, cx, &mut scratch.topo, &mut scratch.splice)?;
     temporaries::run(
         b,

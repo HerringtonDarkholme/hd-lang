@@ -288,6 +288,49 @@ fn forward(
     Ok(())
 }
 
+/// Clears `CAPTURED` from each local that nothing outside the body's own
+/// place instructions reaches any more: no `Ref` of it, no closure's
+/// capture (`cap_local`) and no `RefDyn` whose address block reads it. The
+/// checker set the flag for such a `Ref`, and the inliner's copy of a
+/// `&self` method (`len()` after a loop) or this forwarding took the `Ref`
+/// away; the inliner's by-value binding clears it the same way
+/// (`crate::inline`'s `still_reached`). Hoisting and `fresh_buffers` then
+/// see the local as the body's alone. A `&mut` (`CAPTURED_ASSIGNED`) keeps
+/// its flags. Cost: one scan of the body.
+pub(super) fn unflag_unreached(b: &mut Body) {
+    if !b.local_flags.iter().any(|f| f & local_flags::CAPTURED != 0) {
+        return;
+    }
+    let mut reached = vec![false; b.local_ty.len()];
+    for c in &b.cap_local {
+        if let Some(o) = reached.get_mut(c.idx()) {
+            *o = true;
+        }
+    }
+    for i in 0..b.len() {
+        if b.tags[i] == Tag::Ref
+            && let Some(l) = b.view(b.data[i][0]).local()
+        {
+            reached[l as usize] = true;
+        }
+        let blk = b.data[i][0] as usize;
+        if b.tags[i] == Tag::RefDyn && b.tags.get(blk) == Some(&Tag::Block) {
+            for &x in b.record(b.data[blk][0]) {
+                if b.tags.get(x as usize) == Some(&Tag::Read)
+                    && let Some(l) = b.view(b.data[x as usize][0]).local()
+                {
+                    reached[l as usize] = true;
+                }
+            }
+        }
+    }
+    for (l, flags) in b.local_flags.iter_mut().enumerate() {
+        if !reached[l] && *flags & local_flags::CAPTURED_ASSIGNED == 0 {
+            *flags &= !local_flags::CAPTURED;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

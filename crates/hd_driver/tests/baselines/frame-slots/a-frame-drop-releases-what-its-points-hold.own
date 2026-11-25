@@ -13,7 +13,7 @@ use std.time.{Clock, ms, sleep}
 fn text(n: i32) -> string:
     "t${n}"
 > app/main/text
->   local $0 n: i32 [param read captured] value
+>   local $0 n: i32 [param read] value
 >     uses $0: entry -> %0 lend last
 >   local $1 result: string [read] value
 >     uses $1: %48 -> %53 lend last

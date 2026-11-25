@@ -103,7 +103,7 @@ fn total!(c: bool) -> i64 $ Clock:
 pub fn main!() -> void $ Console + Clock:
     a := total!(true)
 > app/main/main
->   local $0 a: i64 [:= read assigned captured] value
+>   local $0 a: i64 [:= read assigned] value
 >     uses $0: %6 -> %7 lend last
 >   local $1 result: string [read] value
 >     uses $1: %35 -> %40 lend last

@@ -41,7 +41,7 @@ app/main/main
   storage sub 0: $0 cell, $1 slot, $2 cell, $3 slot, $4 cell, $5 slot, $6 cell, $7 slot
 == @build: release
 app/main/main
-  local $1 a: Arc[Flat] [:= read assigned captured] value
+  local $1 a: Arc[Flat] [:= read assigned] value
     uses $1: %6 -> %7 lend last
   %7 = Read copy [$1 .block] : usize
   %8 = Read copy [@std/sync/VALUE] : usize

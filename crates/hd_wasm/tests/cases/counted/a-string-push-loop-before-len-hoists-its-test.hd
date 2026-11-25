@@ -1,0 +1,17 @@
+# @dump: wat
+# @build: v8 release
+# A `string` push loop over a `PlainList` whose length is read after it
+# (#2369): `len(&self)` inlines and its `Ref` goes, so the list is the
+# body's alone again and the push's uniqueness test runs once, before the
+# loop, as for the builtin list. The loop is the builtin's: the two leaves
+# stored at `offset=16` and `offset=20`.
+use std.collections.PlainList
+
+fn count(n: i64, s: string) -> usize:
+    let mut xs = PlainList::[string].new()
+    let mut i: i64 = 0
+    # subject
+    while i < n:
+        xs.push(s)
+        i += 1
+    xs.len()

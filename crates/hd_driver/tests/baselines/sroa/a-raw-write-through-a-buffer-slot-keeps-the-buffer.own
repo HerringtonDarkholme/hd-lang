@@ -14,7 +14,7 @@ use std.rt.memory.Buffer
 fn last_write() -> usize:
     buf := Buffer::[usize].new(2)
 > std/rt_tests.stage_case/last_write
->   local $0 buf: Buffer[usize] [:= read assigned captured] value
+>   local $0 buf: Buffer[usize] [:= read assigned] value
 >     uses $0: %10 -> %12 lend, %20 lend, %29 lend last
 >   local $1 first: usize [:= read assigned] value
 >     uses $1: %27 -> %35 lend, %39 consume last

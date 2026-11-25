@@ -10,7 +10,7 @@ fn digest(value: usize) -> u64:
 > app/main/digest
 >   local $0 value: usize [param read] value
 >     uses $0: entry -> %0 consume last
->   local $1 value: usize [read captured] value
+>   local $1 value: usize [read] value
 >     uses $1: %1 -> %11 consume last
 >   local $2 hasher: DefaultHasher [read assigned captured captured-assigned] place
 >   local $3 self: DefaultHasher [read] value
