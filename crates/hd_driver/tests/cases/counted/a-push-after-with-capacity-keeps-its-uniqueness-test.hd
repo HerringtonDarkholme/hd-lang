@@ -1,9 +1,9 @@
 # @dump: own
 # @build: v8 release
-# expected: the push's `is_unique` test stays (#2369 step 1 gap, see
-# target issue "counted-fold-through-fields"): the list is a struct
-# whose `block` field is fresh, but `push` lends `&mut xs` to its cold
-# `reserve_slow`, so the whole-local fresh analysis drops it.
+# expected: the push's `is_unique` test stays (#2369 gap): the fresh
+# analysis sees whole locals only, and the block comes from calls
+# (`alloc`, not yet inlined here, and the cold `grown`) whose results the
+# own pass does not know to be fresh.
 use std.collections.PlainList
 
 fn build() -> PlainList[i64]:
