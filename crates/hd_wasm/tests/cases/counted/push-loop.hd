@@ -1,8 +1,9 @@
 # @dump: wat
 # @build: v8 release
-# A push loop over a `PlainList` (#2369): one count load, one length and
-# capacity compare, the store and the length store per value; the growth
-# and the copy of a shared block are the cold `reserve_slow` call.
+# A push loop over a `PlainList` (#2369): the block stays in a local, since
+# the cold `grown` takes it and gives the new one by value; one count load,
+# one length and capacity compare, the store and the length store per
+# value.
 use std.collections.PlainList
 
 fn build(n: i64) -> PlainList[i64]:

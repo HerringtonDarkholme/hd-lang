@@ -102,7 +102,7 @@ impl[T] PlainList[T]:
     pub fn push(&mut self, value: T) -> void:
         n := self.block.len
         if !is_unique(self.block) || n == self.block.cap:
-            self.reserve_slow(n + 1)
+            self.block = PlainList::[T].grown(self.block, n + 1, is_unique(self.block))
         self.elems().offset(n).write(value)
         self.head().as_mut().len = n + 1
 
@@ -112,7 +112,7 @@ impl[T] PlainList[T]:
         if index >= self.len():
             panic_with("index-out-of-bounds", "list index out of bounds")
         if !is_unique(self.block):
-            self.reserve_slow(0)
+            self.block = PlainList::[T].grown(self.block, 0, false)
         at := self.elems().offset(index)
         if needs_drop::[T]():
             _ := at.read()
@@ -124,7 +124,7 @@ impl[T] PlainList[T]:
         if n == 0:
             return .None
         if !is_unique(self.block):
-            self.reserve_slow(0)
+            self.block = PlainList::[T].grown(self.block, 0, false)
         self.head().as_mut().len = n - 1
         .Some(self.elems().offset(n - 1).read())
 
@@ -134,7 +134,7 @@ impl[T] PlainList[T]:
         if index > n:
             panic_with("index-out-of-bounds", "list insert index out of bounds")
         if !is_unique(self.block) || n == self.capacity():
-            self.reserve_slow(n + 1)
+            self.block = PlainList::[T].grown(self.block, n + 1, is_unique(self.block))
         e := self.elems()
         size := size_of::[T]()
         copy_bytes(e.offset(index + 1).address, e.offset(index).address, (n - index) * size)
@@ -148,7 +148,7 @@ impl[T] PlainList[T]:
         if index >= n:
             panic_with("index-out-of-bounds", "list remove index out of bounds")
         if !is_unique(self.block):
-            self.reserve_slow(0)
+            self.block = PlainList::[T].grown(self.block, 0, false)
         e := self.elems()
         out := e.offset(index).read()
         copy_bytes(e.offset(index).address, e.offset(index + 1).address, (n - index - 1) * size_of::[T]())
@@ -161,7 +161,7 @@ impl[T] PlainList[T]:
         if len >= n:
             return
         if !is_unique(self.block):
-            self.reserve_slow(0)
+            self.block = PlainList::[T].grown(self.block, 0, false)
         # The length first: a value's drop sees the list already short.
         self.head().as_mut().len = len
         if needs_drop::[T]():
@@ -175,23 +175,24 @@ impl[T] PlainList[T]:
     pub fn reserve(&mut self, additional: usize) -> void:
         need := self.len() + additional
         if !is_unique(self.block) || need > self.capacity():
-            self.reserve_slow(need)
+            self.block = PlainList::[T].grown(self.block, need, is_unique(self.block))
 
     ## A cursor yielding the values by copy, as `for x in list` does.
     pub fn iter['a](&'a self) -> PlainListIter[T, 'a]:
         start := self.elems()
         PlainListIter { list: self, at: start, end: start.offset(self.len()).address }
 
-    # Makes the block unique with room for `need` values: a unique block
-    # grows geometrically (the most of need, twice the capacity, and 4); a
-    # shared one is copied at the most of need and the length.
+    # A unique block with room for `need` values in place of `old`, which
+    # the caller replaces with it: a unique `old` (`unique`, tested by the
+    # caller before this call's copy of it) grows geometrically (the most
+    # of need, twice the capacity, and 4) and its values move; a shared
+    # one is copied at the most of need and the length. The block goes in
+    # and out by value, so a caller's loop never lends its list to this
+    # cold call and keeps the block in a local.
     @inline(.Never)
-    fn reserve_slow(&mut self, need: usize) -> void:
-        n := self.len()
-        cap := self.capacity()
-        unique := is_unique(self.block)
-        if unique && need <= cap:
-            return
+    fn grown(old: *ListHead[T], need: usize, unique: bool) -> *ListHead[T]:
+        n := old.len
+        cap := old.cap
         let mut want = n
         if want < need:
             want = need
@@ -202,7 +203,7 @@ impl[T] PlainList[T]:
                 want = 4
         fresh := PlainList::[T].alloc(want, n)
         to := Ptr::[T] { address: tail_of(fresh, align_of::[T]()).address }
-        from := self.elems()
+        from := Ptr::[T] { address: tail_of(old, align_of::[T]()).address }
         if unique || !needs_drop::[T]():
             copy_bytes(to.address, from.address, n * size_of::[T]())
         else:
@@ -213,8 +214,8 @@ impl[T] PlainList[T]:
                 i += 1
         if unique:
             # The values moved: the old block's last release drops none.
-            self.head().as_mut().len = 0
-        self.block = fresh
+            Ptr::[ListHead[T]] { address: tail_of(old, 1).address - size_of::[ListHead[T]]() }.as_mut().len = 0
+        fresh
 
 impl[T] Index[usize] for PlainList[T]:
     type Out = T
