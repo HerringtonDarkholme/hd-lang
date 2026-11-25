@@ -73,7 +73,14 @@ something runs it. Scalar replacement is built: `sroa` (`sroa.rs`, #2365,
 ownership passes. It forwards a reference bound once to a local's field
 path to that path, spills such a local around a cold call that keeps its
 address, and deletes the bindings left unused, so the storage pass gives
-the local no slot and its fields are Wasm locals. `summaries` is declared, and the
+the local no slot and its fields are Wasm locals. After it, `known_ctor`
+(`known_ctor.rs`, #2367) sends an inlined body's enum constructors
+straight to the arms of the `match` that reads them (case of known
+constructor), so a `for` over a user iterator keeps no tag; and
+`prove::loop_loads` (`prove/loop_loads.rs`, #2368) hoists a load through
+a reference out of a loop that writes no memory (the loan rules
+`ref.excl.*` stand in for alias analysis) and drops a bounds guard a
+dominating `i < n` decides. `summaries` is declared, and the
 driver does that work: it owns bodies
 callees first, in `inline::bottom_up`'s order, and records their release
 summaries ([§9](#9-release-summaries)); the inliner
