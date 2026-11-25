@@ -47,7 +47,7 @@ use hd_types::Ty;
 const DEPTH: usize = 16;
 
 /// The intrinsic calls that write no memory and always return.
-const PURE: &[&str] = &[
+pub(super) const PURE: &[&str] = &[
     "counted_tail",
     "ptr_offset",
     "ptr_ref",

@@ -39,6 +39,7 @@ use hd_tir::own::ElementChecks;
 use hd_types::{Prim, Ty};
 
 mod loop_loads;
+mod unique_flags;
 
 /// The type and call facts the proofs read, which the backend's layout
 /// decides: the driver answers them from `hd_layout` and the call record.
@@ -53,6 +54,12 @@ pub trait Cx {
     fn length_name(&self) -> hd_base::Symbol;
     /// The name of a hidden local holding a load hoisted out of a loop.
     fn load_name(&self) -> hd_base::Symbol;
+    /// Whether every result of `callee` is a counted block nothing else
+    /// holds (`hd_tir::own::OwnCx::returns_unique`).
+    fn returns_unique(&self, callee: &Callee) -> bool {
+        let _ = callee;
+        false
+    }
     /// Whether `t` is a tuple.
     fn tuple(&self, t: Ty) -> bool;
     /// The type reference type `t` refers to, and whether it is fat.
@@ -141,6 +148,7 @@ pub fn run(b: &mut Body, cx: &dyn Cx, release: bool) -> Result<(), String> {
     }
     if release {
         loop_loads::run(b, cx)?;
+        unique_flags::run(b, cx)?;
     }
     Ok(())
 }
