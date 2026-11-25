@@ -101,7 +101,10 @@ pub(crate) struct Tables {
     /// Per value and per local: whether it may become an address
     /// ([`addresses`]).
     addr: Vec<bool>,
-    laddr: Vec<bool>,
+    /// Per local, the places in it a read of which may become an address:
+    /// records of a length and that many step codes
+    /// ([`PlaceView::push_steps`]).
+    laddr: Vec<Vec<u32>>,
     /// The candidates a use lets escape.
     out: Origins,
     /// The candidates the last run found frame locals.
@@ -762,18 +765,26 @@ pub fn store_finds_empty(b: &Body, topo: &Topology, i: usize) -> bool {
     true
 }
 
-/// Whether instruction `i` reads, out of a local's own storage, a plain
-/// value that owns nothing and holds no reference (an integer), which may
-/// then become an address into what the local owns (`Arc.block`). A value
-/// that owns what it points to carries that ownership itself.
+/// Whether instruction `i` reads, out of a local's own storage, a raw
+/// address: a value the passes do not track, an integer (`Arc.block`) or
+/// a `Ptr` (`Buffer.ptr`), which may then become a reference into what
+/// the local owns. Such a value carries no origin of its own, so the
+/// storage it was read out of is the only owner of its referent the
+/// passes can name, as the local a reference to it would be had the read
+/// gone through one (`[*$self .buffer .ptr]` before sroa forwards
+/// `self`). A tracked value, a reference or one that owns what it points
+/// to, carries its origin or its ownership itself.
 fn address_read(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
-    let ty = b.ty[i];
     b.tags[i] == Tag::Read
         && b.view(b.data[i][0]).in_place(b)
         && b.view(b.data[i][0]).local().is_some()
-        && !cx.counted(ty)
-        && !cx.holds_ref(ty)
-        && cx.holds_drop(ty) == super::Tri::No
+        && raw_address(cx, b.ty[i])
+}
+
+/// Whether a value of `ty` is a raw address, when it is one: the passes
+/// track nothing in it (no reference, count or `Drop` value).
+fn raw_address(cx: &dyn OwnCx, ty: hd_types::Ty) -> bool {
+    !cx.tracked(ty) && cx.holds_drop(ty) == super::Tri::No
 }
 
 /// The place word of value `v` when it is a read of all of a local
@@ -1074,16 +1085,33 @@ fn grow(set: &mut Origins, m: Origins) -> bool {
 /// Marks in `t.addr` each value that may become an address, and in
 /// `t.laddr` each local: a field of a value built that may hold a
 /// reference (`Ptr { address: .. }`, where an integer gains a referent),
-/// and, backward, an operand of a `Prim` or a call that is one
+/// the pointer a reference is made from (`Ptr.as_ref`, `Ptr.as_mut`:
+/// [`OwnCx::plain_result`]), and, backward, an operand of a `Prim` or a call that is one
 /// (`address_of(&x) + 8`), the tail of a block and the blocks of a
 /// branch that is one, the value a `Break` gives one, and the value
-/// stored into a local a read of which is one. [`step`] carries origins
-/// through these values only: other integers point nowhere. Cost: one
-/// backward pass over the body, and one more where a local becomes an
-/// address.
+/// stored where a read of one may find it: a store whose place overlaps
+/// such a read's (one's steps a prefix of the other's, an element step
+/// matching any index). A read of `[$x .buffer .ptr]` reaches back to a
+/// store of all of `$x` or of `.buffer`, never to one of `.len`, so a
+/// list's length stays an integer that points nowhere. [`step`] carries
+/// origins through these values only: other integers point nowhere.
+///
+/// Cost: one backward pass over the body, and one more each time a local
+/// gains an addressed place. A store compares its steps with its local's
+/// addressed places, whose number the local's type bounds (each distinct
+/// field path, element steps merged), not the body.
 fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
     fill(&mut t.addr, b.len(), false);
-    fill(&mut t.laddr, b.local_ty.len(), false);
+    t.laddr.truncate(b.local_ty.len());
+    t.laddr.iter_mut().for_each(Vec::clear);
+    t.laddr.resize_with(b.local_ty.len(), Vec::new);
+    let mut path = Vec::new();
+    let steps = |a: u32, path: &mut Vec<u32>| {
+        path.clear();
+        let v = b.view(a);
+        v.push_steps(b, path);
+        v.local()
+    };
     let (mut ops, mut found) = (Vec::new(), std::mem::take(&mut t.ops));
     let mut value_operands = |i: usize, ops: &mut Vec<u32>| {
         operands(b, i, &mut found);
@@ -1102,13 +1130,33 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 {
                     ops.push(w);
                 }
-                Tag::Store if b.view(a).local().is_some_and(|l| t.laddr[l as usize]) => ops.push(w),
+                Tag::Store
+                    if steps(a, &mut path)
+                        .is_some_and(|l| overlaps(&t.laddr[l as usize], &path)) =>
+                {
+                    ops.push(w);
+                }
+                // A tracked value read whole (a `UniqList` copied around a
+                // spill) carries its parts' origins itself (`step`), so
+                // only a raw address names the place it came from.
                 Tag::Read if t.addr[i] => {
-                    if let Some(l) = b.view(a).local() {
-                        again |= !std::mem::replace(&mut t.laddr[l as usize], true);
+                    if raw_address(cx, b.ty[i])
+                        && let Some(l) = steps(a, &mut path)
+                    {
+                        let held = &mut t.laddr[l as usize];
+                        if !records(held).any(|r| r == path.as_slice()) {
+                            held.push(u32_of(path.len()));
+                            held.extend_from_slice(&path);
+                            again = true;
+                        }
                     }
                 }
                 Tag::NewStruct if cx.holds_ref(b.ty[i]) => value_operands(i, &mut ops),
+                Tag::Call
+                    if Callee::from_words(b.record(a)).is_some_and(|c| cx.plain_result(&c)) =>
+                {
+                    value_operands(i, &mut ops);
+                }
                 Tag::Prim
                 | Tag::Block
                 | Tag::Call
@@ -1135,6 +1183,26 @@ fn addresses(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
         }
     }
     t.ops = found;
+}
+
+/// The step-code records of a local's addressed places ([`addresses`]).
+fn records(held: &[u32]) -> impl Iterator<Item = &[u32]> {
+    let mut at = 0;
+    std::iter::from_fn(move || {
+        let n = *held.get(at)? as usize;
+        let r = held.get(at + 1..at + 1 + n)?;
+        at += 1 + n;
+        Some(r)
+    })
+}
+
+/// Whether a place with step codes `path` overlaps an addressed place of
+/// its local: one's steps are a prefix of the other's.
+fn overlaps(held: &[u32], path: &[u32]) -> bool {
+    records(held).any(|r| {
+        let k = r.len().min(path.len());
+        r[..k] == path[..k]
+    })
 }
 
 /// One instruction's constraints: whether any set grew. A read through a
@@ -1164,7 +1232,8 @@ fn step(b: &Body, cx: &dyn OwnCx, t: &mut Tables, ops: &mut Vec<super::Operand>,
                 _ => Origins::default(),
             };
             // An address read out of a local's own storage
-            // (`Ptr { address: self.block + VALUE }` once inlining forwards
+            // (`Ptr { address: self.block + VALUE }`, or
+            // `self.buffer.ptr.offset(i).as_ref()`, once sroa forwards
             // `self` to the local) lives on that storage, as one read
             // through a reference to it does: the local owns what the
             // address points to.

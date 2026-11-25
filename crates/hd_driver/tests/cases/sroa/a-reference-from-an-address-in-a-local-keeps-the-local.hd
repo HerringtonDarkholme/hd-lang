@@ -1,0 +1,116 @@
+# @dump: stdout
+# @build: release std | release checked std
+# Each `Room` method makes a reference from an address in `self`'s
+# storage, one form of address each; each function below reads through it
+# after `room`'s last other use. Once sroa forwards the inlined `self` to
+# `room`, the address is read straight out of the local, and the
+# reference must still keep `room`, whose `Buffer` frees the memory it
+# points into, alive until its last use. A checked build fills freed
+# memory with 0xDE, so an early drop prints 3739147998 (as `field`,
+# `field_mut`, `nested` and `nested_mut` did before this case's commit).
+# Each form is its own function, never inlined into `main`.
+use std.collections.UniqList
+use std.meta.inline
+use std.rt.memory.{Buffer, Ptr, address_of, size_of}
+
+struct Item:
+    v: usize
+
+struct Room:
+    buf: Buffer[Item]
+    len: usize
+
+impl Room:
+    fn new(n: usize) -> Room:
+        let mut r = Room { buf: Buffer::[Item].new(n), len: n }
+        let i: usize = 0
+        while i < n:
+            r.buf.at(i).write(Item { v: i * 10 + 7 })
+            i += 1
+        r
+
+    # A `Ptr` field, through `offset`, into `as_ref`.
+    fn get_ref['a](&'a self, i: usize) -> &'a Item:
+        self.buf.at(i).as_ref()
+
+    # The same into `as_mut`.
+    fn get_mut['a](&'a mut self, i: usize) -> &'a mut Item:
+        self.buf.at(i).as_mut()
+
+    # A `Ptr` kept in a local before `offset` and `as_ref`.
+    fn held['a](&'a self, i: usize) -> &'a Item:
+        p := self.buf.at(0)
+        q := p.offset(i)
+        q.as_ref()
+
+    # The address as a `usize`, kept in a local, then a new `Ptr`.
+    fn round_trip['a](&'a self, i: usize) -> &'a Item:
+        at := self.buf.at(0).address
+        Ptr::[Item] { address: at + i * size_of::[Item]() }.as_ref()
+
+    # `address_of` a part of the local's own storage.
+    fn own_len['a](&'a self) -> &'a usize:
+        Ptr::[usize] { address: address_of(&self.len) }.as_ref()
+
+@inline(.Never)
+fn field() -> usize:
+    room := Room::new(3)
+    item := room.get_ref(2)
+    item.v
+
+@inline(.Never)
+fn field_mut() -> usize:
+    let mut room = Room::new(3)
+    item := room.get_mut(1)
+    item.v += 1
+    item.v
+
+@inline(.Never)
+fn local_ptr() -> usize:
+    room := Room::new(3)
+    item := room.held(2)
+    item.v
+
+@inline(.Never)
+fn integer() -> usize:
+    room := Room::new(3)
+    item := room.round_trip(1)
+    item.v
+
+@inline(.Never)
+fn own_storage() -> usize:
+    room := Room::new(3)
+    len := room.own_len()
+    *len
+
+# The conformance case lane 277 reduced: an element reference of a
+# sorted `UniqList` of `UniqList`s.
+@inline(.Never)
+fn nested() -> usize:
+    let mut groups = UniqList::[UniqList[usize]].new()
+    groups.push(UniqList::[usize].from_list([3, 4, 5]))
+    groups.push(UniqList::[usize].from_list([1]))
+    groups.push(UniqList::[usize].from_list([2, 3]))
+    groups.sort_by(
+        fn(left: &UniqList[usize], right: &UniqList[usize]) -> Ordering:
+            left.len().cmp(&right.len())
+    )
+    groups.get_ref(2).expect("third group").len()
+
+@inline(.Never)
+fn nested_mut() -> usize:
+    let mut groups = UniqList::[UniqList[usize]].new()
+    groups.push(UniqList::[usize].from_list([3, 4, 5]))
+    groups.push(UniqList::[usize].from_list([1]))
+    inner := groups.get_mut(0).expect("first group")
+    inner.push(6)
+    inner.len()
+
+pub fn main() -> void $ Console:
+    println("field ${field()}")
+    println("field_mut ${field_mut()}")
+    println("local_ptr ${local_ptr()}")
+    println("integer ${integer()}")
+    println("own_storage ${own_storage()}")
+    println("nested ${nested()}")
+    println("nested_mut ${nested_mut()}")
