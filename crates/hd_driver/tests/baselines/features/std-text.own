@@ -11,83 +11,80 @@ fn build(parts: &List[string]) -> string:
     sb := StringBuilder::new()
 > app/main/build
 >   local $0 parts: &List[string] [param read] value
->     uses $0: entry -> %12 lend last
+>     uses $0: entry -> %9 lend last
 >   local $1 sb: *mut StringBuilder [:= read assigned] value
->     uses $1: %11 -> %27 lend, %34 lend, %52 lend last
+>     uses $1: %8 -> %24 lend, %31 lend, %49 lend last
 >   local $2 $coll: List[string] [assigned] value
->     uses $2: %14 -> %15 lend, %23 lend
+>     uses $2: %11 -> %12 lend, %20 lend
 >   local $4 $pos: usize [assigned] place
 >   local $5 $end: usize [assigned] value
->     uses $5: %17 -> %20 lend
+>     uses $5: %14 -> %17 lend
 >   local $6 p: string [read assigned] value
->     uses $6: %41 -> %29 lend last
+>     uses $6: %38 -> %26 lend last
 >   local $7 $ref: StringBuilder [read assigned captured captured-assigned] place
->   %0 = Call std/collections.uniq_list/impl[T < ?Copy] UniqList[T].with_capacity[u8] (0:usize) : UniqList[u8]
->   %1 = Break L1 %0 : never
->   %2 = Block - : UniqList[u8]
->   %3 = Scope %2 [] : UniqList[u8]
->   %4 = NewStruct [%3] : StringBuilder
->   %5 = Box #7 #1 : ()
->   %6 = Store [$7] %4 : ()
->   %7 = Ref take mut [$7] : *mut StringBuilder
->   %8 = Break L2 %7 : never
->   %9 = Block - : *mut StringBuilder
->   %10 = Scope %9 [] : *mut StringBuilder
->   %11 = Store [$1] %10 : ()
->   %59 = Block %56 : string
+>   %0 = Call std/rt.bytes/impl TextBuffer.new[] () : TextBuffer
+>   %1 = NewStruct [%0] : StringBuilder
+>   %2 = Box #7 #1 : ()
+>   %3 = Store [$7] %1 : ()
+>   %4 = Ref take mut [$7] : *mut StringBuilder
+>   %5 = Break L1 %4 : never
+>   %6 = Block - : *mut StringBuilder
+>   %7 = Scope %6 [] : *mut StringBuilder
+>   %8 = Store [$1] %7 : ()
+>   %56 = Block %53 : string
     for p in parts:
->   %12 = Read copy [*$0] : List[string]
->   %13 = Retain %12 Value #0 : ()
->   %14 = Store [$2] %12 : ()
->   %15 = Read borrow [$2] : List[string]
->   %16 = Intrinsic ListLen [%15] : usize
->   %17 = Store [$5] %16 : ()
->   %18 = Store [$4] 0:usize : ()
+>   %9 = Read copy [*$0] : List[string]
+>   %10 = Retain %9 Value #0 : ()
+>   %11 = Store [$2] %9 : ()
+>   %12 = Read borrow [$2] : List[string]
+>   %13 = Intrinsic ListLen [%12] : usize
+>   %14 = Store [$5] %13 : ()
+>   %15 = Store [$4] 0:usize : ()
+>   %16 = Read copy [$4] : usize
+>   %17 = Read copy [$5] : usize
+>   %18 = Prim Lt [%16 %17] : bool
 >   %19 = Read copy [$4] : usize
->   %20 = Read copy [$5] : usize
->   %21 = Prim Lt [%19 %20] : bool
->   %22 = Read copy [$4] : usize
->   %23 = Read borrow [$2 [%22]] : string
->   %24 = Read copy [$4] : usize
->   %25 = Prim Add [%24 1:usize] : usize
->   %26 = Store [$4] %25 : ()
->   %39 = Block - : ()
->   %40 = Read borrow [%23] : string
->   %41 = Store [$6] %40 : ()
->   %43 = Block - : never
->   %44 = Match %23 [%43 %39] : ()
->   %45 = Block - : ()
->   %46 = Break L0 - : never
->   %47 = Block - : ()
->   %48 = If %21 [%45 %47] : ()
->   %49 = Block - : ()
->   %50 = Loop %49 - : ()
->   %51 = Drop [$2] : ()
+>   %20 = Read borrow [$2 [%19]] : string
+>   %21 = Read copy [$4] : usize
+>   %22 = Prim Add [%21 1:usize] : usize
+>   %23 = Store [$4] %22 : ()
+>   %36 = Block - : ()
+>   %37 = Read borrow [%20] : string
+>   %38 = Store [$6] %37 : ()
+>   %40 = Block - : never
+>   %41 = Match %20 [%40 %36] : ()
+>   %42 = Block - : ()
+>   %43 = Break L0 - : never
+>   %44 = Block - : ()
+>   %45 = If %18 [%42 %44] : ()
+>   %46 = Block - : ()
+>   %47 = Loop %46 - : ()
+>   %48 = Drop [$2] : ()
         sb.push(p)
->   %27 = Read borrow [$1] : *mut StringBuilder
->   %28 = LoanBegin %27 #0 : ()
->   %29 = Read borrow [$6] : string
->   %30 = LoanBegin %27 #2 : ()
->   %31 = Call std/text/impl StringBuilder.push[] (%27, %29) : ()
->   %32 = Retain %31 Operation operand 1 #0 : ()
->   %33 = LoanClose %28 : ()
+>   %24 = Read borrow [$1] : *mut StringBuilder
+>   %25 = LoanBegin %24 #0 : ()
+>   %26 = Read borrow [$6] : string
+>   %27 = LoanBegin %24 #2 : ()
+>   %28 = Call std/text/impl StringBuilder.push[] (%24, %26) : ()
+>   %29 = Retain %28 Operation operand 1 #0 : ()
+>   %30 = LoanClose %25 : ()
         sb.push(",")
->   %34 = Read borrow [$1] : *mut StringBuilder
->   %35 = LoanBegin %34 #0 : ()
->   %36 = LoanBegin %34 #2 : ()
->   %37 = Call std/text/impl StringBuilder.push[] (%34, ",") : ()
->   %38 = LoanClose %35 : ()
+>   %31 = Read borrow [$1] : *mut StringBuilder
+>   %32 = LoanBegin %31 #0 : ()
+>   %33 = LoanBegin %31 #2 : ()
+>   %34 = Call std/text/impl StringBuilder.push[] (%31, ",") : ()
+>   %35 = LoanClose %32 : ()
     sb.build()
->   %52 = Read move [$1] : *mut StringBuilder
->   %53 = Intrinsic Empty [] : ()
->   %54 = LoanBegin %52 #0 : ()
->   %55 = LoanBegin %52 #2 : ()
->   %56 = Call std/text/impl StringBuilder.build[] (%52) : string
->   %57 = LoanClose %54 : ()
->   %58 = Drop [%52] : ()
+>   %49 = Read move [$1] : *mut StringBuilder
+>   %50 = Intrinsic Empty [] : ()
+>   %51 = LoanBegin %49 #0 : ()
+>   %52 = LoanBegin %49 #2 : ()
+>   %53 = Call std/text/impl StringBuilder.build[] (%49) : string
+>   %54 = LoanClose %51 : ()
+>   %55 = Drop [%49] : ()
 >   storage sub 0: $7 cell
 >   summary kept [$0] writes relies [$0]
->   loop %50 keeps [$2] (%14..%51)
+>   loop %47 keeps [$2] (%11..%48)
 
 fn fields(line: string) -> usize:
     let mut n = 0

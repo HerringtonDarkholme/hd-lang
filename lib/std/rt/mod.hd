@@ -11,6 +11,7 @@ pub use std.rt.alloc.{alloc, free_block}
 pub use std.rt.bytes.{
     ByteBuffer,
     TextRoom,
+    TextBuffer,
     TextSink,
     bytes_at,
     bytes_concat,

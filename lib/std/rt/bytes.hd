@@ -67,6 +67,81 @@ pub trait TextSink < ?Copy:
     fn append_signed(&mut self, value: i64) -> void
     fn append_unsigned(&mut self, value: u64) -> void
 
+# A private unique byte accumulator: Buffer owns the room and frees it,
+# while len counts initialized bytes. Dropping its u8 payload needs no
+# per-element loop.
+pub struct TextBuffer:
+    buffer: Buffer[u8]
+    len: usize
+
+impl TextBuffer:
+    pub fn new() -> TextBuffer:
+        TextBuffer { buffer: Buffer::[u8].new(0), len: 0 }
+
+impl TextSink for TextBuffer:
+    @inline(.Always)
+    fn append_text(&mut self, text: string) -> void:
+        size := bytes_len(text)
+        if size == 0:
+            return
+        destination := self.spare(size)
+        copy_bytes(destination.address, string_bytes(text).address, size)
+        self.advance(size)
+
+    @inline(.Never)
+    fn append_signed(&mut self, value: i64) -> void:
+        destination := self.spare(20)
+        digits := format_signed(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.advance(digits._1)
+
+    @inline(.Never)
+    fn append_unsigned(&mut self, value: u64) -> void:
+        destination := self.spare(20)
+        digits := format_unsigned(value, destination)
+        copy_bytes(destination.address, destination.address + digits._0, digits._1)
+        self.advance(digits._1)
+
+impl ByteBuffer for TextBuffer:
+    @inline(.Never)
+    fn push_byte(&mut self, byte: u8) -> void:
+        self.spare(1).write(byte)
+        self.advance(1)
+
+    @inline(.Always)
+    fn spare(&mut self, additional: usize) -> Ptr[u8]:
+        if additional > self.buffer.capacity() - self.len:
+            self.grow_bytes(additional)
+        self.buffer.at(self.len)
+
+    @inline(.Always)
+    fn advance(&mut self, count: usize) -> void:
+        self.len += count
+
+    fn take_text(&mut self) -> string:
+        size := self.len
+        self.len = 0
+        string_from_buffer(self.buffer.take(), size)
+
+    fn copy_text(&self) -> string:
+        out := new_string(self.len)
+        copy_bytes(string_bytes(out).address, self.buffer.at(0).address, self.len)
+        out
+
+impl TextBuffer:
+    @inline(.Never)
+    fn grow_bytes(&mut self, additional: usize) -> void:
+        minimum := collection_capacity_sum(self.len, additional)
+        let capacity = self.buffer.capacity()
+        if capacity == 0:
+            capacity = 4
+        while capacity < minimum:
+            if capacity > 0x7fff0000:
+                capacity = minimum
+                break
+            capacity *= 2
+        self.buffer.grow(capacity)
+
 # A copyable serializer must keep independent output snapshots. Its room is
 # an initialized, counted string at the allocation's payload start, with a
 # separate used length. Only std can name or mutate this internal storage.
