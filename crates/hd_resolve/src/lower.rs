@@ -10303,6 +10303,90 @@ mod prelude_tests {
         assert_eq!(exports, expected);
     }
 
+    /// A partial std source is a valid resolver input while its interface
+    /// is being built. Missing/private exports must not become bindings.
+    #[test]
+    fn partial_prelude_binds_only_exports_present_in_the_source() -> Result<(), &'static str> {
+        use super::{Cx, ModIn, World, build_unit};
+        use crate::{BindingKind, KnownItems, Names, Origin, UnitIface};
+        use hd_base::FileId;
+        use hd_diag::DiagBuf;
+        use hd_intern::{PathTable, ShardedInterner};
+        use hd_project::UseRoots;
+        use hd_types::InternPool;
+        use std::sync::Arc;
+
+        struct PartialStd;
+        impl World for PartialStd {
+            fn module_unit(&self, module: &str) -> Option<u32> {
+                matches!(module, "std.cmp" | "app").then_some(0)
+            }
+            fn usable(&self, module: &str) -> bool {
+                self.module_unit(module).is_some()
+            }
+            fn test_only(&self, _: &str) -> bool {
+                false
+            }
+            fn published(&self, module: &str) -> Option<bool> {
+                self.usable(module).then_some(false)
+            }
+            fn iface(&self, _: u32) -> Option<Arc<UnitIface>> {
+                None
+            }
+        }
+
+        let text = include_str!("../tests/fixtures/partial-prelude/cmp.hd");
+        let parsed = hd_syntax::parse(text.as_bytes());
+        assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
+        let empty = hd_syntax::parse(b"");
+        let pool = InternPool::new();
+        let paths = PathTable::new();
+        let syms = ShardedInterner::default();
+        let known = KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let cx = Cx {
+            names,
+            unit: 0,
+            world: &PartialStd,
+        };
+        let mods: Vec<_> = [(0, "std.cmp", text, &parsed), (1, "app", "", &empty)]
+            .into_iter()
+            .map(|(file, path, text, parse)| ModIn {
+                path: path.into(),
+                roots: UseRoots::default(),
+                src: Src {
+                    parse,
+                    text,
+                    file: FileId::from_raw(file),
+                },
+                seeds: Vec::new(),
+                tests: false,
+                session: None,
+            })
+            .collect();
+        let mut diags = DiagBuf::default();
+        let out = build_unit(&cx, &mods, None, &mut diags);
+        assert!(diags.is_empty(), "{:?}", diags.code);
+        let scope = &out.modules.get(1).ok_or("app module")?.scope;
+        let eq = syms.intern("Eq");
+        let binding = scope.lookup(eq).ok_or("public Eq binding")?;
+        assert_eq!(binding.kind, BindingKind::Item);
+        assert_eq!(binding.value, names.item("std.cmp", "Eq").raw());
+        let row = scope.index[&eq] as usize;
+        assert_eq!(scope.origin[row], Origin::Prelude);
+        for absent in ["Ord", "PartialOrd", "Ordering", "Display", "i32"] {
+            assert_eq!(scope.lookup(syms.intern(absent)), None, "{absent}");
+        }
+        assert_eq!(out.exports.len(), 1);
+        assert_eq!(out.exports[0].def, names.item("std.cmp", "Eq"));
+        Ok(())
+    }
+
     #[test]
     fn ordinary_prelude_matches_its_hd_exports() {
         assert_exports(include_str!("../../../lib/std/prelude.hd"), PRELUDE);
