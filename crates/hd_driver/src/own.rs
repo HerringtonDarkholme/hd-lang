@@ -365,7 +365,7 @@ impl Env<'_> {
         };
         match self.intrinsic(*def).as_deref() {
             Some("mem_new_string") => CallMemory::Allocate,
-            Some("mem_string_bytes" | "ptr_offset") => CallMemory::Derive(0),
+            Some("mem_string_bytes" | "ptr_offset" | "counted_tail") => CallMemory::Derive(0),
             Some(
                 "mem_store_u8"
                 | "mem_store_u16"

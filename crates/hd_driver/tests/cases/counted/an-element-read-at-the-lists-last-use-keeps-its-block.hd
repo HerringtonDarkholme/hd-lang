@@ -1,0 +1,16 @@
+# @dump: stdout
+# @build: release checked
+# An element read through `index` at the list's last use (#2369): the
+# reference is made from the block's tail address, which holds no count,
+# so the list's drop waits for the read. A drop before it frees the block
+# and the checked build reads its poison.
+use std.collections.PlainList
+
+fn last(n: i64) -> i64:
+    let mut xs = PlainList::[i64].new()
+    xs.push(n)
+    xs.push(n + 1)
+    xs[1]
+
+pub fn main() -> void $ Console:
+    println("${last(3)}")
