@@ -247,9 +247,6 @@ pub(super) fn summary_line(body: &Body, all: &Summaries) -> String {
     if s.writes {
         line.push_str(" writes");
     }
-    if s.fresh {
-        line.push_str(" fresh");
-    }
     if let Some((relies, _)) = all.exclusive(node) {
         let on: Vec<String> = (params.iter().enumerate())
             .filter(|&(k, _)| k < 64 && relies & (1 << k) != 0)
@@ -501,30 +498,6 @@ impl hd_opt::prove::Cx for Env<'_> {
             Callee::TraitMethod { .. } => None,
         }
     }
-    fn returns_unique(&self, callee: &Callee) -> bool {
-        self.fresh_callee(callee)
-    }
-}
-
-impl Env<'_> {
-    /// Whether every result of `callee` is a counted block nothing else
-    /// holds: `alloc_counted`, or an instance whose summary says so
-    /// (`hd_tir::own::unique::fresh_result`). One read before the callee's
-    /// summary is recorded is no.
-    fn fresh_callee(&self, callee: &Callee) -> bool {
-        let Callee::Item { def, .. } = callee else {
-            return false;
-        };
-        if ProgramEnv::intrinsic(self, *def).as_deref() == Some("counted_alloc") {
-            return true;
-        }
-        let Some(all) = &self.run.summaries else {
-            return false;
-        };
-        self.callee_node(callee)
-            .and_then(|node| all.of(node))
-            .is_some_and(|s| s.fresh)
-    }
 }
 
 impl OwnCx for Env<'_> {
@@ -746,10 +719,6 @@ impl OwnCx for Env<'_> {
     fn keeps_unique(&self, callee: &Callee) -> bool {
         // `rt:list_reserve` copies a buffer it does not own.
         matches!(callee, Callee::Item { def, .. } if self.intrinsic(*def).as_deref() == Some("list_reserve"))
-    }
-
-    fn returns_unique(&self, callee: &Callee) -> bool {
-        self.fresh_callee(callee)
     }
 
     fn counted(&self, ty: Ty) -> bool {
